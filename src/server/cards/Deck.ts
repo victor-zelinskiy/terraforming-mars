@@ -146,13 +146,6 @@ export class Deck<T extends ICard> {
   }
 
   /**
-   * @deprecated use drawByConditionOrThrow, or create a safer version of drawByCondition
-   */
-  public drawByConditionLegacy(logger: Logger, total: number, include: (card: T) => boolean, onReveal?: RevealObserver<T>) {
-    return this.drawByConditionOrThrow(logger, total, include, onReveal);
-  }
-
-  /**
    * `onReveal` observes each card AS IT IS TURNED OVER, in real deck order,
    * with the verdict that decided its fate. The search itself is unchanged —
    * the observer only lets a caller keep the ORDER + the discarded cards,

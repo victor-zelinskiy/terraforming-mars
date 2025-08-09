@@ -114,7 +114,7 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       const failedTags = matched ? [] : noTags ? tagsBarringNoTagsSearch(card) : forbiddenTagsOn(this.player, card, withoutTags);
       this.revealSequence.push(failedTags.length > 0 ? {card, matched, failedTags} : {card, matched});
     };
-    const cards = game.projectDeck.drawByConditionLegacy(game, this.count, (card) => {
+    const cards = game.projectDeck.drawByConditionOrThrow(game, this.count, (card) => {
       if (this.options.resource !== undefined && this.options.resource !== card.resourceType) {
         return false;
       }
