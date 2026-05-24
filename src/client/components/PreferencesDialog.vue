@@ -20,6 +20,12 @@
       </div>
       <div class="preferences_panel_item">
         <label class="form-switch">
+          <input type="checkbox" v-on:change="updatePreferences" v-model="prefs.fullscreen_cards_on_dblclick" data-test="fullscreen_cards_on_dblclick">
+          <i class="form-icon"></i> <span v-i18n>Fullscreen card on double-click</span>
+        </label>
+      </div>
+      <div class="preferences_panel_item">
+        <label class="form-switch">
           <input type="checkbox" v-on:change="updatePreferences" v-model="prefs.hide_discount_on_cards" data-test="hide_discount_on_cards">
           <i class="form-icon"></i> <span v-i18n>Hide discount on cards</span>
         </label>

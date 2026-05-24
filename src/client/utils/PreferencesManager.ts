@@ -2,6 +2,7 @@ export type Preferences = {
   learner_mode: boolean,
   enable_sounds: boolean,
   magnify_cards: boolean,
+  fullscreen_cards_on_dblclick: boolean,
   show_alerts: boolean,
   hide_hand: boolean,
   hide_awards_and_milestones: boolean,
@@ -29,6 +30,7 @@ const defaults: Preferences = {
   learner_mode: true,
   enable_sounds: true,
   magnify_cards: true,
+  fullscreen_cards_on_dblclick: true,
   show_alerts: true,
   lang: 'en',
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="card-container filterDiv hover-hide-res" :class="cardClasses">
+  <div class="card-container filterDiv hover-hide-res" :class="cardClasses" @dblclick="onDoubleClick">
       <div class="card-content-wrapper" v-i18n @mouseover="hovering = true" @mouseleave="hovering = false">
           <div v-if="!isStandardProject" class="card-cost-and-tags">
               <CardCost :amount="cost" :newCost="reducedCost" />
@@ -19,12 +19,13 @@
       <CardVictoryPoints v-if="cardMetadata.victoryPoints" :victoryPoints="cardMetadata.victoryPoints" />
       <CardExtraContent :card="card" />
       <slot/>
+      <CardZoomModal v-if="showZoom" ref="zoomModal" :card="card" :actionUsed="actionUsed" @close="showZoom = false" />
   </div>
 </template>
 
 <script lang="ts">
 
-import {defineComponent} from 'vue';
+import {defineComponent, defineAsyncComponent, nextTick} from 'vue';
 
 import {CardModel} from '@/common/models/CardModel';
 import {CARD_HELP_TEXT} from '@/client/cards/CardHelpText';
@@ -47,6 +48,8 @@ import {Color} from '@/common/Color';
 import {CardRequirementDescriptor} from '@/common/cards/CardRequirementDescriptor';
 import {GameModule} from '@/common/cards/GameModule';
 
+const CardZoomModal = defineAsyncComponent(() => import('./CardZoomModal.vue'));
+
 
 export default defineComponent({
   name: 'Card',
@@ -60,6 +63,7 @@ export default defineComponent({
     CardTags,
     CardContent,
     CardVictoryPoints,
+    CardZoomModal,
   },
   props: {
     card: {
@@ -95,6 +99,7 @@ export default defineComponent({
     return {
       cardInstance: card,
       hovering: false,
+      showZoom: false,
     };
   },
   computed: {
@@ -205,6 +210,17 @@ export default defineComponent({
     },
     playerCubeClass(): string {
       return `board-cube board-cube--${this.cubeColor}`;
+    },
+  },
+  methods: {
+    onDoubleClick() {
+      if (!getPreferences().fullscreen_cards_on_dblclick) {
+        return;
+      }
+      this.showZoom = true;
+      nextTick(() => {
+        (this.$refs as any).zoomModal?.show();
+      });
     },
   },
 });
