@@ -51,17 +51,19 @@ The `@/` import alias maps to `./src/` (configured in tsconfig paths and webpack
 
 Cards are the core domain object (~1000 cards across 15 modules). Each card involves:
 
-1. **Card class** (`src/server/cards/<module>/CardName.ts`) - Extends `Card`, defines cost, tags, requirements, behavior, and metadata. Simple cards are purely declarative via the `behavior` property. Complex cards override `play()`, `action()`, `canAct()`, etc.
+1. **Card class** (`src/server/cards/<module>/CardName.ts`) - Extends `Card` (or `ActionCard` for cards with repeatable actions). Defines cost, tags, requirements, behavior, and metadata. Simple cards are purely declarative via the `behavior` property. Complex cards override `bespokePlay()`, `bespokeCanPlay()`, `bespokeCanAct()`, `bespokeAction()`.
 2. **CardName enum entry** (`src/common/cards/CardName.ts`) - Every card needs an enum value here.
-3. **Module manifest** (`src/server/cards/<module>/<Module>CardManifest.ts`) - Registers the card's factory in a `ModuleManifest`. All manifests aggregate in `AllManifests.ts`.
+3. **Module manifest** (`src/server/cards/<module>/<Module>CardManifest.ts`) - Registers the card's factory in a `ModuleManifest`. Base cards use `StandardCardManifests.ts`. All manifests aggregate in `AllManifests.ts`.
 4. **Card renderer** - Defined inline in the card's `metadata.renderData` using the `CardRenderer.builder()` DSL.
 5. **Test** (`tests/cards/<module>/CardName.spec.ts`) - Uses `testGame()` and `TestPlayer` helpers.
 
 Card types: `EVENT`, `ACTIVE` (has action), `AUTOMATED`, `PRELUDE`, `CORPORATION`, `CEO`, `STANDARD_PROJECT`, `STANDARD_ACTION`.
 
+**Card vs ActionCard**: Extend `Card` for automated/event cards. Extend `ActionCard` for ACTIVE cards with a repeatable action — `ActionCard` enforces that an `action` behavior is defined and provides `canAct()`/`action()` wiring automatically.
+
 ### Behavior System
 
-The `Behavior` type (`src/server/behavior/Behavior.ts`) is a declarative DSL for card effects: production changes, resource gains, tile placement, TR changes, etc. Cards set `behavior` (on play) and/or `action` (repeatable) properties. The `BehaviorExecutor` (`src/server/behavior/Executor.ts`) interprets these at runtime. Prefer declarative `behavior` over imperative `play()` overrides when possible.
+The `Behavior` type (`src/server/behavior/Behavior.ts`) is a declarative DSL for card effects: production changes, resource gains/losses, tile placement, TR changes, global parameter increases, drawing cards, etc. Cards set `behavior` (on play) and/or `action` (repeatable) properties. The `BehaviorExecutor` (`src/server/behavior/Executor.ts`) interprets these at runtime. Prefer declarative `behavior` over imperative `bespokePlay()` overrides when possible.
 
 ### Deferred Actions
 
@@ -85,9 +87,10 @@ Pluggable backends in `src/server/database/`: `SQLite`, `PostgreSQL`, `LocalFile
 
 ### Testing Patterns
 
-- **`testGame(n, options?)`** - Creates a game with n players, returns `[game, ...players]`. Skips initial card selection by default.
-- **`TestPlayer`** - Extends `Player` with test utilities. Use static factories: `TestPlayer.BLUE`, `TestPlayer.RED`, etc.
-- Server card tests: instantiate the card, call `canPlay()`/`play()`/`action()`, assert state changes.
+- **`testGame(n, options?)`** (`tests/TestGame.ts`) - Creates a game with n players, returns `[game, ...players]` as a tuple. Skips initial card selection and disables Ares hazards by default.
+- **`TestPlayer`** (`tests/TestPlayer.ts`) - Extends `Player` with test utilities like `popWaitingFor()`.
+- **Test utilities** (`tests/TestingUtils.ts`) - Key helpers: `runAllActions(game)` (process deferred action queue), `cast(value, class)` (type-safe cast for PlayerInputs), `setOxygenLevel()`, `setTemperature()`, `addOcean()`, `addGreenery()`, `addCity()`, `fakeCard()`.
+- Server card tests: instantiate the card, call `canPlay()`/`play()`/`action()`, assert state changes. Call `runAllActions(game)` after actions that queue deferred actions.
 - Client tests: use `@vue/test-utils` mount/shallowMount with JSDOM setup from `tests/client/components/setup.ts`.
 - Test framework: Mocha + Chai (expect style). Client tests use mochapack.
 
@@ -95,6 +98,11 @@ Pluggable backends in `src/server/database/`: `SQLite`, `PostgreSQL`, `LocalFile
 
 Custom i18n via `src/client/directives/i18n.ts` with `v-i18n` directive. Translation files in `src/locales/`. Strings are matched by exact text content.
 
+### Logging
+
+Game actions are logged via `game.log()` and `player.log()` which accept template strings with `${player}`, `${card}`, `${amount}` style placeholders and corresponding `LogMessageData` entries. Log statements appear in the game's action log visible to players.
+
 ## Style Guide
 
 - Follow the style of the code around the file. If this is a new file, follow the style of the code in the directory.
+- ESLint uses flat config (`eslint.config.mjs`). Run `npm run lint:fix` for autofix.
