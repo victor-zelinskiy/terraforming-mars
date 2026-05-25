@@ -22,7 +22,6 @@
                 <div class="played-cards-count">{{numberOfPlayedCards()}}</div>
               </div>
             </div>
-            <AppButton class="played-cards-button" size="tiny" @click="togglePlayerDetails" :title="buttonLabel()" />
           </div>
           <div class="tag-display player-board-blue-action-counter" :class="tooltipCss" :data-tooltip="$t('The number of available actions on active cards')">
             <div class="tag-count tag-action-card">
@@ -47,7 +46,6 @@ import PlayerStatus from '@/client/components/overview/PlayerStatus.vue';
 import {playerColorClass} from '@/common/utils/utils';
 import {vueRoot} from '@/client/components/vueRoot';
 import {range} from '@/common/utils/utils';
-import AppButton from '@/client/components/common/AppButton.vue';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {Phase} from '@/common/Phase';
@@ -87,7 +85,6 @@ export default defineComponent({
     },
   },
   components: {
-    AppButton,
     PlayerResources,
     PlayerTags,
     PlayerAlliedParty,
@@ -128,9 +125,6 @@ export default defineComponent({
       } else {
         this.unpin(this.playerIndex);
       }
-    },
-    buttonLabel(): string {
-      return this.isPinned(this.playerIndex) ? 'hide' : 'show';
     },
     togglePlayerDetails() {
       this.pinPlayer();
