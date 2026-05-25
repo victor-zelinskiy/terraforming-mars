@@ -14,8 +14,15 @@
     <global-parameter-value v-if="gameOptions.expansions.venus" :param="globalParameter.VENUS" :value="venus"></global-parameter-value>
     <MoonGlobalParameterValue v-if="moonData" :moonData="moonData"></MoonGlobalParameterValue>
   </div>
-  <div class="sidebar_item preferences_player" :title="$t('Player Color Cube')">
+  <div class="sidebar_item preferences_player sidebar_player_switch" :title="$t('Player Color Cube')"
+    v-on:click="$emit('selectPlayer', player_color)">
     <div :class="getPlayerColorCubeClass()+' player_bg_color_' + player_color"></div>
+  </div>
+  <div v-for="p in otherPlayers" :key="p.color"
+    class="sidebar_item preferences_player sidebar_player_switch"
+    :title="p.name"
+    v-on:click="$emit('selectPlayer', p.color)">
+    <div :class="getOtherPlayerCubeClass(p) + ' player_bg_color_' + p.color"></div>
   </div>
 
   <a href="#board" :title="$t('Jump to board')">
@@ -73,6 +80,7 @@
 
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getPreferences, PreferencesManager} from '@/client/utils/PreferencesManager';
 import {TurmoilModel} from '@/common/models/TurmoilModel';
 import {PartyName} from '@/common/turmoil/PartyName';
@@ -149,7 +157,12 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    players: {
+      type: Array as () => Array<PublicPlayerModel>,
+      required: true,
+    },
   },
+  emits: ['selectPlayer'],
   components: {
     'game-setup-detail': GameSetupDetail,
     'global-parameter-value': GlobalParameterValue,
@@ -168,6 +181,9 @@ export default defineComponent({
   methods: {
     getPlayerColorCubeClass(): string {
       return this.acting_player && (getPreferences().hide_animated_sidebar === false) ? 'preferences_player_inner active' : 'preferences_player_inner';
+    },
+    getOtherPlayerCubeClass(p: PublicPlayerModel): string {
+      return p.isActive && (getPreferences().hide_animated_sidebar === false) ? 'preferences_player_inner active' : 'preferences_player_inner';
     },
     getSideBarClass(): string {
       return this.acting_player && (getPreferences().hide_animated_sidebar === false) ? 'preferences_acting_player' : 'preferences_nonacting_player';
@@ -201,6 +217,9 @@ export default defineComponent({
   computed: {
     preferencesManager(): PreferencesManager {
       return PreferencesManager.INSTANCE;
+    },
+    otherPlayers(): Array<PublicPlayerModel> {
+      return this.players.filter((p) => p.color !== this.player_color);
     },
   },
 });

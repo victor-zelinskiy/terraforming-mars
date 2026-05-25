@@ -1,6 +1,25 @@
 <template>
   <div id="player-home" :class="(game.turmoil ? 'with-turmoil': '')">
-    <top-bar :playerView="playerView" />
+    <div class="top-bar-buttons">
+      <div class="bottom-bar-btn" v-on:click="() => {}">ДОСТИЖЕНИЯ</div>
+      <div class="bottom-bar-btn bottom-bar-btn--center" v-on:click="() => {}">СТАНДАРТНЫЕ ПРОЕКТЫ</div>
+      <div class="bottom-bar-btn" v-on:click="() => {}">НАГРАДЫ</div>
+    </div>
+
+    <div class="players-overview-container">
+      <div class="bottom-bar-buttons">
+        <div class="bottom-bar-btn" v-on:click="() => {}">КОЛОНИИ</div>
+        <div class="bottom-bar-btn bottom-bar-btn--center" v-on:click="() => {}">КАРТЫ</div>
+        <div class="bottom-bar-btn" v-on:click="() => {}">РАЗЫГРАНО</div>
+        <div class="bottom-bar-btn" v-on:click="showLogOverlay = !showLogOverlay">ЖУРНАЛ</div>
+      </div>
+      <players-overview class="player_home_block player_home_block--players nofloat" :playerView="playerView" :selectedColor="selectedPlayerColor" v-trim-whitespace id="shortkey-playersoverview"/>
+    </div>
+
+    <div v-if="showLogOverlay" class="log-overlay">
+      <div class="log-overlay-close" v-on:click="showLogOverlay = false">✕</div>
+      <log-panel :viewModel="playerView" :color="thisPlayer.color" :step="game.step"></log-panel>
+    </div>
 
     <div v-if="game.phase === 'end'">
       <div class="player_home_block">
@@ -12,6 +31,7 @@
     <sidebar v-trim-whitespace
       :acting_player="isPlayerActing(playerView)"
       :player_color="thisPlayer.color"
+      :players="playerView.players"
       :generation="game.generation"
       :coloniesCount="game.colonies.length"
       :temperature = "game.temperature"
@@ -25,7 +45,8 @@
       :isTerraformed="playerView.game.isTerraformed"
       :lastSoloGeneration = "game.lastSoloGeneration"
       :deckSize = "game.deckSize"
-      :discardPileSize = "game.discardPileSize">
+      :discardPileSize = "game.discardPileSize"
+      @selectPlayer="selectedPlayerColor = $event">
     </sidebar>
 
     <div v-if="thisPlayer.tableau.length > 0">
@@ -39,12 +60,6 @@
       </div>
 
     <a class="hotkey-target"></a>
-    <players-overview class="player_home_block player_home_block--players nofloat" :playerView="playerView" v-trim-whitespace id="shortkey-playersoverview"/>
-
-      <a class="hotkey-target"></a>
-      <div class="player_home_block nofloat">
-        <log-panel :viewModel="playerView" :color="thisPlayer.color" :step="game.step"></log-panel>
-      </div>
 
       <a class="hotkey-target"></a>
       <div class="player_home_block player_home_block--actions nofloat">
@@ -166,7 +181,6 @@ import GameBoardView from '@/client/components/GameBoardView.vue';
 import PlayerSetupView from '@/client/components/PlayerSetupView.vue';
 import DynamicTitle from '@/client/components/common/DynamicTitle.vue';
 import SortableCards from '@/client/components/SortableCards.vue';
-import TopBar from '@/client/components/TopBar.vue';
 import StackedCards from '@/client/components/StackedCards.vue';
 import PurgeWarning from '@/client/components/common/PurgeWarning.vue';
 import UndergroundTokens from '@/client/components/underworld/UndergroundTokens.vue';
@@ -174,6 +188,7 @@ import KeyboardShortcuts from '@/client/components/KeyboardShortcuts.vue';
 import {getPreferences, Preferences, PreferencesManager} from '@/client/utils/PreferencesManager';
 import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
+import {Color} from '@/common/Color';
 import {CardType} from '@/common/cards/CardType';
 import {getCardsByType, isCardActivated} from '@/client/utils/CardUtils';
 import {sortActiveCards} from '@/client/utils/ActiveCardsSortingOrder';
@@ -181,16 +196,21 @@ import {CardModel} from '@/common/models/CardModel';
 import {getCardOrThrow} from '../cards/ClientCardManifest';
 import {HomeMixin} from '@/client/mixins/HomeMixin';
 
-type PlayerHomeModel = {
+type ToggleableState = {
   showHand: boolean;
   showActiveCards: boolean;
   showAutomatedCards: boolean;
   showEventCards: boolean;
 }
 
+type PlayerHomeModel = ToggleableState & {
+  selectedPlayerColor: Color | undefined;
+  showLogOverlay: boolean;
+}
+
 type ToggleableCardType = 'HAND' | 'ACTIVE' | 'AUTOMATED' | 'EVENT';
 
-const typeToDataModel: Record<ToggleableCardType, {key: keyof PlayerHomeModel, preference: keyof Preferences}> = {
+const typeToDataModel: Record<ToggleableCardType, {key: keyof ToggleableState, preference: keyof Preferences}> = {
   HAND: {key: 'showHand', preference: 'hide_hand'},
   ACTIVE: {key: 'showActiveCards', preference: 'hide_active_cards'},
   AUTOMATED: {key: 'showAutomatedCards', preference: 'hide_automated_cards'},
@@ -207,6 +227,8 @@ export default defineComponent({
       showActiveCards: !preferences.hide_active_cards,
       showAutomatedCards: !preferences.hide_automated_cards,
       showEventCards: !preferences.hide_event_cards,
+      selectedPlayerColor: undefined,
+      showLogOverlay: false,
     };
   },
   watch: {
@@ -263,7 +285,6 @@ export default defineComponent({
     'colony': Colony,
     'log-panel': LogPanel,
     'sortable-cards': SortableCards,
-    'top-bar': TopBar,
     GameBoardView,
     PlayerSetupView,
     'stacked-cards': StackedCards,

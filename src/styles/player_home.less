@@ -1,6 +1,7 @@
 #player-home, #spectator-home {
     padding-left: 20px;
     padding-top: 20px;
+    padding-bottom: 400px;
     background: linear-gradient(transparent, #000), url(./assets/stars.jpg);
     background-attachment: fixed;
 
@@ -961,4 +962,77 @@ each(@players, {
     div {
 		    width: calc(100% - 450px);
 		}
+}
+
+/* Top action buttons bar */
+.top-bar-buttons {
+    position: fixed;
+    top: 0;
+    left: 60px;
+    right: 0;
+    z-index: 105;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+}
+
+/* Bottom action buttons bar */
+.bottom-bar-buttons {
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.bottom-bar-btn {
+    pointer-events: all;
+    cursor: pointer;
+    background: linear-gradient(180deg, #1a2a3a 0%, #0d1520 100%);
+    color: #e0e8f0;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 24px;
+    clip-path: polygon(10% 0%, 100% 0%, 90% 100%, 0% 100%);
+    margin-right: -8px;
+    border-top: 1px solid #3a5a7a;
+    user-select: none;
+
+    &:hover {
+        background: linear-gradient(180deg, #253545 0%, #162030 100%);
+        color: #ffffff;
+        border-top-color: #5a8aaa;
+    }
+
+    &--center {
+        background: linear-gradient(180deg, #1e3040 0%, #0f1e2c 100%);
+        border-top: 1px solid #4a7a9a;
+        padding: 8px 32px;
+    }
+}
+
+/* Log overlay */
+.log-overlay {
+    position: fixed;
+    bottom: 0;
+    left: 60px;
+    right: 0;
+    z-index: 110;
+    background: rgba(10, 16, 24, 0.97);
+    border-top: 2px solid #3a5a7a;
+    padding: 16px 20px 20px;
+    max-height: 50vh;
+    overflow-y: auto;
+
+    .log-overlay-close {
+        position: absolute;
+        top: 8px;
+        right: 16px;
+        cursor: pointer;
+        font-size: 20px;
+        color: #aaa;
+        line-height: 1;
+        &:hover { color: #fff; }
+    }
 }

@@ -1,34 +1,23 @@
 <template>
         <div class="players-overview" v-if="hasPlayers()">
-            <overview-settings />
-            <div class="other_player" v-if="thisPlayer === undefined || players.length > 1">
-                <div v-for="(otherPlayer, index) in getPlayersInOrder()" :key="otherPlayer.color">
-                    <other-player v-if="thisPlayer === undefined || otherPlayer.color !== thisPlayer.color" :player="otherPlayer" :playerIndex="index"/>
-                </div>
-            </div>
-            <player-info v-for="(p, index) in getPlayersInOrder()"
-              :player="p"
-              :key="p.color"
-              :playerView="playerView"
-              :firstForGen="getIsFirstForGen(p)"
-              :actionLabel="getActionLabel(p)"
-              :playerIndex="index"/>
-            <div v-if="playerView.players.length > 1 && thisPlayer !== undefined" class="player-divider" />
+            <other-player
+              v-if="displayedPlayer !== undefined"
+              :player="displayedPlayer"
+              :playerIndex="displayedPlayerIndex"/>
             <player-info
-              v-if="thisPlayer !== undefined"
-              :player="thisPlayer"
-              :key="thisPlayer.color"
+              v-if="displayedPlayer !== undefined"
+              :player="displayedPlayer"
+              :key="displayedPlayer.color"
               :playerView="playerView"
-              :firstForGen="getIsFirstForGen(thisPlayer)"
-              :actionLabel="getActionLabel(thisPlayer)"
-              :playerIndex="-1"/>
+              :firstForGen="getIsFirstForGen(displayedPlayer)"
+              :actionLabel="getActionLabel(displayedPlayer)"
+              :playerIndex="displayedPlayerIndex"/>
         </div>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
 import PlayerInfo from '@/client/components/overview/PlayerInfo.vue';
-import OverviewSettings from '@/client/components/overview/OverviewSettings.vue';
 import OtherPlayer from '@/client/components/OtherPlayer.vue';
 import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ActionLabel} from '@/client/components/overview/ActionLabel';
@@ -56,6 +45,10 @@ export default defineComponent({
       type: Object as () => ViewModel,
       required: true,
     },
+    selectedColor: {
+      type: String as () => Color | undefined,
+      default: undefined,
+    },
   },
   computed: {
     players(): Array<PublicPlayerModel> {
@@ -64,10 +57,20 @@ export default defineComponent({
     thisPlayer(): PublicPlayerModel | undefined {
       return this.playerView.thisPlayer;
     },
+    displayedPlayer(): PublicPlayerModel | undefined {
+      if (this.selectedColor !== undefined) {
+        return this.players.find((p) => p.color === this.selectedColor);
+      }
+      return this.thisPlayer;
+    },
+    displayedPlayerIndex(): number {
+      if (this.displayedPlayer === undefined) return -1;
+      if (this.displayedPlayer.color === this.thisPlayer?.color) return -1;
+      return playerIndex(this.displayedPlayer.color, this.players);
+    },
   },
   components: {
     'player-info': PlayerInfo,
-    'overview-settings': OverviewSettings,
     'other-player': OtherPlayer,
   },
   data() {
