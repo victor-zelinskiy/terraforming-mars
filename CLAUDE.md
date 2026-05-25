@@ -75,7 +75,7 @@ When a player needs to make a choice, the server returns a `PlayerInput` (e.g., 
 
 ### Game Modules (Expansions)
 
-Each expansion has its own directory under `src/server/cards/` and a manifest. Modules: `base`, `corpera` (Corporate Era), `promo`, `venus`, `colonies`, `prelude`, `prelude2`, `turmoil`, `community`, `ares`, `moon`, `pathfinders`, `ceo`, `starwars`, `underworld`. Cross-expansion card compatibility is declared via `compatibility` in `CardFactorySpec`.
+Each expansion has its own directory under `src/server/cards/` and a manifest. Source directories: `base`, `corporation` (Corporate Era), `promo`, `venusNext`, `colonies`, `prelude`, `prelude2`, `turmoil`, `community`, `ares`, `moon`, `pathfinders`, `ceos`, `starwars`, `underworld`, `delta`. Test directories under `tests/cards/` mostly mirror these (note `tests/cards/ceo` vs `src/server/cards/ceos`). Cross-expansion card compatibility is declared via `compatibility` in `CardFactorySpec`.
 
 ### Client Components
 

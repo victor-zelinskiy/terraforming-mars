@@ -1,7 +1,14 @@
+:root {
+    /* Heights of the fixed bottom UI. Tune to give more space back to board/cards. */
+    --bottom-bar-button-height: 36px;
+    --player-overview-height: 200px;
+    --bottom-bar-total: calc(var(--bottom-bar-button-height) + var(--player-overview-height));
+}
+
 #player-home, #spectator-home {
     padding-left: 20px;
     padding-top: 20px;
-    padding-bottom: 400px;
+    padding-bottom: var(--bottom-bar-total);
     background: linear-gradient(transparent, #000), url(./assets/stars.jpg);
     background-attachment: fixed;
 
@@ -964,36 +971,43 @@ each(@players, {
 		}
 }
 
-/* Top action buttons bar */
-.top-bar-buttons {
+/*
+ * Top/bottom action button bars.
+ * The strip itself is transparent and pointer-events: none so empty space
+ * passes clicks through to the board (e.g. placing oceans). Only the buttons
+ * themselves receive pointer events.
+ */
+.top-bar-buttons,
+.bottom-bar-buttons {
     position: fixed;
-    top: 0;
     left: 60px;
     right: 0;
     z-index: 105;
     display: flex;
     justify-content: center;
     pointer-events: none;
+    height: var(--bottom-bar-button-height);
 }
 
-/* Bottom action buttons bar */
+.top-bar-buttons {
+    top: 0;
+}
+
 .bottom-bar-buttons {
-    display: flex;
-    justify-content: center;
-    pointer-events: none;
+    bottom: var(--player-overview-height);
 }
 
 .bottom-bar-btn {
-    pointer-events: all;
+    pointer-events: auto;
     cursor: pointer;
     background: linear-gradient(180deg, #1a2a3a 0%, #0d1520 100%);
     color: #e0e8f0;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: bold;
     letter-spacing: 2px;
     text-transform: uppercase;
-    padding: 8px 24px;
+    padding: 6px 24px;
     clip-path: polygon(10% 0%, 100% 0%, 90% 100%, 0% 100%);
     margin-right: -8px;
     border-top: 1px solid #3a5a7a;
@@ -1008,7 +1022,7 @@ each(@players, {
     &--center {
         background: linear-gradient(180deg, #1e3040 0%, #0f1e2c 100%);
         border-top: 1px solid #4a7a9a;
-        padding: 8px 32px;
+        padding: 6px 32px;
     }
 }
 

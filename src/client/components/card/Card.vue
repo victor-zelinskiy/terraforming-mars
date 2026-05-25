@@ -25,7 +25,7 @@
 
 <script lang="ts">
 
-import {defineComponent, defineAsyncComponent, nextTick} from 'vue';
+import {defineComponent, nextTick} from 'vue';
 
 import {CardModel} from '@/common/models/CardModel';
 import {CARD_HELP_TEXT} from '@/client/cards/CardHelpText';
@@ -38,6 +38,7 @@ import CardTags from './CardTags.vue';
 import CardVictoryPoints from './CardVictoryPoints.vue';
 import CardContent from './CardContent.vue';
 import CardHelp from './CardHelp.vue';
+import CardZoomModal from './CardZoomModal.vue';
 import {CardType} from '@/common/cards/CardType';
 import {CardMetadata} from '@/common/cards/CardMetadata';
 import {Tag} from '@/common/cards/Tag';
@@ -47,8 +48,6 @@ import {getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {Color} from '@/common/Color';
 import {CardRequirementDescriptor} from '@/common/cards/CardRequirementDescriptor';
 import {GameModule} from '@/common/cards/GameModule';
-
-const CardZoomModal = defineAsyncComponent(() => import('./CardZoomModal.vue'));
 
 
 export default defineComponent({

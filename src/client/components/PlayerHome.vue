@@ -1,18 +1,19 @@
 <template>
   <div id="player-home" :class="(game.turmoil ? 'with-turmoil': '')">
-    <div class="top-bar-buttons">
-      <div class="bottom-bar-btn" v-on:click="() => {}">ДОСТИЖЕНИЯ</div>
-      <div class="bottom-bar-btn bottom-bar-btn--center" v-on:click="() => {}">СТАНДАРТНЫЕ ПРОЕКТЫ</div>
-      <div class="bottom-bar-btn" v-on:click="() => {}">НАГРАДЫ</div>
+    <div class="top-bar-buttons" v-i18n>
+      <div class="bottom-bar-btn" v-on:click="() => {}">Milestones</div>
+      <div class="bottom-bar-btn bottom-bar-btn--center" v-on:click="() => {}">Standard Projects</div>
+      <div class="bottom-bar-btn" v-on:click="() => {}">Awards</div>
+    </div>
+
+    <div class="bottom-bar-buttons" v-i18n>
+      <div class="bottom-bar-btn" v-on:click="() => {}">Colonies</div>
+      <div class="bottom-bar-btn bottom-bar-btn--center" v-on:click="() => {}">Cards</div>
+      <div class="bottom-bar-btn" v-on:click="() => {}">Played</div>
+      <div class="bottom-bar-btn" v-on:click="showLogOverlay = !showLogOverlay">Log</div>
     </div>
 
     <div class="players-overview-container">
-      <div class="bottom-bar-buttons">
-        <div class="bottom-bar-btn" v-on:click="() => {}">КОЛОНИИ</div>
-        <div class="bottom-bar-btn bottom-bar-btn--center" v-on:click="() => {}">КАРТЫ</div>
-        <div class="bottom-bar-btn" v-on:click="() => {}">РАЗЫГРАНО</div>
-        <div class="bottom-bar-btn" v-on:click="showLogOverlay = !showLogOverlay">ЖУРНАЛ</div>
-      </div>
       <players-overview class="player_home_block player_home_block--players nofloat" :playerView="playerView" :selectedColor="selectedPlayerColor" v-trim-whitespace id="shortkey-playersoverview"/>
     </div>
 
