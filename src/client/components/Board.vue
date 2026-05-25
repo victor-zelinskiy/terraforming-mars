@@ -78,6 +78,7 @@
               v-for="curSpace in getAllSpacesOnMars()"
               :key="curSpace.id"
               :space="curSpace"
+              :text="getTileCaption(curSpace.id)"
               :aresExtension="expansions.ares"
               :tileView="tileView"
               data-test="board-space"
@@ -94,53 +95,6 @@
                   <circle :cx="key.line.to[0]" :cy="key.line.to[1]" r="2" class="board-caption board_caption--black"/>
                 </template>
               </g>
-
-              <template v-if="boardName === BoardName.THARSIS">
-                  <g id="ascraeus_mons" transform="translate(95, 192)">
-                      <text class="board-caption">
-                          <tspan dy="15">Ascraeus</tspan>
-                          <tspan x="12" dy="12">Mons</tspan>
-                      </text>
-                      <line x1="38" y1="20" x2="88" y2="26" class="board-line"></line>
-                      <text x="86" y="29" class="board-caption board_caption--black">●</text>
-                  </g>
-
-                  <g id="pavonis_mons" transform="translate(90, 230)">
-                      <text class="board-caption">
-                          <tspan dy="15">Pavonis</tspan>
-                          <tspan x="4" dy="12">Mons</tspan>
-                      </text>
-                      <line x1="35" y1="25" x2="72" y2="30" class="board-line" />
-                      <text x="66" y="33" class="board-caption board_caption--black">●</text>
-                  </g>
-
-                  <g id="arsia_mons" transform="translate(77, 275)">
-                      <text class="board-caption">
-                          <tspan dy="15">Arsia</tspan>
-                          <tspan x="-2" dy="12">Mons</tspan>
-                      </text>
-                      <line x1="25" y1="20" x2="49" y2="26" class="board-line" />
-                      <text x="47" y="29" class="board-caption board_caption--black">●</text>
-                  </g>
-
-                  <g id="tharsis_tholus" transform="translate(85, 175)">
-                      <text class="board-caption" dx="47">
-                          <tspan dy="-7">Tharsis</tspan>
-                          <tspan dy="12" x="48">Tholus</tspan>
-                      </text>
-                      <line y1="-3" x2="160" y2="2" class="board-line" x1="90"></line>
-                      <text x="158" y="5" class="board-caption board_caption--black">&#x25cf;</text>
-                  </g>
-
-                  <g id="noctis_city" transform="translate(85, 320)">
-                      <text class="board-caption">
-                          <tspan dy="15">Noctis</tspan>
-                          <tspan x="7" dy="12">City</tspan>
-                      </text>
-                      <line x1="30" y1="20" x2="140" y2="-20" class="board-line"></line>
-                      <text x="136" y="-18" class="board-caption board_caption--black">&#x25cf;</text>
-                  </g>
-              </template>
 
               <template v-if="boardName === BoardName.ELYSIUM">
                   <g id="elysium_mons" transform="translate(110, 190)">
@@ -432,6 +386,24 @@ export default defineComponent({
       return boardSpaces.filter((s: SpaceModel) => {
         return s.spaceType !== SpaceType.COLONY;
       });
+    },
+    // Named landmarks rendered as a caption *inside* the hex tile so the label
+    // tracks the tile through any future scaling/translation of the board.
+    // Replaces a brittle SVG overlay that hard-coded x/y in board-coords.
+    // Only Tharsis is migrated for now; the other boards still use the SVG
+    // template above.
+    getTileCaption(spaceId: SpaceId): string {
+      if (this.boardName !== BoardName.THARSIS) {
+        return '';
+      }
+      const map: Record<string, string> = {
+        '09': 'Tharsis Tholus',
+        '14': 'Ascraeus Mons',
+        '21': 'Pavonis Mons',
+        '29': 'Arsia Mons',
+        '31': 'Noctis City',
+      };
+      return map[spaceId] ?? '';
     },
     hasSpace(spaceId: SpaceId): boolean {
       return this.spaceMap.has(spaceId);

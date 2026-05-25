@@ -1,7 +1,8 @@
 .sidebar_cont {
     white-space: nowrap;
     position: fixed;
-    left: 0px;
+    /* Mars global-parameters live on the right now (Steam-version layout). */
+    right: 0px;
     top: 5px;
     z-index: 99;
     width: 60px;
@@ -196,13 +197,6 @@
     }
 }
 
-.sidebar_player_switch {
-    cursor: pointer;
-    &:hover .preferences_player_inner {
-        box-shadow: 0 0 4px 2px #aaa;
-    }
-}
-
 @keyframes rotation {
     from {
       transform: rotate(0deg);
@@ -264,11 +258,13 @@
 }
 
 .preferences_panel {
-    padding: 15px 15px 15px 20px;
+    padding: 15px 20px 15px 15px;
     display: inline-block;
     position: absolute;
     bottom: 0px;
-    left: 53px;
+    /* Sidebar lives on the right edge of the screen now, so panels open to its
+     * LEFT instead of right; otherwise they slide off the viewport. */
+    right: 53px;
     color: #c6c6c6;
     background: #000000;
     max-height: calc(75vh);
@@ -277,7 +273,7 @@
 
     &.preferences_panel--language-switcher {
         bottom: -140px;
-        left: 52px;
+        right: 52px;
     }
 }
 
@@ -506,11 +502,12 @@
 }
 
 .info_panel {
-    padding: 15px 15px 15px 20px;
+    padding: 15px 20px 15px 15px;
     display: inline-block;
     position: absolute;
     bottom: 0px;
-    left: 53px;
+    /* Same reason as .preferences_panel — sidebar moved right, popups go left. */
+    right: 53px;
     color: #c6c6c6;
     background: #000000;
     max-height: calc(85vh);

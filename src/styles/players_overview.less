@@ -37,45 +37,6 @@
     }
 }
 
-.players-overview-container {
-    position: fixed;
-    bottom: 0;
-    left: 60px;
-    right: 0;
-    z-index: 105;
-    background: #111;
-    height: var(--player-overview-height);
-    max-height: var(--player-overview-height);
-    overflow-y: auto;
-
-    .players-overview {
-        display: block;
-        margin-top: 0;
-        width: 100%;
-    }
-
-    .player-info {
-        margin: 0;
-        padding: 4px 8px;
-
-        .player-tags {
-            display: contents;
-        }
-
-        .player-tags-main {
-            flex-shrink: 0;
-        }
-
-        .player-tags-secondary {
-            flex-basis: 100%;
-            display: flex;
-            flex-flow: row wrap;
-            margin-top: 4px;
-            margin-left: 0;
-        }
-    }
-}
-
 .players-overview {
     position: relative;
     display: table-caption;

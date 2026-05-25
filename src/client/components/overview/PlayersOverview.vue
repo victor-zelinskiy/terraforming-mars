@@ -21,22 +21,10 @@ import PlayerInfo from '@/client/components/overview/PlayerInfo.vue';
 import OtherPlayer from '@/client/components/OtherPlayer.vue';
 import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ActionLabel} from '@/client/components/overview/ActionLabel';
-import {Phase} from '@/common/Phase';
 import {Color} from '@/common/Color';
+import {actionLabelForPlayer, playerIndexInList} from '@/client/components/overview/playerLabels';
 
-const SHOW_NEXT_LABEL_MIN = 2;
-
-export const playerIndex = (
-  color: Color,
-  players: Array<PublicPlayerModel>,
-): number => {
-  for (let idx = 0; idx < players.length; idx++) {
-    if (players[idx].color === color) {
-      return idx;
-    }
-  }
-  return -1;
-};
+export const playerIndex = playerIndexInList;
 
 export default defineComponent({
   name: 'PlayersOverview',
@@ -109,49 +97,7 @@ export default defineComponent({
       return result.slice(0, -1);
     },
     getActionLabel(player: PublicPlayerModel): ActionLabel {
-      if (this.playerView.game.phase === Phase.DRAFTING) {
-        if (player.needsToDraft) {
-          return 'drafting';
-        } else {
-          return 'none';
-        }
-      } else if (this.playerView.game.phase === Phase.RESEARCH) {
-        if (player.needsToResearch) {
-          return 'researching';
-        } else {
-          return 'none';
-        }
-      }
-      if (this.playerView.game.passedPlayers.includes(player.color)) {
-        return 'passed';
-      }
-      if (player.isActive) {
-        return 'active';
-      }
-      const notPassedPlayers = this.players.filter(
-        (p: PublicPlayerModel) => !this.playerView.game.passedPlayers.includes(p.color),
-      );
-
-      const currentPlayerIndex = playerIndex(
-        player.color,
-        notPassedPlayers,
-      );
-
-      if (currentPlayerIndex === -1) {
-        return 'none';
-      }
-
-      const prevPlayerIndex =
-                currentPlayerIndex === 0 ?
-                  notPassedPlayers.length - 1 :
-                  currentPlayerIndex - 1;
-      const isNext = notPassedPlayers[prevPlayerIndex].isActive;
-
-      if (isNext && this.players.length > SHOW_NEXT_LABEL_MIN) {
-        return 'next';
-      }
-
-      return 'none';
+      return actionLabelForPlayer(this.playerView, player);
     },
   },
 });
