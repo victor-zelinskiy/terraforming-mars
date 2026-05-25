@@ -118,37 +118,24 @@ export default defineComponent({
       return vueRoot(this).setVisibilityState('pinned_player_' + playerIndex, false);
     },
     pinPlayer() {
-      let hiddenPlayersIndexes = [];
       const playerPinned = this.isPinned(this.playerIndex);
-
-      // if player is already pinned, add to hidden players (toggle)
-      hiddenPlayersIndexes = range(this.playerView.players.length - 1);
       if (!playerPinned) {
         this.pin(this.playerIndex);
-        hiddenPlayersIndexes = hiddenPlayersIndexes.filter(
+        // unpin all other players
+        const hiddenPlayersIndexes = range(this.playerView.players.length - 1).filter(
           (index) => index !== this.playerIndex,
         );
-      }
-      for (let i = 0; i < hiddenPlayersIndexes.length; i++) {
-        if (hiddenPlayersIndexes.includes(i)) {
+        for (const i of hiddenPlayersIndexes) {
           this.unpin(i);
         }
+      } else {
+        this.unpin(this.playerIndex);
       }
     },
     buttonLabel(): string {
       return this.isPinned(this.playerIndex) ? 'hide' : 'show';
     },
     togglePlayerDetails() {
-      // for the player viewing this page => scroll to cards UI
-      if (this.player.color === this.playerView.thisPlayer?.color) {
-        const el = document.getElementsByClassName(
-          'sidebar_icon--cards',
-        )[0] as HTMLElement;
-        el.click();
-
-        return;
-      }
-      // any other player show cards container and hide all other
       this.pinPlayer();
     },
     getClasses(): string {

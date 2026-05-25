@@ -11,6 +11,7 @@
     <sidebar v-trim-whitespace
       :acting_player="false"
       :player_color="spectator.color"
+      :players="spectator.players"
       :generation="game.generation"
       :coloniesCount="game.colonies.length"
       :temperature = "game.temperature"

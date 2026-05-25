@@ -196,6 +196,13 @@
     }
 }
 
+.sidebar_player_switch {
+    cursor: pointer;
+    &:hover .preferences_player_inner {
+        box-shadow: 0 0 4px 2px #aaa;
+    }
+}
+
 @keyframes rotation {
     from {
       transform: rotate(0deg);
@@ -295,6 +302,22 @@
 }
 
 /* Visual effects of changing settings */
+
+/* Compact cards in played-cards overlay (always small) */
+.other_player_cont .filterDiv,
+.other_player_cont .filterDiv:hover {
+    transform: scale(0.8);
+    margin: -22px -15px -15px -15px;
+}
+.other_player_cont .filterDiv.card-standard-project,
+.other_player_cont .filterDiv:hover.card-standard-project {
+    margin: -0px -10px -15px -10px;
+}
+
+/* Reduced magnify inside played-cards overlay */
+.preferences_magnify_cards .other_player_cont .filterDiv:hover {
+    transform: scale(0.9);
+}
 
 /* Reduce all cards size */
 .preferences_small_cards .filterDiv,

@@ -1,4 +1,6 @@
 .icon-first-player {
+    display: none;
+
     text-align: center;
     font-size: 18px;
     font-family: Prototype;
@@ -53,6 +55,41 @@
         margin-top: 7px;
         &:hover {
             filter: brightness(120%);
+        }
+    }
+}
+
+.players-overview-container {
+    position: fixed;
+    bottom: 0;
+    left: 60px;
+    right: 0;
+    z-index: 105;
+    background: #111;
+
+    .players-overview {
+        display: block;
+        margin-top: 0;
+        width: 100%;
+    }
+
+    .player-info {
+        margin: 0;
+
+        .player-tags {
+            display: contents;
+        }
+
+        .player-tags-main {
+            flex-shrink: 0;
+        }
+
+        .player-tags-secondary {
+            flex-basis: 100%;
+            display: flex;
+            flex-flow: row wrap;
+            margin-top: 4px;
+            margin-left: 0;
         }
     }
 }
@@ -129,7 +166,9 @@
     margin: 10px 0;
     padding: 8px;
     display: flex;
+    flex-flow: row wrap;
     padding-right: 0px;
+    width: 100%;
     .player-tags {
         display: flex;
         flex-flow: row;
@@ -290,8 +329,8 @@
 @media only screen and (max-width: 1740px)  {
     .players-overview {
         .player-info {
-            flex-flow: column !important;
-            width: fit-content;
+            flex-flow: row wrap !important;
+            width: 100%;
         }
         .player-status-and-res {
             margin-bottom: 8px;
