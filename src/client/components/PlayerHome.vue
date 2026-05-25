@@ -1,25 +1,60 @@
 <template>
   <div id="player-home" :class="(game.turmoil ? 'with-turmoil': '')">
     <div class="top-bar-buttons" v-i18n>
-      <div class="bottom-bar-btn" v-on:click="() => {}">Milestones</div>
-      <div class="bottom-bar-btn bottom-bar-btn--center" v-on:click="() => {}">Standard Projects</div>
-      <div class="bottom-bar-btn" v-on:click="() => {}">Awards</div>
+      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'milestones'}" v-on:click="toggleOverlay('milestones')">Milestones</div>
+      <div class="bottom-bar-btn bottom-bar-btn--center" :class="{'bottom-bar-btn--active': activeOverlay === 'standardProjects'}" v-on:click="toggleOverlay('standardProjects')">Standard Projects</div>
+      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'awards'}" v-on:click="toggleOverlay('awards')">Awards</div>
     </div>
 
     <div class="bottom-bar-buttons" v-i18n>
-      <div class="bottom-bar-btn" v-on:click="() => {}">Colonies</div>
-      <div class="bottom-bar-btn bottom-bar-btn--center" v-on:click="() => {}">Cards</div>
-      <div class="bottom-bar-btn" v-on:click="() => {}">Played</div>
-      <div class="bottom-bar-btn" v-on:click="showLogOverlay = !showLogOverlay">Log</div>
+      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'colonies'}" v-on:click="toggleOverlay('colonies')">Colonies</div>
+      <div class="bottom-bar-btn bottom-bar-btn--center" :class="{'bottom-bar-btn--active': activeOverlay === 'cards'}" v-on:click="toggleOverlay('cards')">Cards</div>
+      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" v-on:click="toggleOverlay('played')">Played</div>
+      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'log'}" v-on:click="toggleOverlay('log')">Log</div>
     </div>
 
     <div class="players-overview-container">
       <players-overview class="player_home_block player_home_block--players nofloat" :playerView="playerView" :selectedColor="selectedPlayerColor" v-trim-whitespace id="shortkey-playersoverview"/>
     </div>
 
-    <div v-if="showLogOverlay" class="log-overlay">
-      <div class="log-overlay-close" v-on:click="showLogOverlay = false">✕</div>
+    <div v-if="activeOverlay === 'log'" class="bar-overlay bar-overlay--log">
+      <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
       <log-panel :viewModel="playerView" :color="thisPlayer.color" :step="game.step"></log-panel>
+    </div>
+
+    <div v-if="activeOverlay === 'played'" class="bar-overlay bar-overlay--played">
+      <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
+      <div class="hiding-card-button-row">
+        <div :class="playedCardsTitleClass">{{ displayedPlayer.name }} <span v-i18n>played cards</span></div>
+        <div class="played-cards-filters">
+          <div :class="getHideButtonClass('ACTIVE')" v-on:click.prevent="toggle('ACTIVE')">
+            <div class="played-cards-count">{{getCardsByType(displayedPlayer.tableau, [CardType.ACTIVE]).length.toString()}}</div>
+            <div class="played-cards-selection" v-i18n>{{ getToggleLabel('ACTIVE')}}</div>
+          </div>
+          <div :class="getHideButtonClass('AUTOMATED')" v-on:click.prevent="toggle('AUTOMATED')">
+            <div class="played-cards-count">{{getCardsByType(displayedPlayer.tableau, [CardType.AUTOMATED, CardType.PRELUDE]).length.toString()}}</div>
+            <div class="played-cards-selection" v-i18n>{{ getToggleLabel('AUTOMATED')}}</div>
+          </div>
+          <div :class="getHideButtonClass('EVENT')" v-on:click.prevent="toggle('EVENT')">
+            <div class="played-cards-count">{{getCardsByType(displayedPlayer.tableau, [CardType.EVENT]).length.toString()}}</div>
+            <div class="played-cards-selection" v-i18n>{{ getToggleLabel('EVENT')}}</div>
+          </div>
+        </div>
+        <div class="text-overview" v-i18n>[ toggle cards filters ]</div>
+      </div>
+      <div class="bar-overlay--played-cards">
+        <div v-for="card in getCardsByType(displayedPlayer.tableau, [CardType.CORPORATION])" :key="card.name" class="cardbox">
+          <Card :card="card" :actionUsed="isCardActivated(card, displayedPlayer)" :cubeColor="displayedPlayer.color"/>
+        </div>
+        <div v-for="card in getCardsByType(displayedPlayer.tableau, [CardType.CEO])" :key="card.name" class="cardbox">
+          <Card :card="card" :actionUsed="isCardActivated(card, displayedPlayer)" :cubeColor="displayedPlayer.color"/>
+        </div>
+        <div v-show="isVisible('ACTIVE')" v-for="card in sortActiveCards(getCardsByType(displayedPlayer.tableau, [CardType.ACTIVE, CardType.PRELUDE]).filter(isActive))" :key="card.name" class="cardbox">
+          <Card :card="card" :actionUsed="isCardActivated(card, displayedPlayer)" :cubeColor="displayedPlayer.color"/>
+        </div>
+        <stacked-cards v-show="isVisible('AUTOMATED')" :cards="getCardsByType(displayedPlayer.tableau, [CardType.AUTOMATED, CardType.PRELUDE]).filter(isNotActive)"></stacked-cards>
+        <stacked-cards v-show="isVisible('EVENT')" :cards="getCardsByType(displayedPlayer.tableau, [CardType.EVENT])"></stacked-cards>
+      </div>
     </div>
 
     <div v-if="game.phase === 'end'">
@@ -51,7 +86,7 @@
     </sidebar>
 
     <div v-if="thisPlayer.tableau.length > 0">
-      <div class="player_home_block">
+      <div class="player_home_block player_home_block--board">
         <GameBoardView
           :game="game"
           :tileView="tileView"
@@ -90,41 +125,6 @@
                         :cards="playerView.preludeCardsInHand
                                 .concat(playerView.ceoCardsInHand)
                                 .concat(playerView.cardsInHand)"/>
-      </div>
-
-      <div class="player_home_block player_home_block--cards">
-        <div class="hiding-card-button-row">
-          <dynamic-title title="Played Cards" :color="thisPlayer.color" />
-          <div class="played-cards-filters">
-            <div :class="getHideButtonClass('ACTIVE')" v-on:click.prevent="toggle('ACTIVE')">
-              <div class="played-cards-count">{{getCardsByType(thisPlayer.tableau, [CardType.ACTIVE]).length.toString()}}</div>
-              <div class="played-cards-selection" v-i18n>{{ getToggleLabel('ACTIVE')}}</div>
-            </div>
-            <div :class="getHideButtonClass('AUTOMATED')" v-on:click.prevent="toggle('AUTOMATED')">
-              <div class="played-cards-count">{{getCardsByType(thisPlayer.tableau, [CardType.AUTOMATED, CardType.PRELUDE]).length.toString()}}</div>
-              <div class="played-cards-selection" v-i18n>{{ getToggleLabel('AUTOMATED')}}</div>
-            </div>
-            <div :class="getHideButtonClass('EVENT')" v-on:click.prevent="toggle('EVENT')">
-              <div class="played-cards-count">{{getCardsByType(thisPlayer.tableau, [CardType.EVENT]).length.toString()}}</div>
-              <div class="played-cards-selection" v-i18n>{{ getToggleLabel('EVENT')}}</div>
-            </div>
-          </div>
-          <div class="text-overview" v-i18n>[ toggle cards filters ]</div>
-        </div>
-        <div v-for="card in getCardsByType(thisPlayer.tableau, [CardType.CORPORATION])" :key="card.name" class="cardbox">
-            <Card :card="card" :actionUsed="isCardActivated(card, thisPlayer)" :cubeColor="thisPlayer.color"/>
-        </div>
-        <div v-for="card in getCardsByType(thisPlayer.tableau, [CardType.CEO])" :key="card.name" class="cardbox">
-            <Card :card="card" :actionUsed="isCardActivated(card, thisPlayer)" :cubeColor="thisPlayer.color"/>
-        </div>
-        <div v-show="isVisible('ACTIVE')" v-for="card in sortActiveCards(getCardsByType(thisPlayer.tableau, [CardType.ACTIVE, CardType.PRELUDE]).filter(isActive))" :key="card.name" class="cardbox">
-            <Card :card="card" :actionUsed="isCardActivated(card, thisPlayer)" :cubeColor="thisPlayer.color"/>
-        </div>
-
-        <stacked-cards v-show="isVisible('AUTOMATED')" :cards="getCardsByType(thisPlayer.tableau, [CardType.AUTOMATED, CardType.PRELUDE]).filter(isNotActive)" ></stacked-cards>
-
-        <stacked-cards v-show="isVisible('EVENT')" :cards="getCardsByType(thisPlayer.tableau, [CardType.EVENT])" ></stacked-cards>
-
       </div>
 
       <div v-if="thisPlayer.selfReplicatingRobotsCards.length > 0" class="player_home_block">
@@ -196,6 +196,7 @@ import {sortActiveCards} from '@/client/utils/ActiveCardsSortingOrder';
 import {CardModel} from '@/common/models/CardModel';
 import {getCardOrThrow} from '../cards/ClientCardManifest';
 import {HomeMixin} from '@/client/mixins/HomeMixin';
+import {playerColorClass} from '@/common/utils/utils';
 
 type ToggleableState = {
   showHand: boolean;
@@ -204,9 +205,14 @@ type ToggleableState = {
   showEventCards: boolean;
 }
 
+// Overlays opened by the top/bottom bar buttons. Only one can be visible at a time —
+// pressing a different button closes the previous overlay. Pressing the same button
+// again closes the active overlay.
+type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'played' | 'log';
+
 type PlayerHomeModel = ToggleableState & {
   selectedPlayerColor: Color | undefined;
-  showLogOverlay: boolean;
+  activeOverlay: OverlayId | null;
 }
 
 type ToggleableCardType = 'HAND' | 'ACTIVE' | 'AUTOMATED' | 'EVENT';
@@ -229,7 +235,7 @@ export default defineComponent({
       showAutomatedCards: !preferences.hide_automated_cards,
       showEventCards: !preferences.hide_event_cards,
       selectedPlayerColor: undefined,
-      showLogOverlay: false,
+      activeOverlay: null,
     };
   },
   watch: {
@@ -275,6 +281,22 @@ export default defineComponent({
     sortActiveCards(): typeof sortActiveCards {
       return sortActiveCards;
     },
+    // The player whose info is currently shown in the bottom panel — drives
+    // which tableau the "Played" overlay renders. Mirrors PlayersOverview's
+    // own `displayedPlayer` computed, so the overlay always matches what the
+    // sidebar cube selection points at.
+    displayedPlayer(): PublicPlayerModel {
+      if (this.selectedPlayerColor !== undefined) {
+        const p = this.playerView.players.find((p) => p.color === this.selectedPlayerColor);
+        if (p !== undefined) {
+          return p;
+        }
+      }
+      return this.thisPlayer;
+    },
+    playedCardsTitleClass(): string {
+      return `dynamic-title ${playerColorClass(this.displayedPlayer.color, 'shadow')}`;
+    },
   },
 
   components: {
@@ -296,6 +318,9 @@ export default defineComponent({
   methods: {
     isPlayerActing(playerView: PlayerViewModel) : boolean {
       return playerView.players.length > 1 && playerView.waitingFor !== undefined;
+    },
+    toggleOverlay(id: OverlayId): void {
+      this.activeOverlay = this.activeOverlay === id ? null : id;
     },
     getFleetsCountRange(player: PublicPlayerModel): Array<number> {
       const fleetsRange = [];

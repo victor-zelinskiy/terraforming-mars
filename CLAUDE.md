@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Goals (vize1215 fork)
+
+This is `vize1215`'s personal fork — a private/self-hosted build of the open-source `terraforming-mars` project. The active UI work is driven by these goals; weigh decisions against them when proposing or making changes:
+
+1. **Single-screen, no-scroll play.** The active game state (board, current player's resources/tags, hand, played-cards filter, etc.) should fit on screen at typical desktop resolutions. Long pages with vertical scroll are the thing we are getting rid of — content that doesn't fit becomes an overlay or a panel, not a scroll target. The top/bottom bar-button overlays (`bar-overlay--*`) are the canonical mechanism for "secondary" content (Log, Played cards, Milestones, Awards, Standard Projects, Colonies, Cards).
+2. **Steam-version visual feel.** The reference for layout density and proportion is the Asmodee Digital Steam release of *Terraforming Mars*: large central board, compact peripheral chrome, board scaled up to dominate the screen as more vertical space is freed.
+3. **Ark Nova (BoardGameArena) animation feel.** When choosing animations / transitions / hover effects, lean toward the smoothness of BGA's Ark Nova implementation — short easings, subtle scale/glow on interactive elements, no hard pop-ins. Don't introduce flashy motion just because something is being changed; default to calm.
+
+When a change has trade-offs between these goals and any other consideration (closeness to upstream, code volume, edge cases), favor the goals above unless the user says otherwise.
+
 ## Build & Development Commands
 
 ```bash
@@ -97,6 +107,13 @@ Pluggable backends in `src/server/database/`: `SQLite`, `PostgreSQL`, `LocalFile
 ### Internationalization
 
 Custom i18n via `src/client/directives/i18n.ts` with `v-i18n` directive. Translation files in `src/locales/`. Strings are matched by exact text content.
+
+**Russian (ru) translations — terminology consistency.** Before inventing a new Russian translation for a term, check two sources, in order:
+
+1. **The project itself.** Grep `src/locales/ru/` for the term (or close variants — singular/plural, case-different) and reuse the existing wording. Examples already established: `Building → Здание`, `Space → Космос`, `Science → Наука`, `Power → Энергия`, `Earth → Земля`, `Venus → Венера`, `Plant → Растение`, `Microbe → Бактерия`, `Animal → Животное`, `Event → Событие`, `Wild → Любая`, `VP → ПО`, `researching → исследование`, `passed → спасовал`. Iconography terms live in `help_iconography.json`; UI labels in `ui.json`; log templates in `log_messages.json`; game-end strings in `game_end.json`.
+2. **The official Russian edition of the *Terraforming Mars* board game** (Crowd Games / «Покорение Марса»). Game-specific terms — tag names, milestone/award names, standard project labels, resource names — should match the printed Russian cards. If a project translation contradicts the board-game canon, surface the discrepancy to the user rather than silently picking one.
+
+Never translate proper nouns that look like player names or English card names already in the player log unless they appear in a translation file.
 
 ### Logging
 

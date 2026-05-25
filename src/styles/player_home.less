@@ -6,8 +6,10 @@
 }
 
 #player-home, #spectator-home {
-    padding-left: 20px;
-    padding-top: 20px;
+    /* Sidebar is position:fixed at 60px wide; keep content clear of it. */
+    padding-left: 80px;
+    /* Clear the fixed top button bar so the board doesn't slide under it. */
+    padding-top: var(--bottom-bar-button-height);
     padding-bottom: var(--bottom-bar-total);
     background: linear-gradient(transparent, #000), url(./assets/stars.jpg);
     background-attachment: fixed;
@@ -972,6 +974,16 @@ each(@players, {
 }
 
 /*
+ * The block that hosts <GameBoardView>. We center the board horizontally
+ * within the space left of the sidebar so it doesn't hug the left edge
+ * while the right side sits empty.
+ */
+.player_home_block--board {
+    text-align: center;
+    padding-right: 20px;
+}
+
+/*
  * Top/bottom action button bars.
  * The strip itself is transparent and pointer-events: none so empty space
  * passes clicks through to the board (e.g. placing oceans). Only the buttons
@@ -1024,22 +1036,39 @@ each(@players, {
         border-top: 1px solid #4a7a9a;
         padding: 6px 32px;
     }
+
+    /*
+     * Pressed/active state: the button's overlay is open.
+     * Same click closes the overlay; clicking a different button switches to its overlay.
+     */
+    &--active,
+    &--active:hover {
+        background: linear-gradient(180deg, #2c5a8a 0%, #1a3a5a 100%);
+        color: #ffffff;
+        border-top-color: #6ab0e6;
+        box-shadow: inset 0 -2px 0 0 #6ab0e6, 0 0 8px rgba(106, 176, 230, 0.4);
+    }
 }
 
-/* Log overlay */
-.log-overlay {
+/*
+ * Overlay panels opened by bar buttons. They occupy all space between the
+ * top button bar and the bottom button bar so the underlying board/cards stay
+ * hidden while the user reads the panel.
+ */
+.bar-overlay {
     position: fixed;
-    bottom: 0;
+    top: var(--bottom-bar-button-height);
+    bottom: var(--bottom-bar-total);
     left: 60px;
     right: 0;
     z-index: 110;
     background: rgba(10, 16, 24, 0.97);
     border-top: 2px solid #3a5a7a;
+    border-bottom: 2px solid #3a5a7a;
     padding: 16px 20px 20px;
-    max-height: 50vh;
     overflow-y: auto;
 
-    .log-overlay-close {
+    .bar-overlay-close {
         position: absolute;
         top: 8px;
         right: 16px;
@@ -1047,6 +1076,72 @@ each(@players, {
         font-size: 20px;
         color: #aaa;
         line-height: 1;
+        z-index: 1;
         &:hover { color: #fff; }
+    }
+}
+
+/*
+ * Played-cards overlay. Header row with title + filter buttons stays fixed at
+ * the top; cards area below scrolls independently when the tableau gets long.
+ */
+.bar-overlay--played {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .hiding-card-button-row {
+        flex-shrink: 0;
+        align-items: center;
+
+        .played-cards-filters {
+            /* gap between the "Сыгранные карты" title and the filter pills */
+            margin-left: 32px;
+        }
+
+        .dynamic-title {
+            margin-bottom: 0;
+        }
+    }
+}
+
+.bar-overlay--played-cards {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-top: 8px;
+}
+
+/* Log overlay: let the log fill the whole panel instead of its default 240px box. */
+.bar-overlay--log {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .log-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .log-generations {
+        flex-shrink: 0;
+    }
+
+    .log-panel {
+        flex: 1;
+        height: auto;
+        max-height: none;
+        max-width: none;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    #logpanel-scrollable {
+        flex: 1;
+        overflow-y: auto;
+        min-height: 0;
     }
 }
