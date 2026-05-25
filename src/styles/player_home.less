@@ -1578,36 +1578,106 @@ each(@players, {
     bottom: 0;
 }
 
+/*
+ * Sci-fi HUD tab. Two layered backgrounds give the impression of a thin
+ * lit frame around a powered panel:
+ *   - the element itself paints a gradient that becomes the OUTER frame;
+ *   - `::before` is inset by 1.5px with the dark glass FILL — so the
+ *     parent gradient stays visible only as a hairline border;
+ *   - `::after` paints a bottom-edge accent strip (faint in idle, bright
+ *     on active).
+ *
+ * Shape: chamfered parallelogram (six-point polygon). The two obtuse
+ * corners (top-left, bottom-right) get a diagonal cut, giving the tab a
+ * "machined" silhouette instead of a plain sheared rectangle. The two
+ * acute corners (which sit against the screen edges) are left sharp.
+ *
+ * `isolation: isolate` keeps the negative-z-index pseudos stacked inside
+ * this element without leaking behind page background.
+ */
 .bottom-bar-btn {
+    position: relative;
+    isolation: isolate;
     pointer-events: auto;
     cursor: pointer;
-    background: linear-gradient(180deg, #1a2a3a 0%, #0d1520 100%);
-    color: #e0e8f0;
+    color: #d6e2f2;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 14px;
-    font-weight: bold;
-    letter-spacing: 2px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 3px;
     text-transform: uppercase;
-    padding: 6px 24px;
-    clip-path: polygon(10% 0%, 100% 0%, 90% 100%, 0% 100%);
-    margin-right: -8px;
-    border-top: 1px solid #3a5a7a;
+    padding: 9px 30px 8px;
+    clip-path: polygon(14% 0%, 100% 0%, 90% 88%, 85% 100%, 0% 100%, 10% 12%);
+    margin-right: -10px;
     user-select: none;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     line-height: 1;
+    text-shadow: 0 0 6px rgba(140, 190, 235, 0.22);
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.7) 0%,
+        rgba(80, 120, 160, 0.22) 50%,
+        rgba(130, 170, 210, 0.55) 100%);
+    transition: color 140ms ease, filter 160ms ease;
+
+    /*
+     * Inner glass fill. Multi-layered:
+     *  1. Diagonal sheen — barely-there highlight across upper half.
+     *  2. Edge tint — soft blue glow hugging top + bottom inner edges,
+     *     so the interior doesn't read as flat black.
+     *  3. Base — deep blue-black with a slight vertical fade.
+     */
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(14% 0%, 100% 0%, 90% 88%, 85% 100%, 0% 100%, 10% 12%);
+        background:
+            linear-gradient(115deg,
+                transparent 35%,
+                rgba(150, 195, 235, 0.06) 50%,
+                transparent 65%),
+            linear-gradient(180deg,
+                rgba(90, 145, 200, 0.22) 0%,
+                rgba(90, 145, 200, 0) 22%,
+                rgba(90, 145, 200, 0) 78%,
+                rgba(90, 145, 200, 0.18) 100%),
+            linear-gradient(180deg,
+                #0e1a2a 0%,
+                #050b16 55%,
+                #0b1624 100%);
+        z-index: -1;
+        transition: background 180ms ease;
+    }
+
+    /*
+     * Permanent inner accent strip along the bottom — subtle in idle,
+     * bright + glowing in active state.
+     */
+    &::after {
+        content: '';
+        position: absolute;
+        left: 18%;
+        right: 22%;
+        bottom: 4px;
+        height: 1px;
+        background: linear-gradient(90deg,
+            transparent,
+            rgba(140, 190, 230, 0.35) 50%,
+            transparent);
+        z-index: -1;
+        transition: background 200ms ease, height 200ms ease, bottom 200ms ease, box-shadow 200ms ease;
+    }
 
     &:hover {
-        background: linear-gradient(180deg, #253545 0%, #162030 100%);
         color: #ffffff;
-        border-top-color: #5a8aaa;
+        filter: brightness(1.18) drop-shadow(0 0 5px rgba(140, 190, 235, 0.4));
     }
 
     &--center {
-        background: linear-gradient(180deg, #1e3040 0%, #0f1e2c 100%);
-        border-top: 1px solid #4a7a9a;
-        padding: 6px 32px;
+        padding-left: 38px;
+        padding-right: 38px;
     }
 
     /*
@@ -1616,10 +1686,34 @@ each(@players, {
      */
     &--active,
     &--active:hover {
-        background: linear-gradient(180deg, #2c5a8a 0%, #1a3a5a 100%);
         color: #ffffff;
-        border-top-color: #6ab0e6;
-        box-shadow: inset 0 -2px 0 0 #6ab0e6, 0 0 8px rgba(106, 176, 230, 0.4);
+        filter: drop-shadow(0 0 9px rgba(106, 176, 230, 0.6));
+        background: linear-gradient(180deg,
+            rgba(195, 230, 252, 0.95) 0%,
+            rgba(100, 160, 210, 0.6) 50%,
+            rgba(175, 220, 248, 0.88) 100%);
+    }
+    &--active::before {
+        background:
+            linear-gradient(115deg,
+                transparent 30%,
+                rgba(180, 220, 250, 0.10) 50%,
+                transparent 70%),
+            linear-gradient(180deg,
+                rgba(106, 176, 230, 0.32) 0%,
+                rgba(106, 176, 230, 0.05) 25%,
+                rgba(106, 176, 230, 0.05) 75%,
+                rgba(106, 176, 230, 0.28) 100%),
+            linear-gradient(180deg,
+                #142a44 0%,
+                #07182c 55%,
+                #102540 100%);
+    }
+    &--active::after {
+        height: 2px;
+        bottom: 3px;
+        background: linear-gradient(90deg, transparent, #6ab0e6 50%, transparent);
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.7);
     }
 
     /*
@@ -1632,10 +1726,12 @@ each(@players, {
     &--cards--counter,
     &--cards--counter:hover {
         cursor: default;
-        background: linear-gradient(180deg, #1a2a3a 0%, #0d1520 100%);
-        color: #e0e8f0;
-        border-top-color: #3a5a7a;
-        box-shadow: none;
+        color: #d6e2f2;
+        filter: none;
+        background: linear-gradient(180deg,
+            rgba(130, 160, 190, 0.45) 0%,
+            rgba(70, 100, 130, 0.18) 50%,
+            rgba(110, 140, 170, 0.38) 100%);
     }
 
     .bottom-bar-btn-cards-glyph {
@@ -1679,45 +1775,63 @@ each(@players, {
 }
 
 /*
- * Tint the whole HUD chrome (top bar + bottom bar) with the currently
- * selected player's colour. Class is applied on #player-home so a single
- * change repaints both bars. Generated per player colour.
+ * Tint the HUD button frames with the currently selected player's colour.
+ * Class lives on #player-home so a single change repaints both bars.
  *
- * Idle state: visible coloured tint over the dark gradient + thicker
- * top stripe — must read clearly without being attention-grabbing.
- * Active state (overlay open): bright gradient + colour glow.
+ * The dark glass FILL (`::before`) stays constant across all tints — only
+ * the OUTER frame gradient (parent background) and active-state glow take
+ * the player colour. Keeps the chrome dark/legible while still signalling
+ * who's "in control" of the HUD.
  */
 each(@players, {
     @c: ~"player_@{value}";
     .player-tint-@{value} {
-        /* Idle: solid dark base with a visible blend of the player's colour.
-         * `mix(<color>, dark, %)` returns an OPAQUE blend — no see-through. */
         .top-bar-buttons .bottom-bar-btn,
         .bottom-bar-buttons .bottom-bar-btn {
-            border-top: 2px solid @@c;
             background: linear-gradient(180deg,
-                mix(@@c, #1a2a3a, 45%) 0%,
-                mix(@@c, #0d1520, 18%) 100%);
-            color: #fff;
+                mix(@@c, #cfdaea, 55%) 0%,
+                fade(@@c, 22%) 50%,
+                mix(@@c, #cfdaea, 45%) 100%);
         }
 
         .top-bar-buttons .bottom-bar-btn:hover,
         .bottom-bar-buttons .bottom-bar-btn:hover {
-            background: linear-gradient(180deg,
-                mix(@@c, #1a2a3a, 65%) 0%,
-                mix(@@c, #0d1520, 30%) 100%);
+            filter: brightness(1.2) drop-shadow(0 0 6px fade(@@c, 55%));
         }
 
         .top-bar-buttons .bottom-bar-btn--active,
         .top-bar-buttons .bottom-bar-btn--active:hover,
         .bottom-bar-buttons .bottom-bar-btn--active,
         .bottom-bar-buttons .bottom-bar-btn--active:hover {
-            border-top-color: lighten(@@c, 18%);
             background: linear-gradient(180deg,
-                lighten(@@c, 5%) 0%,
-                mix(@@c, #0d1520, 50%) 100%);
-            box-shadow: inset 0 -2px 0 0 lighten(@@c, 18%), 0 0 12px fade(@@c, 60%);
-            color: #fff;
+                lighten(@@c, 28%) 0%,
+                @@c 50%,
+                lighten(@@c, 18%) 100%);
+            filter: drop-shadow(0 0 9px fade(@@c, 70%));
+        }
+        /* Inner glass: tint the soft edge glow with the player colour so the
+         * pressed state reads as "this player's panel is lit up". */
+        .top-bar-buttons .bottom-bar-btn--active::before,
+        .bottom-bar-buttons .bottom-bar-btn--active::before {
+            background:
+                linear-gradient(115deg,
+                    transparent 30%,
+                    fade(lighten(@@c, 30%), 12%) 50%,
+                    transparent 70%),
+                linear-gradient(180deg,
+                    fade(@@c, 38%) 0%,
+                    fade(@@c, 6%) 25%,
+                    fade(@@c, 6%) 75%,
+                    fade(@@c, 32%) 100%),
+                linear-gradient(180deg,
+                    mix(@@c, #07182c, 22%) 0%,
+                    mix(@@c, #07182c, 8%) 55%,
+                    mix(@@c, #07182c, 18%) 100%);
+        }
+        .top-bar-buttons .bottom-bar-btn--active::after,
+        .bottom-bar-buttons .bottom-bar-btn--active::after {
+            background: linear-gradient(90deg, transparent, lighten(@@c, 22%) 50%, transparent);
+            box-shadow: 0 0 8px fade(@@c, 70%);
         }
 
         /* Read-only counter buttons (Actions: N, Cards: N) inherit tint but
@@ -1726,19 +1840,23 @@ each(@players, {
         .bottom-bar-buttons .bottom-bar-btn--actions,
         .top-bar-buttons .bottom-bar-btn--actions:hover,
         .bottom-bar-buttons .bottom-bar-btn--actions:hover {
-            border-top-color: @@c;
             background: linear-gradient(180deg,
-                mix(@@c, #1a2a3a, 35%) 0%,
-                mix(@@c, #0d1520, 12%) 100%);
+                mix(@@c, #cfdaea, 38%) 0%,
+                fade(@@c, 15%) 50%,
+                mix(@@c, #cfdaea, 30%) 100%);
+            filter: none;
         }
     }
 });
 
-/* Spectator / neutral fallback — desaturated grey accent. */
+/* Spectator / neutral fallback — desaturated steel accent. */
 .player-tint-neutral {
     .top-bar-buttons .bottom-bar-btn,
     .bottom-bar-buttons .bottom-bar-btn {
-        border-top: 2px solid #888;
+        background: linear-gradient(180deg,
+            rgba(170, 190, 210, 0.6) 0%,
+            rgba(90, 110, 130, 0.22) 50%,
+            rgba(150, 170, 190, 0.48) 100%);
     }
 }
 
