@@ -2,6 +2,16 @@
     width: 600px;
     height: 488px;
 	margin: 85px 0 0 93px;
+	/*
+	 * The SVG `.board-legend` (mountain captions: Tharsis Tholus, Ascraeus
+	 * Mons, etc.) lives inside `.board` with `position: absolute` and
+	 * `margin: -67px 0 0 -100px`. Authors relied on its *static* position
+	 * being (0, 0) of `.board` so the negative margin pulled the captions
+	 * out to the left of Mars. Make `.board` its own positioning context so
+	 * the SVG is anchored here rather than walking up to .board-cont (which
+	 * would shift the captions to the wrong origin).
+	 */
+	position: relative;
 
 	.board-space {
 		clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
@@ -14,6 +24,26 @@
 	width: 670px;
 	margin: 0 auto;
 	margin-top: 20px;
+	/*
+	 * Make the board container the positioning context for every absolute
+	 * descendant (outer-spaces, .board-space tiles, the SVG .board-legend with
+	 * mountain captions, hide-tile button). Without this, absolute children
+	 * fall back to <body>/<html>, so when we re-centre the board on the page
+	 * the legend stays glued to the screen and drifts off the planet.
+	 * Keep this property even if the board ever moves again — it's the
+	 * single guarantee that "the whole board moves as one piece".
+	 */
+	position: relative;
+	/*
+	 * Single-knob upscale of the whole board. Because every visual element
+	 * (hex tiles, outer-spaces, SVG legend, captioned-tile labels + their
+	 * pseudo-element lines) is a DOM descendant of .board-cont, one transform
+	 * scales the whole assembly proportionally — captions stay anchored to
+	 * their tiles by construction. Origin `top center` so the board grows
+	 * downward and outward from where it already sits.
+	 */
+	transform: scale(var(--board-scale, 1));
+	transform-origin: top center;
 }
 
 .board-with-venus{
@@ -422,6 +452,98 @@
 		position: absolute;
 		margin: -25px 0 0 -20px;
 		width: 88px;
+		pointer-events: none;
+	}
+
+	/*
+	 * Mountain captions for the Tharsis board (Tharsis Tholus, Ascraeus Mons,
+	 * Pavonis Mons, Arsia Mons, Noctis City). They're rendered as children of
+	 * their respective hex tile (see Board.vue#getTileCaption) and stay locked
+	 * to the tile through any future board scale/shift.
+	 *
+	 * Design goal: match the original board's look — caption text sits OUTSIDE
+	 * the planet (on the O₂ scale arc to the left) with a thin line drawn
+	 * back to the tile centre. The line is a CSS pseudo-element on the
+	 * caption (::after), so it follows whatever offset we use for the text.
+	 *
+	 * Per-tile values: `right` positions the right edge of the text relative
+	 * to the tile's right edge (tile is 46px wide; right:125 means text-right
+	 * sits at tile_left - 79). The ::after line length matches the gap from
+	 * text-right to tile-centre. `top` aligns the text with the tile's
+	 * vertical centre.
+	 *
+	 * IMPORTANT: `.board > .board-space` carries `clip-path: polygon(hex)` to
+	 * shape the tile. clip-path clips EVERY child including the caption we're
+	 * pushing outside the hex, so for the captioned tiles we cancel the clip
+	 * and let the background-image (transparent hex PNG) keep the visible
+	 * tile shape.
+	 */
+	&.board-space-09, // Tharsis Tholus
+	&.board-space-14, // Ascraeus Mons
+	&.board-space-21, // Pavonis Mons
+	&.board-space-29, // Arsia Mons
+	&.board-space-31 { // Noctis City
+		clip-path: none !important;
+		overflow: visible;
+		z-index: 5; // make sure the caption rides above neighbouring tiles
+	}
+
+	&.board-space-09 .board-space-text,
+	&.board-space-14 .board-space-text,
+	&.board-space-21 .board-space-text,
+	&.board-space-29 .board-space-text,
+	&.board-space-31 .board-space-text {
+		position: absolute;
+		margin: 0;
+		font-size: 11px;
+		font-weight: bold;
+		line-height: 12px;
+		text-align: right;
+		color: #fff;
+		text-shadow: 0 1px 2px #000, 0 0 4px #000;
+		pointer-events: none;
+		/* Vertically centre the caption on the tile centre regardless of how
+		 * many lines the (potentially translated) name takes. */
+		top: 50%;
+		transform: translateY(-50%);
+
+		&::after {
+			content: '';
+			position: absolute;
+			top: 50%;
+			left: 100%;
+			height: 1px;
+			background: rgba(255, 255, 255, 0.55);
+		}
+	}
+
+	// Per-tile offsets. `right` pushes the caption's right edge so it sits on
+	// the O₂ scale arc, outside the planet; ::after width is the horizontal
+	// distance from text right edge to the centre of the tile.
+	&.board-space-09 .board-space-text { // Tharsis Tholus  tile @ board(129, 75)
+		right: 125px;
+		width: 90px;
+		&::after { width: 102px; }
+	}
+	&.board-space-14 .board-space-text { // Ascraeus Mons   tile @ board(55, 116)
+		right: 80px;
+		width: 90px;
+		&::after { width: 57px; }
+	}
+	&.board-space-21 .board-space-text { // Pavonis Mons    tile @ board(31, 157)
+		right: 105px;
+		width: 90px;
+		&::after { width: 82px; }
+	}
+	&.board-space-29 .board-space-text { // Arsia Mons      tile @ board(6, 198)
+		right: 130px;
+		width: 90px;
+		&::after { width: 107px; }
+	}
+	&.board-space-31 .board-space-text { // Noctis City     tile @ board(104, 198)
+		right: 130px;
+		width: 90px;
+		&::after { width: 107px; }
 	}
 
 	&.board-space-69, &.board-space-70, &.board-space-71, &.board-space-72, &.board-space-73, &.board-space-75, &.board-space-76, &.board-space-77, &.board-space-78 {

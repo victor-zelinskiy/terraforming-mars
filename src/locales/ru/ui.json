@@ -63,6 +63,9 @@
     "you": "вы",
     "researching": "исследование",
     "drafting": "драфт",
+    "Actions": "Действия",
+    "Victory points": "Победные очки",
+    "Terraforming Rating": "Рейтинг терраформирования",
     "vp": "ПО",
     "cards": "карты",
     "building": "здание",
@@ -71,7 +74,6 @@
     "none": "пусто",
     "wild": "любая",
 
-    "Actions": "Действия",
     "Played Cards": "Сыгранные карты",
     "played cards": "сыгранные карты",
     "Played": "Разыграно",

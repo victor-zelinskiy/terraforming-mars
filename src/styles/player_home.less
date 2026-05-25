@@ -1,16 +1,36 @@
 :root {
-    /* Heights of the fixed bottom UI. Tune to give more space back to board/cards. */
+    /* Fixed UI dimensions. Tweak --left-panel-width to give more room to the board. */
     --bottom-bar-button-height: 36px;
-    --player-overview-height: 200px;
-    --bottom-bar-total: calc(var(--bottom-bar-button-height) + var(--player-overview-height));
+    --left-panel-width: 160px;
+    --right-sidebar-width: 60px;
+    /*
+     * Visual scale of the Mars board (and everything that lives inside .board-cont:
+     * hex tiles, outer-spaces, SVG legend, captioned-tile labels with their lines).
+     * Applied via `transform: scale(...)` on .board-cont — because every visual is
+     * a DOM descendant of .board-cont, a single transform scales the whole thing
+     * including the new caption labels and their lines we just refactored. Use to
+     * approximate Steam-version proportions; reduce if the board overflows a
+     * smaller laptop screen.
+     */
+    --board-scale: 1.4;
 }
 
 #player-home, #spectator-home {
-    /* Sidebar is position:fixed at 60px wide; keep content clear of it. */
-    padding-left: 80px;
-    /* Clear the fixed top button bar so the board doesn't slide under it. */
-    padding-top: var(--bottom-bar-button-height);
-    padding-bottom: var(--bottom-bar-total);
+    /* Left = LeftPlayerPanel (player state); right = Sidebar (Mars params). */
+    padding-left: calc(var(--left-panel-width) + 20px);
+    padding-right: calc(var(--right-sidebar-width) + 20px);
+    /*
+     * Clear the fixed top button bar AND give a small buffer so the outer
+     * colony tile captions (Stanford Torus, Maxwell Base, …) — which sit
+     * above .board-outer-spaces via `.board-space-XX { margin-top: -13px }`
+     * plus `.board-space-text { margin-top: -25px }` — never slide under
+     * the top button bar even after board scale. Required buffer ≈
+     * `30px * --board-scale`; we use a flat 26px which gives a healthy
+     * ~30–35px gap at scale 1.4 and still safely clears the buttons up to
+     * about scale 1.8.
+     */
+    padding-top: calc(var(--bottom-bar-button-height) + 26px);
+    padding-bottom: var(--bottom-bar-button-height);
     background: linear-gradient(transparent, #000), url(./assets/stars.jpg);
     background-attachment: fixed;
 
@@ -975,12 +995,561 @@ each(@players, {
 
 /*
  * The block that hosts <GameBoardView>. We center the board horizontally
- * within the space left of the sidebar so it doesn't hug the left edge
- * while the right side sits empty.
+ * within the space between the left player panel and the right sidebar.
+ *
+ * `.board-cont` is scaled via `transform: scale(var(--board-scale))`. CSS
+ * transforms don't grow the layout box, so the inline-block's own height
+ * (~685px = .board height + top margin) stays the same and the hand cards /
+ * actions below would slide UNDER the visually-scaled board. We reserve the
+ * extra vertical space here so subsequent blocks stack below the scaled
+ * board, not behind it.
  */
 .player_home_block--board {
     text-align: center;
-    padding-right: 20px;
+    padding-bottom: calc((var(--board-scale, 1) - 1) * 685px);
+}
+
+/*
+ * Left vertical player panel.
+ * Spans the full viewport height (sits *under* the top-bar buttons which only
+ * occupy the centre strip, not the panel column). Designed to fit a typical
+ * laptop 1366x768 screen without internal scrolling: shrink first if pressed.
+ */
+.left-panel {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--left-panel-width);
+    z-index: 100;
+    background: linear-gradient(180deg, rgba(12, 18, 28, 0.96), rgba(8, 12, 20, 0.96));
+    border-right: 1px solid #2c4a6a;
+    padding: 6px 6px;
+    /* All content must fit a 1366x768 laptop without scrolling. If you find
+     * yourself wanting to re-enable scroll, shrink the section paddings or the
+     * tag icons first. */
+    overflow: hidden;
+    color: #e6e6e6;
+    font-family: Prototype, Ubuntu, sans-serif;
+    box-sizing: border-box;
+}
+
+/*
+ * One self-contained "player card" per player. Bundles cube + name +
+ * corporation + VP + TR + action status in a single clickable block tinted
+ * with the player's translucent colour — same idea as the Steam version where
+ * each player has a card-like header that's hard to confuse with another's.
+ */
+.left-panel-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.left-panel-card {
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #2c4a6a;
+    background: rgba(20, 30, 45, 0.65);
+    transition: filter 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    position: relative;
+
+    &:hover {
+        filter: brightness(1.2);
+    }
+
+    &--selected {
+        border-color: #6ab0e6;
+        box-shadow: 0 0 0 1px #6ab0e6, 0 0 8px rgba(106, 176, 230, 0.5);
+    }
+}
+
+.left-panel-card-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/*
+ * Cube carries the player colour and the legacy spin/glow when it's that
+ * player's turn — `.preferences_player_inner.active` (in preferences.less)
+ * provides both `animation: rotation 8s infinite linear` and a white box-
+ * shadow. Sizing below overrides the base 26x26 down to fit the card row.
+ */
+.left-panel-card-cube {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.left-panel-card-name {
+    font-size: 16px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    line-height: 1;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+}
+
+.left-panel-card-corp {
+    font-size: 11px;
+    color: #d0d8e0;
+    margin: 2px 0 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.left-panel-card-row--stats {
+    justify-content: space-between;
+    font-family: Prototype;
+}
+
+.left-panel-card-stat {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+}
+
+.left-panel-card-stat-label {
+    color: #b8c4d0;
+    font-size: 9px;
+    letter-spacing: 1px;
+}
+
+.left-panel-card-stat-value {
+    color: #fff;
+    font-size: 16px;
+}
+
+.left-panel-card-status {
+    margin-top: 4px;
+    font-size: 9px;
+    text-align: center;
+    padding: 2px 0;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background: rgba(0, 0, 0, 0.35);
+
+    &--active {
+        background: linear-gradient(180deg, #e6e1e1, #b8c4d0);
+        color: #000;
+    }
+    &--passed {
+        background: rgba(0, 0, 0, 0.65);
+        opacity: 0.55;
+    }
+}
+
+/* Shared sci-fi panel chrome: thin neon border + faint inner glow on a
+ * translucent dark background. Used to group resources and tags clusters. */
+.left-panel-section {
+    position: relative;
+    background: rgba(20, 30, 45, 0.55);
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+    padding: 3px;
+    margin-bottom: 3px;
+
+    /* Subtle clipped corner accent — sci-fi feel without distracting. */
+    &::before {
+        content: '';
+        position: absolute;
+        top: -1px;
+        left: -1px;
+        width: 8px;
+        height: 8px;
+        border-top: 1px solid #6ab0e6;
+        border-left: 1px solid #6ab0e6;
+        pointer-events: none;
+    }
+    &::after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        right: -1px;
+        width: 8px;
+        height: 8px;
+        border-bottom: 1px solid #6ab0e6;
+        border-right: 1px solid #6ab0e6;
+        pointer-events: none;
+    }
+}
+
+/*
+ * Reflow nested overview pieces into the compact vertical layout when they
+ * live inside the left panel. Same components stay horizontal in spectator
+ * contexts; the scoping keeps those untouched.
+ */
+.left-panel {
+    /*
+     * Resources: 2 per row × 3 rows. Rebuilt to match the original layout:
+     *
+     *   ┌───────┬─────┐
+     *   │ icon  │ +N  │
+     *   ├───────┤     │
+     *   │ count │     │
+     *   └───────┴─────┘
+     *
+     * Layout split between two strategies:
+     *   - stock (icon + count) lives in NORMAL FLOW inside an absolute-
+     *     positioned wrapper so the count sits cleanly UNDER the icon, not
+     *     on top of it. (Previous bug: count was also absolute, so it
+     *     overlapped the icon.)
+     *   - production sits absolutely to the right of stock.
+     *   - the value-chip is structurally a child of .resource_item_prod in
+     *     the template (we can't move it without touching the Vue file used
+     *     by other components). So it anchors to `.resource_item_prod`
+     *     (positioned). We use `left: -20px` to pull it 20px back from prod's
+     *     left edge so it lands right on top of the icon's top-right corner.
+     */
+    .resource_items_cont {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 4px;
+        margin: 0;
+        filter: none;
+
+        .resource_item {
+            position: relative;
+            display: block;
+            margin-left: 0;
+            width: 100%;
+            min-width: 0;
+            min-height: 60px;
+            padding: 0;
+            background: linear-gradient(rgba(0, 0, 0, 0.8) 20%, rgba(0, 0, 0, 0.45) 70%);
+        }
+
+        .resource_item--energy:after {
+            display: none;
+        }
+
+        /* Icon + count column: absolute on the left, content in normal flow. */
+        .resource_item_stock {
+            position: absolute;
+            left: 4px;
+            top: 2px;
+            width: 36px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .resource_icon {
+            display: block;
+            width: 36px;
+            height: 36px;
+        }
+
+        .resource_item_stock_count {
+            display: block;
+            width: 36px;
+            margin-top: 2px;
+            font-size: 18px;
+            line-height: 1;
+            color: #fff;
+            text-align: center;
+            text-shadow: 0 1px 2px #000;
+        }
+
+        /* Production count: bigger font, vertically centred on the icon's
+         * horizontal axis (icon y=2..38, centre ~20). */
+        .resource_item_prod {
+            position: absolute;
+            left: 46px;
+            top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 24px;
+            height: 24px;
+            font-size: 16px;
+            line-height: 1;
+            color: #bb8760;
+            background: none;
+            padding: 0;
+            margin: 0;
+            border-radius: 0;
+            text-align: center;
+            text-shadow: 0 1px 1px #000;
+
+            .shield_parent { display: none; }
+        }
+
+        .resource_item_prod_count {
+            font-size: 16px;
+            font-family: Prototype;
+            color: #bb8760;
+        }
+
+        /*
+         * "M€ value" badge for steel/titanium — top-RIGHT corner of the icon.
+         * The badge is a DOM child of .resource_item_prod; we use a negative
+         * `left` so it visually escapes prod's box and lands on the icon.
+         *
+         * prod's box starts at left:46 in resource_item coords. The badge is
+         * 16px wide; `left: -20px` puts the badge at resource_item x = 46 -
+         * 20 = 26, spanning x=26..42. Icon spans x=4..40 in resource_item, so
+         * the badge centres on the icon's top-right corner (x=40).
+         */
+        .resource_icon--megacredit-value {
+            position: absolute;
+            top: -6px;
+            left: -20px;
+            width: 16px;
+            height: 16px;
+            background-image: url(./assets/resources/megacredit.png);
+            background-size: 16px 16px;
+            background-position: center;
+            background-repeat: no-repeat;
+            color: #000;
+            font-size: 11px;
+            line-height: 16px;
+            text-align: center;
+            font-family: Prototype;
+            border-radius: 50%;
+            box-shadow: 0 0 2px #000;
+            margin: 0;
+            z-index: 5;
+        }
+    }
+
+    /*
+     * IMPORTANT: do NOT use `transform: scale` on tag icons inside the panel.
+     * The .tag-count nodes carry spectre.css tooltips via `data-tooltip` +
+     * `tooltip-bottom`, which are absolutely-positioned ::after pseudo-
+     * elements. A scaled ancestor makes the tooltip overlay sit on top of the
+     * icon and shrinks its text. We resize icons via width/height/background-
+     * size directly so tooltips stay legible.
+     */
+
+    /*
+     * Tag sizing across the panel: every tag — main row (VP/TR/cards), card
+     * tags, and extras — uses the same 32px circle so the column reads as a
+     * tidy grid. We override .tag-count's base `margin: -6px 0 0 3px` (a
+     * pre-existing offset meant for the legacy horizontal player-info) so
+     * counts sit cleanly next to the icon without overlapping it. Some tag
+     * icons (notably .tag-city-count, .tag-colony-count) carry their own
+     * width/background-size — sometimes with !important — so we have to
+     * override with !important too to keep one consistent size.
+     */
+    .tag-count.tag-type-main,
+    .tag-count.tag-type-secondary {
+        width: 34px !important;
+        height: 34px !important;
+        background-size: 38px !important;
+        background-position: -2px -2px !important;
+        margin: 0 !important;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    /*
+     * The VP/TR/Cards-in-hand row is rendered inside LeftPlayerCard now,
+     * not as a separate .player-tags-main block. Keep the legacy block fully
+     * hidden inside the panel just in case some path still renders it.
+     */
+    .left-panel-tags-main,
+    .player-tags-main {
+        display: none;
+    }
+
+    /* Card-tags + extras secondary blocks: 2-column grid, icon + count.
+     *
+     * Each cell uses a fixed-width `.tag-and-discount` (icon + count) so the
+     * tag NEVER shifts position when we swap displayed players, even if one
+     * player has a discount badge and the other doesn't. Discount and
+     * points-per-tag badges are absolute-positioned over the icon corners and
+     * don't affect layout. */
+    .left-panel-tags-secondary .player-tags-secondary {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        justify-items: center;
+        gap: 6px 6px;
+    }
+
+    .left-panel-tags-secondary {
+        .tag-count-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
+        .tag-and-discount {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            /* Fixed width = icon (34) + gap (4) + count display (~18). Locks
+             * the badge corners to the icon corners regardless of count value
+             * or whether a discount/points badge is present. */
+            width: 60px;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        /* The ORDER separator entry is now expressed as a real sub-block in
+         * the markup (see LeftPlayerPanel); hide the residual element. */
+        .tag-separator {
+            display: none;
+        }
+
+        .tag-display {
+            flex-flow: row;
+            align-items: center;
+            margin-right: 0;
+            gap: 4px;
+        }
+
+        .tag-count-display {
+            font-size: 18px;
+            margin-top: 0;
+            min-width: 14px;
+            text-align: left;
+            font-family: Prototype;
+        }
+    }
+
+    /* The "extras" sub-block sits visually below regular card tags. Keep its
+     * grid identical but give it a faintly distinct header tint to read as a
+     * separate cluster. */
+    .left-panel-tags-extras {
+        background: rgba(15, 22, 35, 0.55);
+    }
+
+    .player-allied-party {
+        margin-top: 4px;
+        font-size: 11px;
+    }
+
+    /*
+     * Empty tags (count = 0 with no discount) get a muted look — but we
+     * MUST NOT use CSS `opacity` for that because the .tag-count icon also
+     * hosts a spectre.css tooltip via `::after`. opacity on a parent fades
+     * the ::after too, so hovering a muted icon shows nearly-invisible
+     * tooltip text. Override `opacity` to 1 inside the panel and dim the
+     * icon via `filter` (background-image affected, tooltip background still
+     * dark + readable) and the count via colour. */
+    .tag-no-show {
+        opacity: 1 !important;
+    }
+    .tag-display.tag-no-show .tag-count {
+        filter: brightness(0.55) saturate(0.5);
+    }
+    .tag-display.tag-no-show .tag-count-display {
+        color: rgba(255, 255, 255, 0.4);
+    }
+    /* The tooltip pseudo-element fills its own background via spectre — undo
+     * any filter influence so the hover text reads at full opacity/colour. */
+    .tag-display.tag-no-show .tag-count.tooltip::after {
+        filter: none;
+    }
+
+    /*
+     * Tag.vue always adds class "tooltip-bottom" → spectre renders the
+     * tooltip plate BELOW the icon. In the narrow side panel, that means
+     * the plate covers the next row of tags and the lowest row's tooltip
+     * spills off the screen. Flip every tag-tooltip to render ABOVE the
+     * icon by overriding the spectre pseudo-element positioning.
+     */
+    .tag-count.tooltip.tooltip-bottom::after {
+        top: auto !important;
+        bottom: 100% !important;
+        transform: translate(-50%, -0.4rem) !important;
+    }
+    .tag-count.tooltip.tooltip-bottom::before {
+        top: auto !important;
+        bottom: 100% !important;
+    }
+
+    /*
+     * Per-tag card-discount badges (-N M€ for a tag) and points-per-tag (VP
+     * earned from each tag). Both are crucial info — restored as compact
+     * absolute corner badges anchored to .tag-and-discount (which is
+     * position:relative). They sit OUTSIDE the icon's box so they don't push
+     * the icon sideways or shrink it. When both are present on the same tag
+     * we stack them on opposite corners.
+     */
+    /*
+     * Both badges anchor to `.tag-and-discount` (which is position:relative,
+     * width 60). Icon takes the left 34px of the wrapper (x=0..34), the count
+     * display sits on the right.
+     *
+     * PlayerTagDiscount needs to sit on the icon's TOP-RIGHT corner — we
+     * MUST use `left:` and not `right:`, because `right:` is measured from
+     * the wrapper's right edge (which is far to the right of the icon).
+     * Badge width 14: `left: 24` puts the badge at x=24..38, centred over
+     * the icon's right edge (34) with a 4px overlap outside.
+     *
+     * PointsPerTag goes on the icon's TOP-LEFT corner — `left: -4` puts the
+     * badge at x=-4..10, hugging the icon's left edge.
+     */
+    .player-tag-discount {
+        /*
+         * `.player-tag-discount` lives inside `.tag-and-discount` (flex row).
+         * Even when its only child (`.megacredits-container`) is absolutely
+         * positioned, the wrapper itself still claims a flex slot (default
+         * `flex: 0 1 auto`) and any browser-supplied margin/inline-block
+         * width — which is exactly what shifts the tag icon to the right
+         * whenever a player has a discount badge.
+         *
+         * `display: contents` removes this wrapper from the layout/box tree
+         * entirely without removing its children. The absolute
+         * `.megacredits-container` now anchors directly to the next
+         * positioned ancestor (.tag-and-discount), and there is literally
+         * zero flex slot for the icon to be pushed by. Supported in all
+         * Chromium / Firefox / Safari since 2018+.
+         */
+        display: contents;
+
+        .megacredits-container {
+            position: absolute;
+            top: -4px;
+            left: 24px;
+            right: auto;
+            padding: 0;
+            border-radius: 50%;
+            z-index: 11;
+            .megacredits {
+                background-image: url(./assets/resources/megacredit.png);
+                background-size: 14px 14px;
+                width: 14px;
+                height: 14px;
+                color: #000;
+                font-size: 10px;
+                font-family: Prototype;
+                line-height: 14px;
+                text-align: center;
+                border-radius: 50%;
+                box-shadow: 0 0 2px #000;
+            }
+        }
+    }
+    .points-per-tag {
+        position: absolute;
+        top: -4px;
+        left: -4px;
+        width: 14px;
+        height: 14px;
+        background: url(./assets/board/mars.png);
+        background-size: 60px;
+        background-position: -16px -10px;
+        border-radius: 50%;
+        font-size: 9px;
+        line-height: 14px;
+        font-family: Prototype;
+        text-align: center;
+        color: #000;
+        box-shadow: 0 0 2px #000;
+        z-index: 11;
+    }
 }
 
 /*
@@ -992,8 +1561,8 @@ each(@players, {
 .top-bar-buttons,
 .bottom-bar-buttons {
     position: fixed;
-    left: 60px;
-    right: 0;
+    left: var(--left-panel-width);
+    right: var(--right-sidebar-width);
     z-index: 105;
     display: flex;
     justify-content: center;
@@ -1006,7 +1575,7 @@ each(@players, {
 }
 
 .bottom-bar-buttons {
-    bottom: var(--player-overview-height);
+    bottom: 0;
 }
 
 .bottom-bar-btn {
@@ -1024,6 +1593,10 @@ each(@players, {
     margin-right: -8px;
     border-top: 1px solid #3a5a7a;
     user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1;
 
     &:hover {
         background: linear-gradient(180deg, #253545 0%, #162030 100%);
@@ -1048,6 +1621,125 @@ each(@players, {
         border-top-color: #6ab0e6;
         box-shadow: inset 0 -2px 0 0 #6ab0e6, 0 0 8px rgba(106, 176, 230, 0.4);
     }
+
+    /*
+     * "Actions: N" and "Cards: N" — read-only counter buttons. No active
+     * state, no hover glow. The cards-glyph mirrors the standard card-back
+     * symbol so it's instantly recognisable.
+     */
+    &--actions,
+    &--actions:hover,
+    &--cards--counter,
+    &--cards--counter:hover {
+        cursor: default;
+        background: linear-gradient(180deg, #1a2a3a 0%, #0d1520 100%);
+        color: #e0e8f0;
+        border-top-color: #3a5a7a;
+        box-shadow: none;
+    }
+
+    .bottom-bar-btn-cards-glyph {
+        width: 18px;
+        height: 18px;
+        background-image: url(./assets/resources/card.png);
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        flex-shrink: 0;
+    }
+
+    .bottom-bar-btn-actions-glyph {
+        position: relative;
+        width: 22px;
+        height: 22px;
+        border-radius: 3px;
+        background: linear-gradient(to bottom right, #ffffff, #aaaaaa, #eeeeee, #cecece, #dddddd, #eeeeee, #cccccc);
+
+        .blue-stripe {
+            position: absolute;
+            top: 6px;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(-60deg, #208cdf 10%, #4da3e6, #208cdf 90%);
+        }
+
+        .red-arrow {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background-image: url(./assets/misc/arrow.png);
+            background-size: 18px;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+    }
+}
+
+/*
+ * Tint the whole HUD chrome (top bar + bottom bar) with the currently
+ * selected player's colour. Class is applied on #player-home so a single
+ * change repaints both bars. Generated per player colour.
+ *
+ * Idle state: visible coloured tint over the dark gradient + thicker
+ * top stripe — must read clearly without being attention-grabbing.
+ * Active state (overlay open): bright gradient + colour glow.
+ */
+each(@players, {
+    @c: ~"player_@{value}";
+    .player-tint-@{value} {
+        /* Idle: solid dark base with a visible blend of the player's colour.
+         * `mix(<color>, dark, %)` returns an OPAQUE blend — no see-through. */
+        .top-bar-buttons .bottom-bar-btn,
+        .bottom-bar-buttons .bottom-bar-btn {
+            border-top: 2px solid @@c;
+            background: linear-gradient(180deg,
+                mix(@@c, #1a2a3a, 45%) 0%,
+                mix(@@c, #0d1520, 18%) 100%);
+            color: #fff;
+        }
+
+        .top-bar-buttons .bottom-bar-btn:hover,
+        .bottom-bar-buttons .bottom-bar-btn:hover {
+            background: linear-gradient(180deg,
+                mix(@@c, #1a2a3a, 65%) 0%,
+                mix(@@c, #0d1520, 30%) 100%);
+        }
+
+        .top-bar-buttons .bottom-bar-btn--active,
+        .top-bar-buttons .bottom-bar-btn--active:hover,
+        .bottom-bar-buttons .bottom-bar-btn--active,
+        .bottom-bar-buttons .bottom-bar-btn--active:hover {
+            border-top-color: lighten(@@c, 18%);
+            background: linear-gradient(180deg,
+                lighten(@@c, 5%) 0%,
+                mix(@@c, #0d1520, 50%) 100%);
+            box-shadow: inset 0 -2px 0 0 lighten(@@c, 18%), 0 0 12px fade(@@c, 60%);
+            color: #fff;
+        }
+
+        /* Read-only counter buttons (Actions: N, Cards: N) inherit tint but
+         * no hover/active behaviour. */
+        .top-bar-buttons .bottom-bar-btn--actions,
+        .bottom-bar-buttons .bottom-bar-btn--actions,
+        .top-bar-buttons .bottom-bar-btn--actions:hover,
+        .bottom-bar-buttons .bottom-bar-btn--actions:hover {
+            border-top-color: @@c;
+            background: linear-gradient(180deg,
+                mix(@@c, #1a2a3a, 35%) 0%,
+                mix(@@c, #0d1520, 12%) 100%);
+        }
+    }
+});
+
+/* Spectator / neutral fallback — desaturated grey accent. */
+.player-tint-neutral {
+    .top-bar-buttons .bottom-bar-btn,
+    .bottom-bar-buttons .bottom-bar-btn {
+        border-top: 2px solid #888;
+    }
 }
 
 /*
@@ -1058,9 +1750,9 @@ each(@players, {
 .bar-overlay {
     position: fixed;
     top: var(--bottom-bar-button-height);
-    bottom: var(--bottom-bar-total);
-    left: 60px;
-    right: 0;
+    bottom: var(--bottom-bar-button-height);
+    left: var(--left-panel-width);
+    right: var(--right-sidebar-width);
     z-index: 110;
     background: rgba(10, 16, 24, 0.97);
     border-top: 2px solid #3a5a7a;

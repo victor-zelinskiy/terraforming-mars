@@ -44,9 +44,6 @@
       <login-home v-else-if="screen === 'login-home'"></login-home>
       <help v-else-if="screen === 'help'"></help>
     </div>
-    <div class="notice" v-i18n>
-      Not affiliated with FryxGames, Asmodee Digital or Steam in any way.
-    </div>
   </div>
 </template>
 

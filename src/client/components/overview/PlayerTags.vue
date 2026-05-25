@@ -1,6 +1,6 @@
 <template>
     <div class="player-tags">
-        <div class="player-tags-main">
+        <div v-if="section === 'main' || section === 'both'" class="player-tags-main">
             <tag-count tag="vp" :count="hideVpCount ? '?' : player.victoryPointsBreakdown.total" :size="'big'" :type="'main'" />
             <div v-if="isEscapeVelocityOn" :class="tooltipCss" :data-tooltip="$t('Escape Velocity penalty')">
               <tag-count tag="escape" :count="escapeVelocityPenalty" :size="'big'" :type="'main'" :showWhenZero="true"/>
@@ -12,7 +12,7 @@
               <tag-count tag="cards" :count="cardsInHandCount" :size="'big'" :type="'main'"/>
             </div>
         </div>
-        <div class="player-tags-secondary">
+        <div v-if="section !== 'main'" class="player-tags-secondary">
           <div class="tag-count-container" v-for="tagDetail of tags" :key="tagDetail.name">
             <template v-if="tagDetail.name === SpecialTags.UNDERGROUND_TOKEN_COUNT">
               <div class="tag-and-discount">
@@ -54,11 +54,6 @@ type TagDetail = {
   halfPoints: number;
   count: number;
   asterisk: boolean;
-};
-
-type DataModel = {
-  all: TagDetail;
-  tagsInOrder: Array<TagDetail>;
 };
 
 const ORDER: Array<InterfaceTagsType> = [
@@ -158,86 +153,100 @@ export default defineComponent({
       required: false,
       default: true,
     },
+    // Which slice of the tags block to render:
+    //   main       — VP/TR/cards header row.
+    //   secondary  — everything below (card tags + separator + extras). Used by
+    //                the spectator's PlayerInfo for backwards compatibility.
+    //   cardTags   — only the regular card tags (Building/Space/...). Used by
+    //                LeftPlayerPanel to put card tags into one sci-fi block.
+    //   extras     — only the "non-card-tag" counters (Event/None/Wild/City
+    //                Count/Colony Count/...) — the original separator becomes
+    //                a real sub-block in LeftPlayerPanel.
+    //   both       — main + secondary (the legacy behaviour).
+    section: {
+      type: String as () => 'main' | 'secondary' | 'both' | 'cardTags' | 'extras',
+      default: 'both',
+    },
   },
-  data(): DataModel {
-    type TagDetails = Record<InterfaceTagsType | 'all', TagDetail>;
-
-    // Start by giving every entry a default value
-    const interim = ORDER.map((key) => [
-      key,
-      {name: key, discount: 0, points: 0, count: getTagCount(key, this.player), halfPoints: 0, asterisk: false},
-    ]);
-    const details: TagDetails = Object.fromEntries(interim);
-
-    // Initialize all's card discount.
-    details['all'] = {
-      name: 'all',
-      discount: this.player?.cardDiscount ?? 0,
-      points: 0,
-      count: 0,
-      halfPoints: 0,
-      asterisk: false,
-    };
-
-    // For each card
-    for (const card of this.player.tableau) {
-      // Calculate discount
-      for (const discount of card.discount ?? []) {
-        const tag = discount.tag ?? 'all';
-        details[tag].discount += discount.amount;
-      }
-
-      // See https://github.com/terraforming-mars/terraforming-mars/issues/5236
-      if (card.name === CardName.CULTIVATION_OF_VENUS || card.name === CardName.VENERA_BASE) {
-        details[Tag.VENUS].halfPoints++;
-      } else {
-        const vps = getCard(card.name)?.victoryPoints;
-        if (vps !== undefined && typeof(vps) !== 'number' && vps !== 'special') {
-          // Special case Commercial District etc.
-          const asterisk = vps.nextToThis !== undefined;
-          if (vps.tag !== undefined) {
-            if (!asterisk) {
-              details[vps.tag].points += ((vps.each ?? 1) / (vps.per ?? 1));
-            } else {
-              details[vps.tag].asterisk = true;
-            }
-          }
-          if (vps.cities !== undefined) {
-            if (!asterisk) {
-              details['city-count'].points += ((vps.each ?? 1) / (vps.per ?? 1));
-            } else {
-              details['city-count'].asterisk = true;
-            }
-          }
-        }
-      }
-    }
-
-    // Other modifiers
-    if (this.playerView.game.turmoil?.ruling === PartyName.UNITY &&
-      this.playerView.game.turmoil.politicalAgendas?.unity.policyId === 'up04') {
-      details[Tag.SPACE].discount += 2;
-    }
-
-    // Put them in order.
-    const tagsInOrder = [];
-    for (const tag of ORDER) {
-      const entry = details[tag];
-      tagsInOrder.push(entry);
-    }
-
-    return {
-      all: details['all'],
-      tagsInOrder,
-    };
-  },
-
   components: {
     'tag-count': TagCount,
     PlayerTagDiscount,
     PointsPerTag,
   },
   computed: {
+    /*
+     * `tagDetails` rebuilds whenever `player` or `playerView` changes — moved
+     * out of `data()` so that swapping the displayed player in LeftPlayerPanel
+     * actually rerenders the tag list. (data() only runs once when the
+     * component is constructed.)
+     */
+    tagDetails(): {all: TagDetail; tagsInOrder: Array<TagDetail>} {
+      type TagDetails = Record<InterfaceTagsType | 'all', TagDetail>;
+
+      const interim = ORDER.map((key) => [
+        key,
+        {name: key, discount: 0, points: 0, count: getTagCount(key, this.player), halfPoints: 0, asterisk: false},
+      ]);
+      const details: TagDetails = Object.fromEntries(interim);
+
+      details['all'] = {
+        name: 'all',
+        discount: this.player?.cardDiscount ?? 0,
+        points: 0,
+        count: 0,
+        halfPoints: 0,
+        asterisk: false,
+      };
+
+      for (const card of this.player.tableau) {
+        for (const discount of card.discount ?? []) {
+          const tag = discount.tag ?? 'all';
+          details[tag].discount += discount.amount;
+        }
+
+        // See https://github.com/terraforming-mars/terraforming-mars/issues/5236
+        if (card.name === CardName.CULTIVATION_OF_VENUS || card.name === CardName.VENERA_BASE) {
+          details[Tag.VENUS].halfPoints++;
+        } else {
+          const vps = getCard(card.name)?.victoryPoints;
+          if (vps !== undefined && typeof(vps) !== 'number' && vps !== 'special') {
+            const asterisk = vps.nextToThis !== undefined;
+            if (vps.tag !== undefined) {
+              if (!asterisk) {
+                details[vps.tag].points += ((vps.each ?? 1) / (vps.per ?? 1));
+              } else {
+                details[vps.tag].asterisk = true;
+              }
+            }
+            if (vps.cities !== undefined) {
+              if (!asterisk) {
+                details['city-count'].points += ((vps.each ?? 1) / (vps.per ?? 1));
+              } else {
+                details['city-count'].asterisk = true;
+              }
+            }
+          }
+        }
+      }
+
+      if (this.playerView.game.turmoil?.ruling === PartyName.UNITY &&
+        this.playerView.game.turmoil.politicalAgendas?.unity.policyId === 'up04') {
+        details[Tag.SPACE].discount += 2;
+      }
+
+      const tagsInOrder: Array<TagDetail> = [];
+      for (const tag of ORDER) {
+        tagsInOrder.push(details[tag]);
+      }
+
+      return {all: details['all'], tagsInOrder};
+    },
+    all(): TagDetail {
+      return this.tagDetails.all;
+    },
+    tagsInOrder(): Array<TagDetail> {
+      return this.tagDetails.tagsInOrder;
+    },
     isThisPlayer(): boolean {
       return this.player.color === this.playerView.thisPlayer?.color;
     },
@@ -259,7 +268,7 @@ export default defineComponent({
     tags(): Array<TagDetail> {
       // In tests this one call to vueRoot uses `?.` because for some reason it this doesn't pass tests.
       const concise = vueRoot(this).componentsVisibility?.['tags_concise'] ?? this.conciseTagsViewDefaultValue;
-      return this.tagsInOrder.filter((entry) => {
+      const filtered = this.tagsInOrder.filter((entry) => {
         if (!isInGame(entry.name, this.playerView.game)) {
           return false;
         }
@@ -271,6 +280,18 @@ export default defineComponent({
         }
         return true;
       });
+
+      // For the split-section views the canonical 'separator' entry is the
+      // divider in ORDER; cut at it.
+      if (this.section === 'cardTags') {
+        const idx = filtered.findIndex((e) => e.name === 'separator');
+        return idx >= 0 ? filtered.slice(0, idx) : filtered;
+      }
+      if (this.section === 'extras') {
+        const idx = filtered.findIndex((e) => e.name === 'separator');
+        return idx >= 0 ? filtered.slice(idx + 1) : [];
+      }
+      return filtered;
     },
     SpecialTags() {
       return SpecialTags;

@@ -1,21 +1,34 @@
 <template>
-  <div id="player-home" :class="(game.turmoil ? 'with-turmoil': '')">
+  <div id="player-home" :class="[(game.turmoil ? 'with-turmoil': ''), playerTintClass]">
     <div class="top-bar-buttons" v-i18n>
       <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'milestones'}" v-on:click="toggleOverlay('milestones')">Milestones</div>
       <div class="bottom-bar-btn bottom-bar-btn--center" :class="{'bottom-bar-btn--active': activeOverlay === 'standardProjects'}" v-on:click="toggleOverlay('standardProjects')">Standard Projects</div>
       <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'awards'}" v-on:click="toggleOverlay('awards')">Awards</div>
     </div>
 
-    <div class="bottom-bar-buttons" v-i18n>
-      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'colonies'}" v-on:click="toggleOverlay('colonies')">Colonies</div>
-      <div class="bottom-bar-btn bottom-bar-btn--center" :class="{'bottom-bar-btn--active': activeOverlay === 'cards'}" v-on:click="toggleOverlay('cards')">Cards</div>
-      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" v-on:click="toggleOverlay('played')">Played</div>
-      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'log'}" v-on:click="toggleOverlay('log')">Log</div>
+    <div class="bottom-bar-buttons">
+      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'colonies'}" v-on:click="toggleOverlay('colonies')"><span v-i18n>Colonies</span></div>
+      <div class="bottom-bar-btn bottom-bar-btn--center bottom-bar-btn--cards" :class="{'bottom-bar-btn--active': activeOverlay === 'cards'}" v-on:click="toggleOverlay('cards')">
+        <div class="bottom-bar-btn-cards-glyph"></div>
+        <span v-i18n>Cards</span>: {{ displayedCardsInHandCount }}
+      </div>
+      <div class="bottom-bar-btn bottom-bar-btn--actions">
+        <div class="bottom-bar-btn-actions-glyph">
+          <div class="blue-stripe"></div>
+          <div class="red-arrow"></div>
+        </div>
+        <span v-i18n>Actions</span>: {{ availableActionsCount }}
+      </div>
+      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" v-on:click="toggleOverlay('played')"><span v-i18n>Played</span></div>
+      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'victoryPoints'}" v-on:click="toggleOverlay('victoryPoints')"><span v-i18n>Victory Points</span>: {{ displayedVictoryPoints }}</div>
+      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'log'}" v-on:click="toggleOverlay('log')"><span v-i18n>Log</span></div>
     </div>
 
-    <div class="players-overview-container">
-      <players-overview class="player_home_block player_home_block--players nofloat" :playerView="playerView" :selectedColor="selectedPlayerColor" v-trim-whitespace id="shortkey-playersoverview"/>
-    </div>
+    <LeftPlayerPanel
+      :playerView="playerView"
+      :displayedPlayer="displayedPlayer"
+      :selectedColor="selectedPlayerColor"
+      @selectPlayer="selectedPlayerColor = $event" />
 
     <div v-if="activeOverlay === 'log'" class="bar-overlay bar-overlay--log">
       <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
@@ -81,8 +94,7 @@
       :isTerraformed="playerView.game.isTerraformed"
       :lastSoloGeneration = "game.lastSoloGeneration"
       :deckSize = "game.deckSize"
-      :discardPileSize = "game.discardPileSize"
-      @selectPlayer="selectedPlayerColor = $event">
+      :discardPileSize = "game.discardPileSize">
     </sidebar>
 
     <div v-if="thisPlayer.tableau.length > 0">
@@ -173,7 +185,7 @@
 import {defineComponent} from 'vue';
 
 import Card from '@/client/components/card/Card.vue';
-import PlayersOverview from '@/client/components/overview/PlayersOverview.vue';
+import LeftPlayerPanel from '@/client/components/overview/LeftPlayerPanel.vue';
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import Sidebar from '@/client/components/Sidebar.vue';
 import Colony from '@/client/components/colonies/Colony.vue';
@@ -208,7 +220,7 @@ type ToggleableState = {
 // Overlays opened by the top/bottom bar buttons. Only one can be visible at a time —
 // pressing a different button closes the previous overlay. Pressing the same button
 // again closes the active overlay.
-type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'played' | 'log';
+type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'played' | 'victoryPoints' | 'log';
 
 type PlayerHomeModel = ToggleableState & {
   selectedPlayerColor: Color | undefined;
@@ -297,12 +309,35 @@ export default defineComponent({
     playedCardsTitleClass(): string {
       return `dynamic-title ${playerColorClass(this.displayedPlayer.color, 'shadow')}`;
     },
+    availableActionsCount(): number {
+      return this.displayedPlayer.availableBlueCardActionCount;
+    },
+    displayedCardsInHandCount(): number {
+      // For the current user we know the exact cards in hand (preludes + ceos
+      // + projects). For other players the server only sends the count.
+      if (this.displayedPlayer.color === this.thisPlayer.color) {
+        return this.cardsInHandCount;
+      }
+      return this.displayedPlayer.cardsInHandNbr ?? 0;
+    },
+    displayedVictoryPoints(): number | string {
+      const hide = !this.game.gameOptions.showOtherPlayersVP &&
+        this.displayedPlayer.color !== this.thisPlayer.color;
+      return hide ? '?' : this.displayedPlayer.victoryPointsBreakdown.total;
+    },
+    // Tints the entire chrome (top bar buttons + bottom bar buttons) with
+    // the selected player's colour so it's instantly obvious whose state
+    // the UI is showing. Class is applied to #player-home so a single
+    // selector colours every bar at once.
+    playerTintClass(): string {
+      return `player-tint-${this.displayedPlayer.color}`;
+    },
   },
 
   components: {
     DynamicTitle,
     Card,
-    'players-overview': PlayersOverview,
+    LeftPlayerPanel,
     'waiting-for': WaitingFor,
     'sidebar': Sidebar,
     'colony': Colony,
