@@ -64,8 +64,12 @@ export default defineComponent({
       return this.thisPlayer;
     },
     displayedPlayerIndex(): number {
-      if (this.displayedPlayer === undefined) return -1;
-      if (this.displayedPlayer.color === this.thisPlayer?.color) return -1;
+      if (this.displayedPlayer === undefined) {
+        return -1;
+      }
+      if (this.displayedPlayer.color === this.thisPlayer?.color) {
+        return -1;
+      }
       return playerIndex(this.displayedPlayer.color, this.players);
     },
   },

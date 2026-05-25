@@ -2,7 +2,7 @@
   <dialog ref="dialog" class="card-zoom-dialog" @click="onBackdropClick">
     <div class="card-zoom-container" @click.stop>
       <button class="card-zoom-close" @click="close()">&times;</button>
-      <div class="card-zoom-card">
+      <div v-if="cardInstance" class="card-zoom-card">
         <div class="card-container filterDiv card-auto-tall" v-i18n>
           <div class="card-content-wrapper">
             <div v-if="!isStandardProject" class="card-cost-and-tags">
@@ -29,7 +29,8 @@
 import {defineComponent} from 'vue';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
 import {CardModel} from '@/common/models/CardModel';
-import {getCardOrThrow} from '@/client/cards/ClientCardManifest';
+import {ClientCard} from '@/common/cards/ClientCard';
+import {getCard, getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {CardType} from '@/common/cards/CardType';
 import {CardMetadata} from '@/common/cards/CardMetadata';
 import {Tag} from '@/common/cards/Tag';
@@ -71,29 +72,34 @@ export default defineComponent({
       default: false,
     },
   },
-  data() {
-    return {
-      cardInstance: getCardOrThrow(this.card.name),
-    };
-  },
   computed: {
     typedRefs(): Refs {
       return this.$refs as unknown as Refs;
     },
+    // `cardInstance` returns undefined for unknown card names (e.g. custom cards
+    // not registered in the manifest). The template guards every dependent
+    // accessor with `v-if="cardInstance"`, so `card` (which throws on undefined)
+    // is only ever evaluated when the card is known.
+    cardInstance(): ClientCard | undefined {
+      return getCard(this.card.name);
+    },
+    cardOrThrow(): ClientCard {
+      return getCardOrThrow(this.card.name);
+    },
     cardType(): CardType {
-      return this.cardInstance.type;
+      return this.cardOrThrow.type;
     },
     cardMetadata(): CardMetadata {
-      return this.cardInstance.metadata;
+      return this.cardOrThrow.metadata;
     },
     cardRequirements(): ReadonlyArray<CardRequirementDescriptor> | undefined {
-      return this.cardInstance.requirements;
+      return this.cardOrThrow.requirements;
     },
     cardExpansion(): GameModule {
-      return this.cardInstance.module;
+      return this.cardOrThrow.module;
     },
     cardCompatibility(): Array<GameModule> {
-      return this.cardInstance.compatibility;
+      return this.cardOrThrow.compatibility;
     },
     isCorporationCard(): boolean {
       return this.cardType === CardType.CORPORATION;
@@ -106,22 +112,22 @@ export default defineComponent({
       return this.cardType === CardType.STANDARD_PROJECT || this.cardType === CardType.STANDARD_ACTION;
     },
     isResourceCard(): boolean {
-      return this.cardInstance.resourceType !== undefined;
+      return this.cardOrThrow.resourceType !== undefined;
     },
     hasResourceType(): boolean {
-      return this.card.isSelfReplicatingRobotsCard === true || this.cardInstance.resourceType !== undefined;
+      return this.card.isSelfReplicatingRobotsCard === true || this.cardOrThrow.resourceType !== undefined;
     },
     resourceType(): CardResource {
       if (this.card.isSelfReplicatingRobotsCard === true) {
         return CardResource.RESOURCE_CUBE;
       }
-      return this.cardInstance.resourceType ?? CardResource.RESOURCE_CUBE;
+      return this.cardOrThrow.resourceType ?? CardResource.RESOURCE_CUBE;
     },
     resourceAmount(): number {
       return this.card.resources || 0;
     },
     tags(): Array<Tag> {
-      const tags = [...this.cardInstance.tags || []];
+      const tags = [...this.cardOrThrow.tags || []];
       tags.forEach((tag, idx) => {
         if (tag === Tag.CLONE && this.card.cloneTag !== undefined) {
           tags[idx] = this.card.cloneTag;
@@ -133,7 +139,7 @@ export default defineComponent({
       return tags;
     },
     cost(): number | undefined {
-      return this.isProjectCard ? this.cardInstance.cost : undefined;
+      return this.isProjectCard ? this.cardOrThrow.cost : undefined;
     },
     reducedCost(): number | undefined {
       return this.isProjectCard ? this.card.calculatedCost : undefined;

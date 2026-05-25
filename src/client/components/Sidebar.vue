@@ -159,7 +159,7 @@ export default defineComponent({
     },
     players: {
       type: Array as () => Array<PublicPlayerModel>,
-      required: true,
+      default: () => [],
     },
   },
   emits: ['selectPlayer'],
