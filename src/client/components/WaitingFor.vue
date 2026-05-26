@@ -174,22 +174,36 @@ export default defineComponent({
           if (xhr.status === statusCode.ok) {
             const result = xhr.response as WaitingForModel;
             this.playersWaitingFor = result.waitingFor;
-            if (result.result === 'GO') {
-              // Will only apply to player, not spectator.
-              root.updatePlayer();
-              this.notify();
-              // We don't need to wait anymore - it's our turn
-              return;
-            } else if (result.result === 'REFRESH') {
-              // Something changed, let's refresh UI
-              if (isPlayerId(this.playerView.id)) {
-                root.updatePlayer();
-              } else {
-                root.updateSpectator();
-              }
+            // Bubble the live "who's currently being waited on" list to
+            // the root so siblings (left-panel cubes, status labels) can
+            // react to it without doing a full playerView refresh.
+            root.playersWaitingFor = result.waitingFor;
 
-              return;
+            // While the viewer is mid-prompt (`waitingfor !== undefined`)
+            // a full refresh would reset their partial input state
+            // (selected cards, etc.). Skip it — the bubbled list above
+            // is enough to keep other players' cube/status in sync.
+            const viewerHasPrompt = this.waitingfor !== undefined;
+
+            if (result.result === 'GO') {
+              if (!viewerHasPrompt) {
+                // Their prompt just appeared — fetch the new view.
+                root.updatePlayer();
+                this.notify();
+                return;
+              }
+            } else if (result.result === 'REFRESH') {
+              if (!viewerHasPrompt) {
+                // Game advanced and viewer isn't mid-input — safe to refresh.
+                if (isPlayerId(this.playerView.id)) {
+                  root.updatePlayer();
+                } else {
+                  root.updateSpectator();
+                }
+                return;
+              }
             }
+            // WAIT, or viewer is mid-prompt — keep polling without refresh.
             vueApp.waitForUpdate();
           } else {
             root.showAlert('Error with input', `Received unexpected response from server (${xhr.status}). This is often due to the server restarting.`, () => vueApp.waitForUpdate());
@@ -246,9 +260,12 @@ export default defineComponent({
   mounted() {
     document.title = gameDocumentTitle(this.playerView.game);
     window.clearInterval(documentTitleTimer);
-    if (this.waitingfor === undefined) {
-      this.waitForUpdate();
-    }
+    // Always poll — even when the viewer is mid-prompt — so other players'
+    // status (cube spin, status label) stays in sync across simultaneous-
+    // action phases (drafting / research / production interrupts). The poll
+    // handler skips full refreshes while the viewer has a prompt to avoid
+    // resetting partial input state.
+    this.waitForUpdate();
     if (this.playerView.players.length > 1 && this.waitingfor !== undefined) {
       documentTitleTimer = window.setInterval(() => this.animateTitle(), 1000);
     }

@@ -1,9 +1,68 @@
 <template>
   <div id="player-home" :class="[(game.turmoil ? 'with-turmoil': ''), playerTintClass]">
     <div class="top-bar-buttons" v-i18n>
-      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'milestones'}" v-on:click="toggleOverlay('milestones')">Milestones</div>
+      <!-- Each top-bar button gets its own anchor wrapper so its dropdown
+           overlay can position absolutely under it. The wrapper takes the
+           place of the button in the flex layout (matching its negative
+           margin) so the buttons still overlap. -->
+      <div class="top-bar-btn-anchor">
+        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'milestones'}" v-on:click="toggleOverlay('milestones')">Milestones</div>
+        <!--
+          Claimed-milestone badge strip. Hangs below the Milestones button and
+          shows up to 3 slots that fill in as players claim milestones. Visible
+          to every player in real time so it's an at-a-glance "who's already
+          taken what" indicator without needing to open the overlay. Hidden
+          while the overlay is open (the overlay header carries the same info).
+        -->
+        <div v-if="activeOverlay !== 'milestones'" class="milestone-badges-strip">
+          <MilestoneClaimedBadge
+            v-for="(slot, i) in claimedMilestoneSlots"
+            :key="i"
+            :milestone="slot"
+            :claimedCount="claimedMilestonesCount" />
+        </div>
+        <MilestonesOverlay
+          v-if="activeOverlay === 'milestones'"
+          class="top-bar-dropdown"
+          :milestones="game.milestones"
+          :players="playerView.players"
+          :thisPlayerColor="thisPlayer.color"
+          :thisPlayerMegacredits="thisPlayer.megacredits"
+          :viewerActing="playerView.waitingFor !== undefined"
+          :claimableNow="claimableMilestones"
+          @claim="claimMilestone($event)"
+          @close="activeOverlay = null" />
+      </div>
       <div class="bottom-bar-btn bottom-bar-btn--center" :class="{'bottom-bar-btn--active': activeOverlay === 'standardProjects'}" v-on:click="toggleOverlay('standardProjects')">Standard Projects</div>
-      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'awards'}" v-on:click="toggleOverlay('awards')">Awards</div>
+      <div class="top-bar-btn-anchor">
+        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'awards'}" v-on:click="toggleOverlay('awards')">Awards</div>
+        <!--
+          Funded-award badge strip. Same UX contract as the milestones strip:
+          3 slots fill in as awards are funded, hidden while the overlay is
+          open. Awards don't "lock in" a winner — even after funding, the
+          per-player scoring race continues until game end.
+        -->
+        <div v-if="activeOverlay !== 'awards'" class="milestone-badges-strip">
+          <AwardFundedBadge
+            v-for="(slot, i) in fundedAwardSlots"
+            :key="i"
+            :award="slot"
+            :fundedCount="fundedAwardsCount"
+            :players="playerView.players" />
+        </div>
+        <AwardsOverlay
+          v-if="activeOverlay === 'awards'"
+          class="top-bar-dropdown"
+          :awards="game.awards"
+          :players="playerView.players"
+          :thisPlayerColor="thisPlayer.color"
+          :thisPlayerMegacredits="thisPlayer.megacredits"
+          :viewerActing="playerView.waitingFor !== undefined"
+          :fundableNow="fundableAwards"
+          :fundedCount="fundedAwardsCount"
+          @fund="fundAward($event)"
+          @close="activeOverlay = null" />
+      </div>
     </div>
 
     <div class="bottom-bar-buttons">
@@ -28,11 +87,40 @@
       :playerView="playerView"
       :displayedPlayer="displayedPlayer"
       :selectedColor="selectedPlayerColor"
-      @selectPlayer="selectedPlayerColor = $event" />
+      :livePlayersWaitingFor="livePlayersWaitingFor"
+      :convertHeatAvailable="convertHeatAvailable && displayedPlayer.color === thisPlayer.color"
+      :convertPlantsAvailable="convertPlantsAvailable && displayedPlayer.color === thisPlayer.color"
+      :convertPlantsPickerActive="convertPlantsPickerActive"
+      @selectPlayer="selectedPlayerColor = $event"
+      @convert-heat="convertHeat"
+      @convert-plants="toggleConvertPlantsPicker" />
+
+    <!--
+      Active controller for the Convert-Plants space picker. Renders the
+      legacy `SelectSpace.vue` with the inner prompt extracted from the
+      action menu — it activates board-tile interaction and calls our
+      onsave when a space is clicked, where we wrap the response in the
+      outer OR-payload before submitting.
+    -->
+    <select-space
+      v-if="convertPlantsPickerActive && convertPlantsPrompt !== undefined"
+      :playerView="playerView"
+      :playerinput="convertPlantsPrompt"
+      :onsave="onConvertPlantsSpacePicked"
+      :showsave="false"
+      :showtitle="false" />
 
     <div v-if="activeOverlay === 'log'" class="bar-overlay bar-overlay--log">
       <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
       <log-panel :viewModel="playerView" :color="thisPlayer.color" :step="game.step"></log-panel>
+    </div>
+
+    <div v-if="activeOverlay === 'victoryPoints'" class="bar-overlay bar-overlay--victory-points">
+      <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
+      <VictoryPointsOverlay
+        :displayedPlayer="displayedPlayer"
+        :game="game"
+        :thisPlayerColor="thisPlayer.color" />
     </div>
 
     <div v-if="activeOverlay === 'played'" class="bar-overlay bar-overlay--played">
@@ -113,7 +201,7 @@
       <div class="player_home_block player_home_block--actions nofloat">
         <a name="actions" class="player_home_anchor"></a>
         <dynamic-title title="Actions" :color="thisPlayer.color"/>
-        <waiting-for v-if="game.phase !== 'end'" :playerView="playerView" :waitingfor="playerView.waitingFor"></waiting-for>
+        <waiting-for v-if="game.phase !== 'end'" ref="waitingFor" :playerView="playerView" :waitingfor="playerView.waitingFor"></waiting-for>
       </div>
 
       <div class="player_home_block player_home_block--hand" v-if="playerView.draftedCards.length > 0">
@@ -173,10 +261,11 @@
       </div>
     </div>
 
-    <div v-if="game.spectatorId">
-      <a :href="'/spectator?id=' +game.spectatorId" target="_blank" rel="noopener noreferrer" v-i18n>Spectator link</a>
-    </div>
-    <purge-warning :expectedPurgeTimeMs="game.expectedPurgeTimeMs"></purge-warning>
+    <!--
+      Spectator link and game-purge warning intentionally removed: this fork
+      is a private/self-hosted 2-player setup, so the spectator endpoint is
+      never used and purge-after-N-hours doesn't apply.
+    -->
     <KeyboardShortcuts v-show="keyboardShortcutOpened" @close="keyboardShortcutOpened = false"></KeyboardShortcuts>
   </div>
 </template>
@@ -195,9 +284,31 @@ import PlayerSetupView from '@/client/components/PlayerSetupView.vue';
 import DynamicTitle from '@/client/components/common/DynamicTitle.vue';
 import SortableCards from '@/client/components/SortableCards.vue';
 import StackedCards from '@/client/components/StackedCards.vue';
-import PurgeWarning from '@/client/components/common/PurgeWarning.vue';
 import UndergroundTokens from '@/client/components/underworld/UndergroundTokens.vue';
 import KeyboardShortcuts from '@/client/components/KeyboardShortcuts.vue';
+import VictoryPointsOverlay from '@/client/components/overview/VictoryPointsOverlay.vue';
+import MilestonesOverlay from '@/client/components/overview/MilestonesOverlay.vue';
+import MilestoneClaimedBadge from '@/client/components/overview/MilestoneClaimedBadge.vue';
+import AwardsOverlay from '@/client/components/overview/AwardsOverlay.vue';
+import AwardFundedBadge from '@/client/components/overview/AwardFundedBadge.vue';
+import SelectSpace from '@/client/components/SelectSpace.vue';
+import {ClaimedMilestoneModel} from '@/common/models/ClaimedMilestoneModel';
+import {FundedAwardModel} from '@/common/models/FundedAwardModel';
+import {AwardName} from '@/common/ma/AwardName';
+import {MAX_MILESTONES, MAX_AWARDS} from '@/common/constants';
+import {MilestoneName} from '@/common/ma/MilestoneName';
+import {PlayerInputModel, OrOptionsModel, SelectOptionModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
+import {Message} from '@/common/logs/Message';
+import {vueRoot} from '@/client/components/vueRoot';
+
+// PlayerInput titles are `string | Message`. Returns the plain English text
+// regardless of shape — used for string-matching prompt titles like
+// "Claim a milestone".
+function inputTitleText(title: string | Message | undefined): string | undefined {
+  if (title === undefined) return undefined;
+  if (typeof title === 'string') return title;
+  return title.message;
+}
 import {getPreferences, Preferences, PreferencesManager} from '@/client/utils/PreferencesManager';
 import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -225,6 +336,11 @@ type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'ca
 type PlayerHomeModel = ToggleableState & {
   selectedPlayerColor: Color | undefined;
   activeOverlay: OverlayId | null;
+  // True while the Convert-Plants flow is in "click a greenery space"
+  // mode. Renders SelectSpace.vue with the inner SelectSpace prompt so
+  // it can drive board interaction; on space pick we wrap the response in
+  // the outer OR-payload and submit.
+  convertPlantsPickerActive: boolean;
 }
 
 type ToggleableCardType = 'HAND' | 'ACTIVE' | 'AUTOMATED' | 'EVENT';
@@ -248,6 +364,7 @@ export default defineComponent({
       showEventCards: !preferences.hide_event_cards,
       selectedPlayerColor: undefined,
       activeOverlay: null,
+      convertPlantsPickerActive: false,
     };
   },
   watch: {
@@ -263,6 +380,26 @@ export default defineComponent({
     showEventCards: function toggle_event_cards() {
       PreferencesManager.INSTANCE.set('hide_event_cards', !this.showEventCards);
     },
+    /*
+     * When ANY overlay opens we install a global click listener that closes
+     * the overlay on outside clicks (so it behaves like a real dropdown / popup).
+     * Bar buttons, overlays themselves, and the left player panel are exempted
+     * — clicks there should run their own handlers / not dismiss the overlay.
+     * The listener is attached on $nextTick so the click that opened the
+     * overlay doesn't immediately close it.
+     */
+    activeOverlay(newVal: OverlayId | null, oldVal: OverlayId | null) {
+      if (newVal !== null && oldVal === null) {
+        this.$nextTick(() => {
+          document.addEventListener('click', this.handleOutsideOverlayClick);
+        });
+      } else if (newVal === null && oldVal !== null) {
+        document.removeEventListener('click', this.handleOutsideOverlayClick);
+      }
+    },
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleOutsideOverlayClick);
   },
   props: {
     playerView: {
@@ -332,6 +469,81 @@ export default defineComponent({
     playerTintClass(): string {
       return `player-tint-${this.displayedPlayer.color}`;
     },
+    // Live "who's currently being waited on by the server" list — sourced
+    // from `WaitingFor.vue`'s continuous poll and stored on the root App
+    // component. We expose it as a computed so child panels can drive
+    // per-player cube animation + status label off real-time state
+    // (otherwise these would lag until the viewer themselves acted).
+    livePlayersWaitingFor(): ReadonlyArray<Color> {
+      return vueRoot(this).playersWaitingFor;
+    },
+    // Fixed-length array of 3 milestone slots (left → right in claim order).
+    // Each slot is either a claimed `ClaimedMilestoneModel` or `undefined`
+    // (empty). Used by the badge strip below the "Milestones" bar button so
+    // every player sees claims appear in real time without opening the overlay.
+    claimedMilestoneSlots(): Array<ClaimedMilestoneModel | undefined> {
+      const claimed = this.game.milestones.filter((m) => m.playerName !== undefined);
+      return Array.from({length: MAX_MILESTONES}, (_, i) => claimed[i]);
+    },
+    claimedMilestonesCount(): number {
+      return this.claimedMilestoneSlots.filter((s) => s !== undefined).length;
+    },
+    // Set of milestone names the current player can claim THIS instant.
+    // Read straight from the `waitingFor` model the server already sends —
+    // each SelectOption inside the "Claim a milestone" sub-OrOptions has
+    // its title set to `milestone.name` (a `MilestoneName` enum literal),
+    // so there's no string parsing here: we're reading typed data the
+    // server placed into the input tree. The walk recurses through OR/AND
+    // containers so the action menu still resolves when wrapped (initial-
+    // action prompts, etc.).
+    claimableMilestones(): Set<MilestoneName> {
+      const set = new Set<MilestoneName>();
+      const found = this.findMilestoneOptionPath(this.playerView.waitingFor);
+      if (!found) return set;
+      for (const opt of found.options) {
+        const t = inputTitleText(opt.title);
+        if (opt.type === 'option' && t !== undefined) {
+          set.add(t as MilestoneName);
+        }
+      }
+      return set;
+    },
+    // Same pattern for awards: each inner SelectOption's title is the
+    // `AwardName` enum literal.
+    fundableAwards(): Set<AwardName> {
+      const set = new Set<AwardName>();
+      const found = this.findAwardOptionPath(this.playerView.waitingFor);
+      if (!found) return set;
+      for (const opt of found.options) {
+        const t = inputTitleText(opt.title);
+        if (opt.type === 'option' && t !== undefined) {
+          set.add(t as AwardName);
+        }
+      }
+      return set;
+    },
+    fundedAwardSlots(): Array<FundedAwardModel | undefined> {
+      const funded = this.game.awards.filter((a) => a.playerName !== undefined);
+      return Array.from({length: MAX_AWARDS}, (_, i) => funded[i]);
+    },
+    fundedAwardsCount(): number {
+      return this.fundedAwardSlots.filter((s) => s !== undefined).length;
+    },
+    // Server-authoritative availability flags. The server already runs the
+    // canonical `canAct()` check (the same one that controls whether the
+    // legacy radio-button option goes into the menu), so the client just
+    // mirrors that field instead of re-deriving from the waitingFor tree.
+    // Tree-walking is kept ONLY for submission (to know the index path to
+    // wrap the response in), not for the enabled/disabled gate.
+    convertHeatAvailable(): boolean {
+      return this.thisPlayer.canConvertHeat === true;
+    },
+    convertPlantsAvailable(): boolean {
+      return this.thisPlayer.canConvertPlants === true;
+    },
+    convertPlantsPrompt(): SelectSpaceModel | undefined {
+      return this.findConvertPlantsOption(this.playerView.waitingFor)?.spacePrompt as SelectSpaceModel | undefined;
+    },
   },
 
   components: {
@@ -346,9 +558,14 @@ export default defineComponent({
     GameBoardView,
     PlayerSetupView,
     'stacked-cards': StackedCards,
-    PurgeWarning,
     UndergroundTokens,
     KeyboardShortcuts,
+    VictoryPointsOverlay,
+    MilestonesOverlay,
+    MilestoneClaimedBadge,
+    AwardsOverlay,
+    AwardFundedBadge,
+    'select-space': SelectSpace,
   },
   methods: {
     isPlayerActing(playerView: PlayerViewModel) : boolean {
@@ -356,6 +573,263 @@ export default defineComponent({
     },
     toggleOverlay(id: OverlayId): void {
       this.activeOverlay = this.activeOverlay === id ? null : id;
+    },
+    // Closes the active overlay when the click happens outside it. Clicks
+    // inside the overlay itself, on a bar button (which has its own toggle),
+    // or on the left player panel (so the user can switch displayed player
+    // without dismissing the VP overlay) are all exempt.
+    handleOutsideOverlayClick(e: MouseEvent): void {
+      const target = e.target as Element | null;
+      if (!target) return;
+      if (target.closest('.top-bar-dropdown') ||
+          target.closest('.bar-overlay') ||
+          target.closest('.bottom-bar-btn') ||
+          target.closest('.left-panel')) {
+        return;
+      }
+      this.activeOverlay = null;
+    },
+    // Recursively walks the waitingFor tree looking for an OrOptions whose
+    // title matches `titlePredicate`. Returns the matched OrOptions's option
+    // list plus the index PATH from the root needed to build a nested response
+    // payload. Descends through both `or` and `and` containers so wrapped
+    // action menus (initial-actions prompt, etc.) are still found.
+    //
+    // Used by both the milestone-claim flow (`title === 'Claim a milestone'`)
+    // and the award-fund flow (`title startsWith 'Fund an award'` — the
+    // server bakes the current cost into the title via `message(...)`).
+    findInnerActionPath(
+      wf: PlayerInputModel | undefined,
+      titlePredicate: (title: string | undefined) => boolean,
+      pathSoFar: ReadonlyArray<number> = [],
+    ): {options: Array<PlayerInputModel>; path: ReadonlyArray<number>} | undefined {
+      if (!wf) return undefined;
+      if (wf.type === 'or' && titlePredicate(inputTitleText(wf.title))) {
+        return {options: (wf as OrOptionsModel).options, path: pathSoFar};
+      }
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const found = this.findInnerActionPath(options[i], titlePredicate, [...pathSoFar, i]);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    },
+    findMilestoneOptionPath(wf: PlayerInputModel | undefined) {
+      return this.findInnerActionPath(wf, (t) => t === 'Claim a milestone');
+    },
+    // Convert Heat / Convert Plants live as TOP-LEVEL options of the main
+    // action OrOptions (sibling to "Claim a milestone" / "Fund an award"),
+    // not inside their own sub-OrOptions. Helpers below scan that top-level
+    // list for the matching option and return its outer index so we can
+    // build a single-level OR-response payload (`{type:'or', index, response:...}`).
+    // Recursively walks the waitingFor tree looking for a Convert Heat
+    // SelectOption (title matches "Convert N heat into temperature" — both
+    // the standard 8-heat variant and the Kelvinists kp03 6-heat one).
+    // Returns the full index PATH so we can build the wrapped response.
+    // Recursive search handles cases where the action OR is wrapped (e.g.
+    // initial-action menus, mid-card prompts that nest the standard menu).
+    findConvertHeatPath(
+      wf: PlayerInputModel | undefined,
+      pathSoFar: ReadonlyArray<number> = [],
+    ): ReadonlyArray<number> | undefined {
+      if (!wf) return undefined;
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const opt = options[i];
+          const t = inputTitleText(opt.title);
+          if (opt.type === 'option' && typeof t === 'string' &&
+              t.includes('heat into temperature')) {
+            return [...pathSoFar, i];
+          }
+          const deeper = this.findConvertHeatPath(opt, [...pathSoFar, i]);
+          if (deeper) return deeper;
+        }
+      }
+      return undefined;
+    },
+    // Same idea for Convert Plants — its option in the OR is a SelectSpace
+    // (title template "Convert ${0} plants into greenery", with the number
+    // in `messageArgs` so the template string itself stays substring-stable).
+    // Returns both the index path and the SelectSpace prompt so PlayerHome
+    // can mount a local SelectSpace controller that drives board interaction.
+    //
+    // Two-pass match: first try title-substring (precise), then fall back to
+    // "any 'space'-type option in the action menu" — the server-side
+    // `canConvertPlants` flag is the source of truth for availability, so
+    // when it's true the SelectSpace IS in the menu somewhere; this fallback
+    // protects us against title text shifting (server-side message refactor,
+    // unusual wrapping) while still being safe because the action OR usually
+    // doesn't carry other top-level SelectSpace options.
+    findConvertPlantsPathAndPrompt(
+      wf: PlayerInputModel | undefined,
+      pathSoFar: ReadonlyArray<number> = [],
+      allowAnySpace = false,
+    ): {path: ReadonlyArray<number>; spacePrompt: PlayerInputModel} | undefined {
+      if (!wf) return undefined;
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const opt = options[i];
+          const t = inputTitleText(opt.title);
+          if (opt.type === 'space') {
+            if (typeof t === 'string' && t.includes('plants into greenery')) {
+              return {path: [...pathSoFar, i], spacePrompt: opt};
+            }
+            if (allowAnySpace) {
+              return {path: [...pathSoFar, i], spacePrompt: opt};
+            }
+          }
+          const deeper = this.findConvertPlantsPathAndPrompt(opt, [...pathSoFar, i], allowAnySpace);
+          if (deeper) return deeper;
+        }
+      }
+      return undefined;
+    },
+    findConvertHeatOption(wf: PlayerInputModel | undefined): {path: ReadonlyArray<number>} | undefined {
+      const path = this.findConvertHeatPath(wf);
+      return path ? {path} : undefined;
+    },
+    findConvertPlantsOption(wf: PlayerInputModel | undefined): {path: ReadonlyArray<number>; spacePrompt: PlayerInputModel} | undefined {
+      // First pass: title match. Second pass (only if the server says the
+      // action is available): accept any SelectSpace prompt in the action
+      // menu — guards against title text drift.
+      const byTitle = this.findConvertPlantsPathAndPrompt(wf);
+      if (byTitle) return byTitle;
+      if (this.thisPlayer.canConvertPlants === true) {
+        return this.findConvertPlantsPathAndPrompt(wf, [], true);
+      }
+      return undefined;
+    },
+    findAwardOptionPath(wf: PlayerInputModel | undefined) {
+      // Primary: title-prefix match. The server sets the title to
+      // `'Fund an award (${0} M€)'` with the current cost baked in.
+      const byTitle = this.findInnerActionPath(wf, (t) =>
+        t !== undefined && t.toLowerCase().startsWith('fund an award'));
+      if (byTitle) return byTitle;
+      // Fallback: structure-based — find an OrOptions whose options are all
+      // SelectOptions whose titles are valid award names. Catches cases
+      // where the title shape differs from what we expected (server-side
+      // refactor, expansion-specific wrapper, etc.).
+      const awardNames = new Set<string>(this.game.awards.map((a) => a.name));
+      return this.findAwardOptionPathByStructure(wf, awardNames);
+    },
+    findAwardOptionPathByStructure(
+      wf: PlayerInputModel | undefined,
+      awardNames: Set<string>,
+      pathSoFar: ReadonlyArray<number> = [],
+    ): {options: Array<PlayerInputModel>; path: ReadonlyArray<number>} | undefined {
+      if (!wf) return undefined;
+      if (wf.type === 'or') {
+        const opts = (wf as OrOptionsModel).options;
+        if (opts.length > 0 && opts.every((o) => {
+          if (o.type !== 'option') return false;
+          const t = inputTitleText((o as SelectOptionModel).title);
+          return typeof t === 'string' && awardNames.has(t);
+        })) {
+          return {options: opts, path: pathSoFar};
+        }
+      }
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const found = this.findAwardOptionPathByStructure(options[i], awardNames, [...pathSoFar, i]);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    },
+    // Generic helper: given a found sub-OrOptions (`{options, path}`) and the
+    // title of a specific inner SelectOption, build + submit the nested
+    // response payload through `WaitingFor.onsave()`. Used by both the
+    // milestone-claim and award-fund flows since they share the structure
+    // (outer action OR → inner action OR → per-target SelectOption).
+    submitInnerActionResponse(
+      found: {options: Array<PlayerInputModel>; path: ReadonlyArray<number>},
+      targetTitle: string,
+    ): boolean {
+      const innerIdx = found.options.findIndex(
+        (o) => o.type === 'option' && inputTitleText((o as SelectOptionModel).title) === targetTitle);
+      if (innerIdx === -1) return false;
+      let response: unknown = {
+        type: 'or' as const,
+        index: innerIdx,
+        response: {type: 'option' as const},
+      };
+      for (let i = found.path.length - 1; i >= 0; i--) {
+        response = {type: 'or' as const, index: found.path[i], response};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      if (wfRef?.onsave) {
+        wfRef.onsave(response);
+        return true;
+      }
+      return false;
+    },
+    // Submit a milestone claim through the same channel the radio + submit
+    // form uses (WaitingFor.onsave → POST /api/player-input). Bypasses the
+    // wf-action radio UI but the server can't tell the difference.
+    claimMilestone(name: MilestoneName): void {
+      const found = this.findMilestoneOptionPath(this.playerView.waitingFor);
+      if (!found) return;
+      if (this.submitInnerActionResponse(found, name)) {
+        this.activeOverlay = null;
+      }
+    },
+    fundAward(name: AwardName): void {
+      const found = this.findAwardOptionPath(this.playerView.waitingFor);
+      if (!found) return;
+      if (this.submitInnerActionResponse(found, name)) {
+        this.activeOverlay = null;
+      }
+    },
+    // One-click conversion of 8 heat (or 6 for Kelvinists kp03) into +1
+    // temperature step. Builds a nested OR-response that mirrors the depth
+    // of the path returned by the recursive finder.
+    convertHeat(): void {
+      const found = this.findConvertHeatOption(this.playerView.waitingFor);
+      if (!found || found.path.length === 0) {
+        if (this.thisPlayer.canConvertHeat) {
+          console.warn('Convert Heat: server flag says available but path not found in waitingFor tree');
+        }
+        return;
+      }
+      let response: unknown = {type: 'option' as const};
+      // Wrap one OR layer per index in the path, innermost first.
+      for (let i = found.path.length - 1; i >= 0; i--) {
+        response = {type: 'or' as const, index: found.path[i], response};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      wfRef?.onsave?.(response);
+    },
+    // Convert Plants needs a SPACE choice — the option in the OR is a
+    // SelectSpace, not a SelectOption. Clicking the button toggles a
+    // "picker" mode that renders the legacy SelectSpace.vue with the inner
+    // prompt, which takes over board interaction. When the user clicks a
+    // valid greenery space, `onConvertPlantsSpacePicked` wraps the space
+    // response in the outer OR-payload and submits.
+    toggleConvertPlantsPicker(): void {
+      this.convertPlantsPickerActive = !this.convertPlantsPickerActive;
+    },
+    onConvertPlantsSpacePicked(spaceResponse: {type: 'space'; spaceId: string}): void {
+      const found = this.findConvertPlantsOption(this.playerView.waitingFor);
+      if (!found || found.path.length === 0) {
+        if (this.thisPlayer.canConvertPlants) {
+          console.warn('Convert Plants: server flag says available but path not found in waitingFor tree');
+        }
+        return;
+      }
+      // Innermost response is the actual space pick; wrap with one OR layer
+      // per index in the path (innermost first).
+      let response: unknown = spaceResponse;
+      for (let i = found.path.length - 1; i >= 0; i--) {
+        response = {type: 'or' as const, index: found.path[i], response};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      wfRef?.onsave?.(response);
+      this.convertPlantsPickerActive = false;
     },
     getFleetsCountRange(player: PublicPlayerModel): Array<number> {
       const fleetsRange = [];

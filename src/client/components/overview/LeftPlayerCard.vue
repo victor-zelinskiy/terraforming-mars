@@ -59,14 +59,12 @@ export default defineComponent({
     },
     // Cube carries the player colour plus the legacy `.preferences_player_inner.active`
     // rotation animation while we're waiting on that player to do something.
-    // "Waiting" covers three phases:
-    //   - action phase: `actionLabel === 'active'` (their normal turn)
-    //   - research phase: `actionLabel === 'researching'` (they still need to pick cards)
-    //   - drafting phase: `actionLabel === 'drafting'` (they still need to pass a card)
-    // In research / drafting both players can be waited on simultaneously, so
-    // BOTH cubes should spin — that's the visual cue every player sees telling
-    // them the table is waiting on input. Honours the existing
-    // `hide_animated_sidebar` preference.
+    // The decision is delegated to `actionLabelForPlayer` (in `playerLabels.ts`):
+    // any "waiting" label (active / researching / drafting / turmoil) spins the
+    // cube. Because the label is derived from the live `playersWaitingFor`
+    // signal bubbled up from the WaitingFor poll, the spin state is the same
+    // on every player's screen — no drift across simultaneous-action phases.
+    // Honours the existing `hide_animated_sidebar` preference.
     cubeClass(): string {
       const classes = [
         'left-panel-card-cube',
@@ -74,9 +72,11 @@ export default defineComponent({
         `player_bg_color_${this.player.color}`,
       ];
       const awaitingInput =
-        this.actionLabel === 'active' ||
+        this.actionLabel === 'turn' ||
         this.actionLabel === 'researching' ||
-        this.actionLabel === 'drafting';
+        this.actionLabel === 'drafting' ||
+        this.actionLabel === 'globalsupport' ||
+        this.actionLabel === 'delegate';
       if (!getPreferences().hide_animated_sidebar && awaitingInput) {
         classes.push('active');
       }
@@ -102,7 +102,11 @@ export default defineComponent({
       if (this.actionLabel === 'passed') {
         return `${base} ${base}--passed`;
       }
-      if (this.actionLabel === 'active' || this.actionLabel === 'drafting' || this.actionLabel === 'researching') {
+      if (this.actionLabel === 'turn' ||
+          this.actionLabel === 'drafting' ||
+          this.actionLabel === 'researching' ||
+          this.actionLabel === 'globalsupport' ||
+          this.actionLabel === 'delegate') {
         return `${base} ${base}--active`;
       }
       return base;

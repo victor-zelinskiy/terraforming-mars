@@ -1,0 +1,262 @@
+<template>
+  <div class="awards-overlay">
+    <div class="awards-overlay-header">
+      <div class="awards-overlay-title" v-i18n>Awards</div>
+      <div class="awards-overlay-status">
+        <span class="awards-overlay-status-label" v-i18n>Funded</span>
+        <span class="awards-overlay-status-value">{{ fundedCount }} / {{ maxAwards }}</span>
+      </div>
+      <div class="awards-overlay-cost" v-if="!allFunded">
+        <span class="awards-overlay-cost-label" v-i18n>Cost</span>
+        <span class="awards-overlay-cost-value">{{ nextFundingCost }} M€</span>
+      </div>
+      <div class="awards-overlay-close" v-on:click="$emit('close')">✕</div>
+    </div>
+
+    <div class="awards-overlay-list">
+      <div v-for="a in awards"
+           :key="a.name"
+           class="award-row"
+           :class="rowClasses(a)"
+           v-on:mouseenter="onRowEnter($event, a)"
+           v-on:mouseleave="onRowLeave">
+        <!--
+          Progress chip: viewer's score / leader's score.
+          Awards are a race-to-the-end-of-game, never "locked in" — so the
+          chip only signals leadership. Green = viewer leading (or tied),
+          red = viewer behind, neutral = no race active yet.
+        -->
+        <div class="award-row-count" :class="countClass(a)">
+          {{ countLabel(a) }}
+        </div>
+
+        <!-- Award art (cropped to octagonal HUD silhouette). -->
+        <div class="award-row-icon"
+             :style="{backgroundImage: `url(assets/ma/${assetName(a.name)}.png)`}">
+          <!-- Tiny funder cube overlapping the art, if the award is funded. -->
+          <div v-if="a.playerName"
+               class="award-row-funder-marker"
+               :class="`player_bg_color_${a.color}`"
+               :title="a.playerName"></div>
+        </div>
+
+        <div class="award-row-body">
+          <div class="award-row-name" v-i18n>{{ a.name }}</div>
+          <div v-if="a.scores.length > 0" class="award-row-scores">
+            <span
+              v-for="s in sortedScores(a)"
+              :key="s.color"
+              class="ma-score"
+              :class="[
+                `player_bg_color_${s.color}`,
+                isLeaderScore(s, sortedScores(a)) ? 'score-leader' : '',
+              ]"
+              :title="playerName(s.color)"
+            >{{ s.score }}</span>
+          </div>
+          <div v-if="a.playerName" class="award-row-fundedby">
+            <span v-i18n>funded by</span>
+            <i class="board-cube" :class="`board-cube--${a.color}`"></i>
+            <span>{{ a.playerName }}</span>
+          </div>
+        </div>
+
+        <!--
+          Right side: fund button OR "funded" badge.
+          Button is rendered whenever the award is still fundable (not yet
+          funded AND not all slots used). Disabled state + tooltip explains
+          blockers (turn / cost) — same pattern as milestone claim.
+        -->
+        <div class="award-row-action">
+          <button v-if="isConceptuallyFundable(a)"
+                  class="award-fund-btn"
+                  :class="{'award-fund-btn--disabled': fundBlockerReason(a) !== null}"
+                  :disabled="fundBlockerReason(a) !== null"
+                  :title="$t(fundBlockerReason(a) ?? 'Fund this award')"
+                  v-on:click.stop="onFundClick(a)">
+            <span class="award-fund-btn-label" v-i18n>Fund</span>
+            <span class="award-fund-btn-cost">
+              <span class="award-fund-btn-cost-value">{{ nextFundingCost }}</span>
+              <span class="award-fund-btn-cost-mc">M€</span>
+            </span>
+          </button>
+          <div v-else-if="a.playerName" class="award-row-funded-badge" v-i18n>Funded</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating description tooltip; teleported to <body> so it isn't
+         clipped by the dropdown's overflow / corner ticks. -->
+    <Teleport to="body">
+      <div v-if="hoveredAward !== null"
+           class="milestone-floating-tooltip"
+           :style="tooltipStyle">
+        <div class="milestone-floating-tooltip-name" v-i18n>{{ hoveredAward.name }}</div>
+        <div class="milestone-floating-tooltip-desc" v-i18n>{{ description(hoveredAward.name) }}</div>
+      </div>
+    </Teleport>
+  </div>
+</template>
+
+<script lang="ts">
+import {defineComponent, PropType} from 'vue';
+import {FundedAwardModel, AwardScore} from '@/common/models/FundedAwardModel';
+import {Color} from '@/common/Color';
+import {AwardName} from '@/common/ma/AwardName';
+import {AWARD_COSTS, MAX_AWARDS} from '@/common/constants';
+import {getAward} from '@/client/MilestoneAwardManifest';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
+
+type TooltipPos = {top: number; left: number};
+
+export default defineComponent({
+  name: 'AwardsOverlay',
+  props: {
+    awards: {
+      type: Array as () => ReadonlyArray<FundedAwardModel>,
+      required: true,
+    },
+    players: {
+      type: Array as () => ReadonlyArray<PublicPlayerModel>,
+      required: true,
+    },
+    thisPlayerColor: {
+      type: String as () => Color,
+      required: true,
+    },
+    thisPlayerMegacredits: {
+      type: Number,
+      required: true,
+    },
+    viewerActing: {
+      type: Boolean,
+      required: true,
+    },
+    // Set of award names the player can fund right THIS instant (it's their
+    // turn AND the action prompt currently offers each of them). Computed
+    // in PlayerHome by walking the waitingFor tree for a "Fund an award" OR.
+    fundableNow: {
+      type: Object as PropType<ReadonlySet<AwardName>>,
+      default: () => new Set(),
+    },
+    fundedCount: {
+      type: Number,
+      required: true,
+    },
+  },
+  emits: ['fund', 'close'],
+  data(): {hoveredAward: FundedAwardModel | null; tooltipPos: TooltipPos} {
+    return {
+      hoveredAward: null,
+      tooltipPos: {top: 0, left: 0},
+    };
+  },
+  computed: {
+    maxAwards(): number {
+      return MAX_AWARDS;
+    },
+    allFunded(): boolean {
+      return this.fundedCount >= MAX_AWARDS;
+    },
+    // The cost of funding the NEXT award (the prompt cost). Server uses
+    // `8 + 6 * fundedAwards.length`, exposed as the AWARD_COSTS array.
+    nextFundingCost(): number {
+      const idx = Math.min(this.fundedCount, AWARD_COSTS.length - 1);
+      return AWARD_COSTS[idx];
+    },
+    tooltipStyle(): Record<string, string> {
+      return {
+        top: `${this.tooltipPos.top}px`,
+        left: `${this.tooltipPos.left}px`,
+      };
+    },
+  },
+  methods: {
+    sortedScores(a: FundedAwardModel): Array<AwardScore> {
+      return [...a.scores].sort((x, y) => y.score - x.score);
+    },
+    myScore(a: FundedAwardModel): AwardScore | undefined {
+      return a.scores.find((s) => s.color === this.thisPlayerColor);
+    },
+    leaderScore(a: FundedAwardModel): number {
+      if (a.scores.length === 0) return 0;
+      return Math.max(...a.scores.map((s) => s.score));
+    },
+    isLeaderScore(s: AwardScore, sorted: Array<AwardScore>): boolean {
+      if (sorted.length === 0) return false;
+      // Tied leaders all count as leading. A 0-vs-0 game start isn't
+      // leadership — only counts once someone has a non-zero score.
+      return s.score === sorted[0].score && s.score > 0;
+    },
+    // Awards don't have a fixed target threshold (it's a race-to-end-of-game),
+    // so we show only the viewer's own score in the chip. Leadership status
+    // is encoded in the chip's color modifier (`countClass`) instead.
+    countLabel(a: FundedAwardModel): string {
+      if (a.scores.length === 0) return '–';
+      const mine = this.myScore(a)?.score ?? 0;
+      return String(mine);
+    },
+    countClass(a: FundedAwardModel): string {
+      if (a.scores.length === 0) return 'award-row-count--neutral';
+      const mine = this.myScore(a)?.score ?? 0;
+      const leader = this.leaderScore(a);
+      if (mine === 0 && leader === 0) return 'award-row-count--neutral';
+      return mine >= leader ? 'award-row-count--leading' : 'award-row-count--behind';
+    },
+    rowClasses(a: FundedAwardModel): Record<string, boolean> {
+      return {
+        'award-row--funded': !!a.playerName,
+        'award-row--fundable-by-me': this.fundableNow.has(a.name),
+      };
+    },
+    description(name: AwardName): string {
+      return getAward(name).description;
+    },
+    assetName(name: AwardName): string {
+      return name.toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
+    },
+    playerName(color: Color): string {
+      return this.players.find((p) => p.color === color)?.name ?? color;
+    },
+    /**
+     * Conceptually fundable: the award itself is still up for grabs AND
+     * there's still room in the 3-award pool. The action button is
+     * RENDERED whenever this returns true; the disabled-state tooltip
+     * (`fundBlockerReason`) explains why it can't be clicked right now
+     * (cost / turn / sub-action).
+     */
+    isConceptuallyFundable(a: FundedAwardModel): boolean {
+      return !a.playerName && !this.allFunded;
+    },
+    fundBlockerReason(a: FundedAwardModel): string | null {
+      if (this.fundableNow.has(a.name)) return null;
+      if (!this.viewerActing) return 'Not your turn to take any actions';
+      if (this.thisPlayerMegacredits < this.nextFundingCost) return 'Not enough M€';
+      // Viewer IS acting and has the money, but the prompt-tree doesn't
+      // currently surface the fund action (mid sub-prompt, special phase,
+      // etc.). Don't lie about it being someone else's turn — give a
+      // generic "complete what you're doing first" hint instead.
+      return 'Finish your current action first';
+    },
+    onFundClick(a: FundedAwardModel): void {
+      if (this.fundBlockerReason(a) !== null) return;
+      this.$emit('fund', a.name);
+    },
+    onRowEnter(e: MouseEvent, a: FundedAwardModel): void {
+      const row = e.currentTarget as HTMLElement;
+      const rect = row.getBoundingClientRect();
+      const tooltipWidth = 280;
+      const margin = 12;
+      let left = rect.right + margin;
+      if (left + tooltipWidth > window.innerWidth - 8) {
+        left = rect.left - margin - tooltipWidth;
+      }
+      this.tooltipPos = {top: rect.top, left};
+      this.hoveredAward = a;
+    },
+    onRowLeave(): void {
+      this.hoveredAward = null;
+    },
+  },
+});
+</script>

@@ -1,15 +1,46 @@
+/*
+ * Right-edge HUD chrome. Visual language matches `.left-panel`:
+ * dark glassmorphic fill, hairline cyan border on the inside-facing edge,
+ * and 8px L-shaped corner tick accents at top-left and bottom-left.
+ * The acting / nonacting modifier classes below add a warm inner glow on
+ * top of this base, rather than overriding the background.
+ */
 .sidebar_cont {
     white-space: nowrap;
     position: fixed;
     /* Mars global-parameters live on the right now (Steam-version layout). */
     right: 0px;
-    top: 5px;
+    top: 0;
     z-index: 99;
     width: 60px;
     display: flex;
     flex-flow: column;
     align-items: center;
     height: 100%;
+    padding-top: 5px;
+    box-sizing: border-box;
+    background: linear-gradient(180deg, rgba(12, 18, 28, 0.96), rgba(8, 12, 20, 0.96));
+    border-left: 1px solid #2c4a6a;
+
+    &::before,
+    &::after {
+        content: '';
+        position: absolute;
+        left: -1px;
+        width: 8px;
+        height: 8px;
+        pointer-events: none;
+    }
+    &::before {
+        top: 0;
+        border-top: 1px solid #6ab0e6;
+        border-left: 1px solid #6ab0e6;
+    }
+    &::after {
+        bottom: 0;
+        border-bottom: 1px solid #6ab0e6;
+        border-left: 1px solid #6ab0e6;
+    }
 }
 
 .sidebar {
@@ -19,7 +50,10 @@
     height: 50px;
     margin-top: 3px;
     border-radius: @radius_circle;
-    box-shadow: 0 1px 1px 1px black;
+    box-shadow:
+      0 0 0 1px #2c4a6a,
+      0 0 10px rgba(106, 176, 230, 0.30),
+      inset 0 0 12px rgba(0, 0, 0, 0.6);
     font-family: Prototype;
     text-align: center;
     line-height: 20px;
@@ -122,24 +156,49 @@
   }
 }
 
+/*
+ * Modifier classes that paint a status accent on top of the glass base.
+ * Acting (the viewer's turn): warm amber edge glow on the inside of the
+ * border — clearly signals "your move" without flooding the chrome.
+ * Nonacting: no accent, the base glass shows through unchanged.
+ */
 .preferences_acting_player {
-    background: linear-gradient(180deg, @grey_850 0%, @grey_850 25%, #745B54 80%, #745B54 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(220, 150, 70, 0.30),
+        inset 6px 0 22px rgba(220, 150, 70, 0.16);
 }
 .preferences_nonacting_player {
-    background: @grey_850;
+    /* Idle: no accent — base `.sidebar_cont` glass shows through unchanged. */
 }
 .preferences-divider {
-    background: rgba(170, 170, 170, 0.3);
-    height: 2px;
+    height: 1px;
     width: 80%;
     margin-bottom: 8px;
+    background: linear-gradient(90deg, transparent, rgba(106, 176, 230, 0.55), transparent);
+    box-shadow: 0 0 5px rgba(106, 176, 230, 0.18);
 }
+/*
+ * Stack-of-shortcut tile (Board / Actions / Cards / Colonies jump links + Info /
+ * Help / Settings popups). Mirrors `.left-panel-card`: translucent dark fill,
+ * hairline cyan border, faint inner glow ring. Cyan halo on hover.
+ */
 .sidebar_item {
     width: 46px;
-    background: black;
-    border-radius: 5px;
+    background: rgba(20, 30, 45, 0.65);
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
     padding: 5px;
     margin-bottom: 8px;
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+
+    &:hover {
+        border-color: #6ab0e6;
+        box-shadow:
+            inset 0 0 0 1px rgba(106, 176, 230, 0.18),
+            0 0 8px rgba(106, 176, 230, 0.35);
+        filter: brightness(1.08);
+    }
 }
 .sidebar_item_shortcut {
     height: 60px;
@@ -258,18 +317,45 @@
 }
 
 .preferences_panel {
-    padding: 15px 20px 15px 15px;
+    padding: 14px 18px;
     display: inline-block;
     position: absolute;
     bottom: 0px;
     /* Sidebar lives on the right edge of the screen now, so panels open to its
      * LEFT instead of right; otherwise they slide off the viewport. */
     right: 53px;
-    color: #c6c6c6;
-    background: #000000;
+    color: #d6e2f2;
+    background: linear-gradient(180deg, rgba(12, 18, 28, 0.97), rgba(8, 12, 20, 0.97));
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 4px 18px rgba(0, 0, 0, 0.65);
     max-height: calc(75vh);
     overflow-y: auto;
     white-space: nowrap;
+
+    /* Matching L-shaped corner accents — same trick as `.left-panel-section`. */
+    &::before,
+    &::after {
+        content: '';
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        pointer-events: none;
+    }
+    &::before {
+        top: -1px;
+        left: -1px;
+        border-top: 1px solid #6ab0e6;
+        border-left: 1px solid #6ab0e6;
+    }
+    &::after {
+        bottom: -1px;
+        right: -1px;
+        border-bottom: 1px solid #6ab0e6;
+        border-right: 1px solid #6ab0e6;
+    }
 
     &.preferences_panel--language-switcher {
         bottom: -140px;
@@ -278,13 +364,19 @@
 }
 
 
+/*
+ * Active-state connector. Glass fill matches the popup so the two read
+ * as one continuous lit panel; the cyan rim hides the seam.
+ */
 .sidebar_item--is-active::after {
     content: " ";
     width: 10px;
     height: 46px;
     position: absolute;
-    background: #000;
     margin: -5px 0 0 38px;
+    background: linear-gradient(180deg, rgba(12, 18, 28, 0.97), rgba(8, 12, 20, 0.97));
+    border-top: 1px solid #6ab0e6;
+    border-bottom: 1px solid #6ab0e6;
 }
 
 .sidebar_icon--language.sidebar_item--is-active::after {

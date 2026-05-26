@@ -55,6 +55,18 @@ export type PublicPlayerModel = {
   id: PlayerId | undefined;
   influence: number;
   isActive: boolean;
+  // True iff the server currently has a pending PlayerInput for this player
+  // (i.e. `player.getWaitingFor() !== undefined`). The authoritative source
+  // of truth for "the table is waiting on this player to do something" — the
+  // cube animation and status label both use it instead of phase-derived
+  // heuristics, which can stay stale across phase transitions.
+  isWaitingForInput: boolean;
+  // Kind of prompt the player is currently being asked to resolve, when it
+  // matches one of the distinguishable cross-phase prompts. Lets the status
+  // label show e.g. "ПОДДЕРЖКА" (World Government Terraforming) vs.
+  // "ДЕЛЕГАТ" (Turmoil delegate placement) instead of a generic catch-all.
+  // Undefined for plain phase-derived prompts (action / drafting / research).
+  waitingForKind?: 'globalsupport' | 'delegate';
   lastCardPlayed?: CardName;
   megacredits: number;
   megacreditProduction: number;
@@ -63,6 +75,27 @@ export type PublicPlayerModel = {
   needsToResearch: boolean | undefined;
   noTagsCount: number;
   plants: number;
+  // Effective plant cost to convert plants into a greenery for this player
+  // — usually 8, dropped to 7 by Ecoline / Soil Detoxification, can change
+  // mid-game when those effects come into play. Exposed so the client's
+  // "Convert plants" action button can show the right cost in its label.
+  plantsNeededForGreenery: number;
+  // Effective heat cost to raise temperature by 1 step. Usually 8 in the
+  // base game; lowered to 6 while the Turmoil Kelvinists `kp03` policy is
+  // in effect (server swaps the action entirely). Exposed so the convert-
+  // heat button shows the right number even when the policy is active.
+  heatNeededForTemperature: number;
+  // True iff the standard Convert Plants action is offerable to this player
+  // RIGHT NOW: they're in the action-selection phase AND `ConvertPlants.canAct`
+  // returns true (enough plants, a valid greenery space exists, reds tax is
+  // affordable). Computed server-side so the client never has to walk the
+  // waitingFor tree or re-derive prerequisites — same source of truth that
+  // controls whether the legacy radio-button option appears in the menu.
+  canConvertPlants: boolean;
+  // Same idea for Convert Heat — accounts for the Kelvinists kp03 variant so
+  // the button is enabled iff the matching server-side action would be in
+  // the menu.
+  canConvertHeat: boolean;
   plantProduction: number;
   protectedResources: Record<Resource, Protection>;
   protectedProduction: Record<Resource, Protection>;

@@ -15,7 +15,14 @@
     </div>
 
     <div class="left-panel-section">
-      <PlayerResources :player="displayedPlayer" v-trim-whitespace />
+      <PlayerResources
+        :player="displayedPlayer"
+        :convertHeatAvailable="convertHeatAvailable"
+        :convertPlantsAvailable="convertPlantsAvailable"
+        :convertPlantsPickerActive="convertPlantsPickerActive"
+        @convert-heat="$emit('convertHeat')"
+        @convert-plants="$emit('convertPlants')"
+        v-trim-whitespace />
     </div>
 
     <!-- `:conciseTagsViewDefaultValue="false"` shows every tag in the game
@@ -52,6 +59,7 @@ import PlayerTags from '@/client/components/overview/PlayerTags.vue';
 import LeftPlayerCard from '@/client/components/overview/LeftPlayerCard.vue';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
 import {ActionLabel} from './ActionLabel';
+import {Color} from '@/common/Color';
 
 export default defineComponent({
   name: 'LeftPlayerPanel',
@@ -68,8 +76,33 @@ export default defineComponent({
       type: String,
       default: undefined,
     },
+    // Live "who's currently being waited on by the server" list, sourced
+    // from the WaitingFor poll (see App.vue.playersWaitingFor). Drives
+    // per-player status label + cube animation in real time, even during
+    // simultaneous-action phases where the viewer's own playerView isn't
+    // being refreshed.
+    livePlayersWaitingFor: {
+      type: Array as () => ReadonlyArray<Color>,
+      default: () => [],
+    },
+    // Whether the corresponding convert-action is currently offered by the
+    // server (computed in PlayerHome by scanning `waitingFor`). The buttons
+    // render only when true, AND only on the viewer's own resource cells
+    // (filtered upstream in PlayerHome).
+    convertHeatAvailable: {
+      type: Boolean,
+      default: false,
+    },
+    convertPlantsAvailable: {
+      type: Boolean,
+      default: false,
+    },
+    convertPlantsPickerActive: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['selectPlayer'],
+  emits: ['selectPlayer', 'convertHeat', 'convertPlants'],
   components: {
     PlayerResources,
     PlayerAlliedParty,
@@ -100,7 +133,7 @@ export default defineComponent({
       return !this.playerView.game.gameOptions.showOtherPlayersVP && !isThisPlayer;
     },
     actionLabelFor(p: PublicPlayerModel): ActionLabel {
-      return actionLabelForPlayer(this.playerView, p);
+      return actionLabelForPlayer(this.playerView, p, this.livePlayersWaitingFor);
     },
   },
 });

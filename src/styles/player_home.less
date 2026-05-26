@@ -29,7 +29,13 @@
      * ~30–35px gap at scale 1.4 and still safely clears the buttons up to
      * about scale 1.8.
      */
-    padding-top: calc(var(--bottom-bar-button-height) + 26px);
+    /* `--bottom-bar-button-height` (36px) reserves the button row itself;
+     * the extra padding gives clearance for the dropdown badge strips that
+     * hang under the top-bar buttons (Milestones, Awards…) so the strips
+     * don't overlap planet labels / board chrome below. Strip layout:
+     * 8px gap + ~39px strip body ≈ 47px. We leave ~30px breathing room
+     * so the topmost planet labels stay legible. */
+    padding-top: calc(var(--bottom-bar-button-height) + 80px);
     padding-bottom: var(--bottom-bar-button-height);
     background: linear-gradient(transparent, #000), url(./assets/stars.jpg);
     background-attachment: fixed;
@@ -1025,10 +1031,12 @@ each(@players, {
     background: linear-gradient(180deg, rgba(12, 18, 28, 0.96), rgba(8, 12, 20, 0.96));
     border-right: 1px solid #2c4a6a;
     padding: 6px 6px;
-    /* All content must fit a 1366x768 laptop without scrolling. If you find
-     * yourself wanting to re-enable scroll, shrink the section paddings or the
-     * tag icons first. */
-    overflow: hidden;
+    /* Horizontal overflow is intentionally allowed — the convert-action
+     * buttons attached to resource cells (plants → greenery, heat →
+     * temperature) extend out of the panel into the play area to the
+     * right. Vertical overflow is rare with the compact layout; if it
+     * resurfaces on small laptops, tighten section paddings instead of
+     * re-clipping the panel here. */
     color: #e6e6e6;
     font-family: Prototype, Ubuntu, sans-serif;
     box-sizing: border-box;
@@ -1922,6 +1930,954 @@ each(@players, {
     padding-top: 8px;
 }
 
+/*
+ * Wrapper around a top-bar button when it has a dropdown overlay. Takes the
+ * button's slot in the flex layout (matching its `-10px` overlap margin), and
+ * gives the overlay a positioning context anchored to the button below it.
+ * pointer-events stay neutral so empty space still passes clicks through.
+ */
+.top-bar-btn-anchor {
+    position: relative;
+    pointer-events: none;
+    margin-right: -10px;
+    height: var(--bottom-bar-button-height);
+    display: flex;
+    align-items: stretch;
+    /*
+     * Intentionally NO z-index here. Each anchor would otherwise become its
+     * own stacking context, trapping its dropdown (z-index 120) inside ↔ a
+     * sibling anchor's badge strip (z-index 106) would then render on TOP
+     * of the open dropdown because the two anchors share the same z within
+     * the bar. Leaving anchors as transparent containers lets the dropdown
+     * directly compete with all siblings at the .top-bar-buttons level.
+     */
+
+    > .bottom-bar-btn {
+        margin-right: 0;
+    }
+}
+
+/*
+ * Base style for any "drop-down from top bar" panel. Sits flush below the
+ * button with a 6px breath, dark glass background, cyan rim, and the four
+ * L-shaped corner ticks matching the rest of the HUD. Re-used by the
+ * Milestones overlay (and any future Standard-Projects / Awards dropdowns).
+ */
+.top-bar-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 120;
+    pointer-events: auto;
+    background: linear-gradient(180deg, rgba(12, 18, 28, 0.97), rgba(8, 12, 20, 0.97));
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 8px 24px rgba(0, 0, 0, 0.7);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+
+    &::before,
+    &::after {
+        content: '';
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        pointer-events: none;
+    }
+    &::before {
+        top: -1px;
+        left: -1px;
+        border-top: 1px solid #6ab0e6;
+        border-left: 1px solid #6ab0e6;
+    }
+    &::after {
+        bottom: -1px;
+        right: -1px;
+        border-bottom: 1px solid #6ab0e6;
+        border-right: 1px solid #6ab0e6;
+    }
+}
+
+/*
+ * Milestones dropdown. Header (title + claimed counter) on top, then one
+ * "milestone row" per available milestone. Each row has a count box on the
+ * left, name + per-player score chips in the middle, and a claim button on
+ * the right (when the viewer can claim it right now).
+ */
+.milestones-overlay {
+    width: 580px;
+    max-width: 92vw;
+    max-height: calc(100vh - var(--bottom-bar-button-height) * 2 - 24px);
+    padding: 12px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.milestones-overlay-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.22);
+}
+
+.milestones-overlay-title {
+    font-size: 18px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0 6px rgba(140, 190, 235, 0.25);
+}
+
+.milestones-overlay-status {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-left: auto;
+    margin-right: 18px;
+
+    .milestones-overlay-status-label {
+        color: #8fa8c4;
+    }
+    .milestones-overlay-status-value {
+        color: #ffd87a;
+        font-size: 16px;
+        font-weight: bold;
+        text-shadow: 0 0 5px rgba(255, 200, 80, 0.4);
+    }
+}
+
+.milestones-overlay-close {
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    color: #8fa8c4;
+    padding: 2px 6px;
+    transition: color 120ms ease, text-shadow 120ms ease;
+
+    &:hover {
+        color: #fff;
+        text-shadow: 0 0 6px rgba(140, 190, 235, 0.5);
+    }
+}
+
+.milestones-overlay-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    /* Subtle inner padding so the scrollbar doesn't sit on the corner tick. */
+    padding-right: 4px;
+    margin-right: -4px;
+}
+
+.milestone-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    background: rgba(20, 30, 45, 0.55);
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.06);
+    transition: background 150ms ease, border-color 150ms ease;
+
+    &:hover {
+        background: rgba(28, 42, 60, 0.7);
+        border-color: #6ab0e6;
+    }
+    &--claimed {
+        opacity: 0.7;
+        background: rgba(20, 30, 45, 0.35);
+    }
+    &--claimable-by-me {
+        border-color: rgba(255, 215, 122, 0.55);
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 215, 122, 0.18),
+            0 0 8px rgba(255, 200, 80, 0.18);
+    }
+}
+
+/*
+ * Left-side progress chip. Shows "current / threshold" (or "—" once claimed).
+ * Colour modifiers signal threshold state:
+ *  • --ready    — viewer has met / exceeded the threshold (green text).
+ *  • --blocked  — viewer is short of threshold (red text).
+ *  • --mine     — milestone already claimed by viewer (green).
+ *  • --theirs   — claimed by another player (red).
+ *  • --neutral  — threshold unknown (fallback cyan).
+ */
+.milestone-row-count {
+    flex-shrink: 0;
+    width: 60px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    background: linear-gradient(180deg, rgba(106, 176, 230, 0.20), rgba(20, 30, 45, 0.55));
+    border: 1px solid rgba(106, 176, 230, 0.55);
+    clip-path: polygon(10% 0%, 90% 0%, 100% 30%, 100% 70%, 90% 100%, 10% 100%, 0% 70%, 0% 30%);
+    text-shadow: 0 0 6px rgba(140, 190, 235, 0.35);
+    line-height: 1;
+    transition: color 120ms ease;
+
+    &--neutral { color: #d6e2f2; }
+    &--ready,
+    &--mine {
+        color: #4ee49b;
+        text-shadow: 0 0 8px rgba(78, 228, 155, 0.55);
+        border-color: rgba(78, 228, 155, 0.55);
+        background: linear-gradient(180deg, rgba(78, 228, 155, 0.18), rgba(20, 30, 45, 0.55));
+    }
+    &--blocked,
+    &--theirs {
+        color: #ff7a6a;
+        text-shadow: 0 0 8px rgba(255, 122, 106, 0.45);
+        border-color: rgba(255, 122, 106, 0.55);
+        background: linear-gradient(180deg, rgba(255, 122, 106, 0.16), rgba(20, 30, 45, 0.55));
+    }
+}
+
+/*
+ * Milestone art icon. Uses the same 140×83 assets the legacy `.ma-name--*`
+ * tiles use, but cropped to a square with the same octagonal silhouette as
+ * the count chip. A faint cyan rim + dark inner stop blend it into the HUD;
+ * `background-size: cover` fills the box completely while preserving aspect
+ * (some art is cropped slightly on the sides — visually fine at this size).
+ */
+.milestone-row-icon {
+    flex-shrink: 0;
+    width: 76px;
+    height: 56px;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: rgba(8, 14, 22, 0.6);
+    border: 1px solid rgba(106, 176, 230, 0.55);
+    clip-path: polygon(8% 0%, 92% 0%, 100% 25%, 100% 75%, 92% 100%, 8% 100%, 0% 75%, 0% 25%);
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.55), 0 0 4px rgba(106, 176, 230, 0.18);
+    /* Slight saturation lift so the original card-style art doesn't muddy
+     * against the dark HUD background. */
+    filter: saturate(1.15) contrast(1.05);
+}
+
+.milestone-row-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.milestone-row-name {
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #fff;
+    line-height: 1.1;
+}
+
+/*
+ * Per-player score chips. Same compact chip shape as award rows.
+ * Modifier priority (top wins visually):
+ *   • .leader      — currently tied/sole leader on a STILL-ACTIVE milestone
+ *                    (cleared once someone claims it). Green inset border.
+ *   • .claimable   — that player has met the score threshold (could claim
+ *                    if it were their turn). Amber outside outline.
+ *   • .not-claimable — default; slightly dimmed.
+ */
+.milestone-row-scores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+
+    .ma-score {
+        width: 24px;
+        height: 18px;
+        line-height: 18px;
+        text-align: center;
+        border-radius: 2px;
+        font-size: 13px;
+        font-family: Prototype;
+        color: #000;
+        box-shadow: 0 0 1px 1px rgba(0, 0, 0, 0.5);
+
+        &.claimable:not(.score-leader) {
+            outline: 1px solid #ffd87a;
+            outline-offset: 1px;
+        }
+        &.not-claimable {
+            opacity: 0.85;
+        }
+        /* `score-leader` (not bare `leader`) — the latter collides with the
+         * Turmoil party-leader class in turmoil.less which paints a delegate
+         * icon as the chip background.
+         * White ring + cool halo: neutral against any player color (green
+         * leader would blend with the green player's chip), and doesn't
+         * conflict with the amber `claimable` outline. */
+        &.score-leader {
+            opacity: 1;
+            box-shadow:
+                0 0 0 2px #ffffff,
+                0 0 5px 1px rgba(220, 235, 255, 0.55);
+        }
+    }
+}
+
+.milestone-row-claimedby {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #8fa8c4;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.milestone-row-action {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.milestone-row-claimed-badge {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #ffd87a;
+    padding: 4px 10px;
+    border: 1px solid rgba(255, 215, 122, 0.4);
+    border-radius: 2px;
+}
+
+/*
+ * Claim button. Steam-version style: amber gradient body, black bold text,
+ * a megacredit cost chip on the right. Hover brightens; disabled state is
+ * never rendered (the button is just omitted when un-claimable).
+ */
+.milestone-claim-btn {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    color: #1a1208;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 8px rgba(255, 200, 80, 0.3);
+    transition: filter 150ms ease, box-shadow 150ms ease;
+
+    &:hover:not(.milestone-claim-btn--disabled) {
+        filter: brightness(1.15);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 12px rgba(255, 200, 80, 0.6);
+    }
+    &:active:not(.milestone-claim-btn--disabled) {
+        filter: brightness(0.95);
+    }
+
+    /* Disabled state — score threshold met but action can't be taken right
+     * now (insufficient M€, not your turn, sub-action active, etc.). The
+     * button stays in view but desaturated; the browser-native tooltip
+     * (set via :title in the template) explains the blocker. */
+    &--disabled {
+        cursor: not-allowed;
+        filter: grayscale(0.85) brightness(0.55);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+        opacity: 0.9;
+    }
+
+    .milestone-claim-btn-label {
+        background: linear-gradient(180deg, #d2a050, #8b6a30);
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: bold;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #1a1208;
+        display: flex;
+        align-items: center;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .milestone-claim-btn-cost {
+        background: linear-gradient(180deg, #ffd87a, #c08a18);
+        padding: 6px 12px;
+        font-size: 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: #1a1208;
+        border-left: 1px solid rgba(0, 0, 0, 0.3);
+    }
+    .milestone-claim-btn-cost-mc {
+        font-size: 12px;
+        opacity: 0.85;
+    }
+}
+
+/*
+ * Floating hover tooltip. Position is computed in JS (getBoundingClientRect
+ * of the hovered element) so this lives outside the tree as `position: fixed`
+ * — that way the dropdown's overflow / max-height constraints can't clip it.
+ * Used by both the overlay's milestone rows and the claimed-badge strip
+ * below the Milestones button.
+ */
+.milestone-floating-tooltip {
+    position: fixed;
+    width: 280px;
+    background: linear-gradient(180deg, rgba(12, 18, 28, 0.98), rgba(8, 12, 20, 0.98));
+    border: 1px solid #6ab0e6;
+    border-radius: 4px;
+    padding: 10px 14px;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.15),
+        0 6px 18px rgba(0, 0, 0, 0.75);
+    color: #d6e2f2;
+    font-size: 13px;
+    line-height: 1.45;
+    pointer-events: none;
+    z-index: 200;
+
+    .milestone-floating-tooltip-name {
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #6ab0e6;
+        margin-bottom: 5px;
+    }
+    .milestone-floating-tooltip-desc {
+        color: #d6e2f2;
+    }
+    .milestone-floating-tooltip-claimedby {
+        margin-top: 8px;
+        padding-top: 6px;
+        border-top: 1px solid rgba(106, 176, 230, 0.18);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #8fa8c4;
+    }
+}
+
+/*
+ * Claimed-milestone badge strip. Hangs below the Milestones button, contains
+ * `MAX_MILESTONES` (3) slots. Visible whenever the milestones overlay is
+ * closed, hidden while it's open (the overlay header already carries the
+ * "claimed N/3" indicator).
+ *
+ * Visually anchored to the button via a dark-glass panel + cyan frame that
+ * mirrors the button's chrome, with two short vertical "drop" connectors
+ * from the button's bottom edge to the strip's top edge — reads as an
+ * extension of the milestones tab rather than a free-floating widget.
+ *
+ * `pointer-events: none` on the strip itself + `auto` on individual badges
+ * lets clicks pass through gaps to whatever is underneath (board, …).
+ */
+.milestone-badges-strip {
+    position: absolute;
+    top: calc(100% + 7px);
+    /* The button has a chamfered parallelogram silhouette — its visible
+     * bottom edge spans 0%–85% of its box. Center on that VISUAL bottom
+     * edge (≈ 42.5% of the anchor) so the strip looks tucked right
+     * under the button text instead of drifting toward the box center.
+     * 47% strikes a balance that reads centered for typical text widths. */
+    left: 47%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    padding: 5px 6px 6px;
+    pointer-events: none;
+    z-index: 106;
+    /* Sci-fi capsule — softer rounded corners and a richer multi-stop
+     * gradient with a subtle lit edge highlight at the top, so the strip
+     * reads as a "module" rather than a hard rectangle. */
+    background: linear-gradient(180deg,
+        rgba(28, 42, 62, 0.88) 0%,
+        rgba(14, 22, 36, 0.65) 55%,
+        rgba(20, 30, 48, 0.78) 100%);
+    border: 1px solid rgba(106, 176, 230, 0.50);
+    border-radius: 14px;
+    box-shadow:
+        inset 0 1px 0 rgba(180, 220, 250, 0.22),
+        inset 0 0 0 1px rgba(106, 176, 230, 0.10),
+        0 3px 12px rgba(0, 0, 0, 0.55);
+
+    /* Two short vertical drops from the button bottom to the strip top —
+     * the "wires" tying the strip to the tab. Brighter at the bottom so
+     * they read as flowing INTO the strip. */
+    &::before,
+    &::after {
+        content: '';
+        position: absolute;
+        top: -8px;
+        width: 2px;
+        height: 9px;
+        border-radius: 1px;
+        background: linear-gradient(180deg,
+            rgba(106, 176, 230, 0.20) 0%,
+            rgba(140, 200, 240, 0.95) 100%);
+        box-shadow: 0 0 4px rgba(106, 176, 230, 0.45);
+    }
+    &::before { left: calc(50% - 18px); }
+    &::after  { left: calc(50% + 16px); }
+}
+
+/*
+ * Single badge slot. Round (matches the user's mental model — "пустыми
+ * кружками"). Empty slot is a faded cyan outline with dark glass fill;
+ * filled shows the milestone art (cover-fit, clipped to the circle by
+ * `border-radius`) with a small player-color marker overlapping the
+ * bottom-right edge indicating who claimed it.
+ *
+ * `cursor: help` on filled badges signals the hover tooltip is available.
+ */
+.milestone-claimed-badge {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    background-color: rgba(8, 14, 22, 0.55);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    border: 1px solid rgba(106, 176, 230, 0.40);
+    border-radius: 50%;
+    pointer-events: auto;
+    cursor: help;
+    transition: filter 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+
+    &:hover {
+        border-color: rgba(140, 200, 240, 0.75);
+    }
+
+    &--filled {
+        border-color: rgba(255, 215, 122, 0.60);
+        box-shadow: 0 0 6px rgba(255, 200, 80, 0.32);
+        filter: saturate(1.15) contrast(1.05);
+
+        &:hover {
+            border-color: rgba(255, 225, 150, 0.85);
+            filter: saturate(1.15) contrast(1.05) brightness(1.18);
+            box-shadow: 0 0 10px rgba(255, 200, 80, 0.55);
+        }
+    }
+}
+
+/* Player-color marker on the badge. Kept INSIDE the badge silhouette (no
+ * negative offset) so the strip stays compact and the badge group never
+ * pokes past the button's visual bottom edge. */
+.milestone-claimed-badge-cube {
+    position: absolute;
+    bottom: 1px;
+    right: 1px;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75);
+    z-index: 1;
+}
+
+/* Empty-slot tooltip variant — single line with the claim status. */
+.milestone-floating-tooltip-status {
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #d6e2f2;
+    text-align: center;
+}
+
+/*
+ * Live race-standings table inside the funded-award tooltip. Sorted rows
+ * (leader first). The leader row is tinted green so the user can spot
+ * who's winning without reading the numbers.
+ */
+.milestone-floating-tooltip-standings {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(106, 176, 230, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.milestone-floating-tooltip-standings-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 12px;
+    color: #d6e2f2;
+
+    &--leader {
+        background: rgba(78, 228, 155, 0.14);
+        color: #4ee49b;
+
+        .milestone-floating-tooltip-standings-score {
+            color: #4ee49b;
+            text-shadow: 0 0 6px rgba(78, 228, 155, 0.45);
+        }
+    }
+}
+.milestone-floating-tooltip-standings-rank {
+    width: 14px;
+    text-align: center;
+    color: #8fa8c4;
+    font-size: 10px;
+}
+.milestone-floating-tooltip-standings-name {
+    flex: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.milestone-floating-tooltip-standings-score {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-weight: bold;
+    color: #fff;
+    min-width: 22px;
+    text-align: right;
+}
+
+/*
+ * AWARDS overlay. Mostly a parallel to the milestones overlay (same
+ * dropdown chrome, same row shape, same tooltip mechanism). Specific
+ * differences:
+ *   • The progress chip on the left shows "viewer / leader" instead of
+ *     "current / threshold" — awards are a race, not a threshold.
+ *   • Leader chip turns green; "behind" chip turns red.
+ *   • There's no "claimed and grey-out" state — even funded awards keep
+ *     showing scores because the race continues until game end.
+ *   • Funding cost is shown in the header (next-cost preview) and on
+ *     the action button; it grows as awards fill up.
+ */
+.awards-overlay {
+    width: 580px;
+    max-width: 92vw;
+    max-height: calc(100vh - var(--bottom-bar-button-height) * 2 - 24px);
+    padding: 12px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.awards-overlay-header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.22);
+}
+
+.awards-overlay-title {
+    font-size: 18px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0 6px rgba(140, 190, 235, 0.25);
+}
+
+.awards-overlay-status,
+.awards-overlay-cost {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.awards-overlay-status {
+    margin-left: auto;
+
+    .awards-overlay-status-label { color: #8fa8c4; }
+    .awards-overlay-status-value {
+        color: #ffd87a;
+        font-size: 16px;
+        font-weight: bold;
+        text-shadow: 0 0 5px rgba(255, 200, 80, 0.4);
+    }
+}
+
+.awards-overlay-cost {
+    margin-right: 18px;
+
+    .awards-overlay-cost-label { color: #8fa8c4; }
+    .awards-overlay-cost-value {
+        color: #ffd87a;
+        font-size: 16px;
+        font-weight: bold;
+    }
+}
+
+.awards-overlay-close {
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    color: #8fa8c4;
+    padding: 2px 6px;
+    transition: color 120ms ease, text-shadow 120ms ease;
+
+    &:hover {
+        color: #fff;
+        text-shadow: 0 0 6px rgba(140, 190, 235, 0.5);
+    }
+}
+
+.awards-overlay-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    padding-right: 4px;
+    margin-right: -4px;
+}
+
+.award-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    background: rgba(20, 30, 45, 0.55);
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.06);
+    transition: background 150ms ease, border-color 150ms ease;
+
+    &:hover {
+        background: rgba(28, 42, 60, 0.7);
+        border-color: #6ab0e6;
+    }
+    /* Funded awards keep their scoring active — no opacity dim. The funder
+     * cube on the art tile signals who paid. */
+    &--funded {
+        border-color: rgba(255, 215, 122, 0.45);
+    }
+    /* Currently fundable by the viewer: amber halo cue. */
+    &--fundable-by-me {
+        border-color: rgba(255, 215, 122, 0.55);
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 215, 122, 0.18),
+            0 0 8px rgba(255, 200, 80, 0.18);
+    }
+}
+
+/* Progress chip — "viewer / leader" instead of "viewer / threshold". */
+.award-row-count {
+    flex-shrink: 0;
+    width: 60px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    background: linear-gradient(180deg, rgba(106, 176, 230, 0.20), rgba(20, 30, 45, 0.55));
+    border: 1px solid rgba(106, 176, 230, 0.55);
+    clip-path: polygon(10% 0%, 90% 0%, 100% 30%, 100% 70%, 90% 100%, 10% 100%, 0% 70%, 0% 30%);
+    text-shadow: 0 0 6px rgba(140, 190, 235, 0.35);
+    line-height: 1;
+    transition: color 120ms ease;
+
+    &--neutral { color: #d6e2f2; }
+    &--leading {
+        color: #4ee49b;
+        text-shadow: 0 0 8px rgba(78, 228, 155, 0.55);
+        border-color: rgba(78, 228, 155, 0.55);
+        background: linear-gradient(180deg, rgba(78, 228, 155, 0.18), rgba(20, 30, 45, 0.55));
+    }
+    &--behind {
+        color: #ff7a6a;
+        text-shadow: 0 0 8px rgba(255, 122, 106, 0.45);
+        border-color: rgba(255, 122, 106, 0.55);
+        background: linear-gradient(180deg, rgba(255, 122, 106, 0.16), rgba(20, 30, 45, 0.55));
+    }
+}
+
+/* Award art tile — same shape/treatment as the milestone variant. */
+.award-row-icon {
+    position: relative;
+    flex-shrink: 0;
+    width: 76px;
+    height: 56px;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: rgba(8, 14, 22, 0.6);
+    border: 1px solid rgba(106, 176, 230, 0.55);
+    clip-path: polygon(8% 0%, 92% 0%, 100% 25%, 100% 75%, 92% 100%, 8% 100%, 0% 75%, 0% 25%);
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.55), 0 0 4px rgba(106, 176, 230, 0.18);
+    filter: saturate(1.15) contrast(1.05);
+}
+
+/* Tiny funder marker overlapping the art tile — the player who paid M€
+ * to put this award into play. (Not the same as "owns the award" — the
+ * funder doesn't automatically win it.) */
+.award-row-funder-marker {
+    position: absolute;
+    bottom: 3px;
+    right: 6px;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75);
+    z-index: 1;
+}
+
+.award-row-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.award-row-name {
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #fff;
+    line-height: 1.1;
+}
+
+/*
+ * Per-player score chips in award rows. Same compact "color + number"
+ * shape as milestone score chips so the two overlays feel like one family.
+ * Leader (sole or tied, non-zero) is highlighted with an INSET green
+ * border + soft outer glow — clean ring on the chip itself, no offset
+ * gap that would read as a separate icon. Non-leaders use the default
+ * chip styling (no opacity dim, no extra chrome) to keep the row light.
+ */
+.award-row-scores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+
+    .ma-score {
+        width: 28px;
+        height: 18px;
+        line-height: 18px;
+        text-align: center;
+        border-radius: 2px;
+        font-size: 13px;
+        font-family: Prototype;
+        color: #000;
+        box-shadow: 0 0 1px 1px rgba(0, 0, 0, 0.5);
+
+        /* `score-leader` (not bare `leader`) — see milestone-row-scores
+         * note above; bare `.leader` is taken by turmoil party-leader. */
+        &.score-leader {
+            box-shadow:
+                0 0 0 2px #ffffff,
+                0 0 5px 1px rgba(220, 235, 255, 0.55);
+        }
+    }
+}
+
+.award-row-fundedby {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #8fa8c4;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.award-row-action {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.award-row-funded-badge {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #ffd87a;
+    padding: 4px 10px;
+    border: 1px solid rgba(255, 215, 122, 0.4);
+    border-radius: 2px;
+}
+
+/*
+ * Fund button — same Steam-amber chrome as the claim button so the two
+ * action types feel like part of the same UI family. Disabled state
+ * (insufficient M€, not your turn, etc.) is greyed identically.
+ */
+.award-fund-btn {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    color: #1a1208;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 8px rgba(255, 200, 80, 0.3);
+    transition: filter 150ms ease, box-shadow 150ms ease;
+
+    &:hover:not(.award-fund-btn--disabled) {
+        filter: brightness(1.15);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 12px rgba(255, 200, 80, 0.6);
+    }
+    &:active:not(.award-fund-btn--disabled) {
+        filter: brightness(0.95);
+    }
+
+    &--disabled {
+        cursor: not-allowed;
+        filter: grayscale(0.85) brightness(0.55);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+        opacity: 0.9;
+    }
+
+    .award-fund-btn-label {
+        background: linear-gradient(180deg, #d2a050, #8b6a30);
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: bold;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #1a1208;
+        display: flex;
+        align-items: center;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .award-fund-btn-cost {
+        background: linear-gradient(180deg, #ffd87a, #c08a18);
+        padding: 6px 12px;
+        font-size: 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: #1a1208;
+        border-left: 1px solid rgba(0, 0, 0, 0.3);
+    }
+    .award-fund-btn-cost-mc {
+        font-size: 12px;
+        opacity: 0.85;
+    }
+}
+
 /* Log overlay: let the log fill the whole panel instead of its default 240px box. */
 .bar-overlay--log {
     display: flex;
@@ -1954,4 +2910,307 @@ each(@players, {
         overflow-y: auto;
         min-height: 0;
     }
+}
+
+/*
+ * Victory-points breakdown overlay. Three vertical regions:
+ *   1. header (player + total) — fixed height.
+ *   2. summary tiles row — fixed height, one tile per VP source.
+ *   3. detail columns — flex-grow, scrolls if either list gets long.
+ *
+ * Visual language matches the left panel: dark glass, hairline cyan border,
+ * L-shaped corner ticks on each block.
+ */
+.bar-overlay--victory-points {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 12px 20px 16px;
+}
+
+.vp-overlay {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+    min-height: 0;
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+}
+
+/* Shared block chrome — translucent glass + cyan rim + L-shaped corner ticks. */
+.vp-block() {
+    position: relative;
+    background: rgba(20, 30, 45, 0.55);
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+
+    &::before,
+    &::after {
+        content: '';
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        pointer-events: none;
+    }
+    &::before {
+        top: -1px;
+        left: -1px;
+        border-top: 1px solid #6ab0e6;
+        border-left: 1px solid #6ab0e6;
+    }
+    &::after {
+        bottom: -1px;
+        right: -1px;
+        border-bottom: 1px solid #6ab0e6;
+        border-right: 1px solid #6ab0e6;
+    }
+}
+
+.vp-overlay-header {
+    .vp-block();
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 18px;
+    flex-shrink: 0;
+}
+
+.vp-overlay-player {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.vp-overlay-player-cube {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), inset 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
+.vp-overlay-player-name {
+    font-size: 22px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0 6px rgba(140, 190, 235, 0.25);
+}
+
+.vp-overlay-total {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.vp-overlay-total-label {
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: #8fa8c4;
+}
+
+.vp-overlay-total-value {
+    font-size: 36px;
+    font-weight: bold;
+    line-height: 1;
+    color: #ffd87a;
+    text-shadow: 0 0 10px rgba(255, 200, 80, 0.45);
+}
+
+/*
+ * Summary row. Tiles auto-fit so a 6-9 tile config still looks balanced.
+ * Each tile: thin neon frame, glyph on top, value in the middle, label below.
+ */
+.vp-overlay-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.vp-tile {
+    .vp-block();
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 6px 6px;
+    gap: 4px;
+
+    &--penalty {
+        .vp-tile-value {
+            color: #ff8a7a;
+            text-shadow: 0 0 6px rgba(255, 100, 80, 0.5);
+        }
+    }
+}
+
+.vp-tile-icon {
+    width: 32px;
+    height: 32px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-weight: bold;
+    color: #ffcc64;
+    font-size: 20px;
+}
+
+.vp-icon-tr      { background-image: url(./assets/resources/tr.png); }
+.vp-icon-forest  { background-image: url(./assets/tiles/greenery_no_O2.png); }
+.vp-icon-city    { background-image: url(./assets/tiles/city.png); filter: brightness(0.9); }
+.vp-icon-cards   { background-image: url(./assets/resources/card.png); }
+.vp-icon-moon    { background-image: url(./assets/tags/moon.png); }
+.vp-icon-track {
+    background: rgba(180, 140, 220, 0.12);
+    border: 1px solid rgba(180, 140, 220, 0.5);
+    border-radius: 3px;
+    color: #c5a8e0;
+    font-size: 20px;
+    line-height: 30px;
+}
+.vp-icon-ma {
+    background: rgba(255, 204, 100, 0.12);
+    border: 1px solid rgba(255, 204, 100, 0.5);
+    border-radius: 3px;
+    color: #ffcc64;
+    font-size: 18px;
+    line-height: 30px;
+}
+.vp-icon-ev,
+.vp-icon-penalty {
+    background: rgba(255, 120, 90, 0.12);
+    border: 1px solid rgba(255, 120, 90, 0.5);
+    border-radius: 3px;
+    color: #ff9a7a;
+    font-size: 20px;
+}
+
+.vp-tile-value {
+    font-size: 22px;
+    font-weight: bold;
+    line-height: 1;
+    color: #fff;
+}
+
+.vp-tile-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #8fa8c4;
+    text-align: center;
+    line-height: 1.2;
+}
+
+/*
+ * Detail columns. Two flex columns side-by-side; each is independently
+ * scrollable so long card lists don't push milestones/awards off-screen.
+ */
+.vp-overlay-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+}
+
+.vp-detail-section {
+    .vp-block();
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 8px 12px;
+}
+
+.vp-detail-title {
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #8fa8c4;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+    flex-shrink: 0;
+}
+
+.vp-detail-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.vp-detail-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0;
+    border-bottom: 1px dashed rgba(106, 176, 230, 0.08);
+
+    &:last-child { border-bottom: none; }
+
+    /* Rows that surface a hover tooltip (milestone / award descriptions). */
+    &--hoverable {
+        cursor: help;
+        transition: background 120ms ease;
+
+        &:hover {
+            background: rgba(106, 176, 230, 0.08);
+        }
+    }
+}
+
+.vp-detail-vp {
+    flex-shrink: 0;
+    min-width: 36px;
+    text-align: center;
+    padding: 2px 6px;
+    background: linear-gradient(180deg, #cc8b00, #805700);
+    color: #000;
+    font-weight: bold;
+    font-family: Prototype;
+    border-radius: 10px;
+    font-size: 13px;
+    box-shadow: 0 0 4px rgba(204, 139, 0, 0.4);
+}
+
+.vp-detail-text {
+    flex: 1;
+    font-size: 13px;
+    color: #d6e2f2;
+    line-height: 1.3;
+}
+
+.vp-overlay-hidden {
+    .vp-block();
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    padding: 40px;
+    text-align: center;
+}
+
+.vp-overlay-hidden-icon {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 72px;
+    color: #6ab0e6;
+    text-shadow: 0 0 18px rgba(106, 176, 230, 0.55);
+    line-height: 1;
+}
+
+.vp-overlay-hidden-text {
+    max-width: 440px;
+    font-size: 14px;
+    color: #8fa8c4;
+    line-height: 1.5;
 }

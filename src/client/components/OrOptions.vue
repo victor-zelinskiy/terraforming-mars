@@ -72,25 +72,24 @@ export default defineComponent({
       displayedOptions.push(option);
       originalIndices.push(i);
     });
-    const initialIdx = this.playerinput.initialIdx ?? 0;
-    // Special case: If the first recommended displayed option is SelectProjectCardToPlay, and none of them are enabled, skip it.
-    let selectedIdx = initialIdx;
-    if (displayedOptions.length > 1 &&
-      displayedOptions[initialIdx].type === 'projectCard' &&
-      !displayedOptions[initialIdx].cards.some((card) => card.isDisabled !== true)) {
-      selectedIdx = initialIdx + 1;
-    }
+    // Legacy radio UI starts with NO option selected. Auto-mounting the
+    // default option's child input caused side effects we don't want — most
+    // notably SelectSpace children activating board-tile flashing the moment
+    // the action menu appears (Convert Plants was the canonical case). This
+    // radio stack is now a "push-through" fallback for actions that haven't
+    // been promoted to dedicated buttons yet; the user has to explicitly
+    // click a radio to engage the inner UI.
     return {
       displayedOptions,
       originalIndices,
       radioElementName: 'selectOption' + unique++,
-      selectedOption: displayedOptions[selectedIdx],
-      selectedIdx,
+      selectedOption: undefined as PlayerInputModel | undefined,
+      selectedIdx: -1,
     };
   },
   watch: {
-    selectedOption(newOption: PlayerInputModel) {
-      this.selectedIdx = this.displayedOptions.indexOf(newOption);
+    selectedOption(newOption: PlayerInputModel | undefined) {
+      this.selectedIdx = newOption === undefined ? -1 : this.displayedOptions.indexOf(newOption);
       // Clicking the option can shift elements on the page.
       // This preserves the location of the option button the user just clicked by
       // tracking where it was on the screen, where it moved, and then repositioning it.
