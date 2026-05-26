@@ -64,7 +64,13 @@ body,
 }
 
 .main-container {
-    margin: 0 0 0 60px;
+    /* Old layout (60px left sidebar) had `margin-left: 60px` here — the
+     * sidebar has since moved to the right edge of the viewport, so the
+     * legacy margin is dropped. Default block-level layout fills the
+     * parent (body) horizontally; the right sidebar (`position: fixed;
+     * right: 0`) overlays the rightmost 60px on top of it. */
+    margin: 0;
+    box-sizing: border-box;
 }
 
 .hidden {

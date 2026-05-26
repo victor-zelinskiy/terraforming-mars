@@ -68,6 +68,7 @@ import {paths} from '@/common/app/paths';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {SpectatorModel} from '@/common/models/SpectatorModel';
+import {Color} from '@/common/Color';
 import {isPlayerId, isSpectatorId} from '@/common/Types';
 import {hasShowModal, showModal, windowHasHTMLDialogElement} from './HTMLDialogElementCompatibility';
 
@@ -105,6 +106,15 @@ export type MainAppData = {
     componentsVisibility: {[x: string]: boolean};
     game: SimpleGameModel | undefined;
     login: string | undefined;
+    /**
+     * Live list of players the SERVER is currently waiting on for input.
+     * Updated every poll from `/api/waitingFor` (see WaitingFor.vue), even
+     * while the viewer themselves is mid-prompt — that way the spinning
+     * cube and status label stay in sync across simultaneous-action phases
+     * (drafting / research) without forcing a full playerView refresh that
+     * would reset the viewer's partial input state.
+     */
+    playersWaitingFor: ReadonlyArray<Color>;
 }
 
 // NOTE: this simplistic truncation to the last segment might cause issues if
@@ -136,6 +146,7 @@ export default defineComponent({
       playerView: undefined,
       spectator: undefined,
       login: undefined,
+      playersWaitingFor: [] as ReadonlyArray<Color>,
     };
   },
   components: {

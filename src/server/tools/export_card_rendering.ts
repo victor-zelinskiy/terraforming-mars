@@ -176,10 +176,16 @@ class MilestoneProcessor {
   public static json: Array<ClientMilestone> = [];
   public static makeJson() {
     milestoneNames.forEach((name) => {
+      const instance = milestoneManifest.createOrThrow(name);
+      // BaseMilestone exposes a numeric `threshold`; special-case milestones
+      // (Terraformer, Coastguard, …) don't. Pass it through when present so
+      // the client UI can render a "current / target" progress chip.
+      const threshold = (instance as unknown as {threshold?: number}).threshold;
       MilestoneProcessor.json.push({
         name,
-        description: milestoneManifest.createOrThrow(name).description,
+        description: instance.description,
         requirements: milestoneManifest.all[name].compatibility,
+        threshold: typeof threshold === 'number' ? threshold : undefined,
       });
     });
   }
@@ -189,10 +195,13 @@ class AwardProcessor {
   public static json: Array<ClientAward> = [];
   public static makeJson() {
     awardNames.forEach((name) => {
+      const instance = awardManifest.createOrThrow(name);
+      const threshold = (instance as unknown as {threshold?: number}).threshold;
       AwardProcessor.json.push({
         name,
-        description: awardManifest.createOrThrow(name).description,
+        description: instance.description,
         requirements: awardManifest.all[name].compatibility,
+        threshold: typeof threshold === 'number' ? threshold : undefined,
       });
     });
   }

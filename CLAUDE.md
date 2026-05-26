@@ -13,6 +13,19 @@ This is `vize1215`'s personal fork — a private/self-hosted build of the open-s
 
 When a change has trade-offs between these goals and any other consideration (closeness to upstream, code volume, edge cases), favor the goals above unless the user says otherwise.
 
+## Action UI Rework (in progress)
+
+This fork is migrating the per-action UI away from upstream's generic `wf-action` + `btn-submit` radio-button form and toward **dedicated styled buttons** on each game element (milestones first, awards / standard projects / convert-plants / colonies to follow). The radio UI still exists and works — once every action type is migrated it will be hidden, not removed.
+
+When you add a new dedicated action button, follow this contract:
+
+1. **Tie the button to the server's action-availability logic, not to the radio render.** Walk the `playerView.waitingFor` tree (recursively, since the prompt can be nested) to find the `OrOptions` whose `title` matches the action prompt (e.g. `'Claim a milestone'`, `'Convert 8 plants into greenery'`). The server has already filtered options by every rule (cost, prerequisites, phase, opponents-have-passed, etc.) — **the option's presence in that tree IS the source of truth for "available right now."** Do not re-derive availability from raw player state on the client.
+2. **Submit through `WaitingFor.onsave()`** with the nested `OrOptionsResponse` payload (`{type:'or', index:I, response:{...}}` wrapping recursively, with a `{type:'option'}` innermost). Bypasses the radio UI but is byte-for-byte identical to what `OrOptions.vue` would have sent — no server changes needed. The reference implementation lives in `PlayerHome.vue` → `findMilestoneOptionPath` + `claimMilestone`.
+3. **Show the button as disabled, not hidden, when the player meets the conceptual prerequisite (e.g. score threshold) but can't act right now.** Use a `:title` tooltip with the blocker reason translated via i18n. Reasons we distinguish for milestones: insufficient M€ (`Not enough M€`), and not-your-turn / mid-sub-action (`Not your turn to take any actions`). Hiding the button is worse UX — the user is left guessing why an action they're entitled to disappeared.
+4. **Don't refactor the existing radio-button stack** (`WaitingFor.vue`, `OrOptions.vue`, `SelectOption.vue`, server prompt code). They have to keep working unchanged while migration is in progress, and the eventual hide is a stylesheet flip — not a deletion.
+
+The Milestones overlay (`MilestonesOverlay.vue` + `PlayerHome.vue` claim handlers) is the canonical example; mirror its detection + submission pattern when you wire up new action buttons.
+
 ## Build & Development Commands
 
 ```bash
@@ -115,6 +128,8 @@ Custom i18n via `src/client/directives/i18n.ts` with `v-i18n` directive. Transla
 2. **The official Russian edition of the *Terraforming Mars* board game** (Crowd Games / «Покорение Марса»). Game-specific terms — tag names, milestone/award names, standard project labels, resource names — should match the printed Russian cards. If a project translation contradicts the board-game canon, surface the discrepancy to the user rather than silently picking one.
 
 Never translate proper nouns that look like player names or English card names already in the player log unless they appear in a translation file.
+
+**NEVER modify the Russian translation of an English key you didn't introduce yourself.** The same English string can appear in many places — log messages, card descriptions, tooltips, UI labels — each with its own context. Changing `"Convert" → "Превратить"` to make your new button read nicely will silently rewrite "Convert" everywhere else in the game (action logs, card flavor text, etc.) and break the meaning. Instead, **introduce a new English key** for your UI element (e.g. `"Spend"` or `"Convert plants action button"`) and add its translation. If you really must reuse an existing key, first `grep` every usage of that English string in `src/client/`, `src/server/` and the other `src/locales/<lang>/` files, confirm the new wording fits ALL of them, and call it out in your summary.
 
 ### Logging
 

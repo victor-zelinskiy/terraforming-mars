@@ -61,8 +61,11 @@
     "of 12": "из 12",
     "You": "Вы",
     "you": "вы",
+    "turn": "ход",
     "researching": "исследование",
     "drafting": "драфт",
+    "globalsupport": "поддержка",
+    "delegate": "делегат",
     "Actions": "Действия",
     "Victory points": "Победные очки",
     "Terraforming Rating": "Рейтинг терраформирования",
@@ -104,6 +107,7 @@
     "Error looking for predefined game Bad request: invalid game id": "Ошибка при поиске определенной игры: неверный ID",
     "This game is over!": "Игра окончена!",
     "Not your turn to take any actions": "Сейчас не ваш ход",
+    "Action is not available right now": "Действие сейчас недоступно",
     "Pass for this generation": "Пас",
     "Pay for a Standard Project": "Стандартный проект",
     "Play project card": "Разыграть карту",
@@ -410,5 +414,30 @@
     "excavation-count": "Раскопки",
     "You will not take any more actions this generation.": "Вы больше не сможете совершить какие либо действия в этом поколении.",
     "Remove any number of microbes to gain 3 M€ per microbe removed": "Удалите любое количество микробов, чтобы получить по 3 M€ за каждого удалённого микроба",
-    "Reorder Cards": "Переупорядочить карты"
+    "Reorder Cards": "Переупорядочить карты",
+
+    "Tracks": "Шкалы",
+    "Penalty": "Штраф",
+    "From cards": "С карт",
+    "Milestones, awards & tracks": "Достижения, награды и шкалы",
+    "Most tags on the ${0} track": "Лидерство на шкале ${0}",
+    "Detailed victory points for other players are hidden during the game. Enable \"Show other players' VP\" in the game options, or wait until the game ends.": "Подробная разбивка победных очков других игроков скрыта во время игры. Включите параметр «Показывать ПО других игроков» в настройках партии или дождитесь её окончания.",
+
+    "Claim": "Взять",
+    "Claim this milestone": "Взять это достижение",
+    "Claimed": "Получено",
+    "Not enough M€": "Недостаточно M€",
+    "Claimed ${0} of ${1} milestones": "Выполнено ${0} из ${1} достижений",
+
+    "Fund": "Учредить",
+    "Funded": "Учреждено",
+    "Fund this award": "Учредить эту награду",
+    "Funded ${0} of ${1} awards": "Учреждено ${0} из ${1} наград",
+    "Cost": "Цена",
+    "Finish your current action first": "Сначала завершите текущее действие",
+
+    "Spend": "Потратить",
+    "Convert plants into a greenery tile": "Превратить растения в жетон озеленения",
+    "Spend heat to raise temperature by 1 step": "Потратить тепло, чтобы повысить температуру на 1",
+    "Click a greenery space on the board": "Кликните по клетке для озеленения"
 }

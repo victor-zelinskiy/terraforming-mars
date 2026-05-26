@@ -21,25 +21,63 @@
       :value="player.titaniumValue"
       :resourceProtection="player.protectedResources.titanium"
       :productionProtection="player.protectedProduction.titanium"/>
-    <player-resource
-      :type="Resource.PLANTS"
-      :count="player.plants"
-      :production="player.plantProduction"
-      :resourceProtection="player.protectedResources.plants"
-      :productionProtection="player.protectedProduction.plants"/>
+    <!--
+      Plants row carries the "Convert plants into a greenery" button on its
+      right edge. The button is RENDERED whenever the viewer has at least
+      `plantsNeededForGreenery` plants on hand — so it's a persistent visual
+      cue that "you have enough to convert". Whether it's clickable is a
+      separate state (`convertPlantsAvailable`) — server-side action gate.
+      Picker mode (`--picking`) signals the user is currently choosing a
+      space on the board.
+    -->
+    <div class="resource_item_wrapper" :class="{'resource_item_wrapper--with-convert': plantsButtonVisible}">
+      <player-resource
+        :type="Resource.PLANTS"
+        :count="player.plants"
+        :production="player.plantProduction"
+        :resourceProtection="player.protectedResources.plants"
+        :productionProtection="player.protectedProduction.plants"/>
+      <span v-if="plantsButtonVisible" class="convert-action-arrow"></span>
+      <button v-if="plantsButtonVisible"
+              class="convert-action-btn convert-action-btn--plants"
+              :class="{
+                'convert-action-btn--disabled': !convertPlantsAvailable,
+                'convert-action-btn--picking': convertPlantsPickerActive,
+              }"
+              :disabled="!convertPlantsAvailable && !convertPlantsPickerActive"
+              :title="$t(plantsTooltip)"
+              v-on:click.stop="onPlantsClick">
+        <span class="convert-action-btn-icon convert-action-btn-icon--plant"></span>
+        <span class="convert-action-btn-label" v-i18n>Spend</span>
+        <span class="convert-action-btn-cost">{{ player.plantsNeededForGreenery }}</span>
+      </button>
+    </div>
     <player-resource
       :type="Resource.ENERGY"
       :count="player.energy"
       :production="player.energyProduction"
       :resourceProtection="player.protectedResources.energy"
       :productionProtection="player.protectedProduction.energy"/>
-    <player-resource
-      :type="Resource.HEAT"
-      :count="player.heat"
-      :production="player.heatProduction"
-      :value="canUseHeatAsMegaCredits ? 1 : 0"
-      :resourceProtection="player.protectedResources.heat"
-      :productionProtection="player.protectedProduction.heat"/>
+    <div class="resource_item_wrapper" :class="{'resource_item_wrapper--with-convert': heatButtonVisible}">
+      <player-resource
+        :type="Resource.HEAT"
+        :count="player.heat"
+        :production="player.heatProduction"
+        :value="canUseHeatAsMegaCredits ? 1 : 0"
+        :resourceProtection="player.protectedResources.heat"
+        :productionProtection="player.protectedProduction.heat"/>
+      <span v-if="heatButtonVisible" class="convert-action-arrow"></span>
+      <button v-if="heatButtonVisible"
+              class="convert-action-btn convert-action-btn--heat"
+              :class="{'convert-action-btn--disabled': !convertHeatAvailable}"
+              :disabled="!convertHeatAvailable"
+              :title="$t(heatTooltip)"
+              v-on:click.stop="$emit('convert-heat')">
+        <span class="convert-action-btn-icon convert-action-btn-icon--temperature"></span>
+        <span class="convert-action-btn-label" v-i18n>Spend</span>
+        <span class="convert-action-btn-cost">{{ player.heatNeededForTemperature }}</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -57,7 +95,24 @@ export default defineComponent({
       type: Object as () => PublicPlayerModel,
       required: true,
     },
+    // True iff the server currently offers the matching convert-action in
+    // the player's action prompt. The button is RENDERED purely based on
+    // resource amount; the action-available flag only controls the enabled
+    // state (and click handler).
+    convertHeatAvailable: {
+      type: Boolean,
+      default: false,
+    },
+    convertPlantsAvailable: {
+      type: Boolean,
+      default: false,
+    },
+    convertPlantsPickerActive: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['convert-heat', 'convert-plants'],
   computed: {
     Resource(): typeof Resource {
       return Resource;
@@ -65,6 +120,33 @@ export default defineComponent({
     // TODO LUNA TRADE FEDERATION
     canUseHeatAsMegaCredits(): boolean {
       return this.player.tableau.some((card) => card.name === CardName.HELION);
+    },
+    // Button is rendered when the resource amount is sufficient — it
+    // serves as a permanent "you could convert if it were your turn"
+    // indicator. Click-through is gated by `convertXAvailable`.
+    plantsButtonVisible(): boolean {
+      return this.player.plants >= this.player.plantsNeededForGreenery;
+    },
+    heatButtonVisible(): boolean {
+      return this.player.heat >= this.player.heatNeededForTemperature;
+    },
+    plantsTooltip(): string {
+      if (this.convertPlantsPickerActive) return 'Click a greenery space on the board';
+      if (!this.convertPlantsAvailable) return 'Action is not available right now';
+      return 'Convert plants into a greenery tile';
+    },
+    heatTooltip(): string {
+      if (!this.convertHeatAvailable) return 'Action is not available right now';
+      return 'Spend heat to raise temperature by 1 step';
+    },
+  },
+  methods: {
+    // Plants button click: only allow when the server is actually offering
+    // the action (or the picker is already active, so the user can cancel
+    // by clicking again).
+    onPlantsClick(): void {
+      if (!this.convertPlantsAvailable && !this.convertPlantsPickerActive) return;
+      this.$emit('convert-plants');
     },
   },
   components: {

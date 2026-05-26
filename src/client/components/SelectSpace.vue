@@ -181,6 +181,20 @@ export default defineComponent({
       tile.onclick = () => this.onTileSelected(tile);
     }
   },
+  // Cleanup is critical when SelectSpace can be UNMOUNTED without a tile
+  // being picked first — e.g. when the dedicated Convert-Plants button is
+  // toggled off mid-pick. Without this, `board-space--available` lingers
+  // (tiles keep blinking) and the `onclick` handlers stay attached
+  // (clicking a tile after toggling off would still submit a space pick).
+  // Safe to run on every unmount because `disableAnimation` is idempotent
+  // and clearing `onclick` on an already-cleared tile is a no-op.
+  beforeUnmount() {
+    this.disableAnimation();
+    const tiles = this.getSelectableSpaces();
+    for (const tile of tiles) {
+      tile.onclick = null;
+    }
+  },
 });
 
 </script>

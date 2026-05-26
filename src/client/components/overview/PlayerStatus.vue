@@ -47,7 +47,11 @@ export default defineComponent({
       }
       if (this.actionLabel === 'passed') {
         classes.push(`${baseClass}--passed`);
-      } else if (this.actionLabel === 'active' || this.actionLabel === 'drafting' || this.actionLabel === 'researching') {
+      } else if (this.actionLabel === 'turn' ||
+                 this.actionLabel === 'drafting' ||
+                 this.actionLabel === 'researching' ||
+                 this.actionLabel === 'globalsupport' ||
+                 this.actionLabel === 'delegate') {
         classes.push(`${baseClass}--active`);
       }
       return classes.join(' ');

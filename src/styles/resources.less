@@ -5,6 +5,177 @@
     filter: grayscale(0.3);
 }
 
+/*
+ * Wrapper around a resource cell that can carry a convert-action button
+ * on its right edge (plants / heat). `position: relative` so the button
+ * can be absolute-positioned, extending out of the left-panel into the
+ * play area on the right.
+ */
+.resource_item_wrapper {
+    position: relative;
+    display: flex;
+}
+
+/*
+ * Convert-action button (Plants → Greenery, Heat → Temperature).
+ * Sits OUTSIDE the resource cell, on the play area side, vertically
+ * centered on the resource icon. A thin cyan connector line draws from
+ * the button's left edge LEFT into the resource cell, terminating
+ * around the icon's right edge — visually answers "this button belongs
+ * to THIS resource" without putting the button on top of the icon.
+ *
+ * Visual chrome mirrors the HUD bar buttons (chamfered parallelogram,
+ * dark-glass fill, cyan rim) so the button reads as part of the same
+ * UI family even though it lives in the resources panel context.
+ *
+ * Visibility (rendered at all) is controlled by the parent — based on
+ * whether the player has enough of the resource. The enabled state
+ * (clickable) is the `convert-action-btn--disabled` modifier below,
+ * tied to whether the action is actually offered right now by the server.
+ */
+.convert-action-btn {
+    position: absolute;
+    /* Anchor near the TOP of the resource icon (not the cell's vertical
+     * center) so the button reads as "coming off the top of the icon"
+     * rather than floating in the middle of the row's whitespace. The
+     * resource icon sits in the upper portion of the cell — top offset
+     * lands the button right next to it. */
+    left: calc(100% + 28px);
+    top: 8px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px 6px 12px;
+    border: none;
+    color: #d6e2f2;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+
+    /* HUD parallelogram silhouette with chamfered corners — matches
+     * `.bottom-bar-btn` shape so the button reads as part of the same UI. */
+    clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+
+    /* Two-layer chrome: parent paints the cyan border gradient; ::before
+     * paints the dark glass fill inset by 1.5px. (Same trick as the bar
+     * buttons.) */
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.7) 0%,
+        rgba(80, 120, 160, 0.22) 50%,
+        rgba(130, 170, 210, 0.55) 100%);
+    isolation: isolate;
+    transition: filter 150ms ease;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.93) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover:not(.convert-action-btn--disabled) {
+        filter: brightness(1.15) drop-shadow(0 0 6px rgba(140, 190, 235, 0.4));
+    }
+    &:active:not(.convert-action-btn--disabled) {
+        filter: brightness(0.95);
+    }
+
+    /* Picker mode: amber-tinted while the user is choosing the greenery
+     * space on the board. Click the button again to cancel back to idle. */
+    &--picking {
+        background: linear-gradient(180deg,
+            rgba(255, 215, 122, 0.85) 0%,
+            rgba(180, 130, 40, 0.45) 50%,
+            rgba(255, 200, 80, 0.7) 100%);
+
+        &::before {
+            background: linear-gradient(180deg,
+                rgba(40, 30, 10, 0.93) 0%,
+                rgba(24, 18, 6, 0.95) 100%);
+        }
+        color: #ffd87a;
+        filter: drop-shadow(0 0 8px rgba(255, 200, 80, 0.55));
+    }
+
+    /* Disabled: greyed-out but still present (the player has enough of
+     * the resource to convert — they just can't act right now). */
+    &--disabled {
+        cursor: not-allowed;
+        filter: grayscale(0.85) brightness(0.55);
+        opacity: 0.95;
+    }
+}
+
+.convert-action-btn-icon {
+    width: 16px;
+    height: 16px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    flex-shrink: 0;
+
+    &--plant {
+        background-image: url(./assets/resources/plant.png);
+    }
+    &--temperature {
+        background-image: url(./assets/global-parameters/temperature.png);
+    }
+}
+
+/*
+ * Sci-fi conversion arrow drawn between the resource cell and the convert
+ * button. Lives as a sibling of the button (not as a `::after` of it) so
+ * it doesn't get clipped by the button's `clip-path` parallelogram.
+ * Cyan gradient → bright tip, plus drop-shadow glow. Points RIGHT — the
+ * direction of the transformation (resource → action).
+ */
+.convert-action-arrow {
+    position: absolute;
+    left: calc(100% + 4px);
+    top: 14px;
+    width: 20px;
+    height: 14px;
+    z-index: 4;
+    pointer-events: none;
+    background: linear-gradient(90deg,
+        rgba(106, 176, 230, 0.30) 0%,
+        rgba(140, 200, 240, 0.90) 70%,
+        #ffffff 100%);
+    /* Arrow shape: rectangular tail (40%–58% vertical band) + triangle head
+     * peaking at right edge. */
+    clip-path: polygon(
+        0% 40%, 65% 40%,
+        65% 10%, 100% 50%,
+        65% 90%, 65% 60%,
+        0% 60%
+    );
+    filter: drop-shadow(0 0 4px rgba(140, 200, 240, 0.60));
+}
+
+.convert-action-btn-label {
+    color: #d6e2f2;
+    text-shadow: 0 0 6px rgba(140, 190, 235, 0.18);
+}
+
+.convert-action-btn-cost {
+    font-size: 13px;
+    font-weight: bold;
+    color: #ffd87a;
+    text-shadow: 0 0 4px rgba(255, 200, 80, 0.45);
+    min-width: 12px;
+    text-align: center;
+}
+
 .tags_item_cont {
     display: inline-block;
     white-space: nowrap;

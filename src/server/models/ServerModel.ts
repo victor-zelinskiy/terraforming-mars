@@ -29,6 +29,83 @@ import {cardsToModel, coloniesToModel} from './ModelUtils';
 import {runId} from '../utils/server-ids';
 import {toName} from '../../common/utils/utils';
 import {MAX_AWARDS, MAX_MILESTONES} from '../../common/constants';
+import {Message} from '../../common/logs/Message';
+import {PartyHooks} from '../turmoil/parties/PartyHooks';
+import {PartyName} from '../../common/turmoil/PartyName';
+import {ConvertPlants} from '../cards/base/standardActions/ConvertPlants';
+import {ConvertHeat} from '../cards/base/standardActions/ConvertHeat';
+import {KELVINISTS_POLICY_3} from '../turmoil/parties/Kelvinists';
+
+const DEFAULT_HEAT_FOR_TEMPERATURE = 8;
+const KELVINISTS_HEAT_FOR_TEMPERATURE = 6;
+
+// Title patterns for World Government Terraforming. Single prompt; the title
+// is a fixed string set in `Game.worldGovernmentTerraformingInput()`.
+const WGT_TITLE_PATTERNS = [
+  'Select action for World Government Terraforming',
+];
+
+// Title patterns for Turmoil delegate / ruling-party prompts. These are set
+// in `SendDelegateToArea` (configurable per call) and `ChooseRulingPartyDeferred`.
+const DELEGATE_TITLE_PATTERNS = [
+  'Select new ruling party',
+  'Select where to send a delegate',
+  'Send a delegate', // matches the "Send a delegate in an area …" variants
+];
+
+function titleText(title: string | Message | undefined): string {
+  if (title === undefined) return '';
+  return typeof title === 'string' ? title : title.message;
+}
+
+/**
+ * True iff the player's current pending PlayerInput is the standard
+ * action-selection prompt — i.e. they're being asked "what action do
+ * you want to take?" rather than being mid-card or mid-sub-prompt.
+ * The action menu's title is set in `Player.getActions()`.
+ */
+function isInActionSelectionPhase(input: PlayerInput | undefined): boolean {
+  if (!input) return false;
+  const title = titleText(input.title);
+  return title === 'Take your first action' || title === 'Take your next action';
+}
+
+/**
+ * Classifies a player's pending PlayerInput into one of the
+ * cross-phase prompt kinds (`globalsupport` / `delegate`) the status
+ * label distinguishes. Returns undefined for anything else — the label
+ * then falls back to a phase-derived value (turn / drafting / …).
+ *
+ * The walk is depth-limited and only descends OrOptions / AndOptions
+ * containers (sub-prompts like SelectSpace, SelectCard never carry a
+ * cross-phase title we'd match on).
+ */
+function detectWaitingForKind(input: PlayerInput | undefined): 'globalsupport' | 'delegate' | undefined {
+  if (input === undefined) return undefined;
+  let result: 'globalsupport' | 'delegate' | undefined;
+  const visit = (node: PlayerInput, depth: number): boolean => {
+    if (depth > 3) return false;
+    const title = titleText(node.title);
+    if (WGT_TITLE_PATTERNS.some((p) => title.includes(p))) {
+      result = 'globalsupport';
+      return true;
+    }
+    if (DELEGATE_TITLE_PATTERNS.some((p) => title.includes(p))) {
+      result = 'delegate';
+      return true;
+    }
+    // Only OrOptions / AndOptions expose nested options at this layer.
+    const options = (node as unknown as {options?: ReadonlyArray<PlayerInput>}).options;
+    if (Array.isArray(options)) {
+      for (const child of options) {
+        if (visit(child, depth + 1)) return true;
+      }
+    }
+    return false;
+  };
+  visit(input, 0);
+  return result;
+}
 
 export class Server {
   public static getSimpleGameModel(game: IGame): SimpleGameModel {
@@ -156,11 +233,23 @@ export class Server {
         }));
       }
 
+      // Per-game threshold + description. Most milestones return their static
+      // values; a few (Terraformer) implement getThreshold/getDescription to
+      // pick a different number based on expansion state (e.g. Turmoil).
+      const threshold = milestone.getThreshold !== undefined
+        ? milestone.getThreshold(game)
+        : (milestone as unknown as {threshold?: number}).threshold;
+      const description = milestone.getDescription !== undefined
+        ? milestone.getDescription(game)
+        : milestone.description;
+
       milestoneModels.push({
         playerName: claimed?.player.name,
         color: claimed?.player.color,
         name: milestone.name,
         scores,
+        threshold,
+        description,
       });
     }
 
@@ -211,6 +300,17 @@ export class Server {
   public static getPlayer(player: IPlayer, modelIsForThisPlayer: boolean): PublicPlayerModel {
     const game = player.game;
     const useHandicap = game.players.some((p) => p.handicap !== 0);
+    // canConvertPlants / canConvertHeat: same eligibility logic that
+    // Player.getActions() uses to decide whether to push the option into
+    // the action OR. Gated by `isInActionSelectionPhase` so the buttons
+    // are only enabled when a click can actually be submitted (not during
+    // mid-card sub-prompts).
+    const inActionSelection = isInActionSelectionPhase(player.getWaitingFor());
+    const canConvertPlants = inActionSelection && new ConvertPlants().canAct(player);
+    const canConvertHeat = inActionSelection && (
+      PartyHooks.shouldApplyPolicy(player, PartyName.KELVINISTS, 'kp03')
+        ? KELVINISTS_POLICY_3.canAct(player)
+        : new ConvertHeat().canAct(player));
     const model: PublicPlayerModel = {
       actionsTakenThisRound: player.actionsTakenThisRound,
       actionsTakenThisGame: player.actionsTakenThisGame,
@@ -232,6 +332,8 @@ export class Server {
       id: game.phase === Phase.END ? player.id : undefined,
       influence: Turmoil.ifTurmoilElse(game, (turmoil) => turmoil.getInfluence(player), () => 0),
       isActive: player.id === game.activePlayer.id,
+      isWaitingForInput: player.getWaitingFor() !== undefined,
+      waitingForKind: detectWaitingForKind(player.getWaitingFor()),
       lastCardPlayed: player.lastCardPlayed,
       megacredits: player.megaCredits,
       megacreditProduction: player.production.megacredits,
@@ -241,6 +343,16 @@ export class Server {
       noTagsCount: player.tags.numberOfCardsWithNoTags(),
       plants: player.plants,
       plantProduction: player.production.plants,
+      plantsNeededForGreenery: player.plantsNeededForGreenery,
+      // Turmoil Kelvinists kp03 lowers heat cost to 6; otherwise it's the
+      // base-game 8. Compute server-side so the client never has to guess
+      // from prompt titles.
+      heatNeededForTemperature:
+        PartyHooks.shouldApplyPolicy(player, PartyName.KELVINISTS, 'kp03')
+          ? KELVINISTS_HEAT_FOR_TEMPERATURE
+          : DEFAULT_HEAT_FOR_TEMPERATURE,
+      canConvertPlants,
+      canConvertHeat,
       protectedResources: Server.getResourceProtections(player),
       protectedProduction: Server.getProductionProtections(player),
       tableau: cardsToModel(player, player.tableau.asArray(), {showResources: true}),
