@@ -124,6 +124,8 @@
     "You already have a colony here": "Вы уже колонизировали эту колонию",
     "Cannot build on this colony right now": "Сейчас нельзя строить здесь (не хватает рейтинга или ресурсов)",
     "Another trade fleet is already here": "Здесь уже торгует другой флот",
+    "You already traded with this colony this generation": "Вы уже торговали с этой колонией в этом поколении",
+    "Your trade fleet is currently here": "Здесь стоит ваш флот",
     "Trade embargo is in effect": "Введено эмбарго на торговлю",
     "You have no free trade fleets": "У вас нет свободных торговых флотов",
     "Cannot trade with this colony right now": "Сейчас нельзя торговать с этой колонией",
