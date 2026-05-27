@@ -11,7 +11,12 @@
         :selected="isSelected(p)"
         :hideVp="hideVpFor(p)"
         :actionLabel="actionLabelFor(p)"
-        @select="$emit('selectPlayer', $event)" />
+        :isViewer="isViewerFor(p)"
+        :passAvailable="isViewerFor(p) && passAvailable"
+        :endTurnAvailable="isViewerFor(p) && endTurnAvailable"
+        @select="$emit('selectPlayer', $event)"
+        @pass="$emit('pass')"
+        @end-turn="$emit('end-turn')" />
     </div>
 
     <div class="left-panel-section">
@@ -109,8 +114,21 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // Pass / End-Turn availability — computed by PlayerHome from waitingFor.
+    // Forwarded to LeftPlayerCard but only enabled on the viewer's own card
+    // (the only player who can submit through this client). Other players'
+    // cards still render the slot space so their card heights match the
+    // viewer's, but the buttons stay disabled regardless.
+    passAvailable: {
+      type: Boolean,
+      default: false,
+    },
+    endTurnAvailable: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['selectPlayer', 'convertHeat', 'convertPlants'],
+  emits: ['selectPlayer', 'convertHeat', 'convertPlants', 'pass', 'end-turn'],
   components: {
     PlayerResources,
     PlayerAlliedParty,
@@ -142,6 +160,9 @@ export default defineComponent({
     },
     actionLabelFor(p: PublicPlayerModel): ActionLabel {
       return actionLabelForPlayer(this.playerView, p, this.livePlayersWaitingFor);
+    },
+    isViewerFor(p: PublicPlayerModel): boolean {
+      return p.color === this.playerView.thisPlayer?.color;
     },
   },
 });

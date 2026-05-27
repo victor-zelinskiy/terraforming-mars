@@ -45,8 +45,15 @@
           of the viewport so the player can inspect the rest of the UI
           (board, other players' resources, top-bar overlays) before
           committing to a decision. Click the pill to bring it back.
+
+          Opt-out via `:minimizable="false"` — used by purely client-side
+          confirmation modals (e.g. PassConfirm) where minimizing makes no
+          sense because the prompt is a yes/no on data the player already
+          has in hand. Letting them minimize a confirmation would just
+          turn the pill into a dead-end nag with no information to gather.
         -->
-        <button class="mandatory-input-modal__minimize-btn"
+        <button v-if="minimizable"
+                class="mandatory-input-modal__minimize-btn"
                 @click="minimize"
                 :title="$t('Minimize — inspect the rest of the UI before deciding')"
                 data-test="modal-minimize">
@@ -114,6 +121,15 @@ export default defineComponent({
       type: [String, Object] as unknown as () => string | Message,
       required: false,
       default: '',
+    },
+    // Whether the player may collapse the modal into a pill to look around
+    // the UI before deciding. ON by default (the common case — payment
+    // selection, fund award, WGT — all benefit from letting the player
+    // inspect tableaus / board state first). Turn OFF for pure yes/no
+    // confirmation prompts where there's nothing left to inspect.
+    minimizable: {
+      type: Boolean,
+      default: true,
     },
   },
   data(): DataModel {

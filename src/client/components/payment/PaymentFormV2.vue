@@ -161,20 +161,25 @@ export default defineComponent({
     },
   },
   methods: {
-    // +/MAX cap depends on the resource's exchange rate:
+    // The STRICT cap — how high this row can go without overpaying.
     //
     //  - rate === 1 (M€, heat, Kuiper Asteroids, Luna Archives science):
     //    cap at "remaining cost net of OTHER resources' contributions".
     //    Exact-match is always achievable with 1:1 resources, so there's
-    //    never a reason to overpay deliberately — the + button should
-    //    refuse rather than silently waste resources.
+    //    never a reason to overpay deliberately with these.
     //
     //  - rate > 1 (steel ×2, titanium ×3, seeds ×5, etc.): cap at the
     //    MINIMUM count needed to cover the remaining cost (ceil division).
     //    Unavoidable overpay is OK — e.g. cost 11 with only titanium
     //    needs 4 × 3 = 12, overpaying 1. Pushing further (5 titanium = 15)
-    //    is purely wasteful, blocked at the + button.
-    rowMax(unit: SpendableResource): number {
+    //    is purely wasteful.
+    //
+    // Used internally by `addValue` to decide the standard-path vs. swap-path
+    // and by `maxValue` to compute the target snap point. The display cap
+    // exposed to the +/MAX buttons (`rowMax` below) is more permissive — it
+    // also includes M€-swap headroom so the player can switch from M€ to an
+    // alt resource without first manually decrementing M€.
+    baseCap(unit: SpendableResource): number {
       const rate = this.ledger[unit].rate;
       const othersContrib = this.totalSpent() - this.payment[unit] * rate;
       const remainingForThis = Math.max(0, this.cost - othersContrib);
@@ -183,16 +188,87 @@ export default defineComponent({
       }
       return Math.min(this.ledger[unit].available, Math.ceil(remainingForThis / rate));
     },
-    addValue(unit: SpendableResource): void {
-      if (unit === 'megacredits') {
-        if (this.payment[unit] < this.rowMax('megacredits')) {
-          this.payment[unit] += 1;
+    // Display cap for the +/MAX buttons. Extends `baseCap` with "swap
+    // headroom" — additional units the player can acquire by reducing
+    // ANOTHER resource that's currently allocated. Two swap modes are
+    // supported:
+    //
+    //  1. Same-rate swap (1:1). Every unit of another resource at the
+    //     same rate contributes exactly one extra spot in this row.
+    //     Covers the canonical cases:
+    //       - + on heat (rate 1) frees an M€ (rate 1) per click,
+    //       - + on M€ frees a heat (or kuiper / luna science),
+    //       - + on a rate-1 resource frees another rate-1 resource.
+    //
+    //  2. Cross-rate M€ swap. ONLY when `unit` is an alt-resource with
+    //     rate > 1: each extra unit costs `rate` M€. Lets the player
+    //     dial up steel (×2) / titanium (×3) / seeds (×5) etc. without
+    //     manually − M€ multiple times first. The reverse direction
+    //     (+ M€ funded by reducing a rate>1 resource) is omitted —
+    //     it would either add multiple M€ per click (surprising) or
+    //     under-pay; clicking − on the rate>1 resource is the clean
+    //     manual path for that case.
+    rowMax(unit: SpendableResource): number {
+      const base = this.baseCap(unit);
+      const rate = this.ledger[unit].rate;
+
+      // Same-rate swap budget — sum of allocations across every other
+      // resource at the same rate.
+      let swapBudget = 0;
+      for (const other of this.order) {
+        if (other === unit) continue;
+        if (this.ledger[other].rate === rate) {
+          swapBudget += this.payment[other];
         }
-      } else {
-        if (this.payment[unit] < this.ledger[unit].available) {
-          this.payment[unit] += 1;
+      }
+
+      // Cross-rate M€-funded swap budget (alt-resources only).
+      if (unit !== 'megacredits' && rate > 1) {
+        swapBudget += Math.floor(this.payment.megacredits / rate);
+      }
+
+      const remainingPool = Math.max(0, this.ledger[unit].available - base);
+      return base + Math.min(swapBudget, remainingPool);
+    },
+    addValue(unit: SpendableResource): void {
+      if (this.payment[unit] >= this.ledger[unit].available) return;
+
+      if (this.payment[unit] < this.baseCap(unit)) {
+        // Standard path: there's still under-paid headroom in the cost.
+        this.payment[unit] += 1;
+        if (unit !== 'megacredits') {
           this.setRemainingMCValue();
         }
+        return;
+      }
+
+      // Swap path. baseCap is exhausted (cost already covered) but the
+      // player has more of `unit` available. Find a swap partner and
+      // exchange 1 unit. Total contribution is unchanged.
+      const rate = this.ledger[unit].rate;
+
+      // Same-rate partner first (1:1, cleanest). Iteration order follows
+      // `this.order` — for + on M€ this finds heat first (the canonical
+      // partner), for + on heat this finds M€ (heat sits before M€ in
+      // the order so M€ is hit as a later candidate).
+      for (const other of this.order) {
+        if (other === unit) continue;
+        if (this.ledger[other].rate !== rate) continue;
+        if (this.payment[other] <= 0) continue;
+        this.payment[other] -= 1;
+        this.payment[unit] += 1;
+        return;
+      }
+
+      // Cross-rate fallback: alt-resource swapping in via M€. Only valid
+      // for unit !== M€ with rate > 1; the reverse direction is omitted
+      // (see `rowMax` comment) so + on M€ stays a no-op here when only
+      // rate-mismatched partners are present — matches what disabling
+      // would do, except the user already saw + enabled via rowMax,
+      // so this branch should only ever fire on alt-resource clicks.
+      if (unit !== 'megacredits' && rate > 1 && this.payment.megacredits >= rate) {
+        this.payment.megacredits -= rate;
+        this.payment[unit] += 1;
       }
     },
     reduceValue(unit: SpendableResource): void {

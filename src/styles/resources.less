@@ -28,10 +28,11 @@
  * dark-glass fill, cyan rim) so the button reads as part of the same
  * UI family even though it lives in the resources panel context.
  *
- * Visibility (rendered at all) is controlled by the parent — based on
- * whether the player has enough of the resource. The enabled state
- * (clickable) is the `convert-action-btn--disabled` modifier below,
- * tied to whether the action is actually offered right now by the server.
+ * Visibility (rendered at all) is controlled by the parent: the button
+ * renders only when the server is currently offering the action (which
+ * implies it's the viewer's turn AND the resource amount is sufficient).
+ * There's no separate disabled-but-visible state — when the action can't
+ * be taken, the button is removed from the DOM entirely.
  */
 .convert-action-btn {
     position: absolute;
@@ -83,10 +84,10 @@
         z-index: -1;
     }
 
-    &:hover:not(.convert-action-btn--disabled) {
+    &:hover {
         filter: brightness(1.15) drop-shadow(0 0 6px rgba(140, 190, 235, 0.4));
     }
-    &:active:not(.convert-action-btn--disabled) {
+    &:active {
         filter: brightness(0.95);
     }
 
@@ -107,13 +108,6 @@
         filter: drop-shadow(0 0 8px rgba(255, 200, 80, 0.55));
     }
 
-    /* Disabled: greyed-out but still present (the player has enough of
-     * the resource to convert — they just can't act right now). */
-    &--disabled {
-        cursor: not-allowed;
-        filter: grayscale(0.85) brightness(0.55);
-        opacity: 0.95;
-    }
 }
 
 .convert-action-btn-icon {
