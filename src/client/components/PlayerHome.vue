@@ -77,7 +77,21 @@
     </div>
 
     <div class="bottom-bar-buttons">
-      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'colonies'}" v-on:click="toggleOverlay('colonies')"><span v-i18n>Colonies</span></div>
+      <!--
+        Colonies bottom-bar button. Renamed from "Colonies" to "Trade with
+        colonies" — it now opens the new sci-fi ColoniesOverlay in trade
+        mode (or view-only mode when trade isn't currently offered by the
+        server). Old behaviour of toggling an undefined inline overlay is
+        gone; the button drives `coloniesOverlayOpen` directly.
+        Hidden when the game has no colonies (vanilla / no-coloniesExtension
+        setup).
+      -->
+      <div v-if="game.colonies.length > 0"
+           class="bottom-bar-btn"
+           :class="{'bottom-bar-btn--active': coloniesOverlayOpen}"
+           v-on:click="onOpenColoniesOverlay">
+        <span v-i18n>Trade with colonies</span>
+      </div>
       <div class="bottom-bar-btn bottom-bar-btn--center bottom-bar-btn--cards" :class="{'bottom-bar-btn--active': activeOverlay === 'cards'}" v-on:click="toggleOverlay('cards')">
         <div class="bottom-bar-btn-cards-glyph"></div>
         <span v-i18n>Cards</span>: {{ displayedCardsInHandCount }}
@@ -294,20 +308,39 @@
       <PlayerSetupView :playerView="playerView" :tileView="tileView"/>
     </template>
 
-    <div v-if="game.colonies.length > 0" class="player_home_block" ref="colonies" id="shortkey-colonies">
-      <a name="colonies" class="player_home_anchor hotkey-target"></a>
-      <dynamic-title title="Colonies" :color="thisPlayer.color"/>
-      <div class="colonies-fleets-cont">
-        <div class="colonies-player-fleets" v-for="colonyPlayer in playerView.players" :key="colonyPlayer.color">
-          <div :class="'colonies-fleet colonies-fleet-'+ colonyPlayer.color" v-for="idx in getFleetsCountRange(colonyPlayer)" :key="idx"></div>
-        </div>
-      </div>
-      <div class="player_home_colony_cont">
-        <div class="player_home_colony" v-for="colony in game.colonies" :key="colony.name">
-          <colony :colony="colony" :active="colony.isActive"></colony>
-        </div>
-      </div>
-    </div>
+    <!--
+      Legacy in-page colonies block deleted. The same info is presented
+      via the new sci-fi `ColoniesOverlay` (opened from the bottom-bar
+      "Trade with colonies" button OR auto-mounted when the server is
+      waiting on a SelectColony prompt — e.g. after the Build Colony
+      Standard Project resolves).
+    -->
+
+    <ColoniesOverlay v-if="coloniesOverlayOpen"
+                     :colonies="game.colonies"
+                     :players="playerView.players"
+                     :mode="coloniesOverlayMode"
+                     :selectableNames="coloniesOverlaySelectable"
+                     :disabledReasons="coloniesOverlayDisabledReasons"
+                     :dismissable="coloniesOverlayDismissable"
+                     @select="onColonySelected($event)"
+                     @close="onCloseColoniesOverlay" />
+
+    <!--
+      Pay-trade-fee chooser. Two-step trade flow: player picks a colony
+      in ColoniesOverlay → we mount this modal listing the available
+      payment options → on pick, we assemble the nested AndOptions
+      response and POST. Cancel returns to the colonies grid (the
+      overlay stays open) so the player can pick a different colony.
+    -->
+    <MandatoryInputModal v-if="pendingTradeColony !== undefined"
+                         :title="$t('Pay trade fee')"
+                         :minimizable="false">
+      <ColonyTradePaymentModal :colonyName="pendingTradeColony.colonyName"
+                               :options="pendingTradeColony.paymentOptions"
+                               @select="onColonyTradePaymentSelected($event)"
+                               @cancel="onColonyTradePaymentCancel" />
+    </MandatoryInputModal>
 
     <!--
       Spectator link and game-purge warning intentionally removed: this fork
@@ -344,6 +377,11 @@ import StandardProjectsOverlay from '@/client/components/overview/StandardProjec
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import StandardProjectPaymentContent from '@/client/components/payment/StandardProjectPaymentContent.vue';
 import PassConfirmContent from '@/client/components/overview/PassConfirmContent.vue';
+import ColoniesOverlay from '@/client/components/colonies/ColoniesOverlay.vue';
+import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePaymentModal.vue';
+import {ColonyName} from '@/common/colonies/ColonyName';
+import {CardResource} from '@/common/CardResource';
+import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {Payment} from '@/common/inputs/Payment';
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
@@ -353,7 +391,7 @@ import {FundedAwardModel} from '@/common/models/FundedAwardModel';
 import {AwardName} from '@/common/ma/AwardName';
 import {MAX_MILESTONES, MAX_AWARDS} from '@/common/constants';
 import {MilestoneName} from '@/common/ma/MilestoneName';
-import {PlayerInputModel, OrOptionsModel, SelectOptionModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, OrOptionsModel, AndOptionsModel, SelectOptionModel, SelectPaymentModel, SelectColonyModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {Message} from '@/common/logs/Message';
 import {vueRoot} from '@/client/components/vueRoot';
 
@@ -401,6 +439,17 @@ type PendingStdProjectPayment = {
   input: SelectPaymentModel;
 };
 
+// Pending Trade-with-Colony state. Set after the player picks a colony in
+// the overlay (trade mode), cleared on Cancel or after submission. Carries
+// the inputs the second-step payment modal needs to render the chooser AND
+// the index path required to wrap the final AndOptions response back into
+// the outer action OR.
+type PendingTradeColony = {
+  colonyName: ColonyName;
+  tradeActionPath: ReadonlyArray<number>;
+  paymentOptions: ReadonlyArray<SelectOptionModel>;
+};
+
 type PlayerHomeModel = ToggleableState & {
   selectedPlayerColor: Color | undefined;
   activeOverlay: OverlayId | null;
@@ -414,6 +463,14 @@ type PlayerHomeModel = ToggleableState & {
   // irreversible (no more turns this generation), so we gate it through
   // a client-side confirmation modal before POSTing to the server.
   passConfirmOpen: boolean;
+  // ColoniesOverlay state. `coloniesOverlayOpen` is the gate; mode +
+  // pending trade carry the per-flow context. We use distinct state
+  // here (NOT activeOverlay) because the colonies overlay can be
+  // auto-mounted by the server-driven build flow regardless of which
+  // bar overlay the player has open.
+  coloniesOverlayOpen: boolean;
+  coloniesOverlayManualOpen: boolean;
+  pendingTradeColony: PendingTradeColony | undefined;
 }
 
 type ToggleableCardType = 'HAND' | 'ACTIVE' | 'AUTOMATED' | 'EVENT';
@@ -440,6 +497,9 @@ export default defineComponent({
       convertPlantsPickerActive: false,
       pendingStdProjectPayment: undefined,
       passConfirmOpen: false,
+      coloniesOverlayOpen: false,
+      coloniesOverlayManualOpen: false,
+      pendingTradeColony: undefined,
     };
   },
   watch: {
@@ -471,6 +531,27 @@ export default defineComponent({
       } else if (newVal === null && oldVal !== null) {
         document.removeEventListener('click', this.handleOutsideOverlayClick);
       }
+    },
+    /*
+     * Server-driven auto-open of the colonies overlay. When the server's
+     * waitingFor flips to a top-level SelectColony (e.g. the player just
+     * picked Build Colony in the Standard Projects overlay and the SP
+     * resolved into a deferred SelectColony), we mount the new overlay in
+     * build mode immediately so the legacy radio UI never gets to render.
+     * Conversely, when the SelectColony resolves (server moves on, the
+     * waitingFor becomes something else), and the overlay wasn't manually
+     * opened by the bar button, close it automatically — the user came
+     * here to pick a colony, that's done, get out of their way.
+     */
+    buildColonyContext: {
+      immediate: true,
+      handler(newVal: {path: ReadonlyArray<number>} | undefined, oldVal: {path: ReadonlyArray<number>} | undefined) {
+        if (newVal !== undefined && oldVal === undefined) {
+          this.coloniesOverlayOpen = true;
+        } else if (newVal === undefined && oldVal !== undefined && !this.coloniesOverlayManualOpen) {
+          this.coloniesOverlayOpen = false;
+        }
+      },
     },
   },
   beforeUnmount() {
@@ -629,6 +710,186 @@ export default defineComponent({
     endTurnAvailable(): boolean {
       return this.findEndTurnPath(this.playerView.waitingFor) !== undefined;
     },
+    // ─── Colonies — trade & build context ──────────────────────────────
+    //
+    // Trade-with-colony lives inside the top-level action OrOptions as an
+    // AndOptions(payOptions, selectColony) with title 'Trade with a colony
+    // tile' (see server/player/Colonies.ts). Walking waitingFor returns the
+    // index path to that AndOptions plus its inner two children — we need
+    // both to assemble the eventual response payload.
+    //
+    // Build-colony / card-driven colony place lives as a TOP-LEVEL
+    // SelectColony prompt (the standard project defers BuildColony which
+    // pops a SelectColony as the next waitingFor). We detect it as a
+    // recursive scan for `type === 'colony'` — that way mid-flow nested
+    // prompts (e.g. some card asks to pick a colony INSIDE an OrOptions)
+    // are also captured.
+    tradeColonyContext(): {
+      path: ReadonlyArray<number>;
+      paymentOptions: ReadonlyArray<SelectOptionModel>;
+      colonies: ReadonlyArray<ColonyName>;
+    } | undefined {
+      return this.findTradeColonyContext(this.playerView.waitingFor);
+    },
+    buildColonyContext(): {
+      path: ReadonlyArray<number>;
+      colonies: ReadonlyArray<ColonyName>;
+    } | undefined {
+      return this.findBuildColonyContext(this.playerView.waitingFor);
+    },
+    coloniesOverlayMode(): 'trade' | 'build' | 'view' {
+      // build wins over trade — a top-level SelectColony from the server
+      // means the server is BLOCKING on a colony pick (mandatory), so the
+      // build prompt always takes precedence over the optional trade
+      // action even if the latter is also offered somehow.
+      if (this.buildColonyContext) return 'build';
+      if (this.tradeColonyContext) return 'trade';
+      return 'view';
+    },
+    // The set of colonies the server is currently offering as picks for
+    // the active mode. View mode → empty. Tile-level enabled state and
+    // the SELECT button read this directly.
+    coloniesOverlaySelectable(): ReadonlyArray<ColonyName> {
+      if (this.coloniesOverlayMode === 'build') {
+        return this.buildColonyContext?.colonies ?? [];
+      }
+      if (this.coloniesOverlayMode === 'trade') {
+        return this.tradeColonyContext?.colonies ?? [];
+      }
+      return [];
+    },
+    // In build mode the overlay is MANDATORY — the server is waiting on
+    // the colony pick, dismissing via backdrop would leave the game in
+    // limbo (or trigger the legacy radio UI to display). Trade and view
+    // modes are dismissable.
+    coloniesOverlayDismissable(): boolean {
+      return this.coloniesOverlayMode !== 'build';
+    },
+    // Per-colony tooltip explaining WHY a colony can't be picked right
+    // now. Computed once for every colony so the overlay tile tooltips
+    // are specific ("Colony has no visitors slot left" vs the generic
+    // "Unavailable") — matters most for accessibility and learnability.
+    //
+    // Reasons surface the underlying game-state signals:
+    //   - colony not yet activated → "Colony is inactive (not yet built
+    //     on this game)"
+    //   - colony track filled (no build slots left) → "Colony is full"
+    //   - viewer already has a colony there (and !allowDuplicate from
+    //     server) → "You already have a colony here"
+    //   - colony has a visitor this generation (trade locked) →
+    //     "Another trade fleet is already here"
+    //   - viewer is out of free fleets (trade mode) →
+    //     "You have no free trade fleets"
+    //   - trade embargo in effect → "Trade embargo is in effect"
+    //   - not in trade mode at all (e.g. game phase) →
+    //     "No colony action available right now"
+    //
+    // The English keys are wired through i18n so Russian readers get
+    // the same precise message.
+    coloniesOverlayDisabledReasons(): Partial<Record<ColonyName, string>> {
+      const out: Partial<Record<ColonyName, string>> = {};
+      const mode = this.coloniesOverlayMode;
+      const myColor = this.thisPlayer.color;
+      const noFreeFleets = (this.thisPlayer.fleetSize ?? 0) <=
+        (this.thisPlayer.tradesThisGeneration ?? 0);
+      // Trade embargo isn't surfaced to the client `GameModel` — when in
+      // effect the server simply omits the trade action from waitingFor,
+      // so the overlay opens in `view` mode and we'd fall through to
+      // "No colony action available right now". No special-case needed.
+      const selectableSet = new Set(this.coloniesOverlaySelectable);
+      for (const c of this.game.colonies) {
+        if (selectableSet.has(c.name)) continue; // skip: tile shows positive tooltip
+        if (!c.isActive) {
+          // Inactive-colony tooltips are SPECIFIC. Per the ColoniesHandler
+          // activation rule (server/colonies/ColoniesHandler.ts), a colony
+          // can be activated by:
+          //   - any player playing a card whose card-resource matches the
+          //     colony's `metadata.cardResource` (Enceladus → microbe,
+          //     Miranda → animal, Titan → floater);
+          //   - the Venus colony additionally activates on any Venus-tag
+          //     card with a resource type.
+          // Surfacing the specific trigger here turns an opaque
+          // "unavailable" into an actionable explanation — the player
+          // knows what to do (or wait for) to unlock the colony.
+          out[c.name] = this.inactiveColonyReason(c.name);
+          continue;
+        }
+        if (mode === 'build') {
+          if (c.colonies.length >= 3) {
+            out[c.name] = 'Colony is full';
+            continue;
+          }
+          if (c.colonies.indexOf(myColor) !== -1) {
+            out[c.name] = 'You already have a colony here';
+            continue;
+          }
+          // Falls through to a generic reason — Venus / Europa / Leavitt
+          // TR-affordability checks happen server-side and produce the
+          // colony's absence from `coloniesModel`. We don't replicate the
+          // canAfford math here.
+          out[c.name] = 'Cannot build on this colony right now';
+          continue;
+        }
+        if (mode === 'trade') {
+          if (c.visitor !== undefined) {
+            out[c.name] = 'Another trade fleet is already here';
+            continue;
+          }
+          if (noFreeFleets) {
+            out[c.name] = 'You have no free trade fleets';
+            continue;
+          }
+          out[c.name] = 'Cannot trade with this colony right now';
+          continue;
+        }
+        // view mode — no current trade/build action. The reason can be
+        // specific to the colony (has visitor) OR a global "you can't
+        // trade right now" reason (not your turn, no fleets, etc.).
+        if (c.visitor !== undefined) {
+          out[c.name] = 'Another trade fleet is already here';
+          continue;
+        }
+        out[c.name] = this.viewModeReason;
+      }
+      return out;
+    },
+    // Global reason explaining why the player can't initiate a colony
+    // trade right now. Surfaced as the disabled-reason tooltip on every
+    // active+empty colony in view mode (e.g. when the player clicked
+    // the bottom-bar "Trade with colonies" button on an opponent's
+    // turn, or mid-flow during card resolution).
+    //
+    // The chain mirrors the server-side check in `Colonies.canTrade()`:
+    //   it's the player's turn → top-level action prompt is up,
+    //   AND they have free fleets,
+    //   AND at least one colony is tradeable.
+    // Whichever condition fails first wins the tooltip.
+    viewModeReason(): string {
+      const wf = this.playerView.waitingFor;
+      // Not the viewer's turn at all — server has no prompt for them.
+      if (wf === undefined) {
+        return 'Not your turn right now';
+      }
+      // The viewer IS being waited on, but not on an action menu — a
+      // card or sub-prompt is still resolving. Trade isn't an option
+      // until the current prompt completes.
+      const title = inputTitleText(wf.title);
+      if (title !== 'Take your first action' && title !== 'Take your next action') {
+        return 'Another action is in progress';
+      }
+      // Action menu is up but trade isn't on offer. Server-side gate is
+      // `canTrade() = tradeableColonies > 0 && freeFleets > 0 && !embargo`.
+      const me = this.thisPlayer;
+      const noFleets = (me.fleetSize ?? 0) <= (me.tradesThisGeneration ?? 0);
+      if (noFleets) return 'You have no free trade fleets';
+      const anyTradeable = this.game.colonies.some(
+        (c) => c.isActive && c.visitor === undefined);
+      if (!anyTradeable) return 'No colonies are open for trade right now';
+      // Defensive fallback — covers embargo (which we can't detect on
+      // the client) and any edge case where the trade action is filtered
+      // out by some server-only rule.
+      return 'Trading is not available right now';
+    },
     convertPlantsPrompt(): SelectSpaceModel | undefined {
       return this.findConvertPlantsOption(this.playerView.waitingFor)?.spacePrompt as SelectSpaceModel | undefined;
     },
@@ -666,6 +927,8 @@ export default defineComponent({
     MandatoryInputModal,
     StandardProjectPaymentContent,
     PassConfirmContent,
+    ColoniesOverlay,
+    ColonyTradePaymentModal,
   },
   methods: {
     isPlayerActing(playerView: PlayerViewModel) : boolean {
@@ -856,6 +1119,110 @@ export default defineComponent({
     },
     findEndTurnPath(wf: PlayerInputModel | undefined): ReadonlyArray<number> | undefined {
       return this.findOptionPathByTitle(wf, 'End Turn');
+    },
+    // Maps a colony name to the SPECIFIC tooltip explaining what activates
+    // it. Driven by the colony's metadata: cardResource fields point to
+    // the resource type a played card must carry; Venus is the special
+    // case (matched by name because Venus's metadata has no
+    // `cardResource`, it activates on the Venus TAG).
+    //
+    // All four "starts inactive" colonies in the codebase today are
+    // covered explicitly (Enceladus / Miranda / Titan + Venus). For any
+    // future "inactive at start" colony with a card-resource that isn't
+    // one of those three, the cardResource branch returns a generic
+    // "<resource> card resource" message; for unknown shapes we fall
+    // back to the original generic string.
+    inactiveColonyReason(name: ColonyName): string {
+      if (name === ColonyName.VENUS) {
+        return 'Activated when any player plays a Venus-tag card with a resource type';
+      }
+      const metadata = getColony(name);
+      switch (metadata.cardResource) {
+      case CardResource.MICROBE:
+        return 'Activated when any player plays a card with a microbe resource';
+      case CardResource.ANIMAL:
+        return 'Activated when any player plays a card with an animal resource';
+      case CardResource.FLOATER:
+        return 'Activated when any player plays a card with a floater resource';
+      default:
+        return 'Colony is inactive (not yet built on this game)';
+      }
+    },
+    // ─── Colonies path-finders ─────────────────────────────────────────
+    // Walk the waitingFor tree for the trade AndOptions. Returns:
+    //  - `path` — index sequence from root needed to wrap the eventual
+    //    response in OR layers (same trick milestones / awards use);
+    //  - `paymentOptions` — the SelectOption children of the inner
+    //    "Pay trade fee" OrOptions, surfaced to the payment chooser modal;
+    //  - `colonies` — the colony names from the inner SelectColony's
+    //    coloniesModel (which the server has already filtered to ONLY
+    //    those currently tradeable).
+    findTradeColonyContext(
+      wf: PlayerInputModel | undefined,
+      pathSoFar: ReadonlyArray<number> = [],
+    ): {
+      path: ReadonlyArray<number>;
+      paymentOptions: ReadonlyArray<SelectOptionModel>;
+      colonies: ReadonlyArray<ColonyName>;
+    } | undefined {
+      if (!wf) return undefined;
+      if (wf.type === 'and' && inputTitleText(wf.title) === 'Trade with a colony tile') {
+        const children = (wf as AndOptionsModel).options;
+        // Expected shape from server: [OrOptions("Pay trade fee"), SelectColony]
+        const payOr = children.find((c) => c.type === 'or') as OrOptionsModel | undefined;
+        const selectColony = children.find((c) => c.type === 'colony') as
+          SelectColonyModel | undefined;
+        if (payOr === undefined || selectColony === undefined) return undefined;
+        const paymentOptions = payOr.options.filter(
+          (o) => o.type === 'option') as ReadonlyArray<SelectOptionModel>;
+        const colonies = selectColony.coloniesModel.map((c) => c.name);
+        return {path: pathSoFar, paymentOptions, colonies};
+      }
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const deeper = this.findTradeColonyContext(options[i], [...pathSoFar, i]);
+          if (deeper) return deeper;
+        }
+      }
+      return undefined;
+    },
+    // Walk the waitingFor tree for a SelectColony that's NOT the trade-
+    // flow inner one. Build-colony / card-driven colony place prompts the
+    // server as a stand-alone SelectColony at the root (or wrapped in
+    // OrOptions when nested mid-flow). The `coloniesModel` is again
+    // server-filtered: it contains only colonies the player can BUILD a
+    // tile on right now (active, not full, not duplicate, can afford the
+    // colony-fee TR if any).
+    findBuildColonyContext(
+      wf: PlayerInputModel | undefined,
+      pathSoFar: ReadonlyArray<number> = [],
+      insideTradeAnd: boolean = false,
+    ): {
+      path: ReadonlyArray<number>;
+      colonies: ReadonlyArray<ColonyName>;
+    } | undefined {
+      if (!wf) return undefined;
+      if (wf.type === 'colony' && !insideTradeAnd) {
+        const select = wf as SelectColonyModel;
+        return {
+          path: pathSoFar,
+          colonies: select.coloniesModel.map((c) => c.name),
+        };
+      }
+      // Don't descend INTO the trade AndOptions — its child SelectColony
+      // belongs to the trade flow, not the build flow.
+      const tradeAndHere = wf.type === 'and' &&
+        inputTitleText(wf.title) === 'Trade with a colony tile';
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const deeper = this.findBuildColonyContext(
+            options[i], [...pathSoFar, i], insideTradeAnd || tradeAndHere);
+          if (deeper) return deeper;
+        }
+      }
+      return undefined;
     },
     findAwardOptionPath(wf: PlayerInputModel | undefined) {
       // Primary: title-prefix match. The server sets the title to
@@ -1163,6 +1530,103 @@ export default defineComponent({
         fleetsRange.push(i);
       }
       return fleetsRange;
+    },
+    // ─── Colonies overlay handlers ─────────────────────────────────────
+    // User-initiated open (bottom-bar "Trade with colonies" button). Sets
+    // the manual-open flag so the build-context watcher's auto-close
+    // logic doesn't kick the overlay shut underneath us if the player
+    // happens to be on someone else's turn (no server prompt to drive it).
+    onOpenColoniesOverlay(): void {
+      this.coloniesOverlayManualOpen = true;
+      this.coloniesOverlayOpen = true;
+    },
+    onCloseColoniesOverlay(): void {
+      this.coloniesOverlayOpen = false;
+      this.coloniesOverlayManualOpen = false;
+      this.pendingTradeColony = undefined;
+    },
+    // Single entry point for "player picked a colony in the overlay" — we
+    // branch on mode to pick the right submission path. Build mode is a
+    // one-shot top-level SelectColony submission; trade mode needs a
+    // second step (pay-trade-fee chooser) before we can submit.
+    onColonySelected(colonyName: ColonyName): void {
+      if (this.coloniesOverlayMode === 'build') {
+        this.submitBuildColony(colonyName);
+        return;
+      }
+      if (this.coloniesOverlayMode === 'trade') {
+        const ctx = this.tradeColonyContext;
+        if (!ctx) return;
+        // If there's exactly one payment option, skip the second-step
+        // modal — auto-submit with that single option. This matches the
+        // "single click trade" UX of the Steam version when only one
+        // pay path is available.
+        if (ctx.paymentOptions.length === 1) {
+          this.submitTradeColony(colonyName, 0);
+          return;
+        }
+        this.pendingTradeColony = {
+          colonyName,
+          tradeActionPath: ctx.path,
+          paymentOptions: ctx.paymentOptions,
+        };
+      }
+    },
+    // Build flow — top-level SelectColony submission. The path returned
+    // by findBuildColonyContext is wrapped into OR layers; the innermost
+    // payload is the actual `{type: 'colony', colonyName}` response.
+    submitBuildColony(colonyName: ColonyName): void {
+      const ctx = this.buildColonyContext;
+      if (!ctx) return;
+      let response: unknown = {type: 'colony' as const, colonyName};
+      for (let i = ctx.path.length - 1; i >= 0; i--) {
+        response = {type: 'or' as const, index: ctx.path[i], response};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      wfRef?.onsave?.(response);
+      // The buildColonyContext watcher will close the overlay once the
+      // server's waitingFor flips to whatever comes next.
+      this.coloniesOverlayManualOpen = false;
+    },
+    onColonyTradePaymentSelected(paymentIdx: number): void {
+      if (this.pendingTradeColony === undefined) return;
+      this.submitTradeColony(this.pendingTradeColony.colonyName, paymentIdx);
+    },
+    onColonyTradePaymentCancel(): void {
+      this.pendingTradeColony = undefined;
+    },
+    // Trade flow submission — assembles the nested AndOptions response
+    // exactly as the legacy radio UI would and POSTs it. Shape:
+    //
+    //   wrap(tradePath, {
+    //     type: 'and',
+    //     responses: [
+    //       {type: 'or', index: paymentIdx, response: {type: 'option'}},
+    //       {type: 'colony', colonyName},
+    //     ],
+    //   })
+    //
+    // where wrap() applies one OR layer per index in tradePath, innermost
+    // first (matching every other findXPath → submit pattern in this file).
+    submitTradeColony(colonyName: ColonyName, paymentIdx: number): void {
+      const ctx = this.tradeColonyContext;
+      if (!ctx) return;
+      const andResponse = {
+        type: 'and' as const,
+        responses: [
+          {type: 'or' as const, index: paymentIdx, response: {type: 'option' as const}},
+          {type: 'colony' as const, colonyName},
+        ],
+      };
+      let response: unknown = andResponse;
+      for (let i = ctx.path.length - 1; i >= 0; i--) {
+        response = {type: 'or' as const, index: ctx.path[i], response};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      wfRef?.onsave?.(response);
+      this.pendingTradeColony = undefined;
+      this.coloniesOverlayOpen = false;
+      this.coloniesOverlayManualOpen = false;
     },
     toggle(type: ToggleableCardType): void {
       this[typeToDataModel[type].key] = !this[typeToDataModel[type].key];

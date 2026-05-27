@@ -260,9 +260,12 @@ export default defineComponent({
       // from Van Allen / Staged Protests are still served correctly — only
       // the displayed reason might be slightly off in those rare cases.)
       if (this.thisPlayerMegacredits < MILESTONE_COST) return 'Not enough M€';
-      // Action menu probably isn't the active prompt right now (mid sub-
-      // action, research phase, etc.).
-      return 'Not your turn to take any actions';
+      // Viewer IS acting and has the money, but the prompt tree doesn't
+      // surface the milestone-claim action right now (mid sub-prompt —
+      // SelectColony after Build Colony, payment selection, card draw,
+      // etc.). Don't tell the player "not your turn" — they ARE acting,
+      // just on a different step. Mirror what AwardsOverlay says.
+      return 'Finish your current action first';
     },
     onClaimClick(m: ClaimedMilestoneModel): void {
       if (this.claimBlockerReason(m) !== null) return;

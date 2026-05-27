@@ -187,8 +187,15 @@ export default defineComponent({
     },
     useTooltip(p: StandardProjectModel): string {
       if (!this.viewerActing) return 'Not your turn to take any actions';
+      // viewerActing && !actionableProjects → the server has the viewer
+      // on a non-action prompt right now (mid sub-action, e.g. picking
+      // a colony after the Build Colony SP has fired, or picking a card
+      // to discard, etc). The action OR is NOT in the wf tree, so we
+      // can't drive ANY standard project — but lying with "not your
+      // turn" misleads the player; they ARE acting, just on a different
+      // step. Same message AwardsOverlay uses for this case.
       const cards = this.actionableProjects?.cards;
-      if (!cards) return 'Not your turn to take any actions';
+      if (!cards) return 'Finish your current action first';
       const entry = cards.find((c) => c.name === p.name);
       if (entry === undefined) return 'Action is not available right now';
       if (entry.isDisabled === true) return 'Not enough M€ or no valid placement';
