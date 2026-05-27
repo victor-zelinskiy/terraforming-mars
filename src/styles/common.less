@@ -96,19 +96,35 @@ a:active {
     color: #ddd;
 }
 
+/*
+ * `font-display: swap` makes the browser render with the fallback font
+ * immediately, then swap in Prototype as soon as it loads. Without it,
+ * the browser blocks visible text for up to ~3 s waiting on the font,
+ * which on a slow connection trips Chrome's "Slow network detected"
+ * intervention (the warning we saw in the console). With swap, the
+ * fallback chain (Ubuntu, sans-serif) renders instantly and the user
+ * never sees blank text — and Chrome stops yelling.
+ *
+ * Each face still carries a `unicode-range` so only the relevant TTF
+ * is fetched per locale (en+latin → Prototype.ttf, Cyrillic letters
+ * pull Prototype-ru.ttf, Polish accents pull Prototype-pl.ttf).
+ */
 @font-face {
     font-family: Prototype;
     src: url(./assets/Prototype.ttf);
+    font-display: swap;
     unicode-range: U+000-5FF; /* Latin glyphs */
 }
 @font-face {
     font-family: Prototype;
     src: url(./assets/Prototype-ru.ttf);
+    font-display: swap;
     unicode-range: U+0410-044F; /* Russian glyphs */
 }
 @font-face {
     font-family: Prototype;
     src: url(./assets/Prototype-pl.ttf);
+    font-display: swap;
     unicode-range: U+0104-0107, U+0118-0119, U+0141-0144, U+00D3, U+00F3, U+015A, U+015B, U+0179, U+017A-017C; /* Polish glyphs */
 }
 
@@ -205,6 +221,7 @@ each(@players, {
 @import "./mandatory_input_modal.less";
 @import "./other_player.less";
 @import "./colonies.less";
+@import "./colonies_overlay.less";
 @import "./log.less";
 @import "./load_game_form.less";
 @import "./turmoil.less";

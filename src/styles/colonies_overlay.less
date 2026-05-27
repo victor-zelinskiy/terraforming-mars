@@ -1,0 +1,2002 @@
+/*
+ * Modern sci-fi colonies overlay.
+ *
+ * Replaces the legacy in-page colonies block (the long vertical scroll
+ * target) AND the legacy SelectColony radio UI for the trade / build
+ * flows. Visual vocabulary mirrors the rest of the fork: dark glass
+ * frames, neon cyan accents, parallelogram chrome on buttons, L-corner
+ * ticks on every framed surface.
+ *
+ * Layout: a fixed-position teleported root, a dim/blur backdrop, then a
+ * 3×3 grid stage. The center cell carries the prompt + free-fleets
+ * panel; the surrounding cells are filled by ColonyTile cards with
+ * grid-auto-flow: dense so the center stays reserved no matter how many
+ * colonies are in the game.
+ */
+
+@colony-cyan-rim: rgba(106, 176, 230, 0.55);
+@colony-cyan-soft: rgba(106, 176, 230, 0.22);
+@colony-cyan-text: #6ab0e6;
+@colony-amber-warn: #ffd87a;
+
+/* ───── Overlay root + backdrop ────────────────────────────────────── */
+
+.colonies-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 11000;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    overflow: hidden;
+}
+
+.colonies-overlay__backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center,
+        rgba(8, 14, 22, 0.62) 0%,
+        rgba(2, 4, 8, 0.88) 100%);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    animation: colonies-overlay-fade 220ms ease-out;
+}
+
+@keyframes colonies-overlay-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/*
+ * Close button — full pill with × glyph + label so it reads at a glance
+ * as "exit this view". Anchored top-right with comfortable padding from
+ * the viewport edges (the original 18/22 felt squished). Sci-fi
+ * parallelogram chrome matching the rest of the fork.
+ */
+.colonies-overlay__close {
+    position: absolute;
+    top: 22px;
+    right: 28px;
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 22px 10px 18px;
+    border: none;
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.78) 0%,
+        rgba(80, 120, 160, 0.28) 50%,
+        rgba(130, 170, 210, 0.6) 100%);
+    clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover {
+        filter: brightness(1.22) drop-shadow(0 0 10px rgba(140, 190, 235, 0.55));
+        transform: translateY(-1px);
+    }
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+.colonies-overlay__close-glyph {
+    position: relative;
+    z-index: 1;
+    font-size: 18px;
+    color: @colony-cyan-text;
+    text-shadow: 0 0 6px rgba(106, 176, 230, 0.6);
+    line-height: 1;
+    margin-top: -1px;
+}
+
+.colonies-overlay__close-label {
+    position: relative;
+    z-index: 1;
+}
+
+/*
+ * Minimize button — mirror of the close button but with an "↗"
+ * indicator, signalling "collapse to a pill at the top". Same anchor
+ * point (top-right) since either close OR minimize is visible at a
+ * time, never both: dismissable modes show close; mandatory build mode
+ * shows minimize.
+ */
+.colonies-overlay__minimize {
+    position: absolute;
+    top: 22px;
+    right: 28px;
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 22px 10px 18px;
+    border: none;
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.78) 0%,
+        rgba(80, 120, 160, 0.28) 50%,
+        rgba(130, 170, 210, 0.6) 100%);
+    clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+    &:hover {
+        filter: brightness(1.22) drop-shadow(0 0 10px rgba(140, 190, 235, 0.55));
+        transform: translateY(-1px);
+    }
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+.colonies-overlay__minimize-glyph {
+    position: relative;
+    z-index: 1;
+    font-size: 14px;
+    color: @colony-cyan-text;
+    text-shadow: 0 0 6px rgba(106, 176, 230, 0.6);
+    line-height: 1;
+}
+
+.colonies-overlay__minimize-label {
+    position: relative;
+    z-index: 1;
+}
+
+/*
+ * Minimized state — the whole overlay collapses out of view. Backdrop
+ * fades to transparent and becomes click-through so the player can
+ * interact with the page underneath; the grid stage hides. The pill
+ * (separate Teleport, defined further down) animates in at the top of
+ * the viewport.
+ */
+.colonies-overlay--minimized {
+    pointer-events: none;
+
+    .colonies-overlay__backdrop {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 220ms ease;
+    }
+    .colonies-overlay__grid-stage,
+    .colony-detail {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-24px) scale(0.96);
+        transition: opacity 220ms ease, transform 240ms ease;
+    }
+}
+
+/*
+ * Minimized pill — independent of the overlay's stacking context, so
+ * the z-index sits between the board (low) and bar-overlays (high).
+ * When the player opens an Awards / Milestones / Standard Projects
+ * overlay to inspect info before deciding, those overlays cleanly
+ * cover the pill. Close that overlay → pill is back.
+ *
+ * Same visual vocabulary as the MandatoryInputModal pill (dark glass
+ * strip, pulsing cyan dot, parallelogram clip-path) — keeps the
+ * "you have a decision waiting" cue consistent across both prompt
+ * surfaces.
+ */
+.colonies-overlay-pill {
+    position: fixed;
+    top: calc(var(--bottom-bar-button-height) + 88px);
+    left: 50%;
+    transform: translate(-50%, -20px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(720px, calc(100vw - 48px));
+    padding: 8px 18px 8px 16px;
+    border: 1px solid #2c4a6a;
+    background: linear-gradient(180deg,
+        rgba(20, 30, 45, 0.95) 0%,
+        rgba(12, 20, 32, 0.95) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.12),
+        0 8px 24px rgba(0, 0, 0, 0.55),
+        0 0 32px rgba(106, 176, 230, 0.18);
+    color: #d6e2f2;
+    font-family: Prototype, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    clip-path: polygon(2% 0%, 100% 0%, 98% 100%, 0% 100%);
+    user-select: none;
+
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+
+    &--visible {
+        opacity: 1;
+        transform: translate(-50%, 0);
+        pointer-events: auto;
+        transition-delay: 80ms;
+    }
+    &:hover {
+        filter: brightness(1.12) drop-shadow(0 0 8px rgba(106, 176, 230, 0.4));
+    }
+    &:active {
+        filter: brightness(0.96);
+    }
+    &:focus-visible {
+        outline: none;
+        box-shadow:
+            inset 0 0 0 1px rgba(106, 176, 230, 0.45),
+            0 8px 24px rgba(0, 0, 0, 0.55),
+            0 0 32px rgba(106, 176, 230, 0.55);
+    }
+}
+
+.colonies-overlay-pill__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: @colony-cyan-text;
+    box-shadow: 0 0 8px rgba(106, 176, 230, 0.8);
+    flex-shrink: 0;
+    animation: colonies-overlay-pill-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes colonies-overlay-pill-pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.8),
+                    0 0 0 0 rgba(106, 176, 230, 0);
+    }
+    50% {
+        transform: scale(1.15);
+        box-shadow: 0 0 12px rgba(106, 176, 230, 1),
+                    0 0 0 6px rgba(106, 176, 230, 0);
+    }
+}
+
+.colonies-overlay-pill__label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #9bb5d0;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.colonies-overlay-pill__sep {
+    color: #3a5670;
+    flex-shrink: 0;
+}
+
+.colonies-overlay-pill__title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    text-shadow: 0 0 8px rgba(106, 176, 230, 0.2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    letter-spacing: 0.5px;
+}
+
+.colonies-overlay-pill__restore {
+    flex-shrink: 0;
+    margin-left: 6px;
+    font-size: 16px;
+    color: @colony-cyan-text;
+    line-height: 1;
+    opacity: 0.85;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.colonies-overlay-pill:hover .colonies-overlay-pill__restore {
+    opacity: 1;
+    transform: scale(1.15);
+}
+
+/* ───── Grid stage ─────────────────────────────────────────────────── */
+
+.colonies-overlay__grid-stage {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(260px, 360px));
+    grid-template-rows: repeat(3, auto);
+    grid-auto-flow: dense;
+    gap: 20px 28px;
+    place-content: center;
+    justify-items: stretch;
+    /* tiles are sized in their own block; the stage itself doesn't
+     * scroll — too many colonies will shrink tile sizes via minmax,
+     * not overflow. */
+    max-width: min(1380px, calc(100vw - 96px));
+    max-height: calc(100vh - 48px);
+    animation: colonies-overlay-grid-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes colonies-overlay-grid-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.colonies-overlay__tiles {
+    /* dummy wrapper — tiles are direct grid items in the stage. We use
+     * a flat structure with display: contents so each ColonyTile root
+     * participates directly in the grid. */
+    display: contents;
+}
+
+/* ───── Center prompt + fleets panel ───────────────────────────────── */
+
+.colonies-overlay__center {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    justify-self: center;
+    min-width: 260px;
+    max-width: 360px;
+}
+
+.colonies-overlay__center-frame {
+    position: relative;
+    padding: 16px 20px 18px;
+    border: 1px solid @colony-cyan-rim;
+    border-radius: 4px;
+    background: linear-gradient(180deg,
+        rgba(20, 30, 45, 0.92) 0%,
+        rgba(12, 20, 32, 0.92) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 8px 28px rgba(0, 0, 0, 0.55),
+        0 0 32px rgba(106, 176, 230, 0.16);
+    color: #d6e2f2;
+    font-family: Prototype, sans-serif;
+}
+
+.colonies-overlay__center-corner {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+    border-color: @colony-cyan-text;
+    opacity: 0.85;
+    filter: drop-shadow(0 0 4px rgba(106, 176, 230, 0.45));
+
+    &--tl { top: -6px; left: -6px;     border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -6px; right: -6px;    border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -6px; left: -6px;  border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -6px; right: -6px; border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+.colonies-overlay__prompt {
+    margin: 0 0 4px;
+    padding: 10px 12px;
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    line-height: 1.4;
+    color: #e8f1fb;
+    background: rgba(8, 14, 22, 0.6);
+    border: 1px solid rgba(106, 176, 230, 0.2);
+    border-radius: 3px;
+}
+
+.colonies-overlay__fleets {
+    margin-bottom: 14px;
+}
+
+.colonies-overlay__fleets-title {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #9bb5d0;
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+    padding-bottom: 4px;
+}
+
+.colonies-overlay__fleets-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.colonies-overlay__fleets-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.colonies-overlay__fleets-row-name {
+    min-width: 60px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+    color: #d6e2f2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.colonies-overlay__fleets-ships {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 22px;
+}
+
+/* Re-scale the legacy colony_ships.png sprite ship down so a row of
+ * 1-3 ships fits cleanly in the panel without ballooning vertically. */
+.colonies-overlay__fleet-ship.colonies-fleet {
+    width: 28px;
+    height: 28px;
+    background-size: 224px 28px;
+    /* The base CSS positions sprites for the 70px height; recompute
+     * proportional offsets at the smaller scale. */
+}
+
+/* Sprite offsets at 28px ship size (proportional to base 70px). */
+.colonies-overlay__fleet-ship.colonies-fleet-black  { background-position:    0       0; }
+.colonies-overlay__fleet-ship.colonies-fleet-yellow { background-position:  -28px      0; }
+.colonies-overlay__fleet-ship.colonies-fleet-green  { background-position:  -56px      0; }
+.colonies-overlay__fleet-ship.colonies-fleet-red    { background-position:  -82.8px    0; }
+.colonies-overlay__fleet-ship.colonies-fleet-blue   { background-position: -108.8px    0; }
+.colonies-overlay__fleet-ship.colonies-fleet-purple { background-position: -136.8px    0; }
+.colonies-overlay__fleet-ship.colonies-fleet-orange { background-position: -166.4px    0; }
+.colonies-overlay__fleet-ship.colonies-fleet-pink   { background-position: -196px      0; }
+
+.colonies-overlay__fleets-none {
+    font-size: 11px;
+    color: #6c8198;
+    font-style: italic;
+}
+
+/* ───── Colony tile ────────────────────────────────────────────────── */
+
+.colony-tile {
+    /* Tile is itself a grid item in colonies-overlay__grid-stage. */
+    position: relative;
+    cursor: pointer;
+    transition: filter 180ms ease, transform 180ms ease, opacity 180ms ease;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    align-self: stretch;
+}
+
+.colony-tile--active {
+    &:hover {
+        transform: translateY(-2px);
+
+        .colony-tile__frame {
+            box-shadow:
+                inset 0 0 0 1px rgba(106, 176, 230, 0.28),
+                0 12px 36px rgba(0, 0, 0, 0.6),
+                0 0 30px rgba(106, 176, 230, 0.45);
+            border-color: #6ab0e6;
+        }
+    }
+}
+
+/*
+ * "Disabled" doesn't mean dimmed-body any more — the whole card stays
+ * crisp and readable so the player can study the colony's bonuses /
+ * track / colonists for info even when the action button can't fire.
+ * Only the SELECT footer gets the disabled treatment (see its rules
+ * further down). Hover still highlights subtly, but the body never
+ * goes grey.
+ */
+.colony-tile--disabled {
+    cursor: default;
+
+    &:hover .colony-tile__frame {
+        border-color: rgba(106, 176, 230, 0.7);
+    }
+}
+
+.colony-tile__frame {
+    position: relative;
+    flex: 1 1 auto;
+    padding: 0 0 12px;
+    border: 1px solid @colony-cyan-rim;
+    border-radius: 5px;
+    background: linear-gradient(180deg,
+        rgba(20, 30, 45, 0.92) 0%,
+        rgba(12, 20, 32, 0.95) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 6px 18px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.colony-tile__corner {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+    border-color: @colony-cyan-text;
+    opacity: 0.85;
+    z-index: 3;
+
+    &--tl { top: 0; left: 0;       border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: 0; right: 0;      border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: 0; left: 0;    border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: 0; right: 0;   border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+.colony-tile__header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: linear-gradient(90deg,
+        rgba(40, 65, 94, 0.95) 0%,
+        rgba(20, 35, 55, 0.85) 80%,
+        rgba(20, 35, 55, 0.65) 100%);
+    border-bottom: 1px solid rgba(106, 176, 230, 0.35);
+}
+
+.colony-tile__header-tab {
+    width: 3px;
+    height: 16px;
+    background: linear-gradient(180deg, @colony-cyan-text 0%, #2c4a6a 100%);
+    border-radius: 1px;
+    box-shadow: 0 0 4px rgba(106, 176, 230, 0.5);
+}
+
+.colony-tile__name {
+    margin: 0;
+    flex: 1;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    text-shadow: 0 0 6px rgba(106, 176, 230, 0.25);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/*
+ * Fleet badge in the title strip — surfaces "a fleet is parked on this
+ * colony this generation" without overlapping the planet image (the
+ * earlier visitor-chip placement covered planets like Ganymede).
+ * Background is painted via `player_bg_color_*` so the player colour
+ * shows through as a coloured pill — instantly tells you WHOSE fleet.
+ * The ship glyph rides on top in a darker chip; a "FLEET" label is the
+ * fallback in case the colour-blind viewer can't distinguish player
+ * tints in the small badge.
+ */
+.colony-tile__header-fleet {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 8px 0 4px;
+    border-radius: 2px;
+    color: #fff;
+    font-family: Prototype, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.85);
+    flex-shrink: 0;
+}
+
+.colony-tile__header-fleet-ship.colonies-fleet {
+    width: 18px;
+    height: 18px;
+    background-size: 144px 18px !important;
+    flex-shrink: 0;
+    /* Drop-shadow makes the small sprite read against any player-colour
+     * background; the underlying colony_ships.png assumes a dark mat. */
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
+}
+
+/* Sprite offsets scaled for 18px ship size (proportional to base 70px). */
+.colony-tile__header-fleet-ship.colonies-fleet-black  { background-position:    0       0 !important; }
+.colony-tile__header-fleet-ship.colonies-fleet-yellow { background-position:  -18px     0 !important; }
+.colony-tile__header-fleet-ship.colonies-fleet-green  { background-position:  -36px     0 !important; }
+.colony-tile__header-fleet-ship.colonies-fleet-red    { background-position:  -53.2px   0 !important; }
+.colony-tile__header-fleet-ship.colonies-fleet-blue   { background-position:  -69.9px   0 !important; }
+.colony-tile__header-fleet-ship.colonies-fleet-purple { background-position:  -87.9px   0 !important; }
+.colony-tile__header-fleet-ship.colonies-fleet-orange { background-position: -106.9px   0 !important; }
+.colony-tile__header-fleet-ship.colonies-fleet-pink   { background-position: -125.9px   0 !important; }
+
+.colony-tile__header-fleet-label {
+    flex-shrink: 0;
+}
+
+/* Planet image. Reuses the existing per-colony `.<Name>-background`
+ * rule which sets background-image. Override sizing + position for the
+ * smaller tile context. The legacy rule also adds an inset box-shadow
+ * with a colony-specific accent colour — we let that bleed in, it
+ * gives each tile a subtle per-colony hue. */
+.colony-tile__planet {
+    position: absolute;
+    top: 38px;
+    right: -22px;
+    width: 110px;
+    height: 110px;
+    background-size: 130px 130px !important;
+    background-position: center !important;
+    border-radius: 50%;
+    box-shadow: 0 0 14px rgba(0, 0, 0, 0.7);
+    opacity: 0.78;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.colony-tile__build-track {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px 6px;
+    z-index: 2;
+    position: relative;
+}
+
+.colony-tile__build-slot {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border: 1.5px solid #b75c2a;
+    background: linear-gradient(180deg,
+        rgba(40, 30, 16, 0.95),
+        rgba(28, 20, 10, 0.95));
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+    transition: border-color 150ms ease, filter 150ms ease, background 150ms ease;
+
+    /*
+     * Legacy `BuildBenefit` fallback path: the upstream template uses
+     * absolute positioning + scale tweaks tuned for its native parent.
+     * Constrain it to our slot by clipping and scaling uniformly.
+     *
+     * EXCLUDE the player-stamp cube — it needs its own `position:
+     * absolute` to anchor into the slot corner. Earlier rule was a
+     * blanket `> div` selector that smashed the cube's positioning,
+     * making the marker invisible in the tile grid (detail view used a
+     * differently-named class so it wasn't affected — that's why the
+     * full-screen detail showed the cube correctly while the tile grid
+     * did not). The fallback BuildBenefit element has no class, so the
+     * :not selector targets it precisely.
+     */
+    > div:not(.colony-tile__cube) {
+        position: static !important;
+        transform: scale(0.55);
+        transform-origin: center;
+    }
+}
+
+/*
+ * Inline build content — number + icon on the SAME baseline as one
+ * unit, e.g. "3🐛". The earlier corner-overlay version visually
+ * separated the count from the icon. Flex-row keeps them tied
+ * together. We override the global `.resource` defaults (asymmetric
+ * margins, 30×30 dimensions) via a chained selector so the icon's
+ * bounding box matches its visible centre.
+ */
+.colony-tile__build-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    width: 100%;
+    height: 100%;
+    line-height: 1;
+}
+
+.colony-tile__build-content .resource {
+    width: 22px;
+    height: 22px;
+    background-size: 22px 22px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: transparent;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+    transform: none;
+    filter: drop-shadow(0px 0px 1px black);
+}
+
+.colony-tile__build-num {
+    font-family: Prototype, sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow:
+        -1px -1px 0 #000,
+         1px -1px 0 #000,
+        -1px  1px 0 #000,
+         1px  1px 0 #000;
+    pointer-events: none;
+    line-height: 1;
+    letter-spacing: -0.5px;
+    flex-shrink: 0;
+}
+
+.colony-tile__build-slot--current {
+    border-color: #ffd87a;
+    box-shadow: 0 0 10px rgba(255, 216, 122, 0.6);
+}
+
+/*
+ * Occupied slot — a player tile sits here. The slot icon stays visible
+ * underneath the corner stamp so the player still sees what bonus
+ * went to the colonist; the slot just dims a bit so the eye reads it
+ * as "claimed" vs the available slots beside it. Border tone shifts
+ * to muted to match the "taken" feel.
+ */
+.colony-tile__build-slot--occupied {
+    border-color: #6a4f30;
+    filter: brightness(0.85) saturate(0.85);
+}
+
+/*
+ * Player cube — "claim stamp" style, modeled after the milestone /
+ * award claimed badges. A small player-coloured square anchored in the
+ * top-right corner of the slot so it reads as a stamp WITHOUT
+ * overlapping the inline number+icon content (the count "3" lives at
+ * the left of the inline row, the icon center; the right corner is
+ * free chrome for the stamp).
+ */
+.colony-tile__cube {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 1px;
+    z-index: 5;
+    border: 1.5px solid #fff;
+    box-shadow:
+        0 0 4px rgba(0, 0, 0, 0.8),
+        inset 0 0 2px rgba(255, 255, 255, 0.45);
+}
+
+.colony-tile__row {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 12px;
+    font-size: 11px;
+    color: #d6e2f2;
+}
+
+.colony-tile__row-label {
+    flex: 0 0 60px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #9bb5d0;
+}
+
+/*
+ * Trade-row marker chip — shows where the colony's track marker is RIGHT
+ * NOW (1..7, advances each generation). Different from "trade cost"
+ * which would imply how much the player pays — this is the position
+ * indicator. Rendered as `[N][◆]` in amber, consistent with the
+ * boardgame's "trade level" iconography.
+ */
+.colony-tile__row-marker {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 6px;
+    background: rgba(8, 14, 22, 0.65);
+    border: 1px solid rgba(255, 216, 122, 0.4);
+    border-radius: 2px;
+    font-weight: 700;
+}
+
+.colony-tile__row-marker-num {
+    color: @colony-amber-warn;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.colony-tile__row-marker-icon {
+    color: @colony-amber-warn;
+    font-size: 9px;
+}
+
+.colony-tile__row-arrow {
+    color: #9bb5d0;
+    font-size: 12px;
+    margin: 0 2px;
+}
+
+.colony-tile__row-reward {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
+}
+
+.colony-tile__row-reward-num {
+    font-weight: 700;
+    color: #e8f1fb;
+    font-size: 11px;
+    background: rgba(8, 14, 22, 0.75);
+    padding: 0 4px;
+    border-radius: 2px;
+    line-height: 1.4;
+    display: inline-block;
+}
+
+/*
+ * Override the GLOBAL `.resource` baseline (cards.less) for icons used
+ * inline in tile rows. The global rule sets width:30px / height:30px
+ * AND asymmetric `margin-top: 5px; margin-bottom: 10px` which pushes
+ * the visual center down and breaks flex-row alignment with adjacent
+ * text. The chained `.row-reward .resource` selector wins on
+ * specificity (2 classes vs 1). Explicit zero margins, no transforms,
+ * line-height: 1 — guarantees the icon's bounding box matches its
+ * visible centre.
+ */
+.colony-tile__row-reward .resource {
+    width: 18px;
+    height: 18px;
+    background-size: 18px 18px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: transparent;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+    transform: none;
+    filter: drop-shadow(0px 0px 1px black);
+}
+
+/* Same override for the trade-marker / bonus row icons. The "abstract"
+ * fallback class is NOT a real `.resource` (it's just a chip) — keep
+ * it covered too by selector chain. */
+.colony-tile__row-reward-icon--abstract {
+    width: 18px;
+    height: 18px;
+    background: linear-gradient(180deg,
+        rgba(106, 176, 230, 0.45),
+        rgba(60, 100, 140, 0.45));
+    border-radius: 2px;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+/* Fallback for trade/colony rewards that aren't simple resource icons
+ * (cards, VP, TR, etc.). The detail view shows the precise reward;
+ * this is just a visual placeholder. */
+.colony-tile__row-reward-icon--abstract {
+    background: linear-gradient(180deg,
+        rgba(106, 176, 230, 0.45),
+        rgba(60, 100, 140, 0.45));
+    border-radius: 2px;
+    width: 16px;
+    height: 16px;
+}
+
+/* Subtle outer glow on tiles with an active visitor — "this colony has
+ * been claimed for trade this turn". Layered on top of the active /
+ * disabled rules. The visitor itself is rendered in the header strip
+ * (`.colony-tile__header-fleet`) and not as a separate floating chip. */
+.colony-tile--occupied {
+    .colony-tile__frame {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+            0 6px 18px rgba(0, 0, 0, 0.55);
+    }
+}
+
+/* ───── Tile select button ─────────────────────────────────────────── */
+
+/*
+ * Footer action — a full-width strip integrated into the bottom of the
+ * card. Distinct from the floating-pill convert-action button because
+ * the colony tile needs a clear "primary CTA" that ties into the frame
+ * rather than floating off-axis. Hosts a glyph + label, picks up the
+ * card's accent border on hover, dims to a sunken state when disabled
+ * (matches the dimmed overall tile so the card still reads coherently).
+ */
+.colony-tile__select-btn {
+    position: relative;
+    margin-top: 12px;
+    margin-bottom: 0;
+    padding: 9px 14px;
+    width: 100%;
+    border: none;
+    border-top: 1px solid rgba(106, 176, 230, 0.4);
+    cursor: pointer;
+    color: #e8f1fb;
+    font-family: Prototype, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(180deg,
+        rgba(40, 70, 100, 0.78) 0%,
+        rgba(22, 40, 60, 0.92) 100%);
+    box-shadow: inset 0 1px 0 rgba(106, 176, 230, 0.22);
+    transition: filter 160ms ease, background 160ms ease,
+                box-shadow 160ms ease;
+
+    &:hover:not(:disabled) {
+        filter: brightness(1.18);
+        background: linear-gradient(180deg,
+            rgba(72, 130, 180, 0.92) 0%,
+            rgba(38, 70, 105, 0.95) 100%);
+        box-shadow:
+            inset 0 1px 0 rgba(140, 190, 235, 0.45),
+            0 0 14px rgba(106, 176, 230, 0.4);
+    }
+    &:active:not(:disabled) {
+        filter: brightness(0.92);
+    }
+    &:disabled,
+    &--disabled {
+        cursor: not-allowed;
+        color: #7a8a99;
+        background: linear-gradient(180deg,
+            rgba(20, 28, 38, 0.85) 0%,
+            rgba(12, 18, 26, 0.92) 100%);
+        box-shadow: inset 0 1px 0 rgba(106, 176, 230, 0.08);
+        border-top-color: rgba(106, 176, 230, 0.12);
+    }
+}
+
+.colony-tile__select-btn-glyph {
+    font-size: 12px;
+    color: @colony-cyan-text;
+    text-shadow: 0 0 4px rgba(106, 176, 230, 0.55);
+    line-height: 1;
+}
+
+.colony-tile__select-btn:disabled .colony-tile__select-btn-glyph,
+.colony-tile__select-btn--disabled .colony-tile__select-btn-glyph {
+    color: #4a5868;
+    text-shadow: none;
+}
+
+.colony-tile__select-btn-label {
+    line-height: 1;
+}
+
+/* ───── Colony detail view — custom sci-fi layout ──────────────────── */
+
+.colony-detail {
+    position: relative;
+    z-index: 1;
+    width: min(1100px, calc(100vw - 96px));
+    max-height: calc(100vh - 96px);
+    animation: colonies-overlay-grid-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.colony-detail__frame {
+    position: relative;
+    border: 1px solid @colony-cyan-rim;
+    border-radius: 5px;
+    background: linear-gradient(180deg,
+        rgba(20, 30, 45, 0.96) 0%,
+        rgba(8, 14, 22, 0.97) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.12),
+        0 18px 60px rgba(0, 0, 0, 0.65),
+        0 0 64px rgba(106, 176, 230, 0.2);
+    color: #d6e2f2;
+    font-family: Prototype, sans-serif;
+}
+
+.colony-detail__corner {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    pointer-events: none;
+    border-color: @colony-cyan-text;
+    opacity: 0.85;
+    filter: drop-shadow(0 0 6px rgba(106, 176, 230, 0.45));
+
+    &--tl { top: -8px; left: -8px;     border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -8px; right: -8px;    border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -8px; left: -8px;  border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -8px; right: -8px; border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+.colony-detail__header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 24px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.25);
+    background: linear-gradient(90deg,
+        rgba(40, 70, 100, 0.7) 0%,
+        rgba(20, 35, 55, 0.25) 70%,
+        rgba(20, 35, 55, 0) 100%);
+}
+
+.colony-detail__header-tab {
+    width: 5px;
+    height: 28px;
+    background: linear-gradient(180deg, @colony-cyan-text 0%, #2c4a6a 100%);
+    border-radius: 1px;
+    box-shadow: 0 0 8px rgba(106, 176, 230, 0.65);
+}
+
+.colony-detail__title {
+    flex: 1;
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    text-shadow: 0 0 12px rgba(106, 176, 230, 0.4);
+}
+
+.colony-detail__status-pill {
+    padding: 5px 12px;
+    background: rgba(40, 18, 18, 0.7);
+    border: 1px solid rgba(220, 110, 90, 0.55);
+    color: #ffb59a;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border-radius: 2px;
+    cursor: help;
+
+    &--inactive {
+        background: rgba(50, 38, 14, 0.7);
+        border-color: rgba(255, 216, 122, 0.45);
+        color: @colony-amber-warn;
+    }
+    &--ok {
+        background: rgba(18, 38, 24, 0.7);
+        border-color: rgba(120, 220, 140, 0.45);
+        color: #b8e8c1;
+    }
+}
+
+/*
+ * Activation banner — sits between header and body. Stretches the full
+ * inner width so the activation rule is read first, before the bonus
+ * tracks. Keeps the inactive-colony layout SCROLL-FREE: previously
+ * this lived as a section in the main column and pushed the trade
+ * track past viewport for compact colonies like Titan.
+ */
+.colony-detail__activation-banner {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    margin: 12px 24px 0;
+    padding: 10px 14px;
+    border: 1px solid rgba(255, 216, 122, 0.55);
+    background: linear-gradient(180deg,
+        rgba(60, 44, 16, 0.65) 0%,
+        rgba(38, 28, 8, 0.78) 100%);
+    border-radius: 4px;
+    box-shadow: 0 0 14px rgba(255, 216, 122, 0.1);
+}
+
+.colony-detail__activation-banner-tab {
+    width: 4px;
+    background: linear-gradient(180deg, @colony-amber-warn 0%, #6a4a14 100%);
+    border-radius: 1px;
+    box-shadow: 0 0 6px rgba(255, 216, 122, 0.55);
+    flex-shrink: 0;
+}
+
+.colony-detail__activation-banner-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.colony-detail__activation-banner-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: @colony-amber-warn;
+    text-shadow: 0 0 6px rgba(255, 216, 122, 0.35);
+}
+
+.colony-detail__activation-banner-text {
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: #ffe6b3;
+}
+
+/*
+ * Disabled banner — same structural pattern as activation, but in a
+ * red/danger tone. Surfaces the specific reason the colony can't be
+ * picked in the CURRENT overlay action (mode-driven: trade vs build).
+ */
+.colony-detail__disabled-banner {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    margin: 12px 24px 0;
+    padding: 10px 14px;
+    border: 1px solid rgba(220, 110, 90, 0.55);
+    background: linear-gradient(180deg,
+        rgba(60, 22, 16, 0.7) 0%,
+        rgba(38, 14, 10, 0.78) 100%);
+    border-radius: 4px;
+    box-shadow: 0 0 14px rgba(220, 110, 90, 0.1);
+}
+
+.colony-detail__disabled-banner-tab {
+    width: 4px;
+    background: linear-gradient(180deg, #e07a6a 0%, #6a2c1a 100%);
+    border-radius: 1px;
+    box-shadow: 0 0 6px rgba(220, 110, 90, 0.55);
+    flex-shrink: 0;
+}
+
+.colony-detail__disabled-banner-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.colony-detail__disabled-banner-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: #ffb59a;
+    text-shadow: 0 0 6px rgba(220, 110, 90, 0.4);
+}
+
+.colony-detail__disabled-banner-text {
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: #ffd5c2;
+}
+
+/* ───── Body — 2-column grid (main left, aside right) ──────────────── */
+
+.colony-detail__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 290px;
+    gap: 24px;
+    padding: 22px 24px 18px;
+    max-height: calc(100vh - 260px);
+    overflow-y: auto;
+}
+
+.colony-detail__main {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+}
+
+.colony-detail__aside {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: stretch;
+}
+
+/* ───── Generic section frame ──────────────────────────────────────── */
+
+.colony-detail__section {
+    border: 1px solid rgba(106, 176, 230, 0.25);
+    background: linear-gradient(180deg,
+        rgba(20, 30, 45, 0.55) 0%,
+        rgba(12, 20, 32, 0.7) 100%);
+    border-radius: 4px;
+    padding: 12px 14px 14px;
+
+    &--warn {
+        border-color: rgba(255, 216, 122, 0.55);
+        background: linear-gradient(180deg,
+            rgba(60, 44, 16, 0.55) 0%,
+            rgba(36, 26, 8, 0.7) 100%);
+    }
+}
+
+.colony-detail__section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.colony-detail__section-tab {
+    width: 3px;
+    height: 16px;
+    background: linear-gradient(180deg, @colony-cyan-text 0%, #2c4a6a 100%);
+    border-radius: 1px;
+    box-shadow: 0 0 4px rgba(106, 176, 230, 0.5);
+
+    &--warn {
+        background: linear-gradient(180deg, @colony-amber-warn 0%, #6a4a14 100%);
+        box-shadow: 0 0 4px rgba(255, 216, 122, 0.55);
+    }
+}
+
+.colony-detail__section-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    text-shadow: 0 0 6px rgba(106, 176, 230, 0.3);
+}
+
+.colony-detail__section-subtitle {
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-transform: lowercase;
+    color: #8a9cb0;
+    font-style: italic;
+}
+
+.colony-detail__section-desc {
+    margin: 0;
+    padding-top: 8px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #c4d1e0;
+
+    &--inline {
+        padding-top: 0;
+        flex: 1;
+    }
+}
+
+/* ───── Build bonus track (large 3 slots) ──────────────────────────── */
+
+.colony-detail__build-track {
+    display: flex;
+    gap: 10px;
+    padding: 4px 0 2px;
+}
+
+.colony-detail__build-slot {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    border: 2px solid #b75c2a;
+    background: linear-gradient(180deg,
+        rgba(48, 34, 18, 0.95),
+        rgba(28, 20, 10, 0.95));
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &--occupied {
+        border-color: #6a4f30;
+        filter: brightness(0.88) saturate(0.85);
+    }
+}
+
+.colony-detail__build-slot-stamp {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 1px;
+    border: 1.5px solid #fff;
+    box-shadow:
+        0 0 4px rgba(0, 0, 0, 0.8),
+        inset 0 0 2px rgba(255, 255, 255, 0.45);
+    z-index: 4;
+}
+
+.colony-detail__build-slot-num {
+    position: absolute;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 700;
+    color: #6a8198;
+    letter-spacing: 0.5px;
+}
+
+/* ───── Trade income track (7 cells with marker) ───────────────────── */
+
+.colony-detail__trade-track {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px 0 20px;
+}
+
+.colony-detail__trade-cell {
+    position: relative;
+    width: 100%;
+    height: 56px;
+    border: 1.5px solid #4a6688;
+    background: linear-gradient(180deg,
+        rgba(16, 26, 38, 0.9),
+        rgba(10, 16, 24, 0.95));
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 200ms ease, box-shadow 200ms ease, filter 200ms ease;
+
+    &--passed {
+        filter: brightness(0.7) saturate(0.7);
+        border-color: #2c4a6a;
+    }
+
+    &--current {
+        border-color: @colony-amber-warn;
+        box-shadow:
+            0 0 12px rgba(255, 216, 122, 0.55),
+            inset 0 0 6px rgba(255, 216, 122, 0.3);
+        background: linear-gradient(180deg,
+            rgba(56, 42, 18, 0.92),
+            rgba(36, 28, 10, 0.95));
+    }
+}
+
+.colony-detail__trade-cell-num {
+    position: absolute;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 700;
+    color: #6a8198;
+
+    .colony-detail__trade-cell--current & {
+        color: @colony-amber-warn;
+        text-shadow: 0 0 4px rgba(255, 216, 122, 0.55);
+    }
+}
+
+/* CSS-triangle marker arrow above the current trade-track cell. */
+.colony-detail__trade-cell-marker {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 9px solid @colony-amber-warn;
+    filter: drop-shadow(0 0 6px rgba(255, 216, 122, 0.7));
+    animation: colony-trade-marker-bob 1.6s ease-in-out infinite;
+}
+
+@keyframes colony-trade-marker-bob {
+    0%, 100% { transform: translate(-50%, 0); }
+    50%      { transform: translate(-50%, -2px); }
+}
+
+/* ───── Colony-owner bonus row ─────────────────────────────────────── */
+
+.colony-detail__owner-bonus {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.colony-detail__owner-bonus-glyph {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border: 1.5px solid rgba(106, 176, 230, 0.5);
+    background: linear-gradient(180deg,
+        rgba(20, 35, 55, 0.85),
+        rgba(10, 18, 28, 0.95));
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ───── Aside — planet + colonists + visitor ───────────────────────── */
+
+.colony-detail__planet {
+    width: 100%;
+    height: 240px;
+    border: 1px solid rgba(106, 176, 230, 0.3);
+    border-radius: 4px;
+    background-size: cover !important;
+    background-position: center !important;
+    box-shadow:
+        inset 0 0 30px rgba(0, 0, 0, 0.8),
+        0 4px 18px rgba(0, 0, 0, 0.6);
+    position: relative;
+    overflow: hidden;
+}
+
+.colony-detail__visitor {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    padding: 8px 12px 8px 0;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 4px;
+    background: linear-gradient(180deg,
+        rgba(20, 30, 45, 0.92),
+        rgba(12, 20, 32, 0.95));
+    box-shadow: 0 0 14px rgba(0, 0, 0, 0.5);
+}
+
+.colony-detail__visitor-bar {
+    width: 6px;
+    flex-shrink: 0;
+    border-radius: 1px 0 0 1px;
+    box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.3);
+}
+
+.colony-detail__visitor-body {
+    flex: 1;
+    padding: 4px 0;
+    min-width: 0;
+}
+
+.colony-detail__visitor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.colony-detail__visitor-ship.colonies-fleet {
+    width: 28px;
+    height: 28px;
+    background-size: 224px 28px !important;
+    flex-shrink: 0;
+}
+/* Sprite offsets at 28px ship size. */
+.colony-detail__visitor-ship.colonies-fleet-black  { background-position:    0      0 !important; }
+.colony-detail__visitor-ship.colonies-fleet-yellow { background-position:  -28px    0 !important; }
+.colony-detail__visitor-ship.colonies-fleet-green  { background-position:  -56px    0 !important; }
+.colony-detail__visitor-ship.colonies-fleet-red    { background-position:  -82.8px  0 !important; }
+.colony-detail__visitor-ship.colonies-fleet-blue   { background-position: -108.8px  0 !important; }
+.colony-detail__visitor-ship.colonies-fleet-purple { background-position: -136.8px  0 !important; }
+.colony-detail__visitor-ship.colonies-fleet-orange { background-position: -166.4px  0 !important; }
+.colony-detail__visitor-ship.colonies-fleet-pink   { background-position: -196px    0 !important; }
+
+.colony-detail__visitor-name {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #e8f1fb;
+    text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.colony-detail__visitor-tag {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: #9bb5d0;
+    text-transform: uppercase;
+    margin-top: 2px;
+}
+
+.colony-detail__colonists {
+    border: 1px solid rgba(106, 176, 230, 0.25);
+    background: rgba(12, 20, 32, 0.55);
+    border-radius: 4px;
+    padding: 10px 12px;
+}
+
+.colony-detail__colonists-title {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #9bb5d0;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+}
+
+.colony-detail__colonists-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.colony-detail__colonist-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.colony-detail__colonist-cube {
+    width: 14px;
+    height: 14px;
+    border-radius: 1px;
+    border: 1.5px solid #fff;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+    flex-shrink: 0;
+}
+
+.colony-detail__colonist-name {
+    flex: 1;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #e8f1fb;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.colony-detail__colonists-empty {
+    margin: 0;
+    font-size: 11px;
+    font-style: italic;
+    color: #6c8198;
+}
+
+/* ───── Footer actions (disabled-reason banner moved up top, see
+ *     `.colony-detail__disabled-banner` above) ──────────────────────── */
+
+.colony-detail__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 14px 22px 18px;
+    border-top: 1px solid rgba(106, 176, 230, 0.18);
+    background: rgba(8, 14, 22, 0.55);
+}
+
+.colony-detail__close-btn,
+.colony-detail__select-btn {
+    position: relative;
+    padding: 10px 28px;
+    border: none;
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+    min-width: 140px;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover:not(:disabled) {
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(140, 190, 235, 0.5));
+        transform: translateY(-1px);
+    }
+    &:active:not(:disabled) { transform: translateY(0); filter: brightness(0.92); }
+    > span { position: relative; z-index: 1; }
+}
+
+.colony-detail__close-btn {
+    background: linear-gradient(180deg,
+        rgba(120, 140, 160, 0.55) 0%,
+        rgba(50, 70, 90, 0.28) 50%,
+        rgba(100, 120, 140, 0.45) 100%);
+}
+
+.colony-detail__select-btn {
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.78) 0%,
+        rgba(80, 120, 160, 0.28) 50%,
+        rgba(130, 170, 210, 0.6) 100%);
+
+    &:disabled,
+    &--disabled {
+        cursor: not-allowed;
+        filter: grayscale(0.85) brightness(0.45);
+        opacity: 0.95;
+    }
+}
+
+/* ───── BenefitGlyph — universal benefit-slot renderer ────────────── */
+/*
+ * One unified element that knows how to draw every ColonyBenefit type
+ * encountered on real colonies. Centered icon with an optional "×N"
+ * overlay on the bottom-right corner of the glyph cell.
+ */
+.benefit-glyph {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/*
+ * Override the GLOBAL `.resource` baseline (cards.less) the same way
+ * the tile rows do — chained selector beats `.resource` on
+ * specificity, and explicit zero-margins lock the icon's bounding box
+ * to its visible centre. Without this the icon visually slid downward
+ * against the centered glyph container.
+ */
+.benefit-glyph__icon.resource {
+    width: 32px;
+    height: 32px;
+    background-size: 32px 32px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: transparent;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: middle;
+    transform: none;
+    filter: drop-shadow(0px 0px 1px black);
+}
+
+.benefit-glyph__num {
+    position: absolute;
+    right: 4px;
+    bottom: 2px;
+    font-family: Prototype, sans-serif;
+    font-size: 14px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow:
+        -1px -1px 0 #000,
+         1px -1px 0 #000,
+        -1px  1px 0 #000,
+         1px  1px 0 #000;
+    pointer-events: none;
+    line-height: 1;
+    letter-spacing: -0.5px;
+    z-index: 2;
+}
+
+/* Smaller variants for the tighter trade-track cells. */
+.colony-detail__trade-cell .benefit-glyph__icon.resource {
+    width: 28px;
+    height: 28px;
+    background-size: 28px 28px;
+}
+.colony-detail__trade-cell .benefit-glyph__num {
+    font-size: 12px;
+    right: 2px;
+    bottom: 1px;
+}
+
+.benefit-glyph__vp {
+    font-size: 28px;
+    font-weight: 900;
+    color: @colony-amber-warn;
+    text-shadow: 0 0 6px rgba(255, 216, 122, 0.7);
+    line-height: 1;
+}
+
+.benefit-glyph__tr {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #ff8a4a, #b8431a);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.7);
+}
+
+.benefit-glyph__card {
+    width: 22px;
+    height: 28px;
+    background: linear-gradient(180deg, #d6e2f2, #8a9cb0);
+    border: 1.5px solid #2c4a6a;
+    border-radius: 2px;
+    box-shadow: inset 0 0 4px rgba(106, 176, 230, 0.55);
+
+    &--earth {
+        background: linear-gradient(180deg, #6acc7a 0%, #1f6a3a 100%);
+        border-color: #1f6a3a;
+    }
+    &--discard {
+        border-color: #c43838;
+        box-shadow:
+            inset 0 0 4px rgba(196, 56, 56, 0.55),
+            0 0 6px rgba(196, 56, 56, 0.45);
+    }
+}
+
+.benefit-glyph__copy {
+    font-size: 26px;
+    font-weight: 900;
+    color: @colony-cyan-text;
+    text-shadow: 0 0 6px rgba(106, 176, 230, 0.6);
+    line-height: 1;
+}
+
+.benefit-glyph__influence {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #d6b8f0 0%, #6a4a8a 70%);
+    box-shadow: 0 0 6px rgba(180, 130, 220, 0.5);
+}
+
+.benefit-glyph__production {
+    transform: scale(0.7);
+    transform-origin: center;
+}
+
+.benefit-glyph__tag {
+    transform: scale(0.85);
+    transform-origin: center;
+}
+
+.benefit-glyph__tile {
+    transform: scale(0.8);
+    transform-origin: center;
+}
+
+.benefit-glyph__wild {
+    width: 28px;
+    height: 28px;
+    border: 1.5px solid #d6e2f2;
+    border-radius: 50%;
+    background: rgba(20, 30, 45, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.benefit-glyph__wild-tag {
+    transform: scale(0.6);
+    transform-origin: center;
+}
+
+.benefit-glyph__placeholder {
+    width: 28px;
+    height: 28px;
+    border: 1.5px dashed rgba(106, 176, 230, 0.4);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c8198;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+/* ───── Pay-trade-fee modal content ────────────────────────────────── */
+
+.colony-trade-pay {
+    position: relative;
+    color: #e8f1fb;
+    font-family: Prototype, sans-serif;
+    min-width: 380px;
+    max-width: 520px;
+    padding: 22px 26px 22px;
+    border: 1px solid @colony-cyan-rim;
+    border-radius: 4px;
+    background: linear-gradient(180deg,
+        rgba(20, 30, 45, 0.94) 0%,
+        rgba(12, 20, 32, 0.94) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.colony-trade-pay__title {
+    margin: 0 0 6px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: @colony-amber-warn;
+    text-align: center;
+}
+
+.colony-trade-pay__subtitle {
+    margin: 0 0 16px;
+    font-size: 12px;
+    color: #b8c4d0;
+    text-align: center;
+    letter-spacing: 0.5px;
+}
+
+.colony-trade-pay__colony-name {
+    color: #e8f1fb;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-left: 4px;
+}
+
+.colony-trade-pay__options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.colony-trade-pay__option {
+    padding: 10px 14px;
+    border: 1px solid #28415e;
+    border-radius: 3px;
+    background: rgba(16, 24, 36, 0.7);
+    color: #d6e2f2;
+    font-family: Prototype, sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 150ms ease, background 150ms ease,
+                box-shadow 150ms ease, transform 150ms ease;
+
+    &:hover {
+        border-color: @colony-cyan-text;
+        background: rgba(24, 38, 56, 0.85);
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.32);
+        transform: translateY(-1px);
+    }
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+.colony-trade-pay__option-label {
+    font-weight: 600;
+}
+
+.colony-trade-pay__actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+}
+
+.colony-trade-pay__cancel {
+    position: relative;
+    padding: 8px 22px;
+    border: none;
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    background: linear-gradient(180deg,
+        rgba(120, 140, 160, 0.55) 0%,
+        rgba(50, 70, 90, 0.28) 50%,
+        rgba(100, 120, 140, 0.45) 100%);
+    clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+    min-width: 110px;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+    &:hover {
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(140, 190, 235, 0.4));
+        transform: translateY(-1px);
+    }
+    &:active { transform: translateY(0); filter: brightness(0.92); }
+    > span { position: relative; z-index: 1; }
+}
+
+/* ───── Responsive — narrow viewport fallbacks ─────────────────────── */
+
+@media (max-width: 1100px) {
+    .colonies-overlay__grid-stage {
+        grid-template-columns: repeat(2, minmax(240px, 340px));
+    }
+    .colonies-overlay__center {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        max-width: 100%;
+    }
+}
+
+@media (max-height: 720px) {
+    .colony-tile__planet {
+        width: 90px;
+        height: 90px;
+        background-size: 110px 110px !important;
+    }
+    .colony-tile__build-slot {
+        width: 32px;
+        height: 32px;
+    }
+}
