@@ -154,6 +154,7 @@ export class Server {
       phase: game.phase,
       spaces: this.getSpaces(game.board, game.gagarinBase, game.stJosephCathedrals, game.nomadSpace),
       spectatorId: game.spectatorId,
+      standardProjects: game.getStandardProjects().map((sp) => ({name: sp.name, cost: sp.cost})),
       step: game.lastSaveId,
       temperature: game.getTemperature(),
       tags: game.tags,

@@ -13,6 +13,16 @@ import {SpectatorId} from '../Types';
 import {ColonyName} from '../colonies/ColonyName';
 import {GlobalParameter} from '../GlobalParameter';
 import {Tag} from '../cards/Tag';
+import {CardName} from '../cards/CardName';
+
+// Game-level snapshot of an available standard project. Players see the
+// full list in the Standard Projects overlay regardless of whose turn it
+// is; the per-player playability check (canAfford + canAct + within
+// action phase) happens against `playerView.waitingFor`.
+export type StandardProjectModel = {
+  name: CardName;
+  cost: number; // base cost (before per-player discounts)
+};
 
 // Common data about a game not assocaited with a player (eg the temperature.)
 export type GameModel = {
@@ -40,6 +50,12 @@ export type GameModel = {
   phase: Phase;
   spaces: ReadonlyArray<SpaceModel>;
   spectatorId?: SpectatorId;
+  // Static-ish list of standard projects available in this game (depends
+  // on enabled expansions). Same source the server uses to populate the
+  // SelectStandardProjectToPlay action option — exposed here so the
+  // Standard Projects overlay can render even when it isn't the viewer's
+  // turn.
+  standardProjects: ReadonlyArray<StandardProjectModel>;
   step: number;
   tags: ReadonlyArray<Tag>;
   temperature: number;

@@ -21,7 +21,7 @@
   </template>
   <warnings-component v-if="card !== undefined" :warnings="card.warnings"></warnings-component>
 
-  <PaymentForm
+  <PaymentFormV2
     v-if="showPaymentSection"
     ref="paymentForm"
     :key="cardName"
@@ -31,8 +31,7 @@
     :showsave="showsave"
     :buttonLabel="playerinput.buttonLabel"
     @change="(p) => payment = p"
-    @save="doSave">
-  </PaymentForm>
+    @save="doSave" />
 </div>
 </template>
 
@@ -51,7 +50,7 @@ import {Units} from '@/common/Units';
 import {CardName} from '@/common/cards/CardName';
 import {SelectProjectCardToPlayResponse} from '@/common/inputs/InputResponse';
 import WarningsComponent from '@/client/components/WarningsComponent.vue';
-import PaymentForm from '@/client/components/PaymentForm.vue';
+import PaymentFormV2 from '@/client/components/payment/PaymentFormV2.vue';
 import {Ledger} from '@/client/components/PaymentLedger';
 
 export default defineComponent({
@@ -142,7 +141,7 @@ export default defineComponent({
   },
   components: {
     Card,
-    PaymentForm,
+    PaymentFormV2,
     WarningsComponent,
   },
   created() {

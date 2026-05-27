@@ -1,0 +1,525 @@
+/*
+ * SelectPaymentV2 — modernized sci-fi payment picker.
+ *
+ * Visual vocabulary intentionally matches the rest of this fork: dark
+ * glass fill, hairline cyan border, L-corner ticks (same trick as the
+ * sidebar / left-panel cards), Prototype sci-fi font for labels,
+ * parallelogram clip-path buttons inspired by `.convert-action-btn`.
+ *
+ * V1 styles in `payments.less` are kept untouched. Once V2 is rolled
+ * out everywhere the V1 stylesheet can retire without touching V2.
+ */
+
+.payment-v2 {
+    margin: 6px 0 12px;
+    max-width: 720px;
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+}
+
+.payment-v2__frame {
+    position: relative;
+    padding: 14px 18px 16px;
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    background:
+        linear-gradient(180deg,
+            rgba(20, 30, 45, 0.92) 0%,
+            rgba(12, 20, 32, 0.92) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* Corner L-ticks drawn with two adjacent borders. Pure CSS, mirrors the
+ * decorative chrome on sidebar overlays. */
+.payment-v2__corner {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+    border-color: #6ab0e6;
+    opacity: 0.85;
+
+    &--tl { top: -1px; left: -1px; border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -1px; right: -1px; border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -1px; left: -1px; border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -1px; right: -1px; border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+/* ===== Header ===== */
+
+.payment-v2__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+}
+
+/* Small cyan tab visually anchors the header as a "control panel" element. */
+.payment-v2__header-tab {
+    width: 4px;
+    height: 22px;
+    background: linear-gradient(180deg, #6ab0e6 0%, #2c4a6a 100%);
+    border-radius: 1px;
+    box-shadow: 0 0 6px rgba(106, 176, 230, 0.55);
+}
+
+.payment-v2__title {
+    flex: 1;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    text-shadow: 0 0 8px rgba(106, 176, 230, 0.25);
+}
+
+/* Compact cost chip in the header so the player knows the target before
+ * scanning rows. */
+.payment-v2__cost-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid rgba(106, 176, 230, 0.45);
+    border-radius: 3px;
+    background: rgba(20, 30, 45, 0.55);
+}
+
+.payment-v2__cost-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: #9bb5d0;
+}
+
+.payment-v2__cost-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+
+.payment-v2__cost-icon {
+    width: 18px;
+    height: 18px;
+    background-size: contain;
+}
+
+/* ===== Resource row stack ===== */
+
+.payment-v2__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.payment-v2-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1.4fr) auto minmax(80px, 0.9fr);
+    align-items: center;
+    gap: 14px;
+    padding: 8px 10px;
+    border: 1px solid #28415e;
+    border-radius: 3px;
+    background: rgba(16, 24, 36, 0.6);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+
+    &--active {
+        border-color: rgba(106, 176, 230, 0.55);
+        background: rgba(24, 38, 56, 0.72);
+        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.18);
+    }
+
+    &--reserved {
+        border-color: rgba(255, 200, 80, 0.45);
+    }
+}
+
+.payment-v2-row__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.payment-v2-row__icon {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+
+.payment-v2-row__meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.payment-v2-row__label {
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: #d6e2f2;
+    text-transform: uppercase;
+    line-height: 1.1;
+}
+
+/* Multiplier hint for non-1× resources (steel ×2, titanium ×3, seed ×5).
+ * Renders below the label so the row stays single-line at narrow widths. */
+.payment-v2-row__rate {
+    margin-top: 2px;
+    font-size: 11px;
+    color: #9bb5d0;
+    letter-spacing: 1px;
+}
+
+/* ===== Stepper cluster (−/+/MAX + count) ===== */
+
+.payment-v2-row__stepper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.payment-v2-step {
+    height: 28px;
+    min-width: 30px;
+    padding: 0 8px;
+    border: 1px solid rgba(106, 176, 230, 0.45);
+    background: linear-gradient(180deg,
+        rgba(40, 65, 95, 0.85) 0%,
+        rgba(20, 35, 55, 0.85) 100%);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: border-color 0.12s ease, background 0.12s ease, filter 0.12s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+
+    &:hover:not(:disabled) {
+        border-color: #6ab0e6;
+        filter: brightness(1.15) drop-shadow(0 0 5px rgba(106, 176, 230, 0.35));
+    }
+    &:active:not(:disabled) {
+        filter: brightness(0.88);
+    }
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.4;
+    }
+
+    &__glyph {
+        font-size: 18px;
+        line-height: 1;
+        font-weight: 600;
+    }
+
+    &--max {
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        padding: 0 10px;
+    }
+}
+
+/* Large number readout for the current dialed value of this resource. */
+.payment-v2-row__count {
+    min-width: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.payment-v2-row__count-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Secondary line — "= 6" M€ contribution for non-1× resources. */
+.payment-v2-row__count-contrib {
+    margin-top: 2px;
+    font-size: 10px;
+    color: #ffd87a;
+    letter-spacing: 0.5px;
+}
+
+/* ===== Right-side pool indicator ===== */
+
+.payment-v2-row__pool {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.payment-v2-row__pool-line {
+    font-size: 14px;
+    color: #b8c4d0;
+    letter-spacing: 0.5px;
+}
+
+.payment-v2-row__pool-num {
+    color: #fff;
+    font-weight: 700;
+}
+
+.payment-v2-row__pool-sep {
+    margin: 0 3px;
+    color: #6a7b8e;
+}
+
+.payment-v2-row__pool-den {
+    color: #9bb5d0;
+}
+
+.payment-v2-row__pool-reserved {
+    margin-top: 2px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: #ffc878;
+    text-transform: uppercase;
+}
+
+/* ===== Progress bar ===== */
+
+.payment-v2__progress {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(106, 176, 230, 0.18);
+}
+
+.payment-v2__progress-rail {
+    position: relative;
+    height: 14px;
+    border: 1px solid rgba(106, 176, 230, 0.35);
+    border-radius: 2px;
+    background:
+        repeating-linear-gradient(45deg,
+            rgba(10, 18, 30, 0.55) 0,
+            rgba(10, 18, 30, 0.55) 4px,
+            rgba(14, 24, 38, 0.55) 4px,
+            rgba(14, 24, 38, 0.55) 8px);
+    overflow: hidden;
+}
+
+.payment-v2__progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    transition: width 200ms cubic-bezier(0.22, 1, 0.36, 1), background 200ms ease;
+    background: linear-gradient(180deg, rgba(106, 176, 230, 0.85) 0%, rgba(60, 120, 170, 0.85) 100%);
+    box-shadow: 0 0 8px rgba(106, 176, 230, 0.45);
+}
+
+/* Colour states. Under = warm red, exact = mint glow, over = amber alert. */
+.payment-v2__progress--under {
+    .payment-v2__progress-fill {
+        background: linear-gradient(180deg, rgba(220, 90, 90, 0.85) 0%, rgba(140, 40, 40, 0.85) 100%);
+        box-shadow: 0 0 8px rgba(220, 90, 90, 0.45);
+    }
+    .payment-v2__progress-state { color: #e88a8a; }
+}
+.payment-v2__progress--exact {
+    .payment-v2__progress-fill {
+        background: linear-gradient(180deg, rgba(120, 220, 170, 0.9) 0%, rgba(60, 160, 120, 0.9) 100%);
+        box-shadow: 0 0 10px rgba(120, 220, 170, 0.55);
+    }
+    .payment-v2__progress-state { color: #8fe8c0; }
+}
+.payment-v2__progress--over {
+    .payment-v2__progress-fill {
+        background: linear-gradient(180deg, rgba(255, 195, 90, 0.9) 0%, rgba(190, 130, 30, 0.9) 100%);
+        box-shadow: 0 0 10px rgba(255, 195, 90, 0.5);
+    }
+    .payment-v2__progress-state { color: #ffc878; }
+}
+
+.payment-v2__progress-readout {
+    margin-top: 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+.payment-v2__progress-paid {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.payment-v2__progress-sep {
+    color: #6a7b8e;
+}
+
+.payment-v2__progress-cost {
+    font-size: 14px;
+    color: #9bb5d0;
+}
+
+.payment-v2__progress-state {
+    margin-left: auto;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+/* ===== Warning banner ===== */
+
+.payment-v2__warning {
+    margin-top: 10px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid rgba(220, 90, 90, 0.55);
+    border-radius: 3px;
+    background: rgba(60, 25, 25, 0.55);
+    color: #f0b8b8;
+    font-size: 13px;
+}
+
+.payment-v2__warning-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(220, 90, 90, 0.65);
+    color: #fff;
+    font-weight: 700;
+    font-family: Prototype, Ubuntu, sans-serif;
+    flex-shrink: 0;
+}
+
+/* ===== Confirm button — parallelogram chrome matching .convert-action-btn ===== */
+
+.payment-v2__actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* When the host renders a Cancel button alongside the primary confirm
+ * (used by `StandardProjectPaymentContent` because the submission is
+ * client-side and can be aborted), justify both ends so Cancel hugs
+ * the left and Confirm the right. */
+.payment-v2__actions--with-cancel {
+    justify-content: space-between;
+}
+
+/* Cancel button — sci-fi parallelogram in muted tone (not the cyan
+ * primary used by Confirm). Same chrome shape so the visual language
+ * stays consistent, but desaturated. */
+.payment-v2__cancel-btn {
+    position: relative;
+    padding: 12px 32px 12px 26px;
+    border: none;
+    color: #c7d3e0;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    background: linear-gradient(180deg,
+        rgba(120, 130, 140, 0.6) 0%,
+        rgba(60, 70, 80, 0.22) 50%,
+        rgba(110, 120, 130, 0.5) 100%);
+    clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(20, 26, 34, 0.95) 0%,
+            rgba(10, 14, 20, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover {
+        filter: brightness(1.15) drop-shadow(0 0 6px rgba(190, 200, 210, 0.35));
+        transform: translateY(-1px);
+    }
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+.payment-v2__cancel-btn-label {
+    position: relative;
+    z-index: 1;
+}
+
+.payment-v2__confirm-btn {
+    position: relative;
+    padding: 12px 32px 12px 26px;
+    border: none;
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.78) 0%,
+        rgba(80, 120, 160, 0.28) 50%,
+        rgba(130, 170, 210, 0.6) 100%);
+    clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover:not(:disabled):not(.payment-v2__confirm-btn--disabled) {
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(140, 190, 235, 0.5));
+    }
+    &:active:not(:disabled):not(.payment-v2__confirm-btn--disabled) {
+        filter: brightness(0.92);
+    }
+
+    &--disabled,
+    &:disabled {
+        cursor: not-allowed;
+        filter: grayscale(0.7) brightness(0.55);
+        opacity: 0.85;
+    }
+}
+
+.payment-v2__confirm-btn-label {
+    position: relative;
+    z-index: 1;
+}

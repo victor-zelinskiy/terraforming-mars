@@ -18,7 +18,7 @@ import AndOptions from '@/client/components/AndOptions.vue';
 import OrOptions from '@/client/components/OrOptions.vue';
 import SelectAmount from '@/client/components/SelectAmount.vue';
 import SelectCard from '@/client/components/SelectCard.vue';
-import SelectPayment from '@/client/components/SelectPayment.vue';
+import SelectPaymentV2 from '@/client/components/SelectPaymentV2.vue';
 import SelectProjectCardToPlay from '@/client/components/SelectProjectCardToPlay.vue';
 import SelectInitialCards from '@/client/components/SelectInitialCards.vue';
 import SelectOption from '@/client/components/SelectOption.vue';
@@ -63,7 +63,7 @@ const inputComponents = {
   'initialCards': SelectInitialCards,
   'option': SelectOption,
   'party': SelectParty,
-  'payment': SelectPayment,
+  'payment': SelectPaymentV2,
   'player': SelectPlayer,
   'projectCard': SelectProjectCardToPlay,
   'space': SelectSpace,

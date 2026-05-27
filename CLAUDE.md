@@ -26,6 +26,82 @@ When you add a new dedicated action button, follow this contract:
 
 The Milestones overlay (`MilestonesOverlay.vue` + `PlayerHome.vue` claim handlers) is the canonical example; mirror its detection + submission pattern when you wire up new action buttons.
 
+## UI Philosophy: dedicated buttons vs. mandatory-input modals
+
+This fork is moving toward a layout where the **Actions** section in the player home no longer exists as the catch-all bin for everything the server is waiting on. The goal is single-screen no-scroll play (CLAUDE.md goal #1), and the legacy "scroll from board to actions, pick a radio, hit submit" loop is the single biggest blocker to that.
+
+The replacement model has two distinct kinds of prompts and a different UI surface for each:
+
+**A. Standard top-level actions** — things the player can voluntarily choose to do on their turn from the regular action menu (`Player.getActions()` in `Player.ts`). The full list:
+- Play a project card
+- Trade with a colony
+- Fund an award
+- Claim a milestone
+- Convert plants / Convert heat
+- Use a standard project
+- Use an active blue-card action
+- Use a CEO one-per-game action
+- Send a delegate (Turmoil)
+- Pass
+- Sell patents
+- End turn (intermediate)
+
+Each one of these gets a **dedicated, persistently-visible, styled button** somewhere on the existing UI (in the resource cluster, in the top-bar overlays, on the colony tiles, etc.). The button's enabled state mirrors the option's presence in the action OR — same contract as the milestone/award/convert pattern above. When every action in this list has its dedicated button, the radio-UI rendering will be hidden via stylesheet flip; the underlying `WaitingFor.vue` / `OrOptions.vue` keep working unchanged for the (rare) cases of nested action menus during initial-action prompts.
+
+**B. Mandatory sub-prompts** — things the server requires before the player can do anything else: payment selection, "pick a card to discard", "choose a player to steal from", "choose a space to place a tile", color picks for global events, payment of Reds tax, etc. These don't belong in a sidebar list — they're MODAL, not optional, and they arrive in response to an earlier action (or a forced game event).
+
+For these, the fork uses a **centered modal popup** that:
+- Renders over a darkened backdrop covering the entire viewport
+- Disables interaction with the rest of the UI (no clicking the board, no opening overlays, no switching displayed player)
+- Cannot be dismissed by clicking outside — only by completing the prompt (or by Reset/Undo flowing through the same submission infrastructure)
+- Is sci-fi-styled to match the rest of the fork (dark glass + cyan accents + L-corner ticks)
+- Hosts the actual input component via `<PlayerInputFactory>` so all existing input types work without per-component rewrites
+
+The submission infrastructure (`WaitingFor.onsave()` → POST `/api/player-input`) stays unchanged — the modal just hosts the input UI in a different place visually. When the player completes the prompt and the server responds with a new `playerView` (with `waitingFor` cleared or pointing at the next sub-prompt), the modal unmounts naturally via `v-if`.
+
+**The first pilot of this pattern is `SelectPaymentV2` invoked via `SelectPaymentDeferred`** (Fund Award as Helion, Reds tax, party actions, card payment actions, etc.). The second pilot is the **World Government Terraforming** prompt (`OrOptions` titled `'Select action for World Government Terraforming'`). The implementation lives in `WaitingFor.vue` (top-level detection) + `MandatoryInputModal.vue` (backdrop + centered card chrome) + the hosted input component itself.
+
+### Client-side payment preview (Standard Projects)
+
+The Standard Projects overlay (`StandardProjectsOverlay.vue` mounted from `PlayerHome`) is a hybrid case: the action OR is in `waitingFor`, but the player picks the project from the OVERLAY, not from the inline radio menu. Two payment paths:
+
+1. **No alternative resources usable** — player has only M€ that can pay (or has alt resources but the project doesn't accept them). The handler in PlayerHome submits the full M€ payment directly through `WaitingFor.onsave()` with a nested `SelectProjectCardToPlayResponse`. No modal.
+2. **Alternative resources usable** — at least one non-M€ resource the project accepts is owned by the player (heat for Helion / steel for City+Prefab / titanium for Luna TF / seeds for Greenery+Soylent / Aurorai data / Spire science). A client-side payment-preview modal opens — `StandardProjectPaymentContent.vue` hosted inside `MandatoryInputModal`. The PaymentFormV2 inside lets the player dial in the resource mix. **Two actions**: Confirm submits the chosen Payment; **Cancel closes the modal without any server round-trip** and restores the Standard Projects overlay.
+
+The Cancel button is UNIQUE to this client-side flow. Regular server-driven modals (Fund Award, WGT, etc.) can't be cancelled because the server has already committed the preceding step. Standard Projects is different because nothing has been submitted yet — the player is constructing the response client-side. When extending this pattern to other "client-driven" flows (e.g. action menu reskin if it ever happens), follow the same shape: `MandatoryInputModal` wrapper + sci-fi content component + Confirm/Cancel button pair.
+
+When extending the pattern to other input types (SelectCard for "discard X", SelectPlayer for "steal from", etc.), the contract is:
+
+1. **Don't gate by `type` strings inline.** Detection lives in `WaitingFor.vue`. For inputs whose `type` itself implies "must be modal" (like `'payment'`), add the type to `MODAL_INPUT_TYPES`. For specific instances of a shared type (like the WGT `OrOptions` which shares `'or'` with the regular action menu), add the title to `MODAL_OR_TITLES`. The unified `shouldRouteToModal()` predicate gates both.
+2. **The hosted component must work both inside and outside the modal.** When the radio-UI legacy flow renders the same input inline, it must still function. Don't add modal-specific props or state — render the same `<PlayerInputFactory>` either way.
+3. **No backdrop-click dismiss.** The modal is mandatory by definition. If you need a "cancel and pick a different action" affordance, add an explicit Reset button inside the modal that calls the existing `WaitingFor.reset()` path.
+
+### Modal "minimize" — let the player inspect the UI before deciding
+
+Mandatory by definition doesn't have to mean "blocks every other pixel forever." Some decisions need context the player doesn't have at the moment the prompt fires — e.g. before funding an award the player may want to compare their tableau against opponents'; before raising a global parameter via WGT they may want to check whether an opponent is one step away from a milestone bonus. Forcing them to commit blind degrades the play experience.
+
+To handle this, `MandatoryInputModal.vue` exposes a **minimize** affordance:
+
+- A `↗` minimize button sits in the top-right of the modal card.
+- Click it: the card collapses up + fades out, the backdrop becomes click-through, a sci-fi pill appears at the top of the viewport (below the top-bar buttons, NOT covering them) labelled `AWAITING DECISION — <prompt title>` with a pulsing cyan indicator dot.
+- While minimized the player can interact with the whole rest of the UI (board, sidebar, top-bar overlays, opponent tableaus) but cannot trigger new actions — every action button reads `playerView.waitingFor` to decide enabled state, and because the server is still waiting on this modal prompt, all action buttons are naturally disabled. No extra client-side blocking required.
+- The pill lives in its **own** `<Teleport to="body">` (separate from the modal wrapper) so it has an INDEPENDENT stacking context. z-index 100 — above the board, BELOW bar-overlays (z-index 110). When the player opens an Awards / Milestones / Standard Projects overlay to inspect info before deciding, the overlay cleanly covers the pill; closing the overlay brings the pill back. The top-bar buttons (z-index 105) stay clickable since the pill is positioned below them at `top: calc(var(--bottom-bar-button-height) + 88px)`.
+- Click the pill (or hit Enter/Space when focused): the modal expands back to full size with the original input state intact.
+- Picker-mode (board-tile selection) is mutually exclusive with minimize — entering picker auto-cancels minimize, the modal hides via picker rules instead.
+- A new top-level prompt firing (e.g. one SelectPayment resolves and a follow-up SelectPayment fires) auto-resets minimize state so the player doesn't miss the new prompt.
+
+The minimize state lives in the `MandatoryInputModal` component itself, so it resets cleanly whenever the modal unmounts (e.g. server resolves the prompt).
+
+### Modal "picker mode" — board interaction inside a modal prompt
+
+Some modal-hosted prompts contain options that need the player to click on the board (e.g. the WGT `OrOptions` has an `'Add an ocean'` `SelectSpace` option). The modal's opaque backdrop would block board clicks, so we have a **picker-mode** mechanic:
+
+- `MandatoryInputModal.vue` exposes a `mandatoryModalSetPickerMode(active: boolean)` function via Vue `provide()`. The key is exported as the `MANDATORY_MODAL_PICKER_SETTER` constant.
+- `OrOptions.vue` `inject`s this function (`default: undefined` so it stays optional for inline use) and calls it from its `selectedOption` watcher: `true` when the picked option's `type === 'space'`, `false` otherwise. Also called with `false` in `beforeUnmount` so the flag doesn't get stuck.
+- In picker mode the modal CSS class makes the backdrop transparent + `pointer-events: none` (board clickable underneath), and the card fades + shifts to the top of the viewport so it doesn't obscure the board. Hovering the card brings it back to full opacity so the player can re-pick a different option without finishing the board interaction.
+
+If a future modal hosts a different input type that needs board interaction (e.g. a top-level `SelectSpace`), wire it to call the same picker-mode setter from its `mounted()` / `beforeUnmount()`. Don't reinvent the mechanism per input type.
+
 ## Build & Development Commands
 
 ```bash

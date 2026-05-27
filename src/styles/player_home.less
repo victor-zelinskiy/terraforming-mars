@@ -1153,6 +1153,18 @@ each(@players, {
         background: rgba(0, 0, 0, 0.65);
         opacity: 0.55;
     }
+    /*
+     * Empty state — no active status label, but we still render the bar
+     * so the card's vertical layout stays constant. Resources / tags
+     * blocks below the card don't jump up/down between turn transitions.
+     * visibility: hidden keeps layout space; the `&nbsp;` inside the
+     * span ensures the bar has a non-zero line-height even if children
+     * are collapsed.
+     */
+    &--empty {
+        visibility: hidden;
+        background: transparent;
+    }
 }
 
 /* Shared sci-fi panel chrome: thin neon border + faint inner glow on a
@@ -3179,6 +3191,15 @@ each(@players, {
     border-radius: 10px;
     font-size: 13px;
     box-shadow: 0 0 4px rgba(204, 139, 0, 0.4);
+
+    /* Red treatment for negative VP entries (Vermin penalty, escape velocity
+     * elsewhere, cards with negative VP). Matches the colour vocabulary of
+     * the .vp-tile--penalty summary tile. */
+    &--negative {
+        background: linear-gradient(180deg, #d04848, #802020);
+        color: #fff;
+        box-shadow: 0 0 4px rgba(208, 72, 72, 0.45);
+    }
 }
 
 .vp-detail-text {
@@ -3213,4 +3234,388 @@ each(@players, {
     font-size: 14px;
     color: #8fa8c4;
     line-height: 1.5;
+}
+
+/* ===========================================================================
+ * Standard Projects overlay — matches the Milestones / Awards overlay
+ * vibe (sci-fi HUD, cyan accents, glass background) but rendered as a
+ * grid of REAL project cards each with a USE button + cost chip. Cards
+ * come from `Card.vue` so the player sees the canonical art/effect for
+ * each project, preserving the board-game feel.
+ * =========================================================================== */
+/*
+ * Standard-Projects dropdown sizing. Wider than the Milestones overlay
+ * because each row carries a real card thumbnail (~140px) + name + USE
+ * button. Anchor-relative positioning translates from "to the right of
+ * the centered button" to "centered under it" via a transform — the
+ * `top-bar-dropdown` base positions `left: 0` which would put the
+ * panel offset to the right of the centered button.
+ *
+ * NO `height: …` — the dropdown sizes to its content naturally, capped
+ * by `max-height`. Setting `height: 100%` on the inner `.std-projects-overlay`
+ * relative to a `max-height`-only parent resolves to 0 and the panel
+ * collapses to a thin strip; we just let content drive height.
+ *
+ * NO `overflow-y: auto` either — when one overflow axis is non-visible
+ * the other quietly becomes `auto` too, which produced an unwanted
+ * horizontal scrollbar even when nothing actually overflowed sideways.
+ * If the projects list grows past viewport height we'll reintroduce a
+ * scrollable inner container; for now the typical 7-9 projects fit
+ * comfortably inside `max-height`.
+ */
+.top-bar-dropdown--standard-projects {
+    left: 50%;
+    transform: translateX(-50%);
+    width: 660px;
+    max-width: 92vw;
+    max-height: calc(100vh - var(--bottom-bar-button-height) * 2 - 24px);
+    padding: 12px 16px 16px;
+}
+
+.std-projects-overlay {
+    display: flex;
+    flex-direction: column;
+}
+
+/*
+ * Effect-pictogram icon. 44×44 box pulling one of the existing global-
+ * parameter / tile / resource assets shipped with the fork. Same icon
+ * vocabulary the WGT modal and resource cluster use, so the overlay
+ * feels native to the rest of the sci-fi HUD.
+ */
+.std-icon {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+}
+
+.std-icon--energy {
+    background-image: url('./assets/resources/power.png');
+    background-size: 36px 36px;
+}
+.std-icon--temperature {
+    background-image: url('./assets/global-parameters/temperature.png');
+    background-size: auto 40px;
+}
+.std-icon--ocean {
+    background-image: url('./assets/tiles/ocean.png');
+    background-size: 40px 40px;
+    filter: drop-shadow(0 0 4px rgba(80, 160, 220, 0.45));
+}
+.std-icon--greenery {
+    background-image: url('./assets/tiles/greenery.png');
+    background-size: 40px 40px;
+}
+.std-icon--city {
+    background-image: url('./assets/tiles/city.png');
+    background-size: 40px 40px;
+    filter: brightness(0.95) drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.5));
+}
+.std-icon--venus {
+    background-image: url('./assets/global-parameters/venus.png');
+    background-size: 40px auto;
+}
+.std-icon--colony {
+    background-image: url('./assets/tiles/colony.png');
+    background-size: 38px 38px;
+}
+.std-icon--moon-habitat {
+    background-image: url('./assets/moon/card-habitat-rate.png');
+    background-size: 36px 36px;
+}
+.std-icon--moon-mining {
+    background-image: url('./assets/moon/card-mining-rate.png');
+    background-size: 36px 36px;
+}
+.std-icon--moon-logistics {
+    background-image: url('./assets/moon/card-logistics-rate.png');
+    background-size: 36px 36px;
+}
+.std-icon--tr {
+    background-image: url('./assets/resources/tr.png');
+    background-size: 38px 38px;
+}
+/* Excavate / Collusion / generic fallback — no dedicated asset, so we
+ * render a CSS-only glyph. Centered in the 44×44 box; cyan with glow
+ * matches the other sci-fi accents. */
+.std-icon--excavate,
+.std-icon--delegate,
+.std-icon--generic {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #6ab0e6;
+    font-size: 22px;
+    background: none;
+
+    &::before {
+        text-shadow: 0 0 6px rgba(106, 176, 230, 0.55);
+    }
+}
+.std-icon--excavate::before  { content: '⛏'; }
+.std-icon--delegate::before  { content: '★'; }
+.std-icon--generic::before   { content: '◆'; }
+
+.std-projects-overlay-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+    position: relative;
+}
+
+.std-projects-overlay-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    text-shadow: 0 0 8px rgba(106, 176, 230, 0.25);
+    flex-shrink: 0;
+}
+
+.std-projects-overlay-status {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 12px;
+    border: 1px solid rgba(106, 176, 230, 0.4);
+    border-radius: 3px;
+    background: rgba(20, 30, 45, 0.55);
+}
+
+.std-projects-overlay-status-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: #9bb5d0;
+    text-transform: uppercase;
+}
+
+.std-projects-overlay-status-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+
+.std-projects-overlay-close {
+    margin-left: auto;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #9bb5d0;
+    font-size: 20px;
+    line-height: 1;
+    border: 1px solid rgba(106, 176, 230, 0.35);
+    border-radius: 3px;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+
+    &:hover {
+        border-color: #6ab0e6;
+        color: #fff;
+        background: rgba(20, 35, 55, 0.85);
+    }
+}
+
+/*
+ * Project list — single column, compact rows. Each row is one project
+ * with: pictogram icon + name + short description + USE button. Fits
+ * the typical 8-12 projects without scroll.
+ */
+.std-projects-overlay-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.std-project-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 16px 10px 12px;
+    border: 1px solid #28415e;
+    border-radius: 3px;
+    background:
+        linear-gradient(180deg,
+            rgba(20, 30, 45, 0.7) 0%,
+            rgba(12, 20, 32, 0.7) 100%);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    position: relative;
+    /* Subtle cyan accent line on the very left edge — like a tab marker.
+     * Brightens on hover for actionable rows. */
+    &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 8px;
+        bottom: 8px;
+        width: 2px;
+        background: linear-gradient(180deg,
+            rgba(106, 176, 230, 0.45) 0%,
+            rgba(60, 120, 170, 0.2) 100%);
+        border-radius: 0 1px 1px 0;
+        transition: background 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    &--actionable:hover {
+        border-color: rgba(106, 176, 230, 0.6);
+        background:
+            linear-gradient(180deg,
+                rgba(24, 38, 56, 0.88) 0%,
+                rgba(16, 26, 40, 0.88) 100%);
+        box-shadow:
+            inset 0 0 0 1px rgba(106, 176, 230, 0.18),
+            0 0 12px rgba(106, 176, 230, 0.22);
+
+        &::before {
+            background: linear-gradient(180deg,
+                #6ab0e6 0%,
+                rgba(60, 120, 170, 0.6) 100%);
+            box-shadow: 0 0 8px rgba(106, 176, 230, 0.6);
+        }
+    }
+    &--disabled {
+        opacity: 0.5;
+
+        &::before {
+            opacity: 0.4;
+        }
+    }
+}
+
+.std-project-row-icon {
+    flex-shrink: 0;
+}
+
+.std-project-row-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.std-project-row-name {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    line-height: 1.1;
+    text-shadow: 0 0 6px rgba(106, 176, 230, 0.15);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/*
+ * Description — allows up to 2 lines via -webkit-line-clamp. Wider
+ * overlay (660px) plus 2-line wrap means even the longest descriptions
+ * ("Place a city tile, +1 M€ production", "Place a greenery tile,
+ * raise oxygen") fit cleanly with room to spare.
+ */
+.std-project-row-desc {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    color: #9bb5d0;
+    letter-spacing: 0.4px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    /* Cap height so rows stay equal-ish even when some descriptions
+     * wrap to 2 lines — prevents jagged baseline alignment. */
+    max-height: calc(2 * 1.3em);
+}
+
+/*
+ * USE button — parallelogram chrome matching .convert-action-btn /
+ * .payment-v2__confirm-btn. Cost chip is laid into the button on the
+ * right side via flex; megacredit icon caps it. Disabled state grays
+ * out and disables hover effects.
+ */
+.std-project-use-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px 10px 22px;
+    border: none;
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.78) 0%,
+        rgba(80, 120, 160, 0.28) 50%,
+        rgba(130, 170, 210, 0.6) 100%);
+    clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover:not(:disabled):not(.std-project-use-btn--disabled) {
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(140, 190, 235, 0.5));
+        transform: translateY(-1px);
+    }
+    &:active:not(:disabled):not(.std-project-use-btn--disabled) {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+
+    &--disabled,
+    &:disabled {
+        cursor: not-allowed;
+        filter: grayscale(0.65) brightness(0.55);
+        opacity: 0.9;
+    }
+}
+
+.std-project-use-btn-label {
+    position: relative;
+    z-index: 1;
+}
+
+.std-project-use-btn-cost {
+    position: relative;
+    z-index: 1;
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffd87a;
+    font-variant-numeric: tabular-nums;
+    margin-left: 4px;
+}
+
+.std-project-use-btn-cost-icon {
+    position: relative;
+    z-index: 1;
+    width: 18px;
+    height: 18px;
+    background-size: contain;
 }

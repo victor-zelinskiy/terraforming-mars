@@ -34,6 +34,9 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {InputResponse, OrOptionsResponse} from '@/common/inputs/InputResponse';
+import {MANDATORY_MODAL_PICKER_SETTER} from '@/client/components/MandatoryInputModal.vue';
+
+type PickerModeSetter = (mode: boolean) => void;
 
 let unique = 0;
 
@@ -61,6 +64,17 @@ export default defineComponent({
   },
   components: {
     AppButton,
+  },
+  // When this OrOptions is hosted inside a MandatoryInputModal, the modal
+  // exposes a `setPickerMode` function via provide(). We inject it (with
+  // `default: undefined` so it stays optional for inline use) and call it
+  // whenever the selected option becomes / stops being a board-picker
+  // SelectSpace — letting the modal step aside for board interaction.
+  inject: {
+    [MANDATORY_MODAL_PICKER_SETTER]: {
+      from: MANDATORY_MODAL_PICKER_SETTER,
+      default: undefined,
+    },
   },
   data() {
     const displayedOptions: Array<PlayerInputModel> = [];
@@ -90,6 +104,11 @@ export default defineComponent({
   watch: {
     selectedOption(newOption: PlayerInputModel | undefined) {
       this.selectedIdx = newOption === undefined ? -1 : this.displayedOptions.indexOf(newOption);
+      // Signal picker-mode to the parent modal (if any) so it can step
+      // aside for board interaction when the selected option is a
+      // SelectSpace (board-tile picker). When the user picks a different,
+      // non-picker option the modal restores.
+      this.notifyPickerMode(newOption !== undefined && newOption.type === 'space');
       // Clicking the option can shift elements on the page.
       // This preserves the location of the option button the user just clicked by
       // tracking where it was on the screen, where it moved, and then repositioning it.
@@ -104,6 +123,12 @@ export default defineComponent({
         }
       });
     },
+  },
+  beforeUnmount() {
+    // OrOptions is going away (e.g. server resolved this prompt and we're
+    // moving to the next one) — make sure picker mode flag doesn't get
+    // stuck in `true` on the modal.
+    this.notifyPickerMode(false);
   },
   methods: {
     getSelectedOptionTop(): number | undefined {
@@ -141,6 +166,12 @@ export default defineComponent({
         ref = ref[0];
       }
       ref.saveData();
+    },
+    notifyPickerMode(active: boolean) {
+      const setter = (this as unknown as {[k: string]: PickerModeSetter | undefined})[MANDATORY_MODAL_PICKER_SETTER];
+      if (typeof setter === 'function') {
+        setter(active);
+      }
     },
   },
 });

@@ -1,0 +1,780 @@
+/*
+ * MandatoryInputModal — centered overlay for prompts the server requires
+ * the player to resolve before doing anything else (payment selection,
+ * "choose a card to discard", etc.).
+ *
+ * z-index sits above everything else on the page. Highest in-use
+ * z-indexes today are sidebar settings popups at 10001; we run at 12000+
+ * so the modal is unambiguously on top.
+ *
+ * Backdrop catches all clicks but has no click handler — the modal is
+ * mandatory and only closes via the input's own save flow.
+ */
+
+html.mandatory-input-modal-open,
+body.mandatory-input-modal-open {
+    overflow: hidden !important;
+}
+
+/*
+ * The modal wrapper itself owns the overflow when content is taller than
+ * the viewport. Centering via flex while ALSO allowing scroll requires
+ * the modal to be the scroll container — the inner card just has natural
+ * height and let the wrapper grow / scroll around it.
+ */
+.mandatory-input-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 24px;
+    pointer-events: none; /* let backdrop / card own their own pointer-events */
+}
+
+/*
+ * Picker mode: a hosted prompt has switched to board-tile selection (e.g.
+ * the player clicked "Add an ocean" in the WGT modal). The modal fully
+ * hides itself so the planet is the focus — the choice is final at the
+ * moment of click, no take-backs via modal. When the player clicks a
+ * tile the SelectSpace controller fires the submission and the modal
+ * unmounts naturally as the playerView refreshes.
+ */
+.mandatory-input-modal--picker-mode {
+    pointer-events: none;
+
+    .mandatory-input-modal__backdrop {
+        opacity: 0;
+        pointer-events: none;
+    }
+    .mandatory-input-modal__card {
+        opacity: 0;
+        pointer-events: none;
+        transform: scale(0.96);
+        transition: opacity 200ms ease, transform 200ms ease;
+    }
+}
+
+/*
+ * Minimized mode: the player clicked the "↗" minimize button. The modal
+ * card collapses, backdrop fades out + becomes click-through, and the
+ * pill (rendered in its own Teleport with a lower z-index) appears at
+ * the top of the viewport. The player can freely navigate, inspect, and
+ * consult the rest of the UI before deciding.
+ *
+ * Action-buttons on the page (claim milestone, fund award, convert
+ * plants, etc.) are gated server-side by `playerView.waitingFor` — they
+ * read the live waitingFor tree to decide enabled-state. Since the
+ * server is still waiting on this modal prompt, those buttons stay
+ * disabled automatically without any client-side extra blocking.
+ */
+.mandatory-input-modal--minimized {
+    pointer-events: none;
+
+    .mandatory-input-modal__backdrop {
+        opacity: 0;
+        pointer-events: none;
+    }
+    .mandatory-input-modal__card {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-40px) scale(0.92);
+    }
+}
+
+.mandatory-input-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center,
+        rgba(8, 14, 22, 0.55) 0%,
+        rgba(2, 4, 8, 0.85) 100%);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    pointer-events: auto;
+    animation: mandatory-input-modal-backdrop-in 180ms ease-out;
+    transition: opacity 200ms ease;
+}
+
+@keyframes mandatory-input-modal-backdrop-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.mandatory-input-modal__card {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
+    /*
+     * `width: auto` + `max-width` lets the card hug its content. The
+     * hosted input (SelectPaymentV2 frame / WGT button grid) defines its
+     * own width cap, and the card matches it — no dead space on the side
+     * with L-corners floating in the void.
+     *
+     * No max-height / overflow here — the OUTER wrapper handles overflow
+     * when content is taller than viewport. Putting overflow-y: auto on
+     * the card itself triggers fantom scrollbars in some browsers even
+     * when content fits cleanly.
+     */
+    width: auto;
+    max-width: min(760px, calc(100vw - 48px));
+    box-shadow:
+        0 0 0 1px rgba(106, 176, 230, 0.22),
+        0 30px 60px rgba(0, 0, 0, 0.6),
+        0 0 60px rgba(106, 176, 230, 0.12);
+    border-radius: 4px;
+    animation: mandatory-input-modal-card-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    /* Transition picker-mode opacity/transform changes; the mount-in
+     * animation above runs only once, transitions handle subsequent state. */
+    transition: opacity 200ms ease, transform 200ms ease;
+}
+
+@keyframes mandatory-input-modal-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/*
+ * Extra L-corner ticks on the OUTSIDE of the card — visually pop the modal
+ * "out of" the page even when the hosted component has its own corners.
+ * Slightly larger than the in-card corners to read as a different chrome
+ * layer.
+ */
+.mandatory-input-modal__corner {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+    border-color: #6ab0e6;
+    opacity: 0.7;
+    filter: drop-shadow(0 0 6px rgba(106, 176, 230, 0.35));
+
+    &--tl { top: -8px; left: -8px;       border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -8px; right: -8px;      border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -8px; left: -8px;    border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -8px; right: -8px;   border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+/*
+ * ─── Minimize button ──────────────────────────────────────────────────
+ *
+ * Floats OUTSIDE the card top-right, in the chrome zone where L-corners
+ * live (the modal wrapper has 24px padding, so we have headroom above
+ * the card to plant a button). This keeps the button from colliding
+ * with any header content the hosted input renders inside the card —
+ * SelectPaymentV2's cost chip in particular lands at the card's
+ * top-right edge, and a button parked inside would cover it.
+ *
+ * Sci-fi parallelogram chrome matching `.convert-action-btn` /
+ * `.payment-v2__confirm-btn`. Click triggers `minimize()` on the modal.
+ */
+.mandatory-input-modal__minimize-btn {
+    position: absolute;
+    top: -32px;       /* lifted out of card content area into the chrome */
+    right: 0;
+    z-index: 3;        /* above the top-right L-corner */
+    height: 26px;
+    padding: 0 14px 0 16px;
+    border: none;
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.7) 0%,
+        rgba(80, 120, 160, 0.22) 50%,
+        rgba(130, 170, 210, 0.55) 100%);
+    /* Parallelogram tab with a flat bottom edge that sits on the card. */
+    clip-path: polygon(8% 0%, 100% 0%, 100% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(8% 0%, 100% 0%, 100% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover {
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(140, 190, 235, 0.5));
+        transform: translateY(-1px);
+    }
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+.mandatory-input-modal__minimize-btn-glyph {
+    position: relative;
+    z-index: 1;
+    font-size: 14px;
+    color: #6ab0e6;
+    text-shadow: 0 0 6px rgba(106, 176, 230, 0.5);
+    line-height: 1;
+}
+
+.mandatory-input-modal__minimize-btn-label {
+    position: relative;
+    z-index: 1;
+}
+
+/*
+ * ─── Minimized pill ───────────────────────────────────────────────────
+ *
+ * Standalone element teleported to body — INDEPENDENT of the modal
+ * wrapper's stacking context. z-index 100 sits between the board
+ * (low) and bar-overlays (110), so the Awards/Milestones/Standard
+ * Projects overlays cleanly cover the pill when the player opens
+ * them to inspect info before deciding. Pill reappears the moment
+ * the overlay is closed.
+ *
+ * Positioned BELOW the top-bar-buttons (36px) + their milestone/award
+ * badge strips (~80px hanging below) with a 12px breather. Centered
+ * horizontally. Visibility is driven by the `--visible` modifier set
+ * when the modal is minimized.
+ *
+ * A dark-glass parallelogram-clipped strip with:
+ *  - pulsing cyan indicator dot (left)
+ *  - "AWAITING DECISION" small caps label
+ *  - prompt title (truncated with ellipsis on overflow)
+ *  - restore glyph (right)
+ * Whole pill is the click target.
+ */
+.mandatory-input-modal-pill {
+    position: fixed;
+    top: calc(var(--bottom-bar-button-height) + 88px);
+    left: 50%;
+    transform: translate(-50%, -20px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(720px, calc(100vw - 48px));
+    padding: 8px 18px 8px 16px;
+    border: 1px solid #2c4a6a;
+    background: linear-gradient(180deg,
+        rgba(20, 30, 45, 0.95) 0%,
+        rgba(12, 20, 32, 0.95) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.12),
+        0 8px 24px rgba(0, 0, 0, 0.55),
+        0 0 32px rgba(106, 176, 230, 0.18);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    clip-path: polygon(2% 0%, 100% 0%, 98% 100%, 0% 100%);
+    user-select: none;
+
+    /* Default (modal not minimized): hidden up & out, not interactable. */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+
+    &--visible {
+        opacity: 1;
+        transform: translate(-50%, 0);
+        pointer-events: auto;
+        /* Slight delay so the modal card finishes collapsing first —
+         * gives a "morph up to top" feel rather than a crossfade. */
+        transition-delay: 80ms;
+    }
+
+    &:hover {
+        filter: brightness(1.12) drop-shadow(0 0 8px rgba(106, 176, 230, 0.4));
+    }
+    &:active {
+        filter: brightness(0.96);
+    }
+    &:focus-visible {
+        outline: none;
+        box-shadow:
+            inset 0 0 0 1px rgba(106, 176, 230, 0.45),
+            0 8px 24px rgba(0, 0, 0, 0.55),
+            0 0 32px rgba(106, 176, 230, 0.55);
+    }
+}
+
+/* Pulsing cyan dot — visual heartbeat reminding the player the prompt
+ * is still waiting. */
+.mandatory-input-modal-pill__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #6ab0e6;
+    box-shadow: 0 0 8px rgba(106, 176, 230, 0.8);
+    flex-shrink: 0;
+    animation: mandatory-input-modal-pill-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes mandatory-input-modal-pill-pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.8),
+                    0 0 0 0 rgba(106, 176, 230, 0);
+    }
+    50% {
+        transform: scale(1.15);
+        box-shadow: 0 0 12px rgba(106, 176, 230, 1),
+                    0 0 0 6px rgba(106, 176, 230, 0);
+    }
+}
+
+.mandatory-input-modal-pill__label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #9bb5d0;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.mandatory-input-modal-pill__sep {
+    color: #3a5670;
+    flex-shrink: 0;
+}
+
+.mandatory-input-modal-pill__title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    text-shadow: 0 0 8px rgba(106, 176, 230, 0.2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    letter-spacing: 0.5px;
+}
+
+.mandatory-input-modal-pill__restore {
+    flex-shrink: 0;
+    margin-left: 6px;
+    font-size: 16px;
+    color: #6ab0e6;
+    line-height: 1;
+    opacity: 0.85;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.mandatory-input-modal-pill:hover .mandatory-input-modal-pill__restore {
+    opacity: 1;
+    transform: scale(1.15);
+}
+
+/* ===========================================================================
+ * WGT modal — dedicated button-grid for World Government Terraforming.
+ * Replaces the legacy OrOptions radio rendering (still kept for fallback /
+ * inline use). Each option is a sci-fi button; clicking commits the
+ * choice immediately (SelectOption) or activates board picker mode
+ * (SelectSpace — Add an ocean, Remove hazard).
+ * =========================================================================== */
+.mandatory-input-modal__card > .wgt-modal {
+    position: relative;
+    padding: 14px 18px 16px;
+    min-width: 420px;
+    max-width: 720px;
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    background:
+        linear-gradient(180deg,
+            rgba(20, 30, 45, 0.92) 0%,
+            rgba(12, 20, 32, 0.92) 100%);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+}
+
+.wgt-modal__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+}
+
+.wgt-modal__header-tab {
+    width: 4px;
+    height: 22px;
+    background: linear-gradient(180deg, #6ab0e6 0%, #2c4a6a 100%);
+    border-radius: 1px;
+    box-shadow: 0 0 6px rgba(106, 176, 230, 0.55);
+    flex-shrink: 0;
+}
+
+.wgt-modal__title {
+    flex: 1;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    text-shadow: 0 0 8px rgba(106, 176, 230, 0.25);
+    line-height: 1.2;
+}
+
+/*
+ * Two-column grid of option buttons. Each button is a sci-fi chip:
+ * icon on the left, label on the right, hover glow, parallelogram
+ * outline matching the rest of the fork. Single-column under 520px so
+ * it still reads on narrow viewports.
+ */
+.wgt-modal__options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+@media (max-width: 520px) {
+    .wgt-modal__options {
+        grid-template-columns: 1fr;
+    }
+}
+
+.wgt-modal__option-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid #28415e;
+    border-radius: 3px;
+    background: rgba(16, 24, 36, 0.7);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+    line-height: 1.2;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    min-height: 56px;
+
+    &:hover {
+        border-color: #6ab0e6;
+        background: rgba(24, 38, 56, 0.85);
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.3);
+        transform: translateY(-1px);
+    }
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+/* SelectSpace options get a small visual hint that they'll open a board
+ * picker — subtle amber accent on the left border. */
+.wgt-modal__option-btn--space {
+    border-left: 3px solid rgba(255, 200, 80, 0.65);
+
+    &:hover {
+        border-left-color: #ffd87a;
+        box-shadow: 0 0 8px rgba(255, 200, 80, 0.4);
+    }
+}
+
+.wgt-modal__option-label {
+    flex: 1;
+    line-height: 1.2;
+}
+
+/* ===== Icons ===== */
+
+.wgt-modal__option-icon.wgt-icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    /* The raw global-parameter assets are tall narrow strips. Filtering
+     * + sizing handled per-icon below. */
+}
+
+.wgt-icon--temperature {
+    background-image: url('./assets/global-parameters/temperature.png');
+    background-size: auto 32px;
+}
+.wgt-icon--oxygen {
+    background-image: url('./assets/global-parameters/oxygen.png');
+    background-size: 30px 30px;
+}
+.wgt-icon--ocean {
+    background-image: url('./assets/tiles/ocean.png');
+    background-size: 30px 30px;
+    filter: drop-shadow(0 0 4px rgba(80, 160, 220, 0.5));
+}
+.wgt-icon--venus {
+    background-image: url('./assets/global-parameters/venus.png');
+    background-size: auto 28px;
+    width: 40px;
+}
+.wgt-icon--moon-habitat {
+    background-image: url('./assets/moon/card-habitat-rate.png');
+    background-size: 30px 30px;
+}
+.wgt-icon--moon-mining {
+    background-image: url('./assets/moon/card-mining-rate.png');
+    background-size: 30px 30px;
+}
+.wgt-icon--moon-logistics {
+    background-image: url('./assets/moon/card-logistics-rate.png');
+    background-size: 30px 30px;
+}
+/* Hazard removal is an Ares Extreme Variant option — rare enough that
+ * we don't ship a dedicated icon for it. Render a generic warning
+ * triangle via CSS glyph so the row still has a visual anchor. */
+.wgt-icon--hazard {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffd87a;
+    font-size: 22px;
+    background: none;
+
+    &::before {
+        content: '⚠';
+        text-shadow: 0 0 6px rgba(255, 200, 80, 0.6);
+    }
+}
+
+/* ===========================================================================
+ * Sci-fi treatment for the legacy OrOptions component when it's hosted
+ * directly inside the modal. The component's template is bare HTML —
+ * `<div class="wf-options">` + native `<label class="form-radio">` rows +
+ * AppButton submit. Without these overrides it renders as plain spectre-css
+ * inside the modal card, which clashes hard with the rest of the V2-styled
+ * surfaces (see the WGT screenshot bug for the failure mode).
+ *
+ * Scoped to `.mandatory-input-modal__card > .wf-options` so the legacy
+ * inline Actions section keeps its current look (it's slated for removal
+ * once every action has its dedicated button).
+ * =========================================================================== */
+.mandatory-input-modal__card > .wf-options {
+    position: relative;
+    padding: 14px 18px 16px;
+    min-width: 380px;
+    max-width: 720px;
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    background:
+        linear-gradient(180deg,
+            rgba(20, 30, 45, 0.92) 0%,
+            rgba(12, 20, 32, 0.92) 100%);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+
+    /* The first child label is the prompt title (rendered via
+     * `<label v-if="showtitle"><div>{{title}}</div></label>`). Hoist it
+     * into a sci-fi header with a cyan tab on the left. */
+    > label:first-child {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 0 12px;
+        margin: 0 0 12px;
+        border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+        position: relative;
+
+        &::before {
+            content: '';
+            display: block;
+            width: 4px;
+            height: 22px;
+            background: linear-gradient(180deg, #6ab0e6 0%, #2c4a6a 100%);
+            border-radius: 1px;
+            box-shadow: 0 0 6px rgba(106, 176, 230, 0.55);
+            flex-shrink: 0;
+        }
+
+        > div {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #e8f1fb;
+            text-shadow: 0 0 8px rgba(106, 176, 230, 0.25);
+            line-height: 1.2;
+        }
+    }
+
+    /* Each radio option row — full-width clickable chip with sci-fi chrome.
+     * spectre-css's `.form-radio` is a plain inline-block — we reset and
+     * rebuild it as a block-level button-like row. */
+    .form-radio {
+        display: flex !important;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        margin: 0 0 6px;
+        border: 1px solid #28415e;
+        border-radius: 3px;
+        background: rgba(16, 24, 36, 0.6);
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+        font-size: 14px;
+        letter-spacing: 0.5px;
+        color: #d6e2f2;
+        min-height: unset;
+        line-height: 1.2;
+        position: relative;
+
+        &:hover {
+            border-color: #6ab0e6;
+            background: rgba(24, 38, 56, 0.72);
+            box-shadow: 0 0 8px rgba(106, 176, 230, 0.25);
+        }
+
+        /* Hide the native radio input but keep it accessible. The label
+         * itself becomes the click target. */
+        input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+            width: 0;
+            height: 0;
+        }
+
+        /* Custom radio "bullet" via the spectre form-icon element. */
+        .form-icon {
+            position: relative;
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 1px solid rgba(106, 176, 230, 0.55);
+            border-radius: 50%;
+            background: rgba(8, 14, 22, 0.85);
+            transition: border-color 0.15s, box-shadow 0.15s;
+            flex-shrink: 0;
+            top: 0;
+            left: 0;
+            margin: 0;
+            box-shadow: none;
+
+            &::before {
+                content: '';
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #6ab0e6;
+                box-shadow: 0 0 6px #6ab0e6;
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.6);
+                transition: opacity 0.15s, transform 0.15s;
+            }
+
+            &::after { display: none; } /* kill spectre's checkmark fragment */
+        }
+
+        /* Active state — radio is checked. Light up the row + fill bullet. */
+        input[type="radio"]:checked ~ .form-icon,
+        input[type="radio"]:checked + .form-icon {
+            border-color: #6ab0e6;
+            background: rgba(20, 35, 55, 0.9);
+            box-shadow: 0 0 8px rgba(106, 176, 230, 0.45);
+
+            &::before {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+    }
+
+    /* The factory-mounted child input (when a SelectOption row is the
+     * checked one, OrOptions mounts the child inline below the row). The
+     * upstream template hardcodes `margin-left: 30px` — we squash it back
+     * to 0 so nothing offsets weirdly inside the modal frame. */
+    > div > div[style*="margin-left"] {
+        margin-left: 0 !important;
+        padding: 0;
+    }
+
+    /* Submit row — `.wf-action` wraps AppButton. Right-align and style the
+     * button as the V2 confirm parallelogram. */
+    .wf-action {
+        margin: 14px 0 0 !important;
+        display: flex;
+        justify-content: flex-end;
+        text-align: right !important;
+    }
+
+    /* Parallelogram chrome on AppButton — matches `.payment-v2__confirm-btn`
+     * and `.convert-action-btn`. Need to override spectre's `.btn` (already
+     * !important-ed in common.less) so we re-apply !important where needed. */
+    .wf-action .btn {
+        position: relative;
+        padding: 12px 32px 12px 26px !important;
+        color: #e8f1fb !important;
+        cursor: pointer;
+        font-family: Prototype, Ubuntu, sans-serif !important;
+        font-size: 14px !important;
+        font-weight: 700;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        line-height: 1 !important;
+        white-space: nowrap;
+        background: linear-gradient(180deg,
+            rgba(160, 200, 230, 0.78) 0%,
+            rgba(80, 120, 160, 0.28) 50%,
+            rgba(130, 170, 210, 0.6) 100%) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+        isolation: isolate;
+        transition: filter 150ms ease;
+        height: auto !important;
+        min-width: 0 !important;
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 1.5px;
+            clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+            background: linear-gradient(180deg,
+                rgba(14, 26, 42, 0.95) 0%,
+                rgba(6, 14, 22, 0.95) 100%);
+            z-index: -1;
+        }
+
+        &:hover:not(:disabled) {
+            filter: brightness(1.18) drop-shadow(0 0 8px rgba(140, 190, 235, 0.5));
+        }
+        &:active:not(:disabled) {
+            filter: brightness(0.92);
+        }
+        &:disabled {
+            cursor: not-allowed;
+            filter: grayscale(0.7) brightness(0.55);
+            opacity: 0.85;
+        }
+    }
+}

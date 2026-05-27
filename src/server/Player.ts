@@ -1091,7 +1091,14 @@ export class Player implements IPlayer {
       const baseCost = this.milestoneCost();
       const cost = baseCost + ((milestone.name === 'Briber') ? 12 : 0);
       const reserveUnits = milestone.name === 'Merchant' ? Units.every(2) : Units.EMPTY;
-      this.game.defer(new SelectPaymentDeferred(this, cost, {title: 'Select how to pay for milestone', reserveUnits: reserveUnits})).andThen(() => {
+      this.game.defer(new SelectPaymentDeferred(this, cost, {
+        // Bake the milestone name into the prompt title so the modal
+        // shown to the player ("ВЫБЕРИТЕ СПОСОБ ОПЛАТЫ TERRAFORMER")
+        // makes the connection between the badge that just appeared and
+        // the payment they're being asked to make.
+        title: message('Select how to pay for ${0} milestone', (b) => b.milestone(milestone)),
+        reserveUnits: reserveUnits,
+      })).andThen(() => {
         recordClaim();
       });
     }
@@ -1124,7 +1131,15 @@ export class Player implements IPlayer {
 
   private fundAward(award: IAward): PlayerInput {
     return new SelectOption(award.name, 'Fund - ' + '(' + award.name + ')').andThen(() => {
-      this.game.defer(new SelectPaymentDeferred(this, this.awardFundingCost(), {title: 'Select how to pay for award'}));
+      // Bake the award name into the payment prompt title so the modal
+      // shown to the player ("ВЫБЕРИТЕ СПОСОБ ОПЛАТЫ THERMALIST") makes
+      // the connection between the funded-badge that just appeared and
+      // the payment they're being asked to make.
+      this.game.defer(new SelectPaymentDeferred(
+        this,
+        this.awardFundingCost(),
+        {title: message('Select how to pay for ${0} award', (b) => b.award(award))},
+      ));
       this.game.fundAward(this, award);
       return undefined;
     });

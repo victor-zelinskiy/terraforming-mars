@@ -20,6 +20,7 @@
         :convertHeatAvailable="convertHeatAvailable"
         :convertPlantsAvailable="convertPlantsAvailable"
         :convertPlantsPickerActive="convertPlantsPickerActive"
+        :isViewer="isViewer"
         @convert-heat="$emit('convertHeat')"
         @convert-plants="$emit('convertPlants')"
         v-trim-whitespace />
@@ -98,6 +99,13 @@ export default defineComponent({
       default: false,
     },
     convertPlantsPickerActive: {
+      type: Boolean,
+      default: false,
+    },
+    // True iff the displayedPlayer is the viewer themselves. Forwarded to
+    // PlayerResources so it can hide the convert-action buttons (and their
+    // arrow) when the panel is showing someone else's resources for review.
+    isViewer: {
       type: Boolean,
       default: false,
     },

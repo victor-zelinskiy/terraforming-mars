@@ -33,7 +33,18 @@
           @claim="claimMilestone($event)"
           @close="activeOverlay = null" />
       </div>
-      <div class="bottom-bar-btn bottom-bar-btn--center" :class="{'bottom-bar-btn--active': activeOverlay === 'standardProjects'}" v-on:click="toggleOverlay('standardProjects')">Standard Projects</div>
+      <div class="top-bar-btn-anchor top-bar-btn-anchor--center">
+        <div class="bottom-bar-btn bottom-bar-btn--center" :class="{'bottom-bar-btn--active': activeOverlay === 'standardProjects'}" v-on:click="toggleOverlay('standardProjects')">Standard Projects</div>
+        <StandardProjectsOverlay
+          v-if="activeOverlay === 'standardProjects'"
+          class="top-bar-dropdown top-bar-dropdown--standard-projects"
+          :game="game"
+          :thisPlayer="thisPlayer"
+          :actionableProjects="standardProjectsActionInput"
+          :viewerActing="playerView.waitingFor !== undefined"
+          @close="activeOverlay = null"
+          @use-project="onUseStandardProject($event)" />
+      </div>
       <div class="top-bar-btn-anchor">
         <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'awards'}" v-on:click="toggleOverlay('awards')">Awards</div>
         <!--
@@ -91,6 +102,7 @@
       :convertHeatAvailable="convertHeatAvailable && displayedPlayer.color === thisPlayer.color"
       :convertPlantsAvailable="convertPlantsAvailable && displayedPlayer.color === thisPlayer.color"
       :convertPlantsPickerActive="convertPlantsPickerActive"
+      :isViewer="displayedPlayer.color === thisPlayer.color"
       @selectPlayer="selectedPlayerColor = $event"
       @convert-heat="convertHeat"
       @convert-plants="toggleConvertPlantsPicker" />
@@ -109,6 +121,24 @@
       :onsave="onConvertPlantsSpacePicked"
       :showsave="false"
       :showtitle="false" />
+
+    <!--
+      Client-side payment preview modal for Standard Projects. Mounts when
+      the player picks a project that requires choosing between M€ and
+      alternative resources (heat / steel / titanium / etc.). The modal
+      is purely client-side — Confirm wraps the chosen Payment into a
+      `SelectProjectCardToPlayResponse` and submits through `WaitingFor.onsave`;
+      Cancel just unmounts the modal without sending anything. Re-uses
+      MandatoryInputModal chrome (minimize + sci-fi frame + pill).
+    -->
+    <MandatoryInputModal v-if="pendingStdProjectPayment !== undefined"
+                         :title="pendingStdProjectPayment.title">
+      <StandardProjectPaymentContent
+        :playerView="playerView"
+        :playerinput="pendingStdProjectPayment.input"
+        @confirm="onStdProjectPaymentConfirm($event)"
+        @cancel="onStdProjectPaymentCancel" />
+    </MandatoryInputModal>
 
     <div v-if="activeOverlay === 'log'" class="bar-overlay bar-overlay--log">
       <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
@@ -292,12 +322,19 @@ import MilestoneClaimedBadge from '@/client/components/overview/MilestoneClaimed
 import AwardsOverlay from '@/client/components/overview/AwardsOverlay.vue';
 import AwardFundedBadge from '@/client/components/overview/AwardFundedBadge.vue';
 import SelectSpace from '@/client/components/SelectSpace.vue';
+import StandardProjectsOverlay from '@/client/components/overview/StandardProjectsOverlay.vue';
+import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
+import StandardProjectPaymentContent from '@/client/components/payment/StandardProjectPaymentContent.vue';
+import {Payment} from '@/common/inputs/Payment';
+import {CardName} from '@/common/cards/CardName';
+import {Units} from '@/common/Units';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {ClaimedMilestoneModel} from '@/common/models/ClaimedMilestoneModel';
 import {FundedAwardModel} from '@/common/models/FundedAwardModel';
 import {AwardName} from '@/common/ma/AwardName';
 import {MAX_MILESTONES, MAX_AWARDS} from '@/common/constants';
 import {MilestoneName} from '@/common/ma/MilestoneName';
-import {PlayerInputModel, OrOptionsModel, SelectOptionModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, OrOptionsModel, SelectOptionModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {Message} from '@/common/logs/Message';
 import {vueRoot} from '@/client/components/vueRoot';
 
@@ -333,6 +370,18 @@ type ToggleableState = {
 // again closes the active overlay.
 type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'played' | 'victoryPoints' | 'log';
 
+// Set while the player has chosen a Standard Project from the overlay
+// AND the choice requires picking between M€ and alternative resources.
+// Drives a client-side payment-preview modal; if undefined no modal is
+// shown. When the player Confirms we wrap the chosen payment into the
+// nested `SelectProjectCardToPlayResponse` and submit; Cancel just
+// clears this field (no server round-trip).
+type PendingStdProjectPayment = {
+  cardName: CardName;
+  title: string | Message;
+  input: SelectPaymentModel;
+};
+
 type PlayerHomeModel = ToggleableState & {
   selectedPlayerColor: Color | undefined;
   activeOverlay: OverlayId | null;
@@ -341,6 +390,7 @@ type PlayerHomeModel = ToggleableState & {
   // it can drive board interaction; on space pick we wrap the response in
   // the outer OR-payload and submit.
   convertPlantsPickerActive: boolean;
+  pendingStdProjectPayment: PendingStdProjectPayment | undefined;
 }
 
 type ToggleableCardType = 'HAND' | 'ACTIVE' | 'AUTOMATED' | 'EVENT';
@@ -365,6 +415,7 @@ export default defineComponent({
       selectedPlayerColor: undefined,
       activeOverlay: null,
       convertPlantsPickerActive: false,
+      pendingStdProjectPayment: undefined,
     };
   },
   watch: {
@@ -544,6 +595,14 @@ export default defineComponent({
     convertPlantsPrompt(): SelectSpaceModel | undefined {
       return this.findConvertPlantsOption(this.playerView.waitingFor)?.spacePrompt as SelectSpaceModel | undefined;
     },
+    // The current SelectStandardProjectToPlay model in the action menu, or
+    // undefined if the player isn't currently being offered standard
+    // projects. Exposed to the overlay so each project's "USE" button can
+    // tell whether THIS project is actionable right now (and what its
+    // adjusted cost / canPayWith flags are).
+    standardProjectsActionInput(): SelectProjectCardToPlayModel | undefined {
+      return this.findStandardProjectsAction(this.playerView.waitingFor)?.input;
+    },
   },
 
   components: {
@@ -566,6 +625,9 @@ export default defineComponent({
     AwardsOverlay,
     AwardFundedBadge,
     'select-space': SelectSpace,
+    StandardProjectsOverlay,
+    MandatoryInputModal,
+    StandardProjectPaymentContent,
   },
   methods: {
     isPlayerActing(playerView: PlayerViewModel) : boolean {
@@ -703,6 +765,29 @@ export default defineComponent({
       }
       return undefined;
     },
+    // Recursively walks the waitingFor tree looking for the standard-
+    // projects SelectStandardProjectToPlay (type 'projectCard') option.
+    // Returns the option model + the index PATH from the root needed to
+    // wrap a `SelectProjectCardToPlayResponse` in nested OR responses
+    // (matching exactly what the legacy radio UI would send).
+    findStandardProjectsAction(
+      wf: PlayerInputModel | undefined,
+      pathSoFar: ReadonlyArray<number> = [],
+    ): {path: ReadonlyArray<number>; input: SelectProjectCardToPlayModel} | undefined {
+      if (!wf) return undefined;
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const opt = options[i];
+          if (opt.type === 'projectCard' && inputTitleText(opt.title) === 'Standard projects') {
+            return {path: [...pathSoFar, i], input: opt as SelectProjectCardToPlayModel};
+          }
+          const deeper = this.findStandardProjectsAction(opt, [...pathSoFar, i]);
+          if (deeper) return deeper;
+        }
+      }
+      return undefined;
+    },
     findAwardOptionPath(wf: PlayerInputModel | undefined) {
       // Primary: title-prefix match. The server sets the title to
       // `'Fund an award (${0} M€)'` with the current cost baked in.
@@ -830,6 +915,136 @@ export default defineComponent({
       const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
       wfRef?.onsave?.(response);
       this.convertPlantsPickerActive = false;
+    },
+    // ─── Standard Projects flow ─────────────────────────────────────
+    // Click on a project's USE button. If the project can ONLY be paid
+    // for in M€ (no alt resources usable), submit the full M€ payment
+    // directly. If the player has at least one alt resource the project
+    // accepts AND owns any of it, open the client-side payment-preview
+    // modal so they can dial in the mix before submitting.
+    onUseStandardProject(cardName: CardName): void {
+      const action = this.findStandardProjectsAction(this.playerView.waitingFor);
+      if (!action) return;
+      const card = action.input.cards.find((c) => c.name === cardName);
+      if (card === undefined || card.isDisabled === true) return;
+      const cost = card.calculatedCost ?? 0;
+      const paymentOptions = action.input.paymentOptions ?? {};
+
+      if (this.standardProjectHasAlternativeResources(card, paymentOptions)) {
+        // Title is a Message object (NOT a string concatenation) so the
+        // i18n directive translates BOTH the template "Pay for ${0}" AND
+        // the typed CARD placeholder lookup ("Power Plant:SP" →
+        // "Электростанция"). Concatenating "Pay for " + cardName as a
+        // raw string produces an untranslated literal like
+        // "Pay for Power Plant:SP" which lands in the header without a
+        // matching locale key.
+        const title: Message = {
+          message: 'Pay for ${0}',
+          data: [{type: LogMessageDataType.CARD as const, value: cardName}],
+        };
+        this.pendingStdProjectPayment = {
+          cardName,
+          // Same Message object on both fields — the modal uses `title`
+          // for the minimize-pill text and the hosted payment content
+          // reads `input.title` for the modal header. Sharing the same
+          // typed Message keeps translations consistent.
+          title: title,
+          input: {
+            type: 'payment',
+            title: title,
+            // "Pay" reads as the action being committed in the modal —
+            // matches the action-step semantics. The Standard Projects
+            // overlay's button reads "Use" (project selection); this is
+            // the payment step, hence "Pay".
+            buttonLabel: 'Pay',
+            amount: cost,
+            paymentOptions: paymentOptions,
+            seeds: 0,
+            auroraiData: 0,
+            kuiperAsteroids: 0,
+            spireScience: 0,
+            reserveUnits: card.reserveUnits ?? Units.EMPTY,
+            floaters: 0,
+            microbes: 0,
+            graphene: 0,
+          },
+        };
+        this.activeOverlay = null; // close the standard-projects overlay
+        return;
+      }
+
+      // No alt resources usable — pay full M€ directly. Close the
+      // overlay too; the action has been committed.
+      this.submitStandardProjectPayment(cardName, Payment.of({megacredits: cost}));
+      this.activeOverlay = null;
+    },
+    // Returns true iff the project accepts at least one alternative
+    // resource that the player actually owns. Mirrors the per-card
+    // `canPayWith` flags (steel for City+Prefab, titanium / kuiperAsteroids,
+    // seeds for Greenery+Soylent) plus the global player flags (Helion
+    // heat-as-M€, Luna Trade Federation titanium-as-M€) and the always-on
+    // Aurorai / Spire card resources.
+    standardProjectHasAlternativeResources(
+      card: CardModel,
+      opts: SelectProjectCardToPlayModel['paymentOptions'],
+    ): boolean {
+      const player = this.thisPlayer;
+      // Helion: heat usable as M€ for any standard project.
+      if (player.tableau.some((c) => c.name === CardName.HELION) && player.heat > 0) return true;
+      // Steel — per-card opt-in (City + Prefab, Excavate, Moon Road).
+      if (opts.steel === true && player.steel > 0) return true;
+      // Titanium — per-card opt-in OR Luna Trade Federation.
+      if ((opts.titanium === true || opts.lunaTradeFederationTitanium === true) && player.titanium > 0) return true;
+      // Per-card alt-resource flags from `card.standardProjectCanPayWith`.
+      const canPayWith = card.standardProjectCanPayWith;
+      if (canPayWith?.seeds === true && player.tableau.some((c) => c.name === CardName.SOYLENT_SEEDLING_SYSTEMS)) {
+        const soylent = player.tableau.find((c) => c.name === CardName.SOYLENT_SEEDLING_SYSTEMS);
+        if ((soylent?.resources ?? 0) > 0) return true;
+      }
+      if (canPayWith?.kuiperAsteroids === true && player.tableau.some((c) => c.name === CardName.KUIPER_COOPERATIVE)) {
+        const kuiper = player.tableau.find((c) => c.name === CardName.KUIPER_COOPERATIVE);
+        if ((kuiper?.resources ?? 0) > 0) return true;
+      }
+      // Aurorai data / Spire science — always allowed for standard projects
+      // when the player owns the corp/card.
+      const aurorai = player.tableau.find((c) => c.name === CardName.AURORAI);
+      if (aurorai !== undefined && (aurorai.resources ?? 0) > 0) return true;
+      const spire = player.tableau.find((c) => c.name === CardName.SPIRE);
+      if (spire !== undefined && (spire.resources ?? 0) > 0) return true;
+      return false;
+    },
+    onStdProjectPaymentConfirm(payment: Payment): void {
+      if (this.pendingStdProjectPayment === undefined) return;
+      this.submitStandardProjectPayment(this.pendingStdProjectPayment.cardName, payment);
+      this.pendingStdProjectPayment = undefined;
+    },
+    onStdProjectPaymentCancel(): void {
+      this.pendingStdProjectPayment = undefined;
+      // Restore the Standard Projects overlay so the player can pick a
+      // different project (or close it themselves). The overlay was
+      // dismissed when the payment modal opened — no point making the
+      // player click "Standard Projects" again after cancel.
+      this.activeOverlay = 'standardProjects';
+    },
+    // Wraps the chosen card + payment into a nested OR response that
+    // matches what the legacy radio UI submits when the player picks
+    // Standard Projects → <card> → Confirm. Routes through WaitingFor.onsave.
+    submitStandardProjectPayment(cardName: CardName, payment: Payment): void {
+      const action = this.findStandardProjectsAction(this.playerView.waitingFor);
+      if (!action || action.path.length === 0) {
+        console.warn('Standard project: action not found in waitingFor tree');
+        return;
+      }
+      let response: unknown = {
+        type: 'projectCard' as const,
+        card: cardName,
+        payment: payment,
+      };
+      for (let i = action.path.length - 1; i >= 0; i--) {
+        response = {type: 'or' as const, index: action.path[i], response};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      wfRef?.onsave?.(response);
     },
     getFleetsCountRange(player: PublicPlayerModel): Array<number> {
       const fleetsRange = [];

@@ -111,6 +111,16 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // True when the player being displayed is the viewer themselves. The
+    // convert-plants / convert-heat buttons are only meaningful for the
+    // viewer — clicking on another player's resources should never give
+    // you access to THEIR actions. When false the buttons (and the arrow
+    // pointing to them) are not rendered at all; you still see the other
+    // player's resource counts as before.
+    isViewer: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['convert-heat', 'convert-plants'],
   computed: {
@@ -121,14 +131,16 @@ export default defineComponent({
     canUseHeatAsMegaCredits(): boolean {
       return this.player.tableau.some((card) => card.name === CardName.HELION);
     },
-    // Button is rendered when the resource amount is sufficient — it
-    // serves as a permanent "you could convert if it were your turn"
-    // indicator. Click-through is gated by `convertXAvailable`.
+    // Button is rendered when the resource amount is sufficient AND the
+    // displayed player is the viewer — it serves as a permanent "you could
+    // convert if it were your turn" indicator. Click-through is gated by
+    // `convertXAvailable`. Never rendered when viewing another player —
+    // their resources are visible for awareness only, not for actioning.
     plantsButtonVisible(): boolean {
-      return this.player.plants >= this.player.plantsNeededForGreenery;
+      return this.isViewer && this.player.plants >= this.player.plantsNeededForGreenery;
     },
     heatButtonVisible(): boolean {
-      return this.player.heat >= this.player.heatNeededForTemperature;
+      return this.isViewer && this.player.heat >= this.player.heatNeededForTemperature;
     },
     plantsTooltip(): string {
       if (this.convertPlantsPickerActive) return 'Click a greenery space on the board';

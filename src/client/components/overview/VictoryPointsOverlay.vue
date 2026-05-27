@@ -42,7 +42,7 @@
         </div>
         <div class="vp-tile">
           <div class="vp-tile-icon vp-icon-cards"></div>
-          <div class="vp-tile-value">{{ breakdown.victoryPoints }}</div>
+          <div class="vp-tile-value">{{ positiveCardVP }}</div>
           <div class="vp-tile-label" v-i18n>Cards</div>
         </div>
         <div v-if="game.moon !== undefined" class="vp-tile">
@@ -73,7 +73,7 @@
           <div class="vp-detail-title" v-i18n>From cards</div>
           <div class="vp-detail-list">
             <div v-for="d in breakdown.detailsCards" :key="d.cardName" class="vp-detail-row">
-              <div class="vp-detail-vp">+{{ d.victoryPoint }}</div>
+              <div class="vp-detail-vp" :class="vpSignClass(d.victoryPoint)">{{ formatVp(d.victoryPoint) }}</div>
               <div class="vp-detail-text" v-i18n>{{ d.cardName }}</div>
             </div>
           </div>
@@ -88,7 +88,7 @@
                  class="vp-detail-row vp-detail-row--hoverable"
                  v-on:mouseenter="onRowEnter($event, milestoneTooltipFor(d))"
                  v-on:mouseleave="onRowLeave">
-              <div class="vp-detail-vp">+{{ d.victoryPoint }}</div>
+              <div class="vp-detail-vp" :class="vpSignClass(d.victoryPoint)">{{ formatVp(d.victoryPoint) }}</div>
               <div class="vp-detail-text">{{ translateMilestoneDetails(d) }}</div>
             </div>
             <div v-for="d in breakdown.detailsAwards"
@@ -96,11 +96,11 @@
                  class="vp-detail-row vp-detail-row--hoverable"
                  v-on:mouseenter="onRowEnter($event, awardTooltipFor(d))"
                  v-on:mouseleave="onRowLeave">
-              <div class="vp-detail-vp">+{{ d.victoryPoint }}</div>
+              <div class="vp-detail-vp" :class="vpSignClass(d.victoryPoint)">{{ formatVp(d.victoryPoint) }}</div>
               <div class="vp-detail-text">{{ translateAwardDetails(d) }}</div>
             </div>
             <div v-for="d in breakdown.detailsPlanetaryTracks" :key="'t-' + d.tag" class="vp-detail-row">
-              <div class="vp-detail-vp">+{{ d.points }}</div>
+              <div class="vp-detail-vp" :class="vpSignClass(d.points)">{{ formatVp(d.points) }}</div>
               <div class="vp-detail-text">{{ planetaryTrackText(d.tag) }}</div>
             </div>
           </div>
@@ -187,6 +187,21 @@ export default defineComponent({
     moonTotal(): number {
       return this.breakdown.moonHabitats + this.breakdown.moonMines + this.breakdown.moonRoads;
     },
+    // Card-based VP split into positive / negative parts so the two
+    // summary tiles ("Cards" / "Penalty") add up cleanly to the total
+    // instead of visually overlapping. Server reports the *combined*
+    // value in `breakdown.victoryPoints` and the *negative-only* slice
+    // in `breakdown.negativeVP`; positive = combined − negative.
+    //
+    // Example: a card gives -1, server reports
+    //   victoryPoints = -1, negativeVP = -1
+    //   positiveCardVP = -1 - (-1) = 0  → Cards tile = 0
+    //   negativeVP                = -1  → Penalty tile = -1
+    // and the math reads naturally instead of "Cards -1 + Penalty -1 = -2"
+    // confusion (when the actual total counts the -1 only once).
+    positiveCardVP(): number {
+      return this.breakdown.victoryPoints - this.breakdown.negativeVP;
+    },
     tooltipStyle(): Record<string, string> {
       return {
         top: `${this.tooltipPos.top}px`,
@@ -195,6 +210,18 @@ export default defineComponent({
     },
   },
   methods: {
+    // Sign-aware VP formatter for the per-row badges. Positive numbers get
+    // a "+" prefix to make them feel like a bonus; negative numbers print
+    // as-is (JS gives them a "-" already, so "+-1" is what we used to
+    // show — visually jarring). Zero just prints "0".
+    formatVp(n: number): string {
+      if (n > 0) return `+${n}`;
+      return String(n);
+    },
+    vpSignClass(n: number): string {
+      if (n < 0) return 'vp-detail-vp--negative';
+      return '';
+    },
     translateMilestoneDetails(data: MADetail): string {
       const args = (data.messageArgs || []).map($t);
       return translateTextWithParams(data.message, args);
