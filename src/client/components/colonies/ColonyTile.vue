@@ -204,6 +204,14 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    // Viewer (you) colour. Lets us tell apart "your own fleet is here"
+    // (you traded already) vs "someone else's fleet is here" in the
+    // visitor tooltip — otherwise the message lies about whose fleet
+    // is parked.
+    viewerColor: {
+      type: String as () => Color | undefined,
+      default: undefined,
+    },
   },
   emits: ['view', 'select'],
   computed: {
@@ -266,10 +274,15 @@ export default defineComponent({
     selectButtonTooltip(): string {
       return this.$t('Select this colony');
     },
-    // Tooltip for the in-header fleet badge. When we know the visiting
-    // player's name we include it ("Trade fleet of ${0} is here") so the
-    // player doesn't have to read the colour swatch and guess.
+    // Tooltip for the in-header fleet badge. Three cases:
+    //   1. visitor === viewer  → "Your trade fleet is currently here"
+    //      (lets you know you've already traded — not someone else)
+    //   2. visitor name known → "Trade fleet of NAME is currently here"
+    //   3. visitor unknown / colour only → generic "Trade fleet here"
     visitorTooltip(): string {
+      if (this.visitor !== undefined && this.visitor === this.viewerColor) {
+        return translateText('Your trade fleet is currently here');
+      }
       if (this.visitorName) {
         return translateTextWithParams(
           'Trade fleet of ${0} is currently here',

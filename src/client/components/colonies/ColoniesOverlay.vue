@@ -83,6 +83,7 @@
             :disabledReason="reasonFor(colony)"
             :visitor="colony.visitor"
             :visitorName="visitorNameFor(colony)"
+            :viewerColor="viewerColor"
             @view="onTileView"
             @select="onTileSelect" />
         </div>
@@ -178,6 +179,7 @@
 import {defineComponent} from 'vue';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
+import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import ColonyTile from './ColonyTile.vue';
 import ColonyDetailView from './ColonyDetailView.vue';
@@ -240,6 +242,13 @@ export default defineComponent({
     dismissable: {
       type: Boolean,
       default: true,
+    },
+    // Viewer colour — passed down to each ColonyTile so its visitor
+    // tooltip can tell "your own fleet" apart from "someone else's
+    // fleet" parked on a colony.
+    viewerColor: {
+      type: String as () => Color | undefined,
+      default: undefined,
     },
   },
   emits: ['select', 'close'],

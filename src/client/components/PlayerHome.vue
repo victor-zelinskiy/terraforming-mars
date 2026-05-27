@@ -323,6 +323,7 @@
                      :selectableNames="coloniesOverlaySelectable"
                      :disabledReasons="coloniesOverlayDisabledReasons"
                      :dismissable="coloniesOverlayDismissable"
+                     :viewerColor="thisPlayer.color"
                      @select="onColonySelected($event)"
                      @close="onCloseColoniesOverlay" />
 
@@ -382,6 +383,7 @@ import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePay
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {CardResource} from '@/common/CardResource';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import {Payment} from '@/common/inputs/Payment';
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
@@ -832,7 +834,7 @@ export default defineComponent({
         }
         if (mode === 'trade') {
           if (c.visitor !== undefined) {
-            out[c.name] = 'Another trade fleet is already here';
+            out[c.name] = this.visitorBlockReason(c.visitor);
             continue;
           }
           if (noFreeFleets) {
@@ -846,7 +848,7 @@ export default defineComponent({
         // specific to the colony (has visitor) OR a global "you can't
         // trade right now" reason (not your turn, no fleets, etc.).
         if (c.visitor !== undefined) {
-          out[c.name] = 'Another trade fleet is already here';
+          out[c.name] = this.visitorBlockReason(c.visitor);
           continue;
         }
         out[c.name] = this.viewModeReason;
@@ -1132,6 +1134,24 @@ export default defineComponent({
     // one of those three, the cardResource branch returns a generic
     // "<resource> card resource" message; for unknown shapes we fall
     // back to the original generic string.
+    // Tooltip when a colony has a visitor parked this generation —
+    // differentiates "your own fleet (you already traded)" from "another
+    // player's fleet" so the reason isn't a flat-out lie when the
+    // viewer just finished their own trade. The "other player" branch
+    // is pre-translated via `translateTextWithParams` because we need
+    // to interpolate the player's display name; the overlay's
+    // `translateText` will be a no-op on the resulting Russian string
+    // (no matching key — returns input unchanged).
+    visitorBlockReason(visitor: Color): string {
+      if (visitor === this.thisPlayer.color) {
+        return 'You already traded with this colony this generation';
+      }
+      const p = this.playerView.players.find((p) => p.color === visitor);
+      const name = p?.name ?? String(visitor);
+      return translateTextWithParams(
+        'Trade fleet of ${0} is currently here',
+        [name]);
+    },
     inactiveColonyReason(name: ColonyName): string {
       if (name === ColonyName.VENUS) {
         return 'Activated when any player plays a Venus-tag card with a resource type';
