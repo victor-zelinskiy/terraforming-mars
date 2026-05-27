@@ -493,6 +493,11 @@
     "Pay for": "Оплатить",
     "Pay for ${0}": "Оплатить ${0}",
     "Cancel": "Отмена",
+    "Confirm pass": "Подтвердить",
+    "You will not be able to take any more actions this generation. Are you sure?": "Вы больше не сможете совершить какие либо действия в этом поколении. Вы уверены ?",
+    "Pass — end your participation in this generation. You will not be able to take any more actions until the next generation.": "Спасовать — завершить участие в этом поколении. Вы больше не сможете совершить какие либо действия до следующего поколения.",
+    "End turn — skip your second action and pass the turn to the next player. You can still act in this generation on your next turn.": "Пропустить второе действие и передать ход следующему игроку.",
+    "Skip turn": "Пропустить ход",
     "Claimed ${0} of ${1} milestones": "Выполнено ${0} из ${1} достижений",
 
     "Fund": "Учредить",

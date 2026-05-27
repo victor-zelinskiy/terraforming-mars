@@ -1167,6 +1167,223 @@ each(@players, {
     }
 }
 
+/*
+ * Turn-control column inside the viewer's own card: PASS on top,
+ * END TURN below. Reserves a fixed height for BOTH buttons regardless
+ * of which one (if any) is currently offered by the server — so the
+ * card doesn't shift vertically as the turn progresses. Unavailable
+ * buttons are hidden via `--hidden` (visibility: hidden) which preserves
+ * their layout space; we don't use display:none/v-if specifically to
+ * keep the card height constant whether 0, 1, or 2 buttons are on
+ * offer. Vertical stack is mandated by the Russian label width — half-
+ * width pills truncate "ЗАВЕРШИТЬ ХОД".
+ */
+.left-panel-card-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.left-panel-card-action-btn {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 22px;
+    position: relative;
+    padding: 0 10px;
+    border: none;
+    cursor: pointer;
+    color: #e8f1fb;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    /* Same parallelogram clip used by std-project-use-btn — keeps the
+     * fork's sci-fi vocabulary consistent across action buttons. */
+    clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1px;
+        clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover {
+        filter: brightness(1.18) drop-shadow(0 0 6px rgba(140, 190, 235, 0.45));
+        transform: translateY(-1px);
+    }
+
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+/*
+ * Hidden state — keeps the slot's height so the card layout doesn't
+ * jump when the server adds / removes the matching action option from
+ * `waitingFor`. visibility:hidden is intentional over display:none.
+ * pointer-events: none also blocks accidental clicks on the invisible
+ * element (the slot is still in the layout, just not visible).
+ */
+.left-panel-card-action-btn--hidden {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* PASS — warm/amber accent so the irreversible action reads visually
+ * different from End Turn. */
+.left-panel-card-action-btn--pass {
+    background: linear-gradient(180deg,
+        rgba(230, 170, 100, 0.78) 0%,
+        rgba(140, 90, 50, 0.28) 50%,
+        rgba(220, 160, 95, 0.6) 100%);
+}
+
+/* END TURN — cyan accent matching the rest of the fork chrome. */
+.left-panel-card-action-btn--end-turn {
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.78) 0%,
+        rgba(80, 120, 160, 0.28) 50%,
+        rgba(130, 170, 210, 0.6) 100%);
+}
+
+.left-panel-card-action-btn-label {
+    position: relative;
+    z-index: 1;
+}
+
+/*
+ * Pass confirmation modal content (hosted inside MandatoryInputModal).
+ * Mirrors the StandardProjectPaymentContent vocabulary (cancel = muted,
+ * confirm = filled cyan) but with a warmer/redder tone on Confirm to
+ * signal that the action is irreversible for the rest of the generation.
+ *
+ * The MandatoryInputModal card itself has no background — every hosted
+ * frame brings its own (payment-v2__frame, wgt-modal, wf-options when
+ * inlined). The pass-confirm root supplies that same dark glass + neon
+ * border so the modal isn't see-through.
+ */
+.pass-confirm {
+    position: relative;
+    color: #e8f1fb;
+    font-family: Prototype, Ubuntu, sans-serif;
+    min-width: 360px;
+    max-width: 480px;
+    padding: 22px 28px 24px;
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    background:
+        linear-gradient(180deg,
+            rgba(20, 30, 45, 0.94) 0%,
+            rgba(12, 20, 32, 0.94) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.pass-confirm__title {
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #ffd87a;
+    text-align: center;
+}
+
+.pass-confirm__body {
+    margin: 0 0 20px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #d8e3ef;
+    text-align: center;
+}
+
+.pass-confirm__actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.pass-confirm__cancel-btn,
+.pass-confirm__confirm-btn {
+    position: relative;
+    padding: 10px 22px;
+    border: none;
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+    min-width: 130px;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover {
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(140, 190, 235, 0.45));
+        transform: translateY(-1px);
+    }
+
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+.pass-confirm__cancel-btn {
+    background: linear-gradient(180deg,
+        rgba(120, 140, 160, 0.55) 0%,
+        rgba(50, 70, 90, 0.28) 50%,
+        rgba(100, 120, 140, 0.45) 100%);
+}
+
+.pass-confirm__confirm-btn {
+    background: linear-gradient(180deg,
+        rgba(235, 165, 95, 0.85) 0%,
+        rgba(140, 80, 40, 0.32) 50%,
+        rgba(225, 150, 85, 0.65) 100%);
+
+    &:hover {
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(240, 170, 95, 0.55));
+    }
+}
+
+.pass-confirm__cancel-btn-label,
+.pass-confirm__confirm-btn-label {
+    position: relative;
+    z-index: 1;
+}
+
 /* Shared sci-fi panel chrome: thin neon border + faint inner glow on a
  * translucent dark background. Used to group resources and tags clusters. */
 .left-panel-section {

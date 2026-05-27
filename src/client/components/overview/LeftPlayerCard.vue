@@ -34,6 +34,47 @@
       <span v-else-if="hasStatus" v-i18n>{{ actionLabel }}</span>
       <span v-else>&nbsp;</span>
     </div>
+    <!--
+      Turn-control column: PASS on top, END TURN below. Rendered ONLY on
+      the viewer's own card — other players' cards never expose actions
+      from this client. Buttons stack vertically because END TURN's full
+      Russian label ("ЗАВЕРШИТЬ ХОД") doesn't fit comfortably in a
+      half-width slot at this card width.
+      The column's height is reserved for BOTH buttons regardless of
+      whether either is currently offered by the server — unavailable
+      buttons collapse to `visibility: hidden`, which keeps their layout
+      space so the card height stays constant. This matters because
+      END TURN can be conditionally absent (mid-generation logic, or
+      potentially disabled by a future game option); hiding it via
+      display: none would shift everything below it up/down between
+      turns. Buttons stay hidden rather than disabled — visually noisy
+      grey buttons add no information when the action just isn't on
+      offer right now.
+    -->
+    <div v-if="isViewer" class="left-panel-card-actions" @click.stop>
+      <button class="left-panel-card-action-btn left-panel-card-action-btn--pass"
+              :class="{'left-panel-card-action-btn--hidden': !passAvailable}"
+              :title="$t('Pass — end your participation in this generation. You will not be able to take any more actions until the next generation.')"
+              @click="$emit('pass')"
+              data-test="player-card-pass">
+        <span class="left-panel-card-action-btn-label" v-i18n>Pass</span>
+      </button>
+      <button class="left-panel-card-action-btn left-panel-card-action-btn--end-turn"
+              :class="{'left-panel-card-action-btn--hidden': !endTurnAvailable}"
+              :title="$t('End turn — skip your second action and pass the turn to the next player. You can still act in this generation on your next turn.')"
+              @click="$emit('end-turn')"
+              data-test="player-card-end-turn">
+        <!--
+          Distinct English key ("Skip turn") rather than reusing "End Turn"
+          here on purpose — the upstream "End Turn" key feeds into action-log
+          templates ("${player} ended turn" → "завершил ход"), and changing
+          its Russian translation would silently rewrite the log too. The
+          button-label key lives on its own so we can pick the wording that
+          reads best on this control without affecting other contexts.
+        -->
+        <span class="left-panel-card-action-btn-label" v-i18n>Skip turn</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -72,8 +113,29 @@ export default defineComponent({
       type: String as () => ActionLabel,
       default: 'none',
     },
+    // True iff this card belongs to the viewer (the player using this
+    // client). Controls whether the turn-control button row (Pass / End
+    // Turn) is rendered at all — other players' cards never expose
+    // actions for this client to submit.
+    isViewer: {
+      type: Boolean,
+      default: false,
+    },
+    // Server-confirmed availability of each top-level action option. The
+    // parent walks `waitingFor` for the matching SelectOption; presence
+    // === available. Buttons render but are disabled when their flag is
+    // false, so the card layout stays constant whether a button is
+    // offered or not.
+    passAvailable: {
+      type: Boolean,
+      default: false,
+    },
+    endTurnAvailable: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['select'],
+  emits: ['select', 'pass', 'end-turn'],
   computed: {
     cardClass(): string {
       const classes = ['left-panel-card'];

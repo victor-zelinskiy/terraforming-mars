@@ -23,12 +23,13 @@
       :productionProtection="player.protectedProduction.titanium"/>
     <!--
       Plants row carries the "Convert plants into a greenery" button on its
-      right edge. The button is RENDERED whenever the viewer has at least
-      `plantsNeededForGreenery` plants on hand — so it's a persistent visual
-      cue that "you have enough to convert". Whether it's clickable is a
-      separate state (`convertPlantsAvailable`) — server-side action gate.
-      Picker mode (`--picking`) signals the user is currently choosing a
-      space on the board.
+      right edge. Rendered ONLY when the server is currently offering the
+      action (or the player is mid-picker, so they can cancel by clicking
+      again). Keeping the button visible while NOT actionable was the old
+      "permanent indicator" UX — but it conflicts with the rest of the
+      fork's contract (action buttons appear when actionable, otherwise
+      hide). The arrow follows the same visibility so it doesn't dangle
+      next to the plants count between turns.
     -->
     <div class="resource_item_wrapper" :class="{'resource_item_wrapper--with-convert': plantsButtonVisible}">
       <player-resource
@@ -40,13 +41,9 @@
       <span v-if="plantsButtonVisible" class="convert-action-arrow"></span>
       <button v-if="plantsButtonVisible"
               class="convert-action-btn convert-action-btn--plants"
-              :class="{
-                'convert-action-btn--disabled': !convertPlantsAvailable,
-                'convert-action-btn--picking': convertPlantsPickerActive,
-              }"
-              :disabled="!convertPlantsAvailable && !convertPlantsPickerActive"
+              :class="{'convert-action-btn--picking': convertPlantsPickerActive}"
               :title="$t(plantsTooltip)"
-              v-on:click.stop="onPlantsClick">
+              v-on:click.stop="$emit('convert-plants')">
         <span class="convert-action-btn-icon convert-action-btn-icon--plant"></span>
         <span class="convert-action-btn-label" v-i18n>Spend</span>
         <span class="convert-action-btn-cost">{{ player.plantsNeededForGreenery }}</span>
@@ -69,8 +66,6 @@
       <span v-if="heatButtonVisible" class="convert-action-arrow"></span>
       <button v-if="heatButtonVisible"
               class="convert-action-btn convert-action-btn--heat"
-              :class="{'convert-action-btn--disabled': !convertHeatAvailable}"
-              :disabled="!convertHeatAvailable"
               :title="$t(heatTooltip)"
               v-on:click.stop="$emit('convert-heat')">
         <span class="convert-action-btn-icon convert-action-btn-icon--temperature"></span>
@@ -131,34 +126,33 @@ export default defineComponent({
     canUseHeatAsMegaCredits(): boolean {
       return this.player.tableau.some((card) => card.name === CardName.HELION);
     },
-    // Button is rendered when the resource amount is sufficient AND the
-    // displayed player is the viewer — it serves as a permanent "you could
-    // convert if it were your turn" indicator. Click-through is gated by
-    // `convertXAvailable`. Never rendered when viewing another player —
-    // their resources are visible for awareness only, not for actioning.
+    // Button is rendered when the server currently offers the matching
+    // convert action — which the server only does when it's the viewer's
+    // turn AND the resource amount is sufficient (see ServerModel.ts's
+    // `inActionSelection && ConvertX.canAct(player)` gate). The viewer
+    // check is upstream: PlayerHome only passes `convertXAvailable` for
+    // the viewer's own panel, and `isViewer` guards against panels
+    // displaying other players. For convert-plants we also keep the
+    // button visible while the picker is active so the player can cancel
+    // it with a second click — the picker is a client-side mode where
+    // the server-side action flag may flip false transiently as nothing
+    // else.
     plantsButtonVisible(): boolean {
-      return this.isViewer && this.player.plants >= this.player.plantsNeededForGreenery;
+      return this.isViewer &&
+        (this.convertPlantsAvailable || this.convertPlantsPickerActive);
     },
     heatButtonVisible(): boolean {
-      return this.isViewer && this.player.heat >= this.player.heatNeededForTemperature;
+      return this.isViewer && this.convertHeatAvailable;
     },
+    // Tooltip only needs to disambiguate the picker-mode case for plants;
+    // the "not available" tooltip is gone because the button no longer
+    // renders in that state.
     plantsTooltip(): string {
       if (this.convertPlantsPickerActive) return 'Click a greenery space on the board';
-      if (!this.convertPlantsAvailable) return 'Action is not available right now';
       return 'Convert plants into a greenery tile';
     },
     heatTooltip(): string {
-      if (!this.convertHeatAvailable) return 'Action is not available right now';
       return 'Spend heat to raise temperature by 1 step';
-    },
-  },
-  methods: {
-    // Plants button click: only allow when the server is actually offering
-    // the action (or the picker is already active, so the user can cancel
-    // by clicking again).
-    onPlantsClick(): void {
-      if (!this.convertPlantsAvailable && !this.convertPlantsPickerActive) return;
-      this.$emit('convert-plants');
     },
   },
   components: {

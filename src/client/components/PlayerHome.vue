@@ -103,9 +103,13 @@
       :convertPlantsAvailable="convertPlantsAvailable && displayedPlayer.color === thisPlayer.color"
       :convertPlantsPickerActive="convertPlantsPickerActive"
       :isViewer="displayedPlayer.color === thisPlayer.color"
+      :passAvailable="passAvailable"
+      :endTurnAvailable="endTurnAvailable"
       @selectPlayer="selectedPlayerColor = $event"
       @convert-heat="convertHeat"
-      @convert-plants="toggleConvertPlantsPicker" />
+      @convert-plants="toggleConvertPlantsPicker"
+      @pass="onPassClick"
+      @end-turn="onEndTurnClick" />
 
     <!--
       Active controller for the Convert-Plants space picker. Renders the
@@ -138,6 +142,20 @@
         :playerinput="pendingStdProjectPayment.input"
         @confirm="onStdProjectPaymentConfirm($event)"
         @cancel="onStdProjectPaymentCancel" />
+    </MandatoryInputModal>
+
+    <!--
+      Client-side confirmation gate for the Pass action. Pass commits the
+      player out of the rest of the generation, so we double-prompt before
+      POSTing. Mounted on click of the in-card PASS button; Confirm submits,
+      Cancel just unmounts the modal (no server round-trip).
+    -->
+    <MandatoryInputModal v-if="passConfirmOpen"
+                         :title="$t('Pass for this generation')"
+                         :minimizable="false">
+      <PassConfirmContent
+        @confirm="onPassConfirm"
+        @cancel="onPassCancel" />
     </MandatoryInputModal>
 
     <div v-if="activeOverlay === 'log'" class="bar-overlay bar-overlay--log">
@@ -325,6 +343,7 @@ import SelectSpace from '@/client/components/SelectSpace.vue';
 import StandardProjectsOverlay from '@/client/components/overview/StandardProjectsOverlay.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import StandardProjectPaymentContent from '@/client/components/payment/StandardProjectPaymentContent.vue';
+import PassConfirmContent from '@/client/components/overview/PassConfirmContent.vue';
 import {Payment} from '@/common/inputs/Payment';
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
@@ -391,6 +410,10 @@ type PlayerHomeModel = ToggleableState & {
   // the outer OR-payload and submit.
   convertPlantsPickerActive: boolean;
   pendingStdProjectPayment: PendingStdProjectPayment | undefined;
+  // True while the Pass confirmation modal is open. The pass action is
+  // irreversible (no more turns this generation), so we gate it through
+  // a client-side confirmation modal before POSTing to the server.
+  passConfirmOpen: boolean;
 }
 
 type ToggleableCardType = 'HAND' | 'ACTIVE' | 'AUTOMATED' | 'EVENT';
@@ -416,6 +439,7 @@ export default defineComponent({
       activeOverlay: null,
       convertPlantsPickerActive: false,
       pendingStdProjectPayment: undefined,
+      passConfirmOpen: false,
     };
   },
   watch: {
@@ -592,6 +616,19 @@ export default defineComponent({
     convertPlantsAvailable(): boolean {
       return this.thisPlayer.canConvertPlants === true;
     },
+    // Pass / End-Turn availability. Both options live as siblings inside the
+    // top-level action OrOptions (Player.ts → getActions). The server has
+    // already applied every rule that decides whether each option is offered
+    // right now (Pass is unconditional while it's the player's turn; End Turn
+    // requires actionsTakenThisRound > 0 and that not every other player has
+    // passed). So the option's presence in `waitingFor` IS the source of
+    // truth — we don't re-derive availability client-side.
+    passAvailable(): boolean {
+      return this.findPassPath(this.playerView.waitingFor) !== undefined;
+    },
+    endTurnAvailable(): boolean {
+      return this.findEndTurnPath(this.playerView.waitingFor) !== undefined;
+    },
     convertPlantsPrompt(): SelectSpaceModel | undefined {
       return this.findConvertPlantsOption(this.playerView.waitingFor)?.spacePrompt as SelectSpaceModel | undefined;
     },
@@ -628,6 +665,7 @@ export default defineComponent({
     StandardProjectsOverlay,
     MandatoryInputModal,
     StandardProjectPaymentContent,
+    PassConfirmContent,
   },
   methods: {
     isPlayerActing(playerView: PlayerViewModel) : boolean {
@@ -788,6 +826,37 @@ export default defineComponent({
       }
       return undefined;
     },
+    // Walks the action tree looking for a SelectOption with the given title
+    // (e.g. "Pass for this generation" / "End Turn"). Returns the index PATH
+    // from the root so we can wrap a `{type: 'option'}` response in the right
+    // number of nested OR layers. Pass + End Turn are siblings at the top
+    // level of the action OrOptions; recursion handles wrapping (initial-
+    // action menus, etc.).
+    findOptionPathByTitle(
+      wf: PlayerInputModel | undefined,
+      title: string,
+      pathSoFar: ReadonlyArray<number> = [],
+    ): ReadonlyArray<number> | undefined {
+      if (!wf) return undefined;
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const opt = options[i];
+          if (opt.type === 'option' && inputTitleText(opt.title) === title) {
+            return [...pathSoFar, i];
+          }
+          const deeper = this.findOptionPathByTitle(opt, title, [...pathSoFar, i]);
+          if (deeper) return deeper;
+        }
+      }
+      return undefined;
+    },
+    findPassPath(wf: PlayerInputModel | undefined): ReadonlyArray<number> | undefined {
+      return this.findOptionPathByTitle(wf, 'Pass for this generation');
+    },
+    findEndTurnPath(wf: PlayerInputModel | undefined): ReadonlyArray<number> | undefined {
+      return this.findOptionPathByTitle(wf, 'End Turn');
+    },
     findAwardOptionPath(wf: PlayerInputModel | undefined) {
       // Primary: title-prefix match. The server sets the title to
       // `'Fund an award (${0} M€)'` with the current cost baked in.
@@ -869,6 +938,48 @@ export default defineComponent({
       if (this.submitInnerActionResponse(found, name)) {
         this.activeOverlay = null;
       }
+    },
+    // Submits a top-level SelectOption picked from the action menu via its
+    // index PATH. Wraps a `{type: 'option'}` response in one OR layer per
+    // index (innermost first) — same shape the legacy radio UI would POST
+    // when the player picks the option and hits Submit. Returns true on
+    // successful submission, false if the path is empty or the WaitingFor
+    // ref is missing.
+    submitActionOptionPath(path: ReadonlyArray<number>): boolean {
+      if (path.length === 0) return false;
+      let response: unknown = {type: 'option' as const};
+      for (let i = path.length - 1; i >= 0; i--) {
+        response = {type: 'or' as const, index: path[i], response};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      if (wfRef?.onsave) {
+        wfRef.onsave(response);
+        return true;
+      }
+      return false;
+    },
+    // End-Turn: no confirmation modal (skipping the second action is a
+    // mild commitment, easily recoverable next round). Submits the
+    // server-offered "End Turn" SelectOption straight through.
+    onEndTurnClick(): void {
+      const path = this.findEndTurnPath(this.playerView.waitingFor);
+      if (path === undefined) return;
+      this.submitActionOptionPath(path);
+    },
+    // Pass: irreversible for the rest of the generation. Click opens the
+    // client-side confirmation modal; only Confirm fires the network call.
+    onPassClick(): void {
+      if (!this.passAvailable) return;
+      this.passConfirmOpen = true;
+    },
+    onPassConfirm(): void {
+      const path = this.findPassPath(this.playerView.waitingFor);
+      this.passConfirmOpen = false;
+      if (path === undefined) return;
+      this.submitActionOptionPath(path);
+    },
+    onPassCancel(): void {
+      this.passConfirmOpen = false;
     },
     // One-click conversion of 8 heat (or 6 for Kelvinists kp03) into +1
     // temperature step. Builds a nested OR-response that mirrors the depth
