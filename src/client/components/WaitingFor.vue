@@ -14,7 +14,40 @@
       </label>
       <div v-if="showRefresh()">Refresh<span class="reset"></span></div>
     </template>
-    <player-input-factory :players="playerView.players"
+
+    <!--
+      Mandatory-input modal route. When the top-level prompt is one of the
+      types in MODAL_INPUT_TYPES (currently just `'payment'` while we pilot
+      the pattern), host the input inside a centered modal instead of
+      inline. The Actions section in the player home is hidden via the
+      `is-modal-host` class so the inline factory below doesn't fight the
+      modal for the same input. See CLAUDE.md "Mandatory-input modal pattern".
+    -->
+    <MandatoryInputModal v-if="useModalForCurrentInput"
+                         :title="modalPillTitle">
+      <!--
+        World Government Terraforming is hosted via a dedicated button-grid
+        component instead of generic OrOptions radios — see CLAUDE.md
+        "Mandatory-input modal pattern". Click on a SelectOption button
+        commits the choice instantly; click on the SelectSpace ("Add an
+        ocean") button activates board pickup mode via the picker-mode
+        mechanism (modal hides, planet becomes interactive).
+      -->
+      <WorldGovernmentModalContent v-if="wgtInput !== undefined"
+                                   :playerView="playerViewForPrompt"
+                                   :playerinput="wgtInput"
+                                   :onsave="onsave" />
+      <player-input-factory v-else
+                            :players="playerView.players"
+                            :playerView="playerView"
+                            :playerinput="waitingfor"
+                            :onsave="onsave"
+                            :showsave="true"
+                            :showtitle="true" />
+    </MandatoryInputModal>
+
+    <player-input-factory v-else
+                          :players="playerView.players"
                           :playerView="playerView"
                           :playerinput="waitingfor"
                           :onsave="onsave"
@@ -31,7 +64,7 @@ import {defineComponent} from 'vue';
 import * as constants from '@/common/constants';
 import raw_settings from '@/genfiles/settings.json';
 import {vueRoot} from '@/client/components/vueRoot';
-import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {playerColorClass} from '@/common/utils/utils';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {getPreferences} from '@/client/utils/PreferencesManager';
@@ -45,6 +78,48 @@ import {InputResponse} from '@/common/inputs/InputResponse';
 import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {Color} from '@/common/Color';
 import {gameDocumentTitle} from '../utils/documentTitle';
+import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
+import WorldGovernmentModalContent from '@/client/components/WorldGovernmentModalContent.vue';
+import {Message} from '@/common/logs/Message';
+
+const WGT_TITLE = 'Select action for World Government Terraforming';
+
+// Title strings (from the server-side prompt) that identify specific
+// OrOptions prompts which should pop as a modal. Matched by exact equality
+// after unwrapping `Message` objects to their `.message` field. See
+// CLAUDE.md "Mandatory-input modal pattern".
+const MODAL_OR_TITLES: ReadonlySet<string> = new Set([
+  WGT_TITLE,
+]);
+
+// PlayerInput types that ALWAYS render in the modal regardless of title
+// (used for `'payment'`-style prompts where every instance is mandatory).
+const MODAL_INPUT_TYPES: ReadonlySet<PlayerInputModel['type']> = new Set([
+  'payment',
+]);
+
+function titleText(title: string | Message | undefined): string | undefined {
+  if (title === undefined) return undefined;
+  return typeof title === 'string' ? title : title.message;
+}
+
+// Returns true when the given top-level PlayerInput is one of the
+// "mandatory choice" prompts we route through MandatoryInputModal.
+//
+// Two-layer detection:
+//  - by `type`: any input whose type unconditionally belongs in a modal
+//    (currently `'payment'`).
+//  - by title: specific `OrOptions` prompts that share the generic `'or'`
+//    type with the regular action menu but should be modal'd (World
+//    Government Terraforming is the first).
+function shouldRouteToModal(input: PlayerInputModel): boolean {
+  if (MODAL_INPUT_TYPES.has(input.type)) return true;
+  if (input.type === 'or') {
+    const t = titleText(input.title);
+    if (t !== undefined && MODAL_OR_TITLES.has(t)) return true;
+  }
+  return false;
+}
 
 let ui_update_timeout_id: number | undefined;
 let documentTitleTimer: number | undefined;
@@ -59,8 +134,16 @@ const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting 
 
 export default defineComponent({
   name: 'waiting-for',
+  components: {
+    MandatoryInputModal,
+    WorldGovernmentModalContent,
+  },
   props: {
     playerView: {
+      // ViewModel covers both PlayerViewModel (actual players) and the
+      // narrower SpectatorModel — SpectatorHome.vue mounts WaitingFor
+      // purely for its polling lifecycle and never triggers any prompts
+      // (waitingfor is always undefined for spectators).
       type: Object as () => ViewModel,
       required: true,
     },
@@ -279,6 +362,33 @@ export default defineComponent({
     },
     playerColorClass(): typeof playerColorClass {
       return playerColorClass;
+    },
+    useModalForCurrentInput(): boolean {
+      return this.waitingfor !== undefined && shouldRouteToModal(this.waitingfor);
+    },
+    isWgtInput(): boolean {
+      return this.wgtInput !== undefined;
+    },
+    // Narrowed reference to the current waitingfor when it's the WGT
+    // prompt — typed as OrOptionsModel so the dedicated component receives
+    // the right shape (the raw `waitingfor` prop is a union).
+    wgtInput(): OrOptionsModel | undefined {
+      const wf = this.waitingfor;
+      if (wf === undefined || wf.type !== 'or') return undefined;
+      return titleText(wf.title) === WGT_TITLE ? wf : undefined;
+    },
+    // PlayerViewModel narrow cast for child components that need
+    // player-specific fields. By the time we hit this computed there's
+    // always a waitingfor, which only exists for actual players (never
+    // spectators) — so the cast is safe.
+    playerViewForPrompt(): PlayerViewModel {
+      return this.playerView as PlayerViewModel;
+    },
+    // Title fed into the modal so the minimized pill can show what
+    // prompt is awaiting decision. Reads straight off the current
+    // waitingfor — same string the modal title bar would show.
+    modalPillTitle(): string | Message {
+      return this.waitingfor?.title ?? '';
     },
   },
 });

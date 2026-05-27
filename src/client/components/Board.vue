@@ -1,10 +1,11 @@
 <template>
     <div :class="getGameBoardClassName()">
-        <div class="hide-tile-button-container">
-          <div class="hide-tile-button" @click="$emit('toggleTileView')" data-test="hide-tiles-button" v-i18n>
-            {{ tileView }} tiles
-          </div>
-        </div>
+        <!--
+          "Show/Hide tiles" toggle removed for this fork — not used. The
+          `toggleTileView` emit is preserved at the component contract
+          level so upstream merges don't conflict; tileView simply stays
+          at its default (full tiles) for the duration of the game.
+        -->
         <div class="board-outer-spaces" id="colony_spaces">
           <board-space v-if="hasSpace(SpaceName.GANYMEDE_COLONY)" :space="getSpace(SpaceName.GANYMEDE_COLONY)" text="Ganymede Colony" :tileView="tileView"></board-space>
           <board-space v-if="hasSpace(SpaceName.PHOBOS_SPACE_HAVEN)" :space="getSpace(SpaceName.PHOBOS_SPACE_HAVEN)" text="Phobos Space Haven" :tileView="tileView"></board-space>

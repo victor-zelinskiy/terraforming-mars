@@ -38,6 +38,19 @@ export function actionLabelForPlayer(
   livePlayersWaitingFor?: ReadonlyArray<Color>,
 ): ActionLabel {
   const game = playerView.game;
+
+  // `passed` is checked BEFORE `isWaiting`. A passed player cannot be the
+  // active waited-on player by definition, and `game.passedPlayers` is part
+  // of the playerView so it updates atomically with `player.actionsTakenThisRound`
+  // when the server processes the pass. Without this ordering, the live
+  // `playersWaitingFor` poll (an independent timer signal) can briefly lag
+  // and report the passer as still waiting — combined with the now-reset
+  // `actionsTakenThisRound=0`, the LeftPlayerCard would flash "ДЕЙСТВИЕ 1/2"
+  // for a tick before the poll catches up and the label switches to passed.
+  if (game.passedPlayers.includes(player.color)) {
+    return 'passed';
+  }
+
   const isWaiting = isPlayerWaiting(player, livePlayersWaitingFor);
 
   if (isWaiting) {
@@ -59,10 +72,6 @@ export function actionLabelForPlayer(
     default:
       return 'turn';
     }
-  }
-
-  if (game.passedPlayers.includes(player.color)) {
-    return 'passed';
   }
 
   // "next" label is only meaningful during ACTION phase — show it on the
@@ -90,7 +99,36 @@ function isPlayerWaiting(
   player: PublicPlayerModel,
   livePlayersWaitingFor: ReadonlyArray<Color> | undefined,
 ): boolean {
+  // Two signals carry "is this player being waited on by the server":
+  //
+  //  - `player.isWaitingForInput` from the playerView model — set when the
+  //    server built the playerView (i.e. atomically with the POST response
+  //    that resolved the previous action).
+  //  - `livePlayersWaitingFor` from an independent poll timer in
+  //    WaitingFor.vue — updates between full playerView refreshes so the
+  //    UI can track simultaneous-action phases (drafting, research)
+  //    without requiring a model refresh.
+  //
+  // When they disagree, the right tiebreaker depends on which is fresher.
+  // The "passer-flash" bug is the canonical disagreement: the viewer just
+  // passed, the POST response arrives with a fresh model where
+  // `isWaitingForInput=false`, but the live poll hasn't caught up yet and
+  // still lists the viewer as waiting. Trusting the live signal here makes
+  // the LeftPlayerCard flash "ДЕЙСТВИЕ 1/2" for a tick before the poll
+  // refreshes (because `actionsTakenThisRound` was reset to 0).
+  //
+  // Rule: if the model says NOT waiting, trust it — there's no realistic
+  // scenario where the server-built playerView says false while the live
+  // signal correctly says true (the live poll can update WITHOUT a model
+  // refresh, but every model refresh comes from the server after the new
+  // state is committed, so the model is never "behind" on `false`).
+  if (!player.isWaitingForInput) {
+    return false;
+  }
+  // Model says waiting. Defer to live signal when available — it can
+  // legitimately disagree by saying "not waiting" if another player
+  // resolved their simultaneous prompt between model refreshes.
   return livePlayersWaitingFor !== undefined
     ? livePlayersWaitingFor.includes(player.color)
-    : player.isWaitingForInput;
+    : true;
 }
