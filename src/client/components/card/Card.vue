@@ -1,5 +1,9 @@
 <template>
   <div class="card-container filterDiv hover-hide-res" :class="cardClasses" @dblclick="onDoubleClick">
+      <span class="card-corner card-corner--tl" aria-hidden="true"></span>
+      <span class="card-corner card-corner--tr" aria-hidden="true"></span>
+      <span class="card-corner card-corner--bl" aria-hidden="true"></span>
+      <span class="card-corner card-corner--br" aria-hidden="true"></span>
       <div class="card-content-wrapper" v-i18n @mouseover="hovering = true" @mouseleave="hovering = false">
           <div v-if="!isStandardProject" class="card-cost-and-tags">
               <CardCost :amount="cost" :newCost="reducedCost" />
@@ -10,10 +14,10 @@
           <CardTitle :title="card.name" :type="cardType"/>
           <CardContent
               :metadata="cardMetadata"
-              :requirements="cardRequirements"
               :isCorporation="isCorporationCard"
               :bottomPadding="bottomPadding" />
       </div>
+      <CardRequirementsComponent v-if="cardRequirements !== undefined && cardRequirements.length > 0" :requirements="cardRequirements" />
       <CardExpansion :expansion="cardExpansion" :isCorporation="isCorporationCard" :isResourceCard="isResourceCard" :compatibility="cardCompatibility" />
       <CardResourceCounter v-if="hasResourceType" :amount="resourceAmount" :type="resourceType" />
       <CardVictoryPoints v-if="cardMetadata.victoryPoints" :victoryPoints="cardMetadata.victoryPoints" />
@@ -37,6 +41,7 @@ import CardExpansion from './CardExpansion.vue';
 import CardTags from './CardTags.vue';
 import CardVictoryPoints from './CardVictoryPoints.vue';
 import CardContent from './CardContent.vue';
+import CardRequirementsComponent from './CardRequirementsComponent.vue';
 import CardHelp from './CardHelp.vue';
 import CardZoomModal from './CardZoomModal.vue';
 import {CardType} from '@/common/cards/CardType';
@@ -61,6 +66,7 @@ export default defineComponent({
     CardExpansion,
     CardTags,
     CardContent,
+    CardRequirementsComponent,
     CardVictoryPoints,
     CardZoomModal,
   },

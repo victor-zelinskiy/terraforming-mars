@@ -128,6 +128,31 @@ a:active {
     unicode-range: U+0104-0107, U+0118-0119, U+0141-0144, U+00D3, U+00F3, U+015A, U+015B, U+0179, U+017A-017C; /* Polish glyphs */
 }
 
+/*
+ * Russo One — heavy game-display font shipped self-hosted in /assets/.
+ * Has full Latin + Cyrillic coverage so Russian card titles render
+ * directly in the title face instead of falling back to Ubuntu.
+ * Single weight (regular only) — Russo One isn't designed to be set
+ * bold, browser-faux-bold looks crude. font-weight stays at normal.
+ */
+@font-face {
+    font-family: "Russo One";
+    src: url(./assets/RussoOne-Regular.ttf);
+    font-display: swap;
+}
+
+/*
+ * Anton — heavy condensed display font (Google Fonts), self-hosted.
+ * Single weight regular, full Latin + Cyrillic. More compressed than
+ * Russo One — fits long Russian card names better and reads closer
+ * to the condensed display fonts used in Steam Asmodee Digital UI.
+ */
+@font-face {
+    font-family: "Anton";
+    src: url(./assets/Anton-Regular.ttf);
+    font-display: swap;
+}
+
 body {
     background: @bg_main;
     color: @text_main;
@@ -198,6 +223,7 @@ each(@players, {
 
 @import "./cards.less";
 @import "./cards_v2.less";
+@import "./cards_scifi.less";
 @import "./language_hacks.less";
 @import "./board.less";
 @import "./board_items_positions.less";

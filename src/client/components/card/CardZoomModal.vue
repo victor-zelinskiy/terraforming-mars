@@ -4,6 +4,10 @@
       <button class="card-zoom-close" @click="close()">&times;</button>
       <div v-if="cardInstance" class="card-zoom-card">
         <div class="card-container filterDiv card-auto-tall" v-i18n>
+          <span class="card-corner card-corner--tl" aria-hidden="true"></span>
+          <span class="card-corner card-corner--tr" aria-hidden="true"></span>
+          <span class="card-corner card-corner--bl" aria-hidden="true"></span>
+          <span class="card-corner card-corner--br" aria-hidden="true"></span>
           <div class="card-content-wrapper">
             <div v-if="!isStandardProject" class="card-cost-and-tags">
               <CardCost :amount="cost" :newCost="reducedCost" />
@@ -12,10 +16,10 @@
             <CardTitle :title="card.name" :type="cardType"/>
             <CardContent
                 :metadata="cardMetadata"
-                :requirements="cardRequirements"
                 :isCorporation="isCorporationCard"
                 :bottomPadding="bottomPadding" />
           </div>
+          <CardRequirementsComponent v-if="cardRequirements !== undefined && cardRequirements.length > 0" :requirements="cardRequirements" />
           <CardExpansion :expansion="cardExpansion" :isCorporation="isCorporationCard" :isResourceCard="isResourceCard" :compatibility="cardCompatibility" />
           <CardResourceCounter v-if="hasResourceType" :amount="resourceAmount" :type="resourceType" />
           <CardVictoryPoints v-if="cardMetadata.victoryPoints" :victoryPoints="cardMetadata.victoryPoints" />
@@ -41,6 +45,7 @@ import CardTitle from './CardTitle.vue';
 import CardCost from './CardCost.vue';
 import CardTags from './CardTags.vue';
 import CardContent from './CardContent.vue';
+import CardRequirementsComponent from './CardRequirementsComponent.vue';
 import CardExpansion from './CardExpansion.vue';
 import CardResourceCounter from './CardResourceCounter.vue';
 import CardVictoryPoints from './CardVictoryPoints.vue';
@@ -58,6 +63,7 @@ export default defineComponent({
     CardCost,
     CardTags,
     CardContent,
+    CardRequirementsComponent,
     CardExpansion,
     CardResourceCounter,
     CardVictoryPoints,
