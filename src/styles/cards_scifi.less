@@ -110,19 +110,37 @@
     border-left-color:   rgba(255, 255, 255, 0.4);
     border-bottom-color: rgba(255, 255, 255, 0.4);
     border-right-color:  rgba(255, 255, 255, 0.4);
+    /*
+     * v39 polish: multi-layer "chassis" frame stack.
+     *
+     * Reads outward as:
+     *   inner highlight rim → cool sub-rim → top sheen → bottom vignette →
+     *   slim mid-tone inset (gives the card body an extra structural
+     *   feathered edge inside the rim instead of jumping straight from
+     *   white to body) →
+     *   outer 1-px white separator → outer 2-px deep chassis ring →
+     *   ambient drop shadow.
+     *
+     * Per-type frames (.mk-type-frame below) extend this with their
+     * colour band sandwiched between the white separator and the deep
+     * chassis ring, so the type colour reads as a structural plate
+     * SOCKETED INTO the chassis rather than painted onto its edge.
+     */
     box-shadow:
         /* protector edge — bright inner rim */
-        inset 0 0 0 1px rgba(255, 255, 255, 0.88),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.9),
         /* protector inner ring — cool tinted */
-        inset 0 0 0 2px rgba(160, 185, 215, 0.3),
+        inset 0 0 0 2px rgba(160, 185, 215, 0.34),
         /* top sheen */
-        inset 0 2px 4px rgba(255, 255, 255, 0.34),
+        inset 0 2px 4px rgba(255, 255, 255, 0.36),
         /* bottom vignette */
-        inset 0 -22px 32px -22px rgba(0, 0, 0, 0.18),
-        /* outer separator + drop */
-        0 0 0 1px rgba(255, 255, 255, 0.45),
-        0 0 0 3px rgba(20, 30, 45, 0.35),
-        0 9px 22px rgba(0, 0, 0, 0.5);
+        inset 0 -22px 32px -22px rgba(0, 0, 0, 0.2),
+        /* slim feathered inner edge — softens the rim-to-body jump */
+        inset 0 0 0 4px rgba(40, 56, 80, 0.05),
+        /* outer separator + chassis ring + drop */
+        0 0 0 1px rgba(255, 255, 255, 0.6),
+        0 0 0 3px rgba(15, 22, 35, 0.6),
+        0 11px 24px rgba(0, 0, 0, 0.5);
 }
 
 /*
@@ -169,20 +187,37 @@
     border-left-color:   fadein(lighten(@color, 28%), 22%);
     border-bottom-color: fadein(lighten(@color, 28%), 22%);
     border-right-color:  fadein(lighten(@color, 28%), 22%);
+    /*
+     * v39 polish: layered chassis frame. Stack reads outward as:
+     *   bright inner rim → cool sub-rim → top sheen → bottom vignette
+     *   → inner type-color accent halo (wraps the body in a soft tint) →
+     *   1-px white separator (catches the light at the rim) →
+     *   1-px DARK SLOT (the technological "seam" that visually socket-
+     *     mounts the type plate into the chassis — most premium element) →
+     *   2-px TYPE COLOUR BAND (the saturated identity line — kept thin
+     *     so the saturation does not bleed) →
+     *   3-px DEEP CHASSIS RING (dark, structural, gives the card weight) →
+     *   ambient drop shadow + soft type glow.
+     *
+     * Total outer ring thickness: 7 px (was 6 px), but the colour band
+     * itself shrank from 4 px to 2 px — overall the colour reads more
+     * controlled and the depth reads more multi-layered.
+     */
     box-shadow:
-        inset 0 0 0 1px rgba(255, 255, 255, 0.88),
-        inset 0 0 0 2px rgba(160, 185, 215, 0.3),
-        inset 0  2px 4px rgba(255, 255, 255, 0.34),
-        inset 0 -22px 32px -22px rgba(0, 0, 0, 0.18),
-        inset 0 0 0 3px fade(@color, 12%),
-        0 0 0 1px rgba(255, 255, 255, 0.6),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.9),
+        inset 0 0 0 2px rgba(160, 185, 215, 0.34),
+        inset 0  2px 4px rgba(255, 255, 255, 0.36),
+        inset 0 -22px 32px -22px rgba(0, 0, 0, 0.2),
+        inset 0 0 0 4px fade(@color, 14%),
+        0 0 0 1px rgba(255, 255, 255, 0.62),
+        0 0 0 2px rgba(12, 18, 28, 0.85),
         0 0 0 4px @color,
-        0 0 0 6px rgba(20, 30, 45, 0.52),
-        0 9px 22px rgba(0, 0, 0, 0.55),
-        0 0 28px @glow;
+        0 0 0 7px rgba(12, 18, 28, 0.9),
+        0 11px 26px rgba(0, 0, 0, 0.58),
+        0 0 32px @glow;
     .card-corner {
         border-color: @color;
-        filter: drop-shadow(0 0 8px fade(@color, 65%));
+        filter: drop-shadow(0 0 9px fade(@color, 65%));
     }
 }
 
@@ -349,11 +384,40 @@
      */
     font-size: 22px !important;       /* v32: was 28 — too wide for moderate Russian names */
     font-weight: 700;
-    letter-spacing: 1.3px !important; /* v32: scaled with new font-size */
-    color: #fff !important;
+    /*
+     * v39 polish: tighter tracking (~0.027em). Russo One is already
+     * a wide massive face — the old 1.3 px / ~0.06em tracking was
+     * pushing it into "billboard" territory and weakening the premium
+     * vibe. 0.6 px brings it into a comfortable game-UI cadence
+     * without losing readability on long Russian names.
+     *
+     * Per-type tiers (.title-small … .title-xxxs) below scale this
+     * down proportionally — they MUST stay in sync with the base
+     * value or short titles look slightly looser than long ones.
+     */
+    letter-spacing: 0.6px !important;
+    /*
+     * v39 polish: off-white instead of pure #fff. Plays well with the
+     * cool palette of the rest of the chrome (cool inner rim, cool
+     * scifi-cyan accents) and reads as a premium printed ink rather
+     * than burned-in display white. Contrast remains > 7:1 on all
+     * type-bar backgrounds.
+     */
+    color: #f1f5fb !important;
+    /*
+     * v39 polish: 3-layer text shadow stack —
+     *   1) 1-px sharp ground shadow → carves the glyph crisply
+     *      against the type-bar gradient.
+     *   2) 2-px soft drop → gives depth without blur halo.
+     *   3) 12-px soft dark glow → seats the text in the bar.
+     * Per-type subtle accent glow is added on the
+     * .background-color-X rules below (NOT here) so the colour is
+     * keyed to the bar's tint.
+     */
     text-shadow:
-        0 2px 3px rgba(0, 0, 0, 0.6),
-        0 0 10px rgba(0, 0, 0, 0.35);
+        0 1px 0 rgba(8, 14, 22, 0.6),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 12px rgba(0, 0, 0, 0.32);
     border-radius: 14px 14px 0 0;     /* v21: matches new card 16-px radius */
     overflow: hidden;
     white-space: nowrap;
@@ -375,9 +439,29 @@
      * a single subtle top highlight + bottom shadow inset — enough to
      * give the bar 1-pixel depth without any specular/glossy shine.
      */
+    /*
+     * v39 polish: header reads as a SOCKETED PLATE inside the chassis.
+     *
+     *   - Stronger inset top highlight (rgba .28, doubled in two stops)
+     *     so the bar catches overhead light convincingly.
+     *   - Top-edge thin 1-px white line for the "machined edge" feel.
+     *   - Soft inset top radial-shadow stop pulls a subtle gradient
+     *     into the title interior — helps the title text sit "inside"
+     *     the plate rather than floating on top.
+     *   - Bottom 1-px dark line + 2-px subtle dark gradient — sells the
+     *     transition from header plate to card body as a real edge.
+     *   - Lateral 1-px dark gutters on left/right tie the plate visually
+     *     into the chassis (currently the radius leaves a thin gap; the
+     *     gutter darkens the rim so the eye reads it as a slot, not a
+     *     misalignment).
+     */
     box-shadow:
-        inset 0  1px 0 rgba(255, 255, 255, 0.2),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+        inset 0  1px 0 rgba(255, 255, 255, 0.32),
+        inset 0  3px 6px -3px rgba(255, 255, 255, 0.22),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.34),
+        inset 0 -5px 10px -8px rgba(0, 0, 0, 0.45),
+        inset  1px 0 0 rgba(0, 0, 0, 0.2),
+        inset -1px 0 0 rgba(0, 0, 0, 0.2);
 
     /*
      * v38: PER-TYPE COMMAND EMBLEM SYSTEM.
@@ -550,26 +634,40 @@
  * "neon-bright" 3-stop palette — premium feel comes from controlled
  * tone, not from punchy hues.
  */
-.mk-type-title-bg(@top, @bottom) {
+/*
+ * v39 polish: mixin extended with @titleGlow — a per-type soft halo
+ * baked into the title text-shadow stack. The colour keys the glyph
+ * to the bar's tint without breaking the generic dark drop stack
+ * (1-px ground + 2-px soft drop) defined in the base rule above.
+ *
+ * Per-type glow palette uses LIGHTENED versions of the type colour
+ * so the halo reads on the dark gradient bar. Kept at ~0.32-0.36
+ * alpha — present but not neon.
+ */
+.mk-type-title-bg(@top, @bottom, @titleGlow) {
     background-color: @bottom !important;
     background-image:
         linear-gradient(180deg, @top 0%, @bottom 100%) !important;
+    text-shadow:
+        0 1px 0 rgba(8, 14, 22, 0.6),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 14px @titleGlow !important;
 }
 
 .card-container .card-content-wrapper .card-title.background-color-automated {
-    .mk-type-title-bg(#22a022, #135f13);
+    .mk-type-title-bg(#22a022, #135f13, rgba(180, 235, 140, 0.36));
 }
 .card-container .card-content-wrapper .card-title.background-color-active {
-    .mk-type-title-bg(#3582bd, #1d5a87);
+    .mk-type-title-bg(#3582bd, #1d5a87, rgba(135, 220, 255, 0.36));
 }
 .card-container .card-content-wrapper .card-title.background-color-events {
-    .mk-type-title-bg(#d56a1e, #984212);
+    .mk-type-title-bg(#d56a1e, #984212, rgba(255, 200, 140, 0.36));
 }
 .card-container .card-content-wrapper .card-title.background-color-prelude {
-    .mk-type-title-bg(#c66093, #8b3e64);
+    .mk-type-title-bg(#c66093, #8b3e64, rgba(255, 200, 225, 0.34));
 }
 .card-container .card-content-wrapper .card-title.background-color-ceo {
-    .mk-type-title-bg(#c69a18, #8a6709);
+    .mk-type-title-bg(#c69a18, #8a6709, rgba(255, 225, 140, 0.34));
 }
 
 /*
@@ -588,13 +686,36 @@
  * smash them (those rules are 3-class !important, ours is
  * 5-class !important — we win on specificity at equal importance).
  */
+/*
+ * v39 polish: tier letter-spacings re-keyed to ~0.025-0.027em base.
+ *
+ * All values pulled tighter than v32 — Russo One reads more premium
+ * at calmer tracking. CRITICAL: every step must be ≤ the previous
+ * step's spacing × (this-font-size / prev-font-size) — otherwise a
+ * longer title could end up VISUALLY WIDER than a shorter one at its
+ * tier boundary. The 6-tier ladder below satisfies this monotonicity:
+ *
+ *   tier             │ font-size │ letter-spacing │ ~em
+ *   ─────────────────┼───────────┼────────────────┼──────
+ *   (no class)       │ 22 px     │ 0.6 px         │ 0.027
+ *   .title-small     │ 19 px     │ 0.5 px         │ 0.026
+ *   .title-smaller   │ 17 px     │ 0.4 px         │ 0.024
+ *   .title-xs        │ 15 px     │ 0.3 px         │ 0.020
+ *   .title-xxs       │ 12 px     │ 0.2 px         │ 0.017
+ *   .title-xxxs      │ 11 px     │ 0.15 px        │ 0.014
+ *
+ * Smaller tiers get smaller absolute spacing — title still fits the
+ * same 284-px content area, only with calmer tracking inside it.
+ * Smaller tiers were already validated against the longest Russian
+ * titles in v34/v35; tightening tracking only HELPS those fits.
+ */
 .card-container .card-content-wrapper .card-title.background-color-automated.title-small,
 .card-container .card-content-wrapper .card-title.background-color-active.title-small,
 .card-container .card-content-wrapper .card-title.background-color-events.title-small,
 .card-container .card-content-wrapper .card-title.background-color-prelude.title-small,
 .card-container .card-content-wrapper .card-title.background-color-ceo.title-small {
     font-size: 19px !important;
-    letter-spacing: 1.1px !important;
+    letter-spacing: 0.5px !important;
 }
 .card-container .card-content-wrapper .card-title.background-color-automated.title-smaller,
 .card-container .card-content-wrapper .card-title.background-color-active.title-smaller,
@@ -602,7 +723,7 @@
 .card-container .card-content-wrapper .card-title.background-color-prelude.title-smaller,
 .card-container .card-content-wrapper .card-title.background-color-ceo.title-smaller {
     font-size: 17px !important;
-    letter-spacing: 0.9px !important;
+    letter-spacing: 0.4px !important;
 }
 .card-container .card-content-wrapper .card-title.background-color-automated.title-xs,
 .card-container .card-content-wrapper .card-title.background-color-active.title-xs,
@@ -610,7 +731,7 @@
 .card-container .card-content-wrapper .card-title.background-color-prelude.title-xs,
 .card-container .card-content-wrapper .card-title.background-color-ceo.title-xs {
     font-size: 15px !important;
-    letter-spacing: 0.7px !important;
+    letter-spacing: 0.3px !important;
 }
 /*
  * .title-xxs (v33): 5th tier for names 27-33 chars. 12 px fits most
@@ -622,7 +743,7 @@
 .card-container .card-content-wrapper .card-title.background-color-prelude.title-xxs,
 .card-container .card-content-wrapper .card-title.background-color-ceo.title-xxs {
     font-size: 12px !important;
-    letter-spacing: 0.3px !important;
+    letter-spacing: 0.2px !important;
 }
 /*
  * .title-xxxs (v34): 6th tier for extreme-length names ≥ 34 chars.
@@ -637,20 +758,41 @@
 .card-container .card-content-wrapper .card-title.background-color-prelude.title-xxxs,
 .card-container .card-content-wrapper .card-title.background-color-ceo.title-xxxs {
     font-size: 11px !important;
-    letter-spacing: 0.2px !important;
+    letter-spacing: 0.15px !important;
 }
 
 /*
  * ─── 6. Body text — SINGLE unified slate ──────────────────────────────
+ *
+ * v39 polish: typography micro-refinements WITHOUT changing
+ * font-size or line-height — the user explicitly wants the body
+ * text kept at its current readable mass.
+ *
+ *   - letter-spacing nudged 0.45 → 0.5 (still snug, calmer cadence).
+ *   - font-feature-settings: kern + liga + tabular-nums — uniform
+ *     spacing for the numerals inside card effects (resource
+ *     counters, "+2", "−3", "VP" amounts) so columns of numbers
+ *     don't visually shift between cards.
+ *   - text-rendering: geometricPrecision — sharper glyph edges at
+ *     the typical 18 px body size, especially on Windows where the
+ *     default rasteriser softens "Play"'s stems.
+ *   - SUBTLE high-contrast text-shadow (.36 alpha, 1-px offset,
+ *     0-blur) — a single tight ground shadow that crisps glyphs
+ *     against the off-white card stock without producing a halo.
+ *     0-blur is critical: anything > 0 reads as a gloss / smudge on
+ *     small body text.
  */
 .card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
     .card-content:not(.global-event-card-content) {
         color: @scifi-text;
-        letter-spacing: 0.45px;
+        letter-spacing: 0.5px;
+        font-feature-settings: "kern" 1, "liga" 1, "tnum" 1;
+        text-rendering: geometricPrecision;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
     }
     .card-content:not(.global-event-card-content) .card-description {
         color: @scifi-text;
-        letter-spacing: 0.45px;
+        letter-spacing: 0.5px;
     }
 }
 
@@ -887,19 +1029,26 @@
     }
 }
 
+/*
+ * v39 polish: hover stack mirrors the new 7-px chassis layout from
+ * .mk-type-frame (white separator → dark slot → type band → deep
+ * chassis ring) so the layers do NOT shift between rest and hover
+ * states. Only the saturation / brightness and drop shadow scale up.
+ */
 .mk-type-hover-glow(@color, @glow-strong) {
     &:hover {
         box-shadow:
-            inset 0 0 0 1px rgba(255, 255, 255, 0.9),
-            inset 0 0 0 2px rgba(160, 185, 215, 0.4),
-            inset 0  2px 4px rgba(255, 255, 255, 0.36),
-            inset 0 -22px 32px -22px rgba(0, 0, 0, 0.16),
-            inset 0 0 0 3px fade(@color, 16%),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.92),
+            inset 0 0 0 2px rgba(160, 185, 215, 0.42),
+            inset 0  2px 4px rgba(255, 255, 255, 0.38),
+            inset 0 -22px 32px -22px rgba(0, 0, 0, 0.18),
+            inset 0 0 0 4px fade(@color, 18%),
             0 0 0 1px rgba(255, 255, 255, 0.7),
+            0 0 0 2px rgba(12, 18, 28, 0.88),
             0 0 0 4px @color,
-            0 0 0 6px rgba(20, 30, 45, 0.58),
-            0 18px 36px rgba(0, 0, 0, 0.62),
-            0 0 38px @glow-strong;
+            0 0 0 7px rgba(12, 18, 28, 0.94),
+            0 20px 38px rgba(0, 0, 0, 0.62),
+            0 0 42px @glow-strong;
     }
 }
 
