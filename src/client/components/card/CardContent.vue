@@ -1,6 +1,5 @@
 <template>
   <div class="card-content" :class="corporationClass">
-    <CardRequirementsComponent v-if="requirements !== undefined && requirements.length > 0" :requirements="requirements"/>
     <CardRenderData v-if="firstRow !== undefined" :renderData="firstRow" />
     <CardDescription v-if="isCorporation && hasDescription" :item="metadata.description"/>
     <CardRenderData v-if="remainingRows !== undefined" :renderData="remainingRows" />
@@ -13,22 +12,21 @@
 
 import {defineComponent} from 'vue';
 import {CardMetadata} from '@/common/cards/CardMetadata';
-import CardRequirementsComponent from './CardRequirementsComponent.vue';
 import CardDescription from './CardDescription.vue';
 import CardRenderData from './CardRenderData.vue';
-import {CardRequirementDescriptor} from '@/common/cards/CardRequirementDescriptor';
 import {ICardRenderRoot, isICardRenderRoot} from '@/common/cards/render/Types';
 
+// CardRequirementsComponent used to be rendered here; in the sci-fi
+// refresh it lives as a sibling of card-content-wrapper inside the
+// card-container so it can be positioned as a Steam-style corner plate
+// against the card frame instead of being trapped inside the content's
+// own absolute-positioning context.
 export default defineComponent({
   name: 'CardContent',
   props: {
     metadata: {
       type: Object as () => CardMetadata,
       required: true,
-    },
-    requirements: {
-      type: Array as () => ReadonlyArray<CardRequirementDescriptor>,
-      required: false,
     },
     isCorporation: {
       type: Boolean,
@@ -39,7 +37,6 @@ export default defineComponent({
     },
   },
   components: {
-    CardRequirementsComponent,
     CardDescription,
     CardRenderData,
   },

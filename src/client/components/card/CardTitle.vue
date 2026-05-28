@@ -60,9 +60,31 @@ export default defineComponent({
 
       const localeSpecificTitle = translateText(this.getCardTitleWithoutSuffix(title));
 
-      if (localeSpecificTitle.length > 26) {
+      /*
+       * Title sizing — 6 tiers (v35). v34's .title-xs threshold was
+       * too generous — 25-26 char Russian names like "Культивирование
+       * водорослей" overflowed at 15 px. v35 narrows .title-xs to
+       * 20-24 chars only; 25+ drops to .title-xxs (12 px).
+       *
+       *   length    │ class            │ font-size │ letter-spacing
+       *   ──────────┼──────────────────┼───────────┼──────────────
+       *   ≤  8      │ (no class)       │ 22 px     │ 1.3 px
+       *   9  – 13   │ .title-small     │ 19 px     │ 1.1 px
+       *   14 – 19   │ .title-smaller   │ 17 px     │ 0.9 px
+       *   20 – 24   │ .title-xs        │ 15 px     │ 0.7 px
+       *   25 – 33   │ .title-xxs       │ 12 px     │ 0.3 px
+       *   ≥ 34      │ .title-xxxs      │ 11 px     │ 0.2 px
+       */
+      const len = localeSpecificTitle.length;
+      if (len > 33) {
+        classes.push('title-xxxs');
+      } else if (len > 24) {
+        classes.push('title-xxs');
+      } else if (len > 19) {
+        classes.push('title-xs');
+      } else if (len > 13) {
         classes.push('title-smaller');
-      } else if (localeSpecificTitle.length > 23) {
+      } else if (len > 8) {
         classes.push('title-small');
       }
 

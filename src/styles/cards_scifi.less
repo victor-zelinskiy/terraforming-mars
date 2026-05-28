@@ -1,0 +1,920 @@
+/*
+ * cards_scifi.less — sci-fi visual refresh of project cards (v12).
+ *
+ * v12 polish focus:
+ *
+ *   - CRITICAL FONT FIX: cards.less:2688 has the upstream rule
+ *     `.card-container .card-content-wrapper .card-title` (specificity
+ *     3-classes) which silently outweighed our 2-class rules in v3-v11.
+ *     v12 matches the same depth + adds `!important` on font-family to
+ *     guarantee Russo One wins. User explicitly asked for Russo One
+ *     back (Anton retained as fallback).
+ *
+ *   - TITLE BAR HEAVY REWORK: brighter saturated per-type gradient
+ *     (3-stop instead of upstream 3-color band), more dramatic
+ *     border-radius (14/14/5/5 — pronounced "label tab" silhouette),
+ *     deeper rich-frame box-shadow stack below the bar, brighter
+ *     inset gloss highlight strip at top, sharper hazard-stripe
+ *     overlay. The bar is the primary visual anchor.
+ *
+ *   - REQUIREMENT ICONS SHRUNK: the 30 × 30 default size made them
+ *     look like full tags, blending with the tag row. v12 scales
+ *     them down inside the plate to 22 × 22 so they read as small
+ *     condition badges, not full tags.
+ *
+ *   - TEXTURE SMOOTHED: removed the vertical 1-px micro-stripe that
+ *     read as "шероховатость". Pure glossy gradient + radial overhead
+ *     light + smooth base — luxury matte-glass feel.
+ *
+ * Architecture invariants (unchanged from earlier versions):
+ *   - OUTER .card-title wrapper untouched.
+ *   - Per-corp logo classes bleed into card-content area by design.
+ *   - .card-content width/height/padding untouched.
+ *   - Icon sizing on the CARD BODY untouched (only icons INSIDE the
+ *     requirements plate are scaled).
+ *
+ * Excluded: .colony-card, .card-standard-project,
+ * .global-event-card-content.
+ */
+
+@import "./variables.less";
+
+/* Per-type palette */
+@type-c-automated:   #1eb31e;
+@type-c-active:      #1f8de0;
+@type-c-events:      #ee6a18;
+@type-c-prelude:     #e66ea4;
+@type-c-ceo:         #e0b117;
+@type-c-corp:        #cf9116;
+
+@type-glow-automated: rgba(30, 179, 30, 0.55);
+@type-glow-active:    rgba(31, 141, 224, 0.55);
+@type-glow-events:    rgba(238, 106, 24, 0.55);
+@type-glow-prelude:   rgba(230, 110, 164, 0.55);
+@type-glow-ceo:       rgba(224, 177, 23, 0.55);
+@type-glow-corp:      rgba(207, 145, 22, 0.55);
+
+@scifi-cyan:          #6ab0e6;
+@scifi-cyan-soft:     rgba(106, 176, 230, 0.55);
+@scifi-text:          #2a3a52;
+
+@plate-red-top:       #d6263b;
+@plate-red-bottom:    #8e1818;
+@plate-red-darker-top:    #b21a2a;
+@plate-red-darker-bottom: #5e1010;
+
+/*
+ * ─── 1. Frame — smooth luxury glossy texture ──────────────────────────
+ *
+ * v12 removes the vertical 1-px micro-stripe (read as "шероховатость")
+ * for a pure smooth surface. Background stack:
+ *   - Glossy specular reflection band (the in-protector light catch)
+ *   - Soft radial overhead light from above the card
+ *   - Smooth base off-white gradient
+ *
+ * No repeating patterns. The "luxury" feel comes from the controlled
+ * highlight zones — like glass over an off-white card stock.
+ *
+ * Protector-edge inset borders are retained: 1-px bright white rim +
+ * 1-px cool-tinted inner ring → mimics a transparent sleeve.
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
+    position: relative;
+    background-color: #f1f4f9;
+    background-image:
+        /* glossy specular reflection at 110° */
+        linear-gradient(110deg,
+            transparent 6%,
+            rgba(255, 255, 255, 0.32) 30%,
+            rgba(255, 255, 255, 0.58) 48%,
+            rgba(255, 255, 255, 0.32) 66%,
+            transparent 92%),
+        /* soft radial overhead light */
+        radial-gradient(ellipse 280px 130px at 50% -15%,
+            rgba(255, 255, 255, 0.4) 0%,
+            transparent 70%),
+        /* base off-white smooth gradient */
+        linear-gradient(180deg,
+            #fcfdff 0%,
+            #ecf0f6 60%,
+            #d3d9e3 100%);
+    /* v21: card corner radius bumped 9 → 16 for a softer, more premium
+     * silhouette. Title bar radius (8/8/0/0) and the ::before edge
+     * reflection radius below are updated to match. */
+    border-radius: 16px;
+    /* v21: symmetric border colors. The previous asymmetric
+     * (light top/left, dark bottom/right) created a visible vertical
+     * line on the card's RIGHT edge that the user flagged. Switching
+     * to balanced neutral tints on all four sides removes that line. */
+    border-top-color:    rgba(255, 255, 255, 0.4);
+    border-left-color:   rgba(255, 255, 255, 0.4);
+    border-bottom-color: rgba(255, 255, 255, 0.4);
+    border-right-color:  rgba(255, 255, 255, 0.4);
+    box-shadow:
+        /* protector edge — bright inner rim */
+        inset 0 0 0 1px rgba(255, 255, 255, 0.88),
+        /* protector inner ring — cool tinted */
+        inset 0 0 0 2px rgba(160, 185, 215, 0.3),
+        /* top sheen */
+        inset 0 2px 4px rgba(255, 255, 255, 0.34),
+        /* bottom vignette */
+        inset 0 -22px 32px -22px rgba(0, 0, 0, 0.18),
+        /* outer separator + drop */
+        0 0 0 1px rgba(255, 255, 255, 0.45),
+        0 0 0 3px rgba(20, 30, 45, 0.35),
+        0 9px 22px rgba(0, 0, 0, 0.5);
+}
+
+/*
+ * ─── 2. L-corner ticks ────────────────────────────────────────────────
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
+    .card-corner {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        pointer-events: none;
+        border-color: rgba(20, 30, 45, 0.55);
+        z-index: 1;
+    }
+    .card-corner::after {
+        content: '';
+        position: absolute;
+        width: 9px;
+        height: 9px;
+        border-color: inherit;
+        opacity: 0.6;
+        pointer-events: none;
+    }
+    .card-corner--tl { top: 5px;    left: 5px;   border-top: 3px solid; border-left: 3px solid;     border-top-left-radius: 4px; }
+    .card-corner--tr { top: 5px;    right: 5px;  border-top: 3px solid; border-right: 3px solid;    border-top-right-radius: 4px; }
+    .card-corner--bl { bottom: 5px; left: 5px;   border-bottom: 3px solid; border-left: 3px solid;  border-bottom-left-radius: 4px; }
+    .card-corner--br { bottom: 5px; right: 5px;  border-bottom: 3px solid; border-right: 3px solid; border-bottom-right-radius: 4px; }
+    .card-corner--tl::after { top: 4px;    left: 4px;   border-top: 1.5px solid; border-left: 1.5px solid;     border-top-left-radius: 2px; }
+    .card-corner--tr::after { top: 4px;    right: 4px;  border-top: 1.5px solid; border-right: 1.5px solid;    border-top-right-radius: 2px; }
+    .card-corner--bl::after { bottom: 4px; left: 4px;   border-bottom: 1.5px solid; border-left: 1.5px solid;  border-bottom-left-radius: 2px; }
+    .card-corner--br::after { bottom: 4px; right: 4px;  border-bottom: 1.5px solid; border-right: 1.5px solid; border-bottom-right-radius: 2px; }
+}
+
+/*
+ * ─── 3. Per-type frame identity ───────────────────────────────────────
+ */
+.mk-type-frame(@color, @glow) {
+    /* v21: SYMMETRIC border tints — the v17 asymmetric (light top/left,
+     * dark bottom/right) created a heavy darkened RIGHT edge that read
+     * as a vertical line on the card body. v21 uses a single
+     * brighter type tint for all four sides; depth comes from the
+     * outer box-shadow rings + the structural type-color ring. */
+    border-top-color:    fadein(lighten(@color, 28%), 22%);
+    border-left-color:   fadein(lighten(@color, 28%), 22%);
+    border-bottom-color: fadein(lighten(@color, 28%), 22%);
+    border-right-color:  fadein(lighten(@color, 28%), 22%);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.88),
+        inset 0 0 0 2px rgba(160, 185, 215, 0.3),
+        inset 0  2px 4px rgba(255, 255, 255, 0.34),
+        inset 0 -22px 32px -22px rgba(0, 0, 0, 0.18),
+        inset 0 0 0 3px fade(@color, 12%),
+        0 0 0 1px rgba(255, 255, 255, 0.6),
+        0 0 0 4px @color,
+        0 0 0 6px rgba(20, 30, 45, 0.52),
+        0 9px 22px rgba(0, 0, 0, 0.55),
+        0 0 28px @glow;
+    .card-corner {
+        border-color: @color;
+        filter: drop-shadow(0 0 8px fade(@color, 65%));
+    }
+}
+
+.card-container.filterDiv:has(> .card-content-wrapper > .card-title > .background-color-automated) { .mk-type-frame(@type-c-automated, @type-glow-automated); }
+.card-container.filterDiv:has(> .card-content-wrapper > .card-title > .background-color-active)    { .mk-type-frame(@type-c-active,    @type-glow-active); }
+.card-container.filterDiv:has(> .card-content-wrapper > .card-title > .background-color-events)    { .mk-type-frame(@type-c-events,    @type-glow-events); }
+.card-container.filterDiv:has(> .card-content-wrapper > .card-title > .background-color-prelude)   { .mk-type-frame(@type-c-prelude,   @type-glow-prelude); }
+.card-container.filterDiv:has(> .card-content-wrapper > .card-title > .background-color-ceo)       { .mk-type-frame(@type-c-ceo,       @type-glow-ceo); }
+.card-container.filterDiv:has(> .card-content-wrapper > .card-title.is-corporation)                { .mk-type-frame(@type-c-corp,      @type-glow-corp); }
+
+/*
+ * ─── 4. Stacking ──────────────────────────────────────────────────────
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
+    .card-content-wrapper {
+        z-index: 2;
+    }
+}
+
+/*
+ * ─── 5a. STRUCTURAL: cost-and-tags absolute, title bar reaches top ────
+ *
+ * v14 lifts the cost-and-tags chrome row OUT OF FLOW so the title bar
+ * can start at the very top of the wrapper (y=0). The bar becomes a
+ * tall "header zone" that fills the entire upper region of the card
+ * — cost circle, tags, and a small requirement chip all FLOAT ON TOP
+ * of the type-colored header.
+ *
+ * Original layout:                  New v14 layout:
+ *   y=-10 [cost-and-tags]              y=-10 [cost] (absolute)
+ *   y=0   [-- gap --]                  y=0   [─── HEADER ────]
+ *   y=40  [title bar 54px]             y=0   [   TITLE       ] (80px tall)
+ *   y=94  [content]                    y=0   [─── HEADER ────]
+ *                                      y=80  [content]
+ *
+ * card-cost-and-tags becomes position:absolute with the SAME visual
+ * offsets it had in flow (top:-10, left:-10, right:-6) so cost and
+ * tags appear in the exact same spots — only the title bar now lives
+ * beneath them rather than in flow after them.
+ *
+ * Corp cards excluded (.is-corporation) — they keep upstream 40-px
+ * outer height for CardCorporationLogo positioning.
+ */
+/*
+ * v21: cost-and-tags absolute positioning now ALSO excludes corp cards.
+ *
+ * Corp cards have outer `.card-title.is-corporation` (40 px tall) and
+ * the CardCorporationLogo positions its big logo absolutely at top:8
+ * of card-content-wrapper, EXPECTING the cost-and-tags row to be in
+ * flow above the title (pushing the title down by 40 px). When I made
+ * cost-and-tags absolute, the title and content moved UP 40 px on
+ * corp cards while the logo stayed at y=8, causing severe overlap.
+ *
+ * Detection via :not(:has(... .is-corporation)) — apply only when the
+ * card-title is NOT a corp title.
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project):not(:has(> .card-content-wrapper > .card-title.is-corporation)) .card-content-wrapper > .card-cost-and-tags {
+    position: absolute !important;
+    top: -10px !important;
+    left: -10px !important;
+    right: -6px !important;
+    margin: 0 !important;
+    z-index: 3;
+}
+
+/*
+ * v18 critical fix: use DIRECT CHILD `>` selector. v17 used descendant
+ * `card-content-wrapper .card-title:not(.is-corporation)` which ALSO
+ * matched the INNER stripe (inner div also has class `.card-title` +
+ * no `.is-corporation`). The outer's `padding-top: 0 !important` then
+ * killed the inner's `padding-top: 36px` (non-important), pushing
+ * title text to the TOP of the header instead of the BOTTOM. With
+ * `>`, this rule matches ONLY the outer wrapper div.
+ */
+/*
+ * Audit fix: also exclude SP cards. SP's outer card-title is
+ * `.card-title.card-title-standard-project` — it has `.card-title`
+ * class without `.is-corporation`, so it matched this rule and got
+ * the 70-px height which breaks the SP's smaller 155-px layout.
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content-wrapper > .card-title:not(.is-corporation) {
+    height: 70px !important;
+    line-height: 70px !important;
+    overflow: visible !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/*
+ * ─── 5. Inner title stripe — HEAVY REWORK ─────────────────────────────
+ *
+ * v12 critical specificity fix: cards.less:2688 has
+ * `.card-container .card-content-wrapper .card-title` (3 classes,
+ * specificity 0,0,3,0) which silently outranked our v3-v11 2-class
+ * rules. We now match the same depth and use !important on
+ * font-family to make the win bulletproof.
+ *
+ * Font: RUSSO ONE (restored per user) with Anton fallback. Both have
+ * full Cyrillic, both shipped self-hosted.
+ *
+ * Visual rework:
+ *   - Per-type gradient redone with 3-stop vertical (lighter at top,
+ *     base in middle, darker at bottom) — gives the bar a 3D inset feel
+ *     instead of the flat -60° diagonal stripe from upstream.
+ *   - border-radius 14/14/5/5 — pronounced "label tab" silhouette.
+ *   - 8-layer outer box-shadow forms the rich sci-fi tech-strip below.
+ *   - Inset top highlight strengthened; inset bottom shadow strengthened.
+ *   - Brighter glossy reflection top + sharper hazard-stripe overlay.
+ *   - Height 54 px (was 52), font-size 28 px Russo One, tracking 1.8.
+ *
+ * Long-name handling: .title-small → 22 px, .title-smaller → 18 px
+ * with !important to beat cards.less.
+ */
+.card-container .card-content-wrapper .card-title.background-color-automated,
+.card-container .card-content-wrapper .card-title.background-color-active,
+.card-container .card-content-wrapper .card-title.background-color-events,
+.card-container .card-content-wrapper .card-title.background-color-prelude,
+.card-container .card-content-wrapper .card-title.background-color-ceo {
+    /*
+     * v17 CRITICAL FIX: switched layout from flex+horizontal-padding to
+     * vertical-padding + box-sizing:border-box. The flex layout with
+     * `padding: 0 100px 0 60px` and default content-box meant the
+     * inner stripe rendered at `wrapper-width (300) + 160 = 460 px`,
+     * which in the zoom modal (× 1.5) appeared as 690 px wide —
+     * MUCH wider than the 300 px card body. Hence the "шапка выходит
+     * за пределы карты" bug.
+     *
+     * NEW LAYOUT (Steam-style):
+     *   - Header is 70 px tall total, full card width (box-sizing
+     *     border-box ensures 100% = 300 px including padding).
+     *   - Cost + tags float in the TOP portion (y=0..40) via absolute
+     *     positioning of card-cost-and-tags.
+     *   - Title TEXT sits in the BOTTOM portion (y=40..70) via 38 px
+     *     top padding. Vertical separation eliminates the need to
+     *     horizontally clear chrome — title text spans full card
+     *     width, won't bump cost/tags because they're ABOVE it.
+     *
+     * Result: shorter title text horizontal area but no overflow.
+     * Long names handled by upstream .title-small / .title-smaller.
+     */
+    box-sizing: border-box;
+    height: 70px;
+    padding: 36px 8px 0 8px;
+    line-height: 32px;
+    font-family: "Russo One", "Anton", Prototype, Ubuntu, sans-serif !important;
+    /*
+     * CRITICAL FIX (v31): font-size MUST carry !important. The upstream
+     * file language_hacks.less:38-51 has a Russian-language override:
+     *
+     *   .language-ru .filterDiv .card-title { font-size: 11px !important; }
+     *
+     * That rule sits at 3-class specificity but uses !important. Per CSS
+     * cascade rules, !important ALWAYS wins over non-!important even at
+     * lower specificity. Without !important on our 28-px default, the
+     * Russian title text was rendering at 11 px on every card without a
+     * tier class (.title-small etc.), while cards WITH a tier class
+     * (which had !important on font-size) rendered correctly.
+     *
+     * Same applies to letter-spacing — make it !important so the
+     * adjacent ".language-X .card-title" hacks can't smash it down.
+     *
+     * Specificity-wise we now win: 4-class !important beats 3-class
+     * !important.
+     */
+    font-size: 22px !important;       /* v32: was 28 — too wide for moderate Russian names */
+    font-weight: 700;
+    letter-spacing: 1.3px !important; /* v32: scaled with new font-size */
+    color: #fff !important;
+    text-shadow:
+        0 2px 3px rgba(0, 0, 0, 0.6),
+        0 0 10px rgba(0, 0, 0, 0.35);
+    border-radius: 14px 14px 0 0;     /* v21: matches new card 16-px radius */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    /*
+     * v16 ultra-smooth box-shadow. Drop shadow REMOVED — it was creating
+     * a visible "blob" below the bar that the user read as the header
+     * "spilling past" the card. Only inset edges remain. Bottom inset
+     * is a long soft fade from black instead of a hard 2-px line, so
+     * the header fades INTO the card body rather than ending on a
+     * shelf. Inner white glow gives the bar a modern lit-from-inside
+     * feel.
+     */
+    /*
+     * v25 MATTE PREMIUM: removed the inner white glow (0 0 28px). Kept
+     * a single subtle top highlight + bottom shadow inset — enough to
+     * give the bar 1-pixel depth without any specular/glossy shine.
+     */
+    box-shadow:
+        inset 0  1px 0 rgba(255, 255, 255, 0.2),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+
+    /*
+     * v23: title shimmer REMOVED. v25: ::after glossy reflection
+     * REMOVED too — it was the last source of shine on the bar.
+     * Title bar is now fully matte.
+     */
+    &::before {
+        content: none;
+    }
+
+    &::after {
+        content: none;
+    }
+}
+
+/*
+ * v25 MATTE PREMIUM backgrounds — single 2-stop gradient per type.
+ *
+ * Removed all "shine" layers from v14-v22:
+ *   - scan-lines repeating-linear-gradient (read as monitor noise)
+ *   - radial spotlight (the bright center peak — read as cheap shine)
+ *   - diagonal energy sweep (110° highlight — felt like wet plastic)
+ *   - top-fade highlight overlay
+ *
+ * What remains is a SINGLE smooth 2-stop vertical gradient from a
+ * slightly lighter top to a slightly darker bottom — same color
+ * family, ~12-15 % luminance difference. This is the matte premium
+ * vibe — like a high-end coated stock, not glossy plastic.
+ *
+ * Colors are slightly DEEPER/less saturated than the previous
+ * "neon-bright" 3-stop palette — premium feel comes from controlled
+ * tone, not from punchy hues.
+ */
+.mk-type-title-bg(@top, @bottom) {
+    background-color: @bottom !important;
+    background-image:
+        linear-gradient(180deg, @top 0%, @bottom 100%) !important;
+}
+
+.card-container .card-content-wrapper .card-title.background-color-automated {
+    .mk-type-title-bg(#22a022, #135f13);
+}
+.card-container .card-content-wrapper .card-title.background-color-active {
+    .mk-type-title-bg(#3582bd, #1d5a87);
+}
+.card-container .card-content-wrapper .card-title.background-color-events {
+    .mk-type-title-bg(#d56a1e, #984212);
+}
+.card-container .card-content-wrapper .card-title.background-color-prelude {
+    .mk-type-title-bg(#c66093, #8b3e64);
+}
+.card-container .card-content-wrapper .card-title.background-color-ceo {
+    .mk-type-title-bg(#c69a18, #8a6709);
+}
+
+/*
+ * Title sizing — tighter v32 tiers calibrated for Russian locale.
+ *
+ *   class          │ chars   │ font-size │ letter-spacing
+ *   ───────────────┼─────────┼───────────┼──────────────
+ *   (no class)     │ ≤ 8     │ 22 px     │ 1.3 (main rule)
+ *   .title-small   │ 9 – 13  │ 19 px     │ 1.1
+ *   .title-smaller │ 14 – 19 │ 17 px     │ 0.9
+ *   .title-xs      │ ≥ 20    │ 14 px     │ 0.6
+ *
+ * Total range only 8 px (was 13 px in v30) — softer step between
+ * short and long titles. All sizes !important so the
+ * .language-ru / .language-es overrides in language_hacks.less can't
+ * smash them (those rules are 3-class !important, ours is
+ * 5-class !important — we win on specificity at equal importance).
+ */
+.card-container .card-content-wrapper .card-title.background-color-automated.title-small,
+.card-container .card-content-wrapper .card-title.background-color-active.title-small,
+.card-container .card-content-wrapper .card-title.background-color-events.title-small,
+.card-container .card-content-wrapper .card-title.background-color-prelude.title-small,
+.card-container .card-content-wrapper .card-title.background-color-ceo.title-small {
+    font-size: 19px !important;
+    letter-spacing: 1.1px !important;
+}
+.card-container .card-content-wrapper .card-title.background-color-automated.title-smaller,
+.card-container .card-content-wrapper .card-title.background-color-active.title-smaller,
+.card-container .card-content-wrapper .card-title.background-color-events.title-smaller,
+.card-container .card-content-wrapper .card-title.background-color-prelude.title-smaller,
+.card-container .card-content-wrapper .card-title.background-color-ceo.title-smaller {
+    font-size: 17px !important;
+    letter-spacing: 0.9px !important;
+}
+.card-container .card-content-wrapper .card-title.background-color-automated.title-xs,
+.card-container .card-content-wrapper .card-title.background-color-active.title-xs,
+.card-container .card-content-wrapper .card-title.background-color-events.title-xs,
+.card-container .card-content-wrapper .card-title.background-color-prelude.title-xs,
+.card-container .card-content-wrapper .card-title.background-color-ceo.title-xs {
+    font-size: 15px !important;
+    letter-spacing: 0.7px !important;
+}
+/*
+ * .title-xxs (v33): 5th tier for names 27-33 chars. 12 px fits most
+ * Russian long-form titles.
+ */
+.card-container .card-content-wrapper .card-title.background-color-automated.title-xxs,
+.card-container .card-content-wrapper .card-title.background-color-active.title-xxs,
+.card-container .card-content-wrapper .card-title.background-color-events.title-xxs,
+.card-container .card-content-wrapper .card-title.background-color-prelude.title-xxs,
+.card-container .card-content-wrapper .card-title.background-color-ceo.title-xxs {
+    font-size: 12px !important;
+    letter-spacing: 0.3px !important;
+}
+/*
+ * .title-xxxs (v34): 6th tier for extreme-length names ≥ 34 chars.
+ * Russian "Бактерии, выделяющие парниковые газы" (36) and similar
+ * overflowed at v33's .title-xxs 12 px. 11 px with minimal letter-
+ * spacing fits any reasonable 34-40 char Russian title in the 284-px
+ * content area.
+ */
+.card-container .card-content-wrapper .card-title.background-color-automated.title-xxxs,
+.card-container .card-content-wrapper .card-title.background-color-active.title-xxxs,
+.card-container .card-content-wrapper .card-title.background-color-events.title-xxxs,
+.card-container .card-content-wrapper .card-title.background-color-prelude.title-xxxs,
+.card-container .card-content-wrapper .card-title.background-color-ceo.title-xxxs {
+    font-size: 11px !important;
+    letter-spacing: 0.2px !important;
+}
+
+/*
+ * ─── 6. Body text — SINGLE unified slate ──────────────────────────────
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
+    .card-content:not(.global-event-card-content) {
+        color: @scifi-text;
+        letter-spacing: 0.45px;
+    }
+    .card-content:not(.global-event-card-content) .card-description {
+        color: @scifi-text;
+        letter-spacing: 0.45px;
+    }
+}
+
+/*
+ * ─── 7. Cost badge + tags ─────────────────────────────────────────────
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
+    .card-cost-and-tags {
+        position: relative;
+        z-index: 3;
+    }
+    .card-cost,
+    .card-old-cost {
+        /* v16 stronger cost lift — floats on type-colored header */
+        filter:
+            drop-shadow(0 0 0 1px rgba(255, 255, 255, 0.6))
+            drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
+    }
+    .card-tags .card-tag {
+        /* v16 stronger tag halo: tags float on the type-color header
+         * and need a CLEAR visual separation. Multi-layer ring: white
+         * inner halo + dark outer rim + soft drop shadow lift. */
+        box-shadow:
+            0 0 0 2px rgba(255, 255, 255, 0.85),
+            0 0 0 3px rgba(20, 30, 45, 0.7),
+            0 3px 8px rgba(0, 0, 0, 0.55),
+            0 0 12px rgba(0, 0, 0, 0.25);
+        filter: none;
+    }
+}
+
+/*
+ * ─── 8. Flavor description divider ────────────────────────────────────
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
+    .card-content:not(.global-event-card-content) > .card-description {
+        margin-top: 10px;
+        padding-top: 8px;
+        position: relative;
+        letter-spacing: 0.5px;
+
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 14%;
+            right: 14%;
+            height: 1px;
+            background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(20, 30, 45, 0.22) 30%,
+                rgba(20, 30, 45, 0.22) 70%,
+                transparent 100%);
+        }
+    }
+}
+
+/*
+ * ─── 9. Requirement plate — horizontal strip BELOW header (v16) ───────
+ *
+ * v16 moves the plate OUT of the header (it was reading as
+ * "выделяется над шапкой") and INTO a horizontal strip immediately
+ * below the 70-px header. Requirement icons are CENTERED in the
+ * strip. The strip becomes a deliberate visual separator between
+ * header and card body, like a UI status bar.
+ *
+ * Geometry:
+ *   - top: 70 px (right at header bottom — no gap)
+ *   - left: 0, right: 0 (full card width)
+ *   - height: 38 px
+ *   - icons centered (justify-content: center)
+ *
+ * Card-content gets pushed DOWN 46 px via :has() rule below so it
+ * doesn't overlap the strip.
+ *
+ * Icon sizing: upstream 30 × 30 default — no shrink overrides.
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
+    > .card-requirements,
+    > .card-requirements-max {
+        position: absolute;
+        /*
+         * v21: plate moved up further (top: 62, overlap header by 8 px)
+         * after v19's 2-px overlap still showed a visible gap. The
+         * title bar's solid type color now extends all the way to its
+         * bottom (v21 removed the long inset bottom shadow that was
+         * fading the bar to dark). Combined with the bigger overlap,
+         * plate sits firmly against the header with no visible seam.
+         */
+        top: 62px;
+        left: 0;
+        right: 0;
+        width: auto !important;
+        max-width: none;
+        min-width: 0;
+        height: 38px !important;
+        line-height: 38px;
+        padding: 0 12px;
+        background-color: @plate-red-bottom;
+        background-image:
+            linear-gradient(180deg,
+                rgba(255, 255, 255, 0.28) 0%,
+                rgba(255, 255, 255, 0)   38%,
+                rgba(0, 0, 0, 0)         62%,
+                rgba(0, 0, 0, 0.25)      100%),
+            linear-gradient(180deg,
+                @plate-red-top 0%,
+                @plate-red-bottom 100%);
+        color: #fff;
+        font-family: "Russo One", "Anton", Prototype, Ubuntu, sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.72);
+        /* Strip has NO border-radius — it sits between header and body
+         * as a flat horizontal section. */
+        border-radius: 0;
+        /* v20: type-color accent border-top is set via :has() rules
+         * below (see section 9b). Default neutral fallback if no type
+         * match. */
+        border-top:    2px solid rgba(0, 0, 0, 0.4);
+        border-bottom: 2px solid rgba(0, 0, 0, 0.55);
+        box-shadow:
+            inset 0  1px 0 rgba(255, 255, 255, 0.18),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+            0 2px 4px -1px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-flow: row;
+        align-items: center;
+        justify-content: center;     /* CENTER the requirement icons */
+        gap: 6px;
+        z-index: 2;
+        filter: none;
+
+        > div {
+            display: inline-flex;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+        .card-requirement,
+        .card-item-container {
+            margin: 0;
+            line-height: normal;
+        }
+
+        /* v14: icon sizing REVERTED — upstream 30 × 30 default applies.
+         * No more shrink overrides. */
+    }
+
+    /*
+     * v28: min and max requirement plates UNIFIED to the same red palette.
+     * Previous versions used a darker burgundy for .card-requirements-max
+     * to convey "ceiling" requirement semantically, but the user read
+     * the two cards' different colors as a visual bug rather than as
+     * meaningful information ("max" text prefix already signals max
+     * semantics). Now both variants share the bright-crimson gradient.
+     *
+     * The upstream max_big.png leftover properties (background-size,
+     * background-position, background-repeat, filter) are still
+     * overridden here to prevent the v27-found tiling artifact.
+     */
+    > .card-requirements-max {
+        background-size: auto auto !important;
+        background-position: 0 0 !important;
+        background-repeat: no-repeat !important;
+        filter: none !important;
+    }
+}
+
+/*
+ * ─── 9b. Plate top accent — UNIFIED across all card types (v23) ───────
+ *
+ * v20 colored the plate's top border in the card-type color (green for
+ * automated, blue for active, etc.). v23 reverts to a single uniform
+ * accent for ALL card types — the per-type tint made plates on
+ * different cards LOOK like different widths / weights because warmer
+ * colors (orange, red, gold) read as visually heavier than cool ones
+ * (blue, green) at equal alpha. User flagged the inconsistency
+ * directly ("линия с требованием рисуется по-разному").
+ *
+ * Unified style: dark structural top border + subtle red inset glow
+ * matching the plate's own red body — visually the plate "extends
+ * upward" from itself consistently regardless of card type.
+ */
+/*
+ * v24: removed plate's top border (user request — "убери линию между
+ * шапкой и плажкой"). Plate now flows straight into the title bar
+ * above with no horizontal seam — only the red color difference
+ * marks the transition. Bottom border is KEPT (it still separates
+ * the plate from the white card-content area below).
+ *
+ * Inner-top red glow is also removed so there's no leftover
+ * highlight where the border used to be.
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) > .card-requirements,
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) > .card-requirements-max {
+    border-top: 0 !important;
+    box-shadow:
+        inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+        0 2px 4px -1px rgba(0, 0, 0, 0.3) !important;
+}
+
+/*
+ * v18 fix: when a requirement plate IS rendered, the strip immediately
+ * below the header would overlap the top of card-content. v17 used
+ * `margin-top: 42px` which ADDED 42 px to the card's total height —
+ * cards with requirements were taller than without. v18 uses
+ * `box-sizing: border-box + padding-top: 42px` so the padding EATS
+ * from the existing 280-px content height instead of adding outside.
+ * Card outer height stays identical regardless of requirement
+ * presence — exactly what the user asked for.
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project):has(> .card-requirements) .card-content,
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project):has(> .card-requirements-max) .card-content {
+    box-sizing: border-box;
+    /* v21: padding-top calibrated to plate's new top:62 position. Plate
+     * spans y=62..100; content visible should start at y=100 (= 30 px
+     * below card-content's outer top at y=70). */
+    padding-top: 30px;
+    margin-top: 0;
+}
+
+/*
+ * ─── 10. Hover ────────────────────────────────────────────────────────
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project):not(.card-unavailable) {
+    transition:
+        transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 220ms ease;
+
+    &:hover {
+        transform: translateY(-3px);
+    }
+}
+
+.mk-type-hover-glow(@color, @glow-strong) {
+    &:hover {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.9),
+            inset 0 0 0 2px rgba(160, 185, 215, 0.4),
+            inset 0  2px 4px rgba(255, 255, 255, 0.36),
+            inset 0 -22px 32px -22px rgba(0, 0, 0, 0.16),
+            inset 0 0 0 3px fade(@color, 16%),
+            0 0 0 1px rgba(255, 255, 255, 0.7),
+            0 0 0 4px @color,
+            0 0 0 6px rgba(20, 30, 45, 0.58),
+            0 18px 36px rgba(0, 0, 0, 0.62),
+            0 0 38px @glow-strong;
+    }
+}
+
+.card-container.filterDiv:not(.card-unavailable):has(> .card-content-wrapper > .card-title > .background-color-automated) { .mk-type-hover-glow(@type-c-automated, rgba(30, 179, 30, 0.8)); }
+.card-container.filterDiv:not(.card-unavailable):has(> .card-content-wrapper > .card-title > .background-color-active)    { .mk-type-hover-glow(@type-c-active,    rgba(31, 141, 224, 0.8)); }
+.card-container.filterDiv:not(.card-unavailable):has(> .card-content-wrapper > .card-title > .background-color-events)    { .mk-type-hover-glow(@type-c-events,    rgba(238, 106, 24, 0.8)); }
+.card-container.filterDiv:not(.card-unavailable):has(> .card-content-wrapper > .card-title > .background-color-prelude)   { .mk-type-hover-glow(@type-c-prelude,   rgba(230, 110, 164, 0.8)); }
+.card-container.filterDiv:not(.card-unavailable):has(> .card-content-wrapper > .card-title > .background-color-ceo)       { .mk-type-hover-glow(@type-c-ceo,       rgba(224, 177, 23, 0.8)); }
+.card-container.filterDiv:not(.card-unavailable):has(> .card-content-wrapper > .card-title.is-corporation)                { .mk-type-hover-glow(@type-c-corp,      rgba(207, 145, 22, 0.8)); }
+
+/*
+ * ─── 10b. Hover animations: title shimmer + edge reflection (v20 #2 + #3) ─
+ *
+ * Two hover-triggered animations:
+ *
+ *   1. Title bar shimmer: the diagonal light band defined in section 5
+ *      as `.card-title.background-color-X::before` slides across the
+ *      bar from left to right, fading in then out. Premium game-card
+ *      feel.
+ *
+ *   2. Card top edge reflective light line: a thin (5 px tall) bright
+ *      line sweeps across the top edge of the entire card, mimicking
+ *      light passing across a glossy surface in a protector sleeve.
+ *
+ * Both fire on `.card-container:hover` (not on the type-specific
+ * hover-glow rules above — those handle the static glow change).
+ * Animations are NOT infinite — each runs once per hover ENTRY.
+ *
+ * .card-unavailable excluded (no hover animations on unavailable
+ * cards).
+ */
+/*
+ * v23: title shimmer FULLY REMOVED (user decision). Both shimmer
+ * effects (title + edge) are now gone — no keyframes, no animation
+ * triggers, no ::before content on title bars or card-containers.
+ */
+
+/*
+ * ─── 11. Selected (radio/checkbox checked) ────────────────────────────
+ */
+input[type="checkbox"]:checked + .filterDiv.card-container,
+input[type="radio"]:checked + .filterDiv.card-container {
+    box-shadow:
+        inset 0  1px 0 rgba(255, 255, 255, 0.78),
+        inset 0 0 0 1px @scifi-cyan-soft,
+        0 0 0 1px rgba(255, 255, 255, 0.55),
+        0 0 0 4px @scifi-cyan,
+        0 0 0 6px rgba(20, 30, 45, 0.5),
+        0 0 32px rgba(106, 176, 230, 0.82),
+        0 8px 18px rgba(0, 0, 0, 0.45) !important;
+    z-index: 2;
+}
+
+input[type="checkbox"]:checked + .filterDiv::after,
+input[type="radio"]:checked + .filterDiv::after {
+    content: 'ВЫБРАНО';
+    width: auto;
+    min-width: 100px;
+    padding: 0 14px;
+    height: 24px;
+    line-height: 24px;
+    border: none;
+    border-radius: 0;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.92) 0%,
+        rgba(80, 120, 160, 0.6) 50%,
+        rgba(130, 170, 210, 0.85) 100%);
+    color: #fff;
+    font-family: "Russo One", "Anton", Prototype, Ubuntu, sans-serif;
+    font-size: 13px;
+    font-weight: normal;
+    letter-spacing: 2.2px;
+    clip-path: polygon(6% 0%, 94% 0%, 100% 100%, 0% 100%);
+    box-shadow:
+        0 0 12px rgba(106, 176, 230, 0.7),
+        0 2px 5px rgba(0, 0, 0, 0.45);
+    z-index: 2;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+}
+
+:lang(en) input[type="checkbox"]:checked + .filterDiv::after,
+:lang(en) input[type="radio"]:checked + .filterDiv::after {
+    content: 'SELECTED';
+}
+
+/*
+ * ─── 12. Card unavailable ─────────────────────────────────────────────
+ */
+.card-container.filterDiv.card-unavailable {
+    filter: brightness(0.6) saturate(0.55);
+
+    &:hover {
+        filter: none;
+    }
+}
+
+/*
+ * ─── 13. VP polish ────────────────────────────────────────────────────
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
+    .card-points {
+        box-shadow:
+            @outline-shadow,
+            0 2px 8px rgba(0, 0, 0, 0.45);
+    }
+}
+
+/*
+ * ─── 14. Scrollbar at the card edge (v26) ─────────────────────────────
+ *
+ * Problem the user reported: when card-content overflows vertically,
+ * the browser shows a scrollbar at the RIGHT EDGE OF .card-content,
+ * but .card-content has `padding-right: 10px` (cards_v2.less:1313),
+ * so the scrollbar sits 10 px inside the card frame — visible as a
+ * narrow vertical strip with a clear gap between it and the card's
+ * right border.
+ *
+ * Fix: switch .card-content to border-box, width: 100% of wrapper,
+ * and remove the right padding. Now .card-content's right edge =
+ * wrapper's right edge = inside of the card's 4-px border. The
+ * scrollbar appears AT the inner border edge instead of 10 px inside.
+ *
+ * Compensation: content (which was centered in a 280-px wide flex
+ * column) is now centered in a 290-px area — shifts ~5 px right but
+ * stays cleanly centered. Padding on the LEFT preserved (10 px) so
+ * the leftmost text/icons don't touch the frame.
+ *
+ * Scrollbar is also re-styled here for a clean, modern look:
+ * thin (4 px), dark-slate thumb, transparent track, brighter on hover.
+ * Firefox `scrollbar-width` / `scrollbar-color` properties added for
+ * cross-browser parity (upstream cards_v2.less only had ::-webkit-).
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content:not(.global-event-card-content) {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    padding-right: 0 !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(20, 30, 45, 0.28) transparent;
+}
+
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content::-webkit-scrollbar {
+    width: 4px;
+    background: transparent;
+}
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content::-webkit-scrollbar-thumb {
+    background: rgba(20, 30, 45, 0.28);
+    border-radius: 2px;
+}
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(20, 30, 45, 0.5);
+}
