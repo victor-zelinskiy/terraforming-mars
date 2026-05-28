@@ -85,7 +85,7 @@ To handle this, `MandatoryInputModal.vue` exposes a **minimize** affordance:
 - A `↗` minimize button sits in the top-right of the modal card.
 - Click it: the card collapses up + fades out, the backdrop becomes click-through, a sci-fi pill appears at the top of the viewport (below the top-bar buttons, NOT covering them) labelled `AWAITING DECISION — <prompt title>` with a pulsing cyan indicator dot.
 - While minimized the player can interact with the whole rest of the UI (board, sidebar, top-bar overlays, opponent tableaus) but cannot trigger new actions — every action button reads `playerView.waitingFor` to decide enabled state, and because the server is still waiting on this modal prompt, all action buttons are naturally disabled. No extra client-side blocking required.
-- The pill lives in its **own** `<Teleport to="body">` (separate from the modal wrapper) so it has an INDEPENDENT stacking context. z-index 100 — above the board, BELOW bar-overlays (z-index 110). When the player opens an Awards / Milestones / Standard Projects overlay to inspect info before deciding, the overlay cleanly covers the pill; closing the overlay brings the pill back. The top-bar buttons (z-index 105) stay clickable since the pill is positioned below them at `top: calc(var(--bottom-bar-button-height) + 88px)`.
+- The pill lives in its **own** `<Teleport to="body">` (separate from the modal wrapper) so it has an INDEPENDENT stacking context. z-index 107 — above top-bar buttons (z=105) and the Awards / Milestones badge strips that hang under them (z=106), BELOW bar-overlays (z=110). When the player opens an Awards / Milestones / Standard Projects overlay to inspect info before deciding, the overlay cleanly covers the pill; closing the overlay brings the pill back. The pill defaults to `top: calc(var(--bottom-bar-button-height) + 12px)` (≈ y=48px, between the button bar and the topmost board labels) and is draggable — see "Draggable pills" further down.
 - Click the pill (or hit Enter/Space when focused): the modal expands back to full size with the original input state intact.
 - Picker-mode (board-tile selection) is mutually exclusive with minimize — entering picker auto-cancels minimize, the modal hides via picker rules instead.
 - A new top-level prompt firing (e.g. one SelectPayment resolves and a follow-up SelectPayment fires) auto-resets minimize state so the player doesn't miss the new prompt.
@@ -101,6 +101,55 @@ Some modal-hosted prompts contain options that need the player to click on the b
 - In picker mode the modal CSS class makes the backdrop transparent + `pointer-events: none` (board clickable underneath), and the card fades + shifts to the top of the viewport so it doesn't obscure the board. Hovering the card brings it back to full opacity so the player can re-pick a different option without finishing the board interaction.
 
 If a future modal hosts a different input type that needs board interaction (e.g. a top-level `SelectSpace`), wire it to call the same picker-mode setter from its `mounted()` / `beforeUnmount()`. Don't reinvent the mechanism per input type.
+
+### Tile placement banner + placement lock (`PlacementBanner`)
+
+The fork unifies the "game is waiting for a tile placement on the Mars board" UX behind a single component: `src/client/components/PlacementBanner.vue` (pill + details modal). **The contract: any time the game wants the player to click on the planet — top-level, nested, server-driven, client preview — a PlacementBanner appears so the player can't miss the state.** Banner mounts in three places, one per signal source:
+
+- **Mandatory, top-level** (server-driven): `WaitingFor.vue` mounts it whenever `waitingfor.type === 'space'` — covers standard projects (city / greenery / aquifer placement after submit), card behavior tiles, global event placements. `cancellable: false`.
+- **Cancellable** (client-driven picker preview): `PlayerHome.vue` mounts it when `convertPlantsPickerActive && convertPlantsPrompt !== undefined`. Server is still in OrOptions (action menu); the picker is a client-side preview. `cancellable: true` → details modal exposes "Отменить размещение", which emits `'cancel'`. Host wires that to its picker-toggle method.
+- **Mandatory, modal-nested** (modal-driven): `MandatoryInputModal.vue` mounts it whenever its picker-mode is active. Picker-mode is set by `OrOptions.vue`'s `selectedOption` watcher when the picked option's `type === 'space'` (WGT "Add an ocean" today; any future nested SelectSpace hosted in a modal works through the same path). The picker-mode setter now passes the option's `title` alongside the active flag so the banner reads "AWAITING PLACEMENT / Add an ocean" instead of falling back to a generic name. `cancellable: false` (the host OrOptions provides the "pick a different option" affordance via its faded-on-hover modal card; exposing Cancel here would duplicate it).
+
+Three independent signal sources need coordination so the global lock (next paragraph) sees a single boolean. That's handled by `src/client/components/placementLockState.ts` — a module-level Vue `reactive()` object. The convert-plants and server-driven sources are read directly by PlayerHome's `placementPending` computed (from `playerView.waitingFor` and `convertPlantsPickerActive`); the modal-driven source is written to `placementLockState.modalPicker` by MandatoryInputModal's `provide()`'d setter and read by the same computed. The banner title for the modal-driven source rides through `placementLockState.modalPickerTitle`. When you add a NEW signal source for board-placement waiting (e.g. a future picker that doesn't go through any of these three paths), add a flag to `placementLockState`, write to it from the new source, and OR it into PlayerHome's `placementPending` computed.
+
+**Draggable pills.** Both PlacementBanner and the MandatoryInputModal minimized pill default-position at `top: calc(var(--bottom-bar-button-height) + 12px)` (≈ y=48px) — just below the top button bar, above the topmost board labels. If the player still finds the pill blocking a board hex they need to click, the pill is draggable via `src/client/components/draggable.ts` (`makeDraggable(element, position)`). Drag clamps to the viewport so the pill can't be dragged off-screen. Click-vs-drag is distinguished by a 5-px movement threshold; a no-drag click still fires the host's @click handler (open details / restore modal), a drag-then-release suppresses the click via a one-shot capture-phase listener. When you add a new "awaiting prompt" pill to the same family, wire it through `makeDraggable` in the same `mounted()` / `beforeUnmount()` pattern and use the same `:style="dragStyle"` binding (returns `{}` at default position so CSS animations / transitions on `transform` are preserved).
+
+The legacy `.wf-select-space` prompt header (containing the "Choose a location for ocean tile" text and the `<GoToMap>` "перейти к карте" link) is hidden via `display: none` in `placement_banner.less`. `SelectSpace.vue` still mounts through `PlayerInputFactory` so its `mounted()` hook attaches board-tile click handlers and adds `.board-space--available` highlighting — only the in-flow text header disappears.
+
+**Placement lock — turn-ending action buttons are disabled while the placement is pending.** `PlayerHome.vue` computes `placementPending` (true when either flow above is active) and a watcher toggles `body.placement-pending`. `placement_banner.less` then locks a curated list of action-button selectors. View interactions (opening Cards / Colonies / Awards / Milestones / Standard Projects overlays for inspection, browsing the hand, clicking opponent panels, reading the log, scrolling the board) stay fully interactive — only buttons that submit a turn-ending response are locked.
+
+Lock mechanics (CSS for visuals, JS for actual blocking):
+- CSS in `placement_banner.less`: each locked-selector match gets `opacity: 0.45 + filter: saturate(0.55) + cursor: not-allowed` for the visual "this is disabled right now" signal. **No `pointer-events: none`** — that would also suppress the native browser `title` tooltip we use for the explanation. **No `::after` overlay** — pseudo-elements don't intercept click events (click target is the host); the overlay-as-blocker trick doesn't work.
+- JS click block in `PlayerHome.installPlacementGuards()`: a capture-phase listener on `document` runs BEFORE Vue's `@click` handlers (which compile to bubble-phase `addEventListener`). When the event target is inside a `PLACEMENT_LOCKED_SELECTORS` match, the guard calls `preventDefault` + `stopImmediatePropagation`. `stopImmediatePropagation` kills the event completely — no further listeners run, no submit happens. Capture phase guarantees the guard runs first regardless of where Vue attached the @click.
+- Tooltip via the native browser `title` attribute. The same `installPlacementGuards` walks every currently-mounted locked button and sets `title="Сначала завершите текущее действие"` (translated via `translateText('Finish your current action first')`, i18n key already in `ru/ui.json`), caching any pre-existing `title` value into a `data-placement-orig-title` attribute. A capture-phase `mouseover` listener catches buttons that get mounted AFTER the lock kicks in (e.g. an overlay opening mid-placement) and applies the title on first hover. `uninstallPlacementGuards` restores originals on unlock.
+
+**When you add a NEW dedicated action button** (per the "Action UI Rework" migration list above — sell patents, blue-card action, CEO one-per-game action, delegate placement, etc.), you MUST add its CSS class in TWO places:
+1. The selector list in `src/styles/placement_banner.less` under `body.placement-pending { … }` (visual dim).
+2. The `PLACEMENT_LOCKED_SELECTORS` array near the top of `src/client/components/PlayerHome.vue` (click block + tooltip).
+
+Both must stay in sync — CSS alone won't block clicks, JS alone won't visually dim. Skipping either lets the player commit that action mid-placement, leaving the cancellable picker silently stale (cancellable case) or accepting an out-of-order submit that the server will partially process (mandatory case). Reasoning is the same as for the existing rule: while a tile placement is pending, the player must explicitly cancel via the banner before doing anything else that ends the turn.
+
+Current locked selectors (keep in sync with the LESS file):
+- `.left-panel-card-action-btn` (parent class — applies dim + click-block to any future left-panel turn button)
+- `.std-project-use-btn`
+- `.milestone-claim-btn`
+- `.award-fund-btn`
+- `.convert-action-btn--heat`
+- `.convert-action-btn--plants`
+- `.colony-tile__select-btn` (Select on a colony tile — trade and Build Colony both flow through it)
+- `.colony-detail__select-btn` (Select inside the ColonyDetailView popout)
+- `.wf-action` (legacy radio submit — temporarily catches everything still migrating; remove from the list once every action in the migration list above has its own dedicated button + selector)
+
+**Special-cased to HIDE instead of dim** — two specific left-panel variants. Per UX call: a dimmed "Pass" in the corner during a placement reads as "stuck, maybe I should mash Pass to escape" and misleads the player. They reappear automatically when the placement is cancelled / committed (`body.placement-pending` class is removed):
+- `.left-panel-card-action-btn--pass`
+- `.left-panel-card-action-btn--end-turn`
+
+**Use `visibility: hidden`, NOT `display: none`.** There's a standing UX contract that the left player panel's geometry stays stable when these buttons appear / disappear — the rest of the panel (labels, resource counters) must not reflow between turns. `display: none` collapses the layout slot and breaks this contract; `visibility: hidden` keeps the slot intact and only suppresses the paint + pointer events. If you find another button that should "hide" mid-placement, use the same `visibility: hidden` approach unless you've verified that collapsing its layout slot is genuinely safe.
+
+Known gaps (add selectors as those flows get dedicated buttons):
+- Send-delegate (Turmoil) — flows through `wf-action` for now; will need its own selector when the dedicated delegate UI lands.
+
+If you add a button but the placement-lock list doesn't have a natural home for the selector (e.g. it's a generic name like `.btn` that's used elsewhere), make the new button-specific class first and lock that. Don't broaden the selector list with generic names — it will quickly re-disable inspection UI you want to keep open.
 
 ## Build & Development Commands
 

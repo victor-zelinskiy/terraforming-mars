@@ -132,14 +132,20 @@ export default defineComponent({
     // `inActionSelection && ConvertX.canAct(player)` gate). The viewer
     // check is upstream: PlayerHome only passes `convertXAvailable` for
     // the viewer's own panel, and `isViewer` guards against panels
-    // displaying other players. For convert-plants we also keep the
-    // button visible while the picker is active so the player can cancel
-    // it with a second click — the picker is a client-side mode where
-    // the server-side action flag may flip false transiently as nothing
-    // else.
+    // displaying other players.
+    //
+    // While the picker is active the button HIDES — the
+    // PlacementBanner (top of viewport) is now the single source of
+    // truth for "you have a pending placement", and the player cancels
+    // through the banner's details modal rather than by hunting for the
+    // toggled-on button on the resource panel. Removing the button
+    // also prevents an awkward double-affordance (banner says "click
+    // board / open details to cancel", button still sits there in a
+    // toggled-on state).
     plantsButtonVisible(): boolean {
       return this.isViewer &&
-        (this.convertPlantsAvailable || this.convertPlantsPickerActive);
+        this.convertPlantsAvailable &&
+        !this.convertPlantsPickerActive;
     },
     heatButtonVisible(): boolean {
       return this.isViewer && this.convertHeatAvailable;
