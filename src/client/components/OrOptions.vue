@@ -35,8 +35,17 @@ import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {InputResponse, OrOptionsResponse} from '@/common/inputs/InputResponse';
 import {MANDATORY_MODAL_PICKER_SETTER} from '@/client/components/MandatoryInputModal.vue';
+import {Message} from '@/common/logs/Message';
 
-type PickerModeSetter = (mode: boolean) => void;
+/*
+ * Setter signature contract with MandatoryInputModal — extended in
+ * v40-b to carry the selected option's title alongside the active
+ * flag. The title is used by the modal to seed the always-visible
+ * PlacementBanner that announces "AWAITING PLACEMENT / <option title>"
+ * (e.g. "Add an ocean" during the WGT picker). `title` is allowed to
+ * be undefined when active=false (banner unmounts in that case).
+ */
+type PickerModeSetter = (mode: boolean, title?: string | Message) => void;
 
 let unique = 0;
 
@@ -107,8 +116,11 @@ export default defineComponent({
       // Signal picker-mode to the parent modal (if any) so it can step
       // aside for board interaction when the selected option is a
       // SelectSpace (board-tile picker). When the user picks a different,
-      // non-picker option the modal restores.
-      this.notifyPickerMode(newOption !== undefined && newOption.type === 'space');
+      // non-picker option the modal restores. The option's title rides
+      // along so the modal can drive a PlacementBanner with the precise
+      // prompt name ("Add an ocean" etc.) instead of a generic fallback.
+      const isSpacePicker = newOption !== undefined && newOption.type === 'space';
+      this.notifyPickerMode(isSpacePicker, isSpacePicker ? newOption?.title : undefined);
       // Clicking the option can shift elements on the page.
       // This preserves the location of the option button the user just clicked by
       // tracking where it was on the screen, where it moved, and then repositioning it.
@@ -167,10 +179,10 @@ export default defineComponent({
       }
       ref.saveData();
     },
-    notifyPickerMode(active: boolean) {
+    notifyPickerMode(active: boolean, title?: string | Message) {
       const setter = (this as unknown as {[k: string]: PickerModeSetter | undefined})[MANDATORY_MODAL_PICKER_SETTER];
       if (typeof setter === 'function') {
-        setter(active);
+        setter(active, title);
       }
     },
   },

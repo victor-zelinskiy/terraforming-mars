@@ -53,6 +53,22 @@
                           :onsave="onsave"
                           :showsave="true"
                           :showtitle="true" />
+
+    <!--
+      Mandatory placement banner. Renders the top-of-viewport
+      "AWAITING PLACEMENT" pill (+ details modal on click) whenever the
+      server's TOP-LEVEL pending input is a SelectSpace. The
+      `PlayerInputFactory` above still mounts the legacy SelectSpace
+      component so its `mounted()` hook can attach board click handlers
+      and add `.board-space--available` to the highlighted tiles — but
+      the legacy `.wf-select-space` prompt header is hidden by
+      placement_banner.less so the player sees only the new banner.
+      Cancellable=false here: the server is already in SelectSpace
+      state, no take-back possible from the client side.
+    -->
+    <PlacementBanner v-if="topLevelSpaceInput !== undefined"
+                     :title="topLevelSpaceInput.title"
+                     :cancellable="false" />
     </div>
   </div>
 </template>
@@ -80,6 +96,8 @@ import {Color} from '@/common/Color';
 import {gameDocumentTitle} from '../utils/documentTitle';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import WorldGovernmentModalContent from '@/client/components/WorldGovernmentModalContent.vue';
+import PlacementBanner from '@/client/components/PlacementBanner.vue';
+import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {Message} from '@/common/logs/Message';
 
 const WGT_TITLE = 'Select action for World Government Terraforming';
@@ -137,6 +155,7 @@ export default defineComponent({
   components: {
     MandatoryInputModal,
     WorldGovernmentModalContent,
+    PlacementBanner,
   },
   props: {
     playerView: {
@@ -389,6 +408,18 @@ export default defineComponent({
     // waitingfor — same string the modal title bar would show.
     modalPillTitle(): string | Message {
       return this.waitingfor?.title ?? '';
+    },
+    // Narrowed reference to the current waitingfor when it's a
+    // top-level SelectSpace (server-driven mandatory tile placement —
+    // standard projects, action card placements, etc.). Used to drive
+    // the always-visible PlacementBanner. Nested SelectSpace prompts
+    // (inside OrOptions like convert-plants or WGT) are NOT detected
+    // here — those flows render their own banner (convert-plants from
+    // PlayerHome) or use the modal picker-mode mechanism (WGT).
+    topLevelSpaceInput(): SelectSpaceModel | undefined {
+      const wf = this.waitingfor;
+      if (wf === undefined || wf.type !== 'space') return undefined;
+      return wf;
     },
   },
 });

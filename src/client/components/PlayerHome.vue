@@ -141,6 +141,24 @@
       :showtitle="false" />
 
     <!--
+      Cancellable placement banner — convert-plants picker mode.
+      Mirrors the mandatory banner (rendered from WaitingFor.vue for
+      server-driven SelectSpace) but the cancellable=true flag enables
+      the "Cancel placement" button in the details modal. Cancel emits
+      'cancel' → we toggle the picker flag off, which unmounts the
+      <select-space> above. SelectSpace.beforeUnmount clears the
+      board highlights and click handlers — same path the old second-
+      click on the action button used to take. No server round-trip
+      is required because the server is still in OrOptions state
+      (the player just hadn't committed to the convert-plants option).
+    -->
+    <PlacementBanner v-if="convertPlantsPickerActive && convertPlantsPrompt !== undefined"
+                     :title="convertPlantsPrompt.title"
+                     :cancellable="true"
+                     sourceMessage="This action was initiated by the convert-plants action."
+                     @cancel="toggleConvertPlantsPicker" />
+
+    <!--
       Client-side payment preview modal for Standard Projects. Mounts when
       the player picks a project that requires choosing between M€ and
       alternative resources (heat / steel / titanium / etc.). The modal
@@ -376,6 +394,8 @@ import AwardFundedBadge from '@/client/components/overview/AwardFundedBadge.vue'
 import SelectSpace from '@/client/components/SelectSpace.vue';
 import StandardProjectsOverlay from '@/client/components/overview/StandardProjectsOverlay.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
+import PlacementBanner from '@/client/components/PlacementBanner.vue';
+import {placementLockState} from '@/client/components/placementLockState';
 import StandardProjectPaymentContent from '@/client/components/payment/StandardProjectPaymentContent.vue';
 import PassConfirmContent from '@/client/components/overview/PassConfirmContent.vue';
 import ColoniesOverlay from '@/client/components/colonies/ColoniesOverlay.vue';
@@ -383,7 +403,7 @@ import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePay
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {CardResource} from '@/common/CardResource';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {Payment} from '@/common/inputs/Payment';
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
@@ -473,6 +493,14 @@ type PlayerHomeModel = ToggleableState & {
   coloniesOverlayOpen: boolean;
   coloniesOverlayManualOpen: boolean;
   pendingTradeColony: PendingTradeColony | undefined;
+  /*
+   * Capture-phase event listeners installed during placement-pending
+   * to block clicks on locked action buttons + apply native `title`
+   * tooltips on hover. Held on the instance so install/uninstall can
+   * remove the same reference. `null` when no placement is active.
+   */
+  placementClickGuard: ((e: MouseEvent) => void) | null;
+  placementMouseOverHandler: ((e: MouseEvent) => void) | null;
 }
 
 type ToggleableCardType = 'HAND' | 'ACTIVE' | 'AUTOMATED' | 'EVENT';
@@ -483,6 +511,28 @@ const typeToDataModel: Record<ToggleableCardType, {key: keyof ToggleableState, p
   AUTOMATED: {key: 'showAutomatedCards', preference: 'hide_automated_cards'},
   EVENT: {key: 'showEventCards', preference: 'hide_event_cards'},
 } as const;
+
+/*
+ * CSS selectors for turn-ending action buttons that must be blocked
+ * while a tile placement is pending. Kept in sync with the same list
+ * in `src/styles/placement_banner.less` and CLAUDE.md (`Tile placement
+ * banner + placement lock`). Adding a NEW dedicated action button
+ * means adding its class HERE (so the JS click guard catches it) AND
+ * in the LESS file (so it gets the dim visuals).
+ */
+const PLACEMENT_LOCKED_SELECTORS = [
+  '.left-panel-card-action-btn',
+  '.std-project-use-btn',
+  '.milestone-claim-btn',
+  '.award-fund-btn',
+  '.convert-action-btn--heat',
+  '.convert-action-btn--plants',
+  '.colony-tile__select-btn',
+  '.colony-detail__select-btn',
+  '.wf-action',
+].join(', ');
+
+const PLACEMENT_ORIG_TITLE_ATTR = 'data-placement-orig-title';
 
 export default defineComponent({
   name: 'player-home',
@@ -502,6 +552,15 @@ export default defineComponent({
       coloniesOverlayOpen: false,
       coloniesOverlayManualOpen: false,
       pendingTradeColony: undefined,
+      /*
+       * Capture-phase click guard installed during placement-pending
+       * to intercept clicks on locked action buttons BEFORE Vue's
+       * @click handlers fire. `null` when no placement is active.
+       * Stored on the instance (not closed over in install/uninstall)
+       * so the removeEventListener reference matches.
+       */
+      placementClickGuard: null as ((e: MouseEvent) => void) | null,
+      placementMouseOverHandler: null as ((e: MouseEvent) => void) | null,
     };
   },
   watch: {
@@ -555,9 +614,53 @@ export default defineComponent({
         }
       },
     },
+    /*
+     * Global placement-lock body class. While the game is waiting on a
+     * tile placement on the Mars board — either MANDATORY (server-driven
+     * top-level SelectSpace from a standard project / card / global
+     * event) or CANCELLABLE (client-driven convert-plants picker) — we
+     * tag <body> with `.placement-pending`. The CSS in
+     * placement_banner.less dims and blocks pointer-events on all
+     * action UI (sidebars, overlays, bar buttons) except the board
+     * itself and the placement banner / details modal (those are
+     * teleported to body, outside #player-home).
+     *
+     * Why even cancellable mode locks: per UX contract, the player must
+     * EXPLICITLY cancel via the banner's details modal before doing
+     * anything else. Without this lock, a player mid-pick could click
+     * "Claim a milestone" and the server would happily accept the
+     * milestone claim (the convert-plants picker is just client-side
+     * state — the server is still in OrOptions, so a milestone option
+     * is a valid response). The picker would then become silently
+     * stale. Locking the UI forces the explicit cancel decision.
+     */
+    placementPending: {
+      immediate: true,
+      handler(active: boolean) {
+        if (active) {
+          document.body.classList.add('placement-pending');
+          this.installPlacementGuards();
+        } else {
+          document.body.classList.remove('placement-pending');
+          this.uninstallPlacementGuards();
+        }
+      },
+    },
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleOutsideOverlayClick);
+    /* Defensive cleanup — if PlayerHome unmounts mid-placement (e.g.
+     * navigation, game-over reroute), don't leave the lock state behind:
+     *   - body class would keep dimming buttons on whatever screen
+     *     the player ends up on;
+     *   - the capture-phase click guard would keep intercepting clicks
+     *     on the next page (until the listener got GC'd, which only
+     *     happens if no references remain — risky).
+     *   - any titles we overwrote would stay overwritten until the
+     *     element next re-renders.
+     */
+    this.uninstallPlacementGuards();
+    document.body.classList.remove('placement-pending');
   },
   props: {
     playerView: {
@@ -895,6 +998,45 @@ export default defineComponent({
     convertPlantsPrompt(): SelectSpaceModel | undefined {
       return this.findConvertPlantsOption(this.playerView.waitingFor)?.spacePrompt as SelectSpaceModel | undefined;
     },
+    /*
+     * True when the game is waiting on a tile placement on the Mars
+     * board — covers three sources:
+     *
+     *   - MANDATORY (server-driven, top-level): `waitingFor.type ===
+     *     'space'`. Standard projects, card behavior tiles, global
+     *     events. PlacementBanner mounted from WaitingFor.vue.
+     *
+     *   - CANCELLABLE (client-driven, convert plants): the player
+     *     toggled the picker on; server still in OrOptions. Banner
+     *     mounted from PlayerHome.vue (this component, template).
+     *
+     *   - MANDATORY (modal-driven, nested in MandatoryInputModal):
+     *     a SelectSpace option was picked inside the modal's
+     *     OrOptions (currently the WGT "Add an ocean" prompt, but
+     *     any future nested SelectSpace in a modal works through the
+     *     same path). MandatoryInputModal raises the shared
+     *     `placementLockState.modalPicker` flag via OrOptions' picker-
+     *     mode setter; we read it here to fold that signal into the
+     *     unified placement-pending state. Banner mounted from
+     *     MandatoryInputModal.vue.
+     *
+     * Read by a watcher (above this block) that toggles
+     * `body.placement-pending`, installs/uninstalls the JS click
+     * guard, and applies native title tooltips on locked buttons.
+     */
+    placementPending(): boolean {
+      const wf = this.playerView.waitingFor;
+      if (wf !== undefined && wf.type === 'space') {
+        return true;
+      }
+      if (this.convertPlantsPickerActive && this.convertPlantsPrompt !== undefined) {
+        return true;
+      }
+      if (placementLockState.modalPicker) {
+        return true;
+      }
+      return false;
+    },
     // The current SelectStandardProjectToPlay model in the action menu, or
     // undefined if the player isn't currently being offered standard
     // projects. Exposed to the overlay so each project's "USE" button can
@@ -927,6 +1069,7 @@ export default defineComponent({
     'select-space': SelectSpace,
     StandardProjectsOverlay,
     MandatoryInputModal,
+    PlacementBanner,
     StandardProjectPaymentContent,
     PassConfirmContent,
     ColoniesOverlay,
@@ -1395,6 +1538,95 @@ export default defineComponent({
     // response in the outer OR-payload and submits.
     toggleConvertPlantsPicker(): void {
       this.convertPlantsPickerActive = !this.convertPlantsPickerActive;
+    },
+    /*
+     * Install the placement lock — JS-level click block + native title
+     * tooltip on hover. CSS does the visual dim (opacity + saturate +
+     * not-allowed cursor) but doesn't touch click events: pseudo-
+     * element overlays can't intercept clicks (events still target
+     * the host), and `pointer-events: none` would suppress the native
+     * browser tooltip too. So the actual block lives here in JS.
+     *
+     * Two listeners attached at document level on the CAPTURE phase:
+     *
+     *   1. Click guard — runs BEFORE any Vue @click handler. If the
+     *      click target is inside a locked-selector match,
+     *      preventDefault + stopImmediatePropagation kill the event.
+     *      stopImmediatePropagation specifically prevents both
+     *      further listeners AND the target's own handlers (Vue's
+     *      @click compiles to a normal addEventListener, which lives
+     *      on the bubble phase; the capture-phase + stopImmediate
+     *      combination preempts it cleanly).
+     *
+     *   2. Mouseover handler — lazily sets the native `title`
+     *      attribute on each locked button the player hovers,
+     *      preserving any pre-existing `title` into
+     *      `data-placement-orig-title` so we can restore it on
+     *      unlock. Mouseover (not mouseenter) bubbles, so a single
+     *      document-level listener catches all matches without
+     *      per-element wiring. Also runs immediately on install for
+     *      all currently-mounted locked buttons so the very first
+     *      hover already has a title set (avoids the OS tooltip
+     *      delay racing with the mouseover -> setAttribute write).
+     */
+    installPlacementGuards(): void {
+      if (this.placementClickGuard !== null) return;
+      const tooltipText = translateText('Finish your current action first');
+
+      const guard = (e: MouseEvent) => {
+        const target = e.target as Element | null;
+        if (target === null) return;
+        if (target.closest(PLACEMENT_LOCKED_SELECTORS) !== null) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      };
+      document.addEventListener('click', guard, true);
+      this.placementClickGuard = guard;
+
+      const mouseover = (e: MouseEvent) => {
+        const target = e.target as Element | null;
+        if (target === null) return;
+        const locked = target.closest(PLACEMENT_LOCKED_SELECTORS);
+        if (locked === null) return;
+        if (locked.hasAttribute(PLACEMENT_ORIG_TITLE_ATTR)) return;
+        const orig = locked.getAttribute('title') ?? '';
+        locked.setAttribute(PLACEMENT_ORIG_TITLE_ATTR, orig);
+        locked.setAttribute('title', tooltipText);
+      };
+      document.addEventListener('mouseover', mouseover, true);
+      this.placementMouseOverHandler = mouseover;
+
+      /* Eager pass — set titles on every match currently in the DOM
+       * so the first hover doesn't race with the OS tooltip delay. */
+      document.querySelectorAll(PLACEMENT_LOCKED_SELECTORS).forEach((el) => {
+        if (el.hasAttribute(PLACEMENT_ORIG_TITLE_ATTR)) return;
+        const orig = el.getAttribute('title') ?? '';
+        el.setAttribute(PLACEMENT_ORIG_TITLE_ATTR, orig);
+        el.setAttribute('title', tooltipText);
+      });
+    },
+    uninstallPlacementGuards(): void {
+      if (this.placementClickGuard !== null) {
+        document.removeEventListener('click', this.placementClickGuard, true);
+        this.placementClickGuard = null;
+      }
+      if (this.placementMouseOverHandler !== null) {
+        document.removeEventListener('mouseover', this.placementMouseOverHandler, true);
+        this.placementMouseOverHandler = null;
+      }
+      /* Restore each tagged element's original title — empty string
+       * means there wasn't a title attribute originally, in which
+       * case we remove ours entirely instead of leaving a blank one. */
+      document.querySelectorAll('[' + PLACEMENT_ORIG_TITLE_ATTR + ']').forEach((el) => {
+        const orig = el.getAttribute(PLACEMENT_ORIG_TITLE_ATTR) ?? '';
+        if (orig === '') {
+          el.removeAttribute('title');
+        } else {
+          el.setAttribute('title', orig);
+        }
+        el.removeAttribute(PLACEMENT_ORIG_TITLE_ATTR);
+      });
     },
     onConvertPlantsSpacePicked(spaceResponse: {type: 'space'; spaceId: string}): void {
       const found = this.findConvertPlantsOption(this.playerView.waitingFor);

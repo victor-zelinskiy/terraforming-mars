@@ -1,0 +1,530 @@
+/*
+ * placement_banner.less — unified "awaiting tile placement on the Mars
+ * board" UX.
+ *
+ * Two pieces:
+ *   1) `.placement-banner` — fixed pill at the top of the viewport that
+ *      announces "AWAITING PLACEMENT / <prompt title>". Visual style
+ *      mirrors `.mandatory-input-modal-pill` so the player learns one
+ *      pattern: any "AWAITING …" pill at the top of the viewport means
+ *      the game is waiting on them. Distinct from the modal pill in
+ *      copy ("PLACEMENT" vs "DECISION") so the player still knows
+ *      whether they should look at the board or open a modal.
+ *
+ *   2) `.placement-details` — sci-fi modal that appears when the player
+ *      clicks the pill. Hosted via Teleport on body so it escapes any
+ *      ancestor clip-path / transform. Sci-fi glass chrome with
+ *      L-corner ticks; Cancel + Close buttons.
+ *
+ * Legacy `.wf-select-space` text block (the upstream "Choose a place
+ * for ocean tile" + "go to map" header) is hidden via this file too —
+ * the new banner replaces it. SelectSpace.vue still mounts and runs
+ * its board-handler setup; only the in-flow text header disappears.
+ */
+
+/* ──────────────────────────────────────────────────────────────────
+ *  Placement lock — disable ONLY turn-ending action buttons while a
+ *  tile placement is pending.
+ * ──────────────────────────────────────────────────────────────────
+ *
+ * PlayerHome.vue toggles `body.placement-pending` whenever the game is
+ * waiting on a tile placement — either MANDATORY (server-driven
+ * top-level SelectSpace) or CANCELLABLE (client-driven convert-plants
+ * picker). The UX contract: while the placement is active the player
+ * must EXPLICITLY cancel via the banner's details modal (or commit
+ * the placement) before they can take a different action that ends
+ * the turn.
+ *
+ * Scope of the lock (important — do NOT broaden):
+ *   - VIEW interactions stay fully open. Player can browse their own
+ *     hand, open Cards / Colonies / Awards / Milestones / Standard
+ *     Projects overlays to look at the data, click opponent panels,
+ *     scroll the log, etc. Only the BUTTONS that submit a
+ *     turn-ending response are disabled.
+ *   - The Mars board stays bright and clickable — that's the actual
+ *     placement target.
+ *   - The placement banner and its details modal are teleported to
+ *     <body>, outside the action-button tree, and are naturally
+ *     unaffected.
+ *
+ * Concrete locked surfaces (each picked by direct class selector so
+ * the surrounding view chrome remains interactive):
+ *
+ *   .left-panel-card-action-btn   — Pass / End turn (also covers any
+ *                                    future left-panel turn buttons)
+ *   .std-project-use-btn          — "Use" inside StandardProjectsOverlay
+ *   .milestone-claim-btn          — "Claim" inside MilestonesOverlay
+ *   .award-fund-btn               — "Fund" inside AwardsOverlay
+ *   .convert-action-btn--heat     — Convert heat (plants button is
+ *                                    already hidden via plantsButtonVisible
+ *                                    during the picker, so doesn't need
+ *                                    a CSS lock — but listed for clarity)
+ *   .wf-action                    — Legacy radio-UI submit/reset
+ *                                    container. Wraps the submit
+ *                                    button for any action routed
+ *                                    through the action menu radio
+ *                                    (Play card, Sell patents, etc.).
+ *                                    Locking this single container
+ *                                    locks all those flows at once.
+ *
+ * Visual feedback: dim + saturate, with a smooth 220ms transition so
+ * the lock/unlock state is perceptible without being jarring.
+ *
+ * Known gaps left for follow-up (not blocking):
+ *   - ColoniesOverlay trade — submitted by clicking the colony tile
+ *     itself (no targetable action-button class). Player could still
+ *     accidentally commit a trade mid-placement; a follow-up pass can
+ *     add a `data-placement-lockable` marker to the tile or a wrapper
+ *     class to ColoniesOverlay's trade-mode.
+ *   - Card "play" / blue-card action submit happens through the
+ *     legacy action menu radio + wf-action submit, so it's already
+ *     covered by the .wf-action rule below.
+ */
+/*
+ * Visual signal that the button is locked: dim + desaturate +
+ * not-allowed cursor. The actual click blocking is done by a
+ * capture-phase event guard installed in PlayerHome.vue
+ * (`installPlacementGuards`), NOT by CSS — CSS `pointer-events: none`
+ * was tried and rejected because it also suppresses the native
+ * `title` browser tooltip we use for the "Finish your current
+ * action first" hint. Likewise an `::after` overlay was tried and
+ * rejected because click events still target the host element (the
+ * pseudo doesn't intercept them — pseudo-elements aren't event
+ * targets).
+ *
+ * So the system is: CSS for visuals, JS guard for actual blocking,
+ * native HTML `title` attribute (set by the same PlayerHome watcher)
+ * for the tooltip. The watcher also installs a `mouseover` listener
+ * that lazily sets `title` on each locked button the player hovers,
+ * caching any pre-existing `title` value into `data-placement-orig-
+ * title` so it can be restored on unlock.
+ */
+body.placement-pending {
+    .left-panel-card-action-btn,
+    .std-project-use-btn,
+    .milestone-claim-btn,
+    .award-fund-btn,
+    .convert-action-btn--heat,
+    .convert-action-btn--plants,
+    .colony-tile__select-btn,
+    .colony-detail__select-btn,
+    .wf-action {
+        opacity: 0.45;
+        filter: saturate(0.55);
+        cursor: not-allowed !important;
+        transition: opacity 220ms ease, filter 220ms ease;
+    }
+    /*
+     * Pass + End-turn — VISUALLY HIDDEN, layout slot PRESERVED.
+     *
+     * For the rest of the action buttons we keep them visible-but-
+     * disabled so the player learns the lock pattern and can read
+     * the native tooltip explaining why they're locked. Pass /
+     * End-turn are different: showing them dimmed in the left panel
+     * during a placement actively reads as "stuck — maybe I should
+     * hit Pass to escape?", which is misleading. Per UX request they
+     * vanish entirely while a placement is pending.
+     *
+     * CRITICAL: `display: none` would collapse the buttons out of
+     * the layout flow, which shifts every label / resource counter
+     * in the left player panel — there's a standing UX contract
+     * that the panel's geometry stays stable when these buttons
+     * appear/disappear (the rest of the panel can't jitter when
+     * action availability changes between turns). `visibility:
+     * hidden` is the right tool: the buttons render as
+     * transparent boxes that still occupy their original space, so
+     * adjacent chrome doesn't reflow. The element also doesn't
+     * receive pointer events while hidden, which means the JS
+     * click guard isn't needed for these two specific selectors
+     * (the parent `.left-panel-card-action-btn` is still in the
+     * locked list above, so the guard catches any future left-
+     * panel turn button that doesn't fall into this hide rule).
+     *
+     * Toggle back to default is automatic when `body.placement-
+     * pending` is removed — no JS cleanup needed. If the player
+     * Cancels via the banner's details modal, the buttons reappear
+     * instantly with their original state restored.
+     */
+    .left-panel-card-action-btn--pass,
+    .left-panel-card-action-btn--end-turn {
+        visibility: hidden !important;
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ *  Hide legacy SelectSpace header
+ * ────────────────────────────────────────────────────────────────── */
+/*
+ * The legacy `.wf-select-space` div lives at the top of every inline
+ * SelectSpace render. It contains the prompt text + the "go to map"
+ * scroll-link from `GoToMap.vue`. With our new banner pinned to the
+ * top of the viewport AND the board permanently centred in the new
+ * layout (no scroll needed), both of these become redundant. Hide
+ * the legacy block; do NOT remove the v-if/template wrap so the
+ * underlying SelectSpace component still mounts correctly and the
+ * board click handlers attach in its `mounted()` hook.
+ */
+.wf-select-space {
+    display: none !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ *  Banner pill
+ * ────────────────────────────────────────────────────────────────── */
+.placement-banner {
+    position: fixed;
+    /*
+     * v40-c: default vertical position bumped HIGHER.
+     *
+     * Previously `calc(var(--bottom-bar-button-height) + 88px) = 124px`
+     * which collided with the topmost board labels (Maxwell Base et
+     * al.) since #player-home padding-top is 116px and outer-space
+     * labels sit at margin-top: -25px (~y=91 in viewport coords).
+     * The banner was overlapping those labels and the Maxwell Base
+     * hex itself — a problem if the player needs to click that hex.
+     *
+     * New value: `+12` puts the banner at y=48px, well below the top
+     * button bar (which occupies y=0..36) and above the board
+     * labels. May still overlap the dropdown badge strips under
+     * Awards / Milestones bar buttons when those overlays are open
+     * (strips span ~y=44..83) — that's why the banner is also now
+     * draggable: if it covers anything the player needs, they can
+     * grab it and move it elsewhere on screen.
+     *
+     * The MandatoryInputModal pill uses the same expression (kept in
+     * sync — both pills are visually the same "AWAITING …" surface).
+     */
+    top: calc(var(--bottom-bar-button-height) + 12px);
+    left: 50%;
+    transform: translate(-50%, 0);
+    /*
+     * v40-d: z-index bumped 100 → 107 so the banner renders ABOVE
+     * the top-bar buttons (z=105) and the Awards / Milestones badge
+     * strips (z=106) that hang under them. Earlier z=100 left the
+     * banner BEHIND those strips — the player could lose track of
+     * the pending placement when the strips were on screen.
+     *
+     * Stays BELOW the bar-overlay panels (z=110) on purpose: when
+     * the player opens Awards / Milestones / Std Projects / Cards /
+     * Colonies to inspect data before deciding on the placement,
+     * the overlay still cleanly covers the banner — same UX
+     * principle the original modal pill had, just bumped two
+     * notches up to also clear the buttons + strips.
+     */
+    z-index: 107;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(720px, calc(100vw - 48px));
+    padding: 8px 18px 8px 16px;
+    border: 1px solid #2c4a6a;
+    background: linear-gradient(180deg,
+        rgba(20, 30, 45, 0.95) 0%,
+        rgba(12, 20, 32, 0.95) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.12),
+        0 8px 24px rgba(0, 0, 0, 0.55),
+        0 0 32px rgba(106, 176, 230, 0.18);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    /*
+     * `cursor: move` signals draggability (the banner can be grabbed
+     * and dragged anywhere within the viewport — see makeDraggable).
+     * A no-drag click still opens the details modal; the drag
+     * controller distinguishes click vs drag via a 5-px threshold.
+     */
+    cursor: move;
+    clip-path: polygon(2% 0%, 100% 0%, 98% 100%, 0% 100%);
+    user-select: none;
+    /* Mount animation — slide in from above (matches modal-pill restore). */
+    animation: placement-banner-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: filter 150ms ease, box-shadow 150ms ease;
+
+    &:hover {
+        filter: brightness(1.12) drop-shadow(0 0 8px rgba(106, 176, 230, 0.4));
+    }
+    &:active {
+        filter: brightness(0.96);
+    }
+    &:focus-visible {
+        outline: none;
+        box-shadow:
+            inset 0 0 0 1px rgba(106, 176, 230, 0.45),
+            0 8px 24px rgba(0, 0, 0, 0.55),
+            0 0 32px rgba(106, 176, 230, 0.55);
+    }
+}
+
+@keyframes placement-banner-in {
+    from { opacity: 0; transform: translate(-50%, -20px); }
+    to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.placement-banner__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #6ab0e6;
+    box-shadow: 0 0 8px rgba(106, 176, 230, 0.8);
+    flex-shrink: 0;
+    animation: placement-banner-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes placement-banner-pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.8),
+                    0 0 0 0 rgba(106, 176, 230, 0);
+    }
+    50% {
+        transform: scale(1.15);
+        box-shadow: 0 0 12px rgba(106, 176, 230, 1),
+                    0 0 0 6px rgba(106, 176, 230, 0);
+    }
+}
+
+.placement-banner__label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #9bb5d0;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.placement-banner__sep {
+    color: #3a5670;
+    flex-shrink: 0;
+}
+
+.placement-banner__title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    text-shadow: 0 0 8px rgba(106, 176, 230, 0.2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    letter-spacing: 0.5px;
+}
+
+.placement-banner__expand {
+    flex-shrink: 0;
+    margin-left: 6px;
+    font-size: 16px;
+    color: #6ab0e6;
+    line-height: 1;
+    opacity: 0.85;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.placement-banner:hover .placement-banner__expand {
+    opacity: 1;
+    transform: scale(1.15);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ *  Details modal
+ * ────────────────────────────────────────────────────────────────── */
+/*
+ * Wrapper covers the viewport and centres the card. Backdrop is
+ * separately stacked so click-outside-to-close works without the
+ * card swallowing the click.
+ */
+.placement-details {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    padding: 24px;
+}
+
+.placement-details__backdrop {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 50% 50%,
+            rgba(8, 14, 22, 0.5) 0%,
+            rgba(4, 8, 14, 0.85) 80%),
+        rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px) saturate(0.8);
+    -webkit-backdrop-filter: blur(4px) saturate(0.8);
+    pointer-events: auto;
+    animation: placement-details-backdrop-in 180ms ease;
+}
+
+@keyframes placement-details-backdrop-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.placement-details__card {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
+    width: min(520px, calc(100vw - 64px));
+    padding: 22px 24px 20px;
+    border-radius: 4px;
+    background: linear-gradient(180deg,
+        rgba(20, 30, 45, 0.97) 0%,
+        rgba(12, 20, 32, 0.98) 100%);
+    border: 1px solid #2c4a6a;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.18),
+        0 30px 60px rgba(0, 0, 0, 0.6),
+        0 0 60px rgba(106, 176, 230, 0.14);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+    animation: placement-details-card-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes placement-details-card-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* L-corner ticks — same chrome family as MandatoryInputModal. */
+.placement-details__corner {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+    border-color: #6ab0e6;
+    opacity: 0.7;
+    filter: drop-shadow(0 0 6px rgba(106, 176, 230, 0.35));
+
+    &--tl { top: -7px; left: -7px;       border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -7px; right: -7px;      border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -7px; left: -7px;    border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -7px; right: -7px;   border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+.placement-details__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.placement-details__header-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6ab0e6;
+    box-shadow: 0 0 6px rgba(106, 176, 230, 0.8);
+    animation: placement-banner-pulse 1.8s ease-in-out infinite;
+}
+
+.placement-details__header-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #9bb5d0;
+}
+
+.placement-details__title {
+    margin: 0 0 14px 0;
+    font-family: "Russo One", Prototype, Ubuntu, sans-serif;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #e8f1fb;
+    text-shadow: 0 0 10px rgba(106, 176, 230, 0.25);
+    line-height: 1.3;
+}
+
+.placement-details__body,
+.placement-details__source,
+.placement-details__mandatory {
+    margin: 0 0 10px 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #c8d6e8;
+    letter-spacing: 0.3px;
+}
+
+.placement-details__source {
+    color: #9bb5d0;
+    font-style: italic;
+}
+
+.placement-details__mandatory {
+    color: #ffb084;
+    font-weight: 600;
+}
+
+.placement-details__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+/*
+ * Buttons — sci-fi parallelogram chrome matching the modal's minimize
+ * button and the convert-action button. Two variants:
+ *   --close  : neutral cyan (close details, placement still pending)
+ *   --cancel : warmer amber (cancels the picker entirely — only shown
+ *              when cancellable=true)
+ */
+.placement-details__btn {
+    position: relative;
+    height: 32px;
+    padding: 0 18px;
+    border: none;
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover { filter: brightness(1.15); transform: translateY(-1px); }
+    &:active { filter: brightness(0.95); transform: translateY(0); }
+    &:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(106, 176, 230, 0.5);
+    }
+}
+
+.placement-details__btn--close {
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.72) 0%,
+        rgba(80, 120, 160, 0.24) 50%,
+        rgba(130, 170, 210, 0.58) 100%);
+}
+
+.placement-details__btn--cancel {
+    background: linear-gradient(180deg,
+        rgba(230, 160, 100, 0.78) 0%,
+        rgba(180, 100, 60, 0.28) 50%,
+        rgba(220, 140, 90, 0.6) 100%);
+    color: #fff1e0;
+}

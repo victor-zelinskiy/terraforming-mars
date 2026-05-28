@@ -74,10 +74,12 @@
     covers the pill; close the overlay and the pill is back.
   -->
   <Teleport to="body">
-    <div :class="pillClass"
+    <div ref="pill"
+         :class="pillClass"
          role="button"
          tabindex="0"
          :title="$t('Click to expand the awaiting prompt')"
+         :style="pillDragStyle"
          @click="restore"
          @keydown.enter="restore"
          @keydown.space="restore"
@@ -89,12 +91,36 @@
       <span class="mandatory-input-modal-pill__restore" :title="$t('Restore')">⤢</span>
     </div>
   </Teleport>
+
+  <!--
+    Picker-mode placement banner. When the modal's nested OrOptions
+    picks a SelectSpace option (currently the WGT "Add an ocean"
+    prompt, but also any future nested SelectSpace hosted in a
+    modal), we mount the same banner used for top-level mandatory
+    placements. Banner is teleported to body (independent stacking
+    context) so it sits at the top of the viewport while the modal
+    card has faded + shifted under picker-mode CSS.
+
+    `cancellable: false` — the nested picker IS cancellable in the
+    sense that the player can pick a different option in the host
+    OrOptions, but they do that by hovering the faded modal card
+    (which rises back to full opacity) and clicking another radio.
+    Exposing a Cancel button on the banner would duplicate that
+    affordance and confuse the cancel semantics. Banner stays an
+    info-only signal here.
+  -->
+  <PlacementBanner v-if="pickerMode"
+                   :title="pickerTitle"
+                   :cancellable="false" />
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {Message} from '@/common/logs/Message';
 import {translateText, translateMessage} from '@/client/directives/i18n';
+import PlacementBanner from '@/client/components/PlacementBanner.vue';
+import {setModalPickerActive} from '@/client/components/placementLockState';
+import {makeDraggable, DraggableController, DraggablePosition} from '@/client/components/draggable';
 
 // Injection key for the picker-mode setter exposed by the modal to its
 // descendants. A nested OrOptions whose selected option is a board-picker
@@ -108,11 +134,30 @@ export const MANDATORY_MODAL_PICKER_SETTER = 'mandatoryModalSetPickerMode';
 
 type DataModel = {
   pickerMode: boolean;
+  /*
+   * Title of the picker-mode prompt — the SelectSpace option's title
+   * captured when OrOptions notified us. Used to seed the always-
+   * visible PlacementBanner that announces "AWAITING PLACEMENT /
+   * <option title>" so the player can't miss that the game is now
+   * waiting for them to click the board.
+   */
+  pickerTitle: string | Message | undefined;
   minimized: boolean;
+  /*
+   * Pixel offset from the pill's default centred-top position. The
+   * pill is draggable so the player can move it if it covers a
+   * board cell they need to click. Persisted within the modal's
+   * lifetime — resets when the modal unmounts.
+   */
+  pillDragOffset: DraggablePosition;
+  pillDragController: DraggableController | null;
 };
 
 export default defineComponent({
   name: 'MandatoryInputModal',
+  components: {
+    PlacementBanner,
+  },
   props: {
     // Prompt title — used in the minimized pill so the player knows
     // what's waiting even when the modal is collapsed. Accepts the same
@@ -135,7 +180,10 @@ export default defineComponent({
   data(): DataModel {
     return {
       pickerMode: false,
+      pickerTitle: undefined,
       minimized: false,
+      pillDragOffset: {x: 0, y: 0},
+      pillDragController: null,
     };
   },
   computed: {
@@ -156,6 +204,20 @@ export default defineComponent({
       if (typeof t === 'string') return translateText(t);
       return translateMessage(t);
     },
+    /*
+     * Inline transform override for the draggable pill. Returns `{}`
+     * at default offset so the CSS visibility transition
+     * (`opacity` + `transform: translate(-50%, -20px → 0)`) still
+     * runs when `--visible` is toggled. Once dragged, the inline
+     * transform overrides — pill stays at the user-chosen position
+     * regardless of minimized state.
+     */
+    pillDragStyle(): Record<string, string> {
+      if (this.pillDragOffset.x === 0 && this.pillDragOffset.y === 0) return {};
+      return {
+        transform: `translate(calc(-50% + ${this.pillDragOffset.x}px), ${this.pillDragOffset.y}px)`,
+      };
+    },
   },
   watch: {
     // If the host swaps the modal contents to a new prompt (e.g. one
@@ -168,12 +230,23 @@ export default defineComponent({
   },
   provide() {
     return {
-      [MANDATORY_MODAL_PICKER_SETTER]: (mode: boolean) => {
+      [MANDATORY_MODAL_PICKER_SETTER]: (mode: boolean, title?: string | Message) => {
         this.pickerMode = mode;
+        this.pickerTitle = mode ? title : undefined;
         // Entering picker-mode (board tile selection) implicitly cancels
         // any minimize state — the modal is hidden via picker rules and
         // showing a pill on top would be redundant signaling.
         if (mode) this.minimized = false;
+        /*
+         * Raise the modal-picker source of placement-pending in the
+         * shared coordinator. PlayerHome's `placementPending` computed
+         * reads this and triggers the global placement lock (body
+         * class + JS click guard + native title tooltips + Pass/End-
+         * turn hide) — same UX as the convert-plants picker, just
+         * driven by a different source. Title carries through to the
+         * PlacementBanner mounted below.
+         */
+        setModalPickerActive(mode, title);
       },
     };
   },
@@ -185,10 +258,27 @@ export default defineComponent({
     // either depending on which CSS reset / layout rules win.
     document.documentElement.classList.add('mandatory-input-modal-open');
     document.body.classList.add('mandatory-input-modal-open');
+    /* Wire up drag on the minimized pill (ref="pill"). Drag controller
+     * lives until beforeUnmount; gestures only fire when the pill is
+     * actually present on screen (it's hidden by opacity:0 until the
+     * --visible class is applied), so installing the listener here
+     * regardless of minimized state is safe. */
+    const pillEl = this.$refs.pill as HTMLElement | undefined;
+    if (pillEl !== undefined) {
+      this.pillDragController = makeDraggable(pillEl, this.pillDragOffset);
+    }
   },
   beforeUnmount() {
     document.documentElement.classList.remove('mandatory-input-modal-open');
     document.body.classList.remove('mandatory-input-modal-open');
+    this.pillDragController?.destroy();
+    this.pillDragController = null;
+    /* Defensive: if the modal unmounts mid-picker (server resolved
+     * the prompt, modal v-if flips to false), don't leave the
+     * modal-picker source raised in the shared coordinator. Without
+     * this the global lock would persist on whatever the next
+     * playerView state is. */
+    setModalPickerActive(false, undefined);
   },
   methods: {
     minimize(): void {

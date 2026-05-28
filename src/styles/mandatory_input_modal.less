@@ -264,10 +264,22 @@ body.mandatory-input-modal-open {
  */
 .mandatory-input-modal-pill {
     position: fixed;
-    top: calc(var(--bottom-bar-button-height) + 88px);
+    /*
+     * v40-c: default vertical position bumped HIGHER. Kept in sync
+     * with `.placement-banner` (placement_banner.less) — same UX
+     * problem (was covering board labels / hexes), same fix
+     * (raise + make draggable). See that file for full rationale.
+     */
+    top: calc(var(--bottom-bar-button-height) + 12px);
     left: 50%;
     transform: translate(-50%, -20px);
-    z-index: 100;
+    /*
+     * v40-d: z-index bumped 100 → 107 — same rationale as in
+     * placement_banner.less. Above top-bar buttons (105) and badge
+     * strips (106), below bar-overlay panels (110) so an opened
+     * overlay can still cover the pill for data inspection.
+     */
+    z-index: 107;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -285,7 +297,14 @@ body.mandatory-input-modal-open {
     font-family: Prototype, Ubuntu, sans-serif;
     font-size: 13px;
     letter-spacing: 0.5px;
-    cursor: pointer;
+    /*
+     * `cursor: move` signals draggability — pill can be grabbed and
+     * dragged anywhere within the viewport (makeDraggable in
+     * MandatoryInputModal mounted()). A no-drag click still
+     * restores the modal; drag controller distinguishes the two via
+     * a 5-px threshold.
+     */
+    cursor: move;
     clip-path: polygon(2% 0%, 100% 0%, 98% 100%, 0% 100%);
     user-select: none;
 
