@@ -231,6 +231,28 @@ input[type="radio"]:checked + .filterDiv::after {
     background-repeat: no-repeat;
 }
 
+/*
+ * v40: base-game expansion badge.
+ *
+ * Upstream never rendered a badge for base-game cards (CardExpansion's
+ * iconClass() returned an empty string for 'base'). Fork now returns
+ * 'base-icon' for consistency — every card carries an expansion badge.
+ * Palette matches the Mars / iron-oxide theme: deep red core with a
+ * warm highlight, glyph "T" in Prototype to mirror the other letter-
+ * badges (M = moon, A = ares).
+ */
+.base-icon:after {
+    .expansion-icon-base();
+    background: radial-gradient(circle at 30% 30%, #d36140, #7a2a13);
+    color: #ffe1c8;
+    font-family: Prototype;
+    font-weight: bold;
+    font-size: 12px;
+    line-height: 15px;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+    content: "T";
+}
+
 .prelude-icon:after {
     .expansion-icon-base();
     background-color: rgb(235, 118, 171);

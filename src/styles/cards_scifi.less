@@ -230,10 +230,23 @@
 
 /*
  * ─── 4. Stacking ──────────────────────────────────────────────────────
+ *
+ * v40-b: footer chrome (VP badge, resource counter, expansion icons)
+ * must sit ABOVE .card-content-wrapper (z-index: 2) so that body text
+ * scrolling underneath an overflowing card NEVER bleeds onto the
+ * footer badges. Without this, mid-scroll positions show body text
+ * rendered on top of the VP coin / resource counter — flagged on
+ * Азот с Титана. Footer elements all get z-index: 3.
  */
 .card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
     .card-content-wrapper {
         z-index: 2;
+    }
+    .card-points,
+    .card-resources-counter,
+    .project-icon-expansion-container,
+    .resource-card-icon-expansion-container {
+        z-index: 3;
     }
 }
 
@@ -789,6 +802,25 @@
         font-feature-settings: "kern" 1, "liga" 1, "tnum" 1;
         text-rendering: geometricPrecision;
         text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+        /*
+         * v40 polish #1: subtle inner top shadow on the BODY block.
+         *
+         * Reads as the header casting a shallow shadow down INTO the
+         * card body — body now sits one perceptual layer deeper than
+         * the header plate rather than sharing its plane.
+         *
+         *   offset 6px / blur 10px / spread -8px → max shadow height
+         *   ~8 px, fades to 0 at the top edge. No bottom inset (would
+         *   compete with the existing footer chrome — points / cube /
+         *   expansion icon).
+         *
+         * On cards WITH a requirements plate (sec. 9b adds
+         * padding-top:30 to push content below the plate), this
+         * shadow is hidden under the plate — exactly right: the
+         * plate already provides the structural separation, so the
+         * extra inset would be redundant there.
+         */
+        box-shadow: inset 0 6px 10px -8px rgba(15, 22, 35, 0.32);
     }
     .card-content:not(.global-event-card-content) .card-description {
         color: @scifi-text;
@@ -991,9 +1023,30 @@
 .card-container.filterDiv:not(.colony-card):not(.card-standard-project) > .card-requirements,
 .card-container.filterDiv:not(.colony-card):not(.card-standard-project) > .card-requirements-max {
     border-top: 0 !important;
+    /*
+     * v40 polish #3: lateral 1-px dark "slot" gutters on the plate.
+     *
+     * Mirror the gutter inset that the title bar got in v39 polish.
+     * Header → plate → body now form a single vertical sci-fi
+     * composition: all three blocks share the same darkened lateral
+     * edge that reads as a structural slot cut into the chassis.
+     *
+     * Top edge intentionally LEFT BLANK (no inset highlight) — v24
+     * removed plate's top border because a horizontal seam between
+     * header and plate read as a visual bug. A top highlight would
+     * reintroduce that seam. The transition stays governed only by
+     * the colour change (type-bar green/blue/etc. → plate red),
+     * exactly as v24 intended.
+     *
+     * Bottom shadow stack kept (the body-side edge stays crisp) and
+     * very slightly deepened (0.3 → 0.34) to match the new header
+     * bottom-edge weight.
+     */
     box-shadow:
-        inset 0 -1px 0 rgba(0, 0, 0, 0.3),
-        0 2px 4px -1px rgba(0, 0, 0, 0.3) !important;
+        inset 0 -1px 0 rgba(0, 0, 0, 0.34),
+        inset  1px 0 0 rgba(0, 0, 0, 0.22),
+        inset -1px 0 0 rgba(0, 0, 0, 0.22),
+        0 2px 4px -1px rgba(0, 0, 0, 0.32) !important;
 }
 
 /*
@@ -1189,20 +1242,151 @@ input[type="radio"]:checked + .filterDiv::after {
     width: 100% !important;
     padding-right: 0 !important;
     scrollbar-width: thin;
-    scrollbar-color: rgba(20, 30, 45, 0.28) transparent;
+    /*
+     * v40: Firefox scrollbar palette upgraded — cyan thumb + a faint
+     * slate track. Matches the ::-webkit-scrollbar restyle below so
+     * Firefox and Chromium render the same sci-fi look.
+     */
+    scrollbar-color: rgba(80, 130, 180, 0.78) rgba(20, 30, 45, 0.08);
 }
 
+/*
+ * v40 sci-fi scrollbar restyle.
+ *
+ * v39's 4-px slate thumb was nearly invisible on the light card stock,
+ * so a player who hit an overflow card couldn't immediately tell the
+ * text was scrollable. v40 upgrades:
+ *   - width 4 → 6 px (perceptible "rail")
+ *   - track gets a soft inset gutter (was fully transparent)
+ *   - thumb uses the sci-fi cyan palette (matches @scifi-cyan and the
+ *     selected-card halo), with an inset top highlight + a tinted
+ *     hairline border for depth
+ *   - hover state brightens the thumb and adds a 6-px cyan glow so
+ *     the scrollbar visibly responds to interaction
+ */
 .card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content::-webkit-scrollbar {
-    width: 4px;
+    width: 6px;
     background: transparent;
 }
 .card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content::-webkit-scrollbar-track {
-    background: transparent;
+    background: linear-gradient(180deg, rgba(20, 30, 45, 0.05), rgba(20, 30, 45, 0.13));
+    border-radius: 3px;
+    margin: 6px 0;
 }
 .card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content::-webkit-scrollbar-thumb {
-    background: rgba(20, 30, 45, 0.28);
-    border-radius: 2px;
+    background: linear-gradient(180deg, rgba(106, 176, 230, 0.85), rgba(60, 120, 180, 0.92));
+    border-radius: 3px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.38),
+        0 0 0 1px rgba(15, 22, 35, 0.45);
 }
 .card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(20, 30, 45, 0.5);
+    background: linear-gradient(180deg, rgba(140, 200, 240, 0.96), rgba(80, 150, 210, 1));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.5),
+        0 0 0 1px rgba(15, 22, 35, 0.6),
+        0 0 6px rgba(106, 176, 230, 0.6);
 }
+
+/*
+ * ─── 15. Corporation card body — extra vertical room (v40) ────────────
+ *
+ * Corp cards alone need more body height than the upstream
+ * `.card-content-corporation { height: 310px }` (cards_v2.less:1303)
+ * provides under the sci-fi refresh. Two reasons:
+ *
+ *   1. Section 14 above forces `box-sizing: border-box !important` on
+ *      every .card-content (needed for the scrollbar fix). Upstream
+ *      was content-box, so 310 px of inner room shrank to 290 px once
+ *      the 10-px top + bottom padding ate into the height.
+ *
+ *   2. Corp cards carry the longest in-card text in the game
+ *      (corp description + starting resources + ongoing ability +
+ *      sometimes flavor text). Long Russian translations of corp
+ *      abilities overflow the 290-px box and trigger the body
+ *      scrollbar — exactly what the user reported on this card.
+ *
+ * Bump to 350 px: 20 px restored from the box-sizing change + 20 px
+ * extra for translated text headroom. The card-content uses
+ * `top: -30px` (cards_v2.less:1302) so the increase grows the card
+ * DOWNWARD — no overlap with the title bar above.
+ *
+ * Specificity: 5-class chain (.card-container.filterDiv + 2 :not()
+ * + .card-content + .card-content-corporation) beats the single-
+ * class upstream rule, both flagged !important.
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content.card-content-corporation {
+    height: 350px !important;
+}
+
+/*
+ * ─── 16. Footer-safe body padding + scroll fade (v40) ─────────────────
+ *
+ * Problem (reported on Venera Base): on cards whose body text doesn't
+ * fit, the scrolled content visually OVERLAPS the absolutely-positioned
+ * VP badge (.card-points) and resource counter in the card footer.
+ * Player sees text rendered over the VP badge — both unreadable.
+ *
+ * Root cause: Card.vue's <CardContent> emits a sentinel child
+ *   <div class="bottom-padding-{long|short}"></div>
+ * at the end of .card-content, and cards_v2.less:1339-1344 puts the
+ * padding-bottom (50 / 30 px) on that CHILD. Padding-on-child lives
+ * INSIDE the scrolled content area — it scrolls away with the text,
+ * so it stops "reserving" the footer once overflow kicks in.
+ *
+ * Fix — three layered changes:
+ *
+ *   1) Move the bottom padding onto the scroll viewport itself
+ *      (.card-content) via :has() detection of the sentinel child.
+ *      Padding on the viewport stays put while text scrolls beneath,
+ *      so the footer-reserved space is preserved at every scroll
+ *      position. VP badge / resource counter footprints accounted for:
+ *        VP badge:         width 80, height 42, bottom: 3   → 50 px reserved
+ *        Resource counter: width 80, height 30, bottom: -4  → 36 px reserved
+ *      Reserved values include a small buffer (55 / 38 px).
+ *
+ *   2) Neutralise the sentinel child's own padding-bottom so the
+ *      space isn't double-reserved (which would waste scroll runway).
+ *
+ *   3) Soft fade overlay via ::after on .card-content, positioned
+ *      JUST ABOVE the reserved padding zone (i.e. at the bottom of
+ *      the visible text area). Linear-gradient transparent → dark
+ *      slate. Pseudo-elements with position:absolute attach to the
+ *      .card-content's PADDING BOX (not the scrolled content), so
+ *      they stay put as the text scrolls underneath — giving the
+ *      player a continuous "more below" visual hint. On cards
+ *      without overflow it doubles as a subtle band that separates
+ *      body text from the footer chrome.
+ *
+ * Standard-project and colony cards excluded (different layouts).
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content:not(.global-event-card-content):has(> .bottom-padding-long) {
+    padding-bottom: 55px !important;
+}
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content:not(.global-event-card-content):has(> .bottom-padding-short) {
+    padding-bottom: 38px !important;
+}
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content > .bottom-padding-long,
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) .card-content > .bottom-padding-short {
+    padding-bottom: 0 !important;
+}
+
+/*
+ * v40-b: scroll-fade ::after overlay REMOVED.
+ *
+ * Previous build added a permanent linear-gradient band at the bottom
+ * of every .card-content as a "scroll continues below" hint. Problem
+ * (reported on Азот с Титана): the band is STATIC — it renders even
+ * on short cards with no overflow, where it shows up as a grey
+ * horizontal stripe across the lower body. Visual defect.
+ *
+ * CSS-only way to detect overflow is the `background-attachment:
+ * local + scroll` Lea-Verou scroll-shadow trick, but it requires
+ * owning the `background` property on .card-content — which conflicts
+ * with the inheriting page background and the card stock palette.
+ *
+ * Decision: scroll affordance is now carried by the v40 sci-fi
+ * scrollbar alone (section 14 — 6-px cyan thumb with hover glow).
+ * That's perceptible enough on its own without false-positives on
+ * non-overflowing cards.
+ */

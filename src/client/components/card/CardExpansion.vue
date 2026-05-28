@@ -31,7 +31,7 @@ export default defineComponent({
   },
   methods: {
     iconClass(module: GameModule): string {
-      return module === 'base' ? '' : module + '-icon';
+      return module + '-icon';
     },
   },
   computed: {
