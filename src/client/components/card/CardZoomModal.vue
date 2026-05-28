@@ -1,7 +1,21 @@
 <template>
   <dialog ref="dialog" class="card-zoom-dialog" @click="onBackdropClick">
+    <!--
+      v40 fullscreen presentation rework:
+        - Close × button removed; dismissal is backdrop click + Esc only
+          (Esc is handled natively by <dialog> via the 'cancel' → 'close'
+          event chain).
+        - Container is flex-column: card on top, action slot below.
+        - @click.stop on the container (NOT just inner pieces) keeps the
+          backdrop dismiss working only when the click is genuinely
+          outside the presentation area.
+        - card-zoom-actions slot is always rendered (it reserves the
+          space) but only fills with content when a parent supplies the
+          'actions' slot — keeps a future action button addable without
+          a relayout, while empty state shows nothing visible to the
+          player.
+    -->
     <div class="card-zoom-container" @click.stop>
-      <button class="card-zoom-close" @click="close()">&times;</button>
       <div v-if="cardInstance" class="card-zoom-card">
         <div class="card-container filterDiv card-auto-tall" v-i18n>
           <span class="card-corner card-corner--tl" aria-hidden="true"></span>
@@ -24,6 +38,9 @@
           <CardResourceCounter v-if="hasResourceType" :amount="resourceAmount" :type="resourceType" />
           <CardVictoryPoints v-if="cardMetadata.victoryPoints" :victoryPoints="cardMetadata.victoryPoints" />
         </div>
+      </div>
+      <div class="card-zoom-actions">
+        <slot name="actions" />
       </div>
     </div>
   </dialog>
