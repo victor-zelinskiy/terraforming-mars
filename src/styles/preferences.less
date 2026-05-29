@@ -226,6 +226,15 @@
     height: 46px;
 }
 
+/* vize1215: push the bottom button stack (legacy-UI + info) to the
+ * bottom of the sidebar's flex column. `margin-top: auto` on the
+ * topmost of the two buttons consumes all remaining vertical space
+ * above it, so both buttons end up flush with the bottom edge while
+ * staying in the natural flex flow. */
+.sidebar_item--legacy-ui {
+    margin-top: auto;
+}
+
 .sidebar_item--help {
     position: absolute;
     bottom: 60px;

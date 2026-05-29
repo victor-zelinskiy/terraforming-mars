@@ -53,10 +53,11 @@
 
     <dynamic-title title="Game details" :color="thisPlayer.color"/>
 
-    <div class="player_home_block" v-if="playerView.players.length > 1">
-      <Milestones :showScores="false" :milestones="game.milestones" />
-      <Awards :show-scores="false" :awards="game.awards" />
-    </div>
+    <!--
+      vize1215 fork: inline `<Milestones>` + `<Awards>` block dropped.
+      The match's milestones / awards lineup is accessible via the
+      "Game Setup Details" info panel in the right sidebar.
+    -->
 
     <div class="player_home_block player_home_block--turnorder nofloat" v-if="playerView.players.length>1">
       <dynamic-title title="Turn order" :color="thisPlayer.color"/>
@@ -104,8 +105,6 @@ import Board from '@/client/components/Board.vue';
 import Card from '@/client/components/card/Card.vue';
 import DeltaProjectBoard from '@/client/components/delta/DeltaProjectBoard.vue';
 import DynamicTitle from '@/client/components/common/DynamicTitle.vue';
-import Milestones from '@/client/components/Milestones.vue';
-import Awards from '@/client/components/Awards.vue';
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import Turmoil from '@/client/components/turmoil/Turmoil.vue';
 import MoonBoard from '@/client/components/moon/MoonBoard.vue';
@@ -145,8 +144,6 @@ export default defineComponent({
     DeltaProjectBoard,
     DynamicTitle,
     'waiting-for': WaitingFor,
-    Milestones,
-    Awards,
     'turmoil': Turmoil,
     PlanetaryTracks,
     MoonBoard,
