@@ -83,15 +83,19 @@ const TEMPLATE_INPUT = {
 const TEMPLATE_EXPECTED: CreateGameModel = {
   firstIndex: 1,
   playersCount: 1,
+  // applyJSON overwrites only the first `input.players.length` entries
+  // and leaves the rest of the model's `players` array untouched, so
+  // positions 1..7 reflect the fork-specific defaults in
+  // defaultCreateGameModel().
   players: [
     {name: 'You', color: 'red', beginner: false, handicap: 0, first: false},
-    {name: '', color: 'green', beginner: false, handicap: 0, first: false},
+    {name: 'Nastya', color: 'pink', beginner: false, handicap: 0, first: false},
+    {name: '', color: 'red', beginner: false, handicap: 0, first: false},
     {name: '', color: 'yellow', beginner: false, handicap: 0, first: false},
     {name: '', color: 'blue', beginner: false, handicap: 0, first: false},
     {name: '', color: 'black', beginner: false, handicap: 0, first: false},
     {name: '', color: 'purple', beginner: false, handicap: 0, first: false},
     {name: '', color: 'orange', beginner: false, handicap: 0, first: false},
-    {name: '', color: 'pink', beginner: false, handicap: 0, first: false},
   ],
   expansions: {
     corpera: true,
@@ -131,7 +135,12 @@ const TEMPLATE_EXPECTED: CreateGameModel = {
   board: 'tharsis' as BoardName,
   seed: 0.40189423667985547,
   seededGame: false,
-  solarPhaseOption: false,
+  // `solarPhaseOption` is in JSONProcessor.ignoredFields — applyJSON
+  // captures it into `processor.solarPhaseOption` and leaves the model
+  // value alone, so the dot here is the defaultCreateGameModel() value
+  // (true on this fork because Venus is on by default). The real form
+  // copies processor.solarPhaseOption into the model itself.
+  solarPhaseOption: true,
   shuffleMapOption: false,
   aresExtremeVariant: false,
   politicalAgendasExtension: 'Standard',

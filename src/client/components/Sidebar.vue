@@ -40,8 +40,19 @@
       <i class="sidebar_icon sidebar_icon--actions"></i>
   </div>
 
-  <language-icon></language-icon>
-
+  <!--
+    vize1215 fork: the right sidebar used to host four extra controls
+    here — <language-icon>, the player-aid help link, and the global
+    <preferences-icon>. All three are removed for this fork:
+      - language: russian is the default and the only one we ship for;
+      - help: never used in this private build, the action UI rework
+        is replacing the situations where it would be needed;
+      - preferences: defaults are baked in (see PreferencesManager.ts)
+        and exposing the dialog tempts misclicks during a match.
+    The match-specific "Game Setup Details" panel below STAYS — it's
+    the one actually useful piece of right-rail chrome (shows board,
+    expansions, randomized milestones/awards for THIS game).
+  -->
   <div class="sidebar_item sidebar_item--info" :title="$t('Information panel')">
     <i class="sidebar_icon sidebar_icon--info"
       :class="{'sidebar_item--is-active': ui.gamesetup_detail_open}"
@@ -57,14 +68,6 @@
       </div>
     </div>
   </div>
-
-  <a href="help" target="_blank">
-    <div class="sidebar_item sidebar_item--help">
-      <i class="sidebar_icon sidebar_icon--help" :title="$t('player aid')"></i>
-    </div>
-  </a>
-
-  <preferences-icon></preferences-icon>
 </div>
 </template>
 
@@ -82,8 +85,6 @@ import GlobalParameterValue from '@/client/components/GlobalParameterValue.vue';
 import MoonGlobalParameterValue from '@/client/components/moon/MoonGlobalParameterValue.vue';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {MoonModel} from '@/common/models/MoonModel';
-import PreferencesIcon from '@/client/components/PreferencesIcon.vue';
-import LanguageIcon from '@/client/components/LanguageIcon.vue';
 
 export default defineComponent({
   name: 'sidebar',
@@ -169,8 +170,6 @@ export default defineComponent({
     'game-setup-detail': GameSetupDetail,
     'global-parameter-value': GlobalParameterValue,
     MoonGlobalParameterValue,
-    PreferencesIcon,
-    LanguageIcon,
   },
   data() {
     return {

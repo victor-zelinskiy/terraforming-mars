@@ -20,8 +20,8 @@ describe('PreferencesManager', () => {
   it('default values', () => {
     const values = instance.values();
     expect(values.hide_active_cards).eq(false);
-    expect(values.lang).eq('en');
-    expect(values.enable_sounds).eq(true);
+    expect(values.lang).eq('ru');
+    expect(values.enable_sounds).eq(false);
     expect(values.animated_title).eq(true);
   });
 

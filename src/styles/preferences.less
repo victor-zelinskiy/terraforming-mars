@@ -213,12 +213,17 @@
     height: 46px;
 }
 
+/*
+ * vize1215 fork: was `position: absolute; bottom: 111px` to anchor the
+ * info button to the bottom edge alongside Help/Settings/Language. Help
+ * and the language switcher are gone now (Sidebar.vue), and the
+ * preferences icon used to occupy bottom: 4px — so the lone Info button
+ * was floating alone in the lower right with a huge empty gap above it.
+ * Drop absolute positioning so it stacks in the regular flex flow,
+ * immediately below the legacy-UI shortcut.
+ */
 .sidebar_item--info {
-    position: absolute;
-    bottom: 111px;
-    left: 0px;
-    margin-left: 7px;
-    height: 46px
+    height: 46px;
 }
 
 .sidebar_item--help {
@@ -1216,7 +1221,11 @@
     padding: 15px 20px 15px 15px;
     display: inline-block;
     position: absolute;
-    bottom: 0px;
+    /* vize1215: info button is now anchored to the top of the sidebar
+     * (right under the legacy-UI shortcut) instead of bottom-pinned, so
+     * open the popup DOWN from the button (top: 0) rather than up
+     * (bottom: 0) — otherwise it would balloon above the viewport. */
+    top: 0;
     /* Same reason as .preferences_panel — sidebar moved right, popups go left. */
     right: 53px;
     color: #c6c6c6;

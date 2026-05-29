@@ -32,6 +32,11 @@ describe('PreferencesDialog', () => {
   });
 
   it('toggling sets the underlying preferences', async () => {
+    // Reset to a known starting state regardless of the previous test's
+    // mutation of the shared PreferencesManager singleton AND of the
+    // current fork default (which is now `true` — see PreferencesManager).
+    preferencesManager.set('hide_awards_and_milestones', false);
+
     const wrapper = mount(PreferencesDialog, {
       ...globalConfig,
       props: {preferencesManager},
