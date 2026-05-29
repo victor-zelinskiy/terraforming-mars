@@ -5,15 +5,31 @@ import {SelectSpaceModel} from '../../common/models/PlayerInputModel';
 import {BasePlayerInput} from '../PlayerInput';
 import {InputError} from './InputError';
 import {toID} from '../../common/utils/utils';
+import {PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
 
 export class SelectSpace extends BasePlayerInput<Space> {
+  /**
+   * Per-cell illegality reasons for cells NOT in `spaces` (the legal
+   * targets). Optional — callers that don't compute these get the
+   * default "no tooltip" UX on the client.
+   *
+   * The main board-placement deferred actions
+   * (`PlaceTile` / `PlaceCityTile` / `PlaceOceanTile` / `PlaceGreeneryTile`)
+   * fill this via `MarsBoard.computeIllegalReasons()`; smaller custom
+   * SelectSpace paths (LandClaim, Eris, Mining, Moon, …) can stay
+   * silent without breaking anything.
+   */
+  public illegalSpaces?: ReadonlyArray<PlacementIllegalSpace>;
+
   constructor(
     title: string | Message,
-    public spaces: ReadonlyArray<Space>) {
+    public spaces: ReadonlyArray<Space>,
+    illegalSpaces?: ReadonlyArray<PlacementIllegalSpace>) {
     super('space', title);
     if (spaces.length === 0) {
       throw new InputError('No available spaces');
     }
+    this.illegalSpaces = illegalSpaces;
   }
 
   public override toModel(): SelectSpaceModel {
@@ -22,6 +38,7 @@ export class SelectSpace extends BasePlayerInput<Space> {
       buttonLabel: this.buttonLabel,
       type: 'space',
       spaces: this.spaces.map(toID),
+      illegalSpaces: this.illegalSpaces,
     };
   }
 

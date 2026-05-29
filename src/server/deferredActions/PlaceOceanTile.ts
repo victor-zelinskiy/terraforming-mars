@@ -37,15 +37,19 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
 
     let title = this.options.title ?? this.getTitle('ocean');
     let availableSpaces: ReadonlyArray<Space> = [];
+    let placementType: PlacementType | undefined;
     if (this.options.spaces !== undefined) {
       availableSpaces = this.options.spaces;
+      placementType = this.options.on;
     } else {
       const on = this.options?.on || 'ocean';
       availableSpaces = this.player.game.board.getAvailableSpacesForType(this.player, on);
       title = this.options?.title ?? this.getTitle(on);
+      placementType = on;
     }
 
-    return new SelectSpace(title, availableSpaces)
+    const illegalSpaces = this.player.game.board.computeIllegalReasons(this.player, placementType, availableSpaces);
+    return new SelectSpace(title, availableSpaces, illegalSpaces)
       .andThen((space) => {
         this.creditedPlayer.game.addOcean(this.creditedPlayer, space);
         this.creditedPlayer.defer(this.cb(space));

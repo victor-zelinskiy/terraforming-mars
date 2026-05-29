@@ -68,12 +68,28 @@
 	}
 }
 
-.board-with-venus{
+/*
+ * Mars planet background.
+ *
+ * `background-size: 620px 600px` LOCKS the rendered size to the
+ * historical native dimensions of the PNG asset (also 620×600 at the
+ * time of writing). This lets us drop in a HIGHER-resolution version
+ * of the same asset (e.g. Topaz Gigapixel @2× → 1240×1200, or NASA
+ * high-res reference) without changing layout — the upscaled image
+ * just renders at the same on-screen size but stays crisp when the
+ * board is zoomed (`transform: scale(--board-scale, 1)` on .board-cont).
+ *
+ * Replacement workflow: overwrite the PNG with a 2×/3×/4× upscale, no
+ * code changes needed. WebP/AVIF can be added later via image-set().
+ */
+.board-with-venus {
 	background: url(./assets/board/mars.png) no-repeat;
+	background-size: 620px 600px;
 }
 
-.board-without-venus{
+.board-without-venus {
 	background: url(./assets/board/mars-without-venus.png) no-repeat;
+	background-size: 620px 600px;
 }
 
 // // Not used yet.
@@ -236,9 +252,23 @@
 // still reads the whole board.
 .board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):not(.board-space--selected),
 .board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):not(.board-space--selected) {
-	opacity: 0.42;
-	filter: saturate(0.5) brightness(0.85);
+	// Mild dim — enough so legal cells visually pop, but type identity
+	// (ocean blue vs land orange vs volcanic red) stays clearly readable.
+	// Earlier values (opacity 0.42, saturate 0.5, brightness 0.85) ate
+	// the colour difference between water and land cells.
+	opacity: 0.62;
+	filter: saturate(0.82);
 	transition: opacity 240ms ease, filter 240ms ease;
+}
+
+// `.board-space--illegal` is added by SelectSpace.vue on cells the
+// server marked as off-limits via `illegalSpaces`. The hover cursor
+// becomes the universal "not-allowed" symbol so the player gets an
+// instant visual cue even before the native tooltip appears. Native
+// browser `title` (set on the same element) carries the localized
+// reason text.
+.board-space.board-space--illegal {
+	cursor: not-allowed;
 }
 
 /*
@@ -703,40 +733,102 @@
   100% { opacity: 0; }
 }
 
+/*
+ * ─── Hex tile type backgrounds — inline SVG ───────────────────────────
+ *
+ * Replaces the legacy PNG hex outlines (hex_white, hex_blue, hex_volcanic,
+ * cove, volcanic-cove) with per-type inline SVGs. The SVGs carry the
+ * TYPE identity (what the cell is) — colour + thin outline + subtle
+ * material gradient. The wrapper's `::before` (defined above) carries
+ * the INTERACTION state (hover / placement / etc.) as a tactical-grid
+ * overlay on top.
+ *
+ * Two cleanly separated layers:
+ *   inner tile = "what" (colour, material)
+ *   outer ::before = "how it reacts" (focus, halo, hover)
+ *
+ * Layout: each polygon uses the inset coordinates
+ *   23,1  44.5,13.3  44.5,37.7  23,50  1.5,37.7  1.5,13.3
+ * which sits 1 px inside the parent's hex `clip-path` so the stroke
+ * doesn't get sheared at the silhouette. preserveAspectRatio='none'
+ * stretches the SVG to fill ::before's 46×51 box without letterboxing.
+ *
+ * Colours are written as rgba() (not #hex) so we don't have to URL-
+ * encode `#` as `%23` inside the data URI — keeps the strings readable.
+ *
+ * Background-size: 100% 100% so the SVG scales with the cell's
+ * `transform: scale(--board-scale)` automatically; no per-zoom math.
+ */
+
+// Land — subtle warm sand outline + faint warm inner tint suggests
+// the dusty mineral surface of Mars without competing with the planet
+// background image.
 .board-space-type-land {
-	background: url(./assets/hex_white.png) no-repeat;
+	background:
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(122,72,40,0.05)' stroke='rgba(232,217,196,0.45)' stroke-width='0.9' stroke-linejoin='round'/></svg>")
+		center / 100% 100% no-repeat;
 }
 
+// Volcanic land — warm rust outline + subtle dark-red depth tint. The
+// existing `background-color: #8303` (red wash) is preserved as the
+// fall-through layer behind the SVG.
 .board-space-type-land-volcanic {
-	background-image: url(./assets/hex_volcanic.png);
+	background-image:
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(120,30,15,0.18)' stroke='rgba(232,150,95,0.78)' stroke-width='1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='rgba(255,180,100,0.30)' stroke-width='0.5' stroke-linejoin='round'/></svg>");
+	background-size: 100% 100%;
+	background-repeat: no-repeat;
 	background-color: #8303;
 }
 
+// Noctis (cream reserved-area hint). No SVG outline — it sits on top
+// of an empty cell that already has the normal `::before` overlay; the
+// soft white wash is enough to mark "reserved" without doubling up.
 .board-space-type-land-noctis {
 	background-color: #fff6;
 }
 
+// Ocean — icy blue-cyan outline + watery vertical gradient (light at
+// top, deeper at bottom) suggests volume / depth. Background-color
+// keeps the legacy fall-through blue tint behind the SVG.
 .board-space-type-ocean {
-	background: url(./assets/hex_blue.png) no-repeat;
+	background-image:
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='og' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='rgb(160,225,255)' stop-opacity='0.32'/><stop offset='100%25' stop-color='rgb(20,80,140)' stop-opacity='0.35'/></linearGradient></defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='url(%23og)' stroke='rgba(180,235,255,0.78)' stroke-width='1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='rgba(220,245,255,0.30)' stroke-width='0.5' stroke-linejoin='round'/></svg>");
+	background-size: 100% 100%;
+	background-repeat: no-repeat;
+	background-color: #0af4;
 	clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-  background-color: #0af4;
 }
 
+// Cove — dual-surface tile (half ocean, half land). The original art
+// shaded the LEFT half as ocean and left the right half clear.
+// Mirrored here as a left-triangle ocean fill + cyan outline.
 .board-space-type-cove {
-	background: url(./assets/pathfinders/cove.png) no-repeat;
+	background:
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(70,170,225,0.32)'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(180,235,255,0.78)' stroke-width='1' stroke-linejoin='round'/><line x1='23' y1='1' x2='23' y2='50' stroke='rgba(180,235,255,0.45)' stroke-width='0.55'/></svg>")
+		center / 100% 100% no-repeat;
 }
 
+// Volcanic cove — dual-surface volcanic version: warm half-fill + rust
+// outline, same diagonal split as ocean cove.
 .board-space-type-volcanic-cove {
-	background: url(./assets/pathfinders/volcanic-cove.png) no-repeat;
+	background-image:
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(180,90,40,0.28)'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(232,150,95,0.78)' stroke-width='1' stroke-linejoin='round'/><line x1='23' y1='1' x2='23' y2='50' stroke='rgba(255,180,100,0.42)' stroke-width='0.55'/></svg>");
+	background-size: 100% 100%;
+	background-repeat: no-repeat;
 	background-color: #8304;
 }
 
+// Deflection-zone — gameplay overlay (shield-like), yellow wash + soft
+// warm outline so it doesn't fight other cell visuals while still
+// reading as "shielded".
 .board-space-type-deflection-zone {
-	background: url(./assets/hex_white.png) no-repeat;
+	background:
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(255,240,140,0.85)' stroke-width='1.2' stroke-linejoin='round'/></svg>")
+		center / 100% 100% no-repeat;
 	clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-  background-color: rgba(251, 255, 16, 0.3);
-  width: 100%; // Necessary for placing on top of existing tiles, to give a 'shield' appearance.
-  height: 100%;
+	background-color: rgba(251, 255, 16, 0.3);
+	width: 100%;
+	height: 100%;
 }
 
 .board-ocean-checkmark{
@@ -759,7 +851,9 @@
 		text-transform: uppercase;
 		font-size: 12px;
 		color: #e6e1e1;
-		background: url(./assets/hex_white.png) no-repeat;
+		background:
+			url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(232,217,196,0.55)' stroke-width='0.9' stroke-linejoin='round'/></svg>")
+			center / 100% 100% no-repeat;
 		background-color: #444;
 		clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
 		cursor: pointer;

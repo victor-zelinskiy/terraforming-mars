@@ -22,7 +22,8 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
       return undefined;
     }
 
-    return new SelectSpace(this.getTitle(), filtered)
+    const illegalSpaces = board.computeIllegalReasons(this.player, this.on, filtered);
+    return new SelectSpace(this.getTitle(), filtered, illegalSpaces)
       .andThen((space) => {
         this.player.game.addGreenery(this.player, space);
         this.cb(space);

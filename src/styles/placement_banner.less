@@ -287,6 +287,58 @@ body.placement-pending {
     to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/*
+ * Dedicated drag handle — 6-dot sci-fi grip (two columns of three
+ * cyan-tinted dots). Same visual language as the MandatoryInputModal
+ * pill grip; splitting the drag start zone from the click zone removes
+ * the click-vs-drag ambiguity that the 5-px threshold alone couldn't
+ * fully cover (especially on touch / fast pointers).
+ *
+ * `cursor: grab` signals "draggable here"; on drag start the host pill
+ * gets `.is-dragging` which flips this to `grabbing`. `touch-action:
+ * none` keeps a touch-drag from being routed to the browser as a page
+ * scroll.
+ */
+.placement-banner__handle {
+    display: inline-grid;
+    grid-template-columns: 3px 3px;
+    grid-auto-rows: 3px;
+    gap: 3px;
+    align-content: center;
+    width: auto;
+    padding: 4px 6px;
+    margin-right: 2px;
+    cursor: grab;
+    touch-action: none;
+    flex-shrink: 0;
+
+    > span {
+        width: 3px;
+        height: 3px;
+        border-radius: 50%;
+        background: rgba(106, 176, 230, 0.55);
+        box-shadow: 0 0 4px rgba(106, 176, 230, 0.35);
+        transition:
+            background 160ms ease,
+            box-shadow 160ms ease,
+            transform 160ms ease;
+    }
+
+    &:hover > span {
+        background: rgba(160, 210, 240, 0.95);
+        box-shadow: 0 0 7px rgba(160, 210, 240, 0.75);
+        transform: scale(1.1);
+    }
+}
+
+// During an active drag (set by draggable.ts) flip the cursor over the
+// whole pill so the player still sees the grab feedback even if they
+// momentarily pull off the small grip.
+.placement-banner.is-dragging,
+.placement-banner.is-dragging .placement-banner__handle {
+    cursor: grabbing;
+}
+
 .placement-banner__dot {
     width: 10px;
     height: 10px;

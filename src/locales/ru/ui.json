@@ -354,6 +354,23 @@
     "Arsia Mons": "Гора Арсия",
     "Olympus Mons": "Гора Олимп",
 
+    "Already has a tile": "Уже занято плиткой",
+    "Reserved for Noctis City": "Зарезервировано для Города Ночи",
+    "Reserved colony space": "Зарезервированная колония",
+    "Owned by another player": "Принадлежит другому игроку",
+    "Mars Nomads is here": "Здесь находятся Марсианские кочевники",
+    "Protected hazard": "Защищённая опасная зона",
+    "Wrong terrain type": "Неподходящий тип местности",
+    "Not an ocean reserve": "Не зарезервировано под океан",
+    "Not a volcanic space": "Не вулканическая клетка",
+    "Not isolated from other tiles": "Рядом есть другие плитки",
+    "Cannot be adjacent to a city": "Нельзя рядом с городом",
+    "Must be adjacent to your tile": "Должно быть рядом с вашей плиткой",
+    "Cannot be adjacent to Red City": "Нельзя рядом с Красным городом",
+    "No energy production available": "Нет производства энергии",
+    "You cannot afford the cost": "Недостаточно ресурсов для оплаты",
+    "Not available for this placement": "Недоступно для этого размещения",
+
     "Take first action of ${0} corporation": "Выполнить начальное действие корпорации «${0}»",
     "Draw 3 cards": "Добрать 3 карты",
 

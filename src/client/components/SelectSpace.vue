@@ -27,6 +27,15 @@ import {SelectSpaceResponse} from '@/common/inputs/InputResponse';
 import ConfirmDialog from '@/client/components/common/ConfirmDialog.vue';
 import GoToMap from '@/client/components/waitingFor/GoToMap.vue';
 import {SpaceId} from '@/common/Types';
+import {PLACEMENT_REASON_LABEL, PlacementIllegalReason} from '@/common/inputs/PlacementIllegalReason';
+import {translateText} from '@/client/directives/i18n';
+
+/**
+ * Marker attribute on cells we annotated with an illegal-reason tooltip.
+ * Used so cleanup only touches cells we actually modified, leaving any
+ * existing `title` / data attributes on other elements untouched.
+ */
+const DATA_ILLEGAL_MARKER = 'data-placement-illegal';
 
 
 type Refs = {
@@ -97,12 +106,56 @@ export default defineComponent({
         }
       });
     },
+    /**
+     * Apply native browser tooltip (`title`) + `.board-space--illegal`
+     * class to every cell the server reported as off-limits for this
+     * placement. Only touches cells whose spaceId is in `illegalSpaces`
+     * — legal cells, special cells, and unknown markers are left alone.
+     *
+     * Reason → localized string lookup via PLACEMENT_REASON_LABEL + the
+     * existing `translateText` helper so RU / other locales work out
+     * of the box once the strings are added to `ui.json`.
+     *
+     * The `data-placement-illegal` marker attribute is dropped in
+     * `removeIllegalTooltips()` so cleanup is surgical.
+     */
+    applyIllegalTooltips(tiles: Array<Element>) {
+      const illegal = this.playerinput.illegalSpaces;
+      if (illegal === undefined || illegal.length === 0) return;
+      const reasonsBySpace = new Map<SpaceId, PlacementIllegalReason>();
+      for (const entry of illegal) {
+        reasonsBySpace.set(entry.spaceId, entry.reason);
+      }
+      for (const tile of tiles) {
+        const spaceId = tile.getAttribute('data_space_id') as SpaceId;
+        if (spaceId === null) continue;
+        const reason = reasonsBySpace.get(spaceId);
+        if (reason === undefined) continue;
+        const label = PLACEMENT_REASON_LABEL[reason] ?? PLACEMENT_REASON_LABEL['unavailable'];
+        tile.setAttribute('title', translateText(label));
+        tile.setAttribute(DATA_ILLEGAL_MARKER, '1');
+        tile.classList.add('board-space--illegal');
+      }
+    },
+    removeIllegalTooltips() {
+      // Use the marker so we only revert cells WE annotated. Avoids
+      // clobbering any title set elsewhere (BoardSpaceTile sets one for
+      // tile descriptions).
+      const marked = document.querySelectorAll('[' + DATA_ILLEGAL_MARKER + ']');
+      marked.forEach((el) => {
+        el.removeAttribute('title');
+        el.removeAttribute(DATA_ILLEGAL_MARKER);
+        el.classList.remove('board-space--illegal');
+      });
+    },
     cancelPlacement() {
       if (this.selectedTile === undefined) {
         throw new Error('unexpected, no tile selected!');
       }
       this.animateSpace(this.selectedTile, false);
-      this.animateSpaces(this.getSelectableSpaces());
+      const tiles = this.getSelectableSpaces();
+      this.animateSpaces(tiles);
+      this.applyIllegalTooltips(tiles);
     },
     confirmPlacement() {
       const tiles = this.getSelectableSpaces();
@@ -126,6 +179,7 @@ export default defineComponent({
       tiles.forEach((tile) => {
         tile.classList.remove('board-space--available', 'board-space--selected');
       });
+      this.removeIllegalTooltips();
     },
     getSelectableSpaces(): Array<HTMLElement> {
       const spaces: Array<HTMLElement> = [];
@@ -170,6 +224,7 @@ export default defineComponent({
     this.disableAnimation();
     const tiles = this.getSelectableSpaces();
     this.animateSpaces(tiles);
+    this.applyIllegalTooltips(tiles);
     for (let i = 0, length = tiles.length; i < length; i++) {
       const tile = tiles[i];
       const spaceId = tile.getAttribute('data_space_id') as SpaceId;
