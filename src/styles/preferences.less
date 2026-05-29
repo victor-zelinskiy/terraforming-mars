@@ -574,32 +574,363 @@
     gap: 20px;
 }
 
-/*
- * Action slot below the card.
+/* ─────────────────────────────────────────────────────────────────
+ *  Fullscreen action zone (v40-o redesign)
+ * ─────────────────────────────────────────────────────────────────
  *
- * Always rendered (the <div> always exists), but visually invisible
- * until a parent supplies the 'actions' slot via
- * <CardZoomModal><template #actions>...</template></CardZoomModal>.
- * The min-height reserves vertical room so the card's available
- * height budget is consistent whether or not a button is mounted —
- * future button addition won't cause the card to suddenly shrink.
+ *  Goal — let the player tell PRIMARY apart from SECONDARY at a
+ *  glance, in < 200 ms, with no risk of accidental commits.
  *
- * pointer-events: auto on slotted children — click.stop already
- * applied to the container, so clicks on a future button don't
- * bubble to the backdrop dismiss handler.
+ *  Layout:
+ *    .card-zoom-actions               outer container (flex, centred)
+ *      .card-zoom-actions__panel      glassmorphic strip — anchors
+ *                                     the controls to the card above
+ *        .card-zoom-actions__corner    × 4 — L-tick chrome
+ *        .card-zoom-actions__btn--secondary   "ЗАКРЫТЬ" — left
+ *        slot: .card-zoom-actions__btn--primary "ВЫБРАТЬ" — right
+ *
+ *  Order: secondary first in source → primary second. Flex row =>
+ *  secondary lands on the LEFT, primary on the RIGHT. This matches
+ *  the Cancel-left / Confirm-right modal convention so the player's
+ *  thumb / mouse doesn't sit on top of the safe-exit button when
+ *  they intend to commit.
+ *
+ *  Visual hierarchy:
+ *    - PRIMARY  → 52 px tall, ≥ 200 px wide, saturated cyan (or
+ *                amber for --unselect), animated breathe, strong
+ *                outer glow. Reads as "this is the action".
+ *    - SECONDARY → 42 px tall, ≥ 130 px wide, neutral dark glass,
+ *                no glow, calm hover. Reads as "alternative path —
+ *                won't commit anything".
+ *
+ *  No backdrop pointer-events override needed: click.stop on the
+ *  outer .card-zoom-container already keeps panel clicks from
+ *  bubbling to the backdrop-dismiss handler.
  */
 .card-zoom-actions {
-    min-height: 64px;
+    min-height: 96px;
     display: flex;
     align-items: center;
     justify-content: center;
-    /* visible only when slot is filled; empty state contributes 0 width */
     > * {
         pointer-events: auto;
     }
 }
 
+/*
+ * Glassmorphic strip under the card. Tinted dark glass with thin
+ * cyan top/bottom borders, soft inner highlight and a faint glow
+ * below — reads as built-in card chrome, not floating HTML.
+ *
+ * The clip-path eases the strip's left/right edges so it sits
+ * gracefully against the rounded card silhouette without sharp
+ * 90° corners.
+ *
+ * gap: 56 px is intentionally generous — it gives the safe distance
+ * between the two buttons. Together with the strong primary/secondary
+ * size difference, accidental left-vs-right clicks become unlikely
+ * even on touch input.
+ */
+.card-zoom-actions__panel {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 56px;
+    padding: 18px 44px;
+    background: linear-gradient(180deg,
+        rgba(14, 22, 34, 0.78) 0%,
+        rgba(8, 14, 24, 0.85) 100%);
+    border-top: 1px solid rgba(106, 176, 230, 0.32);
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -1px 0 rgba(106, 176, 230, 0.08),
+        0 8px 24px rgba(0, 0, 0, 0.55),
+        0 -6px 28px rgba(106, 176, 230, 0.1);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    clip-path: polygon(1.5% 0%, 98.5% 0%, 100% 100%, 0% 100%);
+}
+
+/*
+ * Subtle cyan accent line riding above the panel — fades in/out at
+ * the edges so it doesn't conflict with the L-corner ticks.
+ */
+.card-zoom-actions__panel::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 14%;
+    right: 14%;
+    height: 1px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(106, 176, 230, 0.85) 50%,
+        transparent 100%);
+    pointer-events: none;
+}
+
+/*
+ * L-corner ticks inside the panel — same chrome language as the
+ * MandatoryInputModal's outer corners and the card's own corners
+ * (`.card-corner--*`). Reinforces the "designed control panel" read.
+ */
+.card-zoom-actions__corner {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: rgba(106, 176, 230, 0.65);
+    pointer-events: none;
+    filter: drop-shadow(0 0 4px rgba(106, 176, 230, 0.25));
+
+    &--tl { top: -1px; left: -1px; border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -1px; right: -1px; border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -1px; left: -1px; border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -1px; right: -1px; border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+/*
+ * Base button — shared geometry / typography / focus styles for
+ * both PRIMARY and SECONDARY. Variants override size, palette,
+ * glow on top of this base.
+ */
+.card-zoom-actions__btn {
+    position: relative;
+    border: none;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+    isolation: isolate;
+    transition:
+        filter 180ms ease,
+        transform 180ms ease,
+        color 180ms ease,
+        box-shadow 220ms ease;
+
+    &:active:not(:disabled) {
+        transform: translateY(0);
+    }
+    &:disabled {
+        cursor: not-allowed;
+        filter: saturate(0.4) brightness(0.85);
+        opacity: 0.5;
+    }
+    &:focus-visible {
+        outline: 2px solid rgba(180, 220, 250, 0.9);
+        outline-offset: 4px;
+    }
+}
+
+/*
+ * SECONDARY — "ЗАКРЫТЬ". Calm, dark, subordinate. Player should
+ * recognise this as the safe-exit path; not disabled, just quieter.
+ */
+.card-zoom-actions__btn--secondary {
+    height: 42px;
+    min-width: 130px;
+    padding: 0 30px;
+    color: #b8c5d6;
+    font-size: 13px;
+    letter-spacing: 2.4px;
+    background: linear-gradient(180deg,
+        rgba(50, 70, 96, 0.55) 0%,
+        rgba(28, 38, 54, 0.55) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 4px 10px rgba(0, 0, 0, 0.4);
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1px;
+        clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(20, 30, 44, 0.88) 0%,
+            rgba(10, 16, 26, 0.88) 100%);
+        z-index: -1;
+    }
+
+    &:hover:not(:disabled) {
+        color: #e8eef7;
+        filter: brightness(1.18);
+        transform: translateY(-1px);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            0 0 18px rgba(106, 176, 230, 0.22),
+            0 6px 12px rgba(0, 0, 0, 0.45);
+    }
+}
+
+/*
+ * PRIMARY — "ВЫБРАТЬ" (or future "РАЗЫГРАТЬ"). Strong cyan plate
+ * with multi-layer glow:
+ *   - Saturated linear-gradient fill (top sheen → deep base)
+ *   - 1-px bright cyan outer line
+ *   - 24-px wide cyan halo
+ *   - Drop shadow for grounding
+ *   - Inner ::before darkens the centre slightly so the rim
+ *     reads brighter than the body (chassis effect)
+ *   - Outer ::after is a SOFT blurred breathing glow that gently
+ *     animates the player's attention back to this button without
+ *     feeling busy. Per the Ark Nova animation feel goal: slow
+ *     easing, not flashy.
+ *
+ * Slightly TALLER and WIDER than secondary (52 vs 42 px, 200 vs
+ * 130 px min-width) so the size hierarchy is felt instantly even
+ * before the colour signal lands.
+ */
+.card-zoom-actions__btn--primary {
+    height: 52px;
+    min-width: 200px;
+    padding: 0 40px;
+    color: #f5fbff;
+    font-size: 16px;
+    letter-spacing: 3.2px;
+    background: linear-gradient(180deg,
+        rgba(200, 230, 250, 0.95) 0%,
+        rgba(106, 176, 230, 0.92) 45%,
+        rgba(55, 125, 190, 0.92) 100%);
+    box-shadow:
+        0 0 0 1px rgba(220, 240, 255, 0.78),
+        0 0 26px rgba(106, 176, 230, 0.55),
+        0 10px 18px rgba(0, 0, 0, 0.5);
+    text-shadow: 0 1px 0 rgba(8, 16, 28, 0.55);
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(60, 110, 165, 0.18) 0%,
+            rgba(14, 36, 60, 0.55) 100%);
+        z-index: -1;
+    }
+
+    /* Soft pulsing under-glow — slow breath. ::after sits BEHIND
+     * the button via z-index, blurs out, animates opacity only so
+     * the layout doesn't reflow. */
+    &::after {
+        content: '';
+        position: absolute;
+        inset: -10px;
+        background: radial-gradient(ellipse at center,
+            rgba(106, 176, 230, 0.55) 0%,
+            rgba(106, 176, 230, 0.18) 50%,
+            rgba(106, 176, 230, 0) 80%);
+        z-index: -2;
+        pointer-events: none;
+        animation: card-zoom-primary-breathe 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    }
+
+    &:hover:not(:disabled) {
+        filter: brightness(1.12) saturate(1.08);
+        transform: translateY(-2px);
+        box-shadow:
+            0 0 0 1px rgba(230, 245, 255, 1),
+            0 0 38px rgba(106, 176, 230, 0.92),
+            0 14px 26px rgba(0, 0, 0, 0.55);
+    }
+
+    /*
+     * UNSELECT variant — buy mode, card is currently picked, button
+     * reverses the selection. Amber so the player VISUALLY KNOWS the
+     * next click reverses an earlier action — distinct from the cyan
+     * "do this" signal. Same chassis, swapped palette + glow.
+     */
+    &.card-zoom-actions__btn--unselect {
+        background: linear-gradient(180deg,
+            rgba(250, 205, 145, 0.95) 0%,
+            rgba(225, 150, 80, 0.95) 45%,
+            rgba(170, 95, 35, 0.92) 100%);
+        box-shadow:
+            0 0 0 1px rgba(255, 220, 170, 0.82),
+            0 0 26px rgba(230, 145, 80, 0.55),
+            0 10px 18px rgba(0, 0, 0, 0.5);
+        color: #fff4e0;
+        text-shadow: 0 1px 0 rgba(70, 30, 10, 0.5);
+
+        &::before {
+            background: linear-gradient(180deg,
+                rgba(160, 90, 30, 0.18) 0%,
+                rgba(60, 30, 8, 0.55) 100%);
+        }
+        &::after {
+            background: radial-gradient(ellipse at center,
+                rgba(230, 145, 80, 0.55) 0%,
+                rgba(230, 145, 80, 0.18) 50%,
+                rgba(230, 145, 80, 0) 80%);
+        }
+        &:hover:not(:disabled) {
+            box-shadow:
+                0 0 0 1px rgba(255, 235, 200, 1),
+                0 0 38px rgba(230, 145, 80, 0.92),
+                0 14px 26px rgba(0, 0, 0, 0.55);
+        }
+    }
+}
+
+@keyframes card-zoom-primary-breathe {
+    0%, 100% { opacity: 0.55; transform: scale(0.97); }
+    50%       { opacity: 1;    transform: scale(1.04); }
+}
+
+/*
+ * Responsive — tighter viewports shrink the panel padding and gap
+ * so the strip never bursts the modal width. The button-size
+ * hierarchy (primary larger than secondary) is preserved at every
+ * breakpoint — that's the load-bearing signal.
+ */
+@media (max-width: 880px) {
+    .card-zoom-actions__panel {
+        gap: 36px;
+        padding: 14px 28px;
+    }
+    .card-zoom-actions__btn--primary {
+        min-width: 170px;
+        padding: 0 30px;
+        font-size: 15px;
+        letter-spacing: 2.6px;
+    }
+    .card-zoom-actions__btn--secondary {
+        min-width: 110px;
+        padding: 0 22px;
+    }
+}
+@media (max-width: 640px) {
+    .card-zoom-actions {
+        min-height: 84px;
+    }
+    .card-zoom-actions__panel {
+        gap: 24px;
+        padding: 12px 20px;
+    }
+    .card-zoom-actions__btn--primary {
+        height: 46px;
+        min-width: 140px;
+        padding: 0 22px;
+        font-size: 13px;
+        letter-spacing: 2px;
+    }
+    .card-zoom-actions__btn--secondary {
+        height: 38px;
+        min-width: 96px;
+        padding: 0 18px;
+        font-size: 12px;
+        letter-spacing: 1.8px;
+    }
+}
+
 .card-zoom-card {
+    /* Provide an anchor for the absolute-positioned --selected
+     * pseudo-elements below (ribbon + pulsing halo). */
+    position: relative;
+
     /*
      * Premium halo around the centred card. Cyan-tinted outer glow
      * keys to the sci-fi palette (matches @scifi-cyan), the dark
@@ -617,6 +948,32 @@
             0 24px 60px rgba(0, 0, 0, 0.7);
         transform: none !important;
         transition: none !important;
+        cursor: default;
+        /*
+         * v40-p: kill the entire hover stack inside fullscreen. The
+         * fullscreen IS the inspection view — there is no useful
+         * "next state" to telegraph on hover. Earlier iteration tried
+         * to re-assert a static box-shadow on `:hover` to beat the
+         * upstream `.mk-type-hover-glow` rule, but that ALSO replaced
+         * the rest-state type-frame chassis (multi-layer cyan/orange
+         * ring from cards_scifi.less section 9) with a calmer
+         * cyan-only halo — the card visibly "flickered" between two
+         * different chrome stacks when the mouse entered / left.
+         *
+         * Setting `pointer-events: none` makes the card untargetable
+         * by the cursor, so `:hover` never fires. The rest-state
+         * type-frame stays applied at all times. Backdrop dismiss
+         * still works because the outer `.card-zoom-container` has
+         * `@click.stop` — clicks on the card area fall through to it
+         * (not to the dialog backdrop), so a click on the card does
+         * NOT close the modal. Click outside the container hits the
+         * dialog itself and fires `onBackdropClick` as before.
+         *
+         * The action panel buttons below get pointer-events: auto
+         * via the existing `.card-zoom-actions > *` rule, so they
+         * keep working.
+         */
+        pointer-events: none;
     }
 
     .card-content {
@@ -629,6 +986,120 @@
         height: auto !important;
         min-height: 310px;
     }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ *  Fullscreen "selected" presentation (v40-p)
+ * ─────────────────────────────────────────────────────────────────
+ *
+ *  Applied via the `--selected` modifier set from CardZoomModal when
+ *  its `selected` prop is true. The trigger today is BUY-mode card
+ *  selection: the player opens a card to inspect it, taps the
+ *  primary toggle button, and the card immediately reads as
+ *  "selected" without leaving fullscreen. Three layered signals,
+ *  consistent with the grid's selected-card visual (`.card-selection
+ *  __card-slot--selected` in card_selection.less):
+ *
+ *    1. Strong multi-ring cyan halo on the card's frame
+ *       (.filterDiv box-shadow with !important so it beats both the
+ *       type-frame chassis and any future :hover rule).
+ *    2. Slow pulsing radial aura behind the card, set via ::before
+ *       on the .card-zoom-card wrapper. Reuses the shared
+ *       `card-selected-pulse` keyframes defined in
+ *       card_selection.less so the rhythm matches the grid pulse.
+ *    3. "ВЫБРАНО" / "SELECTED" ribbon above the card via ::after
+ *       on the wrapper — a sci-fi parallelogram with strong cyan
+ *       gradient + glow. Scaled larger than the grid ribbon
+ *       (16-px font, 32-px tall) so it reads proportionally to the
+ *       upscaled card behind it.
+ *
+ *  DRAFT mode never sets `selected=true` (the modal closes before
+ *  state could change), so this state only renders during BUY.
+ */
+.card-zoom-card--selected {
+    /* v40-q: all alphas dialled back ~2.5× per the player-flagged
+     * "acid / too bright" feel — matches the same toning pass on
+     * the grid `.card-selection__card-slot--selected`. The visual
+     * vocabulary stays identical (chassis ring, halo, pulse,
+     * ribbon) so the two contexts read as one selected language. */
+    &::before {
+        content: '';
+        position: absolute;
+        inset: -40px;
+        background: radial-gradient(ellipse at center,
+            rgba(106, 176, 230, 0.22) 0%,
+            rgba(106, 176, 230, 0.09) 38%,
+            rgba(106, 176, 230, 0) 72%);
+        animation: card-selected-pulse 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    &::after {
+        content: 'ВЫБРАНО';
+        position: absolute;
+        top: -34px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 160px;
+        height: 32px;
+        padding: 0 22px;
+        background: linear-gradient(180deg,
+            rgba(140, 180, 215, 0.92) 0%,
+            rgba(90, 145, 195, 0.9) 50%,
+            rgba(50, 100, 150, 0.9) 100%);
+        color: #0b1a2a;
+        font-family: "Russo One", Prototype, Ubuntu, sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 3.2px;
+        text-transform: uppercase;
+        line-height: 1;
+        clip-path: polygon(6% 0%, 94% 0%, 100% 100%, 0% 100%);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.3),
+            0 0 14px rgba(106, 176, 230, 0.35),
+            0 4px 10px rgba(0, 0, 0, 0.55);
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 4;
+    }
+
+    .filterDiv {
+        position: relative;
+        z-index: 1;
+        /*
+         * Same chassis vocabulary as the grid's selected card:
+         *   inset highlight → soft cyan tint → white outer line →
+         *   cyan ring → dark spacer → outer cyan glow → drop shadow.
+         *
+         * v40-q alphas in line with the grid's toned-down ring:
+         * primary cyan ring 1.0 → 0.55, glow 72-px @ 0.92 → 32-px
+         * @ 0.35, white outer line 0.92 → 0.45, inner highlight
+         * 1.0 → 0.55. Ring narrowed 5 → 4 px. Filter brightness/
+         * saturate removed — was double-dipping with the halo.
+         *
+         * !important required to beat both the type-frame chassis
+         * from cards_scifi.less section 9 AND the static halo
+         * defined a few rules up in this file.
+         */
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.55),
+            inset 0 0 0 2px rgba(160, 210, 240, 0.28),
+            0 0 0 2px rgba(255, 255, 255, 0.45),
+            0 0 0 4px rgba(106, 176, 230, 0.55),
+            0 0 0 6px rgba(20, 30, 45, 0.55),
+            0 0 32px rgba(106, 176, 230, 0.35),
+            0 14px 32px rgba(0, 0, 0, 0.55) !important;
+    }
+}
+
+:lang(en) .card-zoom-card--selected::after {
+    content: 'SELECTED';
 }
 
 /*

@@ -284,7 +284,15 @@
         <waiting-for v-if="game.phase !== 'end'" ref="waitingFor" :playerView="playerView" :waitingfor="playerView.waitingFor"></waiting-for>
       </div>
 
-      <div class="player_home_block player_home_block--hand" v-if="playerView.draftedCards.length > 0">
+      <!--
+        Legacy drafted-cards block. The new `DraftedCardsPile` inside
+        `DraftFlowOverlay` (mounted at App level) now shows the same
+        info as a compact sci-fi pile, so this row is redundant. Kept
+        in the template (just hidden via `--drafted-legacy` CSS) so any
+        technical consumers of the legacy DOM aren't disturbed.
+      -->
+      <div class="player_home_block player_home_block--hand player_home_block--drafted-legacy"
+           v-if="playerView.draftedCards.length > 0">
         <dynamic-title title="Drafted cards" :color="thisPlayer.color" />
         <div v-for="card in playerView.draftedCards" :key="card.name" class="cardbox">
           <Card :card="card"/>

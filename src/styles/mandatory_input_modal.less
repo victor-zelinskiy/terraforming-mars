@@ -17,6 +17,32 @@ body.mandatory-input-modal-open {
 }
 
 /*
+ * v40-e: while the modal is mounted AND active (not minimized, not
+ * picker-mode), disable pointer events on the rest of the page so
+ * clicks on top-bar buttons / overlay panels / sidebar chrome can't
+ * leak through to UI elements visually covered by the modal backdrop.
+ * The modal itself is teleported to <body>, OUTSIDE #player-home, so
+ * it stays interactive.
+ *
+ * Without this rule a click on a top-bar button (like the VP overlay
+ * opener) that has its own stacking context can still dispatch even
+ * though the modal backdrop sits at z-index 12000 above it — the
+ * backdrop's z-index orders PAINTING but doesn't always guarantee
+ * event delivery once intermediate stacking contexts get involved.
+ * Killing pointer-events at #player-home root is the robust fix.
+ *
+ * `:has()` checks the LIVE state of the modal wrapper: if it's in
+ * `--minimized` or `--picker-mode` (player wants to inspect the
+ * board / interact with the rest of the UI), the guard turns off
+ * and #player-home becomes interactive again. Both modifier states
+ * also visually hide the modal so the player isn't confused about
+ * what's blocking what.
+ */
+body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-modal--minimized):not(.mandatory-input-modal--picker-mode)) #player-home {
+    pointer-events: none;
+}
+
+/*
  * The modal wrapper itself owns the overflow when content is taller than
  * the viewport. Centering via flex while ALSO allowing scroll requires
  * the modal to be the scroll container — the inner card just has natural
