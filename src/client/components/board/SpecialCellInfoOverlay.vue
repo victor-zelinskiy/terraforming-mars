@@ -212,9 +212,12 @@ export default defineComponent({
       const el = specialCellHoverState.markerEl;
       this.markerRect = el ? el.getBoundingClientRect() : undefined;
       // Re-measure the panel after Vue paints the updated content.
+      // Vue 3 returns `null` (not `undefined`) for unbound refs — and the
+      // ref will be null whenever `v-if` has just removed the panel,
+      // e.g. the popup was just closed by hover-leave. Tolerate both.
       this.$nextTick(() => {
-        const p = this.$refs.panel as HTMLElement | undefined;
-        if (p !== undefined) {
+        const p = this.$refs.panel as HTMLElement | null | undefined;
+        if (p) {
           this.panelHeight = p.offsetHeight;
         }
       });
