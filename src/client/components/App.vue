@@ -1,5 +1,14 @@
 <template>
   <div :class="'topmost-'+screen">
+    <!--
+      Game-screen atmosphere backdrop. Mounted ONLY on in-game screens
+      (player-home / spectator-home) — start / create / load / the-end
+      each have their own backdrop styling and don't want the layered
+      space scene. `v-if` keeps DOM cost zero outside game screens.
+      The component itself uses `position: fixed; z-index: -50..-44`
+      so it sits behind all UI without affecting layout / hitbox.
+    -->
+    <GameAtmosphere v-if="screen === 'player-home' || screen === 'spectator-home'" />
     <section>
       <dialog id="alert-dialog" class="alert-dialog">
         <form method="dialog">
@@ -79,6 +88,7 @@ const PlayerHome = defineAsyncComponent(() => import(/* webpackChunkName: "playe
 const SpectatorHome = defineAsyncComponent(() => import(/* webpackChunkName: "spectator-home" */ '@/client/components/SpectatorHome.vue'));
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
+import GameAtmosphere from '@/client/components/GameAtmosphere.vue';
 import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
 import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
@@ -180,6 +190,7 @@ export default defineComponent({
     'admin-home': AdminHome,
     'login-home': LoginHome,
     DraftFlowOverlay,
+    GameAtmosphere,
   },
   methods: {
     showAlert(title: string, message: string, cb: () => void = () => {}): void {

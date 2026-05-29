@@ -1,0 +1,234 @@
+/*
+ * Game atmosphere backdrop — layered space scene for PlayerHome /
+ * SpectatorHome.
+ *
+ * Renders 7 fixed-positioned layers behind every UI element to give
+ * the Mars board a cinematic premium sci-fi context (deep space,
+ * starfield depth, Mars halo focus, subtle HUD chrome). All layers
+ * stay at negative z-index (-50..-44) so they sit underneath the
+ * lowest UI layer (board at z=1). `pointer-events: none` on every
+ * layer so clicks pass straight through to the UI.
+ *
+ * Tuning via CSS variables on `.game-atmosphere` — change once, every
+ * layer reads from these. Defaults aim for "premium spaceship console":
+ * cool deep base + subtle nebula + faint cinematic glow around Mars.
+ *
+ * To dial down on slower hardware (or per user preference later) set
+ * any of the multipliers below to 0 — that layer goes invisible without
+ * breaking the rest.
+ */
+.game-atmosphere {
+    --atmosphere-base-tint:       1.0;   /* deep space gradient intensity */
+    --atmosphere-nebula-opacity:  1.0;   /* nebula clouds visibility */
+    --atmosphere-star-opacity:    1.0;   /* both starfield layers */
+    --atmosphere-halo-intensity:  1.0;   /* cinematic Mars halo strength */
+    --atmosphere-hud-opacity:     1.0;   /* HUD scanlines + corner ticks */
+    --atmosphere-vignette-depth:  1.0;   /* edge darkening */
+
+    position: fixed;
+    inset: 0;
+    z-index: -50;
+    overflow: hidden;
+    pointer-events: none;
+    /*
+     * `contain: layout style paint` was here originally for perf
+     * isolation; removed because `contain: paint` creates an implicit
+     * stacking/compositing boundary that, combined with the board's
+     * own compositor layer, was making the .board-cont rectangle edge
+     * subtly visible against the atmosphere. Without it, both layers
+     * composite into the same root and the boundary disappears. Perf
+     * impact is negligible — atmosphere is fully static CSS, browser
+     * doesn't repaint it anyway.
+     */
+}
+
+.game-atmosphere > * {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+}
+
+/*
+ * 1. Deep space base — multi-stop radial off-center toward the
+ *    Mars area so the "warm" side of the gradient sits where the
+ *    planet renders. Asymmetric center prevents the symmetric-oval
+ *    look that reads as cheap web bg.
+ */
+.game-atmosphere__base {
+    z-index: -50;
+    background:
+        radial-gradient(
+            ellipse 110% 100% at 50% 48%,
+            rgba(14, 26, 44, calc(1.0 * var(--atmosphere-base-tint))) 0%,
+            rgba(8, 16, 28, calc(1.0 * var(--atmosphere-base-tint))) 45%,
+            rgba(4, 8, 16, calc(1.0 * var(--atmosphere-base-tint))) 100%);
+}
+
+/*
+ * 2. Nebula clouds — two large soft off-center radial gradients in
+ *    complementary cyan and violet, very low alpha. Adds chromatic
+ *    interest without the cyberpunk loudness of saturated colour.
+ */
+.game-atmosphere__nebula {
+    z-index: -49;
+    opacity: var(--atmosphere-nebula-opacity);
+    /*
+     * Nebula centers pushed further into corners (was 25%/35% and
+     * 78%/72%, now 15%/25% and 85%/80%) so the chromatic gradient
+     * stays away from the central .board-cont area. Earlier centers
+     * dropped colour variation right at the .board-cont edge, which
+     * made the board's GPU compositor layer boundary read as a faint
+     * rectangle.
+     */
+    background:
+        radial-gradient(
+            ellipse 65% 60% at 15% 25%,
+            rgba(60, 120, 160, 0.045) 0%,
+            transparent 65%),
+        radial-gradient(
+            ellipse 55% 55% at 85% 80%,
+            rgba(80, 60, 130, 0.035) 0%,
+            transparent 70%);
+}
+
+/*
+ * 3. Distant starfield — `stars.jpg` scaled UP (so individual stars
+ *    appear smaller), blurred 0.3px, opacity reduced. Reads as the
+ *    "far layer" behind the near stars — gives parallax depth.
+ *
+ *    `background-attachment: fixed` keeps the layer pinned to viewport
+ *    as the layer itself (already fixed) — but more importantly it
+ *    means the *texture* doesn't scroll inside the layer. Combined
+ *    with `background-size` we get a tiled distant sky.
+ */
+.game-atmosphere__stars-far {
+    z-index: -48;
+    background: url(./assets/stars.jpg);
+    background-size: 1100px auto;
+    background-position: 30% 20%;
+    background-repeat: repeat;
+    opacity: calc(0.25 * var(--atmosphere-star-opacity));
+    filter: blur(0.3px);
+}
+
+/*
+ * 4. Near starfield — `stars.jpg` at original tile size, opacity
+ *    higher so the foreground star layer reads as crisp pinpoints.
+ *    Position offset from the far layer so the two layers don't
+ *    align (would defeat the parallax illusion).
+ */
+.game-atmosphere__stars-near {
+    z-index: -47;
+    background: url(./assets/stars.jpg);
+    background-size: 444px auto;
+    background-position: 0 0;
+    background-repeat: repeat;
+    opacity: calc(0.55 * var(--atmosphere-star-opacity));
+}
+
+/*
+ * 5. Cinematic Mars halo — large soft radial gradient centered on
+ *    the viewport (where the board lives). Cyan outer rim suggests
+ *    a sensor / display lock; faint warm orange in the inner ring
+ *    hints at Mars surface reflectance. Two layered radials —
+ *    inner orange tightly bound around the planet, outer cyan
+ *    extending further out as ambient.
+ */
+.game-atmosphere__halo {
+    z-index: -46;
+    opacity: var(--atmosphere-halo-intensity);
+    background:
+        radial-gradient(
+            circle at 50% 50%,
+            rgba(240, 140, 80, 0.05) 0%,
+            rgba(240, 140, 80, 0.03) 15%,
+            transparent 30%),
+        radial-gradient(
+            circle at 50% 50%,
+            transparent 28%,
+            rgba(120, 180, 220, 0.08) 38%,
+            rgba(80, 140, 200, 0.04) 52%,
+            transparent 75%);
+}
+
+/*
+ * 6. HUD scanlines — repeating 1px horizontal lines at ~0.012
+ *    alpha. So faint the eye reads them as texture, not lines, but
+ *    they add the subliminal "I'm looking at a display" feeling that
+ *    sci-fi HUDs always have. Reduce or zero `--atmosphere-hud-opacity`
+ *    if the user finds them noticeable on their monitor.
+ */
+.game-atmosphere__hud {
+    z-index: -45;
+    opacity: var(--atmosphere-hud-opacity);
+    background: repeating-linear-gradient(
+        180deg,
+        transparent 0px,
+        transparent 3px,
+        rgba(140, 200, 240, 0.012) 3px,
+        rgba(140, 200, 240, 0.012) 4px);
+}
+
+/*
+ * 7. Edge vignette — soft radial darkening at the four corners.
+ *    Frames the central viewport area where Mars lives without a
+ *    hard letterbox feel. Quite mild (final corner alpha 0.42) so
+ *    it doesn't blot out the nebula / stars at the corners — just
+ *    pulls the eye in.
+ */
+.game-atmosphere__vignette {
+    z-index: -44;
+    opacity: var(--atmosphere-vignette-depth);
+    background: radial-gradient(
+        ellipse 75% 70% at 50% 50%,
+        transparent 50%,
+        rgba(0, 0, 0, 0.20) 80%,
+        rgba(0, 0, 0, 0.42) 100%);
+}
+
+/*
+ * Corner ticks — small cyan L-marks at each viewport corner,
+ * picked up from the existing HUD chrome language (special-cell
+ * panel corners, mandatory-modal corners). Visible enough to feel
+ * intentional, dim enough to recede.
+ *
+ * z-index -44 same as vignette — they layer fine since the corner
+ * ticks are tiny and don't compete for the same pixels.
+ */
+.game-atmosphere__corner {
+    z-index: -44;
+    width: 22px;
+    height: 22px;
+    inset: auto;
+    position: fixed;
+    border-color: rgba(106, 176, 230, calc(0.42 * var(--atmosphere-hud-opacity)));
+    filter: drop-shadow(0 0 5px rgba(106, 176, 230, calc(0.30 * var(--atmosphere-hud-opacity))));
+}
+
+.game-atmosphere__corner--tl {
+    top: 14px;
+    left: 14px;
+    border-top: 1.5px solid;
+    border-left: 1.5px solid;
+}
+
+.game-atmosphere__corner--tr {
+    top: 14px;
+    right: 14px;
+    border-top: 1.5px solid;
+    border-right: 1.5px solid;
+}
+
+.game-atmosphere__corner--bl {
+    bottom: 14px;
+    left: 14px;
+    border-bottom: 1.5px solid;
+    border-left: 1.5px solid;
+}
+
+.game-atmosphere__corner--br {
+    bottom: 14px;
+    right: 14px;
+    border-bottom: 1.5px solid;
+    border-right: 1.5px solid;
+}

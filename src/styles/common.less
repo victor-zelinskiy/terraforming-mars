@@ -154,7 +154,16 @@ a:active {
 }
 
 body {
-    background: @bg_main;
+    /*
+     * Fallback bg — used only on screens WITHOUT the GameAtmosphere
+     * layer (start screen, create form, load form, the-end). On
+     * game screens the atmosphere layers cover everything with their
+     * own deep-space gradient, so this base never shows. Near-black
+     * instead of the legacy rgb(48,48,48) gray so any transient
+     * "empty" pixel during transitions stays in the space palette
+     * rather than reverting to the dated grey wash.
+     */
+    background: #050812;
     color: @text_main;
     font-family: @font_family_main;
     font-size: @font_size_big;
@@ -247,6 +256,7 @@ each(@players, {
 @import "./mandatory_input_modal.less";
 @import "./placement_banner.less";
 @import "./special_cell_info.less";
+@import "./game_atmosphere.less";
 @import "./card_selection.less";
 @import "./other_player.less";
 @import "./colonies.less";

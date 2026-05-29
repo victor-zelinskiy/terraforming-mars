@@ -52,6 +52,25 @@
 	transform-origin: center center;
 
 	/*
+	 * Soft drop-shadow halo blends the .board-cont compositor layer
+	 * edge into the surrounding atmosphere. The `transform: scale`
+	 * above forces .board-cont onto its own GPU compositing layer;
+	 * against the flat-black legacy stars bg the layer edge was
+	 * invisible, but against the new chromatic atmosphere (nebula
+	 * clouds + Mars halo with colour variation) the layer's sub-
+	 * pixel alpha edge reads as a faint rectangular outline.
+	 *
+	 * drop-shadow follows the visible alpha shape — so if Mars PNG
+	 * corners are clean transparent, the shadow hugs the planet
+	 * circle; if they're slightly dirty, the 100-px blur washes out
+	 * the difference. Either way the boundary disappears.
+	 *
+	 * Colour matches the atmosphere base (#050812..#0a1424 range)
+	 * so the halo reads as deep-space haze, not as a "shadow".
+	 */
+	filter: drop-shadow(0 0 100px rgba(8, 14, 24, 0.85));
+
+	/*
 	 * Subtle HUD atmosphere — very light radial vignette that softens
 	 * only the very corners of the board area, leaving Mars and the
 	 * outer cells untouched. Lives in a pseudo-element so it doesn't
