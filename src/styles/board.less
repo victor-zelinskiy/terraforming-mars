@@ -153,8 +153,11 @@
  *     warm-white baseline outline + thin cool-blue inner accent.
  *     This is the "tactical grid" feel; it shows in all states.
  *   - Placement state escalates the SAME ::before by swapping the SVG
- *     background-image to a brighter cyan stroke — NO fill. The hex
- *     INTERIOR stays empty so cells never read as "filled with water".
+ *     background-image to an AMBER/GOLD stroke — NO fill. The hex
+ *     INTERIOR stays empty so cells never read as "filled with water"
+ *     (amber palette deliberately chosen to harmonise with the warm
+ *     Mars surface and to NOT conflict with ocean cyan or red danger
+ *     signals).
  *   - Glow is carried by `filter: drop-shadow()` which follows the
  *     clip-path silhouette cleanly — no muddy box-shadow blur.
  *
@@ -168,23 +171,64 @@
  *   - `.board-space-selectable` (added by BoardSpace.vue for every cell
  *     wrapper) is the universal hook for the baseline + hover layer.
  *   - `.board-space--available` (added by SelectSpace.vue during
- *     placement) escalates ::before to the legal state.
- *   - `.board-space--selected` (post-confirm) → stable lit cyan.
- *   - `:has(.board-space--available)` on `.board-cont` dims everything
- *     else, no JS changes needed.
+ *     placement) escalates ::before to the legal state (amber outline).
+ *   - `.board-space--selected` (post-confirm) → steady saturated gold.
+ *   - `.board-space--illegal` (server-marked off-limits) → cursor +
+ *     faint danger-red rim.
+ *   - `:has(.board-space--available)` on `.board-cont` triggers the
+ *     non-target dim, no JS changes needed.
  *
  * The ::before sits at z-index: 1 — above the inner tile's hex_white.png
- * outline (so cyan doesn't get muddied) and above the Mars surface, but
- * below positioned children with explicit z-index (info marker z=6,
+ * outline (so amber doesn't get muddied) and above the Mars surface,
+ * but below positioned children with explicit z-index (info marker z=6,
  * special-active overlay z=9500). Bonus icons (z auto / level 6) AREN'T
  * covered visually because the ::before background is OUTLINE-ONLY —
  * its centre is transparent, so bonuses at hex centre show through.
  *
  * Co-existence with `.board-space--special-active` (cyan inner tint for
- * info-marker hover) — both use the cyan family, so a hovered special
- * cell that's also a placement target just stacks placement outline +
- * special-active inner tint. Reads as "two interactions available".
+ * info-marker hover) — placement uses amber, info uses cyan, so the
+ * two languages never collide. A hovered special cell that's also a
+ * placement target stacks amber outline + cyan inner tint cleanly
+ * (reads as "two interactions available").
  */
+
+/*
+ * ─── Placement palette (amber/gold) ───────────────────────────────────
+ *
+ * Why amber, not cyan: the old cyan placement highlight read as "ocean
+ * water" inside hexes (especially next to actual ocean tiles which use
+ * the same blue family). Amber:
+ *   - harmonises with the warm Mars surface palette;
+ *   - never conflicts with ocean cyan, danger red, or vegetation green;
+ *   - feels like a HUD "target lock" instead of a debug overlay.
+ *
+ * Stroke colours are committed directly into the SVG data URLs (data
+ * URLs can't read CSS `var()`). Glow colours live in the variables
+ * below since `drop-shadow()` honours `var()`. If you re-tune the
+ * palette, change both the stroke hexes (below in the SVGs) AND the
+ * glow vars together — they should stay visually consistent.
+ *
+ * Palette reference (keep in sync with SVGs below):
+ *   available main outline  #FFD66B   warm amber
+ *   available inner accent  #FFF1A8   pale cream-amber
+ *   hover main outline      #FFF6CC   near-white amber
+ *   hover inner accent      #FFFFFF   white
+ *   selected main outline   #FFC857   saturated gold
+ *   selected inner accent   #FFFFFF
+ *   illegal accent          #E36464   muted danger red
+ *
+ * Baseline-hover (non-placement) is intentionally NEUTRAL warm-white
+ * (#fff2d4) — kept clearly distinct from amber placement so a hover
+ * in normal play doesn't get mistaken for "placement available".
+ */
+.board-cont {
+	--placement-available-glow-1: rgba(255, 200, 100, 0.78);
+	--placement-available-glow-2: rgba(255, 235, 170, 0.50);
+	--placement-hover-glow-1:     rgba(255, 240, 180, 1);
+	--placement-hover-glow-2:     rgba(255, 255, 255, 0.85);
+	--placement-selected-glow:    rgba(255, 215, 120, 0.95);
+	--placement-baseline-hover-glow: rgba(255, 220, 170, 0.55);
+}
 
 // ── Baseline layered outline — EVERY selectable hex ───────────────────
 //
@@ -202,37 +246,43 @@
 	transition: background 180ms ease, filter 180ms ease, opacity 180ms ease;
 }
 
-// Baseline hover (no placement) — soft cool focus + subtle halo.
-// More than "barely visible" — should feel like the cell tracks the mouse.
+// Baseline hover (no placement) — soft WARM focus + subtle warm halo.
+// Was cyan-tinted; switched to warm-white so it doesn't compete with
+// the amber placement palette below (a hover during placement reads
+// as "placement-available hover" — see further down — not as the
+// generic baseline hover).
 .board > .board-space-selectable:hover::before,
 .board-outer-spaces > .board-space-selectable:hover::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23bfeaff' stroke-opacity='0.85' stroke-width='1.2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23e8f6ff' stroke-opacity='0.55' stroke-width='0.6' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23fff2d4' stroke-opacity='0.78' stroke-width='1.2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.5' stroke-width='0.6' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 .board > .board-space-selectable:hover,
 .board-outer-spaces > .board-space-selectable:hover {
-	filter: drop-shadow(0 0 5px rgba(140, 210, 245, 0.55));
+	filter: drop-shadow(0 0 5px var(--placement-baseline-hover-glow));
 	transition: filter 160ms ease;
 }
 
 // ── Placement mode: legal cell ────────────────────────────────────────
 //
-// Bright cyan double-outline. NO inner fill (this was the cause of the
-// "ocean water" feeling — gone). Drop-shadow carries the cyan glow.
+// Amber double-outline. NO inner fill — the hex INTERIOR stays empty
+// so cells never read as "filled with anything". Drop-shadow carries
+// the amber glow.
 .board > .board-space.board-space--available,
 .board-outer-spaces > .board-space.board-space--available {
 	cursor: pointer;
 	z-index: 2;
-	filter: drop-shadow(0 0 7px rgba(120, 220, 255, 0.85)) drop-shadow(0 0 2px rgba(180, 240, 255, 0.55));
+	filter:
+		drop-shadow(0 0 7px var(--placement-available-glow-1))
+		drop-shadow(0 0 2px var(--placement-available-glow-2));
 }
 
 .board > .board-space.board-space--available::before,
 .board-outer-spaces > .board-space.board-space--available::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%2380e0ff' stroke-width='1.7' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.42' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFD66B' stroke-width='1.7' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23FFF1A8' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 // Suppress the legacy hex_white.png baseline outline on legal cells so
-// the new cyan double-outline reads cleanly — otherwise white + cyan
+// the new amber double-outline reads cleanly — otherwise white + amber
 // stack into a muddy edge. Background-color (e.g. ocean blue tint, the
 // volcanic dark red) is preserved since we only zero `background-image`.
 .board-space.board-space--available > .board-space {
@@ -241,59 +291,101 @@
 
 // ── Placement mode: HOVERED legal cell ────────────────────────────────
 //
-// Strongest state in the whole system — outline goes near-white, glow
-// pulls open into a real "scan-target" focus.
+// Strongest state in the whole system — outline goes near-white amber,
+// glow pulls open into a real "scan-target lock-on" focus.
 .board > .board-space.board-space--available:hover,
 .board-outer-spaces > .board-space.board-space--available:hover {
-	filter: drop-shadow(0 0 14px rgba(220, 245, 255, 1)) drop-shadow(0 0 4px rgba(255, 255, 255, 0.85));
+	filter:
+		drop-shadow(0 0 14px var(--placement-hover-glow-1))
+		drop-shadow(0 0 4px var(--placement-hover-glow-2));
 }
 
 .board > .board-space.board-space--available:hover::before,
 .board-outer-spaces > .board-space.board-space--available:hover::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23eaf8ff' stroke-width='2.1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.85' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFF6CC' stroke-width='2.1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.85' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 // ── Placement mode: confirmed selection ───────────────────────────────
 //
-// Steady cyan, no hover dependence — the player has committed to this
-// cell, it shouldn't dim when their mouse moves away.
+// Steady saturated gold, no hover dependence — the player has committed
+// to this cell, it shouldn't dim when their mouse moves away.
 .board > .board-space.board-space--selected,
 .board-outer-spaces > .board-space.board-space--selected {
-	filter: drop-shadow(0 0 10px rgba(180, 235, 255, 0.95));
+	filter: drop-shadow(0 0 10px var(--placement-selected-glow));
 	z-index: 2;
 }
 
 .board > .board-space.board-space--selected::before,
 .board-outer-spaces > .board-space.board-space--selected::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%237ee0ff' stroke-width='2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.5' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFC857' stroke-width='2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
-// ── Placement mode: illegal cells dim ─────────────────────────────────
+// ── Placement mode: non-target cells ──────────────────────────────────
 //
-// Direct-child selector keeps dimming on the wrapper only (the inner
-// BoardSpaceTile also has class .board-space — without `> ` opacity
-// would compound to near-invisible). Saturate + brightness creates a
-// "lights off" feel while preserving the grid structure so the player
-// still reads the whole board.
-.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):not(.board-space--selected),
-.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):not(.board-space--selected) {
-	// Mild dim — enough so legal cells visually pop, but type identity
-	// (ocean blue vs land orange vs volcanic red) stays clearly readable.
-	// Earlier values (opacity 0.42, saturate 0.5, brightness 0.85) ate
-	// the colour difference between water and land cells.
-	opacity: 0.62;
-	filter: saturate(0.82);
+// REWORK: previously we set `opacity: 0.62 + saturate: 0.82` on the
+// .board-space wrapper itself, which made EVERYTHING inside translucent
+// — placed tiles, player cubes, bonus icons, special-cell markers.
+// That destroys board readability exactly when the player needs to see
+// what's already on the board to make a placement decision.
+//
+// New approach: only the EMPTY HEX BACKGROUND (the type-coloured fill
+// rendered by BoardSpaceTile when no tile is placed) and the BASELINE
+// OUTLINE (::before) recede. Tile graphics (`.board-space-tile--city`,
+// etc.), player cubes, bonus icons, gagarin/cathedral/nomad markers,
+// underground tokens — all stay at full opacity and saturation.
+//
+// Selector logic:
+//   `> [class*="board-space-type-"]` matches the inner div from
+//   BoardSpaceTile that carries `board-space-type-{land|ocean|cove|…}`.
+//   Occupied cells use `board-space-tile--{city|greenery|…}` instead,
+//   so this selector naturally skips them. Includes the small standalone
+//   `.board-space-type-deflection-zone` overlay div, which is a board
+//   feature marker — fine to fade with the empty hex.
+.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):not(.board-space--selected) > [class*="board-space-type-"],
+.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):not(.board-space--selected) > [class*="board-space-type-"] {
+	// Very mild dim — the empty hex still reads as land/ocean/cove, just
+	// recedes against the amber-glowing legal cells. Saturate cut more
+	// than opacity since saturation drop preserves shape readability.
+	opacity: 0.78;
+	filter: saturate(0.72);
 	transition: opacity 240ms ease, filter 240ms ease;
 }
 
+// On hover, lift the dim off the EMPTY hex bg so it matches the
+// baseline-hover outline that pops back via the existing :hover::before
+// rule. Without this, an illegal-but-hovered cell shows full-strength
+// outline over a still-faded type colour — visually inconsistent.
+.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):not(.board-space--selected):hover > [class*="board-space-type-"],
+.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):not(.board-space--selected):hover > [class*="board-space-type-"] {
+	opacity: 1;
+	filter: saturate(1);
+}
+
+// Outline (::before) on non-target wrappers fades so the grid recedes
+// without disappearing. Hover still pops to the warm-white baseline
+// hover (handled by the existing :hover::before rule — specificity
+// wins over this no-hover scope).
+.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):not(.board-space--selected):not(:hover)::before,
+.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):not(.board-space--selected):not(:hover)::before {
+	opacity: 0.4;
+	transition: opacity 240ms ease;
+}
+
+// ── Placement mode: server-marked illegal cells ───────────────────────
+//
 // `.board-space--illegal` is added by SelectSpace.vue on cells the
-// server marked as off-limits via `illegalSpaces`. The hover cursor
-// becomes the universal "not-allowed" symbol so the player gets an
-// instant visual cue even before the native tooltip appears. Native
-// browser `title` (set on the same element) carries the localized
-// reason text.
+// server marked as off-limits via `illegalSpaces`. Cursor + faint
+// danger-red rim so the player gets an instant visual cue before the
+// native tooltip appears. Native browser `title` (set on the same
+// element) carries the localized reason text.
 .board-space.board-space--illegal {
 	cursor: not-allowed;
+}
+
+.board-cont:has(.board-space--available) .board > .board-space.board-space--illegal::before,
+.board-cont:has(.board-space--available) .board-outer-spaces > .board-space.board-space--illegal::before {
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23E36464' stroke-opacity='0.55' stroke-width='1' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	opacity: 0.7;
 }
 
 /*

@@ -4,27 +4,44 @@ import {DEFAULT_EXPANSIONS} from '@/common/cards/GameModule';
 import {RandomMAOptionType} from '@/common/ma/RandomMAOptionType';
 import {CreateGameModel} from './CreateGameModel';
 
+/*
+ * vize1215 fork — defaults are tuned to the exact JSON template the
+ * owner uploads on every match (2 players: Victor green + Nastya pink,
+ * Corporate Era + Promo + Venus + Colonies + Prelude, draft on with
+ * prelude draft, random first player, hidden timers). Lets the form
+ * open in a ready-to-create state with no JSON upload step.
+ *
+ * Tweak this file (NOT DEFAULT_EXPANSIONS in common/) when the regular
+ * game lineup changes — DEFAULT_EXPANSIONS is shared with the server
+ * and other call sites that should keep upstream behaviour.
+ */
 export function defaultCreateGameModel(): CreateGameModel {
   return {
     firstIndex: 1,
-    playersCount: 1,
+    playersCount: 2,
     players: [
+      {name: 'Victor', color: 'green', beginner: false, handicap: 0, first: false},
+      {name: 'Nastya', color: 'pink', beginner: false, handicap: 0, first: false},
       {name: '', color: 'red', beginner: false, handicap: 0, first: false},
-      {name: '', color: 'green', beginner: false, handicap: 0, first: false},
       {name: '', color: 'yellow', beginner: false, handicap: 0, first: false},
       {name: '', color: 'blue', beginner: false, handicap: 0, first: false},
       {name: '', color: 'black', beginner: false, handicap: 0, first: false},
       {name: '', color: 'purple', beginner: false, handicap: 0, first: false},
       {name: '', color: 'orange', beginner: false, handicap: 0, first: false},
-      {name: '', color: 'pink', beginner: false, handicap: 0, first: false},
     ],
-    expansions: {...DEFAULT_EXPANSIONS},
+    expansions: {
+      ...DEFAULT_EXPANSIONS,
+      promo: true,
+      venus: true,
+      colonies: true,
+      prelude: true,
+    },
     draftVariant: true,
     initialDraft: false,
     randomMA: RandomMAOptionType.NONE,
     modularMA: false,
     randomFirstPlayer: true,
-    showOtherPlayersVP: false,
+    showOtherPlayersVP: true,
     // beginnerOption: false,
     showCeosList: false,
     showColoniesList: false,
@@ -41,12 +58,12 @@ export function defaultCreateGameModel(): CreateGameModel {
     board: BoardName.THARSIS,
     seed: Math.random(),
     seededGame: false,
-    solarPhaseOption: false,
+    solarPhaseOption: true,
     shuffleMapOption: false,
     aresExtremeVariant: false,
     politicalAgendasExtension: 'Standard',
     undoOption: false,
-    showTimers: true,
+    showTimers: false,
     fastModeOption: false,
     removeNegativeGlobalEventsOption: false,
     includeFanMA: false,
@@ -67,7 +84,7 @@ export function defaultCreateGameModel(): CreateGameModel {
     twoCorpsVariant: false,
     startingCeos: 3,
     startingPreludes: 4,
-    preludeDraftVariant: undefined,
-    ceosDraftVariant: undefined,
+    preludeDraftVariant: true,
+    ceosDraftVariant: false,
   };
 }

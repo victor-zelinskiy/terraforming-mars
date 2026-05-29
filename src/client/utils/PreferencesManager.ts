@@ -26,16 +26,28 @@ export type Preferences = {
 
 export type Preference = keyof Preferences;
 
+/*
+ * vize1215 fork defaults — locked to the exact configuration that the
+ * Preferences dialog used to expose. The dialog itself was removed
+ * from the in-game sidebar (Sidebar.vue) to keep the right rail
+ * uncluttered; players on this fork should not need to discover the
+ * "right" combination of toggles for the new sci-fi UI to work
+ * correctly. Each non-upstream change is annotated.
+ *
+ * If you later resurface the Preferences dialog (e.g. for a future
+ * settings overlay), these are still safe defaults — none of them
+ * disable functionality, they only mirror the curated UX.
+ */
 const defaults: Preferences = {
   learner_mode: true,
-  enable_sounds: true,
+  enable_sounds: false,                  // vize1215: silence the upstream sfx by default — this build relies on visual feedback instead.
   magnify_cards: true,
   fullscreen_cards_on_dblclick: true,
   show_alerts: true,
-  lang: 'en',
+  lang: 'ru',                            // vize1215: Russian is the only locale this fork is curated for.
 
   hide_hand: false,
-  hide_awards_and_milestones: false,
+  hide_awards_and_milestones: true,      // vize1215: legacy inline strip is replaced by dedicated Awards / Milestones overlays — keep the inline list off.
   show_milestone_details: true,
   show_award_details: true,
   hide_top_bar: false,
@@ -44,7 +56,7 @@ const defaults: Preferences = {
   hide_active_cards: false,
   hide_automated_cards: false,
   hide_event_cards: false,
-  hide_tile_confirmation: false,
+  hide_tile_confirmation: true,          // vize1215: tile-confirmation modal is redundant once placement banner + amber preview do the same job.
   hide_discount_on_cards: false,
   hide_animated_sidebar: false,
 
