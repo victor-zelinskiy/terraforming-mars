@@ -86,6 +86,26 @@
 	cursor: pointer;
 }
 
+/*
+ * Resource-bonus icon layout — system-wide shift downward.
+ *
+ * Hex is 46×51. The bonus group is now anchored ~6 px (≈12 % of hex
+ * height) BELOW its original center, which:
+ *   - frees the upper hex sector for the special-cell info marker and
+ *     other future "metadata" overlays (single visual language across
+ *     the whole board);
+ *   - makes bonuses read as a lower informational layer, closer to the
+ *     Steam build's feel where bonuses sit at the bottom of the cell.
+ *
+ * Vertical clearance check: 3-bonus layout (pos--3) lands at y=29
+ * with a 16 px icon → bottom edge at y=45 vs hex bottom at y=51 (6 px
+ * clearance). The 16-px clip-path slant at the hex corners doesn't
+ * intrude on these positions.
+ *
+ * Marker positioning sits inside the freed top area (see
+ * special_cell_info.less) so the two layers don't fight for the same
+ * region of the hex.
+ */
 .board-space-bonus {
 	position: absolute;
     pointer-events: none;
@@ -95,20 +115,20 @@
 		border-radius: 2px;
 
   &.board-space-bonus-pos--only {
-    margin: 15px 0 0 14px;
+    margin: 21px 0 0 14px;
   }
 
 
 	&.board-space-bonus-pos--1 {
-		margin: 15px 0 0 5px;
+		margin: 21px 0 0 5px;
 	}
 
 	&.board-space-bonus-pos--2 {
-		margin: 15px 0 0 23px;
+		margin: 21px 0 0 23px;
 	}
 
 	&.board-space-bonus-pos--3 {
-		margin: 23px 0 0 14px;
+		margin: 29px 0 0 14px;
 	}
 }
 
@@ -437,6 +457,20 @@
 
 .board-outer-spaces {
 	position: absolute;
+	/*
+	 * Lift above `.board` (no z-index, paints at z=0) so outer cells that
+	 * land inside .board's bounding rect — STRATOPOLIS (570, 133..184)
+	 * sits fully under .board, LUNA METROPOLIS (534, 59..110) partly —
+	 * stay event-receivable. Without this, mouseover on those cells goes
+	 * to .board (which paints over them in source order) and the hex-wide
+	 * hover delegate in Board.vue can't find the outer cell via closest().
+	 *
+	 * Safe vs hex tiles: outer-cell positions never overlap any hex
+	 * position on supported boards, so lifting their layer doesn't block
+	 * surface-tile interaction. Stays below .board-legend (z=5) so legend
+	 * captions on other boards still paint on top.
+	 */
+	z-index: 3;
 }
 
 .board-space {
@@ -453,97 +487,6 @@
 		margin: -25px 0 0 -20px;
 		width: 88px;
 		pointer-events: none;
-	}
-
-	/*
-	 * Mountain captions for the Tharsis board (Tharsis Tholus, Ascraeus Mons,
-	 * Pavonis Mons, Arsia Mons, Noctis City). They're rendered as children of
-	 * their respective hex tile (see Board.vue#getTileCaption) and stay locked
-	 * to the tile through any future board scale/shift.
-	 *
-	 * Design goal: match the original board's look — caption text sits OUTSIDE
-	 * the planet (on the O₂ scale arc to the left) with a thin line drawn
-	 * back to the tile centre. The line is a CSS pseudo-element on the
-	 * caption (::after), so it follows whatever offset we use for the text.
-	 *
-	 * Per-tile values: `right` positions the right edge of the text relative
-	 * to the tile's right edge (tile is 46px wide; right:125 means text-right
-	 * sits at tile_left - 79). The ::after line length matches the gap from
-	 * text-right to tile-centre. `top` aligns the text with the tile's
-	 * vertical centre.
-	 *
-	 * IMPORTANT: `.board > .board-space` carries `clip-path: polygon(hex)` to
-	 * shape the tile. clip-path clips EVERY child including the caption we're
-	 * pushing outside the hex, so for the captioned tiles we cancel the clip
-	 * and let the background-image (transparent hex PNG) keep the visible
-	 * tile shape.
-	 */
-	&.board-space-09, // Tharsis Tholus
-	&.board-space-14, // Ascraeus Mons
-	&.board-space-21, // Pavonis Mons
-	&.board-space-29, // Arsia Mons
-	&.board-space-31 { // Noctis City
-		clip-path: none !important;
-		overflow: visible;
-		z-index: 5; // make sure the caption rides above neighbouring tiles
-	}
-
-	&.board-space-09 .board-space-text,
-	&.board-space-14 .board-space-text,
-	&.board-space-21 .board-space-text,
-	&.board-space-29 .board-space-text,
-	&.board-space-31 .board-space-text {
-		position: absolute;
-		margin: 0;
-		font-size: 11px;
-		font-weight: bold;
-		line-height: 12px;
-		text-align: right;
-		color: #fff;
-		text-shadow: 0 1px 2px #000, 0 0 4px #000;
-		pointer-events: none;
-		/* Vertically centre the caption on the tile centre regardless of how
-		 * many lines the (potentially translated) name takes. */
-		top: 50%;
-		transform: translateY(-50%);
-
-		&::after {
-			content: '';
-			position: absolute;
-			top: 50%;
-			left: 100%;
-			height: 1px;
-			background: rgba(255, 255, 255, 0.55);
-		}
-	}
-
-	// Per-tile offsets. `right` pushes the caption's right edge so it sits on
-	// the O₂ scale arc, outside the planet; ::after width is the horizontal
-	// distance from text right edge to the centre of the tile.
-	&.board-space-09 .board-space-text { // Tharsis Tholus  tile @ board(129, 75)
-		right: 125px;
-		width: 90px;
-		&::after { width: 102px; }
-	}
-	&.board-space-14 .board-space-text { // Ascraeus Mons   tile @ board(55, 116)
-		right: 80px;
-		width: 90px;
-		&::after { width: 57px; }
-	}
-	&.board-space-21 .board-space-text { // Pavonis Mons    tile @ board(31, 157)
-		right: 105px;
-		width: 90px;
-		&::after { width: 82px; }
-	}
-	&.board-space-29 .board-space-text { // Arsia Mons      tile @ board(6, 198)
-		right: 130px;
-		width: 90px;
-		&::after { width: 107px; }
-	}
-	&.board-space-31 .board-space-text { // Noctis City     tile @ board(104, 198)
-		right: 130px;
-		width: 90px;
-		&::after { width: 107px; }
 	}
 
 	&.board-space-69, &.board-space-70, &.board-space-71, &.board-space-72, &.board-space-73, &.board-space-75, &.board-space-76, &.board-space-77, &.board-space-78 {

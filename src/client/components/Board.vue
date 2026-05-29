@@ -6,19 +6,40 @@
           level so upstream merges don't conflict; tileView simply stays
           at its default (full tiles) for the duration of the game.
         -->
+        <!-- Single global overlay for the special-cell hover-info system.
+             Renders the popup panel + connector line whenever any marker
+             on the page is hovered/focused. Lives inside Board.vue (rather
+             than App) because it's coupled to the board UI feature set. -->
+        <special-cell-info-overlay />
+        <!--
+          Outer (off-Mars) special cells. Persistent text labels removed —
+          info is delivered via the hover-marker framework
+          (SpecialCellMarker → SpecialCellInfoOverlay) for the cells that
+          opted in via specialCellInfo.ts. Cells without a config entry
+          render as bare tiles, same as before, just without the label.
+        -->
         <div class="board-outer-spaces" id="colony_spaces">
-          <board-space v-if="hasSpace(SpaceName.GANYMEDE_COLONY)" :space="getSpace(SpaceName.GANYMEDE_COLONY)" text="Ganymede Colony" :tileView="tileView"></board-space>
-          <board-space v-if="hasSpace(SpaceName.PHOBOS_SPACE_HAVEN)" :space="getSpace(SpaceName.PHOBOS_SPACE_HAVEN)" text="Phobos Space Haven" :tileView="tileView"></board-space>
-          <board-space v-if="hasSpace(SpaceName.STANFORD_TORUS)" :space="getSpace(SpaceName.STANFORD_TORUS)" text="Stanford Torus" :tileView="tileView"></board-space>
-          <board-space v-if="hasSpace(SpaceName.LUNA_METROPOLIS)" :space="getSpace(SpaceName.LUNA_METROPOLIS)" text="Luna Metropolis" :tileView="tileView"></board-space>
-          <board-space v-if="hasSpace(SpaceName.DAWN_CITY)" :space="getSpace(SpaceName.DAWN_CITY)" text="Dawn City" :tileView="tileView"></board-space>
-          <board-space v-if="hasSpace(SpaceName.STRATOPOLIS)" :space="getSpace(SpaceName.STRATOPOLIS)" text="Stratopolis" :tileView="tileView"></board-space>
-          <board-space v-if="hasSpace(SpaceName.MAXWELL_BASE)" :space="getSpace(SpaceName.MAXWELL_BASE)" text="Maxwell Base" :tileView="tileView"></board-space>
-          <!-- <board-space :space="getSpace('74')" text="Martian Transhipment Station" :tileView="tileView"></board-space> -->
-          <board-space v-if="hasSpace(SpaceName.CERES_SPACEPORT)" :space="getSpace(SpaceName.CERES_SPACEPORT)" text="Ceres Spaceport" :tileView="tileView"></board-space>
-          <board-space v-if="hasSpace(SpaceName.DYSON_SCREENS)" :space="getSpace(SpaceName.DYSON_SCREENS)" text="Dyson Screens" :tileView="tileView"></board-space>
-          <board-space v-if="hasSpace(SpaceName.LUNAR_EMBASSY)" :space="getSpace(SpaceName.LUNAR_EMBASSY)" text="Lunar Embassy" :tileView="tileView"></board-space>
-          <board-space v-if="hasSpace(SpaceName.VENERA_BASE)" :space="getSpace(SpaceName.VENERA_BASE)" text="Venera Base" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.GANYMEDE_COLONY)" :space="getSpace(SpaceName.GANYMEDE_COLONY)" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.PHOBOS_SPACE_HAVEN)" :space="getSpace(SpaceName.PHOBOS_SPACE_HAVEN)" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.STANFORD_TORUS)" :space="getSpace(SpaceName.STANFORD_TORUS)" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.LUNA_METROPOLIS)" :space="getSpace(SpaceName.LUNA_METROPOLIS)" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.DAWN_CITY)" :space="getSpace(SpaceName.DAWN_CITY)" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.STRATOPOLIS)" :space="getSpace(SpaceName.STRATOPOLIS)" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.MAXWELL_BASE)" :space="getSpace(SpaceName.MAXWELL_BASE)" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.CERES_SPACEPORT)" :space="getSpace(SpaceName.CERES_SPACEPORT)" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.DYSON_SCREENS)" :space="getSpace(SpaceName.DYSON_SCREENS)" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.LUNAR_EMBASSY)" :space="getSpace(SpaceName.LUNAR_EMBASSY)" :tileView="tileView"></board-space>
+          <board-space v-if="hasSpace(SpaceName.VENERA_BASE)" :space="getSpace(SpaceName.VENERA_BASE)" :tileView="tileView"></board-space>
+
+          <!-- Markers for outer special cells. Mounted as siblings (not
+               children) so they sit outside any per-cell clip-path. Each
+               marker reuses its hex's .board-space-XX class for absolute
+               positioning. -->
+          <special-cell-marker
+            v-for="space in outerMarkerSpaces"
+            :key="'marker-' + space.id"
+            :space="space"
+          />
         </div>
 
         <div class="global-numbers">
@@ -79,10 +100,18 @@
               v-for="curSpace in getAllSpacesOnMars()"
               :key="curSpace.id"
               :space="curSpace"
-              :text="getTileCaption(curSpace.id)"
               :aresExtension="expansions.ares"
               :tileView="tileView"
               data-test="board-space"
+            />
+
+            <!-- Markers for Mars-surface special cells (e.g. Noctis City,
+                 Tharsis Tholus). Same sibling-of-hex strategy as the
+                 outer-cell markers above. -->
+            <special-cell-marker
+              v-for="space in surfaceMarkerSpaces"
+              :key="'marker-' + space.id"
+              :space="space"
             />
 
             <svg id="board_legend" height="550" width="630" class="board-legend">
@@ -309,6 +338,13 @@
 import {defineComponent} from 'vue';
 import * as constants from '@/common/constants';
 import BoardSpace from '@/client/components/BoardSpace.vue';
+import SpecialCellMarker from '@/client/components/board/SpecialCellMarker.vue';
+import SpecialCellInfoOverlay from '@/client/components/board/SpecialCellInfoOverlay.vue';
+import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
+import {
+  activateSpecialCellBySpaceId,
+  deactivateSpecialCellBySpaceId,
+} from '@/client/components/board/specialCellHoverState';
 import {AresData} from '@/common/ares/AresData';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {SpaceType} from '@/common/boards/SpaceType';
@@ -369,6 +405,8 @@ export default defineComponent({
   },
   components: {
     BoardSpace,
+    SpecialCellMarker,
+    SpecialCellInfoOverlay,
   },
   data() {
     return {
@@ -376,7 +414,48 @@ export default defineComponent({
       spaceMap: new Map<string, SpaceModel>(this.spaces.map((s) => [s.id, s])),
     };
   },
+  mounted() {
+    // Hex-wide hover delegation for the special-cell info system.
+    // Listening on .board-cont catches any hover inside the planet AND
+    // the .board-outer-spaces overlay (both descend from .board-cont).
+    // mouseover/mouseout bubble; mouseenter/mouseleave don't, so we use
+    // the bubbling pair with `relatedTarget` dedupe to ignore intra-cell
+    // moves. The shared store no-ops when the spaceId isn't a registered
+    // marker (= ordinary cell, or occupied special cell).
+    this.$el.addEventListener('mouseover', this.onHexHoverEnter as EventListener);
+    this.$el.addEventListener('mouseout', this.onHexHoverLeave as EventListener);
+  },
+  beforeUnmount() {
+    this.$el.removeEventListener('mouseover', this.onHexHoverEnter as EventListener);
+    this.$el.removeEventListener('mouseout', this.onHexHoverLeave as EventListener);
+  },
   methods: {
+    onHexHoverEnter(e: MouseEvent): void {
+      const cell = (e.target as HTMLElement | null)?.closest('[data_space_id]') as HTMLElement | null;
+      if (cell === null) return;
+      const related = e.relatedTarget as Node | null;
+      // Moves from a child of the same cell don't count as "entering" the cell.
+      if (related !== null && cell.contains(related)) return;
+      // During tile placement, suppress the hex-wide path on cells that are
+      // valid placement targets — the green blink owns the cell's hover
+      // semantics there. The marker badge keeps its own @mouseenter, so an
+      // explicit hover on the `i` always opens the popup, even during
+      // placement (user opting into the info).
+      if (cell.classList.contains('board-space--available')) return;
+      const spaceId = cell.getAttribute('data_space_id') as SpaceId | null;
+      if (spaceId === null) return;
+      activateSpecialCellBySpaceId(spaceId);
+    },
+    onHexHoverLeave(e: MouseEvent): void {
+      const cell = (e.target as HTMLElement | null)?.closest('[data_space_id]') as HTMLElement | null;
+      if (cell === null) return;
+      const related = e.relatedTarget as Node | null;
+      // Moves to a child of the same cell don't count as "leaving" the cell.
+      if (related !== null && cell.contains(related)) return;
+      const spaceId = cell.getAttribute('data_space_id') as SpaceId | null;
+      if (spaceId === null) return;
+      deactivateSpecialCellBySpaceId(spaceId);
+    },
     getAllSpacesOnMars(): Array<SpaceModel> {
       const boardSpaces: Array<SpaceModel> = [...this.spaces];
       boardSpaces.sort(
@@ -387,24 +466,6 @@ export default defineComponent({
       return boardSpaces.filter((s: SpaceModel) => {
         return s.spaceType !== SpaceType.COLONY;
       });
-    },
-    // Named landmarks rendered as a caption *inside* the hex tile so the label
-    // tracks the tile through any future scaling/translation of the board.
-    // Replaces a brittle SVG overlay that hard-coded x/y in board-coords.
-    // Only Tharsis is migrated for now; the other boards still use the SVG
-    // template above.
-    getTileCaption(spaceId: SpaceId): string {
-      if (this.boardName !== BoardName.THARSIS) {
-        return '';
-      }
-      const map: Record<string, string> = {
-        '09': 'Tharsis Tholus',
-        '14': 'Ascraeus Mons',
-        '21': 'Pavonis Mons',
-        '29': 'Arsia Mons',
-        '31': 'Noctis City',
-      };
-      return map[spaceId] ?? '';
     },
     hasSpace(spaceId: SpaceId): boolean {
       return this.spaceMap.has(spaceId);
@@ -479,6 +540,25 @@ export default defineComponent({
     },
   },
   computed: {
+    /**
+     * Mars-surface cells (non-colony) for which a special-cell info entry
+     * exists. The marker component itself gates rendering on
+     * `tileType === undefined` — listing them here just narrows the
+     * candidate set so we don't iterate the full board.
+     */
+    surfaceMarkerSpaces(): Array<SpaceModel> {
+      return this.spaces.filter((s) =>
+        s.spaceType !== SpaceType.COLONY && getSpecialCellInfo(s.id) !== undefined);
+    },
+    /**
+     * Colony / off-Mars cells with a special-cell info entry. These are
+     * rendered in the .board-outer-spaces container alongside their
+     * matching <board-space>.
+     */
+    outerMarkerSpaces(): Array<SpaceModel> {
+      return this.spaces.filter((s) =>
+        s.spaceType === SpaceType.COLONY && getSpecialCellInfo(s.id) !== undefined);
+    },
     BoardName(): typeof BoardName {
       return BoardName;
     },
