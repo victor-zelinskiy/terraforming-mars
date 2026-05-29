@@ -42,18 +42,19 @@
      */
     padding-top: calc(var(--bottom-bar-button-height) + 20px);
     padding-bottom: var(--bottom-bar-button-height);
-    background: linear-gradient(transparent, #000), url(./assets/stars.jpg);
-    background-attachment: fixed;
     /*
-     * After the board moved to `position: fixed` and the sidebar / left
-     * player panel are also fixed, `#player-home` has almost no in-flow
-     * content left, so its height collapsed to ~bar+bar+padding. Below
-     * that, the body's `rgb(48,48,48)` fallback bg showed through as a
-     * gray rectangle behind the board. `min-height: 100vh` guarantees
-     * the stars.jpg bg fills the viewport regardless of how little
-     * flow content the page currently has — keeps the deep-space look
-     * behind every fixed element.
+     * Background previously lived here as `linear-gradient(transparent,
+     * #000), url(stars.jpg)` — now handled by the dedicated
+     * `<GameAtmosphere>` component (mounted from App.vue) which renders
+     * a proper 7-layer deep-space backdrop with Mars halo, vignette,
+     * subtle HUD chrome, etc. Leaving `#player-home`'s bg transparent
+     * so the atmosphere layers show through unobstructed.
+     *
+     * `min-height: 100vh` no longer needed for bg coverage (atmosphere
+     * is fixed to viewport), but kept so subsequent flow content
+     * (legacy-ui-overlay, etc.) has a sensible page height baseline.
      */
+    background: transparent;
     min-height: 100vh;
     box-sizing: border-box;
 

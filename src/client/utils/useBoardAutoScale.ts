@@ -37,14 +37,32 @@ import {onMounted, onBeforeUnmount} from 'vue';
  * the CSS fallback by removing the inline override.
  */
 
-// Natural pixel dimensions of `.board-cont` BEFORE the transform scale.
-// Width: `.board-cont { width: 670px; }`. Height ≈ planet image (600) +
-// top margin/padding for outer-cell captions (~85). The 685 number is
-// the same magic value that already lives in `player_home.less`'s
-// `.player_home_block--board { padding-bottom: calc((scale-1) * 685px) }`
-// — keep them in sync.
+// "Natural" pixel dimensions used to derive the scale that makes the
+// PLANET fill the available central viewport area — NOT the full
+// .board-cont box.
+//
+// The `.board-cont` box is wider/taller than the planet itself: it
+// includes 85 px of top margin where outer-cells (Maxwell Base etc.)
+// live above the Mars image. If we divide by the box height (685 ≈
+// planet 600 + margin 85), the scale targets the box, which means the
+// planet only fills ~600/685 = 87% of the available vertical — and the
+// player sees that 13 % empty band as "wasted space" above/below the
+// planet.
+//
+// Using the planet's intrinsic dimensions (Mars image is 620 × 600 via
+// `background-size: 620px 600px`) makes the planet itself fill the
+// available area. The outer cells move proportionally with the same
+// transform-scale but extend slightly above/below the planet — comfortably
+// within the chrome reservation as long as the breather above the top
+// button bar is preserved.
+//
+// HEIGHT = 610 (planet 600 + 10 px tolerance) is the balance point:
+//   - planet visually fills ~99 % of available V on widescreen monitors
+//   - outer-cell row 0 (Maxwell Base, margin-top: -13 px in .board-cont
+//     coords) keeps ~30-50 px clearance from the top button bar even at
+//     the largest scales we hit (3.0+).
 const BOARD_NATURAL_WIDTH = 670;
-const BOARD_NATURAL_HEIGHT = 685;
+const BOARD_NATURAL_HEIGHT = 610;
 
 // Hard limits so the auto-scale never goes absurd on edge viewports.
 // MIN_SCALE: at narrower-than-default laptops, the board may visually
