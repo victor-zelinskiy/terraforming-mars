@@ -29,7 +29,16 @@ export class PlaceTile extends DeferredAction<Space> {
         on();
     const title = this.options?.title;
 
-    return new SelectSpace(title, availableSpaces)
+    // Derive illegal-reason per cell so the client can render native
+    // tooltips on dimmed (non-target) cells. PlacementType is only
+    // known when `on` is a string — for callback-driven spaces we
+    // pass `undefined` and the helper falls back to generic reasons.
+    const illegalSpaces = game.board.computeIllegalReasons(
+      this.player,
+      typeof on === 'string' ? on : undefined,
+      availableSpaces);
+
+    return new SelectSpace(title, availableSpaces, illegalSpaces)
       .andThen((space: Space) => {
         const tile: Tile = {...this.options.tile};
         if (this.options.on === 'upgradeable-ocean') {

@@ -26,6 +26,31 @@
          @keydown.enter="showDetails = true"
          @keydown.space.prevent="showDetails = true"
          data-test="placement-banner">
+      <!--
+        Dedicated drag handle — 6-dot sci-fi grip, same pattern as the
+        MandatoryInputModal pill. Splits click-vs-drag into clean zones:
+        the rest of the banner body is the click target (opens details);
+        the grip on the left is the ONLY drag start point. Without this,
+        the entire banner was both clickable and draggable, with a 5-px
+        threshold trying to disambiguate — which still occasionally
+        opened details when the player meant to drag (especially on
+        touch / fast pointer devices).
+
+        `touch-action: none` on the handle (CSS) prevents browser touch
+        panning from being mistaken for a scroll. `aria-hidden` keeps
+        the grip out of the screen-reader label since it's pure visual
+        affordance — keyboard users move/restore via Enter/Space on the
+        banner itself (existing focus + keydown handlers).
+      -->
+      <span ref="dragHandle"
+            class="placement-banner__handle"
+            :title="$t('Drag to reposition')"
+            aria-hidden="true"
+            data-test="placement-banner-handle">
+        <span></span><span></span>
+        <span></span><span></span>
+        <span></span><span></span>
+      </span>
       <span class="placement-banner__dot"></span>
       <span class="placement-banner__label" v-i18n>AWAITING PLACEMENT</span>
       <span class="placement-banner__sep">/</span>
@@ -181,8 +206,13 @@ export default defineComponent({
   },
   mounted() {
     const el = this.$refs.banner as HTMLElement | undefined;
+    const handleEl = this.$refs.dragHandle as HTMLElement | undefined;
     if (el !== undefined) {
-      this.dragController = makeDraggable(el, this.dragOffset);
+      // Pass the 6-dot grip as the dedicated drag handle so click vs
+      // drag is geometrically separated — click on the body opens
+      // details, drag from the grip moves the pill. Same pattern as
+      // MandatoryInputModal's pill.
+      this.dragController = makeDraggable(el, this.dragOffset, {handle: handleEl});
     }
   },
   beforeUnmount() {

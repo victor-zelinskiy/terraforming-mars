@@ -94,6 +94,13 @@ export type SelectPlayerModel = BaseInputModel & {
 export type SelectSpaceModel = BaseInputModel & {
   type: 'space';
   spaces: ReadonlyArray<SpaceId>;
+  /**
+   * Per-cell illegality reasons for the cells NOT in `spaces`. Optional
+   * because not every SelectSpace caller derives them (small custom paths
+   * may pass nothing). The client falls back to no tooltip when absent.
+   * See `PlacementIllegalReason.ts` for the value space.
+   */
+  illegalSpaces?: ReadonlyArray<import('../inputs/PlacementIllegalReason').PlacementIllegalSpace>;
 }
 
 export type SelectAmountModel = BaseInputModel & {

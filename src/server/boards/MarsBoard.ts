@@ -10,6 +10,7 @@ import {SpaceId} from '../../common/Types';
 import {oneWayDifference} from '../../common/utils/utils';
 import {Tile} from '../Tile';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
+import {PlacementIllegalReason, PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
 
 export class MarsBoard extends Board {
   private readonly edges: ReadonlyArray<Space>;
@@ -231,6 +232,131 @@ export class MarsBoard extends Board {
         (space.tile === undefined || AresHandler.hasHazardTile(space)) &&
         space.player === undefined;
     });
+  }
+
+  /**
+   * For each board space NOT in `legalSpaces`, derive a structured reason
+   * it's not a valid placement target. Used by the client to render a
+   * native-tooltip explanation + a `cursor: not-allowed` cue on illegal
+   * cells during placement.
+   *
+   * Best-effort heuristic: the same filter logic that
+   * `getAvailableSpacesForX()` runs is re-walked here, returning the
+   * FIRST (most specific) failure reason per cell. Cells with no
+   * derivable reason get `'unavailable'` as the generic fallback.
+   *
+   * Extensible: add new `PlacementIllegalReason` values + corresponding
+   * checks below. Keep priority order most-specific-first so the
+   * tooltip text always answers "WHY is this cell off-limits" cleanly.
+   *
+   * `placementType` is optional because some custom placement paths
+   * (cards that pass `spaces` directly to `PlaceTile`) don't have a
+   * single PlacementType — for those the type-specific branches just
+   * fall through to the generic fallback.
+   */
+  public computeIllegalReasons(
+    player: IPlayer,
+    placementType: PlacementType | undefined,
+    legalSpaces: ReadonlyArray<Space>,
+    canAffordOptions?: CanAffordOptions): ReadonlyArray<PlacementIllegalSpace> {
+    const legalIds = new Set(legalSpaces.map((s) => s.id));
+    const out: Array<PlacementIllegalSpace> = [];
+    for (const space of this.spaces) {
+      if (legalIds.has(space.id)) {
+        continue;
+      }
+      out.push({
+        spaceId: space.id,
+        reason: this.deriveIllegalReason(player, placementType, space, canAffordOptions),
+      });
+    }
+    return out;
+  }
+
+  /** @returns the first applicable reason this cell is illegal. */
+  private deriveIllegalReason(
+    player: IPlayer,
+    placementType: PlacementType | undefined,
+    space: Space,
+    canAffordOptions?: CanAffordOptions): PlacementIllegalReason {
+    // Already-placed tiles (special-case Ares protected hazards first).
+    if (space.tile !== undefined) {
+      if (AresHandler.hasHazardTile(space) && space.tile.protectedHazard === true) {
+        return 'protected-hazard';
+      }
+      return 'occupied';
+    }
+    if (space.id === player.game.nomadSpace) {
+      return 'nomad-occupies';
+    }
+    if (space.id === this.noctisCitySpaceId) {
+      return 'reserved-noctis';
+    }
+    if (space.spaceType === SpaceType.COLONY) {
+      return 'reserved-colony';
+    }
+    if (space.player !== undefined && space.player !== player) {
+      return 'owned-by-other';
+    }
+
+    // Placement-type-specific terrain checks.
+    if (placementType === 'ocean') {
+      if (space.spaceType !== SpaceType.OCEAN) {
+        return 'wrong-terrain';
+      }
+      // Empty + ocean-type + correct owner → must be excluded for a
+      // reason we can't easily classify (e.g. board variant restriction).
+      return 'unavailable';
+    }
+
+    if (placementType === 'volcanic' && this.volcanicSpaceIds.length > 0 && space.volcanic !== true) {
+      return 'not-volcanic';
+    }
+
+    if (placementType === 'isolated' &&
+        this.getAdjacentSpaces(space).some((adj) => adj.tile !== undefined)) {
+      return 'not-isolated';
+    }
+
+    // Land-type checks (city / greenery / land / volcanic / isolated all
+    // need a land-ish space).
+    if (space.spaceType !== SpaceType.LAND &&
+        space.spaceType !== SpaceType.COVE &&
+        space.spaceType !== SpaceType.DEFLECTION_ZONE) {
+      return 'wrong-terrain';
+    }
+
+    // Affordability (Ares hazard removal cost, etc.).
+    if (!this.canAfford(player, space, canAffordOptions)) {
+      return 'cannot-afford';
+    }
+
+    if (placementType === 'city') {
+      if (this.getAdjacentSpaces(space).some((adj) => Board.isCitySpace(adj))) {
+        return 'adjacent-to-city';
+      }
+    }
+
+    if (placementType === 'greenery') {
+      const redCity = this.getSpaceByTileCard(CardName.RED_CITY);
+      if (redCity !== undefined &&
+          this.getAdjacentSpaces(space).some((adj) => adj.id === redCity.id)) {
+        return 'adjacent-to-red-city';
+      }
+      // Greenery must be adjacent to a tile YOU own — but only if you
+      // have at least one such adjacency option available across the
+      // board. Otherwise greenery is allowed anywhere (server matches).
+      const youOwnATile = this.spaces.some((s) => s.player === player && s.tile !== undefined);
+      if (youOwnATile) {
+        const adjacentToYours = this.getAdjacentSpaces(space)
+          .some((adj) => MarsBoard.hasRealTile(adj) && adj.player === player);
+        if (!adjacentToYours) {
+          return 'not-adjacent-to-yours';
+        }
+      }
+    }
+
+    return 'unavailable';
   }
 
   // Returns true if |newTile| can cover go on |space|, particularly if |space| already has a tile.

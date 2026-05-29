@@ -26,7 +26,10 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       this.cb(undefined);
       return undefined;
     }
-    return new SelectSpace(title, spaces)
+    // See SelectSpace + PlacementIllegalReason: illegalSpaces drives the
+    // client's native tooltip + `not-allowed` cursor on dimmed cells.
+    const illegalSpaces = this.player.game.board.computeIllegalReasons(this.player, type, spaces);
+    return new SelectSpace(title, spaces, illegalSpaces)
       .andThen((space) => {
         this.player.game.addCity(this.player, space);
         this.cb(space);
