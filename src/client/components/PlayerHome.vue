@@ -13,8 +13,13 @@
           to every player in real time so it's an at-a-glance "who's already
           taken what" indicator without needing to open the overlay. Hidden
           while the overlay is open (the overlay header carries the same info).
+
+          v40-u: also hidden when zero milestones have been claimed — an
+          empty 3-slot strip carries no information, just visual noise
+          under the bar button. Once the first claim lands the strip
+          appears with the badge populated.
         -->
-        <div v-if="activeOverlay !== 'milestones'" class="milestone-badges-strip">
+        <div v-if="activeOverlay !== 'milestones' && claimedMilestonesCount > 0" class="milestone-badges-strip">
           <MilestoneClaimedBadge
             v-for="(slot, i) in claimedMilestoneSlots"
             :key="i"
@@ -52,8 +57,12 @@
           3 slots fill in as awards are funded, hidden while the overlay is
           open. Awards don't "lock in" a winner — even after funding, the
           per-player scoring race continues until game end.
+
+          v40-u: also hidden when zero awards have been funded — mirrors the
+          milestones strip behaviour. Empty 3-slot strip carried no info,
+          just chrome under the bar button. First fund reveals the strip.
         -->
-        <div v-if="activeOverlay !== 'awards'" class="milestone-badges-strip">
+        <div v-if="activeOverlay !== 'awards' && fundedAwardsCount > 0" class="milestone-badges-strip">
           <AwardFundedBadge
             v-for="(slot, i) in fundedAwardSlots"
             :key="i"

@@ -258,6 +258,26 @@ Never translate proper nouns that look like player names or English card names a
 
 **NEVER modify the Russian translation of an English key you didn't introduce yourself.** The same English string can appear in many places — log messages, card descriptions, tooltips, UI labels — each with its own context. Changing `"Convert" → "Превратить"` to make your new button read nicely will silently rewrite "Convert" everywhere else in the game (action logs, card flavor text, etc.) and break the meaning. Instead, **introduce a new English key** for your UI element (e.g. `"Spend"` or `"Convert plants action button"`) and add its translation. If you really must reuse an existing key, first `grep` every usage of that English string in `src/client/`, `src/server/` and the other `src/locales/<lang>/` files, confirm the new wording fits ALL of them, and call it out in your summary.
 
+### Centering UI under a `<Card>`
+
+`.card-container` carries a legacy **asymmetric** margin from `src/styles/cards.less:90`: `margin: 15px 30px 10px 0px`. This was originally for inter-card spacing in grid layouts (OtherPlayer played-cards row, SortableCards hand, etc.).
+
+The 30-px right margin makes a wrapping element's bounding box **30 px wider than the visible card**. The card silhouette sits flush-left within that box; the right 30 px is empty space. **Any centered UI placed under the card (in a flex column / grid column whose width is driven by the card)** will land ~15 px right of the card's visual centre because the parent centers the wider bounding box, not the visible card.
+
+**Rule:** when you mount custom UI (buttons, badges, status chips) below a `<Card>` in a flex column / grid column and expect it to read as centered on the card silhouette, **zero out `.card-container`'s margin in your wrapper's scope**:
+
+```less
+.your-slot-wrapper > .card-container {
+    margin: 0;
+}
+```
+
+Don't try to compensate by shifting the UI manually (e.g. `margin-left: -15px`) — `.card-container`'s margin changes with zoom (the media-query ladder in `card_selection.less` scales `.card-container` between 1.0 and 0.68) and the offset would drift across breakpoints.
+
+The reference implementation is `.card-selection__card-clickable > .card-container { margin: 0; }` in `src/styles/card_selection.less`. Mirror that pattern for any new flow that stacks UI under a Card (e.g. future hand-card "РАЗЫГРАТЬ" button, opponent-tableau action buttons).
+
+Inter-card horizontal spacing in your grid should be owned by the parent container (`gap`, `grid-column-gap`, etc.) — independent of `.card-container`'s own margin, which only matters for legacy non-flex layouts.
+
 ### Logging
 
 Game actions are logged via `game.log()` and `player.log()` which accept template strings with `${player}`, `${card}`, `${amount}` style placeholders and corresponding `LogMessageData` entries. Log statements appear in the game's action log visible to players.

@@ -298,7 +298,16 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
      */
     top: calc(var(--bottom-bar-button-height) + 12px);
     left: 50%;
-    transform: translate(-50%, -20px);
+    /*
+     * v40-s: transform composes the live drag offset from inline CSS
+     * variables `--drag-x` / `--drag-y`, written DIRECTLY on the
+     * element by `draggable.ts` (no Vue reactivity per frame). The
+     * vars default to 0px when unset so the pill sits at its
+     * centred-top resting position. During a drag the vars update
+     * inside requestAnimationFrame; the browser recomposes the
+     * transform without a layout pass.
+     */
+    transform: translate(calc(-50% + var(--drag-x, 0px)), calc(-20px + var(--drag-y, 0px)));
     /*
      * v40-d: z-index bumped 100 → 107 — same rationale as in
      * placement_banner.less. Above top-bar buttons (105) and badge
@@ -310,7 +319,7 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
     align-items: center;
     gap: 10px;
     max-width: min(720px, calc(100vw - 48px));
-    padding: 8px 18px 8px 16px;
+    padding: 8px 18px 8px 6px;
     border: 1px solid #2c4a6a;
     background: linear-gradient(180deg,
         rgba(20, 30, 45, 0.95) 0%,
@@ -324,13 +333,12 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
     font-size: 13px;
     letter-spacing: 0.5px;
     /*
-     * `cursor: move` signals draggability — pill can be grabbed and
-     * dragged anywhere within the viewport (makeDraggable in
-     * MandatoryInputModal mounted()). A no-drag click still
-     * restores the modal; drag controller distinguishes the two via
-     * a 5-px threshold.
+     * v40-s: the pill BODY is now click-to-restore only. The
+     * dedicated drag handle (`__handle` below) carries the grab
+     * cursor + pointer listener. `cursor: pointer` here signals
+     * "click to expand"; the handle gets `cursor: grab`.
      */
-    cursor: move;
+    cursor: pointer;
     clip-path: polygon(2% 0%, 100% 0%, 98% 100%, 0% 100%);
     user-select: none;
 
@@ -341,11 +349,31 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
 
     &--visible {
         opacity: 1;
-        transform: translate(-50%, 0);
+        transform: translate(calc(-50% + var(--drag-x, 0px)), var(--drag-y, 0px));
         pointer-events: auto;
         /* Slight delay so the modal card finishes collapsing first —
          * gives a "morph up to top" feel rather than a crossfade. */
         transition-delay: 80ms;
+    }
+
+    /*
+     * v40-s drag mode. `is-dragging` is added by draggable.ts at the
+     * first pointermove past the threshold and removed on pointerup.
+     *
+     * - `transition: none` — visual updates land per RAF; we don't
+     *   want a CSS transition smearing them.
+     * - `will-change: transform` — hint the browser to hoist the pill
+     *   to its own compositor layer for the duration of the drag,
+     *   so transform changes don't trigger paint on the rest of the
+     *   page. Off by default to avoid keeping the layer around.
+     * - handle cursor flips from grab → grabbing while held.
+     */
+    &.is-dragging {
+        transition: none;
+        will-change: transform;
+        .mandatory-input-modal-pill__handle {
+            cursor: grabbing;
+        }
     }
 
     &:hover {
@@ -360,6 +388,59 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
             inset 0 0 0 1px rgba(106, 176, 230, 0.45),
             0 8px 24px rgba(0, 0, 0, 0.55),
             0 0 32px rgba(106, 176, 230, 0.55);
+    }
+}
+
+/*
+ * Sci-fi drag handle for the minimized pill (v40-s). Six small cyan
+ * dots in a 2 × 3 grid — the canonical "this is the grab handle"
+ * pictogram, dressed for the HUD palette.
+ *
+ *   ●  ●
+ *   ●  ●
+ *   ●  ●
+ *
+ * Compact (8 px wide, 13 px tall), tucked at the left edge of the
+ * pill so the text + count + restore icon keep their normal layout.
+ * `cursor: grab` lets the player know it's draggable; on drag start
+ * the host pill gets `.is-dragging` which flips this to `grabbing`.
+ * `touch-action: none` prevents touch panning from being mistaken
+ * for a scroll gesture — pointer-events on the handle stay
+ * exclusively for dragging.
+ */
+.mandatory-input-modal-pill__handle {
+    display: inline-grid;
+    grid-template-columns: 3px 3px;
+    grid-auto-rows: 3px;
+    gap: 3px;
+    align-content: center;
+    width: auto;
+    padding: 4px 6px;
+    margin-right: 4px;
+    cursor: grab;
+    touch-action: none;
+    flex-shrink: 0;
+
+    /* Each dot — a tiny cyan-tinted pellet with soft glow. */
+    > span {
+        width: 3px;
+        height: 3px;
+        border-radius: 50%;
+        background: rgba(106, 176, 230, 0.55);
+        box-shadow: 0 0 4px rgba(106, 176, 230, 0.35);
+        transition:
+            background 160ms ease,
+            box-shadow 160ms ease,
+            transform 160ms ease;
+    }
+
+    /* Hover brightens all dots — handle becomes the visual focus so
+     * the player knows where to grab. Subtle scale-up reinforces the
+     * "this is interactive" signal without becoming acid-flashy. */
+    &:hover > span {
+        background: rgba(160, 210, 240, 0.95);
+        box-shadow: 0 0 7px rgba(160, 210, 240, 0.75);
+        transform: scale(1.1);
     }
 }
 

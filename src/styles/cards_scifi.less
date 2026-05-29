@@ -860,12 +860,34 @@
         position: relative;
         z-index: 3;
     }
-    .card-cost,
-    .card-old-cost {
-        /* v16 stronger cost lift — floats on type-colored header */
+    .card-cost {
+        /* v16 stronger cost lift — floats on type-colored header. */
         filter:
             drop-shadow(0 0 0 1px rgba(255, 255, 255, 0.6))
             drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
+    }
+    .card-effective-cost {
+        /* v40-y: same lift as the base cost token so both badges
+         * read as the same chrome layer on the type-coloured header,
+         * PLUS a stronger desaturation + softer contrast so the
+         * effective token reads as the secondary / computed value at
+         * a glance. Filter chains can't be merged across rules — the
+         * cascade picks the most specific declaration whole — so we
+         * restate the full chain here for the sci-fi context. The
+         * plain cards_v2.less filter applies to colony / standard-
+         * project cards which don't match this selector.
+         *
+         * Tuning: saturate(0.6) pulls the warm yellow into a calmer
+         * mustard-amber; brightness(1.03) compensates so it doesn't
+         * read as "dim / disabled"; contrast(0.94) softens the edge
+         * between the coin background and the digit so the secondary
+         * nature reads in the texture as well as the palette. */
+        filter:
+            drop-shadow(0 0 0 1px rgba(255, 255, 255, 0.6))
+            drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5))
+            saturate(0.55)
+            brightness(1.03)
+            contrast(0.92);
     }
     .card-tags .card-tag {
         /* v16 stronger tag halo: tags float on the type-color header
@@ -1181,7 +1203,7 @@ input[type="radio"]:checked + .filterDiv.card-container {
 
 input[type="checkbox"]:checked + .filterDiv::after,
 input[type="radio"]:checked + .filterDiv::after {
-    content: 'ВЫБРАНО';
+    content: 'ВЫБРАНА';
     width: auto;
     min-width: 100px;
     padding: 0 14px;

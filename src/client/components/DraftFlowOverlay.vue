@@ -99,6 +99,62 @@ export default defineComponent({
       default: () => [],
     },
   },
+  data() {
+    return {
+      /*
+       * Timestamp (ms since epoch) of the last self-heal force-
+       * refresh fired by the `waitingOnPlayers` watcher below.
+       * Used to debounce so the same poll-tick repetition can't
+       * burst into a request storm if the server keeps reporting
+       * us as waited-on for several seconds while we re-fetch.
+       */
+      lastSelfHealAt: 0,
+    };
+  },
+  watch: {
+    /*
+     * Self-heal for the "stuck on waiting screen even though the
+     * server has my prompt ready" case.
+     *
+     * Reported symptom: both players see "ОЖИДАЕМ КАРТЫ ДЛЯ ДРАФТА"
+     * but the server's polled wait list names one of them — meaning
+     * the server has set THAT player's `waitingFor` and is blocking
+     * on their pick, but their local `playerView.waitingFor` is
+     * still undefined and `isWaitingState` falls through to the
+     * "I'm waiting on others" branch.
+     *
+     * Probable root cause is a race between WaitingFor's polling
+     * decision and the local prop update path. The polling callback
+     * computes `viewerHasPrompt = this.waitingfor !== undefined`
+     * from the Vue prop. If a recent playerView swap (via
+     * applyPlayerViewUpdate in the preserve-card-pick path) hasn't
+     * fully propagated to the prop by the time the next xhr.onload
+     * fires, viewerHasPrompt can read true momentarily, the
+     * `GO + !viewerHasPrompt` gate fails, and `root.updatePlayer()`
+     * is skipped. Subsequent ticks normally catch it, but the
+     * window where it can stick has been observed in practice.
+     *
+     * Regardless of root cause, the SYMPTOM is unambiguous: if the
+     * server's wait list names me AND my own `view.waitingFor` is
+     * undefined, those two facts can't both be right. Force-refresh
+     * the playerView to recover. Debounced to one fetch per 3 s so
+     * a slow / stuck server can't be hammered into request storms.
+     *
+     * No-op outside this contradiction — normal "I'm waiting on
+     * others to pass me cards" passes through silently because the
+     * wait list correctly excludes us in that case.
+     */
+    waitingOnPlayers(newList: ReadonlyArray<Color>) {
+      const view = this.playerViewTyped;
+      if (view === undefined) return;
+      if (view.waitingFor !== undefined) return;
+      if (!newList.includes(view.thisPlayer.color)) return;
+      const now = Date.now();
+      if (now - this.lastSelfHealAt < 3000) return;
+      this.lastSelfHealAt = now;
+      vueRoot(this).updatePlayer();
+    },
+  },
   computed: {
     playerViewTyped(): PlayerViewModel | undefined {
       return isPlayerView(this.playerView) ? this.playerView : undefined;
