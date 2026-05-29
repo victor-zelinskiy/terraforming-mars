@@ -1,0 +1,297 @@
+/*
+ * Special-cell info system — sci-fi HUD information layer.
+ *
+ * Two surfaces:
+ *   1. Marker (per cell) — small embedded hex-info node at the TOP of
+ *      the cell. SIBLING of the .board-space (not a child) so the hex
+ *      clip-path doesn't trim it. Top-center positioning fits inside
+ *      any hex shape (surface OR external image-only outer hexes) and
+ *      keeps the marker visually "inside" the cell on both.
+ *   2. Overlay (single global instance, teleported to body) — clean HUD
+ *      panel + connector polyline. Viewport coords so the board's own
+ *      transform / scale don't affect it.
+ *
+ * Hex-wide hover (event-delegated in Board.vue) means the player gets
+ * the popup by hovering ANY part of the cell — not just the small badge.
+ * The badge is the visual cue; the cell itself is the hit-zone.
+ *
+ * Single visual language with bonus icons (see board.less): bonuses
+ * occupy the LOWER hex sector, marker occupies the UPPER sector. The
+ * two layers never compete for the same pixels.
+ *
+ * Cross-marker dim: `body.special-cell-hover-active` (toggled from the
+ * shared hover-state module) drops every NON-active marker to a very
+ * low opacity so the focus is clearly on the inspected cell. The active
+ * cell ALSO gets `.board-space--special-active` with a subtle cyan
+ * outline / inner tint so the whole hex reads as "scanned".
+ */
+
+@special-marker-color:        #6ab0e6;
+@special-marker-color-bright: #b9deff;
+@special-marker-glow:         rgba(106, 176, 230, 0.55);
+@special-marker-glow-strong:  rgba(140, 200, 240, 0.85);
+
+// ── Marker ────────────────────────────────────────────────────────────
+//
+// Position class (e.g. .board-space-31) sets margin → marker lands on
+// the same x/y as the hex. The translate() then offsets it to the top-
+// center "metadata sector". Hex is 46×51, bonus group is anchored at
+// y≈21 → marker box (y=3..19) clears the bonus area.
+//
+// Top-center beats top-right for two reasons:
+//   - the cell hex shape narrows toward the slanted top corners, so a
+//     corner badge can read as "hanging off the edge" of outer (image-
+//     only) hexes;
+//   - center placement creates a clean vertical stack with the bonus
+//     group below — same anchor line on every cell.
+.special-cell-marker {
+    position: absolute;
+    width: 15px;
+    height: 16px;
+    transform: translate(15px, 3px);
+    z-index: 6;
+    cursor: help;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+
+    // Idle: discoverable but not loud. The hex-wide hover gives the
+    // player a generous hit-zone anyway, so the badge itself doesn't
+    // have to scream for attention.
+    opacity: 0.62;
+    transition:
+        opacity 180ms ease,
+        transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1),
+        filter 180ms ease;
+}
+
+.special-cell-marker__icon {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.special-cell-marker__hex {
+    fill: rgba(8, 16, 26, 0.62);
+    stroke: @special-marker-color;
+    stroke-width: 1.35;
+    stroke-linejoin: round;
+    transition: fill 180ms ease, stroke 180ms ease, stroke-width 180ms ease;
+}
+
+.special-cell-marker__dot,
+.special-cell-marker__stem {
+    fill: @special-marker-color-bright;
+    transition: fill 180ms ease;
+}
+
+// Hover / focus / active (= popup is open for this marker, either via
+// direct badge hover or via the hex-wide hover delegate).
+.special-cell-marker:hover,
+.special-cell-marker:focus-visible,
+.special-cell-marker--active {
+    opacity: 1;
+    transform: translate(15px, 3px) scale(1.12);
+    filter: drop-shadow(0 0 7px @special-marker-glow-strong);
+
+    .special-cell-marker__hex {
+        fill: rgba(22, 46, 70, 0.92);
+        stroke: @special-marker-color-bright;
+        stroke-width: 1.55;
+    }
+
+    .special-cell-marker__dot,
+    .special-cell-marker__stem {
+        fill: #f4f9fd;
+    }
+}
+
+// Cross-marker dim — while any marker is active, fade the rest into the
+// background so the active one reads as the only point of interest.
+body.special-cell-hover-active .special-cell-marker:not(:hover):not(:focus-visible):not(.special-cell-marker--active) {
+    opacity: 0.22;
+    filter: saturate(0.55);
+}
+
+// ── Cell hover-highlight ──────────────────────────────────────────────
+//
+// Added to the active special cell's .board-space by the shared store.
+// drop-shadow on the .board-space follows its clip-path geometry so the
+// glow hugs the hex outline cleanly. The ::after overlay gives a subtle
+// cyan inner tint — same hex shape via clip-path so it doesn't leak
+// outside the cell.
+//
+// Distinct from `.board-space--available` (the green placement blink)
+// so the player can tell "I can scan this" from "I can place here".
+.board-space.board-space--special-active {
+    filter: drop-shadow(0 0 6px @special-marker-glow-strong);
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgba(140, 200, 240, 0.12);
+        clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+        pointer-events: none;
+        z-index: 0;
+        animation: special-cell-hex-in 180ms ease-out both;
+    }
+}
+
+@keyframes special-cell-hex-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+// ── Overlay (single global instance) ──────────────────────────────────
+.special-cell-info-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none; // overlay & panel are purely informational —
+                          // mouse events pass through to the hex below,
+                          // so cell-leave correctly closes the popup
+                          // even if the cursor drifts into panel area.
+    z-index: 9500;        // above board chrome, below mandatory modal (12000+)
+}
+
+.special-cell-info-overlay__connector {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.special-cell-info-overlay__connector-line {
+    stroke: rgba(185, 222, 255, 0.85);
+    stroke-width: 1.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 4px @special-marker-glow);
+    stroke-dasharray: 220;
+    animation: special-cell-line-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.special-cell-info-overlay__connector-dot {
+    fill: @special-marker-color-bright;
+    filter: drop-shadow(0 0 5px @special-marker-glow);
+}
+
+.special-cell-info-overlay__connector-end {
+    fill: none;
+    stroke: @special-marker-color-bright;
+    stroke-width: 1.2;
+    filter: drop-shadow(0 0 4px @special-marker-glow);
+}
+
+@keyframes special-cell-line-in {
+    from {
+        stroke-dashoffset: 220;
+        opacity: 0;
+    }
+    to {
+        stroke-dashoffset: 0;
+        opacity: 1;
+    }
+}
+
+// ── Popup panel ───────────────────────────────────────────────────────
+.special-cell-info-overlay__panel {
+    position: absolute;
+    box-sizing: border-box;
+    padding: 14px 18px 16px;
+    color: #e8f1fb;
+    pointer-events: none;
+    font-family: Ubuntu, Tahoma, Verdana, sans-serif;
+    background:
+        // Subtle scanline overlay reads as HUD interface, not a tooltip.
+        repeating-linear-gradient(
+            180deg,
+            rgba(140, 200, 240, 0.035) 0px,
+            rgba(140, 200, 240, 0.035) 1px,
+            transparent 1px,
+            transparent 3px),
+        linear-gradient(180deg,
+            rgba(14, 26, 42, 0.96) 0%,
+            rgba(7, 14, 24, 0.96) 100%);
+    border: 1px solid rgba(106, 176, 230, 0.5);
+    border-radius: 2px;
+    box-shadow:
+        0 14px 40px rgba(0, 0, 0, 0.6),
+        0 0 22px rgba(106, 176, 230, 0.22),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px) saturate(1.05);
+    -webkit-backdrop-filter: blur(8px) saturate(1.05);
+    // HUD-style bevels: top-left and bottom-right corners cut.
+    clip-path: polygon(
+        14px 0,
+        100% 0,
+        100% calc(100% - 14px),
+        calc(100% - 14px) 100%,
+        0 100%,
+        0 14px);
+    animation: special-cell-panel-in 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes special-cell-panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px) scale(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.special-cell-info-overlay__corner {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+    border-color: @special-marker-color-bright;
+    filter: drop-shadow(0 0 4px @special-marker-glow);
+
+    &--tl { top: -2px; left: -2px;       border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -2px; right: -2px;      border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -2px; left: -2px;    border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -2px; right: -2px;   border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+.special-cell-info-overlay__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(140, 200, 240, 0.22);
+}
+
+.special-cell-info-overlay__title-mark {
+    flex: none;
+    display: inline-block;
+    width: 4px;
+    height: 18px;
+    background: linear-gradient(180deg,
+        @special-marker-color-bright 0%,
+        @special-marker-color 100%);
+    box-shadow: 0 0 6px @special-marker-glow;
+}
+
+.special-cell-info-overlay__title {
+    font-family: Prototype, Tahoma, Verdana, sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.15;
+    text-transform: uppercase;
+    letter-spacing: 2.2px;
+    color: #f4f9fd;
+    text-shadow: 0 0 6px rgba(106, 176, 230, 0.35);
+}
+
+.special-cell-info-overlay__body {
+    font-size: 13px;
+    line-height: 1.55;
+    color: #c9d8e8;
+    letter-spacing: 0.01em;
+}
