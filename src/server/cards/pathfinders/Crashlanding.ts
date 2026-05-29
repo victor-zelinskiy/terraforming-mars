@@ -1,7 +1,7 @@
 import {Card} from '../Card';
 import {CardName} from '../../../common/cards/CardName';
-import {SelectSpace} from '../../inputs/SelectSpace';
 import {Space} from '../../boards/Space';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {TileType} from '../../../common/TileType';
 import {CardType} from '../../../common/cards/CardType';
@@ -54,9 +54,27 @@ export class Crashlanding extends Card implements IProjectCard {
     return this.playableSpaces(player, canAffordOptions).length > 0;
   }
   public override bespokePlay(player: IPlayer) {
-    return new SelectSpace(
+    const board = player.game.board;
+    return createMarsSelectSpace(
+      player,
       message('Select space for ${0} tile', (b) => b.card(this)),
-      this.playableSpaces(player))
+      this.playableSpaces(player),
+      {
+        placementType: 'land',
+        customReasoner: (space) => {
+          // Land cells excluded for having >1 adjacent city — unique
+          // Crashlanding rule.
+          if (space.tile === undefined &&
+              space.player === undefined &&
+              space.spaceType === 'land' &&
+              space.id !== board.noctisCitySpaceId) {
+            if (board.getAdjacentSpaces(space).filter(Board.isCitySpace).length > 1) {
+              return 'too-many-adjacent-cities';
+            }
+          }
+          return undefined;
+        },
+      })
       .andThen((space) => {
         space.adjacency = {bonus: ['callback']};
         const tile: Tile = {

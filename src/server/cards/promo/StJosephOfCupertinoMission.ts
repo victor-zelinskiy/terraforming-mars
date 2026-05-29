@@ -6,8 +6,9 @@ import {IActionCard} from '../ICard';
 import {IPlayer} from '../../IPlayer';
 import {IGame} from '../../IGame';
 import {Space} from '../../boards/Space';
-import {SelectSpace} from '../../inputs/SelectSpace';
 import {cathedral} from '../render/DynamicVictoryPoints';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
+import {Board} from '../../boards/Board';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
@@ -52,9 +53,19 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
 
     player.game.defer(new SelectPaymentDeferred(player, 5, {canUseSteel: true, title: TITLES.payForCardAction(this.name)}))
       .andThen(() => {
-        player.defer(new SelectSpace(
+        const cathedralIds = new Set(player.game.stJosephCathedrals);
+        player.defer(createMarsSelectSpace(
+          player,
           message('Select new space for ${0}', (b) => b.card(this)),
-          cities)
+          cities,
+          {
+            customReasoner: (space) => {
+              // Operates on city tiles, not empty cells. Two reasons:
+              if (space.tile === undefined || !Board.isCitySpace(space)) return 'not-a-city';
+              if (cathedralIds.has(space.id)) return 'already-has-cathedral';
+              return undefined;
+            },
+          })
           .andThen((space) => {
             player.game.stJosephCathedrals.push(space.id);
             const spaceOwner = space.player;

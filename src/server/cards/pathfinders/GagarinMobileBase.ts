@@ -5,13 +5,13 @@ import {IPlayer} from '../../IPlayer';
 import {SpaceType} from '../../../common/boards/SpaceType';
 import {Tag} from '../../../common/cards/Tag';
 import {Space} from '../../boards/Space';
-import {SelectSpace} from '../../inputs/SelectSpace';
 import {IActionCard} from '../ICard';
 import {BoardType} from '../../boards/BoardType';
 import {Board} from '../../boards/Board';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {message} from '../../logs/MessageBuilder';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 
 export class GagarinMobileBase extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
@@ -87,8 +87,28 @@ export class GagarinMobileBase extends CorporationCard implements ICorporationCa
   public action(player: IPlayer) {
     const spaces = this.availableSpaces(player);
     if (spaces.length > 0) {
-      return new SelectSpace(
-        message('Select new space for ${0}', (b) => b.card(this)), this.availableSpaces(player))
+      // Card-specific reasoner: cells filtered out for being already-
+      // visited (the base's history) or not in the BFS-nearest set get
+      // precise reasons; generic checks handle occupied / colony / etc.
+      const visited = new Set(player.game.gagarinBase);
+      const nearestIds = new Set(spaces.map((s) => s.id));
+      return createMarsSelectSpace(
+        player,
+        message('Select new space for ${0}', (b) => b.card(this)),
+        spaces,
+        {
+          customReasoner: (space) => {
+            if (space.tile !== undefined) return undefined; // generic 'occupied'
+            if (space.spaceType === 'colony') return undefined; // generic 'reserved-colony'
+            if (visited.has(space.id)) return 'already-visited';
+            if (!MarsBoard.canAffordPlacementBonuses(player, space)) return 'cannot-afford-bonus';
+            // Empty + non-visited + affordable but not in the nearest-set
+            // (BFS): exists only after the first move, when only the
+            // closest layer is legal.
+            if (player.game.gagarinBase.length > 0 && !nearestIds.has(space.id)) return 'not-closest';
+            return undefined;
+          },
+        })
         .andThen((space) => {
           player.game.gagarinBase.unshift(space.id);
           player.game.grantSpaceBonuses(player, space);

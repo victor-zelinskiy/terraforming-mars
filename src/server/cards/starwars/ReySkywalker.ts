@@ -5,11 +5,11 @@ import {Tag} from '../../../common/cards/Tag';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
-import {SelectSpace} from '../../inputs/SelectSpace';
 import {TileType} from '../../../common/TileType';
 import {message} from '../../logs/MessageBuilder';
 import {CardResource} from '../../../common/CardResource';
 import {AresHandler} from '../../ares/AresHandler';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 
 export class ReySkywalker extends Card implements IProjectCard {
   constructor() {
@@ -38,9 +38,22 @@ export class ReySkywalker extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    return new SelectSpace(
+    return createMarsSelectSpace(
+      player,
       message('Select space for ${0}', (b) => b.card(this)),
-      player.game.board.getAvailableSpacesOnLand(player).filter((space) => !AresHandler.hasHazardTile(space)))
+      player.game.board.getAvailableSpacesOnLand(player).filter((space) => !AresHandler.hasHazardTile(space)),
+      {
+        placementType: 'land',
+        customReasoner: (space) => {
+          // Hazard tiles (any kind, not just protected) block ReySkywalker.
+          // Generic would say 'occupied' which is misleading — 'has-hazard'
+          // is the specific reason.
+          if (AresHandler.hasHazardTile(space) && space.tile?.protectedHazard !== true) {
+            return 'has-hazard';
+          }
+          return undefined;
+        },
+      })
       .andThen((space) => {
         player.game.simpleAddTile(player, space, {tileType: TileType.REY_SKYWALKER});
         return undefined;

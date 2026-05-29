@@ -7,7 +7,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {digit} from '../Options';
 import {IPlayer} from '../../IPlayer';
 import {Space} from '../../boards/Space';
-import {SelectSpace} from '../../inputs/SelectSpace';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 
 export class GuerillaEcologists extends Card implements IProjectCard {
   constructor() {
@@ -48,7 +48,10 @@ export class GuerillaEcologists extends Card implements IProjectCard {
     }
 
     player.plants -= 4; // This temporarily breaks things if the player only has 3, but Viral Enhancers makes up for it.
-    return new SelectSpace('Select space for greenery tile', availableSpaces)
+    // GuerillaEcologists relaxes the "must be adjacent to your tile" rule,
+    // so we use placementType 'land' (not 'greenery') to keep generic
+    // tooltips honest — adjacency-to-yours wouldn't apply here.
+    return createMarsSelectSpace(player, 'Select space for greenery tile', availableSpaces, {placementType: 'land'})
       .andThen((space) => {
         player.game.addGreenery(player, space);
         return undefined;

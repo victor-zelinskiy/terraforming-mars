@@ -6,7 +6,7 @@ import {Card} from '../Card';
 import {IPlayer} from '../../IPlayer';
 import {UnderworldExpansion} from '../../underworld/UnderworldExpansion';
 import {cancelled} from '../Options';
-import {SelectSpace} from '../../inputs/SelectSpace';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 
 
 export class InducedTremor extends Card implements IProjectCard {
@@ -35,10 +35,24 @@ export class InducedTremor extends Card implements IProjectCard {
   public override bespokePlay(player: IPlayer) {
     const game = player.game;
     const identifiedSpaces = game.board.spaces.filter((space) => space.undergroundResources !== undefined);
-    player.defer(new SelectSpace('Select unclaimed resource token to remove', identifiedSpaces).andThen((space) => {
+    // Step 1: pick a token to remove. Cells without a token → 'not-identified'.
+    player.defer(createMarsSelectSpace(player, 'Select unclaimed resource token to remove', identifiedSpaces, {
+      customReasoner: (space) => {
+        if (space.undergroundResources === undefined) return 'not-identified';
+        return undefined;
+      },
+    }).andThen((space) => {
       UnderworldExpansion.removeTokenFromSpace(game, space);
-      return new SelectSpace('Select space to excavate',
-        UnderworldExpansion.excavatableSpaces(player))
+      // Step 2: pick a space to excavate. Cells excluded by excavatableSpaces
+      // are either already-excavated or not-identified per UnderworldExpansion rules.
+      return createMarsSelectSpace(player, 'Select space to excavate',
+        UnderworldExpansion.excavatableSpaces(player), {
+          customReasoner: (space2) => {
+            if (space2.excavator !== undefined) return 'already-excavated';
+            if (space2.undergroundResources === undefined) return 'not-identified';
+            return undefined;
+          },
+        })
         .andThen((excavatedSpace) => {
           UnderworldExpansion.excavate(player, excavatedSpace);
           return undefined;

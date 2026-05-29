@@ -1,11 +1,11 @@
 import {IPlayer} from '../IPlayer';
-import {SelectSpace} from '../inputs/SelectSpace';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {PlacementType} from '../boards/PlacementType';
 import {Space} from '../boards/Space';
 import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
+import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 
 type Options = {
   title?: string | Message,
@@ -48,8 +48,7 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
       placementType = on;
     }
 
-    const illegalSpaces = this.player.game.board.computeIllegalReasons(this.player, placementType, availableSpaces);
-    return new SelectSpace(title, availableSpaces, illegalSpaces)
+    return createMarsSelectSpace(this.player, title, availableSpaces, {placementType})
       .andThen((space) => {
         this.creditedPlayer.game.addOcean(this.creditedPlayer, space);
         this.creditedPlayer.defer(this.cb(space));

@@ -1,5 +1,4 @@
 import {IPlayer} from '../IPlayer';
-import {SelectSpace} from '../inputs/SelectSpace';
 import {Space} from '../boards/Space';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
@@ -7,6 +6,7 @@ import {PlacementType} from '../boards/PlacementType';
 import {Tile} from '../Tile';
 import {AdjacencyBonus} from '../ares/AdjacencyBonus';
 import {Message} from '../../common/logs/Message';
+import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 
 export class PlaceTile extends DeferredAction<Space> {
   constructor(
@@ -29,16 +29,9 @@ export class PlaceTile extends DeferredAction<Space> {
         on();
     const title = this.options?.title;
 
-    // Derive illegal-reason per cell so the client can render native
-    // tooltips on dimmed (non-target) cells. PlacementType is only
-    // known when `on` is a string — for callback-driven spaces we
-    // pass `undefined` and the helper falls back to generic reasons.
-    const illegalSpaces = game.board.computeIllegalReasons(
-      this.player,
-      typeof on === 'string' ? on : undefined,
-      availableSpaces);
-
-    return new SelectSpace(title, availableSpaces, illegalSpaces)
+    return createMarsSelectSpace(this.player, title, availableSpaces, {
+      placementType: typeof on === 'string' ? on : undefined,
+    })
       .andThen((space: Space) => {
         const tile: Tile = {...this.options.tile};
         if (this.options.on === 'upgradeable-ocean') {

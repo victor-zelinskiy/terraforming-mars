@@ -1,10 +1,10 @@
 import {IPlayer} from '../IPlayer';
-import {SelectSpace} from '../inputs/SelectSpace';
 import {Space} from '../boards/Space';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {PlacementType} from '../boards/PlacementType';
 import {Message} from '../../common/logs/Message';
+import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 
 export class PlaceCityTile extends DeferredAction<Space | undefined> {
   constructor(
@@ -26,10 +26,7 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       this.cb(undefined);
       return undefined;
     }
-    // See SelectSpace + PlacementIllegalReason: illegalSpaces drives the
-    // client's native tooltip + `not-allowed` cursor on dimmed cells.
-    const illegalSpaces = this.player.game.board.computeIllegalReasons(this.player, type, spaces);
-    return new SelectSpace(title, spaces, illegalSpaces)
+    return createMarsSelectSpace(this.player, title, spaces, {placementType: type})
       .andThen((space) => {
         this.player.game.addCity(this.player, space);
         this.cb(space);

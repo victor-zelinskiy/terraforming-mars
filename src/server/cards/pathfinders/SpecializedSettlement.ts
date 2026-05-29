@@ -4,8 +4,8 @@ import {Card, productionBoxWithBonusResource} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
 import {IPlayer} from '../../IPlayer';
-import {SelectSpace} from '../../inputs/SelectSpace';
 import {Space} from '../../boards/Space';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {SpaceBonus} from '../../../common/boards/SpaceBonus';
@@ -78,9 +78,11 @@ export class SpecializedSettlement extends Card implements IProjectCard {
     // Deferred in case the energy production gain comes from the Planetary track.
     player.game.defer(new AdjustProduction(player, this.defaultProductionBox));
 
-    return new SelectSpace(
+    return createMarsSelectSpace(
+      player,
       'Select space for city tile',
-      player.game.board.getAvailableSpacesForCity(player))
+      player.game.board.getAvailableSpacesForCity(player),
+      {placementType: 'city'})
       .andThen((space) => {
         const coveringExistingTile = space.tile !== undefined;
 
