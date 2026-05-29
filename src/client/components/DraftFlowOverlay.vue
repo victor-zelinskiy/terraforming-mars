@@ -1,0 +1,268 @@
+<template>
+  <!--
+    Draft / buy-cards modal mounted at the APP level — outside the
+    `<player-home :key="playerkey">` subtree that gets destroyed and
+    recreated on every server response. Because this component sits
+    in the same Vue tree as App itself, it is NOT subject to the
+    playerkey++ remount and stays alive across every draft/research
+    transition. The modal flicker the user reported after pressing
+    "ВЫБРАТЬ" was caused by that remount unmounting the modal — this
+    overlay sidesteps it entirely.
+
+    Routing rules:
+      cardInput (waitingfor.type === 'card')   → CardSelectionContent
+      isDraftWaiting (waitingfor undefined &&
+                      draftWaitState.pending) → DraftWaitingContent
+      else                                     → nothing rendered
+                                                  (modal v-if is false)
+
+    `WaitingFor` no longer routes `'card'` through its own
+    MandatoryInputModal so the two never compete. Payment / WGT /
+    other modal inputs continue to flow through WaitingFor's modal.
+  -->
+  <MandatoryInputModal v-if="shouldShow && playerViewTyped !== undefined" :title="modalTitle">
+    <!--
+      Drafted-cards pile sits ABOVE the active content. Renders nothing
+      when the drafted list is empty (component-internal v-if), so the
+      modal is unaffected at the very first round. Visible in BOTH the
+      card-selection view AND the waiting view so the player always sees
+      what they've banked so far this draft.
+    -->
+    <DraftedCardsPile :cards="draftedCards" />
+
+    <CardSelectionContent v-if="cardInput !== undefined"
+                          :playerView="playerViewTyped"
+                          :playerinput="cardInput"
+                          :onsave="onsave" />
+    <DraftWaitingContent v-else-if="isWaitingState"
+                         :playerView="playerViewTyped"
+                         :waitingOnPlayers="waitingOnPlayers" />
+  </MandatoryInputModal>
+</template>
+
+<script lang="ts">
+import {defineComponent, PropType} from 'vue';
+import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
+import {SelectCardModel} from '@/common/models/PlayerInputModel';
+import {CardModel} from '@/common/models/CardModel';
+import {Phase} from '@/common/Phase';
+import {InputResponse} from '@/common/inputs/InputResponse';
+import {Color} from '@/common/Color';
+import {paths} from '@/common/app/paths';
+import {statusCode} from '@/common/http/statusCode';
+import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
+import {Message} from '@/common/logs/Message';
+import {translateText} from '@/client/directives/i18n';
+import {vueRoot} from '@/client/components/vueRoot';
+import {
+  draftWaitState,
+  shouldPreserveCardPickModal,
+} from '@/client/components/draftWaitState';
+import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
+import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
+import DraftWaitingContent from '@/client/components/DraftWaitingContent.vue';
+import DraftedCardsPile from '@/client/components/DraftedCardsPile.vue';
+
+const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
+
+/*
+ * Spectator playerView is shaped differently (SpectatorModel, no
+ * waitingFor / thisPlayer). We accept the broader ViewModel from App
+ * but only render content when it's a real PlayerViewModel.
+ */
+function isPlayerView(view: ViewModel | undefined): view is PlayerViewModel {
+  return view !== undefined && (view as PlayerViewModel).thisPlayer !== undefined;
+}
+
+export default defineComponent({
+  name: 'DraftFlowOverlay',
+  components: {
+    MandatoryInputModal,
+    CardSelectionContent,
+    DraftWaitingContent,
+    DraftedCardsPile,
+  },
+  props: {
+    playerView: {
+      type: Object as PropType<ViewModel | undefined>,
+      default: undefined,
+    },
+    /*
+     * Live list of player colours the server is still waiting on
+     * (from `/api/waitingFor` poll). Passed through from App.vue
+     * — populated by WaitingFor's poll loop, which writes to App's
+     * root data field. Used by DraftWaitingContent to build the
+     * "waiting for Alice, Bob…" line.
+     */
+    waitingOnPlayers: {
+      type: Array as PropType<ReadonlyArray<Color>>,
+      default: () => [],
+    },
+  },
+  computed: {
+    playerViewTyped(): PlayerViewModel | undefined {
+      return isPlayerView(this.playerView) ? this.playerView : undefined;
+    },
+    cardInput(): SelectCardModel | undefined {
+      const view = this.playerViewTyped;
+      if (view === undefined) return undefined;
+      const wf = view.waitingFor;
+      if (wf === undefined || wf.type !== 'card') return undefined;
+      return wf;
+    },
+    /*
+     * "Between draft rounds" — the player has no active prompt but
+     * the game is mid-DRAFT (not mid-buy / mid-research).
+     *
+     * Two complementary triggers:
+     *
+     *   1. `draftWaitState.pending` — set by
+     *      CardSelectionContent.onConfirm BEFORE a DRAFT submit (it
+     *      is explicitly CLEARED before a buy submit, so this flag
+     *      can only be true between draft rounds). This is the
+     *      in-session signal: we KNOW the player just sent a draft
+     *      pick, so we show the waiting view immediately on response
+     *      landing.
+     *
+     *   2. Server-state fallback (refresh resilience) — `phase ∈
+     *      card-pick && waitingFor === undefined && draftedCards.length
+     *      > 0`. The first two are the same conditions the server
+     *      itself uses to hold the player in "wait for the rest of
+     *      the table". The third (`draftedCards.length > 0`) is the
+     *      KEY distinction between "I'm mid-draft, waiting on others
+     *      to pass me the next set" (draftedCards populated by my
+     *      earlier picks) and "I just finished my buy round, done
+     *      until next gen" (draftedCards cleared by server's draft
+     *      endRound). Without this guard the fallback would
+     *      mis-fire after a buy submit and re-open a "waiting"
+     *      modal that has no real input to wait on — exactly the
+     *      bug the player flagged.
+     *
+     * Both triggers are safe in non-card-pick phases: neither fires.
+     * The brief windows where the server is in RESEARCH / DRAFTING
+     * but hasn't yet dealt a prompt to us are short — at worst we
+     * briefly show the waiting modal that immediately swaps to the
+     * card grid when the prompt arrives.
+     */
+    isWaitingState(): boolean {
+      const view = this.playerViewTyped;
+      if (view === undefined) return false;
+      if (view.waitingFor !== undefined) return false;
+      if (draftWaitState.pending) return true;
+      const phase = view.game.phase;
+      const inCardPickPhase =
+        phase === Phase.RESEARCH ||
+        phase === Phase.DRAFTING ||
+        phase === Phase.INITIALDRAFTING;
+      return inCardPickPhase && view.draftedCards.length > 0;
+    },
+    shouldShow(): boolean {
+      return this.cardInput !== undefined || this.isWaitingState;
+    },
+    modalTitle(): string | Message {
+      if (this.cardInput !== undefined) return this.cardInput.title;
+      return translateText('Waiting for draft cards');
+    },
+    /*
+     * Server-managed list of cards the viewer has already drafted in
+     * this round (populated by Draft.ts push on each pick, cleared in
+     * endRound when the draft round transitions to the next phase).
+     * Lives directly on PlayerViewModel, NOT on `thisPlayer`. Pile
+     * component renders nothing when empty.
+     */
+    draftedCards(): ReadonlyArray<CardModel> {
+      return this.playerViewTyped?.draftedCards ?? [];
+    },
+  },
+  methods: {
+    /*
+     * Inline replica of WaitingFor.fetchPlayerInput + onsave path,
+     * adapted to live at App level. We can't simply call WaitingFor's
+     * onsave via a ref because WaitingFor is inside #player-home and
+     * its ref invalidates on remount; doing the POST from here
+     * directly keeps this overlay self-contained.
+     *
+     * Response handling mirrors WaitingFor's: on 200 OK, swap
+     * root.playerView (skipping playerkey++ when we're staying
+     * inside card-pick so even WaitingFor's tree doesn't blink);
+     * on bad request, surface via root.showAlert; on network
+     * failure, surface via root.showAlert. `isServerSideRequestInProgress`
+     * is shared with WaitingFor so the two paths can't both submit
+     * at once.
+     */
+    onsave(response: InputResponse): void {
+      const view = this.playerViewTyped;
+      if (view === undefined) return;
+      const root = vueRoot(this);
+      if (root.isServerSideRequestInProgress) {
+        // eslint-disable-next-line no-console
+        console.warn('Server request in progress');
+        return;
+      }
+      root.isServerSideRequestInProgress = true;
+
+      fetch(
+        paths.PLAYER_INPUT + '?id=' + view.id,
+        {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({runId: view.runId, ...response}),
+        },
+      )
+        .then(async (httpResponse) => {
+          if (httpResponse.ok) {
+            const newPlayerView = await httpResponse.json() as PlayerViewModel;
+            this.applyPlayerViewUpdate(newPlayerView);
+            return;
+          }
+          if (httpResponse.status === statusCode.badRequest) {
+            const resp = await httpResponse.json() as AppErrorResponse;
+            let cb = () => { /* default no-op */ };
+            if (resp.id === INVALID_RUN_ID) {
+              cb = () => setTimeout(() => window.location.reload(), 100);
+            }
+            root.showAlert('Error with input', resp.message, cb);
+          } else {
+            root.showAlert(
+              'Error processing response',
+              'Unexpected response from server. Please try again.',
+            );
+            // eslint-disable-next-line no-console
+            console.error(httpResponse.statusText);
+          }
+        })
+        .catch((e) => {
+          root.showAlert('Error sending input', CANNOT_CONTACT_SERVER);
+          // eslint-disable-next-line no-console
+          console.error(e);
+        })
+        .finally(() => {
+          root.isServerSideRequestInProgress = false;
+        });
+    },
+    /*
+     * Same skip-remount logic WaitingFor uses on its own
+     * updatePlayerView. When the new state keeps us inside the
+     * card-pick window, swap playerView reactively without bumping
+     * playerkey — preserving both this overlay AND the player-home
+     * tree below it. Otherwise the normal remount fires, this
+     * overlay's reactive computed re-evaluates, and the modal
+     * hides (or swaps content) naturally.
+     */
+    applyPlayerViewUpdate(newPlayerView: PlayerViewModel): void {
+      const root = vueRoot(this);
+      if (shouldPreserveCardPickModal(newPlayerView)) {
+        root.playerView = newPlayerView;
+      } else {
+        root.screen = 'empty';
+        root.playerView = newPlayerView;
+        root.playerkey++;
+        root.screen = 'player-home';
+      }
+      if (newPlayerView.game.phase === 'end' && window.location.pathname !== paths.THE_END) {
+        window.location = window.location as any as (string & Location);
+      }
+    },
+  },
+});
+</script>

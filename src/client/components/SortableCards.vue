@@ -8,7 +8,7 @@
   <div class="sortable-cards">
     <div ref="draggers" :class="{ 'dragging': Boolean(dragCard) }" v-for="(card, index) in getSortedCards()" :key="card.name" draggable="true" v-on:dragend="onDragEnd()" v-on:dragstart="onDragStart(card.name)">
       <div v-if="dragCard" ref="droppers" class="drop-target" v-on:dragover="onDragOver(card.name)"></div>
-      <div ref="cardbox" class="cardbox" @click="clickMethod">
+      <div ref="cardbox" class="cardbox" @click.capture="clickMethod">
         <Card :card="card"/>
         <div v-if="showReorder" class="reorder-banners-container">
           <div class="reorder-banners-left" v-if="index > 0"></div>
@@ -119,8 +119,14 @@ export default defineComponent({
     },
     clickMethod(e: MouseEvent) {
       if (!this.showReorder) {
+        // Reorder mode is off — let the click continue to Card.vue,
+        // which opens the fullscreen zoom modal on single click.
         return;
       }
+      // Reorder is active and the click is being used to reposition
+      // the card. Block Card.vue's fullscreen so the player doesn't
+      // get a modal popping up over their reorder gesture.
+      e.stopPropagation();
       const target = e.currentTarget as HTMLElement;
       if (!target) {
         return;

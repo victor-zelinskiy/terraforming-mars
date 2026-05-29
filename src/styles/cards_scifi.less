@@ -232,15 +232,39 @@
  * ─── 4. Stacking ──────────────────────────────────────────────────────
  *
  * v40-b: footer chrome (VP badge, resource counter, expansion icons)
- * must sit ABOVE .card-content-wrapper (z-index: 2) so that body text
- * scrolling underneath an overflowing card NEVER bleeds onto the
- * footer badges. Without this, mid-scroll positions show body text
- * rendered on top of the VP coin / resource counter — flagged on
- * Азот с Титана. Footer elements all get z-index: 3.
+ * must sit ABOVE body text so that mid-scroll text on overflowing
+ * cards NEVER bleeds onto the footer badges. Originally we did this
+ * by setting `.card-content-wrapper { z-index: 2 }` and footer items
+ * at `z-index: 3`. That trapped EVERYTHING inside the wrapper —
+ * including `.card-cost-and-tags` (z=3) — into the wrapper's own
+ * stacking layer, where `.card-requirements` plate (sibling of
+ * wrapper, z=2) ended up painting ON TOP of the wrapper, hiding the
+ * old-cost discount badge under the red requirement bar (reported on
+ * Электрокатапульта).
+ *
+ * v40-f: stack the SCROLLABLE TEXT BLOCK directly instead. Wrapper
+ * no longer creates a stacking context; `.card-content` (the
+ * scrollable body, where text actually lives) is what gets the low
+ * z-index. Cost-and-tags (z=3) and the requirement plate (z=2) are
+ * now siblings in the same card-container stacking context, where
+ * 3 > 2 cleanly. Footer chrome (VP, counter, expansion icons) keeps
+ * z=3 — outside the wrapper they were already siblings of the plate
+ * and still win the layer race over text.
+ *
+ * Order in the card-container stacking context now:
+ *   z=1 — .card-content body text (lowest; gets covered by plate)
+ *   z=2 — .card-requirements plate (covers text, exposes cost +
+ *         footer)
+ *   z=3 — .card-cost-and-tags / .card-points / .card-resources-
+ *         counter / expansion icon containers (top — never covered)
  */
 .card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
-    .card-content-wrapper {
-        z-index: 2;
+    .card-content:not(.global-event-card-content) {
+        /* `position: relative` already set in cards_v2.less:1307; the
+         * z-index here is what lifts text below the plate while leaving
+         * cost-and-tags / footer chrome up at z=3 free of the wrapper
+         * stacking trap. */
+        z-index: 1;
     }
     .card-points,
     .card-resources-counter,

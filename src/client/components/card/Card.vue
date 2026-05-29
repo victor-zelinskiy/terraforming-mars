@@ -1,5 +1,5 @@
 <template>
-  <div class="card-container filterDiv hover-hide-res" :class="cardClasses" @dblclick="onDoubleClick">
+  <div class="card-container filterDiv hover-hide-res" :class="cardClasses" @click="onClick">
       <span class="card-corner card-corner--tl" aria-hidden="true"></span>
       <span class="card-corner card-corner--tr" aria-hidden="true"></span>
       <span class="card-corner card-corner--bl" aria-hidden="true"></span>
@@ -23,7 +23,29 @@
       <CardVictoryPoints v-if="cardMetadata.victoryPoints" :victoryPoints="cardMetadata.victoryPoints" />
       <CardExtraContent :card="card" />
       <slot/>
-      <CardZoomModal v-if="showZoom" ref="zoomModal" :card="card" :actionUsed="actionUsed" @close="showZoom = false" />
+      <!--
+        v40-p: Teleport the fullscreen modal to <body> so it escapes
+        any ancestor that creates a containing block for
+        `position: fixed` descendants. Repro that hit this: clicking
+        a card inside the "ОТОБРАННЫЕ КАРТЫ" pile rendered the
+        fullscreen modal small and offset to the top-left because
+        the pile has `backdrop-filter: blur()`, and the card itself
+        (.card-container.filterDiv) has `transform: translateY(-3px)`
+        on hover — both create containing blocks. The dialog's
+        `position: fixed` then anchored to the pile / card instead of
+        the viewport, and the ancestor `zoom: 0.65` (pile cards are
+        downscaled) compounded with the dialog's own `zoom: 2.5` to
+        give a tiny final card.
+
+        Teleporting to body sidesteps all three issues (transform,
+        backdrop-filter, zoom). The `<dialog>` showModal() still
+        works because `ref="zoomModal"` resolves to the actual
+        component instance regardless of teleport position. Same
+        for the @close emit.
+      -->
+      <Teleport to="body">
+        <CardZoomModal v-if="showZoom" ref="zoomModal" :card="card" :actionUsed="actionUsed" @close="showZoom = false" />
+      </Teleport>
   </div>
 </template>
 
@@ -218,7 +240,19 @@ export default defineComponent({
     },
   },
   methods: {
-    onDoubleClick() {
+    /*
+     * Steam-like UX: single click on ANY rendered card opens the
+     * fullscreen zoom modal. Previously this fired on dblclick — kept
+     * the preference key name (`fullscreen_cards_on_dblclick`) so saved
+     * settings don't migrate, but the trigger and the dialog label both
+     * read "single click" now.
+     *
+     * Parents that need to consume single clicks for their own purpose
+     * (e.g. CardSelectionContent's per-card pick wrapper) intercept the
+     * event via `@click.capture.stop` on a wrapping element before it
+     * reaches this handler.
+     */
+    onClick() {
       if (!getPreferences().fullscreen_cards_on_dblclick) {
         return;
       }

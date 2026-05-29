@@ -98,6 +98,7 @@ import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import WorldGovernmentModalContent from '@/client/components/WorldGovernmentModalContent.vue';
 import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
+import {clearIfPhaseLeftCardPick, clearDraftWaitPending, shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {Message} from '@/common/logs/Message';
 
 const WGT_TITLE = 'Select action for World Government Terraforming';
@@ -112,6 +113,13 @@ const MODAL_OR_TITLES: ReadonlySet<string> = new Set([
 
 // PlayerInput types that ALWAYS render in the modal regardless of title
 // (used for `'payment'`-style prompts where every instance is mandatory).
+//
+// `'card'` is INTENTIONALLY NOT here — top-level SelectCard prompts are
+// hosted by `DraftFlowOverlay` mounted at App level, OUTSIDE the
+// `<player-home :key="playerkey">` subtree. That keeps the draft / buy
+// modal alive across the playerkey++ remount that fires on every
+// server response (which previously destroyed the modal mid-submit
+// and caused the "modal closes when I press ВЫБРАТЬ" bug).
 const MODAL_INPUT_TYPES: ReadonlySet<PlayerInputModel['type']> = new Set([
   'payment',
 ]);
@@ -177,6 +185,32 @@ export default defineComponent({
       suspend: false,
       savedPlayerView: undefined,
     };
+  },
+  /*
+   * Phase watcher — the SOLE clearing path for `draftWaitState`. Runs
+   * immediately on mount so a freshly-mounted WaitingFor (after a
+   * playerkey++ remount) reconciles the flag against the current
+   * server phase right away. clearIfPhaseLeftCardPick is a no-op
+   * while phase is RESEARCH / DRAFTING / INITIALDRAFTING, so during
+   * the waiting window the flag stays raised across any number of
+   * mount cycles. Once the server reports a non-card-pick phase
+   * (ACTION / PRODUCTION / etc.), the flag clears and the modal
+   * unmounts naturally on the next computed re-evaluation.
+   *
+   * If the game ends, defensively clear regardless of phase so we
+   * never leave a stale flag behind on the next game.
+   */
+  watch: {
+    'playerView.game.phase': {
+      immediate: true,
+      handler(newPhase: Phase) {
+        if (newPhase === Phase.END) {
+          clearDraftWaitPending();
+        } else {
+          clearIfPhaseLeftCardPick(newPhase);
+        }
+      },
+    },
   },
   methods: {
     getPlayerName(color: Color): string {
@@ -250,10 +284,32 @@ export default defineComponent({
     updatePlayerView(playerView: PlayerViewModel | undefined) {
       if (this.suspend === false) {
         const root = vueRoot(this);
-        root.screen = 'empty';
-        root.playerView = playerView;
-        root.playerkey++;
-        root.screen = 'player-home';
+        /*
+         * SKIP the playerkey++ remount when we're continuing within
+         * a card-pick flow (`draftWaitState.pending && new state is
+         * still card-pick`). Without skip, every server response
+         * destroys the entire #player-home subtree (including the
+         * MandatoryInputModal hosting our draft/buy UI), then
+         * recreates a fresh one — which the player perceives as the
+         * modal closing on submit. With skip, we just swap
+         * playerView reactively and let the existing modal swap its
+         * content between CardSelectionContent and DraftWaitingContent
+         * via v-else-if in this template. One continuous modal
+         * across the whole session.
+         *
+         * For every OTHER transition (action -> production, turn
+         * end, action menu prompts, etc.) the playerkey++ remount
+         * still fires, preserving the original "force re-render"
+         * behaviour that the codebase relies on for those paths.
+         */
+        if (shouldPreserveCardPickModal(playerView)) {
+          root.playerView = playerView;
+        } else {
+          root.screen = 'empty';
+          root.playerView = playerView;
+          root.playerkey++;
+          root.screen = 'player-home';
+        }
         if (this.playerView.game.phase === 'end' && window.location.pathname !== paths.THE_END) {
           window.location = window.location as any as (string & Location);
         }
@@ -292,7 +348,6 @@ export default defineComponent({
                 // Their prompt just appeared — fetch the new view.
                 root.updatePlayer();
                 this.notify();
-                return;
               }
             } else if (result.result === 'REFRESH') {
               if (!viewerHasPrompt) {
@@ -302,10 +357,27 @@ export default defineComponent({
                 } else {
                   root.updateSpectator();
                 }
-                return;
               }
             }
-            // WAIT, or viewer is mid-prompt — keep polling without refresh.
+            /*
+             * ALWAYS keep polling. Previously this path used `return`
+             * after triggering a refresh, relying on the playerkey++
+             * remount inside `updatePlayer` to re-arm polling via the
+             * new WaitingFor instance's `mounted()` hook. The
+             * `shouldPreserveCardPickModal` fix skips the remount for
+             * draft / research card-pick transitions, which leaves
+             * the OLD WaitingFor alive — and silently dead in the
+             * polling loop. Players stuck on the draft waiting view
+             * even after the server had moved them to the buy modal
+             * was the user-visible symptom. Continuing the chain
+             * here keeps it alive regardless of which path
+             * `updatePlayer` takes.
+             *
+             * If a remount DOES fire (non-preserved transition), the
+             * new WaitingFor's mounted() will call waitForUpdate()
+             * which `clearTimeout`s the old chain's pending timer.
+             * Only one polling chain runs at a time.
+             */
             vueApp.waitForUpdate();
           } else {
             root.showAlert('Error with input', `Received unexpected response from server (${xhr.status}). This is often due to the server restarting.`, () => vueApp.waitForUpdate());
@@ -383,6 +455,11 @@ export default defineComponent({
       return playerColorClass;
     },
     useModalForCurrentInput(): boolean {
+      /*
+       * Modal hosted by WaitingFor handles non-card prompts
+       * (payment, WGT). The card / waiting-state flow has moved to
+       * `DraftFlowOverlay` mounted at App level.
+       */
       return this.waitingfor !== undefined && shouldRouteToModal(this.waitingfor);
     },
     isWgtInput(): boolean {
@@ -404,8 +481,9 @@ export default defineComponent({
       return this.playerView as PlayerViewModel;
     },
     // Title fed into the modal so the minimized pill can show what
-    // prompt is awaiting decision. Reads straight off the current
-    // waitingfor — same string the modal title bar would show.
+    // prompt is awaiting decision. Reads off the current waitingfor.
+    // Draft / waiting-state titles are now driven by DraftFlowOverlay,
+    // not this modal.
     modalPillTitle(): string | Message {
       return this.waitingfor?.title ?? '';
     },

@@ -26,6 +26,21 @@
         :player-view="playerView"
         :key="playerkey"
       ></player-home>
+      <!--
+        Draft / buy-cards modal lives HERE at App level (not inside
+        player-home) so the `:key="playerkey"` remount that fires on
+        every server response can't destroy it. As long as App is
+        alive, this overlay stays mounted; its internal modal swaps
+        between CardSelectionContent and DraftWaitingContent based
+        on reactive playerView + module-level draftWaitState. The
+        previous architecture (modal inside WaitingFor) was the
+        root cause of the "modal closes when I press ВЫБРАТЬ" bug —
+        every submit destroyed the modal, no flag could survive it.
+      -->
+      <DraftFlowOverlay
+        v-if="screen === 'player-home' && playerView !== undefined"
+        :player-view="playerView"
+        :waiting-on-players="playersWaitingFor" />
       <spectator-home
         v-else-if="screen === 'spectator-home' && spectator !== undefined"
         :spectator="spectator"
@@ -63,8 +78,10 @@ const LoadGameForm = defineAsyncComponent(() => import(/* webpackChunkName: "loa
 const PlayerHome = defineAsyncComponent(() => import(/* webpackChunkName: "player-home" */ '@/client/components/PlayerHome.vue'));
 const SpectatorHome = defineAsyncComponent(() => import(/* webpackChunkName: "spectator-home" */ '@/client/components/SpectatorHome.vue'));
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
+import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
+import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {SpectatorModel} from '@/common/models/SpectatorModel';
@@ -162,6 +179,7 @@ export default defineComponent({
     'help': Help,
     'admin-home': AdminHome,
     'login-home': LoginHome,
+    DraftFlowOverlay,
   },
   methods: {
     showAlert(title: string, message: string, cb: () => void = () => {}): void {
@@ -206,13 +224,26 @@ export default defineComponent({
           return resp.json();
         })
         .then((model: ViewModel) => {
+          /*
+           * Same skip-remount logic as WaitingFor.updatePlayerView:
+           * if we're continuing within a card-pick flow, swap
+           * playerView reactively without bumping playerkey so the
+           * MandatoryInputModal hosting the draft / buy UI stays
+           * mounted. Spectator updates always remount (no
+           * draft-modal lifecycle to preserve for them).
+           */
+          const preserveCardPickModal =
+            path === paths.PLAYER &&
+            shouldPreserveCardPickModal(model as PlayerViewModel);
           if (path === paths.PLAYER) {
             app.playerView = model as PlayerViewModel;
             setTranslationContext(app.playerView);
           } else if (path === paths.SPECTATOR) {
             app.spectator = model as SpectatorModel;
           }
-          app.playerkey++;
+          if (!preserveCardPickModal) {
+            app.playerkey++;
+          }
           if (
             model.game.phase === 'end' &&
               window.location.search.includes('&noredirect') === false
