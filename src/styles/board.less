@@ -44,6 +44,28 @@
 	 */
 	transform: scale(var(--board-scale, 1));
 	transform-origin: top center;
+
+	/*
+	 * Subtle HUD atmosphere — very light radial vignette that softens
+	 * only the very corners of the board area, leaving Mars and the
+	 * outer cells untouched. Lives in a pseudo-element so it doesn't
+	 * add DOM nodes and rides the same `transform: scale()` as the
+	 * rest of the board. `pointer-events: none` keeps it out of every
+	 * interaction path. z-index sits below outer-cells (z=3) so it
+	 * doesn't paint over Stratopolis / Luna Metropolis.
+	 */
+	&::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		z-index: 1;
+		background: radial-gradient(
+			ellipse at 50% 50%,
+			transparent 68%,
+			rgba(0, 0, 0, 0.08) 88%,
+			rgba(0, 0, 0, 0.18) 100%);
+	}
 }
 
 .board-with-venus{
@@ -81,9 +103,142 @@
 	pointer-events: none;
 }
 
-.board-space--available:hover {
-	background: url(./assets/hex_green.png) !important;
+/*
+ * ─── Premium tactical hex system ──────────────────────────────────────
+ *
+ * Visual language:
+ *   - Mars surface stays WARM (planet image untouched).
+ *   - Every hex gets a layered SCI-FI HUD overlay via `::before`:
+ *     warm-white baseline outline + thin cool-blue inner accent.
+ *     This is the "tactical grid" feel; it shows in all states.
+ *   - Placement state escalates the SAME ::before by swapping the SVG
+ *     background-image to a brighter cyan stroke — NO fill. The hex
+ *     INTERIOR stays empty so cells never read as "filled with water".
+ *   - Glow is carried by `filter: drop-shadow()` which follows the
+ *     clip-path silhouette cleanly — no muddy box-shadow blur.
+ *
+ * Why SVG-in-background-image: CSS `border` doesn't honor clip-path,
+ * and gradient tricks ("ring") produce circular-looking artefacts
+ * inside a hex. Inline SVG polygons trace the exact hex silhouette,
+ * give pixel control over stroke width, color, and double-line accent,
+ * and are inexpensive (one data URL per state, no extra HTTP).
+ *
+ * Architecture contract:
+ *   - `.board-space-selectable` (added by BoardSpace.vue for every cell
+ *     wrapper) is the universal hook for the baseline + hover layer.
+ *   - `.board-space--available` (added by SelectSpace.vue during
+ *     placement) escalates ::before to the legal state.
+ *   - `.board-space--selected` (post-confirm) → stable lit cyan.
+ *   - `:has(.board-space--available)` on `.board-cont` dims everything
+ *     else, no JS changes needed.
+ *
+ * The ::before sits at z-index: 1 — above the inner tile's hex_white.png
+ * outline (so cyan doesn't get muddied) and above the Mars surface, but
+ * below positioned children with explicit z-index (info marker z=6,
+ * special-active overlay z=9500). Bonus icons (z auto / level 6) AREN'T
+ * covered visually because the ::before background is OUTLINE-ONLY —
+ * its centre is transparent, so bonuses at hex centre show through.
+ *
+ * Co-existence with `.board-space--special-active` (cyan inner tint for
+ * info-marker hover) — both use the cyan family, so a hovered special
+ * cell that's also a placement target just stacks placement outline +
+ * special-active inner tint. Reads as "two interactions available".
+ */
+
+// ── Baseline layered outline — EVERY selectable hex ───────────────────
+//
+// Warm sand outer outline (#e0d4c0 @ 0.32) + thin cool inner accent
+// (#a8c5d8 @ 0.22). Subtle but present at all times — gives the board
+// a "premium tactical grid" baseline without screaming.
+.board > .board-space-selectable::before,
+.board-outer-spaces > .board-space-selectable::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 1;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23e0d4c0' stroke-opacity='0.32' stroke-width='1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23a8c5d8' stroke-opacity='0.22' stroke-width='0.55' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	transition: background 180ms ease, filter 180ms ease, opacity 180ms ease;
+}
+
+// Baseline hover (no placement) — soft cool focus + subtle halo.
+// More than "barely visible" — should feel like the cell tracks the mouse.
+.board > .board-space-selectable:hover::before,
+.board-outer-spaces > .board-space-selectable:hover::before {
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23bfeaff' stroke-opacity='0.85' stroke-width='1.2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23e8f6ff' stroke-opacity='0.55' stroke-width='0.6' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+}
+
+.board > .board-space-selectable:hover,
+.board-outer-spaces > .board-space-selectable:hover {
+	filter: drop-shadow(0 0 5px rgba(140, 210, 245, 0.55));
+	transition: filter 160ms ease;
+}
+
+// ── Placement mode: legal cell ────────────────────────────────────────
+//
+// Bright cyan double-outline. NO inner fill (this was the cause of the
+// "ocean water" feeling — gone). Drop-shadow carries the cyan glow.
+.board > .board-space.board-space--available,
+.board-outer-spaces > .board-space.board-space--available {
 	cursor: pointer;
+	z-index: 2;
+	filter: drop-shadow(0 0 7px rgba(120, 220, 255, 0.85)) drop-shadow(0 0 2px rgba(180, 240, 255, 0.55));
+}
+
+.board > .board-space.board-space--available::before,
+.board-outer-spaces > .board-space.board-space--available::before {
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%2380e0ff' stroke-width='1.7' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.42' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+}
+
+// Suppress the legacy hex_white.png baseline outline on legal cells so
+// the new cyan double-outline reads cleanly — otherwise white + cyan
+// stack into a muddy edge. Background-color (e.g. ocean blue tint, the
+// volcanic dark red) is preserved since we only zero `background-image`.
+.board-space.board-space--available > .board-space {
+	background-image: none;
+}
+
+// ── Placement mode: HOVERED legal cell ────────────────────────────────
+//
+// Strongest state in the whole system — outline goes near-white, glow
+// pulls open into a real "scan-target" focus.
+.board > .board-space.board-space--available:hover,
+.board-outer-spaces > .board-space.board-space--available:hover {
+	filter: drop-shadow(0 0 14px rgba(220, 245, 255, 1)) drop-shadow(0 0 4px rgba(255, 255, 255, 0.85));
+}
+
+.board > .board-space.board-space--available:hover::before,
+.board-outer-spaces > .board-space.board-space--available:hover::before {
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23eaf8ff' stroke-width='2.1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.85' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+}
+
+// ── Placement mode: confirmed selection ───────────────────────────────
+//
+// Steady cyan, no hover dependence — the player has committed to this
+// cell, it shouldn't dim when their mouse moves away.
+.board > .board-space.board-space--selected,
+.board-outer-spaces > .board-space.board-space--selected {
+	filter: drop-shadow(0 0 10px rgba(180, 235, 255, 0.95));
+	z-index: 2;
+}
+
+.board > .board-space.board-space--selected::before,
+.board-outer-spaces > .board-space.board-space--selected::before {
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%237ee0ff' stroke-width='2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.5' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+}
+
+// ── Placement mode: illegal cells dim ─────────────────────────────────
+//
+// Direct-child selector keeps dimming on the wrapper only (the inner
+// BoardSpaceTile also has class .board-space — without `> ` opacity
+// would compound to near-invisible). Saturate + brightness creates a
+// "lights off" feel while preserving the grid structure so the player
+// still reads the whole board.
+.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):not(.board-space--selected),
+.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):not(.board-space--selected) {
+	opacity: 0.42;
+	filter: saturate(0.5) brightness(0.85);
+	transition: opacity 240ms ease, filter 240ms ease;
 }
 
 /*
@@ -518,10 +673,9 @@
 		position: absolute;
 	}
 
-	&.board-space--available {
-		animation: board-tile-blink-animation 2s infinite;
-		cursor: pointer;
-	}
+	// `.board-space--available` styling lives at the top of the file
+	// (premium placement-mode block) — kept here as a comment-anchor so
+	// future readers know the class hook still exists.
 
   .board-log-highlight {
 		clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
@@ -536,13 +690,9 @@
   }
 }
 
-@keyframes board-tile-blink-animation {
-	0% { filter: opacity(1)}
-	49% { filter: opacity(1)}
-	70% { filter: opacity(0.4)}
-	99% { filter: opacity(0.4)}
-	100% { filter: opacity(1)}
-}
+// `board-tile-blink-animation` removed — replaced by
+// `board-placement-breathe` (premium calm breathing glow) at the top of
+// this file. The log-highlight animation below is unrelated and stays.
 
 @keyframes board-tile-highlight-animation {
   0% { opacity: 1; }
