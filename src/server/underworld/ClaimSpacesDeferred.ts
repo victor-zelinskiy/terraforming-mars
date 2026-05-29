@@ -7,8 +7,8 @@ import {Priority} from '../deferredActions/Priority';
 import {RunNTimes} from '../deferredActions/RunNTimes';
 import {OrOptions} from '../inputs/OrOptions';
 import {SelectClaimedUndergroundToken} from '../inputs/SelectClaimedUndergroundToken';
-import {SelectSpace} from '../inputs/SelectSpace';
 import {UnderworldExpansion} from './UnderworldExpansion';
+import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 
 export class ClaimSpacesDeferred extends RunNTimes<void> {
   private spaces: Array<Space | UndergroundResourceToken>;
@@ -24,7 +24,16 @@ export class ClaimSpacesDeferred extends RunNTimes<void> {
 
   public createSelectSpace(spaces: Array<Space>) {
     const title = this.createTitle('Select space to claim');
-    return new SelectSpace(title, spaces)
+    // Claim operates on identified-resource spaces (caller pre-filters).
+    // Same reasoning shape as ExcavateSpacesDeferred — surface
+    // 'not-identified' / 'already-excavated' precisely.
+    return createMarsSelectSpace(this.player, title, spaces, {
+      customReasoner: (space) => {
+        if (space.undergroundResources === undefined) return 'not-identified';
+        if (space.excavator !== undefined) return 'already-excavated';
+        return undefined;
+      },
+    })
       .andThen((space) => {
         UnderworldExpansion.claim(this.player, space);
         if (this.spaces) {

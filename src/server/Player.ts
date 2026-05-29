@@ -28,7 +28,7 @@ import {Priority} from './deferredActions/Priority';
 import {SelectPaymentDeferred} from './deferredActions/SelectPaymentDeferred';
 import {SelectProjectCardToPlay} from './inputs/SelectProjectCardToPlay';
 import {SelectOption} from './inputs/SelectOption';
-import {SelectSpace} from './inputs/SelectSpace';
+import {createMarsSelectSpace} from './boards/marsSelectSpaceHelper';
 import {SelfReplicatingRobots} from './cards/promo/SelfReplicatingRobots';
 import {SerializedPlayer} from './SerializedPlayer';
 import {StormCraftIncorporated} from './cards/colonies/StormCraftIncorporated';
@@ -1187,9 +1187,11 @@ export class Player implements IPlayer {
         .setTitle('Place any final greenery from plants')
         .setButtonLabel('Confirm');
       action.options.push(
-        new SelectSpace(
+        createMarsSelectSpace(
+          this,
           'Select space for greenery tile',
-          this.game.board.getAvailableSpacesForGreenery(this))
+          this.game.board.getAvailableSpacesForGreenery(this),
+          {placementType: 'greenery'})
           .andThen((space) => {
             // Do not raise oxygen or award TR for final greenery placements
             this.game.addGreenery(this, space, false);

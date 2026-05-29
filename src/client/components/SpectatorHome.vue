@@ -73,6 +73,7 @@ import {SpectatorModel} from '@/common/models/SpectatorModel';
 import Colony from '@/client/components/colonies/Colony.vue';
 import DynamicTitle from '@/client/components/common/DynamicTitle.vue';
 import GameBoardView from '@/client/components/GameBoardView.vue';
+import {useBoardAutoScale} from '@/client/utils/useBoardAutoScale';
 import LogPanel from '@/client/components/logpanel/LogPanel.vue';
 import Sidebar from '@/client/components/Sidebar.vue';
 import WaitingFor from '@/client/components/WaitingFor.vue';
@@ -86,6 +87,11 @@ import {HomeMixin} from '@/client/mixins/HomeMixin';
 export default defineComponent({
   name: 'SpectatorHome',
   mixins: [HomeMixin],
+  setup() {
+    // Same Mars-board auto-scaling we run on PlayerHome — keeps the
+    // spectator view fitted to whatever viewport the watcher has.
+    useBoardAutoScale();
+  },
   props: {
     spectator: {
       type: Object as () => SpectatorModel,

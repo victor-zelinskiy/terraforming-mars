@@ -8,9 +8,15 @@
      * hex tiles, outer-spaces, SVG legend, captioned-tile labels with their lines).
      * Applied via `transform: scale(...)` on .board-cont — because every visual is
      * a DOM descendant of .board-cont, a single transform scales the whole thing
-     * including the new caption labels and their lines we just refactored. Use to
-     * approximate Steam-version proportions; reduce if the board overflows a
-     * smaller laptop screen.
+     * including the new caption labels and their lines we just refactored.
+     *
+     * This `1.4` is a FALLBACK. At runtime the `useBoardAutoScale`
+     * composable (PlayerHome.vue / SpectatorHome.vue) writes a computed
+     * scale to this variable on `document.documentElement` based on
+     * the actual available viewport area, refreshing on window resize,
+     * F11, monitor changes, etc. The fallback applies only if JS hasn't
+     * run yet (initial paint before mounted, or if the composable
+     * fails to install).
      */
     --board-scale: 1.4;
 }
@@ -20,25 +26,36 @@
     padding-left: calc(var(--left-panel-width) + 20px);
     padding-right: calc(var(--right-sidebar-width) + 20px);
     /*
-     * Clear the fixed top button bar AND give a small buffer so the outer
-     * colony tile captions (Stanford Torus, Maxwell Base, …) — which sit
-     * above .board-outer-spaces via `.board-space-XX { margin-top: -13px }`
-     * plus `.board-space-text { margin-top: -25px }` — never slide under
-     * the top button bar even after board scale. Required buffer ≈
-     * `30px * --board-scale`; we use a flat 26px which gives a healthy
-     * ~30–35px gap at scale 1.4 and still safely clears the buttons up to
-     * about scale 1.8.
+     * Top padding = button bar (36px) + 20px breather. The legacy
+     * `+80px` was there for the old persistent text labels on the
+     * upper Mars rim (Купол Фарсида, etc.). Those are now hover-only
+     * info-marker badges (compact i-glyphs), so the giant top reserve
+     * just wasted vertical space — especially noticeable on 4K
+     * monitors where the auto-scale system needs every pixel to fill
+     * the central area. 20px is enough so the top-row outer cells
+     * (Maxwell Base @ margin-top: -13px) clear the button bar with
+     * comfortable visual breathing.
+     *
+     * KEEP IN SYNC with `useBoardAutoScale.ts` `readVerticalReserved`
+     * — the JS scale calculation uses the same formula to know how
+     * much height is available for the board.
      */
-    /* `--bottom-bar-button-height` (36px) reserves the button row itself;
-     * the extra padding gives clearance for the dropdown badge strips that
-     * hang under the top-bar buttons (Milestones, Awards…) so the strips
-     * don't overlap planet labels / board chrome below. Strip layout:
-     * 8px gap + ~39px strip body ≈ 47px. We leave ~30px breathing room
-     * so the topmost planet labels stay legible. */
-    padding-top: calc(var(--bottom-bar-button-height) + 80px);
+    padding-top: calc(var(--bottom-bar-button-height) + 20px);
     padding-bottom: var(--bottom-bar-button-height);
     background: linear-gradient(transparent, #000), url(./assets/stars.jpg);
     background-attachment: fixed;
+    /*
+     * After the board moved to `position: fixed` and the sidebar / left
+     * player panel are also fixed, `#player-home` has almost no in-flow
+     * content left, so its height collapsed to ~bar+bar+padding. Below
+     * that, the body's `rgb(48,48,48)` fallback bg showed through as a
+     * gray rectangle behind the board. `min-height: 100vh` guarantees
+     * the stars.jpg bg fills the viewport regardless of how little
+     * flow content the page currently has — keeps the deep-space look
+     * behind every fixed element.
+     */
+    min-height: 100vh;
+    box-sizing: border-box;
 
     > div:not([class]), > div:not([class]) > div.player_home_block:first-child {
         > a:after {
@@ -1000,19 +1017,132 @@ each(@players, {
 }
 
 /*
- * The block that hosts <GameBoardView>. We center the board horizontally
- * within the space between the left player panel and the right sidebar.
+ * The block that hosts <GameBoardView>.
  *
- * `.board-cont` is scaled via `transform: scale(var(--board-scale))`. CSS
- * transforms don't grow the layout box, so the inline-block's own height
- * (~685px = .board height + top margin) stays the same and the hand cards /
- * actions below would slide UNDER the visually-scaled board. We reserve the
- * extra vertical space here so subsequent blocks stack below the scaled
- * board, not behind it.
+ * `position: fixed` makes the block occupy the FULL central viewport
+ * area between the chrome zones (top button bar / bottom bar / left
+ * player panel / right sidebar). Flex-centers `.board-cont` inside that
+ * area both axes. The `useBoardAutoScale` composable computes the scale
+ * to fit the board into this exact area, so the planet always
+ * vertically and horizontally fills the available central viewport.
+ *
+ * Why this beats the previous flow-based approach: the board was
+ * anchored to its flow-top (just below the top chrome), and the
+ * `transform: scale` grew it DOWNWARD only. So at high scales the
+ * board hit the viewport-bottom limit while the empty area ABOVE
+ * (between block-top and chrome) was never reclaimed. Fixing the
+ * block + center-flex makes the available area symmetric, so the
+ * computed scale fills both halves of the central viewport.
+ *
+ * `pointer-events: none` on the wrapper lets clicks pass through to
+ * the legacy content stacked below in flow (actions, hand cards) —
+ * those blocks will be hidden over time, but for now they remain
+ * functional via clicks that miss the actual board pixels. The board
+ * children get pointer-events: auto back so hex hover / click / info
+ * markers work normally.
+ *
+ * `z-index: 1` lifts the board above flow content visually so the
+ * planet always sits on top of legacy blocks behind it.
  */
 .player_home_block--board {
-    text-align: center;
-    padding-bottom: calc((var(--board-scale, 1) - 1) * 685px);
+    position: fixed;
+    top: calc(var(--bottom-bar-button-height) + 20px);
+    left: calc(var(--left-panel-width) + 20px);
+    right: calc(var(--right-sidebar-width) + 20px);
+    bottom: var(--bottom-bar-button-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.player_home_block--board > * {
+    pointer-events: auto;
+}
+
+/*
+ * Legacy-UI overlay wrapper. Holds the radio-form action stack +
+ * hand + self-replicating-robots cards block — content that's
+ * being migrated to dedicated overlays / inline buttons but isn't
+ * fully retired yet. By DEFAULT the wrapper is invisible + non-
+ * interactive so it doesn't compete with the fixed-positioned
+ * Mars board. Toggled visible via the sidebar "Show legacy UI"
+ * button (which sets `activeOverlay = 'legacyUi'`).
+ *
+ * DOM stays mounted in both states — Vue state for the WaitingFor
+ * radio form, the hand SortableCards order, scroll position, etc.
+ * survives open/close. Just visibility + pointer-events flip.
+ *
+ * Same layout footprint as `.bar-overlay` (top: button bar, left:
+ * left panel, right: right sidebar, bottom: button bar) so it
+ * reads as a sibling overlay to log / VP / etc. z-index 108 sits
+ * just below `.bar-overlay` (z=110) so an opened log overlay
+ * covers the legacy UI cleanly without weird half-overlap.
+ */
+// Default state: NOT rendered at all. Using `display: none` over the
+// previous opacity/visibility approach because the latter still left
+// a paint quirk (a faint gray rect where the overlay sat) on some
+// browsers / GPU combos. `display: none` guarantees zero pixels and
+// zero hitbox. Vue keeps the components mounted via reactivity even
+// though they're display:none — state (WaitingFor selection, hand
+// sort, scroll position) survives the toggle.
+.legacy-ui-overlay {
+    display: none;
+}
+
+.legacy-ui-overlay--open {
+    display: block;
+    position: fixed;
+    top: var(--bottom-bar-button-height);
+    bottom: var(--bottom-bar-button-height);
+    left: var(--left-panel-width);
+    right: var(--right-sidebar-width);
+    z-index: 108;
+    overflow-y: auto;
+    padding: 16px 20px 20px;
+    background: rgba(10, 16, 24, 0.97);
+    border-top: 2px solid #3a5a7a;
+    border-bottom: 2px solid #3a5a7a;
+    animation: legacy-ui-overlay-in 200ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes legacy-ui-overlay-in {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.legacy-ui-overlay__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(140, 200, 240, 0.18);
+}
+
+.legacy-ui-overlay__title {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #b8d4ec;
+}
+
+// Active state for the sidebar button while overlay is open. Cyan tint
+// + glow matches the existing `sidebar_item--is-active` pattern used
+// by the info-panel toggle (game setup details).
+.sidebar_item.sidebar_item--legacy-ui {
+    cursor: pointer;
+    transition: filter 160ms ease;
+
+    &:hover {
+        filter: brightness(1.15);
+    }
+    &.sidebar_item--is-active {
+        filter: brightness(1.25) drop-shadow(0 0 6px rgba(106, 176, 230, 0.7));
+    }
 }
 
 /*

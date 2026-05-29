@@ -38,6 +38,7 @@ export type PlacementIllegalReason =
   // ── Card-specific (require card context — produced via customReasoner) ──
   | 'already-marked'
   | 'already-excavated'
+  | 'already-identified'
   | 'too-many-adjacent-cities'
   | 'not-identified'
   | 'wrong-bonus-type'
@@ -83,6 +84,7 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
   // Card-specific
   'already-marked': 'This area is already a community',
   'already-excavated': 'Already excavated',
+  'already-identified': 'Underground resource already identified',
   'too-many-adjacent-cities': 'Adjacent to more than one city',
   'not-identified': 'No identified underground resource',
   'wrong-bonus-type': 'Bonus is not steel or titanium',

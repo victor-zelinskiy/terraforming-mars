@@ -39,11 +39,17 @@
 	 * (hex tiles, outer-spaces, SVG legend, captioned-tile labels + their
 	 * pseudo-element lines) is a DOM descendant of .board-cont, one transform
 	 * scales the whole assembly proportionally — captions stay anchored to
-	 * their tiles by construction. Origin `top center` so the board grows
-	 * downward and outward from where it already sits.
+	 * their tiles by construction.
+	 *
+	 * `transform-origin: center center` — board scales around its CENTER
+	 * so the visual stays anchored to wherever the parent flex container
+	 * positions it. Combined with `.player_home_block--board` being
+	 * `position: fixed` + `display: flex; align-items: center`, this
+	 * means the planet is always perfectly centered in the available
+	 * central viewport area regardless of scale.
 	 */
 	transform: scale(var(--board-scale, 1));
-	transform-origin: top center;
+	transform-origin: center center;
 
 	/*
 	 * Subtle HUD atmosphere — very light radial vignette that softens
