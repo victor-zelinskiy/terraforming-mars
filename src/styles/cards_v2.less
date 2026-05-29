@@ -2641,8 +2641,53 @@
         .board-cube {
           transform: scale(1.5);
         }
-        .card-cost, .card-old-cost {
-            float: left;
+        /* ──────────────────────────────────────────────────────────
+         *  COST CLUSTER (v40-y — final compact polish)
+         * ──────────────────────────────────────────────────────────
+         *
+         *  Goal: make the hierarchy unambiguous —
+         *    [ 8 ] = printed cost (primary, big)
+         *    → 6  = effective cost (secondary, clearly smaller)
+         *
+         *  Tuning from the previous pass:
+         *    - Effective token shrunk 38 → 34 px (68 % of base —
+         *      bottom of the user-requested 65-75 % range), font
+         *      20 → 17 px, border-radius 8 → 6 px proportionally.
+         *      Now reads visibly subordinate at a glance.
+         *    - Cluster gap pulled in 6 → 4 px so the group reads as
+         *      a connected unit, not three loose elements.
+         *    - Arrow scaled down 22 × 14 → 18 × 12 px so it doesn't
+         *      tower over the smaller effective token. Same shape,
+         *      same gradient, same cyan glow — just proportionally
+         *      tighter to the new geometry.
+         *    - Effective filter pulled further into "computed value"
+         *      territory: saturate 0.85 → 0.62 (still warm, not
+         *      gray), contrast 0.95 added (softens the edge between
+         *      coin and text), brightness lifted slightly so the
+         *      lower saturation doesn't read as "dim".
+         *
+         *  Composition stays inline-flex horizontal; total cluster
+         *  width ≈ 50 + 4 + 18 + 4 + 34 = 110 px (down from 122 px),
+         *  leaving more breathing room for the tag cluster on
+         *  tag-heavy cards.
+         */
+        /*
+         * v40-z compaction: dropped the uniform `gap: 4px` in favor
+         * of per-child margins on the arrow. The chevron now sits 4
+         * px from the base cost (small breath, base stays in its
+         * fixed position untouched) and 2 px from the effective
+         * token (near-flush — the chevron tip visually points INTO
+         * the effective coin). Cluster reads as a single connected
+         * formula "8 → 6" instead of three loose elements floating
+         * with equal spacing.
+         */
+        .card-cost-group {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .card-cost {
             font-family: Prototype;
             font-size: 26px;
             width: 50px;
@@ -2654,22 +2699,87 @@
             background-size: 50px;
             filter: drop-shadow(0px 0px 1px black);
             color: #000;
+            flex-shrink: 0;
         }
-        .card-cost-transition {
-            position: absolute;
-            background-image: url(./assets/misc/cost-transition-arrow.png);
-            width: 14px;
-            height: 21px;
-            left: 9px;
-            top: 40px;
-            z-index: 2;
+
+        /*
+         * Cyan directional arrow drawn via clip-path. Stem + chevron
+         * head in a single element. linear-gradient flows light →
+         * bright from left to right so the eye reads "this becomes
+         * that". Compact (18 × 12 px) so it never competes with the
+         * two numeric tokens for attention now that the effective
+         * token is smaller.
+         */
+        .card-cost-arrow {
+            width: 10px;
+            height: 8px;
+            flex-shrink: 0;
+            /* v40-β: cluster halved AGAIN per user feedback —
+             * spacing was still reading as "8 ... 6" rather than
+             * "8 → 6". Arrow trimmed 18×12 → 10×8, margins
+             * 4+2 → 2+1. Net gap between base and effective
+             * coins drops 24 → 13 px (~46 %), which finally lands
+             * inside the "compact connected formula" range. Same
+             * clip-path polygon shape; same gradient + glow stack,
+             * just at smaller pixel dimensions. */
+            margin-left: 2px;
+            margin-right: 1px;
+            background: linear-gradient(90deg,
+                rgba(106, 176, 230, 0.5) 0%,
+                rgba(160, 210, 245, 1) 100%);
+            clip-path: polygon(
+                0% 40%, 58% 40%, 58% 14%,
+                100% 50%,
+                58% 86%, 58% 60%, 0% 60%
+            );
+            /* Glow trimmed further (3 → 2 px) to match the smaller
+             * arrow size and the 1-px gap to the effective coin. */
+            filter:
+                drop-shadow(0 0 2px rgba(106, 176, 230, 0.65))
+                drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
         }
-        .card-old-cost {
-            transform: scale(0.6);
-            filter: grayscale(60%);
-            left: -8px;
-            top: 45px;
-            position: absolute;
+
+        /*
+         * Effective cost token. Same M€ coin asset as `.card-cost`,
+         * scaled to 68 % of base. Lives in the card's original
+         * visual language.
+         *
+         * Filter stack telegraphs "computed / secondary":
+         *   - saturate(0.62) — pulls the warm yellow back to a
+         *     calmer mustard-amber. Still readable as the same
+         *     token family, but clearly subordinate to the base
+         *     coin's full saturation.
+         *   - brightness(1.04) — small lift so the desaturation
+         *     doesn't read as "dim / disabled".
+         *   - contrast(0.95) — softens the text-vs-coin edge so the
+         *     secondary nature reads in the texture, not just the
+         *     palette.
+         *
+         * NOTE: cards_scifi.less restates this filter chain (with
+         * the type-glow drop-shadows appended) for cards matching
+         * the type-glow selector. The two filters can't be merged
+         * across rules — the cascade picks one whole declaration —
+         * so the chain is duplicated there for the common case.
+         */
+        .card-effective-cost {
+            font-family: Prototype;
+            font-size: 17px;
+            width: 34px;
+            height: 34px;
+            line-height: 34px;
+            border-radius: 6px;
+            text-align: center;
+            background-image: url(./assets/resources/megacredit.png);
+            background-size: 34px;
+            background-repeat: no-repeat;
+            background-position: center;
+            color: #000;
+            flex-shrink: 0;
+            filter:
+                drop-shadow(0 0 1px black)
+                saturate(0.55)
+                brightness(1.04)
+                contrast(0.92);
         }
         .card-tags {
             display: flex;

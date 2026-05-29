@@ -79,11 +79,37 @@
          role="button"
          tabindex="0"
          :title="$t('Click to expand the awaiting prompt')"
-         :style="pillDragStyle"
          @click="restore"
          @keydown.enter="restore"
          @keydown.space="restore"
          data-test="modal-pill">
+      <!--
+        Dedicated drag handle (v40-s). 6-dot sci-fi grip — two columns
+        of three small cyan dots. Listens for pointerdown to start the
+        drag. The pill body around it stays a click target (restores
+        the modal). Splitting these means a no-drag click is
+        unambiguous: clicking anywhere EXCEPT the handle restores;
+        click + drag from the handle moves the pill. The 5-px
+        threshold + post-drag click suppressor in `draggable.ts` is
+        still in place as a belt-and-braces safety on the handle
+        itself.
+
+        `touch-action: none` (in CSS) prevents the browser's default
+        touch gesture (panning the page) on the handle, so a
+        touchscreen drag is honored as a drag, not a scroll.
+        `aria-hidden` keeps the handle out of the AT label since it's
+        a pure visual affordance — keyboard users restore via Enter/
+        Space on the pill (the existing focus / keydown handlers).
+      -->
+      <span ref="pillHandle"
+            class="mandatory-input-modal-pill__handle"
+            :title="$t('Drag to reposition')"
+            aria-hidden="true"
+            data-test="modal-pill-handle">
+        <span></span><span></span>
+        <span></span><span></span>
+        <span></span><span></span>
+      </span>
       <span class="mandatory-input-modal-pill__dot"></span>
       <span class="mandatory-input-modal-pill__label" v-i18n>AWAITING DECISION</span>
       <span class="mandatory-input-modal-pill__sep">/</span>
@@ -204,20 +230,6 @@ export default defineComponent({
       if (typeof t === 'string') return translateText(t);
       return translateMessage(t);
     },
-    /*
-     * Inline transform override for the draggable pill. Returns `{}`
-     * at default offset so the CSS visibility transition
-     * (`opacity` + `transform: translate(-50%, -20px → 0)`) still
-     * runs when `--visible` is toggled. Once dragged, the inline
-     * transform overrides — pill stays at the user-chosen position
-     * regardless of minimized state.
-     */
-    pillDragStyle(): Record<string, string> {
-      if (this.pillDragOffset.x === 0 && this.pillDragOffset.y === 0) return {};
-      return {
-        transform: `translate(calc(-50% + ${this.pillDragOffset.x}px), ${this.pillDragOffset.y}px)`,
-      };
-    },
   },
   watch: {
     // If the host swaps the modal contents to a new prompt (e.g. one
@@ -258,14 +270,21 @@ export default defineComponent({
     // either depending on which CSS reset / layout rules win.
     document.documentElement.classList.add('mandatory-input-modal-open');
     document.body.classList.add('mandatory-input-modal-open');
-    /* Wire up drag on the minimized pill (ref="pill"). Drag controller
-     * lives until beforeUnmount; gestures only fire when the pill is
-     * actually present on screen (it's hidden by opacity:0 until the
-     * --visible class is applied), so installing the listener here
-     * regardless of minimized state is safe. */
+    /* Wire up drag on the minimized pill (ref="pill"). The dedicated
+     * 6-dot handle (ref="pillHandle") is the pointer-listening
+     * surface; the pill body itself is left for clicks → restore.
+     * Drag controller lives until beforeUnmount; gestures only fire
+     * when the pill is actually present on screen (it's hidden by
+     * opacity: 0 until the --visible class is applied), so installing
+     * the listener here regardless of minimized state is safe. */
     const pillEl = this.$refs.pill as HTMLElement | undefined;
+    const pillHandleEl = this.$refs.pillHandle as HTMLElement | undefined;
     if (pillEl !== undefined) {
-      this.pillDragController = makeDraggable(pillEl, this.pillDragOffset);
+      this.pillDragController = makeDraggable(
+        pillEl,
+        this.pillDragOffset,
+        {handle: pillHandleEl},
+      );
     }
   },
   beforeUnmount() {

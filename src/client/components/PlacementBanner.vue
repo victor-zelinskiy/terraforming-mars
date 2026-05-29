@@ -22,7 +22,6 @@
          role="button"
          tabindex="0"
          :title="$t('Click for details about this placement')"
-         :style="dragStyle"
          @click="showDetails = true"
          @keydown.enter="showDetails = true"
          @keydown.space.prevent="showDetails = true"
@@ -105,11 +104,11 @@ import {makeDraggable, DraggableController, DraggablePosition} from '@/client/co
 type DataModel = {
   showDetails: boolean;
   /*
-   * Pixel offset from the default centred-top position. Updated in
-   * place by the drag controller; rendered via the `dragStyle`
-   * computed onto the banner's `transform`. (0, 0) means "default
-   * position" — `dragStyle` returns {} in that case so the CSS
-   * mount-in animation isn't broken by an inline-style override.
+   * Pixel offset from the default centred-top position. Updated by
+   * the drag controller on pointerup (final value only — per-frame
+   * drag visuals go through inline CSS vars `--drag-x`/`--drag-y`
+   * written directly on the banner element, bypassing Vue's render
+   * pipeline for perf). (0, 0) = default position, vars unset.
    */
   dragOffset: DraggablePosition;
   /* Reference to the active drag controller so we can tear it down
@@ -169,20 +168,6 @@ export default defineComponent({
         return translateText(t);
       }
       return translateMessage(t);
-    },
-    /*
-     * Inline style for the draggable transform offset. Returns `{}`
-     * when at the default position so the CSS animation
-     * `placement-banner-in` (which animates transform from
-     * translate(-50%, -20px) to translate(-50%, 0)) is preserved on
-     * mount. Once the user drags, the inline `transform` overrides
-     * the CSS and the pill stays at the user-chosen position.
-     */
-    dragStyle(): Record<string, string> {
-      if (this.dragOffset.x === 0 && this.dragOffset.y === 0) return {};
-      return {
-        transform: `translate(calc(-50% + ${this.dragOffset.x}px), ${this.dragOffset.y}px)`,
-      };
     },
   },
   watch: {

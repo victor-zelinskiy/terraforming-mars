@@ -228,15 +228,38 @@
 .card-selection__card-clickable {
     cursor: pointer;
     transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    /* Explicit cross-axis centering — belt-and-braces alongside the
+     * slot's `align-items: center`, so any future flex-item override
+     * can't drift the clickable off-center. */
+    align-self: center;
 
     /*
      * Default zoom = 1.0 (card-container is 300 px wide → 4 × 300 +
      * 3 × 18 gap = 1254 px, fits a 1280-px viewport cleanly). Media
      * queries below scale this down for tighter viewports without
      * triggering horizontal scroll.
+     *
+     * IMPORTANT (v40-α): zero out the legacy `.card-container`
+     * `margin: 15px 30px 10px 0px` from cards.less:90. That margin
+     * was meant for inter-card spacing in grid layouts (OtherPlayer
+     * played-cards row, SortableCards hand). Here we wrap Card in
+     * a slot whose flex column ALSO contains the per-card action
+     * button below. The asymmetric `margin-right: 30px` makes the
+     * clickable's bounding box 30 px wider than the visible card
+     * (the card sits flush-left within the box, the 30 px is empty
+     * to its right). The slot then centers that asymmetric bounding
+     * box, and the button — centered against the same box — lands
+     * ~15 px right of the card's visible centre.
+     *
+     * Zeroing the margin here aligns the clickable's bounding box
+     * with the card silhouette, so the button below sits dead-
+     * centre under the card. The cards' inter-card spacing in the
+     * grid is owned by the parent `.card-selection__cards { gap }`
+     * — independent of card-container margins.
      */
     > .card-container {
         zoom: 1.0;
+        margin: 0;
     }
 
     &:hover {
@@ -253,7 +276,14 @@
  */
 .card-selection__card-action-btn {
     position: relative;
+    /* Explicit centering — `margin: 0 auto` plus `align-self: center`
+     * stacked so any future change to the slot's flex behaviour
+     * doesn't accidentally pull the button off the card's centre
+     * line. The 30-px legacy right-margin on `.card-container` that
+     * used to make this drift is zeroed in `.card-selection__card-
+     * clickable > .card-container` above (see comment there). */
     margin: 14px auto 0;
+    align-self: center;
     min-width: 160px;
     height: 34px;
     padding: 0 26px;
@@ -429,7 +459,7 @@
          * indicator" rather than ad-hoc text. Pinned via negative
          * top so it floats above the lifted card. */
         &::after {
-            content: 'ВЫБРАНО';
+            content: 'ВЫБРАНА';
             position: absolute;
             top: -20px;
             left: 50%;
@@ -495,6 +525,115 @@
     50% {
         opacity: 0.7;
         transform: scale(1.02);
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ *  Grid freeze while fullscreen modal is open (v40-r)
+ * ─────────────────────────────────────────────────────────────────
+ *
+ *  Problem: when the player toggles a card's selection from inside
+ *  the fullscreen view (BUY mode), Vue's reactivity updates the
+ *  shared `selected: Array<CardName>` immediately. Any grid card
+ *  behind the modal that just gained / lost selected state
+ *  visually shifts — lift, ribbon, pulse, halo all (dis)appear —
+ *  and that motion reads through the modal's backdrop blur, pulling
+ *  the player's eye OFF the focused modal layer.
+ *
+ *  We can't break the logical sync (the user explicitly wants the
+ *  grid to show the current state after closing). The right play
+ *  is to keep the logical state synced but freeze the GRID's
+ *  visual presentation while the modal is open.
+ *
+ *  Trigger: `:has()` on the CardZoomModal's `<dialog
+ *  class="card-zoom-dialog" open>` element. When the dialog is open
+ *  it carries the `open` attribute; when it closes the attribute
+ *  drops and the freeze releases. The dialog mounts as a direct
+ *  child of `.card-selection` (CardSelectionContent owns its own
+ *  CardZoomModal instance — separate from Card.vue's teleport-to-
+ *  body path used by DraftedCardsPile, so this freeze is scoped to
+ *  the card-selection modal context only).
+ *
+ *  What's suppressed:
+ *    1. `--selected` lift transform reset to translateY(0) so the
+ *       card doesn't pop UP / drop DOWN when selection changes.
+ *    2. Pulsing halo animation paused + faded out — no breathing
+ *       motion behind the modal.
+ *    3. Card-frame chassis halo box-shadow suppressed — no ring
+ *       appearing / disappearing on toggle.
+ *    4. "ВЫБРАНО" ribbon hidden — no badge popping into view.
+ *    5. All transitions disabled so when the modal CLOSES and this
+ *       rule stops matching, the grid SNAPS to the current state
+ *       instantly. No transition tail animating in front of the
+ *       player after the modal collapses.
+ *
+ *  Net effect: while the fullscreen is open the grid is a calm,
+ *  blurred backdrop; the fullscreen card itself shows its own
+ *  --selected presentation (handled in preferences.less under the
+ *  `.card-zoom-card--selected` block). On close, the grid
+ *  immediately reflects the current selection. No animation tail.
+ *
+ *  Browser support: `:has()` needs Chromium 105+ / Safari 15.4+ /
+ *  Firefox 121+. Matches the project's existing :has() baseline
+ *  (used heavily in cards_scifi.less and mandatory_input_modal.less).
+ */
+.card-selection:has(.card-zoom-dialog[open]) {
+    .card-selection__card-slot,
+    .card-selection__card-clickable {
+        transition: none !important;
+    }
+
+    .card-selection__card-slot--selected > .card-selection__card-clickable {
+        transform: translateY(0) !important;
+
+        &::before {
+            animation: none !important;
+            opacity: 0 !important;
+        }
+    }
+
+    .card-selection__card-slot--selected > .card-selection__card-clickable > .card-container {
+        box-shadow: none !important;
+        filter: none !important;
+
+        &::after {
+            display: none !important;
+        }
+    }
+
+    /*
+     * v40-t: also hide the action buttons under cards AND the bottom
+     * confirm footer while the fullscreen is open. Their visuals
+     * react to the same shared `selected` array — toggling a card
+     * from inside the fullscreen flips the per-card button between
+     * cyan "ВЫБРАТЬ" and amber "СНЯТЬ ВЫБОР", changes other cards'
+     * buttons to disabled when max is reached, and re-counts the
+     * bottom "КУПИТЬ X M€" total. Even with the modal's blurred
+     * backdrop, those colour / label changes read through and pull
+     * focus off the fullscreen card.
+     *
+     * `visibility: hidden` (not display: none) preserves the grid
+     * layout so nothing reflows when the modal opens or closes —
+     * the buttons just disappear from the paint. On modal close
+     * the `:has()` rule stops matching and the buttons reappear
+     * instantly at whatever the current state has become, with
+     * `transition: none` forced via the rule above so there's no
+     * tail animation. The player can't interact with them while
+     * the modal is up anyway (modal's <dialog> top-layer blocks
+     * input), so hiding them costs nothing functionally.
+     */
+    .card-selection__card-action-btn,
+    .card-selection__footer {
+        visibility: hidden;
+    }
+
+    /*
+     * Belt-and-braces: kill transitions on the action button too so
+     * any state change that happened while hidden doesn't mid-flight
+     * animate when the button is shown again after the modal closes.
+     */
+    .card-selection__card-action-btn {
+        transition: none !important;
     }
 }
 
