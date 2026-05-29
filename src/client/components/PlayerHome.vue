@@ -271,7 +271,9 @@
       :isTerraformed="playerView.game.isTerraformed"
       :lastSoloGeneration = "game.lastSoloGeneration"
       :deckSize = "game.deckSize"
-      :discardPileSize = "game.discardPileSize">
+      :discardPileSize = "game.discardPileSize"
+      :legacyUiActive="activeOverlay === 'legacyUi'"
+      @toggle-legacy-ui="activeOverlay = (activeOverlay === 'legacyUi' ? null : 'legacyUi')">
     </sidebar>
 
     <div v-if="thisPlayer.tableau.length > 0">
@@ -284,51 +286,72 @@
         />
       </div>
 
-    <a class="hotkey-target"></a>
-
-      <a class="hotkey-target"></a>
-      <div class="player_home_block player_home_block--actions nofloat">
-        <a name="actions" class="player_home_anchor"></a>
-        <dynamic-title title="Actions" :color="thisPlayer.color"/>
-        <waiting-for v-if="game.phase !== 'end'" ref="waitingFor" :playerView="playerView" :waitingfor="playerView.waitingFor"></waiting-for>
-      </div>
-
-      <!--
-        Legacy drafted-cards block. The new `DraftedCardsPile` inside
-        `DraftFlowOverlay` (mounted at App level) now shows the same
-        info as a compact sci-fi pile, so this row is redundant. Kept
-        in the template (just hidden via `--drafted-legacy` CSS) so any
-        technical consumers of the legacy DOM aren't disturbed.
-      -->
-      <div class="player_home_block player_home_block--hand player_home_block--drafted-legacy"
-           v-if="playerView.draftedCards.length > 0">
-        <dynamic-title title="Drafted cards" :color="thisPlayer.color" />
-        <div v-for="card in playerView.draftedCards" :key="card.name" class="cardbox">
-          <Card :card="card"/>
+    <!--
+      Legacy-UI wrapper. Holds the old radio-form action stack, hand,
+      drafted-cards legacy row, self-replicating-robots card pile. By
+      default invisible + non-interactive (board fills the viewport).
+      Opening the sidebar "Show legacy UI" button toggles
+      `activeOverlay === 'legacyUi'` → this wrapper switches to a
+      fixed-positioned bar-overlay (same chrome as the log/VP
+      overlays). Content stays mounted across open/close so any
+      in-flight WaitingFor state / hand sort / scroll position
+      survives. Header row inside the overlay shows a close button.
+    -->
+      <div class="legacy-ui-overlay"
+           :class="{'legacy-ui-overlay--open': activeOverlay === 'legacyUi'}"
+           role="region"
+           :aria-hidden="activeOverlay !== 'legacyUi'">
+        <div class="legacy-ui-overlay__header" v-if="activeOverlay === 'legacyUi'">
+          <span class="legacy-ui-overlay__title" v-i18n>Legacy UI</span>
+          <div class="bar-overlay-close" v-on:click="activeOverlay = null" :title="$t('Close')">✕</div>
         </div>
-      </div>
 
-      <a name="cards" class="player_home_anchor"></a>
-      <div class="player_home_block player_home_block--hand" v-if="cardsInHandCount > 0" id="shortkey-hand">
-        <div class="hiding-card-button-row">
-          <dynamic-title title="Cards In Hand" :color="thisPlayer.color"/>
-          <div :class="getHideButtonClass('HAND')" v-on:click.prevent="toggle('HAND')">
-            <div class="played-cards-count">{{cardsInHandCount.toString()}}</div>
-            <div class="played-cards-selection" v-i18n>{{ getToggleLabel('HAND')}}</div>
-          </div>
-          <div class="text-overview" v-i18n>[ toggle cards in hand ]</div>
+        <a class="hotkey-target"></a>
+
+        <a class="hotkey-target"></a>
+        <div class="player_home_block player_home_block--actions nofloat">
+          <a name="actions" class="player_home_anchor"></a>
+          <dynamic-title title="Actions" :color="thisPlayer.color"/>
+          <waiting-for v-if="game.phase !== 'end'" ref="waitingFor" :playerView="playerView" :waitingfor="playerView.waitingFor"></waiting-for>
         </div>
-        <sortable-cards v-show="isVisible('HAND')" :playerId="playerView.id"
-                        :cards="playerView.preludeCardsInHand
-                                .concat(playerView.ceoCardsInHand)
-                                .concat(playerView.cardsInHand)"/>
-      </div>
 
-      <div v-if="thisPlayer.selfReplicatingRobotsCards.length > 0" class="player_home_block">
-        <dynamic-title title="Self-replicating Robots cards" :color="thisPlayer.color"/>
-        <div>
-          <div v-for="card in thisPlayer.selfReplicatingRobotsCards" :key="card.name" class="cardbox">
+        <!--
+          Legacy drafted-cards block. The new `DraftedCardsPile` inside
+          `DraftFlowOverlay` (mounted at App level) now shows the same
+          info as a compact sci-fi pile, so this row is redundant. Kept
+          in the template (just hidden via `--drafted-legacy` CSS) so any
+          technical consumers of the legacy DOM aren't disturbed.
+        -->
+        <div class="player_home_block player_home_block--hand player_home_block--drafted-legacy"
+             v-if="playerView.draftedCards.length > 0">
+          <dynamic-title title="Drafted cards" :color="thisPlayer.color" />
+          <div v-for="card in playerView.draftedCards" :key="card.name" class="cardbox">
             <Card :card="card"/>
+          </div>
+        </div>
+
+        <a name="cards" class="player_home_anchor"></a>
+        <div class="player_home_block player_home_block--hand" v-if="cardsInHandCount > 0" id="shortkey-hand">
+          <div class="hiding-card-button-row">
+            <dynamic-title title="Cards In Hand" :color="thisPlayer.color"/>
+            <div :class="getHideButtonClass('HAND')" v-on:click.prevent="toggle('HAND')">
+              <div class="played-cards-count">{{cardsInHandCount.toString()}}</div>
+              <div class="played-cards-selection" v-i18n>{{ getToggleLabel('HAND')}}</div>
+            </div>
+            <div class="text-overview" v-i18n>[ toggle cards in hand ]</div>
+          </div>
+          <sortable-cards v-show="isVisible('HAND')" :playerId="playerView.id"
+                          :cards="playerView.preludeCardsInHand
+                                  .concat(playerView.ceoCardsInHand)
+                                  .concat(playerView.cardsInHand)"/>
+        </div>
+
+        <div v-if="thisPlayer.selfReplicatingRobotsCards.length > 0" class="player_home_block">
+          <dynamic-title title="Self-replicating Robots cards" :color="thisPlayer.color"/>
+          <div>
+            <div v-for="card in thisPlayer.selfReplicatingRobotsCards" :key="card.name" class="cardbox">
+              <Card :card="card"/>
+            </div>
           </div>
         </div>
       </div>
@@ -397,6 +420,7 @@ import Sidebar from '@/client/components/Sidebar.vue';
 import Colony from '@/client/components/colonies/Colony.vue';
 import LogPanel from '@/client/components/logpanel/LogPanel.vue';
 import GameBoardView from '@/client/components/GameBoardView.vue';
+import {useBoardAutoScale} from '@/client/utils/useBoardAutoScale';
 import PlayerSetupView from '@/client/components/PlayerSetupView.vue';
 import DynamicTitle from '@/client/components/common/DynamicTitle.vue';
 import SortableCards from '@/client/components/SortableCards.vue';
@@ -464,7 +488,7 @@ type ToggleableState = {
 // Overlays opened by the top/bottom bar buttons. Only one can be visible at a time —
 // pressing a different button closes the previous overlay. Pressing the same button
 // again closes the active overlay.
-type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'played' | 'victoryPoints' | 'log';
+type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'played' | 'victoryPoints' | 'log' | 'legacyUi';
 
 // Set while the player has chosen a Standard Project from the overlay
 // AND the choice requires picking between M€ and alternative resources.
@@ -554,6 +578,13 @@ const PLACEMENT_ORIG_TITLE_ATTR = 'data-placement-orig-title';
 export default defineComponent({
   name: 'player-home',
   mixins: [HomeMixin],
+  // Composables that need the `onMounted` / `onBeforeUnmount` setup-only
+  // API live here. `useBoardAutoScale` writes the runtime-computed
+  // `--board-scale` CSS variable so the Mars board fills the available
+  // central viewport area on any monitor / window size / F11 state.
+  setup() {
+    useBoardAutoScale();
+  },
   data(): PlayerHomeModel {
     const preferences = getPreferences();
     return {
@@ -1103,11 +1134,22 @@ export default defineComponent({
     // inside the overlay itself, on a bar button (which has its own toggle),
     // or on the left player panel (so the user can switch displayed player
     // without dismissing the VP overlay) are all exempt.
+    //
+    // Sidebar buttons (`.sidebar_cont`) are ALSO exempt — without this,
+    // a click on the sidebar's "Show legacy UI" toggle would emit the
+    // open event AND then this same click would fire here and close
+    // the just-opened overlay (net: nothing visible). Same trap as a
+    // bottom-bar-btn would have had if not exempted.
+    //
+    // `.legacy-ui-overlay` exempted so clicks INSIDE the legacy overlay
+    // (action radio rows, hand cards, etc.) don't dismiss it.
     handleOutsideOverlayClick(e: MouseEvent): void {
       const target = e.target as Element | null;
       if (!target) return;
       if (target.closest('.top-bar-dropdown') ||
           target.closest('.bar-overlay') ||
+          target.closest('.legacy-ui-overlay') ||
+          target.closest('.sidebar_cont') ||
           target.closest('.bottom-bar-btn') ||
           target.closest('.left-panel')) {
         return;

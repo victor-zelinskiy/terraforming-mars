@@ -14,28 +14,31 @@
     <global-parameter-value v-if="gameOptions.expansions.venus" :param="globalParameter.VENUS" :value="venus"></global-parameter-value>
     <MoonGlobalParameterValue v-if="moonData" :moonData="moonData"></MoonGlobalParameterValue>
   </div>
-  <a href="#board" :title="$t('Jump to board')">
-      <div class="sidebar_item sidebar_item_shortcut">
-          <i class="sidebar_icon sidebar_icon--board"></i>
-      </div>
-  </a>
-  <a href="#actions" :title="$t('Jump to actions')">
-      <div class="sidebar_item sidebar_item_shortcut">
-          <i class="sidebar_icon sidebar_icon--actions"></i>
-      </div>
-  </a>
-  <a href="#cards" :title="$t('Jump to cards')">
-      <div class="sidebar_item goto-cards sidebar_item_shortcut-long">
-          <i class="sidebar_icon sidebar_icon--cards">
-            <div class="deck-size">🂠{{ deckSize }}<br>🗑{{ discardPileSize }}</div>
-          </i>
-      </div>
-  </a>
-  <a v-if="coloniesCount > 0" href="#colonies" :title="$t('Jump to colonies')">
-      <div class="sidebar_item sidebar_item_shortcut">
-          <i class="sidebar_icon sidebar_icon--colonies"></i>
-      </div>
-  </a>
+  <!--
+    Single toggle button for the legacy UI overlay. The four old jump-
+    anchors (board / actions / cards / colonies) are gone — the fork
+    moved their content into dedicated overlays / fixed-position
+    chrome (board: fixed center, cards: hand overlay, colonies:
+    ColoniesOverlay) so the per-section scroll-anchor model is no
+    longer useful. The remaining "legacy UI" is the radio-form action
+    stack + flow-positioned hand block — both will be removed once
+    every action has a dedicated button (see Action UI Rework note in
+    CLAUDE.md). Until then this button gives the player on-demand
+    access via the same `bar-overlay` pattern used by the log /
+    victory-points overlays. Emits `toggle-legacy-ui`; parent toggles
+    `activeOverlay === 'legacyUi'` and reflects it back via
+    `:legacyUiActive` for the active visual state.
+  -->
+  <div class="sidebar_item sidebar_item_shortcut sidebar_item--legacy-ui"
+       :class="{'sidebar_item--is-active': legacyUiActive}"
+       :title="$t('Show legacy UI')"
+       role="button"
+       tabindex="0"
+       @click="$emit('toggle-legacy-ui')"
+       @keydown.enter.prevent="$emit('toggle-legacy-ui')"
+       @keydown.space.prevent="$emit('toggle-legacy-ui')">
+      <i class="sidebar_icon sidebar_icon--actions"></i>
+  </div>
 
   <language-icon></language-icon>
 
@@ -150,7 +153,18 @@ export default defineComponent({
       type: Array as () => Array<PublicPlayerModel>,
       default: () => [],
     },
+    /**
+     * Active state of the legacy-UI overlay (parent toggles via the
+     * `toggle-legacy-ui` event we emit). Drives the button's
+     * `sidebar_item--is-active` modifier so it reads as "selected"
+     * while the overlay is open.
+     */
+    legacyUiActive: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['toggle-legacy-ui'],
   components: {
     'game-setup-detail': GameSetupDetail,
     'global-parameter-value': GlobalParameterValue,

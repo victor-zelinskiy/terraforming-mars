@@ -3,8 +3,8 @@ import {PlayerInput} from '../PlayerInput';
 import {Space} from '../boards/Space';
 import {DeferredAction} from '../deferredActions/DeferredAction';
 import {Priority} from '../deferredActions/Priority';
-import {SelectSpace} from '../inputs/SelectSpace';
 import {UnderworldExpansion} from './UnderworldExpansion';
+import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 
 export class ClaimSpaceDeferred extends DeferredAction<Space> {
   constructor(
@@ -16,8 +16,11 @@ export class ClaimSpaceDeferred extends DeferredAction<Space> {
   }
 
   public execute(): PlayerInput {
-    return new SelectSpace(this.title,
-      this.claimableSpaces)
+    // Caller pre-filters claimable spaces; helper provides generic
+    // tooltips (occupied / reserved-*) for the rest of the board.
+    // Card-specific filter (whatever caller used) falls through to
+    // generic 'unavailable' which is acceptable here.
+    return createMarsSelectSpace(this.player, this.title, this.claimableSpaces)
       .andThen((space) => {
         UnderworldExpansion.claim(this.player, space);
         this.cb(space);

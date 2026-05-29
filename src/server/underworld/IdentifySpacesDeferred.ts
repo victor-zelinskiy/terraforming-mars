@@ -3,8 +3,8 @@ import {IPlayer} from '../IPlayer';
 import {Space} from '../boards/Space';
 import {Priority} from '../deferredActions/Priority';
 import {RunNTimes} from '../deferredActions/RunNTimes';
-import {SelectSpace} from '../inputs/SelectSpace';
 import {UnderworldExpansion} from './UnderworldExpansion';
+import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 
 export class IdentifySpacesDeferred extends RunNTimes<Space | UndergroundResourceToken> {
   constructor(player: IPlayer, count: number) {
@@ -22,7 +22,16 @@ export class IdentifySpacesDeferred extends RunNTimes<Space | UndergroundResourc
         this.player.game.triggerForAllCards((p, c) => c.onIdentificationByAnyPlayer?.(p, this.player, token));
         return this.next();
       }
-      return new SelectSpace(title, identifiableSpaces)
+      // Identify ALREADY-empty-of-resource cells. Inverse semantics from
+      // Excavate: legal = NOT yet identified. Custom reasons surface the
+      // identify-specific filter (canIdentify) precisely.
+      return createMarsSelectSpace(this.player, title, identifiableSpaces, {
+        customReasoner: (space) => {
+          if (space.undergroundResources !== undefined) return 'already-identified';
+          if (space.excavator !== undefined) return 'already-excavated';
+          return undefined; // generic 'occupied' / 'reserved-colony' handle the rest
+        },
+      })
         .andThen((space) => {
           UnderworldExpansion.identify(this.player.game, space, this.player);
           this.collection.push(space);

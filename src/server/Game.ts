@@ -74,7 +74,7 @@ import {newInitialDraft, newPreludeDraft, newCEOsDraft, newStandardDraft} from '
 import {partition, sum, toID, toName} from '../common/utils/utils';
 import {OrOptions} from './inputs/OrOptions';
 import {SelectOption} from './inputs/SelectOption';
-import {SelectSpace} from './inputs/SelectSpace';
+import {createMarsSelectSpace} from './boards/marsSelectSpaceHelper';
 import {maybeRenamedMilestone} from '../common/ma/MilestoneName';
 import {maybeRenamedAward} from '../common/ma/AwardName';
 import {AresHazards} from './ares/AresHazards';
@@ -939,7 +939,7 @@ export class Game implements IGame, Logger {
     }
     if (this.canAddOcean()) {
       orOptions.options.push(
-        new SelectSpace('Add an ocean', this.board.getAvailableSpacesForOcean(player))
+        createMarsSelectSpace(player, 'Add an ocean', this.board.getAvailableSpacesForOcean(player), {placementType: 'ocean'})
           .annotate(GlobalParameter.OCEANS)
           .andThen((space) => {
             this.addOcean(player, space);
@@ -963,9 +963,24 @@ export class Game implements IGame, Logger {
 
       if (unprotectedHazardSpaces.length > 0) {
         orOptions.options.push(
-          new SelectSpace(
+          createMarsSelectSpace(
+            player,
             'Remove an unprotected hazard',
-            unprotectedHazardSpaces).andThen((space) => {
+            unprotectedHazardSpaces,
+            {
+              customReasoner: (space) => {
+                // Operates on EXISTING hazard tiles. Generic 'occupied'
+                // would be misleading. Three illegal-cell categories:
+                //   - no hazard tile at all → 'has-hazard' reads inverse,
+                //     so fall through to generic 'unavailable' (best fit).
+                //   - has protected hazard → 'protected-hazard'.
+                //   - has non-hazard tile → 'occupied' from generic.
+                if (AresHandler.hasHazardTile(space) && space.tile?.protectedHazard === true) {
+                  return 'protected-hazard';
+                }
+                return undefined;
+              },
+            }).andThen((space) => {
             space.tile = undefined;
             this.log('${0} acted as World Government and removed a hazard tile', (b) => b.player(player));
             return undefined;

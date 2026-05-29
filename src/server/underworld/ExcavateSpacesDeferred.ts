@@ -3,8 +3,8 @@ import {IPlayer} from '../IPlayer';
 import {Space} from '../boards/Space';
 import {Priority} from '../deferredActions/Priority';
 import {RunNTimes} from '../deferredActions/RunNTimes';
-import {SelectSpace} from '../inputs/SelectSpace';
 import {UnderworldExpansion} from '../underworld/UnderworldExpansion';
+import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 
 export class ExcavateSpacesDeferred extends RunNTimes<void> {
   private spaces: Array<Space> | undefined;
@@ -37,7 +37,13 @@ export class ExcavateSpacesDeferred extends RunNTimes<void> {
       }
 
       // slicing a copy because the spaces array is mutated between calls.
-      return new SelectSpace(title, spaces.slice())
+      return createMarsSelectSpace(this.player, title, spaces.slice(), {
+        customReasoner: (space) => {
+          if (space.undergroundResources === undefined) return 'not-identified';
+          if (space.excavator !== undefined) return 'already-excavated';
+          return undefined;
+        },
+      })
         .andThen((space) => {
           UnderworldExpansion.excavate(this.player, space);
           if (this.spaces) {
