@@ -295,17 +295,30 @@ export class MarsBoard extends Board {
     player: IPlayer,
     placementType: PlacementType | undefined,
     legalSpaces: ReadonlyArray<Space>,
-    canAffordOptions?: CanAffordOptions): ReadonlyArray<PlacementIllegalSpace> {
+    options?: {
+      canAffordOptions?: CanAffordOptions,
+      /**
+       * Optional card-specific reasoner. Runs PER illegal cell BEFORE the
+       * generic pipeline. Return a `PlacementIllegalReason` to use it; return
+       * `undefined` to fall through to the generic derivation (occupied /
+       * reserved-* / wrong-terrain / cannot-afford / etc.).
+       *
+       * Use this for filters the generic helper can't see (card-state-
+       * dependent, like Gagarin's `visited` history or St Joseph's cathedral
+       * set). Return undefined for cells where a more basic reason (like
+       * `occupied`) should win — the generic pipeline will catch them.
+       */
+      customReasoner?: (space: Space) => PlacementIllegalReason | undefined,
+    }): ReadonlyArray<PlacementIllegalSpace> {
     const legalIds = new Set(legalSpaces.map((s) => s.id));
     const out: Array<PlacementIllegalSpace> = [];
     for (const space of this.spaces) {
       if (legalIds.has(space.id)) {
         continue;
       }
-      out.push({
-        spaceId: space.id,
-        reason: this.deriveIllegalReason(player, placementType, space, canAffordOptions),
-      });
+      const custom = options?.customReasoner?.(space);
+      const reason = custom ?? this.deriveIllegalReason(player, placementType, space, options?.canAffordOptions);
+      out.push({spaceId: space.id, reason});
     }
     return out;
   }
@@ -341,8 +354,12 @@ export class MarsBoard extends Board {
       if (space.spaceType !== SpaceType.OCEAN) {
         return 'wrong-terrain';
       }
-      // Empty + ocean-type + correct owner → must be excluded for a
-      // reason we can't easily classify (e.g. board variant restriction).
+      if (!MarsBoard.canAffordPlacementBonuses(player, space)) {
+        return 'cannot-afford-bonus';
+      }
+      // Empty + ocean-type + correct owner + affordable bonus → must be
+      // excluded for a reason we can't easily classify (e.g. board
+      // variant restriction).
       return 'unavailable';
     }
 
@@ -391,6 +408,17 @@ export class MarsBoard extends Board {
           return 'not-adjacent-to-yours';
         }
       }
+    }
+
+    // Last specific check before the generic fallback: cells whose
+    // placement bonuses (Hellas ocean cost, Vastitas temperature cost,
+    // Terra Cimmeria colony cost, ± Reds TR tax) the player can't pay.
+    // Used by the upstream affordability filter (#8179) on Mars Nomads /
+    // Gagarin Mobile Base / Survey Mission / Jansson — when one of those
+    // cards forwards its filtered space list through computeIllegalReasons,
+    // this branch gives the player a precise tooltip on the dimmed cells.
+    if (!MarsBoard.canAffordPlacementBonuses(player, space)) {
+      return 'cannot-afford-bonus';
     }
 
     return 'unavailable';

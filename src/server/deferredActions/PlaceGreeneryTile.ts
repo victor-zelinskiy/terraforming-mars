@@ -1,9 +1,9 @@
 import {IPlayer} from '../IPlayer';
-import {SelectSpace} from '../inputs/SelectSpace';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {PlacementType} from '../boards/PlacementType';
 import {Space} from '../boards/Space';
+import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 
 export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
   constructor(
@@ -22,8 +22,7 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
       return undefined;
     }
 
-    const illegalSpaces = board.computeIllegalReasons(this.player, this.on, filtered);
-    return new SelectSpace(this.getTitle(), filtered, illegalSpaces)
+    return createMarsSelectSpace(this.player, this.getTitle(), filtered, {placementType: this.on})
       .andThen((space) => {
         this.player.game.addGreenery(this.player, space);
         this.cb(space);

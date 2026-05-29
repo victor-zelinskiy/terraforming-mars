@@ -6,7 +6,7 @@ import {Card} from '../Card';
 import {Tag} from '../../../common/cards/Tag';
 import {IPlayer} from '../../IPlayer';
 import {UnderworldExpansion} from '../../underworld/UnderworldExpansion';
-import {SelectSpace} from '../../inputs/SelectSpace';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 
 export class ArtesianAquifer extends Card implements IProjectCard {
   constructor() {
@@ -40,8 +40,21 @@ export class ArtesianAquifer extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    return new SelectSpace('Select space to excavate and place ocean',
-      this.availableSpaces(player))
+    return createMarsSelectSpace(
+      player,
+      'Select space to excavate and place ocean',
+      this.availableSpaces(player),
+      {
+        placementType: 'ocean',
+        customReasoner: (space) => {
+          // Excavated ocean reserves are filtered out; generic check
+          // doesn't know about excavator tokens.
+          if (space.spaceType === 'ocean' && space.tile === undefined && space.excavator !== undefined) {
+            return 'already-excavated';
+          }
+          return undefined;
+        },
+      })
       .andThen((space) => {
         UnderworldExpansion.excavate(player, space);
         player.game.addOcean(player, space);

@@ -9,6 +9,7 @@ import {Space} from '../../boards/Space';
 import {SelectSpace} from '../../inputs/SelectSpace';
 import {LogHelper} from '../../LogHelper';
 import {digit} from '../Options';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 
 type Triplet = [Space, Space, Space];
 export class SurveyMission extends PreludeCard {
@@ -95,7 +96,23 @@ export class SurveyMission extends PreludeCard {
     const spaceSet: Set<Space> = new Set(triplets.flat());
     const spaces = Array.from(spaceSet).filter((space) => space.player === undefined);
     spaces.sort((s1, s2) => parseInt(s2.id) - parseInt(s1.id));
-    return new SelectSpace(messages[iteration], spaces)
+    // Card-specific reasoner: cells absent from any valid triangle (first
+    // pick) or breaking the current triangle chain (later picks) get a
+    // precise tooltip. Generic checks still pick up occupied / reserved.
+    const validIds = new Set(spaces.map((s) => s.id));
+    return createMarsSelectSpace(player, messages[iteration], spaces, {
+      placementType: 'land',
+      customReasoner: (space) => {
+        if (space.tile !== undefined && space.tile.protectedHazard !== true) return undefined;
+        if (space.player !== undefined) return undefined;
+        if (space.id === player.game.board.noctisCitySpaceId) return undefined;
+        if (space.spaceType === 'colony') return undefined;
+        if (space.spaceType !== 'land') return undefined;
+        if (!MarsBoard.canAffordPlacementBonuses(player, space)) return 'cannot-afford-bonus';
+        if (validIds.has(space.id)) return undefined; // shouldn't happen — it's in legal set
+        return iteration === 0 ? 'no-triangle-with-this-space' : 'breaks-current-triangle';
+      },
+    })
       .andThen((space) => {
         space.player = player;
         LogHelper.logBoardTileAction(player, space, 'claimed');

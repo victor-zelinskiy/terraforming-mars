@@ -1,7 +1,7 @@
 import {Card} from '../Card';
 import {CardName} from '../../../common/cards/CardName';
-import {SelectSpace} from '../../inputs/SelectSpace';
 import {Space} from '../../boards/Space';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {TileType} from '../../../common/TileType';
 import {CardType} from '../../../common/cards/CardType';
@@ -61,9 +61,37 @@ export class Wetlands extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    return new SelectSpace(
+    const board = player.game.board;
+    return createMarsSelectSpace(
+      player,
       message('Select space for ${0}', (b) => b.card(this)),
-      this.availableSpaces(player))
+      this.availableSpaces(player),
+      {
+        placementType: 'land',
+        customReasoner: (space) => {
+          // Land cells excluded specifically for not enough adjacent
+          // oceans. Generic 'adjacent-to-red-city' still fires correctly
+          // for Red City exclusion (greenery semantics).
+          if (space.tile === undefined &&
+              space.player === undefined &&
+              space.spaceType === 'land' &&
+              space.id !== board.noctisCitySpaceId) {
+            // Red City adjacency must be checked here because generic
+            // deriveIllegalReason only emits this in the 'greenery'
+            // placement branch, and Wetlands uses 'land'.
+            const redCity = board.getSpaceByTileCard(CardName.RED_CITY);
+            if (redCity !== undefined &&
+                board.getAdjacentSpaces(space).some((adj) => adj.id === redCity.id)) {
+              return 'adjacent-to-red-city';
+            }
+            const adjacentOceans = board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length;
+            if (adjacentOceans < 2) {
+              return 'not-enough-adjacent-oceans';
+            }
+          }
+          return undefined;
+        },
+      })
       .andThen((space) => {
         const tile = {
           tileType: TileType.WETLANDS,

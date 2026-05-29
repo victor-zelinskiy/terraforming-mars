@@ -2,8 +2,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Tag} from '../../../common/cards/Tag';
 import {IPlayer} from '../../IPlayer';
-import {SelectSpace} from '../../inputs/SelectSpace';
 import {UnderworldExpansion} from '../../underworld/UnderworldExpansion';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {Card} from '../Card';
 import {IActionCard} from '../ICard';
 import {CardType} from '../../../common/cards/CardType';
@@ -48,7 +48,7 @@ export class DeepFoundations extends Card implements IActionCard {
         title: 'Spend 20 M€ for to excavate a space and place a city',
       })
       .andThen(() => {
-        player.defer(new SelectSpace('Select space for city', availableSpaces).andThen((space) => {
+        player.defer(createMarsSelectSpace(player, 'Select space for city', availableSpaces, {placementType: 'city'}).andThen((space) => {
           if (UnderworldExpansion.excavatableSpaces(player, {ignorePlacementRestrictions: true}).includes(space)) {
             UnderworldExpansion.excavate(player, space);
           }

@@ -10,6 +10,7 @@ import {Resource} from '../../../common/Resource';
 import {SelectSpace} from '../../inputs/SelectSpace';
 import {Tag} from '../../../common/cards/Tag';
 import {UndergroundResourceToken} from '../../../common/underworld/UndergroundResourceToken';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 
 export class Deepmining extends Card implements IProjectCard {
   public readonly title = 'Select an identified space with a steel or titanium bonus';
@@ -69,7 +70,20 @@ export class Deepmining extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer): SelectSpace {
-    return new SelectSpace(this.title, this.getAvailableSpaces(player))
+    // Operates on tokens, not empty cells. Three distinct reasons:
+    //   - no token identified (most cells)
+    //   - already excavated
+    //   - wrong bonus type (token is neither steel nor titanium)
+    // Generic 'occupied' / 'reserved-*' would be misleading.
+    const allTokens: ReadonlyArray<UndergroundResourceToken> = [...this.steelTokens, ...this.titaniumTokens];
+    return createMarsSelectSpace(player, this.title, this.getAvailableSpaces(player), {
+      customReasoner: (space) => {
+        if (space.undergroundResources === undefined) return 'not-identified';
+        if (space.excavator !== undefined) return 'already-excavated';
+        if (!allTokens.includes(space.undergroundResources)) return 'wrong-bonus-type';
+        return undefined;
+      },
+    })
       .andThen((space) => {
         this.spaceSelected(player, space);
         return undefined;

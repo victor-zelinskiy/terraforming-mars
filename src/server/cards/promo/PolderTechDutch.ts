@@ -8,7 +8,7 @@ import {TileType} from '../../../common/TileType';
 import {Resource} from '../../../common/Resource';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {intersection} from '../../../common/utils/utils';
-import {SelectSpace} from '../../inputs/SelectSpace';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {Size} from '../../../common/cards/render/Size';
 import {Tag} from '../../../common/cards/Tag';
 
@@ -54,8 +54,23 @@ export class PolderTechDutch extends CorporationCard implements ICorporationCard
         const greenerySpaces = board.getAvailableSpacesOnLand(player);
         const adjacentSpaces = board.getAdjacentSpaces(space);
         const validGreenerySpaces = intersection(greenerySpaces, adjacentSpaces);
+        const adjacentIds = new Set(adjacentSpaces.map((s) => s.id));
         player.defer(
-          new SelectSpace('Select space for greenery tile', validGreenerySpaces)
+          createMarsSelectSpace(player, 'Select space for greenery tile', validGreenerySpaces, {
+            placementType: 'land', // ignores greenery adjacency-to-yours rule
+            customReasoner: (cell) => {
+              // Land cell, empty, correct owner but not adjacent to the
+              // just-placed ocean — that's the unique reason for this step.
+              if (cell.tile === undefined &&
+                  cell.player === undefined &&
+                  cell.spaceType === 'land' &&
+                  cell.id !== board.noctisCitySpaceId &&
+                  !adjacentIds.has(cell.id)) {
+                return 'not-adjacent-to-new-ocean';
+              }
+              return undefined;
+            },
+          })
             .andThen((greenerySpace) => {
               player.game.addGreenery(player, greenerySpace);
               return undefined;

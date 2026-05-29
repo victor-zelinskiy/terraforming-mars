@@ -3,7 +3,6 @@ import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
-import {SelectSpace} from '../../inputs/SelectSpace';
 import {IActionCard} from '../ICard';
 import {intersection} from '../../../common/utils/utils';
 import {message} from '../../logs/MessageBuilder';
@@ -11,6 +10,7 @@ import {AresHandler} from '../../ares/AresHandler';
 import {BoardType} from '../../boards/BoardType';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {Space} from '../../boards/Space';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 export class MarsNomads extends Card implements IActionCard {
   /*
    * A good page about this card: https://boardgamegeek.com/thread/3154812.
@@ -49,9 +49,11 @@ export class MarsNomads extends Card implements IActionCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    return new SelectSpace(
+    return createMarsSelectSpace(
+      player,
       message('Select space for ${0}', (b) => b.card(this)),
-      player.game.board.getNonReservedLandSpaces())
+      player.game.board.getNonReservedLandSpaces(),
+      {placementType: 'land'})
       .andThen((space) => {
         player.game.nomadSpace = space.id;
         return undefined;
@@ -86,10 +88,37 @@ export class MarsNomads extends Card implements IActionCard {
 
   public action(player: IPlayer) {
     const spaces = this.eliglbleDestinationSpaces(player);
+    // Custom reasoner: cells that are empty + non-reserved land + correct
+    // owner but NOT adjacent to the current nomad position need a clearer
+    // tooltip than the generic 'unavailable'. Generic checks (occupied,
+    // reserved-noctis, owned-by-other) still fire when applicable —
+    // returning undefined falls through.
+    const board = player.game.board;
+    const currentNomadSpace = player.game.nomadSpace !== undefined ?
+      board.getSpaceOrThrow(player.game.nomadSpace) : undefined;
+    const adjacentIds = currentNomadSpace !== undefined ?
+      new Set(board.getAdjacentSpaces(currentNomadSpace).map((s) => s.id)) :
+      new Set<string>();
 
-    return new SelectSpace(
+    return createMarsSelectSpace(
+      player,
       message('Select new space for ${0}', (b) => b.card(this)),
-      spaces)
+      spaces,
+      {
+        placementType: 'land',
+        customReasoner: (space) => {
+          // Cells with tiles / reserved / other-owned: let generic say so.
+          if (space.tile !== undefined) return undefined;
+          if (space.id === board.noctisCitySpaceId) return undefined;
+          if (space.player !== undefined && space.player !== player) return undefined;
+          // Non-land terrain → generic 'wrong-terrain'.
+          if (space.spaceType !== 'land') return undefined;
+          // Now we know: empty, land, owner-OK. Two card-specific reasons:
+          if (!adjacentIds.has(space.id)) return 'not-adjacent-to-nomads';
+          if (!this.canAffordPlacementBonus(player, space)) return 'cannot-afford-bonus';
+          return undefined;
+        },
+      })
       .andThen((space) => {
         player.game.nomadSpace = space.id;
 

@@ -3,9 +3,9 @@ import {CardName} from '../../../../common/cards/CardName';
 import {CardRenderer} from '../../render/CardRenderer';
 import {IPlayer} from '../../../IPlayer';
 import {MAX_OXYGEN_LEVEL} from '../../../../common/constants';
-import {SelectSpace} from '../../../inputs/SelectSpace';
 import {Units} from '../../../../common/Units';
 import {message} from '../../../logs/MessageBuilder';
+import {createMarsSelectSpace} from '../../../boards/marsSelectSpaceHelper';
 
 
 export class ConvertPlants extends StandardActionCard {
@@ -43,9 +43,11 @@ export class ConvertPlants extends StandardActionCard {
   }
 
   public action(player: IPlayer) {
-    return new SelectSpace(
+    return createMarsSelectSpace(
+      player,
       message('Convert ${0} plants into greenery', (b) => b.number(player.plantsNeededForGreenery)),
-      player.game.board.getAvailableSpacesForGreenery(player))
+      player.game.board.getAvailableSpacesForGreenery(player),
+      {placementType: 'greenery'})
       .andThen((space) => {
         this.actionUsed(player);
         player.game.addGreenery(player, space);
