@@ -17,7 +17,7 @@
     <h2 class="initial-draft-mini-popup__title"
         v-i18n>Start the game with the selected cards?</h2>
     <p class="initial-draft-mini-popup__body"
-       v-i18n>Your choices will be sent to the server. After the game begins, the initial draft cannot be replayed.</p>
+       v-i18n>Once the game begins, your starting selection cannot be changed.</p>
     <div class="initial-draft-mini-popup__actions">
       <button class="initial-draft-mini-popup__btn initial-draft-mini-popup__btn--secondary"
               @click="$emit('cancel')">

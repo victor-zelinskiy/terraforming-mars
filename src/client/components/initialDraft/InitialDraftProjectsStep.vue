@@ -139,6 +139,7 @@ export default defineComponent({
   emits: {
     'confirm': (cards: ReadonlyArray<CardName>) => Array.isArray(cards),
     'skip-request': () => true,
+    'selection-change': (cards: ReadonlyArray<CardName>) => Array.isArray(cards),
   },
   data(): DataModel {
     return {
@@ -151,6 +152,16 @@ export default defineComponent({
       handler() {
         this.selected = this.selected.filter((name) =>
           this.playerinput.cards.some((c) => c.name === name));
+      },
+    },
+    // Отдаём наружу любое изменение selected, чтобы overlay сохранил
+    // working state — иначе при переключении через pill (например, в
+    // прологи) локальный selected[] терялся, и игрок возвращался к
+    // проектам с очищенным выбором. Также pill 'projects' показывает
+    // живой count «Выбрано: N из 10».
+    selected: {
+      handler(now: ReadonlyArray<CardName>) {
+        this.$emit('selection-change', [...now]);
       },
     },
   },

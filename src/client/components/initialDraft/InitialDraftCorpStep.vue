@@ -35,6 +35,7 @@
       <div v-for="card in cards"
            :key="card.name"
            class="card-selection__card-slot"
+           :class="{'card-selection__card-slot--selected': card.name === preSelected}"
            @mouseenter="hoveredName = card.name"
            @mouseleave="hoveredName = undefined">
         <div class="card-selection__card-clickable"
@@ -87,6 +88,13 @@ export default defineComponent({
     playerinput: {
       type: Object as PropType<SelectCardModel>,
       required: true,
+    },
+    // Текущий committed выбор (или undefined, если шаг открыт впервые).
+    // Подсвечивает соответствующую карту ribbon'ом «ВЫБРАНА» при reopen
+    // через pill, чтобы игрок сразу видел свой предыдущий выбор.
+    preSelected: {
+      type: String as PropType<CardName | undefined>,
+      default: undefined,
     },
   },
   emits: {

@@ -43,6 +43,28 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
 }
 
 /*
+ * Когда открыт `.top-bar-dropdown` (Достижения / Награды / Стандартные
+ * проекты), все «awaiting» / «committed»-пиллы уезжают по z-index ниже
+ * него. Без этого они перекрывают overlay'и: dropdown'ы сидят в
+ * stacking context'е `.top-bar-buttons` (z=105) с локальным z=120,
+ * а пиллы — в `<Teleport to body>` на root-уровне (z=107 для mandatory
+ * pill, z=12500 для initial-draft pill stack), поэтому фактически
+ * рендерятся ВЫШЕ dropdown'a. При открытом dropdown'е игрок выбрал
+ * именно его — пиллы становятся временно вторичными и должны исчезнуть
+ * под содержимым overlay'a.
+ *
+ * `:has()` поддержка: Chrome 105+, Safari 15.4+, Firefox 121+ (уже
+ * используется в проекте, см. правило выше про pointer-events).
+ */
+body:has(.top-bar-dropdown) {
+    .mandatory-input-modal-pill,
+    .placement-banner,
+    .initial-draft-pills {
+        z-index: 100;
+    }
+}
+
+/*
  * The modal wrapper itself owns the overflow when content is taller than
  * the viewport. Centering via flex while ALSO allowing scroll requires
  * the modal to be the scroll container — the inner card just has natural
@@ -74,11 +96,18 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
     .mandatory-input-modal__backdrop {
         opacity: 0;
         pointer-events: none;
+        /* Performance fix — выключаем backdrop-filter когда невидим
+         * (см. подробное обоснование в --minimized секции). */
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
     .mandatory-input-modal__card {
         opacity: 0;
         pointer-events: none;
         transform: scale(0.96);
+        /* Performance: тяжёлые box-shadow с 60px blur пересчитывались
+         * на каждом кадре transition'а — убираем при невидимом state. */
+        box-shadow: none;
         transition: opacity 200ms ease, transform 200ms ease;
     }
 }
@@ -102,11 +131,27 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
     .mandatory-input-modal__backdrop {
         opacity: 0;
         pointer-events: none;
+        /*
+         * Performance fix (v40-r3): backdrop-filter — самый дорогой эффект
+         * в CSS (full-viewport GPU blur каждый кадр). При minimized
+         * backdrop невидим (opacity 0), но blur всё ещё рассчитывается.
+         * Выключаем явно — анимация opacity идёт без blur. Игрок этого
+         * не видит (backdrop за 200ms уходит в 0), но GPU освобождается
+         * и старший modal card transition становится плавным.
+         */
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
     .mandatory-input-modal__card {
         opacity: 0;
         pointer-events: none;
         transform: translateY(-40px) scale(0.92);
+        /*
+         * Тяжёлые тени card'а тоже убираем при невидимом state —
+         * box-shadow с 60px blur на анимируемом элементе пересчитывается
+         * за каждый кадр. Без этого выключения transform-animation лагал.
+         */
+        box-shadow: none;
     }
 }
 
@@ -120,6 +165,17 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
     -webkit-backdrop-filter: blur(2px);
     pointer-events: auto;
     animation: mandatory-input-modal-backdrop-in 180ms ease-out;
+    /*
+     * Performance hints: `will-change` поднимает backdrop в собственный
+     * compositor layer, чтобы opacity-transition'ы шли purely на GPU без
+     * repaint всего viewport'a. `translateZ(0)` forces composite даже в
+     * браузерах, где will-change игнорируется. Опасно ставить
+     * will-change на огромных элементах надолго (растёт VRAM), но в
+     * нашем случае backdrop существует только на время modal'a, что
+     * приемлемо.
+     */
+    will-change: opacity;
+    transform: translateZ(0);
     transition: opacity 200ms ease;
 }
 
@@ -151,6 +207,15 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
         0 0 60px rgba(106, 176, 230, 0.12);
     border-radius: 4px;
     animation: mandatory-input-modal-card-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    /*
+     * Performance: `will-change: opacity, transform` поднимает card в
+     * собственный compositor layer заранее, чтобы первый кадр transform-
+     * анимации не дёргался — иначе браузер выделяет layer В МОМЕНТ
+     * начала анимации, и кадры пропускаются. translate3d форсит layer
+     * даже без will-change support'a. Без них transform+opacity transition
+     * + большие box-shadow blur'ы (60px) пересчитывали shadow per frame.
+     */
+    will-change: opacity, transform;
     /* Transition picker-mode opacity/transform changes; the mount-in
      * animation above runs only once, transitions handle subsequent state. */
     transition: opacity 200ms ease, transform 200ms ease;
@@ -352,6 +417,13 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
     /* Default (modal not minimized): hidden up & out, not interactable. */
     opacity: 0;
     pointer-events: none;
+    /*
+     * Performance: will-change + composite layer hint, чтобы entry-
+     * анимация (opacity 0→1 + transform translate) шла на GPU без
+     * repaint'а pill chrome (box-shadow с 32px blur — дорого считать
+     * на каждом кадре).
+     */
+    will-change: opacity, transform;
     transition: opacity 220ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
 
     &--visible {

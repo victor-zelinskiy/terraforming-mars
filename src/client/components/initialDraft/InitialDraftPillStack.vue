@@ -71,6 +71,29 @@ export default defineComponent({
       type: Array as PropType<ReadonlyArray<CardName> | undefined>,
       default: undefined,
     },
+    // In-flight выбор прологов / проектов — показывается в pill'e
+    // когда шаг visited, но ещё не подтверждён. Позволяет показать
+    // живой counter «Выбрано: N» и не терять выбор при переключении.
+    workingPreludes: {
+      type: Array as PropType<ReadonlyArray<CardName>>,
+      default: () => [],
+    },
+    workingProjects: {
+      type: Array as PropType<ReadonlyArray<CardName>>,
+      default: () => [],
+    },
+    // Visited флаги. Pill для prelude / projects показывается как
+    // только игрок открыл шаг хотя бы раз — даже без commit'а — чтобы
+    // можно было вернуться обратно через pill, а не вынуждать жать
+    // «Подтвердить» там, где игрок ничего не менял.
+    visitedPrelude: {
+      type: Boolean,
+      default: false,
+    },
+    visitedProjects: {
+      type: Boolean,
+      default: false,
+    },
     // Эти три флага говорят, существует ли соответствующий шаг
     // в принципе (зависит от gameOptions сервера). Без флага у
     // pill'а нет данных, но и `committed*` уже не будет задан.
@@ -109,12 +132,18 @@ export default defineComponent({
           tooltip: translateText('Click to change corporation'),
         });
       }
-      if (this.hasPrelude && this.committedPreludes.length > 0) {
+      // Prelude pill: показывается если committed (preludes выбраны)
+      // ИЛИ visited (открыт хоть раз). Visited-without-commit case даёт
+      // игроку возможность вернуться обратно в проекты после похода
+      // в прологи, не вынуждая «Подтвердить» там, где он ничего не менял.
+      if (this.hasPrelude && (this.committedPreludes.length > 0 || this.visitedPrelude)) {
+        const count = this.committedPreludes.length > 0 ?
+          this.committedPreludes.length :
+          this.workingPreludes.length;
         result.push({
           step: 'prelude',
           label: translateText('Preludes'),
-          value: translateTextWithParams(
-            '${0} selected', [String(this.committedPreludes.length)]),
+          value: translateTextWithParams('${0} selected', [String(count)]),
           tooltip: translateText('Click to change preludes'),
         });
       }
@@ -126,11 +155,20 @@ export default defineComponent({
           tooltip: translateText('Click to change CEO'),
         });
       }
-      if (this.hasProjects && this.committedProjects !== undefined) {
-        const count = this.committedProjects.length;
-        const value = count === 0 ?
-          translateText('Skipped') :
-          translateTextWithParams('${0} cards', [String(count)]);
+      // Projects pill: те же правила, что и prelude. Committed
+      // («N карт» / «Пропущено») имеет приоритет над visited
+      // («Выбрано: N»).
+      if (this.hasProjects && (this.committedProjects !== undefined || this.visitedProjects)) {
+        let value: string;
+        if (this.committedProjects !== undefined) {
+          const count = this.committedProjects.length;
+          value = count === 0 ?
+            translateText('Skipped') :
+            translateTextWithParams('${0} cards', [String(count)]);
+        } else {
+          value = translateTextWithParams(
+            '${0} selected', [String(this.workingProjects.length)]);
+        }
         result.push({
           step: 'projects',
           label: translateText('Projects'),
