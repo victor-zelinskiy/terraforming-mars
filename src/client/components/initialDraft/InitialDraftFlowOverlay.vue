@@ -76,6 +76,7 @@
                                      :hasCeo="ceoInput !== undefined"
                                      :hasProjects="projectsInput !== undefined"
                                      @confirm="onFinalConfirm"
+                                     @minimize="onFinalMinimize"
                                      @edit-step="onEditStep" />
   </MandatoryInputModal>
 
@@ -492,6 +493,17 @@ export default defineComponent({
     onEditStep(step: 'corp' | 'prelude' | 'ceo' | 'projects') {
       this.finalConfirmDismissed = true;
       this.activeStepOverride = step;
+    },
+    /*
+     * «Свернуть» — кастомная dismiss-операция (не штатный
+     * MandatoryInputModal minimize, который бы дал дублирующий
+     * mandatory-pill параллельно с pill «Финальная сводка»). Просто
+     * закрываем summary через dismissed-флаг; pill stack pill final
+     * остаётся видимым (тот рендерится при `finalSummaryVisited`),
+     * игрок возвращается в summary кликом по нему.
+     */
+    onFinalMinimize() {
+      this.finalConfirmDismissed = true;
     },
     onFinalConfirm() {
       this.submitFinal();

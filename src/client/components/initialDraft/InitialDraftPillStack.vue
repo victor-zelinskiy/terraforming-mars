@@ -28,8 +28,10 @@
               @click="$emit('reopen', pill.step)">
         <span class="initial-draft-pill__dot" aria-hidden="true"></span>
         <span class="initial-draft-pill__label">{{ pill.label }}</span>
-        <span class="initial-draft-pill__sep">/</span>
-        <span class="initial-draft-pill__value">{{ pill.value }}</span>
+        <template v-if="pill.value">
+          <span class="initial-draft-pill__sep">/</span>
+          <span class="initial-draft-pill__value">{{ pill.value }}</span>
+        </template>
         <span class="initial-draft-pill__icon" aria-hidden="true">↺</span>
       </button>
     </div>
@@ -186,12 +188,16 @@ export default defineComponent({
         });
       }
       // Final summary pill — последний в стопке. Появляется только
-      // после первого открытия summary; click возвращает к ней.
+      // после первого открытия summary; click возвращает к ней. Value
+      // оставляем пустой — label «Финальная сводка» сам по себе говорит
+      // достаточно, а value добавило бы лишнюю длину к и без того
+      // длинному pill'у (с value «Готова» стопка не помещалась по
+      // ширине, см. отзыв).
       if (this.showFinalPill) {
         result.push({
           step: 'final',
           label: translateText('Final summary'),
-          value: translateText('Ready'),
+          value: '',
           tooltip: translateText('Click to return to the final summary'),
         });
       }
