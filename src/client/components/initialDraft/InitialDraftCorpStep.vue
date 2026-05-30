@@ -16,33 +16,38 @@
         обязан явно нажать «Выбрать», чтобы зафиксировать новый выбор.
         Без явного commit'а изменения не применяются.
   -->
-  <div class="card-selection initial-draft-step initial-draft-step--corp">
-    <header class="card-selection__header">
-      <div></div>
-      <div class="card-selection__title-group">
-        <h2 class="card-selection__title" v-i18n>Select a corporation</h2>
-        <span class="card-selection__counter">{{ counterText }}</span>
+  <div class="card-selection initial-draft-step initial-draft-step--corp
+              initial-draft-pick initial-draft-pick--corp"
+       :class="{'initial-draft-pick--has-money': hoverMoneyValue !== undefined}">
+    <header class="card-selection__header initial-draft-pick__header">
+      <div class="initial-draft-pick__title-block">
+        <h2 class="card-selection__title initial-draft-pick__title"
+            v-i18n>Select a corporation</h2>
+        <span class="card-selection__counter initial-draft-pick__counter">{{ counterText }}</span>
       </div>
       <div v-if="hoverMoneyValue !== undefined"
-           class="initial-draft-step__money-panel"
+           class="initial-draft-step__money-panel initial-draft-pick__money"
            :title="$t('Starting M€')">
         <div class="initial-draft-step__money-label" v-i18n>Starting M€</div>
         <div class="initial-draft-step__money-value">{{ hoverMoneyValue }}</div>
       </div>
     </header>
 
-    <div class="card-selection__cards">
+    <div class="card-selection__cards initial-draft-pick__grid">
       <div v-for="card in cards"
            :key="card.name"
-           class="card-selection__card-slot"
-           :class="{'card-selection__card-slot--selected': card.name === preSelected}"
+           class="card-selection__card-slot initial-draft-pick__card-unit"
+           :class="{
+             'card-selection__card-slot--selected': card.name === preSelected,
+             'initial-draft-pick__card-unit--selected': card.name === preSelected,
+           }"
            @mouseenter="hoveredName = card.name"
            @mouseleave="hoveredName = undefined">
-        <div class="card-selection__card-clickable"
+        <div class="card-selection__card-clickable initial-draft-pick__card-clickable"
              @click.capture.stop="openFullscreen(card)">
           <Card :card="card" />
         </div>
-        <button class="card-selection__card-action-btn"
+        <button class="card-selection__card-action-btn initial-draft-pick__card-btn"
                 @click.stop="onActionClick(card.name)"
                 v-i18n>Select</button>
       </div>

@@ -370,9 +370,36 @@ body.initial-draft-active {
     50%      { transform: scale(1.2); opacity: 1; }
 }
 
+/*
+ * Spinner для awaiting-кнопки в финальном summary. Простой rotate;
+ * compositor-only через transform.
+ */
+@keyframes initial-draft-summary-spinner {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .initial-draft-rail__status-dot {
+    .initial-draft-rail__status-dot,
+    .initial-draft-summary__btn-spinner {
         animation: none;
+    }
+}
+
+/*
+ * Awaiting-state блокировка pill stack'a — клики не проходят на
+ * step-pills (corp/prelude/ceo/projects), их цвета приглушены.
+ * Pill «Финальная сводка» (`--final`) остаётся полностью рабочей: она
+ * нужна, чтобы восстановить свёрнутое окно «ожидаем игроков».
+ * Body.initial-draft-awaiting-others ставится overlay watcher'ом
+ * `awaitingOtherPlayers`. Контракт: «после submit'a выбор изменить
+ * нельзя, но окно ожидания должно оставаться доступным».
+ */
+body.initial-draft-awaiting-others {
+    .initial-draft-pill:not(.initial-draft-pill--final) {
+        opacity: 0.45;
+        pointer-events: none;
+        cursor: not-allowed;
     }
 }
 
@@ -384,20 +411,10 @@ body.initial-draft-active {
  * мониторе даёт ~50% viewport под каждую карту; на меньших экранах
  * media queries понижают zoom вниз до 0.95.
  */
-.initial-draft-step--corp {
-    .card-selection__card-clickable .card-container {
-        zoom: 1.4;
-    }
-    @media (max-height: 900px) {
-        .card-selection__card-clickable .card-container { zoom: 1.2; }
-    }
-    @media (max-height: 800px) {
-        .card-selection__card-clickable .card-container { zoom: 1.05; }
-    }
-    @media (max-height: 700px) {
-        .card-selection__card-clickable .card-container { zoom: 0.95; }
-    }
-}
+/*
+ * (Старый блок .initial-draft-step--corp перенесён в общий
+ * .initial-draft-pick framework — см. ниже секцию `&--corp`.)
+ */
 
 /*
  * Turn-order бэйдж определён глобально, но в обычной партии скрыт.
@@ -549,48 +566,552 @@ body.initial-draft-active {
      * Подсвечиваем «Останется» красным, когда денег не хватает на
      * выбранный набор. Confirm-кнопка автоматически дизейблится по
      * `canConfirm` — этот класс — чистая визуальная индикация.
+     * Premium warning state — мягкий amber-red glow вместо кислотного.
      */
     &__money-panel--insufficient &__money-cell--remaining &__money-value {
         color: #ff8d72;
-        text-shadow: 0 0 10px rgba(255, 141, 114, 0.55);
+        text-shadow:
+            0 0 10px rgba(255, 141, 114, 0.55),
+            0 0 20px rgba(255, 100, 80, 0.25);
+        animation: initial-draft-money-warn 1.6s ease-in-out infinite;
+    }
+
+    &__money-panel--insufficient &__money-cell--remaining &__money-label {
+        color: rgba(255, 180, 160, 0.85);
+    }
+}
+
+@keyframes initial-draft-money-warn {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.75; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .initial-draft-step__money-panel--insufficient .initial-draft-step__money-cell--remaining .initial-draft-step__money-value {
+        animation: none;
     }
 }
 
 /*
- * Сетка карт в проектном шаге — 5 в ряд × 2 ряда. Перекрывает
- * flex-row из `.card-selection__cards` (см. card_selection.less)
- * только когда родитель — `.initial-draft-step--projects`.
+ * Initial-draft projects step — premium UX/UI реворк.
+ * Заменяет дефолтный `card-selection` layout на cleaner sci-fi
+ * композицию с тремя ярусами:
+ *   1. header — title + counter (слева) + cockpit money panel (справа),
+ *      разделены тонким cyan-аккорд'ом;
+ *   2. card grid — 5×2 cells; каждая cell = card-clickable + кнопка-
+ *      выбора объединены в один premium unit с фиксированной
+ *      геометрией (одинаковая высота, aligned bottom, мягкий glass);
+ *   3. footer — primary CTA «Купить · N карт · M€» с интегрированной
+ *      ценой и premium glow.
  *
- * Карты немного сжаты zoom-multiplier'ом — иначе 5 в ряд не
- * помещаются на ноутбучных экранах без горизонтального скролла.
- * Дополнительные media queries уменьшают зум ещё, чтобы выдержать
- * меньшие viewports.
+ * Селекторы используют existing card-selection классы как hook'и
+ * (selected / disabled / hover), чтобы не дублировать data-bindings
+ * в шаблоне, и добавляют BEM-namespaced overrides
+ * (.initial-draft-projects__*) для специфики этого шага.
  */
-.initial-draft-step--projects {
-    .card-selection__cards {
+/*
+ * ===================================================================
+ *  .initial-draft-pick — reusable premium framework для модалов
+ *  выбора карт в initial draft (corp / prelude / ceo / projects).
+ *
+ *  Все 4 step'a используют одинаковую структуру:
+ *    .initial-draft-pick
+ *      .initial-draft-pick__header
+ *        .initial-draft-pick__title-block
+ *          .initial-draft-pick__title
+ *          .initial-draft-pick__counter (central pill под title)
+ *        .initial-draft-pick__money (optional, right side)
+ *      .initial-draft-pick__grid
+ *        .initial-draft-pick__card-unit  ← single «card slot» unit
+ *          .initial-draft-pick__card-clickable
+ *            <Card />
+ *          .initial-draft-pick__card-btn  ← per-card toggle
+ *      .initial-draft-pick__footer (optional, only multi-select)
+ *        .initial-draft-pick__confirm   ← primary CTA
+ *
+ *  Variants через --corp / --prelude / --ceo / --projects
+ *  переопределяют только zoom карты, grid layout и пары мелких
+ *  вещей; основа стилей единая. Это и есть «единый visual language
+ *  для card-selection modal»: после старта партии можно добавить
+ *  любой новый шаг просто навешав .initial-draft-pick--что-то.
+ * ===================================================================
+ */
+.initial-draft-pick {
+    /* ───────────────────────── HEADER ──────────────────────────── */
+    /*
+     * Header — 3-grid с центральной title-зоной. Колонки [1fr auto 1fr]:
+     * первая и третья — equal-width spacer'ы, центральная — title-block.
+     * Это держит title идеально по центру модала. Money panel, когда
+     * она есть, садится в правую 1fr-колонку с `justify-self: end` —
+     * НЕ перекрывает title (он в auto-колонке, money в отдельной).
+     * Когда money нет, title-block span'ит все 3 колонки и остаётся
+     * центрирован.
+     */
+    &__header {
         display: grid;
-        grid-template-columns: repeat(5, auto);
-        grid-template-rows: repeat(2, auto);
-        gap: 16px 14px;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 16px;
+        padding: 14px 28px;
+        margin-bottom: 4px;
+        border-bottom: 1px solid rgba(106, 176, 230, 0.22);
+        background:
+            linear-gradient(180deg,
+                rgba(20, 36, 56, 0.42) 0%,
+                rgba(14, 24, 38, 0.0) 100%);
+    }
+
+    /* Title-block в центральной auto-колонке header'a — flex column
+     * с counter pill'ом под заголовком. Center'ed относительно всего
+     * модала за счёт симметричных 1fr spacer'ов слева и справа. */
+    &__title-block {
+        grid-column: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        text-align: center;
+    }
+
+    /* Когда money panel отсутствует, title spans all 3 columns,
+     * justify-self center держит центрирование. */
+    &:not(&--has-money) &__title-block {
+        grid-column: 1 / -1;
+        justify-self: center;
+    }
+
+    &__title {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 3.5px;
+        text-transform: uppercase;
+        color: #f0f6ff;
+        text-shadow: 0 0 14px rgba(140, 190, 235, 0.4);
+        line-height: 1.1;
+    }
+
+    /*
+     * Central counter pill «Выбрано X из Y» / «1 корпорация из N» —
+     * sci-fi плашка под заголовком. Раньше использовалась только в
+     * старом prelude модале — теперь стандарт для всех шагов.
+     */
+    &__counter {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 14px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 2.2px;
+        text-transform: uppercase;
+        color: rgba(200, 225, 245, 0.92);
+        background: rgba(20, 36, 56, 0.65);
+        border: 1px solid rgba(106, 176, 230, 0.32);
+        border-radius: 2px;
+        clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+        line-height: 1.4;
+        margin: 0;
+    }
+
+    /*
+     * Money cockpit живёт в правой 1fr-колонке header'a, justify-self: end
+     * прижимает её к правому краю. Title-block в центральной auto-
+     * колонке остаётся независимым — money НЕ перекрывает заголовок.
+     */
+    &__money {
+        grid-column: 3;
+        justify-self: end;
+        flex-shrink: 0;
+
+        .initial-draft-step__money-value {
+            transition: color 240ms ease, text-shadow 240ms ease;
+        }
+    }
+
+    /* ───────────────────────── GRID ────────────────────────────── */
+    &__grid {
+        display: grid;
         justify-content: center;
+        align-content: start;
+        padding: 18px 24px 8px;
         flex-wrap: initial;
     }
 
-    .card-selection__card-clickable .card-container {
-        zoom: 0.78;
+    /* ───────────────────────── CARD UNIT ───────────────────────── */
+    &__card-unit {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        padding: 6px 6px 8px;
+        border-radius: 4px;
+        background: transparent;
+        position: relative;
+        transition:
+            transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+            background 200ms ease,
+            box-shadow 200ms ease;
+
+        /* Перебиваем legacy ribbon из card_selection.less. */
+        &::after { display: none !important; }
+        &::before { display: none !important; }
+
+        &:hover:not(.initial-draft-pick__card-unit--disabled) {
+            transform: translateY(-4px);
+            background: rgba(28, 50, 76, 0.28);
+            box-shadow:
+                inset 0 0 0 1px rgba(106, 176, 230, 0.16),
+                0 6px 18px rgba(0, 0, 0, 0.35);
+        }
     }
 
-    @media (max-width: 1400px) {
-        .card-selection__card-clickable .card-container { zoom: 0.7; }
+    /*
+     * Selected — единый premium state для всех модалок: cyan halo,
+     * gradient glass background, чуть приподнятая карта. Никакого
+     * ribbon'a над картой, чтобы не конкурировать с cost/tag'ами.
+     */
+    &__card-unit--selected {
+        background:
+            linear-gradient(180deg,
+                rgba(40, 75, 110, 0.55) 0%,
+                rgba(20, 40, 60, 0.38) 100%);
+        box-shadow:
+            inset 0 0 0 1px rgba(140, 200, 235, 0.55),
+            inset 0 0 0 2px rgba(106, 176, 230, 0.2),
+            0 0 22px rgba(106, 176, 230, 0.34);
+
+        .initial-draft-pick__card-clickable > .card-container {
+            filter:
+                drop-shadow(0 0 6px rgba(140, 200, 235, 0.3))
+                brightness(1.04);
+        }
+
+        &:hover {
+            transform: translateY(-4px);
+            box-shadow:
+                inset 0 0 0 1px rgba(180, 220, 250, 0.7),
+                inset 0 0 0 2px rgba(106, 176, 230, 0.28),
+                0 0 28px rgba(106, 176, 230, 0.45);
+        }
     }
 
-    @media (max-width: 1200px) {
-        .card-selection__card-clickable .card-container { zoom: 0.62; }
+    /*
+     * Disabled state — карта остаётся непрозрачной (opacity: 1),
+     * чтобы поле Марса / backdrop НЕ просвечивали сквозь неё. Вместо
+     * прозрачности — desaturate + затемнение filter'ом: карта читаемая,
+     * но визуально приглушённая, чётко отличается от доступной.
+     */
+    &__card-unit--disabled {
+        filter: saturate(0.35) brightness(0.7) contrast(0.92);
+        cursor: not-allowed;
+
+        .initial-draft-pick__card-clickable { cursor: not-allowed; }
     }
 
-    @media (max-width: 1000px) {
-        .card-selection__card-clickable .card-container { zoom: 0.55; }
+    &__card-clickable {
+        cursor: pointer;
+        > .card-container {
+            margin: 0;
+            transition: filter 200ms ease;
+        }
     }
+
+    /* ───────────────────────── CARD BUTTON ─────────────────────── */
+    &__card-btn {
+        margin-top: 10px;
+        height: 30px;
+        padding: 0 16px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        line-height: 1;
+        cursor: pointer;
+        position: relative;
+        isolation: isolate;
+        border: none;
+        color: #e8f1fb;
+        font-family: Prototype, Ubuntu, sans-serif;
+        clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(120, 170, 215, 0.75) 0%,
+            rgba(45, 80, 115, 0.28) 50%,
+            rgba(95, 140, 180, 0.55) 100%);
+        transition: filter 150ms ease, transform 100ms ease;
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 1.5px;
+            clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+            background: linear-gradient(180deg,
+                rgba(14, 28, 46, 0.95) 0%,
+                rgba(8, 18, 30, 0.95) 100%);
+            z-index: -1;
+        }
+
+        &:hover:not(:disabled) { filter: brightness(1.16); }
+        &:active:not(:disabled) { transform: translateY(1px); }
+
+        &:disabled,
+        &.initial-draft-pick__card-btn--disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+            filter: saturate(0.4);
+        }
+    }
+
+    /* Selected — amber palette: «снимет выбор» visual signal. */
+    &__card-btn--selected {
+        color: #fff5e6;
+        background: linear-gradient(180deg,
+            rgba(230, 175, 105, 0.85) 0%,
+            rgba(140, 95, 50, 0.32) 50%,
+            rgba(200, 145, 80, 0.6) 100%);
+        text-shadow: 0 0 8px rgba(255, 200, 130, 0.55);
+
+        &::before {
+            background: linear-gradient(180deg,
+                rgba(40, 26, 12, 0.96) 0%,
+                rgba(28, 18, 8, 0.96) 100%);
+        }
+    }
+
+    /* ───────────────────────── FOOTER + CTA ────────────────────── */
+    &__footer {
+        padding: 14px 28px 20px;
+        margin-top: 6px;
+        border-top: 1px solid rgba(106, 176, 230, 0.2);
+        background: linear-gradient(0deg,
+            rgba(20, 36, 56, 0.42) 0%,
+            rgba(14, 24, 38, 0.0) 100%);
+        display: flex;
+        justify-content: center;
+    }
+
+    &__confirm {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        height: 50px;
+        padding: 0 32px;
+        border: none;
+        color: #f4faff;
+        cursor: pointer;
+        position: relative;
+        isolation: isolate;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        line-height: 1;
+        clip-path: polygon(5% 0%, 100% 0%, 95% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(180, 220, 245, 0.92) 0%,
+            rgba(95, 145, 185, 0.36) 50%,
+            rgba(150, 195, 225, 0.72) 100%);
+        text-shadow: 0 0 12px rgba(140, 190, 235, 0.6);
+        box-shadow: 0 0 26px rgba(140, 190, 235, 0.32);
+        transition: filter 150ms ease, transform 150ms ease;
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 1.5px;
+            clip-path: polygon(5% 0%, 100% 0%, 95% 100%, 0% 100%);
+            background: linear-gradient(180deg,
+                rgba(14, 32, 52, 0.96) 0%,
+                rgba(8, 20, 34, 0.96) 100%);
+            z-index: -1;
+        }
+
+        &:hover:not(:disabled) {
+            filter: brightness(1.18);
+            transform: translateY(-1px);
+        }
+        &:active:not(:disabled) { transform: translateY(0); }
+
+        &:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+            filter: saturate(0.45);
+            box-shadow: none;
+        }
+    }
+
+    &__confirm-label { letter-spacing: 3.4px; }
+
+    &__confirm-count {
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 1.6px;
+        color: rgba(220, 240, 255, 0.85);
+        padding: 0 12px;
+        position: relative;
+
+        &::before,
+        &::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 1px;
+            height: 14px;
+            background: rgba(140, 190, 235, 0.35);
+            transform: translateY(-50%);
+        }
+        &::before { left: 0; }
+        &::after { right: 0; }
+    }
+
+    &__confirm-coin { margin-left: 4px; }
+
+    /*
+     * Variants с small card count (corp 2, prelude 4, ceo 3) используют
+     * flex-row + center + wrap. Это предсказуемо размещает small
+     * collection без auto-fit квирков (которые при недостатке ширины
+     * сжимали grid в одну колонку и вызывали vertical scroll).
+     */
+
+    /* ─────────────── Variant: CORPORATION (single, 2 large cards) ─ */
+    &--corp {
+        .initial-draft-pick__grid {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 32px;
+        }
+        .initial-draft-pick__card-clickable .card-container { zoom: 1.05; }
+
+        @media (max-height: 900px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.95; }
+        }
+        @media (max-height: 800px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.85; }
+        }
+        @media (max-height: 720px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.76; }
+        }
+    }
+
+    /* ─────────────── Variant: PRELUDES (multi 2-of-N, ~4 cards) ── */
+    &--prelude {
+        .initial-draft-pick__grid {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 24px 20px;
+        }
+        .initial-draft-pick__card-clickable .card-container { zoom: 0.95; }
+
+        @media (max-height: 900px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.85; }
+        }
+        @media (max-height: 800px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.76; }
+        }
+        @media (max-width: 1100px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.7; }
+        }
+    }
+
+    /* ─────────────── Variant: CEO (single 1-of-N, ~3 cards) ────── */
+    &--ceo {
+        .initial-draft-pick__grid {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 28px;
+        }
+        .initial-draft-pick__card-clickable .card-container { zoom: 1.05; }
+
+        @media (max-height: 900px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.95; }
+        }
+        @media (max-height: 800px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.85; }
+        }
+        @media (max-height: 720px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.76; }
+        }
+    }
+
+    /* ─────────────── Variant: PROJECTS (multi 0-10, 5×2 grid) ────
+     *
+     * Высокие 5×2 grid + header + footer не помещается в стандартный
+     * 1080p viewport при zoom 0.78 — appearance browser-scroll'a была
+     * следствием этого. Опускаем base zoom + добавляем height-ladder
+     * и сжимаем card-unit padding специально под projects, чтобы 10
+     * карт + header + footer влезали без scroll'a.
+     */
+    &--projects {
+        /*
+         * Заголовок «Выбрать стартовые карты для покупки» — самый длинный
+         * среди всех step'ов. Уменьшаем шрифт + letter-spacing именно
+         * для projects, чтобы заголовок не пересекался с money panel
+         * справа. Остальные шаги (corp / prelude / ceo) с короткими
+         * заголовками сохраняют 22px / 3.5px letter-spacing.
+         */
+        .initial-draft-pick__title {
+            font-size: 18px;
+            letter-spacing: 2.6px;
+        }
+        .initial-draft-pick__grid {
+            grid-template-columns: repeat(5, auto);
+            grid-template-rows: repeat(2, auto);
+            gap: 16px 14px;
+            padding: 12px 24px 4px;
+        }
+        .initial-draft-pick__card-unit {
+            padding: 4px 4px 6px;
+        }
+        .initial-draft-pick__card-btn { margin-top: 6px; }
+        /*
+         * Projects modal растянут до full viewport width (см. правило
+         * `.mandatory-input-modal__card:has(.initial-draft-pick--projects)`
+         * выше). Это даёт нам больше пространства, чем раньше — zoom
+         * поднят пропорционально. Height-ladder обеспечивает absence
+         * scroll'ов на 1080p / 900p / 800p.
+         */
+        .initial-draft-pick__card-clickable .card-container { zoom: 0.82; }
+
+        @media (max-height: 1000px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.74; }
+        }
+        @media (max-height: 900px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.66; }
+            .initial-draft-pick__grid { gap: 12px 10px; }
+        }
+        @media (max-height: 800px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.58; }
+            .initial-draft-pick__grid { gap: 10px 8px; }
+        }
+        @media (max-height: 720px) {
+            .initial-draft-pick__card-clickable .card-container { zoom: 0.5; }
+            .initial-draft-pick__grid { gap: 8px 8px; }
+        }
+    }
+}
+
+/*
+ * Жёсткий cap на высоту card'a модала step'ов выбора карт. Без него
+ * mandatory-input-modal wrapper (overflow-y: auto) добавляет browser
+ * scrollbar когда контент чуть выше viewport'a. Overflow-clipping
+ * сидит на ВНУТРЕННЕМ контейнере `.initial-draft-pick` (см. ниже), а
+ * НЕ на card — иначе обрезалась бы абсолютно-позиционированная
+ * minimize-кнопка `.mandatory-input-modal__minimize-btn`, которая
+ * выходит за верхний край card'a (top: -32px).
+ */
+.mandatory-input-modal__card:has(.initial-draft-pick) {
+    max-height: calc(100vh - 32px);
+}
+
+.initial-draft-pick {
+    overflow: hidden;
 }
 
 /*
@@ -724,6 +1245,25 @@ body.initial-draft-active {
  */
 .mandatory-input-modal__card:has(.initial-draft-summary) {
     max-width: min(1320px, calc(100vw - 48px));
+}
+
+/*
+ * Шаги выбора карт (corp / prelude / ceo / projects) шире дефолтного
+ * 760px. Default cap 1280px удобен для corp/prelude/ceo (2-4 карты),
+ * projects override'ит его до full available width.
+ */
+.mandatory-input-modal__card:has(.initial-draft-pick) {
+    max-width: min(1280px, calc(100vw - 48px));
+}
+
+/*
+ * Projects step — самый большой layout (10 карт 5×2 grid). Расширяем
+ * modal до full available ширины viewport'а (минус rail-zone слева и
+ * margin справа). Это даёт карты крупнее и убирает пустые зоны по
+ * бокам модала.
+ */
+.mandatory-input-modal__card:has(.initial-draft-pick--projects) {
+    max-width: calc(100vw - 220px);
 }
 
 /*
@@ -1065,19 +1605,18 @@ body.initial-draft-active {
     /*
      * Adaptive layout — spacing между картами в стопке задаётся через
      * CSS var `--card-overlap`, которую устанавливает JS
-     * (FinalConfirmContent.recomputeAdaptiveLayout). Positive value =
-     * gap, negative = overlap. JS считает оптимальный per pile на
-     * основе реальной доступной ширины и количества карт по ladder:
-     *   - есть место → gap 12px (карты целиком);
-     *   - тесно → spacing 0..12 (карты плотно, без overlap);
-     *   - не хватает → overlap, capped на -95px.
+     * (FinalConfirmContent.recomputeAdaptiveLayout) per pile.
+     * Алгоритм: если места хватает — natural gap 12px; если тесно —
+     * сжимаем; если не хватает — overlap capped на -95px.
      *
-     * Fallback `-30px` — компромиссный mild-overlap state, который
-     * виден один кадр до того, как JS успеет применить корректное
-     * значение.
+     * Fallback `12px` (natural gap) — безопасный default, который
+     * срабатывает в редких race-condition'ах когда JS ещё не успел
+     * замерить cards: лучше показать карты без overlap (даже если
+     * пара вылетит за край) чем по умолчанию складывать их в
+     * стопку, когда места хватает.
      */
     &__pile--row &__card-slot + &__card-slot {
-        margin-left: var(--card-overlap, -30px);
+        margin-left: var(--card-overlap, 12px);
     }
 
     /*
@@ -1092,6 +1631,53 @@ body.initial-draft-active {
         gap: 10px;
         flex: 1;
         min-height: 0;
+    }
+
+    /*
+     * Placeholder для пустого projects-блока (игрок не выбрал ни одной
+     * карты). Premium-стиль: dashed cyan rect с ∅-glyph'ом, заголовком
+     * и поясняющим hint'ом. Заполняет пространство секции, чтобы layout
+     * не «провисал» и игрок понимал, что пустая зона — это намерение.
+     */
+    &__projects-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        min-height: 200px;
+        padding: 32px;
+        text-align: center;
+        gap: 12px;
+        border: 1px dashed rgba(106, 176, 230, 0.32);
+        border-radius: 4px;
+        background:
+            linear-gradient(180deg,
+                rgba(28, 50, 76, 0.18) 0%,
+                rgba(14, 24, 38, 0.12) 100%);
+    }
+
+    &__projects-empty-icon {
+        font-size: 48px;
+        line-height: 1;
+        color: rgba(140, 190, 235, 0.6);
+        text-shadow: 0 0 14px rgba(106, 176, 230, 0.35);
+    }
+
+    &__projects-empty-title {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        color: rgba(220, 232, 245, 0.85);
+    }
+
+    &__projects-empty-hint {
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.6px;
+        color: rgba(180, 200, 220, 0.65);
+        max-width: 360px;
     }
 
     /*
@@ -1221,6 +1807,59 @@ body.initial-draft-active {
                 rgba(20, 28, 42, 0.95) 0%,
                 rgba(12, 18, 28, 0.95) 100%);
         }
+    }
+
+    /*
+     * Disabled state — мягкий grey-out для обеих кнопок (edit-button
+     * + primary CTA в awaiting). Не использует opacity полностью,
+     * чтобы текст оставался читаемым.
+     */
+    &__btn:disabled {
+        cursor: not-allowed;
+        filter: saturate(0.4) brightness(0.7);
+        text-shadow: none;
+        box-shadow: none;
+    }
+
+    /*
+     * Awaiting state primary CTA: gradient заменяем на тёмный
+     * cyan-glass, добавляем pulsing spinner. Disabled через тот же
+     * :disabled выше.
+     */
+    &__btn--awaiting {
+        background: linear-gradient(180deg,
+            rgba(80, 110, 140, 0.55) 0%,
+            rgba(40, 60, 85, 0.32) 50%,
+            rgba(70, 100, 130, 0.5) 100%) !important;
+    }
+
+    &__btn-awaiting-content {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /*
+     * Spinner: rotating dotted ring. Compositor-only (transform на
+     * границе). Уважает prefers-reduced-motion (animation: none ниже).
+     */
+    &__btn-spinner {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid rgba(140, 190, 235, 0.3);
+        border-top-color: rgba(180, 220, 250, 0.95);
+        animation: initial-draft-summary-spinner 1s linear infinite;
+        flex-shrink: 0;
+    }
+
+    /*
+     * Awaiting state header — узнаваемо отличается от pre-submit
+     * (subtle bright cyan accent).
+     */
+    &__title--awaiting {
+        color: #d8f0ff;
+        text-shadow: 0 0 18px rgba(180, 220, 250, 0.55);
     }
 
     /*

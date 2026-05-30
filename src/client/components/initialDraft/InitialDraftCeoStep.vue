@@ -9,26 +9,29 @@
     по карте → fullscreen с primary «Выбрать», который тоже commits.
     Money-панели нет — CEO как класс не влияет на начальные М€.
   -->
-  <div class="card-selection initial-draft-step initial-draft-step--ceo">
-    <header class="card-selection__header">
-      <div></div>
-      <div class="card-selection__title-group">
-        <h2 class="card-selection__title" v-i18n>Select a CEO</h2>
-        <span class="card-selection__counter">{{ counterText }}</span>
+  <div class="card-selection initial-draft-step initial-draft-step--ceo
+              initial-draft-pick initial-draft-pick--ceo">
+    <header class="card-selection__header initial-draft-pick__header">
+      <div class="initial-draft-pick__title-block">
+        <h2 class="card-selection__title initial-draft-pick__title"
+            v-i18n>Select a CEO</h2>
+        <span class="card-selection__counter initial-draft-pick__counter">{{ counterText }}</span>
       </div>
-      <div></div>
     </header>
 
-    <div class="card-selection__cards">
+    <div class="card-selection__cards initial-draft-pick__grid">
       <div v-for="card in cards"
            :key="card.name"
-           class="card-selection__card-slot"
-           :class="{'card-selection__card-slot--selected': card.name === preSelected}">
-        <div class="card-selection__card-clickable"
+           class="card-selection__card-slot initial-draft-pick__card-unit"
+           :class="{
+             'card-selection__card-slot--selected': card.name === preSelected,
+             'initial-draft-pick__card-unit--selected': card.name === preSelected,
+           }">
+        <div class="card-selection__card-clickable initial-draft-pick__card-clickable"
              @click.capture.stop="openFullscreen(card)">
           <Card :card="card" />
         </div>
-        <button class="card-selection__card-action-btn"
+        <button class="card-selection__card-action-btn initial-draft-pick__card-btn"
                 @click.stop="onActionClick(card.name)"
                 v-i18n>Select</button>
       </div>

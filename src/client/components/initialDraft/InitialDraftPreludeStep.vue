@@ -21,32 +21,41 @@
       - При reopen после плашки (этап 5) — приходит preSelected, текущие
         выборы подставляются в selected[].
   -->
-  <div class="card-selection initial-draft-step initial-draft-step--prelude">
-    <header class="card-selection__header">
-      <div></div>
-      <div class="card-selection__title-group">
-        <h2 class="card-selection__title" v-i18n>Select 2 Prelude cards</h2>
-        <span class="card-selection__counter">{{ counterText }}</span>
+  <div class="card-selection initial-draft-step initial-draft-step--prelude
+              initial-draft-pick initial-draft-pick--prelude initial-draft-pick--has-money">
+    <header class="card-selection__header initial-draft-pick__header">
+      <div class="initial-draft-pick__title-block">
+        <h2 class="card-selection__title initial-draft-pick__title"
+            v-i18n>Select 2 Prelude cards</h2>
+        <span class="card-selection__counter initial-draft-pick__counter">{{ counterText }}</span>
       </div>
       <div v-if="moneyValue !== undefined"
-           class="initial-draft-step__money-panel"
+           class="initial-draft-step__money-panel initial-draft-pick__money"
            :title="$t('After preludes M€')">
         <div class="initial-draft-step__money-label" v-i18n>After preludes</div>
         <div class="initial-draft-step__money-value">{{ moneyValue }}</div>
       </div>
     </header>
 
-    <div class="card-selection__cards">
+    <div class="card-selection__cards initial-draft-pick__grid">
       <div v-for="card in cards"
            :key="card.name"
-           class="card-selection__card-slot"
-           :class="{'card-selection__card-slot--selected': isSelected(card.name)}">
-        <div class="card-selection__card-clickable"
+           class="card-selection__card-slot initial-draft-pick__card-unit"
+           :class="{
+             'card-selection__card-slot--selected': isSelected(card.name),
+             'initial-draft-pick__card-unit--selected': isSelected(card.name),
+             'initial-draft-pick__card-unit--disabled': !isSelected(card.name) && actionDisabled(card.name),
+           }">
+        <div class="card-selection__card-clickable initial-draft-pick__card-clickable"
              @click.capture.stop="openFullscreen(card)">
           <Card :card="card" />
         </div>
-        <button class="card-selection__card-action-btn"
-                :class="{'card-selection__card-action-btn--selected': isSelected(card.name)}"
+        <button class="card-selection__card-action-btn initial-draft-pick__card-btn"
+                :class="{
+                  'card-selection__card-action-btn--selected': isSelected(card.name),
+                  'initial-draft-pick__card-btn--selected': isSelected(card.name),
+                  'initial-draft-pick__card-btn--disabled': !isSelected(card.name) && actionDisabled(card.name),
+                }"
                 :disabled="actionDisabled(card.name)"
                 :title="actionTooltip(card.name)"
                 @click.stop="onActionClick(card.name)">
@@ -55,12 +64,12 @@
       </div>
     </div>
 
-    <footer class="card-selection__footer">
-      <button class="card-selection__confirm"
+    <footer class="card-selection__footer initial-draft-pick__footer">
+      <button class="card-selection__confirm initial-draft-pick__confirm"
               :disabled="!canConfirm"
               :title="confirmTooltip"
               @click="onConfirm">
-        <span class="card-selection__confirm-label" v-i18n>Confirm selection</span>
+        <span class="initial-draft-pick__confirm-label" v-i18n>Confirm selection</span>
       </button>
     </footer>
 

@@ -66,6 +66,25 @@ body:has(.top-bar-dropdown) {
 }
 
 /*
+ * Initial draft status rail — ОСТАЁТСЯ visible (z=12500) поверх
+ * backdrop'a во время mandatory modal'ов. Это критично: backdrop
+ * затемняет board / нерелевантные кнопки, но НИКОГДА не должен
+ * затемнять информацию игроков (см. отзыв). Раньше тут было правило
+ * опускающее rail под backdrop — оно делало плашки игроков
+ * невидимыми, что нарушало изначальный контракт rail'а.
+ *
+ * Чтобы rail и modal-card не пересекались на узких viewport'ах
+ * (modal centered относительно всего viewport'a, rail слева занимает
+ * 176 px), мы добавляем `padding-left` modal'a на стартовом экране —
+ * это сдвигает modal-card вправо в свободную от rail'a зону, и
+ * перекрытия не происходит. modal сохраняет фокус по центру
+ * оставшегося пространства.
+ */
+body.initial-draft-active .mandatory-input-modal {
+    padding-left: 188px;  /* rail width 168 + left 8 + gap 12 */
+}
+
+/*
  * The modal wrapper itself owns the overflow when content is taller than
  * the viewport. Centering via flex while ALSO allowing scroll requires
  * the modal to be the scroll container — the inner card just has natural

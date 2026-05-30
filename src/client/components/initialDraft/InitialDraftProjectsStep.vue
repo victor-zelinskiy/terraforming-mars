@@ -25,14 +25,16 @@
     после полного подтверждения flow (этап 6). На этом шаге commit
     остаётся локальным.
   -->
-  <div class="card-selection initial-draft-step initial-draft-step--projects">
-    <header class="card-selection__header">
-      <div></div>
-      <div class="card-selection__title-group">
-        <h2 class="card-selection__title" v-i18n>Select initial cards to buy</h2>
-        <span class="card-selection__counter">{{ counterText }}</span>
+  <div class="card-selection initial-draft-step initial-draft-step--projects
+              initial-draft-pick initial-draft-pick--projects initial-draft-pick--has-money">
+    <header class="card-selection__header initial-draft-pick__header">
+      <div class="initial-draft-pick__title-block">
+        <h2 class="card-selection__title initial-draft-pick__title"
+            v-i18n>Select initial cards to buy</h2>
+        <span class="card-selection__counter initial-draft-pick__counter">{{ counterText }}</span>
       </div>
-      <div class="initial-draft-step__money-panel initial-draft-step__money-panel--triple"
+      <div class="initial-draft-step__money-panel initial-draft-step__money-panel--triple
+                  initial-draft-pick__money"
            :class="{'initial-draft-step__money-panel--insufficient': insufficient}">
         <div class="initial-draft-step__money-cell">
           <div class="initial-draft-step__money-label" v-i18n>After preludes</div>
@@ -49,17 +51,25 @@
       </div>
     </header>
 
-    <div class="card-selection__cards">
+    <div class="card-selection__cards initial-draft-pick__grid">
       <div v-for="card in cards"
            :key="card.name"
-           class="card-selection__card-slot"
-           :class="{'card-selection__card-slot--selected': isSelected(card.name)}">
-        <div class="card-selection__card-clickable"
+           class="card-selection__card-slot initial-draft-pick__card-unit"
+           :class="{
+             'card-selection__card-slot--selected': isSelected(card.name),
+             'initial-draft-pick__card-unit--selected': isSelected(card.name),
+             'initial-draft-pick__card-unit--disabled': !isSelected(card.name) && actionDisabled(card.name),
+           }">
+        <div class="card-selection__card-clickable initial-draft-pick__card-clickable"
              @click.capture.stop="openFullscreen(card)">
           <Card :card="card" />
         </div>
-        <button class="card-selection__card-action-btn"
-                :class="{'card-selection__card-action-btn--selected': isSelected(card.name)}"
+        <button class="card-selection__card-action-btn initial-draft-pick__card-btn"
+                :class="{
+                  'card-selection__card-action-btn--selected': isSelected(card.name),
+                  'initial-draft-pick__card-btn--selected': isSelected(card.name),
+                  'initial-draft-pick__card-btn--disabled': !isSelected(card.name) && actionDisabled(card.name),
+                }"
                 :disabled="actionDisabled(card.name)"
                 :title="actionTooltip(card.name)"
                 @click.stop="onActionClick(card.name)">
@@ -68,13 +78,16 @@
       </div>
     </div>
 
-    <footer class="card-selection__footer">
-      <button class="card-selection__confirm"
+    <footer class="card-selection__footer initial-draft-pick__footer">
+      <button class="card-selection__confirm initial-draft-pick__confirm"
               :disabled="!canConfirm"
               :title="confirmTooltip"
               @click="onFooterClick">
-        <span class="card-selection__confirm-label">{{ footerLabel }}</span>
-        <span v-if="cost > 0" class="card-selection__cost-coin">{{ cost }}</span>
+        <span class="initial-draft-pick__confirm-label">{{ footerLabel }}</span>
+        <span class="initial-draft-pick__confirm-count" v-if="selected.length > 0">
+          {{ selected.length }} {{ confirmCardsWord }}
+        </span>
+        <span v-if="cost > 0" class="card-selection__cost-coin initial-draft-pick__confirm-coin">{{ cost }}</span>
       </button>
     </footer>
 
@@ -210,6 +223,26 @@ export default defineComponent({
         return translateText('Skip');
       }
       return translateText('Buy');
+    },
+    /*
+     * Русское плюральное окончание для «N карт(а/ы)». Используется в
+     * правой части footer-кнопки рядом с числом, чтобы CTA читалась
+     * как «КУПИТЬ · 5 КАРТ · 15 M€». Простой rule:
+     *   1, 21, 31, … → «карта»
+     *   2-4, 22-24, …  → «карты»
+     *   0, 5-20, 25-30 → «карт»
+     */
+    confirmCardsWord(): string {
+      const n = this.selected.length;
+      const mod10 = n % 10;
+      const mod100 = n % 100;
+      if (mod10 === 1 && mod100 !== 11) {
+        return translateText('card');
+      }
+      if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+        return translateText('cards (2-4)');
+      }
+      return translateText('cards (5+)');
     },
     confirmTooltip(): string {
       if (this.insufficient) {

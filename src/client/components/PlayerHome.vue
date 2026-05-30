@@ -460,6 +460,7 @@ import LogPanel from '@/client/components/logpanel/LogPanel.vue';
 import GameBoardView from '@/client/components/GameBoardView.vue';
 import {useBoardAutoScale} from '@/client/utils/useBoardAutoScale';
 import InitialDraftFlowOverlay from '@/client/components/initialDraft/InitialDraftFlowOverlay.vue';
+import {initialDraftSharedState} from '@/client/components/initialDraft/initialDraftSharedState';
 import DynamicTitle from '@/client/components/common/DynamicTitle.vue';
 import SortableCards from '@/client/components/SortableCards.vue';
 import StackedCards from '@/client/components/StackedCards.vue';
@@ -943,6 +944,14 @@ export default defineComponent({
     // открыть для осмотра, но Select-кнопки везде disabled). HUD-уровень
     // прячется через body.initial-draft-active (см. InitialDraftFlowOverlay).
     initialDraftActive(): boolean {
+      // Берём ИЛИ из shared reactive state — он остаётся true в
+      // awaiting-window после submit'a (когда waitingFor уже undefined,
+      // но overlay всё ещё показывает «ожидаем других игроков»).
+      // Без этого status rail снимался бы сразу после submit, и игрок
+      // не видел бы, кого ждём — нарушение исходного контракта rail'a.
+      if (initialDraftSharedState.active) {
+        return true;
+      }
       return this.playerView.waitingFor?.type === 'initialCards';
     },
     // The set of colonies the server is currently offering as picks for
