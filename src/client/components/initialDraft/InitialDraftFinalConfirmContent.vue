@@ -33,10 +33,20 @@
       <span class="initial-draft-summary__minimize-label" v-i18n>Minimize</span>
     </button>
 
-    <header class="initial-draft-summary__header">
+    <header class="initial-draft-summary__header"
+            :class="{'initial-draft-summary__header--awaiting': awaiting}">
       <div class="initial-draft-summary__title-block">
-        <h2 class="initial-draft-summary__title" v-i18n>Final selection</h2>
-        <p class="initial-draft-summary__subtitle" v-i18n>Once the game begins, your starting selection cannot be changed.</p>
+        <h2 v-if="!awaiting"
+            class="initial-draft-summary__title" v-i18n>Final selection</h2>
+        <h2 v-else
+            class="initial-draft-summary__title initial-draft-summary__title--awaiting"
+            v-i18n>Starting selection confirmed</h2>
+        <p v-if="!awaiting"
+           class="initial-draft-summary__subtitle"
+           v-i18n>Once the game begins, your starting selection cannot be changed.</p>
+        <p v-else
+           class="initial-draft-summary__subtitle"
+           v-i18n>The game will start automatically when other players confirm their selection.</p>
       </div>
       <!--
         Summary strip — компактная панель ключевых метрик. Показывает
@@ -138,13 +148,23 @@
         </section>
       </div>
 
-      <section v-if="hasAnyProject"
+      <section v-if="hasProjects"
                class="initial-draft-summary__section initial-draft-summary__section--projects">
         <div class="initial-draft-summary__section-header">
           <span class="initial-draft-summary__section-label" v-i18n>Project cards</span>
           <span class="initial-draft-summary__section-count">{{ projectCards.length }}</span>
         </div>
-        <div class="initial-draft-summary__projects">
+        <!--
+          Placeholder когда игрок выбрал 0 проектных карт. Premium-стиль
+          вместо пустоты — показывает что секция намеренно пустая, а не
+          забытая.
+        -->
+        <div v-if="!hasAnyProject" class="initial-draft-summary__projects-empty">
+          <div class="initial-draft-summary__projects-empty-icon" aria-hidden="true">∅</div>
+          <div class="initial-draft-summary__projects-empty-title" v-i18n>No project cards selected</div>
+          <div class="initial-draft-summary__projects-empty-hint" v-i18n>You will start without any project cards.</div>
+        </div>
+        <div v-else class="initial-draft-summary__projects">
           <div v-if="projectsActive.length > 0"
                class="initial-draft-summary__projects-row">
             <div class="initial-draft-summary__projects-row-label">
@@ -203,17 +223,14 @@
     <footer class="initial-draft-summary__actions">
       <!--
         Edit-wrapper держит ref для click-outside детекта и сам кнопку
-        + всплывающее меню. Кнопка тогглит menu, menu выпадает ВВЕРХ
-        (footer уже снизу окна, вниз места нет) и предлагает явные
-        опции редактирования по шагам: Корпорация / Прологи / CEO /
-        Проекты. Опции, которым нет соответствующего step'a в текущей
-        партии, не рендерятся (`hasPrelude` / `hasCeo` / `hasProjects`).
-        Клик за пределами меню — закрывает его без действий.
+        + всплывающее меню. После submit'a (awaiting=true) кнопка
+        полностью disabled — назад дороги нет, сервер уже принял ответ.
       -->
       <div class="initial-draft-summary__edit-wrapper" ref="editWrapper">
         <button class="initial-draft-summary__btn initial-draft-summary__btn--secondary
                        initial-draft-summary__btn--edit"
                 :class="{'initial-draft-summary__btn--edit-open': editMenuOpen}"
+                :disabled="awaiting"
                 :aria-expanded="editMenuOpen"
                 aria-haspopup="menu"
                 @click.stop="toggleEditMenu">
@@ -263,8 +280,14 @@
         </Transition>
       </div>
       <button class="initial-draft-summary__btn initial-draft-summary__btn--primary"
+              :class="{'initial-draft-summary__btn--awaiting': awaiting}"
+              :disabled="awaiting"
               @click="$emit('confirm')">
-        <span v-i18n>Start</span>
+        <span v-if="!awaiting" v-i18n>Confirm selection (initial draft)</span>
+        <span v-else class="initial-draft-summary__btn-awaiting-content">
+          <span class="initial-draft-summary__btn-spinner" aria-hidden="true"></span>
+          <span v-i18n>Awaiting other players…</span>
+        </span>
       </button>
     </footer>
 
@@ -340,6 +363,19 @@ export default defineComponent({
       default: false,
     },
     hasProjects: {
+      type: Boolean,
+      default: false,
+    },
+    /*
+     * Awaiting flag — true когда финальный submit уже отправлен и
+     * мы ждём, пока остальные игроки тоже подтвердят. В этом режиме:
+     *   - title меняется на «СТАРТОВЫЙ ВЫБОР ПОДТВЕРЖДЁН»;
+     *   - subtitle поясняет что партия начнётся автоматически;
+     *   - primary CTA disabled с spinner'ом и «ОЖИДАЕМ ИГРОКОВ…»;
+     *   - edit-button disabled (назад дороги нет — сервер принял).
+     * Карты остаются видимы как read-only summary.
+     */
+    awaiting: {
       type: Boolean,
       default: false,
     },
@@ -484,7 +520,13 @@ export default defineComponent({
       const style = window.getComputedStyle(pile);
       const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
       const effectiveWidth = pile.clientWidth - padX - 6;
-      if (cardWidth <= 0 || effectiveWidth <= 0) {
+      // Safety: если карта ещё не отрендерилась полностью (например,
+      // Card.vue zoom не завершён или image не загружен), её width
+      // будет меньше реального. Пропускаем эту попытку — повторный
+      // pass через RAF / setTimeout пере-замерит правильно. 60px — это
+      // tag chip width нижняя граница реальной карты, ниже — точно
+      // unfinished render.
+      if (cardWidth < 60 || effectiveWidth <= 0) {
         return;
       }
       // available spacing per gap between consecutive cards:
@@ -504,17 +546,24 @@ export default defineComponent({
       pile.style.setProperty('--card-overlap', `${finalSpacing}px`);
     },
     scheduleRecompute(): void {
-      // Несколько RAF подряд — нужно, потому что на mount'е CSS zoom +
-      // images могут ещё не загрузиться, ширина первой карты считается
-      // ноль. Один пересчёт через ResizeObserver покрывает 80% case'ов,
-      // но первоначальный mount всё равно требует pull чуть позже.
+      // Несколько фаз measurement — нужно, потому что на mount'е
+      // Card.vue zoom + tag icons + nested images могут ещё не быть
+      // готовы, и getBoundingClientRect().width вернёт неполный размер.
+      // Один RAF покрывает 70% случаев, второй RAF — ещё 20%, и
+      // отложенный setTimeout 120 ms покрывает «медленные» рендеры
+      // карт (когда первый pass замерил card как нулевую ширину,
+      // и CSS fallback оставил карты без overlap'а — это лучше, чем
+      // ложный overlap, но всё равно неточно).
       if (typeof requestAnimationFrame === 'undefined') {
         this.recomputeAdaptiveLayout();
         return;
       }
       requestAnimationFrame(() => {
         this.recomputeAdaptiveLayout();
-        requestAnimationFrame(() => this.recomputeAdaptiveLayout());
+        requestAnimationFrame(() => {
+          this.recomputeAdaptiveLayout();
+          window.setTimeout(() => this.recomputeAdaptiveLayout(), 120);
+        });
       });
     },
   },
