@@ -52,25 +52,16 @@ body.initial-draft-active {
     }
 
     /*
-     * Внутри левой панели оставляем только сами плитки игроков —
-     * имя / корпорация / статус. Ресурсы, теги, allied party
-     * скрываем (нечего показывать до старта партии). Plates
-     * (`.left-panel-cards`) и `<LeftPlayerCard>` внутри них остаются
-     * видимыми, потому что туда позже сядет turn-order бейдж.
+     * Основной левый sidebar (`LeftPlayerPanel`) скрыт целиком на
+     * стартовом экране — он перегружен ресурсами / тегами / кнопками,
+     * которых до старта партии всё равно нет. Вместо него рендерится
+     * компактный `<InitialDraftStatusRail>` (см. PlayerHome.vue +
+     * .initial-draft-rail в этом же файле), который показывает только
+     * нужную для initial draft информацию: имя / цвет / порядок /
+     * статус / активность.
      */
-    .left-panel-section,
-    .left-panel-tags-secondary {
+    .left-panel {
         display: none !important;
-    }
-
-    /*
-     * Кнопки Pass / End turn внутри player plate — скрываем без
-     * схлопывания плитки, чтобы геометрия plate оставалась стабильной.
-     * Те же селекторы, что используются placement_banner.less для
-     * `body.placement-pending`.
-     */
-    .left-panel-card-action-btn {
-        visibility: hidden !important;
     }
 
     /*
@@ -115,6 +106,273 @@ body.initial-draft-active {
      */
     .mandatory-input-modal-pill {
         top: calc(var(--bottom-bar-button-height) + 64px);
+    }
+}
+
+/*
+ * Initial draft status rail — компактная вертикальная панель игроков
+ * слева. Заменяет основной LeftPlayerPanel (тот скрыт через
+ * `.left-panel { display: none }` в body.initial-draft-active выше).
+ *
+ * Layout: position fixed слева, высота от под-pill-stack'a до низа
+ * viewport'a с overflow если игроков много. Ширина 210px — чуть шире
+ * стандартного `--left-panel-width` (160px), чтобы name / corp /
+ * order chip / status поместились в один компактный блок.
+ *
+ * z-index 12500 — поверх mandatory-modal backdrop'a (12000), чтобы
+ * информация оставалась читаемой при открытом модале. При открытии
+ * top-bar-dropdown (Достижения / Награды / СтанПроекты) опускается на
+ * 100 через `:has()`-правило в mandatory_input_modal.less (rail
+ * включён туда в список вместе с pills / placement-banner).
+ */
+.initial-draft-rail {
+    position: fixed;
+    /*
+     * Прижата к левому верхнему углу. Высота auto: растёт от количества
+     * игроков. Для 2 игроков получается совсем компактный блок ~140px
+     * высоты, для 5 — ~280px. `max-height` ограничивает рост на низких
+     * экранах и включает внутренний scroll только тогда, когда rail
+     * физически не помещается.
+     */
+    left: 8px;
+    top: 8px;
+    max-height: calc(100vh - 16px);
+    width: 168px;
+    z-index: 12500;
+    display: flex;
+    flex-direction: column;
+    color: #e8f1fb;
+    font-family: Prototype, Ubuntu, sans-serif;
+    background:
+        linear-gradient(180deg,
+            rgba(14, 24, 38, 0.78) 0%,
+            rgba(8, 16, 26, 0.85) 100%);
+    border: 1px solid rgba(106, 176, 230, 0.26);
+    border-radius: 3px;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 0 16px rgba(106, 176, 230, 0.08);
+
+    &__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 5px;
+        padding: 6px 8px 5px;
+        border-bottom: 1px solid rgba(106, 176, 230, 0.14);
+    }
+
+    &__header-label {
+        font-size: 10px;
+        letter-spacing: 2.4px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: rgba(180, 215, 240, 0.85);
+    }
+
+    &__header-count {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        padding: 1px 6px;
+        border: 1px solid rgba(106, 176, 230, 0.26);
+        border-radius: 2px;
+        color: rgba(220, 232, 245, 0.85);
+        background: rgba(20, 36, 56, 0.55);
+    }
+
+    &__list {
+        list-style: none;
+        margin: 0;
+        padding: 4px;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+
+        /* Sci-fi scrollbar — едва видимый thin */
+        &::-webkit-scrollbar { width: 3px; }
+        &::-webkit-scrollbar-track { background: transparent; }
+        &::-webkit-scrollbar-thumb {
+            background: rgba(106, 176, 230, 0.28);
+            border-radius: 2px;
+        }
+        scrollbar-width: thin;
+        scrollbar-color: rgba(106, 176, 230, 0.28) transparent;
+    }
+
+    &__item {
+        position: relative;
+        padding: 5px 6px 6px 9px;
+        border: 1px solid rgba(106, 176, 230, 0.14);
+        border-radius: 2px;
+        background: rgba(20, 30, 45, 0.42);
+        transition: background 160ms ease, border-color 160ms ease;
+        overflow: hidden;
+    }
+
+    /*
+     * Active player: подсветка чуть мягче, чем раньше — заметная,
+     * но без перебора. Cyan accent strip слева (см. `__accent`) даёт
+     * основной eye-catch.
+     */
+    &__item--active {
+        background: rgba(26, 46, 70, 0.65);
+        border-color: rgba(140, 190, 235, 0.45);
+        box-shadow:
+            inset 0 0 0 1px rgba(106, 176, 230, 0.16),
+            0 0 10px rgba(106, 176, 230, 0.18);
+    }
+
+    /* Done — лёгкий зелёный/cyan accent на левой кромке */
+    &__item--done {
+        background: rgba(18, 32, 44, 0.55);
+        border-color: rgba(106, 176, 230, 0.18);
+    }
+
+    &__item--viewer {
+        border-color: rgba(106, 176, 230, 0.32);
+    }
+
+    /*
+     * Левый accent-bar для активного игрока — узкая cyan-полоса по
+     * всей высоте item'a. Статичная (без анимации), вместе с pulsing
+     * dot снизу дают мягкий рhythm.
+     */
+    &__accent {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 2px;
+        background: #6ab0e6;
+        box-shadow: 0 0 6px rgba(106, 176, 230, 0.6);
+    }
+
+    &__row-top {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    /*
+     * Cube переиспользует токены LeftPlayerCard. 14×14 — компактнее
+     * sidebar'ового 18×18, но всё ещё узнаваемо.
+     */
+    &__cube {
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        flex-shrink: 0;
+    }
+
+    &__name-block {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+    }
+
+    &__name {
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.1;
+        letter-spacing: 0.4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__corp {
+        font-size: 9px;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+        color: rgba(175, 200, 220, 0.72);
+        text-transform: uppercase;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /*
+     * Order chip — короткий #N справа. Минимальный padding, не
+     * толкает name.
+     */
+    &__order {
+        flex-shrink: 0;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        color: rgba(170, 200, 225, 0.78);
+        padding: 1px 5px;
+        border: 1px solid rgba(106, 176, 230, 0.22);
+        border-radius: 2px;
+        background: rgba(20, 36, 56, 0.55);
+    }
+
+    /*
+     * Status — компактная нижняя линия с точкой / check + uppercase
+     * меткой. Плотные letter-spacing'и оставляют чувство sci-fi
+     * datasheet.
+     */
+    &__status {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 5px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        line-height: 1;
+    }
+
+    &__status--active {
+        color: #f0f6ff;
+        text-shadow: 0 0 6px rgba(140, 190, 235, 0.4);
+    }
+    &__status--done {
+        color: rgba(160, 215, 200, 0.78);
+    }
+    &__status--passed {
+        color: rgba(180, 200, 220, 0.45);
+    }
+
+    /*
+     * Pulsing cyan dot для активного игрока. Compositor-only
+     * transform + opacity. Уважает prefers-reduced-motion.
+     */
+    &__status-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #6ab0e6;
+        box-shadow: 0 0 5px rgba(106, 176, 230, 0.7);
+        animation: initial-draft-rail-status-pulse 1.8s ease-in-out infinite;
+    }
+
+    /*
+     * Check-glyph для done state — мягкий cyan tick без жирной
+     * рамки. Не кричит «победа», просто маркирует завершение шага.
+     */
+    &__status-check {
+        width: 9px;
+        height: 9px;
+        color: rgba(140, 215, 195, 0.85);
+        filter: drop-shadow(0 0 4px rgba(140, 215, 195, 0.4));
+    }
+}
+
+@keyframes initial-draft-rail-status-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.85; }
+    50%      { transform: scale(1.2); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .initial-draft-rail__status-dot {
+        animation: none;
     }
 }
 
@@ -465,7 +723,7 @@ body.initial-draft-active {
  * ceo / projects / skip / final) не затрагиваются.
  */
 .mandatory-input-modal__card:has(.initial-draft-summary) {
-    max-width: min(1280px, calc(100vw - 48px));
+    max-width: min(1320px, calc(100vw - 48px));
 }
 
 /*
@@ -485,23 +743,73 @@ body.initial-draft-active {
  * клон стиля DraftedCardsPile с подгонкой под finalsummary.
  */
 .initial-draft-summary {
-    width: min(1280px, calc(100vw - 80px));
-    max-height: calc(100vh - 100px);
+    width: min(1320px, calc(100vw - 60px));
+    /*
+     * Модал расширен по высоте — больше пространства для карт. На
+     * 1080p даёт ~1040px высоты, чего достаточно для 3 рядов
+     * проектов + corp/ceo top-strip + preludes без компромиссов
+     * по размеру.
+     */
+    max-height: calc(100vh - 36px);
     padding: 0;
     color: #e8f1fb;
     font-family: Prototype, Ubuntu, sans-serif;
     background:
+        radial-gradient(ellipse at top, rgba(28, 50, 76, 0.55) 0%, transparent 70%),
         linear-gradient(180deg,
-            rgba(14, 24, 38, 0.96) 0%,
+            rgba(14, 24, 38, 0.97) 0%,
             rgba(8, 16, 26, 0.98) 100%);
     border: 1px solid rgba(106, 176, 230, 0.32);
     border-radius: 4px;
     box-shadow:
         inset 0 0 0 1px rgba(106, 176, 230, 0.1),
-        0 0 48px rgba(106, 176, 230, 0.14);
+        0 0 56px rgba(106, 176, 230, 0.16);
     display: grid;
     grid-template-rows: auto 1fr auto;
     overflow: hidden;
+
+    /*
+     * Minimize-button — top-right угол панели. Стилизован под
+     * `.mandatory-input-modal__minimize-btn`: clip-path parallelogram,
+     * cyan glyph, мини-label. Скрывает summary через emit('minimize')
+     * (см. overlay.onFinalMinimize).
+     */
+    &__minimize {
+        position: absolute;
+        top: 10px;
+        right: 14px;
+        z-index: 5;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 24px;
+        padding: 0 12px;
+        border: 1px solid rgba(106, 176, 230, 0.42);
+        color: #d6e2f2;
+        cursor: pointer;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 1.8px;
+        text-transform: uppercase;
+        line-height: 1;
+        background: linear-gradient(180deg,
+            rgba(28, 48, 72, 0.88) 0%,
+            rgba(14, 26, 40, 0.92) 100%);
+        clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+        transition: filter 150ms ease, transform 150ms ease;
+
+        &:hover {
+            filter: brightness(1.18);
+            transform: translateY(-1px);
+        }
+        &:active { transform: translateY(0); }
+    }
+
+    &__minimize-glyph {
+        font-size: 12px;
+        color: #6ab0e6;
+    }
 
     /* ───────────────────────────── Header ─────────────────────────── */
     &__header {
@@ -600,63 +908,60 @@ body.initial-draft-active {
     }
 
     /* ───────────────────────────── Body ───────────────────────────── */
+    /*
+     * Body — 2-колоночный grid:
+     *   col 1 (auto width): left-col c CORP/CEO/PRELUDES,
+     *   col 2 (1fr): PROJECTS на всю оставшуюся ширину И ВЫСОТУ.
+     * Right col stretched по вертикали → 3 ряда projects заполняют
+     * пространство равномерно. Без scroll'a внутри body.
+     */
     &__body {
         min-height: 0;
-        overflow-y: auto;
-        padding: 20px 32px 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 22px;
-
-        /* Sci-fi scrollbar — WebKit */
-        &::-webkit-scrollbar { width: 6px; }
-        &::-webkit-scrollbar-track { background: rgba(14, 24, 38, 0.4); }
-        &::-webkit-scrollbar-thumb {
-            background: rgba(106, 176, 230, 0.35);
-            border-radius: 3px;
-        }
-        &::-webkit-scrollbar-thumb:hover { background: rgba(140, 190, 235, 0.55); }
-        /* Firefox */
-        scrollbar-width: thin;
-        scrollbar-color: rgba(106, 176, 230, 0.35) rgba(14, 24, 38, 0.4);
+        overflow: hidden;
+        padding: 14px 28px 10px;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 18px 24px;
+        align-items: stretch;
     }
 
     /*
-     * Top row: corp | secondary (preludes + ceo).
-     *   - corp колонка фикс ширины (auto), подстраивается под karty;
-     *   - secondary колонка занимает остаток (`1fr`).
-     * На узких экранах (≤ 880px) колонки складываются вертикально через
-     * media query ниже.
+     * Left col — вертикальный flex: top-strip (corp + ceo рядом)
+     * сверху, preludes под ними.
      */
-    &__top-row {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 28px;
-        align-items: start;
+    &__left-col {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        min-width: 0;
+    }
+
+    /*
+     * Top-strip — corp + ceo рядом. Items не растягиваются. Если CEO
+     * нет (`ceoCard === undefined`), strip остаётся однострочным
+     * c одной корпорацией.
+     */
+    &__top-strip {
+        display: flex;
+        gap: 18px;
+        align-items: flex-start;
     }
 
     &__section {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 8px;
         min-width: 0;
+        flex-shrink: 0;
     }
 
+    /*
+     * Projects-section растягивается по высоте всей правой колонки.
+     * `display: flex column` + projects-block flex:1 → 3 ряда занимают
+     * весь вертикальный простор.
+     */
     &__section--projects {
-        padding-top: 22px;
-        border-top: 1px solid rgba(106, 176, 230, 0.12);
-    }
-
-    &__section--secondary {
-        display: flex;
-        flex-direction: column;
-        gap: 22px;
-    }
-
-    &__subsection {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
+        height: 100%;
         min-width: 0;
     }
 
@@ -731,7 +1036,7 @@ body.initial-draft-active {
             z-index 0ms;
 
         > .card-container {
-            zoom: 0.55;
+            zoom: 0.46;
             margin: 0;
             transition: filter 180ms ease;
         }
@@ -746,43 +1051,75 @@ body.initial-draft-active {
             }
         }
 
-        /* Корпорация заметнее остальных. */
+        /* Корпорация — крупнее остальных. */
         &--corp > .card-container {
-            zoom: 0.78;
+            zoom: 0.7;
+        }
+
+        /* CEO между corporate и обычным размером. */
+        &--ceo > .card-container {
+            zoom: 0.58;
         }
     }
 
     /*
-     * Horizontal overlap. Перекрытие подобрано так, чтобы видимые ~70%
-     * каждой карты включали cost + tags + title — достаточно для
-     * узнавания без открытия fullscreen.
+     * Adaptive layout — spacing между картами в стопке задаётся через
+     * CSS var `--card-overlap`, которую устанавливает JS
+     * (FinalConfirmContent.recomputeAdaptiveLayout). Positive value =
+     * gap, negative = overlap. JS считает оптимальный per pile на
+     * основе реальной доступной ширины и количества карт по ladder:
+     *   - есть место → gap 12px (карты целиком);
+     *   - тесно → spacing 0..12 (карты плотно, без overlap);
+     *   - не хватает → overlap, capped на -95px.
+     *
+     * Fallback `-30px` — компромиссный mild-overlap state, который
+     * виден один кадр до того, как JS успеет применить корректное
+     * значение.
      */
     &__pile--row &__card-slot + &__card-slot {
-        margin-left: -50px;
+        margin-left: var(--card-overlap, -30px);
     }
 
     /*
-     * Projects — 3-column grid (Active / Automated / Events). Auto-fit
-     * с min 240px позволяет колонкам гибко сжиматься / переноситься
-     * на меньших viewport'ах.
+     * Projects — три вертикальных ряда (по типу). Каждый ряд = метка
+     * слева (фикс ширины) + horizontal pile карт справа. flex-grow:1
+     * на rows + projects-block flex-direction column распределяют
+     * вертикальное пространство равномерно между 3 рядами.
      */
     &__projects {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 22px;
-    }
-
-    &__projects-group {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        min-width: 0;
+        gap: 10px;
+        flex: 1;
+        min-height: 0;
     }
 
-    &__projects-group-label {
+    /*
+     * Projects-row — CSS grid (а не flex). Колонки [132px 1fr]
+     * гарантируют, что pile во ВСЕХ рядах начинается с одной x-точки
+     * (column boundary), независимо от длины слова в label'е, sub-pixel
+     * rendering и текущего zoom'a карт. Раньше использовался flex и
+     * иногда давал смещение на 5-10px между рядами при zoom 0.46.
+     */
+    &__projects-row {
+        display: grid;
+        /*
+         * Колонка для label фиксированной ширины 158px — учитывает
+         * самое длинное слово «АВТОМАТИЧЕСКИЕ» (~96px при 10px font /
+         * letter-spacing 2.4px) + gap + count chip + запас на rendering
+         * variance. Без запаса count перекрывался первой картой ряда.
+         */
+        grid-template-columns: 158px minmax(0, 1fr);
+        column-gap: 14px;
+        align-items: flex-start;
+        min-height: 0;
+    }
+
+    &__projects-row-label {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+        padding-top: 14px;
         font-size: 10px;
         letter-spacing: 2.4px;
         font-weight: 600;
@@ -790,10 +1127,15 @@ body.initial-draft-active {
         color: rgba(170, 205, 230, 0.78);
     }
 
-    &__projects-group-count {
+    &__projects-row > &__pile {
+        min-width: 0;
+        justify-content: flex-start;
+    }
+
+    &__projects-row-count {
         font-size: 10px;
         font-weight: 700;
-        letter-spacing: 0.8px;
+        letter-spacing: 0.6px;
         padding: 1px 6px;
         border-radius: 2px;
         color: rgba(220, 232, 245, 0.85);
@@ -802,11 +1144,16 @@ body.initial-draft-active {
     }
 
     /* ───────────────────────────── Footer ─────────────────────────── */
+    /*
+     * Footer слегка компактнее — больше места для карт-стопок выше.
+     * Padding + button height уменьшены, primary action остаётся
+     * заметнее secondary через `--primary` glow.
+     */
     &__actions {
         display: flex;
         justify-content: center;
-        gap: 32px;
-        padding: 18px 32px 22px;
+        gap: 26px;
+        padding: 12px 28px 14px;
         border-top: 1px solid rgba(106, 176, 230, 0.18);
         background:
             linear-gradient(0deg,
@@ -819,15 +1166,15 @@ body.initial-draft-active {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 200px;
-        height: 48px;
-        padding: 0 30px;
+        min-width: 180px;
+        height: 40px;
+        padding: 0 26px;
         border: none;
         cursor: pointer;
         font-family: Prototype, Ubuntu, sans-serif;
-        font-size: 15px;
+        font-size: 13px;
         font-weight: 700;
-        letter-spacing: 3px;
+        letter-spacing: 2.6px;
         text-transform: uppercase;
         line-height: 1;
         isolation: isolate;
@@ -1045,40 +1392,34 @@ body.initial-draft-active {
     }
 
     /*
-     * Responsive: на узких viewport'ах (ноутбук в окне < 880 px) top-row
-     * складывается вертикально, summary-strip уменьшает шрифт значений,
-     * projects-grid схлопывается в 1-2 колонки автоматически по minmax'у.
+     * Responsive ladder. На широком 1080p+ дефолт (zoom 0.42 / corp 0.62 /
+     * ceo 0.5, overlap -65px, projects 3 ряда) даёт сбалансированный
+     * layout без scroll'а. По мере уменьшения viewport'a карты сжимаются
+     * и overlap усиливается, чтобы поместить всё в видимую зону.
      */
-    @media (max-width: 880px) {
-        &__header {
-            padding: 18px 22px 14px;
-        }
-        &__body {
-            padding: 16px 22px 8px;
-        }
-        &__top-row {
-            grid-template-columns: 1fr;
-            gap: 22px;
-        }
-        &__title {
-            font-size: 18px;
-            letter-spacing: 3px;
-        }
-        &__strip-value {
-            font-size: 13px;
-        }
+    @media (max-height: 900px) {
+        &__body { padding: 12px 24px 8px; gap: 14px 22px; }
+        &__top-strip { gap: 16px; }
+        &__card-slot > .card-container { zoom: 0.4; }
+        &__card-slot--corp > .card-container { zoom: 0.6; }
+        &__card-slot--ceo > .card-container { zoom: 0.5; }
+        &__pile--row &__card-slot + &__card-slot { margin-left: -70px; }
+        &__projects-row { grid-template-columns: 144px minmax(0, 1fr); }
+        &__projects-row-label { padding-top: 12px; }
     }
 
-    @media (max-width: 1100px) {
-        &__card-slot > .card-container {
-            zoom: 0.5;
+    @media (max-height: 800px) {
+        &__header { padding: 14px 24px 12px; }
+        &__title { font-size: 18px; letter-spacing: 3px; }
+        &__card-slot > .card-container { zoom: 0.36; }
+        &__card-slot--corp > .card-container { zoom: 0.52; }
+        &__card-slot--ceo > .card-container { zoom: 0.44; }
+        &__pile--row &__card-slot + &__card-slot { margin-left: -62px; }
+        &__projects-row {
+            grid-template-columns: 130px minmax(0, 1fr);
+            column-gap: 10px;
         }
-        &__card-slot--corp > .card-container {
-            zoom: 0.7;
-        }
-        &__pile--row &__card-slot + &__card-slot {
-            margin-left: -45px;
-        }
+        &__projects-row-label { padding-top: 10px; font-size: 9px; letter-spacing: 2px; }
     }
 }
 
@@ -1108,18 +1449,19 @@ body.initial-draft-active {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    height: 34px;
-    padding: 0 22px 0 18px;
+    gap: 6px;
+    height: 28px;
+    padding: 0 14px 0 11px;
     border: 1px solid rgba(140, 190, 235, 0.42);
     color: #e8f1fb;
     cursor: pointer;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 12px;
-    letter-spacing: 2.4px;
+    font-size: 10px;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
     line-height: 1;
     white-space: nowrap;
+    max-width: 220px;
     clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
     isolation: isolate;
     background: linear-gradient(180deg,
@@ -1127,7 +1469,7 @@ body.initial-draft-active {
         rgba(14, 26, 40, 0.95) 100%);
     box-shadow:
         0 0 0 1px rgba(140, 190, 235, 0.18) inset,
-        0 0 12px rgba(140, 190, 235, 0.22);
+        0 0 10px rgba(140, 190, 235, 0.18);
     transition: filter 150ms ease, transform 150ms ease, box-shadow 200ms ease;
 
     &:hover {
@@ -1135,38 +1477,51 @@ body.initial-draft-active {
         transform: translateY(-1px);
         box-shadow:
             0 0 0 1px rgba(180, 215, 240, 0.32) inset,
-            0 0 18px rgba(140, 190, 235, 0.4);
+            0 0 14px rgba(140, 190, 235, 0.35);
     }
     &:active { transform: translateY(0); }
 
     &__dot {
-        width: 7px;
-        height: 7px;
+        width: 5px;
+        height: 5px;
         border-radius: 50%;
         background: #6ab0e6;
-        box-shadow: 0 0 8px rgba(106, 176, 230, 0.85);
+        box-shadow: 0 0 6px rgba(106, 176, 230, 0.85);
+        flex-shrink: 0;
     }
 
     &__label {
         font-weight: 700;
         color: rgba(200, 225, 245, 0.85);
+        flex-shrink: 0;
     }
 
     &__sep {
         color: rgba(140, 190, 235, 0.55);
+        flex-shrink: 0;
     }
 
+    /*
+     * Value может быть длинным (имя корпорации, count cards). Truncate
+     * по ellipsis, чтобы стопка pill'ов не растягивалась по ширине
+     * viewport'a и не залезала на rail / minimize-кнопку.
+     */
     &__value {
         color: #f0f6ff;
         font-weight: 600;
-        letter-spacing: 1.6px;
+        letter-spacing: 0.8px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+        max-width: 130px;
     }
 
     &__icon {
-        margin-left: 4px;
-        font-size: 14px;
+        margin-left: 2px;
+        font-size: 12px;
         color: rgba(140, 190, 235, 0.7);
         letter-spacing: 0;
+        flex-shrink: 0;
     }
 
     /*
@@ -1177,12 +1532,32 @@ body.initial-draft-active {
      * это просто визуальный hint.
      */
     &--active {
+        border-color: rgba(255, 255, 255, 0.65);
         box-shadow:
-            0 0 0 1px rgba(200, 230, 255, 0.55) inset,
-            0 0 20px rgba(140, 190, 235, 0.55);
+            0 0 0 1.5px rgba(255, 255, 255, 0.55) inset,
+            0 0 16px rgba(180, 220, 250, 0.5),
+            0 0 36px rgba(140, 190, 235, 0.35);
         background: linear-gradient(180deg,
-            rgba(40, 70, 100, 0.95) 0%,
-            rgba(22, 40, 60, 0.98) 100%);
+            rgba(60, 110, 160, 0.95) 0%,
+            rgba(30, 60, 95, 0.98) 100%);
+
+        .initial-draft-pill__label {
+            color: #ffffff;
+        }
+        .initial-draft-pill__value {
+            color: #ffffff;
+            text-shadow: 0 0 8px rgba(180, 220, 250, 0.6);
+        }
+        .initial-draft-pill__dot {
+            background: #ffffff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.85);
+        }
+        .initial-draft-pill__sep {
+            color: rgba(200, 230, 255, 0.75);
+        }
+        .initial-draft-pill__icon {
+            color: rgba(220, 240, 255, 0.95);
+        }
     }
 }
 

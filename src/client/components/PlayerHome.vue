@@ -135,6 +135,18 @@
       @end-turn="onEndTurnClick" />
 
     <!--
+      Initial draft status rail — компактная замена LeftPlayerPanel на
+      стартовом экране. Монтируется только пока `initialDraftActive`,
+      основная LeftPlayerPanel скрыта параллельным CSS-правилом в
+      initial_draft.less (`.left-panel { display: none }`). Сам rail
+      имеет z-index выше backdrop'a модала, чтобы информация по игрокам
+      оставалась читаемой при открытом step-модале.
+    -->
+    <InitialDraftStatusRail v-if="initialDraftActive"
+                            :playerView="playerView"
+                            :livePlayersWaitingFor="livePlayersWaitingFor" />
+
+    <!--
       Active controller for the Convert-Plants space picker. Renders the
       legacy `SelectSpace.vue` with the inner prompt extracted from the
       action menu — it activates board-tile interaction and calls our
@@ -440,6 +452,7 @@ import {defineComponent} from 'vue';
 
 import Card from '@/client/components/card/Card.vue';
 import LeftPlayerPanel from '@/client/components/overview/LeftPlayerPanel.vue';
+import InitialDraftStatusRail from '@/client/components/initialDraft/InitialDraftStatusRail.vue';
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import Sidebar from '@/client/components/Sidebar.vue';
 import Colony from '@/client/components/colonies/Colony.vue';
@@ -1132,6 +1145,7 @@ export default defineComponent({
     DynamicTitle,
     Card,
     LeftPlayerPanel,
+    InitialDraftStatusRail,
     'waiting-for': WaitingFor,
     'sidebar': Sidebar,
     'colony': Colony,

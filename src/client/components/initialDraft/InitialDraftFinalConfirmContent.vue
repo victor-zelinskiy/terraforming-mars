@@ -16,6 +16,23 @@
     Card.vue и не открыл второй модал параллельно.
   -->
   <div class="initial-draft-summary">
+    <!--
+      Кнопка «свернуть» в правом верхнем углу панели. Позволяет
+      игроку временно убрать summary, осмотреть карту / pill stack /
+      достижения, и вернуться через pill «Финальная сводка» в pill
+      stack'е (тот остаётся видимым благодаря `finalSummaryVisited`).
+      Не использует штатный minimize MandatoryInputModal — там бы
+      появлялся дублирующий mandatory pill, и было бы 2 индикатора
+      ожидающего summary'a. Кастомная кнопка чистая dismiss-операция.
+    -->
+    <button class="initial-draft-summary__minimize"
+            type="button"
+            :title="$t('Minimize — inspect the rest of the UI before deciding')"
+            @click="$emit('minimize')">
+      <span class="initial-draft-summary__minimize-glyph" aria-hidden="true">↗</span>
+      <span class="initial-draft-summary__minimize-label" v-i18n>Minimize</span>
+    </button>
+
     <header class="initial-draft-summary__header">
       <div class="initial-draft-summary__title-block">
         <h2 class="initial-draft-summary__title" v-i18n>Final selection</h2>
@@ -54,63 +71,73 @@
       </div>
     </header>
 
-    <div class="initial-draft-summary__body">
-      <!-- Top row: corp left, preludes+ceo right. На узких экранах
-           секции сложатся в одну колонку через CSS grid auto-fit. -->
-      <div class="initial-draft-summary__top-row">
-        <section v-if="corpCard !== undefined"
-                 class="initial-draft-summary__section initial-draft-summary__section--corp">
-          <div class="initial-draft-summary__section-header">
-            <span class="initial-draft-summary__section-label" v-i18n>Corporation</span>
-            <span class="initial-draft-summary__section-name" v-i18n>{{ corpCard.name }}</span>
-          </div>
-          <div class="initial-draft-summary__pile initial-draft-summary__pile--single">
-            <div class="initial-draft-summary__card-slot initial-draft-summary__card-slot--corp"
-                 :title="$t('Click to view')"
-                 @click.capture.stop="openFullscreen(corpCard)">
-              <Card :card="corpCard" />
-            </div>
-          </div>
-        </section>
+    <!--
+      Body = 2-колоночный grid:
+        Left col:  CORP + CEO в верхнем ряду, PRELUDES под ними.
+        Right col: PROJECT CARDS — 3 ряда по типу, занимают всю
+                   оставшуюся ширину и высоту до низа модала.
 
-        <section v-if="preludeCards.length > 0 || ceoCard !== undefined"
-                 class="initial-draft-summary__section initial-draft-summary__section--secondary">
-          <div v-if="preludeCards.length > 0"
-               class="initial-draft-summary__subsection">
+      Когда CEO нет, top-strip остаётся однострочной (corp один) и
+      preludes автоматически примыкают к corporation без пустоты.
+      Когда prelude'ов нет, low row просто отсутствует.
+
+      Projects-col растягивается на 1fr (всё свободное место по
+      ширине) и заполняет вертикаль за счёт `align-items: stretch` —
+      3 ряда равномерно делят пространство.
+    -->
+    <div class="initial-draft-summary__body">
+      <div class="initial-draft-summary__left-col">
+        <div class="initial-draft-summary__top-strip">
+          <section v-if="corpCard !== undefined"
+                   class="initial-draft-summary__section initial-draft-summary__section--corp">
             <div class="initial-draft-summary__section-header">
-              <span class="initial-draft-summary__section-label" v-i18n>Preludes</span>
-              <span class="initial-draft-summary__section-count">{{ preludeCards.length }}</span>
+              <span class="initial-draft-summary__section-label" v-i18n>Corporation</span>
+              <span class="initial-draft-summary__section-name" v-i18n>{{ corpCard.name }}</span>
             </div>
-            <div class="initial-draft-summary__pile initial-draft-summary__pile--row">
-              <div v-for="(card, idx) in preludeCards"
-                   :key="'prelude-' + card.name"
-                   class="initial-draft-summary__card-slot"
-                   :style="{ zIndex: idx + 1 }"
+            <div class="initial-draft-summary__pile initial-draft-summary__pile--single">
+              <div class="initial-draft-summary__card-slot initial-draft-summary__card-slot--corp"
                    :title="$t('Click to view')"
-                   @click.capture.stop="openFullscreen(card)">
-                <Card :card="card" />
+                   @click.capture.stop="openFullscreen(corpCard)">
+                <Card :card="corpCard" />
               </div>
             </div>
-          </div>
+          </section>
 
-          <div v-if="ceoCard !== undefined"
-               class="initial-draft-summary__subsection">
+          <section v-if="ceoCard !== undefined"
+                   class="initial-draft-summary__section">
             <div class="initial-draft-summary__section-header">
               <span class="initial-draft-summary__section-label" v-i18n>CEO</span>
               <span class="initial-draft-summary__section-name" v-i18n>{{ ceoCard.name }}</span>
             </div>
             <div class="initial-draft-summary__pile initial-draft-summary__pile--single">
-              <div class="initial-draft-summary__card-slot"
+              <div class="initial-draft-summary__card-slot initial-draft-summary__card-slot--ceo"
                    :title="$t('Click to view')"
                    @click.capture.stop="openFullscreen(ceoCard)">
                 <Card :card="ceoCard" />
               </div>
             </div>
+          </section>
+        </div>
+
+        <section v-if="preludeCards.length > 0"
+                 class="initial-draft-summary__section">
+          <div class="initial-draft-summary__section-header">
+            <span class="initial-draft-summary__section-label" v-i18n>Preludes</span>
+            <span class="initial-draft-summary__section-count">{{ preludeCards.length }}</span>
+          </div>
+          <div class="initial-draft-summary__pile initial-draft-summary__pile--row">
+            <div v-for="(card, idx) in preludeCards"
+                 :key="'prelude-' + card.name"
+                 class="initial-draft-summary__card-slot"
+                 :style="{ zIndex: idx + 1 }"
+                 :title="$t('Click to view')"
+                 @click.capture.stop="openFullscreen(card)">
+              <Card :card="card" />
+            </div>
           </div>
         </section>
       </div>
 
-      <!-- Bottom row: проекты на всю ширину, 3 группы по типу карты. -->
       <section v-if="hasAnyProject"
                class="initial-draft-summary__section initial-draft-summary__section--projects">
         <div class="initial-draft-summary__section-header">
@@ -119,10 +146,10 @@
         </div>
         <div class="initial-draft-summary__projects">
           <div v-if="projectsActive.length > 0"
-               class="initial-draft-summary__projects-group">
-            <div class="initial-draft-summary__projects-group-label">
+               class="initial-draft-summary__projects-row">
+            <div class="initial-draft-summary__projects-row-label">
               <span v-i18n>Active</span>
-              <span class="initial-draft-summary__projects-group-count">{{ projectsActive.length }}</span>
+              <span class="initial-draft-summary__projects-row-count">{{ projectsActive.length }}</span>
             </div>
             <div class="initial-draft-summary__pile initial-draft-summary__pile--row">
               <div v-for="(card, idx) in projectsActive"
@@ -136,10 +163,10 @@
             </div>
           </div>
           <div v-if="projectsAutomated.length > 0"
-               class="initial-draft-summary__projects-group">
-            <div class="initial-draft-summary__projects-group-label">
+               class="initial-draft-summary__projects-row">
+            <div class="initial-draft-summary__projects-row-label">
               <span v-i18n>Automated</span>
-              <span class="initial-draft-summary__projects-group-count">{{ projectsAutomated.length }}</span>
+              <span class="initial-draft-summary__projects-row-count">{{ projectsAutomated.length }}</span>
             </div>
             <div class="initial-draft-summary__pile initial-draft-summary__pile--row">
               <div v-for="(card, idx) in projectsAutomated"
@@ -153,10 +180,10 @@
             </div>
           </div>
           <div v-if="projectsEvent.length > 0"
-               class="initial-draft-summary__projects-group">
-            <div class="initial-draft-summary__projects-group-label">
+               class="initial-draft-summary__projects-row">
+            <div class="initial-draft-summary__projects-row-label">
               <span v-i18n>Events</span>
-              <span class="initial-draft-summary__projects-group-count">{{ projectsEvent.length }}</span>
+              <span class="initial-draft-summary__projects-row-count">{{ projectsEvent.length }}</span>
             </div>
             <div class="initial-draft-summary__pile initial-draft-summary__pile--row">
               <div v-for="(card, idx) in projectsEvent"
@@ -269,6 +296,19 @@ type DataModel = {
   editMenuOpen: boolean;
 };
 
+/*
+ * Adaptive layout — параметры лестницы деградации. Задаются в логических
+ * px relative to rendered (zoomed) cards. Алгоритм layoutPile измеряет
+ * реальную ширину контейнера и первой карты, считает требуемый spacing
+ * между картами и применяет результат через CSS var `--card-overlap`:
+ *   spacing >= NATURAL_GAP   →  NATURAL_GAP  (Stage 1: места достаточно)
+ *   0 <= spacing < NATURAL  →  spacing       (Stage 2: уплотнение)
+ *   MAX_OVERLAP < spacing<0 →  spacing       (Stage 4: mild overlap)
+ *   spacing < MAX_OVERLAP   →  MAX_OVERLAP   (Stage 5: cap, дальше скрывается)
+ */
+const ADAPTIVE_NATURAL_GAP = 12;
+const ADAPTIVE_MAX_OVERLAP = -95;
+
 export default defineComponent({
   name: 'InitialDraftFinalConfirmContent',
   components: {Card, CardZoomModal},
@@ -306,6 +346,7 @@ export default defineComponent({
   },
   emits: {
     'confirm': () => true,
+    'minimize': () => true,
     'edit-step': (step: EditStep) =>
       step === 'corp' || step === 'prelude' || step === 'ceo' || step === 'projects',
   },
@@ -402,12 +443,117 @@ export default defineComponent({
         this.editMenuOpen = false;
       }
     },
+    /*
+     * Adaptive layout pass — для каждой horizontal стопки замеряем
+     * доступную ширину контейнера + ширину первой карты, считаем
+     * оптимальный spacing между картами по лестнице деградации
+     * (см. константы выше). Без overlap'a — Stage 1. Если карт слишком
+     * много — Stage 4-5 с capped overlap. Stage 3 (wrap) не используем,
+     * потому что projects-row фикс высоты на grid.
+     */
+    recomputeAdaptiveLayout(): void {
+      const root = this.$el as HTMLElement | null;
+      if (root === null) {
+        return;
+      }
+      const piles = root.querySelectorAll<HTMLElement>('.initial-draft-summary__pile--row');
+      piles.forEach((pile) => this.layoutPile(pile));
+    },
+    layoutPile(pile: HTMLElement): void {
+      const cards = pile.querySelectorAll<HTMLElement>('.initial-draft-summary__card-slot');
+      const n = cards.length;
+      if (n === 0) {
+        return;
+      }
+      if (n === 1) {
+        // Одна карта — overlap не нужен (и применить не к чему),
+        // но всё равно сбрасываем var на natural-gap, чтобы CSS
+        // fallback не оставался от предыдущего state'a.
+        pile.style.setProperty('--card-overlap', `${ADAPTIVE_NATURAL_GAP}px`);
+        return;
+      }
+      // Снимаем applied overlap на время измерения, чтобы получить
+      // «натуральную» ширину карты. Без этого первая карта будет
+      // искажена inline-стилем предыдущего pass'a.
+      pile.style.setProperty('--card-overlap', `${ADAPTIVE_NATURAL_GAP}px`);
+      const cardWidth = cards[0].getBoundingClientRect().width;
+      // Эффективная ширина контейнера = clientWidth − padding − safety.
+      // clientWidth включает padding (а у pile--row есть padding-right
+      // под hover-лифт), который реально не доступен под карты.
+      // Дополнительные 6px — запас на sub-pixel rendering при zoom 0.46.
+      const style = window.getComputedStyle(pile);
+      const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const effectiveWidth = pile.clientWidth - padX - 6;
+      if (cardWidth <= 0 || effectiveWidth <= 0) {
+        return;
+      }
+      // available spacing per gap between consecutive cards:
+      //   total = n * cardWidth + (n-1) * spacing  ≤ effectiveWidth
+      const spacing = (effectiveWidth - n * cardWidth) / (n - 1);
+      let finalSpacing: number;
+      if (spacing >= ADAPTIVE_NATURAL_GAP) {
+        // Stage 1: места более чем хватает — natural gap, без растяжения.
+        finalSpacing = ADAPTIVE_NATURAL_GAP;
+      } else if (spacing >= 0) {
+        // Stage 2: уплотнение, но без overlap.
+        finalSpacing = spacing;
+      } else {
+        // Stage 4-5: overlap, capped на MAX_OVERLAP.
+        finalSpacing = Math.max(spacing, ADAPTIVE_MAX_OVERLAP);
+      }
+      pile.style.setProperty('--card-overlap', `${finalSpacing}px`);
+    },
+    scheduleRecompute(): void {
+      // Несколько RAF подряд — нужно, потому что на mount'е CSS zoom +
+      // images могут ещё не загрузиться, ширина первой карты считается
+      // ноль. Один пересчёт через ResizeObserver покрывает 80% case'ов,
+      // но первоначальный mount всё равно требует pull чуть позже.
+      if (typeof requestAnimationFrame === 'undefined') {
+        this.recomputeAdaptiveLayout();
+        return;
+      }
+      requestAnimationFrame(() => {
+        this.recomputeAdaptiveLayout();
+        requestAnimationFrame(() => this.recomputeAdaptiveLayout());
+      });
+    },
+  },
+  watch: {
+    // Любое изменение набора карт меняет stack'и → пересчитываем.
+    projectCards: {
+      deep: true,
+      handler() {
+        this.scheduleRecompute();
+      },
+    },
+    preludeCards: {
+      deep: true,
+      handler() {
+        this.scheduleRecompute();
+      },
+    },
   },
   mounted() {
     document.addEventListener('mousedown', this.onDocumentMousedown, true);
+    this.scheduleRecompute();
+    window.addEventListener('resize', this.scheduleRecompute);
+    // ResizeObserver на корне компонента — реагирует на изменения
+    // ширины модала, изменения CSS zoom (media queries) и любые
+    // другие изменения layout, не покрытые window.resize. Храним
+    // экземпляр через cast на `any`, чтобы не разводить отдельное
+    // поле в DataModel (он не reactive и не должен триггерить
+    // компонент).
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => this.scheduleRecompute());
+      observer.observe(this.$el as HTMLElement);
+      (this as unknown as {__resizeObserver: ResizeObserver}).__resizeObserver = observer;
+    }
   },
   beforeUnmount() {
     document.removeEventListener('mousedown', this.onDocumentMousedown, true);
+    window.removeEventListener('resize', this.scheduleRecompute);
+    const observer = (this as unknown as {__resizeObserver?: ResizeObserver}).__resizeObserver;
+    observer?.disconnect();
   },
 });
 </script>
