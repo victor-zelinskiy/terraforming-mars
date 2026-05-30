@@ -387,18 +387,23 @@ body.initial-draft-active {
 }
 
 /*
- * Awaiting-state блокировка pill stack'a — клики не проходят на
- * step-pills (corp/prelude/ceo/projects), их цвета приглушены.
- * Pill «Финальная сводка» (`--final`) остаётся полностью рабочей: она
- * нужна, чтобы восстановить свёрнутое окно «ожидаем игроков».
+ * Awaiting-state блокировка pill stack'a — step-pills (corp/prelude/ceo/
+ * projects) визуально приглушены и помечены как недоступные. Pill
+ * «Финальная сводка» (`--final`) остаётся полностью рабочей: она нужна,
+ * чтобы восстановить свёрнутое окно «ожидаем игроков».
  * Body.initial-draft-awaiting-others ставится overlay watcher'ом
  * `awaitingOtherPlayers`. Контракт: «после submit'a выбор изменить
  * нельзя, но окно ожидания должно оставаться доступным».
+ *
+ * NB: НЕ ставим `pointer-events: none` — он подавил бы native
+ * `title`-тултип, который объясняет игроку, почему плашка недоступна
+ * (требование UX). Сам клик безопасен: InitialDraftFlowOverlay.onPillReopen
+ * игнорирует step-pills, пока awaitingOtherPlayers === true. `cursor:
+ * not-allowed` даёт визуальный сигнал «нельзя».
  */
 body.initial-draft-awaiting-others {
     .initial-draft-pill:not(.initial-draft-pill--final) {
         opacity: 0.45;
-        pointer-events: none;
         cursor: not-allowed;
     }
 }
@@ -2031,10 +2036,20 @@ body.initial-draft-awaiting-others {
     }
 
     /*
-     * Responsive ladder. На широком 1080p+ дефолт (zoom 0.42 / corp 0.62 /
-     * ceo 0.5, overlap -65px, projects 3 ряда) даёт сбалансированный
-     * layout без scroll'а. По мере уменьшения viewport'a карты сжимаются
-     * и overlap усиливается, чтобы поместить всё в видимую зону.
+     * Responsive ladder. По мере уменьшения viewport'a карты СЖИМАЮТСЯ
+     * (меняем только `zoom`), но overlap между ними НЕ трогаем — им
+     * полностью управляет JS-алгоритм adaptive layout через
+     * `--card-overlap` (см. layoutPile в InitialDraftFinalConfirmContent).
+     *
+     * ВАЖНО: здесь НЕЛЬЗЯ хардкодить `margin-left` на
+     * `&__pile--row &__card-slot + &__card-slot` — литеральное значение
+     * имеет ту же специфичность, что базовое правило
+     * `margin-left: var(--card-overlap)`, и, идя позже по каскаду,
+     * перебивало бы JS-расчёт. Из-за этого карты складывались в стопку
+     * на фикс. величину даже когда места по ширине вагон (баг проявлялся
+     * в неполноэкранном окне с высотой < 900px). Меньшие карты при том же
+     * контейнере → JS сам посчитает, что overlap не нужен, и расставит их
+     * с natural gap.
      */
     @media (max-height: 900px) {
         &__body { padding: 12px 24px 8px; gap: 14px 22px; }
@@ -2042,7 +2057,6 @@ body.initial-draft-awaiting-others {
         &__card-slot > .card-container { zoom: 0.4; }
         &__card-slot--corp > .card-container { zoom: 0.6; }
         &__card-slot--ceo > .card-container { zoom: 0.5; }
-        &__pile--row &__card-slot + &__card-slot { margin-left: -70px; }
         &__projects-row { grid-template-columns: 144px minmax(0, 1fr); }
         &__projects-row-label { padding-top: 12px; }
     }
@@ -2053,7 +2067,6 @@ body.initial-draft-awaiting-others {
         &__card-slot > .card-container { zoom: 0.36; }
         &__card-slot--corp > .card-container { zoom: 0.52; }
         &__card-slot--ceo > .card-container { zoom: 0.44; }
-        &__pile--row &__card-slot + &__card-slot { margin-left: -62px; }
         &__projects-row {
             grid-template-columns: 130px minmax(0, 1fr);
             column-gap: 10px;

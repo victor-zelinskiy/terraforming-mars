@@ -68,13 +68,13 @@
   <MandatoryInputModal v-if="finalConfirmOpen"
                        :title="finalConfirmTitle"
                        :minimizable="false">
-    <InitialDraftFinalConfirmContent :corpCard="summaryCorpCard"
-                                     :preludeCards="summaryPreludeCards"
-                                     :ceoCard="summaryCeoCard"
-                                     :projectCards="summaryProjectCards"
-                                     :hasPrelude="preludeInput !== undefined"
-                                     :hasCeo="ceoInput !== undefined"
-                                     :hasProjects="projectsInput !== undefined"
+    <InitialDraftFinalConfirmContent :corpCard="displayCorpCard"
+                                     :preludeCards="displayPreludeCards"
+                                     :ceoCard="displayCeoCard"
+                                     :projectCards="displayProjectCards"
+                                     :hasPrelude="displayHasPrelude"
+                                     :hasCeo="displayHasCeo"
+                                     :hasProjects="displayHasProjects"
                                      :awaiting="awaitingOtherPlayers"
                                      @confirm="onFinalConfirm"
                                      @minimize="onFinalMinimize"
@@ -90,11 +90,12 @@
                          :workingProjects="workingProjects"
                          :visitedPrelude="visitedPrelude"
                          :visitedProjects="visitedProjects"
-                         :hasPrelude="preludeInput !== undefined"
-                         :hasCeo="ceoInput !== undefined"
-                         :hasProjects="projectsInput !== undefined"
+                         :hasPrelude="displayHasPrelude"
+                         :hasCeo="displayHasCeo"
+                         :hasProjects="displayHasProjects"
                          :showFinalPill="showFinalPill"
                          :activeStepOverride="pillActiveOverride"
+                         :awaiting="awaitingOtherPlayers"
                          @reopen="onPillReopen" />
 </template>
 
@@ -121,8 +122,7 @@ import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {SelectInitialCardsResponse, InputResponse} from '@/common/inputs/InputResponse';
 import {vueRoot} from '@/client/components/vueRoot';
 import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
-import {Phase} from '@/common/Phase';
-import {initialDraftSharedState} from '@/client/components/initialDraft/initialDraftSharedState';
+import {initialDraftSharedState, isInitialDraftAwaiting} from '@/client/components/initialDraft/initialDraftSharedState';
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
 
@@ -168,13 +168,22 @@ type DataModel = {
   // «Изменить выбор», мог быстро вернуться к summary без повторного
   // полного прогресса по шагам.
   finalSummaryVisited: boolean;
-  // Когда true — игрок уже отправил финальный submit, сервер принял
-  // ответ, но партия ещё не стартует (ждём пока остальные игроки
-  // подтвердят свой выбор). Summary остаётся открытым в locked
-  // read-only state с «ОЖИДАЕМ ИГРОКОВ» в primary CTA. Сбрасывается
-  // только при полном remount overlay'a (фаза игры меняется на
-  // ACTION / PRODUCTION / etc).
-  awaitingOtherPlayers: boolean;
+  // Снапшот данных для summary, снятый в момент submit'a. После
+  // submit'a сервер очищает waitingFor (значит preludeInput / ceoInput /
+  // projectsInput становятся undefined → has*-флаги ложны) и консолидирует
+  // часть dealt-наборов (например dealtProjectCards), из-за чего
+  // summaryProjectCards резолвится в пустоту. Чтобы summary и pill stack
+  // во время awaiting показывали именно то, что игрок выбрал, замораживаем
+  // карты и has*-флаги здесь. undefined — пока submit не отправлен.
+  summarySnapshot: {
+    corp: CardModel | undefined;
+    preludes: ReadonlyArray<CardModel>;
+    ceo: CardModel | undefined;
+    projects: ReadonlyArray<CardModel>;
+    hasPrelude: boolean;
+    hasCeo: boolean;
+    hasProjects: boolean;
+  } | undefined;
 };
 
 function titleText(t: string | Message | undefined): string | undefined {
@@ -230,10 +239,21 @@ export default defineComponent({
       workingPreludes: [],
       workingProjects: [],
       finalSummaryVisited: false,
-      awaitingOtherPlayers: false,
+      summarySnapshot: undefined,
     };
   },
   computed: {
+    /*
+     * Awaiting-окно «я отправил выбор, жду остальных». ВЫВОДИТСЯ напрямую
+     * из серверного playerView (см. isInitialDraftAwaiting), а не хранится
+     * в локальном флаге. Поэтому держится «железно»: переживает любой
+     * playerkey++ remount <player-home> (overlay живёт внутри неё) и даже
+     * перезагрузку страницы, и автоматически снимается, как только сервер
+     * уводит партию из awaiting-окна.
+     */
+    awaitingOtherPlayers(): boolean {
+      return isInitialDraftAwaiting(this.playerView);
+    },
     initialCardsInput(): SelectInitialCardsModel | undefined {
       const wf = this.playerView.waitingFor;
       if (wf === undefined || wf.type !== 'initialCards') {
@@ -359,6 +379,43 @@ export default defineComponent({
         .map((name) => dealt.find((c) => c.name === name))
         .filter((c): c is CardModel => c !== undefined);
     },
+    /*
+     * display* — то, что реально уходит в summary и pill stack. До
+     * submit'a (выбор) — живые computed'ы (резолв из dealt-наборов). После
+     * submit'a (awaiting) — замороженный summarySnapshot, потому что
+     * сервер к этому моменту уже очистил waitingFor (has*-флаги стали бы
+     * ложными → пропали бы pills прологов/проектов и секция проектов) и
+     * dealtProjectCards (карты проектов резолвились бы в пустоту). Снапшот
+     * снимается в submitFinal, пока данные ещё валидны.
+     */
+    displayCorpCard(): CardModel | undefined {
+      return this.awaitingOtherPlayers && this.summarySnapshot !== undefined ?
+        this.summarySnapshot.corp : this.summaryCorpCard;
+    },
+    displayPreludeCards(): ReadonlyArray<CardModel> {
+      return this.awaitingOtherPlayers && this.summarySnapshot !== undefined ?
+        this.summarySnapshot.preludes : this.summaryPreludeCards;
+    },
+    displayCeoCard(): CardModel | undefined {
+      return this.awaitingOtherPlayers && this.summarySnapshot !== undefined ?
+        this.summarySnapshot.ceo : this.summaryCeoCard;
+    },
+    displayProjectCards(): ReadonlyArray<CardModel> {
+      return this.awaitingOtherPlayers && this.summarySnapshot !== undefined ?
+        this.summarySnapshot.projects : this.summaryProjectCards;
+    },
+    displayHasPrelude(): boolean {
+      return this.awaitingOtherPlayers && this.summarySnapshot !== undefined ?
+        this.summarySnapshot.hasPrelude : this.preludeInput !== undefined;
+    },
+    displayHasCeo(): boolean {
+      return this.awaitingOtherPlayers && this.summarySnapshot !== undefined ?
+        this.summarySnapshot.hasCeo : this.ceoInput !== undefined;
+    },
+    displayHasProjects(): boolean {
+      return this.awaitingOtherPlayers && this.summarySnapshot !== undefined ?
+        this.summarySnapshot.hasProjects : this.projectsInput !== undefined;
+    },
     // Финальный confirm popup открыт, когда все обязательные шаги
     // совершены (naturalStep === 'done'), нет открытого pill-override,
     // нет открытого skip popup'а, и игрок ещё не нажимал «Изменить
@@ -367,11 +424,13 @@ export default defineComponent({
       if (!this.isActive) {
         return false;
       }
-      // В awaiting-state модал ВСЕГДА открыт — это и есть main UI
-      // post-submit waiting'a. dismiss не работает.
-      if (this.awaitingOtherPlayers) {
-        return true;
-      }
+      // В awaiting-state naturalStep всегда 'done' (все input'ы очищены
+      // сервером), поэтому общий путь ниже корректно открывает summary
+      // по умолчанию. РАНЬШЕ здесь стоял безусловный `return true`, из-за
+      // которого finalConfirmDismissed игнорировался и кнопка «Свернуть»
+      // не работала во время блокировки. Теперь dismiss работает и в
+      // awaiting: «Свернуть» прячет окно (игрок осматривает поле/карты),
+      // а pill «Финальная сводка» возвращает его обратно.
       if (this.naturalStep !== 'done') {
         return false;
       }
@@ -416,29 +475,6 @@ export default defineComponent({
       handler(awaiting: boolean) {
         if (typeof document !== 'undefined') {
           document.body.classList.toggle('initial-draft-awaiting-others', awaiting);
-        }
-      },
-    },
-    /*
-     * Phase change ловим через polling: пока мы в awaiting, polling в
-     * WaitingFor.vue продолжает тянуть playerView. Когда последний
-     * игрок отправит свой initial draft, серверная фаза уйдёт из
-     * INITIALDRAFTING — это сигнал «партия стартовала, можно
-     * отрисовать игровой UI». Снимаем awaitingOtherPlayers и делаем
-     * playerkey++ remount, чтобы PlayerHome перерисовался с нужными
-     * для новой фазы prompt'ами (RESEARCH / ACTION / etc).
-     */
-    'playerView.game.phase': {
-      handler(phase: Phase | undefined) {
-        if (!this.awaitingOtherPlayers) {
-          return;
-        }
-        if (phase !== Phase.INITIALDRAFTING) {
-          this.awaitingOtherPlayers = false;
-          const root = vueRoot(this);
-          root.screen = 'empty';
-          root.playerkey++;
-          root.screen = 'player-home';
         }
       },
     },
@@ -634,17 +670,6 @@ export default defineComponent({
      * наш overlay вместе со всем initial-draft контекстом — это OK,
      * мы для этого и здесь.
      */
-    /*
-     * Сервер всё ещё в фазе INITIALDRAFTING — наш submit принят, но
-     * другие игроки ещё не подтвердили свой initial draft. Используется
-     * в submitFinal'е для перехода в awaiting-state вместо мгновенного
-     * playerkey++ remount'a. RESEARCH / PRELUDES / CEOS — уже игровые
-     * фазы (первое поколение), в них нужен полноценный игровой UI
-     * (кнопки действий, поле и т.д.), поэтому в awaiting не уводим.
-     */
-    isStillInInitialDraft(view: PlayerViewModel): boolean {
-      return view.game.phase === Phase.INITIALDRAFTING;
-    },
     submitFinal(): void {
       const view = this.playerView;
       const root = vueRoot(this);
@@ -652,6 +677,22 @@ export default defineComponent({
         return;
       }
       root.isServerSideRequestInProgress = true;
+
+      // Замораживаем данные summary ДО отправки — сейчас dealt-наборы
+      // ещё полны, а *Input ещё присутствуют. После ответа сервера
+      // (awaiting) live-computed'ы опустели бы (см. display*). Снапшот
+      // используется только если перейдём в awaiting; для последнего
+      // подтвердившего игрока он просто не понадобится (overlay снесёт
+      // remount).
+      this.summarySnapshot = {
+        corp: this.summaryCorpCard,
+        preludes: [...this.summaryPreludeCards],
+        ceo: this.summaryCeoCard,
+        projects: [...this.summaryProjectCards],
+        hasPrelude: this.preludeInput !== undefined,
+        hasCeo: this.ceoInput !== undefined,
+        hasProjects: this.projectsInput !== undefined,
+      };
 
       const response = this.buildResponse();
       const url = paths.PLAYER_INPUT + '?id=' + view.id;
@@ -666,26 +707,32 @@ export default defineComponent({
             const newPlayerView = await httpResponse.json() as PlayerViewModel;
             /*
              * Если игра ушла в END — стандартный flow с redirect.
-             * Иначе: если сервер всё ещё в pre-game фазе (нас приняли,
-             * но другие игроки ещё в initial draft), переходим в
-             * awaiting-state. Modal остаётся открытым с «ОЖИДАЕМ
-             * ИГРОКОВ» UI; polling от WaitingFor подхватит phase
-             * change позже и сделает full remount overlay'a, после
-             * чего initial draft закроется автоматически.
+             * Иначе: если сервер принял наш ответ, но партия ещё не
+             * стартовала (другие игроки не подтвердили выбор —
+             * isInitialDraftAwaiting), переходим в awaiting-state.
+             * Modal остаётся открытым с «ОЖИДАЕМ ИГРОКОВ» UI; polling от
+             * WaitingFor подхватит старт партии позже и сделает full
+             * remount overlay'a (предикат shouldPreserveInitialDraftOverlay
+             * к тому моменту вернёт false), после чего initial draft
+             * закроется автоматически.
              *
-             * Если же сервер сразу перевёл игру в ACTION (все игроки
-             * успели submit'нуть одновременно), идём по стандартному
-             * playerkey++ path — модал закроется через
-             * `applyPlayerViewUpdate`.
+             * Если же сервер сразу перевёл игру в ACTION (мы — последний
+             * подтвердивший игрок), идём по стандартному playerkey++ path —
+             * overlay снимается мгновенно.
              */
             if (newPlayerView.game.phase === 'end' && window.location.pathname !== paths.THE_END) {
               window.location = window.location as any as (string & Location);
               return;
             }
-            if (this.isStillInInitialDraft(newPlayerView)) {
-              // Reactive swap без playerkey++, остаёмся в waiting UI.
+            if (isInitialDraftAwaiting(newPlayerView)) {
+              // Сервер принял наш ответ, но партия ещё не стартовала
+              // (другие игроки не подтвердили выбор). Reactive swap без
+              // playerkey++ — остаёмся в том же overlay'е, который теперь
+              // выведет awaitingOtherPlayers === true из нового view и
+              // покажет экран ожидания. shouldPreserveInitialDraftOverlay
+              // будет держать overlay живым на всех последующих
+              // poll-driven обновлениях, пока партия не стартует.
               root.playerView = newPlayerView;
-              this.awaitingOtherPlayers = true;
             } else if (shouldPreserveCardPickModal(newPlayerView)) {
               root.playerView = newPlayerView;
             } else {
@@ -732,7 +779,7 @@ export default defineComponent({
       this.workingPreludes = [];
       this.workingProjects = [];
       this.finalSummaryVisited = false;
-      this.awaitingOtherPlayers = false;
+      this.summarySnapshot = undefined;
     },
   },
   beforeUnmount() {

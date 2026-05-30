@@ -99,6 +99,7 @@ import WorldGovernmentModalContent from '@/client/components/WorldGovernmentModa
 import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {clearIfPhaseLeftCardPick, clearDraftWaitPending, shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
+import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
 import {Message} from '@/common/logs/Message';
 
 const WGT_TITLE = 'Select action for World Government Terraforming';
@@ -302,7 +303,7 @@ export default defineComponent({
          * still fires, preserving the original "force re-render"
          * behaviour that the codebase relies on for those paths.
          */
-        if (shouldPreserveCardPickModal(playerView)) {
+        if (shouldPreserveCardPickModal(playerView) || shouldPreserveInitialDraftOverlay(playerView)) {
           root.playerView = playerView;
         } else {
           root.screen = 'empty';
