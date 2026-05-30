@@ -120,7 +120,8 @@ export default defineComponent({
     },
   },
   emits: {
-    confirm: (preludes: ReadonlyArray<CardName>) => Array.isArray(preludes),
+    'confirm': (preludes: ReadonlyArray<CardName>) => Array.isArray(preludes),
+    'selection-change': (preludes: ReadonlyArray<CardName>) => Array.isArray(preludes),
   },
   data(): DataModel {
     return {
@@ -135,6 +136,14 @@ export default defineComponent({
       handler() {
         this.selected = this.selected.filter((name) =>
           this.playerinput.cards.some((c) => c.name === name));
+      },
+    },
+    // Отдаём наружу любое изменение selected, чтобы overlay мог
+    // сохранить working state и pill stack показал актуальный count
+    // даже когда шаг свёрнут / переключён через другой pill.
+    selected: {
+      handler(now: ReadonlyArray<CardName>) {
+        this.$emit('selection-change', [...now]);
       },
     },
   },

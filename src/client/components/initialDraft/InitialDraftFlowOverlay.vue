@@ -30,18 +30,21 @@
   <MandatoryInputModal v-if="activeStep === 'corp' && corpInput !== undefined"
                        :title="corpInput.title">
     <InitialDraftCorpStep :playerinput="corpInput"
+                          :preSelected="committedCorp"
                           @confirm="onCorpConfirm" />
   </MandatoryInputModal>
   <MandatoryInputModal v-else-if="activeStep === 'prelude' && preludeInput !== undefined"
                        :title="preludeInput.title">
     <InitialDraftPreludeStep :playerinput="preludeInput"
                              :corpName="committedCorp"
-                             :preSelected="committedPreludes"
+                             :preSelected="workingPreludes"
+                             @selection-change="onPreludeSelectionChange"
                              @confirm="onPreludeConfirm" />
   </MandatoryInputModal>
   <MandatoryInputModal v-else-if="activeStep === 'ceo' && ceoInput !== undefined"
                        :title="ceoInput.title">
     <InitialDraftCeoStep :playerinput="ceoInput"
+                         :preSelected="committedCeo"
                          @confirm="onCeoConfirm" />
   </MandatoryInputModal>
   <MandatoryInputModal v-else-if="activeStep === 'projects' && projectsInput !== undefined && !skipConfirmOpen"
@@ -49,7 +52,8 @@
     <InitialDraftProjectsStep :playerinput="projectsInput"
                               :corpName="committedCorp"
                               :selectedPreludes="committedPreludes"
-                              :preSelected="committedProjects ?? []"
+                              :preSelected="workingProjects"
+                              @selection-change="onProjectsSelectionChange"
                               @confirm="onProjectsConfirm"
                               @skip-request="onProjectsSkipRequest" />
   </MandatoryInputModal>
@@ -73,6 +77,10 @@
                          :committedPreludes="committedPreludes"
                          :committedCeo="committedCeo"
                          :committedProjects="committedProjects"
+                         :workingPreludes="workingPreludes"
+                         :workingProjects="workingProjects"
+                         :visitedPrelude="visitedPrelude"
+                         :visitedProjects="visitedProjects"
                          :hasPrelude="preludeInput !== undefined"
                          :hasCeo="ceoInput !== undefined"
                          :hasProjects="projectsInput !== undefined"
@@ -128,6 +136,19 @@ type DataModel = {
   // чтобы его пересмотреть. Сбрасывается, как только этот шаг
   // подтверждён повторно (или сервер прислал новый initialCards prompt).
   activeStepOverride: Step | undefined;
+  // Visited флаги. Pill для multi-select шагов (prelude / projects)
+  // показывается как только игрок открыл шаг хоть раз — даже если
+  // он ещё не подтвердил выбор. Это нужно для кейса «зашёл в проекты,
+  // нажал pill прологов посмотреть, теперь хочет вернуться в проекты,
+  // а pill'a нет». Watcher на activeStep ставит флаг автоматически.
+  visitedPrelude: boolean;
+  visitedProjects: boolean;
+  // In-flight selection шагов prelude / projects. Раньше жила локально
+  // в Step-компоненте и терялась при unmount (когда игрок переключался
+  // через pill). Теперь хранится в overlay и передаётся обратно как
+  // preSelected при ре-открытии — выбор не теряется.
+  workingPreludes: ReadonlyArray<CardName>;
+  workingProjects: ReadonlyArray<CardName>;
 };
 
 function titleText(t: string | Message | undefined): string | undefined {
@@ -178,6 +199,10 @@ export default defineComponent({
       finalConfirmDismissed: false,
       skipConfirmOpen: false,
       activeStepOverride: undefined,
+      visitedPrelude: false,
+      visitedProjects: false,
+      workingPreludes: [],
+      workingProjects: [],
     };
   },
   computed: {
@@ -281,6 +306,24 @@ export default defineComponent({
         }
       },
     },
+    /*
+     * Любое появление шага (через естественный прогресс ИЛИ override
+     * pill'ом) поднимает visited-флаг. Для multi-select шагов pill
+     * остаётся видимым после этого, даже если игрок ушёл без commit'а.
+     * Watcher специально без `immediate: true` — на mount шаг 'corp'
+     * ещё не считается «visited» в кадре, что не имеет значения, потому
+     * что pill для corp всё равно гейтится не visited'ом, а committed'ом.
+     */
+    activeStep: {
+      handler(step: Step) {
+        if (step === 'prelude') {
+          this.visitedPrelude = true;
+        }
+        if (step === 'projects') {
+          this.visitedProjects = true;
+        }
+      },
+    },
   },
   methods: {
     // Каждый commit очищает override — если игрок открыл pill уже
@@ -292,7 +335,13 @@ export default defineComponent({
     },
     onPreludeConfirm(preludes: ReadonlyArray<CardName>) {
       this.committedPreludes = preludes;
+      // working синхронизируется с committed на commit'е (чтобы
+      // следующий reopen показал ровно то, что только что committed'ano).
+      this.workingPreludes = preludes;
       this.activeStepOverride = undefined;
+    },
+    onPreludeSelectionChange(preludes: ReadonlyArray<CardName>) {
+      this.workingPreludes = preludes;
     },
     onCeoConfirm(name: CardName) {
       this.committedCeo = name;
@@ -300,13 +349,18 @@ export default defineComponent({
     },
     onProjectsConfirm(cards: ReadonlyArray<CardName>) {
       this.committedProjects = cards;
+      this.workingProjects = cards;
       this.activeStepOverride = undefined;
+    },
+    onProjectsSelectionChange(cards: ReadonlyArray<CardName>) {
+      this.workingProjects = cards;
     },
     onProjectsSkipRequest() {
       this.skipConfirmOpen = true;
     },
     onSkipConfirm() {
       this.committedProjects = [];
+      this.workingProjects = [];
       this.skipConfirmOpen = false;
       this.activeStepOverride = undefined;
     },
@@ -428,6 +482,10 @@ export default defineComponent({
       this.finalConfirmDismissed = false;
       this.skipConfirmOpen = false;
       this.activeStepOverride = undefined;
+      this.visitedPrelude = false;
+      this.visitedProjects = false;
+      this.workingPreludes = [];
+      this.workingProjects = [];
     },
   },
   beforeUnmount() {

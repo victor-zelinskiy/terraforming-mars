@@ -3,16 +3,17 @@
     <div class="left-panel-card-row left-panel-card-row--top">
       <div :class="cubeClass"></div>
       <div class="left-panel-card-name" :class="playerNameShadowClass">{{ player.name }}</div>
-      <!--
-        Compact turn-order бэйдж. CSS прячет его в обычной игре
-        (`body:not(.initial-draft-active) ... { display: none }`),
-        так что в legacy-режиме plate'a его нет вообще. Во время initial
-        draft показывается «1-й ход» / «2-й ход» / «3-й ход» по индексу
-        в playerView.players (это и есть seating-order).
-      -->
-      <div class="left-panel-card-turn-badge"
-           v-i18n="[turnOrderLabel]">Turn ${0}</div>
     </div>
+    <!--
+      Turn-order бэйдж сидит в собственной строке под cube/name —
+      раньше клался справа от имени в top-row и обрезал длинные
+      ники до «N…», «V…». Своя строка даёт badge нормальную ширину
+      и оставляет имя читаемым. CSS прячет его в обычной игре
+      (`body:not(.initial-draft-active) ... { display: none }`), так
+      что в legacy-режиме plate'a его нет вообще.
+    -->
+    <div class="left-panel-card-turn-badge"
+         v-i18n="[turnOrderLabel]">Turn ${0}</div>
     <div v-if="corporationName" class="left-panel-card-corp" :title="corporationName" v-i18n>{{ corporationName }}</div>
     <div class="left-panel-card-row left-panel-card-row--stats">
       <div class="left-panel-card-stat left-panel-card-stat--vp" :title="$t('Victory points')">

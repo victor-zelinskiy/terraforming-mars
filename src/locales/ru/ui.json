@@ -293,7 +293,7 @@
     "Click to change CEO": "Нажмите, чтобы изменить выбор директора",
     "Click to change project cards": "Нажмите, чтобы изменить стартовые карты проектов",
     "Start the game with the selected cards?": "Начать игру с выбранными картами?",
-    "Your choices will be sent to the server. After the game begins, the initial draft cannot be replayed.": "Ваш выбор будет отправлен на сервер. После начала партии стартовый драфт нельзя переиграть.",
+    "Once the game begins, your starting selection cannot be changed.": "После начала партии изменить стартовый выбор будет нельзя.",
     "Start": "Начать",
     "Change selection": "Изменить выбор",
     "Turn ${0}": "${0}-й ход",

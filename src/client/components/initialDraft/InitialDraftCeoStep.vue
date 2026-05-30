@@ -22,7 +22,8 @@
     <div class="card-selection__cards">
       <div v-for="card in cards"
            :key="card.name"
-           class="card-selection__card-slot">
+           class="card-selection__card-slot"
+           :class="{'card-selection__card-slot--selected': card.name === preSelected}">
         <div class="card-selection__card-clickable"
              @click.capture.stop="openFullscreen(card)">
           <Card :card="card" />
@@ -68,6 +69,13 @@ export default defineComponent({
     playerinput: {
       type: Object as PropType<SelectCardModel>,
       required: true,
+    },
+    // Текущий committed CEO (или undefined). Подсвечивает уже выбранного
+    // директора при reopen через pill — та же семантика, что и в
+    // InitialDraftCorpStep.preSelected.
+    preSelected: {
+      type: String as PropType<CardName | undefined>,
+      default: undefined,
     },
   },
   emits: {
