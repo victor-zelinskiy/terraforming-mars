@@ -96,10 +96,10 @@
         setup).
       -->
       <div v-if="game.colonies.length > 0"
-           class="bottom-bar-btn"
+           class="bottom-bar-btn bottom-bar-btn--colonies"
            :class="{'bottom-bar-btn--active': coloniesOverlayOpen}"
            v-on:click="onOpenColoniesOverlay">
-        <span v-i18n>Trade with colonies</span>
+        <span v-i18n>Colonies</span>
       </div>
       <div class="bottom-bar-btn bottom-bar-btn--center bottom-bar-btn--cards" :class="{'bottom-bar-btn--active': activeOverlay === 'cards'}" v-on:click="toggleOverlay('cards')">
         <div class="bottom-bar-btn-cards-glyph"></div>
@@ -276,15 +276,23 @@
       @toggle-legacy-ui="activeOverlay = (activeOverlay === 'legacyUi' ? null : 'legacyUi')">
     </sidebar>
 
-    <div v-if="thisPlayer.tableau.length > 0">
-      <div class="player_home_block player_home_block--board">
-        <GameBoardView
-          :game="game"
-          :tileView="tileView"
-          :players="playerView.players"
-          @toggleTileView="cycleTileView()"
-        />
-      </div>
+    <!--
+      Карта Марса монтируется БЕЗУСЛОВНО, даже когда tableau ещё пустой
+      (стартовый экран / initial draft). По UX-контракту фо́рка игрок
+      должен иметь возможность свернуть любой модал выбора и осмотреть
+      планету, на которой будет играть, — без отличия от обычной партии.
+      Legacy-UI обёртка ниже остаётся условной (`tableau > 0`), т.к. её
+      содержимое (Actions / hand / drafted-cards) имеет смысл только
+      после старта партии.
+    -->
+    <div class="player_home_block player_home_block--board">
+      <GameBoardView
+        :game="game"
+        :tileView="tileView"
+        :players="playerView.players"
+        @toggleTileView="cycleTileView()"
+      />
+    </div>
 
     <!--
       Legacy-UI wrapper. Holds the old radio-form action stack, hand,
@@ -296,6 +304,16 @@
       overlays). Content stays mounted across open/close so any
       in-flight WaitingFor state / hand sort / scroll position
       survives. Header row inside the overlay shows a close button.
+
+      v40-r2: убран внешний `v-if="thisPlayer.tableau.length > 0"`.
+      WaitingFor живёт внутри overlay'а и отвечает за общий polling
+      (`/api/waitingfor`), который заполняет root.playersWaitingFor —
+      от него зависят action-label кубики игроков и анимация spinning
+      cube. Раньше overlay монтировался только после старта партии
+      (`tableau > 0`), и на стартовом экране (initial draft) polling
+      не работал: status-полоска была пустой, cube не крутился.
+      Теперь overlay (и WaitingFor внутри) всегда mounted; внутренние
+      блоки имеют свои индивидуальные v-if на условиях содержания.
     -->
       <div class="legacy-ui-overlay"
            :class="{'legacy-ui-overlay--open': activeOverlay === 'legacyUi'}"
@@ -355,16 +373,22 @@
           </div>
         </div>
       </div>
-    </div>
 
     <div v-if="thisPlayer.underworldData.tokens.length > 0">
       <dynamic-title title="Claimed Underground Resource Tokens" :color="thisPlayer.color"/>
       <underground-tokens :underworldData="thisPlayer.underworldData"></underground-tokens>
     </div>
 
-    <template v-if="thisPlayer.tableau.length === 0">
-      <PlayerSetupView :playerView="playerView" :tileView="tileView"/>
-    </template>
+    <!--
+      Initial draft screen overlay. Live-renders сценарий выбора стартовых
+      корпораций / прологов / CEO / проектов через серию modern modal'ов.
+      Внутри сам решает, когда активен — по `playerView.waitingFor.type ===
+      'initialCards'`. Когда активен, ставит body.initial-draft-active,
+      что прячет нерелевантный HUD (см. initial_draft.less).
+      Заменил legacy `PlayerSetupView` — старый компонент остался в репо
+      как историческая reference, но больше нигде не монтируется.
+    -->
+    <InitialDraftFlowOverlay :playerView="playerView" />
 
     <!--
       Legacy in-page colonies block deleted. The same info is presented
@@ -382,6 +406,7 @@
                      :disabledReasons="coloniesOverlayDisabledReasons"
                      :dismissable="coloniesOverlayDismissable"
                      :viewerColor="thisPlayer.color"
+                     :forceDisabledReason="initialDraftActive ? 'Not available during draft' : ''"
                      @select="onColonySelected($event)"
                      @close="onCloseColoniesOverlay" />
 
@@ -421,7 +446,7 @@ import Colony from '@/client/components/colonies/Colony.vue';
 import LogPanel from '@/client/components/logpanel/LogPanel.vue';
 import GameBoardView from '@/client/components/GameBoardView.vue';
 import {useBoardAutoScale} from '@/client/utils/useBoardAutoScale';
-import PlayerSetupView from '@/client/components/PlayerSetupView.vue';
+import InitialDraftFlowOverlay from '@/client/components/initialDraft/InitialDraftFlowOverlay.vue';
 import DynamicTitle from '@/client/components/common/DynamicTitle.vue';
 import SortableCards from '@/client/components/SortableCards.vue';
 import StackedCards from '@/client/components/StackedCards.vue';
@@ -899,6 +924,14 @@ export default defineComponent({
       if (this.tradeColonyContext) return 'trade';
       return 'view';
     },
+    // True пока сервер ждёт initial-draft ответа. Используется как
+    // блокирующий флаг для тех немногих оверлеев, которые остаются
+    // доступными во время стартового экрана (Колонии — игрок может
+    // открыть для осмотра, но Select-кнопки везде disabled). HUD-уровень
+    // прячется через body.initial-draft-active (см. InitialDraftFlowOverlay).
+    initialDraftActive(): boolean {
+      return this.playerView.waitingFor?.type === 'initialCards';
+    },
     // The set of colonies the server is currently offering as picks for
     // the active mode. View mode → empty. Tile-level enabled state and
     // the SELECT button read this directly.
@@ -1105,7 +1138,7 @@ export default defineComponent({
     'log-panel': LogPanel,
     'sortable-cards': SortableCards,
     GameBoardView,
-    PlayerSetupView,
+    InitialDraftFlowOverlay,
     'stacked-cards': StackedCards,
     UndergroundTokens,
     KeyboardShortcuts,

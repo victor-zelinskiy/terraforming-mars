@@ -1,3 +1,15 @@
+<!--
+  ⚠ DEPRECATED / LEGACY (vize1215 fork).
+
+  Раньше этот компонент рендерил весь экран старта партии (turn order,
+  предпросмотр dealt cards, легаси SelectInitialCards через waiting-for,
+  и инлайн-блок board). С реворком initial draft UI вся эта роль перешла
+  к `InitialDraftFlowOverlay.vue` (см. `initialDraft/`). Файл оставлен в
+  репозитории как историческая референция логики, но НИГДЕ не импортится
+  и НЕ монтируется. Удалять не надо — может ещё пригодиться как источник
+  legacy turn-order / Aridor-preview логики при последующих этапах
+  реворка.
+-->
 <template>
   <div class="player_home_block player_home_block--setup nofloat">
     <template v-if="isInitialDraftingPhase">

@@ -14,6 +14,7 @@
         :isViewer="isViewerFor(p)"
         :passAvailable="isViewerFor(p) && passAvailable"
         :endTurnAvailable="isViewerFor(p) && endTurnAvailable"
+        :turnIndex="turnIndexFor(p)"
         @select="$emit('selectPlayer', $event)"
         @pass="$emit('pass')"
         @end-turn="$emit('end-turn')" />
@@ -163,6 +164,12 @@ export default defineComponent({
     },
     isViewerFor(p: PublicPlayerModel): boolean {
       return p.color === this.playerView.thisPlayer?.color;
+    },
+    // 0-indexed позиция игрока в seating-order — это и есть порядок
+    // хода в текущем поколении. playerView.players прибывает уже в
+    // generation order (server строит из game.playersInGenerationOrder).
+    turnIndexFor(p: PublicPlayerModel): number {
+      return this.playerView.players.findIndex((pp) => pp.color === p.color);
     },
   },
 });

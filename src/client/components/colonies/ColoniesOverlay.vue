@@ -250,6 +250,19 @@ export default defineComponent({
       type: String as () => Color | undefined,
       default: undefined,
     },
+    // Глобальная причина блокировки SELECT на всех колониях. Когда
+    // непустая — `reasonFor` возвращает её для каждой колонии (после
+    // i18n-перевода), полностью переопределяя per-colony / view-mode
+    // дефолты. Используется, например, во время initial draft phase:
+    // overlay открывается в режиме view, но tooltip обязан явно сказать
+    // «Недоступно на этапе драфта» вместо общего «No colony action
+    // available right now». Параллельно блокирует наблюдаемый клик —
+    // selectableSet и так пуст в view-mode, так что Select-кнопки уже
+    // disabled; этот prop только меняет текст подсказки.
+    forceDisabledReason: {
+      type: String,
+      default: '',
+    },
   },
   emits: ['select', 'close'],
   data(): DataModel {
@@ -321,6 +334,11 @@ export default defineComponent({
       // Selectable colonies don't surface a reason — the tooltip shows
       // the positive "select this" message instead.
       if (this.selectableSet.has(colony.name)) return '';
+      // Глобальное переопределение (например, initial draft phase) — имеет
+      // приоритет над per-colony объяснениями и fallback'ами.
+      if (this.forceDisabledReason !== '') {
+        return translateText(this.forceDisabledReason);
+      }
       const explicit = this.disabledReasons[colony.name];
       if (explicit) return translateText(explicit);
       // Fall-back defaults — derived from the visible colony state so the
