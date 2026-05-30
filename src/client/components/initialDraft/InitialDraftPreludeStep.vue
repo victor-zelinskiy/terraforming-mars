@@ -89,7 +89,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {afterPreludes} from '@/client/components/initialDraft/initialDraftMoney';
+import {afterPreludes, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 
 type DataModel = {
   selected: CardName[];
@@ -175,8 +175,15 @@ export default defineComponent({
       return translateTextWithParams(
         'Select ${0} card(s)', [String(this.min)]);
     },
+    // «После прологов» = базовые M€ корпорации (с учётом её специфики:
+    // Sagitta +4 и т.п.) + сумма бонусов от выбранных прологов. Раньше
+    // здесь была только `afterPreludes(...)`, что давало только дельту
+    // (например 21 для Polar Industries + Ocean City на Manutech), без
+    // базы корпорации (35 для Manutech) — итог не соответствовал реальным
+    // стартовым M€ после прологов.
     moneyValue(): number {
-      return afterPreludes(this.corpName, this.selected, 0);
+      const base = startingMegacredits(this.corpName, 0) ?? 0;
+      return base + afterPreludes(this.corpName, this.selected, 0);
     },
   },
   methods: {

@@ -14,5 +14,10 @@ export type ActionLabel =
   | 'delegate'      // Turmoil-only: placing a delegate or picking the ruling party.
   | 'passed'        // passed this action phase, waiting for next generation
   | 'next'          // the next player to act after the current one
-  | 'none'          // not waiting on this player
+  | 'waiting'       // нейтральное состояние «ожидает» — игрок ничего сейчас
+                    // не должен делать (выбор уже committed, чужой ход и т.п.),
+                    // но партия ещё не закончена. Без этого статуса карта
+                    // игрока оставалась без подписи, и было непонятно, забыт
+                    // он или просто ждёт.
+  | 'none'          // not waiting on this player AND nothing meaningful to show
   | '';

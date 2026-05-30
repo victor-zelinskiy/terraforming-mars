@@ -41,7 +41,7 @@ import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-type PillStep = 'corp' | 'prelude' | 'ceo' | 'projects';
+type PillStep = 'corp' | 'prelude' | 'ceo' | 'projects' | 'final';
 
 type Pill = {
   step: PillStep;
@@ -110,8 +110,16 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    // Текущий перекрытый шаг (если игрок уже кликнул pill).
-    // Подсвечивает активную плашку.
+    // Pill «Финальная сводка» — показывается, когда summary хоть раз
+    // открывалась (finalSummaryVisited в overlay) и сейчас закрыта.
+    // Клик возвращает игрока к summary через emit('reopen', 'final').
+    showFinalPill: {
+      type: Boolean,
+      default: false,
+    },
+    // Текущий активный pill — overrid'нутый шаг (corp/prelude/ceo/projects)
+    // ИЛИ 'final' когда открыта финальная сводка. Подсвечивает активную
+    // плашку как «вы находитесь здесь».
     activeStepOverride: {
       type: String as PropType<PillStep | undefined>,
       default: undefined,
@@ -119,7 +127,8 @@ export default defineComponent({
   },
   emits: {
     reopen: (step: PillStep) =>
-      step === 'corp' || step === 'prelude' || step === 'ceo' || step === 'projects',
+      step === 'corp' || step === 'prelude' || step === 'ceo' ||
+      step === 'projects' || step === 'final',
   },
   computed: {
     pills(): ReadonlyArray<Pill> {
@@ -174,6 +183,16 @@ export default defineComponent({
           label: translateText('Projects'),
           value,
           tooltip: translateText('Click to change project cards'),
+        });
+      }
+      // Final summary pill — последний в стопке. Появляется только
+      // после первого открытия summary; click возвращает к ней.
+      if (this.showFinalPill) {
+        result.push({
+          step: 'final',
+          label: translateText('Final summary'),
+          value: translateText('Ready'),
+          tooltip: translateText('Click to return to the final summary'),
         });
       }
       return result;

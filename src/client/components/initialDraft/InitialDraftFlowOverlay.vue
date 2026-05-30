@@ -68,8 +68,15 @@
   <MandatoryInputModal v-if="finalConfirmOpen"
                        :title="finalConfirmTitle"
                        :minimizable="false">
-    <InitialDraftFinalConfirmContent @confirm="onFinalConfirm"
-                                     @cancel="onFinalCancel" />
+    <InitialDraftFinalConfirmContent :corpCard="summaryCorpCard"
+                                     :preludeCards="summaryPreludeCards"
+                                     :ceoCard="summaryCeoCard"
+                                     :projectCards="summaryProjectCards"
+                                     :hasPrelude="preludeInput !== undefined"
+                                     :hasCeo="ceoInput !== undefined"
+                                     :hasProjects="projectsInput !== undefined"
+                                     @confirm="onFinalConfirm"
+                                     @edit-step="onEditStep" />
   </MandatoryInputModal>
 
   <InitialDraftPillStack v-if="isActive"
@@ -84,6 +91,7 @@
                          :hasPrelude="preludeInput !== undefined"
                          :hasCeo="ceoInput !== undefined"
                          :hasProjects="projectsInput !== undefined"
+                         :showFinalPill="showFinalPill"
                          :activeStepOverride="pillActiveOverride"
                          @reopen="onPillReopen" />
 </template>
@@ -92,6 +100,7 @@
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectInitialCardsModel, SelectCardModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {CardModel} from '@/common/models/CardModel';
 import * as titles from '@/common/inputs/SelectInitialCards';
 import {CardName} from '@/common/cards/CardName';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
@@ -149,6 +158,12 @@ type DataModel = {
   // preSelected при ре-открытии — выбор не теряется.
   workingPreludes: ReadonlyArray<CardName>;
   workingProjects: ReadonlyArray<CardName>;
+  // Visited флаг для финального summary popup'a. Поднимается, как
+  // только summary был открыт хотя бы раз. Позволяет показать pill
+  // «Финальная сводка» в pill stack'е, чтобы игрок, нажавший
+  // «Изменить выбор», мог быстро вернуться к summary без повторного
+  // полного прогресса по шагам.
+  finalSummaryVisited: boolean;
 };
 
 function titleText(t: string | Message | undefined): string | undefined {
@@ -203,6 +218,7 @@ export default defineComponent({
       visitedProjects: false,
       workingPreludes: [],
       workingProjects: [],
+      finalSummaryVisited: false,
     };
   },
   computed: {
@@ -264,12 +280,65 @@ export default defineComponent({
     // Pill stack принимает только 4 «реальных» шага (corp/prelude/
     // ceo/projects). 'done' override pill'ом сделать нельзя — поэтому
     // отсекаем его на типовом уровне здесь.
-    pillActiveOverride(): 'corp' | 'prelude' | 'ceo' | 'projects' | undefined {
+    pillActiveOverride(): 'corp' | 'prelude' | 'ceo' | 'projects' | 'final' | undefined {
+      // Финальный summary имеет приоритет: пока он открыт, pill
+      // «Финальная сводка» подсвечен как текущий и игрок видит, где
+      // он находится. activeStepOverride и finalConfirmOpen взаимно
+      // исключают друг друга (см. computed `finalConfirmOpen`), но
+      // явная проверка делает приоритет читаемым.
+      if (this.finalConfirmOpen) {
+        return 'final';
+      }
       const o = this.activeStepOverride;
       if (o === undefined || o === 'done') {
         return undefined;
       }
       return o;
+    },
+    /*
+     * Pill «Финальная сводка» виден сразу после первого открытия
+     * summary и остаётся на месте — даже когда summary открыта.
+     * Pills вверху работают как progress-track «где игрок находится»;
+     * прятать pill при открытом summary нарушало бы этот контракт.
+     * Подсветка активной плашки идёт через `pillActiveOverride`.
+     */
+    showFinalPill(): boolean {
+      return this.finalSummaryVisited;
+    },
+    /*
+     * Резолв CardName → CardModel из соответствующих dealt-cards-наборов
+     * playerView. Нужно для финальной summary'и, которая показывает
+     * полноценные мини-карты вместо имён. find() безопасен — committed
+     * имена пришли как раз из dealt arrays при выборе, всегда найдутся.
+     */
+    summaryCorpCard(): CardModel | undefined {
+      if (this.committedCorp === undefined) {
+        return undefined;
+      }
+      const target = this.committedCorp;
+      return this.playerView.dealtCorporationCards.find((c) => c.name === target);
+    },
+    summaryPreludeCards(): ReadonlyArray<CardModel> {
+      const dealt = this.playerView.dealtPreludeCards;
+      return this.committedPreludes
+        .map((name) => dealt.find((c) => c.name === name))
+        .filter((c): c is CardModel => c !== undefined);
+    },
+    summaryCeoCard(): CardModel | undefined {
+      if (this.committedCeo === undefined) {
+        return undefined;
+      }
+      const target = this.committedCeo;
+      return this.playerView.dealtCeoCards.find((c) => c.name === target);
+    },
+    summaryProjectCards(): ReadonlyArray<CardModel> {
+      if (this.committedProjects === undefined) {
+        return [];
+      }
+      const dealt = this.playerView.dealtProjectCards;
+      return this.committedProjects
+        .map((name) => dealt.find((c) => c.name === name))
+        .filter((c): c is CardModel => c !== undefined);
     },
     // Финальный confirm popup открыт, когда все обязательные шаги
     // совершены (naturalStep === 'done'), нет открытого pill-override,
@@ -291,7 +360,7 @@ export default defineComponent({
       return !this.finalConfirmDismissed;
     },
     finalConfirmTitle(): string {
-      return translateText('Start the game with the selected cards?');
+      return translateText('Final selection');
     },
   },
   watch: {
@@ -324,14 +393,34 @@ export default defineComponent({
         }
       },
     },
+    /*
+     * Любое открытие финальной summary поднимает visited-флаг. После
+     * этого pill «Финальная сводка» остаётся в pill stack'е и игрок
+     * может быстро вернуться к ней, даже если нажал «Изменить выбор».
+     */
+    finalConfirmOpen: {
+      handler(open: boolean) {
+        if (open) {
+          this.finalSummaryVisited = true;
+        }
+      },
+    },
   },
   methods: {
-    // Каждый commit очищает override — если игрок открыл pill уже
-    // выбранного шага и сейчас подтвердил новый выбор, нужно вернуться
-    // к естественному прогрессу (например, обратно к prelude/ceo).
+    /*
+     * Каждый commit:
+     *   - очищает override (если игрок зашёл через pill, после нового
+     *     commit'а вернуться к natural прогрессу),
+     *   - сбрасывает finalConfirmDismissed — даже если игрок ничего
+     *     не поменял, после «Подтвердить» он ожидает вернуться к
+     *     финальной сводке, если она уже была доступна. Без сброса
+     *     dismissed модал шага закрывался бы в пустоту (final NOT
+     *     открывался автоматически).
+     */
     onCorpConfirm(name: CardName) {
       this.committedCorp = name;
       this.activeStepOverride = undefined;
+      this.finalConfirmDismissed = false;
     },
     onPreludeConfirm(preludes: ReadonlyArray<CardName>) {
       this.committedPreludes = preludes;
@@ -339,6 +428,7 @@ export default defineComponent({
       // следующий reopen показал ровно то, что только что committed'ano).
       this.workingPreludes = preludes;
       this.activeStepOverride = undefined;
+      this.finalConfirmDismissed = false;
     },
     onPreludeSelectionChange(preludes: ReadonlyArray<CardName>) {
       this.workingPreludes = preludes;
@@ -346,11 +436,13 @@ export default defineComponent({
     onCeoConfirm(name: CardName) {
       this.committedCeo = name;
       this.activeStepOverride = undefined;
+      this.finalConfirmDismissed = false;
     },
     onProjectsConfirm(cards: ReadonlyArray<CardName>) {
       this.committedProjects = cards;
       this.workingProjects = cards;
       this.activeStepOverride = undefined;
+      this.finalConfirmDismissed = false;
     },
     onProjectsSelectionChange(cards: ReadonlyArray<CardName>) {
       this.workingProjects = cards;
@@ -363,11 +455,21 @@ export default defineComponent({
       this.workingProjects = [];
       this.skipConfirmOpen = false;
       this.activeStepOverride = undefined;
+      this.finalConfirmDismissed = false;
     },
     onSkipCancel() {
       this.skipConfirmOpen = false;
     },
-    onPillReopen(step: Step) {
+    onPillReopen(step: Step | 'final') {
+      // Pill «Финальная сводка»: возвращаемся в финальный summary, не
+      // открывая никакой step-модал. Override отключён, dismissed
+      // сброшен — natural step остаётся 'done', и computed
+      // `finalConfirmOpen` сразу даёт true.
+      if (step === 'final') {
+        this.activeStepOverride = undefined;
+        this.finalConfirmDismissed = false;
+        return;
+      }
       // 'done' через pill реоткрыть нельзя: pill stack эмитит только
       // конкретные шаги (corp / prelude / ceo / projects).
       if (step === 'done') {
@@ -379,8 +481,17 @@ export default defineComponent({
       // показать финальный popup (если все обязательные шаги покрыты).
       this.finalConfirmDismissed = false;
     },
-    onFinalCancel() {
+    /*
+     * «Изменить выбор» в финальной сводке — теперь dropdown с явным
+     * выбором шага. Эмитится `edit-step` со значением 'corp' / 'prelude'
+     * / 'ceo' / 'projects'. Закрываем summary через dismissed-флаг
+     * (иначе при возврате к natural 'done' она открылась бы автоматом
+     * и закрыла бы только что открытый редактируемый шаг) и ставим
+     * override на выбранный шаг.
+     */
+    onEditStep(step: 'corp' | 'prelude' | 'ceo' | 'projects') {
       this.finalConfirmDismissed = true;
+      this.activeStepOverride = step;
     },
     onFinalConfirm() {
       this.submitFinal();
@@ -486,6 +597,7 @@ export default defineComponent({
       this.visitedProjects = false;
       this.workingPreludes = [];
       this.workingProjects = [];
+      this.finalSummaryVisited = false;
     },
   },
   beforeUnmount() {

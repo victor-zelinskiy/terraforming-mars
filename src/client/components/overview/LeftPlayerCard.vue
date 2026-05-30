@@ -229,6 +229,9 @@ export default defineComponent({
           this.actionLabel === 'delegate') {
         return `${base} ${base}--active`;
       }
+      if (this.actionLabel === 'waiting') {
+        return `${base} ${base}--waiting`;
+      }
       return base;
     },
     MAX_ACTIONS_PER_ROUND(): number {
