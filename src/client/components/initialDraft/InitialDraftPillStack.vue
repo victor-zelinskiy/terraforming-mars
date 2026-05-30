@@ -126,6 +126,16 @@ export default defineComponent({
       type: String as PropType<PillStep | undefined>,
       default: undefined,
     },
+    // True после финального submit'a — выбор отправлен, менять нельзя.
+    // Step-pills (corp/prelude/ceo/projects) остаются ВИДИМЫМИ, но
+    // приглушаются через body.initial-draft-awaiting-others и получают
+    // tooltip-объяснение «изменить нельзя» вместо «нажмите, чтобы
+    // изменить». Pill «Финальная сводка» не затрагивается — она нужна,
+    // чтобы вернуть свёрнутое окно ожидания.
+    awaiting: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: {
     reopen: (step: PillStep) =>
@@ -135,12 +145,15 @@ export default defineComponent({
   computed: {
     pills(): ReadonlyArray<Pill> {
       const result: Pill[] = [];
+      // В awaiting-режиме step-pills нельзя редактировать — tooltip
+      // объясняет почему вместо обещания «нажмите, чтобы изменить».
+      const blockedTip = translateText('Selection confirmed — cannot be changed');
       if (this.committedCorp !== undefined) {
         result.push({
           step: 'corp',
           label: translateText('Corporation'),
           value: this.committedCorp,
-          tooltip: translateText('Click to change corporation'),
+          tooltip: this.awaiting ? blockedTip : translateText('Click to change corporation'),
         });
       }
       // Prelude pill: показывается если committed (preludes выбраны)
@@ -155,7 +168,7 @@ export default defineComponent({
           step: 'prelude',
           label: translateText('Preludes'),
           value: translateTextWithParams('${0} selected', [String(count)]),
-          tooltip: translateText('Click to change preludes'),
+          tooltip: this.awaiting ? blockedTip : translateText('Click to change preludes'),
         });
       }
       if (this.hasCeo && this.committedCeo !== undefined) {
@@ -163,7 +176,7 @@ export default defineComponent({
           step: 'ceo',
           label: translateText('CEO'),
           value: this.committedCeo,
-          tooltip: translateText('Click to change CEO'),
+          tooltip: this.awaiting ? blockedTip : translateText('Click to change CEO'),
         });
       }
       // Projects pill: те же правила, что и prelude. Committed
@@ -184,7 +197,7 @@ export default defineComponent({
           step: 'projects',
           label: translateText('Projects'),
           value,
-          tooltip: translateText('Click to change project cards'),
+          tooltip: this.awaiting ? blockedTip : translateText('Click to change project cards'),
         });
       }
       // Final summary pill — последний в стопке. Появляется только

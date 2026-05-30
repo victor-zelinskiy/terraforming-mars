@@ -92,6 +92,7 @@ import GameAtmosphere from '@/client/components/GameAtmosphere.vue';
 import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
 import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
+import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {SpectatorModel} from '@/common/models/SpectatorModel';
@@ -245,7 +246,8 @@ export default defineComponent({
            */
           const preserveCardPickModal =
             path === paths.PLAYER &&
-            shouldPreserveCardPickModal(model as PlayerViewModel);
+            (shouldPreserveCardPickModal(model as PlayerViewModel) ||
+             shouldPreserveInitialDraftOverlay(model as PlayerViewModel));
           if (path === paths.PLAYER) {
             app.playerView = model as PlayerViewModel;
             setTranslationContext(app.playerView);
