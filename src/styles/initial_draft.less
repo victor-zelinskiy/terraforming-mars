@@ -1,0 +1,467 @@
+/*
+ * Initial draft (corporation / prelude / CEO / starting projects) screen.
+ *
+ * Активируется через `body.initial-draft-active`, который ставит
+ * `InitialDraftFlowOverlay.vue` пока `playerView.waitingFor?.type === 'initialCards'`.
+ *
+ * Цель — обнажить поле Марса и оставить на экране только то, что игроку
+ * нужно для принятия стартовых решений: плитки игроков (имя/корп/статус),
+ * Milestones, Awards. Всё остальное HUD-окружение скрыто, чтобы не путать
+ * игрока действиями, которых ещё нет в игре.
+ *
+ * Скрытие через `display: none` (схлопывание лэйаута) — а не visibility:
+ * hidden — потому что на стартовом экране стабильность размещения
+ * остальных элементов не критична, а лишний пустой блок только мешает.
+ * Исключение — кнопки внутри LeftPlayerPanel, где плитки игроков
+ * остаются и геометрия не должна прыгать (`visibility: hidden`).
+ *
+ * Этот файл — Этап 1 реворка initial draft экрана. На последующих этапах
+ * сюда добавятся стили pill-stack'а и connections с card-selection.less.
+ */
+
+body.initial-draft-active {
+    /*
+     * Нижняя панель кнопок (Колонии / Cards / Actions / Played / VP / Log).
+     * Все, кроме Колоний, относятся к запущенной партии — на стартовом
+     * экране бесполезны и скрываются. Кнопку «КОЛОНИИ» оставляем: игрок
+     * может открыть overlay и осмотреть тайлы колоний при выборе corp
+     * (особенно полезно для Aridor / тех, кто играет в Colonies expansion).
+     * Сами Select-кнопки внутри overlay блокируются с тултипом «Недоступно
+     * на этапе драфта» (см. PlayerHome / ColoniesOverlay forceDisabledReason).
+     */
+    .bottom-bar-buttons > .bottom-bar-btn:not(.bottom-bar-btn--colonies) {
+        display: none !important;
+    }
+
+    /*
+     * Standard Projects (центральная кнопка top-bar). Игра ещё не
+     * началась, стандартные проекты недоступны. Скрываем целиком
+     * вместе с возможным дропдауном.
+     */
+    .top-bar-btn-anchor--center {
+        display: none !important;
+    }
+
+    /*
+     * Правая панель (Sidebar) с глобальными параметрами и настройками.
+     * Параметры пока неинтересны (партия не стартовала), настройки можно
+     * открыть из лобби. Скрываем целиком.
+     */
+    .sidebar_cont {
+        display: none !important;
+    }
+
+    /*
+     * Внутри левой панели оставляем только сами плитки игроков —
+     * имя / корпорация / статус. Ресурсы, теги, allied party
+     * скрываем (нечего показывать до старта партии). Plates
+     * (`.left-panel-cards`) и `<LeftPlayerCard>` внутри них остаются
+     * видимыми, потому что туда позже сядет turn-order бейдж.
+     */
+    .left-panel-section,
+    .left-panel-tags-secondary {
+        display: none !important;
+    }
+
+    /*
+     * Кнопки Pass / End turn внутри player plate — скрываем без
+     * схлопывания плитки, чтобы геометрия plate оставалась стабильной.
+     * Те же селекторы, что используются placement_banner.less для
+     * `body.placement-pending`.
+     */
+    .left-panel-card-action-btn {
+        visibility: hidden !important;
+    }
+
+    /*
+     * Compact turn-order бэйдж рядом с именем игрока. Виден ТОЛЬКО
+     * на стартовом экране (видим через body.initial-draft-active —
+     * сам элемент по умолчанию `display: none`, см. ниже).
+     */
+    .left-panel-card-turn-badge {
+        display: inline-flex;
+    }
+}
+
+/*
+ * Turn-order бэйдж определён глобально, но в обычной партии скрыт.
+ * Внутри initial-draft body class (см. выше) переключается на
+ * inline-flex. CSS-only гейтинг — компонент LeftPlayerCard не знает,
+ * показывается ли он, и не требует доп. проп'а.
+ */
+.left-panel-card-turn-badge {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    padding: 2px 8px;
+    border: 1px solid rgba(140, 190, 235, 0.4);
+    border-radius: 3px;
+    background: linear-gradient(180deg,
+        rgba(20, 32, 48, 0.85) 0%,
+        rgba(10, 18, 30, 0.92) 100%);
+    color: #f0f6ff;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.15),
+        0 0 8px rgba(106, 176, 230, 0.18);
+
+    /*
+     * Legacy UI overlay (старый Actions / hand / drafted-cards блок,
+     * включая legacy SelectInitialCards внутри waiting-for) — на
+     * стартовом экране игрок видит только новый flow. Скрываем
+     * принудительно, даже если технически overlay уже не активен.
+     */
+    .legacy-ui-overlay {
+        display: none !important;
+    }
+}
+
+/*
+ * Шаги мастера выбора (`InitialDraftCorpStep`, `InitialDraftPreludeStep`,
+ * `InitialDraftCeoStep`, `InitialDraftProjectsStep`). Делят базовый layout
+ * с `card-selection.less` (header / grid карт / per-card action). Здесь
+ * добавлены только специфичные блоки — money-панель в правом верхнем
+ * углу header'а — чтобы не дублировать общий лэйаут.
+ */
+.initial-draft-step {
+    /*
+     * Money-панель: компактная sci-fi плашка с подписью и крупным
+     * числом. Используется во всех шагах для индикации финансового
+     * влияния выбора (initial M€, after preludes, projects cost, …).
+     * Бэкграунд — лёгкий glass с cyan-подсветкой, чтобы плашка читалась
+     * как информационный indicator, а не как кнопка.
+     */
+    &__money-panel {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 110px;
+        padding: 6px 14px 7px;
+        border: 1px solid rgba(140, 190, 235, 0.45);
+        background:
+            linear-gradient(180deg, rgba(20, 32, 48, 0.85) 0%, rgba(10, 18, 30, 0.92) 100%);
+        clip-path: polygon(8% 0%, 100% 0%, 100% 78%, 92% 100%, 0% 100%, 0% 22%);
+        box-shadow:
+            0 0 0 1px rgba(140, 190, 235, 0.18) inset,
+            0 0 12px rgba(140, 190, 235, 0.18);
+        font-family: Prototype, Ubuntu, sans-serif;
+        line-height: 1.05;
+        user-select: none;
+    }
+
+    &__money-label {
+        font-size: 10px;
+        letter-spacing: 2px;
+        color: rgba(180, 215, 240, 0.85);
+        text-transform: uppercase;
+    }
+
+    &__money-value {
+        margin-top: 3px;
+        font-size: 24px;
+        font-weight: 700;
+        color: #f8d771;
+        text-shadow: 0 0 8px rgba(248, 215, 113, 0.45);
+    }
+
+    /*
+     * Тройная money-панель (Projects-step): «После прологов / Стоимость
+     * покупки / Останется» в одну строку. Ячейки разделены тонкой
+     * сейчас-разделительной линией. Минимальная ширина шире одиночной
+     * панели — три значения требуют больше места.
+     */
+    &__money-panel--triple {
+        flex-direction: row;
+        gap: 14px;
+        min-width: 260px;
+        padding: 6px 18px 7px;
+    }
+
+    &__money-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 0 6px;
+
+        & + & {
+            border-left: 1px solid rgba(140, 190, 235, 0.22);
+            padding-left: 14px;
+        }
+    }
+
+    /*
+     * Подсвечиваем «Останется» красным, когда денег не хватает на
+     * выбранный набор. Confirm-кнопка автоматически дизейблится по
+     * `canConfirm` — этот класс — чистая визуальная индикация.
+     */
+    &__money-panel--insufficient &__money-cell--remaining &__money-value {
+        color: #ff8d72;
+        text-shadow: 0 0 10px rgba(255, 141, 114, 0.55);
+    }
+}
+
+/*
+ * Сетка карт в проектном шаге — 5 в ряд × 2 ряда. Перекрывает
+ * flex-row из `.card-selection__cards` (см. card_selection.less)
+ * только когда родитель — `.initial-draft-step--projects`.
+ *
+ * Карты немного сжаты zoom-multiplier'ом — иначе 5 в ряд не
+ * помещаются на ноутбучных экранах без горизонтального скролла.
+ * Дополнительные media queries уменьшают зум ещё, чтобы выдержать
+ * меньшие viewports.
+ */
+.initial-draft-step--projects {
+    .card-selection__cards {
+        display: grid;
+        grid-template-columns: repeat(5, auto);
+        grid-template-rows: repeat(2, auto);
+        gap: 16px 14px;
+        justify-content: center;
+        flex-wrap: initial;
+    }
+
+    .card-selection__card-clickable .card-container {
+        zoom: 0.78;
+    }
+
+    @media (max-width: 1400px) {
+        .card-selection__card-clickable .card-container { zoom: 0.7; }
+    }
+
+    @media (max-width: 1200px) {
+        .card-selection__card-clickable .card-container { zoom: 0.62; }
+    }
+
+    @media (max-width: 1000px) {
+        .card-selection__card-clickable .card-container { zoom: 0.55; }
+    }
+}
+
+/*
+ * Универсальный мини-popup (Skip-confirm для проектов и Final-confirm
+ * запуска партии). Лёгкий dialog без card-grid'а — заголовок,
+ * пояснение и две кнопки (secondary / primary). Хостится внутри
+ * MandatoryInputModal с `:minimizable="false"`, поэтому здесь только
+ * inner-стиль (frame + sci-fi corners уже даны wrapper'ом).
+ */
+.initial-draft-mini-popup {
+    max-width: 480px;
+    padding: 18px 26px 22px;
+    text-align: center;
+    font-family: Prototype, Ubuntu, sans-serif;
+    color: #e8f1fb;
+    /*
+     * Без явного фона popup'a содержимое читалось бы поверх transparent
+     * mandatory-modal card'а — а под ним всё ещё backdrop + проектный
+     * шаг, что давало эффект «прозрачный popup» (см. фидбэк по фону
+     * skip-confirm). Plain dark glass + лёгкая cyan-обводка повторяет
+     * стиль остальной sci-fi chrome'ы.
+     */
+    background: linear-gradient(180deg,
+        rgba(12, 22, 36, 0.96) 0%,
+        rgba(8, 16, 26, 0.98) 100%);
+    border: 1px solid rgba(106, 176, 230, 0.32);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.12),
+        0 12px 36px rgba(0, 0, 0, 0.6);
+
+    &__title {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 1.4px;
+        line-height: 1.2;
+        margin: 0 0 16px;
+        color: #f0f6ff;
+        text-shadow: 0 0 12px rgba(140, 190, 235, 0.35);
+    }
+
+    &__body {
+        margin: 0 0 22px;
+        font-size: 14px;
+        line-height: 1.45;
+        color: rgba(220, 232, 245, 0.78);
+    }
+
+    &__actions {
+        display: flex;
+        justify-content: center;
+        gap: 22px;
+    }
+
+    &__btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 140px;
+        height: 40px;
+        padding: 0 22px;
+        border: none;
+        cursor: pointer;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        line-height: 1;
+        isolation: isolate;
+        clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+        transition: filter 150ms ease, transform 150ms ease;
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 1.5px;
+            clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+            z-index: -1;
+        }
+
+        &:hover { filter: brightness(1.18); transform: translateY(-1px); }
+        &:active { transform: translateY(0); }
+    }
+
+    &__btn--primary {
+        color: #e8f1fb;
+        background: linear-gradient(180deg,
+            rgba(160, 200, 230, 0.78) 0%,
+            rgba(80, 120, 160, 0.28) 50%,
+            rgba(130, 170, 210, 0.6) 100%);
+
+        &::before {
+            background: linear-gradient(180deg,
+                rgba(14, 26, 42, 0.95) 0%,
+                rgba(6, 14, 22, 0.95) 100%);
+        }
+    }
+
+    &__btn--secondary {
+        color: rgba(220, 232, 245, 0.85);
+        background: linear-gradient(180deg,
+            rgba(120, 140, 165, 0.55) 0%,
+            rgba(60, 78, 100, 0.22) 50%,
+            rgba(90, 110, 135, 0.4) 100%);
+
+        &::before {
+            background: linear-gradient(180deg,
+                rgba(20, 28, 42, 0.95) 0%,
+                rgba(12, 18, 28, 0.95) 100%);
+        }
+    }
+}
+
+/*
+ * Pill-stack — горизонтальная стопка плашек уже зафиксированных шагов,
+ * висящая сверху по центру viewport'а. Каждый pill — кликабельный
+ * элемент, реоткрывающий соответствующий шаг (см. InitialDraftFlowOverlay
+ * `activeStepOverride`). z=12500 — выше backdrop'a MandatoryInputModal
+ * (12000) и ниже native <dialog> top-layer (∞), так что плашки видны
+ * поверх открытого модала шага, но fullscreen-зум карты их перекрывает.
+ */
+.initial-draft-pills {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 12500;
+    pointer-events: none;
+    /* pointer-events: auto на детях — иначе backdrop modal'а будет
+       перехватывать клики мимо плашек, и игрок не сможет нажать pill. */
+    & > * { pointer-events: auto; }
+}
+
+.initial-draft-pill {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 22px 0 18px;
+    border: 1px solid rgba(140, 190, 235, 0.42);
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    letter-spacing: 2.4px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+    isolation: isolate;
+    background: linear-gradient(180deg,
+        rgba(28, 48, 72, 0.92) 0%,
+        rgba(14, 26, 40, 0.95) 100%);
+    box-shadow:
+        0 0 0 1px rgba(140, 190, 235, 0.18) inset,
+        0 0 12px rgba(140, 190, 235, 0.22);
+    transition: filter 150ms ease, transform 150ms ease, box-shadow 200ms ease;
+
+    &:hover {
+        filter: brightness(1.18);
+        transform: translateY(-1px);
+        box-shadow:
+            0 0 0 1px rgba(180, 215, 240, 0.32) inset,
+            0 0 18px rgba(140, 190, 235, 0.4);
+    }
+    &:active { transform: translateY(0); }
+
+    &__dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #6ab0e6;
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.85);
+    }
+
+    &__label {
+        font-weight: 700;
+        color: rgba(200, 225, 245, 0.85);
+    }
+
+    &__sep {
+        color: rgba(140, 190, 235, 0.55);
+    }
+
+    &__value {
+        color: #f0f6ff;
+        font-weight: 600;
+        letter-spacing: 1.6px;
+    }
+
+    &__icon {
+        margin-left: 4px;
+        font-size: 14px;
+        color: rgba(140, 190, 235, 0.7);
+        letter-spacing: 0;
+    }
+
+    /*
+     * Когда reopen-модал для этого pill'а сейчас открыт — pill подсвечен
+     * полнее (более яркая cyan-граница), но всё равно остаётся
+     * кликабельным, чтобы игрок мог легко закрыть override и вернуться
+     * к естественному шагу (если бы такая фича понадобилась). Сейчас
+     * это просто визуальный hint.
+     */
+    &--active {
+        box-shadow:
+            0 0 0 1px rgba(200, 230, 255, 0.55) inset,
+            0 0 20px rgba(140, 190, 235, 0.55);
+        background: linear-gradient(180deg,
+            rgba(40, 70, 100, 0.95) 0%,
+            rgba(22, 40, 60, 0.98) 100%);
+    }
+}
+
+
+

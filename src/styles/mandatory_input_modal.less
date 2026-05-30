@@ -295,8 +295,15 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
      * with `.placement-banner` (placement_banner.less) — same UX
      * problem (was covering board labels / hexes), same fix
      * (raise + make draggable). See that file for full rationale.
+     *
+     * v40-r2: смещено ещё ниже (+12 → +32) — initial draft pill-stack
+     * (.initial-draft-pills) сидит сверху (top: 14px, высота ~34px,
+     * нижний край ~48px). Прежний +12 ставил mandatory pill впритык
+     * к pill stack'у и они визуально слипались. Изменение синхронно
+     * правится в placement_banner.less, чтобы все «awaiting»-плашки
+     * сохраняли общую базовую позицию.
      */
-    top: calc(var(--bottom-bar-button-height) + 12px);
+    top: calc(var(--bottom-bar-button-height) + 32px);
     left: 50%;
     /*
      * v40-s: transform composes the live drag offset from inline CSS

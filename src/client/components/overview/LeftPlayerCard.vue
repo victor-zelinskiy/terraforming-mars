@@ -3,6 +3,15 @@
     <div class="left-panel-card-row left-panel-card-row--top">
       <div :class="cubeClass"></div>
       <div class="left-panel-card-name" :class="playerNameShadowClass">{{ player.name }}</div>
+      <!--
+        Compact turn-order бэйдж. CSS прячет его в обычной игре
+        (`body:not(.initial-draft-active) ... { display: none }`),
+        так что в legacy-режиме plate'a его нет вообще. Во время initial
+        draft показывается «1-й ход» / «2-й ход» / «3-й ход» по индексу
+        в playerView.players (это и есть seating-order).
+      -->
+      <div class="left-panel-card-turn-badge"
+           v-i18n="[turnOrderLabel]">Turn ${0}</div>
     </div>
     <div v-if="corporationName" class="left-panel-card-corp" :title="corporationName" v-i18n>{{ corporationName }}</div>
     <div class="left-panel-card-row left-panel-card-row--stats">
@@ -134,6 +143,14 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // Порядок хода в текущем поколении (0-indexed). Используется только
+    // на стартовом экране (initial draft) для отображения compact badge'a
+    // «1-й ход» / «2-й ход» рядом с именем игрока — CSS прячет badge
+    // в обычной партии через `body.initial-draft-active` гейт.
+    turnIndex: {
+      type: Number,
+      default: 0,
+    },
   },
   emits: ['select', 'pass', 'end-turn'],
   computed: {
@@ -186,6 +203,12 @@ export default defineComponent({
     },
     hasStatus(): boolean {
       return this.actionLabel !== 'none' && this.actionLabel !== '';
+    },
+    // 1-based label для бэйджа «N-й ход». i18n берёт параметризованный
+    // ключ «Turn ${0}» (см. ru/ui.json), CSS уже добавит cyan-glass
+    // chrome — здесь только данные.
+    turnOrderLabel(): string {
+      return String(this.turnIndex + 1);
     },
     statusClass(): string {
       const base = 'left-panel-card-status';

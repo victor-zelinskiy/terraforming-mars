@@ -193,8 +193,12 @@ body.placement-pending {
      *
      * The MandatoryInputModal pill uses the same expression (kept in
      * sync — both pills are visually the same "AWAITING …" surface).
+     *
+     * v40-r2: смещено +12 → +32, синхронно с mandatory_input_modal.less,
+     * чтобы initial draft pill-stack (top:14, h:34) и эти «awaiting»-
+     * плашки не слипались по вертикали.
      */
-    top: calc(var(--bottom-bar-button-height) + 12px);
+    top: calc(var(--bottom-bar-button-height) + 32px);
     left: 50%;
     /*
      * v40-s: transform composes the live drag offset from inline
