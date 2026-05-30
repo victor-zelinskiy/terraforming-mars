@@ -1285,6 +1285,18 @@ each(@players, {
         opacity: 0.55;
     }
     /*
+     * Нейтральное «ОЖИДАЕТ» — игрок ничего не должен делать сейчас, но
+     * партия идёт. Stiluem subtler `--active`: чуть приглушённый
+     * gray-blue, без яркой подсветки, чтобы не конкурировать с активным
+     * игроком, но был узнаваемый статус (не пустой бар).
+     */
+    &--waiting {
+        background: rgba(20, 30, 45, 0.65);
+        color: rgba(170, 195, 220, 0.78);
+        opacity: 0.85;
+        font-weight: 600;
+    }
+    /*
      * Empty state — no active status label, but we still render the bar
      * so the card's vertical layout stays constant. Resources / tags
      * blocks below the card don't jump up/down between turn transitions.

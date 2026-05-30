@@ -113,13 +113,14 @@ export default defineComponent({
     counterText(): string {
       return translateTextWithParams('1 corporation out of ${0}', [String(this.cards.length)]);
     },
-    // Подсветка / money-panel ориентируются на hover. На initial draft
-    // экране корпорация не «комитится» полупутем — карта подсвечивается
-    // только когда курсор на ней, и live превью «Начальные М€» считается
-    // тут же. Финальный commit идёт через явное нажатие «Выбрать» на
-    // самой карточке.
+    // Money-panel показывает live preview. Приоритет:
+    //   1. hover (игрок наводит мышь на любую карту — превью её M€);
+    //   2. preSelected (зашёл через pill уже-выбранной корпы и не наводит
+    //      ни на что — показываем M€ committed корпы по умолчанию).
+    // Если ни hover, ни preSelected — panel скрыта (`v-if` в template).
     hoverMoneyValue(): number | undefined {
-      return startingMegacredits(this.hoveredName, 0);
+      const name = this.hoveredName ?? this.preSelected;
+      return startingMegacredits(name, 0);
     },
   },
   methods: {

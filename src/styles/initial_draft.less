@@ -186,6 +186,7 @@ body.initial-draft-active {
     .legacy-ui-overlay {
         display: none !important;
     }
+
 }
 
 /*
@@ -442,6 +443,641 @@ body.initial-draft-active {
             background: linear-gradient(180deg,
                 rgba(20, 28, 42, 0.95) 0%,
                 rgba(12, 18, 28, 0.95) 100%);
+        }
+    }
+}
+
+/*
+ * Финальный summary-модал. Premium command-panel look: заголовок +
+ * подзаголовок, секционные блоки (Корпорация / Прологи / CEO / Проекты),
+ * мини-стопки карт с overlap'ом, footer с двумя кнопками. Хостится
+ * внутри MandatoryInputModal `:minimizable="false"`, поэтому wrapper
+ * уже даёт L-corners + glass; здесь — только inner-стилирование.
+ */
+/*
+ * MandatoryInputModal card по дефолту имеет `max-width: min(760px,
+ * calc(100vw - 48px))`. Наш summary хочет ширину до 1280px — без
+ * этой переопределяющей правки card остаётся 760px, summary вылазит
+ * за его пределы, и L-corner'ы (`.mandatory-input-modal__corner--br`
+ * etc.), позиционируемые относительно card'a, оказываются буквально
+ * посреди summary. Расширяем card под нужный нам размер только когда
+ * он хостит initial-draft-summary — остальные модалы (corp / prelude /
+ * ceo / projects / skip / final) не затрагиваются.
+ */
+.mandatory-input-modal__card:has(.initial-draft-summary) {
+    max-width: min(1280px, calc(100vw - 48px));
+}
+
+/*
+ * Финальная сводка стартового выбора (premium command panel).
+ * Структура:
+ *   header (title + subtitle + summary-strip)
+ *     │
+ *   body (column-flex)
+ *     ├─ top-row (CSS-grid: corp | preludes+ceo)
+ *     └─ projects-section (full width, grid из 3 групп по типу карты)
+ *     │
+ *   footer (sticky, secondary + primary buttons)
+ *
+ * Все измерения — fluid; layout перенастраивается на узких viewport'ах
+ * через `auto-fit` / `minmax` в CSS-grid'ах. Карты используют общий
+ * card-slot pattern (`zoom` + hover лифт + cyan glow + z-index float),
+ * клон стиля DraftedCardsPile с подгонкой под finalsummary.
+ */
+.initial-draft-summary {
+    width: min(1280px, calc(100vw - 80px));
+    max-height: calc(100vh - 100px);
+    padding: 0;
+    color: #e8f1fb;
+    font-family: Prototype, Ubuntu, sans-serif;
+    background:
+        linear-gradient(180deg,
+            rgba(14, 24, 38, 0.96) 0%,
+            rgba(8, 16, 26, 0.98) 100%);
+    border: 1px solid rgba(106, 176, 230, 0.32);
+    border-radius: 4px;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.1),
+        0 0 48px rgba(106, 176, 230, 0.14);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+
+    /* ───────────────────────────── Header ─────────────────────────── */
+    &__header {
+        padding: 22px 32px 18px;
+        border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+        background:
+            linear-gradient(180deg,
+                rgba(20, 36, 56, 0.55) 0%,
+                rgba(14, 24, 38, 0.0) 100%);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    &__title-block {
+        text-align: center;
+    }
+
+    &__title {
+        margin: 0 0 6px;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        color: #f0f6ff;
+        text-shadow: 0 0 16px rgba(140, 190, 235, 0.45);
+    }
+
+    &__subtitle {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.6px;
+        color: rgba(196, 216, 236, 0.7);
+    }
+
+    /*
+     * Summary-strip — компактная панель ключевых метрик. Auto-fit
+     * grid распределяет ячейки по доступной ширине; на узких экранах
+     * перенос в несколько рядов. Каждая ячейка имеет тонкий vertical
+     * separator слева (кроме первой) — sci-fi datasheet feel.
+     */
+    &__strip {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        background:
+            linear-gradient(180deg, rgba(18, 30, 46, 0.7) 0%, rgba(12, 22, 36, 0.7) 100%);
+        border: 1px solid rgba(106, 176, 230, 0.22);
+        border-radius: 3px;
+        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.07);
+    }
+
+    &__strip-cell {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 10px 14px 11px;
+
+        & + &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 14%;
+            bottom: 14%;
+            width: 1px;
+            background: rgba(106, 176, 230, 0.18);
+        }
+    }
+
+    &__strip-label {
+        font-size: 9px;
+        letter-spacing: 2.2px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: rgba(170, 200, 225, 0.7);
+    }
+
+    &__strip-value {
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        color: #f0f6ff;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-transform: uppercase;
+    }
+
+    &__strip-cell--money &__strip-value {
+        color: #f8d771;
+        text-shadow: 0 0 8px rgba(248, 215, 113, 0.4);
+    }
+
+    /* ───────────────────────────── Body ───────────────────────────── */
+    &__body {
+        min-height: 0;
+        overflow-y: auto;
+        padding: 20px 32px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+
+        /* Sci-fi scrollbar — WebKit */
+        &::-webkit-scrollbar { width: 6px; }
+        &::-webkit-scrollbar-track { background: rgba(14, 24, 38, 0.4); }
+        &::-webkit-scrollbar-thumb {
+            background: rgba(106, 176, 230, 0.35);
+            border-radius: 3px;
+        }
+        &::-webkit-scrollbar-thumb:hover { background: rgba(140, 190, 235, 0.55); }
+        /* Firefox */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(106, 176, 230, 0.35) rgba(14, 24, 38, 0.4);
+    }
+
+    /*
+     * Top row: corp | secondary (preludes + ceo).
+     *   - corp колонка фикс ширины (auto), подстраивается под karty;
+     *   - secondary колонка занимает остаток (`1fr`).
+     * На узких экранах (≤ 880px) колонки складываются вертикально через
+     * media query ниже.
+     */
+    &__top-row {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 28px;
+        align-items: start;
+    }
+
+    &__section {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    &__section--projects {
+        padding-top: 22px;
+        border-top: 1px solid rgba(106, 176, 230, 0.12);
+    }
+
+    &__section--secondary {
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+    }
+
+    &__subsection {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    &__section-header {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    &__section-label {
+        font-size: 11px;
+        letter-spacing: 3px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: rgba(180, 215, 240, 0.75);
+        text-shadow: 0 0 6px rgba(140, 190, 235, 0.18);
+    }
+
+    &__section-name {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: #f0f6ff;
+    }
+
+    &__section-count {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        padding: 2px 8px;
+        border: 1px solid rgba(106, 176, 230, 0.4);
+        border-radius: 2px;
+        color: #f0f6ff;
+        background: rgba(20, 36, 56, 0.6);
+        line-height: 1.2;
+    }
+
+    /*
+     * Pile — общий контейнер для группы карт. `--row` даёт horizontal
+     * stack с overlap'ом, `--single` — одиночную карту.
+     */
+    &__pile {
+        display: flex;
+        align-items: flex-start;
+        min-height: 0;
+
+        &--single {
+            justify-content: flex-start;
+        }
+
+        &--row {
+            flex-direction: row;
+            flex-wrap: nowrap;
+            padding-right: 12px;  /* запас под hover-лифт правой карты */
+        }
+    }
+
+    /*
+     * Card slot — клон drafted-pile pattern. zoom задаёт базовый
+     * размер; hover лифтит карту и подсвечивает glow.
+     */
+    &__card-slot {
+        position: relative;
+        cursor: pointer;
+        user-select: none;
+        flex-shrink: 0;
+        transition:
+            transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+            filter 180ms ease,
+            z-index 0ms;
+
+        > .card-container {
+            zoom: 0.55;
+            margin: 0;
+            transition: filter 180ms ease;
+        }
+
+        &:hover {
+            z-index: 999 !important;
+            transform: translateY(-8px);
+
+            > .card-container {
+                filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.55))
+                        drop-shadow(0 0 12px rgba(140, 190, 235, 0.55));
+            }
+        }
+
+        /* Корпорация заметнее остальных. */
+        &--corp > .card-container {
+            zoom: 0.78;
+        }
+    }
+
+    /*
+     * Horizontal overlap. Перекрытие подобрано так, чтобы видимые ~70%
+     * каждой карты включали cost + tags + title — достаточно для
+     * узнавания без открытия fullscreen.
+     */
+    &__pile--row &__card-slot + &__card-slot {
+        margin-left: -50px;
+    }
+
+    /*
+     * Projects — 3-column grid (Active / Automated / Events). Auto-fit
+     * с min 240px позволяет колонкам гибко сжиматься / переноситься
+     * на меньших viewport'ах.
+     */
+    &__projects {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 22px;
+    }
+
+    &__projects-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    &__projects-group-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 10px;
+        letter-spacing: 2.4px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: rgba(170, 205, 230, 0.78);
+    }
+
+    &__projects-group-count {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        padding: 1px 6px;
+        border-radius: 2px;
+        color: rgba(220, 232, 245, 0.85);
+        background: rgba(20, 36, 56, 0.6);
+        border: 1px solid rgba(106, 176, 230, 0.28);
+    }
+
+    /* ───────────────────────────── Footer ─────────────────────────── */
+    &__actions {
+        display: flex;
+        justify-content: center;
+        gap: 32px;
+        padding: 18px 32px 22px;
+        border-top: 1px solid rgba(106, 176, 230, 0.18);
+        background:
+            linear-gradient(0deg,
+                rgba(20, 36, 56, 0.55) 0%,
+                rgba(14, 24, 38, 0.0) 100%);
+    }
+
+    &__btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 200px;
+        height: 48px;
+        padding: 0 30px;
+        border: none;
+        cursor: pointer;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        line-height: 1;
+        isolation: isolate;
+        clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+        transition: filter 150ms ease, transform 150ms ease;
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 1.5px;
+            clip-path: polygon(7% 0%, 100% 0%, 93% 100%, 0% 100%);
+            z-index: -1;
+        }
+
+        &:hover { filter: brightness(1.2); transform: translateY(-1px); }
+        &:active { transform: translateY(0); }
+    }
+
+    &__btn--primary {
+        color: #f4faff;
+        background: linear-gradient(180deg,
+            rgba(180, 220, 245, 0.95) 0%,
+            rgba(105, 155, 195, 0.4) 50%,
+            rgba(150, 195, 225, 0.78) 100%);
+        text-shadow: 0 0 12px rgba(140, 190, 235, 0.65);
+        box-shadow: 0 0 22px rgba(140, 190, 235, 0.32);
+
+        &::before {
+            background: linear-gradient(180deg,
+                rgba(14, 32, 52, 0.96) 0%,
+                rgba(8, 20, 34, 0.96) 100%);
+        }
+    }
+
+    &__btn--secondary {
+        color: rgba(220, 232, 245, 0.85);
+        background: linear-gradient(180deg,
+            rgba(110, 130, 155, 0.55) 0%,
+            rgba(55, 72, 95, 0.22) 50%,
+            rgba(85, 105, 130, 0.4) 100%);
+
+        &::before {
+            background: linear-gradient(180deg,
+                rgba(20, 28, 42, 0.95) 0%,
+                rgba(12, 18, 28, 0.95) 100%);
+        }
+    }
+
+    /*
+     * Edit-wrapper — нужен только для anchor'a выпадающего меню (kotoroe
+     * рендерится absolute относительно него) и для click-outside детекта.
+     * Не вносит visible chrome.
+     */
+    &__edit-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    /*
+     * Кнопка-тоггл «Изменить выбор» — расширение базового
+     * `__btn--secondary` с caret-индикатором справа. При открытом меню
+     * caret поворачивается на 180°, давая визуальный feedback что
+     * меню развёрнуто.
+     */
+    &__btn--edit {
+        gap: 10px;
+    }
+
+    &__btn-caret {
+        display: inline-block;
+        font-size: 11px;
+        line-height: 1;
+        transition: transform 180ms ease;
+        opacity: 0.85;
+    }
+
+    &__btn--edit-open &__btn-caret {
+        transform: rotate(180deg);
+    }
+
+    /*
+     * Drop-up меню — absolute, выпадает ВВЕРХ от кнопки (она в footer'е,
+     * вниз не помещается). Sci-fi chrome: dark glass + cyan border +
+     * 4 угловых L-corner accent'a + soft outer glow. По дизайну
+     * (modern dropdown popover) shadows и accent создают ощущение
+     * floating panel, отдельной от footer'a.
+     */
+    &__edit-menu {
+        position: absolute;
+        bottom: calc(100% + 14px);
+        left: 50%;
+        transform: translateX(-50%);
+        min-width: 240px;
+        padding: 8px;
+        background:
+            linear-gradient(180deg,
+                rgba(18, 32, 50, 0.98) 0%,
+                rgba(10, 20, 32, 0.98) 100%);
+        border: 1px solid rgba(140, 190, 235, 0.42);
+        border-radius: 3px;
+        box-shadow:
+            inset 0 0 0 1px rgba(106, 176, 230, 0.1),
+            0 -10px 30px rgba(0, 0, 0, 0.55),
+            0 0 28px rgba(106, 176, 230, 0.22);
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        z-index: 2;
+    }
+
+    /*
+     * Маленькая стрелка-«указка» снизу меню в направлении кнопки.
+     * Делается через двойной ::before (border) + ::after (fill) на
+     * псевдо-якоре под меню. Не критично, но визуально привязывает
+     * popup к источнику. Используем «триугольник из border» технику.
+     */
+    &__edit-menu::before {
+        content: '';
+        position: absolute;
+        bottom: -8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        height: 0;
+        border-left: 8px solid transparent;
+        border-right: 8px solid transparent;
+        border-top: 8px solid rgba(140, 190, 235, 0.42);
+    }
+
+    &__edit-menu::after {
+        content: '';
+        position: absolute;
+        bottom: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        height: 0;
+        border-left: 7px solid transparent;
+        border-right: 7px solid transparent;
+        border-top: 7px solid rgba(10, 20, 32, 0.98);
+    }
+
+    /* L-corner accents в углах меню — узнаваемая sci-fi chrome'а. */
+    &__edit-menu-corner {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        pointer-events: none;
+        border-color: #6ab0e6;
+        opacity: 0.85;
+
+        &--tl { top: -1px; left: -1px;       border-top: 1px solid; border-left: 1px solid; }
+        &--tr { top: -1px; right: -1px;      border-top: 1px solid; border-right: 1px solid; }
+        &--bl { bottom: -1px; left: -1px;    border-bottom: 1px solid; border-left: 1px solid; }
+        &--br { bottom: -1px; right: -1px;   border-bottom: 1px solid; border-right: 1px solid; }
+    }
+
+    &__edit-menu-item {
+        appearance: none;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 11px 16px;
+        text-align: left;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 2.2px;
+        text-transform: uppercase;
+        color: rgba(220, 232, 245, 0.88);
+        border-radius: 2px;
+        transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+        position: relative;
+
+        /* Левый cyan accent-bar — подсветка hover'a в стиле HUD. */
+        &::before {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 50%;
+            transform: translateY(-50%) scaleY(0);
+            transform-origin: center;
+            width: 3px;
+            height: 60%;
+            background: #6ab0e6;
+            box-shadow: 0 0 6px rgba(106, 176, 230, 0.7);
+            transition: transform 160ms ease;
+        }
+
+        &:hover {
+            background: rgba(106, 176, 230, 0.14);
+            color: #f4faff;
+
+            &::before {
+                transform: translateY(-50%) scaleY(1);
+            }
+        }
+    }
+
+    /*
+     * Vue Transition `initial-draft-summary-menu` — fade + small slide
+     * up при появлении (комбинируется с дефолтным top-anchor:
+     * `bottom: 100%`). enter-from = чуть ниже + invisible, leave-to =
+     * чуть ниже + invisible. Cubic-bezier same as остальные модальные
+     * анимации этого файла.
+     */
+    .initial-draft-summary-menu-enter-active,
+    .initial-draft-summary-menu-leave-active {
+        transition: opacity 180ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .initial-draft-summary-menu-enter-from,
+    .initial-draft-summary-menu-leave-to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(8px);
+    }
+
+    /*
+     * Responsive: на узких viewport'ах (ноутбук в окне < 880 px) top-row
+     * складывается вертикально, summary-strip уменьшает шрифт значений,
+     * projects-grid схлопывается в 1-2 колонки автоматически по minmax'у.
+     */
+    @media (max-width: 880px) {
+        &__header {
+            padding: 18px 22px 14px;
+        }
+        &__body {
+            padding: 16px 22px 8px;
+        }
+        &__top-row {
+            grid-template-columns: 1fr;
+            gap: 22px;
+        }
+        &__title {
+            font-size: 18px;
+            letter-spacing: 3px;
+        }
+        &__strip-value {
+            font-size: 13px;
+        }
+    }
+
+    @media (max-width: 1100px) {
+        &__card-slot > .card-container {
+            zoom: 0.5;
+        }
+        &__card-slot--corp > .card-container {
+            zoom: 0.7;
+        }
+        &__pile--row &__card-slot + &__card-slot {
+            margin-left: -45px;
         }
     }
 }

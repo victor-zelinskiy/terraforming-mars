@@ -92,7 +92,14 @@ export function actionLabelForPlayer(
     }
   }
 
-  return 'none';
+  // Нейтральное «ожидает» (раньше возвращалось 'none' и подпись просто
+  // пропадала). Партия идёт, игрок не активен и не passed — он реально
+  // ждёт; явный статус снимает у наблюдателя ощущение «карта без статуса
+  // == забытый игрок». END-фаза остаётся 'none' — там показывать нечего.
+  if (game.phase === Phase.END) {
+    return 'none';
+  }
+  return 'waiting';
 }
 
 function isPlayerWaiting(
