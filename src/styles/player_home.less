@@ -1,3 +1,43 @@
+/*
+ * ─────────────────────────────────────────────────────────────────
+ *  Left-panel HUD design tokens (v42)
+ * ─────────────────────────────────────────────────────────────────
+ *
+ *  Centralised palette + structural values shared by the left
+ *  sidebar's player cards, resource cells, tag cells, section
+ *  containers, and lower allied-party block. The goal is one design
+ *  system across the whole sidebar so the player feels they're
+ *  reading a single sci-fi cockpit, not a stack of legacy widgets.
+ *
+ *  These mirror the visual language already established by:
+ *    - .left-panel-card    (player tiles — done)
+ *    - .initial-draft-rail (status rail — reference design)
+ *
+ *  Use these LESS variables instead of repeating raw rgba() values
+ *  when touching anything in the left-panel scope.
+ */
+@hud-cyan:           #6ab0e6;
+@hud-cyan-soft:      rgba(106, 176, 230, 0.18);
+@hud-cyan-hairline:  rgba(106, 176, 230, 0.1);
+@hud-cyan-glow:      rgba(106, 176, 230, 0.45);
+@hud-navy-rim:       #2c4a6a;
+@hud-bg-section:     rgba(18, 28, 42, 0.62);
+@hud-bg-cell:        rgba(14, 22, 34, 0.55);
+@hud-bg-cell-strong: rgba(10, 16, 26, 0.75);
+@hud-text-primary:   #e8f1fb;
+@hud-text-secondary: #d6e2f2;
+@hud-text-muted:     rgba(170, 195, 220, 0.78);
+/*
+ * Production palette — three states so the +/0/- prefix is
+ * carried by colour, not just glyph. Bright amber for positive
+ * (production is a "good thing"), muted neutral for zero, soft
+ * coral for negative (penalty / consumption). Never agressive
+ * red — keep within the warm-neutral spectrum.
+ */
+@hud-prod-positive:  #f0c878;
+@hud-prod-zero:      rgba(165, 145, 115, 0.55);
+@hud-prod-negative:  #d99076;
+
 :root {
     /* Fixed UI dimensions. Tweak --left-panel-width to give more room to the board. */
     --bottom-bar-button-height: 36px;
@@ -1706,18 +1746,33 @@ each(@players, {
     z-index: 1;
 }
 
-/* Shared sci-fi panel chrome: thin neon border + faint inner glow on a
- * translucent dark background. Used to group resources and tags clusters. */
+/*
+ * Shared section container — used to group resources / card-tags /
+ * extras-tags / allied-party clusters in the left sidebar.
+ *
+ * Uses HUD design tokens (see top of file). Slightly deeper navy-
+ * graphite background than the v0 to read as the same surface tier
+ * as the upgraded .left-panel-card above; thin inner cyan hairline
+ * + L-shaped corner accents at top-left / bottom-right give the
+ * sci-fi cockpit feel without distracting.
+ *
+ * Padding is intentionally tight (3 px) — the left panel is 160 px
+ * wide and we need every pixel for resource/tag content. Section
+ * chrome is "frame, not furniture".
+ */
 .left-panel-section {
     position: relative;
-    background: rgba(20, 30, 45, 0.55);
-    border: 1px solid #2c4a6a;
+    background: @hud-bg-section;
+    border: 1px solid @hud-navy-rim;
     border-radius: 4px;
-    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+    box-shadow: inset 0 0 0 1px @hud-cyan-hairline;
     padding: 3px;
-    margin-bottom: 3px;
+    margin-bottom: 4px;
 
-    /* Subtle clipped corner accent — sci-fi feel without distracting. */
+    /* L-shaped corner accent — sci-fi vocabulary shared with the
+     * MandatoryInputModal card frame and the action-zone panel.
+     * 8-px reach, 1-px stroke — subtle, just enough to tell the
+     * eye "this is an instrument, not a flat blob". */
     &::before {
         content: '';
         position: absolute;
@@ -1725,8 +1780,8 @@ each(@players, {
         left: -1px;
         width: 8px;
         height: 8px;
-        border-top: 1px solid #6ab0e6;
-        border-left: 1px solid #6ab0e6;
+        border-top: 1px solid @hud-cyan;
+        border-left: 1px solid @hud-cyan;
         pointer-events: none;
     }
     &::after {
@@ -1736,8 +1791,8 @@ each(@players, {
         right: -1px;
         width: 8px;
         height: 8px;
-        border-bottom: 1px solid #6ab0e6;
-        border-right: 1px solid #6ab0e6;
+        border-bottom: 1px solid @hud-cyan;
+        border-right: 1px solid @hud-cyan;
         pointer-events: none;
     }
 }
@@ -1769,6 +1824,25 @@ each(@players, {
      *     (positioned). We use `left: -20px` to pull it 20px back from prod's
      *     left edge so it lands right on top of the icon's top-right corner.
      */
+    /*
+     * Resource cells — premium HUD chip per resource.
+     *
+     * Visual stack inside each cell:
+     *   Icon (36×36)        — absolute left, top-aligned
+     *   Quantity (18 px)    — under icon, big readable white
+     *   Production chip     — right of icon, dark glass pill +
+     *                         cyan hairline rim. Colour of the
+     *                         digits shifts by sign:
+     *                            positive → bright amber + glow
+     *                            zero     → muted neutral
+     *                            negative → soft coral
+     *   M€-value overlay    — top-right corner of icon (steel /
+     *                         titanium worth N M€ when spent)
+     *
+     * The cell itself is a dark glass tile with a thin cyan inner
+     * hairline — matches the .left-panel-card vocabulary, no more
+     * hard black "legacy slab".
+     */
     .resource_items_cont {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -1784,7 +1858,26 @@ each(@players, {
             min-width: 0;
             min-height: 60px;
             padding: 0;
-            background: linear-gradient(rgba(0, 0, 0, 0.8) 20%, rgba(0, 0, 0, 0.45) 70%);
+            border-radius: 3px;
+            background:
+                linear-gradient(180deg,
+                    rgba(14, 22, 34, 0.78) 0%,
+                    rgba(20, 30, 45, 0.5) 100%);
+            box-shadow:
+                inset 0 0 0 1px @hud-cyan-hairline,
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            transition: box-shadow 160ms ease, background 160ms ease;
+
+            &:hover {
+                background:
+                    linear-gradient(180deg,
+                        rgba(20, 32, 50, 0.82) 0%,
+                        rgba(26, 40, 60, 0.55) 100%);
+                box-shadow:
+                    inset 0 0 0 1px @hud-cyan-soft,
+                    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+                    0 0 8px rgba(106, 176, 230, 0.18);
+            }
         }
 
         .resource_item--energy:after {
@@ -1814,68 +1907,114 @@ each(@players, {
             margin-top: 2px;
             font-size: 18px;
             line-height: 1;
-            color: #fff;
+            color: @hud-text-primary;
             text-align: center;
-            text-shadow: 0 1px 2px #000;
+            font-family: Prototype, Ubuntu, sans-serif;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            text-shadow:
+                0 1px 2px rgba(0, 0, 0, 0.7),
+                0 0 4px rgba(106, 176, 230, 0.18);
         }
 
-        /* Production count: bigger font, vertically centred on the icon's
-         * horizontal axis (icon y=2..38, centre ~20). */
+        /*
+         * Production count — sci-fi chip to the right of the icon.
+         * Compact pill with dark glass background + thin cyan
+         * hairline. Used to be flat amber text on the cell's black
+         * gradient, which read as "ad-hoc colour" rather than a
+         * proper HUD element. The chip turns production into a
+         * structured datum: glyph + sign-encoded colour.
+         *
+         * Vertically centred against the icon's centre (icon
+         * y=2..38, centre ≈ 20). Min-width 26 so single-digit and
+         * 2-digit values share the same column position.
+         */
         .resource_item_prod {
             position: absolute;
             left: 46px;
-            top: 8px;
+            top: 7px;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-width: 24px;
-            height: 24px;
-            font-size: 16px;
+            min-width: 26px;
+            height: 22px;
+            padding: 0 4px;
+            border-radius: 2px;
+            background: rgba(8, 14, 22, 0.72);
+            box-shadow: inset 0 0 0 1px @hud-cyan-hairline;
+            font-size: 15px;
             line-height: 1;
-            color: #bb8760;
-            background: none;
-            padding: 0;
-            margin: 0;
-            border-radius: 0;
+            color: @hud-prod-positive;
             text-align: center;
-            text-shadow: 0 1px 1px #000;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
 
             .shield_parent { display: none; }
         }
 
         .resource_item_prod_count {
-            font-size: 16px;
-            font-family: Prototype;
-            color: #bb8760;
+            font-size: 15px;
+            font-family: Prototype, Ubuntu, sans-serif;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            color: inherit;
         }
 
         /*
-         * "M€ value" badge for steel/titanium — top-RIGHT corner of the icon.
-         * The badge is a DOM child of .resource_item_prod; we use a negative
-         * `left` so it visually escapes prod's box and lands on the icon.
+         * Production sign palette — colour-codes the chip text:
+         *   positive → bright amber (default rule above)
+         *   zero     → muted neutral so a parked production line
+         *              doesn't compete for attention
+         *   negative → soft coral, conveys "loss / consumption"
+         *              without alarming red
          *
-         * prod's box starts at left:46 in resource_item coords. The badge is
-         * 16px wide; `left: -20px` puts the badge at resource_item x = 46 -
-         * 20 = 26, spanning x=26..42. Icon spans x=4..40 in resource_item, so
-         * the badge centres on the icon's top-right corner (x=40).
+         * The Vue template stamps `--negative` / `--zero` modifiers
+         * on the `.resource_item_prod` element based on the numeric
+         * value sign. (If not yet present in the template, the
+         * default amber is fine for all values; adding the modifiers
+         * later is a small Vue tweak.)
+         */
+        .resource_item_prod--zero,
+        .resource_item_prod--zero .resource_item_prod_count {
+            color: @hud-prod-zero;
+        }
+        .resource_item_prod--negative,
+        .resource_item_prod--negative .resource_item_prod_count {
+            color: @hud-prod-negative;
+        }
+
+        /*
+         * "M€ value" badge for steel/titanium — top-RIGHT corner of
+         * the icon. The badge is a DOM child of .resource_item_prod;
+         * we use a negative `left` so it visually escapes prod's box
+         * and lands on the icon.
+         *
+         * prod's box starts at left:46 in resource_item coords; the
+         * badge is 16 px wide; `left: -22px` puts the badge at x ≈
+         * 24, spanning 24..40 — centring on the icon's top-right
+         * corner (icon spans 4..40). Slight bump from the v0 -20 px
+         * compensates for the prod chip's new padding so the badge
+         * still lands cleanly on the icon corner.
          */
         .resource_icon--megacredit-value {
             position: absolute;
-            top: -6px;
-            left: -20px;
+            top: -7px;
+            left: -22px;
             width: 16px;
             height: 16px;
             background-image: url(./assets/resources/megacredit.png);
             background-size: 16px 16px;
             background-position: center;
             background-repeat: no-repeat;
-            color: #000;
+            color: #1a1308;
             font-size: 11px;
             line-height: 16px;
             text-align: center;
             font-family: Prototype;
+            font-weight: 700;
             border-radius: 50%;
-            box-shadow: 0 0 2px #000;
+            box-shadow:
+                0 0 0 1px rgba(8, 12, 20, 0.7),
+                0 0 4px rgba(0, 0, 0, 0.6);
             margin: 0;
             z-index: 5;
         }
@@ -1921,18 +2060,22 @@ each(@players, {
         display: none;
     }
 
-    /* Card-tags + extras secondary blocks: 2-column grid, icon + count.
+    /*
+     * Card-tags + extras secondary blocks — 2-column HUD grid of
+     * tag icons + count.
      *
-     * Each cell uses a fixed-width `.tag-and-discount` (icon + count) so the
-     * tag NEVER shifts position when we swap displayed players, even if one
-     * player has a discount badge and the other doesn't. Discount and
-     * points-per-tag badges are absolute-positioned over the icon corners and
-     * don't affect layout. */
+     * Each cell uses a fixed-width `.tag-and-discount` (icon + count
+     * + corner badges) so the tag NEVER shifts position when we
+     * swap displayed players. Discount and points-per-tag badges
+     * are absolute-positioned over the icon corners and don't
+     * affect layout. The grid reads as a HUD instrument cluster,
+     * not a row of detached icons.
+     */
     .left-panel-tags-secondary .player-tags-secondary {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         justify-items: center;
-        gap: 6px 6px;
+        gap: 5px 4px;
     }
 
     .left-panel-tags-secondary {
@@ -1942,16 +2085,36 @@ each(@players, {
             justify-content: center;
         }
 
+        /*
+         * Tag slot — fixed 60-px width container locked at icon
+         * (34) + gap (4) + count cell (~18). Subtle dark glass
+         * background + thin cyan hairline makes the slot read as a
+         * HUD instrument cell, matching the resource cells visual
+         * tier. Hover lifts the inner glow.
+         *
+         * Padding is intentionally small (3 px) so the icon stays
+         * the same visual size — the slot chrome is a frame around
+         * the existing icon, not a re-sizing wrapper.
+         */
         .tag-and-discount {
             display: flex;
             align-items: center;
             gap: 4px;
-            /* Fixed width = icon (34) + gap (4) + count display (~18). Locks
-             * the badge corners to the icon corners regardless of count value
-             * or whether a discount/points badge is present. */
             width: 60px;
             flex-shrink: 0;
             position: relative;
+            padding: 2px 3px;
+            border-radius: 3px;
+            background: @hud-bg-cell;
+            box-shadow: inset 0 0 0 1px @hud-cyan-hairline;
+            transition: box-shadow 160ms ease, background 160ms ease;
+
+            &:hover {
+                background: rgba(20, 32, 50, 0.7);
+                box-shadow:
+                    inset 0 0 0 1px @hud-cyan-soft,
+                    0 0 6px rgba(106, 176, 230, 0.18);
+            }
         }
 
         /* The ORDER separator entry is now expressed as a real sub-block in
@@ -1968,24 +2131,36 @@ each(@players, {
         }
 
         .tag-count-display {
-            font-size: 18px;
+            font-size: 17px;
             margin-top: 0;
             min-width: 14px;
             text-align: left;
-            font-family: Prototype;
+            font-family: Prototype, Ubuntu, sans-serif;
+            font-weight: 700;
+            color: @hud-text-primary;
+            letter-spacing: 0.3px;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
         }
     }
 
-    /* The "extras" sub-block sits visually below regular card tags. Keep its
-     * grid identical but give it a faintly distinct header tint to read as a
-     * separate cluster. */
+    /*
+     * The "extras" sub-block sits visually below regular card tags.
+     * v0 gave it a darker background to "read as a separate cluster"
+     * — but the result was that extras felt detached from the rest
+     * of the panel. With the unified .left-panel-section chrome
+     * (deeper navy + cyan corner ticks) and the per-slot HUD cells
+     * above, the visual separation is already carried by the
+     * section's own border, so we drop the bg shift here — every
+     * section is the same tier of surface.
+     */
     .left-panel-tags-extras {
-        background: rgba(15, 22, 35, 0.55);
+        background: @hud-bg-section;
     }
 
     .player-allied-party {
         margin-top: 4px;
         font-size: 11px;
+        color: @hud-text-secondary;
     }
 
     /*
