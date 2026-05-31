@@ -115,6 +115,36 @@
 }
 
 /*
+ * Score chip — VP/TR. Two render sites: (1) LeftPlayerCard's stat
+ * row in the left panel (.left-panel-card-stat-value), and (2) the
+ * legacy TagCount-rendered tag-display path on other surfaces. The
+ * positioning below works for both because each call site makes its
+ * direct parent `position: relative`.
+ */
+.metric-feedback-host--score {
+    top: -10px;
+    right: -10px;
+    z-index: 6;
+}
+
+/*
+ * VP/TR in LeftPlayerCard — the stat-value is the host's positioning
+ * parent. Wrap it in inline-block so the inner __num child can
+ * receive transforms (the inner span is itself `inline-block` so
+ * scale animations apply). Min-width keeps the row from twitching
+ * when the digit count changes (e.g., 9 → 10 wider).
+ */
+.left-panel-card-stat-value {
+    position: relative;
+    display: inline-block;
+}
+
+.left-panel-card-stat-value__num {
+    display: inline-block;
+    transform-origin: center;
+}
+
+/*
  * Delta chip — the chip itself. Polarity sets the colour scheme.
  * Variant sets the chip's geometry (font-size, padding, radius,
  * glow strength).
@@ -208,6 +238,16 @@
     letter-spacing: 0.3px;
 }
 
+/*
+ * Score — VP/TR. Slightly bigger than misc since these are
+ * game-defining changes. Same rounded pill shape.
+ */
+.delta-chip--score {
+    font-size: 12px;
+    padding: 3px 7px;
+    letter-spacing: 0.35px;
+}
+
 /* ---- chip mount / unmount transitions ----------------------- */
 
 /*
@@ -274,98 +314,228 @@
 }
 
 /*
- * ---- Number flash + row pulse (CSS-only, driven by :has()) ----
+ * =================================================================
+ *   NUMERIC TRANSITION LAYER (CSS-only, driven by :has())
+ * =================================================================
  *
- * When a delta chip mounts inside a cell, the cell's active-polarity
- * class flips on. We use that class on the host span as a CSS
- * trigger for the SIBLING number and the PARENT row to flash.
+ * The chip says HOW MUCH; the row pulse says WHERE; this layer
+ * says THE NUMBER ITSELF CHANGED. Premium short transition on the
+ * digit — NOT a rolling counter (no 61→62→63→...→65 slot-machine
+ * effect — Vue just swaps the text instantly, and the animation
+ * gives it a "fresh value arriving" cue around the swap).
  *
- * Why :has()? It lets the same animation be triggered by either the
- * stock chip or the production chip without each cell needing a
- * separate state class. The browser support floor (Chromium 105,
- * Firefox 121, Safari 15.4) is acceptable for the fork's target.
+ * Each variant has its own keyframe pair tuned for visual weight:
+ *
+ *   stock   — full transition (slide-in 5px + scale + glow + color).
+ *             Most prominent. ~760ms.
+ *   prod    — number text gets scale + glow + color, no slide.
+ *             Subtler. ~560ms. (The prod CELL pulses separately,
+ *             see "prod-cell pulse" below.)
+ *   tag     — compact scale + glow + color. ~600ms.
+ *   misc    — slightly stronger than tag (peak scale 1.10).
+ *             For cities/colonies/influence/cards/etc. ~680ms.
+ *   score   — VP/TR. Strongest single-element treatment — scale
+ *             + slight slide + extended glow + color hold.
+ *             Game-defining feel. ~880ms.
+ *
+ * All transitions complete EARLY in the chip's visible window
+ * (chip = 1300-1700ms, transition = 560-880ms) so the transition
+ * lands, the digit settles, the chip floats next to the settled
+ * digit. No timing fight.
+ *
+ * Why :has()? It lets the same animation key off the host span's
+ * active-polarity class without each cell needing its own state
+ * class. Browser floor: Chromium 105 / Firefox 121 / Safari 15.4
+ * — adequate for the fork's desktop / Steam-CEF target.
  */
 
-/* --- stock number flash ---------------------------------------- */
+/* --- stock value transition (resource M€/steel/…/heat) ------- */
 
 /*
- * Stock-number flash. Keyframes evenly distributed (rise ~30%, hold ~50%,
- * unwind ~100%) so the colour shift breathes instead of snapping. Soft
- * easeInOutSine smooths both ends of the curve.
+ * Slide-in from below + scale + colour tint + glow. The slide
+ * sells "this is the new value arriving" without any digit-rolling.
+ * transform-origin: right center keeps the right-aligned digits
+ * anchored to the column edge so the count's right-edge x is
+ * preserved during the scale phase — column alignment never breaks.
  */
-@keyframes stock-flash-positive {
-    0%   { color: inherit; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(106, 176, 230, 0.18); transform: none; }
-    30%  { color: @feedback-positive-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 10px @feedback-positive-glow; transform: scale(1.06); }
-    55%  { color: @feedback-positive-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 8px @feedback-positive-glow; transform: scale(1.04); }
-    100% { color: inherit; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(106, 176, 230, 0.18); transform: none; }
+@keyframes stock-num-transition-positive {
+    0%   { transform: translateY(5px) scale(0.94); color: @feedback-positive-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 14px @feedback-positive-glow; opacity: 0.55; }
+    45%  { transform: translateY(0) scale(1.06);   color: @feedback-positive-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 12px @feedback-positive-glow; opacity: 1; }
+    70%  { transform: scale(1.03);                  color: @feedback-positive-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 8px @feedback-positive-glow-soft; opacity: 1; }
+    100% { transform: none;                         color: inherit;                  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(106, 176, 230, 0.18); opacity: 1; }
 }
 
-@keyframes stock-flash-negative {
-    0%   { color: inherit; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(106, 176, 230, 0.18); transform: none; }
-    30%  { color: @feedback-negative-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 10px @feedback-negative-glow; transform: scale(1.04); }
-    55%  { color: @feedback-negative-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 8px @feedback-negative-glow; transform: scale(1.03); }
-    100% { color: inherit; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(106, 176, 230, 0.18); transform: none; }
+@keyframes stock-num-transition-negative {
+    0%   { transform: translateY(5px) scale(0.94); color: @feedback-negative-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 14px @feedback-negative-glow; opacity: 0.55; }
+    45%  { transform: translateY(0) scale(1.05);   color: @feedback-negative-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 12px @feedback-negative-glow; opacity: 1; }
+    70%  { transform: scale(1.03);                  color: @feedback-negative-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 8px @feedback-negative-glow-soft; opacity: 1; }
+    100% { transform: none;                         color: inherit;                  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(106, 176, 230, 0.18); opacity: 1; }
 }
 
 .resource_item_stock:has(.metric-feedback-host--active-positive) .resource_item_stock_count {
-    animation: stock-flash-positive 1000ms cubic-bezier(0.37, 0, 0.63, 1);
+    animation: stock-num-transition-positive 760ms cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: right center;
 }
 
 .resource_item_stock:has(.metric-feedback-host--active-negative) .resource_item_stock_count {
-    animation: stock-flash-negative 1000ms cubic-bezier(0.37, 0, 0.63, 1);
+    animation: stock-num-transition-negative 760ms cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: right center;
 }
 
-/* --- production chip flash ------------------------------------- */
+/* --- production NUMBER transition (the text inside the chip) -- */
 
-@keyframes prod-flash-positive {
+/*
+ * Subtler than stock — no slide, just a quick scale + glow on the
+ * production number. The prod CELL also pulses (see below); the two
+ * effects layer for a coherent "the production chip is alive"
+ * moment without dominating attention. transform-origin: center
+ * keeps the chip's content centred (prod chip is centre-aligned).
+ */
+@keyframes prod-num-transition-positive {
+    0%   { transform: scale(0.92); color: @feedback-positive-text; text-shadow: 0 0 6px @feedback-positive-glow; opacity: 0.7; }
+    50%  { transform: scale(1.06); color: @feedback-positive-text; text-shadow: 0 0 8px @feedback-positive-glow; opacity: 1; }
+    100% { transform: none;        color: inherit;                  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7); opacity: 1; }
+}
+
+@keyframes prod-num-transition-negative {
+    0%   { transform: scale(0.92); color: @feedback-negative-text; text-shadow: 0 0 6px @feedback-negative-glow; opacity: 0.7; }
+    50%  { transform: scale(1.05); color: @feedback-negative-text; text-shadow: 0 0 8px @feedback-negative-glow; opacity: 1; }
+    100% { transform: none;        color: inherit;                  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7); opacity: 1; }
+}
+
+.resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-positive) .resource_item_prod_count {
+    animation: prod-num-transition-positive 560ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center;
+    display: inline-block; /* needed for transform on the inline <span> */
+}
+
+.resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-negative) .resource_item_prod_count {
+    animation: prod-num-transition-negative 560ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center;
+    display: inline-block;
+}
+
+/* --- production CELL pulse (kept separate from prod number) --- */
+
+@keyframes prod-cell-pulse-positive {
     0%, 100% { box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.45), 0 1px 2px rgba(0, 0, 0, 0.32); }
     35%      { box-shadow: inset 0 0 0 1px @feedback-positive-rim, 0 0 12px @feedback-positive-glow-soft, 0 1px 2px rgba(0, 0, 0, 0.32); }
     60%      { box-shadow: inset 0 0 0 1px @feedback-positive-rim, 0 0 8px @feedback-positive-glow-soft, 0 1px 2px rgba(0, 0, 0, 0.32); }
 }
 
-@keyframes prod-flash-negative {
+@keyframes prod-cell-pulse-negative {
     0%, 100% { box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.45), 0 1px 2px rgba(0, 0, 0, 0.32); }
     35%      { box-shadow: inset 0 0 0 1px @feedback-negative-rim, 0 0 12px @feedback-negative-glow-soft, 0 1px 2px rgba(0, 0, 0, 0.32); }
     60%      { box-shadow: inset 0 0 0 1px @feedback-negative-rim, 0 0 8px @feedback-negative-glow-soft, 0 1px 2px rgba(0, 0, 0, 0.32); }
 }
 
-/*
- * The prod chip host now lives as a sibling of .resource_item_prod
- * (not inside it — see comment in PlayerResource.vue and the
- * positioning block above). So the flash selector walks up to
- * .resource_item then back down to .resource_item_prod.
- */
 .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-positive) .resource_item_prod {
-    animation: prod-flash-positive 1100ms cubic-bezier(0.37, 0, 0.63, 1);
+    animation: prod-cell-pulse-positive 1100ms cubic-bezier(0.37, 0, 0.63, 1);
 }
 
 .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-negative) .resource_item_prod {
-    animation: prod-flash-negative 1100ms cubic-bezier(0.37, 0, 0.63, 1);
+    animation: prod-cell-pulse-negative 1100ms cubic-bezier(0.37, 0, 0.63, 1);
 }
 
-/* --- tag / misc count flash ------------------------------------ */
+/* --- tag count transition (card tags) -------------------------- */
 
-@keyframes tag-flash-positive {
-    0%, 100% { color: inherit; text-shadow: none; transform: none; }
-    30%      { color: @feedback-positive-text; text-shadow: 0 0 8px @feedback-positive-glow; transform: scale(1.08); }
-    55%      { color: @feedback-positive-text; text-shadow: 0 0 6px @feedback-positive-glow; transform: scale(1.04); }
+@keyframes tag-num-transition-positive {
+    0%   { transform: scale(0.92); color: @feedback-positive-text; text-shadow: 0 0 6px @feedback-positive-glow; }
+    50%  { transform: scale(1.08); color: @feedback-positive-text; text-shadow: 0 0 8px @feedback-positive-glow; }
+    100% { transform: none;        color: inherit;                  text-shadow: none; }
 }
 
-@keyframes tag-flash-negative {
-    0%, 100% { color: inherit; text-shadow: none; transform: none; }
-    30%      { color: @feedback-negative-text; text-shadow: 0 0 8px @feedback-negative-glow; transform: scale(1.04); }
-    55%      { color: @feedback-negative-text; text-shadow: 0 0 6px @feedback-negative-glow; transform: scale(1.02); }
+@keyframes tag-num-transition-negative {
+    0%   { transform: scale(0.92); color: @feedback-negative-text; text-shadow: 0 0 6px @feedback-negative-glow; }
+    50%  { transform: scale(1.05); color: @feedback-negative-text; text-shadow: 0 0 8px @feedback-negative-glow; }
+    100% { transform: none;        color: inherit;                  text-shadow: none; }
 }
 
-.tag-display:has(.metric-feedback-host--active-positive) .tag-count-display {
-    animation: tag-flash-positive 950ms cubic-bezier(0.37, 0, 0.63, 1);
+.tag-display:has(.metric-feedback-host--tag.metric-feedback-host--active-positive) .tag-count-display {
+    animation: tag-num-transition-positive 600ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center;
+    display: inline-block;
+}
+
+.tag-display:has(.metric-feedback-host--tag.metric-feedback-host--active-negative) .tag-count-display {
+    animation: tag-num-transition-negative 600ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center;
+    display: inline-block;
+}
+
+/* --- misc count transition (cities/colonies/influence/cards) -- */
+
+@keyframes misc-num-transition-positive {
+    0%   { transform: scale(0.9);  color: @feedback-positive-text; text-shadow: 0 0 8px @feedback-positive-glow; }
+    50%  { transform: scale(1.10); color: @feedback-positive-text; text-shadow: 0 0 10px @feedback-positive-glow; }
+    100% { transform: none;        color: inherit;                  text-shadow: none; }
+}
+
+@keyframes misc-num-transition-negative {
+    0%   { transform: scale(0.9);  color: @feedback-negative-text; text-shadow: 0 0 8px @feedback-negative-glow; }
+    50%  { transform: scale(1.06); color: @feedback-negative-text; text-shadow: 0 0 10px @feedback-negative-glow; }
+    100% { transform: none;        color: inherit;                  text-shadow: none; }
+}
+
+.tag-display:has(.metric-feedback-host--misc.metric-feedback-host--active-positive) .tag-count-display {
+    animation: misc-num-transition-positive 680ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center;
+    display: inline-block;
+}
+
+.tag-display:has(.metric-feedback-host--misc.metric-feedback-host--active-negative) .tag-count-display {
+    animation: misc-num-transition-negative 680ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center;
+    display: inline-block;
+}
+
+/* --- score transition (VP / TR — game-defining) --------------- */
+
+/*
+ * Strongest single-element treatment — scale to 1.14, slight 3-px
+ * slide-in, extended glow with a longer hold-phase before settling.
+ * Reads as "this changed the score", distinct from "another counter
+ * ticked". Settled landing keyframe at 80% (not 100%) so the digit
+ * isn't still moving when the surrounding chip has fully appeared.
+ */
+@keyframes score-num-transition-positive {
+    0%   { transform: translateY(3px) scale(0.92); color: @feedback-positive-text; text-shadow: 0 0 12px @feedback-positive-glow; opacity: 0.6; }
+    40%  { transform: translateY(0) scale(1.14);   color: @feedback-positive-text; text-shadow: 0 0 14px @feedback-positive-glow; opacity: 1; }
+    70%  { transform: scale(1.05);                  color: @feedback-positive-text; text-shadow: 0 0 8px @feedback-positive-glow-soft; opacity: 1; }
+    100% { transform: none;                         color: inherit;                  text-shadow: none; opacity: 1; }
+}
+
+@keyframes score-num-transition-negative {
+    0%   { transform: translateY(3px) scale(0.92); color: @feedback-negative-text; text-shadow: 0 0 12px @feedback-negative-glow; opacity: 0.6; }
+    40%  { transform: translateY(0) scale(1.08);   color: @feedback-negative-text; text-shadow: 0 0 14px @feedback-negative-glow; opacity: 1; }
+    70%  { transform: scale(1.03);                  color: @feedback-negative-text; text-shadow: 0 0 8px @feedback-negative-glow-soft; opacity: 1; }
+    100% { transform: none;                         color: inherit;                  text-shadow: none; opacity: 1; }
+}
+
+.tag-display:has(.metric-feedback-host--score.metric-feedback-host--active-positive) .tag-count-display {
+    animation: score-num-transition-positive 880ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center;
+    display: inline-block;
+}
+
+.tag-display:has(.metric-feedback-host--score.metric-feedback-host--active-negative) .tag-count-display {
+    animation: score-num-transition-negative 880ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center;
+    display: inline-block;
+}
+
+/*
+ * Score transition for LeftPlayerCard's VP/TR stat — same keyframes
+ * as the tag-display path but bound to the LeftPlayerCard's stat
+ * element. Two render sites for VP/TR share one keyframe pair.
+ */
+.left-panel-card-stat-value:has(.metric-feedback-host--score.metric-feedback-host--active-positive) .left-panel-card-stat-value__num {
+    animation: score-num-transition-positive 880ms cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
 }
 
-.tag-display:has(.metric-feedback-host--active-negative) .tag-count-display {
-    animation: tag-flash-negative 950ms cubic-bezier(0.37, 0, 0.63, 1);
+.left-panel-card-stat-value:has(.metric-feedback-host--score.metric-feedback-host--active-negative) .left-panel-card-stat-value__num {
+    animation: score-num-transition-negative 880ms cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
 }
 
@@ -403,14 +573,31 @@
  * scale/transform. Glow is fine — pure opacity-based painting
  * isn't movement.
  */
+/*
+ * Reduced-motion overrides: kill every animation that involves
+ * transform / slide / scale. The chip itself reverts to a pure
+ * opacity crossfade (see .delta-chip-fade-reduced-* above). The
+ * number colour-shift effect is also turned off — the chip already
+ * carries the polarity signal via its border/text colour.
+ */
 @media (prefers-reduced-motion: reduce) {
+    /* Numeric transitions (every variant) */
     .resource_item_stock:has(.metric-feedback-host--active-positive) .resource_item_stock_count,
     .resource_item_stock:has(.metric-feedback-host--active-negative) .resource_item_stock_count,
-    .tag-display:has(.metric-feedback-host--active-positive) .tag-count-display,
-    .tag-display:has(.metric-feedback-host--active-negative) .tag-count-display {
+    .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-positive) .resource_item_prod_count,
+    .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-negative) .resource_item_prod_count,
+    .tag-display:has(.metric-feedback-host--tag.metric-feedback-host--active-positive) .tag-count-display,
+    .tag-display:has(.metric-feedback-host--tag.metric-feedback-host--active-negative) .tag-count-display,
+    .tag-display:has(.metric-feedback-host--misc.metric-feedback-host--active-positive) .tag-count-display,
+    .tag-display:has(.metric-feedback-host--misc.metric-feedback-host--active-negative) .tag-count-display,
+    .tag-display:has(.metric-feedback-host--score.metric-feedback-host--active-positive) .tag-count-display,
+    .tag-display:has(.metric-feedback-host--score.metric-feedback-host--active-negative) .tag-count-display,
+    .left-panel-card-stat-value:has(.metric-feedback-host--score.metric-feedback-host--active-positive) .left-panel-card-stat-value__num,
+    .left-panel-card-stat-value:has(.metric-feedback-host--score.metric-feedback-host--active-negative) .left-panel-card-stat-value__num {
         animation: none;
     }
 
+    /* Production cell pulse + row pulse */
     .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-positive) .resource_item_prod,
     .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-negative) .resource_item_prod,
     .resource_item:has(> .resource_item_stock .metric-feedback-host--active-positive),
@@ -419,6 +606,6 @@
     }
 
     .delta-chip {
-        transition: opacity 200ms linear;
+        transition: opacity 340ms linear;
     }
 }

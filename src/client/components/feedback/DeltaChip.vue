@@ -11,17 +11,30 @@
 import {defineComponent, PropType} from 'vue';
 
 /*
- * Visual variants. Drives the chip's size + tone tier.
+ * Visual variants. Drives the chip's size + tone tier AND the
+ * matching number-transition strength (see resource_change_feedback.less).
  *
- *   resource-stock      — most prominent (M€/steel/...) — full size.
- *   resource-production — production chip — compact.
- *   tag                 — tag value      — small.
- *   misc                — misc counter   — small (same as tag).
+ *   resource-stock      — M€/steel/titanium/plants/energy/heat stock.
+ *                         Most prominent — slide-in + scale + glow.
+ *   resource-production — production chips above. Subtle — scale +
+ *                         glow on the number, cell glow.
+ *   tag                 — card tag count (Building/Space/...).
+ *                         Compact — scale + glow.
+ *   misc                — Cities, Colonies, Influence, Cards, Corruption,
+ *                         Underground tokens, Negative-VP. Compact-medium.
+ *   score               — Victory Points + Terraforming Rating.
+ *                         Game-defining — strong + glow + slight slide.
  *
- * Each variant has its own LESS rule in resource_change_feedback.less
- * that tunes font-size, padding, glow strength.
+ * Each variant has its own LESS rule that tunes font-size, padding,
+ * glow strength, and a matching `*-transition-*` keyframe pair for
+ * the number itself.
  */
-export type DeltaChipVariant = 'resource-stock' | 'resource-production' | 'tag' | 'misc';
+export type DeltaChipVariant =
+  | 'resource-stock'
+  | 'resource-production'
+  | 'tag'
+  | 'misc'
+  | 'score';
 
 export default defineComponent({
   name: 'DeltaChip',

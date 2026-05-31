@@ -15,6 +15,7 @@
         :passAvailable="isViewerFor(p) && passAvailable"
         :endTurnAvailable="isViewerFor(p) && endTurnAvailable"
         :turnIndex="turnIndexFor(p)"
+        :epoch="playerView.runId"
         @select="$emit('selectPlayer', $event)"
         @pass="$emit('pass')"
         @end-turn="$emit('end-turn')" />
