@@ -1186,19 +1186,113 @@ each(@players, {
     margin-bottom: 6px;
 }
 
+/*
+ * Left-panel player card — in-game per-player tile in the left
+ * sidebar. Shares visual language with the initial-draft status rail
+ * (see `.initial-draft-rail__item` in initial_draft.less): cube +
+ * name + status dot, cyan accent bar on active player, muted-cyan
+ * status text. The card is the "expanded in-game" version of the
+ * rail's "compact draft" tile — same vocabulary, more chrome.
+ *
+ *   .left-panel-card                — base tile
+ *     &--selected                   — viewer clicked this card to
+ *                                     inspect this player's tableau
+ *     &--active                     — server is waiting on this
+ *                                     player to act right now (drives
+ *                                     the cyan left-edge accent bar)
+ *     &--passed                     — player has passed this gen
+ *
+ *  &--selected and &--active are orthogonal and stack.
+ */
 .left-panel-card {
     cursor: pointer;
     padding: 6px 8px;
     border-radius: 4px;
     border: 1px solid #2c4a6a;
     background: rgba(20, 30, 45, 0.65);
-    transition: filter 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition: filter 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
     position: relative;
-
+    /*
+     * No overflow: hidden — the cube's `.preferences_player_inner.active`
+     * white box-shadow (0 0 5px 2px) extends ~7 px outward, which is
+     * slightly beyond the card's 6-px top padding. Clipping it would
+     * eat a 1-px sliver of the glow on the top edge during turns
+     * where the cube spins. The active-state accent bar (::before
+     * below) is inset to the rounded card geometry — at 2 px wide
+     * the visual interaction with the 4-px border-radius corners is
+     * negligible, so we don't need clipping for it.
+     */
     &:hover {
         filter: brightness(1.2);
     }
 
+    /*
+     * Modifier ordering — load-bearing:
+     *
+     *   --passed  → soft tint shift (sets bg + border)
+     *   --active  → cyan-accent bar + soft surround glow (sets bg +
+     *               border + box-shadow + ::before)
+     *   --selected → BRIGHT cyan border + halo ring (sets border +
+     *               box-shadow, ALSO restores hovered/active bg)
+     *
+     * --selected is LAST so that when BOTH --active and --selected
+     * apply (e.g. it's the viewer's turn AND they're looking at
+     * themselves — the default state), the bright "you are inspecting
+     * this player" signal wins for border + box-shadow. The accent
+     * bar (::before from --active) is on a DIFFERENT property and
+     * doesn't conflict, so both signals stack: bright halo around
+     * the card AND a cyan strip on the left edge.
+     *
+     * Selected is the user's explicit "I'm looking at this player"
+     * cue, including the default fall-through to self when no other
+     * card has been clicked. It should be the dominant signal of
+     * the three modifiers.
+     */
+
+    /*
+     * --passed: subtly desaturate the card without making it look
+     * disabled — the player is still part of the game state and the
+     * viewer might still want to inspect their tableau. Light tint
+     * shift + slight dim only.
+     */
+    &--passed {
+        background: rgba(18, 26, 38, 0.55);
+        border-color: rgba(106, 130, 160, 0.22);
+    }
+
+    /*
+     * --active (server is waiting on this player): cyan-accent bar on
+     * the left edge + softer surround glow. Identical vocabulary to
+     * `.initial-draft-rail__item--active` so the player carries the
+     * same "this is who we're waiting on" cue from the draft into the
+     * main game.
+     */
+    &--active {
+        background: rgba(26, 46, 70, 0.65);
+        border-color: rgba(140, 190, 235, 0.45);
+        box-shadow:
+            inset 0 0 0 1px rgba(106, 176, 230, 0.16),
+            0 0 10px rgba(106, 176, 230, 0.18);
+
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: 2px;
+            background: #6ab0e6;
+            box-shadow: 0 0 6px rgba(106, 176, 230, 0.6);
+            pointer-events: none;
+        }
+    }
+
+    /*
+     * --selected (viewer clicked / fallback to self): bright cyan
+     * border + glow ring. Comes LAST so it wins border + box-shadow
+     * against --active when both apply — the player is currently
+     * inspecting this card and that signal must dominate.
+     */
     &--selected {
         border-color: #6ab0e6;
         box-shadow: 0 0 0 1px #6ab0e6, 0 0 8px rgba(106, 176, 230, 0.5);
@@ -1266,48 +1360,111 @@ each(@players, {
     font-size: 16px;
 }
 
+/*
+ * Status row — shares vocabulary with `.initial-draft-rail__status`
+ * (see initial_draft.less). 9-px uppercase with cyan glow on active,
+ * muted-cyan-green on done, dimmed steel-blue on waiting/passed.
+ *
+ * Layout: flex row with optional [status-dot] + [text] + [counter
+ * chip]. Centered horizontally so the bar reads as a status badge,
+ * not a left-aligned label. Empty state uses visibility: hidden via
+ * &--empty so the card height stays constant between turn /
+ * waiting / passed transitions (resource icons below don't jump).
+ *
+ * The previous legacy treatment (gray gradient with black text on
+ * --active) read as a different design system from the rail; this
+ * refresh adopts the rail's text-glow + dot-pulse vocabulary so the
+ * compact draft tile and the in-game tile feel like one component.
+ */
 .left-panel-card-status {
-    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 5px;
     font-size: 9px;
-    text-align: center;
-    padding: 2px 0;
-    border-radius: 2px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    background: rgba(0, 0, 0, 0.35);
+    line-height: 1;
+    /* No background plate / border — text + dot + chip carry the
+     * signal. The old `background: rgba(0, 0, 0, 0.35)` legacy plate
+     * was the main thing making the in-game status look out of
+     * place next to the modern rail. */
 
     &--active {
-        background: linear-gradient(180deg, #e6e1e1, #b8c4d0);
-        color: #000;
+        color: #f0f6ff;
+        text-shadow: 0 0 6px rgba(140, 190, 235, 0.4);
     }
     &--passed {
-        background: rgba(0, 0, 0, 0.65);
-        opacity: 0.55;
+        color: rgba(180, 200, 220, 0.45);
     }
     /*
-     * Нейтральное «ОЖИДАЕТ» — игрок ничего не должен делать сейчас, но
-     * партия идёт. Stiluem subtler `--active`: чуть приглушённый
-     * gray-blue, без яркой подсветки, чтобы не конкурировать с активным
-     * игроком, но был узнаваемый статус (не пустой бар).
+     * --waiting — игрок ничего не должен делать сейчас, но партия
+     * идёт. Subdued cyan-gray, чуть приглушённый, без перетягивания
+     * внимания у активного игрока. Single tone, no background.
      */
     &--waiting {
-        background: rgba(20, 30, 45, 0.65);
-        color: rgba(170, 195, 220, 0.78);
-        opacity: 0.85;
-        font-weight: 600;
+        color: rgba(170, 195, 220, 0.7);
     }
     /*
-     * Empty state — no active status label, but we still render the bar
-     * so the card's vertical layout stays constant. Resources / tags
-     * blocks below the card don't jump up/down between turn transitions.
-     * visibility: hidden keeps layout space; the `&nbsp;` inside the
-     * span ensures the bar has a non-zero line-height even if children
+     * Empty state — no active status label, but we still render the
+     * bar so the card's vertical layout stays constant. visibility:
+     * hidden keeps layout space; the `&nbsp;` inside the span
+     * ensures the bar has a non-zero line-height even if children
      * are collapsed.
      */
     &--empty {
         visibility: hidden;
-        background: transparent;
     }
+}
+
+/*
+ * Pulsing cyan dot — only mounted in the active state (Vue gates on
+ * `isActive`). Same animation, size, and shadow as the rail's
+ * `.initial-draft-rail__status-dot`. Honours prefers-reduced-motion
+ * via the shared `@keyframes initial-draft-rail-status-pulse` (defined
+ * in initial_draft.less). Reusing the same keyframe identifier is
+ * intentional — the two contexts pulse at the same cadence so the
+ * eye reads them as one signal.
+ */
+.left-panel-card-status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #6ab0e6;
+    box-shadow: 0 0 5px rgba(106, 176, 230, 0.7);
+    animation: initial-draft-rail-status-pulse 1.8s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+/*
+ * Action counter chip — compact sci-fi pill showing "1/2" / "2/2"
+ * next to the "ДЕЙСТВИЕ" status text. Replaces the previous inline
+ * "ДЕЙСТВИЕ 1/2" composite which conflated the status word with the
+ * progress count. Separating them lets each communicate its own
+ * thing: the word reads as a status badge, the chip reads as a
+ * counter.
+ *
+ * Chip palette is tuned to NOT compete with the active status's
+ * white-cyan glow — darker glass with a soft cyan rim so the
+ * count reads as secondary info that the status text dominates.
+ */
+.left-panel-card-status-counter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    border: 1px solid rgba(106, 176, 230, 0.4);
+    border-radius: 2px;
+    background: rgba(14, 24, 38, 0.7);
+    color: rgba(220, 235, 250, 0.92);
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    line-height: 1;
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+    flex-shrink: 0;
 }
 
 /*
@@ -1388,21 +1545,43 @@ each(@players, {
     pointer-events: none;
 }
 
-/* PASS — warm/amber accent so the irreversible action reads visually
- * different from End Turn. */
+/*
+ * PASS — warm/amber accent so the IRREVERSIBLE action (player can't
+ * take any more actions this generation) reads visually different
+ * from End Turn. Tightened palette: brighter amber rim, deeper dark
+ * mid so the parallelogram looks like glowing amber glass rather
+ * than a flat coloured slab. Hover lifts brightness and adds a
+ * gentle warm glow ring instead of the generic cyan drop-shadow
+ * from the base `&:hover` — amber-glowing-when-hot reads as
+ * thematically consistent with "the irreversible commit".
+ */
 .left-panel-card-action-btn--pass {
     background: linear-gradient(180deg,
-        rgba(230, 170, 100, 0.78) 0%,
-        rgba(140, 90, 50, 0.28) 50%,
-        rgba(220, 160, 95, 0.6) 100%);
+        rgba(240, 185, 115, 0.92) 0%,
+        rgba(160, 105, 55, 0.32) 50%,
+        rgba(225, 170, 100, 0.72) 100%);
+
+    &:hover:not(:disabled) {
+        filter: brightness(1.14) drop-shadow(0 0 8px rgba(235, 170, 95, 0.55));
+    }
 }
 
-/* END TURN — cyan accent matching the rest of the fork chrome. */
+/*
+ * END TURN — cyan accent matching the rest of the fork chrome.
+ * Same structure as Pass for visual symmetry — only the palette
+ * swaps so the player reads "two parallel turn-control options,
+ * one warm (irreversible) and one cool (incremental)". Hover
+ * picks up the canonical cyan glow.
+ */
 .left-panel-card-action-btn--end-turn {
     background: linear-gradient(180deg,
-        rgba(160, 200, 230, 0.78) 0%,
-        rgba(80, 120, 160, 0.28) 50%,
-        rgba(130, 170, 210, 0.6) 100%);
+        rgba(175, 215, 240, 0.92) 0%,
+        rgba(90, 135, 175, 0.32) 50%,
+        rgba(140, 180, 215, 0.72) 100%);
+
+    &:hover:not(:disabled) {
+        filter: brightness(1.14) drop-shadow(0 0 8px rgba(140, 190, 235, 0.55));
+    }
 }
 
 .left-panel-card-action-btn-label {
