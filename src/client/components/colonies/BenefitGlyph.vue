@@ -71,6 +71,19 @@
       <span class="benefit-glyph__card benefit-glyph__card--discard"></span>
     </template>
 
+    <!--
+      DRAW_CARDS_AND_DISCARD_ONE (Pluto colonist bonus) — карта со
+      стрелочкой-циклом справа сверху, читается как «возьми и сбрось».
+      Без явной ветки fall back на `?`-placeholder, и игрок видел
+      пустой квадратик вместо иконки.
+    -->
+    <template v-else-if="benefit.type === BG.DRAW_CARDS_AND_DISCARD_ONE">
+      <span class="benefit-glyph__card-cycle">
+        <span class="benefit-glyph__card"></span>
+        <span class="benefit-glyph__card-cycle-arrow">↻</span>
+      </span>
+    </template>
+
     <!-- COPY_TRADE — Pluto colony bonus. Show a "copy" arrow loop. -->
     <template v-else-if="benefit.type === BG.COPY_TRADE">
       <span class="benefit-glyph__copy">↻</span>

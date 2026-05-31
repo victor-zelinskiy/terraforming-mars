@@ -128,43 +128,100 @@
     }
 
     /*
-     * Icon = button shell. Box-shadow layers form the frame:
-     *   - inset white highlight  → "lit-from-inside" cue
-     *   - 1-px dark spacer       → separation between icon and rim
-     *   - 2-px cyan rim          → frame line proper
-     *   - 6-px soft glow         → ambient cyan aura
+     * Icon = button shell (v52 — per-resource frame + corner brackets).
+     *
+     * v51 sketched the double-line frame in universal cyan and tied
+     * the visual presence to the rim's brightness. v52 pushes
+     * further:
+     *
+     *   - GLOW dropped to near-zero (3 px @ 0.18) — the icon doesn't
+     *     "glow", it just sits inside its frame
+     *   - RIM stays bold but adopts per-resource COLOUR (green for
+     *     plants, warm-red for heat) — matches the cost badge so
+     *     the eye reads "this is the action's resource" instantly
+     *   - NEW: small L-shaped corner brackets at the icon's TL and
+     *     BL corners (left side only — keeps the right side free
+     *     for cost badge / M€-value badge / convert arrow). The
+     *     brackets are the "instrument bracket" cue — same vocab
+     *     as MandatoryInputModal / left-panel-section, scaled down
+     *     to the 32-px icon
+     *
+     * Per-resource colours come from `--convert-plants` /
+     * `--convert-heat` modifiers below; this base rule sets only
+     * structural stuff (position, border-radius, animation timing,
+     * transition).
      */
     .resource_icon {
         position: relative;
         z-index: 1;
-        border-radius: 4px;
-        box-shadow:
-            inset 0 0 0 1px rgba(255, 255, 255, 0.18),
-            0 0 0 1px rgba(8, 14, 22, 0.55),
-            0 0 0 2px rgba(140, 200, 240, 0.55),
-            0 0 6px rgba(106, 176, 230, 0.42);
+        border-radius: 3px;
         animation: convert-icon-pulse 2.4s ease-in-out infinite;
         transition: box-shadow 200ms ease, transform 120ms ease;
     }
 
-    /* Hover lifts the shell — brighter rim, stronger aura, no
-     * geometry change so the row layout doesn't shift. */
-    &:hover .resource_icon {
-        box-shadow:
-            inset 0 0 0 1px rgba(255, 255, 255, 0.32),
-            0 0 0 1px rgba(8, 14, 22, 0.65),
-            0 0 0 2px rgba(190, 225, 250, 0.92),
-            0 0 12px rgba(106, 176, 230, 0.75);
+    /*
+     * Shimmer overlay — diagonal "glint" streak that periodically
+     * sweeps across the icon surface.
+     *
+     * v55 — IMPORTANT IMPLEMENTATION NOTE: shimmer canNOT be done
+     * via `.resource_icon::before` because the icon's ::before and
+     * ::after are ALREADY claimed by Spectre.css's tooltip system
+     * (`<i class="resource_icon tooltip tooltip-bottom">` + a
+     * `data-tooltip` attribute). On top of that,
+     * `player_home.less` has a high-specificity override
+     * `.resource_icon.tooltip.tooltip-bottom::before` with
+     * `top: auto !important; bottom: 100% !important;` — which
+     * means ANY attempt to reuse the icon's ::before for shimmer
+     * gets yanked OFF the icon by !important rules. Two pseudos
+     * just aren't available.
+     *
+     * Solution: render an EXPLICIT `<span class="convert-action-shimmer">`
+     * sibling in the Vue template, positioned absolutely over the
+     * icon. The span's own ::before draws the streak — no conflict
+     * with Spectre's tooltip system, full visibility, predictable
+     * stacking.
+     *
+     * The overlay sizes itself to match the icon (32×32, vertically
+     * centred in the row) and clips the streak via overflow: hidden.
+     */
+    .convert-action-shimmer {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%);
+        width: 32px;
+        height: 32px;
+        border-radius: 3px;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 3;
     }
 
-    /* Active = tactile press: small scale-down, intense rim. */
+    .convert-action-shimmer::before {
+        content: '';
+        position: absolute;
+        top: -25%;
+        left: 0;
+        width: 70%;
+        height: 150%;
+        background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.0) 15%,
+            rgba(255, 255, 255, 0.7) 48%,
+            rgba(255, 255, 255, 0.85) 50%,
+            rgba(255, 255, 255, 0.7) 52%,
+            rgba(255, 255, 255, 0.0) 85%,
+            transparent 100%);
+        transform: skewX(-22deg) translateX(-180%);
+        animation: convert-icon-shimmer 3s ease-in-out infinite;
+        mix-blend-mode: screen;
+    }
+
+    /* Active = tactile press: scale-down via shared rule. Frame
+     * brightness flash is per-resource (see modifier rules below). */
     &:active .resource_icon {
         transform: scale(0.94);
-        box-shadow:
-            inset 0 0 0 1px rgba(255, 255, 255, 0.45),
-            0 0 0 1px rgba(8, 14, 22, 0.75),
-            0 0 0 2px rgba(210, 235, 255, 1),
-            0 0 10px rgba(106, 176, 230, 1);
     }
 
     /* Keyboard focus — visible ring around the row so the user
@@ -177,23 +234,145 @@
 }
 
 /*
- * Pulse keyframe — gentle 2.4-s cyan breath layered ON TOP of the
- * static button shell. Drop-shadow modulates separately from
- * box-shadow so the shell's rim line stays crisp; only the outer
- * aura breathes.
+ * Per-resource frame + bracket colours (v52).
+ *
+ * Each convert-active row gets a resource-tinted frame so the
+ * accent matches the cost badge palette:
+ *   - Plants → green/lime
+ *   - Heat   → warm orange-red
+ *
+ * Box-shadow layers form the double-line bezel:
+ *   1. inset white highlight       → "lit-from-inside" top edge
+ *   2. 1-px dark inner spacer       → seats rim against the icon
+ *   3. 2-px resource-coloured rim   → primary button border
+ *   4. 1-px dark outer spacer       → double-line effect
+ *   5. 3-px tinted halo @ 0.18      → near-zero glow, just a hint
+ *
+ * Hover boosts rim ALPHA only — not the halo radius. The change
+ * reads as "rim got brighter / more present", not "the icon
+ * started lit up".
+ *
+ * Active = pressed: rim flashes to near-white. Geometry stays
+ * via scale(0.94) on the parent rule.
+ *
+ * Pulse uses a per-resource keyframe so the faint breathing halo
+ * also colour-matches.
  */
-@keyframes convert-icon-pulse {
+
+/* ───── PLANTS — green/lime accent ───── */
+.resource_item_wrapper--convert-plants {
+    .resource_icon {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+            0 0 0 1px rgba(8, 14, 22, 0.8),
+            0 0 0 3px rgba(155, 215, 105, 1),
+            0 0 0 4px rgba(8, 14, 22, 0.55),
+            0 0 4px rgba(120, 200, 80, 0.28);
+        animation: convert-icon-pulse-plants 2.4s ease-in-out infinite;
+    }
+
+    &:hover .resource_icon {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.42),
+            0 0 0 1px rgba(8, 14, 22, 0.85),
+            0 0 0 3px rgba(195, 240, 145, 1),
+            0 0 0 4px rgba(8, 14, 22, 0.65),
+            0 0 6px rgba(150, 230, 100, 0.4);
+    }
+
+    &:active .resource_icon {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+            0 0 0 1px rgba(8, 14, 22, 0.9),
+            0 0 0 3px rgba(220, 255, 180, 1),
+            0 0 0 4px rgba(8, 14, 22, 0.7),
+            0 0 5px rgba(180, 245, 130, 0.45);
+    }
+}
+
+/* ───── HEAT — warm orange-red accent ───── */
+.resource_item_wrapper--convert-heat {
+    .resource_icon {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+            0 0 0 1px rgba(8, 14, 22, 0.8),
+            0 0 0 3px rgba(245, 145, 105, 1),
+            0 0 0 4px rgba(8, 14, 22, 0.55),
+            0 0 4px rgba(225, 115, 80, 0.3);
+        animation: convert-icon-pulse-heat 2.4s ease-in-out infinite;
+    }
+
+    &:hover .resource_icon {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.42),
+            0 0 0 1px rgba(8, 14, 22, 0.85),
+            0 0 0 3px rgba(255, 180, 145, 1),
+            0 0 0 4px rgba(8, 14, 22, 0.65),
+            0 0 6px rgba(245, 145, 105, 0.45);
+    }
+
+    &:active .resource_icon {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+            0 0 0 1px rgba(8, 14, 22, 0.9),
+            0 0 0 3px rgba(255, 215, 195, 1),
+            0 0 0 4px rgba(8, 14, 22, 0.7),
+            0 0 5px rgba(255, 175, 145, 0.45);
+    }
+}
+
+/*
+ * Pulse keyframes — barely-perceptible per-resource shimmer (v52).
+ * The static double-line frame is the main "this is a button"
+ * signal; the pulse just adds a "live" cue layered behind it.
+ * Drop-shadow modulates separately from box-shadow so the rim
+ * stays crisp; only the faint outer halo breathes.
+ */
+@keyframes convert-icon-pulse-plants {
     0%, 100% {
-        filter: drop-shadow(0 0 3px rgba(106, 176, 230, 0.4));
+        filter: drop-shadow(0 0 1.5px rgba(120, 200, 80, 0.18));
     }
     50% {
-        filter: drop-shadow(0 0 8px rgba(106, 176, 230, 0.8));
+        filter: drop-shadow(0 0 3px rgba(150, 230, 100, 0.32));
+    }
+}
+
+@keyframes convert-icon-pulse-heat {
+    0%, 100% {
+        filter: drop-shadow(0 0 1.5px rgba(225, 115, 80, 0.18));
+    }
+    50% {
+        filter: drop-shadow(0 0 3px rgba(245, 145, 105, 0.32));
+    }
+}
+
+/*
+ * Shimmer keyframes — the diagonal gleam translates from way-off-
+ * left to way-off-right across the icon. Most of the cycle the
+ * streak is OFF-SCREEN; the actual sweep happens during ~50 % of
+ * each 3-s cycle, creating a noticeable-but-not-constant "glass
+ * surface catches light" effect. skewX(-22deg) is repeated in
+ * every keyframe because transform is shorthand — changing
+ * translateX requires re-specifying the skew.
+ */
+@keyframes convert-icon-shimmer {
+    0%, 50% {
+        transform: skewX(-22deg) translateX(-180%);
+    }
+    100% {
+        transform: skewX(-22deg) translateX(220%);
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .resource_item_wrapper--with-convert .resource_icon {
+    .resource_item_wrapper--with-convert .resource_icon,
+    .resource_item_wrapper--with-convert .convert-action-shimmer::before {
         animation: none;
+    }
+    /* Park the shimmer streak off-screen so it doesn't sit visible
+     * across the icon as a static bright band when motion is disabled. */
+    .resource_item_wrapper--with-convert .convert-action-shimmer::before {
+        transform: skewX(-22deg) translateX(-180%);
     }
 }
 
@@ -343,26 +522,77 @@
  * `pointer-events: none` — purely visual; the click target is
  * the row WRAPPER (so the icon itself is the button).
  */
+/*
+ * Convert-action arrow — modern sci-fi triangular chevron (v56).
+ *
+ * Earlier "hand pointer" silhouette (rectangular tail + triangle
+ * tip) read as a thin needle — easy to miss against the busy left
+ * panel. v56 replaces it with a SOLID right-pointing triangle (the
+ * core sci-fi HUD vocabulary) plus a short fading line-tail
+ * extending from its base, drawn via the pseudo-element.
+ *
+ * Geometry:
+ *   - Triangle 14×14 px — chunky enough to read as "ARROW", not a
+ *     decorative tick
+ *   - Tip sits ~2 px left of the icon frame's outer edge (where the
+ *     3-px rim + 1-px dark spacer end). Cleanly "pointing AT the
+ *     button border", not floating in space.
+ *   - 7-px line-tail behind the base, fading from transparent at
+ *     the left to mid-cyan at the triangle's base — gives the
+ *     arrow a "departure direction" without making the silhouette
+ *     itself complicated
+ *
+ * Colour:
+ *   - Gradient L→R: muted cyan → bright cyan-white at the tip.
+ *     The tip is the brightest pixel of the entire element, so
+ *     the eye lands on it first and immediately follows toward
+ *     the icon frame.
+ *   - Drop-shadow halo @ 0.55 — same cyan family; same "alert
+ *     accent" mood as the rest of the HUD chrome.
+ */
 .convert-action-arrow {
     position: absolute;
-    left: -11px;
+    /*
+     * left: -24px → triangle's right edge (the tip) lands ~0 px
+     * from the icon's frame outer edge. Frame outer edge is at
+     * x = -4 (3-px rim + 1-px dark outer spacer), tip ends at
+     * x = -24 + 20 = -4. → tip touches the frame exactly,
+     * unambiguously "pointing AT the button border".
+     */
+    left: -24px;
     top: 50%;
     transform: translateY(-50%);
-    width: 15px;
-    height: 14px;
+    width: 20px;
+    height: 18px;
     z-index: 4;
     pointer-events: none;
     background: linear-gradient(90deg,
-        rgba(106, 176, 230, 0.18) 0%,    /* faded at viewport edge */
-        rgba(140, 200, 240, 0.7) 55%,
-        rgba(190, 225, 255, 1) 100%);    /* bright at icon side */
-    clip-path: polygon(
-        0% 40%, 60% 40%,        /* rectangular tail (left) */
-        60% 5%, 100% 50%,        /* triangle tip (right) */
-        60% 95%, 60% 60%,
-        0% 60%
-    );
-    filter: drop-shadow(0 0 4px rgba(106, 176, 230, 0.5));
+        rgba(120, 180, 230, 0.5) 0%,
+        rgba(180, 220, 250, 0.95) 55%,
+        rgba(235, 245, 255, 1) 100%);
+    clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
+    filter:
+        drop-shadow(0 0 5px rgba(140, 200, 240, 0.7))
+        drop-shadow(0 0 1px rgba(220, 240, 255, 0.9));
+}
+
+/*
+ * Line-tail behind the triangle — short faded streak indicating
+ * "direction of approach". Fades to transparent on the left so it
+ * doesn't draw a hard line off the panel edge.
+ */
+.convert-action-arrow::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 100%;
+    width: 9px;
+    height: 2.5px;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg,
+        rgba(140, 200, 240, 0) 0%,
+        rgba(180, 220, 250, 0.9) 100%);
+    pointer-events: none;
 }
 
 /*
@@ -651,4 +881,70 @@ each(@resource_types, {
     font-size: 16px;
     line-height: 80%;
     transform: rotate(-180deg);
+}
+
+/*
+ * ═══════════════════════════════════════════════════════════════════
+ * CONVERT-ACTION CHROME — ADAPTIVE SIZING (mirrors 4-tier ladder)
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * Mirrors the left-panel density ladder in player_home.less so the
+ * shimmer overlay and cost-badge stay glued to the resource icon's
+ * silhouette at every tier:
+ *
+ *   ≥980 vh : icon 32 → shimmer 32, badge (28, 28)
+ *   ≤980 vh : icon 28 → shimmer 28, badge (24, 24)
+ *   ≤820 vh : icon 26 → shimmer 26, badge (22, 22)
+ *   ≤720 vh : icon 24 → shimmer 24, badge (20, 20)
+ *   ≤640 vh : icon 22 → shimmer 22, badge (18, 18)
+ *
+ * The arrow itself stays the same size at every tier — "where do I
+ * click" affordance shouldn't shrink with the icon.
+ */
+@media (max-height: 980px) {
+    .convert-action-shimmer {
+        width: 28px;
+        height: 28px;
+    }
+    .convert-action-cost-badge {
+        top: 24px;
+        left: 24px;
+    }
+}
+
+@media (max-height: 820px) {
+    .convert-action-shimmer {
+        width: 26px;
+        height: 26px;
+    }
+    .convert-action-cost-badge {
+        top: 22px;
+        left: 22px;
+    }
+}
+
+@media (max-height: 720px) {
+    .convert-action-shimmer {
+        width: 24px;
+        height: 24px;
+    }
+    .convert-action-cost-badge {
+        top: 20px;
+        left: 20px;
+        height: 13px;
+        font-size: 9px;
+    }
+}
+
+@media (max-height: 640px) {
+    .convert-action-shimmer {
+        width: 22px;
+        height: 22px;
+    }
+    .convert-action-cost-badge {
+        top: 18px;
+        left: 18px;
+        height: 13px;
+        font-size: 9px;
+    }
 }

@@ -108,6 +108,22 @@
               <span class="tile ocean-tile colony-tile__build-tile"></span>
             </span>
           </template>
+          <!--
+            DRAW_CARDS (Pluto) — тот же кейс, что и Europa: legacy
+            BuildBenefit рисует две абсолютно-позиционированные карточки,
+            которые в новом flex-слоте выпадают из layout'a и слот
+            виден пустым. Рендерим card-иконку напрямую через `.resource.card`
+            с переопределением размеров (`colony-tile__build-icon--card`),
+            counter (×2) идёт по тому же шаблону, что и обычные ресурсные
+            билд-бонусы.
+          -->
+          <template v-else-if="metadata.build.type === BG.DRAW_CARDS">
+            <span class="colony-tile__build-content">
+              <span v-if="buildQuantityAt(idx) > 1"
+                    class="colony-tile__build-num">{{ buildQuantityAt(idx) }}</span>
+              <span class="resource card colony-tile__build-icon colony-tile__build-icon--card"></span>
+            </span>
+          </template>
           <BuildBenefit v-else :metadata="metadata" :idx="idx" />
 
           <!--
@@ -152,6 +168,15 @@
               <span class="production" :class="tradeProductionResourceClass"></span>
             </span>
           </template>
+          <!--
+            DRAW_CARDS (Pluto trade) — отдельная ветка, потому что
+            `tradeRewardClass` для DRAW_CARDS падает в `abstract`-fallback
+            (пустой квадрат). Card-иконку через `.resource.card` + размерный
+            override (`--card`).
+          -->
+          <template v-else-if="metadata.trade.type === BG.DRAW_CARDS">
+            <span class="resource card colony-tile__row-reward-icon colony-tile__row-reward-icon--card"></span>
+          </template>
           <template v-else>
             <span class="resource colony-tile__row-reward-icon"
                   :class="tradeRewardClass"></span>
@@ -163,8 +188,21 @@
         <span class="colony-tile__row-label" v-i18n>Bonus</span>
         <span class="colony-tile__row-reward">
           <span v-if="colonyBonusNum > 1" class="colony-tile__row-reward-num">{{ colonyBonusNum }}</span>
-          <span class="resource colony-tile__row-reward-icon"
-                :class="colonyBonusClass"></span>
+          <!--
+            DRAW_CARDS / DRAW_CARDS_AND_DISCARD_ONE (Pluto colonist bonus) —
+            те же грабли: `colonyBonusClass` для card-наград валится в
+            `abstract`-fallback. Описание ниже в детальной вью раскрывает
+            «и сбросьте 1 карту»; на маленьком тайле достаточно показать
+            card-иконку как сигнал «карта».
+          -->
+          <template v-if="metadata.colony.type === BG.DRAW_CARDS ||
+                          metadata.colony.type === BG.DRAW_CARDS_AND_DISCARD_ONE">
+            <span class="resource card colony-tile__row-reward-icon colony-tile__row-reward-icon--card"></span>
+          </template>
+          <template v-else>
+            <span class="resource colony-tile__row-reward-icon"
+                  :class="colonyBonusClass"></span>
+          </template>
         </span>
       </div>
 
