@@ -14,6 +14,20 @@
 .resource_item_wrapper {
     position: relative;
     display: flex;
+    /*
+     * Force full row width inside the left panel's resource table.
+     * Without these, Plants/Heat wrappers (display: flex) take only
+     * their content width, while non-wrapped resources (direct
+     * .resource_item flex items of .resource_items_cont column) get
+     * the column flex's default stretched width. The mismatch
+     * shifted the wrapped rows' internal grid columns by a few
+     * pixels, breaking the strict vertical alignment of counts and
+     * prod chips. Explicit width: 100% locks every row to the same
+     * outer width, so the inner grid columns line up across rows.
+     */
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
 }
 
 /*
@@ -36,13 +50,17 @@
  */
 .convert-action-btn {
     position: absolute;
-    /* Anchor near the TOP of the resource icon (not the cell's vertical
-     * center) so the button reads as "coming off the top of the icon"
-     * rather than floating in the middle of the row's whitespace. The
-     * resource icon sits in the upper portion of the cell — top offset
-     * lands the button right next to it. */
+    /*
+     * v43: vertically CENTRED against its resource row instead of
+     * top-anchored. The new compact 1-col resource table has ~28-px
+     * rows (was ~60 px); a top-anchored button sits awkwardly above
+     * the row's vertical centre. `top: 50%` + transform pulls the
+     * button to the row's middle line, aligned with the resource
+     * icon's centre regardless of cell height.
+     */
     left: calc(100% + 28px);
-    top: 8px;
+    top: 50%;
+    transform: translateY(-50%);
     z-index: 5;
     display: flex;
     align-items: center;
@@ -136,7 +154,11 @@
 .convert-action-arrow {
     position: absolute;
     left: calc(100% + 4px);
-    top: 14px;
+    /* v43: vertically centred to match the convert button (which
+     * uses top: 50% + translateY(-50%) for the same reason —
+     * compact 28-px rows in the new resource table). */
+    top: 50%;
+    transform: translateY(-50%);
     width: 20px;
     height: 14px;
     z-index: 4;

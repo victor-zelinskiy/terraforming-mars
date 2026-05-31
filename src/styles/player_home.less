@@ -1747,39 +1747,53 @@ each(@players, {
 }
 
 /*
- * Shared section container — used to group resources / card-tags /
- * extras-tags / allied-party clusters in the left sidebar.
+ * Section container — shared HUD frame for resources / card-tags /
+ * extras / allied-party clusters in the left sidebar (v42 polish).
  *
- * Uses HUD design tokens (see top of file). Slightly deeper navy-
- * graphite background than the v0 to read as the same surface tier
- * as the upgraded .left-panel-card above; thin inner cyan hairline
- * + L-shaped corner accents at top-left / bottom-right give the
- * sci-fi cockpit feel without distracting.
+ * Design philosophy: the section is a SINGLE PREMIUM SURFACE on
+ * which data is arranged. Cells INSIDE the section are NOT
+ * individually framed — that "box-in-box-in-box" treatment was
+ * making the panel feel like a stack of detached widgets. Here the
+ * frame is the section; cells are just data laid out cleanly on
+ * the section's canvas, separated by spacing alone.
  *
- * Padding is intentionally tight (3 px) — the left panel is 160 px
- * wide and we need every pixel for resource/tag content. Section
- * chrome is "frame, not furniture".
+ * Visual layers (outer → inner):
+ *   - 1-px navy rim                       → frame outline
+ *   - L-shaped cyan corner ticks          → sci-fi instrument cue
+ *   - Subtle gradient bg (deeper at top)  → premium depth
+ *   - Inset top-edge highlight (1-px)     → glass surface sheen
+ *   - Inset cyan hairline (whole frame)   → integrated rim glow
+ *   - Outer soft drop shadow              → grounds the frame
+ *
+ * Padding is intentionally tight (4 px) because the panel is only
+ * 160 px wide; the frame is "instrument, not furniture".
  */
 .left-panel-section {
     position: relative;
-    background: @hud-bg-section;
+    background:
+        linear-gradient(180deg,
+            rgba(22, 32, 48, 0.78) 0%,
+            rgba(14, 22, 34, 0.7) 100%);
     border: 1px solid @hud-navy-rim;
     border-radius: 4px;
-    box-shadow: inset 0 0 0 1px @hud-cyan-hairline;
-    padding: 3px;
-    margin-bottom: 4px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        inset 0 0 0 1px @hud-cyan-hairline,
+        0 2px 8px rgba(0, 0, 0, 0.32);
+    padding: 4px 4px 5px;
+    margin-bottom: 5px;
 
-    /* L-shaped corner accent — sci-fi vocabulary shared with the
-     * MandatoryInputModal card frame and the action-zone panel.
-     * 8-px reach, 1-px stroke — subtle, just enough to tell the
-     * eye "this is an instrument, not a flat blob". */
+    /* L-shaped corner accent (top-left) — same vocabulary as
+     * MandatoryInputModal card frame, action-zone panel. 10-px
+     * reach (slightly bumped from 8) reads as more confident,
+     * deliberate cockpit instrumentation. */
     &::before {
         content: '';
         position: absolute;
         top: -1px;
         left: -1px;
-        width: 8px;
-        height: 8px;
+        width: 10px;
+        height: 10px;
         border-top: 1px solid @hud-cyan;
         border-left: 1px solid @hud-cyan;
         pointer-events: none;
@@ -1789,12 +1803,82 @@ each(@players, {
         position: absolute;
         bottom: -1px;
         right: -1px;
-        width: 8px;
-        height: 8px;
+        width: 10px;
+        height: 10px;
         border-bottom: 1px solid @hud-cyan;
         border-right: 1px solid @hud-cyan;
         pointer-events: none;
     }
+}
+
+/*
+ * Section header — premium HUD module header (v45 confident polish).
+ *
+ * Previous iterations had a decorative cyan accent line on the
+ * left edge AND extended the strip flush with section corners,
+ * which caused two issues:
+ *   - The accent created an asymmetric visual weight that read as
+ *     "text shifted left" even though CSS-wise text was centred
+ *   - The strip's top/bottom borders ran straight through the
+ *     L-shaped corner ticks at the section's top-left + bottom-
+ *     right corners, producing a visible decorative collision
+ *
+ * v45 fix:
+ *   - Strip is pulled IN horizontally (14-px margin from each
+ *     section edge) so the section's 10-px L-corner ticks have
+ *     full breathing room and aren't crossed by the strip borders
+ *   - Accent line ::before REMOVED — clean symmetric centred text,
+ *     no false visual weight pulling the text off-axis
+ *   - Borders kept (thin cyan-tinted top + slightly brighter
+ *     bottom) — they still divide header from content but no
+ *     longer fight the corner ticks
+ *   - Subtle horizontal gradient bg (deeper at edges → lighter
+ *     in middle) gives the strip presence as a HUD strip without
+ *     looking like a solid plaque
+ *
+ * Typography stays muted (rgba(180, 210, 230, 0.85)) — section
+ * labels are navigation/structure, NEVER compete with data below.
+ */
+.left-panel-section__label {
+    position: relative;
+    display: block;
+    /*
+     * Horizontal margin (12 px from each section side) gives the
+     * section's L-corner ticks (10-px reach from the outer frame)
+     * clear breathing room — strip borders no longer cross the
+     * decorative corner ticks. Margin trimmed from 14 → 12 to give
+     * the longest Russian label ("ДОПОЛНИТЕЛЬНО", 13 letters) the
+     * width it needs inside the 160-px panel without overflowing.
+     */
+    margin: 2px 12px 6px;
+    padding: 4px 8px;
+    background: linear-gradient(90deg,
+        rgba(8, 16, 28, 0.55) 0%,
+        rgba(14, 24, 38, 0.32) 50%,
+        rgba(8, 16, 28, 0.55) 100%);
+    border-top: 1px solid rgba(106, 176, 230, 0.18);
+    border-bottom: 1px solid rgba(106, 176, 230, 0.32);
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    /*
+     * Letter-spacing dropped from 2.8 → 1.8 specifically so the
+     * 13-letter "ДОПОЛНИТЕЛЬНО" fits without overflowing the strip.
+     * Shorter labels (РЕСУРСЫ — 7, МЕТКИ — 5) also read fine at
+     * this spacing; the value is the tightest "premium-feeling"
+     * spacing that still leaves the longest label legible.
+     */
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    line-height: 1;
+    color: rgba(180, 210, 230, 0.85);
+    text-align: center;
+    text-shadow:
+        0 1px 1px rgba(0, 0, 0, 0.55),
+        0 0 5px rgba(106, 176, 230, 0.2);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 /*
@@ -1825,180 +1909,249 @@ each(@players, {
      *     left edge so it lands right on top of the icon's top-right corner.
      */
     /*
-     * Resource cells — premium HUD chip per resource.
+     * Resources — premium HUD table (v43 strong refactor).
      *
-     * Visual stack inside each cell:
-     *   Icon (36×36)        — absolute left, top-aligned
-     *   Quantity (18 px)    — under icon, big readable white
-     *   Production chip     — right of icon, dark glass pill +
-     *                         cyan hairline rim. Colour of the
-     *                         digits shifts by sign:
-     *                            positive → bright amber + glow
-     *                            zero     → muted neutral
-     *                            negative → soft coral
-     *   M€-value overlay    — top-right corner of icon (steel /
-     *                         titanium worth N M€ when spent)
+     * Layout: single-column stack of 6 rows, each row a 3-column
+     * grid (icon | stock count | production chip). Shared column
+     * headers (added by LeftPlayerPanel.vue as a sibling row above
+     * the table) align with these columns.
      *
-     * The cell itself is a dark glass tile with a thin cyan inner
-     * hairline — matches the .left-panel-card vocabulary, no more
-     * hard black "legacy slab".
+     *   ┌─────────────────────────────────────┐
+     *   │           ЗАПАС        ПРИРОСТ      │ ← micro col headers
+     *   ├─────────────────────────────────────┤
+     *   │ [💰]         55          [ +3  ]    │ ← row per resource
+     *   │ [⚙]            3         [  0  ]    │
+     *   │ [🔧]           0         [  0  ]    │
+     *   │ [🌿]           4         [ +1  ]    │
+     *   │ [⚡]           2         [  -1 ]    │
+     *   │ [🔥]           5         [ +2  ]    │
+     *   └─────────────────────────────────────┘
+     *
+     * Column widths are FIXED (26 px icon, 1fr count, 38 px prod)
+     * so columns align perfectly across rows AND with the shared
+     * column header strip above (which uses the same template).
+     *
+     * Production chip fills its column edge-to-edge (width 100%) so
+     * even multi-digit signed values (+10 / -10) sit comfortably
+     * without overflowing the row's right boundary.
+     *
+     * .resource_item_stock uses display: contents to dissolve the
+     * wrapping element so its icon + count children become direct
+     * grid items of .resource_item — no Vue template change needed.
+     */
+    /*
+     * Resources — premium HUD table (v46 robust refactor).
+     *
+     * Layout strategy (universal, applied to all 6 resources
+     * including the convert-button-wrapped Plants/Heat):
+     *
+     *   ┌─────────────────────────────────────┐
+     *   │                ЗАПАС    ПРИРОСТ     │ ← col headers
+     *   ├─────────────────────────────────────┤
+     *   │ [💰]            28      [  0  ]     │ ← row layout
+     *   │ [⚙]              4      [ +2  ]     │
+     *   │ [🔧]             0      [ +2  ]     │
+     *   │ ...                                 │
+     *   └─────────────────────────────────────┘
+     *
+     * Each .resource_item is a 2-column outer grid:
+     *   Col 1: 1fr  → stock area (icon + count via INTERNAL flex)
+     *   Col 2: 42px → production chip
+     *
+     * The stock area uses flex internally: icon at left (flex-shrink:0,
+     * fixed 32px), count fills remaining space right-aligned. This
+     * gives:
+     *   - Icon left edge: exact same x across all rows (col 1's
+     *     left edge, fixed by grid)
+     *   - Count right edge: exact same x across all rows (col 1's
+     *     right edge minus padding-right)
+     *   - Prod chip right edge: exact same x across all rows (col
+     *     2's right edge = panel right minus padding)
+     *
+     * Why NOT display: contents on .resource_item_stock anymore:
+     * That earlier approach worked in theory but was fragile —
+     * flex/grid interaction with dissolved elements has edge cases
+     * that introduced micro-shifts. Real flex inside stock area is
+     * predictable and visually identical across rows.
      */
     .resource_items_cont {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
         margin: 0;
+        padding: 0;
         filter: none;
 
         .resource_item {
             position: relative;
-            display: block;
-            margin-left: 0;
+            display: grid;
+            grid-template-columns: 1fr 46px;
+            grid-template-rows: 1fr;
+            align-items: center;
+            column-gap: 8px;
             width: 100%;
             min-width: 0;
-            min-height: 60px;
-            padding: 0;
-            border-radius: 3px;
-            background:
-                linear-gradient(180deg,
-                    rgba(14, 22, 34, 0.78) 0%,
-                    rgba(20, 30, 45, 0.5) 100%);
-            box-shadow:
-                inset 0 0 0 1px @hud-cyan-hairline,
-                inset 0 1px 0 rgba(255, 255, 255, 0.04);
-            transition: box-shadow 160ms ease, background 160ms ease;
-
-            &:hover {
-                background:
-                    linear-gradient(180deg,
-                        rgba(20, 32, 50, 0.82) 0%,
-                        rgba(26, 40, 60, 0.55) 100%);
-                box-shadow:
-                    inset 0 0 0 1px @hud-cyan-soft,
-                    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-                    0 0 8px rgba(106, 176, 230, 0.18);
-            }
+            min-height: 40px;
+            padding: 2px 4px;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            box-sizing: border-box;
+            /* Override base resources.less `.resource_item` legacy
+             * properties (margin-left: 10, min-width: 70, padding:
+             * 8 0 4 8). Without these explicit zeroings the legacy
+             * margin pushed every wrapped/unwrapped row by 10 px,
+             * misaligning the column AND breaking the convert-
+             * button anchor for Plants/Heat. */
+            margin: 0;
+            min-width: 0;
         }
 
         .resource_item--energy:after {
             display: none;
         }
 
-        /* Icon + count column: absolute on the left, content in normal flow. */
+        /*
+         * Stock area — flex row containing icon + count. Stock IS
+         * a real grid item now (no display: contents). Flex layout
+         * inside guarantees:
+         *   - icon at left edge (flex-shrink: 0 keeps it 32×32)
+         *   - count grows to fill remaining space, right-aligned
+         *     so its right edge anchors to the column's right edge
+         */
         .resource_item_stock {
-            position: absolute;
-            left: 4px;
-            top: 2px;
-            width: 36px;
+            grid-column: 1;
             display: flex;
-            flex-direction: column;
             align-items: center;
+            gap: 6px;
+            min-width: 0;
+            justify-self: stretch;
+            align-self: center;
         }
 
         .resource_icon {
             display: block;
-            width: 36px;
-            height: 36px;
-        }
-
-        .resource_item_stock_count {
-            display: block;
-            width: 36px;
-            margin-top: 2px;
-            font-size: 18px;
-            line-height: 1;
-            color: @hud-text-primary;
-            text-align: center;
-            font-family: Prototype, Ubuntu, sans-serif;
-            font-weight: 700;
-            letter-spacing: 0.3px;
-            text-shadow:
-                0 1px 2px rgba(0, 0, 0, 0.7),
-                0 0 4px rgba(106, 176, 230, 0.18);
+            flex-shrink: 0;
+            width: 32px;
+            height: 32px;
         }
 
         /*
-         * Production count — sci-fi chip to the right of the icon.
-         * Compact pill with dark glass background + thin cyan
-         * hairline. Used to be flat amber text on the cell's black
-         * gradient, which read as "ad-hoc colour" rather than a
-         * proper HUD element. The chip turns production into a
-         * structured datum: glyph + sign-encoded colour.
+         * Stock count — flex-grow: 1 fills the stock area's
+         * remaining width, text-align: right anchors digits to the
+         * column's right edge. Combined with tabular-nums, all
+         * counts across all 6 rows end at IDENTICAL x.
+         */
+        .resource_item_stock_count {
+            flex: 1 1 auto;
+            min-width: 0;
+            margin: 0;
+            font-family: "Russo One", Prototype, Ubuntu, sans-serif;
+            font-size: 21px;
+            font-weight: 700;
+            line-height: 1;
+            color: @hud-text-primary;
+            letter-spacing: 0.4px;
+            text-align: right;
+            padding-right: 2px;
+            font-variant-numeric: tabular-nums;
+            text-shadow:
+                0 1px 2px rgba(0, 0, 0, 0.8),
+                0 0 6px rgba(106, 176, 230, 0.18);
+        }
+
+        /*
+         * Production chip — fills column 2 (42 px fixed). Width 100%
+         * + overflow: hidden = chip can NEVER overflow row boundary.
+         * 2-digit signed values (+10 / -10 / -99) fit with 3-px
+         * side padding to spare.
          *
-         * Vertically centred against the icon's centre (icon
-         * y=2..38, centre ≈ 20). Min-width 26 so single-digit and
-         * 2-digit values share the same column position.
+         * Sign-coded modifiers from Vue's `productionStateClass`:
+         *   positive  → bright amber on dark glass     +N
+         *   zero      → cool muted on dark glass         0
+         *   negative  → coral-red on red-tinted glass  -N
          */
         .resource_item_prod {
-            position: absolute;
-            left: 46px;
-            top: 7px;
-            display: flex;
+            grid-column: 2;
+            position: static;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-width: 26px;
-            height: 22px;
-            padding: 0 4px;
+            width: 100%;
+            height: 17px;
+            padding: 0 3px;
             border-radius: 2px;
-            background: rgba(8, 14, 22, 0.72);
-            box-shadow: inset 0 0 0 1px @hud-cyan-hairline;
-            font-size: 15px;
+            background: rgba(8, 14, 22, 0.78);
+            box-shadow:
+                inset 0 0 0 1px @hud-cyan-hairline,
+                0 1px 2px rgba(0, 0, 0, 0.32);
+            font-size: 11.5px;
             line-height: 1;
             color: @hud-prod-positive;
             text-align: center;
-            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+            overflow: hidden;
 
             .shield_parent { display: none; }
         }
 
         .resource_item_prod_count {
-            font-size: 15px;
             font-family: Prototype, Ubuntu, sans-serif;
+            font-size: 11.5px;
             font-weight: 700;
             letter-spacing: 0.3px;
             color: inherit;
+            line-height: 1;
+            /* tabular-nums for chip content so '+10' / '-10' / '0'
+             * share the same digit advance widths — the chip's
+             * centred text stays optically stable as values change.
+             */
+            font-variant-numeric: tabular-nums;
         }
 
         /*
-         * Production sign palette — colour-codes the chip text:
-         *   positive → bright amber (default rule above)
-         *   zero     → muted neutral so a parked production line
-         *              doesn't compete for attention
-         *   negative → soft coral, conveys "loss / consumption"
-         *              without alarming red
+         * Production sign states:
          *
-         * The Vue template stamps `--negative` / `--zero` modifiers
-         * on the `.resource_item_prod` element based on the numeric
-         * value sign. (If not yet present in the template, the
-         * default amber is fine for all values; adding the modifiers
-         * later is a small Vue tweak.)
+         *   positive  →  bright amber on dark glass (default rule)
+         *   zero      →  cool muted neutral on dark glass
+         *   negative  →  coral-red on darker red-tinted bg + warning
+         *                halo. Bolder than positive/zero — in TM
+         *                negative production is rare and important;
+         *                must be seen instantly. Stays in warm-
+         *                neutral spectrum (no acidic neon red).
          */
         .resource_item_prod--zero,
         .resource_item_prod--zero .resource_item_prod_count {
             color: @hud-prod-zero;
         }
-        .resource_item_prod--negative,
-        .resource_item_prod--negative .resource_item_prod_count {
-            color: @hud-prod-negative;
+        .resource_item_prod--negative {
+            color: #f0a890;
+            background: rgba(150, 50, 38, 0.62);
+            box-shadow:
+                inset 0 0 0 1px rgba(230, 130, 100, 0.55),
+                0 0 8px rgba(200, 80, 55, 0.35),
+                0 1px 2px rgba(0, 0, 0, 0.45);
+
+            .resource_item_prod_count {
+                color: inherit;
+                text-shadow:
+                    0 1px 1px rgba(0, 0, 0, 0.7),
+                    0 0 4px rgba(200, 80, 55, 0.42);
+            }
         }
 
         /*
-         * "M€ value" badge for steel/titanium — top-RIGHT corner of
-         * the icon. The badge is a DOM child of .resource_item_prod;
-         * we use a negative `left` so it visually escapes prod's box
-         * and lands on the icon.
-         *
-         * prod's box starts at left:46 in resource_item coords; the
-         * badge is 16 px wide; `left: -22px` puts the badge at x ≈
-         * 24, spanning 24..40 — centring on the icon's top-right
-         * corner (icon spans 4..40). Slight bump from the v0 -20 px
-         * compensates for the prod chip's new padding so the badge
-         * still lands cleanly on the icon corner.
+         * "M€ value" badge — child of .resource_item_prod (which is
+         * now `position: static` in the grid), absolute-positioned
+         * against .resource_item (`position: relative`). Sits on
+         * the icon's top-right corner. Icon spans cell x = 4..36
+         * (padding 4 + col 1 32px); badge at left:24..40 centres
+         * on the corner.
          */
         .resource_icon--megacredit-value {
             position: absolute;
-            top: -7px;
-            left: -22px;
+            top: -3px;
+            left: 24px;
             width: 16px;
             height: 16px;
             background-image: url(./assets/resources/megacredit.png);
@@ -2006,7 +2159,7 @@ each(@players, {
             background-position: center;
             background-repeat: no-repeat;
             color: #1a1308;
-            font-size: 11px;
+            font-size: 10px;
             line-height: 16px;
             text-align: center;
             font-family: Prototype;
@@ -2014,9 +2167,90 @@ each(@players, {
             border-radius: 50%;
             box-shadow:
                 0 0 0 1px rgba(8, 12, 20, 0.7),
-                0 0 4px rgba(0, 0, 0, 0.6);
+                0 0 4px rgba(0, 0, 0, 0.55);
             margin: 0;
             z-index: 5;
+        }
+    }
+
+    /*
+     * Column-headers strip — uses the SAME grid template as
+     * .resource_item (1fr | 46 px with 8-px gap) so the
+     * "ЗАПАС" / "ПРИРОСТ" labels line up perfectly with the data
+     * columns below.
+     *
+     *   col 1 (1fr)   → "ЗАПАС" header right-aligned, matches
+     *                   count's right-edge anchor in the row
+     *   col 2 (46px)  → "ПРИРОСТ" header centred, matches prod
+     *                   chip centred in the same column
+     *
+     * Real CSS divider between the two columns — a proper UI
+     * element, not a text symbol or a fade-to-zero hairline (which
+     * looked like a stray dot at small font sizes). See the
+     * `.col-header--stock::after` rule for geometry.
+     */
+    .left-panel-section__col-headers {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 46px;
+        column-gap: 8px;
+        padding: 3px 4px 4px;
+        margin: 0 0 2px;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 8px;
+        font-weight: 600;
+        /*
+         * Letter-spacing reduced from 1.8 → 1.0 so "ПРИРОСТ"
+         * (7 chars) comfortably fits in the 46-px production
+         * column. At 1.8 px tracking, the word was ~47 px wide
+         * and overflowed into the divider zone, making the gap
+         * read as cramped.
+         */
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: rgba(165, 190, 215, 0.7);
+        line-height: 1;
+        border-bottom: 1px solid rgba(106, 176, 230, 0.1);
+
+        .col-header--stock {
+            position: relative;
+            grid-column: 1;
+            text-align: right;
+            padding-right: 6px;
+
+            /*
+             * Real CSS divider — a proper vertical 1-px line in
+             * the middle of the 8-px column-gap. Geometry:
+             *   - `right: -4px` lands the line at the exact
+             *     centre of the gap (col-1-right + 4 = midpoint)
+             *   - `top/bottom: -2px` extends the line 2 px above
+             *     and below the strip so it reads as a confident
+             *     16-ish-px tall UI element, not a stub
+             *   - Solid colour rgba(150, 185, 220, 0.45) — visible
+             *     enough to mark "this is a separator", muted
+             *     enough not to compete with the actual data
+             *   - Subtle cyan box-shadow glow for the premium HUD
+             *     feel; the line reads as illuminated, not drawn
+             */
+            &::after {
+                content: '';
+                position: absolute;
+                right: -4px;
+                top: -2px;
+                bottom: -2px;
+                width: 1px;
+                /* Alphas dropped ~15 % from v0 (0.45 → 0.37,
+                 * 0.28 → 0.22) — divider stays a clear column
+                 * separator but no longer pulls focus from the
+                 * data below. Geometry / glow radius unchanged. */
+                background: rgba(150, 185, 220, 0.37);
+                box-shadow: 0 0 6px rgba(120, 170, 220, 0.22);
+                pointer-events: none;
+            }
+        }
+        .col-header--prod {
+            grid-column: 2;
+            text-align: center;
         }
     }
 
@@ -2062,20 +2296,21 @@ each(@players, {
 
     /*
      * Card-tags + extras secondary blocks — 2-column HUD grid of
-     * tag icons + count.
+     * tag icons + count (v42 strong refactor).
      *
-     * Each cell uses a fixed-width `.tag-and-discount` (icon + count
-     * + corner badges) so the tag NEVER shifts position when we
-     * swap displayed players. Discount and points-per-tag badges
-     * are absolute-positioned over the icon corners and don't
-     * affect layout. The grid reads as a HUD instrument cluster,
-     * not a row of detached icons.
+     * No per-slot background or hairline — the section frame above
+     * is the only surface. Slots are just spacing-aligned data
+     * cells. Fixed 60-px slot width keeps badge corners locked to
+     * the icon regardless of count value or discount presence.
+     *
+     * Result: 14+ tag icons across a section read as a clean
+     * instrument grid, not a stack of repeating tinted slots.
      */
     .left-panel-tags-secondary .player-tags-secondary {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         justify-items: center;
-        gap: 5px 4px;
+        gap: 4px 2px;
     }
 
     .left-panel-tags-secondary {
@@ -2086,35 +2321,21 @@ each(@players, {
         }
 
         /*
-         * Tag slot — fixed 60-px width container locked at icon
-         * (34) + gap (4) + count cell (~18). Subtle dark glass
-         * background + thin cyan hairline makes the slot read as a
-         * HUD instrument cell, matching the resource cells visual
-         * tier. Hover lifts the inner glow.
-         *
-         * Padding is intentionally small (3 px) so the icon stays
-         * the same visual size — the slot chrome is a frame around
-         * the existing icon, not a re-sizing wrapper.
+         * Tag slot — bare, no background, no border. Just a
+         * fixed-width flex anchor for icon + count so positions
+         * lock across player switches and badge corners stay
+         * registered to the icon.
          */
         .tag-and-discount {
             display: flex;
             align-items: center;
             gap: 4px;
-            width: 60px;
+            width: 58px;
             flex-shrink: 0;
             position: relative;
-            padding: 2px 3px;
-            border-radius: 3px;
-            background: @hud-bg-cell;
-            box-shadow: inset 0 0 0 1px @hud-cyan-hairline;
-            transition: box-shadow 160ms ease, background 160ms ease;
-
-            &:hover {
-                background: rgba(20, 32, 50, 0.7);
-                box-shadow:
-                    inset 0 0 0 1px @hud-cyan-soft,
-                    0 0 6px rgba(106, 176, 230, 0.18);
-            }
+            padding: 0;
+            background: transparent;
+            box-shadow: none;
         }
 
         /* The ORDER separator entry is now expressed as a real sub-block in
@@ -2131,30 +2352,34 @@ each(@players, {
         }
 
         .tag-count-display {
-            font-size: 17px;
+            font-family: "Russo One", Prototype, Ubuntu, sans-serif;
+            font-size: 18px;
+            font-weight: 700;
             margin-top: 0;
             min-width: 14px;
             text-align: left;
-            font-family: Prototype, Ubuntu, sans-serif;
-            font-weight: 700;
             color: @hud-text-primary;
-            letter-spacing: 0.3px;
-            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
+            letter-spacing: 0.4px;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            text-shadow:
+                0 1px 2px rgba(0, 0, 0, 0.7),
+                0 0 5px rgba(106, 176, 230, 0.14);
         }
     }
 
     /*
-     * The "extras" sub-block sits visually below regular card tags.
-     * v0 gave it a darker background to "read as a separate cluster"
-     * — but the result was that extras felt detached from the rest
-     * of the panel. With the unified .left-panel-section chrome
-     * (deeper navy + cyan corner ticks) and the per-slot HUD cells
-     * above, the visual separation is already carried by the
-     * section's own border, so we drop the bg shift here — every
-     * section is the same tier of surface.
+     * Extras section — same surface tier as the regular card-tags
+     * section. v0 had a darker tint to "separate it visually"; the
+     * unified section frame + corner ticks + micro-label already
+     * carry that separation, so the bg shift is dropped. All
+     * sections read as the same premium surface.
      */
     .left-panel-tags-extras {
-        background: @hud-bg-section;
+        background:
+            linear-gradient(180deg,
+                rgba(22, 32, 48, 0.78) 0%,
+                rgba(14, 22, 34, 0.7) 100%);
     }
 
     .player-allied-party {
@@ -2199,6 +2424,32 @@ each(@players, {
         transform: translate(-50%, -0.4rem) !important;
     }
     .tag-count.tooltip.tooltip-bottom::before {
+        top: auto !important;
+        bottom: 100% !important;
+    }
+
+    /*
+     * Resource-icon tooltip — same "flip up" treatment as tag tooltips,
+     * PLUS a horizontal anchor change to handle the LEFT-VIEWPORT-EDGE
+     * clip: resource icons sit very close to the viewport's left edge
+     * (left panel is 160 px wide, icon is in the leftmost ~36 px of the
+     * cell). A default centred tooltip wider than ~50-60 px would
+     * extend off the left edge of the screen and clip text ("...Кре...
+     * (M€)" instead of the full "Мегакредиты" — player feedback).
+     *
+     * Fix: anchor the tooltip's LEFT edge to the icon's LEFT edge so
+     * the plate extends rightward only, into the play area where
+     * there's space. Arrow (::before) stays centred on the icon via
+     * its own default transform, so it still visually points at the
+     * resource it describes.
+     */
+    .resource_icon.tooltip.tooltip-bottom::after {
+        top: auto !important;
+        bottom: 100% !important;
+        left: 0 !important;
+        transform: translate(0, -0.4rem) !important;
+    }
+    .resource_icon.tooltip.tooltip-bottom::before {
         top: auto !important;
         bottom: 100% !important;
     }

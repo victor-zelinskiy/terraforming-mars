@@ -96,6 +96,18 @@
                     :class="buildResourceClass"></span>
             </span>
           </template>
+          <!--
+            PLACE_OCEAN_TILE (Europa) — render the ocean glyph directly
+            instead of going through legacy BuildBenefit. The legacy
+            component's absolute-positioned ocean-tile-colony chip
+            silently fights our flex slot layout and ends up invisible,
+            so Europa would otherwise show empty build slots.
+          -->
+          <template v-else-if="metadata.build.type === BG.PLACE_OCEAN_TILE">
+            <span class="colony-tile__build-content">
+              <span class="tile ocean-tile colony-tile__build-tile"></span>
+            </span>
+          </template>
           <BuildBenefit v-else :metadata="metadata" :idx="idx" />
 
           <!--
@@ -125,8 +137,25 @@
         <span class="colony-tile__row-arrow">→</span>
         <span class="colony-tile__row-reward">
           <span v-if="tradeRewardNum > 1" class="colony-tile__row-reward-num">{{ tradeRewardNum }}</span>
-          <span class="resource colony-tile__row-reward-icon"
-                :class="tradeRewardClass"></span>
+          <!--
+            GAIN_PRODUCTION (Europa) — render a production box around
+            the resource icon so it reads as "+1 production" instead of
+            "+1 unit". The resource itself depends on the colony's
+            current track position: Europa's `trade.resource` is an
+            array of 7 resources (M€/M€/energy/energy/plants/plants/
+            plants) and the marker selects one. The fallback inline
+            resource icon is kept for the regular single-resource
+            colonies (Callisto energy, Io heat, ...).
+          -->
+          <template v-if="metadata.trade.type === BG.GAIN_PRODUCTION">
+            <span class="production-box colony-tile__row-reward-prod">
+              <span class="production" :class="tradeProductionResourceClass"></span>
+            </span>
+          </template>
+          <template v-else>
+            <span class="resource colony-tile__row-reward-icon"
+                  :class="tradeRewardClass"></span>
+          </template>
         </span>
       </div>
 
@@ -231,6 +260,11 @@ export default defineComponent({
       const pos = Math.min(this.colony.trackPosition, 6);
       return pos + 1;
     },
+    // Convenience alias for use in the template's v-else-if chain — saves
+    // having to import ColonyBenefit at every reference site.
+    BG(): typeof ColonyBenefit {
+      return ColonyBenefit;
+    },
     tradeRewardClass(): string {
       const t = this.metadata.trade;
       if (t.type === ColonyBenefit.GAIN_RESOURCES && typeof t.resource === 'string') {
@@ -240,6 +274,17 @@ export default defineComponent({
         return this.metadata.cardResource.toString().toLowerCase();
       }
       return 'colony-tile__row-reward-icon--abstract';
+    },
+    // For GAIN_PRODUCTION trade rewards, the resource depends on the
+    // colony's current track position when it's an array (Europa).
+    // Single-resource production colonies (none today, but trivial to
+    // support) just use the resource directly.
+    tradeProductionResourceClass(): string {
+      const t = this.metadata.trade;
+      const pos = Math.min(this.colony.trackPosition, 6);
+      const r = Array.isArray(t.resource) ? t.resource[pos] : t.resource;
+      if (typeof r === 'string') return r.toLowerCase();
+      return '';
     },
     tradeRewardNum(): number {
       const pos = Math.min(this.colony.trackPosition, 6);
