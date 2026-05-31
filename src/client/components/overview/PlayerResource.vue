@@ -4,7 +4,7 @@
           <i class="resource_icon tooltip tooltip-bottom" :class="iconCSS" :data-tooltip="resourceTypeTooltip"></i>
           <div class="resource_item_stock_count" data-test="stock-count">{{ count }}</div>
       </div>
-      <div class="resource_item_prod">
+      <div class="resource_item_prod" :class="productionStateClass">
           <span class="resource_item_prod_count tooltip tooltip-bottom" data-test="production" :data-tooltip="productionCountTooltip">{{ productionSign }}{{ production }}</span>
           <div class="shield_parent" data-test="protection-shield"> <!-- Why is this a child of resource_item_prod?-->
             <div v-if="protectionIcon !== ''" :class="protectionIcon"></div>
@@ -83,6 +83,29 @@ export default defineComponent({
     productionSign(): string {
       if (this.production > 0) {
         return '+';
+      }
+      return '';
+    },
+    /*
+     * Visual sign-class for the production chip in the left sidebar.
+     * Lets CSS (.resource_item_prod--zero / --negative in
+     * player_home.less :: .resource_items_cont) tint the chip text
+     * by sign so the eye can scan production columns at a glance:
+     *
+     *   + N  → bright amber          (default, no modifier)
+     *   0    → muted neutral         (--zero)
+     *   - N  → soft coral            (--negative)
+     *
+     * Defaults to "" so callers outside the sidebar (where the
+     * sign-tinted chip isn't styled) keep the original presentation
+     * untouched.
+     */
+    productionStateClass(): string {
+      if (this.production < 0) {
+        return 'resource_item_prod--negative';
+      }
+      if (this.production === 0) {
+        return 'resource_item_prod--zero';
       }
       return '';
     },
