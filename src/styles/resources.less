@@ -31,6 +31,173 @@
 }
 
 /*
+ * Convert action — native to the resource icon (v50 button shell).
+ *
+ * When the server offers a convert action (Plants → Greenery,
+ * Heat → Temperature), the row's wrapper gets `--with-convert`.
+ * That turns the WRAPPER itself into a button. v50 elevates the
+ * icon visual from "icon with glow" to a proper sci-fi button:
+ *
+ *   - Multi-layer box-shadow gives the icon a real button SHELL
+ *     (inner highlight + dark spacer + cyan rim) — looks like the
+ *     icon is mounted inside a HUD button frame, not just glowing
+ *   - Pulse animation modulates an outer aura via drop-shadow
+ *     (separate from the static shell so the frame stays crisp)
+ *   - Hover boosts the shell's rim + glow intensity
+ *   - Active scales the icon down for tactile feedback
+ *
+ * The wrapper itself remains the click target (so the icon shell
+ * IS the button, click anywhere on the row works); cost is shown
+ * as a separate badge near the icon (see `--cost-badge` below).
+ */
+.resource_item_wrapper--with-convert {
+    cursor: pointer;
+    border-radius: 4px;
+    outline: none;
+    transition: background 160ms ease;
+
+    /*
+     * Custom premium tooltip — replaces the browser-native `title`
+     * which renders as an ugly system-style box. The tooltip plate
+     * is rendered via `::after` (text from `data-convert-tooltip`
+     * attribute) and a small down-pointing triangle via `::before`.
+     * Both fade in on hover + keyboard focus. No JS — pure CSS so
+     * it lifecycles cleanly with the wrapper.
+     *
+     * Geometry:
+     *   - Plate hangs ABOVE the row (`bottom: calc(100% + 8px)`)
+     *   - Anchored to wrapper's LEFT edge (extends rightward into
+     *     the play area; since the panel sits at viewport's left
+     *     edge, centring the tooltip would clip off-screen on the
+     *     left)
+     *   - Triangle arrow tip ON the wrapper's top edge, pointing
+     *     DOWN at the icon below
+     *   - z-index: 100/101 so it floats over neighbouring rows
+     *     and the resource panel chrome
+     */
+    &::before {
+        content: '';
+        position: absolute;
+        bottom: calc(100% + 3px);
+        left: 14px;
+        width: 0;
+        height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 5px solid rgba(8, 14, 22, 0.95);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 180ms ease 60ms;
+        z-index: 101;
+    }
+
+    &::after {
+        content: attr(data-convert-tooltip);
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 0;
+        max-width: 200px;
+        padding: 6px 10px;
+        background: rgba(8, 14, 22, 0.95);
+        border: 1px solid rgba(140, 200, 240, 0.55);
+        border-radius: 3px;
+        color: rgba(225, 240, 255, 0.96);
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1.35;
+        letter-spacing: 0.2px;
+        white-space: normal;
+        text-align: left;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            0 0 12px rgba(106, 176, 230, 0.3),
+            0 6px 16px rgba(0, 0, 0, 0.55);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 180ms ease 60ms;
+        z-index: 100;
+    }
+
+    &:hover::before,
+    &:hover::after,
+    &:focus-visible::before,
+    &:focus-visible::after {
+        opacity: 1;
+    }
+
+    /*
+     * Icon = button shell. Box-shadow layers form the frame:
+     *   - inset white highlight  → "lit-from-inside" cue
+     *   - 1-px dark spacer       → separation between icon and rim
+     *   - 2-px cyan rim          → frame line proper
+     *   - 6-px soft glow         → ambient cyan aura
+     */
+    .resource_icon {
+        position: relative;
+        z-index: 1;
+        border-radius: 4px;
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+            0 0 0 1px rgba(8, 14, 22, 0.55),
+            0 0 0 2px rgba(140, 200, 240, 0.55),
+            0 0 6px rgba(106, 176, 230, 0.42);
+        animation: convert-icon-pulse 2.4s ease-in-out infinite;
+        transition: box-shadow 200ms ease, transform 120ms ease;
+    }
+
+    /* Hover lifts the shell — brighter rim, stronger aura, no
+     * geometry change so the row layout doesn't shift. */
+    &:hover .resource_icon {
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.32),
+            0 0 0 1px rgba(8, 14, 22, 0.65),
+            0 0 0 2px rgba(190, 225, 250, 0.92),
+            0 0 12px rgba(106, 176, 230, 0.75);
+    }
+
+    /* Active = tactile press: small scale-down, intense rim. */
+    &:active .resource_icon {
+        transform: scale(0.94);
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.45),
+            0 0 0 1px rgba(8, 14, 22, 0.75),
+            0 0 0 2px rgba(210, 235, 255, 1),
+            0 0 10px rgba(106, 176, 230, 1);
+    }
+
+    /* Keyboard focus — visible ring around the row so the user
+     * sees what's about to be activated by Enter / Space. */
+    &:focus-visible {
+        outline: 2px solid rgba(140, 200, 240, 0.85);
+        outline-offset: 1px;
+        border-radius: 3px;
+    }
+}
+
+/*
+ * Pulse keyframe — gentle 2.4-s cyan breath layered ON TOP of the
+ * static button shell. Drop-shadow modulates separately from
+ * box-shadow so the shell's rim line stays crisp; only the outer
+ * aura breathes.
+ */
+@keyframes convert-icon-pulse {
+    0%, 100% {
+        filter: drop-shadow(0 0 3px rgba(106, 176, 230, 0.4));
+    }
+    50% {
+        filter: drop-shadow(0 0 8px rgba(106, 176, 230, 0.8));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .resource_item_wrapper--with-convert .resource_icon {
+        animation: none;
+    }
+}
+
+/*
  * Convert-action button (Plants → Greenery, Heat → Temperature).
  * Sits OUTSIDE the resource cell, on the play area side, vertically
  * centered on the resource icon. A thin cyan connector line draws from
@@ -145,37 +312,163 @@
 }
 
 /*
- * Sci-fi conversion arrow drawn between the resource cell and the convert
- * button. Lives as a sibling of the button (not as a `::after` of it) so
- * it doesn't get clipped by the button's `clip-path` parallelogram.
- * Cyan gradient → bright tip, plus drop-shadow glow. Points RIGHT — the
- * direction of the transformation (resource → action).
+ * Convert-action arrow (v49 — LEFT-side cue).
+ *
+ * The cue now lives on the LEFT side of the resource icon, taking
+ * up the tiny strip of panel chrome between the viewport's left
+ * edge and the icon. Cost is no longer carried by a sibling chip
+ * — it sits as a corner badge ON the icon itself (see
+ * `.convert-action-cost-badge` below). The icon, with its glow +
+ * pulse + corner cost badge, reads even more clearly as a button.
+ *
+ * Visual layout:
+ *
+ *   viewport |    panel
+ *   edge     | padding + section chrome | [icon]   9   [chip]
+ *            ╰──── arrow ────╯
+ *
+ * The arrow extends from the viewport's left edge across the
+ * panel's chrome (panel padding + section border + section
+ * padding) up to the icon's left edge — pointing RIGHT at the
+ * icon. Alpha gradient fades from transparent (viewport side) to
+ * bright (icon side) so the cue appears to "emerge from the
+ * screen edge toward the icon".
+ *
+ * Positioning math: wrapper's left edge sits at viewport x ≈ 11
+ * (panel padding 6 + section border 1 + section padding 4). The
+ * arrow's `left: -11 px` places its left edge AT the viewport's
+ * left edge; its 15-px width reaches up to wrapper x = 4, which
+ * is the icon's left edge (resource_item padding 4 + col 1 start).
+ *
+ * `pointer-events: none` — purely visual; the click target is
+ * the row WRAPPER (so the icon itself is the button).
  */
 .convert-action-arrow {
     position: absolute;
-    left: calc(100% + 4px);
-    /* v43: vertically centred to match the convert button (which
-     * uses top: 50% + translateY(-50%) for the same reason —
-     * compact 28-px rows in the new resource table). */
+    left: -11px;
     top: 50%;
     transform: translateY(-50%);
-    width: 20px;
+    width: 15px;
     height: 14px;
     z-index: 4;
     pointer-events: none;
     background: linear-gradient(90deg,
-        rgba(106, 176, 230, 0.30) 0%,
-        rgba(140, 200, 240, 0.90) 70%,
-        #ffffff 100%);
-    /* Arrow shape: rectangular tail (40%–58% vertical band) + triangle head
-     * peaking at right edge. */
+        rgba(106, 176, 230, 0.18) 0%,    /* faded at viewport edge */
+        rgba(140, 200, 240, 0.7) 55%,
+        rgba(190, 225, 255, 1) 100%);    /* bright at icon side */
     clip-path: polygon(
-        0% 40%, 65% 40%,
-        65% 10%, 100% 50%,
-        65% 90%, 65% 60%,
+        0% 40%, 60% 40%,        /* rectangular tail (left) */
+        60% 5%, 100% 50%,        /* triangle tip (right) */
+        60% 95%, 60% 60%,
         0% 60%
     );
-    filter: drop-shadow(0 0 4px rgba(140, 200, 240, 0.60));
+    filter: drop-shadow(0 0 4px rgba(106, 176, 230, 0.5));
+}
+
+/*
+ * Convert-action cost badge — compact HUD chip carrying the cost
+ * of spending this resource (v50 redesign).
+ *
+ * Visual contract: dark-glass HUD chip with a thin RESOURCE-COLOURED
+ * border + faint matching glow. The minus sign in the value
+ * ("−8") signals "spending / outgoing resource". This is NOT a
+ * coin — no amber/gold gradient that would conflate with M€
+ * cost / discount badges (which are visually "money"). The badge
+ * reads as "resource expense", which is conceptually different
+ * from "M€ price".
+ *
+ * Position: anchored to the icon's bottom-right corner, mostly
+ * overhanging outside the icon (small ~3-px corner overlap so the
+ * badge reads as "attached to" the icon). Doesn't collide with
+ * the M€-value badge on the top-right (used by Steel / Titanium /
+ * Heat-with-Helion).
+ *
+ * Per-resource accents (`--plants` / `--heat`) — green for plants,
+ * warm-red for heat. The matching colour makes "this is for THIS
+ * resource" instantly readable, especially when both Plants and
+ * Heat are convert-active at the same time.
+ */
+.convert-action-cost-badge {
+    position: absolute;
+    /* Anchored to the icon's bottom-right corner area. ~8 px corner
+     * overlap with the icon is intentional ("attached to" icon),
+     * the rest of the badge hangs outside-right + outside-bottom. */
+    top: 28px;
+    left: 28px;
+    /* min-width sized for the widest realistically-occurring cost:
+     * "−10" / "−12" — 3 chars at 10-px font + tabular-nums. The
+     * badge auto-grows for wider values if a card / corp pushes
+     * costs higher (Ecoline → 7, normal → 8, future modifiers
+     * could push to 10+). No max-width — let it expand. */
+    min-width: 24px;
+    height: 14px;
+    padding: 0 4px;
+    border-radius: 2px;
+    background: rgba(8, 14, 22, 0.95);
+    border: 1px solid rgba(140, 200, 240, 0.55);
+    color: rgba(220, 240, 255, 0.95);
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 12px;
+    text-align: center;
+    white-space: nowrap;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+        0 1px 2px rgba(0, 0, 0, 0.45);
+    z-index: 6;
+    pointer-events: none;
+    /* tabular-nums keeps the "−" and digits at uniform widths so
+     * the chip's text stays optically stable across all values
+     * (−7, −8, −10, −12, etc.). */
+    font-variant-numeric: tabular-nums;
+}
+
+/* Plants: green accent — matches the leaf icon's hue. */
+.convert-action-cost-badge--plants {
+    border-color: rgba(120, 200, 95, 0.75);
+    color: rgba(210, 245, 195, 1);
+    box-shadow:
+        inset 0 0 0 1px rgba(120, 200, 95, 0.15),
+        0 0 5px rgba(120, 200, 95, 0.4),
+        0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/* Heat: warm-red accent — matches the flame icon's hue. */
+.convert-action-cost-badge--heat {
+    border-color: rgba(225, 115, 80, 0.78);
+    color: rgba(250, 210, 185, 1);
+    box-shadow:
+        inset 0 0 0 1px rgba(225, 115, 80, 0.15),
+        0 0 5px rgba(225, 115, 80, 0.45),
+        0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/*
+ * Per-resource tooltip accent — the custom HUD tooltip's border +
+ * glow take the same colour as the action's resource. Visually
+ * consistent with the cost badge palette (green for plants,
+ * warm-red for heat).
+ */
+.resource_item_wrapper--convert-plants {
+    &::after {
+        border-color: rgba(120, 200, 95, 0.6);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            0 0 12px rgba(120, 200, 95, 0.32),
+            0 6px 16px rgba(0, 0, 0, 0.55);
+    }
+}
+
+.resource_item_wrapper--convert-heat {
+    &::after {
+        border-color: rgba(225, 115, 80, 0.6);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            0 0 12px rgba(225, 115, 80, 0.32),
+            0 6px 16px rgba(0, 0, 0, 0.55);
+    }
 }
 
 .convert-action-btn-label {

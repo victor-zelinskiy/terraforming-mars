@@ -320,6 +320,18 @@
     "Awaiting other players…": "Ожидаем игроков…",
     "Choosing": "Выбирает",
     "Done": "Готов",
+    "Player status action": "ДЕЙСТВИЕ",
+    "Player status research buy": "ПОКУПКА КАРТ",
+    "Player status draft pick": "ВЫБОР КАРТ",
+    "Player status initial pick": "СТАРТОВЫЙ ВЫБОР",
+    "Player status playing prelude": "РАЗЫГРЫВАЕТ ПРОЛОГ",
+    "Player status playing ceo": "РАЗЫГРЫВАЕТ ДИРЕКТОРА",
+    "Player status global support": "МИРОВАЯ ПОДДЕРЖКА",
+    "Player status delegate pick": "ВЫБОР ДЕЛЕГАТА",
+    "Player status passed": "СПАСОВАЛ",
+    "Player status waiting": "ОЖИДАЕТ",
+    "Player status next": "СЛЕДУЮЩИЙ",
+    "Player status ready": "ГОТОВ",
     "Player cube spins while we wait on them": "Кубик вращается, пока мы ждём этого игрока",
     "You haven't selected any project cards": "Вы не выбрали ни одной карты проектов",
     "Continue without buying any project cards?": "Продолжить без покупки карт проектов?",
@@ -682,6 +694,8 @@
 
     "Spend": "Потратить",
     "Convert plants into a greenery tile": "Превратить растения в жетон озеленения",
+    "Spend ${0} plants to place a greenery tile": "Потратить ${0} растений, чтобы разместить озеленение",
+    "Spend ${0} heat to raise temperature by 1 step": "Потратить ${0} тепла, чтобы повысить температуру на 1",
     "Spend heat to raise temperature by 1 step": "Потратить тепло, чтобы повысить температуру на 1",
     "Click a greenery space on the board": "Кликните по клетке для озеленения"
 }

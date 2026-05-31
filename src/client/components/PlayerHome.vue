@@ -605,8 +605,12 @@ const PLACEMENT_LOCKED_SELECTORS = [
   '.std-project-use-btn',
   '.milestone-claim-btn',
   '.award-fund-btn',
-  '.convert-action-btn--heat',
-  '.convert-action-btn--plants',
+  // v46: convert-plants / convert-heat moved from a dedicated button
+  // to a click handler on the resource row itself (the icon IS the
+  // button). The new wrapper-level modifier classes get locked here
+  // so clicks during placement are blocked.
+  '.resource_item_wrapper--convert-heat',
+  '.resource_item_wrapper--convert-plants',
   '.colony-tile__select-btn',
   '.colony-detail__select-btn',
   '.wf-action',

@@ -27,11 +27,11 @@
           :key="p.color"
           class="initial-draft-rail__item"
           :class="{
-            'initial-draft-rail__item--active': isActive(p),
-            'initial-draft-rail__item--done': isDone(p),
+            'initial-draft-rail__item--active': presentationFor(p).category === 'active',
+            'initial-draft-rail__item--done': presentationFor(p).category === 'ready',
             'initial-draft-rail__item--viewer': isViewer(p),
           }">
-        <span v-if="isActive(p)"
+        <span v-if="presentationFor(p).category === 'active'"
               class="initial-draft-rail__accent"
               aria-hidden="true"></span>
 
@@ -48,22 +48,18 @@
           <span class="initial-draft-rail__order">#{{ turnIndexFor(p) + 1 }}</span>
         </div>
 
-        <div class="initial-draft-rail__status" :class="statusModifierClass(p)">
-          <span v-if="isActive(p)"
-                class="initial-draft-rail__status-dot"
-                aria-hidden="true"></span>
-          <svg v-else-if="isDone(p)"
-               class="initial-draft-rail__status-check"
-               viewBox="0 0 14 14"
-               aria-hidden="true">
-            <path d="M2.5 7.5 L5.5 10.5 L11.5 3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  stroke-linecap="round"
-                  stroke-linejoin="round" />
-          </svg>
-          <span v-i18n>{{ statusLabel(p) }}</span>
+        <!--
+          Status — единый presenter (`presentPlayerStatus`) рассчитывает
+          и категорию (active / ready / waiting / passed / next / none),
+          и какой глиф рендерить, и какой англ. i18n-ключ показать. Тот
+          же presenter использует основной LeftPlayerCard — визуально
+          rail и in-game карточки выглядят как одна система.
+        -->
+        <div class="initial-draft-rail__status player-status-chip"
+             :class="`player-status-chip--${presentationFor(p).category}`">
+          <PlayerStatusGlyph v-if="presentationFor(p).glyph !== 'none'"
+                            :glyph="presentationFor(p).glyph" />
+          <span v-if="presentationFor(p).textKey" v-i18n>{{ presentationFor(p).textKey }}</span>
         </div>
       </li>
     </ul>
@@ -79,9 +75,17 @@ import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
+import {
+  presentPlayerStatus,
+  StatusPresentation,
+} from '@/client/components/overview/playerStatusPresenter';
+import PlayerStatusGlyph from '@/client/components/overview/PlayerStatusGlyph.vue';
 
 export default defineComponent({
   name: 'InitialDraftStatusRail',
+  components: {
+    PlayerStatusGlyph,
+  },
   props: {
     playerView: {
       type: Object as PropType<PlayerViewModel>,
@@ -126,7 +130,8 @@ export default defineComponent({
         'preferences_player_inner',
         `player_bg_color_${player.color}`,
       ];
-      if (!getPreferences().hide_animated_sidebar && this.isActive(player)) {
+      if (!getPreferences().hide_animated_sidebar &&
+          this.presentationFor(player).category === 'active') {
         classes.push('active');
       }
       return classes.join(' ');
@@ -141,17 +146,14 @@ export default defineComponent({
     isViewer(player: PublicPlayerModel): boolean {
       return player.color === this.playerView.thisPlayer?.color;
     },
-    isActive(player: PublicPlayerModel): boolean {
+    /*
+     * Единственная точка решения «как показать статус игрока» — общий
+     * presenter с LeftPlayerCard. Категория используется для CSS-модификаторов,
+     * glyph — для иконки, textKey — для i18n.
+     */
+    presentationFor(player: PublicPlayerModel): StatusPresentation {
       const label = actionLabelForPlayer(this.playerView, player, this.livePlayersWaitingFor);
-      return label === 'drafting' || label === 'researching' || label === 'turn' ||
-             label === 'globalsupport' || label === 'delegate';
-    },
-    isDone(player: PublicPlayerModel): boolean {
-      if (this.isActive(player)) {
-        return false;
-      }
-      const label = actionLabelForPlayer(this.playerView, player, this.livePlayersWaitingFor);
-      return label === 'waiting' || label === 'none' || label === '';
+      return presentPlayerStatus(label);
     },
     /*
      * Seating-order index (а не позиция в orderedPlayers) — так order
@@ -160,27 +162,6 @@ export default defineComponent({
      */
     turnIndexFor(player: PublicPlayerModel): number {
       return this.playerView.players.findIndex((p) => p.color === player.color);
-    },
-    statusLabel(player: PublicPlayerModel): string {
-      if (this.isActive(player)) {
-        return 'Choosing';
-      }
-      const label = actionLabelForPlayer(this.playerView, player, this.livePlayersWaitingFor);
-      if (label === 'passed') {
-        return 'passed';
-      }
-      return 'Done';
-    },
-    statusModifierClass(player: PublicPlayerModel): string {
-      const base = 'initial-draft-rail__status';
-      if (this.isActive(player)) {
-        return `${base} ${base}--active`;
-      }
-      const label = actionLabelForPlayer(this.playerView, player, this.livePlayersWaitingFor);
-      if (label === 'passed') {
-        return `${base} ${base}--passed`;
-      }
-      return `${base} ${base}--done`;
     },
   },
 });

@@ -313,55 +313,14 @@ body.initial-draft-active {
     }
 
     /*
-     * Status — компактная нижняя линия с точкой / check + uppercase
-     * меткой. Плотные letter-spacing'и оставляют чувство sci-fi
-     * datasheet.
+     * Status-капсула — структурный носитель (отступ снизу плитки,
+     * выравнивание), визуальная подача (фон, рамка, glyph) живёт в
+     * `.player-status-chip*` (см. player_status_chip.less). Шаблон
+     * rail'а накидывает оба класса: `initial-draft-rail__status`
+     * + `player-status-chip player-status-chip--<category>`.
      */
     &__status {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        margin-top: 5px;
-        font-size: 9px;
-        font-weight: 700;
-        letter-spacing: 1.4px;
-        text-transform: uppercase;
-        line-height: 1;
-    }
-
-    &__status--active {
-        color: #f0f6ff;
-        text-shadow: 0 0 6px rgba(140, 190, 235, 0.4);
-    }
-    &__status--done {
-        color: rgba(160, 215, 200, 0.78);
-    }
-    &__status--passed {
-        color: rgba(180, 200, 220, 0.45);
-    }
-
-    /*
-     * Pulsing cyan dot для активного игрока. Compositor-only
-     * transform + opacity. Уважает prefers-reduced-motion.
-     */
-    &__status-dot {
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: #6ab0e6;
-        box-shadow: 0 0 5px rgba(106, 176, 230, 0.7);
-        animation: initial-draft-rail-status-pulse 1.8s ease-in-out infinite;
-    }
-
-    /*
-     * Check-glyph для done state — мягкий cyan tick без жирной
-     * рамки. Не кричит «победа», просто маркирует завершение шага.
-     */
-    &__status-check {
-        width: 9px;
-        height: 9px;
-        color: rgba(140, 215, 195, 0.85);
-        filter: drop-shadow(0 0 4px rgba(140, 215, 195, 0.4));
+        /* пустой — лэйаут полностью задаётся player-status-chip-модулем. */
     }
 }
 
@@ -380,7 +339,10 @@ body.initial-draft-active {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .initial-draft-rail__status-dot,
+    /*
+     * Pulsing status-dot заглушён в `player_status_chip.less` через
+     * `.player-status-chip__glyph--dot`. Здесь — только summary spinner.
+     */
     .initial-draft-summary__btn-spinner {
         animation: none;
     }

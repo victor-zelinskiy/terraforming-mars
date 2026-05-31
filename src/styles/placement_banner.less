@@ -104,8 +104,15 @@ body.placement-pending {
     .std-project-use-btn,
     .milestone-claim-btn,
     .award-fund-btn,
-    .convert-action-btn--heat,
-    .convert-action-btn--plants,
+    /*
+     * Convert plants/heat — v46 redesign moved click to the row
+     * wrapper itself (the resource icon IS the button). Old
+     * `.convert-action-btn--heat/--plants` are gone from the DOM.
+     * Lock the new wrapper classes instead so the cyan glow + click
+     * affordance are visually defused during placement.
+     */
+    .resource_item_wrapper--convert-heat,
+    .resource_item_wrapper--convert-plants,
     .colony-tile__select-btn,
     .colony-detail__select-btn,
     .wf-action {
