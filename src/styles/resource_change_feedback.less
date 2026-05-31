@@ -1,0 +1,424 @@
+/*
+ * Resource Change Feedback System — visuals.
+ *
+ * Drives the chip + cell-pulse appearance for any numeric HUD value
+ * the Vue side wraps with <AnimatedMetricValue>. Variants:
+ *
+ *   resource-stock      — most prominent. Full-size chip, bright glow,
+ *                         flashes the entire row + the stock number.
+ *   resource-production — calmer. Compact chip above the prod cell,
+ *                         flashes only the prod chip.
+ *   tag                 — compact chip above-right of a tag count.
+ *                         Flashes the tag count number.
+ *   misc                — like tag. Used for cities / colonies /
+ *                         influence / corruption / VP / TR / cards.
+ *
+ * Layout safety: every host span is position: absolute → zero layout
+ * impact when no delta is active AND no shift when the chip mounts.
+ * Each parent cell gets position: relative so the chip's coordinates
+ * anchor correctly. All anchors are top:* / right:* so the chip
+ * floats out to the top-right corner of its cell where there's
+ * usually open space (the play area for left-panel cells, the gap
+ * above tags for the secondary section).
+ *
+ * Performance: animations are CSS-only. No requestAnimationFrame
+ * loops, no per-frame JS layout reads. The chip is opacity + transform
+ * only — both compositor-accelerated, no layout invalidation.
+ *
+ * The :has() row-pulse rules require browsers from late 2022 onward
+ * (Chromium 105 / Firefox 121 / Safari 15.4). The fork's target is
+ * desktop browsers / Steam's CEF runtime, all of which support it.
+ */
+
+@feedback-positive-text:        #5fe3c8;
+@feedback-positive-glow:        rgba(95, 227, 200, 0.55);
+@feedback-positive-glow-soft:   rgba(95, 227, 200, 0.22);
+@feedback-positive-bg:          rgba(8, 28, 26, 0.85);
+@feedback-positive-rim:         rgba(95, 227, 200, 0.6);
+
+@feedback-negative-text:        #ff8b76;
+@feedback-negative-glow:        rgba(255, 139, 118, 0.5);
+@feedback-negative-glow-soft:   rgba(255, 139, 118, 0.2);
+@feedback-negative-bg:          rgba(28, 12, 8, 0.85);
+@feedback-negative-rim:         rgba(255, 139, 118, 0.55);
+
+@feedback-neutral-text:         #b8c8d8;
+@feedback-neutral-glow:         rgba(184, 200, 216, 0.4);
+@feedback-neutral-bg:           rgba(14, 20, 28, 0.85);
+@feedback-neutral-rim:          rgba(184, 200, 216, 0.45);
+
+/*
+ * Host span — base. Always position: absolute so it has zero layout
+ * footprint when the chip isn't rendered AND no shift when it is.
+ * Variants below anchor it to their cell's relevant corner.
+ */
+.metric-feedback-host {
+    position: absolute;
+    pointer-events: none;
+    z-index: 5;
+    line-height: 0;
+    /*
+     * Tiny inline-block so the inner transition wrapper sizes to its
+     * chip content; ensures the chip's box bounds the chip exactly.
+     */
+    display: inline-block;
+}
+
+/*
+ * Per-variant anchoring. The parent cell of each variant needs
+ * position: relative so absolute coords resolve against the cell,
+ * not against the panel/document.
+ *
+ * NOTE: the production chip is NOT anchored to .resource_item_prod
+ * because that element has `overflow: hidden` (production text
+ * clipping in narrow rows). Its host is mounted as a direct child
+ * of .resource_item instead — which already has position: relative
+ * and no overflow clip.
+ */
+.resource_item_stock {
+    position: relative;
+}
+.tag-display {
+    position: relative;
+}
+
+.metric-feedback-host--resource-stock {
+    /*
+     * Anchored to the top-right corner of the stock cell. The chip
+     * pops up-and-right, slightly outside the cell — same visual
+     * vocabulary as the convert-action arrow already does. The
+     * panel sits at viewport's left edge; the play area is open to
+     * the right, so extending right is layout-safe.
+     */
+    top: -10px;
+    right: -6px;
+    z-index: 7;
+}
+
+/*
+ * Production chip — anchored to the TOP-RIGHT of the .resource_item
+ * row (col 2 / 46-px production cell is at the row's right edge).
+ * Floats above the prod chip cell without being clipped by its
+ * overflow: hidden.
+ */
+.metric-feedback-host--resource-production {
+    top: -10px;
+    right: -2px;
+    z-index: 6;
+}
+
+.metric-feedback-host--tag,
+.metric-feedback-host--misc {
+    top: -8px;
+    right: -10px;
+    z-index: 6;
+}
+
+/*
+ * Delta chip — the chip itself. Polarity sets the colour scheme.
+ * Variant sets the chip's geometry (font-size, padding, radius,
+ * glow strength).
+ */
+.delta-chip {
+    display: inline-flex;
+    align-items: baseline;
+    font-family: "Russo One", Prototype, Ubuntu, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    line-height: 1;
+    border-radius: 999px;
+    border-style: solid;
+    border-width: 1px;
+    /*
+     * `will-change` hints the compositor that we're about to animate
+     * transform + opacity. Keeps the chip on its own layer so the
+     * pulse doesn't invalidate the underlying number's paint.
+     */
+    will-change: transform, opacity;
+}
+
+.delta-chip__sign {
+    margin-right: 1px;
+}
+
+.delta-chip__value {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- polarity tones ----------------------------------------- */
+
+.delta-chip--positive {
+    color: @feedback-positive-text;
+    background: @feedback-positive-bg;
+    border-color: @feedback-positive-rim;
+    text-shadow: 0 0 4px @feedback-positive-glow-soft;
+    box-shadow:
+        0 0 10px @feedback-positive-glow,
+        0 2px 6px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.delta-chip--negative {
+    color: @feedback-negative-text;
+    background: @feedback-negative-bg;
+    border-color: @feedback-negative-rim;
+    text-shadow: 0 0 4px @feedback-negative-glow-soft;
+    box-shadow:
+        0 0 10px @feedback-negative-glow,
+        0 2px 6px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.delta-chip--neutral {
+    color: @feedback-neutral-text;
+    background: @feedback-neutral-bg;
+    border-color: @feedback-neutral-rim;
+    box-shadow:
+        0 0 8px @feedback-neutral-glow,
+        0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* ---- variant geometry --------------------------------------- */
+
+/* Stock — most prominent */
+.delta-chip--resource-stock {
+    font-size: 13px;
+    padding: 3px 8px 3px 7px;
+}
+
+/* Production — compact, sits above the small prod chip */
+.delta-chip--resource-production {
+    font-size: 10px;
+    padding: 2px 6px 2px 5px;
+    border-radius: 999px;
+    letter-spacing: 0.3px;
+}
+
+/* Tag — small */
+.delta-chip--tag {
+    font-size: 10px;
+    padding: 2px 5px;
+    letter-spacing: 0.3px;
+}
+
+/* Misc — same compact shape as tag */
+.delta-chip--misc {
+    font-size: 11px;
+    padding: 2px 6px;
+    letter-spacing: 0.3px;
+}
+
+/* ---- chip mount / unmount transitions ----------------------- */
+
+/*
+ * Mount: chip rises 6px and fades in. easeOutQuint cubic-bezier
+ * (0.22, 1, 0.36, 1) gives a longer trail-off than the previous
+ * spring curve — settles softer, no abrupt arrival. Durations
+ * stretched by ~400ms so the whole effect breathes instead of
+ * snapping.
+ */
+.delta-chip-fade-enter-active {
+    transition:
+        opacity 380ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 460ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.delta-chip-fade-enter-from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.85);
+}
+
+.delta-chip-fade-enter-to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+/*
+ * Unmount: chip fades up + out. Smoother easeInQuart curve so the
+ * disappear isn't an abrupt cut — paired with the longer duration
+ * the chip "drifts away" rather than vanishing.
+ */
+.delta-chip-fade-leave-active {
+    transition:
+        opacity 540ms cubic-bezier(0.5, 0, 0.75, 0.2),
+        transform 540ms cubic-bezier(0.5, 0, 0.75, 0.2);
+}
+
+.delta-chip-fade-leave-from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.delta-chip-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.9);
+}
+
+/*
+ * Reduced-motion: drop the transform travel entirely. Pure opacity
+ * fade so the feedback signal survives without movement.
+ */
+.delta-chip-fade-reduced-enter-active,
+.delta-chip-fade-reduced-leave-active {
+    transition: opacity 340ms linear;
+}
+
+.delta-chip-fade-reduced-enter-from,
+.delta-chip-fade-reduced-leave-to {
+    opacity: 0;
+}
+
+.delta-chip-fade-reduced-enter-to,
+.delta-chip-fade-reduced-leave-from {
+    opacity: 1;
+}
+
+/*
+ * ---- Number flash + row pulse (CSS-only, driven by :has()) ----
+ *
+ * When a delta chip mounts inside a cell, the cell's active-polarity
+ * class flips on. We use that class on the host span as a CSS
+ * trigger for the SIBLING number and the PARENT row to flash.
+ *
+ * Why :has()? It lets the same animation be triggered by either the
+ * stock chip or the production chip without each cell needing a
+ * separate state class. The browser support floor (Chromium 105,
+ * Firefox 121, Safari 15.4) is acceptable for the fork's target.
+ */
+
+/* --- stock number flash ---------------------------------------- */
+
+/*
+ * Stock-number flash. Keyframes evenly distributed (rise ~30%, hold ~50%,
+ * unwind ~100%) so the colour shift breathes instead of snapping. Soft
+ * easeInOutSine smooths both ends of the curve.
+ */
+@keyframes stock-flash-positive {
+    0%   { color: inherit; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(106, 176, 230, 0.18); transform: none; }
+    30%  { color: @feedback-positive-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 10px @feedback-positive-glow; transform: scale(1.06); }
+    55%  { color: @feedback-positive-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 8px @feedback-positive-glow; transform: scale(1.04); }
+    100% { color: inherit; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(106, 176, 230, 0.18); transform: none; }
+}
+
+@keyframes stock-flash-negative {
+    0%   { color: inherit; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(106, 176, 230, 0.18); transform: none; }
+    30%  { color: @feedback-negative-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 10px @feedback-negative-glow; transform: scale(1.04); }
+    55%  { color: @feedback-negative-text; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 8px @feedback-negative-glow; transform: scale(1.03); }
+    100% { color: inherit; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(106, 176, 230, 0.18); transform: none; }
+}
+
+.resource_item_stock:has(.metric-feedback-host--active-positive) .resource_item_stock_count {
+    animation: stock-flash-positive 1000ms cubic-bezier(0.37, 0, 0.63, 1);
+    transform-origin: right center;
+}
+
+.resource_item_stock:has(.metric-feedback-host--active-negative) .resource_item_stock_count {
+    animation: stock-flash-negative 1000ms cubic-bezier(0.37, 0, 0.63, 1);
+    transform-origin: right center;
+}
+
+/* --- production chip flash ------------------------------------- */
+
+@keyframes prod-flash-positive {
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.45), 0 1px 2px rgba(0, 0, 0, 0.32); }
+    35%      { box-shadow: inset 0 0 0 1px @feedback-positive-rim, 0 0 12px @feedback-positive-glow-soft, 0 1px 2px rgba(0, 0, 0, 0.32); }
+    60%      { box-shadow: inset 0 0 0 1px @feedback-positive-rim, 0 0 8px @feedback-positive-glow-soft, 0 1px 2px rgba(0, 0, 0, 0.32); }
+}
+
+@keyframes prod-flash-negative {
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.45), 0 1px 2px rgba(0, 0, 0, 0.32); }
+    35%      { box-shadow: inset 0 0 0 1px @feedback-negative-rim, 0 0 12px @feedback-negative-glow-soft, 0 1px 2px rgba(0, 0, 0, 0.32); }
+    60%      { box-shadow: inset 0 0 0 1px @feedback-negative-rim, 0 0 8px @feedback-negative-glow-soft, 0 1px 2px rgba(0, 0, 0, 0.32); }
+}
+
+/*
+ * The prod chip host now lives as a sibling of .resource_item_prod
+ * (not inside it — see comment in PlayerResource.vue and the
+ * positioning block above). So the flash selector walks up to
+ * .resource_item then back down to .resource_item_prod.
+ */
+.resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-positive) .resource_item_prod {
+    animation: prod-flash-positive 1100ms cubic-bezier(0.37, 0, 0.63, 1);
+}
+
+.resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-negative) .resource_item_prod {
+    animation: prod-flash-negative 1100ms cubic-bezier(0.37, 0, 0.63, 1);
+}
+
+/* --- tag / misc count flash ------------------------------------ */
+
+@keyframes tag-flash-positive {
+    0%, 100% { color: inherit; text-shadow: none; transform: none; }
+    30%      { color: @feedback-positive-text; text-shadow: 0 0 8px @feedback-positive-glow; transform: scale(1.08); }
+    55%      { color: @feedback-positive-text; text-shadow: 0 0 6px @feedback-positive-glow; transform: scale(1.04); }
+}
+
+@keyframes tag-flash-negative {
+    0%, 100% { color: inherit; text-shadow: none; transform: none; }
+    30%      { color: @feedback-negative-text; text-shadow: 0 0 8px @feedback-negative-glow; transform: scale(1.04); }
+    55%      { color: @feedback-negative-text; text-shadow: 0 0 6px @feedback-negative-glow; transform: scale(1.02); }
+}
+
+.tag-display:has(.metric-feedback-host--active-positive) .tag-count-display {
+    animation: tag-flash-positive 950ms cubic-bezier(0.37, 0, 0.63, 1);
+    transform-origin: center;
+}
+
+.tag-display:has(.metric-feedback-host--active-negative) .tag-count-display {
+    animation: tag-flash-negative 950ms cubic-bezier(0.37, 0, 0.63, 1);
+    transform-origin: center;
+}
+
+/*
+ * Subtle row-level glow for stock changes — the entire resource row
+ * gets a very soft inset rim during the chip's visible window. Helps
+ * peripheral vision lock onto WHICH resource changed even when the
+ * eye is fixated elsewhere on the screen (e.g. board), without
+ * being a flashing aurora.
+ */
+@keyframes row-pulse-positive {
+    0%, 100% { box-shadow: none; }
+    35%      { box-shadow: inset 0 0 0 1px @feedback-positive-rim, 0 0 18px @feedback-positive-glow-soft; }
+    60%      { box-shadow: inset 0 0 0 1px @feedback-positive-rim, 0 0 12px @feedback-positive-glow-soft; }
+}
+
+@keyframes row-pulse-negative {
+    0%, 100% { box-shadow: none; }
+    35%      { box-shadow: inset 0 0 0 1px @feedback-negative-rim, 0 0 18px @feedback-negative-glow-soft; }
+    60%      { box-shadow: inset 0 0 0 1px @feedback-negative-rim, 0 0 12px @feedback-negative-glow-soft; }
+}
+
+.resource_item:has(> .resource_item_stock .metric-feedback-host--active-positive) {
+    animation: row-pulse-positive 1300ms cubic-bezier(0.37, 0, 0.63, 1);
+    border-radius: 4px;
+}
+
+.resource_item:has(> .resource_item_stock .metric-feedback-host--active-negative) {
+    animation: row-pulse-negative 1300ms cubic-bezier(0.37, 0, 0.63, 1);
+    border-radius: 4px;
+}
+
+/*
+ * Reduced-motion overrides: keep the colour shift, drop the
+ * scale/transform. Glow is fine — pure opacity-based painting
+ * isn't movement.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .resource_item_stock:has(.metric-feedback-host--active-positive) .resource_item_stock_count,
+    .resource_item_stock:has(.metric-feedback-host--active-negative) .resource_item_stock_count,
+    .tag-display:has(.metric-feedback-host--active-positive) .tag-count-display,
+    .tag-display:has(.metric-feedback-host--active-negative) .tag-count-display {
+        animation: none;
+    }
+
+    .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-positive) .resource_item_prod,
+    .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-negative) .resource_item_prod,
+    .resource_item:has(> .resource_item_stock .metric-feedback-host--active-positive),
+    .resource_item:has(> .resource_item_stock .metric-feedback-host--active-negative) {
+        animation: none;
+    }
+
+    .delta-chip {
+        transition: opacity 200ms linear;
+    }
+}

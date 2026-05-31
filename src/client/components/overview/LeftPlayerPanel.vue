@@ -60,6 +60,7 @@
         :convertPlantsAvailable="convertPlantsAvailable"
         :convertPlantsPickerActive="convertPlantsPickerActive"
         :isViewer="isViewer"
+        :epoch="playerView.runId"
         @convert-heat="$emit('convertHeat')"
         @convert-plants="$emit('convertPlants')"
         v-trim-whitespace />

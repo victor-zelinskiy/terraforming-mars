@@ -5,14 +5,18 @@
       :count="player.megacredits"
       :production="player.megacreditProduction"
       :resourceProtection="player.protectedResources.megacredits"
-      :productionProtection="player.protectedProduction.megacredits"/>
+      :productionProtection="player.protectedProduction.megacredits"
+      :scopeKey="player.color"
+      :epoch="epoch"/>
     <player-resource
       :type="Resource.STEEL"
       :count="player.steel"
       :production="player.steelProduction"
       :value="player.steelValue"
       :resourceProtection="player.protectedResources.steel"
-      :productionProtection="player.protectedProduction.steel"/>
+      :productionProtection="player.protectedProduction.steel"
+      :scopeKey="player.color"
+      :epoch="epoch"/>
     <!-- TODO LUNA TRADE FEDERATION -->
     <player-resource
       :type="Resource.TITANIUM"
@@ -20,7 +24,9 @@
       :production="player.titaniumProduction"
       :value="player.titaniumValue"
       :resourceProtection="player.protectedResources.titanium"
-      :productionProtection="player.protectedProduction.titanium"/>
+      :productionProtection="player.protectedProduction.titanium"
+      :scopeKey="player.color"
+      :epoch="epoch"/>
     <!--
       Plants row carries the "Convert plants into a greenery" button on its
       right edge. Rendered ONLY when the server is currently offering the
@@ -60,7 +66,9 @@
         :count="player.plants"
         :production="player.plantProduction"
         :resourceProtection="player.protectedResources.plants"
-        :productionProtection="player.protectedProduction.plants"/>
+        :productionProtection="player.protectedProduction.plants"
+        :scopeKey="player.color"
+        :epoch="epoch"/>
       <!--
         Shimmer overlay sits as a sibling of the icon, not as
         ::before/::after on the icon itself — the icon's pseudo
@@ -83,7 +91,9 @@
       :count="player.energy"
       :production="player.energyProduction"
       :resourceProtection="player.protectedResources.energy"
-      :productionProtection="player.protectedProduction.energy"/>
+      :productionProtection="player.protectedProduction.energy"
+      :scopeKey="player.color"
+      :epoch="epoch"/>
     <!--
       Heat row — same native-icon convert pattern as plants above.
       See plants wrapper for the design rationale. The icon glows
@@ -108,7 +118,9 @@
         :production="player.heatProduction"
         :value="canUseHeatAsMegaCredits ? 1 : 0"
         :resourceProtection="player.protectedResources.heat"
-        :productionProtection="player.protectedProduction.heat"/>
+        :productionProtection="player.protectedProduction.heat"
+        :scopeKey="player.color"
+        :epoch="epoch"/>
       <span v-if="heatButtonVisible"
             class="convert-action-shimmer"
             aria-hidden="true"></span>
@@ -162,6 +174,17 @@ export default defineComponent({
     isViewer: {
       type: Boolean,
       default: false,
+    },
+    /*
+     * Game-session identifier (typically `playerView.runId`). Forwarded
+     * to each PlayerResource → AnimatedMetricValue so that a new game
+     * session re-baselines change-feedback values without manual
+     * reset. Empty string is acceptable; the feedback manager treats
+     * unspecified epoch as a stable scope.
+     */
+    epoch: {
+      type: String,
+      default: '',
     },
   },
   emits: ['convert-heat', 'convert-plants'],
