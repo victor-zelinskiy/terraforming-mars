@@ -75,18 +75,32 @@
       grey buttons add no information when the action just isn't on
       offer right now.
     -->
-    <div v-if="isViewer" class="left-panel-card-actions" @click.stop>
+    <!--
+      `@click.stop` is on the BUTTONS individually, NOT on the
+      wrapper. The wrapper reserves layout space for two buttons but
+      one or both may be `visibility: hidden` + `pointer-events:
+      none` when the server isn't offering that action. Putting
+      `.stop` on the wrapper killed click propagation in those
+      hidden-button slots too, which made tapping the viewer's own
+      card to switch back to self impossible in the lower half of
+      the card (player feedback — "dead zones"). With .stop on the
+      buttons themselves, clicks on a visible button stop at the
+      button (so Pass / Skip-turn don't also trigger card select),
+      while clicks landing on a hidden button slot bubble normally
+      up to the card root and trigger the `select` emit.
+    -->
+    <div v-if="isViewer" class="left-panel-card-actions">
       <button class="left-panel-card-action-btn left-panel-card-action-btn--pass"
               :class="{'left-panel-card-action-btn--hidden': !passAvailable}"
               :title="$t('Pass — end your participation in this generation. You will not be able to take any more actions until the next generation.')"
-              @click="$emit('pass')"
+              @click.stop="$emit('pass')"
               data-test="player-card-pass">
         <span class="left-panel-card-action-btn-label" v-i18n>Pass</span>
       </button>
       <button class="left-panel-card-action-btn left-panel-card-action-btn--end-turn"
               :class="{'left-panel-card-action-btn--hidden': !endTurnAvailable}"
               :title="$t('End turn — skip your second action and pass the turn to the next player. You can still act in this generation on your next turn.')"
-              @click="$emit('end-turn')"
+              @click.stop="$emit('end-turn')"
               data-test="player-card-end-turn">
         <!--
           Distinct English key ("Skip turn") rather than reusing "End Turn"

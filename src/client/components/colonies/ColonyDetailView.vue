@@ -301,12 +301,19 @@ export default defineComponent({
     // `idx` — same shape as the build/colony metadata, but with the
     // per-position quantity. Lets us reuse BenefitGlyph for the whole
     // 7-cell track without per-type rendering code in the template.
+    //
+    // Europa's quirk: `trade.resource` is an ARRAY of 7 resources, one
+    // per position (M€ / energy / plants depending on where the marker
+    // sits). For these colonies we extract the per-position resource so
+    // each track cell shows its own glyph; for the usual single-resource
+    // colonies we pass the resource through unchanged.
     tradeAtIndex(idx: number): {type: ColonyBenefit; quantity: Array<number>; resource?: unknown} {
       const t = this.metadata.trade;
+      const resource = Array.isArray(t.resource) ? t.resource[idx] : t.resource;
       return {
         type: t.type,
         quantity: [t.quantity[idx] ?? 0],
-        resource: t.resource,
+        resource,
       };
     },
   },

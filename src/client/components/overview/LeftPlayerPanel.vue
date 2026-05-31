@@ -20,7 +20,40 @@
         @end-turn="$emit('end-turn')" />
     </div>
 
+    <!--
+      Section micro-labels (v42 HUD pass): each below-player-card
+      section gets a small uppercase HUD label at the top-left. This
+      is the kind of "premium information panel" cue the player
+      flagged as missing — establishes hierarchy and tells the
+      reader what cluster of data they're looking at without
+      crowding it. Sci-fi-style: 9 px, letter-spacing 2 px, muted
+      cyan. Styling lives on `.left-panel-section__label` in
+      player_home.less.
+
+      The label is anchored to the section frame, not its content,
+      so changing the inner component (PlayerResources, PlayerTags)
+      doesn't shift the label. Section corner ticks still flank the
+      whole frame.
+    -->
     <div class="left-panel-section">
+      <div class="left-panel-section__label" v-i18n>Resources</div>
+      <!--
+        Resource column headers — tiny shared captions above the
+        resource table. Lets the table show only data (icon | count
+        | prod) without per-row labels. Aligned to the table's grid
+        columns (icon column has no header; count and prod columns
+        share "ЗАПАС" / "ПРИРОСТ").
+
+        The label cells are intentionally placed as a manual row
+        ABOVE PlayerResources rather than inside the cont's grid,
+        because PlayerResources is a reusable component used in
+        other contexts (spectator view, etc.) where these headers
+        would not make sense.
+      -->
+      <div class="left-panel-section__col-headers">
+        <span class="col-header col-header--stock" v-i18n>Stock</span>
+        <span class="col-header col-header--prod" v-i18n>Production</span>
+      </div>
       <PlayerResources
         :player="displayedPlayer"
         :convertHeatAvailable="convertHeatAvailable"
@@ -38,6 +71,7 @@
          grid position regardless of who's selected, so switching players
          doesn't make icons "jump" to new cells. -->
     <div class="left-panel-tags-secondary left-panel-section">
+      <div class="left-panel-section__label" v-i18n>Tags</div>
       <PlayerTags
         section="cardTags"
         :player="displayedPlayer"
@@ -46,6 +80,7 @@
     </div>
 
     <div class="left-panel-tags-secondary left-panel-tags-extras left-panel-section">
+      <div class="left-panel-section__label" v-i18n>Extra</div>
       <PlayerTags
         section="extras"
         :player="displayedPlayer"

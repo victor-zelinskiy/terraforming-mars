@@ -757,6 +757,27 @@
     filter: drop-shadow(0px 0px 1px black);
 }
 
+/*
+ * Tile glyph used in build slots for tile-placement bonuses (Europa
+ * ocean today; PLACE_HAZARD_TILE / INCREASE_VENUS_SCALE could ride the
+ * same shape later). Overrides the global `.tile` defaults (40×46 +
+ * 5-10px margins) so the tile fits the compact slot without offset.
+ */
+.colony-tile__build-tile {
+    width: 26px;
+    height: 28px;
+    background-size: 26px 28px;
+    background-repeat: no-repeat;
+    background-position: center;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+    filter: drop-shadow(0px 0px 1px black);
+}
+
 .colony-tile__build-num {
     font-family: Prototype, sans-serif;
     font-size: 13px;
@@ -923,6 +944,25 @@
     border-radius: 2px;
     margin: 0;
     flex-shrink: 0;
+}
+
+/*
+ * Production-box variant for the trade reward (Europa today).
+ * Shrinks the global 44px-wide production box down to row scale so
+ * it sits naturally next to the "→" arrow without overlapping
+ * neighbouring rows. Resource glyph inside follows the same shrink
+ * via transform-origin centering — the brown bevel is intact, the
+ * production tint is preserved, and the resource sprite (energy /
+ * plant / M€) stays recognisable at small size.
+ */
+.colony-tile__row-reward-prod {
+    transform: scale(0.45);
+    transform-origin: left center;
+    width: 44px;
+    height: auto;
+    margin: 0 -20px 0 0; // claw back the empty space the scale left behind
+    flex-shrink: 0;
+    line-height: 1;
 }
 
 /* Fallback for trade/colony rewards that aren't simple resource icons
