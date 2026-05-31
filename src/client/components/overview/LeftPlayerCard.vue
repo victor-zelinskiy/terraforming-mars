@@ -26,23 +26,37 @@
       </div>
     </div>
     <!--
-      Status bar is ALWAYS rendered, even when there's no active label
-      (`actionLabel` is 'none' / ''). The empty state has visibility:hidden
-      via the `--empty` modifier so the card's vertical layout stays
-      constant — resource icons and tags below don't jump up/down as
-      players transition between turn / pass / waiting states.
+      Status bar — shared visual language with the initial-draft status
+      rail (see InitialDraftStatusRail.vue). Always rendered (empty
+      state uses visibility: hidden via --empty so card layout stays
+      stable as players transition between turn / pass / waiting /
+      none states).
 
-      For the action-turn case, show which of the two actions the player
-      is currently on ("ДЕЙСТВИЕ 1/2" / "ДЕЙСТВИЕ 2/2"). The default upstream
-      label "ХОД" is ambiguous because a "turn" in TM is two consecutive
-      actions; players couldn't tell whether they were about to do their
-      first or second. `actionsTakenThisRound` is server-side state, so
-      the index updates the moment the previous action resolves.
+      Structure mirrors the rail:
+        [dot/check] [status text] [optional counter chip]
+
+      Phase translation policy (per player feedback): "turmoil
+      globalsupport" / "research drafting" etc. are PHASE names, not
+      player statuses. Inside this card we render PLAYER-facing
+      language — "Choosing" when the player is making a decision in any
+      multi-input phase, "Action" when it's their action turn (with a
+      separate 1/2 counter chip), "waiting" / "passed" / hidden. The
+      raw phase label is kept on the computed `actionLabel` prop for
+      callers that need it.
+
+      Counter chip is broken out from the text so the main status reads
+      cleanly as a word ("Действие") and the count ("1/2") sits as a
+      compact sci-fi pill beside it. Mirrors the rail's status-dot
+      placement; reuses the same typographic scale.
     -->
     <div :class="statusClass">
-      <span v-if="actionLabel === 'turn'" v-i18n="[actionIndex, MAX_ACTIONS_PER_ROUND]">Action ${0}/${1}</span>
-      <span v-else-if="hasStatus" v-i18n>{{ actionLabel }}</span>
+      <span v-if="isActive"
+            class="left-panel-card-status-dot"
+            aria-hidden="true"></span>
+      <span v-if="hasStatus" v-i18n>{{ statusText }}</span>
       <span v-else>&nbsp;</span>
+      <span v-if="actionLabel === 'turn'"
+            class="left-panel-card-status-counter">{{ actionCounterText }}</span>
     </div>
     <!--
       Turn-control column: PASS on top, END TURN below. Rendered ONLY on
@@ -160,7 +174,40 @@ export default defineComponent({
       if (this.selected) {
         classes.push('left-panel-card--selected');
       }
+      /*
+       * --active = the SERVER is waiting on this player to act right
+       * now (whether they're on their turn, drafting, picking research
+       * cards, voting on Turmoil, etc.). Triggers the rail-style
+       * left-edge accent bar + cyan glow on the card — the modern
+       * standardised "this is the player to watch right now" signal,
+       * matching the rail's `--active` modifier exactly.
+       *
+       * Distinct from --selected (which means "the viewer clicked
+       * this card to inspect this player's tableau"). Both can be
+       * true at once and stack cleanly.
+       */
+      if (this.isActive) {
+        classes.push('left-panel-card--active');
+      }
+      if (this.isPassed) {
+        classes.push('left-panel-card--passed');
+      }
       return classes.join(' ');
+    },
+    /*
+     * True when the server is waiting on this player to do something.
+     * Drives both the cube spin (existing) and the modern --active
+     * card-level accent + status-dot pulse (new).
+     */
+    isActive(): boolean {
+      return this.actionLabel === 'turn' ||
+             this.actionLabel === 'researching' ||
+             this.actionLabel === 'drafting' ||
+             this.actionLabel === 'globalsupport' ||
+             this.actionLabel === 'delegate';
+    },
+    isPassed(): boolean {
+      return this.actionLabel === 'passed';
     },
     // Cube carries the player colour plus the legacy `.preferences_player_inner.active`
     // rotation animation while we're waiting on that player to do something.
@@ -219,14 +266,10 @@ export default defineComponent({
         // below stay anchored regardless of turn state.
         return `${base} ${base}--empty`;
       }
-      if (this.actionLabel === 'passed') {
+      if (this.isPassed) {
         return `${base} ${base}--passed`;
       }
-      if (this.actionLabel === 'turn' ||
-          this.actionLabel === 'drafting' ||
-          this.actionLabel === 'researching' ||
-          this.actionLabel === 'globalsupport' ||
-          this.actionLabel === 'delegate') {
+      if (this.isActive) {
         return `${base} ${base}--active`;
       }
       if (this.actionLabel === 'waiting') {
@@ -234,8 +277,43 @@ export default defineComponent({
       }
       return base;
     },
-    MAX_ACTIONS_PER_ROUND(): number {
-      return MAX_ACTIONS_PER_ROUND;
+    /*
+     * Player-facing status text. Maps internal phase labels to the
+     * compact rail vocabulary:
+     *
+     *   'turn'                                       → 'Action'  (+ 1/2 chip)
+     *   'drafting' / 'researching' /
+     *   'globalsupport' / 'delegate'                 → 'Choosing'
+     *   'passed'                                     → 'passed'
+     *   'waiting'                                    → 'waiting'
+     *
+     * Phase names ('drafting', 'researching', etc.) are intentionally
+     * collapsed to a single human-friendly verb. The exact phase is
+     * already communicated by the main game UI (modal title, top bar,
+     * etc.) — duplicating it here as a player status reads as noise
+     * and conflicts with the player-centred language the rail
+     * established (see player feedback).
+     */
+    statusText(): string {
+      if (this.actionLabel === 'turn') {
+        return 'Action';
+      }
+      if (this.actionLabel === 'drafting' ||
+          this.actionLabel === 'researching' ||
+          this.actionLabel === 'globalsupport' ||
+          this.actionLabel === 'delegate') {
+        return 'Choosing';
+      }
+      return this.actionLabel;
+    },
+    /*
+     * Plain "N/M" string for the action counter chip — no i18n needed
+     * (digits and slash translate identically across locales). The
+     * chip is rendered as a sibling of the status text via the
+     * `.left-panel-card-status-counter` sci-fi pill.
+     */
+    actionCounterText(): string {
+      return `${this.actionIndex}/${MAX_ACTIONS_PER_ROUND}`;
     },
     // 1-indexed position of the action the player is currently about to
     // take. In normal play `actionsTakenThisRound` is 0 → display 1/2,
