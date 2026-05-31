@@ -41,9 +41,19 @@ const MISC_VARIANT_TAGS = new Set<string>([
   SpecialTags.UNDERGROUND_TOKEN_COUNT,
   SpecialTags.CORRUPTION,
   SpecialTags.NEGATIVE_VP,
+  'cards',
+]);
+
+/*
+ * Tag IDs whose change is game-defining and deserves a stronger,
+ * dedicated transition: Victory Points and Terraforming Rating.
+ * Anything in this set bypasses MISC_VARIANT_TAGS — the visual
+ * vocabulary is "this changed the score" rather than "another
+ * counter ticked".
+ */
+const SCORE_VARIANT_TAGS = new Set<string>([
   'vp',
   'tr',
-  'cards',
 ]);
 
 export default defineComponent({
@@ -138,7 +148,13 @@ export default defineComponent({
       return `tag.${this.tag}`;
     },
     feedbackVariant(): DeltaChipVariant {
-      return MISC_VARIANT_TAGS.has(this.tag) ? 'misc' : 'tag';
+      if (SCORE_VARIANT_TAGS.has(this.tag)) {
+        return 'score';
+      }
+      if (MISC_VARIANT_TAGS.has(this.tag)) {
+        return 'misc';
+      }
+      return 'tag';
     },
   },
 });

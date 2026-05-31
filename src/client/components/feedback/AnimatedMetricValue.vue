@@ -49,6 +49,7 @@ const CHIP_VISIBLE_MS: Record<DeltaChipVariant, number> = {
   'resource-production': 1350,
   'tag': 1300,
   'misc': 1300,
+  'score': 1700,
 };
 
 export default defineComponent({

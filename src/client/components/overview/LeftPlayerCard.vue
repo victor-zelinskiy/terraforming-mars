@@ -18,11 +18,28 @@
     <div class="left-panel-card-row left-panel-card-row--stats">
       <div class="left-panel-card-stat left-panel-card-stat--vp" :title="$t('Victory points')">
         <span class="left-panel-card-stat-label">ПО</span>
-        <span class="left-panel-card-stat-value">{{ hideVp ? '?' : vp }}</span>
+        <span class="left-panel-card-stat-value">
+          <span class="left-panel-card-stat-value__num">{{ hideVp ? '?' : vp }}</span>
+          <AnimatedMetricValue
+            v-if="!hideVp"
+            :value="vp"
+            metricKey="score.vp"
+            :scopeKey="player.color"
+            :epoch="epoch"
+            variant="score" />
+        </span>
       </div>
       <div class="left-panel-card-stat left-panel-card-stat--tr" :title="$t('Terraforming Rating')">
         <span class="left-panel-card-stat-label">РТ</span>
-        <span class="left-panel-card-stat-value">{{ tr }}</span>
+        <span class="left-panel-card-stat-value">
+          <span class="left-panel-card-stat-value__num">{{ tr }}</span>
+          <AnimatedMetricValue
+            :value="tr"
+            metricKey="score.tr"
+            :scopeKey="player.color"
+            :epoch="epoch"
+            variant="score" />
+        </span>
       </div>
     </div>
     <!--
@@ -127,6 +144,7 @@ import {
   StatusPresentation,
 } from './playerStatusPresenter';
 import PlayerStatusGlyph from './PlayerStatusGlyph.vue';
+import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 
 // Vanilla TM gives each player exactly 2 actions per turn. The server side
 // has an `availableActionsThisRound` field on Player.ts that anticipates
@@ -183,10 +201,21 @@ export default defineComponent({
       type: Number,
       default: 0,
     },
+    /*
+     * Game-session identifier (`playerView.runId`) forwarded into the
+     * VP/TR AnimatedMetricValue instances. Combined with `player.color`
+     * to scope change-feedback state so that switching games doesn't
+     * fire a phantom delta against the previous game's VP/TR.
+     */
+    epoch: {
+      type: String,
+      default: '',
+    },
   },
   emits: ['select', 'pass', 'end-turn'],
   components: {
     PlayerStatusGlyph,
+    AnimatedMetricValue,
   },
   computed: {
     /*
