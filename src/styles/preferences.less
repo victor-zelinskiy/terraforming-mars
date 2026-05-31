@@ -867,33 +867,51 @@
      * the modal); only the fill / glow palette swaps.
      */
     &.card-zoom-actions__btn--unselect {
+        /*
+         * v40-x: SOLID bright cyan fill, not translucent glass.
+         * Earlier iteration was light cyan-glass at 0.55-0.62 alpha
+         * which read as "немного прозрачная" — felt less committed
+         * than the primary "ВЫБРАТЬ" button. Matches the same solid
+         * cyan treatment in card_selection.less (per-card --selected)
+         * and initial_draft.less (__card-btn--selected) so the
+         * "this is the currently-active toggle" language is
+         * consistent across every card-selection flow.
+         *
+         * Outer alpha 0.92-0.95 (was 0.55-0.62), darker cyan
+         * ::before chassis (was light cyan tint). Equal visual
+         * weight to the primary cyan button; the palette stays
+         * inside the cyan family so it doesn't read as a warning.
+         */
         background: linear-gradient(180deg,
-            rgba(140, 195, 235, 0.42) 0%,
-            rgba(80, 140, 195, 0.42) 45%,
-            rgba(45, 95, 145, 0.42) 100%);
+            rgba(180, 225, 250, 0.95) 0%,
+            rgba(106, 176, 230, 0.92) 45%,
+            rgba(55, 115, 175, 0.92) 100%);
         box-shadow:
-            0 0 0 1px rgba(180, 220, 250, 0.85),
-            0 0 22px rgba(106, 176, 230, 0.42),
+            0 0 0 1.5px rgba(220, 240, 255, 0.95),
+            0 0 26px rgba(106, 176, 230, 0.6),
             0 10px 18px rgba(0, 0, 0, 0.5);
-        color: #f0f7ff;
-        text-shadow: 0 1px 0 rgba(8, 16, 28, 0.45);
+        /* Light text with dark shadow — matches the sibling
+         * primary "ВЫБРАТЬ" button's readability pattern. */
+        color: #f5fbff;
+        text-shadow: 0 1px 0 rgba(8, 16, 28, 0.6);
 
         &::before {
             background: linear-gradient(180deg,
-                rgba(30, 60, 95, 0.55) 0%,
-                rgba(10, 20, 34, 0.78) 100%);
+                rgba(35, 75, 115, 0.18) 0%,
+                rgba(18, 45, 78, 0.5) 100%);
         }
         &::after {
             background: radial-gradient(ellipse at center,
-                rgba(106, 176, 230, 0.42) 0%,
-                rgba(106, 176, 230, 0.14) 50%,
+                rgba(106, 176, 230, 0.55) 0%,
+                rgba(106, 176, 230, 0.18) 50%,
                 rgba(106, 176, 230, 0) 80%);
         }
         &:hover:not(:disabled) {
+            filter: brightness(1.08) saturate(1.05);
             box-shadow:
-                0 0 0 1px rgba(200, 235, 255, 1),
-                0 0 32px rgba(106, 176, 230, 0.72),
-                0 14px 26px rgba(0, 0, 0, 0.55);
+                0 0 0 1.5px rgba(230, 245, 255, 1),
+                0 0 38px rgba(106, 176, 230, 0.85),
+                0 14px 24px rgba(0, 0, 0, 0.55);
         }
     }
 }
@@ -1040,23 +1058,52 @@
  *  state could change), so this state only renders during BUY.
  */
 .card-zoom-card--selected {
-    /* v40-u: chassis trimmed from 7 layers to 4, ribbon smaller and
-     * desaturated, halo alphas lowered — same polish pass applied
-     * to the grid's `.card-selection__card-slot--selected`. The two
-     * contexts now share the same premium-frame language: a slim
-     * 2-px cyan accent rim, no thick spacer rings, neutral steel-
-     * silver-cyan status pill instead of a bright cyan banner.
-     * Proportionally larger here than the grid (font 13 vs 9.5,
-     * ribbon 24 vs 20 px tall) because the upscaled fullscreen
-     * card is larger, but the visual VOCABULARY is identical. */
+    /*
+     * v40-w: the previous `.filterDiv { box-shadow: ... !important }`
+     * override REPLACED the card's type-specific chassis (green for
+     * Automated, red for Event, blue for Active, amber for Prelude,
+     * etc. — from cards_scifi.less :: mk-type-frame) with a cyan
+     * frame. Result: a selected card looked DULLER than the same
+     * card unselected, because the bright type colour band was
+     * gone. Player feedback flagged this directly.
+     *
+     * Fix: do NOT override .filterDiv's box-shadow. The type
+     * chassis stays intact. Selection is communicated by two
+     * additive signals layered AROUND the card:
+     *
+     *   ::before — a slim bright cyan rim + a soft pulsing halo,
+     *              combined in a single pseudo. Sits OUTSIDE the
+     *              card so the type colour shows through underneath
+     *              and our cyan rim reads as an ADDITIONAL frame
+     *              on top of it. The whole ::before breathes
+     *              together (2.4-s pulse) so the rim has the same
+     *              "lit" rhythm as the halo.
+     *
+     *   ::after  — the "ВЫБРАНА" status pill above the card.
+     *              Unchanged from v40-u proportions.
+     *
+     * Net effect: selected card = full type-colour chassis + cyan
+     * rim + cyan halo + status ribbon — strictly brighter and
+     * more present than the unselected baseline.
+     */
     &::before {
         content: '';
         position: absolute;
-        inset: -32px;
+        /* -14 px places the rim outside the type chassis solid
+         * rings (which extend ~7 px outside the card at zoom 1, and
+         * ~17.5 px at the fullscreen's typical zoom 2.5; we err on
+         * the larger side and put the rim well past the chassis).
+         * border-radius compensates: card-container is 16 px; at
+         * -14 px outset we use 30 px. */
+        inset: -14px;
+        border-radius: 30px;
         background: radial-gradient(ellipse at center,
-            rgba(106, 176, 230, 0.18) 0%,
-            rgba(106, 176, 230, 0.06) 42%,
+            rgba(106, 176, 230, 0.28) 0%,
+            rgba(106, 176, 230, 0.1) 42%,
             rgba(106, 176, 230, 0) 75%);
+        box-shadow:
+            0 0 0 2px rgba(140, 200, 240, 0.9),
+            0 0 36px rgba(106, 176, 230, 0.55);
         animation: card-selected-pulse 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
         pointer-events: none;
         z-index: 0;
@@ -1096,33 +1143,11 @@
         z-index: 4;
     }
 
+    /* z-index 1 so the card paints OVER the ::before halo + rim. */
     .filterDiv {
         position: relative;
         z-index: 1;
-        /*
-         * Premium-frame chassis (v40-u). 4 layers, no rectangular
-         * box feel:
-         *   - inset top sheen           → subtle inner highlight
-         *   - 1-px hairline outer rim   → defines the frame edge
-         *   - 2-px cyan accent ring     → THE primary selected signal
-         *   - 22-px soft outer halo     → ambient glow, no hard line
-         *   - drop shadow               → grounds the lifted card
-         *
-         * Same vocabulary as the grid's selected card — but the
-         * fullscreen presentation is larger and reads at a longer
-         * distance, so halo radius and drop shadow are scaled up
-         * proportionally (22 → 28 / 14 → 18) to compensate.
-         *
-         * !important required to beat both the type-frame chassis
-         * from cards_scifi.less section 9 AND the static halo
-         * defined a few rules up in this file.
-         */
-        box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.32),
-            0 0 0 1px rgba(220, 240, 255, 0.32),
-            0 0 0 2px rgba(106, 176, 230, 0.7),
-            0 0 28px rgba(106, 176, 230, 0.3),
-            0 18px 36px rgba(0, 0, 0, 0.6) !important;
+        /* NO box-shadow override — type chassis stays. */
     }
 }
 

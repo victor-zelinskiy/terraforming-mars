@@ -664,6 +664,17 @@ body.initial-draft-awaiting-others {
             linear-gradient(180deg,
                 rgba(20, 36, 56, 0.42) 0%,
                 rgba(14, 24, 38, 0.0) 100%);
+        /*
+         * Min-height pins the floor so the header doesn't shrink
+         * vertically when money panel is in placeholder mode
+         * (visibility: hidden still occupies space but the
+         * surrounding layout shouldn't be affected — pinned for
+         * defense against any future variant where the panel is
+         * actually unmounted). Title-block + counter pill is ~60 px;
+         * money panel is ~62 px; min-height 76 leaves padding.
+         */
+        min-height: 76px;
+        box-sizing: border-box;
     }
 
     /* Title-block в центральной auto-колонке header'a — flex column
@@ -735,6 +746,24 @@ body.initial-draft-awaiting-others {
         }
     }
 
+    /*
+     * Placeholder mode — corp step keeps the money panel mounted at
+     * ALL times so the modal's intrinsic width doesn't jump on
+     * hover-in / hover-out (the panel reserves its grid column
+     * width in BOTH states). When the player isn't hovering any
+     * card, the panel's content is hidden via `visibility: hidden`
+     * — pixels don't paint but the box still occupies its slot.
+     *
+     * The hosting Vue template (InitialDraftCorpStep.vue) keeps the
+     * panel mounted in the DOM and toggles this class via
+     * `:class="{'initial-draft-pick__money--placeholder': hoverMoneyValue === undefined}"`.
+     * Other steps (prelude / projects) always have a real money
+     * value, so they never apply this class.
+     */
+    &__money--placeholder {
+        visibility: hidden;
+    }
+
     /* ───────────────────────── GRID ────────────────────────────── */
     &__grid {
         display: grid;
@@ -772,20 +801,33 @@ body.initial-draft-awaiting-others {
     }
 
     /*
-     * Selected — единый premium state для всех модалок: cyan halo,
-     * gradient glass background, чуть приподнятая карта. Никакого
-     * ribbon'a над картой, чтобы не конкурировать с cost/tag'ами.
+     * Selected wrapper — DELIBERATELY MINIMAL.
+     *
+     * The initial-draft card unit shares the `.card-selection__card-
+     * slot--selected` class with the main card-selection modal
+     * (InitialDraftProjectsStep.vue applies both modifiers when
+     * isSelected(card)), so the card already receives the full
+     * selected-state vocabulary from card_selection.less:
+     *
+     *    - Outer cyan rim on .card-clickable::after
+     *    - Pulsing cyan halo on .card-clickable::before
+     *    - "ВЫБРАНА" ribbon on .card-container::after
+     *    - Type chassis (green / red / blue / amber) preserved
+     *
+     * The previous wrapper-level treatment ALSO added an inset
+     * `box-shadow: 0 0 0 1px rgba(140, 200, 235, 0.55)` + a gradient
+     * background. That painted a visible rectangle around the
+     * (card + button) area which DIDN'T match the card's rounded
+     * silhouette — read as "extra rectangle side under the button"
+     * (player feedback). The wrapper added noise, not signal.
+     *
+     * Fix: no wrapper background, no inset borders. The card and
+     * its button already carry the selected language. The wrapper
+     * here only adds a tiny brightness/saturation lift to the card
+     * art (drop-shadow + brightness filter) so the selected card
+     * art itself reads as a touch more alive than unselected.
      */
     &__card-unit--selected {
-        background:
-            linear-gradient(180deg,
-                rgba(40, 75, 110, 0.55) 0%,
-                rgba(20, 40, 60, 0.38) 100%);
-        box-shadow:
-            inset 0 0 0 1px rgba(140, 200, 235, 0.55),
-            inset 0 0 0 2px rgba(106, 176, 230, 0.2),
-            0 0 22px rgba(106, 176, 230, 0.34);
-
         .initial-draft-pick__card-clickable > .card-container {
             filter:
                 drop-shadow(0 0 6px rgba(140, 200, 235, 0.3))
@@ -794,10 +836,6 @@ body.initial-draft-awaiting-others {
 
         &:hover {
             transform: translateY(-4px);
-            box-shadow:
-                inset 0 0 0 1px rgba(180, 220, 250, 0.7),
-                inset 0 0 0 2px rgba(106, 176, 230, 0.28),
-                0 0 28px rgba(106, 176, 230, 0.45);
         }
     }
 
@@ -867,19 +905,49 @@ body.initial-draft-awaiting-others {
         }
     }
 
-    /* Selected — amber palette: «снимет выбор» visual signal. */
+    /*
+     * Selected — SOLID bright cyan-fill, not translucent glass.
+     *
+     * Earlier iteration tried a light cyan-glass treatment
+     * (background alpha 0.55-0.62, inner ::before alpha 0.22-0.4).
+     * Player feedback: button read as "translucent / not as
+     * committed as the unselected one". On a variable backdrop
+     * (the initial-draft step shows over the Mars surface, not a
+     * uniform dark modal panel), low-alpha cyan-glass looks weak.
+     *
+     * Fix: high-opacity bright cyan gradient (0.85-0.92 alpha) +
+     * dark cyan ::before chassis (0.95 alpha). Same parallelogram
+     * structure as the unselected button — equal visual WEIGHT —
+     * but in a lighter / brighter palette that reads as a
+     * distinct "this card is currently selected" state, not a
+     * faded ghost of the action.
+     *
+     * Unselected has a dark navy ::before showing through
+     * transparent mid-gradient (reads as "dark glass with cyan
+     * sheen"). Selected is solid bright cyan top → cyan-blue
+     * middle → deep cyan bottom (reads as "filled cyan tile").
+     * Equal solidity, opposite palette.
+     */
     &__card-btn--selected {
-        color: #fff5e6;
+        /* Light text with dark shadow — same pattern as the
+         * fullscreen primary "ВЫБРАТЬ" button (preferences.less
+         * `.card-zoom-actions__btn--primary`), which has been the
+         * known-good readability baseline for bright cyan-fill
+         * chrome. Previous tuning tried dark text on the same
+         * gradient; the dark text disappeared against the bright
+         * top of the gradient (rgba(180, 225, 250, 0.95) is too
+         * pale to support dark glyphs without an outline). */
+        color: #f5fbff;
         background: linear-gradient(180deg,
-            rgba(230, 175, 105, 0.85) 0%,
-            rgba(140, 95, 50, 0.32) 50%,
-            rgba(200, 145, 80, 0.6) 100%);
-        text-shadow: 0 0 8px rgba(255, 200, 130, 0.55);
+            rgba(180, 225, 250, 0.95) 0%,
+            rgba(106, 176, 230, 0.92) 50%,
+            rgba(55, 115, 175, 0.92) 100%);
+        text-shadow: 0 1px 0 rgba(8, 16, 28, 0.6);
 
         &::before {
             background: linear-gradient(180deg,
-                rgba(40, 26, 12, 0.96) 0%,
-                rgba(28, 18, 8, 0.96) 100%);
+                rgba(35, 75, 115, 0.95) 0%,
+                rgba(18, 45, 78, 0.95) 100%);
         }
     }
 

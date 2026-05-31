@@ -350,39 +350,45 @@
     }
 
     /*
-     * BUY-mode SELECTED variant — the card is currently picked and
-     * this button reverses the pick. Previous iteration used amber
-     * (warning palette); the player flagged that as reading as a
-     * destructive action when the intent is just a toggle of a
-     * client-side selection. New treatment: muted active-state cyan
-     * — same colour family as the selected card's rim, so the
-     * button and the card visually belong to the SAME control group.
-     * The "this click deselects" semantics is carried by the LABEL
+     * SELECTED variant — SOLID bright cyan fill, not translucent
+     * glass. Earlier iteration used low-alpha cyan-glass
+     * (background alpha 0.32); player feedback called it "немного
+     * прозрачная" — felt less committed than the unselected dark
+     * button. On a variable backdrop the glass treatment also
+     * inherits backdrop tint, which can drift the perceived colour.
+     *
+     * Fix: high-opacity cyan gradient (0.92-0.95 alpha) with the
+     * same parallelogram structure as the unselected button —
+     * equal visual WEIGHT, opposite palette. Unselected reads as
+     * "dark cyan tile"; selected reads as "bright cyan tile". The
+     * "click to deselect" semantics is carried by the LABEL
      * ("СНЯТЬ ВЫБОР"), not by colour-as-alarm.
      *
-     * Visually: lighter fill than the rest, brighter border, a tiny
-     * inner indicator dot via box-shadow to telegraph "this control
-     * is active". On hover the brightness lifts but the palette stays
-     * inside the cyan family.
+     * Border bumped to match (brighter cyan rim at 0.95 alpha),
+     * dark text for contrast against the bright fill.
      */
     &--selected {
         background: linear-gradient(180deg,
-            rgba(120, 180, 220, 0.32) 0%,
-            rgba(70, 120, 165, 0.32) 100%);
-        border-color: rgba(160, 210, 240, 0.85);
+            rgba(180, 225, 250, 0.95) 0%,
+            rgba(106, 176, 230, 0.92) 50%,
+            rgba(55, 115, 175, 0.92) 100%);
+        border-color: rgba(220, 240, 255, 0.95);
+        /* Light text with dark shadow — matches the fullscreen
+         * primary "ВЫБРАТЬ" button's known-good readability on
+         * bright cyan-fill chrome. Dark text on this same gradient
+         * (previous attempt) disappeared against the pale top. */
         color: #f5fbff;
+        text-shadow: 0 1px 0 rgba(8, 16, 28, 0.6);
         box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.22),
-            inset 0 0 0 1px rgba(180, 220, 250, 0.18),
-            0 0 14px rgba(106, 176, 230, 0.28),
+            inset 0 1px 0 rgba(255, 255, 255, 0.4),
+            0 0 18px rgba(106, 176, 230, 0.45),
             0 2px 8px rgba(0, 0, 0, 0.5);
 
         &:hover:not(:disabled) {
-            filter: brightness(1.12);
+            filter: brightness(1.08) saturate(1.05);
             box-shadow:
-                inset 0 1px 0 rgba(255, 255, 255, 0.32),
-                inset 0 0 0 1px rgba(180, 220, 250, 0.32),
-                0 0 22px rgba(106, 176, 230, 0.55),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5),
+                0 0 28px rgba(106, 176, 230, 0.7),
                 0 4px 10px rgba(0, 0, 0, 0.55);
         }
     }
@@ -467,21 +473,57 @@
         transform: translateY(-8px);
         position: relative;
 
-        /* Pulsing halo behind the card. Pure radial gradient; no
-         * box geometry, so it doesn't fight the card's clip-path
-         * corners. Alphas trimmed further (0.22→0.18, 0.09→0.06)
-         * and inset narrowed (-22→-18 px) so the halo feels woven
-         * into the card's own glow rather than ringed around it.
-         * Calm 2.4-s breath. */
+        /* Inner pulsing halo — ambient breath behind the card.
+         * Pure radial gradient; no box geometry so it doesn't fight
+         * the card's corner curves. The card's own type chassis
+         * (mk-type-frame in cards_scifi.less) extends ~7 px outside
+         * .card-container in solid rings; this halo is fainter and
+         * lives mostly OUTSIDE that 7-px solid band, fading toward
+         * 18 px. Reads as a soft "this card is lit" glow on top of
+         * the type colour. Calm 2.4-s breath. */
         &::before {
             content: '';
             position: absolute;
             inset: -18px;
             background: radial-gradient(ellipse at center,
-                rgba(106, 176, 230, 0.18) 0%,
-                rgba(106, 176, 230, 0.06) 42%,
+                rgba(106, 176, 230, 0.22) 0%,
+                rgba(106, 176, 230, 0.08) 42%,
                 rgba(106, 176, 230, 0) 75%);
             animation: card-selected-pulse 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* OUTER CYAN RIM — the primary "this card is selected"
+         * signal. Sits OUTSIDE the card's type-specific chassis
+         * (mk-type-frame extends 7 px of solid rings outside
+         * .card-container; we anchor at -8 px so our rim lands
+         * just past that band and the type colour — green for
+         * Automated, red for Event, blue for Active, etc. — stays
+         * FULLY visible inside the rim). 2-px bright cyan band +
+         * 22-px soft outer glow.
+         *
+         * Crucially does NOT override .card-container's box-shadow
+         * (that's why the type chassis was disappearing in the
+         * previous iteration — the !important override was
+         * replacing the type-specific box-shadow entirely). Here
+         * we leave .card-container untouched and stack our rim on
+         * a SIBLING pseudo-element on .card-clickable, which sits
+         * BEHIND .card-container (z-index 0 vs 1) so the rim only
+         * shows around the card silhouette.
+         *
+         * border-radius compensates for the -8 px expansion:
+         * card-container has border-radius 16 px; at -8 px outset
+         * we use 24 px so the corner curves flow smoothly. */
+        &::after {
+            content: '';
+            position: absolute;
+            inset: -8px;
+            border-radius: 24px;
+            box-shadow:
+                0 0 0 2px rgba(140, 200, 240, 0.9),
+                0 0 22px rgba(106, 176, 230, 0.5),
+                0 14px 28px rgba(0, 0, 0, 0.4);
             pointer-events: none;
             z-index: 0;
         }
@@ -498,30 +540,27 @@
         position: relative;
         z-index: 1;
         /*
-         * Premium frame chassis. 4 layers, no rectangular box feel:
-         *   - inset top sheen          → subtle inner highlight
-         *   - 1-px hairline outer rim  → defines the frame edge
-         *   - 2-px cyan accent ring    → THE primary selected signal
-         *   - 22-px soft outer halo    → ambient glow, no hard line
-         *   - drop shadow              → grounds the lifted card
+         * IMPORTANT: no box-shadow override here.
          *
-         * Dropped from previous: the 4-px chunky cyan ring + 6-px
-         * dark spacer + 2-px white outer line. Those layers gave the
-         * "card in a coloured rectangle" feel the player flagged.
-         * Replaced with a single slim 2-px rim + soft halo — same
-         * "this card is selected" read, lighter visual weight.
+         * Earlier iteration set a 4-layer cyan box-shadow on
+         * .card-container with !important to make selection
+         * unmistakable. That worked, BUT it REPLACED the type-
+         * specific chassis from cards_scifi.less :: mk-type-frame
+         * (the green / red / blue / amber colour band around the
+         * card, plus its inner highlights and outer glow). The
+         * player flagged this: selected cards lost their type
+         * colour entirely and ended up looking duller than
+         * unselected ones — the opposite of what selection should
+         * communicate.
          *
-         * !important is required: type-specific :has() :hover rules
-         * in cards_scifi.less also set box-shadow and have higher
-         * specificity. We want the selected frame to win regardless
-         * of hover state.
+         * Fix: the selected "outer rim" signal now lives on the
+         * PARENT .card-clickable's ::after (see above), sitting
+         * just outside the type chassis. The type chassis stays
+         * intact, AND we add a bright cyan rim on top — so a
+         * selected card reads as type colour PLUS bright cyan
+         * accent, strictly brighter / more present than its
+         * unselected baseline.
          */
-        box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.32),
-            0 0 0 1px rgba(220, 240, 255, 0.32),
-            0 0 0 2px rgba(106, 176, 230, 0.7),
-            0 0 22px rgba(106, 176, 230, 0.28),
-            0 14px 28px rgba(0, 0, 0, 0.55) !important;
 
         /* "ВЫБРАНА" status pill above the card. Smaller, neutral
          * steel-silver-cyan palette so it doesn't compete with blue
