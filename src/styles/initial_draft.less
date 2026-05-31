@@ -773,7 +773,27 @@ body.initial-draft-awaiting-others {
         flex-wrap: initial;
     }
 
-    /* ───────────────────────── CARD UNIT ───────────────────────── */
+    /* ───────────────────────── CARD UNIT ─────────────────────────
+     *
+     * The card-unit shares the CardSelectionSlot framework with the
+     * main buy modal — its Vue template applies BOTH
+     * `.card-selection__card-slot` AND `.initial-draft-pick__card-unit`
+     * on the same element, so the canonical selected vocabulary
+     * (cyan rim + pulse halo + "ВЫБРАНА" ribbon + connector + active
+     * cyan button) comes from card_selection.less automatically.
+     *
+     * This block ONLY adjusts the per-flow knobs:
+     *   - Variant-specific layout (padding, flex alignment)
+     *   - Hover state (with disabled exception for already-bought cards)
+     *   - Connector geometry variables — the initial-draft button is
+     *     smaller than the main modal's (30 vs 34 px tall, 10 vs 14 px
+     *     gap) AND sits inside an 8-px bottom padding on the unit,
+     *     so the connector's bottom anchor needs to shift up by the
+     *     padding amount.
+     *
+     * Everything else (rim, halo, ribbon, button palette, fullscreen
+     * freeze) is shared — DO NOT override.
+     */
     &__card-unit {
         display: flex;
         flex-direction: column;
@@ -787,9 +807,21 @@ body.initial-draft-awaiting-others {
             background 200ms ease,
             box-shadow 200ms ease;
 
-        /* Перебиваем legacy ribbon из card_selection.less. */
-        &::after { display: none !important; }
-        &::before { display: none !important; }
+        /*
+         * Connector geometry override for the CardSelectionSlot
+         * framework. Initial-draft button is 30 px tall with
+         * margin-top: 10 px, and the unit has padding-bottom: 8 px:
+         *
+         *   border bottom .. +8     padding-bottom
+         *   +8 .. +38               button (height 30)
+         *   +38 .. +48              gap (margin-top 10)
+         *   +48 ..                  card-clickable
+         *
+         * Connector anchor = button top in slot bottom-coords = 38 px.
+         * Connector height = gap = 10 px.
+         */
+        --csslot-connector-anchor: 38px;
+        --csslot-connector-height: 10px;
 
         &:hover:not(.initial-draft-pick__card-unit--disabled) {
             transform: translateY(-4px);
@@ -1141,6 +1173,18 @@ body.initial-draft-awaiting-others {
         }
         .initial-draft-pick__card-unit {
             padding: 4px 4px 6px;
+            /*
+             * Projects-specific connector geometry — see the
+             * CardSelectionSlot framework in card_selection.less.
+             * Unit padding-bottom: 6, button height 30, margin-top 6:
+             *
+             *   border bottom .. +6     padding-bottom
+             *   +6 .. +36               button
+             *   +36 .. +42              gap (margin-top 6)
+             *   +42 ..                  card-clickable
+             */
+            --csslot-connector-anchor: 36px;
+            --csslot-connector-height: 6px;
         }
         .initial-draft-pick__card-btn { margin-top: 6px; }
         /*
