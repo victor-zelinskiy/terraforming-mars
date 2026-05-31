@@ -853,37 +853,46 @@
 
     /*
      * UNSELECT variant — buy mode, card is currently picked, button
-     * reverses the selection. Amber so the player VISUALLY KNOWS the
-     * next click reverses an earlier action — distinct from the cyan
-     * "do this" signal. Same chassis, swapped palette + glow.
+     * reverses the selection. Previous iteration used amber (warning
+     * palette) to signal "reverses an earlier action"; the player
+     * flagged that as reading as a DESTRUCTIVE action when the
+     * intent is just toggling a client-side selection that hasn't
+     * been submitted yet. New treatment (v40-u): muted active-state
+     * cyan — same colour family as the selected card's rim, lighter
+     * fill, brighter border, lower visual weight. "Снять выбор" is
+     * a toggle, not a danger.
+     *
+     * Same chassis as primary so the size hierarchy is preserved
+     * (player still recognises this as the primary affordance of
+     * the modal); only the fill / glow palette swaps.
      */
     &.card-zoom-actions__btn--unselect {
         background: linear-gradient(180deg,
-            rgba(250, 205, 145, 0.95) 0%,
-            rgba(225, 150, 80, 0.95) 45%,
-            rgba(170, 95, 35, 0.92) 100%);
+            rgba(140, 195, 235, 0.42) 0%,
+            rgba(80, 140, 195, 0.42) 45%,
+            rgba(45, 95, 145, 0.42) 100%);
         box-shadow:
-            0 0 0 1px rgba(255, 220, 170, 0.82),
-            0 0 26px rgba(230, 145, 80, 0.55),
+            0 0 0 1px rgba(180, 220, 250, 0.85),
+            0 0 22px rgba(106, 176, 230, 0.42),
             0 10px 18px rgba(0, 0, 0, 0.5);
-        color: #fff4e0;
-        text-shadow: 0 1px 0 rgba(70, 30, 10, 0.5);
+        color: #f0f7ff;
+        text-shadow: 0 1px 0 rgba(8, 16, 28, 0.45);
 
         &::before {
             background: linear-gradient(180deg,
-                rgba(160, 90, 30, 0.18) 0%,
-                rgba(60, 30, 8, 0.55) 100%);
+                rgba(30, 60, 95, 0.55) 0%,
+                rgba(10, 20, 34, 0.78) 100%);
         }
         &::after {
             background: radial-gradient(ellipse at center,
-                rgba(230, 145, 80, 0.55) 0%,
-                rgba(230, 145, 80, 0.18) 50%,
-                rgba(230, 145, 80, 0) 80%);
+                rgba(106, 176, 230, 0.42) 0%,
+                rgba(106, 176, 230, 0.14) 50%,
+                rgba(106, 176, 230, 0) 80%);
         }
         &:hover:not(:disabled) {
             box-shadow:
-                0 0 0 1px rgba(255, 235, 200, 1),
-                0 0 38px rgba(230, 145, 80, 0.92),
+                0 0 0 1px rgba(200, 235, 255, 1),
+                0 0 32px rgba(106, 176, 230, 0.72),
                 0 14px 26px rgba(0, 0, 0, 0.55);
         }
     }
@@ -1031,19 +1040,23 @@
  *  state could change), so this state only renders during BUY.
  */
 .card-zoom-card--selected {
-    /* v40-q: all alphas dialled back ~2.5× per the player-flagged
-     * "acid / too bright" feel — matches the same toning pass on
-     * the grid `.card-selection__card-slot--selected`. The visual
-     * vocabulary stays identical (chassis ring, halo, pulse,
-     * ribbon) so the two contexts read as one selected language. */
+    /* v40-u: chassis trimmed from 7 layers to 4, ribbon smaller and
+     * desaturated, halo alphas lowered — same polish pass applied
+     * to the grid's `.card-selection__card-slot--selected`. The two
+     * contexts now share the same premium-frame language: a slim
+     * 2-px cyan accent rim, no thick spacer rings, neutral steel-
+     * silver-cyan status pill instead of a bright cyan banner.
+     * Proportionally larger here than the grid (font 13 vs 9.5,
+     * ribbon 24 vs 20 px tall) because the upscaled fullscreen
+     * card is larger, but the visual VOCABULARY is identical. */
     &::before {
         content: '';
         position: absolute;
-        inset: -40px;
+        inset: -32px;
         background: radial-gradient(ellipse at center,
-            rgba(106, 176, 230, 0.22) 0%,
-            rgba(106, 176, 230, 0.09) 38%,
-            rgba(106, 176, 230, 0) 72%);
+            rgba(106, 176, 230, 0.18) 0%,
+            rgba(106, 176, 230, 0.06) 42%,
+            rgba(106, 176, 230, 0) 75%);
         animation: card-selected-pulse 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
         pointer-events: none;
         z-index: 0;
@@ -1052,32 +1065,32 @@
     &::after {
         content: 'ВЫБРАНА';
         position: absolute;
-        top: -34px;
+        top: -26px;
         left: 50%;
         transform: translateX(-50%);
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 160px;
-        height: 32px;
-        padding: 0 22px;
+        min-width: 108px;
+        height: 24px;
+        padding: 0 18px;
         background: linear-gradient(180deg,
-            rgba(140, 180, 215, 0.92) 0%,
-            rgba(90, 145, 195, 0.9) 50%,
-            rgba(50, 100, 150, 0.9) 100%);
+            rgba(210, 225, 240, 0.94) 0%,
+            rgba(170, 195, 220, 0.92) 50%,
+            rgba(130, 165, 195, 0.92) 100%);
         color: #0b1a2a;
         font-family: "Russo One", Prototype, Ubuntu, sans-serif;
-        font-size: 16px;
+        font-size: 13px;
         font-weight: 700;
-        letter-spacing: 3.2px;
+        letter-spacing: 2.8px;
         text-transform: uppercase;
         line-height: 1;
-        clip-path: polygon(6% 0%, 94% 0%, 100% 100%, 0% 100%);
+        clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
         box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.3),
-            0 0 14px rgba(106, 176, 230, 0.35),
-            0 4px 10px rgba(0, 0, 0, 0.55);
-        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+            inset 0 1px 0 rgba(255, 255, 255, 0.4),
+            0 0 8px rgba(106, 176, 230, 0.24),
+            0 3px 7px rgba(0, 0, 0, 0.55);
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
         white-space: nowrap;
         pointer-events: none;
         z-index: 4;
@@ -1087,28 +1100,29 @@
         position: relative;
         z-index: 1;
         /*
-         * Same chassis vocabulary as the grid's selected card:
-         *   inset highlight → soft cyan tint → white outer line →
-         *   cyan ring → dark spacer → outer cyan glow → drop shadow.
+         * Premium-frame chassis (v40-u). 4 layers, no rectangular
+         * box feel:
+         *   - inset top sheen           → subtle inner highlight
+         *   - 1-px hairline outer rim   → defines the frame edge
+         *   - 2-px cyan accent ring     → THE primary selected signal
+         *   - 22-px soft outer halo     → ambient glow, no hard line
+         *   - drop shadow               → grounds the lifted card
          *
-         * v40-q alphas in line with the grid's toned-down ring:
-         * primary cyan ring 1.0 → 0.55, glow 72-px @ 0.92 → 32-px
-         * @ 0.35, white outer line 0.92 → 0.45, inner highlight
-         * 1.0 → 0.55. Ring narrowed 5 → 4 px. Filter brightness/
-         * saturate removed — was double-dipping with the halo.
+         * Same vocabulary as the grid's selected card — but the
+         * fullscreen presentation is larger and reads at a longer
+         * distance, so halo radius and drop shadow are scaled up
+         * proportionally (22 → 28 / 14 → 18) to compensate.
          *
          * !important required to beat both the type-frame chassis
          * from cards_scifi.less section 9 AND the static halo
          * defined a few rules up in this file.
          */
         box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.55),
-            inset 0 0 0 2px rgba(160, 210, 240, 0.28),
-            0 0 0 2px rgba(255, 255, 255, 0.45),
-            0 0 0 4px rgba(106, 176, 230, 0.55),
-            0 0 0 6px rgba(20, 30, 45, 0.55),
-            0 0 32px rgba(106, 176, 230, 0.35),
-            0 14px 32px rgba(0, 0, 0, 0.55) !important;
+            inset 0 1px 0 rgba(255, 255, 255, 0.32),
+            0 0 0 1px rgba(220, 240, 255, 0.32),
+            0 0 0 2px rgba(106, 176, 230, 0.7),
+            0 0 28px rgba(106, 176, 230, 0.3),
+            0 18px 36px rgba(0, 0, 0, 0.6) !important;
     }
 }
 

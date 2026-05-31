@@ -53,13 +53,31 @@
  *  Header — title-group (centred) + per-card cost (buy mode only)
  * ────────────────────────────────────────────────────────────────── */
 .card-selection__header {
+    position: relative;
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     padding: 0 6px 14px;
-    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
     margin-bottom: 16px;
     column-gap: 24px;
+
+    /* Soft gradient divider instead of a hard 1-px line — fades in
+     * at the edges so the rule reads as a "scanline" rather than a
+     * cropping border. Same vocabulary as the preferences-divider /
+     * sci-fi modal dividers used elsewhere. */
+    &::after {
+        content: '';
+        position: absolute;
+        left: 8%;
+        right: 8%;
+        bottom: 0;
+        height: 1px;
+        background: linear-gradient(90deg,
+            rgba(106, 176, 230, 0) 0%,
+            rgba(106, 176, 230, 0.45) 50%,
+            rgba(106, 176, 230, 0) 100%);
+        pointer-events: none;
+    }
 }
 
 /*
@@ -332,87 +350,145 @@
     }
 
     /*
-     * BUY-mode SELECTED variant — amber chrome so the player
-     * visually recognises the next click REVERSES (deselect)
-     * instead of selects. Matches the fullscreen-button amber
-     * family.
+     * BUY-mode SELECTED variant — the card is currently picked and
+     * this button reverses the pick. Previous iteration used amber
+     * (warning palette); the player flagged that as reading as a
+     * destructive action when the intent is just a toggle of a
+     * client-side selection. New treatment: muted active-state cyan
+     * — same colour family as the selected card's rim, so the
+     * button and the card visually belong to the SAME control group.
+     * The "this click deselects" semantics is carried by the LABEL
+     * ("СНЯТЬ ВЫБОР"), not by colour-as-alarm.
+     *
+     * Visually: lighter fill than the rest, brighter border, a tiny
+     * inner indicator dot via box-shadow to telegraph "this control
+     * is active". On hover the brightness lifts but the palette stays
+     * inside the cyan family.
      */
     &--selected {
         background: linear-gradient(180deg,
-            rgba(230, 160, 100, 0.95) 0%,
-            rgba(150, 90, 50, 0.95) 100%);
-        border-color: rgba(255, 200, 150, 0.6);
-        color: #fff1e0;
+            rgba(120, 180, 220, 0.32) 0%,
+            rgba(70, 120, 165, 0.32) 100%);
+        border-color: rgba(160, 210, 240, 0.85);
+        color: #f5fbff;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.22),
+            inset 0 0 0 1px rgba(180, 220, 250, 0.18),
+            0 0 14px rgba(106, 176, 230, 0.28),
+            0 2px 8px rgba(0, 0, 0, 0.5);
+
+        &:hover:not(:disabled) {
+            filter: brightness(1.12);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.32),
+                inset 0 0 0 1px rgba(180, 220, 250, 0.32),
+                0 0 22px rgba(106, 176, 230, 0.55),
+                0 4px 10px rgba(0, 0, 0, 0.55);
+        }
     }
 }
 
 /* ─────────────────────────────────────────────────────────────────
- *  Selected state — strong visual refresh (v40-n)
+ *  Selected state — premium polish pass (v40-u)
  * ─────────────────────────────────────────────────────────────────
  *
- *  Goal (user-flagged): the selected card MUST stand out visibly on
- *  the card itself, not just on the action button. Earlier iteration
- *  added a single cyan halo via box-shadow on .card-container, which
- *  was readable but easy to miss when the player's attention was on
- *  the bottom button. This pass amps the selected state up across
- *  four layers so the read is instant:
+ *  Earlier iterations layered a thick 7-ring box-shadow chassis + a
+ *  bright sky-cyan ribbon. Functional, but the rectangular box-shadow
+ *  read as "card-in-a-box" and the ribbon's bright cyan competed
+ *  visually with blue card chrome. This pass refines toward a more
+ *  premium, integrated look:
  *
- *    1. Card lifts up (-8 px translateY). Stronger than the regular
- *       hover lift (-4 px) so even hovered-but-unselected cards stay
- *       visually below the selected one.
- *    2. Multi-ring box-shadow chain on .card-container — white inner
- *       highlight + soft cyan inset + bright cyan ring + dark spacer
- *       + outer cyan glow + deep drop shadow. Reads as a "this card
- *       is locked in" chassis around the frame.
- *    3. Subtle saturation/brightness boost via filter so the card
- *       art looks slightly more alive than its neighbours.
- *    4. Animated pulsing halo via a ::before pseudo-element on the
- *       clickable wrapper — slow, calm breath (2.4 s easing) so the
- *       eye keeps catching the selection without the animation
- *       feeling busy.
- *    5. "ВЫБРАНО" ribbon banner pinned above the card (::after) so
- *       the state is unambiguous in writing, not just colour.
+ *    1. Card still lifts -8 px (preserved — needed to keep selected
+ *       cards visually above unselected hovers at -4 px).
+ *    2. Box-shadow chassis trimmed to 4 layers — hairline frame +
+ *       slim 2-px accent rim + soft halo + drop shadow. Reads as a
+ *       crafted frame around the card, not as a rectangular cage.
+ *    3. Ribbon redesigned smaller, neutral steel-silver-cyan palette
+ *       so it doesn't conflict with blue cards. Reads as a status
+ *       indicator (subtitle of the card's identity), not a neon
+ *       banner. Height 20 px (was 26), font 9.5 px (was 12), shorter
+ *       min-width.
+ *    4. Per-card button below picks up the same cyan accent in
+ *       selected state — see `&--selected` rule under
+ *       `.card-selection__card-action-btn`. The card and the button
+ *       now read as a single control group via shared palette, not
+ *       via a hard wrapper box.
+ *    5. Subtle accent connector — a 2-px vertical line behind the
+ *       gap between card and button, drawn via the slot's ::after
+ *       when --selected. Lightweight visual cue that ties the card
+ *       to its action without adding a wrapper box.
+ *    6. Pulse animation kept calm (2.4 s breath) but alphas lowered
+ *       another notch; halo's outer radius reduced so it feels
+ *       integrated with the card's own glow rather than a separate
+ *       aura around it.
  *
- *  Hover ON a selected card still lifts an extra pixel (the existing
- *  .card-selection__card-clickable:hover translateY(-4px) compounds
- *  with the static -8 from selection because they target different
- *  rules — visually the card lifts the most when selected AND
- *  hovered, giving the player feedback that the click would
- *  DESELECT). The unselected hover state stays the regular -4 px.
- *  Neighbours remain fully bright (no dim) per the established UX
- *  rule.
+ *  Hover on selected: existing translateY(-12 px) preserved (compound
+ *  of -8 selected + -4 hover via separate rules). Unselected hover
+ *  stays at -4 px. Neighbours never dim.
  */
 .card-selection__card-slot--selected {
+    /*
+     * Subtle vertical accent line connecting the card silhouette
+     * to the action button below. Lives on the SLOT (not the
+     * clickable) so it sits at the slot's true geometric centre
+     * regardless of the card-clickable's lift/hover transforms.
+     *
+     * Geometry: slot bottom = button bottom; button is 34 px tall;
+     * the 14-px gap above the button starts at `bottom: 34px` and
+     * ends at `bottom: 48px`. The line sits exactly in that gap
+     * (`bottom: 34px, height: 14px`), starting flush with the
+     * button's top edge and reaching up to the card's layout-
+     * bottom. Selected cards visually lift -8 px so the line ends
+     * slightly below the visual card bottom — reads as the line
+     * "emerging" from the card to point at the button.
+     *
+     * Gradient runs transparent-at-top → bright-at-bottom so the
+     * eye reads "card up there, action point down here". Pure
+     * decoration: pointer-events: none.
+     */
+    &::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: 34px;
+        width: 2px;
+        height: 14px;
+        margin-left: -1px;
+        background: linear-gradient(180deg,
+            rgba(106, 176, 230, 0) 0%,
+            rgba(106, 176, 230, 0.5) 45%,
+            rgba(160, 210, 240, 0.85) 100%);
+        box-shadow: 0 0 6px rgba(106, 176, 230, 0.4);
+        pointer-events: none;
+        z-index: 2;
+    }
+
     > .card-selection__card-clickable {
         transform: translateY(-8px);
         position: relative;
 
-        /* Animated pulsing halo behind the card. Sits OUTSIDE the
-         * card frame (negative inset), softly fades out toward the
-         * edges. Pure radial gradient — no box geometry, so it
-         * doesn't compete with the card's own clip-path corners.
-         *
-         * v40-q: alphas dropped ~2.5× (0.55→0.22, 0.22→0.09) to
-         * pull the cyan glow off the "acid" intensity the player
-         * flagged. Still visible enough to read as "this card is
-         * selected", but the halo no longer dominates the modal. */
+        /* Pulsing halo behind the card. Pure radial gradient; no
+         * box geometry, so it doesn't fight the card's clip-path
+         * corners. Alphas trimmed further (0.22→0.18, 0.09→0.06)
+         * and inset narrowed (-22→-18 px) so the halo feels woven
+         * into the card's own glow rather than ringed around it.
+         * Calm 2.4-s breath. */
         &::before {
             content: '';
             position: absolute;
-            inset: -22px;
+            inset: -18px;
             background: radial-gradient(ellipse at center,
-                rgba(106, 176, 230, 0.22) 0%,
-                rgba(106, 176, 230, 0.09) 38%,
-                rgba(106, 176, 230, 0) 72%);
+                rgba(106, 176, 230, 0.18) 0%,
+                rgba(106, 176, 230, 0.06) 42%,
+                rgba(106, 176, 230, 0) 75%);
             animation: card-selected-pulse 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
             pointer-events: none;
             z-index: 0;
         }
 
-        /* Hover on a selected card lifts an extra step. Compound
-         * with the static -8 px above → effective -12 px lift,
-         * stronger than unselected hover (-4 px). Reads as "this
-         * is the one you'd deselect with a click". */
+        /* Hover on a selected card lifts an extra step; compound
+         * with the static -8 px gives effective -12 px. Reads as
+         * "this is the one you'd deselect with a click". */
         &:hover {
             transform: translateY(-12px);
         }
@@ -422,75 +498,77 @@
         position: relative;
         z-index: 1;
         /*
-         * Multi-ring halo. Layer order (innermost → outermost):
-         *   - inset white highlight        → top-edge sheen
-         *   - inset soft cyan tint         → "lit from inside"
-         *   - 2 px white outer line        → frame separator
-         *   - 4 px cyan ring               → primary selected signal
-         *   - 6 px dark spacer             → contrast against the modal backdrop
-         *   - 28 px wide cyan glow         → soft outer aura
-         *   - drop shadow                  → grounds the lifted card
+         * Premium frame chassis. 4 layers, no rectangular box feel:
+         *   - inset top sheen          → subtle inner highlight
+         *   - 1-px hairline outer rim  → defines the frame edge
+         *   - 2-px cyan accent ring    → THE primary selected signal
+         *   - 22-px soft outer halo    → ambient glow, no hard line
+         *   - drop shadow              → grounds the lifted card
          *
-         * v40-q: amplitudes dialed back across the board to address
-         * the player-flagged "acid / too bright" feel. Cyan ring
-         * alpha 1.0 → 0.55, glow 60-px @ 0.85 → 28-px @ 0.32, white
-         * outer line 0.92 → 0.45, inner highlight 1.0 → 0.55. Ring
-         * narrowed 5 → 4 px so the chassis reads slimmer. Filter
-         * brightness/saturate REMOVED entirely (it was double-dipping
-         * with the multi-layer halo and contributing to the eye burn).
+         * Dropped from previous: the 4-px chunky cyan ring + 6-px
+         * dark spacer + 2-px white outer line. Those layers gave the
+         * "card in a coloured rectangle" feel the player flagged.
+         * Replaced with a single slim 2-px rim + soft halo — same
+         * "this card is selected" read, lighter visual weight.
          *
-         * !important is required: type-specific `:has()` :hover rules
+         * !important is required: type-specific :has() :hover rules
          * in cards_scifi.less also set box-shadow and have higher
-         * specificity. We want the selected ring to win regardless of
-         * hover state.
+         * specificity. We want the selected frame to win regardless
+         * of hover state.
          */
         box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.55),
-            inset 0 0 0 2px rgba(160, 210, 240, 0.28),
-            0 0 0 2px rgba(255, 255, 255, 0.45),
-            0 0 0 4px rgba(106, 176, 230, 0.55),
-            0 0 0 6px rgba(20, 30, 45, 0.55),
-            0 0 28px rgba(106, 176, 230, 0.32),
-            0 12px 28px rgba(0, 0, 0, 0.5) !important;
+            inset 0 1px 0 rgba(255, 255, 255, 0.32),
+            0 0 0 1px rgba(220, 240, 255, 0.32),
+            0 0 0 2px rgba(106, 176, 230, 0.7),
+            0 0 22px rgba(106, 176, 230, 0.28),
+            0 14px 28px rgba(0, 0, 0, 0.55) !important;
 
-        /* "ВЫБРАНО" ribbon above the card. Sci-fi parallelogram
-         * matching the .card-selection__confirm button family so the
-         * affordance reads as "an explicit, designed selection
-         * indicator" rather than ad-hoc text. Pinned via negative
-         * top so it floats above the lifted card. */
+        /* "ВЫБРАНА" status pill above the card. Smaller, neutral
+         * steel-silver-cyan palette so it doesn't compete with blue
+         * cards or read as a neon banner. Sci-fi parallelogram clip
+         * kept (matches the .card-selection__confirm button family
+         * for visual consistency) but proportions slimmed throughout.
+         *
+         * Sizing v40-u: 20 px tall (was 26), 9.5 px font (was 12),
+         * 2.2 px letter-spacing (was 2.6), min-width 78 (was 120),
+         * smaller inner padding. Reads as a tasteful subtitle, not
+         * the primary visual object of the card.
+         *
+         * Colour: muted steel-silver gradient with a low-alpha cyan
+         * tint. Outer cyan glow dropped further (10 px @ 0.32 →
+         * 6 px @ 0.22) so the pill doesn't pulse against the
+         * blue-card chrome. Text colour stays dark for legibility
+         * against the pale fill.
+         */
         &::after {
             content: 'ВЫБРАНА';
             position: absolute;
-            top: -20px;
+            top: -14px;
             left: 50%;
             transform: translateX(-50%);
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-width: 120px;
-            height: 26px;
-            padding: 0 18px;
-            /* v40-q: ribbon palette desaturated — gradient stops
-             * moved off the bright sky-cyan to a more muted steel-
-             * cyan so the badge doesn't read as a neon-flash. Outer
-             * cyan glow also dropped (22 px @ 0.85 → 10 px @ 0.32). */
+            min-width: 78px;
+            height: 20px;
+            padding: 0 14px;
             background: linear-gradient(180deg,
-                rgba(140, 180, 215, 0.92) 0%,
-                rgba(90, 145, 195, 0.9) 50%,
-                rgba(50, 100, 150, 0.9) 100%);
+                rgba(210, 225, 240, 0.94) 0%,
+                rgba(170, 195, 220, 0.92) 50%,
+                rgba(130, 165, 195, 0.92) 100%);
             color: #0b1a2a;
             font-family: "Russo One", Prototype, Ubuntu, sans-serif;
-            font-size: 12px;
+            font-size: 9.5px;
             font-weight: 700;
-            letter-spacing: 2.6px;
+            letter-spacing: 2.2px;
             text-transform: uppercase;
             line-height: 1;
-            clip-path: polygon(6% 0%, 94% 0%, 100% 100%, 0% 100%);
+            clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
             box-shadow:
-                inset 0 1px 0 rgba(255, 255, 255, 0.3),
-                0 0 10px rgba(106, 176, 230, 0.32),
-                0 3px 8px rgba(0, 0, 0, 0.55);
-            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+                inset 0 1px 0 rgba(255, 255, 255, 0.4),
+                0 0 6px rgba(106, 176, 230, 0.22),
+                0 2px 5px rgba(0, 0, 0, 0.5);
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
             white-space: nowrap;
             pointer-events: none;
             z-index: 4;
@@ -510,130 +588,91 @@
 
 /* Slow breathing pulse for the halo behind the selected card. Calm
  * easing keeps the rhythm reading as ambient ("the card is on")
- * rather than urgent flashing.
- *
- * v40-q: peak opacity dropped 1.0 → 0.7 and base 0.7 → 0.45 so the
- * pulse breathes at half its previous brightness — eye still
- * catches the rhythm, but the modal no longer pulses cyan-bright.
- * The 0.7-→-0.45 step still gives enough delta for the breath to
- * read as motion. */
+ * rather than urgent flashing. Opacity peaks trimmed (0.7→0.6,
+ * 0.45→0.35) in line with the v40-u halo desaturation pass — eye
+ * still catches the rhythm, halo no longer brightens the modal as
+ * it breathes. */
 @keyframes card-selected-pulse {
     0%, 100% {
-        opacity: 0.45;
+        opacity: 0.35;
         transform: scale(0.98);
     }
     50% {
-        opacity: 0.7;
+        opacity: 0.6;
         transform: scale(1.02);
     }
 }
 
 /* ─────────────────────────────────────────────────────────────────
- *  Grid freeze while fullscreen modal is open (v40-r)
+ *  Grid freeze while the fullscreen card view is open (v40-v)
  * ─────────────────────────────────────────────────────────────────
  *
- *  Problem: when the player toggles a card's selection from inside
- *  the fullscreen view (BUY mode), Vue's reactivity updates the
- *  shared `selected: Array<CardName>` immediately. Any grid card
- *  behind the modal that just gained / lost selected state
- *  visually shifts — lift, ribbon, pulse, halo all (dis)appear —
- *  and that motion reads through the modal's backdrop blur, pulling
- *  the player's eye OFF the focused modal layer.
+ *  Two jobs while the CardZoomModal <dialog> is open:
  *
- *  We can't break the logical sync (the user explicitly wants the
- *  grid to show the current state after closing). The right play
- *  is to keep the logical state synced but freeze the GRID's
- *  visual presentation while the modal is open.
+ *    1. Selection toggles done from INSIDE the fullscreen need to
+ *       snap in the grid behind, not animate. If a grid card behind
+ *       the blurred backdrop animated its frame / lift / ribbon over
+ *       220 ms, the motion would read through the blur and pull
+ *       focus off the fullscreen card.
  *
- *  Trigger: `:has()` on the CardZoomModal's `<dialog
- *  class="card-zoom-dialog" open>` element. When the dialog is open
- *  it carries the `open` attribute; when it closes the attribute
- *  drops and the freeze releases. The dialog mounts as a direct
- *  child of `.card-selection` (CardSelectionContent owns its own
- *  CardZoomModal instance — separate from Card.vue's teleport-to-
- *  body path used by DraftedCardsPile, so this freeze is scoped to
- *  the card-selection modal context only).
+ *    2. The modal exit must be glitch-free. Earlier iterations also
+ *       OVERRODE the selected card's visual state during the freeze
+ *       (transform 0, halo opacity 0, animation none, box-shadow
+ *       none, ribbon display none) — effectively repainting selected
+ *       cards as unselected for the duration of the modal. That
+ *       made the modal close itself a 220-ms animation, because the
+ *       state restoration was caught by `.card-clickable`'s
+ *       `transition: transform 220ms` and `.card-container`'s
+ *       inherited `transition: box-shadow 220ms` (cards_scifi.less
+ *       :1122). That was the "selected cards jump after exit"
+ *       glitch the player kept flagging.
  *
- *  What's suppressed:
- *    1. `--selected` lift transform reset to translateY(0) so the
- *       card doesn't pop UP / drop DOWN when selection changes.
- *    2. Pulsing halo animation paused + faded out — no breathing
- *       motion behind the modal.
- *    3. Card-frame chassis halo box-shadow suppressed — no ring
- *       appearing / disappearing on toggle.
- *    4. "ВЫБРАНО" ribbon hidden — no badge popping into view.
- *    5. All transitions disabled so when the modal CLOSES and this
- *       rule stops matching, the grid SNAPS to the current state
- *       instantly. No transition tail animating in front of the
- *       player after the modal collapses.
+ *  Fix: ONLY kill transitions on the elements that can change during
+ *  the modal lifetime. Do NOT override the selected card's static
+ *  presentation. Because the frozen and unfrozen states are now
+ *  visually IDENTICAL for any card whose selection didn't change,
+ *  releasing the freeze on close produces zero motion. A card that
+ *  WAS toggled during the fullscreen settles instantly behind the
+ *  blur (transition: none) and is already in its final position
+ *  when the freeze lifts, so it doesn't animate either. The pulse
+ *  animation on the selected halo keeps running uninterrupted —
+ *  no `animation: none` override means no animation restart pop on
+ *  modal open/close.
  *
- *  Net effect: while the fullscreen is open the grid is a calm,
- *  blurred backdrop; the fullscreen card itself shows its own
- *  --selected presentation (handled in preferences.less under the
- *  `.card-zoom-card--selected` block). On close, the grid
- *  immediately reflects the current selection. No animation tail.
+ *  Only the per-card action buttons + the bottom confirm footer are
+ *  visually suppressed (visibility: hidden). Their label / colour
+ *  / count react to the shared `selected` array; even with the
+ *  backdrop blur, those changes flicker through. `visibility:
+ *  hidden` (not display: none) keeps the layout stable so nothing
+ *  reflows on open / close — the buttons just disappear from the
+ *  paint and reappear at the post-modal state.
  *
  *  Browser support: `:has()` needs Chromium 105+ / Safari 15.4+ /
- *  Firefox 121+. Matches the project's existing :has() baseline
- *  (used heavily in cards_scifi.less and mandatory_input_modal.less).
+ *  Firefox 121+. Matches the project's existing :has() baseline.
  */
 .card-selection:has(.card-zoom-dialog[open]) {
+    /*
+     * Kill transitions on every element that the shared `selected`
+     * array can mutate: the slot (connector ::after appears/
+     * disappears via --selected); the clickable (transform on
+     * selected); the inner card-container (box-shadow chassis on
+     * selected, inherited transform/box-shadow transition from
+     * cards_scifi.less); the action button (background / border /
+     * box-shadow swap on --selected). Without :has() / suppress
+     * here, any mid-fullscreen toggle would animate behind the blur,
+     * AND the post-close restoration would tween through the same
+     * transitions.
+     */
     .card-selection__card-slot,
-    .card-selection__card-clickable {
+    .card-selection__card-clickable,
+    .card-selection__card-clickable > .card-container,
+    .card-selection__card-action-btn {
         transition: none !important;
     }
 
-    .card-selection__card-slot--selected > .card-selection__card-clickable {
-        transform: translateY(0) !important;
-
-        &::before {
-            animation: none !important;
-            opacity: 0 !important;
-        }
-    }
-
-    .card-selection__card-slot--selected > .card-selection__card-clickable > .card-container {
-        box-shadow: none !important;
-        filter: none !important;
-
-        &::after {
-            display: none !important;
-        }
-    }
-
-    /*
-     * v40-t: also hide the action buttons under cards AND the bottom
-     * confirm footer while the fullscreen is open. Their visuals
-     * react to the same shared `selected` array — toggling a card
-     * from inside the fullscreen flips the per-card button between
-     * cyan "ВЫБРАТЬ" and amber "СНЯТЬ ВЫБОР", changes other cards'
-     * buttons to disabled when max is reached, and re-counts the
-     * bottom "КУПИТЬ X M€" total. Even with the modal's blurred
-     * backdrop, those colour / label changes read through and pull
-     * focus off the fullscreen card.
-     *
-     * `visibility: hidden` (not display: none) preserves the grid
-     * layout so nothing reflows when the modal opens or closes —
-     * the buttons just disappear from the paint. On modal close
-     * the `:has()` rule stops matching and the buttons reappear
-     * instantly at whatever the current state has become, with
-     * `transition: none` forced via the rule above so there's no
-     * tail animation. The player can't interact with them while
-     * the modal is up anyway (modal's <dialog> top-layer blocks
-     * input), so hiding them costs nothing functionally.
-     */
     .card-selection__card-action-btn,
     .card-selection__footer {
         visibility: hidden;
-    }
-
-    /*
-     * Belt-and-braces: kill transitions on the action button too so
-     * any state change that happened while hidden doesn't mid-flight
-     * animate when the button is shown again after the modal closes.
-     */
-    .card-selection__card-action-btn {
-        transition: none !important;
     }
 }
 
@@ -650,12 +689,29 @@
  *  Footer — confirm button + cost badge
  * ────────────────────────────────────────────────────────────────── */
 .card-selection__footer {
+    position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
     margin-top: 18px;
     padding-top: 14px;
-    border-top: 1px solid rgba(106, 176, 230, 0.18);
+
+    /* Matching gradient scanline divider above the confirm button —
+     * mirrors `.card-selection__header::after` so the modal reads
+     * as a top-and-bottom-framed strip. */
+    &::before {
+        content: '';
+        position: absolute;
+        left: 8%;
+        right: 8%;
+        top: 0;
+        height: 1px;
+        background: linear-gradient(90deg,
+            rgba(106, 176, 230, 0) 0%,
+            rgba(106, 176, 230, 0.45) 50%,
+            rgba(106, 176, 230, 0) 100%);
+        pointer-events: none;
+    }
 }
 
 .card-selection__confirm {
