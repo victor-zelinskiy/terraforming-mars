@@ -1,22 +1,22 @@
 <template>
     <div class="player-tags">
         <div v-if="section === 'main' || section === 'both'" class="player-tags-main">
-            <tag-count tag="vp" :count="hideVpCount ? '?' : player.victoryPointsBreakdown.total" :size="'big'" :type="'main'" />
+            <tag-count tag="vp" :count="hideVpCount ? '?' : player.victoryPointsBreakdown.total" :size="'big'" :type="'main'" :scopeKey="player.color" :epoch="epoch" />
             <div v-if="isEscapeVelocityOn" :class="tooltipCss" :data-tooltip="$t('Escape Velocity penalty')">
               <tag-count tag="escape" :count="escapeVelocityPenalty" :size="'big'" :type="'main'" :showWhenZero="true"/>
             </div>
-            <tag-count tag="tr" :count="player.terraformRating" :size="'big'" :type="'main'"/>
+            <tag-count tag="tr" :count="player.terraformRating" :size="'big'" :type="'main'" :scopeKey="player.color" :epoch="epoch"/>
             <tag-count v-if="player.handicap !== undefined" :tag="'handicap'" :count="player.handicap" :size="'big'" :type="'main'" :showWhenZero="true"/>
             <div class="tag-and-discount">
               <PlayerTagDiscount v-if="all.discount" :amount="all.discount" :color="player.color"  :data-test="'discount-all'"/>
-              <tag-count tag="cards" :count="cardsInHandCount" :size="'big'" :type="'main'"/>
+              <tag-count tag="cards" :count="cardsInHandCount" :size="'big'" :type="'main'" :scopeKey="player.color" :epoch="epoch"/>
             </div>
         </div>
         <div v-if="section !== 'main'" class="player-tags-secondary">
           <div class="tag-count-container" v-for="tagDetail of tags" :key="tagDetail.name">
             <template v-if="tagDetail.name === SpecialTags.UNDERGROUND_TOKEN_COUNT">
               <div class="tag-and-discount">
-              <tag-count :tag="tagDetail.name" :undergroundToken="player.underworldData.activeBonus" :count="tagDetail.count" :size="'big'" :type="'secondary'"/>
+              <tag-count :tag="tagDetail.name" :undergroundToken="player.underworldData.activeBonus" :count="tagDetail.count" :size="'big'" :type="'secondary'" :scopeKey="player.color" :epoch="epoch"/>
               </div>
             </template>
             <div v-else-if="tagDetail.name === 'separator'" class="tag-separator"></div>
@@ -24,7 +24,7 @@
             <div v-else class="tag-and-discount">
               <PlayerTagDiscount v-if="tagDetail.discount > 0" :color="player.color" :amount="tagDetail.discount" :data-test="'discount-' + tagDetail.name"/>
               <PointsPerTag :points="tagDetail"/>
-              <tag-count :tag="tagDetail.name" :count="tagDetail.count" :size="'big'" :type="'secondary'"/>
+              <tag-count :tag="tagDetail.name" :count="tagDetail.count" :size="'big'" :type="'secondary'" :scopeKey="player.color" :epoch="epoch"/>
             </div>
           </div>
         </div>
@@ -295,6 +295,15 @@ export default defineComponent({
     },
     SpecialTags() {
       return SpecialTags;
+    },
+    /*
+     * Forwarded to every TagCount as the change-feedback epoch so a
+     * new game session re-baselines without stale deltas. `runId` is
+     * stable for the lifetime of a game and changes when a new game
+     * is loaded into the same App instance.
+     */
+    epoch(): string {
+      return this.playerView.runId ?? '';
     },
   },
 });

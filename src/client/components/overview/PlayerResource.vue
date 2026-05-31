@@ -3,6 +3,13 @@
       <div class="resource_item_stock">
           <i class="resource_icon tooltip tooltip-bottom" :class="iconCSS" :data-tooltip="resourceTypeTooltip"></i>
           <div class="resource_item_stock_count" data-test="stock-count">{{ count }}</div>
+          <AnimatedMetricValue
+            v-if="scopeKey !== ''"
+            :value="count"
+            :metricKey="stockMetricKey"
+            :scopeKey="scopeKey"
+            :epoch="epoch"
+            variant="resource-stock" />
       </div>
       <div class="resource_item_prod" :class="productionStateClass">
           <span class="resource_item_prod_count tooltip tooltip-bottom" data-test="production" :data-tooltip="productionCountTooltip">{{ productionSign }}{{ production }}</span>
@@ -13,6 +20,19 @@
           </div>
           <div v-if="showResourceValue()" class="resource_icon--megacredit-value" data-test="resource-value">{{ value }}</div>
       </div>
+      <!--
+        Production change-feedback chip — MUST live outside .resource_item_prod
+        because that element has `overflow: hidden` (production text clipping).
+        Anchoring relative to .resource_item (the row) lets the chip extend
+        above the row freely. Position controlled in resource_change_feedback.less.
+      -->
+      <AnimatedMetricValue
+        v-if="scopeKey !== ''"
+        :value="production"
+        :metricKey="productionMetricKey"
+        :scopeKey="scopeKey"
+        :epoch="epoch"
+        variant="resource-production" />
   </div>
 </template>
 
@@ -23,9 +43,11 @@ import {DEFAULT_STEEL_VALUE, DEFAULT_TITANIUM_VALUE} from '@/common/constants';
 import {Resource} from '@/common/Resource';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {Protection} from '@/common/models/PlayerModel';
+import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 
 export default defineComponent({
   name: 'PlayerResource',
+  components: {AnimatedMetricValue},
   props: {
     type: {
       type: String as () => Resource,
@@ -51,6 +73,21 @@ export default defineComponent({
     value: {
       type: Number,
       default: 0,
+    },
+    /*
+     * Per-player addressing for the change-feedback system. Empty
+     * scopeKey disables feedback entirely — call sites outside the
+     * left panel (legacy spectator view, etc.) can opt out by simply
+     * not passing scopeKey, which keeps the old presentation
+     * untouched while we migrate.
+     */
+    scopeKey: {
+      type: String,
+      default: '',
+    },
+    epoch: {
+      type: String,
+      default: '',
     },
   },
   data() {
@@ -79,6 +116,12 @@ export default defineComponent({
     },
     iconCSS(): string {
       return 'resource_icon--' + this.type;
+    },
+    stockMetricKey(): string {
+      return `${this.type}.stock`;
+    },
+    productionMetricKey(): string {
+      return `${this.type}.production`;
     },
     productionSign(): string {
       if (this.production > 0) {
