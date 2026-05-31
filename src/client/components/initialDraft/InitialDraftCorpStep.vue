@@ -17,19 +17,29 @@
         Без явного commit'а изменения не применяются.
   -->
   <div class="card-selection initial-draft-step initial-draft-step--corp
-              initial-draft-pick initial-draft-pick--corp"
-       :class="{'initial-draft-pick--has-money': hoverMoneyValue !== undefined}">
+              initial-draft-pick initial-draft-pick--corp initial-draft-pick--has-money">
     <header class="card-selection__header initial-draft-pick__header">
       <div class="initial-draft-pick__title-block">
         <h2 class="card-selection__title initial-draft-pick__title"
             v-i18n>Select a corporation</h2>
         <span class="card-selection__counter initial-draft-pick__counter">{{ counterText }}</span>
       </div>
-      <div v-if="hoverMoneyValue !== undefined"
-           class="initial-draft-step__money-panel initial-draft-pick__money"
-           :title="$t('Starting M€')">
+      <!--
+        Money panel is ALWAYS rendered in the DOM so the modal width
+        stays geometrically stable on hover-in / hover-out. When
+        hoverMoneyValue is undefined we hide via `visibility: hidden`
+        (CSS class `--placeholder`) — the panel keeps reserving its
+        column width but no glyphs paint. Previously this was a
+        `v-if` that removed the panel from the DOM, which collapsed
+        the grid column and the modal visibly resized on every
+        mouseenter / mouseleave. See `initial_draft.less :: __money`.
+      -->
+      <div class="initial-draft-step__money-panel initial-draft-pick__money"
+           :class="{'initial-draft-pick__money--placeholder': hoverMoneyValue === undefined}"
+           :title="$t('Starting M€')"
+           aria-hidden="true">
         <div class="initial-draft-step__money-label" v-i18n>Starting M€</div>
-        <div class="initial-draft-step__money-value">{{ hoverMoneyValue }}</div>
+        <div class="initial-draft-step__money-value">{{ hoverMoneyValue ?? 0 }}</div>
       </div>
     </header>
 
