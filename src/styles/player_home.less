@@ -4633,6 +4633,7 @@ each(@players, {
     .left-panel-card { padding: 4px 7px; }
     .left-panel-card-stat-value { font-size: 15px; }
     .left-panel-card-actions { margin-top: 4px; gap: 2px; }
+    .left-panel-card-action-btn { height: 18px; }
 
     .left-panel-section {
         padding: 3px 4px 4px;
@@ -4682,9 +4683,20 @@ each(@players, {
 @media (max-height: 820px) {
     .left-panel-cards { gap: 3px; margin-bottom: 3px; }
     .left-panel-card { padding: 3px 6px; }
+    .left-panel-card-corp { font-size: 10px; margin: 0 0 1px; }
     .left-panel-card-stat-value { font-size: 14px; }
     .left-panel-card-stat-label { font-size: 8px; }
-    .left-panel-card-actions { margin-top: 3px; }
+    .player-status-chip { margin-top: 2px; padding: 1px 8px; }
+    /*
+     * Action zone keeps its visibility:hidden reservation (WORST-CASE
+     * sizing — both buttons may appear / disappear during play and we
+     * don't want the card to jump). We shrink the BUTTONS instead, so
+     * the reserved slot height collapses by ~6 px without touching
+     * stability. height 17 vs default 20 — same shape, same affordance,
+     * just compressed.
+     */
+    .left-panel-card-actions { margin-top: 3px; gap: 2px; }
+    .left-panel-card-action-btn { height: 16px; font-size: 9px; }
 
     .left-panel-section {
         padding: 2px 4px 3px;
@@ -4736,74 +4748,24 @@ each(@players, {
 }
 
 @media (max-height: 720px) {
-    .left-panel-cards { gap: 2px; margin-bottom: 3px; }
-    .left-panel-card { padding: 3px 5px; }
-    .left-panel-card-stat-value { font-size: 13px; }
-    .left-panel-card-stat-label { font-size: 8px; letter-spacing: 0.5px; }
-    .left-panel-card-actions { margin-top: 3px; gap: 2px; }
-
-    .left-panel-section {
-        padding: 2px 3px 3px;
-        margin-bottom: 2px;
-    }
-    .left-panel-section__label {
-        font-size: 8px;
-        padding: 2px 8px;
-        margin: 1px 10px 3px;
-        letter-spacing: 1.4px;
-    }
-    .left-panel {
-        .resource_items_cont {
-            gap: 1px;
-        }
-        .resource_items_cont .resource_item {
-            min-height: 27px;
-            padding: 0 4px;
-        }
-        .resource_items_cont .resource_icon {
-            width: 24px;
-            height: 24px;
-        }
-        .resource_items_cont .resource_item_stock_count {
-            font-size: 17px;
-        }
-        .left-panel-section__col-headers {
-            padding: 1px 4px 2px;
-            margin: 0;
-            font-size: 8px;
-            letter-spacing: 0.8px;
-        }
-        .left-panel-tags-secondary .player-tags-secondary {
-            gap: 2px 1px;
-        }
-        .left-panel-tags-secondary .tag-and-discount {
-            width: 48px;
-            gap: 2px;
-        }
-        .left-panel-tags-secondary .tag-count-display {
-            font-size: 14px;
-        }
-        .left-panel-tags-secondary .tag {
-            width: 30px;
-            height: 30px;
-            background-size: 40px;
-            background-position: -5px;
-        }
-    }
-}
-
-@media (max-height: 640px) {
     .left-panel-cards { gap: 2px; margin-bottom: 2px; }
-    .left-panel-card { padding: 2px 4px; }
+    .left-panel-card { padding: 2px 5px; }
+    .left-panel-card-corp { font-size: 9px; margin: 0; }
     .left-panel-card-stat-value { font-size: 12px; }
+    .left-panel-card-stat-label { font-size: 8px; letter-spacing: 0.5px; }
+    .player-status-chip { margin-top: 1px; padding: 1px 7px; font-size: 9px; }
+    /* Button height aggressively tightened — 14 vs default 20. Same
+     * clip-path, same colour family, just dense. Reserved 2-button
+     * slot now costs ~30 px instead of ~50 px. */
     .left-panel-card-actions { margin-top: 2px; gap: 1px; }
+    .left-panel-card-action-btn { height: 14px; font-size: 8.5px; letter-spacing: 1px; padding: 0 8px; }
 
     .left-panel-section {
         padding: 1px 3px 2px;
         margin-bottom: 2px;
     }
     .left-panel-section__label {
-        font-size: 7px;
+        font-size: 8px;
         padding: 1px 8px;
         margin: 0 10px 2px;
         letter-spacing: 1.2px;
@@ -4814,7 +4776,7 @@ each(@players, {
         }
         .resource_items_cont .resource_item {
             min-height: 24px;
-            padding: 0 3px;
+            padding: 0 4px;
         }
         .resource_items_cont .resource_icon {
             width: 22px;
@@ -4824,7 +4786,7 @@ each(@players, {
             font-size: 16px;
         }
         .left-panel-section__col-headers {
-            padding: 1px 3px 1px;
+            padding: 1px 4px 1px;
             margin: 0;
             font-size: 7px;
             letter-spacing: 0.6px;
@@ -4833,15 +4795,75 @@ each(@players, {
             gap: 1px 1px;
         }
         .left-panel-tags-secondary .tag-and-discount {
-            width: 44px;
+            width: 46px;
+            gap: 2px;
         }
         .left-panel-tags-secondary .tag-count-display {
             font-size: 13px;
         }
         .left-panel-tags-secondary .tag {
-            width: 28px;
-            height: 28px;
-            background-size: 38px;
+            width: 26px;
+            height: 26px;
+            background-size: 36px;
+            background-position: -5px;
+        }
+    }
+}
+
+@media (max-height: 640px) {
+    .left-panel-cards { gap: 1px; margin-bottom: 2px; }
+    .left-panel-card { padding: 1px 4px; }
+    .left-panel-card-corp { font-size: 9px; margin: 0; }
+    .left-panel-card-stat-value { font-size: 11px; }
+    .player-status-chip { margin-top: 1px; padding: 0 6px; font-size: 8px; }
+    .left-panel-card-actions { margin-top: 1px; gap: 1px; }
+    .left-panel-card-action-btn { height: 12px; font-size: 7.5px; letter-spacing: 0.8px; padding: 0 6px; }
+
+    .left-panel-section {
+        padding: 1px 3px 1px;
+        margin-bottom: 1px;
+    }
+    .left-panel-section__label {
+        font-size: 7px;
+        padding: 1px 6px;
+        margin: 0 8px 1px;
+        letter-spacing: 1px;
+    }
+    .left-panel {
+        .resource_items_cont {
+            gap: 0;
+        }
+        .resource_items_cont .resource_item {
+            min-height: 22px;
+            padding: 0 3px;
+        }
+        .resource_items_cont .resource_icon {
+            width: 20px;
+            height: 20px;
+        }
+        .resource_items_cont .resource_item_stock_count {
+            font-size: 15px;
+        }
+        .left-panel-section__col-headers {
+            padding: 0 3px 1px;
+            margin: 0;
+            font-size: 7px;
+            letter-spacing: 0.4px;
+        }
+        .left-panel-tags-secondary .player-tags-secondary {
+            gap: 0 1px;
+        }
+        .left-panel-tags-secondary .tag-and-discount {
+            width: 42px;
+            gap: 1px;
+        }
+        .left-panel-tags-secondary .tag-count-display {
+            font-size: 12px;
+        }
+        .left-panel-tags-secondary .tag {
+            width: 22px;
+            height: 22px;
+            background-size: 32px;
             background-position: -5px;
         }
     }
