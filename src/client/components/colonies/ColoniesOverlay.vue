@@ -223,6 +223,25 @@ export default defineComponent({
       type: String as () => ColoniesOverlayMode,
       default: 'view',
     },
+    /*
+     * Серверный `buttonLabel` SelectColony-промпта — единственный признак,
+     * по которому в build-режиме отличается «строим колонию» от «добавляем
+     * планшет колонии в игру»:
+     *   - 'Build'             → BuildColony deferred (Standard Project,
+     *                            card-driven build) — prompt «… для строительства»
+     *   - 'Add colony tile'   → ColoniesHandler.addColonyTile (Aridor initial
+     *                            action и любые будущие «add-tile» эффекты)
+     *                            — prompt «… для добавления в игру»
+     * Пусто в trade / view режимах.
+     *
+     * NB: универсальная привязка к серверному signal'у, без if на имя
+     * корпорации — любая будущая карта/прелюдия, которая использует тот же
+     * `addColonyTile` путь, автоматически получит правильную надпись.
+     */
+    buildButtonLabel: {
+      type: String,
+      default: '',
+    },
     // Names of colonies that the server is currently offering as picks.
     // Empty in 'view' mode. Drives per-tile enabled state + the SELECT
     // button's clickability.
@@ -311,7 +330,15 @@ export default defineComponent({
       return found ?? this.colonies[0];
     },
     promptText(): string {
-      if (this.mode === 'build') return 'Select a colony tile for construction.';
+      if (this.mode === 'build') {
+        // 'Add colony tile' идёт от ColoniesHandler.addColonyTile — это
+        // Aridor (initial action) и любые будущие add-tile эффекты.
+        // Семантика «добавляем планшет в игру», а не «строим колонию».
+        if (this.buildButtonLabel === 'Add colony tile') {
+          return 'Select a colony tile to add to the game.';
+        }
+        return 'Select a colony tile for construction.';
+      }
       if (this.mode === 'trade') return 'Select a colony tile for trade.';
       return 'Viewing colonies.';
     },

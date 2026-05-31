@@ -61,6 +61,16 @@
         :production="player.plantProduction"
         :resourceProtection="player.protectedResources.plants"
         :productionProtection="player.protectedProduction.plants"/>
+      <!--
+        Shimmer overlay sits as a sibling of the icon, not as
+        ::before/::after on the icon itself — the icon's pseudo
+        elements are already owned by Spectre.css's tooltip system
+        and a high-specificity override in player_home.less. See
+        the comment above .convert-action-shimmer in resources.less.
+      -->
+      <span v-if="plantsButtonVisible"
+            class="convert-action-shimmer"
+            aria-hidden="true"></span>
       <span v-if="plantsButtonVisible"
             class="convert-action-arrow"
             aria-hidden="true"></span>
@@ -99,6 +109,9 @@
         :value="canUseHeatAsMegaCredits ? 1 : 0"
         :resourceProtection="player.protectedResources.heat"
         :productionProtection="player.protectedProduction.heat"/>
+      <span v-if="heatButtonVisible"
+            class="convert-action-shimmer"
+            aria-hidden="true"></span>
       <span v-if="heatButtonVisible"
             class="convert-action-arrow"
             aria-hidden="true"></span>

@@ -1246,7 +1246,7 @@ each(@players, {
  */
 .left-panel-card {
     cursor: pointer;
-    padding: 6px 8px;
+    padding: 5px 8px;
     border-radius: 4px;
     border: 1px solid #2c4a6a;
     background: rgba(20, 30, 45, 0.65);
@@ -1372,7 +1372,12 @@ each(@players, {
 .left-panel-card-corp {
     font-size: 11px;
     color: #d0d8e0;
-    margin: 2px 0 4px;
+    /*
+     * Сжатые отступы (-3 px против прежних 2/4 px) — корпорация теснее
+     * жмётся к имени сверху и к ПО/РТ снизу, освобождая вертикаль для
+     * ресурсной и тэг-панелей под карточкой.
+     */
+    margin: 1px 0 2px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1417,58 +1422,159 @@ each(@players, {
  * offer. Vertical stack is mandated by the Russian label width — half-
  * width pills truncate "ЗАВЕРШИТЬ ХОД".
  */
+/*
+ * Action zone — кнопки ПАС / ПРОПУСТИТЬ ХОД сидят под статус-pill'ом
+ * как ОТДЕЛЬНЫЙ блок интерактивных command-buttons. `margin-top: 10px`
+ * даёт явный vertical-rhythm-gap между «информационным индикатором»
+ * (pill сверху) и «командами» (кнопки снизу) — игрок мгновенно видит
+ * иерархию, а не одну ленту похожих чипов.
+ */
 .left-panel-card-actions {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 4px;
-    margin-top: 4px;
+    /*
+     * Сжатые отступы (-7 px суммарно против прежних 5+10): зона остаётся
+     * визуально отделённой от pill'а сверху, но больше не «съедает»
+     * ~15 px от ресурсной/тэг-секций ниже. Высоту самих кнопок ниже тоже
+     * урезали (24 → 20 px), так что зарезервированный слот «обе кнопки
+     * скрыты» теперь занимает ~46 px вместо ~63 px — у viewer'a без
+     * активных кнопок остаётся существенно больше места.
+     */
+    gap: 3px;
+    margin-top: 6px;
 }
 
+/*
+ * Base — двухслойная sci-fi капсула command-button: outer clipped
+ * layer = ЯРКИЙ цветной rim (рамка), inner `::before` = dark glass
+ * interior с вертикальным top-down градиентом, имитирующим «свет
+ * сверху». Форма — parallelogram (trapezoid) clip, что СРАЗУ
+ * отличает кнопку от полностью капсульного pill-chip'a статуса.
+ * Иерархия «status vs action» считается формой ещё до того, как
+ * глаз дойдёт до цветов и акцентов.
+ *
+ * Высота 24 px + выраженные интерактивные стейты (hover lift с
+ * усилением тени, focus-visible cyan ring, active inset-press) —
+ * подкрепляют command-button-affordance. Раньше кнопка читалась
+ * почти как ещё один информационный chip, теперь визуальный вес
+ * у неё совсем другой.
+ *
+ * Базовая палитра — нейтрально-холодная steel-blue. Модификаторы
+ * PASS / END TURN переопределяют ТОЛЬКО outer-rim, цвет текста и
+ * hover-glow — внутренний градиент общий, чтобы кнопки читались
+ * как одна дизайн-семья.
+ */
 .left-panel-card-action-btn {
     flex: 0 0 auto;
     width: 100%;
-    height: 22px;
+    /*
+     * 20 px (было 24) — пользователь просил «слегка уменьшить» под
+     * сохранение стиля. font-size 9.5 px + letter-spacing 1.4 px в
+     * 20 px-кнопке оставляет ~10 px вертикального воздуха (по 5 px
+     * сверху/снизу) — текст не зажат, command-button affordance
+     * сохраняется через outer-rim + inner-gradient + hover/active
+     * стейты, не через массивную высоту.
+     */
+    height: 20px;
     position: relative;
     padding: 0 10px;
     border: none;
     cursor: pointer;
-    color: #e8f1fb;
+    color: #d6e4f1;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
     line-height: 1;
     white-space: nowrap;
-    /* Same parallelogram clip used by std-project-use-btn — keeps the
-     * fork's sci-fi vocabulary consistent across action buttons. */
-    clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+    clip-path: polygon(4% 0%, 100% 0%, 96% 100%, 0% 100%);
     isolation: isolate;
-    transition: filter 150ms ease, transform 150ms ease;
+    transition: color 200ms ease, filter 200ms ease, transform 150ms ease, box-shadow 200ms ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    /*
+     * Лёгкая внешняя тень под trapezoid'ом — кнопка «оторвана» от
+     * поверхности карточки и читается как нажимаемый control. clip-path
+     * не пропускает box-shadow за границу полигона, но тень от outer-
+     * element всё равно проявляется по краям clip'a, давая depth-cue.
+     */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+
+    /* Outer rim — clipped по тому же polygon, без inset'а. Просвет
+     * между outer и inner clip (~1.2 px) формирует цветную рамку.
+     * Базовая steel-blue, модификаторы PASS / END TURN переопределяют. */
+    background: linear-gradient(180deg,
+        rgba(150, 180, 215, 0.55) 0%,
+        rgba(70, 100, 140, 0.4) 100%);
 
     &::before {
         content: '';
         position: absolute;
-        inset: 1px;
-        clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+        inset: 1.2px;
+        clip-path: polygon(4% 0%, 100% 0%, 96% 100%, 0% 100%);
+        /*
+         * Inner-фон — НЕ плоский dark glass, а лёгкий вертикальный
+         * градиент: верх чуть светлее (top highlight), низ темнее
+         * (shadow). Имитирует «physical» поверхность с подсветкой
+         * сверху — кнопка перестаёт быть «прямоугольником текста на
+         * dark glass» и начинает читаться как 3D-control.
+         */
         background: linear-gradient(180deg,
-            rgba(14, 26, 42, 0.95) 0%,
-            rgba(6, 14, 22, 0.95) 100%);
+            rgba(28, 42, 62, 0.96) 0%,
+            rgba(14, 22, 34, 0.96) 50%,
+            rgba(8, 14, 22, 0.96) 100%);
         z-index: -1;
     }
 
-    &:hover {
-        filter: brightness(1.18) drop-shadow(0 0 6px rgba(140, 190, 235, 0.45));
+    /*
+     * Hover — translateY-лифт + усиленная тень + brightness boost.
+     * PASS / END TURN модификаторы добавляют свой тёплый/cyan glow
+     * через `filter: drop-shadow(...)` поверх — base даёт общий
+     * lift-effect, цветной акцент остаётся за вариантом.
+     */
+    &:hover:not(:disabled) {
+        filter: brightness(1.18);
         transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
     }
 
-    &:active {
-        transform: translateY(0);
-        filter: brightness(0.92);
+    /*
+     * Focus-visible — обводка для клавиатурной навигации. clip-path
+     * режет реальный outline, поэтому фейкаем через box-shadow
+     * (cyan ring) — он рендерится поверх кнопки и следует её shape.
+     */
+    &:focus-visible {
+        outline: none;
+        box-shadow:
+            0 2px 4px rgba(0, 0, 0, 0.4),
+            0 0 0 2px rgba(140, 190, 235, 0.55);
+    }
+
+    /*
+     * Pressed — кнопка «вдавливается»: translateY ниже базовой
+     * позиции, тень сжимается, brightness падает. Дополнительный
+     * inset-press через filter-стек создаёт тактильность «нажали».
+     */
+    &:active:not(:disabled) {
+        transform: translateY(1px);
+        filter: brightness(0.85);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    }
+
+    /*
+     * Disabled (server не предлагает действие) — приглушённый rim,
+     * текст и тень. `--hidden` ниже использует visibility:hidden
+     * для «слот зарезервирован под layout», disabled — для «кнопка
+     * видна, но не кликабельна».
+     */
+    &:disabled {
+        cursor: not-allowed;
+        color: rgba(170, 190, 210, 0.3);
+        filter: saturate(0.3) brightness(0.65);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
     }
 }
 
@@ -1485,41 +1591,46 @@ each(@players, {
 }
 
 /*
- * PASS — warm/amber accent so the IRREVERSIBLE action (player can't
- * take any more actions this generation) reads visually different
- * from End Turn. Tightened palette: brighter amber rim, deeper dark
- * mid so the parallelogram looks like glowing amber glass rather
- * than a flat coloured slab. Hover lifts brightness and adds a
- * gentle warm glow ring instead of the generic cyan drop-shadow
- * from the base `&:hover` — amber-glowing-when-hot reads as
- * thematically consistent with "the irreversible commit".
+ * PASS — caution amber. Тёмное стекло интерьера + ТЁПЛЫЙ amber/copper
+ * rim + муcированный amber-текст с лёгким glow. Hover усиливает rim'a
+ * (`background` светлее) И накидывает тёплый drop-shadow halo, чтобы
+ * «осторожный коммит» сигналил intentу через цвет, а base-lift из
+ * `.left-panel-card-action-btn:hover` остаётся в силе.
  */
 .left-panel-card-action-btn--pass {
+    color: #e6c08a;
     background: linear-gradient(180deg,
-        rgba(240, 185, 115, 0.92) 0%,
-        rgba(160, 105, 55, 0.32) 50%,
-        rgba(225, 170, 100, 0.72) 100%);
+        rgba(235, 175, 95, 0.7) 0%,
+        rgba(165, 110, 55, 0.5) 100%);
+    text-shadow: 0 0 4px rgba(230, 170, 95, 0.4);
 
     &:hover:not(:disabled) {
-        filter: brightness(1.14) drop-shadow(0 0 8px rgba(235, 170, 95, 0.55));
+        background: linear-gradient(180deg,
+            rgba(245, 190, 115, 0.85) 0%,
+            rgba(185, 130, 70, 0.6) 100%);
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(225, 165, 95, 0.55));
     }
 }
 
 /*
- * END TURN — cyan accent matching the rest of the fork chrome.
- * Same structure as Pass for visual symmetry — only the palette
- * swaps so the player reads "two parallel turn-control options,
- * one warm (irreversible) and one cool (incremental)". Hover
- * picks up the canonical cyan glow.
+ * END TURN — secondary cool. Steel-blue rim в один тон со статус-
+ * pill'ом (`.player-status-chip--active` использует ту же cyan-семью),
+ * муcированный cyan-текст. Вторичность достигается холодной палитрой
+ * и более приглушённым text-shadow — статус ДЕЙСТВИЕ остаётся
+ * заметнее, кнопка не перетягивает на себя внимание.
  */
 .left-panel-card-action-btn--end-turn {
+    color: #c9dcec;
     background: linear-gradient(180deg,
-        rgba(175, 215, 240, 0.92) 0%,
-        rgba(90, 135, 175, 0.32) 50%,
-        rgba(140, 180, 215, 0.72) 100%);
+        rgba(150, 190, 220, 0.6) 0%,
+        rgba(75, 110, 150, 0.4) 100%);
+    text-shadow: 0 0 4px rgba(140, 190, 235, 0.32);
 
     &:hover:not(:disabled) {
-        filter: brightness(1.14) drop-shadow(0 0 8px rgba(140, 190, 235, 0.55));
+        background: linear-gradient(180deg,
+            rgba(170, 210, 240, 0.75) 0%,
+            rgba(90, 130, 175, 0.5) 100%);
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(140, 190, 235, 0.55));
     }
 }
 
@@ -4482,4 +4593,256 @@ each(@players, {
     width: 18px;
     height: 18px;
     background-size: contain;
+}
+
+/*
+ * ═══════════════════════════════════════════════════════════════════
+ * LEFT PANEL — ADAPTIVE DENSITY LADDER (4 tiers)
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * The left panel stacks PER VIEWER:
+ *   [Self card] + [Opponent card]×N + РЕСУРСЫ + МЕТКИ + ПРОЧЕЕ
+ *
+ * On a 1080p desktop with browser chrome (~1040 vh) the default
+ * sizing fits with room. On 13-15" laptops (768–900 vh) and smaller
+ * the panel overflowed — typically ПРОЧЕЕ + the bottom row of МЕТКИ
+ * were clipped.
+ *
+ * Strategy: FOUR compaction tiers triggered by viewport height.
+ * Each tier compresses every contributing surface — player cards,
+ * resource table, tag grid, section chrome — proportionally:
+ *
+ *   ≥980 vh   default     icon 32, tag 40, row 40, card pad 5/8
+ *   ≤980 vh   tier 1      icon 28, tag 36, row 33, card pad 4/7
+ *   ≤820 vh   tier 2      icon 26, tag 34, row 30, card pad 3/6
+ *   ≤720 vh   tier 3      icon 24, tag 30, row 27, card pad 3/5
+ *   ≤640 vh   tier 4      icon 22, tag 28, row 24, card pad 2/4
+ *
+ * Compaction is purely SIZE-based — no structural changes, no
+ * features removed. Same component tree, same affordances.
+ *
+ * Breakpoints chosen empirically:
+ *   980  : 1080p desktop with browser chrome
+ *   820  : ~14" laptops, mid-density displays
+ *   720  : 1366×768 laptops (most common 14" laptop), MBA 13"
+ *   640  : 1280×720 small displays, browser windows with extra chrome
+ */
+
+@media (max-height: 980px) {
+    .left-panel-cards { gap: 3px; margin-bottom: 4px; }
+    .left-panel-card { padding: 4px 7px; }
+    .left-panel-card-stat-value { font-size: 15px; }
+    .left-panel-card-actions { margin-top: 4px; gap: 2px; }
+
+    .left-panel-section {
+        padding: 3px 4px 4px;
+        margin-bottom: 3px;
+    }
+    .left-panel-section__label {
+        font-size: 8px;
+        padding: 3px 8px;
+        margin: 1px 12px 4px;
+    }
+    .left-panel {
+        .resource_items_cont .resource_item {
+            min-height: 33px;
+            padding: 1px 4px;
+        }
+        .resource_items_cont .resource_icon {
+            width: 28px;
+            height: 28px;
+        }
+        .resource_items_cont .resource_item_stock_count {
+            font-size: 19px;
+        }
+        .left-panel-section__col-headers {
+            padding: 2px 4px 3px;
+            margin: 0 0 1px;
+            font-size: 8px;
+        }
+        .left-panel-tags-secondary .player-tags-secondary {
+            gap: 3px 2px;
+        }
+        .left-panel-tags-secondary .tag-and-discount {
+            width: 54px;
+            gap: 3px;
+        }
+        .left-panel-tags-secondary .tag-count-display {
+            font-size: 16px;
+        }
+        .left-panel-tags-secondary .tag {
+            width: 36px;
+            height: 36px;
+            background-size: 46px;
+            background-position: -5px;
+        }
+    }
+}
+
+@media (max-height: 820px) {
+    .left-panel-cards { gap: 3px; margin-bottom: 3px; }
+    .left-panel-card { padding: 3px 6px; }
+    .left-panel-card-stat-value { font-size: 14px; }
+    .left-panel-card-stat-label { font-size: 8px; }
+    .left-panel-card-actions { margin-top: 3px; }
+
+    .left-panel-section {
+        padding: 2px 4px 3px;
+        margin-bottom: 3px;
+    }
+    .left-panel-section__label {
+        font-size: 8px;
+        padding: 2px 8px;
+        margin: 1px 12px 3px;
+        letter-spacing: 1.6px;
+    }
+    .left-panel {
+        .resource_items_cont {
+            gap: 1px;
+        }
+        .resource_items_cont .resource_item {
+            min-height: 30px;
+            padding: 0 4px;
+        }
+        .resource_items_cont .resource_icon {
+            width: 26px;
+            height: 26px;
+        }
+        .resource_items_cont .resource_item_stock_count {
+            font-size: 18px;
+        }
+        .left-panel-section__col-headers {
+            padding: 2px 4px 2px;
+            margin: 0;
+            font-size: 8px;
+            letter-spacing: 0.9px;
+        }
+        .left-panel-tags-secondary .player-tags-secondary {
+            gap: 2px 2px;
+        }
+        .left-panel-tags-secondary .tag-and-discount {
+            width: 52px;
+        }
+        .left-panel-tags-secondary .tag-count-display {
+            font-size: 15px;
+        }
+        .left-panel-tags-secondary .tag {
+            width: 34px;
+            height: 34px;
+            background-size: 44px;
+            background-position: -5px;
+        }
+    }
+}
+
+@media (max-height: 720px) {
+    .left-panel-cards { gap: 2px; margin-bottom: 3px; }
+    .left-panel-card { padding: 3px 5px; }
+    .left-panel-card-stat-value { font-size: 13px; }
+    .left-panel-card-stat-label { font-size: 8px; letter-spacing: 0.5px; }
+    .left-panel-card-actions { margin-top: 3px; gap: 2px; }
+
+    .left-panel-section {
+        padding: 2px 3px 3px;
+        margin-bottom: 2px;
+    }
+    .left-panel-section__label {
+        font-size: 8px;
+        padding: 2px 8px;
+        margin: 1px 10px 3px;
+        letter-spacing: 1.4px;
+    }
+    .left-panel {
+        .resource_items_cont {
+            gap: 1px;
+        }
+        .resource_items_cont .resource_item {
+            min-height: 27px;
+            padding: 0 4px;
+        }
+        .resource_items_cont .resource_icon {
+            width: 24px;
+            height: 24px;
+        }
+        .resource_items_cont .resource_item_stock_count {
+            font-size: 17px;
+        }
+        .left-panel-section__col-headers {
+            padding: 1px 4px 2px;
+            margin: 0;
+            font-size: 8px;
+            letter-spacing: 0.8px;
+        }
+        .left-panel-tags-secondary .player-tags-secondary {
+            gap: 2px 1px;
+        }
+        .left-panel-tags-secondary .tag-and-discount {
+            width: 48px;
+            gap: 2px;
+        }
+        .left-panel-tags-secondary .tag-count-display {
+            font-size: 14px;
+        }
+        .left-panel-tags-secondary .tag {
+            width: 30px;
+            height: 30px;
+            background-size: 40px;
+            background-position: -5px;
+        }
+    }
+}
+
+@media (max-height: 640px) {
+    .left-panel-cards { gap: 2px; margin-bottom: 2px; }
+    .left-panel-card { padding: 2px 4px; }
+    .left-panel-card-stat-value { font-size: 12px; }
+    .left-panel-card-actions { margin-top: 2px; gap: 1px; }
+
+    .left-panel-section {
+        padding: 1px 3px 2px;
+        margin-bottom: 2px;
+    }
+    .left-panel-section__label {
+        font-size: 7px;
+        padding: 1px 8px;
+        margin: 0 10px 2px;
+        letter-spacing: 1.2px;
+    }
+    .left-panel {
+        .resource_items_cont {
+            gap: 0;
+        }
+        .resource_items_cont .resource_item {
+            min-height: 24px;
+            padding: 0 3px;
+        }
+        .resource_items_cont .resource_icon {
+            width: 22px;
+            height: 22px;
+        }
+        .resource_items_cont .resource_item_stock_count {
+            font-size: 16px;
+        }
+        .left-panel-section__col-headers {
+            padding: 1px 3px 1px;
+            margin: 0;
+            font-size: 7px;
+            letter-spacing: 0.6px;
+        }
+        .left-panel-tags-secondary .player-tags-secondary {
+            gap: 1px 1px;
+        }
+        .left-panel-tags-secondary .tag-and-discount {
+            width: 44px;
+        }
+        .left-panel-tags-secondary .tag-count-display {
+            font-size: 13px;
+        }
+        .left-panel-tags-secondary .tag {
+            width: 28px;
+            height: 28px;
+            background-size: 38px;
+            background-position: -5px;
+        }
+    }
 }

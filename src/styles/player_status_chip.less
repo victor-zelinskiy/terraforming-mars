@@ -35,25 +35,75 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    margin-top: 5px;
-    padding: 2px 8px;
-    border-radius: 3px;
+    gap: 4px;
+    /*
+     * Чип сидит сразу под строкой ПО/РТ. 3 px вместо прежних 5 px —
+     * закрывает большую пустую зону, которую пользователь заметил между
+     * статом и статусом. У initial-draft rail отступ задаётся
+     * собственным `.initial-draft-rail__status` контекстом, так что
+     * изменение здесь не аффектит rail-плитку.
+     */
+    margin-top: 3px;
+    padding: 2px 9px;
+    /*
+     * Pill-форма (полностью капсульный border-radius) — главное визуальное
+     * отличие статуса от кнопок ПАС / ПРОПУСТИТЬ ХОД ниже. Кнопки сохраняют
+     * sci-fi-trapezoid (`clip-path: polygon(...)`), а chip читается как
+     * информационная капсула, не command-button. Иерархия «status vs
+     * action» считывается формой ещё до того, как глаз доходит до цвета и
+     * акцентов.
+     */
+    border-radius: 999px;
+    box-sizing: border-box;
+    /*
+     * `max-width: 100%` гарантирует, что chip не вылезет за ширину
+     * родительской карточки даже на длинных русских лейблах
+     * («ПРИМЕНЯЕТ ПРОЛОГ», «ПРИМЕНЯЕТ ДИРЕКТОРА», «МИРОВАЯ ПОДДЕРЖКА»).
+     * `min-width: 0` даёт flex-`>span`-у возможность ужаться (без неё
+     * inline-flex сохраняет intrinsic content-width и обрезает справа).
+     */
+    max-width: 100%;
+    min-width: 0;
     font-family: Prototype, Ubuntu, sans-serif;
     font-size: @player-status-chip-font-size;
     font-weight: 700;
-    letter-spacing: 1.4px;
+    letter-spacing: 1px;
     text-transform: uppercase;
     line-height: 1;
     white-space: nowrap;
     /*
-     * Фон/рамка управляются модификаторами категории; base — прозрачный,
-     * чтобы `--active` оставался лёгким текстом без капсулы (контракт
-     * «active — самый заметный, без лишнего chrome», см. чек-лист задачи).
+     * Статус — НЕ интерактивный элемент: курсор default, никаких hover-
+     * эффектов. Это снимает у игрока ощущение «можно кликнуть» и
+     * подкрепляет иерархию «капсула информации vs кнопка действия».
+     */
+    cursor: default;
+    pointer-events: none;
+    /*
+     * Фон/рамка управляются модификаторами категории; base — прозрачный.
+     * Все категории (active / next / ready / waiting / passed) делят ОДНУ
+     * pill-структуру; различает только палитра + glyph.
      */
     background: transparent;
     border: 1px solid transparent;
-    transition: background-color 200ms ease, border-color 200ms ease;
+}
+
+/*
+ * Внутренний текст-span: даём ему ужаться внутри chip'а и обрезаться
+ * ellipsis'ом — это страховка для совсем длинных лейблов, когда даже
+ * после уплотнения letter-spacing'a текст всё равно шире карточки. Сам
+ * font-size при этом не уменьшаем — спецификация требует «текст должен
+ * быть читаемым даже в маленькой player card», поэтому сначала
+ * экономим за счёт padding/spacing, а ellipsis — последняя линия
+ * обороны для экзотических лейблов будущих фаз.
+ *
+ * NB: глиф и counter-pill — самостоятельные flex-children с фиксированной
+ * шириной и `flex-shrink: 0`, поэтому правило ниже их не задевает (мы
+ * целим только в текст-span, который у обоих компонентов идёт без класса).
+ */
+.player-status-chip > span:not(.player-status-chip__counter) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /*
@@ -103,12 +153,18 @@
  */
 .player-status-chip--active {
     color: #f0f6ff;
-    text-shadow: 0 0 6px rgba(140, 190, 235, 0.55);
-    background: rgba(22, 42, 66, 0.7);
-    border-color: rgba(140, 190, 235, 0.55);
+    text-shadow: 0 0 6px rgba(140, 190, 235, 0.5);
+    background: rgba(22, 42, 66, 0.6);
+    border-color: rgba(140, 190, 235, 0.45);
+    /*
+     * Мягкий outer-glow + тонкий top-highlight inset (имитирует «свет
+     * сверху» в glass-капсуле). Без сильного inset-rim'a, который раньше
+     * читался почти как у кнопки — теперь акцент кричит «индикатор», а
+     * не «кликни».
+     */
     box-shadow:
-        0 0 10px rgba(106, 176, 230, 0.28),
-        inset 0 0 0 1px rgba(106, 176, 230, 0.12);
+        0 0 8px rgba(106, 176, 230, 0.22),
+        inset 0 1px 0 rgba(180, 220, 250, 0.1);
 }
 
 /* ─── NEXT ───────────────────────────────────────────────────────── */

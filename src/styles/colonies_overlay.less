@@ -758,6 +758,31 @@
 }
 
 /*
+ * Card-icon override для build-slot и trade/bonus rows. Глобальный
+ * `.card` (см. cards.less:1075) задаёт 30×40, что не лезет ни в
+ * 32-px build-slot, ни в reward-row высотой ~18. Сжимаем до 18×24
+ * с сохранением пропорций — card читается как мини-карточка, не
+ * выпадает за слот. Касается только Pluto (DRAW_CARDS / DRAW_CARDS_AND_DISCARD_ONE);
+ * другие колонии не используют `--card`-модификатор.
+ */
+.colony-tile__build-icon--card,
+.colony-tile__row-reward-icon--card {
+    width: 18px;
+    height: 24px;
+    background-size: 18px 24px;
+    background-repeat: no-repeat;
+    background-position: center;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+    transform: none;
+    filter: drop-shadow(0 0 1px black);
+}
+
+/*
  * Tile glyph used in build slots for tile-placement bonuses (Europa
  * ocean today; PLACE_HAZARD_TILE / INCREASE_VENUS_SCALE could ride the
  * same shape later). Overrides the global `.tile` defaults (40×46 +
@@ -1808,23 +1833,40 @@
     text-shadow: 0 0 4px rgba(0, 0, 0, 0.7);
 }
 
+/*
+ * Card glyph для всех card-связанных колоний (Pluto build/trade/colonist
+ * bonus, Triton DRAW_EARTH_CARD, Pluto OPPONENT_DISCARD и т.д.).
+ *
+ * Раньше это был синтетический «бело-серый прямоугольник с тонкой рамкой
+ * и cyan-glow» — задумывалось как стилизованный card-плейсхолдер, но в
+ * детальной вью читалось просто как «пустой квадрат». Игрок не узнавал
+ * иконку «карта проекта», которую видит везде в логе и на разворотах.
+ *
+ * Теперь — РЕАЛЬНЫЙ ассет `assets/resources/card.png` (тот же, что
+ * глобальный `.card` в cards.less), масштабированный под слот колоний.
+ * Варианты `--earth` / `--discard` сохраняют силуэт карты, а различие
+ * передают через цветной drop-shadow, не переписывая фон.
+ */
 .benefit-glyph__card {
-    width: 22px;
-    height: 28px;
-    background: linear-gradient(180deg, #d6e2f2, #8a9cb0);
-    border: 1.5px solid #2c4a6a;
-    border-radius: 2px;
-    box-shadow: inset 0 0 4px rgba(106, 176, 230, 0.55);
+    width: 24px;
+    height: 32px;
+    background: url("./assets/resources/card.png") no-repeat center;
+    background-size: contain;
+    /* Лёгкий тёмный outline для контраста на dark-glass панели
+     * детальной вью; без него белая часть карты сливается с фоном. */
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.7));
 
+    /* Earth-tag-карта (Triton trade): зелёный glow вокруг card-иконки
+     * — силуэт остаётся узнаваемым, а Earth-привязка передаётся
+     * подсветкой. */
     &--earth {
-        background: linear-gradient(180deg, #6acc7a 0%, #1f6a3a 100%);
-        border-color: #1f6a3a;
+        filter: drop-shadow(0 0 3px rgba(106, 204, 122, 0.85));
     }
+
+    /* Opponent discard — красное свечение вместо инвертирования фона,
+     * чтобы силуэт карты не терялся. */
     &--discard {
-        border-color: #c43838;
-        box-shadow:
-            inset 0 0 4px rgba(196, 56, 56, 0.55),
-            0 0 6px rgba(196, 56, 56, 0.45);
+        filter: drop-shadow(0 0 4px rgba(220, 80, 80, 0.9));
     }
 }
 
@@ -1834,6 +1876,34 @@
     color: @colony-cyan-text;
     text-shadow: 0 0 6px rgba(106, 176, 230, 0.6);
     line-height: 1;
+}
+
+/*
+ * DRAW_CARDS_AND_DISCARD_ONE (Pluto colonist bonus) — карта с маленькой
+ * стрелочкой-циклом «↻» поверх правого верхнего угла, читается как
+ * «возьми и обменяй». Раньше эта ветка не имела рендеринга в
+ * BenefitGlyph и валилась в `?`-placeholder — игрок видел вопросительный
+ * знак вместо иконки.
+ */
+.benefit-glyph__card-cycle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.benefit-glyph__card-cycle-arrow {
+    position: absolute;
+    top: -4px;
+    right: -8px;
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1;
+    color: @colony-cyan-text;
+    text-shadow:
+        0 0 4px rgba(106, 176, 230, 0.7),
+        0 0 2px rgba(0, 0, 0, 0.9);
+    pointer-events: none;
 }
 
 .benefit-glyph__influence {

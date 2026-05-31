@@ -411,9 +411,10 @@
     -->
 
     <ColoniesOverlay v-if="coloniesOverlayOpen"
-                     :colonies="game.colonies"
+                     :colonies="coloniesOverlayColonies"
                      :players="playerView.players"
                      :mode="coloniesOverlayMode"
+                     :buildButtonLabel="buildColonyContext?.buttonLabel ?? ''"
                      :selectableNames="coloniesOverlaySelectable"
                      :disabledReasons="coloniesOverlayDisabledReasons"
                      :dismissable="coloniesOverlayDismissable"
@@ -494,6 +495,7 @@ import {AwardName} from '@/common/ma/AwardName';
 import {MAX_MILESTONES, MAX_AWARDS} from '@/common/constants';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {PlayerInputModel, OrOptionsModel, AndOptionsModel, SelectOptionModel, SelectPaymentModel, SelectColonyModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
+import {ColonyModel} from '@/common/models/ColonyModel';
 import {Message} from '@/common/logs/Message';
 import {vueRoot} from '@/client/components/vueRoot';
 
@@ -930,8 +932,45 @@ export default defineComponent({
     buildColonyContext(): {
       path: ReadonlyArray<number>;
       colonies: ReadonlyArray<ColonyName>;
+      // Полный `coloniesModel` из серверного SelectColony — источник истины
+      // того, ИЗ ЧЕГО игроку предлагают выбирать. У большинства карт это
+      // подмножество in-play колоний (`game.colonies`), у Aridor — это
+      // `game.discardedColonies`. Без этого поля шаблон рисует
+      // `game.colonies`, и список Aridor'a (discarded) в DOM не попадает
+      // — все кнопки гаснут, потому что selectableSet никого не находит.
+      coloniesModel: ReadonlyArray<ColonyModel>;
+      // Серверный `buttonLabel` у SelectColony — отличает «строим колонию
+      // на in-play тайле» (`'Build'`, BuildColony.ts) от «добавляем тайл
+      // колонии в игру» (`'Add colony tile'`, ColoniesHandler.addColonyTile).
+      // Overlay использует это для контекстно-правильного prompt-текста
+      // («... для строительства» vs «... для добавления в игру»), без
+      // частного if по имени корпорации.
+      buttonLabel: string;
     } | undefined {
       return this.findBuildColonyContext(this.playerView.waitingFor);
+    },
+    /*
+     * Список колоний, которые рендерит overlay. Универсальное правило:
+     * в build-режиме показываем РОВНО то, что сервер положил в
+     * SelectColony.coloniesModel — это единственный источник истины
+     * «что игрок сейчас может выбрать». В trade / view-режимах
+     * показываем актуальный список in-play колоний (game.colonies) —
+     * там селекшн идёт по другому пути, плюс отображение фона/статуса
+     * привязано к текущему состоянию стола.
+     *
+     * Это вылавливает кейс Aridor (initial action добавляет колонию
+     * из discarded в игру) без частного if по имени корпорации:
+     * сервер прислал coloniesModel из discardedColonies — клиент их
+     * и показывает, кнопки enabled. Любой будущий «добавь колонию из
+     * нестандартного источника» эффект (карта прелюдии, событие и т.п.)
+     * автоматически работает тем же путём.
+     */
+    coloniesOverlayColonies(): ReadonlyArray<ColonyModel> {
+      if (this.coloniesOverlayMode === 'build' &&
+          this.buildColonyContext !== undefined) {
+        return this.buildColonyContext.coloniesModel;
+      }
+      return this.game.colonies;
     },
     coloniesOverlayMode(): 'trade' | 'build' | 'view' {
       // build wins over trade — a top-level SelectColony from the server
@@ -1009,7 +1048,12 @@ export default defineComponent({
       // so the overlay opens in `view` mode and we'd fall through to
       // "No colony action available right now". No special-case needed.
       const selectableSet = new Set(this.coloniesOverlaySelectable);
-      for (const c of this.game.colonies) {
+      // Итерируем по тому же списку, что рисует overlay — иначе для
+      // Aridor (рендер из `coloniesModel` discarded-набора) tooltip'ы
+      // вычислялись бы для in-play колоний, которых на экране нет, а
+      // у разрешённых сервером — отсутствовали бы вовсе (без записи в
+      // `out` overlay падает на дефолтный «Unavailable»).
+      for (const c of this.coloniesOverlayColonies) {
         if (selectableSet.has(c.name)) continue; // skip: tile shows positive tooltip
         if (!c.isActive) {
           // Inactive-colony tooltips are SPECIFIC. Per the ColoniesHandler
@@ -1483,6 +1527,8 @@ export default defineComponent({
     ): {
       path: ReadonlyArray<number>;
       colonies: ReadonlyArray<ColonyName>;
+      coloniesModel: ReadonlyArray<ColonyModel>;
+      buttonLabel: string;
     } | undefined {
       if (!wf) return undefined;
       if (wf.type === 'colony' && !insideTradeAnd) {
@@ -1490,6 +1536,8 @@ export default defineComponent({
         return {
           path: pathSoFar,
           colonies: select.coloniesModel.map((c) => c.name),
+          coloniesModel: select.coloniesModel,
+          buttonLabel: select.buttonLabel,
         };
       }
       // Don't descend INTO the trade AndOptions — its child SelectColony
