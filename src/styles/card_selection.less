@@ -234,6 +234,86 @@
  * v40-m: slot itself NO LONGER carries the click handler — Steam-
  * like UX: card click = inspect, button click = act.
  */
+/*
+ * ─────────────────────────────────────────────────────────────────
+ *  CardSelectionSlot — unified visual pattern (v41 framework)
+ * ─────────────────────────────────────────────────────────────────
+ *
+ *  This is the canonical "selectable card tile" framework, shared by
+ *  EVERY modal card-selection flow in the fork:
+ *    - Main buy / research modal (CardSelectionContent)
+ *    - Initial-draft project purchase (InitialDraftProjectsStep)
+ *    - Initial-draft prologue selection (InitialDraftPreludeStep)
+ *    - Corporation selection (InitialDraftCorpStep)
+ *    - CEO selection (InitialDraftCeoStep)
+ *    - any future card pick modal
+ *
+ *  DOM contract (each flow's Vue template provides):
+ *    .card-selection__card-slot                        — slot wrapper
+ *      [.card-selection__card-slot--selected]          — selected modifier
+ *      .card-selection__card-clickable                 — clickable card area
+ *        <Card />                                      — the actual card
+ *      .card-selection__card-action-btn                — action button below
+ *        [.card-selection__card-action-btn--selected]  — selected button variant
+ *
+ *  Selected state vocabulary (all from this file, applied via
+ *  `--selected` modifiers — no per-flow override needed):
+ *
+ *    1. Type chassis preserved
+ *       The card's per-type frame (green / red / blue / amber band
+ *       from cards_scifi.less :: mk-type-frame) stays fully visible
+ *       inside the selected state. Selection is communicated by
+ *       ADDITIVE layers around the card, never by replacing the
+ *       type chassis.
+ *
+ *    2. Outer cyan rim
+ *       `.card-clickable::after` paints a slim 2-px cyan ring +
+ *       soft outer glow at -8 px offset from the card. Sits just
+ *       outside the type chassis's ~7-px solid rings, on a behind-
+ *       card layer (z-index 0 vs card-container's z-index 1). The
+ *       type colour shows fully, the cyan rim reads as an
+ *       ADDITIONAL frame on top.
+ *
+ *    3. Pulsing halo
+ *       `.card-clickable::before` paints a soft radial cyan
+ *       gradient that breathes (2.4-s cubic-bezier pulse). Calm
+ *       Ark Nova-style ambient motion.
+ *
+ *    4. Status pill ribbon
+ *       `.card-container::after` paints the "ВЫБРАНА" / "SELECTED"
+ *       sci-fi pill above the card. Compact, neutral steel-silver-
+ *       cyan palette so it doesn't compete with blue cards.
+ *
+ *    5. Card lift
+ *       `.card-clickable` shifts -8 px (more on hover). Selected
+ *       cards visually rise above unselected hovers.
+ *
+ *    6. Action-button connector
+ *       `.card-slot::after` paints a thin vertical accent line in
+ *       the gap between the card and its action button. Visually
+ *       binds card + button into one control group without a hard
+ *       wrapper box. The line's geometry is driven by CSS variables
+ *       (see `--csslot-connector-*` below) so each flow can adapt
+ *       to its own button height / margin without rewriting the
+ *       rule.
+ *
+ *    7. Active-state cyan button
+ *       `.card-action-btn--selected` swaps from dark cyan-glass to
+ *       solid bright cyan-fill (alpha 0.92-0.95). Same palette as
+ *       fullscreen primary "ВЫБРАТЬ" so the player reads the
+ *       button as an active toggle, not a destructive action.
+ *
+ *  Adapting to a new flow:
+ *  -----------------------
+ *  Each flow only needs to:
+ *    1. Apply the canonical class names in its Vue template.
+ *    2. Override the connector CSS variables if its button has
+ *       different geometry (initial-draft does, see __card-unit
+ *       in initial_draft.less).
+ *  Everything else — rim, halo, ribbon, lift, button palette,
+ *  fullscreen freeze, post-close transition kill — is inherited
+ *  from this file automatically.
+ */
 .card-selection__card-slot {
     position: relative;
     user-select: none;
@@ -241,6 +321,19 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+
+    /*
+     * Connector geometry tokens — read by `.card-slot--selected
+     * ::after` (the vertical accent line in the gap between card
+     * and action button). Defaults match this file's own
+     * `.card-action-btn` (height 34, margin-top 14). Each flow that
+     * uses a different button shape just overrides these on its
+     * own slot wrapper. See initial_draft.less :: __card-unit for
+     * an example override (button is 30 px tall, 10-px gap, 8-px
+     * bottom padding).
+     */
+    --csslot-connector-anchor: 34px;
+    --csslot-connector-height: 14px;
 }
 
 .card-selection__card-clickable {
@@ -434,31 +527,39 @@
  */
 .card-selection__card-slot--selected {
     /*
-     * Subtle vertical accent line connecting the card silhouette
-     * to the action button below. Lives on the SLOT (not the
-     * clickable) so it sits at the slot's true geometric centre
-     * regardless of the card-clickable's lift/hover transforms.
+     * Action-button connector — thin sci-fi accent line in the
+     * gap between the card and its action button when the slot is
+     * selected. Visually binds card + button into a single control
+     * group without a hard wrapper box.
      *
-     * Geometry: slot bottom = button bottom; button is 34 px tall;
-     * the 14-px gap above the button starts at `bottom: 34px` and
-     * ends at `bottom: 48px`. The line sits exactly in that gap
-     * (`bottom: 34px, height: 14px`), starting flush with the
-     * button's top edge and reaching up to the card's layout-
-     * bottom. Selected cards visually lift -8 px so the line ends
-     * slightly below the visual card bottom — reads as the line
-     * "emerging" from the card to point at the button.
+     * Lives on the SLOT (not the clickable) so it sits at the
+     * slot's true geometric centre regardless of card lift/hover
+     * transforms. Geometry is driven by CSS variables defined on
+     * `.card-selection__card-slot` above — each flow that uses a
+     * different button shape overrides those variables (see
+     * initial_draft.less :: __card-unit). The defaults match this
+     * file's own action button (height 34, margin-top 14):
      *
-     * Gradient runs transparent-at-top → bright-at-bottom so the
-     * eye reads "card up there, action point down here". Pure
-     * decoration: pointer-events: none.
+     *   slot bottom = button bottom (last item in flex column)
+     *   button:     bottom .. bottom + 34
+     *   gap:        bottom + 34 .. bottom + 48 (= 34 + 14)
+     *   line:       bottom + 34 .. bottom + 48
+     *
+     * Selected cards visually lift -8 px so the line's top edge
+     * (at layout card bottom) ends 8 px BELOW the visible card —
+     * reads as the line "emerging" from below the card to point
+     * down at the button. Transparent-at-top → bright-at-bottom
+     * gradient reinforces the "action point is down here" cue.
+     *
+     * Pure decoration: pointer-events: none.
      */
     &::after {
         content: '';
         position: absolute;
         left: 50%;
-        bottom: 34px;
+        bottom: var(--csslot-connector-anchor);
         width: 2px;
-        height: 14px;
+        height: var(--csslot-connector-height);
         margin-left: -1px;
         background: linear-gradient(180deg,
             rgba(106, 176, 230, 0) 0%,

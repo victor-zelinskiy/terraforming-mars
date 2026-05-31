@@ -328,11 +328,21 @@ export default defineComponent({
     onZoomClose(): void {
       this.zoomCard = undefined;
     },
+    /*
+     * Fullscreen primary action — toggles selection AND closes the
+     * fullscreen so the player sees the updated grid state
+     * immediately. The grid behind is the canonical review surface;
+     * collapsing on toggle removes a redundant "close" click for
+     * the common pick/unpick-and-move-on flow. To inspect another
+     * card, the player single-clicks it in the grid.
+     */
     onFullscreenToggle(): void {
       if (this.zoomCard === undefined) {
         return;
       }
       this.toggleSelected(this.zoomCard.name);
+      const modal = this.$refs.zoomModal as InstanceType<typeof CardZoomModal> | undefined;
+      modal?.close();
     },
     onFooterClick(): void {
       if (this.selected.length === 0) {

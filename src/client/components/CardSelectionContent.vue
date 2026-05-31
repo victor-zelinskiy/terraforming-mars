@@ -442,15 +442,19 @@ export default defineComponent({
     },
     /*
      * Fullscreen primary action — BUY mode. Toggles the card's
-     * selection in place WITHOUT closing the fullscreen so the
-     * player can keep inspecting / toggling other cards without
-     * losing context. Local state is shared with the grid behind
-     * (same `selected` array), so closing fullscreen later lands
-     * back on a grid that reflects every toggle made here.
+     * selection AND closes the fullscreen, so the player sees the
+     * updated grid state immediately without a second click. The
+     * earlier "stay open after toggle" behavior added one extra
+     * click for the common case ("pick / unpick and move on") and
+     * the grid behind is the canonical place to review choices —
+     * collapsing fullscreen on toggle gets the player there
+     * faster. To inspect another card, the player single-clicks
+     * it from the grid.
      */
     onFullscreenBuyToggle(): void {
       if (this.zoomCard === undefined) return;
       this.toggleSelected(this.zoomCard.name);
+      this.closeFullscreen();
     },
     /*
      * Per-card action button label. Steam-like — draft cards always
