@@ -1,0 +1,225 @@
+/*
+ * Player status chip — единая визуальная система статусов игрока для
+ * `LeftPlayerCard` (in-game player panel) и `InitialDraftStatusRail`
+ * (стартовый экран). Оба контекста кормят `presentPlayerStatus(label)` и
+ * получают один и тот же набор категорий + glyph + текст, поэтому
+ * стили живут в одном месте и не дублируются.
+ *
+ * Архитектура:
+ *
+ *   <div class="player-status-chip player-status-chip--<category>">
+ *     <PlayerStatusGlyph glyph="dot|check|pause|chevron|clock" />
+ *     <span>{{ presentation.textKey | i18n }}</span>
+ *     <span class="player-status-chip__counter">1/2</span>  // только для 'turn'
+ *   </div>
+ *
+ * Категории (см. `playerStatusPresenter.ts`):
+ *   active   — сервер ждёт ввода (пульсирующая cyan-точка, glow на тексте)
+ *   next     — следующий ход в action-фазе (тонкий cyan chevron)
+ *   ready    — simultaneous pick сдан, ждёт остальных (мягкий teal check)
+ *   waiting  — пассивный idle (steel-blue hollow clock-dot в dark glass)
+ *   passed   — спасовал (warm bronze pause в dark glass)
+ *   none     — спрятан (visibility: hidden, layout-space сохраняется)
+ *
+ * Все категории кроме `active` рендерятся как полноценные HUD-капсулы
+ * (chip-носитель с фоном/рамкой), а не как голый серый текст — это
+ * выравнивает passive-статусы по premium-ощущениям активного `ДЕЙСТВИЕ`.
+ *
+ * Анимации respect-ят `prefers-reduced-motion` (см. ниже).
+ */
+
+@player-status-chip-font-size: 9px;
+@player-status-chip-counter-font-size: 8.5px;
+
+.player-status-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 5px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: @player-status-chip-font-size;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    /*
+     * Фон/рамка управляются модификаторами категории; base — прозрачный,
+     * чтобы `--active` оставался лёгким текстом без капсулы (контракт
+     * «active — самый заметный, без лишнего chrome», см. чек-лист задачи).
+     */
+    background: transparent;
+    border: 1px solid transparent;
+    transition: background-color 200ms ease, border-color 200ms ease;
+}
+
+/*
+ * Glyph holder — иконка слева. Цвет наследуется (currentColor) от
+ * категории chip'а, размер фиксированный. Точка-glyph переопределяет
+ * shape отдельно (см. ниже).
+ */
+.player-status-chip__glyph {
+    flex-shrink: 0;
+    width: 9px;
+    height: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/*
+ * Pulsing cyan dot — single source of truth для active-индикатора.
+ * Anim'у переиспользует initial-draft-rail-status-pulse (определена
+ * в initial_draft.less) — тот же ритм, тот же глаз-сигнал.
+ */
+.player-status-chip__glyph--dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #6ab0e6;
+    box-shadow: 0 0 5px rgba(106, 176, 230, 0.7);
+    animation: initial-draft-rail-status-pulse 1.8s ease-in-out infinite;
+}
+
+/* ─── ACTIVE ─────────────────────────────────────────────────────── */
+/*
+ * Сервер ждёт ввода — самый заметный статус. Делит ОДНУ chip-структуру
+ * со всеми остальными статусами (фон + рамка + paddings от базы
+ * `.player-status-chip`), а заметность достигается АКЦЕНТОМ:
+ *   • светлый текст + cyan text-shadow glow,
+ *   • усиленная cyan-рамка с inset-glow,
+ *   • чуть более насыщенный dark-glass фон с cyan-оттенком,
+ *   • drop-shadow на самой капсуле,
+ *   • пульсирующий cyan dot (см. .player-status-chip__glyph--dot).
+ *
+ * Раньше у --active были обнулены padding/border/background — chip
+ * выглядел голым текстом, тогда как waiting/passed/ready были полноценными
+ * капсулами. Это создавало впечатление «разные элементы UI», а не «один
+ * и тот же статус-chip в разных состояниях». Теперь структура одна;
+ * различает акцент.
+ */
+.player-status-chip--active {
+    color: #f0f6ff;
+    text-shadow: 0 0 6px rgba(140, 190, 235, 0.55);
+    background: rgba(22, 42, 66, 0.7);
+    border-color: rgba(140, 190, 235, 0.55);
+    box-shadow:
+        0 0 10px rgba(106, 176, 230, 0.28),
+        inset 0 0 0 1px rgba(106, 176, 230, 0.12);
+}
+
+/* ─── NEXT ───────────────────────────────────────────────────────── */
+/*
+ * «На очереди» — intermediate state в action-фазе. Заметнее, чем
+ * waiting (рамка cyan), но без glow / пульса. Chevron вместо точки.
+ */
+.player-status-chip--next {
+    color: rgba(186, 218, 240, 0.85);
+    background: rgba(14, 26, 42, 0.55);
+    border-color: rgba(106, 176, 230, 0.28);
+
+    .player-status-chip__glyph {
+        color: rgba(140, 190, 235, 0.85);
+        filter: drop-shadow(0 0 3px rgba(106, 176, 230, 0.45));
+    }
+}
+
+/* ─── READY ──────────────────────────────────────────────────────── */
+/*
+ * Сдал выбор в simultaneous-фазе (initial draft / draft / research),
+ * ждёт остальных. Спокойный positive teal — позитивный, но не
+ * соревнуется с active. Check-glyph; рамка чуть видна.
+ */
+.player-status-chip--ready {
+    color: rgba(170, 220, 200, 0.88);
+    background: rgba(14, 30, 28, 0.55);
+    border-color: rgba(120, 200, 175, 0.28);
+
+    .player-status-chip__glyph {
+        color: rgba(150, 220, 195, 0.92);
+        filter: drop-shadow(0 0 3px rgba(120, 200, 175, 0.4));
+    }
+}
+
+/* ─── WAITING ────────────────────────────────────────────────────── */
+/*
+ * Пассивное «партия идёт, но сейчас не я». Не серый текст —
+ * полноценный chip-носитель с тонкой steel-blue рамкой и dark-glass
+ * фоном, плюс hollow clock-glyph. Чуть приглушённее ready, без
+ * позитивной окраски.
+ */
+.player-status-chip--waiting {
+    color: rgba(170, 195, 220, 0.78);
+    background: rgba(14, 24, 38, 0.55);
+    border-color: rgba(120, 150, 180, 0.25);
+
+    .player-status-chip__glyph {
+        color: rgba(170, 195, 220, 0.78);
+    }
+}
+
+/* ─── PASSED ─────────────────────────────────────────────────────── */
+/*
+ * Игрок спасовал на это поколение. Warm bronze/steel chip — читается
+ * как «закончил действия», не как ошибка (НЕ красный) и не как ready
+ * (НЕ галочка, НЕ зелёный). Glyph — двойная пауза.
+ */
+.player-status-chip--passed {
+    color: rgba(210, 180, 140, 0.78);
+    background: rgba(28, 22, 14, 0.55);
+    border-color: rgba(170, 130, 80, 0.28);
+
+    .player-status-chip__glyph {
+        color: rgba(220, 180, 130, 0.85);
+        filter: drop-shadow(0 0 2px rgba(170, 130, 80, 0.4));
+    }
+}
+
+/* ─── EMPTY (none) ───────────────────────────────────────────────── */
+/*
+ * none-категория = ничего показывать не надо (END-фаза, ранние стейты).
+ * Render-им скрытый chip, чтобы высота карточки не дёргалась между
+ * переходами turn → none → turn. `&nbsp;` в шаблоне обеспечивает
+ * line-height.
+ */
+.player-status-chip--empty {
+    visibility: hidden;
+}
+
+/* ─── COUNTER CHIP ───────────────────────────────────────────────── */
+/*
+ * «1/2» / «2/2» рядом с ДЕЙСТВИЕ. Darker glass с cyan-рамкой, не
+ * перетягивает внимание у status-текста.
+ */
+.player-status-chip__counter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    margin-left: 1px;
+    border: 1px solid rgba(106, 176, 230, 0.4);
+    border-radius: 2px;
+    background: rgba(14, 24, 38, 0.7);
+    color: rgba(220, 235, 250, 0.92);
+    font-size: @player-status-chip-counter-font-size;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    line-height: 1;
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+    flex-shrink: 0;
+}
+
+/*
+ * Уважаем prefers-reduced-motion — pulsing dot замораживается.
+ * Анимация определена в initial_draft.less, но опция выключения
+ * там зачулена только для `.initial-draft-rail__status-dot` /
+ * `.initial-draft-summary__btn-spinner`; добавляем chip-точку сюда.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .player-status-chip__glyph--dot {
+        animation: none;
+    }
+}

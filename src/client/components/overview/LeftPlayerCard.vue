@@ -26,37 +26,35 @@
       </div>
     </div>
     <!--
-      Status bar — shared visual language with the initial-draft status
-      rail (see InitialDraftStatusRail.vue). Always rendered (empty
-      state uses visibility: hidden via --empty so card layout stays
-      stable as players transition between turn / pass / waiting /
-      none states).
+      Status chip — единая HUD-«капсула» статуса игрока. Внешний вид
+      управляется presenter'ом (`presentPlayerStatus`) из
+      `playerStatusPresenter.ts`, который ОДИНАКОВО мапит ActionLabel
+      и в этом компоненте, и в `InitialDraftStatusRail`. Поэтому
+      внешний вид статусов синхронен между стартовым экраном и
+      основной партией — никакого if-ов по конкретным лейблам тут нет.
 
-      Structure mirrors the rail:
-        [dot/check] [status text] [optional counter chip]
+      Структура: [glyph] [текст] [опц. counter chip]. Glyph выбирается
+      presenter'ом (dot для active / check для ready / pause для passed
+      / clock для waiting / chevron для next). Counter рендерится только
+      когда `presentation.showCounter === true` — сегодня это только
+      'turn' (1/2 / 2/2).
 
-      Phase translation policy (per player feedback): "turmoil
-      globalsupport" / "research drafting" etc. are PHASE names, not
-      player statuses. Inside this card we render PLAYER-facing
-      language — "Choosing" when the player is making a decision in any
-      multi-input phase, "Action" when it's their action turn (with a
-      separate 1/2 counter chip), "waiting" / "passed" / hidden. The
-      raw phase label is kept on the computed `actionLabel` prop for
-      callers that need it.
+      Категория presenter'а попадает в имя класса
+      `.player-status-chip--<category>` — LESS-палитра / фон / glow
+      переключаются полностью по категории, без знания конкретного
+      action-лейбла.
 
-      Counter chip is broken out from the text so the main status reads
-      cleanly as a word ("Действие") and the count ("1/2") sits as a
-      compact sci-fi pill beside it. Mirrors the rail's status-dot
-      placement; reuses the same typographic scale.
+      Empty-состояние (`category: 'none'`) держит chip в DOM, но скрывает
+      его через `--empty` (visibility: hidden) — высота карточки остаётся
+      постоянной между переходами turn / waiting / passed / END.
     -->
-    <div :class="statusClass">
-      <span v-if="isActive"
-            class="left-panel-card-status-dot"
-            aria-hidden="true"></span>
-      <span v-if="hasStatus" v-i18n>{{ statusText }}</span>
+    <div :class="chipClass">
+      <PlayerStatusGlyph v-if="presentation.glyph !== 'none'"
+                        :glyph="presentation.glyph" />
+      <span v-if="presentation.textKey" v-i18n>{{ presentation.textKey }}</span>
       <span v-else>&nbsp;</span>
-      <span v-if="actionLabel === 'turn'"
-            class="left-panel-card-status-counter">{{ actionCounterText }}</span>
+      <span v-if="presentation.showCounter"
+            class="player-status-chip__counter">{{ actionCounterText }}</span>
     </div>
     <!--
       Turn-control column: PASS on top, END TURN below. Rendered ONLY on
@@ -124,6 +122,11 @@ import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {ActionLabel} from './ActionLabel';
+import {
+  presentPlayerStatus,
+  StatusPresentation,
+} from './playerStatusPresenter';
+import PlayerStatusGlyph from './PlayerStatusGlyph.vue';
 
 // Vanilla TM gives each player exactly 2 actions per turn. The server side
 // has an `availableActionsThisRound` field on Player.ts that anticipates
@@ -182,7 +185,19 @@ export default defineComponent({
     },
   },
   emits: ['select', 'pass', 'end-turn'],
+  components: {
+    PlayerStatusGlyph,
+  },
   computed: {
+    /*
+     * Source of truth для всех «как именно показывать статус» решений
+     * — единый presenter из `playerStatusPresenter.ts`. И этот компонент,
+     * и rail на стартовом экране кормят сюда один и тот же `actionLabel`
+     * и получают совпадающую визуальную категорию + текст.
+     */
+    presentation(): StatusPresentation {
+      return presentPlayerStatus(this.actionLabel);
+    },
     cardClass(): string {
       const classes = ['left-panel-card'];
       if (this.selected) {
@@ -200,50 +215,28 @@ export default defineComponent({
        * this card to inspect this player's tableau"). Both can be
        * true at once and stack cleanly.
        */
-      if (this.isActive) {
+      if (this.presentation.category === 'active') {
         classes.push('left-panel-card--active');
       }
-      if (this.isPassed) {
+      if (this.presentation.category === 'passed') {
         classes.push('left-panel-card--passed');
       }
       return classes.join(' ');
     },
-    /*
-     * True when the server is waiting on this player to do something.
-     * Drives both the cube spin (existing) and the modern --active
-     * card-level accent + status-dot pulse (new).
-     */
-    isActive(): boolean {
-      return this.actionLabel === 'turn' ||
-             this.actionLabel === 'researching' ||
-             this.actionLabel === 'drafting' ||
-             this.actionLabel === 'globalsupport' ||
-             this.actionLabel === 'delegate';
-    },
-    isPassed(): boolean {
-      return this.actionLabel === 'passed';
-    },
     // Cube carries the player colour plus the legacy `.preferences_player_inner.active`
     // rotation animation while we're waiting on that player to do something.
-    // The decision is delegated to `actionLabelForPlayer` (in `playerLabels.ts`):
-    // any "waiting" label (active / researching / drafting / turmoil) spins the
-    // cube. Because the label is derived from the live `playersWaitingFor`
-    // signal bubbled up from the WaitingFor poll, the spin state is the same
-    // on every player's screen — no drift across simultaneous-action phases.
-    // Honours the existing `hide_animated_sidebar` preference.
+    // Spin gates на presenter.category === 'active' — единый сигнал «сервер
+    // ждёт ввода», работает для любого активного лейбла (turn / researching /
+    // drafting / preludes / ceos / globalsupport / delegate). Honors the
+    // existing `hide_animated_sidebar` preference.
     cubeClass(): string {
       const classes = [
         'left-panel-card-cube',
         'preferences_player_inner',
         `player_bg_color_${this.player.color}`,
       ];
-      const awaitingInput =
-        this.actionLabel === 'turn' ||
-        this.actionLabel === 'researching' ||
-        this.actionLabel === 'drafting' ||
-        this.actionLabel === 'globalsupport' ||
-        this.actionLabel === 'delegate';
-      if (!getPreferences().hide_animated_sidebar && awaitingInput) {
+      if (!getPreferences().hide_animated_sidebar &&
+          this.presentation.category === 'active') {
         classes.push('active');
       }
       return classes.join(' ');
@@ -263,68 +256,27 @@ export default defineComponent({
     tr(): number {
       return this.player.terraformRating;
     },
-    hasStatus(): boolean {
-      return this.actionLabel !== 'none' && this.actionLabel !== '';
-    },
     // 1-based label для бэйджа «N-й ход». i18n берёт параметризованный
     // ключ «Turn ${0}» (см. ru/ui.json), CSS уже добавит cyan-glass
     // chrome — здесь только данные.
     turnOrderLabel(): string {
       return String(this.turnIndex + 1);
     },
-    statusClass(): string {
-      const base = 'left-panel-card-status';
-      if (!this.hasStatus) {
-        // Empty state — bar is rendered (preserves card layout height)
-        // but visually hidden via the --empty modifier. Resources / tags
-        // below stay anchored regardless of turn state.
-        return `${base} ${base}--empty`;
+    chipClass(): string {
+      const base = 'player-status-chip';
+      const modifier = `${base}--${this.presentation.category}`;
+      // none-категория = chip остаётся в DOM ради постоянной высоты
+      // карточки, но визуально скрыт через --empty (visibility: hidden).
+      if (this.presentation.category === 'none') {
+        return `${base} ${modifier} ${base}--empty`;
       }
-      if (this.isPassed) {
-        return `${base} ${base}--passed`;
-      }
-      if (this.isActive) {
-        return `${base} ${base}--active`;
-      }
-      if (this.actionLabel === 'waiting') {
-        return `${base} ${base}--waiting`;
-      }
-      return base;
-    },
-    /*
-     * Player-facing status text. Maps internal phase labels to the
-     * compact rail vocabulary:
-     *
-     *   'turn'                                       → 'Action'  (+ 1/2 chip)
-     *   'drafting' / 'researching' /
-     *   'globalsupport' / 'delegate'                 → 'Choosing'
-     *   'passed'                                     → 'passed'
-     *   'waiting'                                    → 'waiting'
-     *
-     * Phase names ('drafting', 'researching', etc.) are intentionally
-     * collapsed to a single human-friendly verb. The exact phase is
-     * already communicated by the main game UI (modal title, top bar,
-     * etc.) — duplicating it here as a player status reads as noise
-     * and conflicts with the player-centred language the rail
-     * established (see player feedback).
-     */
-    statusText(): string {
-      if (this.actionLabel === 'turn') {
-        return 'Action';
-      }
-      if (this.actionLabel === 'drafting' ||
-          this.actionLabel === 'researching' ||
-          this.actionLabel === 'globalsupport' ||
-          this.actionLabel === 'delegate') {
-        return 'Choosing';
-      }
-      return this.actionLabel;
+      return `${base} ${modifier}`;
     },
     /*
      * Plain "N/M" string for the action counter chip — no i18n needed
-     * (digits and slash translate identically across locales). The
-     * chip is rendered as a sibling of the status text via the
-     * `.left-panel-card-status-counter` sci-fi pill.
+     * (digits and slash translate identically across locales). Render
+     * gated на `presentation.showCounter`, чтобы счётчик висел только
+     * рядом с лейблом «ДЕЙСТВИЕ».
      */
     actionCounterText(): string {
       return `${this.actionIndex}/${MAX_ACTIONS_PER_ROUND}`;

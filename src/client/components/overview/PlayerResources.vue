@@ -31,23 +31,42 @@
       hide). The arrow follows the same visibility so it doesn't dangle
       next to the plants count between turns.
     -->
-    <div class="resource_item_wrapper" :class="{'resource_item_wrapper--with-convert': plantsButtonVisible}">
+    <!--
+      Plants row — convert-to-greenery action is native to the icon.
+      When the server is offering the action AND we're not already
+      in picker mode, the wrapper gains `--with-convert` +
+      `--convert-plants` modifiers. CSS turns the wrapper into a
+      keyboard-accessible button (role="button", tabindex 0), gives
+      the resource icon a premium cyan glow + subtle pulse, and
+      anchors a thin sci-fi arrow + cost chip outside the panel
+      pointing INTO the icon as an attention cue. The chip itself
+      is `pointer-events: none` — only the wrapper is clickable so
+      "click the icon to spend" reads as the canonical interaction.
+    -->
+    <div class="resource_item_wrapper"
+         :class="{
+           'resource_item_wrapper--with-convert': plantsButtonVisible,
+           'resource_item_wrapper--convert-plants': plantsButtonVisible,
+         }"
+         :tabindex="plantsButtonVisible ? 0 : -1"
+         :role="plantsButtonVisible ? 'button' : undefined"
+         :data-convert-tooltip="plantsButtonVisible ? plantsTooltipText : null"
+         :aria-label="plantsButtonVisible ? plantsTooltipText : undefined"
+         @click.stop="onPlantsClick"
+         @keydown.enter.prevent="onPlantsClick"
+         @keydown.space.prevent="onPlantsClick">
       <player-resource
         :type="Resource.PLANTS"
         :count="player.plants"
         :production="player.plantProduction"
         :resourceProtection="player.protectedResources.plants"
         :productionProtection="player.protectedProduction.plants"/>
-      <span v-if="plantsButtonVisible" class="convert-action-arrow"></span>
-      <button v-if="plantsButtonVisible"
-              class="convert-action-btn convert-action-btn--plants"
-              :class="{'convert-action-btn--picking': convertPlantsPickerActive}"
-              :title="$t(plantsTooltip)"
-              v-on:click.stop="$emit('convert-plants')">
-        <span class="convert-action-btn-icon convert-action-btn-icon--plant"></span>
-        <span class="convert-action-btn-label" v-i18n>Spend</span>
-        <span class="convert-action-btn-cost">{{ player.plantsNeededForGreenery }}</span>
-      </button>
+      <span v-if="plantsButtonVisible"
+            class="convert-action-arrow"
+            aria-hidden="true"></span>
+      <span v-if="plantsButtonVisible"
+            class="convert-action-cost-badge convert-action-cost-badge--plants"
+            aria-hidden="true">−{{ player.plantsNeededForGreenery }}</span>
     </div>
     <player-resource
       :type="Resource.ENERGY"
@@ -55,7 +74,24 @@
       :production="player.energyProduction"
       :resourceProtection="player.protectedResources.energy"
       :productionProtection="player.protectedProduction.energy"/>
-    <div class="resource_item_wrapper" :class="{'resource_item_wrapper--with-convert': heatButtonVisible}">
+    <!--
+      Heat row — same native-icon convert pattern as plants above.
+      See plants wrapper for the design rationale. The icon glows
+      via CSS when --convert-heat is set; arrow + cost chip outside
+      the panel serves as the attention cue.
+    -->
+    <div class="resource_item_wrapper"
+         :class="{
+           'resource_item_wrapper--with-convert': heatButtonVisible,
+           'resource_item_wrapper--convert-heat': heatButtonVisible,
+         }"
+         :tabindex="heatButtonVisible ? 0 : -1"
+         :role="heatButtonVisible ? 'button' : undefined"
+         :data-convert-tooltip="heatButtonVisible ? heatTooltipText : null"
+         :aria-label="heatButtonVisible ? heatTooltipText : undefined"
+         @click.stop="onHeatClick"
+         @keydown.enter.prevent="onHeatClick"
+         @keydown.space.prevent="onHeatClick">
       <player-resource
         :type="Resource.HEAT"
         :count="player.heat"
@@ -63,15 +99,12 @@
         :value="canUseHeatAsMegaCredits ? 1 : 0"
         :resourceProtection="player.protectedResources.heat"
         :productionProtection="player.protectedProduction.heat"/>
-      <span v-if="heatButtonVisible" class="convert-action-arrow"></span>
-      <button v-if="heatButtonVisible"
-              class="convert-action-btn convert-action-btn--heat"
-              :title="$t(heatTooltip)"
-              v-on:click.stop="$emit('convert-heat')">
-        <span class="convert-action-btn-icon convert-action-btn-icon--temperature"></span>
-        <span class="convert-action-btn-label" v-i18n>Spend</span>
-        <span class="convert-action-btn-cost">{{ player.heatNeededForTemperature }}</span>
-      </button>
+      <span v-if="heatButtonVisible"
+            class="convert-action-arrow"
+            aria-hidden="true"></span>
+      <span v-if="heatButtonVisible"
+            class="convert-action-cost-badge convert-action-cost-badge--heat"
+            aria-hidden="true">−{{ player.heatNeededForTemperature }}</span>
     </div>
   </div>
 </template>
@@ -82,6 +115,7 @@ import {CardName} from '@/common/cards/CardName';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import PlayerResource from '@/client/components/overview/PlayerResource.vue';
 import {Resource} from '@/common/Resource';
+import {translateTextWithParams, translateText} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'PlayerResources',
@@ -150,15 +184,61 @@ export default defineComponent({
     heatButtonVisible(): boolean {
       return this.isViewer && this.convertHeatAvailable;
     },
-    // Tooltip only needs to disambiguate the picker-mode case for plants;
-    // the "not available" tooltip is gone because the button no longer
-    // renders in that state.
-    plantsTooltip(): string {
-      if (this.convertPlantsPickerActive) return 'Click a greenery space on the board';
-      return 'Convert plants into a greenery tile';
+    /*
+     * Hover / focus tooltip text for the convert-plants row + the
+     * matching aria-label for screen readers. Both use the same
+     * string so what the eye sees is what the screen reader hears.
+     *
+     * Format includes the DYNAMIC cost value (Ecoline corp → 7,
+     * baseline → 8, future card effects could push higher). The
+     * parameterised i18n key "Spend ${0} plants to place a greenery
+     * tile" goes through `translateTextWithParams` so the
+     * Russian translation also gets the cost number substituted.
+     *
+     * Picker-mode special-case: while the player is already in the
+     * greenery-placement picker, the tooltip switches to "Click a
+     * greenery space on the board" — that's the actionable next
+     * step at that moment. (Note: in the same picker-mode the row
+     * isn't visually treated as a convert button — plantsButtonVisible
+     * is false when convertPlantsPickerActive is true — so the
+     * tooltip wouldn't normally show. Kept for defensive consistency.)
+     */
+    plantsTooltipText(): string {
+      if (this.convertPlantsPickerActive) {
+        return translateText('Click a greenery space on the board');
+      }
+      if (!this.plantsButtonVisible) {
+        return '';
+      }
+      return translateTextWithParams(
+        'Spend ${0} plants to place a greenery tile',
+        [String(this.player.plantsNeededForGreenery)]);
     },
-    heatTooltip(): string {
-      return 'Spend heat to raise temperature by 1 step';
+    heatTooltipText(): string {
+      if (!this.heatButtonVisible) {
+        return '';
+      }
+      return translateTextWithParams(
+        'Spend ${0} heat to raise temperature by 1 step',
+        [String(this.player.heatNeededForTemperature)]);
+    },
+  },
+  methods: {
+    /*
+     * Click handlers — the row wrapper is the canonical button when
+     * the convert action is available. Guard against accidental fire
+     * when the action isn't currently offered (e.g. clicking the row
+     * area during an unrelated layout state).
+     */
+    onPlantsClick(): void {
+      if (this.plantsButtonVisible) {
+        this.$emit('convert-plants');
+      }
+    },
+    onHeatClick(): void {
+      if (this.heatButtonVisible) {
+        this.$emit('convert-heat');
+      }
     },
   },
   components: {

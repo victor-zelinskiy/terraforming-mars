@@ -39,18 +39,25 @@ export function actionLabelForPlayer(
 ): ActionLabel {
   const game = playerView.game;
 
-  // `passed` is checked BEFORE `isWaiting`. A passed player cannot be the
-  // active waited-on player by definition, and `game.passedPlayers` is part
-  // of the playerView so it updates atomically with `player.actionsTakenThisRound`
-  // when the server processes the pass. Without this ordering, the live
-  // `playersWaitingFor` poll (an independent timer signal) can briefly lag
-  // and report the passer as still waiting — combined with the now-reset
-  // `actionsTakenThisRound=0`, the LeftPlayerCard would flash "ДЕЙСТВИЕ 1/2"
-  // for a tick before the poll catches up and the label switches to passed.
-  if (game.passedPlayers.includes(player.color)) {
-    return 'passed';
-  }
-
+  // Источник истины — `waitingFor` сервера: если сервер чего-то ждёт от
+  // игрока, статус ОБЯЗАН показать это, даже если игрок уже спасовал
+  // в этом поколении. Реальный кейс: Philares-эффект (или любой другой
+  // триггер) даёт спасовавшему игроку выбор ресурса / тайла / карты в
+  // ответ на действие соперника. Со старым порядком «passed первым»
+  // такая ситуация оставалась под подписью «СПАСОВАЛ», и было совершенно
+  // неочевидно, что игра ждёт ввода. Поэтому isWaiting проверяется
+  // ПЕРВЫМ; статус 'passed' остаётся как fallback, когда сервер не ждёт
+  // ввода.
+  //
+  // «Passer-flash» (короткая вспышка «ДЕЙСТВИЕ 1/2» сразу после пасса)
+  // при новом порядке не возвращается: isPlayerWaiting гейтит результат
+  // через `player.isWaitingForInput`, и серверная модель ставит этот
+  // флаг в false атомарно с попаданием игрока в `passedPlayers`. То
+  // есть к моменту, когда мы видим passedPlayers с новым именем,
+  // isWaitingForInput уже false — isWaiting вернёт false, и мы корректно
+  // упадём в ветку 'passed' ниже. Лаг живого `playersWaitingFor`-поллинга
+  // здесь не играет роли, потому что isPlayerWaiting сначала смотрит
+  // в модель.
   const isWaiting = isPlayerWaiting(player, livePlayersWaitingFor);
 
   if (isWaiting) {
@@ -63,15 +70,46 @@ export function actionLabelForPlayer(
 
     switch (game.phase) {
     case Phase.INITIALDRAFTING:
+      return 'initialdrafting';
     case Phase.DRAFTING:
-    case Phase.PRELUDES:
-    case Phase.CEOS:
       return 'drafting';
+    case Phase.PRELUDES:
+      return 'preludes';
+    case Phase.CEOS:
+      return 'ceos';
     case Phase.RESEARCH:
-      return 'researching';
+      // First generation в RESEARCH-фазе — это стартовый выбор (корпорация +
+      // покупка стартовой руки), а не обычная межпоколенческая покупка
+      // карт. Игровая фаза одинаковая (`gotoInitialResearchPhase` ставит
+      // RESEARCH), отличается по generation. Player-facing лейбл
+      // «СТАРТОВЫЙ ВЫБОР» покрывает оба пути входа в стартовый экран:
+      // initial-draft variant (INITIALDRAFTING) и initial research
+      // (RESEARCH gen 1).
+      return game.generation === 1 ? 'initialdrafting' : 'researching';
     default:
-      return 'turn';
+      // Default-ветка ловит ACTION / SOLAR / END. `'turn'` имеет смысл (и
+      // несёт счётчик 1/2) ТОЛЬКО когда это регулярный action-слот игрока:
+      // фаза ACTION + сервер реально считает этого игрока активным
+      // (`player.isActive === player.id === game.activePlayer.id`).
+      //
+      // Все остальные waiting-кейсы внутри этой ветки — триггер-реакции:
+      //   • Philares: спасовавший Victor получил выбор ресурса в ответ на
+      //     соседство тайла, поставленного оппонентом. game.phase === ACTION,
+      //     но активный игрок — оппонент. Слот хода Victor не тратится.
+      //   • Off-turn reactions любых карт (Steel-tax, прочее).
+      //   • Final greenery placements в END и форсированные SOLAR-промпты.
+      //
+      // Для них лейбл вырождается в 'forcedaction' — тот же premium active-
+      // визуал (cyan dot + glow), но `showCounter: false` в presenter'e,
+      // потому что 1/2 счётчик у такой реакции не имеет смысла.
+      return (game.phase === Phase.ACTION && player.isActive) ?
+        'turn' :
+        'forcedaction';
     }
+  }
+
+  if (game.passedPlayers.includes(player.color)) {
+    return 'passed';
   }
 
   // "next" label is only meaningful during ACTION phase — show it on the
@@ -90,6 +128,16 @@ export function actionLabelForPlayer(
         return 'next';
       }
     }
+  }
+
+  // Simultaneous-pick фазы (initial draft / draft / research) — если сервер
+  // не ждёт ввода и игрок не passed, значит он уже отправил свой выбор и
+  // ждёт остальных. Это позитивное «ГОТОВ», а не пассивное «ОЖИДАЕТ» —
+  // визуально другая категория (см. presentPlayerStatus).
+  if (game.phase === Phase.INITIALDRAFTING ||
+      game.phase === Phase.DRAFTING ||
+      game.phase === Phase.RESEARCH) {
+    return 'ready';
   }
 
   // Нейтральное «ожидает» (раньше возвращалось 'none' и подпись просто
