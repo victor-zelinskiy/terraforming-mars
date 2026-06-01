@@ -227,48 +227,111 @@
 	--placement-hover-glow-1:     rgba(255, 240, 180, 1);
 	--placement-hover-glow-2:     rgba(255, 255, 255, 0.85);
 	--placement-selected-glow:    rgba(255, 215, 120, 0.95);
-	// Neutral silver-gray glow for the baseline (non-placement) hover —
-	// matches the neutral silver palette of the grid contour itself
-	// (rgb 175,195,215). Kept clearly distinct from the warm AMBER
-	// placement palette so a stray hover during placement-mode still
-	// reads as the amber-tinted "available legal cell" hover, not as
-	// this neutral grid hover.
-	--placement-baseline-hover-glow: rgba(190, 205, 225, 0.55);
+	// WARM dust-glow for the baseline (non-placement) hover — matches the
+	// new warm "Martian survey engraving" grid palette (sunlit-dust lip,
+	// rgb ~238,217,188) rather than the old cool silver. Pulled toward a
+	// pale-amber so it sits in the same warm family as the planet but is
+	// kept LOW-saturation and dimmer than the AMBER placement glow, so a
+	// stray hover during placement-mode still clearly reads as the
+	// saturated "available legal cell" amber, not as this calm grid hover.
+	--placement-baseline-hover-glow: rgba(255, 214, 156, 0.50);
 }
 
-// ── Baseline layered outline — EVERY selectable hex ───────────────────
+// ═══════════════════════════════════════════════════════════════════════
+//  MARTIAN SURVEY GRID — engraving palette (single source of truth)
+// ═══════════════════════════════════════════════════════════════════════
+// Redesign rationale:
+//   The old grid was a cool silver-blue line (rgb 175,195,215). That hue
+//   is roughly COMPLEMENTARY to Mars's terracotta — so the line vibrated
+//   over the surface and read as a HUD layer pasted ON TOP of the planet,
+//   not as part of it. The fix is hue + structure, not just opacity.
 //
-// One unified NEUTRAL SILVER-GRAY HUD contour for the entire grid —
-// no per-type colour, identity always comes from the tile placed in
-// the hex. Three thin layers composite as a single "tactical
-// overlay" line:
+//   New language: every hex edge is a shallow CHANNEL surveyed into the
+//   regolith — a warm-dark GROOVE (shadow) wrapping a warm sunlit-dust
+//   LIP (highlight). Two reasons this reads as belonging to the planet:
+//     • HUE — warm, low-saturation tones share Mars's own palette, so the
+//       grid feels etched into the soil instead of floating above it.
+//     • RELIEF — a vertical gradient (bright at the top edge, dim at the
+//       bottom) makes each line catch light "from above", matching the
+//       planet's own upper-right lighting and the placed-tile rim light.
 //
-//   1. Dark backing stroke (1.5 px @ 0.42) — contrast halo. Just
-//      enough to make the bright core readable against the bright
-//      patches of Mars without dragging the whole board's brightness
-//      down. The dark fringe creates a tonal break between the
-//      stroke and the planet's warm surface so the line never
-//      "blends into the terrain" — that was the user-reported
-//      failure mode of the prior cool-white palette.
-//   2. Neutral silver-gray core (0.85 px @ 0.70) — the visible line.
-//      Carefully chosen so the COMPOSITE with warm Mars stays
-//      neutral: rgb(175,195,215) @ 0.70 over a bright warm Mars
-//      patch (rgb~180,100,60) composites to rgb(177,167,169) — a
-//      clean grey with a barely-cool tilt. Over dark Mars terrain
-//      (rgb~40,20,10) the same stroke composites to rgb(135,143,154)
-//      — a slightly cooler silver. Same hue read across the planet.
-//      The prior `rgba(225,240,255)` stroke had too high an R-channel
-//      (225) — Mars's warm tones pulled the composite into the
-//      beige range despite the cool intent. Lowering R from 225 to
-//      175 and bumping alpha from 0.62 to 0.70 fixes it.
-//   3. Subtle neutral inner accent (0.5 px @ 0.20) — the "tactical
-//      grid" inner hex hint. Was a cool blue (rgb 170,200,225) which
-//      reinforced the cool intent — shifted to a more neutral grey
-//      (rgb 180,200,220) so the whole grid reads as one unified
-//      silver tone, not "silver outer + blue inner".
+//   READABILITY across Mars's huge tonal range (near-white highlands →
+//   near-black limb/oceans) is carried by the line holding BOTH a dark
+//   and a light tone at once: the dark groove does the contrast work on
+//   bright terrain, the light lip does it on dark terrain. This static
+//   dual-tone is DETERMINISTIC at both tonal extremes, where a single
+//   mix-blend-mode line would wash out (its contrast collapses toward
+//   white-on-white / black-on-black). Blend-mode is left as an opt-in
+//   toggle (`@grid-blend`) for tinkering, defaulting to `normal` so the
+//   guaranteed-readable static line ships.
 //
-// Net perceived width still reads as ~1 px because the dark backing
-// only protrudes ~0.3 px on each side of the bright core.
+//   Every contour SVG below interpolates THESE Less vars, so the whole
+//   grid retunes from this one block.
+
+// Optional surface-integration blend for the baseline contour. `normal`
+// = the guaranteed-readable cased line (ships). Flip to `hard-light` for
+// the blend-driven adaptive variant: the dark casing then MULTIPLIES
+// (darkens bright terrain hard) and the light core SCREENS (lifts on
+// dark terrain) using the planet's OWN colours — punchier extremes, but
+// backdrop-dependent, so it's left opt-in rather than the default.
+@grid-blend: normal;
+
+// — baseline CASED line — (c = colour, o = opacity; split because SVG
+//   gradient stops take stop-color + stop-opacity separately)
+//
+// DARK-CASED: a strong UNIFORM warm-dark casing (the engraved channel)
+// wrapping a thinner warm sunlit-dust core. Two tones at once = the
+// background self-selects which one reads. See the universal-contrast
+// essay on the rule below for why uniform, why dark-dominant.
+@grid-casing:       ~"rgba(22,11,5,0.62)";   // dark engraved casing — UNIFORM, full strength on every edge; the half that contrasts on bright highlands
+@grid-core-top-c:   ~"rgb(248,232,208)"; @grid-core-top-o: 0.92; // lit dust core, top (only the SAFE light tone is graded for relief; the casing never is)
+@grid-core-bot-c:   ~"rgb(226,203,174)"; @grid-core-bot-o: 0.80; // lit dust core, bottom
+
+// — baseline hover (non-placement) — same cased structure, brighter core —
+@grid-h-core-top-c: ~"rgb(255,244,224)"; @grid-h-core-top-o: 0.98;
+@grid-h-core-bot-c: ~"rgb(240,218,190)"; @grid-h-core-bot-o: 0.90;
+
+// — warm contrast-backing for the amber placement states (was neutral
+//   black; warmed so the dark halo reads as Martian umber shadow, not ink) —
+@grid-backing-c:    ~"30,15,8";
+
+// — placed-tile materiality rim + cove divider — warmed to match so the
+//   board reads as ONE survey system, not warm-grid + cool-rim patchwork —
+@grid-rim-light-c:  ~"rgb(246,234,216)";
+@grid-rim-stroke:   ~"rgba(208,190,164,0.58)";
+@grid-divider:      ~"rgba(244,226,200,0.42)";
+
+// ── Baseline CASED contour — EVERY selectable hex ─────────────────────
+//
+// ── The universal-contrast problem ────────────────────────────────────
+// Mars spans the full tonal range: near-white highlands at the TOP of the
+// disc → near-black limb + oceans at the BOTTOM. A single FIXED-colour
+// line cannot stay far in luminance from BOTH ends at once — that is
+// geometry, not tuning, and was the root of the "invisible at the top"
+// bug. The fix is a CASED line that carries a dark tone AND a light tone
+// simultaneously, and lets the local terrain self-select which half
+// reads:
+//
+//   • DARK CASING (uniform, dominant) — over BRIGHT highlands it darkens
+//     hard ⇒ a crisp dark engraving; over the dark limb it melts into the
+//     terrain (no harsh black ring). This is the half that fixes the bug,
+//     so it is UNIFORM at full strength on EVERY edge. The prior version
+//     faded the dark via a vertical gradient that was faintest at the TOP
+//     of each hex — i.e. exactly over the brightest terrain at the top of
+//     the disc — which is precisely why those rows vanished.
+//   • LIGHT CORE (thinner, inside) — over the dark limb / oceans it lifts
+//     to a bright dust line; over bright highlands it blends in (the
+//     casing carries those). ONLY this safe light tone gets a faint
+//     top-bright gradient for a hint of relief; the casing is never
+//     graded.
+//
+// Net: the SAME two-tone line everywhere, read by the eye as "dark
+// engraving" on light ground and "lit dust line" on dark ground — one
+// consistent design, automatic adaptation, warm hue throughout (no cold
+// HUD, no inverted/neon difference-blend tint, no per-region recolour).
+//
+// `mix-blend-mode: @grid-blend` (default `normal`) — see the var block
+// for the opt-in `hard-light` adaptive variant.
 .board > .board-space-selectable::before,
 .board-outer-spaces > .board-space-selectable::before {
 	content: '';
@@ -276,19 +339,18 @@
 	inset: 0;
 	pointer-events: none;
 	z-index: 1;
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.42)' stroke-width='1.5' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(175,195,215,0.70)' stroke-width='0.85' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='rgba(180,200,220,0.20)' stroke-width='0.5' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	mix-blend-mode: @grid-blend;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='gc' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='@{grid-core-top-c}' stop-opacity='@{grid-core-top-o}'/><stop offset='100%25' stop-color='@{grid-core-bot-c}' stop-opacity='@{grid-core-bot-o}'/></linearGradient></defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='@{grid-casing}' stroke-width='2.2' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='url(%23gc)' stroke-width='0.85' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 	transition: background 180ms ease, filter 180ms ease, opacity 180ms ease;
 }
 
-// Baseline hover (no placement) — same neutral silver-gray palette,
-// brighter and slightly thicker for the focus pop. Hover stroke goes
-// from baseline rgb(175,195,215) up to rgb(210,225,240) — still
-// silvery, not a hard white that would scream against the calm
-// baseline. Dark backing keeps the highlight readable on the
-// brightest Mars terrain.
+// Baseline hover (no placement) — same cased structure, wider casing +
+// brighter core for the focus pop. Stays in the warm dust family, never
+// a hard cold white. The uniform casing keeps the lip readable on the
+// brightest highlands here too.
 .board > .board-space-selectable:hover::before,
 .board-outer-spaces > .board-space-selectable:hover::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.40)' stroke-width='1.65' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(210,225,240,0.90)' stroke-width='1.05' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='rgba(225,235,245,0.55)' stroke-width='0.6' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='gch' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='@{grid-h-core-top-c}' stop-opacity='@{grid-h-core-top-o}'/><stop offset='100%25' stop-color='@{grid-h-core-bot-c}' stop-opacity='@{grid-h-core-bot-o}'/></linearGradient></defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='@{grid-casing}' stroke-width='2.4' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='url(%23gch)' stroke-width='1.1' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 .board > .board-space-selectable:hover,
@@ -317,7 +379,7 @@
 	// amber outline (2nd polygon) so the amber stays crisp on the
 	// brightest Mars terrain. Backing is wider than amber so it shows
 	// as a thin contrast halo, not as a visible second colour.
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.42)' stroke-width='2.0' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFD66B' stroke-width='1.7' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23FFF1A8' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(@{grid-backing-c},0.42)' stroke-width='2.0' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFD66B' stroke-width='1.7' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23FFF1A8' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 // Suppress the legacy hex_white.png baseline outline on legal cells so
@@ -341,7 +403,7 @@
 
 .board > .board-space.board-space--available:hover::before,
 .board-outer-spaces > .board-space.board-space--available:hover::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.45)' stroke-width='2.45' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFF6CC' stroke-width='2.1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.85' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(@{grid-backing-c},0.45)' stroke-width='2.45' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFF6CC' stroke-width='2.1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.85' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 // ── Placement mode: confirmed selection ───────────────────────────────
@@ -356,7 +418,7 @@
 
 .board > .board-space.board-space--selected::before,
 .board-outer-spaces > .board-space.board-space--selected::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.42)' stroke-width='2.35' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFC857' stroke-width='2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(@{grid-backing-c},0.42)' stroke-width='2.35' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFC857' stroke-width='2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 // ── Placement mode: non-target cells ──────────────────────────────────
@@ -423,7 +485,7 @@
 
 .board-cont:has(.board-space--available) .board > .board-space.board-space--illegal::before,
 .board-cont:has(.board-space--available) .board-outer-spaces > .board-space.board-space--illegal::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.32)' stroke-width='1.3' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23E36464' stroke-opacity='0.55' stroke-width='1' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(@{grid-backing-c},0.32)' stroke-width='1.3' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23E36464' stroke-opacity='0.55' stroke-width='1' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 	opacity: 0.7;
 }
 
@@ -495,7 +557,7 @@
 	inset: 0;
 	pointer-events: none;
 	z-index: 2;
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='rimhi' x1='0.5' y1='0' x2='0.5' y2='1'><stop offset='0%' stop-color='rgb(225,235,245)' stop-opacity='0.32'/><stop offset='35%' stop-color='rgb(225,235,245)' stop-opacity='0'/></linearGradient></defs><polygon points='23,2 43,13.9 43,37.1 23,49 3,37.1 3,13.9' fill='url(%23rimhi)'/><polygon points='23,1.8 43.4,13.7 43.4,37.3 23,49.2 2.6,37.3 2.6,13.7' fill='none' stroke='rgba(190,205,225,0.60)' stroke-width='0.85' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='rimhi' x1='0.5' y1='0' x2='0.5' y2='1'><stop offset='0%' stop-color='@{grid-rim-light-c}' stop-opacity='0.32'/><stop offset='35%' stop-color='@{grid-rim-light-c}' stop-opacity='0'/></linearGradient></defs><polygon points='23,2 43,13.9 43,37.1 23,49 3,37.1 3,13.9' fill='url(%23rimhi)'/><polygon points='23,1.8 43.4,13.7 43.4,37.3 23,49.2 2.6,37.3 2.6,13.7' fill='none' stroke='@{grid-rim-stroke}' stroke-width='0.85' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 /*
@@ -1202,7 +1264,7 @@
 // against neighbours through different border colours.
 .board-space-type-cove {
 	background:
-		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(70,170,225,0.32)'/><line x1='23' y1='1' x2='23' y2='50' stroke='rgba(220,235,250,0.40)' stroke-width='0.55'/></svg>")
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(70,170,225,0.32)'/><line x1='23' y1='1' x2='23' y2='50' stroke='@{grid-divider}' stroke-width='0.55'/></svg>")
 		center / 100% 100% no-repeat;
 }
 
@@ -1212,7 +1274,7 @@
 // outline removed — contour comes from the wrapper.
 .board-space-type-volcanic-cove {
 	background-image:
-		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(180,90,40,0.28)'/><line x1='23' y1='1' x2='23' y2='50' stroke='rgba(220,235,250,0.40)' stroke-width='0.55'/></svg>");
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(180,90,40,0.28)'/><line x1='23' y1='1' x2='23' y2='50' stroke='@{grid-divider}' stroke-width='0.55'/></svg>");
 	background-size: 100% 100%;
 	background-repeat: no-repeat;
 	background-color: #8304;
