@@ -436,22 +436,42 @@
     margin-left: 1px;
 }
 
-.planet-sidebar .planet-metric__checkmark {
+/*
+ * "Completed" indicator — small circular checkmark badge that sits as
+ * an overlay on the top-right corner of the value cluster when an
+ * axis hits its hard cap. The number + unit stay fully visible
+ * underneath: card requirements in this game are written against the
+ * concrete final value (e.g. "Temperature ≥ +8°C") and the player
+ * must NEVER have to remember which numeric value corresponds to a
+ * fully-finished scale. The badge is the completion semaphore; the
+ * digits are the load-bearing reading.
+ *
+ * Positioned absolutely so it doesn't push the digits sideways and
+ * the value cluster's centered baseline stays where the other rows'
+ * digits are. Small enough (14 px) to read as a "stamp" rather than
+ * an extra interactive widget.
+ */
+.planet-sidebar .planet-metric__max-badge {
+    position: absolute;
+    top: -8px;
+    right: -10px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     color: rgba(140, 240, 200, 1);
-    background: rgba(35, 70, 55, 0.7);
+    background: rgba(20, 50, 40, 0.85);
     box-shadow:
-        0 0 0 1px rgba(140, 240, 200, 0.7),
-        0 0 8px rgba(140, 240, 200, 0.35);
-    font-size: 13px;
+        0 0 0 1px rgba(140, 240, 200, 0.75),
+        0 0 6px rgba(140, 240, 200, 0.42);
+    font-size: 9px;
     font-weight: 700;
     line-height: 1;
-    text-shadow: 0 0 4px rgba(140, 240, 200, 0.5);
+    text-shadow: 0 0 3px rgba(140, 240, 200, 0.55);
+    pointer-events: auto;
+    z-index: 2;
 }
 
 /* ------------- generation block specifics -------------------- */
@@ -651,6 +671,24 @@
     overflow: hidden;
 }
 
+/*
+ * Per-axis progress fills share a SINGLE color scheme with the global
+ * terraforming spine (planet-spine__fill above). Previously each axis
+ * had its own hardcoded tint (orange / light blue / blue / tan) — but
+ * that produced four unrelated palettes inside the same rail, and
+ * the per-axis tint was decorative-only (it didn't communicate
+ * anything the icon doesn't already say). The spine's vertical
+ * gradient (cyan-blue → teal → cyan-green, bottom-up) "evolves" as
+ * the fill grows; mirroring it horizontally here gives every metric
+ * the SAME dynamic-color read: the bar starts in the cool blue of an
+ * untouched parameter and finishes in the green of completion. One
+ * color system across the whole rail, no extra "what does pink mean"
+ * cognitive load.
+ *
+ * Same gradient stops, rotated 90°: bot→mid→top on the spine becomes
+ * left→middle→right on the bar (left = start of fill = same color as
+ * spine bottom; right = full = same color as spine top).
+ */
 .planet-sidebar .planet-metric__progress::before {
     content: '';
     position: absolute;
@@ -659,30 +697,14 @@
     left: 0;
     width: var(--planet-progress-fill, 0%);
     background: linear-gradient(90deg,
-        rgba(106, 176, 230, 0.92),
-        rgba(95, 227, 200, 0.92));
+        @planet-spine-fill-bot 0%,
+        @planet-spine-fill-mid 55%,
+        @planet-spine-fill-top 100%);
     box-shadow:
-        0 0 6px rgba(106, 176, 230, 0.55),
+        0 0 6px rgba(106, 200, 220, 0.55),
         inset 0 1px 0 rgba(255, 255, 255, 0.18);
     transition: width 750ms cubic-bezier(0.22, 1, 0.36, 1);
     border-radius: 2px;
-}
-
-.planet-sidebar .planet-metric--temperature .planet-metric__progress::before {
-    background: linear-gradient(90deg, rgba(255, 145, 95, 0.92), rgba(255, 200, 130, 0.95));
-    box-shadow: 0 0 5px rgba(255, 155, 105, 0.55);
-}
-.planet-sidebar .planet-metric--oxygen .planet-metric__progress::before {
-    background: linear-gradient(90deg, rgba(165, 220, 255, 0.9), rgba(120, 200, 255, 0.95));
-    box-shadow: 0 0 5px rgba(165, 220, 255, 0.5);
-}
-.planet-sidebar .planet-metric--oceans .planet-metric__progress::before {
-    background: linear-gradient(90deg, rgba(75, 165, 235, 0.92), rgba(125, 205, 245, 0.95));
-    box-shadow: 0 0 5px rgba(75, 165, 235, 0.55);
-}
-.planet-sidebar .planet-metric--venus .planet-metric__progress::before {
-    background: linear-gradient(90deg, rgba(225, 170, 125, 0.92), rgba(245, 205, 165, 0.95));
-    box-shadow: 0 0 5px rgba(225, 170, 125, 0.5);
 }
 
 .planet-sidebar .planet-metric--max .planet-metric__icon {

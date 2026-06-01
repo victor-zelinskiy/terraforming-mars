@@ -1,14 +1,16 @@
 <template>
   <div>
   <!--
-    During the WGT 2-stage hold (see fetchPlayerInput), we want the
-    viewport to show JUST the board with the animating marker — neither
-    the dismissed WGT modal nor the upcoming next-phase modal. Bail with
-    an empty render until the hold clears (after WGT_MARKER_HOLD_MS).
-    The `isServerSideRequestInProgress` flag stays raised through the
+    During the WGT 2-stage hold OR the Board Placement Animation hold
+    (see fetchPlayerInput), we want the viewport to show JUST the
+    board with the animating marker / freshly-placed tile — neither
+    the dismissed WGT modal nor the upcoming next-phase modal. Bail
+    with an empty render until both holds clear (after at most
+    max(WGT_MARKER_HOLD_MS, placement hold)). The
+    `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker">
+  <template v-if="holdingForMarker || holdingForTilePlacement">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -111,6 +113,11 @@ import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {clearIfPhaseLeftCardPick, clearDraftWaitPending, shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
 import {Message} from '@/common/logs/Message';
+import {
+  applyTilePlacementPreview,
+  placementHoldDurationMs,
+  shouldHoldForTilePlacement,
+} from '@/client/components/board/tilePlacementAnimation';
 
 const WGT_TITLE = 'Select action for World Government Terraforming';
 
@@ -204,6 +211,18 @@ type DataModel = {
    * board with the animating marker for the hold window.
    */
   holdingForMarker: boolean;
+  /*
+   * Counterpart hold for the Board Placement Animation Framework.
+   * Raised when a server response brings a new tile (oceans /
+   * greeneries / cities / special tiles) on the Mars board. While
+   * true, the upcoming next-phase modal (payment, action menu,
+   * etc.) is suppressed via the same empty-render branch that
+   * `holdingForMarker` uses, so the eye stays on the board long
+   * enough for the placement impact frame to land before resource
+   * chips / scale markers / next prompt fire. See
+   * src/client/components/board/tilePlacementAnimation.ts.
+   */
+  holdingForTilePlacement: boolean;
 }
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
@@ -235,6 +254,7 @@ export default defineComponent({
       suspend: false,
       savedPlayerView: undefined,
       holdingForMarker: false,
+      holdingForTilePlacement: false,
     };
   },
   /*
@@ -371,25 +391,56 @@ export default defineComponent({
           if (response.ok) {
             const newView = await response.json() as PlayerViewModel;
             /*
-             * WGT 2-stage transition: when the submit was the WGT
-             * OrOptions AND the response actually changes one of the
-             * three dial values, mutate the displayed playerView in
-             * place so the marker animation fires, hide the modals
-             * via holdingForMarker, then wait WGT_MARKER_HOLD_MS
-             * before letting the full playerkey++ remount happen
-             * (which would open the next-phase modal). The
-             * `isServerSideRequestInProgress` flag stays true through
-             * the setTimeout (it's cleared in `.finally` which runs
-             * after this async function returns), so the player can't
-             * fire another submit during the hold window.
+             * Two independent holds compose here:
+             *
+             *   marker hold — WGT submit raised temperature / oxygen /
+             *     venus. Mutates JUST those three scalars in place so
+             *     AnimatedScaleMarker can glide unobstructed, blocks
+             *     the next-phase modal opening for ~WGT_MARKER_HOLD_MS.
+             *
+             *   tile-placement hold — any submit (WGT, manual ocean
+             *     placement, card-driven tile placement, action-menu
+             *     tile drop) that introduces at least one new tile on
+             *     the Mars board. Mutates JUST the affected spaces'
+             *     tileType in place so BoardSpaceTile's watcher fires
+             *     the impact + settle keyframes; suppresses the
+             *     upcoming modal for `placementHoldDurationMs()`.
+             *
+             * Both previews apply if both conditions hold (e.g. a
+             * future card that bumps temperature AND places a tile).
+             * Actual hold = max of the two so the longer animation
+             * doesn't get clipped by the shorter window.
+             *
+             * `isServerSideRequestInProgress` stays raised through the
+             * whole hold (cleared in `.finally`), so nothing else can
+             * submit while we're previewing.
              */
-            if (wgtSubmit && this.shouldHoldForMarkerAnimation(newView)) {
-              this.applyGlobalParamPreview(newView);
-              this.holdingForMarker = true;
+            const markerHold = wgtSubmit && this.shouldHoldForMarkerAnimation(newView);
+            const tileHold = shouldHoldForTilePlacement(
+              this.playerView.game.spaces,
+              newView.game.spaces,
+            );
+            if (markerHold || tileHold) {
+              if (markerHold) {
+                this.applyGlobalParamPreview(newView);
+                this.holdingForMarker = true;
+              }
+              if (tileHold) {
+                applyTilePlacementPreview(
+                  this.playerView.game.spaces,
+                  newView.game.spaces,
+                );
+                this.holdingForTilePlacement = true;
+              }
+              const holdMs = Math.max(
+                markerHold ? WGT_MARKER_HOLD_MS : 0,
+                tileHold ? placementHoldDurationMs() : 0,
+              );
               try {
-                await new Promise<void>((resolve) => setTimeout(resolve, WGT_MARKER_HOLD_MS));
+                await new Promise<void>((resolve) => setTimeout(resolve, holdMs));
               } finally {
                 this.holdingForMarker = false;
+                this.holdingForTilePlacement = false;
               }
             }
             this.updatePlayerView(newView);

@@ -1,0 +1,328 @@
+/*
+ * board_placement_animation.less — premium tile-arrival animation for
+ * any new tile appearing on the Mars board. Driven by the JS framework
+ * in src/client/components/board/tilePlacementAnimation.ts and applied
+ * via the `--placing` + `--placing-{kind}` classes that
+ * BoardSpaceTile.vue toggles when its `space.tileType` transitions from
+ * undefined → defined.
+ *
+ * Visual contract (mirrors AnimatedScaleMarker's premium feel):
+ *
+ *   Pre-impact (0–18 % of the animation):
+ *     - Tile graphic is still nearly invisible (low opacity) and small.
+ *     - Ring (::before) starts fading in at the tile's centre,
+ *       gathering toward the strike point. Reads as "something is
+ *       arriving here" without committing to the tile's identity yet.
+ *
+ *   Impact (~38 %):
+ *     - Tile graphic snaps to full opacity + a brief overshoot scale
+ *       (~1.10) with a brightness flash. Ring is at peak opacity at
+ *       full size — sci-fi "lock-in" frame.
+ *
+ *   Settle (~38 → 100 %):
+ *     - Tile eases back to its rest scale (1.0). Ring expands +
+ *       fades outward, retiring the accent so the board returns to
+ *       its calm baseline. A short outline pulse (::after) catches
+ *       the eye one last time at the hex border.
+ *
+ * Performance / smoothness notes:
+ *
+ *   - All animated channels are transform + opacity + filter
+ *     (brightness + saturate). No box-shadow keyframes — those are
+ *     the single most expensive thing CSS animations can do; only
+ *     the rest-state box-shadow on ::before persists. The ::after
+ *     uses `mix-blend-mode: screen` for the hex-edge pulse — paid
+ *     for once at the start of the animation, the blend layer is
+ *     time-bounded with the `--placing` class.
+ *
+ *   - Keyframe density is intentionally heavier than the standard
+ *     5-stop CSS animation: each channel has 9–11 stops, with the
+ *     densest cluster around the impact frame (28–48 %). This is
+ *     the difference between an animation that reads as silky-60-fps
+ *     and one that reads as low-fps stepping. The extra stops cost
+ *     nothing — the GPU interpolates between them anyway.
+ *
+ *   - `will-change: transform, opacity, filter` is set ONLY while
+ *     the `--placing` class is present (Vue removes it after the
+ *     animation timer). The compositor layer promotion is bounded
+ *     in time.
+ */
+
+.board-space-tile--placing {
+    /* Defaults — overridden by per-kind selectors below. */
+    --placement-accent:        rgba(220, 230, 255, 0.95);
+    --placement-accent-soft:   rgba(220, 230, 255, 0.55);
+    --placement-accent-faint:  rgba(220, 230, 255, 0.18);
+    --placement-duration:      930ms;
+    --placement-delay:         0ms;
+    /*
+     * The placement animation needs the tile div as its own
+     * positioning context so the ::before ring + ::after outline
+     * pseudo-elements lay over the background. The existing tile
+     * classes don't set position (the inner .board-space class is
+     * absolute via the shared rule); ensure it's a containing block
+     * regardless.
+     */
+    position: absolute;
+
+    /*
+     * Drive the tile's own opacity / scale / brightness / saturate
+     * via the `tile-placement-impact` keyframes. `cubic-bezier(0.34,
+     * 1.45, 0.64, 1)` is a gentle back-ease — the easing function
+     * overshoots slightly past 1.0 and lands. Combined with the
+     * scale overshoot encoded in the keyframes themselves (1.10 at
+     * 38 %, undershoot 0.98 at 58 %), this gives the impact a
+     * weighted "thump" rather than a clean linear stop.
+     */
+    animation: tile-placement-impact var(--placement-duration) cubic-bezier(0.34, 1.45, 0.64, 1) var(--placement-delay) both;
+    transform-origin: 50% 50%;
+    /*
+     * Z-index lift while animating so the impact ring isn't covered
+     * by the player cube / bonus icon that BoardSpace renders as
+     * siblings after the tile. Reverts when the class is removed.
+     */
+    z-index: 2;
+    /*
+     * Promote to its own compositor layer for the animation window.
+     * Time-bounded — the class is removed by the JS timer after
+     * the animation ends, so we don't pay the layer cost forever.
+     * Listing transform + opacity + filter explicitly so all three
+     * animated channels get GPU-accelerated composition.
+     */
+    will-change: transform, opacity, filter;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        pointer-events: none;
+        border: 1.5px solid var(--placement-accent);
+        border-radius: 50%;
+        box-shadow:
+            0 0 14px var(--placement-accent-soft),
+            inset 0 0 10px var(--placement-accent-faint);
+        opacity: 0;
+        transform: scale(0.4);
+        transform-origin: 50% 50%;
+        animation: tile-placement-ring var(--placement-duration) cubic-bezier(0.22, 1, 0.36, 1) var(--placement-delay) both;
+        will-change: transform, opacity;
+        z-index: 3;
+    }
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        /*
+         * Hex-shaped settle outline. Matches the parent .board-space
+         * clip-path so the pulse traces the actual cell border the
+         * player just acted on, not a generic rectangle.
+         */
+        clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+        background:
+            linear-gradient(
+                180deg,
+                var(--placement-accent-soft) 0%,
+                transparent 18%,
+                transparent 82%,
+                var(--placement-accent-soft) 100%);
+        mix-blend-mode: screen;
+        opacity: 0;
+        animation: tile-placement-settle var(--placement-duration) cubic-bezier(0.22, 1, 0.36, 1) var(--placement-delay) both;
+        will-change: opacity;
+        z-index: 2;
+    }
+}
+
+.board-space-tile--placing-ocean {
+    --placement-accent:       #5cdaff;
+    --placement-accent-soft:  rgba(92, 218, 255, 0.65);
+    --placement-accent-faint: rgba(92, 218, 255, 0.22);
+}
+
+.board-space-tile--placing-greenery {
+    --placement-accent:       #8ee78a;
+    --placement-accent-soft:  rgba(142, 231, 138, 0.62);
+    --placement-accent-faint: rgba(142, 231, 138, 0.20);
+}
+
+.board-space-tile--placing-city {
+    --placement-accent:       #ffc857;
+    --placement-accent-soft:  rgba(255, 200, 87, 0.65);
+    --placement-accent-faint: rgba(255, 200, 87, 0.22);
+}
+
+.board-space-tile--placing-special {
+    --placement-accent:       #d6a8ff;
+    --placement-accent-soft:  rgba(214, 168, 255, 0.62);
+    --placement-accent-faint: rgba(214, 168, 255, 0.22);
+}
+
+/*
+ * Tile body keyframes. Same visual trajectory as the original 5-stop
+ * version (scale 0.55 → 0.78 → 1.10 → 0.98 → 1.0, with brightness
+ * + saturate fading from peak warmth to neutral); the extra
+ * intermediate stops at 9 % / 28 % / 48 % / 75 % just give the GPU
+ * more control points to interpolate between. The trajectory itself
+ * is unchanged — only the smoothness is. Densest around the impact
+ * frame where the eye reads detail.
+ */
+@keyframes tile-placement-impact {
+    0% {
+        opacity: 0;
+        transform: scale(0.55);
+        filter: brightness(1.30) saturate(1.45);
+    }
+    9% {
+        opacity: 0.06;
+        transform: scale(0.66);
+        filter: brightness(1.28) saturate(1.42);
+    }
+    18% {
+        opacity: 0.18;
+        transform: scale(0.78);
+        filter: brightness(1.25) saturate(1.40);
+    }
+    28% {
+        opacity: 0.55;
+        transform: scale(0.95);
+        filter: brightness(1.22) saturate(1.35);
+    }
+    38% {
+        opacity: 1;
+        transform: scale(1.10);
+        filter: brightness(1.20) saturate(1.30);
+    }
+    48% {
+        opacity: 1;
+        transform: scale(1.04);
+        filter: brightness(1.14) saturate(1.21);
+    }
+    58% {
+        opacity: 1;
+        transform: scale(0.98);
+        filter: brightness(1.08) saturate(1.12);
+    }
+    75% {
+        opacity: 1;
+        transform: scale(0.995);
+        filter: brightness(1.04) saturate(1.06);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        filter: brightness(1) saturate(1);
+    }
+}
+
+/*
+ * Sci-fi "lock-in" ring. Same 5-stop trajectory as before (scale
+ * 0.4 → 0.78 → 1.05 → 1.32 → 1.55, opacity 0 → 0.55 → 1 → 0.35 → 0)
+ * with 4 intermediate stops added at 9 / 28 / 50 / 80 % so the
+ * expansion + fade reads as continuous motion rather than a
+ * five-frame sequence.
+ */
+@keyframes tile-placement-ring {
+    0% {
+        opacity: 0;
+        transform: scale(0.4);
+    }
+    9% {
+        opacity: 0.25;
+        transform: scale(0.58);
+    }
+    18% {
+        opacity: 0.55;
+        transform: scale(0.78);
+    }
+    28% {
+        opacity: 0.78;
+        transform: scale(0.92);
+    }
+    38% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+    50% {
+        opacity: 0.72;
+        transform: scale(1.20);
+    }
+    65% {
+        opacity: 0.35;
+        transform: scale(1.32);
+    }
+    80% {
+        opacity: 0.18;
+        transform: scale(1.45);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1.55);
+    }
+}
+
+/*
+ * Hex-border settle pulse. Doesn't fire until the tile is already
+ * landing (35 %) — it's the "and you can stop looking now" cue, not a
+ * pre-impact effect. Same peak-at-50% shape as before, with rise
+ * (38 %, 44 %) and fall (60 %, 75 %) intermediates added so the
+ * fade-in / fade-out edges are smooth, not stepped.
+ */
+@keyframes tile-placement-settle {
+    0%, 30% {
+        opacity: 0;
+    }
+    38% {
+        opacity: 0.30;
+    }
+    44% {
+        opacity: 0.65;
+    }
+    50% {
+        opacity: 0.85;
+    }
+    60% {
+        opacity: 0.62;
+    }
+    75% {
+        opacity: 0.30;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+/*
+ * Reduced-motion path. The JS framework already drops the animation
+ * duration to ~280 ms; here we further collapse the visual to a pure
+ * cross-fade. No scale, no ring expansion, no hex pulse — just the
+ * tile easing from invisible to visible. Keeps users who opted out of
+ * motion fully informed of the placement without any movement.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .board-space-tile--placing {
+        animation: tile-placement-impact-reduced var(--placement-duration) ease-out var(--placement-delay) both;
+        will-change: opacity;
+
+        &::before {
+            animation: none;
+            opacity: 0;
+        }
+        &::after {
+            animation: none;
+            opacity: 0;
+        }
+    }
+}
+
+@keyframes tile-placement-impact-reduced {
+    0% {
+        opacity: 0;
+        filter: brightness(1.15);
+    }
+    100% {
+        opacity: 1;
+        filter: brightness(1);
+    }
+}
