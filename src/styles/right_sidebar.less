@@ -646,17 +646,31 @@
  *
  * Track: dark recessed channel with hairline rim + inset shadow,
  * reading as a slot machined into the rail chrome. Stays visible at
- * 0 % so an empty scale never looks like a missing decoration.
+ * 0 % so an empty scale never looks like a missing decoration. The
+ * track itself is SHARED and neutral across all four axes — only
+ * the accent (fill + cap + glow) differs. This keeps the chrome
+ * reading as one continuous instrument panel rather than four
+ * unrelated widgets.
  *
- * Fill: per-axis SEMANTIC gradient (see metric-specific blocks
- * further down). Each axis owns a palette related to its parameter
- * — temperature cools→warms, oxygen lives in cool cyan, oceans in
- * aqua, venus in muted yellow-green. The general planet spine keeps
- * its own mint-cyan palette as the "overall progress" colour.
- * Explicit reason for NOT using one shared gradient across all
- * four: a rainbow shift by fill level was decorative-only and read
- * as cheap — colour should be tied to the metric, not to the fill
- * percentage.
+ * Fill: each axis owns ONE accent hue. Within a single bar every
+ * coloured element (fill, leading-edge cap, glow halo) lives in
+ * the same hue family — no cross-hue gradients inside one bar. The
+ * fill uses a subtle dark→bright gradient of the SAME hue (left
+ * end ~85 % luminance of the accent, right end the full accent),
+ * which reads as depth/material under HUD light without becoming a
+ * second colour. Accents are coordinated with the established
+ * scale-marker palette (see scale_marker.less) so the right-bar
+ * mini-bars and the global scale dials use one shared accent
+ * language.
+ *
+ * Accent palette (matched in saturation and luminance so no bar
+ * shouts louder than another):
+ *   - Temperature → muted warm coral (scale-marker --temperature)
+ *   - Oxygen      → cool cyan        (scale-marker --oxygen)
+ *   - Oceans      → marine blue      (NEW — deeper than oxygen so
+ *                                     the two cool axes stay visibly
+ *                                     distinct at a glance)
+ *   - Venus       → luminous gold    (scale-marker --venus)
  *
  * Leading-edge cap: a 4-px luminous band tracking the right edge of
  * the fill via the same --planet-progress-fill variable. Lives on
@@ -665,7 +679,10 @@
  * the cap would shrink/grow as progress changes. The track's
  * overflow:hidden clips the cap to nothing at 0 % fill (cap left =
  * 0% − 4px = −4px, fully outside the track), so an untouched scale
- * shows only the dark recess.
+ * shows only the dark recess. The cap is the accent-tinted white
+ * highlight of the same hue (a warm cream on temperature, cool
+ * cream on oxygen, etc.) so the bar's leading edge stays inside
+ * its own colour family.
  *
  * Per-axis variables (--planet-progress-fill-bg / -cap / -glow) are
  * set on each .planet-metric--* and inherit down through the track
@@ -726,51 +743,60 @@
     border-radius: 0 2px 2px 0;
 }
 
-/* Per-axis semantic palettes.
+/* Per-axis accents — single-hue logic per bar.
  *
- * Temperature — cold-to-warm gradient inside the fill itself: cool
- * cyan at the freezing end, neutral steel mid, sci-fi amber at the
- * warm end. Deliberately not red — the brief specifically excludes
- * aggressive red. Mirrors the meaning of the temperature axis (it
- * IS a cold→warm axis) without becoming a heat-map.
+ * Each bar's fill is a monochromatic dark→bright gradient of the
+ * SAME hue (no cross-hue mixing inside one bar). Cap and glow live
+ * in the same hue family, so fill, leading-edge highlight and halo
+ * read as one accent rather than three colours stacked. The four
+ * accents are tuned to roughly equal perceived saturation and
+ * luminance so no bar dominates the rail.
  */
+
+/* Temperature — muted warm coral. Matches scale-marker
+ * `--temperature` so the mini-bar and the temperature dial speak
+ * one accent. Single hue end-to-end: the brief excludes the old
+ * cold→warm bichromatic gradient (read as a decorative heat-map
+ * rather than a clean HUD accent). */
 .planet-sidebar .planet-metric--temperature {
     --planet-progress-fill-bg: linear-gradient(90deg,
-        rgba(110, 185, 230, 0.88) 0%,
-        rgba(170, 195, 200, 0.90) 50%,
-        rgba(255, 195, 120, 0.94) 100%);
-    --planet-progress-cap: rgba(255, 222, 168, 1);
-    --planet-progress-glow: rgba(255, 190, 130, 0.45);
+        rgba(196, 124,  85, 0.88) 0%,
+        rgba(232, 160, 121, 0.94) 100%);
+    --planet-progress-cap: rgba(255, 218, 188, 1);
+    --planet-progress-glow: rgba(232, 160, 121, 0.50);
 }
 
-/* Oxygen — cool cyan accent. Single chromatic family so the bar
- * doesn't compete with temperature's bichromatic gradient. */
+/* Oxygen — cool cyan. Matches scale-marker `--oxygen`. Light, airy
+ * cyan reads as the upper-atmosphere half of the cool-blue pair. */
 .planet-sidebar .planet-metric--oxygen {
     --planet-progress-fill-bg: linear-gradient(90deg,
-        rgba(108, 180, 230, 0.86) 0%,
-        rgba(160, 220, 250, 0.93) 100%);
-    --planet-progress-cap: rgba(215, 242, 255, 1);
-    --planet-progress-glow: rgba(115, 200, 240, 0.55);
+        rgba(108, 188, 218, 0.88) 0%,
+        rgba(140, 216, 238, 0.94) 100%);
+    --planet-progress-cap: rgba(225, 245, 252, 1);
+    --planet-progress-glow: rgba(140, 216, 238, 0.50);
 }
 
-/* Oceans — aqua / water-blue. Lower / cooler than oxygen so the two
- * axes don't read as the same colour at a glance. */
+/* Oceans — marine blue. Deliberately deeper and more saturated than
+ * oxygen's sky cyan so the two cool axes stay visibly distinct at
+ * a glance (oxygen reads "atmosphere", oceans reads "water"). */
 .planet-sidebar .planet-metric--oceans {
     --planet-progress-fill-bg: linear-gradient(90deg,
-        rgba(45, 160, 205, 0.88) 0%,
-        rgba(120, 215, 235, 0.94) 100%);
-    --planet-progress-cap: rgba(180, 240, 250, 1);
-    --planet-progress-glow: rgba(85, 200, 230, 0.55);
+        rgba( 68, 132, 192, 0.88) 0%,
+        rgba( 96, 168, 224, 0.94) 100%);
+    --planet-progress-cap: rgba(205, 230, 250, 1);
+    --planet-progress-glow: rgba( 96, 168, 224, 0.50);
 }
 
-/* Venus — muted yellow-green. Deliberately desaturated so the bar
- * doesn't go acid-lime. */
+/* Venus — luminous gold. Matches scale-marker `--venus`. Replaces
+ * the older yellow-green accent which read as acid-lime against
+ * the dark track; gold sits cleanly between the warm temperature
+ * coral and the cool oxygen / oceans blues. */
 .planet-sidebar .planet-metric--venus {
     --planet-progress-fill-bg: linear-gradient(90deg,
-        rgba(150, 195, 110, 0.85) 0%,
-        rgba(210, 230, 140, 0.93) 100%);
-    --planet-progress-cap: rgba(232, 247, 175, 1);
-    --planet-progress-glow: rgba(175, 220, 110, 0.45);
+        rgba(214, 178,  78, 0.88) 0%,
+        rgba(245, 214, 116, 0.94) 100%);
+    --planet-progress-cap: rgba(255, 240, 195, 1);
+    --planet-progress-glow: rgba(245, 214, 116, 0.50);
 }
 
 .planet-sidebar .planet-metric--max .planet-metric__icon {

@@ -636,11 +636,16 @@
 		position: absolute;
 		inset: -3px;
 		border-radius: 50%;
+		// Warm-umber grounding disc (was cool 6,14,24) so the plate sits
+		// in the same warm survey palette as the grid + tile rim, and a
+		// touch denser (0.34/0.14 vs 0.15/0.05) for more "chip" volume.
+		// The wrapper brightness/saturate bump below pays the small
+		// brightness cost back so the icon still reads near-full.
 		background: radial-gradient(
 			ellipse at center,
-			rgba(6, 14, 24, 0.15) 0%,
-			rgba(6, 14, 24, 0.05) 50%,
-			transparent 78%);
+			rgba(20, 9, 4, 0.34) 0%,
+			rgba(20, 9, 4, 0.14) 52%,
+			transparent 76%);
 		z-index: -1;
 		pointer-events: none;
 	}
@@ -786,12 +791,13 @@
  * filter line covers every tile family (base + Ares + Moon) without
  * per-tile setup.
  *
- * Why a cool bloom and not warm: the rest of the board chrome was
- * unified into a cool silver-blue HUD palette (contour, rim, inner
- * accents). A warm bloom would clash with that and pull individual
- * tiles out of the design system. Cool bloom over warm Mars reads
- * cleanly without recolouring the tile sprite itself — the bloom is
- * outside the tile silhouette.
+ * Why a WARM bloom now: the board chrome was re-unified into a WARM
+ * "Martian survey" palette (the engraved contour, the tile rim, the
+ * cove dividers all sit in warm dust/umber tones). A cool bloom — the
+ * prior choice — now clashes and pulls tiles back out of the system.
+ * The bloom is warmed to match so each tile reads as a lit game-piece
+ * belonging to that system. It sits OUTSIDE the tile silhouette so it
+ * never recolours the sprite itself.
  *
  * Scope: `.board` / `.board-outer-spaces` ancestor scopes the rule
  * to actual board cells. The same `board-space-tile--<x>` classes
@@ -804,80 +810,99 @@
  * filter returns. The 40 ms tail buffer the placement framework adds
  * makes the transition invisible.
  *
- * Performance: two filter layers per tile, same count as before.
- * Drop-shadow with 3-px blur is a single GPU pass per layer; the
- * board has at most ~60 placed tiles, well within budget.
+ * The stack (top-to-bottom = applied first-to-last):
+ *   1. saturate + contrast — crisps the sprite into a vivid lit piece;
+ *      the gray city especially stops reading as dull against warm Mars.
+ *   2. WARM bloom (4 px @ 0.50) — premium lit-piece halo, matches grid.
+ *   3. ELEVATION shadow (0 2px, warm-dark, OFFSET DOWN) — the key depth
+ *      cue: the token visibly rests ABOVE the surface and casts
+ *      downward, giving real volume instead of a flat decal.
+ *   4. tight CONTACT shadow — the ground-line so it isn't a balloon.
+ *
+ * Performance: colour-adjust folds into one pass + 3 drop-shadows;
+ * a handful of GPU passes per tile, at ~60 tiles well within budget.
  */
 .board [class*="board-space-tile--"],
 .board-outer-spaces [class*="board-space-tile--"] {
 	filter:
-		drop-shadow(0 0 4.5px rgba(235, 245, 255, 0.65))
-		drop-shadow(0 0.7px 0.5px rgba(0, 0, 0, 0.22));
+		saturate(1.07) contrast(1.04)
+		drop-shadow(0 0 4px rgba(255, 240, 214, 0.50))
+		drop-shadow(0 2px 2.5px rgba(22, 10, 4, 0.42))
+		drop-shadow(0 0.5px 0.4px rgba(0, 0, 0, 0.30));
+}
+
+// `board_icons.png` ships at 4× (2520×600); coordinates below are authored
+// against the original 630×150 grid. `background-size` rescales the bitmap
+// back to that grid so positions stay correct, while HiDPI displays still
+// sample from the high-res source for sharper edges.
+.board-icons-sprite(@x, @y) {
+	background: url(./assets/board_icons.png) @x @y no-repeat;
+	background-size: 630px 150px;
 }
 
 .board-space-tile--ocean {
-	background: url(./assets/board_icons.png) -79px -29px no-repeat;
+	.board-icons-sprite(-79px, -29px);
 	width: 46px;
 }
 
 .board-space-tile--city {
-	background: url(./assets/board_icons.png) -29px -29px no-repeat;
+	.board-icons-sprite(-29px, -29px);
 }
 
 .board-space-tile--greenery {
-	background: url(./assets/board_icons.png) -129px -29px no-repeat;
+	.board-icons-sprite(-129px, -29px);
 }
 
 .board-space-tile--capital {
-	background: url(./assets/board_icons.png) -198px -83px no-repeat;
+	.board-icons-sprite(-198px, -83px);
 }
 
 .board-space-tile--mohole_area {
-	background: url(./assets/board_icons.png) -438px -27px no-repeat;
+	.board-icons-sprite(-438px, -27px);
 }
 
 .board-space-tile--commercial_district {
-	background: url(./assets/board_icons.png) -486px -27px no-repeat;
+	.board-icons-sprite(-486px, -27px);
 }
 
 .board-space-tile--ecological_zone {
-	background: url(./assets/board_icons.png) -581px -27px no-repeat;
+	.board-icons-sprite(-581px, -27px);
 }
 
 .board-space-tile--industrial_center {
-	background: url(./assets/board_icons.png) -534px -27px no-repeat;
+	.board-icons-sprite(-534px, -27px);
 }
 
 .board-space-tile--lava_flows {
-	background: url(./assets/board_icons.png) -246px -27px no-repeat;
+	.board-icons-sprite(-246px, -27px);
 }
 
 .board-space-tile--mining_area, .board-space-tile--mining_rights {
-	background: url(./assets/board_icons.png) -294px -27px no-repeat;
+	.board-icons-sprite(-294px, -27px);
 }
 
 .board-space-tile--natural_preserve {
-	background: url(./assets/board_icons.png) -390px -27px no-repeat;
+	.board-icons-sprite(-390px, -27px);
 }
 
 .board-space-tile--nuclear_zone {
-	background: url(./assets/board_icons.png) -198px -27px no-repeat;
+	.board-icons-sprite(-198px, -27px);
 }
 
 .board-space-tile--restricted_area {
-	background: url(./assets/board_icons.png) -342px -27px no-repeat;
+	.board-icons-sprite(-342px, -27px);
 }
 
 .board-space-tile--great_dam {
-	background: url(./assets/board_icons.png) -581px -83px no-repeat;
+	.board-icons-sprite(-581px, -83px);
 }
 
 .board-space-tile--deimos_down {
-	background: url(./assets/board_icons.png) -487px -83px no-repeat;
+	.board-icons-sprite(-487px, -83px);
 }
 
 .board-space-tile--magnetic_field_generators {
-	background: url(./assets/board_icons.png) -535px -83px no-repeat;
+	.board-icons-sprite(-535px, -83px);
 }
 
 .board-space-tile--new-holland {
@@ -887,13 +912,39 @@
 	background-size: 44px, 50px;
 }
 
+// Shared premium "lit token" lift for every board-SURFACE marker
+// (player cubes, Moon co-owner cubes, Underworld excavator). Matches
+// the placed-tile filter so markers and tiles read as one material
+// system instead of leaving small markers on the old harsh diagonal
+// `2px 2px 3px black` shadow:
+//   • saturate — keeps the marker COLOUR punchy + instantly legible.
+//   • faint WARM bloom — ties it to the tile/grid survey palette.
+//   • WARM elevation (offset down) — lifts the chip off the surface.
+//   • tight CONTACT shadow — anchors it so it isn't floating.
+.premium-board-token() {
+	filter:
+		saturate(1.10)
+		drop-shadow(0 0 2px rgba(255, 240, 214, 0.45))
+		drop-shadow(0 1.5px 1.5px rgba(18, 8, 3, 0.55))
+		drop-shadow(0 0.4px 0.4px rgba(0, 0, 0, 0.50));
+}
+
 .board-cube {
 	position: absolute;
 	width: 21px;
 	height: 21px;
 	z-index: 3;
 	margin: 25px 0 0 15px;
-	filter: drop-shadow(2px 2px 3px black);
+	/*
+	 * Player ownership marker — sits ON TOP of the city/greenery tile,
+	 * so it must speak the same premium language as the new tile
+	 * treatment (warm bloom + elevation), not the old harsh diagonal
+	 * `2px 2px 3px black` drop-shadow that now reads as the cheap odd
+	 * one out. See `.premium-board-token()` above for the stack; shared
+	 * with the co-owner cube + underground excavator so NO board-surface
+	 * marker is left on the old harsh shadow.
+	 */
+	.premium-board-token();
 }
 
 // for The Moon
@@ -903,7 +954,7 @@
 	height: 21px;
 	z-index: 3;
 	margin: 8px 0 0 4px;
-	filter: drop-shadow(2px 2px 3px black);
+	.premium-board-token();
 }
 
 .occupied-colony-space {
@@ -915,44 +966,44 @@
 }
 
 .board-cube--red {
-	background: url(./assets/board_icons.png) -24px -91px no-repeat;
+	.board-icons-sprite(-24px, -91px);
 }
 
 .board-cube--blue {
-	background: url(./assets/board_icons.png) -94px -91px no-repeat;
+	.board-icons-sprite(-94px, -91px);
 }
 
 .board-cube--black {
-	background: url(./assets/board_icons.png) -48px -91px no-repeat;
+	.board-icons-sprite(-48px, -91px);
 }
 
 .board-cube--yellow {
-	background: url(./assets/board_icons.png) -72px -91px no-repeat;
+	.board-icons-sprite(-72px, -91px);
 }
 
 .board-cube--green {
-	background: url(./assets/board_icons.png) -1px -91px no-repeat;
+	.board-icons-sprite(-1px, -91px);
 }
 
 .board-cube--purple {
-	background: url(./assets/board_icons.png) -118px -91px no-repeat;
+	.board-icons-sprite(-118px, -91px);
 }
 
 .board-cube--orange {
-	background: url(./assets/board_icons.png) -1px -117px no-repeat;
+	.board-icons-sprite(-1px, -117px);
 }
 
 .board-cube--pink {
-	background: url(./assets/board_icons.png) -24px -117px no-repeat;
+	.board-icons-sprite(-24px, -117px);
 }
 
 .board-cube--bronze {
-	background: url(./assets/board_icons.png) -142px -91px no-repeat;
+	.board-icons-sprite(-142px, -91px);
 }
 
 // TODO(kberg): this only works at the moment because I've made the neutral cube bronze.
 .board-cube--neutral {
-	background: url(./assets/board_icons.png) -142px -91px no-repeat;
+	.board-icons-sprite(-142px, -91px);
 }
 
 .overlay_base {
@@ -1099,28 +1150,28 @@
 	.board-space-bonuses {
 		position: absolute;
 		/*
-		 * Premium HUD glow for the bonus-icon group. Four-stage
+		 * Premium HUD glow for the bonus-icon group. Five-stage
 		 * wrapper filter — applies once per cell to the composite of
 		 * all bonus children, no per-icon setup needed:
 		 *
-		 *   1. Cool BLOOM (3 px @ 0.62 alpha) — soft cool halo around
-		 *      the icon silhouette, the "lit HUD object" look. This
-		 *      is the main thing that makes bonuses pop on light AND
+		 *   1. WARM BLOOM (3 px @ 0.60) — soft warm halo around the
+		 *      icon silhouette, the "lit HUD object" look. Warmed from
+		 *      the prior cool 235,245,255 so it sits in the same warm
+		 *      survey palette as the grid/tile bloom; pops on light AND
 		 *      dark Mars patches without darkening anything.
-		 *   2. Tight CONTACT shadow (0.4 px @ 0.25 alpha) — barely
-		 *      visible darkening below the icon group so they don't
-		 *      read as floating. Was 0.55 alpha + 0.6 px halo + 1 px
-		 *      contact in the prior iteration — three dark layers
-		 *      compounded and the bonuses looked dull. Replaced both
-		 *      dark halos with a cool bloom, kept only a thin
-		 *      contact line for the ground feel.
-		 *   3. brightness(1.10) — multiplies icon pixel brightness
-		 *      by 10 %. The single biggest contributor to "icons feel
-		 *      bright" feedback.
-		 *   4. saturate(1.10) — boosts colour vibrance. Green
-		 *      plants stay green, steel/titanium stay neutral, but
-		 *      everything looks more "alive" against the warm Mars
-		 *      backdrop.
+		 *   2. ELEVATION shadow (0 1.2px @ 0.40, warm-dark, OFFSET
+		 *      DOWN) — the depth cue that was missing: lifts the icon
+		 *      group into a RAISED CHIP casting downward, not a flat
+		 *      decal. Pairs with the denser grounding disc on each
+		 *      icon's ::before to read as real volume.
+		 *   3. Tight CONTACT shadow (0.3px @ 0.30) — the ground-line
+		 *      directly under the chip so it isn't a balloon.
+		 *   4. brightness(1.13) — lifts icon pixel brightness; pays
+		 *      back the small cost of the denser plate + elevation so
+		 *      icons still read near-full.
+		 *   5. saturate(1.16) — boosts colour vibrance. Green plants
+		 *      stay green, steel/titanium stay neutral, but everything
+		 *      looks more "alive" against the warm Mars backdrop.
 		 *
 		 * Stacking with per-variant `saturate(1.5)` filters on
 		 * `.board-space-bonus--bonustemperature` / `--colony` /
@@ -1141,10 +1192,38 @@
 		 * bonus icons — markers / cubes / tiles untouched.
 		 */
 		filter:
-			drop-shadow(0 0 3px rgba(235, 245, 255, 0.62))
-			drop-shadow(0 0.6px 0.4px rgba(0, 0, 0, 0.25))
-			brightness(1.10)
-			saturate(1.10);
+			drop-shadow(0 0 3px rgba(255, 238, 210, 0.60))
+			drop-shadow(0 1.2px 1px rgba(20, 9, 4, 0.40))
+			drop-shadow(0 0.5px 0.3px rgba(0, 0, 0, 0.30))
+			brightness(1.13)
+			saturate(1.16);
+	}
+
+	// ── Contextual bonus "attract" — draw the eye to the reward ─────────
+	// While a cell is a legal placement target its bonuses gently grow so
+	// the player reads "this is what you'll gain here". On the HOVERED
+	// target (or a confirmed SELECTED one) the emphasis goes stronger and
+	// the glow shifts to the placement AMBER, so the bonus speaks the same
+	// "lock-on" language as the cell's amber outline. Deliberately calm:
+	// small scale, NO idle loop — emphasis appears only in placement mode,
+	// exactly when attention SHOULD be on the legal cells. Bonuses are
+	// pointer-events:none, so this rides the parent cell's :hover.
+	&.board-space--available .board-space-bonuses {
+		transform: scale(1.06);
+		transform-origin: center center;
+		transition: transform 200ms ease, filter 200ms ease;
+	}
+
+	&.board-space--available:hover .board-space-bonuses,
+	&.board-space--selected .board-space-bonuses {
+		transform: scale(1.16);
+		transform-origin: center center;
+		filter:
+			drop-shadow(0 0 5px rgba(255, 224, 158, 0.90))
+			drop-shadow(0 1.4px 1.1px rgba(20, 9, 4, 0.45))
+			brightness(1.18)
+			saturate(1.22);
+		transition: transform 200ms ease, filter 200ms ease;
 	}
 
 	// `.board-space--available` styling lives at the top of the file
@@ -1248,8 +1327,14 @@
 // other hex. Background-color keeps the legacy fall-through blue
 // tint behind the SVG.
 .board-space-type-ocean {
+	// Reserved-ocean basin: vertical depth gradient (light surface →
+	// deep floor) PLUS a soft radial specular sheen near the top
+	// (`ogl`) so the empty water hex reads as a lit liquid surface with
+	// volume, not a flat blue tint — the least-premium fill brought up
+	// to the level of the rest of the board. Sheen is subtle (0.34→0)
+	// so it never competes with a PLACED ocean tile's drop sprite.
 	background-image:
-		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='og' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='rgb(160,225,255)' stop-opacity='0.32'/><stop offset='100%25' stop-color='rgb(20,80,140)' stop-opacity='0.35'/></linearGradient></defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='url(%23og)'/></svg>");
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='og' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='rgb(160,225,255)' stop-opacity='0.32'/><stop offset='100%25' stop-color='rgb(20,80,140)' stop-opacity='0.35'/></linearGradient><radialGradient id='ogl' cx='0.5' cy='0.27' r='0.55'><stop offset='0%25' stop-color='rgb(226,247,255)' stop-opacity='0.34'/><stop offset='55%25' stop-color='rgb(226,247,255)' stop-opacity='0.06'/><stop offset='100%25' stop-color='rgb(226,247,255)' stop-opacity='0'/></radialGradient></defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='url(%23og)'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='url(%23ogl)'/></svg>");
 	background-size: 100% 100%;
 	background-repeat: no-repeat;
 	background-color: #0af4;
@@ -1382,7 +1467,7 @@ each(@token_types, {
 	z-index: 3;
   border-radius: @radius_circle;
 	margin: 7px 0 0 21px;
-	filter: drop-shadow(2px 2px 3px black);
+	.premium-board-token();
   // box-shadow: -5px 8.66px 5px 0 #00000080
 }
 
