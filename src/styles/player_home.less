@@ -1209,6 +1209,11 @@ each(@players, {
     z-index: 100;
     background: linear-gradient(180deg, rgba(12, 18, 28, 0.96), rgba(8, 12, 20, 0.96));
     border-right: 1px solid #2c4a6a;
+    /* Crisp lit cyan hairline just inside the navy border — a deliberate
+       board-facing frame edge that the bottom-left rail's top edge
+       continues, so panel + rail read as one bracket (overridden in green
+       by the viewing-other zone tint). */
+    box-shadow: inset -1px 0 0 rgba(106, 176, 230, 0.26);
     padding: 6px 6px;
     /* Horizontal overflow is intentionally allowed — the convert-action
      * buttons attached to resource cells (plants → greenery, heat →
@@ -2805,46 +2810,61 @@ each(@players, {
  * clicks to the board); the buttons inside re-enable pointer events
  * via their own base rule.
  */
+/*
+ * ── Bottom rails as a seamless extension of the side bars ──────────────
+ * The two bottom rails are NOT free-floating plates anymore — each one
+ * flows out of its side bar (left panel / right sidebar) as that bar's
+ * footer, turning the corner into one continuous L-bracket. The trick:
+ *   • IDENTICAL material — the exact gradient the bars use
+ *     (rgba(12,18,28,.96) → rgba(8,12,20,.96)), same `#2c4a6a` edge — so
+ *     the rail reads as the same slab, not a separate box.
+ *   • Only the BOARD-FACING edges get the frame line (top + the far end),
+ *     continuing the bar's own board-facing border around the corner.
+ *   • A 1px negative margin toward the bar lets the opaque rail fill
+ *     cover the bar's border at the corner, erasing the seam.
+ *   • Premium without breaking the seam: a faint lit top-lip + soft
+ *     bottom inner-shade INSIDE the rail (interior only — the edge line
+ *     stays the plain bar colour so the L-corner matches exactly).
+ * No corner ticks here: the bars already carry the HUD ticks at their
+ * TOP corners; a tick on the rail would re-read it as a separate panel.
+ */
 .bar-rail {
     pointer-events: none;
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
     height: var(--bottom-bar-button-height);
-    padding: 0 12px;
-    background: linear-gradient(180deg, rgba(12, 18, 28, 0.82), rgba(8, 12, 20, 0.86));
-    backdrop-filter: blur(7px) saturate(1.05);
-    -webkit-backdrop-filter: blur(7px) saturate(1.05);
-    border: 1px solid #2c4a6a;
+    padding: 0 16px;
+    background: linear-gradient(180deg, rgba(12, 18, 28, 0.96), rgba(8, 12, 20, 0.96));
+    border: 0 solid #2c4a6a;
+    border-top-width: 1px; /* board-facing frame line, continues the bar's edge */
+    /* SHARP corners (set per-variant, no radius) + a crisp lit cyan edge
+       just inside the navy border = heavy, deliberate frame that reads as
+       one continuous bracket with the bar, not a floating pill. */
     box-shadow:
-        inset 0 0 0 1px rgba(106, 176, 230, 0.06),
-        0 6px 18px rgba(0, 0, 0, 0.5);
-
-    &::before,
-    &::after {
-        content: '';
-        position: absolute;
-        width: 9px;
-        height: 9px;
-        pointer-events: none;
-    }
+        inset 0 1px 0 rgba(106, 176, 230, 0.32),
+        inset 0 -12px 16px -12px rgba(0, 0, 0, 0.45);
 }
-/* Top rail descends from the screen top — round the bottom corners,
-   drop the top border, anchor the L-ticks to the bottom. */
-.bar-rail--top {
-    border-top: none;
-    border-radius: 0 0 6px 6px;
-    &::before { bottom: -1px; left: -1px; border-bottom: 1px solid #6ab0e6; border-left: 1px solid #6ab0e6; }
-    &::after  { bottom: -1px; right: -1px; border-bottom: 1px solid #6ab0e6; border-right: 1px solid #6ab0e6; }
+/* Flows out of the LEFT panel: frame the top + far(right) end; pull 1px
+   left so the opaque fill swallows the panel's border at the seam → the
+   panel's edge turns the corner straight into the rail's top edge. */
+.bar-rail--bottom-left {
+    border-right-width: 1px;
+    margin-left: -1px;
+    box-shadow:
+        inset 0 1px 0 rgba(106, 176, 230, 0.32),
+        inset -1px 0 0 rgba(106, 176, 230, 0.22),
+        inset 0 -12px 16px -12px rgba(0, 0, 0, 0.45);
 }
-/* Bottom rails rise from the screen bottom — round the top corners. */
-.bar-rail--bottom-left,
+/* Mirror — flows out of the RIGHT sidebar. */
 .bar-rail--bottom-right {
-    border-bottom: none;
-    border-radius: 6px 6px 0 0;
-    &::before { top: -1px; left: -1px; border-top: 1px solid #6ab0e6; border-left: 1px solid #6ab0e6; }
-    &::after  { top: -1px; right: -1px; border-top: 1px solid #6ab0e6; border-right: 1px solid #6ab0e6; }
+    border-left-width: 1px;
+    margin-right: -1px;
+    box-shadow:
+        inset 0 1px 0 rgba(106, 176, 230, 0.32),
+        inset 1px 0 0 rgba(106, 176, 230, 0.22),
+        inset 0 -12px 16px -12px rgba(0, 0, 0, 0.45);
 }
 
 /*
@@ -2907,31 +2927,36 @@ each(@players, {
  * ── Player-scoped zone tint (point h) ──────────────────────────────────
  * When spectating ANOTHER player (`#player-home.viewing-other`), the
  * player-scoped zone — left resources/tags panel + bottom-left rail —
- * lights up in that player's colour so the two read as ONE region. The
- * BUTTONS themselves stay neutral glass (no per-button tint); only the
- * zone frame + the "Viewing" chip take the colour. The global top rail
- * and bottom-right rail are never tinted.
+ * is WRAPPED in the player's colour: a crisp edge line PLUS an inner glow
+ * that bleeds from the board-facing edge INTO the zone, so the colour
+ * reads as a contour bathing/enclosing the region, NOT a divider line
+ * sitting between the zone and the board. The panel's right-edge glow and
+ * the rail's top-edge glow meet at the corner → one continuous aura
+ * around the whole L. Buttons stay neutral; the global top buttons and
+ * bottom-right rail are never tinted.
  */
 each(@players, {
     @c: ~"player_@{value}";
     .player-tint-@{value}.viewing-other {
         .left-panel {
-            border-right-color: fade(@@c, 85%);
-            box-shadow: inset -2px 0 0 fade(@@c, 55%), 0 0 16px fade(@@c, 16%);
+            border-right-color: fade(@@c, 90%);
+            box-shadow:
+                inset -1px 0 0 fade(@@c, 80%),            /* crisp edge */
+                inset -24px 0 32px -24px fade(@@c, 45%),  /* inner glow wrapping IN from the edge */
+                0 0 22px fade(@@c, 20%);                  /* outer halo */
         }
         .bar-rail--bottom-left {
-            border-color: fade(@@c, 72%);
+            border-color: fade(@@c, 90%);
             box-shadow:
-                inset 0 0 0 1px fade(@@c, 18%),
-                0 0 16px fade(@@c, 22%),
-                0 6px 18px rgba(0, 0, 0, 0.5);
-            &::before,
-            &::after { border-color: lighten(@@c, 18%); }
+                inset 0 1px 0 fade(@@c, 80%),
+                inset -1px 0 0 fade(@@c, 70%),
+                inset 0 24px 32px -24px fade(@@c, 45%),   /* inner glow wrapping IN from the top edge */
+                0 0 22px fade(@@c, 20%);
         }
         .bar-rail__viewing {
             color: lighten(@@c, 32%);
-            border-color: fade(@@c, 65%);
-            box-shadow: inset 0 2px 0 fade(@@c, 55%), 0 -3px 12px rgba(0, 0, 0, 0.5);
+            border-color: fade(@@c, 70%);
+            box-shadow: inset 0 2px 0 fade(@@c, 60%), 0 0 16px fade(@@c, 22%), 0 -3px 12px rgba(0, 0, 0, 0.5);
         }
         .bar-rail__viewing-dot { background: lighten(@@c, 12%); box-shadow: 0 0 7px @@c; }
     }

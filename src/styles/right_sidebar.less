@@ -126,6 +126,10 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
+    /* Crisp lit cyan hairline just inside the navy left border — the
+       board-facing frame edge that the bottom-right rail's top edge
+       continues, so sidebar + rail read as one bracket. */
+    box-shadow: inset 1px 0 0 rgba(106, 176, 230, 0.26);
 }
 
 /* ============================================================ */
@@ -759,11 +763,19 @@
  * cold→warm bichromatic gradient (read as a decorative heat-map
  * rather than a clean HUD accent). */
 .planet-sidebar .planet-metric--temperature {
+    /*
+     * Muted brick-RED, not orange. The old coral (232,160,121) read as
+     * an unwanted orange wash at the top of the otherwise-cyan rail (its
+     * fill + a wide 0.50 glow + the red thermometer icon stacked warm).
+     * Brick-red keeps temperature unmistakably "hot" + matches the red
+     * thermometer PNG, drops the orange cast, and the tighter 0.30 glow
+     * stops it bleeding onto the surrounding chrome.
+     */
     --planet-progress-fill-bg: linear-gradient(90deg,
-        rgba(196, 124,  85, 0.88) 0%,
-        rgba(232, 160, 121, 0.94) 100%);
-    --planet-progress-cap: rgba(255, 218, 188, 1);
-    --planet-progress-glow: rgba(232, 160, 121, 0.50);
+        rgba(170,  90,  84, 0.85) 0%,
+        rgba(208, 116, 106, 0.92) 100%);
+    --planet-progress-cap: rgba(246, 202, 196, 1);
+    --planet-progress-glow: rgba(208, 116, 106, 0.30);
 }
 
 /* Oxygen — cool cyan. Matches scale-marker `--oxygen`. Light, airy

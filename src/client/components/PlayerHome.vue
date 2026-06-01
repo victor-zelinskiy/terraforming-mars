@@ -1,10 +1,11 @@
 <template>
   <div id="player-home" :class="[(game.turmoil ? 'with-turmoil': ''), playerTintClass, {'viewing-other': isViewingOther}]">
     <div class="top-bar-buttons">
-      <!-- Three top-bar buttons docked on one premium glass rail. Each
-           button keeps its own anchor wrapper so its dropdown overlay can
-           position absolutely under it. -->
-      <div class="bar-rail bar-rail--top">
+      <!-- Standalone top buttons — NO rail plate. Unlike the bottom rails
+           (which extend the left panel / right sidebar), there's no bar up
+           here for a rail to flow out of, so the buttons stand on their own
+           as premium nameplates. Each keeps its anchor wrapper so its
+           dropdown overlay can position absolutely under it. -->
       <div class="top-bar-btn-anchor">
         <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'milestones'}" v-on:click="toggleOverlay('milestones')"><BarButtonIcon name="milestones" /><span class="bar-btn__label" v-i18n>Milestones</span></div>
         <!--
@@ -82,7 +83,6 @@
           :fundedCount="fundedAwardsCount"
           @fund="fundAward($event)"
           @close="activeOverlay = null" />
-      </div>
       </div>
     </div>
 
