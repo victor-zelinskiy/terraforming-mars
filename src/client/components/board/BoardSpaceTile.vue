@@ -1,5 +1,8 @@
 <template>
-  <div :class="klass" :title="$t(description)" data-test="tile"/>
+  <div :class="klass"
+       :style="placementStyle"
+       :title="$t(description)"
+       data-test="tile"/>
 </template>
 
 <script lang="ts">
@@ -9,6 +12,11 @@ import {SpaceType} from '@/common/boards/SpaceType';
 import {TileType, tileTypeToString} from '@/common/TileType';
 import {SpaceHighlight, SpaceModel} from '@/common/models/SpaceModel';
 import {TileView} from '@/client/components/board/TileView';
+import {
+  PlacementKind,
+  clearActivePlacement,
+  observeTilePlacement,
+} from '@/client/components/board/tilePlacementAnimation';
 
 const tileTypeToCssClass: Record<TileType, string> = {
   [TileType.OCEAN]: 'ocean',
@@ -101,6 +109,13 @@ const descriptions: Record<TileType, string> = {
   [TileType.NEURAL_INSTANCE]: 'Neural Instance: MarsBot gains VP for adjacent non-human spaces',
 };
 
+type Data = {
+  placementKind: PlacementKind | null;
+  placementDurationMs: number;
+  placementDelayMs: number;
+  placementTimer: number | null;
+};
+
 export default defineComponent({
   name: 'board-space-tile',
   props: {
@@ -116,8 +131,13 @@ export default defineComponent({
       default: 'show',
     },
   },
-  data() {
-    return {};
+  data(): Data {
+    return {
+      placementKind: null,
+      placementDurationMs: 0,
+      placementDelayMs: 0,
+      placementTimer: null,
+    };
   },
   computed: {
     tileType(): TileType | undefined {
@@ -176,7 +196,81 @@ export default defineComponent({
       if (this.tileView !== 'show') {
         css += ' board-hidden-tile';
       }
+      /*
+       * Placement animation classes. `--placing` triggers the impact +
+       * settle keyframes on the tile div itself; `--placing-{kind}`
+       * supplies the accent colour CSS variable via a per-kind selector
+       * in board_placement_animation.less. We deliberately keep this
+       * out of the main `cssClass` switch so the existing tile graphic
+       * class stays byte-for-byte identical and any future tile types
+       * inherit the placement animation for free.
+       */
+      if (this.placementKind !== null && this.tileView === 'show') {
+        css += ' board-space-tile--placing';
+        css += ' board-space-tile--placing-' + this.placementKind;
+      }
       return css;
+    },
+    /*
+     * Inline style binding for the CSS animation duration + delay. A
+     * fresh placement uses delay 0 + full duration; a mid-flight
+     * remount (rare — happens when something forces a second
+     * playerkey++ during the hold window) uses a negative delay so the
+     * animation starts already partway through, matching the visual
+     * the player was seeing pre-remount.
+     */
+    placementStyle(): Record<string, string> {
+      if (this.placementKind === null) {
+        return {};
+      }
+      return {
+        '--placement-duration': `${this.placementDurationMs}ms`,
+        '--placement-delay': `${this.placementDelayMs}ms`,
+      };
+    },
+  },
+  watch: {
+    'space.tileType': {
+      immediate: true,
+      handler() {
+        this.refreshPlacement();
+      },
+    },
+  },
+  beforeUnmount() {
+    if (this.placementTimer !== null) {
+      clearTimeout(this.placementTimer);
+      this.placementTimer = null;
+    }
+  },
+  methods: {
+    refreshPlacement() {
+      if (this.placementTimer !== null) {
+        clearTimeout(this.placementTimer);
+        this.placementTimer = null;
+      }
+      const result = observeTilePlacement(this.space);
+      if (result === null) {
+        this.placementKind = null;
+        return;
+      }
+      this.placementKind = result.kind;
+      this.placementDurationMs = result.durationMs;
+      this.placementDelayMs = result.delayMs;
+      /*
+       * Schedule class removal at the end of the animation. The
+       * remaining duration is `durationMs + delayMs` (delay is
+       * negative on mid-flight resume, so the sum collapses to the
+       * actual remaining window). Add a small buffer (40 ms) so a
+       * one-frame paint hiccup doesn't truncate the settle pulse.
+       */
+      const spaceId = this.space.id;
+      const remaining = Math.max(0, result.durationMs + result.delayMs) + 40;
+      this.placementTimer = window.setTimeout(() => {
+        this.placementKind = null;
+        this.placementTimer = null;
+        clearActivePlacement(spaceId);
+      }, remaining);
     },
   },
 });

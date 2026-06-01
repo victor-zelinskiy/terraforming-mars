@@ -53,12 +53,11 @@
          :title="$t('Temperature')">
       <i class="planet-metric__icon temperature-tile"></i>
       <div class="planet-metric__value">
-        <template v-if="temperatureIsMax">
-          <span class="planet-metric__checkmark" :title="$t('Completed!')">✓</span>
-        </template>
-        <template v-else>
-          <span class="planet-stat-num">{{ temperature }}</span><span class="planet-metric__unit">°C</span>
-        </template>
+        <span class="planet-stat-num">{{ temperature }}</span><span class="planet-metric__unit">°C</span>
+        <span v-if="temperatureIsMax"
+              class="planet-metric__max-badge"
+              :title="$t('Completed!')"
+              :aria-label="$t('Completed!')">✓</span>
         <AnimatedMetricValue
           :value="temperature"
           metricKey="globals.temperature"
@@ -75,12 +74,11 @@
          :title="$t('Oxygen Level')">
       <i class="planet-metric__icon oxygen-tile"></i>
       <div class="planet-metric__value">
-        <template v-if="oxygenIsMax">
-          <span class="planet-metric__checkmark" :title="$t('Completed!')">✓</span>
-        </template>
-        <template v-else>
-          <span class="planet-stat-num">{{ oxygen }}</span><span class="planet-metric__unit">%</span>
-        </template>
+        <span class="planet-stat-num">{{ oxygen }}</span><span class="planet-metric__unit">%</span>
+        <span v-if="oxygenIsMax"
+              class="planet-metric__max-badge"
+              :title="$t('Completed!')"
+              :aria-label="$t('Completed!')">✓</span>
         <AnimatedMetricValue
           :value="oxygen"
           metricKey="globals.oxygen"
@@ -97,12 +95,11 @@
          :title="$t('Oceans')">
       <i class="planet-metric__icon ocean-tile"></i>
       <div class="planet-metric__value">
-        <template v-if="oceansIsMax">
-          <span class="planet-metric__checkmark" :title="$t('Completed!')">✓</span>
-        </template>
-        <template v-else>
-          <span class="planet-stat-num">{{ oceans }}</span><span class="planet-metric__unit">/{{ maxOceans }}</span>
-        </template>
+        <span class="planet-stat-num">{{ oceans }}</span><span class="planet-metric__unit">/{{ maxOceans }}</span>
+        <span v-if="oceansIsMax"
+              class="planet-metric__max-badge"
+              :title="$t('Completed!')"
+              :aria-label="$t('Completed!')">✓</span>
         <AnimatedMetricValue
           :value="oceans"
           metricKey="globals.oceans"
@@ -120,12 +117,11 @@
          :title="$t('Venus Scale')">
       <i class="planet-metric__icon venus-tile"></i>
       <div class="planet-metric__value">
-        <template v-if="venusIsMax">
-          <span class="planet-metric__checkmark" :title="$t('Completed!')">✓</span>
-        </template>
-        <template v-else>
-          <span class="planet-stat-num">{{ venus }}</span><span class="planet-metric__unit">%</span>
-        </template>
+        <span class="planet-stat-num">{{ venus }}</span><span class="planet-metric__unit">%</span>
+        <span v-if="venusIsMax"
+              class="planet-metric__max-badge"
+              :title="$t('Completed!')"
+              :aria-label="$t('Completed!')">✓</span>
         <AnimatedMetricValue
           :value="venus"
           metricKey="globals.venus"

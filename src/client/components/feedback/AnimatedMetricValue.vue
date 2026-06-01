@@ -123,49 +123,64 @@ export default defineComponent({
   },
   watch: {
     /*
-     * `scopeKey` / `epoch` change ⇒ the new context is a different
-     * player or game. Stop any pending chip and re-baseline so the
-     * caller's next `value` write doesn't fire a phantom delta vs.
-     * the previous scope.
+     * All three prop watchers funnel into a single `reconcile()`
+     * method. Reasons:
+     *
+     *   1) Race-proof scope detection. Vue 3's watcher order on
+     *      simultaneous prop changes can flip — if `value` fired
+     *      before `scopeKey`, the old watch.value would `report()`
+     *      with the stale `fullScopeKey` and chip-fire a spurious
+     *      delta on every player switch. `reconcile()` always
+     *      compares `computeFullScopeKey()` (fresh from current
+     *      props) against the cached `fullScopeKey`, so the first
+     *      watcher to fire on a scope flip correctly detects it,
+     *      no matter which prop's watcher won the race.
+     *
+     *   2) Symmetric PoV-switch handling. Both the watcher path
+     *      ("user clicked another player's card while the component
+     *      is mounted") and the mount path ("playerkey++ remount
+     *      after an action snapped the panel back to the viewer's
+     *      own scope") route through `recordScopeObservation()` —
+     *      the manager-level history of "what scope is this metric
+     *      currently being displayed under". If THIS observation is
+     *      under a different scope than the previous one, the chip
+     *      is suppressed regardless of any delta the manager
+     *      reports, since the perceived "change" is just a point-of-
+     *      view flip, not a real game-state change.
      */
-    scopeKey: {
-      handler(_newScope: string): void {
-        this.handleScopeRefresh();
-      },
+    scopeKey() {
+      this.reconcile();
     },
-    epoch: {
-      handler(_newEpoch: string): void {
-        this.handleScopeRefresh();
-      },
+    epoch() {
+      this.reconcile();
     },
-    value(newValue: number): void {
-      if (typeof newValue !== 'number' || Number.isNaN(newValue)) {
-        return;
-      }
-      const event = changeFeedbackManager.report(this.fullScopeKey, this.metricKey, newValue);
-      if (event === null) {
-        return;
-      }
-      this.applyEvent(event.netDelta);
+    value() {
+      this.reconcile();
     },
   },
   mounted() {
     this.fullScopeKey = this.computeFullScopeKey();
     /*
-     * IMPORTANT: App.vue forces a full <player-home> tree remount on
-     * every poll via `:key="playerkey"`. That means this component's
-     * `watch(value)` will NEVER fire for a real game change — the
-     * component is brand new each time. We must therefore report
-     * the value on mount and ACT on the result, not just seed the
-     * baseline.
+     * App.vue forces a full <player-home> tree remount on every
+     * poll via `:key="playerkey"`. That means `watch(value)` rarely
+     * fires for a real game change — the component is brand new on
+     * each poll. We therefore report the value on mount and ACT on
+     * the result, not just seed the baseline.
      *
-     * The first observation for a key (e.g. game start) returns null
-     * and no chip appears. Every subsequent mount whose value differs
-     * from the stored baseline returns a FeedbackEvent here — that's
-     * the only path that actually fires the chip in practice.
+     * `recordScopeObservation()` tells us whether THIS mount is
+     * under the same scope this metric was last observed under. If
+     * not (e.g. we were viewing red, an action happened, the panel
+     * snapped back to blue on remount), we still re-baseline but
+     * SUPPRESS the chip — the perceived "change" is a PoV switch,
+     * not a real value change.
+     *
+     * On the very first observation of a metric, `report()` returns
+     * `null` anyway (it's the baseline), so no chip ever fires
+     * spuriously on the first mount of a new game session.
      */
+    const sameScope = changeFeedbackManager.recordScopeObservation(this.fullScopeKey, this.metricKey);
     const event = changeFeedbackManager.report(this.fullScopeKey, this.metricKey, this.value);
-    if (event !== null) {
+    if (event !== null && sameScope) {
       this.applyEvent(event.netDelta);
     }
   },
@@ -179,6 +194,49 @@ export default defineComponent({
       }
       return `${this.epoch}|${this.scopeKey}`;
     },
+    /**
+     * Central prop-change handler. Routes between two paths:
+     *
+     *   - SCOPE SWITCH (computeFullScopeKey() differs from cached
+     *     fullScopeKey): silently re-baseline the new scope, drop
+     *     any visible chip, no animation. Covers both the user-
+     *     facing PoV switch ("click another player's card") and the
+     *     epoch-changes-mid-session case.
+     *
+     *   - SAME-SCOPE VALUE CHANGE (scope unchanged): report the new
+     *     value to the manager; if it returns a delta AND the
+     *     manager confirms the scope was the same one most-recently
+     *     observed for this metric, fire the chip.
+     *
+     * Resolving everything via fresh `computeFullScopeKey()` (not
+     * the cached `fullScopeKey`) is what makes this race-proof
+     * against Vue 3's watcher ordering — even if the `value` watcher
+     * fires before the `scopeKey` watcher updates the cache, this
+     * method routes to the correct branch.
+     */
+    reconcile(): void {
+      const freshScope = this.computeFullScopeKey();
+      if (freshScope !== this.fullScopeKey) {
+        this.handleScopeRefresh();
+        return;
+      }
+      if (typeof this.value !== 'number' || Number.isNaN(this.value)) {
+        return;
+      }
+      const sameScope = changeFeedbackManager.recordScopeObservation(freshScope, this.metricKey);
+      const event = changeFeedbackManager.report(freshScope, this.metricKey, this.value);
+      if (event === null) {
+        return;
+      }
+      if (!sameScope) {
+        // PoV switch detected at manager level (e.g. some other
+        // component reported a different scope for this metric since
+        // we last touched it). Suppress the chip; the new value is
+        // already baselined by `report()` above.
+        return;
+      }
+      this.applyEvent(event.netDelta);
+    },
     handleScopeRefresh(): void {
       // Tear down any visible chip — it represented the previous
       // scope's delta and would be misleading under the new scope.
@@ -186,8 +244,11 @@ export default defineComponent({
       this.displayedDelta = 0;
       this.polarity = 'neutral';
       this.fullScopeKey = this.computeFullScopeKey();
-      // Re-baseline against the now-current value. Subsequent
-      // `value` writes for this fresh scope key behave normally.
+      // Re-baseline against the now-current value AND record the scope
+      // observation so a subsequent remount-to-different-scope (e.g.
+      // playerkey++ snapping back to viewer's own colour) recognises
+      // the PoV switch and suppresses its chip.
+      changeFeedbackManager.recordScopeObservation(this.fullScopeKey, this.metricKey);
       changeFeedbackManager.report(this.fullScopeKey, this.metricKey, this.value);
     },
     applyEvent(netDelta: number): void {
