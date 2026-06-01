@@ -1207,13 +1207,14 @@ each(@players, {
     left: 0;
     width: var(--left-panel-width);
     z-index: 100;
-    background: linear-gradient(180deg, rgba(12, 18, 28, 0.96), rgba(8, 12, 20, 0.96));
-    border-right: 1px solid #2c4a6a;
-    /* Crisp lit cyan hairline just inside the navy border — a deliberate
-       board-facing frame edge that the bottom-left rail's top edge
-       continues, so panel + rail read as one bracket (overridden in green
-       by the viewing-other zone tint). */
-    box-shadow: inset -1px 0 0 rgba(106, 176, 230, 0.26);
+    /* HUD chassis — left face. Same material + board-facing lit edge as
+       the bottom-left rail it flows into; casts inward toward the board. */
+    background: var(--hud-fill);
+    border-right: 1px solid var(--hud-edge);
+    box-shadow:
+        inset -1px 0 0 var(--hud-edge-lit),
+        var(--hud-lift-left),
+        var(--hud-glow);
     padding: 6px 6px;
     /* Horizontal overflow is intentionally allowed — the convert-action
      * buttons attached to resource cells (plants → greenery, heat →
@@ -2802,31 +2803,42 @@ each(@players, {
 }
 
 /*
- * ── Premium rail plates ───────────────────────────────────────────────
- * Each cluster of bar buttons sits on a thin glass rail (dark glass +
- * backdrop blur + hairline cyan frame + L-corner ticks + elevation),
- * so the buttons read as docked HUD hardware instead of floating in
- * space. The plate is pointer-events:none (empty space still passes
- * clicks to the board); the buttons inside re-enable pointer events
- * via their own base rule.
+ * ════════════════════════════════════════════════════════════════════
+ *  HUD CHASSIS — one design system for everything that frames Mars:
+ *  the left bar, the right bar, the two bottom rails, and the buttons
+ *  cut from them.
+ *
+ *  Concept: every panel is milled from ONE dark-glass HUD chassis. Its
+ *  signature is the BOARD-FACING EDGE — a structural navy line with a
+ *  crisp cyan light-line lit just inside it — which runs UNBROKEN around
+ *  the play area: down the left bar's inner edge, along each bottom
+ *  rail's top, up the right bar's inner edge. Same material, same edge,
+ *  same machined-sharp corners, same ambient glow + inward elevation, so
+ *  the four containers read as a single instrument bracketing the planet
+ *  rather than four floating panels — and the buttons are inset modules
+ *  of the very same glass.
+ *
+ *  Tune the whole chassis from these tokens.
+ * ════════════════════════════════════════════════════════════════════
  */
+:root {
+    --hud-fill: linear-gradient(180deg, rgba(14, 21, 32, 0.965) 0%, rgba(8, 12, 20, 0.965) 100%);
+    --hud-edge: #2c4a6a;                                  /* structural frame line */
+    --hud-edge-lit: rgba(106, 176, 230, 0.34);            /* crisp light-line inside it */
+    --hud-tick: #6ab0e6;                                  /* L-corner ticks */
+    --hud-glow: 0 0 18px rgba(106, 176, 230, 0.1);        /* ambient halo */
+    --hud-depth: inset 0 -14px 18px -14px rgba(0, 0, 0, 0.5); /* interior bottom shade */
+    --hud-lift-left:  6px 0 22px -10px rgba(0, 0, 0, 0.55);   /* left bar casts inward */
+    --hud-lift-right: -6px 0 22px -10px rgba(0, 0, 0, 0.55);  /* right bar casts inward */
+    --hud-lift-up:    0 -6px 20px -8px rgba(0, 0, 0, 0.5);    /* rails lift toward board */
+}
+
 /*
- * ── Bottom rails as a seamless extension of the side bars ──────────────
- * The two bottom rails are NOT free-floating plates anymore — each one
- * flows out of its side bar (left panel / right sidebar) as that bar's
- * footer, turning the corner into one continuous L-bracket. The trick:
- *   • IDENTICAL material — the exact gradient the bars use
- *     (rgba(12,18,28,.96) → rgba(8,12,20,.96)), same `#2c4a6a` edge — so
- *     the rail reads as the same slab, not a separate box.
- *   • Only the BOARD-FACING edges get the frame line (top + the far end),
- *     continuing the bar's own board-facing border around the corner.
- *   • A 1px negative margin toward the bar lets the opaque rail fill
- *     cover the bar's border at the corner, erasing the seam.
- *   • Premium without breaking the seam: a faint lit top-lip + soft
- *     bottom inner-shade INSIDE the rail (interior only — the edge line
- *     stays the plain bar colour so the L-corner matches exactly).
- * No corner ticks here: the bars already carry the HUD ticks at their
- * TOP corners; a tick on the rail would re-read it as a separate panel.
+ * ── Bottom rails — chassis faces that flow out of the side bars as
+ * their footers. Same material + same board-facing edge as the bars; a
+ * 1px negative margin toward the bar lets the opaque fill swallow the
+ * bar's border at the corner so the lit edge turns straight into the
+ * rail's top. Sharp corners = heavy machined material.
  */
 .bar-rail {
     pointer-events: none;
@@ -2836,35 +2848,34 @@ each(@players, {
     gap: 9px;
     height: var(--bottom-bar-button-height);
     padding: 0 16px;
-    background: linear-gradient(180deg, rgba(12, 18, 28, 0.96), rgba(8, 12, 20, 0.96));
-    border: 0 solid #2c4a6a;
-    border-top-width: 1px; /* board-facing frame line, continues the bar's edge */
-    /* SHARP corners (set per-variant, no radius) + a crisp lit cyan edge
-       just inside the navy border = heavy, deliberate frame that reads as
-       one continuous bracket with the bar, not a floating pill. */
+    background: var(--hud-fill);
+    border: 0 solid var(--hud-edge);
+    border-top-width: 1px;
     box-shadow:
-        inset 0 1px 0 rgba(106, 176, 230, 0.32),
-        inset 0 -12px 16px -12px rgba(0, 0, 0, 0.45);
+        inset 0 1px 0 var(--hud-edge-lit),
+        var(--hud-depth),
+        var(--hud-lift-up),
+        var(--hud-glow);
 }
-/* Flows out of the LEFT panel: frame the top + far(right) end; pull 1px
-   left so the opaque fill swallows the panel's border at the seam → the
-   panel's edge turns the corner straight into the rail's top edge. */
 .bar-rail--bottom-left {
     border-right-width: 1px;
     margin-left: -1px;
     box-shadow:
-        inset 0 1px 0 rgba(106, 176, 230, 0.32),
-        inset -1px 0 0 rgba(106, 176, 230, 0.22),
-        inset 0 -12px 16px -12px rgba(0, 0, 0, 0.45);
+        inset 0 1px 0 var(--hud-edge-lit),
+        inset -1px 0 0 var(--hud-edge-lit),
+        var(--hud-depth),
+        var(--hud-lift-up),
+        var(--hud-glow);
 }
-/* Mirror — flows out of the RIGHT sidebar. */
 .bar-rail--bottom-right {
     border-left-width: 1px;
     margin-right: -1px;
     box-shadow:
-        inset 0 1px 0 rgba(106, 176, 230, 0.32),
-        inset 1px 0 0 rgba(106, 176, 230, 0.22),
-        inset 0 -12px 16px -12px rgba(0, 0, 0, 0.45);
+        inset 0 1px 0 var(--hud-edge-lit),
+        inset 1px 0 0 var(--hud-edge-lit),
+        var(--hud-depth),
+        var(--hud-lift-up),
+        var(--hud-glow);
 }
 
 /*
@@ -2943,7 +2954,8 @@ each(@players, {
             box-shadow:
                 inset -1px 0 0 fade(@@c, 80%),            /* crisp edge */
                 inset -24px 0 32px -24px fade(@@c, 45%),  /* inner glow wrapping IN from the edge */
-                0 0 22px fade(@@c, 20%);                  /* outer halo */
+                var(--hud-lift-left),                     /* keep chassis elevation */
+                0 0 22px fade(@@c, 20%);                  /* green halo */
         }
         .bar-rail--bottom-left {
             border-color: fade(@@c, 90%);
@@ -2951,6 +2963,8 @@ each(@players, {
                 inset 0 1px 0 fade(@@c, 80%),
                 inset -1px 0 0 fade(@@c, 70%),
                 inset 0 24px 32px -24px fade(@@c, 45%),   /* inner glow wrapping IN from the top edge */
+                var(--hud-depth),
+                var(--hud-lift-up),
                 0 0 22px fade(@@c, 20%);
         }
         .bar-rail__viewing {
