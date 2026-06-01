@@ -93,6 +93,10 @@ import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
 import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
+import {
+  armPlacementAnimations,
+  shouldHoldForTilePlacement,
+} from '@/client/components/board/tilePlacementAnimation';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {SpectatorModel} from '@/common/models/SpectatorModel';
@@ -248,6 +252,29 @@ export default defineComponent({
             path === paths.PLAYER &&
             (shouldPreserveCardPickModal(model as PlayerViewModel) ||
              shouldPreserveInitialDraftOverlay(model as PlayerViewModel));
+          /*
+           * Arm the Board Placement Animation gate if this polling
+           * update introduces a new tile vs. the currently displayed
+           * spaces — this is the path that fires when ANOTHER player
+           * places a tile (your client just polled and got back a
+           * playerView with their new tile). Without arming, the
+           * playerkey++ remount below would re-mount BoardSpaceTile
+           * with the new tileType but the animation gate would still
+           * be closed (it only opens for the local player's own
+           * submits via WaitingFor.fetchPlayerInput), and observers
+           * would see the tile pop in instantly.
+           *
+           * Skipped on initial load (`app.playerView === undefined` /
+           * `app.spectator === undefined`) — that's the F5 case
+           * where the whole board hydrates at once; armed should
+           * stay false so existing tiles silently establish their
+           * baseline rather than triggering N parallel impact rings.
+           */
+          const prevView = (path === paths.PLAYER ? app.playerView : app.spectator) as ViewModel | undefined;
+          if (prevView !== undefined &&
+              shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces)) {
+            armPlacementAnimations();
+          }
           if (path === paths.PLAYER) {
             app.playerView = model as PlayerViewModel;
             setTranslationContext(app.playerView);

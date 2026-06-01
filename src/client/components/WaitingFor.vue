@@ -115,6 +115,7 @@ import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraf
 import {Message} from '@/common/logs/Message';
 import {
   applyTilePlacementPreview,
+  armPlacementAnimations,
   placementHoldDurationMs,
   shouldHoldForTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
@@ -426,6 +427,19 @@ export default defineComponent({
                 this.holdingForMarker = true;
               }
               if (tileHold) {
+                /*
+                 * Arm the placement-animation gate BEFORE mutating
+                 * the displayed spaces — observeTilePlacement on
+                 * the BoardSpaceTile watcher fires synchronously
+                 * from Vue's reactivity, so if we arm after the
+                 * mutation the gate is still closed at the moment
+                 * the watcher checks it and the animation gets
+                 * silently skipped. Without this gate the very
+                 * first render of the board on F5 / direct nav
+                 * would also animate every existing tile, which
+                 * looks like the game just restarted.
+                 */
+                armPlacementAnimations();
                 applyTilePlacementPreview(
                   this.playerView.game.spaces,
                   newView.game.spaces,

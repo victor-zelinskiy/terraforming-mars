@@ -227,14 +227,48 @@
 	--placement-hover-glow-1:     rgba(255, 240, 180, 1);
 	--placement-hover-glow-2:     rgba(255, 255, 255, 0.85);
 	--placement-selected-glow:    rgba(255, 215, 120, 0.95);
-	--placement-baseline-hover-glow: rgba(255, 220, 170, 0.55);
+	// Neutral silver-gray glow for the baseline (non-placement) hover —
+	// matches the neutral silver palette of the grid contour itself
+	// (rgb 175,195,215). Kept clearly distinct from the warm AMBER
+	// placement palette so a stray hover during placement-mode still
+	// reads as the amber-tinted "available legal cell" hover, not as
+	// this neutral grid hover.
+	--placement-baseline-hover-glow: rgba(190, 205, 225, 0.55);
 }
 
 // ── Baseline layered outline — EVERY selectable hex ───────────────────
 //
-// Warm sand outer outline (#e0d4c0 @ 0.32) + thin cool inner accent
-// (#a8c5d8 @ 0.22). Subtle but present at all times — gives the board
-// a "premium tactical grid" baseline without screaming.
+// One unified NEUTRAL SILVER-GRAY HUD contour for the entire grid —
+// no per-type colour, identity always comes from the tile placed in
+// the hex. Three thin layers composite as a single "tactical
+// overlay" line:
+//
+//   1. Dark backing stroke (1.5 px @ 0.42) — contrast halo. Just
+//      enough to make the bright core readable against the bright
+//      patches of Mars without dragging the whole board's brightness
+//      down. The dark fringe creates a tonal break between the
+//      stroke and the planet's warm surface so the line never
+//      "blends into the terrain" — that was the user-reported
+//      failure mode of the prior cool-white palette.
+//   2. Neutral silver-gray core (0.85 px @ 0.70) — the visible line.
+//      Carefully chosen so the COMPOSITE with warm Mars stays
+//      neutral: rgb(175,195,215) @ 0.70 over a bright warm Mars
+//      patch (rgb~180,100,60) composites to rgb(177,167,169) — a
+//      clean grey with a barely-cool tilt. Over dark Mars terrain
+//      (rgb~40,20,10) the same stroke composites to rgb(135,143,154)
+//      — a slightly cooler silver. Same hue read across the planet.
+//      The prior `rgba(225,240,255)` stroke had too high an R-channel
+//      (225) — Mars's warm tones pulled the composite into the
+//      beige range despite the cool intent. Lowering R from 225 to
+//      175 and bumping alpha from 0.62 to 0.70 fixes it.
+//   3. Subtle neutral inner accent (0.5 px @ 0.20) — the "tactical
+//      grid" inner hex hint. Was a cool blue (rgb 170,200,225) which
+//      reinforced the cool intent — shifted to a more neutral grey
+//      (rgb 180,200,220) so the whole grid reads as one unified
+//      silver tone, not "silver outer + blue inner".
+//
+// Net perceived width still reads as ~1 px because the dark backing
+// only protrudes ~0.3 px on each side of the bright core.
 .board > .board-space-selectable::before,
 .board-outer-spaces > .board-space-selectable::before {
 	content: '';
@@ -242,18 +276,19 @@
 	inset: 0;
 	pointer-events: none;
 	z-index: 1;
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23e0d4c0' stroke-opacity='0.32' stroke-width='1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23a8c5d8' stroke-opacity='0.22' stroke-width='0.55' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.42)' stroke-width='1.5' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(175,195,215,0.70)' stroke-width='0.85' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='rgba(180,200,220,0.20)' stroke-width='0.5' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 	transition: background 180ms ease, filter 180ms ease, opacity 180ms ease;
 }
 
-// Baseline hover (no placement) — soft WARM focus + subtle warm halo.
-// Was cyan-tinted; switched to warm-white so it doesn't compete with
-// the amber placement palette below (a hover during placement reads
-// as "placement-available hover" — see further down — not as the
-// generic baseline hover).
+// Baseline hover (no placement) — same neutral silver-gray palette,
+// brighter and slightly thicker for the focus pop. Hover stroke goes
+// from baseline rgb(175,195,215) up to rgb(210,225,240) — still
+// silvery, not a hard white that would scream against the calm
+// baseline. Dark backing keeps the highlight readable on the
+// brightest Mars terrain.
 .board > .board-space-selectable:hover::before,
 .board-outer-spaces > .board-space-selectable:hover::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23fff2d4' stroke-opacity='0.78' stroke-width='1.2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.5' stroke-width='0.6' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.40)' stroke-width='1.65' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(210,225,240,0.90)' stroke-width='1.05' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='rgba(225,235,245,0.55)' stroke-width='0.6' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 .board > .board-space-selectable:hover,
@@ -278,7 +313,11 @@
 
 .board > .board-space.board-space--available::before,
 .board-outer-spaces > .board-space.board-space--available::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFD66B' stroke-width='1.7' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23FFF1A8' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	// Dark backing stroke (1st polygon, 2.0 px @ 0.42) sits under the
+	// amber outline (2nd polygon) so the amber stays crisp on the
+	// brightest Mars terrain. Backing is wider than amber so it shows
+	// as a thin contrast halo, not as a visible second colour.
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.42)' stroke-width='2.0' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFD66B' stroke-width='1.7' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23FFF1A8' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 // Suppress the legacy hex_white.png baseline outline on legal cells so
@@ -302,7 +341,7 @@
 
 .board > .board-space.board-space--available:hover::before,
 .board-outer-spaces > .board-space.board-space--available:hover::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFF6CC' stroke-width='2.1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.85' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.45)' stroke-width='2.45' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFF6CC' stroke-width='2.1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.85' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 // ── Placement mode: confirmed selection ───────────────────────────────
@@ -317,7 +356,7 @@
 
 .board > .board-space.board-space--selected::before,
 .board-outer-spaces > .board-space.board-space--selected::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFC857' stroke-width='2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.42)' stroke-width='2.35' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFC857' stroke-width='2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 // ── Placement mode: non-target cells ──────────────────────────────────
@@ -384,8 +423,79 @@
 
 .board-cont:has(.board-space--available) .board > .board-space.board-space--illegal::before,
 .board-cont:has(.board-space--available) .board-outer-spaces > .board-space.board-space--illegal::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23E36464' stroke-opacity='0.55' stroke-width='1' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(0,0,0,0.32)' stroke-width='1.3' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23E36464' stroke-opacity='0.55' stroke-width='1' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 	opacity: 0.7;
+}
+
+/*
+ * ─── Placed-tile materiality layer (inner tile ::after) ───────────────
+ *
+ * Every placed tile gets a unified surface treatment via the INNER
+ * tile div's `::after` slot. TWO LIGHT layers, no darkening anywhere:
+ *
+ *   1. Cool top-edge rim light — subtle "lit from above" gradient
+ *      on the top third of the hex, fading to transparent. Reads as
+ *      material catching ambient light without dimming the tile.
+ *   2. Unified cool silver-blue rim stroke — thin frame at inset
+ *      ~1.8 px from the hex border. Same colour for every placed
+ *      tile so the board never reads as a patchwork of UI systems
+ *      (the "разный цвет рамки" issue from a prior iteration).
+ *
+ * What's NOT here on purpose: previously this layer also carried an
+ * inner radial vignette darkening the corners. That darkening was
+ * the single biggest cause of "after my rework the board looks too
+ * dark / flatter" — across ~60 placed tiles the vignettes compounded
+ * and pulled the whole board's brightness down. The bloom in the
+ * tile's `filter:` (see above) already does the "premium HUD object"
+ * lift; the vignette was redundant + harmful. Removed.
+ *
+ * Why the INNER tile div, not the wrapper:
+ *   - The wrapper `::after` slot is already owned by
+ *     `special_cell_info.less` for the cyan inner tint when a cell
+ *     is being scanned. Stacking rim there overrode that tint on
+ *     placed cells (specificity (0,6,1) vs (0,2,1)) — a real
+ *     regression caught during the override audit. Moving to the
+ *     inner tile div leaves wrapper ::after entirely to special-cell.
+ *   - The inner tile div's ::after slot IS used by the placement
+ *     animation (`--placing` settle pulse) but only for the ~900 ms
+ *     window of that animation. The `:not(.board-space-tile--placing)`
+ *     guard hands the slot over cleanly for that window; the rim
+ *     reasserts when the animation's JS controller drops `--placing`.
+ *
+ * Guards on the descendant selector:
+ *   - `.board` / `.board-outer-spaces` ancestor scopes — same
+ *     `[class*="board-space-tile--"]` classes are reused inside CARD
+ *     rendering (CardRenderItemComponent.vue paints small
+ *     `board-space-tile--empty-tile` / `--adjacency-tile` graphics
+ *     on Ares cards). Scoping by board ancestor keeps this rim out
+ *     of card UI.
+ *   - `:not(.board-hidden-tile)` — when the player flips tile-view to
+ *     'hide' to inspect bonuses, the tile fades to opacity 0.4 but
+ *     keeps its class; the rim would stay at full strength and pull
+ *     the eye away from the bonuses they're trying to read.
+ *   - `:not(.board-space-tile--placing)` — placement animation's own
+ *     settle pulse owns ::after for the ~900 ms window; suppress
+ *     the rim there, let the animation play clean, and reassert when
+ *     JS strips `--placing`.
+ *
+ * Stacking: inner tile div has `position: absolute` (from .board-space)
+ * and `clip-path: polygon(hex)` so this ::after is automatically
+ * clipped to the hex shape. z-index: 2 puts it above the tile sprite
+ * (z auto) and above the wrapper contour ::before (z=1), but BELOW
+ * player cubes (z=3) and other markers — markers stay readable on
+ * top of the rim.
+ *
+ * Performance: one extra background-image per placed cell, no
+ * filter, no shadow. SVG parses once per cell.
+ */
+.board [class*="board-space-tile--"]:not(.board-space-tile--placing):not(.board-hidden-tile)::after,
+.board-outer-spaces [class*="board-space-tile--"]:not(.board-space-tile--placing):not(.board-hidden-tile)::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 2;
+	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='rimhi' x1='0.5' y1='0' x2='0.5' y2='1'><stop offset='0%' stop-color='rgb(225,235,245)' stop-opacity='0.32'/><stop offset='35%' stop-color='rgb(225,235,245)' stop-opacity='0'/></linearGradient></defs><polygon points='23,2 43,13.9 43,37.1 23,49 3,37.1 3,13.9' fill='url(%23rimhi)'/><polygon points='23,1.8 43.4,13.7 43.4,37.3 23,49.2 2.6,37.3 2.6,13.7' fill='none' stroke='rgba(190,205,225,0.60)' stroke-width='0.85' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
 /*
@@ -415,6 +525,63 @@
     height: 16px;
     margin: 0 0 0 2px;
 		border-radius: 2px;
+	/*
+	 * Force a local stacking context on every bonus icon. The
+	 * `::before` plate below uses `z-index: -1` to sit BEHIND the
+	 * icon's background-image. Without this stacking context, the
+	 * -1 escapes upward to the closest ancestor that forms one
+	 * (`.board-space-bonuses` via its `filter:`) — meaning the plate
+	 * could paint behind sibling bonuses, not just behind its own
+	 * icon. `z-index: 0` is the cheapest way to make this bonus its
+	 * own stacking root without changing its painting order in the
+	 * wrapper's flow (z=0 sits at the same level as z=auto in the
+	 * spec's level-6 painting group).
+	 */
+	z-index: 0;
+
+	/*
+	 * Premium HUD backing plate — a soft dark radial glow behind
+	 * every bonus icon. One pseudo-element, no filter, no DOM:
+	 * cheapest possible way to lift bonuses from "PNG sticker on
+	 * the planet" to "HUD object embossed on a plate". The
+	 * `ellipse at center` gradient adapts to the bonus's aspect
+	 * ratio so standard 16×16 icons get a round plate, wide
+	 * bonuses (bonusocean 35×24, bonustemperature 36×21, colony
+	 * 36×21) get a horizontal oval plate, and tall bonuses (card
+	 * 16×20) get a vertical oval. All proportional, all in the
+	 * same visual language.
+	 *
+	 * Inset −3 px keeps the plate just outside the icon's bounding
+	 * box on every variant — at hex scale (46×51) the largest
+	 * plate (~41×30 for double-wide bonuses) still sits well
+	 * within the hex silhouette.
+	 *
+	 * Alpha LOWERED from a prior iteration's 0.55 / 0.28 — at that
+	 * strength the plate ate the icon's brightness and made every
+	 * bonus look duller than the same icon on the reference
+	 * screenshot. 0.30 / 0.12 keeps the contrast-on-light-Mars win
+	 * the plate is here for while letting the icon read at near-
+	 * full brightness.
+	 *
+	 * The wrapper `.board-space-bonuses` carries a `filter:
+	 * drop-shadow()` (see further down) that composites OVER the
+	 * combined plate+icon, adding a tight contact shadow under the
+	 * whole assembly. Three depth layers stack cleanly: ambient
+	 * plate glow (here), icon, contact shadow (wrapper filter).
+	 */
+	&::before {
+		content: '';
+		position: absolute;
+		inset: -3px;
+		border-radius: 50%;
+		background: radial-gradient(
+			ellipse at center,
+			rgba(6, 14, 24, 0.15) 0%,
+			rgba(6, 14, 24, 0.05) 50%,
+			transparent 78%);
+		z-index: -1;
+		pointer-events: none;
+	}
 
   &.board-space-bonus-pos--only {
     margin: 21px 0 0 14px;
@@ -533,6 +700,57 @@
 .board-space-bonus--delegate {
 	background: url(./assets/misc/delegate.png) no-repeat;
 	background-size: 16px;
+}
+
+/*
+ * ─── Tile depth: cool bloom + grounding shadow ────────────────────────
+ *
+ * Every placed `.board-space-tile--<name>` gets a two-layer filter
+ * that ADDS light around the tile instead of just darkening under it:
+ *
+ *   - Cool BLOOM (3 px blur @ cool silver-blue, 0.40 alpha) — soft
+ *     halo around the tile's silhouette. This is the "premium HUD
+ *     object catching ambient light" look from the reference
+ *     screenshot — without it, tiles read as flat decals stuck on
+ *     the planet.
+ *   - Tight CONTACT shadow (0 1 px black, 0.40 alpha) — anchors the
+ *     tile to the hex it occupies so it doesn't feel like it's
+ *     floating. Half as strong as the previous version because the
+ *     bloom now does the visual "lift" work; the contact shadow just
+ *     adds the ground-line so it doesn't read as a balloon.
+ *
+ * Drop-shadow follows the sprite's alpha channel (hex-shaped sprites
+ * cast hex-shaped shadows, circular sprites cast circles) — same
+ * filter line covers every tile family (base + Ares + Moon) without
+ * per-tile setup.
+ *
+ * Why a cool bloom and not warm: the rest of the board chrome was
+ * unified into a cool silver-blue HUD palette (contour, rim, inner
+ * accents). A warm bloom would clash with that and pull individual
+ * tiles out of the design system. Cool bloom over warm Mars reads
+ * cleanly without recolouring the tile sprite itself — the bloom is
+ * outside the tile silhouette.
+ *
+ * Scope: `.board` / `.board-outer-spaces` ancestor scopes the rule
+ * to actual board cells. The same `board-space-tile--<x>` classes
+ * are reused inside CardRenderItemComponent.vue for Ares card icons
+ * — those must NOT get a bloom halo.
+ *
+ * `--placing` keyframes set `filter: brightness() saturate()` during
+ * the placement animation — they win for the ~900 ms window via
+ * CSS animation priority. Once JS removes `--placing`, this base
+ * filter returns. The 40 ms tail buffer the placement framework adds
+ * makes the transition invisible.
+ *
+ * Performance: two filter layers per tile, same count as before.
+ * Drop-shadow with 3-px blur is a single GPU pass per layer; the
+ * board has at most ~60 placed tiles, well within budget.
+ */
+.board [class*="board-space-tile--"],
+.board-outer-spaces [class*="board-space-tile--"] {
+	filter:
+		drop-shadow(0 0 4.5px rgba(235, 245, 255, 0.65))
+		drop-shadow(0 0.7px 0.5px rgba(0, 0, 0, 0.22));
 }
 
 .board-space-tile--ocean {
@@ -818,6 +1036,53 @@
 
 	.board-space-bonuses {
 		position: absolute;
+		/*
+		 * Premium HUD glow for the bonus-icon group. Four-stage
+		 * wrapper filter — applies once per cell to the composite of
+		 * all bonus children, no per-icon setup needed:
+		 *
+		 *   1. Cool BLOOM (3 px @ 0.62 alpha) — soft cool halo around
+		 *      the icon silhouette, the "lit HUD object" look. This
+		 *      is the main thing that makes bonuses pop on light AND
+		 *      dark Mars patches without darkening anything.
+		 *   2. Tight CONTACT shadow (0.4 px @ 0.25 alpha) — barely
+		 *      visible darkening below the icon group so they don't
+		 *      read as floating. Was 0.55 alpha + 0.6 px halo + 1 px
+		 *      contact in the prior iteration — three dark layers
+		 *      compounded and the bonuses looked dull. Replaced both
+		 *      dark halos with a cool bloom, kept only a thin
+		 *      contact line for the ground feel.
+		 *   3. brightness(1.10) — multiplies icon pixel brightness
+		 *      by 10 %. The single biggest contributor to "icons feel
+		 *      bright" feedback.
+		 *   4. saturate(1.10) — boosts colour vibrance. Green
+		 *      plants stay green, steel/titanium stay neutral, but
+		 *      everything looks more "alive" against the warm Mars
+		 *      backdrop.
+		 *
+		 * Stacking with per-variant `saturate(1.5)` filters on
+		 * `.board-space-bonus--bonustemperature` / `--colony` /
+		 * `--bonustemperature4mc`: child filters apply first (icon
+		 * rendered with saturate 1.5), then wrapper filter composites
+		 * over that. The wrapper's `saturate(1.10)` stacks
+		 * multiplicatively → effective ~1.65 for those icons. They're
+		 * stylised graphics where the extra vibrance reads as
+		 * intentional, not noisy.
+		 *
+		 * Why on the wrapper, not on each .board-space-bonus: see
+		 * above — `filter:` is single-valued so per-variant rules
+		 * would override a base filter on the bonus class. Wrapper
+		 * has no per-variant filter so the chain composites cleanly.
+		 *
+		 * Cube positions and ::before contour use the wrapper hex,
+		 * not .board-space-bonuses, so this filter affects ONLY
+		 * bonus icons — markers / cubes / tiles untouched.
+		 */
+		filter:
+			drop-shadow(0 0 3px rgba(235, 245, 255, 0.62))
+			drop-shadow(0 0.6px 0.4px rgba(0, 0, 0, 0.25))
+			brightness(1.10)
+			saturate(1.10);
 	}
 
 	// `.board-space--available` styling lives at the top of the file
@@ -877,21 +1142,31 @@
  * `transform: scale(--board-scale)` automatically; no per-zoom math.
  */
 
-// Land — subtle warm sand outline + faint warm inner tint suggests
-// the dusty mineral surface of Mars without competing with the planet
-// background image.
+// Land — NO interior fill. Mars surface shows through the hex
+// cleanly, the wrapper `::before` contour is the only chrome. A
+// prior iteration added a 6 % cool dark fill to make the contour
+// pop on light Mars by tonally separating hex interior from the
+// planet behind — across ~60 hexes that tinted the whole board
+// noticeably darker (the "затемнил доску, всё стало темным
+// невзрачным" feedback). The stronger dark backing in the contour
+// itself now carries the readability work without dimming Mars.
+//
+// Type identity (this is land, not ocean) comes from the absence
+// of any other identity layer (ocean gradient, cove half-fill, etc.).
+// No need for an SVG at all on this type — the inner div is just an
+// empty container, contour comes from the wrapper.
 .board-space-type-land {
-	background:
-		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(122,72,40,0.05)' stroke='rgba(232,217,196,0.45)' stroke-width='0.9' stroke-linejoin='round'/></svg>")
-		center / 100% 100% no-repeat;
+	background: transparent;
 }
 
-// Volcanic land — warm rust outline + subtle dark-red depth tint. The
-// existing `background-color: #8303` (red wash) is preserved as the
-// fall-through layer behind the SVG.
+// Volcanic land — keeps the dark-red depth tint (its identity) but
+// drops the warm rust outline + inner accent that used to ride on
+// top. Background-color `#8303` (red wash) is preserved as the
+// fall-through layer behind the SVG. Contour stays unified — owned
+// by the wrapper `::before` for every hex.
 .board-space-type-land-volcanic {
 	background-image:
-		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(120,30,15,0.18)' stroke='rgba(232,150,95,0.78)' stroke-width='1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='rgba(255,180,100,0.30)' stroke-width='0.5' stroke-linejoin='round'/></svg>");
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(120,30,15,0.18)'/></svg>");
 	background-size: 100% 100%;
 	background-repeat: no-repeat;
 	background-color: #8303;
@@ -904,32 +1179,40 @@
 	background-color: #fff6;
 }
 
-// Ocean — icy blue-cyan outline + watery vertical gradient (light at
-// top, deeper at bottom) suggests volume / depth. Background-color
-// keeps the legacy fall-through blue tint behind the SVG.
+// Ocean — watery vertical gradient (light at top, deeper at bottom)
+// suggests volume / depth and is the SOLE source of "this is water"
+// identity. The legacy icy-cyan outline + inner accent are gone so
+// the cell shares the same unified cool-silver-blue contour as every
+// other hex. Background-color keeps the legacy fall-through blue
+// tint behind the SVG.
 .board-space-type-ocean {
 	background-image:
-		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='og' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='rgb(160,225,255)' stop-opacity='0.32'/><stop offset='100%25' stop-color='rgb(20,80,140)' stop-opacity='0.35'/></linearGradient></defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='url(%23og)' stroke='rgba(180,235,255,0.78)' stroke-width='1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='rgba(220,245,255,0.30)' stroke-width='0.5' stroke-linejoin='round'/></svg>");
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><defs><linearGradient id='og' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='rgb(160,225,255)' stop-opacity='0.32'/><stop offset='100%25' stop-color='rgb(20,80,140)' stop-opacity='0.35'/></linearGradient></defs><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='url(%23og)'/></svg>");
 	background-size: 100% 100%;
 	background-repeat: no-repeat;
 	background-color: #0af4;
 	clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
 }
 
-// Cove — dual-surface tile (half ocean, half land). The original art
-// shaded the LEFT half as ocean and left the right half clear.
-// Mirrored here as a left-triangle ocean fill + cyan outline.
+// Cove — dual-surface tile (half ocean, half land). The left-triangle
+// blue fill is the "this is a cove" identity. Hex outline removed
+// (handled by the wrapper contour); the vertical divider line stays
+// to mark the dual nature, but its colour is now the same cool
+// silver-blue as the rest of the grid so the hex doesn't stand out
+// against neighbours through different border colours.
 .board-space-type-cove {
 	background:
-		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(70,170,225,0.32)'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(180,235,255,0.78)' stroke-width='1' stroke-linejoin='round'/><line x1='23' y1='1' x2='23' y2='50' stroke='rgba(180,235,255,0.45)' stroke-width='0.55'/></svg>")
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(70,170,225,0.32)'/><line x1='23' y1='1' x2='23' y2='50' stroke='rgba(220,235,250,0.40)' stroke-width='0.55'/></svg>")
 		center / 100% 100% no-repeat;
 }
 
-// Volcanic cove — dual-surface volcanic version: warm half-fill + rust
-// outline, same diagonal split as ocean cove.
+// Volcanic cove — dual-surface volcanic version: warm half-fill marks
+// "this is a volcanic cove", divider line stays for the dual nature
+// but in neutral cool silver-blue (matches the unified grid). Rust
+// outline removed — contour comes from the wrapper.
 .board-space-type-volcanic-cove {
 	background-image:
-		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(180,90,40,0.28)'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(232,150,95,0.78)' stroke-width='1' stroke-linejoin='round'/><line x1='23' y1='1' x2='23' y2='50' stroke='rgba(255,180,100,0.42)' stroke-width='0.55'/></svg>");
+		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 23,50 1.5,37.7 1.5,13.3' fill='rgba(180,90,40,0.28)'/><line x1='23' y1='1' x2='23' y2='50' stroke='rgba(220,235,250,0.40)' stroke-width='0.55'/></svg>");
 	background-size: 100% 100%;
 	background-repeat: no-repeat;
 	background-color: #8304;

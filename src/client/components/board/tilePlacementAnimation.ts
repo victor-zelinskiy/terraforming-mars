@@ -122,6 +122,56 @@ type ActivePlacement = {
 };
 const activePlacements = new Map<SpaceId, ActivePlacement>();
 
+/*
+ * "Animations armed?" gate. Without this, the first time the page
+ * loads (F5 / direct navigation / share-link join) the baseline map
+ * is empty and EVERY existing tile on the board reads as a fresh
+ * placement — N parallel impact rings light up across Mars and the
+ * scene looks like the game just started over. The gate keeps
+ * observeTilePlacement silent (baseline-update only, no animation)
+ * UNTIL someone explicitly opens a placement window via
+ * `armPlacementAnimations()`. WaitingFor.fetchPlayerInput calls it
+ * right before applyTilePlacementPreview — exactly when we know a
+ * real placement is about to land — and the gate auto-disarms after
+ * the animation duration so subsequent reactive updates (polling
+ * from other players, follow-up server responses) don't spuriously
+ * trigger animations again.
+ *
+ * Polling updates from OTHER players' tile placements currently fall
+ * through this gate and stay silent. That's a deliberate trade-off
+ * for now: F5 read-as-pristine is a real bug, polling-anim-for-
+ * others is a deferred nice-to-have. If you add polling-driven
+ * animations later, the right hook is a second arm-on-poll-diff
+ * code path that calls armPlacementAnimations() before the polling
+ * code mutates the displayed spaces.
+ */
+let placementAnimationsArmed = false;
+let placementAnimationsDisarmTimer: number | null = null;
+
+/*
+ * Open the placement-animation window. While open, the next
+ * undefined → defined transition observed by BoardSpaceTile will
+ * trigger the impact + settle keyframes. Auto-closes after the
+ * animation duration (+ buffer) so we don't leak the arming state
+ * past the playerView update that triggered it.
+ *
+ * Idempotent — multiple calls within the same window reset the
+ * disarm timer rather than stacking. This lets WaitingFor call
+ * arm() inside the holdingForTilePlacement branch without worrying
+ * about whether a previous arm is still running.
+ */
+export function armPlacementAnimations(): void {
+  placementAnimationsArmed = true;
+  if (placementAnimationsDisarmTimer !== null) {
+    clearTimeout(placementAnimationsDisarmTimer);
+  }
+  const disarmAfter = (prefersReducedMotion() ? PLACEMENT_ANIMATION_REDUCED_MS : PLACEMENT_ANIMATION_MS) + 200;
+  placementAnimationsDisarmTimer = window.setTimeout(() => {
+    placementAnimationsArmed = false;
+    placementAnimationsDisarmTimer = null;
+  }, disarmAfter);
+}
+
 function now(): number {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
     return performance.now();
@@ -184,6 +234,18 @@ export function observeTilePlacement(space: SpaceModel): ObservationResult | nul
      * for now silence keeps surprises out.
      */
     activePlacements.delete(space.id);
+    return null;
+  }
+
+  /*
+   * Fresh placement candidate (undefined → defined). Only animate if
+   * the animation window is currently armed — otherwise this is
+   * almost certainly the page's initial render (F5 / direct nav /
+   * share-link join) where the board already had these tiles before
+   * the client loaded. Silent baseline update keeps the player from
+   * watching a dozen impact rings on page load.
+   */
+  if (!placementAnimationsArmed) {
     return null;
   }
 
