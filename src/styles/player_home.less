@@ -1090,7 +1090,15 @@ each(@players, {
     top: calc(var(--bottom-bar-button-height) + 20px);
     left: calc(var(--left-panel-width) + 20px);
     right: calc(var(--right-sidebar-width) + 20px);
-    bottom: var(--bottom-bar-button-height);
+    /*
+     * Bottom centre is free now (bottom bar split into corner rails), so
+     * the centring box extends almost to the screen bottom. Because the
+     * top reserve stays at bar+20 while the bottom drops to 8px, the
+     * flex-centred planet settles LOWER, and the taller box lets the
+     * auto-scale grow it. Keep this `8px` in lockstep with
+     * `readVerticalReserved()` in useBoardAutoScale.ts.
+     */
+    bottom: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2571,17 +2579,26 @@ each(@players, {
     right: var(--right-sidebar-width);
     z-index: 105;
     display: flex;
-    justify-content: center;
     pointer-events: none;
     height: var(--bottom-bar-button-height);
 }
 
 .top-bar-buttons {
     top: 0;
+    justify-content: center;
+    align-items: flex-start;
 }
 
+/*
+ * Bottom bar is split into two docked rails (left = player-scoped,
+ * right = global), freeing the centre under the planet. space-between
+ * pins the left rail to the board's left edge, the right rail to the
+ * right edge.
+ */
 .bottom-bar-buttons {
     bottom: 0;
+    justify-content: space-between;
+    align-items: flex-end;
 }
 
 /*
@@ -2606,93 +2623,128 @@ each(@players, {
     isolation: isolate;
     pointer-events: auto;
     cursor: pointer;
-    color: #d6e2f2;
+    color: #cfe0f4;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 500;
-    letter-spacing: 3px;
+    letter-spacing: 1.8px;
     text-transform: uppercase;
-    padding: 9px 30px 8px;
-    clip-path: polygon(14% 0%, 100% 0%, 90% 88%, 85% 100%, 0% 100%, 10% 12%);
-    margin-right: -10px;
+    padding: 7px 17px;
+    /*
+     * Symmetric machined nameplate — both short ends chamfered (cut
+     * corners), replacing the old lopsided parallelogram so the
+     * silhouette reads as intentional sci-fi hardware, not sheared.
+     */
+    clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 34%, 100% 66%, calc(100% - 9px) 100%, 9px 100%, 0 66%, 0 34%);
     user-select: none;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     line-height: 1;
-    text-shadow: 0 0 6px rgba(140, 190, 235, 0.22);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 0 6px rgba(140, 190, 235, 0.18);
     background: linear-gradient(180deg,
-        rgba(160, 200, 230, 0.7) 0%,
-        rgba(80, 120, 160, 0.22) 50%,
-        rgba(130, 170, 210, 0.55) 100%);
-    transition: color 140ms ease, filter 160ms ease;
+        rgba(150, 195, 230, 0.55) 0%,
+        rgba(70, 110, 150, 0.16) 50%,
+        rgba(120, 160, 200, 0.42) 100%);
+    transition: color 140ms ease, filter 160ms ease, transform 160ms ease;
 
     /*
-     * Inner glass fill. Multi-layered:
-     *  1. Diagonal sheen — barely-there highlight across upper half.
-     *  2. Edge tint — soft blue glow hugging top + bottom inner edges,
-     *     so the interior doesn't read as flat black.
-     *  3. Base — deep blue-black with a slight vertical fade.
+     * Inner glass fill, layered for material depth (parity with the
+     * panels): top specular highlight, diagonal sheen, edge tint, and a
+     * deep blue-black base. The 1.2px inset leaves the parent gradient
+     * showing as a hairline frame.
      */
     &::before {
         content: '';
         position: absolute;
-        inset: 1.5px;
-        clip-path: polygon(14% 0%, 100% 0%, 90% 88%, 85% 100%, 0% 100%, 10% 12%);
+        inset: 1.2px;
+        clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 34%, 100% 66%, calc(100% - 9px) 100%, 9px 100%, 0 66%, 0 34%);
         background:
-            linear-gradient(115deg,
-                transparent 35%,
-                rgba(150, 195, 235, 0.06) 50%,
-                transparent 65%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0) 42%),
+            linear-gradient(115deg, transparent 35%, rgba(150, 195, 235, 0.06) 50%, transparent 65%),
             linear-gradient(180deg,
-                rgba(90, 145, 200, 0.22) 0%,
-                rgba(90, 145, 200, 0) 22%,
-                rgba(90, 145, 200, 0) 78%,
-                rgba(90, 145, 200, 0.18) 100%),
-            linear-gradient(180deg,
-                #0e1a2a 0%,
-                #050b16 55%,
-                #0b1624 100%);
+                rgba(90, 145, 200, 0.20) 0%, rgba(90, 145, 200, 0) 24%,
+                rgba(90, 145, 200, 0) 76%, rgba(90, 145, 200, 0.16) 100%),
+            linear-gradient(180deg, #0e1a2a 0%, #050b16 55%, #0b1624 100%);
         z-index: -1;
         transition: background 180ms ease;
     }
 
-    /*
-     * Permanent inner accent strip along the bottom — subtle in idle,
-     * bright + glowing in active state.
-     */
+    /* Bottom accent strip — subtle in idle, widens + glows on hover/active. */
     &::after {
         content: '';
         position: absolute;
-        left: 18%;
-        right: 22%;
-        bottom: 4px;
+        left: 16%;
+        right: 16%;
+        bottom: 3px;
         height: 1px;
-        background: linear-gradient(90deg,
-            transparent,
-            rgba(140, 190, 230, 0.35) 50%,
-            transparent);
+        background: linear-gradient(90deg, transparent, rgba(140, 190, 230, 0.35) 50%, transparent);
         z-index: -1;
-        transition: background 200ms ease, height 200ms ease, bottom 200ms ease, box-shadow 200ms ease;
+        transition: left 200ms ease, right 200ms ease, height 200ms ease, bottom 200ms ease, background 200ms ease, box-shadow 200ms ease;
     }
 
+    .bar-btn-icon {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        opacity: 0.9;
+        filter: drop-shadow(0 0 3px rgba(106, 176, 230, 0.35));
+        transition: opacity 140ms ease;
+    }
+
+    .bar-btn__label {
+        white-space: nowrap;
+    }
+
+    /* Numeric value gets clear hierarchy: a tabular inset chip, brighter
+       and heavier than the label, so the data reads as data. */
+    .bar-btn__value {
+        position: relative; /* feedback chip anchor */
+        margin-left: 2px;
+        padding: 1px 6px 2px;
+        font-weight: 700;
+        font-size: 13.5px;
+        letter-spacing: 0.5px;
+        color: #d8ecff;
+        background: rgba(2, 8, 16, 0.42);
+        border-radius: 3px;
+        box-shadow: inset 0 0 0 1px rgba(140, 190, 235, 0.20);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* Expressive, individual hover: a 1px lift + frame brighten + glow,
+       and the bottom accent sweeps wider — calm but characterful. */
     &:hover {
         color: #ffffff;
-        filter: brightness(1.18) drop-shadow(0 0 5px rgba(140, 190, 235, 0.4));
+        transform: translateY(-1px);
+        filter: brightness(1.16) drop-shadow(0 0 6px rgba(140, 190, 235, 0.45));
+        .bar-btn-icon { opacity: 1; }
+        &::after { left: 10%; right: 10%; box-shadow: 0 0 6px rgba(140, 190, 230, 0.5); }
     }
 
-    &--center {
-        padding-left: 38px;
-        padding-right: 38px;
+    /* Dominant — Standard Projects. Wider, brighter frame + thicker accent
+       to anchor the top rail's hierarchy. */
+    &--dominant {
+        padding: 8px 26px;
+        font-size: 13px;
+        letter-spacing: 2.2px;
+        background: linear-gradient(180deg,
+            rgba(180, 215, 245, 0.72) 0%,
+            rgba(80, 125, 170, 0.22) 50%,
+            rgba(140, 180, 220, 0.58) 100%);
+        .bar-btn-icon { width: 18px; height: 18px; }
+        &::after { height: 2px; left: 12%; right: 12%; box-shadow: 0 0 6px rgba(140, 190, 230, 0.45); }
     }
 
     /*
-     * Pressed/active state: the button's overlay is open.
-     * Same click closes the overlay; clicking a different button switches to its overlay.
+     * Active — the button's overlay is open. Reads as a lit "tab" wired to
+     * its panel: bright frame, strong cyan accent, no hover-lift (it's a
+     * sustained state, not a transient press).
      */
     &--active,
     &--active:hover {
         color: #ffffff;
+        transform: none;
         filter: drop-shadow(0 0 9px rgba(106, 176, 230, 0.6));
         background: linear-gradient(180deg,
             rgba(195, 230, 252, 0.95) 0%,
@@ -2701,169 +2753,218 @@ each(@players, {
     }
     &--active::before {
         background:
-            linear-gradient(115deg,
-                transparent 30%,
-                rgba(180, 220, 250, 0.10) 50%,
-                transparent 70%),
+            linear-gradient(115deg, transparent 30%, rgba(180, 220, 250, 0.10) 50%, transparent 70%),
             linear-gradient(180deg,
-                rgba(106, 176, 230, 0.32) 0%,
-                rgba(106, 176, 230, 0.05) 25%,
-                rgba(106, 176, 230, 0.05) 75%,
-                rgba(106, 176, 230, 0.28) 100%),
-            linear-gradient(180deg,
-                #142a44 0%,
-                #07182c 55%,
-                #102540 100%);
+                rgba(106, 176, 230, 0.32) 0%, rgba(106, 176, 230, 0.05) 25%,
+                rgba(106, 176, 230, 0.05) 75%, rgba(106, 176, 230, 0.28) 100%),
+            linear-gradient(180deg, #142a44 0%, #07182c 55%, #102540 100%);
     }
     &--active::after {
         height: 2px;
-        bottom: 3px;
+        left: 8%;
+        right: 8%;
+        bottom: 2px;
         background: linear-gradient(90deg, transparent, #6ab0e6 50%, transparent);
         box-shadow: 0 0 8px rgba(106, 176, 230, 0.7);
     }
+    &--active .bar-btn-icon { opacity: 1; }
 
-    /*
-     * "Actions: N" and "Cards: N" — read-only counter buttons. No active
-     * state, no hover glow. The cards-glyph mirrors the standard card-back
-     * symbol so it's instantly recognisable.
-     */
-    &--actions,
-    &--actions:hover,
-    &--cards--counter,
-    &--cards--counter:hover {
-        cursor: default;
-        color: #d6e2f2;
-        filter: none;
-        background: linear-gradient(180deg,
-            rgba(130, 160, 190, 0.45) 0%,
-            rgba(70, 100, 130, 0.18) 50%,
-            rgba(110, 140, 170, 0.38) 100%);
-    }
-
-    .bottom-bar-btn-cards-glyph {
-        width: 18px;
-        height: 18px;
-        background-image: url(./assets/resources/card.png);
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-        flex-shrink: 0;
-    }
-
-    .bottom-bar-btn-actions-glyph {
-        position: relative;
-        width: 22px;
-        height: 22px;
-        border-radius: 3px;
-        background: linear-gradient(to bottom right, #ffffff, #aaaaaa, #eeeeee, #cecece, #dddddd, #eeeeee, #cccccc);
-
-        .blue-stripe {
-            position: absolute;
-            top: 6px;
-            left: 0;
-            right: 0;
-            height: 5px;
-            background: linear-gradient(-60deg, #208cdf 10%, #4da3e6, #208cdf 90%);
-        }
-
-        .red-arrow {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 18px;
-            height: 18px;
-            background-image: url(./assets/misc/arrow.png);
-            background-size: 18px;
-            background-repeat: no-repeat;
-            background-position: center;
-        }
-    }
+    /* Counter buttons — brighten the value chip. */
+    &--counter .bar-btn__value { color: #eaf5ff; }
 }
 
 /*
- * Tint the HUD button frames with the currently selected player's colour.
- * Class lives on #player-home so a single change repaints both bars.
+ * Value-change pulse. When a counter button's feedback host (mounted as a
+ * child via AnimatedMetricValue) goes active, the whole button briefly
+ * glows to pull the eye toward opening its overlay. Scope is naturally
+ * limited to the displayed player because the host re-baselines on
+ * scopeKey (= player colour) change — see resource_change_feedback.less.
+ */
+.bottom-bar-btn:has(.metric-feedback-host--active-positive) { animation: bar-btn-pulse-pos 1100ms ease-out; }
+.bottom-bar-btn:has(.metric-feedback-host--active-negative) { animation: bar-btn-pulse-neg 1100ms ease-out; }
+@keyframes bar-btn-pulse-pos {
+    0%, 100% { filter: none; }
+    22% { filter: brightness(1.25) drop-shadow(0 0 9px rgba(95, 227, 200, 0.7)); }
+}
+@keyframes bar-btn-pulse-neg {
+    0%, 100% { filter: none; }
+    22% { filter: brightness(1.2) drop-shadow(0 0 9px rgba(255, 139, 118, 0.6)); }
+}
+/* Anchor the delta chip to the value chip's top-right corner. */
+.bar-btn__value .bar-btn__feedback {
+    top: -9px;
+    right: -6px;
+}
+
+/*
+ * ── Premium rail plates ───────────────────────────────────────────────
+ * Each cluster of bar buttons sits on a thin glass rail (dark glass +
+ * backdrop blur + hairline cyan frame + L-corner ticks + elevation),
+ * so the buttons read as docked HUD hardware instead of floating in
+ * space. The plate is pointer-events:none (empty space still passes
+ * clicks to the board); the buttons inside re-enable pointer events
+ * via their own base rule.
+ */
+.bar-rail {
+    pointer-events: none;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: var(--bottom-bar-button-height);
+    padding: 0 12px;
+    background: linear-gradient(180deg, rgba(12, 18, 28, 0.82), rgba(8, 12, 20, 0.86));
+    backdrop-filter: blur(7px) saturate(1.05);
+    -webkit-backdrop-filter: blur(7px) saturate(1.05);
+    border: 1px solid #2c4a6a;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.06),
+        0 6px 18px rgba(0, 0, 0, 0.5);
+
+    &::before,
+    &::after {
+        content: '';
+        position: absolute;
+        width: 9px;
+        height: 9px;
+        pointer-events: none;
+    }
+}
+/* Top rail descends from the screen top — round the bottom corners,
+   drop the top border, anchor the L-ticks to the bottom. */
+.bar-rail--top {
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    &::before { bottom: -1px; left: -1px; border-bottom: 1px solid #6ab0e6; border-left: 1px solid #6ab0e6; }
+    &::after  { bottom: -1px; right: -1px; border-bottom: 1px solid #6ab0e6; border-right: 1px solid #6ab0e6; }
+}
+/* Bottom rails rise from the screen bottom — round the top corners. */
+.bar-rail--bottom-left,
+.bar-rail--bottom-right {
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    &::before { top: -1px; left: -1px; border-top: 1px solid #6ab0e6; border-left: 1px solid #6ab0e6; }
+    &::after  { top: -1px; right: -1px; border-top: 1px solid #6ab0e6; border-right: 1px solid #6ab0e6; }
+}
+
+/*
+ * ── "Viewing: <name>" banner ───────────────────────────────────────────
+ * Shown only while spectating another seat. Pinned just ABOVE the
+ * bottom-left rail, with its left edge aligned to the rail's left edge
+ * (= the left panel's right edge, `--left-panel-width`). It sits exactly
+ * over the rail's buttons and does NOT climb onto the left panel.
+ * position:fixed + out-of-flow means it never shifts the rail's buttons
+ * (the previous in-flow chip did). Click → return to your own view.
+ * Colour comes from the zone-tint loop below.
  *
- * The dark glass FILL (`::before`) stays constant across all tints — only
- * the OUTER frame gradient (parent background) and active-state glow take
- * the player colour. Keeps the chrome dark/legible while still signalling
- * who's "in control" of the HUD.
+ * NOTE: it must NOT live inside a backdrop-filtered ancestor, or `fixed`
+ * would anchor to that ancestor instead of the viewport — hence it's a
+ * direct child of `.bottom-bar-buttons` (no filter), not of `.bar-rail`.
+ */
+.bar-rail__viewing {
+    position: fixed;
+    left: var(--left-panel-width);
+    bottom: var(--bottom-bar-button-height);
+    z-index: 106; /* above left panel (100) + rails (105), below overlays (110) */
+    pointer-events: auto;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 24px;
+    padding: 0 14px 0 12px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: #cfe0f4;
+    white-space: nowrap;
+    background: linear-gradient(180deg, rgba(12, 18, 28, 0.95), rgba(8, 12, 20, 0.95));
+    backdrop-filter: blur(6px) saturate(1.05);
+    -webkit-backdrop-filter: blur(6px) saturate(1.05);
+    border: 1px solid #2c4a6a;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0; /* tab sitting on top of the rail */
+    box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.5);
+    transition: filter 140ms ease;
+    &:hover { filter: brightness(1.25); }
+}
+.bar-rail__viewing-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6ab0e6;
+    flex-shrink: 0;
+    animation: viewing-dot-pulse 1.8s ease-in-out infinite;
+}
+.bar-rail__viewing-text { line-height: 1; }
+@keyframes viewing-dot-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(0.85); }
+    50%      { opacity: 1;    transform: scale(1.1); }
+}
+
+/*
+ * ── Player-scoped zone tint (point h) ──────────────────────────────────
+ * When spectating ANOTHER player (`#player-home.viewing-other`), the
+ * player-scoped zone — left resources/tags panel + bottom-left rail —
+ * lights up in that player's colour so the two read as ONE region. The
+ * BUTTONS themselves stay neutral glass (no per-button tint); only the
+ * zone frame + the "Viewing" chip take the colour. The global top rail
+ * and bottom-right rail are never tinted.
  */
 each(@players, {
     @c: ~"player_@{value}";
-    .player-tint-@{value} {
-        .top-bar-buttons .bottom-bar-btn,
-        .bottom-bar-buttons .bottom-bar-btn {
-            background: linear-gradient(180deg,
-                mix(@@c, #cfdaea, 55%) 0%,
-                fade(@@c, 22%) 50%,
-                mix(@@c, #cfdaea, 45%) 100%);
+    .player-tint-@{value}.viewing-other {
+        .left-panel {
+            border-right-color: fade(@@c, 85%);
+            box-shadow: inset -2px 0 0 fade(@@c, 55%), 0 0 16px fade(@@c, 16%);
         }
-
-        .top-bar-buttons .bottom-bar-btn:hover,
-        .bottom-bar-buttons .bottom-bar-btn:hover {
-            filter: brightness(1.2) drop-shadow(0 0 6px fade(@@c, 55%));
+        .bar-rail--bottom-left {
+            border-color: fade(@@c, 72%);
+            box-shadow:
+                inset 0 0 0 1px fade(@@c, 18%),
+                0 0 16px fade(@@c, 22%),
+                0 6px 18px rgba(0, 0, 0, 0.5);
+            &::before,
+            &::after { border-color: lighten(@@c, 18%); }
         }
-
-        .top-bar-buttons .bottom-bar-btn--active,
-        .top-bar-buttons .bottom-bar-btn--active:hover,
-        .bottom-bar-buttons .bottom-bar-btn--active,
-        .bottom-bar-buttons .bottom-bar-btn--active:hover {
-            background: linear-gradient(180deg,
-                lighten(@@c, 28%) 0%,
-                @@c 50%,
-                lighten(@@c, 18%) 100%);
-            filter: drop-shadow(0 0 9px fade(@@c, 70%));
+        .bar-rail__viewing {
+            color: lighten(@@c, 32%);
+            border-color: fade(@@c, 65%);
+            box-shadow: inset 0 2px 0 fade(@@c, 55%), 0 -3px 12px rgba(0, 0, 0, 0.5);
         }
-        /* Inner glass: tint the soft edge glow with the player colour so the
-         * pressed state reads as "this player's panel is lit up". */
-        .top-bar-buttons .bottom-bar-btn--active::before,
-        .bottom-bar-buttons .bottom-bar-btn--active::before {
-            background:
-                linear-gradient(115deg,
-                    transparent 30%,
-                    fade(lighten(@@c, 30%), 12%) 50%,
-                    transparent 70%),
-                linear-gradient(180deg,
-                    fade(@@c, 38%) 0%,
-                    fade(@@c, 6%) 25%,
-                    fade(@@c, 6%) 75%,
-                    fade(@@c, 32%) 100%),
-                linear-gradient(180deg,
-                    mix(@@c, #07182c, 22%) 0%,
-                    mix(@@c, #07182c, 8%) 55%,
-                    mix(@@c, #07182c, 18%) 100%);
-        }
-        .top-bar-buttons .bottom-bar-btn--active::after,
-        .bottom-bar-buttons .bottom-bar-btn--active::after {
-            background: linear-gradient(90deg, transparent, lighten(@@c, 22%) 50%, transparent);
-            box-shadow: 0 0 8px fade(@@c, 70%);
-        }
-
-        /* Read-only counter buttons (Actions: N, Cards: N) inherit tint but
-         * no hover/active behaviour. */
-        .top-bar-buttons .bottom-bar-btn--actions,
-        .bottom-bar-buttons .bottom-bar-btn--actions,
-        .top-bar-buttons .bottom-bar-btn--actions:hover,
-        .bottom-bar-buttons .bottom-bar-btn--actions:hover {
-            background: linear-gradient(180deg,
-                mix(@@c, #cfdaea, 38%) 0%,
-                fade(@@c, 15%) 50%,
-                mix(@@c, #cfdaea, 30%) 100%);
-            filter: none;
-        }
+        .bar-rail__viewing-dot { background: lighten(@@c, 12%); box-shadow: 0 0 7px @@c; }
     }
 });
 
-/* Spectator / neutral fallback — desaturated steel accent. */
-.player-tint-neutral {
-    .top-bar-buttons .bottom-bar-btn,
-    .bottom-bar-buttons .bottom-bar-btn {
-        background: linear-gradient(180deg,
-            rgba(170, 190, 210, 0.6) 0%,
-            rgba(90, 110, 130, 0.22) 50%,
-            rgba(150, 170, 190, 0.48) 100%);
-    }
+/*
+ * ── Card-back tiles (Cards overlay, opponent seat) ─────────────────────
+ * Sci-fi card backs shown × the opponent's hand count — the contents are
+ * hidden info, so we mirror the physical board game's face-down hand.
+ */
+.cards-backs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 8px 0;
+}
+/*
+ * Opponent hand = face-down project cards. Uses the game's own card-back
+ * artwork (assets/resources/card.png — terraformed Mars on black, the same
+ * image the small card glyph uses) at real-card aspect (~0.705), so a
+ * hidden hand reads exactly like the physical board game.
+ */
+.card-back-tile {
+    width: 150px;
+    height: 213px;
+    border-radius: 8px;
+    background: url(./assets/resources/card.png) center / cover no-repeat;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+}
+.bar-overlay__empty {
+    color: #8aa6c4;
+    font-style: italic;
+    padding: 18px 4px;
 }
 
 /*
@@ -2937,10 +3038,11 @@ each(@players, {
 .top-bar-btn-anchor {
     position: relative;
     pointer-events: none;
-    margin-right: -10px;
+    /* No overlap anymore — the rail's flex `gap` spaces the buttons. */
+    margin-right: 0;
     height: var(--bottom-bar-button-height);
     display: flex;
-    align-items: stretch;
+    align-items: center;
     /*
      * Intentionally NO z-index here. Each anchor would otherwise become its
      * own stacking context, trapping its dropdown (z-index 120) inside ↔ a
