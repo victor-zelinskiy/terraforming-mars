@@ -1,7 +1,12 @@
 .card-tile-ares {
   width: 47px !important;
   height: 51px !important;
-  background-size: auto !important;
+  // `board_icons_ares.png` ships at 4× (2520×960); coordinates on
+  // `.board-space-tile--*` are authored against the original 630×240
+  // grid. `!important` defeats any later inline overrides; without it
+  // the upscaled bitmap would render at its native 2520×960 and the
+  // 47×51 viewport would expose the wrong slice.
+  background-size: 630px 240px !important;
 }
 
 .card-tile-biofertilizer-facility {
@@ -99,103 +104,110 @@
   .card-tile-ares();
 }
 
+// See `.card-tile-ares` above for why `background-size` is needed: the
+// PNG is 4× upscaled; coordinates here stay on the original 630×240 grid.
+.board-icons-ares-sprite(@x, @y) {
+	background: url(./assets/board_icons_ares.png) @x @y no-repeat;
+	background-size: 630px 240px;
+}
+
 .board-space-tile--ocean-farm {
-	background: url(./assets/board_icons_ares.png) -29px -27px no-repeat;
+	.board-icons-ares-sprite(-29px, -27px);
 }
 
 .board-space-tile--ocean-sanctuary {
-	background: url(./assets/board_icons_ares.png) -79px -27px no-repeat;
+	.board-icons-ares-sprite(-79px, -27px);
 }
 
 .board-space-tile--ocean-city {
-	background: url(./assets/board_icons_ares.png) -129px -27px no-repeat;
+	.board-icons-ares-sprite(-129px, -27px);
 }
 
 .board-space-tile--nuclear-zone-ares {
-	background: url(./assets/board_icons_ares.png) -198px -27px no-repeat;
+	.board-icons-ares-sprite(-198px, -27px);
 }
 
 .board-space-tile--lava-flows-ares {
-	background: url(./assets/board_icons_ares.png) -246px -27px no-repeat;
+	.board-icons-ares-sprite(-246px, -27px);
 }
 
 .board-space-tile--mining-steel {
-	background: url(./assets/board_icons_ares.png) -294px -27px no-repeat;
+	.board-icons-ares-sprite(-294px, -27px);
 }
 
 .board-space-tile--restricted-area-ares {
-	background: url(./assets/board_icons_ares.png) -342px -27px no-repeat;
+	.board-icons-ares-sprite(-342px, -27px);
 }
 
 .board-space-tile--natural-preserve-ares {
-	background: url(./assets/board_icons_ares.png) -390px -27px no-repeat;
+	.board-icons-ares-sprite(-390px, -27px);
 }
 
 .board-space-tile--mohole-area-ares {
-	background: url(./assets/board_icons_ares.png) -438px -27px no-repeat;
+	.board-icons-ares-sprite(-438px, -27px);
 }
 
 .board-space-tile--commercial-district-ares {
-	background: url(./assets/board_icons_ares.png) -486px -27px no-repeat;
+	.board-icons-ares-sprite(-486px, -27px);
 }
 
 .board-space-tile--great-dam-ares {
-	background: url(./assets/board_icons_ares.png) -581px -139px no-repeat;
+	.board-icons-ares-sprite(-581px, -139px);
 }
 
 .board-space-tile--deimos-down-ares {
-	background: url(./assets/board_icons_ares.png) -581px -189px no-repeat;
+	.board-icons-ares-sprite(-581px, -189px);
 }
 
 .board-space-tile--industrial-center-ares {
-	background: url(./assets/board_icons_ares.png) -534px -27px no-repeat;
+	.board-icons-ares-sprite(-534px, -27px);
 }
 
 .board-space-tile--ecological-zone-ares {
-	background: url(./assets/board_icons_ares.png) -581px -27px no-repeat;
+	.board-icons-ares-sprite(-581px, -27px);
 }
 
 .board-space-tile--capital-ares {
-	background: url(./assets/board_icons_ares.png) -198px -83px no-repeat;
+	.board-icons-ares-sprite(-198px, -83px);
 }
 
 .board-space-tile--solar-farm {
-	background: url(./assets/board_icons_ares.png) -246px -83px no-repeat;
+	.board-icons-ares-sprite(-246px, -83px);
 }
 
 .board-space-tile--magnetic-field-generators-ares {
-	background: url(./assets/board_icons_ares.png) -534px -139px no-repeat;
+	.board-icons-ares-sprite(-534px, -139px);
 }
 
 .board-space-tile--metallic-asteroid {
-	background: url(./assets/board_icons_ares.png) -294px -83px no-repeat;
+	.board-icons-ares-sprite(-294px, -83px);
 }
 
 .board-space-tile--biofertilizer-facility {
-	background: url(./assets/board_icons_ares.png) -342px -83px no-repeat;
+	.board-icons-ares-sprite(-342px, -83px);
 }
 .board-space-tile--mining-titanium {
-	background: url(./assets/board_icons_ares.png) -390px -83px no-repeat;
+	.board-icons-ares-sprite(-390px, -83px);
 }
 
 .board-space-tile--dust-storm-mild {
-	background: url(./assets/board_icons_ares.png) -438px -83px no-repeat;
+	.board-icons-ares-sprite(-438px, -83px);
 }
 
 .board-space-tile--dust-storm-severe {
-	background: url(./assets/board_icons_ares.png) -486px -83px no-repeat;
+	.board-icons-ares-sprite(-486px, -83px);
 }
 
 .board-space-tile--erosion-mild {
-	background: url(./assets/board_icons_ares.png) -534px -83px no-repeat;
+	.board-icons-ares-sprite(-534px, -83px);
 }
 
 .board-space-tile--erosion-severe {
-	background: url(./assets/board_icons_ares.png) -581px -83px no-repeat;
+	.board-icons-ares-sprite(-581px, -83px);
 }
 
 .board-space-tile--empty-tile--M {
-	background: url(./assets/board_icons_ares.png) -29px -83px no-repeat;
+	.board-icons-ares-sprite(-29px, -83px);
 	position: relative;
 }
 
@@ -208,7 +220,7 @@
 }
 
 .board-space-tile--adjacency-tile {
-	background: url(./assets/board_icons_ares.png) -79px -83px no-repeat;
+	.board-icons-ares-sprite(-79px, -83px);
 }
 
 .ares-container {
