@@ -92,6 +92,26 @@
     --planet-value-gap: 6px;
     --planet-progress-width: 40px;
     --planet-value-size: 20px;
+    /*
+     * Vertical height claimed by the integrated generation cap that
+     * occupies the rail's top edge. Used by the planet-spine to know
+     * where to START vertically — the spine is the parameter-stack
+     * indicator that begins exactly where the cap ends, so the two
+     * read as ONE HUD frame (top cap + left spine) rather than as
+     * two separate decorations.
+     *
+     * Tied to the cap's own padding + label + number heights below.
+     * If you change the gen label font-size, gen number font-size,
+     * or cap paddings, retune this token in lockstep.
+     *
+     * Current math: cap padding 8 + label 10 + label-bottom-margin
+     * 4 + number 26 + cap padding 9 = 57 px box height; minus the
+     * -6 px top margin that pulls the cap up onto the rail's true
+     * top edge → 51 px cap projection from rail-top. 52 leaves a
+     * single-pixel breath between the cap's bottom hairline and
+     * the spine's first lit pixel.
+     */
+    --planet-cap-height: 52px;
 
     width: var(--right-sidebar-width);
     /* Tight horizontal padding: left:6 clears the absolute 3-px
@@ -114,7 +134,13 @@
 
 .planet-sidebar .planet-spine {
     position: absolute;
-    top: 10px;
+    /*
+     * Top aligns with the bottom of the generation cap so the spine
+     * BEGINS where the cap ENDS — chip + spine read as a single
+     * continuous HUD frame (top cap → left rail) rather than two
+     * floating elements.
+     */
+    top: var(--planet-cap-height);
     /*
      * Bottom matches the sidebar's reserved bottom area (64-px
      * padding for the overall % readout + debug btn). Aligns the
@@ -298,27 +324,11 @@
     margin: 0;
 }
 
-/*
- * Generation block — same vertical rhythm rules as the parameter
- * axes (content-sized, single centred axis), just label-above-
- * number instead of icon-above-value. No special flex weight
- * needed since the stack no longer flex-distributes blocks.
- */
-.planet-sidebar .planet-metric--generation .planet-metric__label {
-    margin: 0 0 var(--planet-icon-gap);
-}
+/* Generation block — its own premium HUD chrome lives further down
+ * (see "generation block specifics"). The shared parameter-block
+ * rhythm above doesn't apply to gen: label-above-number with no
+ * progress underline, custom paddings, and a framed background. */
 
-.planet-sidebar .planet-metric--generation .planet-metric__value {
-    /* No progress underline below the generation number, so the
-     * value's standard bottom margin would just add empty
-     * whitespace. Zero out for a tight header composition. */
-    margin: 0;
-}
-
-/*
- * Stale `.planet-metric__row` flex helpers from v4 removed — v6
- * uses a single block-level flex column instead.
- */
 /* ------------- icon (level 1 — heavy visual anchor) ---------- */
 
 /*
@@ -447,27 +457,110 @@
 /* ------------- generation block specifics -------------------- */
 
 /*
- * Same horizontal row pattern, but the "icon" slot holds the small
- * "ПКН." text label and the value column shows just the number
- * (no unit, no progress underline).
+ * Generation block — integrated top-cap header of the rail.
+ *
+ * Prior iteration (v8) framed gen as a rounded card sitting on top
+ * of the rail: 5-px border-radius, 4-edge inset rim, opaque glass.
+ * The brief flagged it as "отдельная маленькая карточка/кнопка" — a
+ * detached widget rather than a section of the rail itself. v9 drops
+ * card chrome entirely and rebuilds the block as a CAP SEGMENT of
+ * the rail: zero radius, full-bleed top + right edges, only two
+ * thin hairlines (top + bottom). The dark-glass tint is now quiet
+ * enough to feel like "rail chrome" rather than "card surface".
+ *
+ *   ━━━━━━━━━━━━━━━━━━━━  ← top hairline (cyan, faint) — sits flush
+ *                          on the rail's true top edge
+ *   ▏  ПКЛ.               ← label kept compact + uppercase
+ *   ▏   8                 ← Russo One 26 px, soft sci-fi halo
+ *   ━━━━━━━━━━━━━━━━━━━━  ← bottom hairline (cyan, slightly stronger)
+ *   ┃                       — exactly where the planet-spine begins
+ *   ┃                       (`top: var(--planet-cap-height)`), so the
+ *   ┃                       cap + spine read as ONE HUD frame
+ *
+ * Negative margins:
+ *   • -6 top — eats the rail's 6-px top padding so the chip's top
+ *     hairline lands on the rail's true top edge.
+ *   • -3 right — extends to the rail's true right edge through the
+ *     3-px right padding.
+ *   • left:  0 — chip starts at the rail's 6-px content edge, so the
+ *     3-px planet-spine sitting at left:2 is fully to the LEFT of
+ *     the chip and remains visible underneath the cap as the cap's
+ *     bottom hairline meets the spine's top edge (`top:
+ *     var(--planet-cap-height)` makes that meeting exact).
+ *
+ * Label string is "ПКЛ." (compact, ru); full "Поколение N" is in
+ * the `:title` / `aria-label` tooltip.
  */
 .planet-sidebar .planet-metric--generation {
-    padding-top: 5px;
-    padding-bottom: 6px;
+    padding: 8px 5px 9px;
+    /*
+     * Bottom margin 2 (not the default block gap) keeps the
+     * parameter-stack spacing CLOSE to the v8 baseline once the
+     * flex `gap: var(--planet-block-gap)` between cap and next
+     * metric is added in: 2 + 16 + 0 = 18 px from cap-bottom to
+     * the first parameter's top — same total as before.
+     */
+    margin: -6px -3px 2px 0;
+
+    background: linear-gradient(180deg,
+        rgba(18, 28, 44, 0.42) 0%,
+        rgba(10, 18, 30, 0.6) 100%);
+    border-radius: 0;
+    /*
+     * Only TWO hairlines — top + bottom. No side rims, no rounded
+     * corners → no card-slot read. The top hairline is the rail's
+     * upper boundary; the bottom hairline is the seam between cap
+     * and parameter stack. Same cyan family as the spine so the
+     * whole rail reads as one system.
+     */
+    box-shadow:
+        inset 0 1px 0 rgba(140, 215, 250, 0.22),
+        inset 0 -1px 0 rgba(95, 165, 220, 0.32);
+
+    transition:
+        background 220ms ease,
+        box-shadow 220ms ease;
 }
 
 /*
- * Generation label — visually paired with the bottom "ПЛАНЕТА"
- * readout caption so the bar reads as bracketed by two matched HUD
- * labels (top: ПОКОЛЕНИЕ N, bottom: N% ПЛАНЕТА). 7-px Prototype +
- * 1.0-px letter-spacing — tighter than the previous 1.4 px so the
- * 9-character Russian word "ПОКОЛЕНИЕ" no longer reads as stretched
- * across the column. Comfortable breathing inside the 54-px content
- * width.
+ * Hover/focus quietly brightens the two hairlines and tints the
+ * glass — no extra rim, no scale, no shadow halo. Calm Ark-Nova-
+ * style response, not a button press.
+ */
+.planet-sidebar .planet-metric--generation:hover,
+.planet-sidebar .planet-metric--generation:focus-visible {
+    background: linear-gradient(180deg,
+        rgba(24, 36, 54, 0.55) 0%,
+        rgba(14, 22, 34, 0.68) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(170, 230, 255, 0.35),
+        inset 0 -1px 0 rgba(120, 200, 240, 0.5);
+    outline: none;
+}
+
+/*
+ * Internal rhythm inside the cap. Label sits a hair below the top
+ * hairline; value sits flush at the bottom. No progress underline
+ * below the gen number so we zero out the standard value bottom
+ * margin to avoid dead air at the cap's lower hairline.
+ */
+.planet-sidebar .planet-metric--generation .planet-metric__label {
+    margin: 0 0 4px;
+}
+
+.planet-sidebar .planet-metric--generation .planet-metric__value {
+    margin: 0;
+}
+
+/*
+ * Shared label style. Used by the generation block today and ready
+ * for any future caption-style HUD label that wants the same
+ * Prototype-uppercase treatment. 8-px base; the generation block
+ * overrides up to 9.5 px because its string is short ("ПКЛ.").
  */
 .planet-sidebar .planet-metric__label {
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 7px;
+    font-size: 8px;
     font-weight: 700;
     letter-spacing: 1px;
     line-height: 1;
@@ -479,18 +572,47 @@
     text-align: center;
 }
 
+.planet-sidebar .planet-metric--generation .planet-metric__label {
+    font-size: 9.5px;
+    letter-spacing: 1.4px;
+    color: @planet-text-muted;
+    transition: color 220ms ease;
+}
+
+.planet-sidebar .planet-metric--generation:hover .planet-metric__label,
+.planet-sidebar .planet-metric--generation:focus-visible .planet-metric__label {
+    color: @planet-text-secondary;
+}
+
 .planet-sidebar .planet-metric--generation .planet-stat-num {
     /*
-     * Generation number is the bar's compact "header" — the
-     * biggest single piece of text in the sidebar. Confidently
-     * larger than the parameter values below (which sit at 20 px)
-     * so the eye reads gen as the heading.
+     * Hero number for the rail — confidently larger than the 20-px
+     * parameter values below so the eye reads gen as the bar's
+     * main counter. `tabular-nums` is inherited from .planet-stat-num
+     * so digits 1 / 6 / 10+ all sit on the same column width — the
+     * number does NOT drift sideways as the generation counter
+     * increments.
+     *
+     * Glow is layered as TWO soft text-shadows so it feels like
+     * recessed sci-fi back-lighting rather than aggressive neon:
+     *   • 0 1px 2px black — depth + legibility against the dark
+     *     glass interior.
+     *   • 0 0 4px light-cyan-soft — tight inner halo, reads as the
+     *     character edges catching the rail's accent light.
+     *   • 0 0 12px cyan-faint — wide ambient bloom, gentle enough
+     *     to never feel "lit up" at rest.
+     * The Resource Change Feedback framework (see global-num-
+     * transition-*) layers a punchier transient glow on top when
+     * the value changes, so the resting state must NOT compete.
      */
     font-size: 26px;
     text-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.85),
-        0 0 12px rgba(106, 176, 230, 0.4);
+        0 1px 2px rgba(0, 0, 0, 0.82),
+        0 0 4px rgba(180, 225, 255, 0.32),
+        0 0 12px rgba(106, 176, 230, 0.22);
 }
+
+.planet-sidebar .planet-metric--generation { cursor: default; }
 
 /* Generation has no unit and no progress underline — value cluster
  * is just the number. Hide the unit/checkmark slot rules that aren't
@@ -758,6 +880,65 @@
     animation: planet-metric-pulse-negative 1300ms cubic-bezier(0.37, 0, 0.63, 1);
 }
 
+/*
+ * Gen-specific pulse override. The generic .planet-metric pulses
+ * above set `background: transparent` at 0%/100%, which would WIPE
+ * the cap's permanent dark-glass gradient + hairlines during the
+ * animation — a jarring "card disappears for 1.3 s" effect. The
+ * gen pulses below preserve the cap's resting box-shadow at the
+ * keyframe bookends and just LAYER a soft accent inside it: the
+ * bottom hairline briefly tints green (positive) or coral
+ * (negative) and a wide inset glow blooms, then both fade. Same
+ * accent vocabulary as the parameter axes, no chrome destruction.
+ */
+@keyframes planet-gen-pulse-positive {
+    0%, 100% {
+        box-shadow:
+            inset 0 1px 0 rgba(140, 215, 250, 0.22),
+            inset 0 -1px 0 rgba(95, 165, 220, 0.32);
+    }
+    35% {
+        box-shadow:
+            inset 0 1px 0 rgba(170, 235, 255, 0.32),
+            inset 0 -1px 0 rgba(95, 227, 200, 0.78),
+            inset 0 0 18px rgba(95, 227, 200, 0.22);
+    }
+    70% {
+        box-shadow:
+            inset 0 1px 0 rgba(150, 225, 252, 0.26),
+            inset 0 -1px 0 rgba(95, 227, 200, 0.5),
+            inset 0 0 10px rgba(95, 227, 200, 0.1);
+    }
+}
+
+@keyframes planet-gen-pulse-negative {
+    0%, 100% {
+        box-shadow:
+            inset 0 1px 0 rgba(140, 215, 250, 0.22),
+            inset 0 -1px 0 rgba(95, 165, 220, 0.32);
+    }
+    35% {
+        box-shadow:
+            inset 0 1px 0 rgba(170, 235, 255, 0.32),
+            inset 0 -1px 0 rgba(255, 139, 118, 0.7),
+            inset 0 0 18px rgba(255, 139, 118, 0.22);
+    }
+    70% {
+        box-shadow:
+            inset 0 1px 0 rgba(150, 225, 252, 0.26),
+            inset 0 -1px 0 rgba(255, 139, 118, 0.45),
+            inset 0 0 10px rgba(255, 139, 118, 0.1);
+    }
+}
+
+.planet-sidebar .planet-metric--generation:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) {
+    animation: planet-gen-pulse-positive 1300ms cubic-bezier(0.37, 0, 0.63, 1);
+}
+
+.planet-sidebar .planet-metric--generation:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) {
+    animation: planet-gen-pulse-negative 1300ms cubic-bezier(0.37, 0, 0.63, 1);
+}
+
 @keyframes planet-spine-kick {
     0%, 100% {
         box-shadow:
@@ -780,6 +961,8 @@
     .planet-metric__value:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .planet-stat-num,
     .planet-sidebar .planet-metric:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive),
     .planet-sidebar .planet-metric:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative),
+    .planet-sidebar .planet-metric--generation:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive),
+    .planet-sidebar .planet-metric--generation:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative),
     .planet-sidebar:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .planet-spine__fill {
         animation: none;
     }

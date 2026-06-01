@@ -26,7 +26,8 @@
       one consistent instrument cluster.
     -->
     <div class="planet-metric planet-metric--generation"
-         :title="$t('Generation Marker')">
+         :title="generationTitle"
+         :aria-label="generationTitle">
       <span class="planet-metric__label" v-i18n>Sidebar generation label</span>
       <div class="planet-metric__value">
         <span class="planet-stat-num">{{ generation }}</span>
@@ -312,6 +313,9 @@ export default defineComponent({
     },
     terraformProgressTitle(): string {
       return `${translateText('Terraforming progress')}: ${this.terraformProgressPercent}%`;
+    },
+    generationTitle(): string {
+      return `${translateText('Generation')} ${this.generation}`;
     },
     temperatureIsMax(): boolean {
       return this.temperature >= MAX_TEMPERATURE;

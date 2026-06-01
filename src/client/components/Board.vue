@@ -43,16 +43,27 @@
         </div>
 
         <div class="global-numbers">
+            <!--
+              Each scale container hosts (1) the legacy `.global-numbers-value.val-N`
+              anchors — kept as the SOURCE OF TRUTH for arc coordinates / rotations
+              so we don't duplicate that geometry on the client — and (2) one
+              <AnimatedScaleMarker>. The marker walks the anchors via WAAPI so the
+              current value glides along the arc instead of teleporting between
+              `val-is-active` swaps. See AnimatedScaleMarker.vue for the contract.
+            -->
             <div class="global-numbers-temperature">
                 <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in getValuesForParameter('temperature')" :key="idx">{{ lvl.strValue }}</div>
+                <animated-scale-marker accent="temperature" :value="temperature" />
             </div>
 
             <div class="global-numbers-oxygen">
                 <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in getValuesForParameter('oxygen')" :key="idx">{{ lvl.strValue }}</div>
+                <animated-scale-marker accent="oxygen" :value="oxygen_level" />
             </div>
 
             <div class="global-numbers-venus" v-if="expansions.venus">
                 <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in getValuesForParameter('venus')" :key="idx">{{ lvl.strValue }}</div>
+                <animated-scale-marker accent="venus" :value="venusScaleLevel" />
             </div>
 
 <div v-if="expansions.ares && aresData !== undefined">
@@ -331,6 +342,7 @@ import * as constants from '@/common/constants';
 import BoardSpace from '@/client/components/BoardSpace.vue';
 import SpecialCellMarker from '@/client/components/board/SpecialCellMarker.vue';
 import SpecialCellInfoOverlay from '@/client/components/board/SpecialCellInfoOverlay.vue';
+import AnimatedScaleMarker from '@/client/components/board/AnimatedScaleMarker.vue';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import {
   activateSpecialCellBySpaceId,
@@ -398,6 +410,7 @@ export default defineComponent({
     BoardSpace,
     SpecialCellMarker,
     SpecialCellInfoOverlay,
+    AnimatedScaleMarker,
   },
   data() {
     return {

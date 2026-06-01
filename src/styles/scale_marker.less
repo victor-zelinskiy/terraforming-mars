@@ -1,0 +1,381 @@
+/*
+ * Animated Scale Marker — visual chrome for the global-parameter track
+ * cursor on the Mars board's three dials (temperature / oxygen / venus).
+ * Driven by src/client/components/board/AnimatedScaleMarker.vue.
+ *
+ * Visual contract:
+ *
+ *   - Crisp at rest. No motion blur, no backdrop blur, no soft filters.
+ *     The double-rim (warm scale-tinted INNER border + cool silver
+ *     OUTER border via ::before) is the dominant readable element.
+ *     The cool outer rim separates the cursor from any coloured dial
+ *     background — crucial for Venus (the warm gold cursor used to
+ *     blend with the gold-toned Venus arc).
+ *
+ *   - Quiet during travel. The marker glides between anchor centres
+ *     and that's it. No rim flash, no halo bump, no energise.
+ *
+ *   - Strong, focused accent on arrival. Exactly TWO effects, not
+ *     four — kept tight so the eye lands on the new value cleanly:
+ *
+ *       MAIN       glass rim flash (box-shadow brightens once,
+ *                  returns to rest) — defines "value confirmed".
+ *       SECONDARY  one cool-silver sonar ping ring expands outward
+ *                  + fades — defines "this is where to look".
+ *
+ *     Halo breath and tick twinkle are gone. Single-burst arrival.
+ *
+ * Layers, back to front:
+ *
+ *   __glass  the body. Inner accent rim + outer cool rim (::before).
+ *            Ambient glow is folded INTO the box-shadow stack so we
+ *            don't pay for a separate halo div / paint layer.
+ *   __ping   invisible at rest; expands + fades on settle.
+ *   __tick   two short tangent ticks (radial-out / radial-in). Static.
+ *
+ * Performance notes:
+ *
+ *   - Only `transform` and `opacity` are animated by WAAPI on travel.
+ *   - Settle uses `box-shadow` (cheap on a 34×34 surface) and
+ *     `transform: scale` + `opacity` on the ping (compositor-only).
+ *   - No `filter:blur`, no `backdrop-filter` — those were the most
+ *     expensive items in earlier iterations and contributed to the
+ *     "muddy" read.
+ *   - `will-change: transform` lives on the marker root because the
+ *     WAAPI transform reasserts frequently. Inner elements animate
+ *     occasionally and don't need explicit will-change.
+ *   - Settle only fires when the value actually changes (see
+ *     AnimatedScaleMarker.vue: `if (startIdx === targetIdx) return`).
+ */
+
+.scale-marker {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 34px;
+    height: 34px;
+    pointer-events: none;
+    /*
+     * Sits BELOW the active val-N digit (val-is-active has z-index: 2
+     * in globs.less) so the digit reads on top of the glass disc.
+     */
+    z-index: 1;
+    will-change: transform;
+    /*
+     * Initial off-screen position — prevents a (0,0) flash at the
+     * top-left of the scale container before mounted()'s placeAt().
+     */
+    transform: translate(-9999px, -9999px);
+    transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
+
+    &--pending {
+        opacity: 0;
+    }
+    &--ready {
+        opacity: 1;
+    }
+
+    /* ---- universal cool-silver outer rim colour ------------- */
+
+    /*
+     * Single neutral cool tone used for:
+     *   - the outer rim (::before on glass)
+     *   - the sonar ping ring on settle
+     *
+     * Same across all three scales — it's the "this is a cursor"
+     * structural outline, scale-agnostic. Adds the silver-cyan
+     * contrast that breaks any colour match between marker accent
+     * and dial background (Venus especially benefits).
+     */
+    --marker-outer-rim:      rgba(218, 232, 248, 0.62);
+    --marker-outer-rim-glow: rgba(218, 232, 248, 0.42);
+
+    /* ---- glass disc ----------------------------------------- */
+
+    /*
+     * The cursor's body — the only "loud" visible structural element
+     * outside the ticks. Box-shadow stack carries everything:
+     *
+     *   inset top highlight       glass curvature
+     *   inset bottom shadow       grounding depth
+     *   inset tight inner glow    crisp inner rim
+     *   outer rim glow            scale-tinted aura right at the edge
+     *   ambient outer glow        soft secondary halo (replaces the
+     *                             old separate `.scale-marker__halo`
+     *                             div — fewer paint layers)
+     *   ground shadow             anchors disc to surface
+     */
+    &__glass {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background:
+            radial-gradient(
+                circle at 50% 50%,
+                transparent 0%,
+                transparent 55%,
+                rgba(8, 14, 22, 0.16) 82%,
+                rgba(4, 8, 14, 0.32) 100%);
+        border: 1.5px solid var(--marker-rim);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.10),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.30),
+            inset 0 0 5px var(--marker-glow-soft),
+            0 0 7px var(--marker-rim-glow),
+            0 0 14px var(--marker-glow-soft),
+            0 2px 4px rgba(0, 0, 0, 0.35);
+        pointer-events: none;
+    }
+
+    /*
+     * Cool silver outer rim — the dual-band look. Sits 3 px outside
+     * the glass disc as a thin neutral hairline. This is what makes
+     * the marker pop off ANY scale's colour scheme: warm Venus gold,
+     * cool oxygen blue, warm temperature coral. The outer band is
+     * cool silver regardless, so the cursor always reads as a
+     * precision instrument rather than blending into the dial tone.
+     */
+    &__glass::before {
+        content: '';
+        position: absolute;
+        inset: -3px;
+        border-radius: 50%;
+        border: 1px solid var(--marker-outer-rim);
+        box-shadow: 0 0 4px var(--marker-outer-rim-glow);
+        pointer-events: none;
+    }
+
+    /* ---- arrival ping --------------------------------------- */
+
+    /*
+     * Cool-silver sonar ring. Invisible at rest. On settle, expands
+     * from the disc's size outward to 1.4× while fading. Concentrated
+     * burst — fully decays by 850 ms so the main rim flash gets the
+     * final 320 ms of the settle window to itself, ending calmly on
+     * the rest state.
+     *
+     * Borrows the universal --marker-outer-rim colour so the ping
+     * matches the structural outer-rim tone — reads as the outer rim
+     * itself emanating outward.
+     */
+    &__ping {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 1.5px solid var(--marker-outer-rim);
+        opacity: 0;
+        transform-origin: center;
+        pointer-events: none;
+    }
+
+    /* ---- tangent ticks -------------------------------------- */
+
+    /*
+     * Radial ticks — the PRIMARY visual signature of the indicator.
+     *
+     * Geometry: the marker rotates per local radial direction (see
+     * computeRadialRotationDeg in AnimatedScaleMarker.vue) so "above"
+     * and "below" of the tick pair line up along the radius through
+     * the arc at every value. The tick line itself is what the player
+     * reads as "this is the cursor pointing at value N".
+     *
+     * Sizing tuned to read first, but stay premium-hairline:
+     *   width 2 px      — fine, still reads as a line not a bar.
+     *   height 8 px     — clearly visible against the dial background
+     *                     without reaching into the neighbour anchor's
+     *                     space (anchor spacing is ~25 px).
+     *   border-radius   — soft cap at both ends; reads as a glow
+     *                     needle, not a stamped rectangle.
+     *
+     * Lighting:
+     *   tight inner glow  (5 px) — defines the needle's silhouette.
+     *   ambient halo     (12 px) — softens the rim's interface with
+     *                              the dial background so the line
+     *                              doesn't look pasted on.
+     *   white inner core (gradient) — a hairline highlight down the
+     *                                 centre, gives the needle the
+     *                                 fibre-optic / lit-glass look.
+     *
+     * Static — no settle animation; the arrival accent lives in the
+     * rim flash + sonar ping (kept to exactly two channels).
+     */
+    &__tick {
+        position: absolute;
+        left: 50%;
+        width: 2px;
+        height: 8px;
+        margin-left: -1px;
+        background:
+            linear-gradient(
+                90deg,
+                var(--marker-accent) 0%,
+                rgba(255, 255, 255, 0.85) 50%,
+                var(--marker-accent) 100%);
+        border-radius: 1.2px;
+        box-shadow:
+            0 0 5px var(--marker-glow-strong),
+            0 0 12px var(--marker-glow-soft);
+        opacity: 1;
+        pointer-events: none;
+
+        &--top {
+            top: -11px;
+        }
+        &--bottom {
+            bottom: -11px;
+        }
+    }
+
+    /* ---- per-scale palettes --------------------------------- */
+
+    /*
+     * Each accent block defines the inner colour family. The outer
+     * cool-silver rim is shared across all three (defined above).
+     * Inner accent is used for:
+     *   - glass rim border (warm tint)
+     *   - tick fill + glow
+     *   - outer rim glow component of the box-shadow stack
+     *   - ambient halo box-shadow gradient stops
+     */
+
+    /*
+     * Temperature dial — muted warm coral. Inner warm tone reads
+     * against the cool outer rim cleanly; no acid-orange overlap.
+     */
+    &--temperature {
+        --marker-accent:      #e8a079;
+        --marker-rim:         rgba(232, 160, 121, 0.78);
+        --marker-rim-glow:    rgba(232, 160, 121, 0.42);
+        --marker-glow-strong: rgba(232, 160, 121, 0.42);
+        --marker-glow-soft:   rgba(232, 160, 121, 0.16);
+    }
+
+    /*
+     * Oxygen dial — cool cyan-white. Even though oxygen's inner is
+     * cool too, the outer rim is cooler/more silver, so the dual band
+     * still reads (silver outer / cyan inner is a small tone shift,
+     * not zero — the form still clearly outlines).
+     */
+    &--oxygen {
+        --marker-accent:      #8cd8ee;
+        --marker-rim:         rgba(140, 216, 238, 0.78);
+        --marker-rim-glow:    rgba(140, 216, 238, 0.42);
+        --marker-glow-strong: rgba(140, 216, 238, 0.42);
+        --marker-glow-soft:   rgba(140, 216, 238, 0.16);
+    }
+
+    /*
+     * Venus dial — luminous gold. The Venus arc on the board art is
+     * itself gold-toned, so an unframed gold marker would blend in.
+     * The cool-silver outer rim does the heavy lifting here — gold
+     * inner stays thematic, silver outer pops the cursor off the dial.
+     */
+    &--venus {
+        --marker-accent:      #f5d674;
+        --marker-rim:         rgba(245, 214, 116, 0.88);
+        --marker-rim-glow:    rgba(245, 214, 116, 0.50);
+        --marker-glow-strong: rgba(245, 214, 116, 0.50);
+        --marker-glow-soft:   rgba(245, 214, 116, 0.20);
+    }
+
+    /* ---- arrival accent (2 effects, synchronised) ---------- */
+
+    /*
+     * MAIN: glass rim flash. Outer rim-glow (the colourful scale
+     * accent) brightens once, then eases back to the rest box-shadow.
+     * 0 % and 100 % match the rest CSS exactly so the animation lands
+     * cleanly on rest state with zero snap.
+     */
+    &--settling .scale-marker__glass {
+        animation: scale-marker-rim-flash 1170ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /*
+     * SECONDARY: sonar ping. Briefer than the main flash (850 ms vs
+     * 1170 ms) so it leads the rim flash — eye reads the burst, then
+     * the rim settles calmly. Ping uses cool silver, rim flash uses
+     * scale tint: two distinct channels of accent, no chatter.
+     */
+    &--settling .scale-marker__ping {
+        animation: scale-marker-ping 850ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+}
+
+@keyframes scale-marker-rim-flash {
+    /*
+     * Rest state at 0 / 100 — matches the resting `.scale-marker__glass`
+     * box-shadow stack byte-for-byte so the animation can chain cleanly
+     * into the static CSS without a single-frame jump.
+     */
+    0%, 100% {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.10),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.30),
+            inset 0 0 5px var(--marker-glow-soft),
+            0 0 7px var(--marker-rim-glow),
+            0 0 14px var(--marker-glow-soft),
+            0 2px 4px rgba(0, 0, 0, 0.35);
+    }
+    35% {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.18),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.30),
+            inset 0 0 8px var(--marker-glow-strong),
+            0 0 16px var(--marker-rim-glow),
+            0 0 22px var(--marker-glow-strong),
+            0 2px 4px rgba(0, 0, 0, 0.35);
+    }
+}
+
+@keyframes scale-marker-ping {
+    0% {
+        opacity: 0.85;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1.4);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /*
+     * The JS side ALSO drops the arc-traversal animation under reduced
+     * motion (see animateTo() in AnimatedScaleMarker.vue) — the marker
+     * snaps to the new value instead of gliding. This block then
+     * silences the ping ring (a transform-based motion effect) and
+     * softens the rim flash to a brief brightness bump — opacity- and
+     * colour-only, no movement.
+     */
+    .scale-marker--settling .scale-marker__ping {
+        animation: none;
+    }
+    .scale-marker--settling .scale-marker__glass {
+        animation: scale-marker-rim-flash-reduced 380ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+}
+
+/*
+ * Reduced-motion arrival accent — same box-shadow rest stack at 0/100,
+ * a single mild brightness bump at 50. No transforms anywhere.
+ */
+@keyframes scale-marker-rim-flash-reduced {
+    0%, 100% {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.10),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.30),
+            inset 0 0 5px var(--marker-glow-soft),
+            0 0 7px var(--marker-rim-glow),
+            0 0 14px var(--marker-glow-soft),
+            0 2px 4px rgba(0, 0, 0, 0.35);
+    }
+    50% {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.14),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.30),
+            inset 0 0 6px var(--marker-glow-soft),
+            0 0 10px var(--marker-rim-glow),
+            0 0 16px var(--marker-glow-soft),
+            0 2px 4px rgba(0, 0, 0, 0.35);
+    }
+}
