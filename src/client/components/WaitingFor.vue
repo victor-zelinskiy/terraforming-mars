@@ -1,6 +1,16 @@
 <template>
   <div>
-  <template v-if="waitingfor === undefined">
+  <!--
+    During the WGT 2-stage hold (see fetchPlayerInput), we want the
+    viewport to show JUST the board with the animating marker — neither
+    the dismissed WGT modal nor the upcoming next-phase modal. Bail with
+    an empty render until the hold clears (after WGT_MARKER_HOLD_MS).
+    The `isServerSideRequestInProgress` flag stays raised through the
+    hold, so nothing else can trigger a submit during this window.
+  -->
+  <template v-if="holdingForMarker">
+  </template>
+  <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
     <template v-if="playersWaitingFor.length > 0">
       (⌛ <span v-for="color in playersWaitingFor" class="log-player" :class="playerColorClass(color, 'bg')" :key="color">{{ getPlayerName(color) }}</span>)
@@ -104,6 +114,25 @@ import {Message} from '@/common/logs/Message';
 
 const WGT_TITLE = 'Select action for World Government Terraforming';
 
+/*
+ * After a World Government Terraforming choice that bumps a global
+ * parameter (temperature / oxygen / venus), hold the playerkey++
+ * remount for this many ms so the AnimatedScaleMarker on the affected
+ * dial gets a clean window to glide from old → new value BEFORE the
+ * next-phase modal (research / draft, action menu, etc.) opens and
+ * potentially covers the board. Without this hold the impact of the
+ * WGT pick is invisible — the response is fast, the next modal pops
+ * the same frame, and the marker animation is occluded.
+ *
+ * 1100 ms = the marker's MAX_DURATION_MS (1280) minus the settle
+ * window. The travel almost always finishes well within this; multi-
+ * step traversals (e.g. Venus +2 across the apex) get the full tail.
+ * Tuned to match user-perceptible "I saw it move" rather than the
+ * full 1170 ms settle pulse — the rim flash starts on arrival and is
+ * fine to clip against the next modal.
+ */
+const WGT_MARKER_HOLD_MS = 1100;
+
 // Title strings (from the server-side prompt) that identify specific
 // OrOptions prompts which should pop as a modal. Matched by exact equality
 // after unwrapping `Message` objects to their `.message` field. See
@@ -126,7 +155,9 @@ const MODAL_INPUT_TYPES: ReadonlySet<PlayerInputModel['type']> = new Set([
 ]);
 
 function titleText(title: string | Message | undefined): string | undefined {
-  if (title === undefined) return undefined;
+  if (title === undefined) {
+    return undefined;
+  }
   return typeof title === 'string' ? title : title.message;
 }
 
@@ -140,10 +171,14 @@ function titleText(title: string | Message | undefined): string | undefined {
 //    type with the regular action menu but should be modal'd (World
 //    Government Terraforming is the first).
 function shouldRouteToModal(input: PlayerInputModel): boolean {
-  if (MODAL_INPUT_TYPES.has(input.type)) return true;
+  if (MODAL_INPUT_TYPES.has(input.type)) {
+    return true;
+  }
   if (input.type === 'or') {
     const t = titleText(input.title);
-    if (t !== undefined && MODAL_OR_TITLES.has(t)) return true;
+    if (t !== undefined && MODAL_OR_TITLES.has(t)) {
+      return true;
+    }
   }
   return false;
 }
@@ -155,6 +190,20 @@ type DataModel = {
   playersWaitingFor: Array<Color>
   suspend: boolean,
   savedPlayerView: PlayerViewModel | undefined;
+  /*
+   * True while we're mid-WGT 2-stage transition (see
+   * `fetchPlayerInput`): the global-parameter values on the
+   * playerView have been mutated in place so the dial markers
+   * animate, and we're holding for WGT_MARKER_HOLD_MS before
+   * committing the rest of the new playerView (which would open the
+   * next-phase modal and potentially cover the marker mid-glide).
+   *
+   * While true the WGT modal is unmounted (so the player doesn't see
+   * a dead modal they can no longer interact with), and the inline
+   * factory branch is suppressed too — the viewport just shows the
+   * board with the animating marker for the hold window.
+   */
+  holdingForMarker: boolean;
 }
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
@@ -185,6 +234,7 @@ export default defineComponent({
       playersWaitingFor: [],
       suspend: false,
       savedPlayerView: undefined,
+      holdingForMarker: false,
     };
   },
   /*
@@ -233,20 +283,82 @@ export default defineComponent({
       document.title = next + ' ' + gameDocumentTitle(this.playerView.game);
     },
     onsave(out: InputResponse) {
+      /*
+       * Capture whether the prompt the player is currently submitting
+       * is the WGT OrOptions BEFORE we hand off to fetch — by the
+       * time the response arrives, `this.waitingfor` may already have
+       * been replaced (rare, but defensive).
+       */
+      const wgtSubmit = this.currentPromptIsWGT();
       this.fetchPlayerInput(
         paths.PLAYER_INPUT + '?id=' + this.playerView.id,
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({runId: this.playerView.runId, ...out}),
-        });
+        },
+        wgtSubmit);
     },
     reset() {
       this.fetchPlayerInput(
         paths.RESET + '?id=' + this.playerView.id,
-        {method: 'GET'});
+        {method: 'GET'},
+        false);
     },
-    fetchPlayerInput(url: string, options: RequestInit) {
+    currentPromptIsWGT(): boolean {
+      const wf = this.waitingfor;
+      if (wf === undefined) {
+        return false;
+      }
+      if (wf.type !== 'or') {
+        return false;
+      }
+      return titleText(wf.title) === WGT_TITLE;
+    },
+    /**
+     * Does the about-to-be-applied playerView change one of the three
+     * global-parameter dials this fork's `AnimatedScaleMarker`
+     * highlights? Used to decide whether the WGT 2-stage hold is worth
+     * running. "Add an ocean" WGT picks land here with all three
+     * values unchanged (the ocean placement comes later through a
+     * SelectSpace prompt), so we skip the hold and let the next prompt
+     * open instantly.
+     */
+    shouldHoldForMarkerAnimation(newView: PlayerViewModel): boolean {
+      const oldGame = this.playerView.game;
+      const newGame = newView.game;
+      return oldGame.temperature !== newGame.temperature ||
+        oldGame.oxygenLevel !== newGame.oxygenLevel ||
+        oldGame.venusScaleLevel !== newGame.venusScaleLevel;
+    },
+    /**
+     * Stage 1 of the WGT 2-stage transition: mutate JUST the three
+     * global-parameter values on the currently-displayed playerView in
+     * place. Vue 3 reactivity propagates each scalar change to the
+     * Board's `:temperature` / `:oxygen_level` / `:venusScaleLevel`
+     * props; the AnimatedScaleMarker watcher fires and starts gliding
+     * the affected dial.
+     *
+     * We deliberately do NOT touch waitingfor, the player tableau, or
+     * any of the dozens of other fields — the rest of the new view
+     * lands at Stage 2 (the regular playerkey++ remount). The player
+     * tableau may briefly show pre-WGT values for the hold window;
+     * the player's attention is on the dial, not the tableau.
+     */
+    applyGlobalParamPreview(newView: PlayerViewModel): void {
+      const oldGame = this.playerView.game;
+      const newGame = newView.game;
+      if (oldGame.temperature !== newGame.temperature) {
+        oldGame.temperature = newGame.temperature;
+      }
+      if (oldGame.oxygenLevel !== newGame.oxygenLevel) {
+        oldGame.oxygenLevel = newGame.oxygenLevel;
+      }
+      if (oldGame.venusScaleLevel !== newGame.venusScaleLevel) {
+        oldGame.venusScaleLevel = newGame.venusScaleLevel;
+      }
+    },
+    fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean) {
       const root = vueRoot(this);
       if (root.isServerSideRequestInProgress) {
         console.warn('Server request in progress');
@@ -257,7 +369,30 @@ export default defineComponent({
       fetch(url, options)
         .then(async (response) => {
           if (response.ok) {
-            this.updatePlayerView(await response.json());
+            const newView = await response.json() as PlayerViewModel;
+            /*
+             * WGT 2-stage transition: when the submit was the WGT
+             * OrOptions AND the response actually changes one of the
+             * three dial values, mutate the displayed playerView in
+             * place so the marker animation fires, hide the modals
+             * via holdingForMarker, then wait WGT_MARKER_HOLD_MS
+             * before letting the full playerkey++ remount happen
+             * (which would open the next-phase modal). The
+             * `isServerSideRequestInProgress` flag stays true through
+             * the setTimeout (it's cleared in `.finally` which runs
+             * after this async function returns), so the player can't
+             * fire another submit during the hold window.
+             */
+            if (wgtSubmit && this.shouldHoldForMarkerAnimation(newView)) {
+              this.applyGlobalParamPreview(newView);
+              this.holdingForMarker = true;
+              try {
+                await new Promise<void>((resolve) => setTimeout(resolve, WGT_MARKER_HOLD_MS));
+              } finally {
+                this.holdingForMarker = false;
+              }
+            }
+            this.updatePlayerView(newView);
             return;
           }
 
@@ -471,7 +606,9 @@ export default defineComponent({
     // the right shape (the raw `waitingfor` prop is a union).
     wgtInput(): OrOptionsModel | undefined {
       const wf = this.waitingfor;
-      if (wf === undefined || wf.type !== 'or') return undefined;
+      if (wf === undefined || wf.type !== 'or') {
+        return undefined;
+      }
       return titleText(wf.title) === WGT_TITLE ? wf : undefined;
     },
     // PlayerViewModel narrow cast for child components that need
@@ -497,7 +634,9 @@ export default defineComponent({
     // PlayerHome) or use the modal picker-mode mechanism (WGT).
     topLevelSpaceInput(): SelectSpaceModel | undefined {
       const wf = this.waitingfor;
-      if (wf === undefined || wf.type !== 'space') return undefined;
+      if (wf === undefined || wf.type !== 'space') {
+        return undefined;
+      }
       return wf;
     },
   },

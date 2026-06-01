@@ -13,10 +13,56 @@
 		border-radius: 5px;
 	}
 
+	/*
+	 * Active value digit — composed visual element with the
+	 * AnimatedScaleMarker glass disc behind it (see scale_marker.less).
+	 * The digit reads ON TOP of the disc (z-index above the marker),
+	 * picks up a scale-specific text-glow that matches the marker's
+	 * accent tone, and the whole thing — disc + digit — reads as ONE
+	 * lit-up indicator, not as two competing layers.
+	 *
+	 * The base .val-is-active rule covers shared geometry. Per-scale
+	 * overrides below set the matching accent text-glow.
+	 */
 	.val-is-active {
-		color: white;
-		box-shadow: 0 0px 0px 2px @grey_900, 0px 0 0px 6px #bb8760, 0 0 2px 8px #000;
-		z-index: 1;
+		color: #fff;
+		font-weight: 700;
+		/*
+		 * Above the marker (z=1 in scale_marker.less) so the digit is
+		 * always readable on top of the glass disc + halo.
+		 */
+		z-index: 2;
+	}
+
+	.global-numbers-temperature .val-is-active {
+		/* Muted warm coral — matches scale-marker--temperature accent. */
+		color: #ffe6d2;
+		text-shadow:
+			0 0 4px rgba(232, 160, 121, 0.55),
+			0 0 10px rgba(232, 160, 121, 0.32),
+			0 1px 2px rgba(0, 0, 0, 0.85);
+	}
+
+	.global-numbers-oxygen .val-is-active {
+		/* Cool cyan-white — matches scale-marker--oxygen accent. */
+		color: #e8f8ff;
+		text-shadow:
+			0 0 4px rgba(140, 216, 238, 0.55),
+			0 0 10px rgba(140, 216, 238, 0.32),
+			0 1px 2px rgba(0, 0, 0, 0.85);
+	}
+
+	.global-numbers-venus .val-is-active {
+		/*
+		 * Luminous gold — matches the boosted scale-marker--venus accent
+		 * (#f5d674) and matches the brighter rim alpha used on the venus
+		 * marker so the digit reads at parity with temp / oxygen.
+		 */
+		color: #fff7d8;
+		text-shadow:
+			0 0 4px rgba(245, 214, 116, 0.62),
+			0 0 10px rgba(245, 214, 116, 0.38),
+			0 1px 2px rgba(0, 0, 0, 0.85);
 	}
 .global-ares-erosions-icon {
 		background: url(./assets/erosion.png) no-repeat;
