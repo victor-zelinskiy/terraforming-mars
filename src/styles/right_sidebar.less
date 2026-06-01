@@ -638,57 +638,56 @@
  * is just the number. Hide the unit/checkmark slot rules that aren't
  * applicable, and the progress is absent from the template. */
 
-/* ------------- progress underline ---------------------------- */
+/* ------------- progress mini-bar (level 4) ------------------ */
 
 /*
- * Slim 2-px line under each parameter row. Spans the full content
- * width (i.e. the inner sidebar padding), creating a clean axis
- * across all parameters. Per-axis tint gives a quick read of which
- * parameter just advanced without parsing the icon.
- */
-/* ------------- progress underline (level 4) ----------------- */
-
-/*
- * Narrow centred progress pill directly under each metric's value.
- * Width set via --planet-progress-width so every metric gets the
- * SAME line width regardless of value digit count — reads as a
- * deliberate gauge segment that BELONGS to its parameter, not a
- * full-width divider hovering between sections.
+ * Per-metric mini progress bar — premium HUD treatment, NOT a flat
+ * html progress element.
  *
- * 3-px tall + border-radius:2 → real pill shape with visible
- * rounded ends. Matte recessed track + per-axis cyan/orange/blue
- * tinted fill, soft glow on the lit portion.
+ * Track: dark recessed channel with hairline rim + inset shadow,
+ * reading as a slot machined into the rail chrome. Stays visible at
+ * 0 % so an empty scale never looks like a missing decoration.
+ *
+ * Fill: per-axis SEMANTIC gradient (see metric-specific blocks
+ * further down). Each axis owns a palette related to its parameter
+ * — temperature cools→warms, oxygen lives in cool cyan, oceans in
+ * aqua, venus in muted yellow-green. The general planet spine keeps
+ * its own mint-cyan palette as the "overall progress" colour.
+ * Explicit reason for NOT using one shared gradient across all
+ * four: a rainbow shift by fill level was decorative-only and read
+ * as cheap — colour should be tied to the metric, not to the fill
+ * percentage.
+ *
+ * Leading-edge cap: a 4-px luminous band tracking the right edge of
+ * the fill via the same --planet-progress-fill variable. Lives on
+ * the track's ::after so it can be sized independently of the fill
+ * — a gradient stop inside ::before would scale with fill width and
+ * the cap would shrink/grow as progress changes. The track's
+ * overflow:hidden clips the cap to nothing at 0 % fill (cap left =
+ * 0% − 4px = −4px, fully outside the track), so an untouched scale
+ * shows only the dark recess.
+ *
+ * Per-axis variables (--planet-progress-fill-bg / -cap / -glow) are
+ * set on each .planet-metric--* and inherit down through the track
+ * pseudo-elements. The base rule provides defaults so any metric
+ * that ships without an override still renders.
  */
+
 .planet-sidebar .planet-metric__progress {
     width: var(--planet-progress-width);
-    height: 3px;
-    border-radius: 2px;
-    background: rgba(10, 16, 26, 0.92);
+    height: 4px;
+    border-radius: 2.5px;
+    background: linear-gradient(180deg,
+        rgba(6, 10, 18, 0.96) 0%,
+        rgba(16, 24, 38, 0.92) 100%);
     box-shadow:
-        inset 0 0 0 1px rgba(60, 90, 130, 0.35),
-        inset 0 1px 3px rgba(0, 0, 0, 0.7);
+        inset 0 0 0 1px rgba(70, 100, 138, 0.45),
+        inset 0 1px 2px rgba(0, 0, 0, 0.75),
+        inset 0 -1px 0 rgba(140, 180, 220, 0.05);
     position: relative;
     overflow: hidden;
 }
 
-/*
- * Per-axis progress fills share a SINGLE color scheme with the global
- * terraforming spine (planet-spine__fill above). Previously each axis
- * had its own hardcoded tint (orange / light blue / blue / tan) — but
- * that produced four unrelated palettes inside the same rail, and
- * the per-axis tint was decorative-only (it didn't communicate
- * anything the icon doesn't already say). The spine's vertical
- * gradient (cyan-blue → teal → cyan-green, bottom-up) "evolves" as
- * the fill grows; mirroring it horizontally here gives every metric
- * the SAME dynamic-color read: the bar starts in the cool blue of an
- * untouched parameter and finishes in the green of completion. One
- * color system across the whole rail, no extra "what does pink mean"
- * cognitive load.
- *
- * Same gradient stops, rotated 90°: bot→mid→top on the spine becomes
- * left→middle→right on the bar (left = start of fill = same color as
- * spine bottom; right = full = same color as spine top).
- */
 .planet-sidebar .planet-metric__progress::before {
     content: '';
     position: absolute;
@@ -696,15 +695,82 @@
     bottom: 0;
     left: 0;
     width: var(--planet-progress-fill, 0%);
-    background: linear-gradient(90deg,
-        @planet-spine-fill-bot 0%,
-        @planet-spine-fill-mid 55%,
-        @planet-spine-fill-top 100%);
+    background: var(--planet-progress-fill-bg,
+        linear-gradient(90deg,
+            @planet-spine-fill-bot 0%,
+            @planet-spine-fill-mid 55%,
+            @planet-spine-fill-top 100%));
     box-shadow:
-        0 0 6px rgba(106, 200, 220, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        0 0 5px var(--planet-progress-glow, rgba(106, 200, 220, 0.5)),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22);
     transition: width 750ms cubic-bezier(0.22, 1, 0.36, 1);
     border-radius: 2px;
+}
+
+.planet-sidebar .planet-metric__progress::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--planet-progress-fill, 0%) - 4px);
+    width: 4px;
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0) 0%,
+        var(--planet-progress-cap, rgba(220, 240, 255, 0.92)) 55%,
+        rgba(255, 255, 255, 0.95) 100%);
+    box-shadow:
+        0 0 5px var(--planet-progress-glow, rgba(106, 200, 220, 0.6)),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transition: left 750ms cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+    border-radius: 0 2px 2px 0;
+}
+
+/* Per-axis semantic palettes.
+ *
+ * Temperature — cold-to-warm gradient inside the fill itself: cool
+ * cyan at the freezing end, neutral steel mid, sci-fi amber at the
+ * warm end. Deliberately not red — the brief specifically excludes
+ * aggressive red. Mirrors the meaning of the temperature axis (it
+ * IS a cold→warm axis) without becoming a heat-map.
+ */
+.planet-sidebar .planet-metric--temperature {
+    --planet-progress-fill-bg: linear-gradient(90deg,
+        rgba(110, 185, 230, 0.88) 0%,
+        rgba(170, 195, 200, 0.90) 50%,
+        rgba(255, 195, 120, 0.94) 100%);
+    --planet-progress-cap: rgba(255, 222, 168, 1);
+    --planet-progress-glow: rgba(255, 190, 130, 0.45);
+}
+
+/* Oxygen — cool cyan accent. Single chromatic family so the bar
+ * doesn't compete with temperature's bichromatic gradient. */
+.planet-sidebar .planet-metric--oxygen {
+    --planet-progress-fill-bg: linear-gradient(90deg,
+        rgba(108, 180, 230, 0.86) 0%,
+        rgba(160, 220, 250, 0.93) 100%);
+    --planet-progress-cap: rgba(215, 242, 255, 1);
+    --planet-progress-glow: rgba(115, 200, 240, 0.55);
+}
+
+/* Oceans — aqua / water-blue. Lower / cooler than oxygen so the two
+ * axes don't read as the same colour at a glance. */
+.planet-sidebar .planet-metric--oceans {
+    --planet-progress-fill-bg: linear-gradient(90deg,
+        rgba(45, 160, 205, 0.88) 0%,
+        rgba(120, 215, 235, 0.94) 100%);
+    --planet-progress-cap: rgba(180, 240, 250, 1);
+    --planet-progress-glow: rgba(85, 200, 230, 0.55);
+}
+
+/* Venus — muted yellow-green. Deliberately desaturated so the bar
+ * doesn't go acid-lime. */
+.planet-sidebar .planet-metric--venus {
+    --planet-progress-fill-bg: linear-gradient(90deg,
+        rgba(150, 195, 110, 0.85) 0%,
+        rgba(210, 230, 140, 0.93) 100%);
+    --planet-progress-cap: rgba(232, 247, 175, 1);
+    --planet-progress-glow: rgba(175, 220, 110, 0.45);
 }
 
 .planet-sidebar .planet-metric--max .planet-metric__icon {
@@ -989,7 +1055,8 @@
         animation: none;
     }
     .planet-spine__fill,
-    .planet-sidebar .planet-metric__progress::before {
+    .planet-sidebar .planet-metric__progress::before,
+    .planet-sidebar .planet-metric__progress::after {
         transition: none;
     }
 }
