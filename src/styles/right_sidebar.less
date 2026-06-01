@@ -1,0 +1,790 @@
+/*
+ * Right-edge planetary status rail — modern HUD redesign (v4).
+ *
+ * 62-px sidebar — same footprint as legacy. v4 keeps everything
+ * v3 got right (slim absolute spine, flat metric stack with
+ * hairline dividers, bottom overall-% readout, icon-only debug
+ * btn) and reworks the in-block layout from vertical icon-above-
+ * value to a horizontal row:
+ *
+ *   ┌──────────────┐  62 px
+ *   │┃ ┌──────────┐│
+ *   │┃ │ ПКН.   8 ││  ← gen: label LEFT, number RIGHT
+ *   │┃ ├──────────┤│
+ *   │┃ │ 🌡   −22 ││  ← icon LEFT, value cluster RIGHT
+ *   │┃ │       °C ││     (number on top, unit flush-right below)
+ *   │┃ │ ░░░░░░░░ ││  ← per-axis progress underline, full width
+ *   │┃ ├──────────┤│
+ *   │┃ │ 💨    8 ││
+ *   │┃ │       % ││
+ *   │┃ │ ░░░░░░░ ││
+ *   │┃ ├──────────┤│
+ *   │ │ │ 🌊   5 ││
+ *   │█│ │      /9││
+ *   │█│ │ ░░░░░░ ││
+ *   │ │ ├──────────┤│
+ *   │ │ │ ♀   14 ││
+ *   │ │ │       %││
+ *   │ │ │ ░░░░░░ ││
+ *   │ │ └──────────┘│
+ *   │    27%      │
+ *   │   ПЛАНЕТА   │
+ *   │           [⚙] │
+ *   └──────────────┘
+ *
+ * Why horizontal:
+ *
+ *   • In v3 the icon was centered above the value with vertical
+ *     gaps on both sides — the row read as "small icon floating in
+ *     a narrow column with air around it." User feedback was
+ *     literally "уйти от ощущения маленькой иконки в центре узкой
+ *     вертикальной колонки".
+ *   • Horizontal row puts icon and value as a TIGHT pair, eating
+ *     the available horizontal width together rather than fighting
+ *     for vertical centre alignment. Each pixel of width is doing
+ *     work.
+ *   • Block height drops from ~50 px (v3) to ~30-34 px, freeing
+ *     vertical room for proper breathing between blocks AND a
+ *     more spacious overall-% readout footer.
+ *   • Number stays at the same readable 16-px size as v3; what
+ *     changed is the COMPOSITION around it, not the typography.
+ *
+ * Loaded after preferences.less; `.planet-sidebar` scopes everything.
+ */
+
+@planet-cyan:                rgba(106, 176, 230, 0.92);
+@planet-cyan-rim:            rgba(106, 176, 230, 0.55);
+@planet-cyan-rim-strong:     rgba(140, 200, 240, 0.85);
+@planet-cyan-soft:           rgba(106, 176, 230, 0.22);
+@planet-navy-rim:            rgba(44, 74, 106, 0.7);
+@planet-hairline:            rgba(82, 118, 158, 0.3);
+
+@planet-text-primary:        rgba(228, 242, 255, 0.97);
+@planet-text-secondary:      rgba(170, 195, 220, 0.85);
+@planet-text-muted:          rgba(140, 165, 190, 0.65);
+
+@planet-spine-fill-top:      rgba(120, 235, 200, 0.95);
+@planet-spine-fill-mid:      rgba(95, 215, 220, 0.92);
+@planet-spine-fill-bot:      rgba(106, 176, 230, 0.88);
+
+/* ============================================================ */
+/*   Root container                                              */
+/* ============================================================ */
+
+.sidebar_cont.planet-sidebar {
+    /*
+     * Layout-rhythm tokens. Single source of truth so every metric
+     * block, every gap, every progress line stays in lock-step.
+     * Tune any value here and the whole rail re-cadences from one
+     * edit.
+     *
+     *   --planet-block-gap        gap between consecutive metrics
+     *   --planet-icon-gap         icon-to-value gap inside a metric
+     *   --planet-value-gap        value-to-progress gap inside a metric
+     *   --planet-progress-width   width of the per-metric progress line
+     *                             (NARROW, centred — visually attached
+     *                             to its parameter, not a full-width
+     *                             divider).
+     *   --planet-value-size       primary parameter value font size
+     */
+    --planet-block-gap: 16px;
+    --planet-icon-gap: 6px;
+    --planet-value-gap: 6px;
+    --planet-progress-width: 40px;
+    --planet-value-size: 20px;
+
+    width: var(--right-sidebar-width);
+    /* Tight horizontal padding: left:6 clears the absolute 3-px
+     * spine with 1-px breath; right:3 breathes against the outer
+     * border. Big BOTTOM padding (64) reserves vertical space for
+     * the absolute-positioned overall-% readout + debug button so
+     * the metric stack above doesn't run behind them. */
+    padding: 6px 3px 64px 6px;
+    gap: 0;
+    overflow: visible;
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+/* ============================================================ */
+/*   Slim global terraforming spine                              */
+/* ============================================================ */
+
+.planet-sidebar .planet-spine {
+    position: absolute;
+    top: 10px;
+    /*
+     * Bottom matches the sidebar's reserved bottom area (64-px
+     * padding for the overall % readout + debug btn). Aligns the
+     * spine's visible run with the metric-stack's visible run.
+     */
+    bottom: 64px;
+    left: 2px;
+    width: 3px;
+    border-radius: 2px;
+    background:
+        linear-gradient(180deg,
+            rgba(14, 22, 34, 0.92) 0%,
+            rgba(10, 16, 26, 0.96) 100%);
+    box-shadow:
+        inset 0 0 0 1px @planet-navy-rim,
+        inset 0 0 4px rgba(0, 0, 0, 0.7),
+        0 0 4px rgba(106, 176, 230, 0.08);
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.planet-spine__fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(180deg,
+        @planet-spine-fill-top 0%,
+        @planet-spine-fill-mid 50%,
+        @planet-spine-fill-bot 100%);
+    box-shadow:
+        0 0 6px rgba(106, 200, 220, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    transition: height 750ms cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius: 2px;
+}
+
+.planet-spine__fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.45) 50%,
+        rgba(255, 255, 255, 0) 100%);
+    pointer-events: none;
+}
+
+.planet-spine__tick {
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    height: 1px;
+    background: rgba(170, 200, 230, 0.5);
+    pointer-events: none;
+}
+.planet-spine__tick--25 { bottom: 25%; }
+.planet-spine__tick--50 { bottom: 50%; }
+.planet-spine__tick--75 { bottom: 75%; }
+
+/* ============================================================ */
+/*   Metric stack                                                */
+/* ============================================================ */
+
+/*
+ * Telemetry rail — metrics stack at the TOP of the sidebar with a
+ * stable gap between them. Empty vertical space below the last
+ * metric is the natural runway for the spine to extend down toward
+ * the overall % readout. We do NOT flex-grow metric blocks: blowing
+ * each block up to 1/5 of the viewport produces large random gaps
+ * between content, making progress-lines feel detached from their
+ * parameter. Content-sized blocks + a fixed `gap` give the eye a
+ * stable rhythm.
+ *
+ * `flex: 0 0 auto` keeps the stack content-sized inside the sidebar
+ * flex column. The remaining vertical space stays below the stack
+ * (where the spine + overall % readout live).
+ */
+.planet-sidebar .planet-stack {
+    flex: 0 0 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--planet-block-gap);
+}
+
+/*
+ * Each metric block is a vertical premium "instrument module" — three
+ * stacked children (icon, value, progress) that the flex column
+ * distributes across the block's claimed height share.
+ *
+ *   ┌──────────────┐
+ *   │              │
+ *   │     ICON     │  level 1: heavy visual anchor — full column width
+ *   │              │
+ *   │     −22°C    │  level 2: hero number + level 3: inline unit
+ *   │              │
+ *   │ ░░░░░░░░░░░ │  level 4: per-axis progress underline, full width
+ *   └──────────────┘
+ *
+ * `justify-content: space-evenly` spreads the vertical breathing room
+ * symmetrically around the three children. `align-items: center`
+ * centres icon and value horizontally; the progress underline opts
+ * back into full-width via `align-self: stretch` on its own rule.
+ *
+ * Min-height keeps blocks readable on tight viewports. flex: 1 1 0
+ * gives every block an equal share of the stack height — primary
+ * axes (4) dominate, generation gets a smaller share via its
+ * modifier rule below.
+ */
+/*
+ * Metric block — clean instrument module, NO per-block background
+ * and NO hairline divider between adjacent blocks. The visual rhythm
+ * of the stack comes purely from the consistent internal margins
+ * inside each block (icon → 6 px → value → 8 px → progress) plus
+ * `justify-content: center` so the icon-value-progress group is
+ * vertically anchored to the centre of whatever height each block
+ * claims from flex distribution.
+ *
+ * Why no background:
+ *   • Previous (v7) gradient made each block read as a card slot.
+ *     With the hairline divider on top, it shaped a rectangular
+ *     "section" — exactly what the latest brief flags as not premium.
+ *   • Removing it lets the 4 axes feel like ONE instrument cluster
+ *     reading down a single central axis rather than 4 separate
+ *     cards stacked.
+ *
+ * Why `justify-content: center`:
+ *   • `space-evenly` distributes whitespace between three children
+ *     of different heights (tall thermometer icon vs short Venus
+ *     icon) — producing different visual gaps per block.
+ *   • `center` + explicit margins gives EVERY block the same
+ *     icon-to-value and value-to-progress gap, irrespective of how
+ *     tall any individual icon happens to be. The extra height
+ *     claimed via flex distribution becomes symmetric whitespace
+ *     above and below the centred group.
+ */
+/*
+ * Metric block — content-sized vertical group: icon → value →
+ * progress, anchored to a single central horizontal axis. No flex
+ * grow → blocks DON'T inflate to 1/5 of the bar; they pack tightly
+ * so each progress-line sits visually next to its own value, and
+ * the gap between consecutive metrics is the consistent
+ * --planet-block-gap from the stack.
+ *
+ * No background, no border. Hover applies a barely-perceptible
+ * glass-tint via a wider radius padding so the rollover doesn't
+ * read as a "card" appearing.
+ */
+.planet-sidebar .planet-metric {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2px 1px;
+    transition: background 220ms ease;
+    border-radius: 4px;
+}
+
+.planet-sidebar .planet-metric:hover {
+    background: rgba(35, 50, 72, 0.16);
+}
+
+/* Uniform internal vertical rhythm. The icon's bottom margin is the
+ * icon-to-value gap; the value's bottom margin is the value-to-
+ * progress gap. Both come from the sidebar's --planet-* tokens so
+ * the rhythm is centralised. */
+.planet-sidebar .planet-metric__icon {
+    margin: 0 0 var(--planet-icon-gap);
+}
+
+.planet-sidebar .planet-metric__value {
+    margin: 0 0 var(--planet-value-gap);
+}
+
+.planet-sidebar .planet-metric__progress {
+    margin: 0;
+}
+
+/*
+ * Generation block — same vertical rhythm rules as the parameter
+ * axes (content-sized, single centred axis), just label-above-
+ * number instead of icon-above-value. No special flex weight
+ * needed since the stack no longer flex-distributes blocks.
+ */
+.planet-sidebar .planet-metric--generation .planet-metric__label {
+    margin: 0 0 var(--planet-icon-gap);
+}
+
+.planet-sidebar .planet-metric--generation .planet-metric__value {
+    /* No progress underline below the generation number, so the
+     * value's standard bottom margin would just add empty
+     * whitespace. Zero out for a tight header composition. */
+    margin: 0;
+}
+
+/*
+ * Stale `.planet-metric__row` flex helpers from v4 removed — v6
+ * uses a single block-level flex column instead.
+ */
+/* ------------- icon (level 1 — heavy visual anchor) ---------- */
+
+/*
+ * Override the legacy per-tile margins (from preferences.less).
+ * Sizes are tuned to fill the icon column visually without
+ * overcrowding the value cluster on the right. All icons share
+ * roughly the same visual weight ~24 px square.
+ */
+.planet-sidebar .planet-metric__icon {
+    flex-shrink: 0;
+    /* margin set by the unified rhythm block above */
+}
+
+/*
+ * Icon sizes — tuned for balanced visual weight across the four
+ * planetary axes. Thermometer is naturally tall-narrow so it gets
+ * extra vertical pixels (52 px height) to roughly match the
+ * "presence" of the square icons. Oxygen / ocean / venus sit close
+ * to the column width budget (54-px content after padding).
+ *
+ * Width budget: 62 sidebar − 4 left padding − 4 right padding ≈ 54
+ * usable. All icons stay within that and centre horizontally.
+ */
+.planet-sidebar .planet-metric__icon.temperature-tile {
+    width: 22px;
+    height: 52px;
+    background-size: 22px 52px;
+}
+.planet-sidebar .planet-metric__icon.oxygen-tile {
+    width: 44px;
+    height: 44px;
+    background-size: 44px 44px;
+}
+.planet-sidebar .planet-metric__icon.ocean-tile {
+    width: 42px;
+    height: 44px;
+    background-size: 42px 44px;
+}
+.planet-sidebar .planet-metric__icon.venus-tile {
+    width: 48px;
+    height: 30px;
+    background-size: 48px 30px;
+}
+
+/* ------------- value cluster --------------------------------- */
+
+/* ------------- value (levels 2 + 3) -------------------------- */
+
+/*
+ * Value cluster = number + unit, INLINE (number bigger, unit
+ * smaller right beside it). Centred horizontally in the block.
+ * position: relative so AnimatedMetricValue's absolute chip host
+ * anchors to the cluster (chip pops above-right of the digits).
+ *
+ * The cluster uses baseline alignment so the unit's baseline
+ * touches the number's baseline regardless of their different
+ * font sizes — gives a settled "value with unit" read instead of
+ * two unrelated bits of text.
+ */
+.planet-sidebar .planet-metric__value {
+    position: relative;
+    display: inline-flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: center;
+    line-height: 1;
+    gap: 1px;
+    white-space: nowrap;
+}
+
+.planet-stat-num {
+    display: inline-block;
+    font-family: "Russo One", Prototype, Ubuntu, sans-serif;
+    font-weight: 700;
+    line-height: 1;
+    color: @planet-text-primary;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.3px;
+    text-shadow:
+        0 1px 1px rgba(0, 0, 0, 0.8),
+        0 0 8px rgba(106, 176, 230, 0.3);
+    transform-origin: center;
+}
+
+/*
+ * Hero number size for primary planetary axes — controlled by the
+ * sidebar token --planet-value-size (default 20 px). Same size
+ * across all four axes so the eye reads them as one axis-aligned
+ * cluster of numbers.
+ */
+.planet-sidebar .planet-metric--temperature .planet-stat-num,
+.planet-sidebar .planet-metric--oxygen .planet-stat-num,
+.planet-sidebar .planet-metric--oceans .planet-stat-num,
+.planet-sidebar .planet-metric--venus .planet-stat-num {
+    font-size: var(--planet-value-size);
+}
+
+.planet-sidebar .planet-metric__unit {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    color: @planet-text-muted;
+    letter-spacing: 0.3px;
+    margin-left: 1px;
+}
+
+.planet-sidebar .planet-metric__checkmark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    color: rgba(140, 240, 200, 1);
+    background: rgba(35, 70, 55, 0.7);
+    box-shadow:
+        0 0 0 1px rgba(140, 240, 200, 0.7),
+        0 0 8px rgba(140, 240, 200, 0.35);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    text-shadow: 0 0 4px rgba(140, 240, 200, 0.5);
+}
+
+/* ------------- generation block specifics -------------------- */
+
+/*
+ * Same horizontal row pattern, but the "icon" slot holds the small
+ * "ПКН." text label and the value column shows just the number
+ * (no unit, no progress underline).
+ */
+.planet-sidebar .planet-metric--generation {
+    padding-top: 5px;
+    padding-bottom: 6px;
+}
+
+/*
+ * Generation label — visually paired with the bottom "ПЛАНЕТА"
+ * readout caption so the bar reads as bracketed by two matched HUD
+ * labels (top: ПОКОЛЕНИЕ N, bottom: N% ПЛАНЕТА). 7-px Prototype +
+ * 1.0-px letter-spacing — tighter than the previous 1.4 px so the
+ * 9-character Russian word "ПОКОЛЕНИЕ" no longer reads as stretched
+ * across the column. Comfortable breathing inside the 54-px content
+ * width.
+ */
+.planet-sidebar .planet-metric__label {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    line-height: 1;
+    color: @planet-text-secondary;
+    text-transform: uppercase;
+    text-shadow: 0 0 4px rgba(106, 176, 230, 0.3);
+    white-space: nowrap;
+    flex-shrink: 0;
+    text-align: center;
+}
+
+.planet-sidebar .planet-metric--generation .planet-stat-num {
+    /*
+     * Generation number is the bar's compact "header" — the
+     * biggest single piece of text in the sidebar. Confidently
+     * larger than the parameter values below (which sit at 20 px)
+     * so the eye reads gen as the heading.
+     */
+    font-size: 26px;
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.85),
+        0 0 12px rgba(106, 176, 230, 0.4);
+}
+
+/* Generation has no unit and no progress underline — value cluster
+ * is just the number. Hide the unit/checkmark slot rules that aren't
+ * applicable, and the progress is absent from the template. */
+
+/* ------------- progress underline ---------------------------- */
+
+/*
+ * Slim 2-px line under each parameter row. Spans the full content
+ * width (i.e. the inner sidebar padding), creating a clean axis
+ * across all parameters. Per-axis tint gives a quick read of which
+ * parameter just advanced without parsing the icon.
+ */
+/* ------------- progress underline (level 4) ----------------- */
+
+/*
+ * Narrow centred progress pill directly under each metric's value.
+ * Width set via --planet-progress-width so every metric gets the
+ * SAME line width regardless of value digit count — reads as a
+ * deliberate gauge segment that BELONGS to its parameter, not a
+ * full-width divider hovering between sections.
+ *
+ * 3-px tall + border-radius:2 → real pill shape with visible
+ * rounded ends. Matte recessed track + per-axis cyan/orange/blue
+ * tinted fill, soft glow on the lit portion.
+ */
+.planet-sidebar .planet-metric__progress {
+    width: var(--planet-progress-width);
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(10, 16, 26, 0.92);
+    box-shadow:
+        inset 0 0 0 1px rgba(60, 90, 130, 0.35),
+        inset 0 1px 3px rgba(0, 0, 0, 0.7);
+    position: relative;
+    overflow: hidden;
+}
+
+.planet-sidebar .planet-metric__progress::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--planet-progress-fill, 0%);
+    background: linear-gradient(90deg,
+        rgba(106, 176, 230, 0.92),
+        rgba(95, 227, 200, 0.92));
+    box-shadow:
+        0 0 6px rgba(106, 176, 230, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    transition: width 750ms cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius: 2px;
+}
+
+.planet-sidebar .planet-metric--temperature .planet-metric__progress::before {
+    background: linear-gradient(90deg, rgba(255, 145, 95, 0.92), rgba(255, 200, 130, 0.95));
+    box-shadow: 0 0 5px rgba(255, 155, 105, 0.55);
+}
+.planet-sidebar .planet-metric--oxygen .planet-metric__progress::before {
+    background: linear-gradient(90deg, rgba(165, 220, 255, 0.9), rgba(120, 200, 255, 0.95));
+    box-shadow: 0 0 5px rgba(165, 220, 255, 0.5);
+}
+.planet-sidebar .planet-metric--oceans .planet-metric__progress::before {
+    background: linear-gradient(90deg, rgba(75, 165, 235, 0.92), rgba(125, 205, 245, 0.95));
+    box-shadow: 0 0 5px rgba(75, 165, 235, 0.55);
+}
+.planet-sidebar .planet-metric--venus .planet-metric__progress::before {
+    background: linear-gradient(90deg, rgba(225, 170, 125, 0.92), rgba(245, 205, 165, 0.95));
+    box-shadow: 0 0 5px rgba(225, 170, 125, 0.5);
+}
+
+.planet-sidebar .planet-metric--max .planet-metric__icon {
+    filter: saturate(1.2) brightness(1.05) drop-shadow(0 0 4px rgba(140, 240, 200, 0.45));
+}
+
+/* ============================================================ */
+/*   Optional turmoil party indicator                            */
+/* ============================================================ */
+
+.planet-ruling-party {
+    display: flex;
+    justify-content: center;
+    padding: 2px 0;
+}
+
+/* ============================================================ */
+/*   Moon block — compact                                        */
+/* ============================================================ */
+
+.planet-sidebar .moon-tile {
+    margin: 5px auto 3px;
+    width: 22px;
+    height: 24px;
+    background-size: 22px 24px;
+}
+
+.planet-sidebar .moon_params_value {
+    text-align: center;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11px;
+    line-height: 1.1;
+    .habitat, .logistic, .mining {
+        padding: 1px 3px;
+        border-radius: 2px;
+        margin: 0 1px;
+        font-weight: 700;
+    }
+}
+
+/* ============================================================ */
+/*   Overall planet-completion readout                           */
+/* ============================================================ */
+
+.planet-sidebar .planet-overall {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.planet-overall__value {
+    font-family: "Russo One", Prototype, Ubuntu, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    color: rgba(140, 240, 200, 0.95);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.4px;
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.8),
+        0 0 10px rgba(140, 240, 200, 0.42);
+}
+
+.planet-overall__label {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 7.5px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    line-height: 1;
+    color: @planet-text-muted;
+    text-transform: uppercase;
+    margin-top: 3px;
+    text-shadow: 0 0 4px rgba(106, 176, 230, 0.22);
+}
+
+/* ============================================================ */
+/*   Icon-only Legacy UI debug toggle                            */
+/* ============================================================ */
+
+.planet-sidebar .planet-debug-btn {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: rgba(14, 22, 34, 0.55);
+    border: 1px solid rgba(60, 90, 130, 0.5);
+    border-radius: 3px;
+    cursor: pointer;
+    transition:
+        border-color 180ms ease,
+        background 180ms ease,
+        opacity 180ms ease,
+        filter 180ms ease;
+    opacity: 0.5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.planet-sidebar .planet-debug-btn:hover {
+    opacity: 1;
+    border-color: @planet-cyan-rim;
+    background: rgba(20, 30, 45, 0.78);
+}
+
+.planet-sidebar .planet-debug-btn--active {
+    opacity: 1;
+    border-color: @planet-cyan-rim-strong;
+    background: rgba(30, 50, 75, 0.85);
+    box-shadow:
+        0 0 8px rgba(106, 176, 230, 0.4),
+        inset 0 0 0 1px @planet-cyan-soft;
+}
+
+.planet-sidebar .planet-debug-btn__glyph {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    background-image: url(./assets/sidebar/preferences_actions.png);
+    background-size: 14px 14px;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: grayscale(0.55) brightness(0.85);
+}
+
+.planet-sidebar .planet-debug-btn:hover .planet-debug-btn__glyph,
+.planet-sidebar .planet-debug-btn--active .planet-debug-btn__glyph {
+    filter: none;
+}
+
+/* ============================================================ */
+/*   `global-parameter` chip + numeric transition                */
+/* ============================================================ */
+
+.metric-feedback-host--global-parameter {
+    top: -10px;
+    right: -4px;
+    z-index: 6;
+}
+
+.delta-chip--global-parameter {
+    font-size: 11px;
+    padding: 2px 6px;
+    letter-spacing: 0.35px;
+    border-radius: 999px;
+}
+
+@keyframes global-num-transition-positive {
+    0%   { transform: translateY(3px) scale(0.92); color: rgba(95, 227, 200, 1); text-shadow: 0 0 12px rgba(95, 227, 200, 0.7); opacity: 0.6; }
+    45%  { transform: translateY(0) scale(1.10);   color: rgba(95, 227, 200, 1); text-shadow: 0 0 12px rgba(95, 227, 200, 0.7); opacity: 1; }
+    70%  { transform: scale(1.05);                  color: rgba(95, 227, 200, 1); text-shadow: 0 0 8px rgba(95, 227, 200, 0.5); opacity: 1; }
+    100% { transform: none;                         color: inherit;                text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8), 0 0 7px rgba(106, 176, 230, 0.25); opacity: 1; }
+}
+
+@keyframes global-num-transition-negative {
+    0%   { transform: translateY(3px) scale(0.92); color: rgba(255, 139, 118, 1); text-shadow: 0 0 12px rgba(255, 139, 118, 0.7); opacity: 0.6; }
+    45%  { transform: translateY(0) scale(1.06);   color: rgba(255, 139, 118, 1); text-shadow: 0 0 12px rgba(255, 139, 118, 0.7); opacity: 1; }
+    70%  { transform: scale(1.03);                  color: rgba(255, 139, 118, 1); text-shadow: 0 0 8px rgba(255, 139, 118, 0.5); opacity: 1; }
+    100% { transform: none;                         color: inherit;                text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8), 0 0 7px rgba(106, 176, 230, 0.25); opacity: 1; }
+}
+
+.planet-metric__value:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .planet-stat-num {
+    animation: global-num-transition-positive 760ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.planet-metric__value:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .planet-stat-num {
+    animation: global-num-transition-negative 760ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes planet-metric-pulse-positive {
+    0%, 100% { background: transparent; box-shadow: none; }
+    35%      { background: rgba(95, 227, 200, 0.14); box-shadow: inset 0 0 14px rgba(95, 227, 200, 0.18); }
+    60%      { background: rgba(95, 227, 200, 0.08); box-shadow: inset 0 0 8px rgba(95, 227, 200, 0.1); }
+}
+
+@keyframes planet-metric-pulse-negative {
+    0%, 100% { background: transparent; box-shadow: none; }
+    35%      { background: rgba(255, 139, 118, 0.14); box-shadow: inset 0 0 14px rgba(255, 139, 118, 0.18); }
+    60%      { background: rgba(255, 139, 118, 0.08); box-shadow: inset 0 0 8px rgba(255, 139, 118, 0.1); }
+}
+
+.planet-sidebar .planet-metric:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) {
+    animation: planet-metric-pulse-positive 1300ms cubic-bezier(0.37, 0, 0.63, 1);
+}
+
+.planet-sidebar .planet-metric:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) {
+    animation: planet-metric-pulse-negative 1300ms cubic-bezier(0.37, 0, 0.63, 1);
+}
+
+@keyframes planet-spine-kick {
+    0%, 100% {
+        box-shadow:
+            0 0 6px rgba(106, 200, 220, 0.55),
+            inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    }
+    40% {
+        box-shadow:
+            0 0 16px rgba(120, 240, 220, 0.85),
+            inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    }
+}
+
+.planet-sidebar:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .planet-spine__fill {
+    animation: planet-spine-kick 1200ms cubic-bezier(0.37, 0, 0.63, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .planet-metric__value:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .planet-stat-num,
+    .planet-metric__value:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .planet-stat-num,
+    .planet-sidebar .planet-metric:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive),
+    .planet-sidebar .planet-metric:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative),
+    .planet-sidebar:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .planet-spine__fill {
+        animation: none;
+    }
+    .planet-spine__fill,
+    .planet-sidebar .planet-metric__progress::before {
+        transition: none;
+    }
+}

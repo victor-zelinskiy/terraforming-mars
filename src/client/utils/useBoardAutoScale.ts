@@ -98,7 +98,7 @@ function readHorizontalReserved(): number {
   // Same calc as `#player-home`'s `padding-left/right`: panel + 20px
   // breather on each side.
   const leftW = parsePx(cs.getPropertyValue('--left-panel-width')) || 160;
-  const rightW = parsePx(cs.getPropertyValue('--right-sidebar-width')) || 60;
+  const rightW = parsePx(cs.getPropertyValue('--right-sidebar-width')) || 62;
   return leftW + 20 + rightW + 20;
 }
 

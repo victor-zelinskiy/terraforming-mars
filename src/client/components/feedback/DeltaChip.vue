@@ -24,6 +24,10 @@ import {defineComponent, PropType} from 'vue';
  *                         Underground tokens, Negative-VP. Compact-medium.
  *   score               — Victory Points + Terraforming Rating.
  *                         Game-defining — strong + glow + slight slide.
+ *   global-parameter    — Planet-level shared values (temperature, oxygen,
+ *                         oceans, Venus, generation). Right-sidebar HUD —
+ *                         compact-to-medium chip, calm but unmistakable,
+ *                         comparable in weight to `misc`.
  *
  * Each variant has its own LESS rule that tunes font-size, padding,
  * glow strength, and a matching `*-transition-*` keyframe pair for
@@ -34,7 +38,8 @@ export type DeltaChipVariant =
   | 'resource-production'
   | 'tag'
   | 'misc'
-  | 'score';
+  | 'score'
+  | 'global-parameter';
 
 export default defineComponent({
   name: 'DeltaChip',

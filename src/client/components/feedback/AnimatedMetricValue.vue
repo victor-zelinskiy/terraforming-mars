@@ -50,6 +50,7 @@ const CHIP_VISIBLE_MS: Record<DeltaChipVariant, number> = {
   'tag': 1300,
   'misc': 1300,
   'score': 1700,
+  'global-parameter': 1600,
 };
 
 export default defineComponent({
