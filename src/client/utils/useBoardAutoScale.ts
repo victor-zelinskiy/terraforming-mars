@@ -87,7 +87,13 @@ function readVerticalReserved(): number {
   const cs = getComputedStyle(document.documentElement);
   const buttonH = parsePx(cs.getPropertyValue('--bottom-bar-button-height')) || 36;
   const topPadding = buttonH + 20;
-  const bottomPadding = buttonH;
+  // The bottom CENTRE is now free — the bottom bar was split into two
+  // corner rails (left = player-scoped, right = global), so the planet
+  // can drop lower and scale up into the vacated centre. Reserve only a
+  // small safety gap here instead of the full bar height. Keep this in
+  // lockstep with `.player_home_block--board { bottom }` in
+  // player_home.less so the centring box and the scale target agree.
+  const bottomPadding = 8;
   // Minimal 4px safety so the bottom edge of the board doesn't touch
   // the bottom button bar at maximum scale.
   return topPadding + bottomPadding + 4;

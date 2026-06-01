@@ -1,12 +1,12 @@
 <template>
-  <div id="player-home" :class="[(game.turmoil ? 'with-turmoil': ''), playerTintClass]">
-    <div class="top-bar-buttons" v-i18n>
-      <!-- Each top-bar button gets its own anchor wrapper so its dropdown
-           overlay can position absolutely under it. The wrapper takes the
-           place of the button in the flex layout (matching its negative
-           margin) so the buttons still overlap. -->
+  <div id="player-home" :class="[(game.turmoil ? 'with-turmoil': ''), playerTintClass, {'viewing-other': isViewingOther}]">
+    <div class="top-bar-buttons">
+      <!-- Three top-bar buttons docked on one premium glass rail. Each
+           button keeps its own anchor wrapper so its dropdown overlay can
+           position absolutely under it. -->
+      <div class="bar-rail bar-rail--top">
       <div class="top-bar-btn-anchor">
-        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'milestones'}" v-on:click="toggleOverlay('milestones')">Milestones</div>
+        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'milestones'}" v-on:click="toggleOverlay('milestones')"><BarButtonIcon name="milestones" /><span class="bar-btn__label" v-i18n>Milestones</span></div>
         <!--
           Claimed-milestone badge strip. Hangs below the Milestones button and
           shows up to 3 slots that fill in as players claim milestones. Visible
@@ -39,7 +39,7 @@
           @close="activeOverlay = null" />
       </div>
       <div class="top-bar-btn-anchor top-bar-btn-anchor--center">
-        <div class="bottom-bar-btn bottom-bar-btn--center" :class="{'bottom-bar-btn--active': activeOverlay === 'standardProjects'}" v-on:click="toggleOverlay('standardProjects')">Standard Projects</div>
+        <div class="bottom-bar-btn bottom-bar-btn--dominant" :class="{'bottom-bar-btn--active': activeOverlay === 'standardProjects'}" v-on:click="toggleOverlay('standardProjects')"><BarButtonIcon name="standard-projects" /><span class="bar-btn__label" v-i18n>Standard Projects</span></div>
         <StandardProjectsOverlay
           v-if="activeOverlay === 'standardProjects'"
           class="top-bar-dropdown top-bar-dropdown--standard-projects"
@@ -51,7 +51,7 @@
           @use-project="onUseStandardProject($event)" />
       </div>
       <div class="top-bar-btn-anchor">
-        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'awards'}" v-on:click="toggleOverlay('awards')">Awards</div>
+        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'awards'}" v-on:click="toggleOverlay('awards')"><BarButtonIcon name="awards" /><span class="bar-btn__label" v-i18n>Awards</span></div>
         <!--
           Funded-award badge strip. Same UX contract as the milestones strip:
           3 slots fill in as awards are funded, hidden while the overlay is
@@ -83,38 +83,63 @@
           @fund="fundAward($event)"
           @close="activeOverlay = null" />
       </div>
+      </div>
     </div>
 
     <div class="bottom-bar-buttons">
       <!--
-        Colonies bottom-bar button. Renamed from "Colonies" to "Trade with
-        colonies" — it now opens the new sci-fi ColoniesOverlay in trade
-        mode (or view-only mode when trade isn't currently offered by the
-        server). Old behaviour of toggling an undefined inline overlay is
-        gone; the button drives `coloniesOverlayOpen` directly.
-        Hidden when the game has no colonies (vanilla / no-coloniesExtension
-        setup).
+        BOTTOM-LEFT RAIL — the player-scoped cluster. These buttons all show
+        the currently-DISPLAYED player's data, so this rail (together with the
+        left resources/tags panel) takes the viewed player's colour + the
+        "Viewing: <name>" chip when spectating another seat. Reserved slot for
+        a future "Card resources" button.
       -->
-      <div v-if="game.colonies.length > 0"
-           class="bottom-bar-btn bottom-bar-btn--colonies"
-           :class="{'bottom-bar-btn--active': coloniesOverlayOpen}"
-           v-on:click="onOpenColoniesOverlay">
-        <span v-i18n>Colonies</span>
+      <!--
+        "Viewing: <name>" banner. Pulled OUT of the rail's flex flow (it was
+        shifting the buttons) and pinned to the bottom-left CORNER, sitting
+        just above the rail and bridging the left panel + rail so the whole
+        player-scoped zone reads as one. position:fixed + out-of-flow ⇒ zero
+        layout impact on the rail buttons.
+      -->
+      <div v-if="isViewingOther"
+           class="bar-rail__viewing"
+           v-on:click="selectedPlayerColor = undefined"
+           :title="$t('Return to your view')">
+        <span class="bar-rail__viewing-dot"></span>
+        <span class="bar-rail__viewing-text"><span v-i18n>Viewing</span>: {{ displayedPlayer.name }}</span>
       </div>
-      <div class="bottom-bar-btn bottom-bar-btn--center bottom-bar-btn--cards" :class="{'bottom-bar-btn--active': activeOverlay === 'cards'}" v-on:click="toggleOverlay('cards')">
-        <div class="bottom-bar-btn-cards-glyph"></div>
-        <span v-i18n>Cards</span>: {{ displayedCardsInHandCount }}
-      </div>
-      <div class="bottom-bar-btn bottom-bar-btn--actions">
-        <div class="bottom-bar-btn-actions-glyph">
-          <div class="blue-stripe"></div>
-          <div class="red-arrow"></div>
+      <div class="bar-rail bar-rail--bottom-left">
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'cards'}" v-on:click="toggleOverlay('cards')">
+          <BarButtonIcon name="cards" /><span class="bar-btn__label" v-i18n>Cards</span>
+          <span class="bar-btn__value">{{ displayedCardsInHandCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedCardsInHandCount" metricKey="bar.cards" :scopeKey="displayedPlayer.color" variant="misc" /></span>
         </div>
-        <span v-i18n>Actions</span>: {{ availableActionsCount }}
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'actions'}" v-on:click="toggleOverlay('actions')">
+          <BarButtonIcon name="actions" /><span class="bar-btn__label" v-i18n>Actions</span>
+          <span class="bar-btn__value">{{ availableActionsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="availableActionsCount" metricKey="bar.actions" :scopeKey="displayedPlayer.color" variant="misc" /></span>
+        </div>
+        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" v-on:click="toggleOverlay('played')">
+          <BarButtonIcon name="played" /><span class="bar-btn__label" v-i18n>Played</span>
+        </div>
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'victoryPoints'}" v-on:click="toggleOverlay('victoryPoints')">
+          <BarButtonIcon name="victory-points" /><span class="bar-btn__label" v-i18n>Victory Points</span>
+          <span class="bar-btn__value">{{ displayedVictoryPoints }}<AnimatedMetricValue v-if="typeof displayedVictoryPoints === 'number'" class="bar-btn__feedback" :value="displayedVictoryPoints" metricKey="bar.vp" :scopeKey="displayedPlayer.color" variant="score" /></span>
+        </div>
       </div>
-      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" v-on:click="toggleOverlay('played')"><span v-i18n>Played</span></div>
-      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'victoryPoints'}" v-on:click="toggleOverlay('victoryPoints')"><span v-i18n>Victory Points</span>: {{ displayedVictoryPoints }}</div>
-      <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'log'}" v-on:click="toggleOverlay('log')"><span v-i18n>Log</span></div>
+      <!--
+        BOTTOM-RIGHT RAIL — global controls (Colonies / Log). Never tinted by
+        the viewed player. Reserved slot for a future Turmoil button.
+      -->
+      <div class="bar-rail bar-rail--bottom-right">
+        <div v-if="game.colonies.length > 0"
+             class="bottom-bar-btn bottom-bar-btn--colonies"
+             :class="{'bottom-bar-btn--active': coloniesOverlayOpen}"
+             v-on:click="onOpenColoniesOverlay">
+          <BarButtonIcon name="colonies" /><span class="bar-btn__label" v-i18n>Colonies</span>
+        </div>
+        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'log'}" v-on:click="toggleOverlay('log')">
+          <BarButtonIcon name="log" /><span class="bar-btn__label" v-i18n>Log</span>
+        </div>
+      </div>
     </div>
 
     <LeftPlayerPanel
@@ -256,6 +281,48 @@
         </div>
         <stacked-cards v-show="isVisible('AUTOMATED')" :cards="getCardsByType(displayedPlayer.tableau, [CardType.AUTOMATED, CardType.PRELUDE]).filter(isNotActive)"></stacked-cards>
         <stacked-cards v-show="isVisible('EVENT')" :cards="getCardsByType(displayedPlayer.tableau, [CardType.EVENT])"></stacked-cards>
+      </div>
+    </div>
+
+    <!--
+      Cards-in-hand overlay (viewer). Own seat: real hand face-up via the
+      same sortable-cards used in the legacy hand block. Another player's
+      seat: face-down card backs × their hand count (the server never sends
+      opponent hand contents) — mirrors the physical board game.
+    -->
+    <div v-if="activeOverlay === 'cards'" class="bar-overlay bar-overlay--cards">
+      <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
+      <div class="hiding-card-button-row">
+        <div :class="playedCardsTitleClass">{{ displayedPlayer.name }} — <span v-i18n>Cards</span> ({{ displayedCardsInHandCount }})</div>
+      </div>
+      <div class="bar-overlay--played-cards">
+        <sortable-cards v-if="displayedPlayer.color === thisPlayer.color"
+                        :playerId="playerView.id"
+                        :cards="playerView.preludeCardsInHand.concat(playerView.ceoCardsInHand).concat(playerView.cardsInHand)" />
+        <template v-else>
+          <div class="cards-backs">
+            <div v-for="n in displayedCardsInHandCount" :key="n" class="card-back-tile"></div>
+          </div>
+          <div v-if="displayedCardsInHandCount === 0" class="bar-overlay__empty" v-i18n>No cards in hand</div>
+        </template>
+      </div>
+    </div>
+
+    <!--
+      Action (blue) cards overlay (viewer). Shows the displayed player's
+      ACTIVE cards with their this-generation activation status (used vs
+      available) via the same Card component the Played overlay uses.
+    -->
+    <div v-if="activeOverlay === 'actions'" class="bar-overlay bar-overlay--actions">
+      <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
+      <div class="hiding-card-button-row">
+        <div :class="playedCardsTitleClass">{{ displayedPlayer.name }} — <span v-i18n>Action cards</span> ({{ availableActionsCount }})</div>
+      </div>
+      <div class="bar-overlay--played-cards">
+        <div v-for="card in sortActiveCards(getCardsByType(displayedPlayer.tableau, [CardType.ACTIVE, CardType.PRELUDE]).filter(isActive))" :key="card.name" class="cardbox">
+          <Card :card="card" :actionUsed="isCardActivated(card, displayedPlayer)" :cubeColor="displayedPlayer.color"/>
+        </div>
+        <div v-if="sortActiveCards(getCardsByType(displayedPlayer.tableau, [CardType.ACTIVE, CardType.PRELUDE]).filter(isActive)).length === 0" class="bar-overlay__empty" v-i18n>No action cards</div>
       </div>
     </div>
 
@@ -470,6 +537,8 @@ import UndergroundTokens from '@/client/components/underworld/UndergroundTokens.
 import KeyboardShortcuts from '@/client/components/KeyboardShortcuts.vue';
 import VictoryPointsOverlay from '@/client/components/overview/VictoryPointsOverlay.vue';
 import MilestonesOverlay from '@/client/components/overview/MilestonesOverlay.vue';
+import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
+import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import MilestoneClaimedBadge from '@/client/components/overview/MilestoneClaimedBadge.vue';
 import AwardsOverlay from '@/client/components/overview/AwardsOverlay.vue';
 import AwardFundedBadge from '@/client/components/overview/AwardFundedBadge.vue';
@@ -530,7 +599,7 @@ type ToggleableState = {
 // Overlays opened by the top/bottom bar buttons. Only one can be visible at a time —
 // pressing a different button closes the previous overlay. Pressing the same button
 // again closes the active overlay.
-type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'played' | 'victoryPoints' | 'log' | 'legacyUi';
+type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'actions' | 'played' | 'victoryPoints' | 'log' | 'legacyUi';
 
 // Set while the player has chosen a Standard Project from the overlay
 // AND the choice requires picking between M€ and alternative resources.
@@ -797,6 +866,13 @@ export default defineComponent({
         }
       }
       return this.thisPlayer;
+    },
+    // True when the HUD is showing ANOTHER player's data (spectating their
+    // seat) rather than the viewer's own. Drives the `viewing-other` root
+    // class that lights up the player-scoped zone (left panel + bottom-left
+    // rail) in that player's colour and reveals the "Viewing: <name>" chip.
+    isViewingOther(): boolean {
+      return this.displayedPlayer.color !== this.thisPlayer.color;
     },
     playedCardsTitleClass(): string {
       return `dynamic-title ${playerColorClass(this.displayedPlayer.color, 'shadow')}`;
@@ -1227,6 +1303,8 @@ export default defineComponent({
     PassConfirmContent,
     ColoniesOverlay,
     ColonyTradePaymentModal,
+    BarButtonIcon,
+    AnimatedMetricValue,
   },
   methods: {
     isPlayerActing(playerView: PlayerViewModel) : boolean {
@@ -1256,6 +1334,7 @@ export default defineComponent({
           target.closest('.legacy-ui-overlay') ||
           target.closest('.sidebar_cont') ||
           target.closest('.bottom-bar-btn') ||
+          target.closest('.bar-rail') ||
           target.closest('.left-panel')) {
         return;
       }
