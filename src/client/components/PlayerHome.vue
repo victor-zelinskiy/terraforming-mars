@@ -285,6 +285,7 @@
       :deckSize = "game.deckSize"
       :discardPileSize = "game.discardPileSize"
       :legacyUiActive="activeOverlay === 'legacyUi'"
+      :epoch="playerView.runId"
       @toggle-legacy-ui="activeOverlay = (activeOverlay === 'legacyUi' ? null : 'legacyUi')">
     </sidebar>
 

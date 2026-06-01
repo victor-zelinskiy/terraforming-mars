@@ -55,16 +55,7 @@
                 <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in getValuesForParameter('venus')" :key="idx">{{ lvl.strValue }}</div>
             </div>
 
-            <div class="global-numbers-oceans">
-              <span v-if="oceans_count === constants.MAX_OCEAN_TILES">
-                <img width="26" src="assets/misc/circle-checkmark.png" class="board-ocean-checkmark" :alt="$t('Completed!')">
-              </span>
-              <span v-else>
-                {{oceans_count}}/{{constants.MAX_OCEAN_TILES}}
-              </span>
-            </div>
-
-            <div v-if="expansions.ares && aresData !== undefined">
+<div v-if="expansions.ares && aresData !== undefined">
                 <div v-if="aresData.hazardData.erosionOceanCount.available">
                     <div class="global-ares-erosions-icon"></div>
                     <div class="global-ares-erosions-val">{{aresData.hazardData.erosionOceanCount.threshold}}</div>
@@ -525,15 +516,6 @@ export default defineComponent({
         css += 'val-is-active';
       }
       return css;
-    },
-    oceansValue() {
-      const oceans_count = this.oceans_count || 0;
-      const leftover = constants.MAX_OCEAN_TILES - oceans_count;
-      if (leftover === 0) {
-        return '<img width="26" src="assets/misc/circle-checkmark.png" class="board-ocean-checkmark" :alt="$t(\'Completed!\')">';
-      } else {
-        return `${oceans_count}/${constants.MAX_OCEAN_TILES}`;
-      }
     },
     getGameBoardClassName(): string {
       return this.expansions.venus ? 'board-cont board-with-venus' : 'board-cont board-without-venus';

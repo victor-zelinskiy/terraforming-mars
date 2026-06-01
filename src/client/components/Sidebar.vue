@@ -1,73 +1,161 @@
 <template>
-<div :class="'sidebar_cont sidebar '+getSideBarClass()">
-  <div class="tm" :title="$t('Generation Marker')">
-    <div class="gen-text" v-i18n>GEN</div>
-    <div class="gen-marker">{{ getGenMarker() }}</div>
-  </div>
-  <div v-if="gameOptions.expansions.turmoil" :title="$t('Ruling Party')">
-    <div :class="'party-name party-name-indicator party-name--'+rulingPartyToCss()"> <span v-i18n>{{ getRulingParty() }}</span></div>
-  </div>
-  <div class="global_params" :class="{terraformed: isTerraformed}">
-    <global-parameter-value :param="globalParameter.TEMPERATURE" :value="temperature"></global-parameter-value>
-    <global-parameter-value :param="globalParameter.OXYGEN" :value="oxygen"></global-parameter-value>
-    <global-parameter-value :param="globalParameter.OCEANS" :value="oceans"></global-parameter-value>
-    <global-parameter-value v-if="gameOptions.expansions.venus" :param="globalParameter.VENUS" :value="venus"></global-parameter-value>
-    <MoonGlobalParameterValue v-if="moonData" :moonData="moonData"></MoonGlobalParameterValue>
-  </div>
+<div :class="rootClass">
   <!--
-    Single toggle button for the legacy UI overlay. The four old jump-
-    anchors (board / actions / cards / colonies) are gone — the fork
-    moved their content into dedicated overlays / fixed-position
-    chrome (board: fixed center, cards: hand overlay, colonies:
-    ColoniesOverlay) so the per-section scroll-anchor model is no
-    longer useful. The remaining "legacy UI" is the radio-form action
-    stack + flow-positioned hand block — both will be removed once
-    every action has a dedicated button (see Action UI Rework note in
-    CLAUDE.md). Until then this button gives the player on-demand
-    access via the same `bar-overlay` pattern used by the log /
-    victory-points overlays. Emits `toggle-legacy-ui`; parent toggles
-    `activeOverlay === 'legacyUi'` and reflects it back via
-    `:legacyUiActive` for the active visual state.
+    Slim vertical terraforming-progress spine — absolute, 3 px wide
+    on the inner-left edge. Pure cosmetic sci-fi gauge: fills bottom-
+    up as (temperature + oxygen + oceans) advance. Doesn't take a
+    pixel of layout width from the metric stack.
   -->
-  <div class="sidebar_item sidebar_item_shortcut sidebar_item--legacy-ui"
-       :class="{'sidebar_item--is-active': legacyUiActive}"
-       :title="$t('Show legacy UI')"
-       role="button"
-       tabindex="0"
-       @click="$emit('toggle-legacy-ui')"
-       @keydown.enter.prevent="$emit('toggle-legacy-ui')"
-       @keydown.space.prevent="$emit('toggle-legacy-ui')">
-      <i class="sidebar_icon sidebar_icon--actions"></i>
+  <div class="planet-spine" :title="terraformProgressTitle" aria-hidden="true">
+    <div class="planet-spine__fill"
+         :style="{ height: terraformProgressPercent + '%' }"></div>
+    <span class="planet-spine__tick planet-spine__tick--25"></span>
+    <span class="planet-spine__tick planet-spine__tick--50"></span>
+    <span class="planet-spine__tick planet-spine__tick--75"></span>
   </div>
 
-  <!--
-    vize1215 fork: the right sidebar used to host four extra controls
-    here — <language-icon>, the player-aid help link, and the global
-    <preferences-icon>. All three are removed for this fork:
-      - language: russian is the default and the only one we ship for;
-      - help: never used in this private build, the action UI rework
-        is replacing the situations where it would be needed;
-      - preferences: defaults are baked in (see PreferencesManager.ts)
-        and exposing the dialog tempts misclicks during a match.
-    The match-specific "Game Setup Details" panel below STAYS — it's
-    the one actually useful piece of right-rail chrome (shows board,
-    expansions, randomized milestones/awards for THIS game).
-  -->
-  <div class="sidebar_item sidebar_item--info" :title="$t('Information panel')">
-    <i class="sidebar_icon sidebar_icon--info"
-      :class="{'sidebar_item--is-active': ui.gamesetup_detail_open}"
-      v-on:click="ui.gamesetup_detail_open = !ui.gamesetup_detail_open"
-      :title="$t('game setup details')"></i>
-    <div class="info_panel" v-if="ui.gamesetup_detail_open">
-      <div class="info_panel-spacing"></div>
-      <div class="info-panel-title" v-i18n>Game Setup Details</div>
-      <game-setup-detail :gameOptions="gameOptions" :playerNumber="playerNumber" :lastSoloGeneration="lastSoloGeneration"></game-setup-detail>
+  <div class="planet-stack">
+    <!--
+      Each metric block is a horizontal row: icon (or label) on the
+      LEFT, value cluster on the RIGHT, with a thin per-axis progress
+      underline spanning the full width below the row.
 
-      <div class="info_panel_actions">
-        <button class="btn btn-lg btn-primary" v-on:click="ui.gamesetup_detail_open=false" v-i18n>Ok</button>
+      Generation is special — no icon, the small "ПКН." label takes
+      the icon's left slot. Otherwise it shares the exact same
+      composition as the parameter rows so the whole stack reads as
+      one consistent instrument cluster.
+    -->
+    <div class="planet-metric planet-metric--generation"
+         :title="$t('Generation Marker')">
+      <span class="planet-metric__label" v-i18n>Sidebar generation label</span>
+      <div class="planet-metric__value">
+        <span class="planet-stat-num">{{ generation }}</span>
+        <AnimatedMetricValue
+          :value="generation"
+          metricKey="globals.generation"
+          scopeKey="global"
+          :epoch="epoch"
+          variant="global-parameter" />
       </div>
     </div>
+
+    <div v-if="gameOptions.expansions.turmoil"
+         :title="$t('Ruling Party')"
+         class="planet-ruling-party">
+      <div :class="'party-name party-name-indicator party-name--'+rulingPartyToCss()">
+        <span v-i18n>{{ getRulingParty() }}</span>
+      </div>
+    </div>
+
+    <div class="planet-metric planet-metric--temperature"
+         :class="{ 'planet-metric--max': temperatureIsMax }"
+         :title="$t('Temperature')">
+      <i class="planet-metric__icon temperature-tile"></i>
+      <div class="planet-metric__value">
+        <template v-if="temperatureIsMax">
+          <span class="planet-metric__checkmark" :title="$t('Completed!')">✓</span>
+        </template>
+        <template v-else>
+          <span class="planet-stat-num">{{ temperature }}</span><span class="planet-metric__unit">°C</span>
+        </template>
+        <AnimatedMetricValue
+          :value="temperature"
+          metricKey="globals.temperature"
+          scopeKey="global"
+          :epoch="epoch"
+          variant="global-parameter" />
+      </div>
+      <div class="planet-metric__progress"
+           :style="{ '--planet-progress-fill': temperatureProgress * 100 + '%' }"></div>
+    </div>
+
+    <div class="planet-metric planet-metric--oxygen"
+         :class="{ 'planet-metric--max': oxygenIsMax }"
+         :title="$t('Oxygen Level')">
+      <i class="planet-metric__icon oxygen-tile"></i>
+      <div class="planet-metric__value">
+        <template v-if="oxygenIsMax">
+          <span class="planet-metric__checkmark" :title="$t('Completed!')">✓</span>
+        </template>
+        <template v-else>
+          <span class="planet-stat-num">{{ oxygen }}</span><span class="planet-metric__unit">%</span>
+        </template>
+        <AnimatedMetricValue
+          :value="oxygen"
+          metricKey="globals.oxygen"
+          scopeKey="global"
+          :epoch="epoch"
+          variant="global-parameter" />
+      </div>
+      <div class="planet-metric__progress"
+           :style="{ '--planet-progress-fill': oxygenProgress * 100 + '%' }"></div>
+    </div>
+
+    <div class="planet-metric planet-metric--oceans"
+         :class="{ 'planet-metric--max': oceansIsMax }"
+         :title="$t('Oceans')">
+      <i class="planet-metric__icon ocean-tile"></i>
+      <div class="planet-metric__value">
+        <template v-if="oceansIsMax">
+          <span class="planet-metric__checkmark" :title="$t('Completed!')">✓</span>
+        </template>
+        <template v-else>
+          <span class="planet-stat-num">{{ oceans }}</span><span class="planet-metric__unit">/{{ maxOceans }}</span>
+        </template>
+        <AnimatedMetricValue
+          :value="oceans"
+          metricKey="globals.oceans"
+          scopeKey="global"
+          :epoch="epoch"
+          variant="global-parameter" />
+      </div>
+      <div class="planet-metric__progress"
+           :style="{ '--planet-progress-fill': oceansProgress * 100 + '%' }"></div>
+    </div>
+
+    <div v-if="gameOptions.expansions.venus"
+         class="planet-metric planet-metric--venus"
+         :class="{ 'planet-metric--max': venusIsMax }"
+         :title="$t('Venus Scale')">
+      <i class="planet-metric__icon venus-tile"></i>
+      <div class="planet-metric__value">
+        <template v-if="venusIsMax">
+          <span class="planet-metric__checkmark" :title="$t('Completed!')">✓</span>
+        </template>
+        <template v-else>
+          <span class="planet-stat-num">{{ venus }}</span><span class="planet-metric__unit">%</span>
+        </template>
+        <AnimatedMetricValue
+          :value="venus"
+          metricKey="globals.venus"
+          scopeKey="global"
+          :epoch="epoch"
+          variant="global-parameter" />
+      </div>
+      <div class="planet-metric__progress"
+           :style="{ '--planet-progress-fill': venusProgress * 100 + '%' }"></div>
+    </div>
+
+    <MoonGlobalParameterValue v-if="moonData" :moonData="moonData" />
   </div>
+
+  <!--
+    Overall planet-completion readout — sits between the metric stack
+    and the legacy-button corner. Anchors the spine ending visually
+    and labels what the gauge tracks.
+  -->
+  <div class="planet-overall" :title="terraformProgressTitle">
+    <span class="planet-overall__value">{{ terraformProgressPercent }}%</span>
+    <span class="planet-overall__label" v-i18n>Sidebar planet label</span>
+  </div>
+
+  <button class="planet-debug-btn"
+          :class="{ 'planet-debug-btn--active': legacyUiActive }"
+          :title="$t('Show legacy UI')"
+          :aria-label="$t('Show legacy UI')"
+          @click="$emit('toggle-legacy-ui')">
+    <i class="planet-debug-btn__glyph"></i>
+  </button>
 </div>
 </template>
 
@@ -76,15 +164,21 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {PreferencesManager, getPreferences} from '@/client/utils/PreferencesManager';
+import {getPreferences} from '@/client/utils/PreferencesManager';
 import {TurmoilModel} from '@/common/models/TurmoilModel';
 import {PartyName} from '@/common/turmoil/PartyName';
-import GameSetupDetail from '@/client/components/GameSetupDetail.vue';
 import {GameOptionsModel} from '@/common/models/GameOptionsModel';
-import GlobalParameterValue from '@/client/components/GlobalParameterValue.vue';
 import MoonGlobalParameterValue from '@/client/components/moon/MoonGlobalParameterValue.vue';
-import {GlobalParameter} from '@/common/GlobalParameter';
 import {MoonModel} from '@/common/models/MoonModel';
+import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
+import {
+  MAX_OCEAN_TILES,
+  MAX_OXYGEN_LEVEL,
+  MAX_TEMPERATURE,
+  MAX_VENUS_SCALE,
+  MIN_TEMPERATURE,
+} from '@/common/constants';
+import {translateText} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'sidebar',
@@ -154,41 +248,23 @@ export default defineComponent({
       type: Array as () => Array<PublicPlayerModel>,
       default: () => [],
     },
-    /**
-     * Active state of the legacy-UI overlay (parent toggles via the
-     * `toggle-legacy-ui` event we emit). Drives the button's
-     * `sidebar_item--is-active` modifier so it reads as "selected"
-     * while the overlay is open.
-     */
     legacyUiActive: {
       type: Boolean,
       default: false,
     },
+    epoch: {
+      type: String,
+      default: '',
+    },
   },
   emits: ['toggle-legacy-ui'],
   components: {
-    'game-setup-detail': GameSetupDetail,
-    'global-parameter-value': GlobalParameterValue,
     MoonGlobalParameterValue,
-  },
-  data() {
-    return {
-      'ui': {
-        'gamesetup_detail_open': false,
-      },
-      'globalParameter': GlobalParameter,
-    };
+    AnimatedMetricValue,
   },
   methods: {
-    getSideBarClass(): string {
-      return this.acting_player && (getPreferences().hide_animated_sidebar === false) ? 'preferences_acting_player' : 'preferences_nonacting_player';
-    },
-    getGenMarker(): string {
-      return `${this.generation}`;
-    },
     rulingPartyToCss(): string {
       if (this.turmoil?.ruling === undefined) {
-        console.warn('no party provided');
         return '';
       }
       return this.turmoil.ruling.toLowerCase().split(' ').join('_');
@@ -210,8 +286,47 @@ export default defineComponent({
     },
   },
   computed: {
-    preferencesManager(): PreferencesManager {
-      return PreferencesManager.INSTANCE;
+    rootClass(): string {
+      const acting = this.acting_player && getPreferences().hide_animated_sidebar === false;
+      return 'sidebar_cont sidebar planet-sidebar' +
+        (acting ? ' preferences_acting_player' : ' preferences_nonacting_player');
+    },
+    temperatureProgress(): number {
+      const span = MAX_TEMPERATURE - MIN_TEMPERATURE;
+      return Math.max(0, Math.min(1, (this.temperature - MIN_TEMPERATURE) / span));
+    },
+    oxygenProgress(): number {
+      return Math.max(0, Math.min(1, this.oxygen / MAX_OXYGEN_LEVEL));
+    },
+    oceansProgress(): number {
+      return Math.max(0, Math.min(1, this.oceans / MAX_OCEAN_TILES));
+    },
+    venusProgress(): number {
+      return Math.max(0, Math.min(1, this.venus / MAX_VENUS_SCALE));
+    },
+    terraformProgress(): number {
+      return (this.temperatureProgress + this.oxygenProgress + this.oceansProgress) / 3;
+    },
+    terraformProgressPercent(): number {
+      return Math.round(this.terraformProgress * 100);
+    },
+    terraformProgressTitle(): string {
+      return `${translateText('Terraforming progress')}: ${this.terraformProgressPercent}%`;
+    },
+    temperatureIsMax(): boolean {
+      return this.temperature >= MAX_TEMPERATURE;
+    },
+    oxygenIsMax(): boolean {
+      return this.oxygen >= MAX_OXYGEN_LEVEL;
+    },
+    oceansIsMax(): boolean {
+      return this.oceans >= MAX_OCEAN_TILES;
+    },
+    venusIsMax(): boolean {
+      return this.venus >= MAX_VENUS_SCALE;
+    },
+    maxOceans(): number {
+      return MAX_OCEAN_TILES;
     },
   },
 });
