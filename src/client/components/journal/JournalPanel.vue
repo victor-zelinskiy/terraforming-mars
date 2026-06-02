@@ -55,6 +55,16 @@ import JournalFeed from '@/client/components/journal/JournalFeed.vue';
  * `JournalFeed` can distinguish "whole list replaced" (silent jump) from
  * "appended live" (animate the new tail).
  */
+// How often the open journal re-polls the logs endpoint while following
+// the latest generation. The journal MUST NOT rely solely on the
+// `step`/playerView prop changing: the app's lightweight `/api/waitingFor`
+// poll updates `playersWaitingFor` WITHOUT refreshing the full playerView
+// while the viewer is mid-prompt (simultaneous draft / research phases),
+// so opponents' freshly-logged actions would otherwise never reach the
+// journal until the phase resolved or the panel was re-opened. This
+// independent timer guarantees near-real-time updates in every phase.
+const LIVE_POLL_INTERVAL_MS = 1500;
+
 type DataModel = {
   messages: ReadonlyArray<LogMessage>,
   selectedGeneration: number,
@@ -62,6 +72,7 @@ type DataModel = {
   loadEpoch: number,
   loading: boolean,
   abort: AbortController | undefined,
+  pollTimer: number | undefined,
 };
 
 export default defineComponent({
@@ -91,6 +102,7 @@ export default defineComponent({
       loadEpoch: 0,
       loading: false,
       abort: undefined,
+      pollTimer: undefined,
     };
   },
   computed: {
@@ -105,21 +117,13 @@ export default defineComponent({
     },
   },
   watch: {
-    // Fires on every server response. Drives the live feed while the
-    // player is following the latest generation.
+    // Instant update when the full playerView DOES refresh (the viewer's
+    // own actions, opponents' actions during normal turn-based play). This
+    // is the low-latency path; the interval poll below is the safety net
+    // for phases where playerView never refreshes (simultaneous draft /
+    // research while the viewer holds a prompt).
     step(): void {
-      if (!this.followLatest) {
-        return;
-      }
-      const gen = this.generation;
-      if (this.selectedGeneration !== gen) {
-        // A new generation began while following — load it.
-        this.selectedGeneration = gen;
-        this.fetchLogs(gen, true);
-      } else {
-        // Same generation — pull any appended entries.
-        this.fetchLogs(gen, false);
-      }
+      this.pullLatest();
     },
   },
   methods: {
@@ -129,9 +133,25 @@ export default defineComponent({
       }
       this.selectedGeneration = gen;
       this.followLatest = gen === this.generation;
-      this.fetchLogs(gen, true);
+      this.fetchLogs(gen, {bumpEpoch: true, showLoading: true});
     },
-    fetchLogs(generation: number, bumpEpoch: boolean): void {
+    // Re-pull the current generation while following the latest. Used by
+    // both the `step` watcher (instant) and the interval poll (safety net).
+    // A generation rollover (detected via the reactive `generation`) loads
+    // the new generation as a fresh epoch; otherwise it appends silently.
+    pullLatest(): void {
+      if (!this.followLatest) {
+        return;
+      }
+      const gen = this.generation;
+      if (this.selectedGeneration !== gen) {
+        this.selectedGeneration = gen;
+        this.fetchLogs(gen, {bumpEpoch: true, showLoading: false});
+      } else {
+        this.fetchLogs(gen, {bumpEpoch: false, showLoading: false});
+      }
+    },
+    fetchLogs(generation: number, opts: {bumpEpoch: boolean, showLoading: boolean}): void {
       if (this.id === undefined) {
         return;
       }
@@ -142,7 +162,9 @@ export default defineComponent({
       }
       const controller = new AbortController();
       this.abort = controller;
-      this.loading = true;
+      if (opts.showLoading) {
+        this.loading = true;
+      }
 
       const url = `${paths.API_GAME_LOGS}?id=${this.id}&generation=${generation}`;
       fetch(url, {signal: controller.signal})
@@ -158,9 +180,15 @@ export default defineComponent({
             this.loading = false;
             return;
           }
-          this.messages = data;
-          if (bumpEpoch) {
+          // The log is append-only within a generation, so on a silent
+          // live poll we only swap (and re-render) when the length grew —
+          // identical-length polls are no-ops. A generation load always
+          // swaps + bumps the epoch so the feed re-keys cleanly.
+          if (opts.bumpEpoch) {
+            this.messages = data;
             this.loadEpoch++;
+          } else if (data.length !== this.messages.length) {
+            this.messages = data;
           }
           this.loading = false;
         })
@@ -171,6 +199,18 @@ export default defineComponent({
           this.loading = false;
           console.error('error updating journal, unable to reach server');
         });
+    },
+    startPolling(): void {
+      if (this.pollTimer !== undefined) {
+        return;
+      }
+      this.pollTimer = window.setInterval(() => this.pullLatest(), LIVE_POLL_INTERVAL_MS);
+    },
+    stopPolling(): void {
+      if (this.pollTimer !== undefined) {
+        window.clearInterval(this.pollTimer);
+        this.pollTimer = undefined;
+      }
     },
     onKeydown(e: KeyboardEvent): void {
       if (e.key !== 'Escape') {
@@ -187,10 +227,14 @@ export default defineComponent({
   mounted(): void {
     this.selectedGeneration = this.generation;
     this.followLatest = true;
-    this.fetchLogs(this.generation, true);
+    this.fetchLogs(this.generation, {bumpEpoch: true, showLoading: true});
+    // Independent live poll — keeps the feed fresh in EVERY phase, not
+    // just when the playerView happens to refresh.
+    this.startPolling();
     window.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount(): void {
+    this.stopPolling();
     if (this.abort !== undefined) {
       this.abort.abort();
     }

@@ -62,6 +62,19 @@ export const PROJECT_VISUAL: Partial<Record<CardName, StandardProjectVisual>> = 
     iconClass: 'std-icon std-icon--delegate',
     description: 'Place a delegate in any party',
   },
+  // Standard ACTIONS (type standard_action, not standard_project). They
+  // share this visual table because the journal renders them with the
+  // same compact preview — only the kicker label differs (see
+  // StandardProjectPreviewPopover). Descriptions reuse the exact strings
+  // already translated in log_messages.json so they localise.
+  [CardName.CONVERT_PLANTS]: {
+    iconClass: 'std-icon std-icon--greenery',
+    description: 'Spend 8 plants to place a greenery tile and raise oxygen 1 step.',
+  },
+  [CardName.CONVERT_HEAT]: {
+    iconClass: 'std-icon std-icon--temperature',
+    description: 'Spend 8 heat to raise temperature 1 step.',
+  },
   // Moon expansion projects — re-use the existing moon icons.
   [CardName.MOON_HABITAT_STANDARD_PROJECT]: {
     iconClass: 'std-icon std-icon--moon-habitat',

@@ -29,12 +29,18 @@
 
 /* ── Layout: board slide ──────────────────────────────────────────── */
 
-#player-home {
+:root {
     /*
      * Width of the journal panel and the breathing gap between the panel
      * and the right sidebar. The board slide is derived from these so the
      * two always agree. Responsive: comfortable on laptops, capped so it
      * never eats too much of the board on big monitors.
+     *
+     * Declared on :root (NOT #player-home) because the panel is mounted at
+     * App level — OUTSIDE #player-home — so it must inherit these from the
+     * document root. The board-slide rule (#player-home.journal-open …)
+     * inherits them too. (--right-sidebar-width / --bottom-bar-button-
+     * height likewise live on :root in player_home.less.)
      */
     --journal-width: clamp(300px, 22vw, 420px);
     --journal-gap: 16px;

@@ -5,7 +5,7 @@
     :class="chipClasses"
     tabindex="0"
     role="button"
-    :aria-label="label"
+    :aria-label="$t(label)"
     @mouseenter="onEnter"
     @mouseleave="onLeave"
     @focus="onEnter"
@@ -14,7 +14,10 @@
     @keydown.enter.prevent="onClick"
     @keydown.space.prevent="onClick">
     <span class="journal-chip__dot" aria-hidden="true"></span>
-    <span class="journal-chip__label">{{ label }}</span>
+    <!-- v-i18n localizes the card / standard-project name (the legacy log
+         did `$t(name)` too). Translations live in the card locale files
+         (cards.json, promo.json, standard_projects.json, …). -->
+    <span class="journal-chip__label" v-i18n>{{ label }}</span>
     <span v-if="showTags" class="journal-chip__tags" aria-hidden="true">
       <span v-for="(tag, i) in tags" :key="i" class="journal-chip__tag" :class="'tag-' + tag"></span>
     </span>

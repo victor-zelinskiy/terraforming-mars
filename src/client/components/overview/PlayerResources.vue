@@ -56,11 +56,14 @@
          }"
          :tabindex="plantsButtonVisible ? 0 : -1"
          :role="plantsButtonVisible ? 'button' : undefined"
-         :data-convert-tooltip="plantsButtonVisible ? plantsTooltipText : null"
          :aria-label="plantsButtonVisible ? plantsTooltipText : undefined"
          @click.stop="onPlantsClick"
          @keydown.enter.prevent="onPlantsClick"
-         @keydown.space.prevent="onPlantsClick">
+         @keydown.space.prevent="onPlantsClick"
+         @mouseenter="onConvertHover('plants', $event)"
+         @mouseleave="onConvertLeave"
+         @focus="onConvertHover('plants', $event)"
+         @blur="onConvertLeave">
       <player-resource
         :type="Resource.PLANTS"
         :count="player.plants"
@@ -107,11 +110,14 @@
          }"
          :tabindex="heatButtonVisible ? 0 : -1"
          :role="heatButtonVisible ? 'button' : undefined"
-         :data-convert-tooltip="heatButtonVisible ? heatTooltipText : null"
          :aria-label="heatButtonVisible ? heatTooltipText : undefined"
          @click.stop="onHeatClick"
          @keydown.enter.prevent="onHeatClick"
-         @keydown.space.prevent="onHeatClick">
+         @keydown.space.prevent="onHeatClick"
+         @mouseenter="onConvertHover('heat', $event)"
+         @mouseleave="onConvertLeave"
+         @focus="onConvertHover('heat', $event)"
+         @blur="onConvertLeave">
       <player-resource
         :type="Resource.HEAT"
         :count="player.heat"
@@ -131,6 +137,24 @@
             class="convert-action-cost-badge convert-action-cost-badge--heat"
             aria-hidden="true">−{{ player.heatNeededForTemperature }}</span>
     </div>
+
+    <!--
+      Premium hover/focus preview for the convert actions — the same
+      compact card the journal uses for standard actions (pictogram +
+      name + effect), replacing the old CSS text tooltip. `prefer="right"`
+      so it opens toward the board (these buttons sit on the LEFT panel).
+      Teleported to body, so its position in this tree is irrelevant.
+    -->
+    <StandardProjectPreviewPopover
+      :name="CardName.CONVERT_PLANTS"
+      :visible="convertHover === 'plants'"
+      :anchor="convertAnchor"
+      prefer="right" />
+    <StandardProjectPreviewPopover
+      :name="CardName.CONVERT_HEAT"
+      :visible="convertHover === 'heat'"
+      :anchor="convertAnchor"
+      prefer="right" />
   </div>
 </template>
 
@@ -139,11 +163,26 @@ import {defineComponent} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import PlayerResource from '@/client/components/overview/PlayerResource.vue';
+import StandardProjectPreviewPopover from '@/client/components/journal/StandardProjectPreviewPopover.vue';
 import {Resource} from '@/common/Resource';
 import {translateTextWithParams, translateText} from '@/client/directives/i18n';
 
+type ConvertResourcesModel = {
+  // Which convert button is currently hovered / focused (drives the
+  // premium preview popover), or null when none.
+  convertHover: 'plants' | 'heat' | null;
+  // Viewport rect of the hovered convert button, for popover positioning.
+  convertAnchor: DOMRect | undefined;
+};
+
 export default defineComponent({
   name: 'PlayerResources',
+  data(): ConvertResourcesModel {
+    return {
+      convertHover: null,
+      convertAnchor: undefined,
+    };
+  },
   props: {
     player: {
       type: Object as () => PublicPlayerModel,
@@ -191,6 +230,9 @@ export default defineComponent({
   computed: {
     Resource(): typeof Resource {
       return Resource;
+    },
+    CardName(): typeof CardName {
+      return CardName;
     },
     // TODO LUNA TRADE FEDERATION
     canUseHeatAsMegaCredits(): boolean {
@@ -276,9 +318,26 @@ export default defineComponent({
         this.$emit('convert-heat');
       }
     },
+    // Show the premium convert preview only when the button is actually
+    // active (the wrapper is a real button) — never on a plain resource
+    // row. The anchor is the hovered wrapper's viewport rect.
+    onConvertHover(which: 'plants' | 'heat', e: Event): void {
+      if (which === 'plants' && !this.plantsButtonVisible) {
+        return;
+      }
+      if (which === 'heat' && !this.heatButtonVisible) {
+        return;
+      }
+      this.convertAnchor = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      this.convertHover = which;
+    },
+    onConvertLeave(): void {
+      this.convertHover = null;
+    },
   },
   components: {
     'player-resource': PlayerResource,
+    StandardProjectPreviewPopover,
   },
 });
 </script>

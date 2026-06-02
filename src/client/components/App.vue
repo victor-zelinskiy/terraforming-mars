@@ -67,6 +67,26 @@
       <admin-home v-else-if="screen === 'admin'"></admin-home>
       <login-home v-else-if="screen === 'login-home'"></login-home>
       <help v-else-if="screen === 'help'"></help>
+
+      <!--
+        Premium journal side-panel. Mounted HERE (App level) — NOT inside
+        <player-home> — so the `:key="playerkey"` remount that fires on
+        every server response can't destroy it. As long as App is alive
+        and the journal is open, the panel stays mounted, keeping its
+        selected generation / scroll position / live-follow across board
+        updates. Its own `v-if` (independent of the screen v-else-if chain
+        above) gates it to the player-home screen + the module-level open
+        flag. The board slide is driven separately by PlayerHome's
+        `#player-home.journal-open` class (also reads journalState).
+      -->
+      <Transition name="journal-panel">
+        <JournalPanel
+          v-if="screen === 'player-home' && playerView !== undefined && journalState.open"
+          :viewModel="playerView"
+          :color="playerView.thisPlayer.color"
+          :step="playerView.game.step"
+          @close="journalState.open = false" />
+      </Transition>
     </div>
   </div>
 </template>
@@ -88,6 +108,8 @@ const PlayerHome = defineAsyncComponent(() => import(/* webpackChunkName: "playe
 const SpectatorHome = defineAsyncComponent(() => import(/* webpackChunkName: "spectator-home" */ '@/client/components/SpectatorHome.vue'));
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
+import JournalPanel from '@/client/components/journal/JournalPanel.vue';
+import {journalState} from '@/client/components/journal/journalState';
 import GameAtmosphere from '@/client/components/GameAtmosphere.vue';
 import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
@@ -195,7 +217,18 @@ export default defineComponent({
     'admin-home': AdminHome,
     'login-home': LoginHome,
     DraftFlowOverlay,
+    JournalPanel,
     GameAtmosphere,
+  },
+  computed: {
+    // Expose the module-level journal open flag to the template. Mounting
+    // the panel HERE (not inside <player-home>) keeps it alive across the
+    // `:key="playerkey"` remount that fires on every server response, so
+    // the journal never closes itself and keeps its generation / scroll /
+    // live-follow state. See journalState.ts + journal.less.
+    journalState() {
+      return journalState;
+    },
   },
   methods: {
     showAlert(title: string, message: string, cb: () => void = () => {}): void {
