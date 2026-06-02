@@ -6,26 +6,36 @@
     <span class="journal-panel__corner journal-panel__corner--br" aria-hidden="true"></span>
 
     <header class="journal-panel__header">
-      <div class="journal-panel__titlewrap">
-        <span class="journal-panel__glyph" aria-hidden="true"></span>
-        <h2 class="journal-panel__title" v-i18n>Journal</h2>
+      <div class="journal-panel__titlebar">
+        <div class="journal-panel__titlewrap">
+          <span class="journal-panel__glyph" aria-hidden="true"></span>
+          <h2 class="journal-panel__title" v-i18n>Journal</h2>
+        </div>
+        <button
+          type="button"
+          class="journal-panel__close"
+          :aria-label="$t('Close')"
+          @click="$emit('close')">✕</button>
       </div>
-      <JournalGenerationSelector
-        :current="generation"
-        :selected="selectedGeneration"
-        @select="selectGeneration" />
-      <button
-        type="button"
-        class="journal-panel__close"
-        :aria-label="$t('Close')"
-        @click="$emit('close')">✕</button>
+      <div class="journal-panel__controls">
+        <JournalGenerationSelector
+          :current="generation"
+          :selected="selectedGeneration"
+          @select="selectGeneration" />
+        <JournalFilterSelector
+          v-if="players.length > 1"
+          :players="players"
+          :selected="filter"
+          @select="selectFilter" />
+      </div>
     </header>
 
     <JournalFeed
-      :messages="messages"
+      :messages="filteredMessages"
       :players="players"
       :loadEpoch="loadEpoch"
-      :loading="loading" />
+      :loading="loading"
+      :filterActive="filterActive" />
   </aside>
 </template>
 
@@ -37,7 +47,9 @@ import {LogMessage} from '@/common/logs/LogMessage';
 import {ParticipantId} from '@/common/Types';
 import {PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
 import JournalGenerationSelector from '@/client/components/journal/JournalGenerationSelector.vue';
+import JournalFilterSelector from '@/client/components/journal/JournalFilterSelector.vue';
 import JournalFeed from '@/client/components/journal/JournalFeed.vue';
+import {JournalFilter, messagePassesFilter} from '@/client/components/journal/journalFilter';
 
 /**
  * Premium journal panel — the modern replacement for the legacy
@@ -73,11 +85,14 @@ type DataModel = {
   loading: boolean,
   abort: AbortController | undefined,
   pollTimer: number | undefined,
+  // Active player filter. Persists across generation changes and survives
+  // the playerkey remount (panel is App-level). Default: show everything.
+  filter: JournalFilter,
 };
 
 export default defineComponent({
   name: 'JournalPanel',
-  components: {JournalGenerationSelector, JournalFeed},
+  components: {JournalGenerationSelector, JournalFilterSelector, JournalFeed},
   props: {
     viewModel: {
       type: Object as () => ViewModel,
@@ -103,6 +118,7 @@ export default defineComponent({
       loading: false,
       abort: undefined,
       pollTimer: undefined,
+      filter: {kind: 'all'},
     };
   },
   computed: {
@@ -111,6 +127,19 @@ export default defineComponent({
     },
     players(): ReadonlyArray<PublicPlayerModel> {
       return this.viewModel.players;
+    },
+    // Messages after the active player filter. The feed renders THIS, so
+    // a live entry that doesn't pass the filter never changes the list
+    // length → no scroll, no jump. Filtering is on structured data only
+    // (see journalFilter.ts).
+    filteredMessages(): ReadonlyArray<LogMessage> {
+      if (this.filter.kind === 'all') {
+        return this.messages;
+      }
+      return this.messages.filter((m) => messagePassesFilter(m, this.filter, this.color));
+    },
+    filterActive(): boolean {
+      return this.filter.kind !== 'all';
     },
     id(): ParticipantId | undefined {
       return this.viewModel.id;
@@ -134,6 +163,14 @@ export default defineComponent({
       this.selectedGeneration = gen;
       this.followLatest = gen === this.generation;
       this.fetchLogs(gen, {bumpEpoch: true, showLoading: true});
+    },
+    selectFilter(filter: JournalFilter): void {
+      this.filter = filter;
+      // Bump the feed epoch so the (re-filtered) list does a soft fade-in
+      // swap + scroll-to-bottom rather than being mis-read as a live
+      // append/shrink. The raw messages and selected generation are
+      // untouched — only the visible subset changes.
+      this.loadEpoch++;
     },
     // Re-pull the current generation while following the latest. Used by
     // both the `step` watcher (instant) and the interval poll (safety net).

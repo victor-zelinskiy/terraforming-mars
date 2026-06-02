@@ -49,14 +49,21 @@
 
 /*
  * Close button — full pill with × glyph + label so it reads at a glance
- * as "exit this view". Anchored top-right with comfortable padding from
- * the viewport edges (the original 18/22 felt squished). Sci-fi
- * parallelogram chrome matching the rest of the fork.
+ * as "exit this view". Sci-fi parallelogram chrome matching the rest of
+ * the fork.
+ *
+ * Anchored to the top-right of the CENTRED CONTENT COLUMN (not the far
+ * viewport corner). The colony grid is centred and capped at ~1136px
+ * wide, so on wide / 4K screens a corner-pinned button sat hundreds of px
+ * away from the cards and was easy to miss. `right: max(28px, 50% - 568px)`
+ * keeps it just past the grid's right edge (568 ≈ half the max content
+ * width) on big screens, and falls back to 28px from the edge once the
+ * content fills the viewport on smaller ones.
  */
 .colonies-overlay__close {
     position: absolute;
     top: 22px;
-    right: 28px;
+    right: max(28px, calc(50% - 568px));
     z-index: 4;
     display: inline-flex;
     align-items: center;
@@ -125,7 +132,7 @@
 .colonies-overlay__minimize {
     position: absolute;
     top: 22px;
-    right: 28px;
+    right: max(28px, calc(50% - 568px));
     z-index: 4;
     display: inline-flex;
     align-items: center;

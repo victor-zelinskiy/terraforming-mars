@@ -46,7 +46,7 @@
       v-if="showZoom"
       ref="zoomModal"
       :card="{name}"
-      @close="showZoom = false" />
+      @close="onZoomClose" />
   </Teleport>
 </template>
 
@@ -94,6 +94,13 @@ type DataModel = {
   anchor: DOMRect | undefined;
   hoverTimer: number | undefined;
   showZoom: boolean;
+  // Suppresses hover-preview re-show while fullscreen is open AND for a
+  // short window after it closes. When a <dialog> closes over a stationary
+  // cursor the browser fires a phantom `mouseenter` on the chip (hover is
+  // re-evaluated on top-layer change, no pointer move) — without this the
+  // preview would pop back up after the player closes the fullscreen card.
+  blockHover: boolean;
+  blockTimer: number | undefined;
 };
 
 export default defineComponent({
@@ -115,6 +122,8 @@ export default defineComponent({
       anchor: undefined,
       hoverTimer: undefined,
       showZoom: false,
+      blockHover: false,
+      blockTimer: undefined,
     };
   },
   computed: {
@@ -156,6 +165,11 @@ export default defineComponent({
   },
   methods: {
     onEnter(): void {
+      // Ignore the phantom mouseenter the browser fires while fullscreen
+      // is open / just closed (see blockHover). Real hovers are unaffected.
+      if (this.blockHover) {
+        return;
+      }
       // NOTE: this is a multi-root component (chip + teleported popovers),
       // so `this.$el` is the fragment's text anchor, not the span — read
       // the rect from the explicit ref instead.
@@ -166,6 +180,11 @@ export default defineComponent({
       this.anchor = chip.getBoundingClientRect();
       this.clearHoverTimer();
       this.hoverTimer = window.setTimeout(() => {
+        // Guard again at fire time — fullscreen may have opened during the
+        // delay.
+        if (this.showZoom || this.blockHover) {
+          return;
+        }
         // Re-read the rect in case the feed scrolled during the delay.
         this.anchor = chip.getBoundingClientRect();
         this.previewVisible = true;
@@ -186,16 +205,35 @@ export default defineComponent({
       if (this.isStandardProject) {
         return;
       }
-      // Opening fullscreen — drop the hover preview so they don't stack.
+      // Opening fullscreen — drop the hover preview so they don't stack,
+      // and block hover until shortly after the modal closes.
       this.onLeave();
+      this.blockHover = true;
       this.showZoom = true;
       nextTick(() => {
         (this.$refs as {zoomModal?: {show: () => void}}).zoomModal?.show();
       });
     },
+    onZoomClose(): void {
+      this.showZoom = false;
+      // Kill any pending preview + keep hover blocked briefly so the
+      // phantom mouseenter fired as the dialog leaves the top layer can't
+      // re-open the popover. A genuine re-hover after this window works.
+      this.onLeave();
+      if (this.blockTimer !== undefined) {
+        window.clearTimeout(this.blockTimer);
+      }
+      this.blockTimer = window.setTimeout(() => {
+        this.blockHover = false;
+        this.blockTimer = undefined;
+      }, 250);
+    },
   },
   beforeUnmount(): void {
     this.clearHoverTimer();
+    if (this.blockTimer !== undefined) {
+      window.clearTimeout(this.blockTimer);
+    }
   },
 });
 </script>

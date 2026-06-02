@@ -109,11 +109,27 @@
 .journal-panel__header {
     flex-shrink: 0;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px 10px 14px;
+    flex-direction: column;
+    gap: 9px;
+    padding: 10px 12px 11px 14px;
     border-bottom: 1px solid rgba(106, 176, 230, 0.14);
     background: linear-gradient(180deg, rgba(20, 32, 48, 0.55), rgba(12, 20, 32, 0.20));
+}
+
+/* Row 1: title + close. */
+.journal-panel__titlebar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Row 2: the generation + player-filter dropdowns. Wrap as a safety on
+   very narrow panels; normally both fit side by side. */
+.journal-panel__controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .journal-panel__titlewrap {
@@ -286,6 +302,41 @@
     border: 1px solid @j-chip-rim;
     border-radius: 999px;
     padding: 1px 6px;
+}
+
+/* ── Player filter selector ───────────────────────────────────────────
+   Reuses the generation dropdown chrome (.journal-genselect__*); adds the
+   funnel glyph + a per-player colour dot. */
+.journal-filterselect__glyph {
+    flex-shrink: 0;
+    fill: @j-text-muted;
+    transition: fill 140ms ease;
+}
+.journal-filterselect__trigger:hover .journal-filterselect__glyph,
+.journal-filterselect__trigger:focus-visible .journal-filterselect__glyph {
+    fill: @j-cyan;
+}
+
+/* Keep a long label (player name / "Только соперники") from blowing out
+   the compact trigger. */
+.journal-filterselect__trigger .journal-genselect__trigger-label {
+    max-width: 116px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.journal-filterselect__menu {
+    min-width: 156px;
+}
+
+/* Colour marker for a player in the filter trigger + option rows; the
+   background colour comes from the applied `player_bg_color_*` class. */
+.journal-filter-dot {
+    width: 9px;
+    height: 9px;
+    flex-shrink: 0;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
 }
 
 /* ── Feed ─────────────────────────────────────────────────────────── */

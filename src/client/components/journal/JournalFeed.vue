@@ -9,7 +9,8 @@
         </template>
         <template v-else>
           <span class="journal-feed__placeholder-glyph" aria-hidden="true">⌖</span>
-          <span v-i18n>No events this generation</span>
+          <span v-if="filterActive" v-i18n>No entries for the selected filter</span>
+          <span v-else v-i18n>No events this generation</span>
         </template>
       </div>
 
@@ -93,6 +94,12 @@ export default defineComponent({
       required: true,
     },
     loading: {
+      type: Boolean,
+      default: false,
+    },
+    // When a player filter is active, the empty state reads "no entries
+    // for the selected filter" rather than "no events this generation".
+    filterActive: {
       type: Boolean,
       default: false,
     },
