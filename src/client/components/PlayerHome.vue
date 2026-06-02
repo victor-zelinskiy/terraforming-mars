@@ -241,17 +241,15 @@
       that hosted the old `LogPanel`. NOT a board-covering overlay: it's
       a glass/HUD panel pinned to the right gutter that slides the board
       left (via `#player-home.journal-open`, see journal.less) and streams
-      the same `/api/game/logs` data as a modern live feed. The slide
-      keeps board scale unchanged — only the central box shifts.
+      the same `/api/game/logs` data as a modern live feed.
+
+      The panel itself is MOUNTED AT APP LEVEL (App.vue, next to
+      DraftFlowOverlay) — NOT here — so the `:key="playerkey"` remount
+      that fires on every server response can't destroy it (which would
+      close the journal + reset its generation/scroll on every board
+      update). PlayerHome only owns the open flag (module-level
+      `journalState`, also remount-proof) and the board-slide class.
     -->
-    <Transition name="journal-panel">
-      <JournalPanel
-        v-if="journalOpen"
-        :viewModel="playerView"
-        :color="thisPlayer.color"
-        :step="game.step"
-        @close="journalOpen = false" />
-    </Transition>
 
     <div v-if="activeOverlay === 'victoryPoints'" class="bar-overlay bar-overlay--victory-points">
       <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
@@ -537,7 +535,7 @@ import InitialDraftStatusRail from '@/client/components/initialDraft/InitialDraf
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import Sidebar from '@/client/components/Sidebar.vue';
 import Colony from '@/client/components/colonies/Colony.vue';
-import JournalPanel from '@/client/components/journal/JournalPanel.vue';
+import {journalState} from '@/client/components/journal/journalState';
 import GameBoardView from '@/client/components/GameBoardView.vue';
 import {useBoardAutoScale} from '@/client/utils/useBoardAutoScale';
 import InitialDraftFlowOverlay from '@/client/components/initialDraft/InitialDraftFlowOverlay.vue';
@@ -639,11 +637,6 @@ type PendingTradeColony = {
 type PlayerHomeModel = ToggleableState & {
   selectedPlayerColor: Color | undefined;
   activeOverlay: OverlayId | null;
-  // The premium journal side-panel. Independent of `activeOverlay` (it's
-  // NOT a board-covering bar-overlay — it's a side panel that slides the
-  // board left and coexists with it). Toggled by the bottom-bar Log
-  // button, closed by re-click / its own × / Escape.
-  journalOpen: boolean;
   // True while the Convert-Plants flow is in "click a greenery space"
   // mode. Renders SelectSpace.vue with the inner SelectSpace prompt so
   // it can drive board interaction; on space pick we wrap the response in
@@ -726,7 +719,6 @@ export default defineComponent({
       showEventCards: !preferences.hide_event_cards,
       selectedPlayerColor: undefined,
       activeOverlay: null,
-      journalOpen: false,
       convertPlantsPickerActive: false,
       pendingStdProjectPayment: undefined,
       passConfirmOpen: false,
@@ -855,6 +847,13 @@ export default defineComponent({
     },
     game(): GameModel {
       return this.playerView.game;
+    },
+    // Mirrors module-level `journalState.open` (remount-proof). Read-only:
+    // toggled via `toggleJournal()` / the App-level panel's close. Drives
+    // the bottom-bar Log button active state + the `journal-open`
+    // board-slide class on the root.
+    journalOpen(): boolean {
+      return journalState.open;
     },
     CardType(): typeof CardType {
       return CardType;
@@ -1301,7 +1300,6 @@ export default defineComponent({
     'waiting-for': WaitingFor,
     'sidebar': Sidebar,
     'colony': Colony,
-    JournalPanel,
     'sortable-cards': SortableCards,
     GameBoardView,
     InitialDraftFlowOverlay,
@@ -1335,10 +1333,11 @@ export default defineComponent({
     // it has its own toggle. Opening it closes any active bar-overlay so
     // the journal (which sits at a lower z-index than overlays) isn't
     // hidden behind one; closing just hides the panel and slides the
-    // board back.
+    // board back. The open flag lives in module-level `journalState` so
+    // it survives the `playerkey` remount (see journalState.ts).
     toggleJournal(): void {
-      this.journalOpen = !this.journalOpen;
-      if (this.journalOpen) {
+      journalState.open = !journalState.open;
+      if (journalState.open) {
         this.activeOverlay = null;
       }
     },

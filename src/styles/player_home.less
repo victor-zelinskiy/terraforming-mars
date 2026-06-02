@@ -3097,16 +3097,30 @@ each(@players, {
 }
 
 /*
- * Base style for any "drop-down from top bar" panel. Sits flush below the
- * button with a 6px breath, dark glass background, cyan rim, and the four
- * L-shaped corner ticks matching the rest of the HUD. Re-used by the
- * Milestones overlay (and any future Standard-Projects / Awards dropdowns).
+ * Base style for any "drop-down from top bar" panel. Dark glass, cyan rim,
+ * four L-shaped corner ticks. Re-used by Milestones / Standard Projects /
+ * Awards.
+ *
+ * Positioning (v-premium): all three open as ONE consistent panel
+ * CENTERED in the play area, NOT anchored to whichever button triggered
+ * them. Only one overlay is ever open at a time, so a single centred
+ * "command panel" sliding down reads far cleaner than three differently-
+ * aligned drop-downs (Awards used to fly out to the right edge).
+ *
+ * `position: fixed` + `left/right` spanning the play area (between the
+ * left panel and right sidebar) + `margin-inline: auto` centres any
+ * definite-width panel in that box — same box the top-bar buttons and the
+ * board are centred in, so the panel lines up under the buttons and over
+ * the planet regardless of which button opened it.
  */
 .top-bar-dropdown {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
+    position: fixed;
+    top: calc(var(--bottom-bar-button-height) + 6px);
+    left: var(--left-panel-width);
+    right: var(--right-sidebar-width);
+    margin-inline: auto;
     z-index: 120;
+    animation: top-bar-dropdown-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
     pointer-events: auto;
     background: linear-gradient(180deg, rgba(12, 18, 28, 0.97), rgba(8, 12, 20, 0.97));
     border: 1px solid #2c4a6a;
@@ -3136,6 +3150,20 @@ each(@players, {
         right: -1px;
         border-bottom: 1px solid #6ab0e6;
         border-right: 1px solid #6ab0e6;
+    }
+}
+
+/* Premium entrance: a short fade + slide-down from under the top bar.
+   No transform on the resting state (centring is margin-based), so the
+   animation can use plain translateY without fighting the layout. */
+@keyframes top-bar-dropdown-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .top-bar-dropdown {
+        animation: none;
     }
 }
 
@@ -4345,10 +4373,9 @@ each(@players, {
 /*
  * Standard-Projects dropdown sizing. Wider than the Milestones overlay
  * because each row carries a real card thumbnail (~140px) + name + USE
- * button. Anchor-relative positioning translates from "to the right of
- * the centered button" to "centered under it" via a transform — the
- * `top-bar-dropdown` base positions `left: 0` which would put the
- * panel offset to the right of the centered button.
+ * button. Centring is inherited from the `.top-bar-dropdown` base
+ * (play-area `left/right` + `margin-inline: auto`); this modifier only
+ * sets the width + height caps + padding.
  *
  * NO `height: …` — the dropdown sizes to its content naturally, capped
  * by `max-height`. Setting `height: 100%` on the inner `.std-projects-overlay`
@@ -4363,8 +4390,6 @@ each(@players, {
  * comfortably inside `max-height`.
  */
 .top-bar-dropdown--standard-projects {
-    left: 50%;
-    transform: translateX(-50%);
     width: 660px;
     max-width: 92vw;
     max-height: calc(100vh - var(--bottom-bar-button-height) * 2 - 24px);
