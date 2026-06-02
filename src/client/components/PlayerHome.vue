@@ -224,6 +224,23 @@
     </MandatoryInputModal>
 
     <!--
+      Client-side payment-preview modal for playing a hand card. Mounted
+      when the player presses РАЗЫГРАТЬ in the hand overlay. Hosts the
+      existing project-card payment widget (constrained to the chosen card)
+      so all tag-based payment rules / Reds tax work unchanged. Confirm
+      wraps the response in the action-menu OR path and submits through
+      WaitingFor.onsave; Cancel restores the hand overlay (no round-trip).
+    -->
+    <MandatoryInputModal v-if="pendingPlayCard !== undefined"
+                         :title="pendingPlayCard.title">
+      <HandCardPaymentContent
+        :playerView="playerView"
+        :input="pendingPlayCard.input"
+        @confirm="onPlayCardConfirm($event)"
+        @cancel="onPlayCardCancel" />
+    </MandatoryInputModal>
+
+    <!--
       Client-side confirmation gate for the Pass action. Pass commits the
       player out of the rest of the generation, so we double-prompt before
       POSTing. Mounted on click of the in-card PASS button; Confirm submits,
@@ -286,23 +303,34 @@
       seat: face-down card backs × their hand count (the server never sends
       opponent hand contents) — mirrors the physical board game.
     -->
-    <div v-if="activeOverlay === 'cards'" class="bar-overlay bar-overlay--cards">
-      <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
-      <div class="hiding-card-button-row">
-        <div :class="playedCardsTitleClass">{{ displayedPlayer.name }} — <span v-i18n>Cards</span> ({{ displayedCardsInHandCount }})</div>
-      </div>
-      <div class="bar-overlay--played-cards">
-        <sortable-cards v-if="displayedPlayer.color === thisPlayer.color"
-                        :playerId="playerView.id"
-                        :cards="playerView.preludeCardsInHand.concat(playerView.ceoCardsInHand).concat(playerView.cardsInHand)" />
-        <template v-else>
-          <div class="cards-backs">
-            <div v-for="n in displayedCardsInHandCount" :key="n" class="card-back-tile"></div>
-          </div>
-          <div v-if="displayedCardsInHandCount === 0" class="bar-overlay__empty" v-i18n>No cards in hand</div>
-        </template>
-      </div>
-    </div>
+    <!--
+      Premium "cards in hand" overlay (own seat). Shows the full hand with
+      per-card playability + reasons, filters / sort, and a РАЗЫГРАТЬ
+      button that starts the play flow. Only mounted for the viewer's own
+      seat — the server never sends opponents' hand contents.
+    -->
+    <HandCardsOverlay
+      v-if="activeOverlay === 'cards' && displayedPlayer.color === thisPlayer.color"
+      :player="thisPlayer"
+      :game="game"
+      :cards="playerView.cardsInHand"
+      :playableCardNames="playableProjectCardNames"
+      :playActionAvailable="playProjectCardActionAvailable"
+      @play="onPlayHandCard($event)"
+      @close="activeOverlay = null" />
+
+    <!--
+      Another player's seat: the server never sends opponents' hand
+      contents, so we can only show the COUNT. OpponentHandOverlay presents
+      it as a fanned hand of face-down cards + a prominent count badge in
+      the SAME premium frame/header as the own-seat HandCardsOverlay, so it
+      reads as "the same overlay, just someone else's hidden cards".
+    -->
+    <OpponentHandOverlay
+      v-else-if="activeOverlay === 'cards'"
+      :player="displayedPlayer"
+      :count="displayedCardsInHandCount"
+      @close="activeOverlay = null" />
 
     <!--
       Action (blue) cards overlay (viewer). Shows the displayed player's
@@ -542,6 +570,9 @@ import SelectSpace from '@/client/components/SelectSpace.vue';
 import StandardProjectsOverlay from '@/client/components/overview/StandardProjectsOverlay.vue';
 import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverlay.vue';
 import {totalPlayedCards} from '@/client/components/playedCards/playedCardGroups';
+import HandCardsOverlay from '@/client/components/handCards/HandCardsOverlay.vue';
+import OpponentHandOverlay from '@/client/components/handCards/OpponentHandOverlay.vue';
+import HandCardPaymentContent from '@/client/components/handCards/HandCardPaymentContent.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {placementLockState} from '@/client/components/placementLockState';
@@ -554,6 +585,7 @@ import {CardResource} from '@/common/CardResource';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {Payment} from '@/common/inputs/Payment';
+import {SelectProjectCardToPlayResponse} from '@/common/inputs/InputResponse';
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
@@ -611,6 +643,18 @@ type PendingStdProjectPayment = {
   input: SelectPaymentModel;
 };
 
+// Set while the player has chosen a card to play from the hand overlay.
+// Drives the client-side payment-preview modal that hosts the existing
+// project-card payment widget (constrained to the single chosen card).
+// On Confirm we wrap the emitted `SelectProjectCardToPlayResponse` in the
+// action-menu OR path and submit; Cancel just clears this field (no server
+// round-trip) and restores the hand overlay.
+type PendingPlayCard = {
+  cardName: CardName;
+  title: string | Message;
+  input: SelectProjectCardToPlayModel;
+};
+
 // Pending Trade-with-Colony state. Set after the player picks a colony in
 // the overlay (trade mode), cleared on Cancel or after submission. Carries
 // the inputs the second-step payment modal needs to render the chooser AND
@@ -631,6 +675,8 @@ type PlayerHomeModel = ToggleableState & {
   // the outer OR-payload and submit.
   convertPlantsPickerActive: boolean;
   pendingStdProjectPayment: PendingStdProjectPayment | undefined;
+  // See PendingPlayCard — the in-flight "play a hand card" payment modal.
+  pendingPlayCard: PendingPlayCard | undefined;
   // True while the Pass confirmation modal is open. The pass action is
   // irreversible (no more turns this generation), so we gate it through
   // a client-side confirmation modal before POSTing to the server.
@@ -683,6 +729,8 @@ const PLACEMENT_LOCKED_SELECTORS = [
   '.resource_item_wrapper--convert-plants',
   '.colony-tile__select-btn',
   '.colony-detail__select-btn',
+  // v47: dedicated РАЗЫГРАТЬ buttons under hand cards (premium hand overlay).
+  '.hand-card-play-btn',
   '.wf-action',
 ].join(', ');
 
@@ -709,6 +757,7 @@ export default defineComponent({
       activeOverlay: null,
       convertPlantsPickerActive: false,
       pendingStdProjectPayment: undefined,
+      pendingPlayCard: undefined,
       passConfirmOpen: false,
       coloniesOverlayOpen: false,
       coloniesOverlayManualOpen: false,
@@ -1285,6 +1334,30 @@ export default defineComponent({
     standardProjectsActionInput(): SelectProjectCardToPlayModel | undefined {
       return this.findStandardProjectsAction(this.playerView.waitingFor)?.input;
     },
+    // The current "Play project card" action in the action menu, or
+    // undefined if the player isn't being offered card plays right now.
+    playProjectCardAction(): {path: ReadonlyArray<number>; input: SelectProjectCardToPlayModel} | undefined {
+      return this.findPlayProjectCardAction(this.playerView.waitingFor);
+    },
+    // True when the action menu currently offers playing a project card —
+    // i.e. it's the viewer's action window. Drives the hand overlay's
+    // turn-availability (РАЗЫГРАТЬ enabled state + reason wording).
+    playProjectCardActionAvailable(): boolean {
+      return this.playProjectCardAction !== undefined;
+    },
+    // The authoritative set of hand-card names the server says are playable
+    // RIGHT NOW (the action's `cards` list). The hand overlay's РАЗЫГРАТЬ
+    // button is enabled iff a card is in this set — it never re-derives
+    // playability from raw state, so it can't offer an illegal play.
+    playableProjectCardNames(): Set<CardName> {
+      const action = this.playProjectCardAction;
+      if (action === undefined) {
+        return new Set();
+      }
+      return new Set(action.input.cards
+        .filter((c) => c.isDisabled !== true)
+        .map((c) => c.name));
+    },
   },
 
   components: {
@@ -1309,6 +1382,9 @@ export default defineComponent({
     'select-space': SelectSpace,
     StandardProjectsOverlay,
     PlayedCardsOverlay,
+    HandCardsOverlay,
+    OpponentHandOverlay,
+    HandCardPaymentContent,
     MandatoryInputModal,
     PlacementBanner,
     StandardProjectPaymentContent,
@@ -1362,6 +1438,7 @@ export default defineComponent({
       if (target.closest('.top-bar-dropdown') ||
           target.closest('.bar-overlay') ||
           target.closest('.played-board-overlay') ||
+          target.closest('.hand-board-overlay') ||
           target.closest('.vp-board-overlay') ||
           target.closest('.legacy-ui-overlay') ||
           target.closest('.sidebar_cont') ||
@@ -1505,6 +1582,35 @@ export default defineComponent({
           }
           const deeper = this.findStandardProjectsAction(opt, [...pathSoFar, i]);
           if (deeper) return deeper;
+        }
+      }
+      return undefined;
+    },
+    // Recursively walks the waitingFor tree for the "Play project card"
+    // SelectProjectCardToPlay option (type 'projectCard', title 'Play
+    // project card' — see server SelectCardToPlay.ts). Mirrors
+    // findStandardProjectsAction; its `cards` array is the server's
+    // authoritative list of cards playable RIGHT NOW. Returns the option
+    // model + the index PATH so we can wrap the response in nested OR
+    // layers exactly like the legacy radio UI would.
+    findPlayProjectCardAction(
+      wf: PlayerInputModel | undefined,
+      pathSoFar: ReadonlyArray<number> = [],
+    ): {path: ReadonlyArray<number>; input: SelectProjectCardToPlayModel} | undefined {
+      if (!wf) {
+        return undefined;
+      }
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const opt = options[i];
+          if (opt.type === 'projectCard' && inputTitleText(opt.title) === 'Play project card') {
+            return {path: [...pathSoFar, i], input: opt as SelectProjectCardToPlayModel};
+          }
+          const deeper = this.findPlayProjectCardAction(opt, [...pathSoFar, i]);
+          if (deeper) {
+            return deeper;
+          }
         }
       }
       return undefined;
@@ -2054,6 +2160,65 @@ export default defineComponent({
       }
       const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
       wfRef?.onsave?.(response);
+    },
+    // ─── Play a card from the hand overlay ─────────────────────────────
+    // РАЗЫГРАТЬ pressed on a hand card. Opens the client-side payment
+    // modal constrained to that single card (the existing project-card
+    // payment widget does the rest). No server round-trip yet — the modal
+    // builds the payment locally; nothing is committed until Confirm.
+    onPlayHandCard(cardName: CardName): void {
+      const action = this.findPlayProjectCardAction(this.playerView.waitingFor);
+      if (!action) {
+        return;
+      }
+      const card = action.input.cards.find((c) => c.name === cardName);
+      if (card === undefined || card.isDisabled === true) {
+        return;
+      }
+      // Message (NOT string concat) so the i18n directive translates both
+      // the "Play ${0}" template AND the typed CARD placeholder lookup.
+      const title: Message = {
+        message: 'Play ${0}',
+        data: [{type: LogMessageDataType.CARD as const, value: cardName}],
+      };
+      this.pendingPlayCard = {
+        cardName,
+        title,
+        // Constrain the reused widget to just the chosen card; everything
+        // else (paymentOptions, microbes/floaters, etc.) carries over.
+        input: {...action.input, cards: [card]},
+      };
+      this.activeOverlay = null; // close the hand overlay behind the modal
+    },
+    onPlayCardConfirm(response: SelectProjectCardToPlayResponse): void {
+      if (this.pendingPlayCard === undefined) {
+        return;
+      }
+      this.submitPlayCard(response);
+      this.pendingPlayCard = undefined;
+    },
+    onPlayCardCancel(): void {
+      this.pendingPlayCard = undefined;
+      // Restore the hand overlay so the player can pick a different card
+      // (or close it themselves) — nothing was submitted.
+      this.activeOverlay = 'cards';
+    },
+    // Wraps the chosen card + payment (a SelectProjectCardToPlayResponse,
+    // emitted verbatim by the reused payment widget) into the nested OR
+    // response that mirrors what the legacy radio UI submits, and routes
+    // it through WaitingFor.onsave. Same shape as submitStandardProjectPayment.
+    submitPlayCard(response: SelectProjectCardToPlayResponse): void {
+      const action = this.findPlayProjectCardAction(this.playerView.waitingFor);
+      if (!action || action.path.length === 0) {
+        console.warn('Play card: action not found in waitingFor tree');
+        return;
+      }
+      let out: unknown = response;
+      for (let i = action.path.length - 1; i >= 0; i--) {
+        out = {type: 'or' as const, index: action.path[i], response: out};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      wfRef?.onsave?.(out);
     },
     getFleetsCountRange(player: PublicPlayerModel): Array<number> {
       const fleetsRange = [];
