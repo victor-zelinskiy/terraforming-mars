@@ -157,7 +157,7 @@
       <template v-else-if="title === CardName.CHEUNG_SHING_MARS">
         <div class="card-cheung-shing-logo">
           <span
-            style="color:red;border:4px solid red;border-radius:50%;padding:3px 5px 3px 5px;font-size:30px;line-height:14px;box-shadow: 3px 3px 3px grey, inset 0 0 3px 3px grey;text-shadow: 3px 3px 3px grey;">㨐</span>
+            style="color:red;border:4px solid red;border-radius:50%;padding:3px 5px 3px 5px;font-size:30px;line-height:14px;box-shadow: 1px 1px 3px rgba(0,0,0,0.3), inset 0 0 3px 3px rgba(0,0,0,0.2);text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">㨐</span>
         </div>
         <div
           style="display: inline-block; width:140px; font-size:19px; line-height: 22px; vertical-align: middle; margin-bottom: 15px;font-weight:normal;">
@@ -352,7 +352,7 @@
       <template v-else-if="title === CardName.INTERPLANETARY_CINEMATICS">
         <div style="color: #020202;font-size:17px;margin-top:10px;margin-left:-87px;">INTERPLANETARY</div>
         <div
-          style="height:5px;margin-top:-2px;width:143px;background:linear-gradient(to right,yellow,black,yellow,black,yellow);border:5px solid #cc3333;box-shadow:3px 3px 6px grey;">
+          style="height:5px;margin-top:-2px;width:143px;background:linear-gradient(to right,yellow,black,yellow,black,yellow);border:5px solid #cc3333;box-shadow:1px 1px 3px rgba(0,0,0,0.3);">
         </div>
         <div
           style="color: #020202;font-size:24px;margin-left:-89px;margin-top:-5px; display:inline-block; -webkit-transform:scale(0.5,1); -moz-transform:scale(0.5,1); -ms-transform:scale(0.5,1); -o-transform:scale(0.5,1); transform:scale(1,0.5); margin-bottom:15px;">
@@ -361,7 +361,7 @@
       <template v-else-if="title === CardName.INVENTRIX">
         <span class="card-inventrix-logo">
           <span
-            style="color: #020202;background-color:#6bb5c7;padding-left:4px;padding-right:4px;font-size:26px;box-shadow: 6px 6px 10px grey;">X</span>
+            style="color: #020202;background-color:#6bb5c7;padding-left:4px;padding-right:4px;font-size:26px;box-shadow: 1px 1px 3px rgba(0,0,0,0.35);">X</span>
           INVENTRIX</span>
       </template>
       <template v-else-if="title === CardName.KEPLERTEC">

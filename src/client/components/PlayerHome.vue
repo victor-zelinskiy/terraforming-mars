@@ -117,8 +117,9 @@
           <BarButtonIcon name="actions" /><span class="bar-btn__label" v-i18n>Actions</span>
           <span class="bar-btn__value">{{ availableActionsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="availableActionsCount" metricKey="bar.actions" :scopeKey="displayedPlayer.color" variant="misc" /></span>
         </div>
-        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" v-on:click="toggleOverlay('played')">
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" v-on:click="toggleOverlay('played')">
           <BarButtonIcon name="played" /><span class="bar-btn__label" v-i18n>Played</span>
+          <span class="bar-btn__value">{{ displayedPlayedCardsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedPlayedCardsCount" metricKey="bar.played" :scopeKey="displayedPlayer.color" variant="misc" /></span>
         </div>
         <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'victoryPoints'}" v-on:click="toggleOverlay('victoryPoints')">
           <BarButtonIcon name="victory-points" /><span class="bar-btn__label" v-i18n>Victory Points</span>
@@ -251,13 +252,19 @@
       `journalState`, also remount-proof) and the board-slide class.
     -->
 
-    <div v-if="activeOverlay === 'victoryPoints'" class="bar-overlay bar-overlay--victory-points">
-      <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
-      <VictoryPointsOverlay
-        :displayedPlayer="displayedPlayer"
-        :game="game"
-        :thisPlayerColor="thisPlayer.color" />
-    </div>
+    <!--
+      Victory-points "score report" overlay (premium rework). Self-contained
+      glass frame + integrated close button (mirrors PlayedCardsOverlay /
+      JournalPanel), so it's mounted directly with @close rather than wrapped
+      in the legacy `.bar-overlay` chrome. Shows the CURRENTLY-VIEWED player's
+      breakdown (`displayedPlayer`); scoring + data are unchanged.
+    -->
+    <VictoryPointsOverlay
+      v-if="activeOverlay === 'victoryPoints'"
+      :displayedPlayer="displayedPlayer"
+      :game="game"
+      :thisPlayerColor="thisPlayer.color"
+      @close="activeOverlay = null" />
 
     <!--
       Played-cards board (premium rework). Replaces the legacy
@@ -534,6 +541,7 @@ import AwardFundedBadge from '@/client/components/overview/AwardFundedBadge.vue'
 import SelectSpace from '@/client/components/SelectSpace.vue';
 import StandardProjectsOverlay from '@/client/components/overview/StandardProjectsOverlay.vue';
 import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverlay.vue';
+import {totalPlayedCards} from '@/client/components/playedCards/playedCardGroups';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {placementLockState} from '@/client/components/placementLockState';
@@ -884,6 +892,13 @@ export default defineComponent({
         return this.cardsInHandCount;
       }
       return this.displayedPlayer.cardsInHandNbr ?? 0;
+    },
+    displayedPlayedCardsCount(): number {
+      // Mirror the РАЗЫГРАНО overlay's own totalCount so the badge never
+      // disagrees with the board it opens: count only cards the overlay
+      // actually groups (known types via the client manifest), not the raw
+      // tableau length.
+      return totalPlayedCards(this.displayedPlayer);
     },
     displayedVictoryPoints(): number | string {
       const hide = !this.game.gameOptions.showOtherPlayersVP &&
@@ -1347,6 +1362,7 @@ export default defineComponent({
       if (target.closest('.top-bar-dropdown') ||
           target.closest('.bar-overlay') ||
           target.closest('.played-board-overlay') ||
+          target.closest('.vp-board-overlay') ||
           target.closest('.legacy-ui-overlay') ||
           target.closest('.sidebar_cont') ||
           target.closest('.bottom-bar-btn') ||

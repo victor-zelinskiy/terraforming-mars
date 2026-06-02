@@ -1,0 +1,561 @@
+/*
+ * ─────────────────────────────────────────────────────────────────────
+ *  victory_points.less — premium "victory points score report" overlay
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ *  Replaces the legacy `.bar-overlay--victory-points` tile-grid + dashed
+ *  table with a self-contained glass / HUD score report, sharing the exact
+ *  visual language of the Journal (journal.less) and Played-cards
+ *  (played_cards.less) overlays: dark glass frame, hairline cyan rim,
+ *  L-corner ticks, sci-fi titles, calm transform/opacity motion.
+ *
+ *  Three reading levels (CLAUDE goal "premium endgame dashboard"):
+ *    1. hero      — the grand total (large, soft glow) + composition bar.
+ *    2. breakdown — one accent-coded row per VP source, values aligned.
+ *    3. sources   — card chips (reusing the journal card chip's hover
+ *                   preview + zoom) + milestone / award / track rows.
+ *
+ *  Scoring + data are UNCHANGED; this file is purely presentational.
+ *  Motion respects prefers-reduced-motion. See
+ *  `src/client/components/overview/VictoryPointsOverlay.vue`.
+ */
+
+@vp-cyan:        #6ab0e6;
+@vp-rim:         #2c4a6a;
+@vp-text:        #e8f1fb;
+@vp-text-dim:    #cdddf0;
+@vp-text-muted:  rgba(170, 195, 220, 0.72);
+@vp-panel-bg-1:  rgba(13, 20, 30, 0.95);
+@vp-panel-bg-2:  rgba(8, 13, 21, 0.97);
+@vp-chip-bg:     rgba(16, 25, 38, 0.78);
+@vp-chip-rim:    rgba(120, 160, 200, 0.28);
+
+// Per-category accent colours (echo the resource / tile colour families).
+@vp-acc-tr:         #6ab0e6; /* cyan   — terraform rating */
+@vp-acc-milestones: #ffcc64; /* gold   — milestones */
+@vp-acc-awards:     #f0a850; /* amber  — awards */
+@vp-acc-greenery:   #6fc46f; /* green  — greenery */
+@vp-acc-city:       #d8b074; /* tan    — cities */
+@vp-acc-cards:      #6172d6; /* royal blue — cards (kept clearly distinct from the cyan TR accent) */
+@vp-acc-moon:       #b9c4d0; /* silver — Moon */
+@vp-acc-tracks:     #c5a8e0; /* purple — planetary tracks */
+@vp-acc-penalty:    #d96a6a; /* red    — escape velocity / penalty */
+
+/* ── Overlay frame (mirrors .played-board-overlay) ────────────────── */
+
+.vp-board-overlay {
+    position: fixed;
+    top: calc(var(--bottom-bar-button-height) + 6px);
+    bottom: calc(var(--bottom-bar-button-height) + 6px);
+    left: var(--left-panel-width);
+    right: var(--right-sidebar-width);
+    z-index: 110;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+
+    background: linear-gradient(180deg, @vp-panel-bg-1 0%, @vp-panel-bg-2 100%);
+    border: 1px solid @vp-rim;
+    border-radius: 7px;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.07),
+        0 20px 52px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    animation: vp-board-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.vp-board-overlay__corner {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+    z-index: 3;
+}
+.vp-board-overlay__corner--tl { top: -1px; left: -1px; border-top: 1px solid @vp-cyan; border-left: 1px solid @vp-cyan; }
+.vp-board-overlay__corner--tr { top: -1px; right: -1px; border-top: 1px solid @vp-cyan; border-right: 1px solid @vp-cyan; }
+.vp-board-overlay__corner--bl { bottom: -1px; left: -1px; border-bottom: 1px solid @vp-cyan; border-left: 1px solid @vp-cyan; }
+.vp-board-overlay__corner--br { bottom: -1px; right: -1px; border-bottom: 1px solid @vp-cyan; border-right: 1px solid @vp-cyan; }
+
+/* ── Header / player context ──────────────────────────────────────── */
+
+.vp-board__header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px 11px 16px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.14);
+    background: linear-gradient(180deg, rgba(20, 32, 48, 0.55), rgba(12, 20, 32, 0.18));
+}
+
+.vp-board__context {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+    margin-right: auto;
+}
+
+.vp-board__glyph {
+    width: 7px;
+    height: 17px;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, @vp-cyan, rgba(106, 176, 230, 0.25));
+    box-shadow: 0 0 7px rgba(106, 176, 230, 0.45);
+    clip-path: polygon(0 0, 100% 12%, 100% 88%, 0 100%);
+}
+
+.vp-board__title {
+    margin: 0;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 15px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: @vp-text;
+    white-space: nowrap;
+    text-shadow: 0 0 10px rgba(106, 176, 230, 0.3);
+}
+
+/* "ПРОСМОТР" tag — only shown when viewing another player's report. */
+.vp-board__viewing {
+    flex-shrink: 0;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: @vp-text-muted;
+    border: 1px solid rgba(106, 176, 230, 0.25);
+    border-radius: 999px;
+    padding: 2px 9px;
+    white-space: nowrap;
+}
+
+/* Player chip — colour-coded so it's obvious whose report this is. */
+.vp-board__player {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px 2px 7px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 12.5px;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    white-space: nowrap;
+}
+.vp-board__player-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.vp-board__close {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: @vp-text-muted;
+    font-size: 15px;
+    cursor: pointer;
+    transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+
+    &:hover {
+        color: @vp-text;
+        border-color: rgba(106, 176, 230, 0.32);
+        background: rgba(106, 176, 230, 0.14);
+    }
+}
+
+/* ── Body (scroll only as a last resort) ──────────────────────────── */
+
+.vp-board__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 18px 22px 22px;
+
+    /* Modern thin custom scrollbar — Firefox + WebKit. */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.38) transparent;
+
+    &::-webkit-scrollbar { width: 9px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+        background: rgba(106, 176, 230, 0.26);
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+    }
+    &:hover::-webkit-scrollbar-thumb { background: rgba(106, 176, 230, 0.46); background-clip: padding-box; }
+}
+
+/* ── Hidden state ─────────────────────────────────────────────────── */
+
+.vp-hidden {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 18px;
+    padding: 40px;
+    text-align: center;
+}
+.vp-hidden__icon {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 72px;
+    line-height: 1;
+    color: @vp-cyan;
+    text-shadow: 0 0 18px rgba(106, 176, 230, 0.55);
+}
+.vp-hidden__text {
+    max-width: 460px;
+    font-size: 14px;
+    color: @vp-text-muted;
+    line-height: 1.55;
+}
+
+/* ── Dashboard layout ─────────────────────────────────────────────── */
+
+.vp-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 100%;
+}
+
+/* ── Hero band ────────────────────────────────────────────────────── */
+
+.vp-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px 24px;
+    border-radius: 9px;
+    background:
+        radial-gradient(120% 160% at 0% 0%, rgba(106, 176, 230, 0.12), transparent 60%),
+        linear-gradient(135deg, rgba(20, 32, 48, 0.6), rgba(10, 16, 26, 0.35));
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.1);
+    overflow: hidden;
+}
+
+.vp-hero__figure {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+/* Label forced to its own line above the figure. */
+.vp-hero__label {
+    order: -1;
+    width: 100%;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: @vp-text-muted;
+}
+.vp-hero__value {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 56px;
+    font-weight: 700;
+    line-height: 0.95;
+    color: #eaf4ff;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 22px rgba(106, 176, 230, 0.45), 0 0 5px rgba(106, 176, 230, 0.4);
+
+    &--negative {
+        color: #ff9a8a;
+        text-shadow: 0 0 22px rgba(255, 90, 70, 0.4);
+    }
+}
+.vp-hero__unit {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 15px;
+    letter-spacing: 2px;
+    color: @vp-cyan;
+    align-self: flex-end;
+    margin-bottom: 9px;
+}
+
+.vp-hero__composition { width: 100%; }
+.vp-hero__bar {
+    display: flex;
+    gap: 2px;
+    width: 100%;
+    height: 9px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.12);
+}
+.vp-hero__seg {
+    flex-basis: 0;
+    flex-shrink: 1;
+    min-width: 3px;
+    /* flex-grow set inline ∝ the category value. */
+}
+
+/* ── Columns: breakdown (left) + sources (right) ──────────────────── */
+
+.vp-columns {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.25fr);
+    gap: 16px;
+    align-items: start;
+
+    /* Single column when there are no detail sources to show. */
+    &--solo {
+        grid-template-columns: minmax(280px, 560px);
+        justify-content: center;
+    }
+}
+
+/* Stack on narrow viewports (the overlay shrinks with the board area). */
+@media (max-width: 1000px) {
+    .vp-columns { grid-template-columns: 1fr; }
+}
+
+.vp-section-title {
+    margin: 0 0 9px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: @vp-text-muted;
+    padding-bottom: 7px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.16);
+}
+
+/* ── Breakdown (category rows) ────────────────────────────────────── */
+
+.vp-breakdown {
+    padding: 12px 14px 14px;
+    border-radius: 8px;
+    background: rgba(16, 25, 38, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+}
+.vp-breakdown__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.vp-cat {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: 11px;
+    padding: 7px 11px 7px 9px;
+    border-radius: 6px;
+    box-shadow: inset 3px 0 0 rgba(106, 176, 230, 0.35);
+    background: rgba(255, 255, 255, 0.012);
+    transition: background 130ms ease;
+    animation: vp-row-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+    &:hover { background: rgba(106, 176, 230, 0.06); }
+
+    /* Zero-value rows recede so the meaningful sources read first. */
+    &--zero {
+        opacity: 0.42;
+        box-shadow: inset 3px 0 0 rgba(120, 150, 180, 0.22);
+    }
+}
+
+.vp-cat__icon {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    background-size: 21px;
+    background-repeat: no-repeat;
+    background-position: center;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: @vp-text;
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.18);
+}
+/* Image-backed icons reuse the existing tile / resource art. */
+.vp-icon-tr     { background-image: url(./assets/resources/tr.png); }
+.vp-icon-forest { background-image: url(./assets/tiles/greenery_no_O2.png); }
+.vp-icon-city   { background-image: url(./assets/tiles/city.png); }
+.vp-icon-cards  { background-image: url(./assets/resources/card.png); }
+.vp-icon-moon   { background-image: url(./assets/tags/moon.png); }
+
+.vp-cat__name {
+    min-width: 0;
+    font-size: 13px;
+    color: @vp-text-dim;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vp-cat__value {
+    min-width: 46px;
+    text-align: right;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    color: #d7e8f5;
+}
+
+/* ── Sources (cards + milestones / awards / tracks) ───────────────── */
+
+.vp-sources {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.vp-source {
+    padding: 12px 14px 14px;
+    border-radius: 8px;
+    background: rgba(16, 25, 38, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+}
+.vp-source__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vp-source-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    animation: vp-row-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+    &--hoverable {
+        cursor: help;
+        transition: background 120ms ease;
+        &:hover { background: rgba(106, 176, 230, 0.07); }
+    }
+}
+.vp-source-row__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+.vp-source-row__vp {
+    flex-shrink: 0;
+    min-width: 44px;
+    text-align: right;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    color: #d7e8f5;
+}
+
+/* Non-card / milestone / award / track source chip (mirrors the journal
+   card chip's pill look so the whole sources list reads as one family). */
+.vp-source-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 2px 9px;
+    border-radius: 4px;
+    background: @vp-chip-bg;
+    border: 1px solid @vp-chip-rim;
+    color: @vp-text;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+.vp-source-chip__dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: @vp-cyan;
+    box-shadow: 0 0 5px rgba(106, 176, 230, 0.5);
+}
+.vp-source-chip__label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.vp-source-chip--milestone .vp-source-chip__dot { background: @vp-acc-milestones; box-shadow: 0 0 5px fade(@vp-acc-milestones, 55%); }
+.vp-source-chip--award     .vp-source-chip__dot { background: @vp-acc-awards;     box-shadow: 0 0 5px fade(@vp-acc-awards, 55%); }
+.vp-source-chip--track     .vp-source-chip__dot { background: @vp-acc-tracks;     box-shadow: 0 0 5px fade(@vp-acc-tracks, 55%); }
+.vp-source-chip--system    .vp-source-chip__dot { background: @vp-acc-cards;      box-shadow: 0 0 5px fade(@vp-acc-cards, 55%); }
+
+/* ── Sign-aware value colours (calm — positives glow soft cyan/white) ── */
+
+.vp-value--positive { color: #d7e8f5; }
+.vp-cat__value.vp-value--positive,
+.vp-source-row__vp.vp-value--positive { text-shadow: 0 0 9px rgba(106, 176, 230, 0.28); }
+.vp-value--negative { color: #ff8a7a; text-shadow: 0 0 8px rgba(255, 100, 80, 0.32); }
+.vp-value--zero { color: rgba(170, 195, 220, 0.45); text-shadow: none; }
+
+/* ── Per-category accent (icon ring/glyph + left bar + composition seg) ── */
+
+.vp-accent(@key, @color) {
+    .vp-hero__seg.vp-accent--@{key} {
+        background: linear-gradient(180deg, @color, fade(@color, 50%));
+        box-shadow: 0 0 6px fade(@color, 45%);
+    }
+    .vp-cat.vp-accent--@{key}:not(.vp-cat--zero) {
+        box-shadow: inset 3px 0 0 fade(@color, 72%);
+        .vp-cat__icon { color: @color; box-shadow: inset 0 0 0 1px fade(@color, 42%); }
+    }
+}
+.vp-accent(tr, @vp-acc-tr);
+.vp-accent(milestones, @vp-acc-milestones);
+.vp-accent(awards, @vp-acc-awards);
+.vp-accent(greenery, @vp-acc-greenery);
+.vp-accent(city, @vp-acc-city);
+.vp-accent(cards, @vp-acc-cards);
+.vp-accent(moon, @vp-acc-moon);
+.vp-accent(tracks, @vp-acc-tracks);
+.vp-accent(penalty, @vp-acc-penalty);
+
+/* Penalty categories: glyph chip gets a red tint instead of an image. */
+.vp-icon-ma,
+.vp-icon-track,
+.vp-icon-ev,
+.vp-icon-penalty {
+    background-color: rgba(255, 255, 255, 0.035);
+}
+
+/* ── Motion ───────────────────────────────────────────────────────── */
+
+@keyframes vp-board-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes vp-row-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vp-board-overlay { animation: none; }
+    .vp-cat,
+    .vp-source-row { animation: none; }
+    .vp-board__close { transition: none; }
+}
