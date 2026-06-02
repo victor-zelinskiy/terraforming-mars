@@ -1,0 +1,681 @@
+/*
+ * ─────────────────────────────────────────────────────────────────────
+ *  played_cards.less — premium "played cards board" overlay
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ *  Replaces the legacy `bar-overlay--played` flat list with a sci-fi /
+ *  glass project-board: a glass-HUD frame, premium filter chips, grouped
+ *  card sections, and an adaptive layout engine (expanded full cards →
+ *  compact grid → vertical stacks). See `src/client/components/playedCards/`.
+ *
+ *  Card scaling is driven entirely by the mode class on the body
+ *  (`played-mode--*`) + the per-group accent class, via the legacy-safe
+ *  `zoom` on `.card-container` (the same approach the initial-draft summary
+ *  uses). Motion is transform/opacity only + prefers-reduced-motion aware.
+ */
+
+@pc-cyan:        #6ab0e6;
+@pc-rim:         #2c4a6a;
+@pc-text:        #e8f1fb;
+@pc-text-muted:  rgba(170, 195, 220, 0.72);
+
+// Per-group accent colours (mirror the card-type colour families).
+@pc-corporation: #f0c878; /* pale gold — Корпорация */
+@pc-prelude:     #e58ac4;
+@pc-ceo:         #d4884a; /* warm amber — Директор, stays in the gold family but clearly distinct */
+@pc-active:      #5aa8e6;
+@pc-automated:   #6fc46f;
+@pc-event:       #e8853f;
+
+/* ── Overlay frame ────────────────────────────────────────────────── */
+
+.played-board-overlay {
+    position: fixed;
+    top: calc(var(--bottom-bar-button-height) + 6px);
+    bottom: calc(var(--bottom-bar-button-height) + 6px);
+    left: var(--left-panel-width);
+    right: var(--right-sidebar-width);
+    z-index: 110;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+
+    background: linear-gradient(180deg, rgba(13, 20, 30, 0.95) 0%, rgba(8, 13, 21, 0.97) 100%);
+    border: 1px solid @pc-rim;
+    border-radius: 7px;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.07),
+        0 20px 52px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    animation: played-board-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.played-board-overlay__corner {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+    z-index: 3;
+}
+.played-board-overlay__corner--tl { top: -1px; left: -1px; border-top: 1px solid @pc-cyan; border-left: 1px solid @pc-cyan; }
+.played-board-overlay__corner--tr { top: -1px; right: -1px; border-top: 1px solid @pc-cyan; border-right: 1px solid @pc-cyan; }
+.played-board-overlay__corner--bl { bottom: -1px; left: -1px; border-bottom: 1px solid @pc-cyan; border-left: 1px solid @pc-cyan; }
+.played-board-overlay__corner--br { bottom: -1px; right: -1px; border-bottom: 1px solid @pc-cyan; border-right: 1px solid @pc-cyan; }
+
+/* ── Header / player context ──────────────────────────────────────── */
+
+.played-board__header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px 11px 16px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.14);
+    background: linear-gradient(180deg, rgba(20, 32, 48, 0.55), rgba(12, 20, 32, 0.18));
+}
+
+.played-board__context {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+    /* Pushes the view-toggle + close to the right edge (works whether or
+       not the toggle is present). */
+    margin-right: auto;
+}
+
+.played-board__glyph {
+    width: 7px;
+    height: 17px;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, @pc-cyan, rgba(106, 176, 230, 0.25));
+    box-shadow: 0 0 7px rgba(106, 176, 230, 0.45);
+    clip-path: polygon(0 0, 100% 12%, 100% 88%, 0 100%);
+}
+
+.played-board__title {
+    margin: 0;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 15px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: @pc-text;
+    white-space: nowrap;
+    text-shadow: 0 0 10px rgba(106, 176, 230, 0.3);
+}
+
+/* Player chip — colour-coded so it's obvious whose board this is. */
+.played-board__player {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px 2px 7px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 12.5px;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    white-space: nowrap;
+}
+.played-board__player-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.played-board__total {
+    font-family: Prototype, Orbitron, monospace;
+    font-size: 12px;
+    color: @pc-cyan;
+    border: 1px solid rgba(106, 176, 230, 0.3);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-variant-numeric: tabular-nums;
+}
+
+.played-board__close {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: @pc-text-muted;
+    font-size: 15px;
+    cursor: pointer;
+    transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+
+    &:hover {
+        color: @pc-text;
+        border-color: rgba(106, 176, 230, 0.32);
+        background: rgba(106, 176, 230, 0.14);
+    }
+}
+
+/* ── View-mode segmented control (Cards / Table) ──────────────────── */
+
+.played-board__viewtoggle {
+    flex-shrink: 0;
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid @pc-rim;
+    border-radius: 6px;
+    background: rgba(8, 13, 21, 0.6);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.05);
+}
+
+.played-board__viewbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: @pc-text-muted;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+
+    svg { fill: currentColor; opacity: 0.9; }
+
+    &:hover { color: @pc-text; }
+
+    &--active {
+        color: @pc-text;
+        background: linear-gradient(180deg, rgba(106, 176, 230, 0.22), rgba(106, 176, 230, 0.08));
+        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.35), 0 0 8px rgba(106, 176, 230, 0.18);
+    }
+}
+
+/* ── Filter chips ─────────────────────────────────────────────────── */
+
+.played-filters {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 9px 14px 10px 16px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.1);
+}
+
+.played-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 9px 4px 8px;
+    border: 1px solid rgba(120, 160, 200, 0.28);
+    border-radius: 999px;
+    background: rgba(16, 25, 38, 0.7);
+    color: @pc-text;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11.5px;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    transition: border-color 150ms ease, background 150ms ease, opacity 150ms ease, transform 120ms ease;
+
+    &:hover { transform: translateY(-1px); }
+
+    &__dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 3px;
+        flex-shrink: 0;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+    }
+    &__label { white-space: nowrap; }
+    &__count {
+        font-variant-numeric: tabular-nums;
+        font-size: 10.5px;
+        color: @pc-text-muted;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 999px;
+        padding: 0 6px;
+        min-width: 18px;
+        text-align: center;
+    }
+
+    /* OFF state — dimmed, hollow. */
+    &--off {
+        opacity: 0.4;
+        background: rgba(16, 25, 38, 0.4);
+        .played-filter-chip__dot { filter: saturate(0.2) brightness(0.7); }
+    }
+}
+
+// Per-accent chip dot + active rim.
+.played-accent(@key, @color) {
+    .played-filter-chip--@{key} {
+        .played-filter-chip__dot { background: @color; box-shadow: 0 0 5px fade(@color, 55%), 0 0 0 1px rgba(0, 0, 0, 0.4); }
+        &:not(.played-filter-chip--off) {
+            border-color: fade(@color, 55%);
+            background: linear-gradient(180deg, fade(@color, 16%), rgba(16, 25, 38, 0.7));
+        }
+    }
+    .played-group--@{key} .played-group__accent { background: linear-gradient(180deg, @color, fade(@color, 30%)); box-shadow: 0 0 8px fade(@color, 45%); }
+    .played-group--@{key} .played-group__count { color: @color; }
+    // Table view: row left-accent + type chip.
+    .played-table__row--@{key} { box-shadow: inset 3px 0 0 fade(@color, 75%); }
+    .played-table__type-chip--@{key} { color: @color; }
+    .played-table__type-chip--@{key} .played-table__type-dot { background: @color; box-shadow: 0 0 5px fade(@color, 55%); }
+}
+.played-accent(corporation, @pc-corporation);
+.played-accent(prelude, @pc-prelude);
+.played-accent(ceo, @pc-ceo);
+.played-accent(active, @pc-active);
+.played-accent(automated, @pc-automated);
+.played-accent(event, @pc-event);
+
+/* ── Scroll body ──────────────────────────────────────────────────── */
+
+.played-board__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 14px 22px 22px;
+
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.38) transparent;
+
+    &::-webkit-scrollbar { width: 9px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+        background: rgba(106, 176, 230, 0.26);
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+    }
+    &:hover::-webkit-scrollbar-thumb { background: rgba(106, 176, 230, 0.46); background-clip: padding-box; }
+}
+
+/* Table view hands its own scroll/padding to the table; the body just
+   frames it. */
+.played-board__body--table {
+    overflow: hidden;
+    padding: 0;
+}
+
+/* ── Table view ───────────────────────────────────────────────────── */
+
+.played-table {
+    /* Shared column template — header + every row use it so columns align.
+       order · type · NAME (flex) · tags · cost · VP · resources. */
+    --pt-cols: 46px 140px minmax(150px, 1fr) minmax(70px, auto) 80px 58px 104px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.played-table__head {
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: var(--pt-cols);
+    align-items: stretch;
+    padding: 0 22px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+    background: linear-gradient(180deg, rgba(20, 32, 48, 0.5), rgba(12, 20, 32, 0.15));
+}
+
+.played-table__th {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 9px 8px;
+    border: none;
+    background: transparent;
+    color: @pc-text-muted;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: left;
+    white-space: nowrap;
+
+    &--sortable {
+        cursor: pointer;
+        transition: color 140ms ease;
+        &:hover { color: @pc-text; }
+    }
+    &--active { color: @pc-cyan; }
+}
+.played-table__sort-ind { font-size: 8px; }
+
+.played-table__scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px 22px 16px;
+
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.38) transparent;
+    &::-webkit-scrollbar { width: 9px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+        background: rgba(106, 176, 230, 0.26);
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+    }
+    &:hover::-webkit-scrollbar-thumb { background: rgba(106, 176, 230, 0.46); background-clip: padding-box; }
+}
+
+.played-table__row {
+    display: grid;
+    grid-template-columns: var(--pt-cols);
+    align-items: center;
+    margin-top: 4px;
+    border-radius: 5px;
+    background: rgba(16, 25, 38, 0.5);
+    border: 1px solid rgba(120, 160, 200, 0.12);
+    cursor: pointer;
+    outline: none;
+    /* Cheap hover only — no per-row blur/filter (perf at 100 rows). */
+    transition: background 130ms ease, border-color 130ms ease;
+
+    &:hover,
+    &:focus-visible {
+        background: rgba(24, 38, 58, 0.8);
+        border-color: rgba(106, 176, 230, 0.4);
+    }
+}
+
+.played-table__cell {
+    padding: 8px;
+    font-size: 12.5px;
+    color: @pc-text;
+    min-width: 0;
+    overflow: hidden;
+}
+.played-table__cell--order {
+    font-family: Prototype, Orbitron, monospace;
+    font-size: 11px;
+    color: @pc-text-muted;
+    font-variant-numeric: tabular-nums;
+}
+.played-table__cell--name { font-weight: 600; }
+.played-table__cell--cost,
+.played-table__cell--vp { font-variant-numeric: tabular-nums; }
+
+.played-table__name {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-bottom: 1px dotted transparent;
+    transition: border-color 140ms ease, color 140ms ease;
+
+    .played-table__cell--name:hover & {
+        color: @pc-cyan;
+        border-bottom-color: rgba(106, 176, 230, 0.5);
+    }
+}
+
+.played-table__type-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.played-table__type-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.played-table__cell--tags {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-wrap: wrap;
+}
+.played-table__tag {
+    width: 17px;
+    height: 17px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    flex-shrink: 0;
+}
+
+.played-table__mc {
+    width: 15px;
+    height: 15px;
+    background-size: contain;
+    margin-left: 3px;
+    vertical-align: -3px;
+}
+.played-table__vp {
+    color: @pc-corporation;
+    font-weight: 700;
+}
+.played-table__cell--res {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.played-table__res-count { font-variant-numeric: tabular-nums; }
+.played-table__cell--res .card-resource {
+    width: 18px;
+    height: 18px;
+    position: static;
+}
+
+.played-table__dash { color: rgba(150, 170, 195, 0.4); }
+
+/*
+ * Group packing.
+ *
+ * DEFAULT (grid) layout = CSS multi-column "masonry": group blocks
+ * (`break-inside: avoid`) flow into as many columns as the width allows,
+ * so SMALL groups (corporation 1, preludes 2-3, a lone event…) sit side
+ * by side and fill the horizontal space instead of each eating a full
+ * row. Column width scales with the card zoom so it always fits ~2 cards.
+ * The height-fit engine still scales cards so the tallest column fits.
+ *
+ * STACKED layout (very dense, set via `--stacked`) switches to full-width
+ * groups in a vertical flex column, each rendering peek-stacks — there the
+ * cards already fill the width, so multicolumn isn't needed.
+ */
+.played-board__groups {
+    position: relative;
+    /* Column COUNT tracks the number of visible groups (capped by what
+       fits the width via column-width), so the groups spread evenly
+       across the full width instead of leaving empty columns on the right
+       of a wide board. column-width is the narrow-screen fallback. */
+    column-count: var(--played-visible-groups, 3);
+    column-width: calc(300px * var(--played-card-zoom, 0.6) * 2 + 40px);
+    column-gap: 24px;
+}
+
+.played-board__body--stacked .played-board__groups {
+    column-width: auto;
+    column-count: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Group ────────────────────────────────────────────────────────── */
+
+.played-group {
+    break-inside: avoid;
+    margin-bottom: 20px;
+
+    &__header {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 9px;
+    }
+    &__accent {
+        width: 5px;
+        height: 15px;
+        flex-shrink: 0;
+        border-radius: 2px;
+    }
+    &__label {
+        font-family: Prototype, Orbitron, sans-serif;
+        font-size: 12px;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        color: @pc-text;
+    }
+    &__count {
+        font-family: Prototype, Orbitron, monospace;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+    }
+    &__rule {
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(106, 176, 230, 0.22), transparent);
+    }
+
+    &__grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    &__stacks {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 16px;
+    }
+}
+
+/* ── Card item ────────────────────────────────────────────────────── */
+
+.played-card-item {
+    cursor: pointer;
+    outline: none;
+    /* Neutralise the legacy asymmetric card margin so the scaled card
+       hugs its slot (see CLAUDE "Centering UI under a <Card>"). */
+    > .card-container { margin: 0; }
+}
+
+/* Card scale — driven by the height-fit engine via `--played-card-zoom`
+   on the body (`zoom` scales layout + hitbox). Project groups use the raw
+   value; identity cards get a fixed bump (corporation largest — it IS the
+   player's identity). Fallback = MAX so the first paint is the roomy
+   state before the engine measures. */
+.played-group:not(.played-group--identity) .played-card-item > .card-container {
+    zoom: var(--played-card-zoom, 0.6);
+}
+.played-group--corporation .played-card-item > .card-container {
+    zoom: calc(var(--played-card-zoom, 0.6) + 0.12);
+}
+.played-group--prelude .played-card-item > .card-container,
+.played-group--ceo .played-card-item > .card-container {
+    zoom: calc(var(--played-card-zoom, 0.6) + 0.05);
+}
+
+/* Grid hover lift — cheap transform/filter. Stacks use their own slot
+   reveal (below), so the dense 100-card case carries no per-card hover
+   shadows. */
+.played-group__grid .played-card-item {
+    transition: transform 150ms ease, filter 150ms ease;
+
+    &:hover {
+        transform: translateY(-5px);
+        filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+        z-index: 2;
+    }
+}
+
+/* ── Vertical stacks (dense mode) ─────────────────────────────────── */
+
+.played-stack {
+    --played-stack-peek: 64px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.played-stack__slot {
+    position: relative;
+    transition: z-index 0s;
+
+    /* Peeked cards: clip to the top strip (name / tags / cost stay
+       readable). The last card in a column shows in full. */
+    &:not(.played-stack__slot--last) {
+        height: var(--played-stack-peek);
+        overflow: hidden;
+    }
+
+    /* Hover reveals the full card over its neighbours. */
+    &:hover {
+        overflow: visible;
+        z-index: 20;
+    }
+    &:hover .played-card-item {
+        filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.6));
+    }
+}
+
+/* ── Empty state ──────────────────────────────────────────────────── */
+
+.played-empty {
+    height: 100%;
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: @pc-text-muted;
+    font-size: 13px;
+    letter-spacing: 0.4px;
+
+    &__glyph {
+        font-size: 30px;
+        color: rgba(106, 176, 230, 0.4);
+    }
+}
+
+/* ── Animations ───────────────────────────────────────────────────── */
+
+@keyframes played-board-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Group enter/leave on filter toggle (≤6 groups → cheap). */
+.played-group-fade-enter-active { transition: opacity 240ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1); }
+/* In-flow leave (multicolumn-safe — `position: absolute` would jump the
+   fading group to the container corner). The fading group keeps its slot
+   for the fade; the overlay re-fits via `@after-leave` once it's gone. */
+.played-group-fade-leave-active { transition: opacity 180ms ease, transform 180ms ease; }
+.played-group-fade-enter-from { opacity: 0; transform: translateY(10px); }
+.played-group-fade-leave-to { opacity: 0; transform: translateY(-6px); }
+.played-group-fade-move { transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+    .played-board-overlay { animation: none; }
+    .played-card-item,
+    .played-filter-chip,
+    .played-board__close { transition: none; }
+    .played-group-fade-enter-active,
+    .played-group-fade-leave-active,
+    .played-group-fade-move { transition: opacity 120ms ease; }
+    .played-group-fade-enter-from,
+    .played-group-fade-leave-to { transform: none; }
+}
