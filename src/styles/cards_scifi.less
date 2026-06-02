@@ -850,6 +850,17 @@
         color: @scifi-text;
         letter-spacing: 0.5px;
     }
+    /*
+     * Corporations have NO requirements plate, and their body starts
+     * right under the logo title — so the inner top shadow above lands
+     * directly beneath the corp logo and reads as a dark horizontal
+     * line crossing / sitting under the name. The logo title bar
+     * already separates header from body, so the inset is both
+     * redundant and visually wrong here. Suppress it for corp cards.
+     */
+    .card-content.card-content-corporation {
+        box-shadow: none;
+    }
 }
 
 /*
