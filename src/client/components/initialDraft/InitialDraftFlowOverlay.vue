@@ -28,13 +28,15 @@
     к проектному модалу.
   -->
   <MandatoryInputModal v-if="activeStep === 'corp' && corpInput !== undefined"
-                       :title="corpInput.title">
+                       :title="corpInput.title"
+                       :dealContent="!dealtSteps.includes('corp')">
     <InitialDraftCorpStep :playerinput="corpInput"
                           :preSelected="committedCorp"
                           @confirm="onCorpConfirm" />
   </MandatoryInputModal>
   <MandatoryInputModal v-else-if="activeStep === 'prelude' && preludeInput !== undefined"
-                       :title="preludeInput.title">
+                       :title="preludeInput.title"
+                       :dealContent="!dealtSteps.includes('prelude')">
     <InitialDraftPreludeStep :playerinput="preludeInput"
                              :corpName="committedCorp"
                              :preSelected="workingPreludes"
@@ -42,13 +44,15 @@
                              @confirm="onPreludeConfirm" />
   </MandatoryInputModal>
   <MandatoryInputModal v-else-if="activeStep === 'ceo' && ceoInput !== undefined"
-                       :title="ceoInput.title">
+                       :title="ceoInput.title"
+                       :dealContent="!dealtSteps.includes('ceo')">
     <InitialDraftCeoStep :playerinput="ceoInput"
                          :preSelected="committedCeo"
                          @confirm="onCeoConfirm" />
   </MandatoryInputModal>
   <MandatoryInputModal v-else-if="activeStep === 'projects' && projectsInput !== undefined && !skipConfirmOpen"
-                       :title="projectsInput.title">
+                       :title="projectsInput.title"
+                       :dealContent="!dealtSteps.includes('projects')">
     <InitialDraftProjectsStep :playerinput="projectsInput"
                               :corpName="committedCorp"
                               :selectedPreludes="committedPreludes"
@@ -156,6 +160,13 @@ type DataModel = {
   // а pill'a нет». Watcher на activeStep ставит флаг автоматически.
   visitedPrelude: boolean;
   visitedProjects: boolean;
+  // Steps whose cards have already been "dealt" once this session. A step
+  // deals on its FIRST appearance; returning to it via the pill stack (or
+  // a skip-cancel remount) must NOT re-deal — the cards are already there.
+  // Each step's modal freezes `dealContent` at mount, so we can mark the
+  // current step here (via $nextTick, after it mounts + deals) without
+  // cutting the deal that just started.
+  dealtSteps: Array<Step>;
   // In-flight selection шагов prelude / projects. Раньше жила локально
   // в Step-компоненте и терялась при unmount (когда игрок переключался
   // через pill). Теперь хранится в overlay и передаётся обратно как
@@ -236,6 +247,7 @@ export default defineComponent({
       activeStepOverride: undefined,
       visitedPrelude: false,
       visitedProjects: false,
+      dealtSteps: [],
       workingPreludes: [],
       workingProjects: [],
       finalSummaryVisited: false,
@@ -494,6 +506,16 @@ export default defineComponent({
         if (step === 'projects') {
           this.visitedProjects = true;
         }
+        // Mark this step "dealt" AFTER its modal has mounted (and frozen
+        // its dealContent) so the FIRST appearance still deals, but any
+        // later return to it (pill stack / skip-cancel remount) doesn't.
+        // $nextTick runs post-render, so the just-mounted modal already
+        // captured dealContent=true for the first deal.
+        this.$nextTick(() => {
+          if (step !== 'done' && !this.dealtSteps.includes(step)) {
+            this.dealtSteps.push(step);
+          }
+        });
       },
     },
     /*
@@ -776,6 +798,7 @@ export default defineComponent({
       this.activeStepOverride = undefined;
       this.visitedPrelude = false;
       this.visitedProjects = false;
+      this.dealtSteps = [];
       this.workingPreludes = [];
       this.workingProjects = [];
       this.finalSummaryVisited = false;

@@ -336,6 +336,101 @@
     --csslot-connector-height: 14px;
 }
 
+/* ──────────────────────────────────────────────────────────────────
+ *  Deal-in entrance (v47) — cards are "dealt" onto the modal
+ * ──────────────────────────────────────────────────────────────────
+ *
+ *  Instead of popping in on a single frame, the cards drop + settle in
+ *  a short staggered cascade (a dealer laying cards onto the table).
+ *  Serves EVERY card-pick grid that reuses these classes — the between-
+ *  generation draft + research/buy (`CardSelectionContent`) and all four
+ *  initial-draft steps (corp / prelude / ceo / projects).
+ *
+ *  Replay model (no JS / template change): the `v-for` is keyed by
+ *  `card.name`. A fresh set of cards (new draft round, new generation,
+ *  research deal, initial-draft step mount) creates NEW DOM nodes, so the
+ *  `animation` runs again; toggling a selection never re-mounts a slot,
+ *  so picking a card does NOT re-trigger the deal. Pointer events stay
+ *  live throughout — the cards are clickable mid-animation, so draft
+ *  usability is unaffected (it's a purely visual entrance).
+ *
+ *  Stagger is nth-child based so no per-card index has to be threaded
+ *  through the templates. `both` fill-mode holds the off-screen start
+ *  state during each card's delay, so they wait then deal in one by one.
+ */
+/*
+ *  Gated on the hosting modal's entrance. Until `.mandatory-input-modal`
+ *  flips to `--entered` (its card-in animation finished — see
+ *  MandatoryInputModal.vue), the slots are held invisible. This does two
+ *  things at once:
+ *    1. "Deal only after the modal is fully loaded" — no deal while the
+ *       modal is still sliding in.
+ *    2. Smoother modal open — the cards don't paint / animate during the
+ *       modal entrance + their own heavy first mount, which was the source
+ *       of the first-frame stutter. The mount/layout still happens behind
+ *       opacity:0 (cheap), then the deal runs on a free main thread.
+ *  Subsequent draft rounds reuse the already-entered modal, so their cards
+ *  deal immediately. Every draft / research / initial-draft grid lives
+ *  inside this modal; a card-selection grid used elsewhere (none today)
+ *  just renders normally with no hiding.
+ */
+.mandatory-input-modal:not(.mandatory-input-modal--entered) .card-selection__card-slot {
+    opacity: 0;
+}
+.mandatory-input-modal--entered .card-selection__card-slot {
+    animation: card-deal-in 360ms cubic-bezier(0.33, 1.22, 0.5, 1) both;
+}
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(1)  { animation-delay: 0ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(2)  { animation-delay: 38ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(3)  { animation-delay: 76ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(4)  { animation-delay: 114ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(5)  { animation-delay: 152ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(6)  { animation-delay: 190ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(7)  { animation-delay: 228ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(8)  { animation-delay: 266ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(9)  { animation-delay: 304ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(10) { animation-delay: 342ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(11) { animation-delay: 380ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(12) { animation-delay: 418ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(13) { animation-delay: 456ms; }
+.mandatory-input-modal--entered .card-selection__card-slot:nth-child(n+14) { animation-delay: 494ms; }
+
+@keyframes card-deal-in {
+    0% {
+        opacity: 0;
+        transform: translate3d(0, -52px, 0) scale(0.84) rotate(-5deg);
+    }
+    55% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/*
+ *  Re-shown, already-dealt step (initial-draft pill navigation back to a
+ *  step / skip-cancel remount): the modal sets `--no-deal` (frozen at
+ *  mount — see MandatoryInputModal.vue `dealContent`). The cards were dealt
+ *  on the first visit, so here they're just present — visible immediately,
+ *  no second deal, and not held hidden by the entrance gate. `!important`
+ *  beats both the hide and the deal rules above regardless of order.
+ */
+.mandatory-input-modal--no-deal .card-selection__card-slot {
+    animation: none !important;
+    opacity: 1 !important;
+}
+
+/* Honour reduced-motion: cards appear instantly with no movement and are
+ * never held hidden by the entrance gate. */
+@media (prefers-reduced-motion: reduce) {
+    .mandatory-input-modal .card-selection__card-slot {
+        animation: none !important;
+        opacity: 1 !important;
+    }
+}
+
 .card-selection__card-clickable {
     cursor: pointer;
     transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);

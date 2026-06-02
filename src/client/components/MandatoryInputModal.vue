@@ -32,7 +32,7 @@
 
       <!-- Sci-fi glass card centered on the viewport. Slot for any input
            component the host wants to host inside the modal. -->
-      <div class="mandatory-input-modal__card">
+      <div ref="card" class="mandatory-input-modal__card">
         <div class="mandatory-input-modal__corner mandatory-input-modal__corner--tl"></div>
         <div class="mandatory-input-modal__corner mandatory-input-modal__corner--tr"></div>
         <div class="mandatory-input-modal__corner mandatory-input-modal__corner--bl"></div>
@@ -170,6 +170,24 @@ type DataModel = {
   pickerTitle: string | Message | undefined;
   minimized: boolean;
   /*
+   * True once the modal's entrance animation has completed. Hosted card
+   * grids (draft / research / initial-draft) gate their per-card "deal"
+   * entrance on the `--entered` class this drives, so the cards don't
+   * animate (and don't paint) while the modal itself is still sliding in
+   * + the heavy initial card layout is settling — that overlap was the
+   * source of the first-frame stutter. Subsequent draft rounds (modal
+   * already entered) deal immediately. See card_selection.less.
+   */
+  entered: boolean;
+  enterTimer: number | undefined;
+  /*
+   * Frozen-at-mount copy of `!dealContent`. When true, hosted card grids
+   * skip their deal entrance (`--no-deal`). Frozen so the parent can mark
+   * the step "dealt" right after the first show without retroactively
+   * cutting the deal that just started.
+   */
+  noDealFrozen: boolean;
+  /*
    * Pixel offset from the pill's default centred-top position. The
    * pill is draggable so the player can move it if it covers a
    * board cell they need to click. Persisted within the modal's
@@ -202,12 +220,27 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    /*
+     * Whether hosted card grids should play their per-card "deal" entrance
+     * when this modal opens. Default true (every fresh deal animates). Set
+     * false when the SAME cards are being re-shown and were already dealt
+     * once — e.g. returning to an already-visited initial-draft step via
+     * the pill stack. Captured ONCE at mount into `noDealFrozen` so a later
+     * reactive flip of this prop can't cut a deal that's already running.
+     */
+    dealContent: {
+      type: Boolean,
+      default: true,
+    },
   },
   data(): DataModel {
     return {
       pickerMode: false,
       pickerTitle: undefined,
       minimized: false,
+      entered: false,
+      enterTimer: undefined,
+      noDealFrozen: !this.dealContent,
       pillDragOffset: {x: 0, y: 0},
       pillDragController: null,
     };
@@ -217,6 +250,8 @@ export default defineComponent({
       const classes = ['mandatory-input-modal'];
       if (this.pickerMode) classes.push('mandatory-input-modal--picker-mode');
       if (this.minimized) classes.push('mandatory-input-modal--minimized');
+      if (this.entered) classes.push('mandatory-input-modal--entered');
+      if (this.noDealFrozen) classes.push('mandatory-input-modal--no-deal');
       return classes.join(' ');
     },
     pillClass(): string {
@@ -286,10 +321,32 @@ export default defineComponent({
         {handle: pillHandleEl},
       );
     }
+    /*
+     * Mark the modal "entered" once its card-in animation finishes, so
+     * hosted card grids only START their deal-in entrance after the modal
+     * has settled (no overlap with the modal's own transform animation +
+     * the heavy initial card mount → no first-frame stutter). The
+     * animationend is the precise signal; a fallback timer guarantees the
+     * flag flips even if the event is missed (reduced-motion, the card
+     * never animating, etc.) so cards can never get stuck hidden.
+     */
+    const cardEl = this.$refs.card as HTMLElement | undefined;
+    if (cardEl !== undefined) {
+      cardEl.addEventListener('animationend', this.onCardAnimEnd);
+    }
+    this.enterTimer = window.setTimeout(() => this.markEntered(), 360);
   },
   beforeUnmount() {
     document.documentElement.classList.remove('mandatory-input-modal-open');
     document.body.classList.remove('mandatory-input-modal-open');
+    if (this.enterTimer !== undefined) {
+      window.clearTimeout(this.enterTimer);
+      this.enterTimer = undefined;
+    }
+    const cardEl = this.$refs.card as HTMLElement | undefined;
+    if (cardEl !== undefined) {
+      cardEl.removeEventListener('animationend', this.onCardAnimEnd);
+    }
     this.pillDragController?.destroy();
     this.pillDragController = null;
     /* Defensive: if the modal unmounts mid-picker (server resolved
@@ -300,6 +357,23 @@ export default defineComponent({
     setModalPickerActive(false, undefined);
   },
   methods: {
+    markEntered(): void {
+      if (this.entered) {
+        return;
+      }
+      this.entered = true;
+      if (this.enterTimer !== undefined) {
+        window.clearTimeout(this.enterTimer);
+        this.enterTimer = undefined;
+      }
+    },
+    onCardAnimEnd(e: AnimationEvent): void {
+      // Only the modal's own entrance animation flips the flag — ignore
+      // any other animations bubbling up from hosted content.
+      if (e.animationName === 'mandatory-input-modal-card-in') {
+        this.markEntered();
+      }
+    },
     minimize(): void {
       this.minimized = true;
     },
