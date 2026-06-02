@@ -1,0 +1,786 @@
+/*
+ * ─────────────────────────────────────────────────────────────────────
+ *  journal.less — premium game journal (replaces the legacy log overlay)
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ *  A glass/HUD side panel pinned to the right gutter. Opening it slides
+ *  the Mars board LEFT (board scale unchanged — only the centred box
+ *  shifts via a transform) so the journal occupies the freed space
+ *  between the board and the right sidebar. See `JournalPanel.vue` +
+ *  friends in `src/client/components/journal/`.
+ *
+ *  Visual language matches the rest of the fork: dark glass, hairline
+ *  cyan accents, L-corner ticks, calm short easings (CLAUDE goals #2–#4).
+ *  Motion is transform/opacity only and respects prefers-reduced-motion.
+ */
+
+@j-cyan:        #6ab0e6;
+@j-cyan-soft:   rgba(106, 176, 230, 0.16);
+@j-cyan-line:   rgba(106, 176, 230, 0.32);
+@j-cyan-glow:   rgba(106, 176, 230, 0.45);
+@j-rim:         #2c4a6a;
+@j-panel-bg-1:  rgba(13, 20, 30, 0.92);
+@j-panel-bg-2:  rgba(8, 13, 21, 0.95);
+@j-text:        #e8f1fb;
+@j-text-dim:    #cdddf0;
+@j-text-muted:  rgba(168, 193, 219, 0.70);
+@j-chip-bg:     rgba(16, 25, 38, 0.78);
+@j-chip-rim:    rgba(120, 160, 200, 0.28);
+
+/* ── Layout: board slide ──────────────────────────────────────────── */
+
+#player-home {
+    /*
+     * Width of the journal panel and the breathing gap between the panel
+     * and the right sidebar. The board slide is derived from these so the
+     * two always agree. Responsive: comfortable on laptops, capped so it
+     * never eats too much of the board on big monitors.
+     */
+    --journal-width: clamp(300px, 22vw, 420px);
+    --journal-gap: 16px;
+}
+
+/*
+ * The board centring box transitions its transform so the slide is a
+ * smooth GPU move. No transform is applied at rest, so this composes
+ * cleanly with `.board-cont`'s independent `scale(--board-scale)`.
+ */
+.player_home_block--board {
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#player-home.journal-open .player_home_block--board {
+    transform: translateX(calc(-0.5 * (var(--journal-width) + var(--journal-gap))));
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .player_home_block--board {
+        transition: none;
+    }
+}
+
+/* ── Panel chrome ─────────────────────────────────────────────────── */
+
+.journal-panel {
+    position: fixed;
+    top: calc(var(--bottom-bar-button-height) + 20px);
+    bottom: calc(var(--bottom-bar-button-height) + 8px);
+    right: calc(var(--right-sidebar-width) + var(--journal-gap));
+    width: var(--journal-width);
+    z-index: 95; /* above board (1); below bar-overlays (110) + pills (107) */
+
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+
+    background:
+        linear-gradient(180deg, @j-panel-bg-1 0%, @j-panel-bg-2 100%);
+    border: 1px solid @j-rim;
+    border-radius: 6px;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.07),
+        0 18px 48px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+/* L-corner ticks (cyan), one per corner. */
+.journal-panel__corner {
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    pointer-events: none;
+    z-index: 2;
+}
+.journal-panel__corner--tl { top: -1px; left: -1px; border-top: 1px solid @j-cyan; border-left: 1px solid @j-cyan; }
+.journal-panel__corner--tr { top: -1px; right: -1px; border-top: 1px solid @j-cyan; border-right: 1px solid @j-cyan; }
+.journal-panel__corner--bl { bottom: -1px; left: -1px; border-bottom: 1px solid @j-cyan; border-left: 1px solid @j-cyan; }
+.journal-panel__corner--br { bottom: -1px; right: -1px; border-bottom: 1px solid @j-cyan; border-right: 1px solid @j-cyan; }
+
+/* ── Header ───────────────────────────────────────────────────────── */
+
+.journal-panel__header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px 10px 14px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.14);
+    background: linear-gradient(180deg, rgba(20, 32, 48, 0.55), rgba(12, 20, 32, 0.20));
+}
+
+.journal-panel__titlewrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.journal-panel__glyph {
+    width: 7px;
+    height: 16px;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, @j-cyan, rgba(106, 176, 230, 0.25));
+    box-shadow: 0 0 7px @j-cyan-glow;
+    clip-path: polygon(0 0, 100% 12%, 100% 88%, 0 100%);
+}
+
+.journal-panel__title {
+    margin: 0;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 15px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: @j-text;
+    white-space: nowrap;
+    text-shadow: 0 0 10px rgba(106, 176, 230, 0.30);
+}
+
+.journal-panel__close {
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: @j-text-muted;
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+
+    &:hover {
+        color: @j-text;
+        border-color: @j-cyan-line;
+        background: @j-cyan-soft;
+    }
+}
+
+/* ── Generation selector (custom dropdown) ────────────────────────── */
+
+.journal-genselect {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.journal-genselect__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 9px;
+    border: 1px solid @j-rim;
+    border-radius: 4px;
+    background: linear-gradient(180deg, rgba(16, 26, 40, 0.92), rgba(10, 16, 26, 0.92));
+    color: @j-text-dim;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 11.5px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
+
+    &:hover,
+    &:focus-visible {
+        border-color: @j-cyan-line;
+        color: @j-text;
+        box-shadow: 0 0 0 1px @j-cyan-soft;
+        outline: none;
+    }
+}
+
+.journal-genselect__trigger-label { white-space: nowrap; }
+
+.journal-genselect__live {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(106, 176, 230, 0.14);
+    color: @j-cyan;
+    font-size: 9.5px;
+    letter-spacing: 0.8px;
+}
+.journal-genselect__live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: @j-cyan;
+    box-shadow: 0 0 6px @j-cyan-glow;
+    animation: journal-live-pulse 1.8s ease-in-out infinite;
+}
+
+.journal-genselect__caret {
+    font-size: 9px;
+    color: @j-text-muted;
+    transition: transform 160ms ease;
+}
+.journal-genselect--open .journal-genselect__caret { transform: rotate(180deg); }
+
+.journal-genselect__menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    min-width: 100%;
+    max-height: 280px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+
+    background: linear-gradient(180deg, rgba(15, 24, 37, 0.98), rgba(9, 15, 24, 0.98));
+    border: 1px solid @j-rim;
+    border-radius: 5px;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.06),
+        0 12px 30px rgba(0, 0, 0, 0.6);
+
+    /* thin scrollbar for the menu too */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.4) transparent;
+}
+
+.journal-genselect__option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 9px;
+    border-radius: 4px;
+    color: @j-text-dim;
+    font-size: 12px;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &--active {
+        background: @j-cyan-soft;
+        color: @j-text;
+    }
+    &--selected {
+        color: @j-cyan;
+    }
+    &--selected.journal-genselect__option--active {
+        background: rgba(106, 176, 230, 0.22);
+    }
+}
+
+.journal-genselect__option-label { font-family: Prototype, Orbitron, sans-serif; text-transform: uppercase; }
+
+.journal-genselect__option-tag {
+    margin-left: auto;
+    font-size: 9px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: @j-text-muted;
+    border: 1px solid @j-chip-rim;
+    border-radius: 999px;
+    padding: 1px 6px;
+}
+
+/* ── Feed ─────────────────────────────────────────────────────────── */
+
+.journal-feed {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.journal-feed__scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 10px 12px;
+
+    /* Modern thin custom scrollbar — Firefox. */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.38) transparent;
+}
+
+/* WebKit/Blink custom scrollbar: thin, translucent, only paints on overflow. */
+.journal-feed__scroll::-webkit-scrollbar {
+    width: 8px;
+}
+.journal-feed__scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+.journal-feed__scroll::-webkit-scrollbar-thumb {
+    background: rgba(106, 176, 230, 0.28);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+.journal-feed__scroll:hover::-webkit-scrollbar-thumb {
+    background: rgba(106, 176, 230, 0.5);
+    background-clip: padding-box;
+}
+
+.journal-feed__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    /* Plays on first open and on every generation switch (the list is
+       keyed by loadEpoch so it remounts). Live appends keep the key, so
+       this does NOT replay — only the fresh entries animate. */
+    animation: journal-list-in 280ms ease;
+}
+
+.journal-feed__placeholder {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: @j-text-muted;
+    font-size: 12.5px;
+    letter-spacing: 0.4px;
+}
+.journal-feed__placeholder-glyph {
+    font-size: 26px;
+    color: rgba(106, 176, 230, 0.4);
+}
+.journal-feed__spinner {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid rgba(106, 176, 230, 0.2);
+    border-top-color: @j-cyan;
+    animation: journal-spin 0.8s linear infinite;
+}
+
+/* ── New-events pill ──────────────────────────────────────────────── */
+
+.journal-feed__newpill {
+    position: absolute;
+    left: 50%;
+    bottom: 12px;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid @j-cyan-line;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(20, 34, 52, 0.96), rgba(12, 20, 32, 0.96));
+    color: @j-text;
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), 0 0 0 1px @j-cyan-soft;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+
+    &:hover {
+        border-color: @j-cyan;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), 0 0 10px @j-cyan-soft;
+    }
+}
+.journal-feed__newpill-arrow {
+    animation: journal-newpill-bob 1.4s ease-in-out infinite;
+}
+
+/* ── Entry ────────────────────────────────────────────────────────── */
+
+.journal-entry {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 4px 4px 10px;
+    border-radius: 4px;
+    line-height: 1.5;
+    font-size: 13px;
+    color: @j-text-dim;
+
+    & + & { margin-top: 1px; }
+
+    &:hover {
+        background: rgba(106, 176, 230, 0.05);
+    }
+}
+
+/* Thin colour rail at the left of each entry — cyan for public events,
+   amber for private (reserved-for-you) lines. */
+.journal-entry__rail {
+    position: absolute;
+    left: 2px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    border-radius: 2px;
+    background: rgba(106, 176, 230, 0.30);
+}
+.journal-entry--private .journal-entry__rail {
+    background: rgba(240, 200, 120, 0.45);
+}
+
+.journal-entry__time {
+    flex-shrink: 0;
+    font-family: Prototype, Orbitron, monospace;
+    font-size: 10px;
+    letter-spacing: 0.4px;
+    color: @j-text-muted;
+    padding-top: 1px;
+    font-variant-numeric: tabular-nums;
+}
+
+.journal-entry__body {
+    min-width: 0;
+    word-break: break-word;
+}
+
+/* Fresh (just-arrived) live entries fade + slide in once. */
+.journal-entry--fresh {
+    animation: journal-entry-in 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Generation divider ───────────────────────────────────────────── */
+
+.journal-gen-divider {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 2px 8px;
+    user-select: none;
+}
+.journal-gen-divider__line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(106, 176, 230, 0.32), transparent);
+}
+.journal-gen-divider__label {
+    flex-shrink: 0;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: @j-cyan;
+    text-shadow: 0 0 8px rgba(106, 176, 230, 0.3);
+}
+
+/* ── Tokens ───────────────────────────────────────────────────────── */
+
+.journal-text { color: @j-text-dim; }
+.journal-em {
+    color: @j-text;
+    font-weight: 600;
+}
+
+/* Player chip — colour-coded pill (.player_translucent_bg_color_* paints
+   the background; we only add shape + readable text). */
+.journal-player {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 8px 1px 6px;
+    margin: 0 1px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 12px;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    vertical-align: baseline;
+    white-space: nowrap;
+}
+.journal-player__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+/* Generic semantic chip (cards, named objects). */
+.journal-chip,
+.journal-token {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0 1px;
+    padding: 1px 8px;
+    border-radius: 4px;
+    background: @j-chip-bg;
+    border: 1px solid @j-chip-rim;
+    color: @j-text;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+    vertical-align: baseline;
+    white-space: nowrap;
+}
+
+/* Card chips: interactive, type-coloured left dot + hover lift. */
+.journal-chip--card {
+    cursor: default;
+    transition: border-color 140ms ease, background 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+.journal-chip--zoomable { cursor: pointer; }
+
+.journal-chip--card:hover,
+.journal-chip--card:focus-visible {
+    border-color: @j-cyan-line;
+    background: rgba(22, 34, 52, 0.92);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+    outline: none;
+}
+
+.journal-chip__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    background: rgba(150, 175, 200, 0.65);
+    box-shadow: 0 0 5px rgba(150, 175, 200, 0.4);
+}
+.journal-chip__label { overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+
+.journal-chip__tags {
+    display: inline-flex;
+    gap: 2px;
+}
+.journal-chip__tag {
+    width: 14px;
+    height: 14px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    flex-shrink: 0;
+}
+.journal-chip__cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding-left: 4px;
+    margin-left: 1px;
+    border-left: 1px solid rgba(150, 175, 200, 0.2);
+}
+.journal-chip__cost-value { font-size: 11px; color: @j-text-dim; }
+.journal-chip__cost .resource_icon {
+    width: 15px;
+    height: 15px;
+    background-size: contain;
+}
+
+/* Per-type dot tint. */
+.journal-chip--event       .journal-chip__dot { background: #d98a6a; box-shadow: 0 0 5px rgba(217, 138, 106, 0.5); }
+.journal-chip--corporation .journal-chip__dot { background: #4fc7c0; box-shadow: 0 0 5px rgba(79, 199, 192, 0.5); }
+.journal-chip--active      .journal-chip__dot { background: #5aa8e6; box-shadow: 0 0 5px rgba(90, 168, 230, 0.5); }
+.journal-chip--automated   .journal-chip__dot { background: #6fc46f; box-shadow: 0 0 5px rgba(111, 196, 111, 0.5); }
+.journal-chip--prelude     .journal-chip__dot { background: #d98ac4; box-shadow: 0 0 5px rgba(217, 138, 196, 0.5); }
+.journal-chip--ceo         .journal-chip__dot { background: #e6c45a; box-shadow: 0 0 5px rgba(230, 196, 90, 0.5); }
+.journal-chip--standard    .journal-chip__dot { background: #9fb4c8; box-shadow: 0 0 5px rgba(159, 180, 200, 0.45); }
+
+/* Standard-project chip reads slightly cooler/steel and never zooms. */
+.journal-chip--standard {
+    background: rgba(20, 30, 44, 0.82);
+    border-color: rgba(130, 165, 200, 0.30);
+}
+.journal-chip--standard:hover { cursor: help; }
+
+/* Named-object tokens — distinct accent per family, all calm. */
+.journal-token--global-event { border-color: rgba(196, 150, 230, 0.4); color: #e3cdf2; }
+.journal-token--colony       { border-color: rgba(120, 200, 210, 0.4); color: #cdeef2; }
+.journal-token--award        { border-color: rgba(230, 196, 120, 0.4); color: #f0dcb0; }
+.journal-token--milestone    { border-color: rgba(230, 196, 120, 0.4); color: #f0dcb0; }
+.journal-token--party        { border-color: rgba(150, 175, 200, 0.35); color: @j-text-dim; }
+.journal-token--underground  { border-color: rgba(180, 140, 95, 0.5); color: #e6cba6; }
+
+/* Board-space "show on map" button. */
+.journal-token--space {
+    cursor: pointer;
+    border-color: rgba(106, 176, 230, 0.4);
+    color: @j-cyan;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+
+    &:hover,
+    &:focus-visible {
+        border-color: @j-cyan;
+        background: @j-cyan-soft;
+        box-shadow: 0 0 8px @j-cyan-soft;
+        outline: none;
+    }
+}
+.journal-token--space__pin {
+    fill: @j-cyan;
+    flex-shrink: 0;
+}
+
+/* ── Card hover preview popover (Teleported to body) ──────────────── */
+
+.journal-card-preview {
+    position: fixed;
+    z-index: 12000;
+    pointer-events: none; /* pure preview — must not steal hover */
+    transform-origin: center center;
+}
+.journal-card-preview__inner {
+    transform: scale(0.66);
+    transform-origin: top left;
+    filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.6));
+}
+/* Neutralise the legacy asymmetric card margin so the preview box hugs
+   the card silhouette (see CLAUDE "Centering UI under a <Card>"). */
+.journal-card-preview .card-container { margin: 0; }
+
+/* ── Standard-project compact preview popover ─────────────────────── */
+
+.journal-sp-preview {
+    position: fixed;
+    z-index: 12000;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 244px;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    background: linear-gradient(180deg, rgba(16, 26, 40, 0.98), rgba(10, 16, 26, 0.98));
+    border: 1px solid @j-rim;
+    border-radius: 6px;
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.07),
+        0 14px 34px rgba(0, 0, 0, 0.6);
+}
+.journal-sp-preview__corner {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    pointer-events: none;
+}
+.journal-sp-preview__corner--tl { top: -1px; left: -1px; border-top: 1px solid @j-cyan; border-left: 1px solid @j-cyan; }
+.journal-sp-preview__corner--br { bottom: -1px; right: -1px; border-bottom: 1px solid @j-cyan; border-right: 1px solid @j-cyan; }
+.journal-sp-preview__icon { flex-shrink: 0; }
+.journal-sp-preview__body { min-width: 0; }
+.journal-sp-preview__kicker {
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: @j-text-muted;
+}
+.journal-sp-preview__name {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.4px;
+    color: @j-text;
+    margin: 2px 0 3px;
+}
+.journal-sp-preview__desc {
+    font-size: 11.5px;
+    line-height: 1.35;
+    color: @j-text-dim;
+}
+
+/* ── Board cell premium pulse (journal "show on map") ─────────────── */
+
+.board-log-highlight.journal-pulse {
+    cursor: default;
+    animation: journal-cell-pulse 1.8s ease-out;
+    z-index: 3;
+}
+
+/* ── Vue transitions ──────────────────────────────────────────────── */
+
+/* Panel slide-in from the right. */
+.journal-panel-enter-active { transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1), opacity 360ms ease; }
+.journal-panel-leave-active { transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1), opacity 240ms ease; }
+.journal-panel-enter-from,
+.journal-panel-leave-to { transform: translateX(24px); opacity: 0; }
+
+/* Preview popovers fade + tiny rise. */
+.journal-preview-enter-active { transition: opacity 150ms ease, transform 150ms ease; }
+.journal-preview-leave-active { transition: opacity 120ms ease, transform 120ms ease; }
+.journal-preview-enter-from,
+.journal-preview-leave-to { opacity: 0; transform: translateY(4px); }
+
+/* Dropdown menu. */
+.journal-dropdown-enter-active { transition: opacity 140ms ease, transform 140ms ease; }
+.journal-dropdown-leave-active { transition: opacity 110ms ease, transform 110ms ease; }
+.journal-dropdown-enter-from,
+.journal-dropdown-leave-to { opacity: 0; transform: translateY(-6px); }
+
+/* New-events pill. */
+.journal-newpill-enter-active { transition: opacity 180ms ease, transform 180ms ease; }
+.journal-newpill-leave-active { transition: opacity 140ms ease, transform 140ms ease; }
+.journal-newpill-enter-from,
+.journal-newpill-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
+
+/* ── Keyframes ────────────────────────────────────────────────────── */
+
+@keyframes journal-entry-in {
+    from { opacity: 0; transform: translateY(7px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes journal-list-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes journal-live-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 6px @j-cyan-glow; }
+    50%      { opacity: 0.45; box-shadow: 0 0 2px @j-cyan-glow; }
+}
+
+@keyframes journal-newpill-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(2px); }
+}
+
+@keyframes journal-spin {
+    to { transform: rotate(360deg); }
+}
+
+/*
+ * Calm 2–3 ring pulse on the target cell. drop-shadow follows the hex
+ * clip-path's alpha so the glow is hex-shaped (a box-shadow would be
+ * clipped away). A faint white core flashes with each ring.
+ */
+@keyframes journal-cell-pulse {
+    0%   { background-color: rgba(106, 176, 230, 0);    filter: drop-shadow(0 0 0 rgba(106, 176, 230, 0)); }
+    12%  { background-color: rgba(106, 176, 230, 0.42); filter: drop-shadow(0 0 11px rgba(106, 176, 230, 0.95)) drop-shadow(0 0 3px rgba(255, 255, 255, 0.85)); }
+    28%  { background-color: rgba(106, 176, 230, 0.05); filter: drop-shadow(0 0 2px rgba(106, 176, 230, 0.2)); }
+    44%  { background-color: rgba(106, 176, 230, 0.36); filter: drop-shadow(0 0 10px rgba(106, 176, 230, 0.9)) drop-shadow(0 0 3px rgba(255, 255, 255, 0.75)); }
+    60%  { background-color: rgba(106, 176, 230, 0.04); filter: drop-shadow(0 0 2px rgba(106, 176, 230, 0.18)); }
+    76%  { background-color: rgba(106, 176, 230, 0.28); filter: drop-shadow(0 0 8px rgba(106, 176, 230, 0.8)) drop-shadow(0 0 2px rgba(255, 255, 255, 0.6)); }
+    100% { background-color: rgba(106, 176, 230, 0);    filter: drop-shadow(0 0 0 rgba(106, 176, 230, 0)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .journal-entry--fresh,
+    .journal-feed__list,
+    .journal-genselect__live-dot,
+    .journal-feed__newpill-arrow,
+    .journal-feed__spinner,
+    .board-log-highlight.journal-pulse {
+        animation: none;
+    }
+    .journal-panel-enter-active,
+    .journal-panel-leave-active,
+    .journal-preview-enter-active,
+    .journal-preview-leave-active,
+    .journal-dropdown-enter-active,
+    .journal-dropdown-leave-active,
+    .journal-newpill-enter-active,
+    .journal-newpill-leave-active {
+        transition: opacity 120ms ease;
+    }
+    .journal-panel-enter-from,
+    .journal-panel-leave-to { transform: none; }
+    /* Still give the cell a brief visible cue even with reduced motion. */
+    .board-log-highlight.journal-pulse {
+        background-color: rgba(106, 176, 230, 0.4);
+    }
+}

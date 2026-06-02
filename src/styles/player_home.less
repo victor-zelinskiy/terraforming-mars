@@ -4017,39 +4017,11 @@ each(@players, {
     }
 }
 
-/* Log overlay: let the log fill the whole panel instead of its default 240px box. */
-.bar-overlay--log {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-
-    .log-container {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-    }
-
-    .log-generations {
-        flex-shrink: 0;
-    }
-
-    .log-panel {
-        flex: 1;
-        height: auto;
-        max-height: none;
-        max-width: none;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-    }
-
-    #logpanel-scrollable {
-        flex: 1;
-        overflow-y: auto;
-        min-height: 0;
-    }
-}
+/*
+ * (The legacy `.bar-overlay--log` block was removed when the journal was
+ * migrated to the premium `JournalPanel` side-panel — see journal.less.
+ * `LogPanel` itself still ships for the spectator + game-end screens.)
+ */
 
 /*
  * Victory-points breakdown overlay. Three vertical regions:
