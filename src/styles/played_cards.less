@@ -25,7 +25,7 @@
 @pc-ceo:         #d4884a; /* warm amber — Директор, stays in the gold family but clearly distinct */
 @pc-active:      #5aa8e6;
 @pc-automated:   #6fc46f;
-@pc-event:       #e8853f;
+@pc-event:       #d64040; /* warm red — События */
 
 /* ── Overlay frame ────────────────────────────────────────────────── */
 
@@ -582,6 +582,20 @@
 }
 .played-group--corporation .played-card-item > .card-container {
     zoom: calc(var(--played-card-zoom, 0.6) + 0.12);
+}
+
+/*
+ * Corporation cards with long names (e.g. "Tycho Magnetics") overflow the
+ * fixed `height: 310px !important` on `.card-content-corporation` set by
+ * cards_v2.less — the title bleeds into the description. Enable internal
+ * scroll so the card keeps its fixed size but the user can scroll inside
+ * it; clicking opens fullscreen where the full content is always visible.
+ */
+.played-board-overlay .played-group--corporation .card-content-corporation {
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.4) transparent;
 }
 .played-group--prelude .played-card-item > .card-container,
 .played-group--ceo .played-card-item > .card-container {

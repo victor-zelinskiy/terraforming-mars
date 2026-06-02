@@ -344,7 +344,6 @@ export default defineComponent({
         result = 'X';
       } else if (this.item.type === CardRenderItemType.IGNORE_GLOBAL_REQUIREMENTS) {
         result += '<div class="card-project-requirements">';
-        result += '<div class="card-x">x</div>';
         result += '<div class="card-requirements">Global Requirements</div>';
         result += '</div>';
       }
