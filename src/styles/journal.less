@@ -44,6 +44,17 @@
      */
     --journal-width: clamp(300px, 22vw, 420px);
     --journal-gap: 16px;
+
+    /*
+     * How much extra space (measured from the right sidebar's inner edge)
+     * the open journal occupies. The panel sits at
+     * `right: right-sidebar + journal-gap`, is `journal-width` wide, then
+     * +16px breathing room. Non-modal overlays add this to their own
+     * `right` while the journal is open so they shrink to the free area
+     * left of the journal instead of covering it. Same CSS-variable
+     * "available space" mechanism the board slide + auto-scale use.
+     */
+    --journal-overlay-clearance: calc(var(--journal-gap) + var(--journal-width) + 16px);
 }
 
 /*
@@ -61,6 +72,44 @@
 
 @media (prefers-reduced-motion: reduce) {
     .player_home_block--board {
+        transition: none;
+    }
+}
+
+/* ── Overlays yield space to the open journal ─────────────────────────
+ *
+ * The journal has priority on screen real estate. While it's open, every
+ * NON-MODAL overlay (the bar-overlays, the top-bar dropdowns, the legacy
+ * UI panel) pulls its right edge in to stop just left of the journal, so
+ * it occupies only the free area instead of covering the panel. The
+ * reserved width is derived from the same journal CSS variables used by
+ * the board slide (`--journal-overlay-clearance`).
+ *
+ * Modals (MandatoryInputModal, CardZoomModal, the colonies overlay, …)
+ * are deliberately absent here — per spec they may overlap the journal
+ * freely.
+ *
+ * The `right` transition makes toggling the journal while an overlay is
+ * open animate smoothly (e.g. closing the journal expands the overlay
+ * back to full width). On first mount there's no prior value, so opening
+ * an overlay doesn't spuriously animate.
+ */
+.bar-overlay,
+.top-bar-dropdown,
+.legacy-ui-overlay--open {
+    transition: right 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#player-home.journal-open .bar-overlay,
+#player-home.journal-open .top-bar-dropdown,
+#player-home.journal-open .legacy-ui-overlay--open {
+    right: calc(var(--right-sidebar-width) + var(--journal-overlay-clearance));
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bar-overlay,
+    .top-bar-dropdown,
+    .legacy-ui-overlay--open {
         transition: none;
     }
 }

@@ -1330,16 +1330,16 @@ export default defineComponent({
       this.activeOverlay = this.activeOverlay === id ? null : id;
     },
     // The journal is a side panel, not a board-covering bar-overlay, so
-    // it has its own toggle. Opening it closes any active bar-overlay so
-    // the journal (which sits at a lower z-index than overlays) isn't
-    // hidden behind one; closing just hides the panel and slides the
-    // board back. The open flag lives in module-level `journalState` so
-    // it survives the `playerkey` remount (see journalState.ts).
+    // it has its own toggle. An already-open overlay is NOT closed when
+    // the journal opens — the journal has priority on space and non-modal
+    // overlays shrink to the free area left of it (CSS rule
+    // `#player-home.journal-open .bar-overlay/...` in journal.less). The
+    // Log button is a `.bottom-bar-btn`, which `handleOutsideOverlayClick`
+    // exempts, so opening the journal never dismisses the overlay either.
+    // The open flag lives in module-level `journalState` so it survives
+    // the `playerkey` remount (see journalState.ts).
     toggleJournal(): void {
       journalState.open = !journalState.open;
-      if (journalState.open) {
-        this.activeOverlay = null;
-      }
     },
     // Closes the active overlay when the click happens outside it. Clicks
     // inside the overlay itself, on a bar button (which has its own toggle),
