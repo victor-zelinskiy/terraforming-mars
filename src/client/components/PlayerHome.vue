@@ -259,40 +259,19 @@
         :thisPlayerColor="thisPlayer.color" />
     </div>
 
-    <div v-if="activeOverlay === 'played'" class="bar-overlay bar-overlay--played">
-      <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
-      <div class="hiding-card-button-row">
-        <div :class="playedCardsTitleClass">{{ displayedPlayer.name }} <span v-i18n>played cards</span></div>
-        <div class="played-cards-filters">
-          <div :class="getHideButtonClass('ACTIVE')" v-on:click.prevent="toggle('ACTIVE')">
-            <div class="played-cards-count">{{getCardsByType(displayedPlayer.tableau, [CardType.ACTIVE]).length.toString()}}</div>
-            <div class="played-cards-selection" v-i18n>{{ getToggleLabel('ACTIVE')}}</div>
-          </div>
-          <div :class="getHideButtonClass('AUTOMATED')" v-on:click.prevent="toggle('AUTOMATED')">
-            <div class="played-cards-count">{{getCardsByType(displayedPlayer.tableau, [CardType.AUTOMATED, CardType.PRELUDE]).length.toString()}}</div>
-            <div class="played-cards-selection" v-i18n>{{ getToggleLabel('AUTOMATED')}}</div>
-          </div>
-          <div :class="getHideButtonClass('EVENT')" v-on:click.prevent="toggle('EVENT')">
-            <div class="played-cards-count">{{getCardsByType(displayedPlayer.tableau, [CardType.EVENT]).length.toString()}}</div>
-            <div class="played-cards-selection" v-i18n>{{ getToggleLabel('EVENT')}}</div>
-          </div>
-        </div>
-        <div class="text-overview" v-i18n>[ toggle cards filters ]</div>
-      </div>
-      <div class="bar-overlay--played-cards">
-        <div v-for="card in getCardsByType(displayedPlayer.tableau, [CardType.CORPORATION])" :key="card.name" class="cardbox">
-          <Card :card="card" :actionUsed="isCardActivated(card, displayedPlayer)" :cubeColor="displayedPlayer.color"/>
-        </div>
-        <div v-for="card in getCardsByType(displayedPlayer.tableau, [CardType.CEO])" :key="card.name" class="cardbox">
-          <Card :card="card" :actionUsed="isCardActivated(card, displayedPlayer)" :cubeColor="displayedPlayer.color"/>
-        </div>
-        <div v-show="isVisible('ACTIVE')" v-for="card in sortActiveCards(getCardsByType(displayedPlayer.tableau, [CardType.ACTIVE, CardType.PRELUDE]).filter(isActive))" :key="card.name" class="cardbox">
-          <Card :card="card" :actionUsed="isCardActivated(card, displayedPlayer)" :cubeColor="displayedPlayer.color"/>
-        </div>
-        <stacked-cards v-show="isVisible('AUTOMATED')" :cards="getCardsByType(displayedPlayer.tableau, [CardType.AUTOMATED, CardType.PRELUDE]).filter(isNotActive)"></stacked-cards>
-        <stacked-cards v-show="isVisible('EVENT')" :cards="getCardsByType(displayedPlayer.tableau, [CardType.EVENT])"></stacked-cards>
-      </div>
-    </div>
+    <!--
+      Played-cards board (premium rework). Replaces the legacy
+      `bar-overlay--played` flat list with a grouped, adaptive project
+      board (PlayedCardsOverlay). Shows the CURRENTLY-VIEWED player's
+      tableau (`displayedPlayer`), so switching the viewed seat re-points
+      the board at that player. Driven by the same `activeOverlay`
+      bar-overlay machinery (toggle / outside-click close / journal yield).
+    -->
+    <PlayedCardsOverlay
+      v-if="activeOverlay === 'played'"
+      :displayedPlayer="displayedPlayer"
+      :viewerColor="thisPlayer.color"
+      @close="activeOverlay = null" />
 
     <!--
       Cards-in-hand overlay (viewer). Own seat: real hand face-up via the
@@ -554,6 +533,7 @@ import AwardsOverlay from '@/client/components/overview/AwardsOverlay.vue';
 import AwardFundedBadge from '@/client/components/overview/AwardFundedBadge.vue';
 import SelectSpace from '@/client/components/SelectSpace.vue';
 import StandardProjectsOverlay from '@/client/components/overview/StandardProjectsOverlay.vue';
+import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverlay.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {placementLockState} from '@/client/components/placementLockState';
@@ -1313,6 +1293,7 @@ export default defineComponent({
     AwardFundedBadge,
     'select-space': SelectSpace,
     StandardProjectsOverlay,
+    PlayedCardsOverlay,
     MandatoryInputModal,
     PlacementBanner,
     StandardProjectPaymentContent,
@@ -1357,8 +1338,15 @@ export default defineComponent({
     handleOutsideOverlayClick(e: MouseEvent): void {
       const target = e.target as Element | null;
       if (!target) return;
+      // An open fullscreen card (native <dialog>, e.g. the played-cards
+      // board's CardZoomModal) sits OVER the overlay; a click on its
+      // backdrop must close the dialog, not the overlay underneath.
+      if (document.querySelector('dialog[open]') !== null) {
+        return;
+      }
       if (target.closest('.top-bar-dropdown') ||
           target.closest('.bar-overlay') ||
+          target.closest('.played-board-overlay') ||
           target.closest('.legacy-ui-overlay') ||
           target.closest('.sidebar_cont') ||
           target.closest('.bottom-bar-btn') ||
