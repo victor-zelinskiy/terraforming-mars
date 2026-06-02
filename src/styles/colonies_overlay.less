@@ -48,22 +48,27 @@
 }
 
 /*
+ * Centred content column. Sized to its content (the grid / detail), so
+ * it IS the visible colonies block — the close / minimize buttons anchor
+ * to its top-right corner, sitting just ABOVE the cards no matter where
+ * the centred block lands (fixes the button being marooned in the far
+ * viewport corner on wide / 4K screens, far from the colonies).
+ */
+.colonies-overlay__content {
+    position: relative;
+    z-index: 1;
+}
+
+/*
  * Close button — full pill with × glyph + label so it reads at a glance
  * as "exit this view". Sci-fi parallelogram chrome matching the rest of
- * the fork.
- *
- * Anchored to the top-right of the CENTRED CONTENT COLUMN (not the far
- * viewport corner). The colony grid is centred and capped at ~1136px
- * wide, so on wide / 4K screens a corner-pinned button sat hundreds of px
- * away from the cards and was easy to miss. `right: max(28px, 50% - 568px)`
- * keeps it just past the grid's right edge (568 ≈ half the max content
- * width) on big screens, and falls back to 28px from the edge once the
- * content fills the viewport on smaller ones.
+ * the fork. Anchored just above the content block's top-right corner
+ * (relative to `.colonies-overlay__content`).
  */
 .colonies-overlay__close {
     position: absolute;
-    top: 22px;
-    right: max(28px, calc(50% - 568px));
+    bottom: calc(100% + 10px);
+    right: 0;
     z-index: 4;
     display: inline-flex;
     align-items: center;
@@ -125,14 +130,14 @@
 /*
  * Minimize button — mirror of the close button but with an "↗"
  * indicator, signalling "collapse to a pill at the top". Same anchor
- * point (top-right) since either close OR minimize is visible at a
- * time, never both: dismissable modes show close; mandatory build mode
- * shows minimize.
+ * point (just above the content block's top-right) since either close
+ * OR minimize is visible at a time, never both: dismissable modes show
+ * close; mandatory build mode shows minimize.
  */
 .colonies-overlay__minimize {
     position: absolute;
-    top: 22px;
-    right: max(28px, calc(50% - 568px));
+    bottom: calc(100% + 10px);
+    right: 0;
     z-index: 4;
     display: inline-flex;
     align-items: center;
@@ -347,14 +352,15 @@
 .colonies-overlay__grid-stage {
     position: relative;
     z-index: 1;
-    width: 100%;
-    height: 100%;
+    /* Content-sized (no 100%×100% + place-content centring): the grid IS
+     * the centred block now — `.colonies-overlay__content` wraps it and
+     * the overlay's `place-items: center` centres that. This lets the
+     * close button anchor to the grid's actual top-right corner. */
     display: grid;
     grid-template-columns: repeat(3, minmax(260px, 360px));
     grid-template-rows: repeat(3, auto);
     grid-auto-flow: dense;
     gap: 20px 28px;
-    place-content: center;
     justify-items: stretch;
     /* tiles are sized in their own block; the stage itself doesn't
      * scroll — too many colonies will shrink tile sizes via minmax,

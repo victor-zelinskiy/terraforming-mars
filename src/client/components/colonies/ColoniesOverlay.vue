@@ -29,6 +29,15 @@
            @click.self="onBackdropClick"></div>
 
       <!--
+        Centred content column — wraps the close/minimize affordances AND
+        the grid-stage / detail view. Sized to its content, so it IS the
+        centred colonies block; the close button anchors to its top-right
+        corner (just above the cards) instead of the far viewport corner.
+        The overlay's `place-items: center` centres this whole block.
+      -->
+      <div class="colonies-overlay__content">
+
+      <!--
         Close button — full exit. Visible only in dismissable modes
         (trade / view). Build mode locks the action: the server has
         committed the Standard Project payment, the only legal next
@@ -144,6 +153,7 @@
                         :players="players"
                         @close="detailColonyName = undefined"
                         @select="onDetailSelect" />
+      </div>
     </div>
   </Teleport>
 
