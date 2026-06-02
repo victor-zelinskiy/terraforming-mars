@@ -1,5 +1,5 @@
 <template>
-  <div id="player-home" :class="[(game.turmoil ? 'with-turmoil': ''), playerTintClass, {'viewing-other': isViewingOther}]">
+  <div id="player-home" :class="[(game.turmoil ? 'with-turmoil': ''), playerTintClass, {'viewing-other': isViewingOther, 'journal-open': journalOpen}]">
     <div class="top-bar-buttons">
       <!-- Standalone top buttons — NO rail plate. Unlike the bottom rails
            (which extend the left panel / right sidebar), there's no bar up
@@ -136,7 +136,7 @@
              v-on:click="onOpenColoniesOverlay">
           <BarButtonIcon name="colonies" /><span class="bar-btn__label" v-i18n>Colonies</span>
         </div>
-        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'log'}" v-on:click="toggleOverlay('log')">
+        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': journalOpen}" v-on:click="toggleJournal()">
           <BarButtonIcon name="log" /><span class="bar-btn__label" v-i18n>Log</span>
         </div>
       </div>
@@ -236,10 +236,22 @@
         @cancel="onPassCancel" />
     </MandatoryInputModal>
 
-    <div v-if="activeOverlay === 'log'" class="bar-overlay bar-overlay--log">
-      <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
-      <log-panel :viewModel="playerView" :color="thisPlayer.color" :step="game.step"></log-panel>
-    </div>
+    <!--
+      Premium journal side-panel. Replaces the legacy `bar-overlay--log`
+      that hosted the old `LogPanel`. NOT a board-covering overlay: it's
+      a glass/HUD panel pinned to the right gutter that slides the board
+      left (via `#player-home.journal-open`, see journal.less) and streams
+      the same `/api/game/logs` data as a modern live feed. The slide
+      keeps board scale unchanged — only the central box shifts.
+    -->
+    <Transition name="journal-panel">
+      <JournalPanel
+        v-if="journalOpen"
+        :viewModel="playerView"
+        :color="thisPlayer.color"
+        :step="game.step"
+        @close="journalOpen = false" />
+    </Transition>
 
     <div v-if="activeOverlay === 'victoryPoints'" class="bar-overlay bar-overlay--victory-points">
       <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
@@ -525,7 +537,7 @@ import InitialDraftStatusRail from '@/client/components/initialDraft/InitialDraf
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import Sidebar from '@/client/components/Sidebar.vue';
 import Colony from '@/client/components/colonies/Colony.vue';
-import LogPanel from '@/client/components/logpanel/LogPanel.vue';
+import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import GameBoardView from '@/client/components/GameBoardView.vue';
 import {useBoardAutoScale} from '@/client/utils/useBoardAutoScale';
 import InitialDraftFlowOverlay from '@/client/components/initialDraft/InitialDraftFlowOverlay.vue';
@@ -599,7 +611,7 @@ type ToggleableState = {
 // Overlays opened by the top/bottom bar buttons. Only one can be visible at a time —
 // pressing a different button closes the previous overlay. Pressing the same button
 // again closes the active overlay.
-type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'actions' | 'played' | 'victoryPoints' | 'log' | 'legacyUi';
+type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'actions' | 'played' | 'victoryPoints' | 'legacyUi';
 
 // Set while the player has chosen a Standard Project from the overlay
 // AND the choice requires picking between M€ and alternative resources.
@@ -627,6 +639,11 @@ type PendingTradeColony = {
 type PlayerHomeModel = ToggleableState & {
   selectedPlayerColor: Color | undefined;
   activeOverlay: OverlayId | null;
+  // The premium journal side-panel. Independent of `activeOverlay` (it's
+  // NOT a board-covering bar-overlay — it's a side panel that slides the
+  // board left and coexists with it). Toggled by the bottom-bar Log
+  // button, closed by re-click / its own × / Escape.
+  journalOpen: boolean;
   // True while the Convert-Plants flow is in "click a greenery space"
   // mode. Renders SelectSpace.vue with the inner SelectSpace prompt so
   // it can drive board interaction; on space pick we wrap the response in
@@ -709,6 +726,7 @@ export default defineComponent({
       showEventCards: !preferences.hide_event_cards,
       selectedPlayerColor: undefined,
       activeOverlay: null,
+      journalOpen: false,
       convertPlantsPickerActive: false,
       pendingStdProjectPayment: undefined,
       passConfirmOpen: false,
@@ -1283,7 +1301,7 @@ export default defineComponent({
     'waiting-for': WaitingFor,
     'sidebar': Sidebar,
     'colony': Colony,
-    'log-panel': LogPanel,
+    JournalPanel,
     'sortable-cards': SortableCards,
     GameBoardView,
     InitialDraftFlowOverlay,
@@ -1312,6 +1330,17 @@ export default defineComponent({
     },
     toggleOverlay(id: OverlayId): void {
       this.activeOverlay = this.activeOverlay === id ? null : id;
+    },
+    // The journal is a side panel, not a board-covering bar-overlay, so
+    // it has its own toggle. Opening it closes any active bar-overlay so
+    // the journal (which sits at a lower z-index than overlays) isn't
+    // hidden behind one; closing just hides the panel and slides the
+    // board back.
+    toggleJournal(): void {
+      this.journalOpen = !this.journalOpen;
+      if (this.journalOpen) {
+        this.activeOverlay = null;
+      }
     },
     // Closes the active overlay when the click happens outside it. Clicks
     // inside the overlay itself, on a bar button (which has its own toggle),
