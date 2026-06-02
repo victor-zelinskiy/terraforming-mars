@@ -97,14 +97,16 @@
 .bar-overlay,
 .top-bar-dropdown,
 .legacy-ui-overlay--open,
-.played-board-overlay {
+.played-board-overlay,
+.vp-board-overlay {
     transition: right 380ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 #player-home.journal-open .bar-overlay,
 #player-home.journal-open .top-bar-dropdown,
 #player-home.journal-open .legacy-ui-overlay--open,
-#player-home.journal-open .played-board-overlay {
+#player-home.journal-open .played-board-overlay,
+#player-home.journal-open .vp-board-overlay {
     right: calc(var(--right-sidebar-width) + var(--journal-overlay-clearance));
 }
 
@@ -112,7 +114,8 @@
     .bar-overlay,
     .top-bar-dropdown,
     .legacy-ui-overlay--open,
-    .played-board-overlay {
+    .played-board-overlay,
+    .vp-board-overlay {
         transition: none;
     }
 }
