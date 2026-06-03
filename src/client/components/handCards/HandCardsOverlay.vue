@@ -48,10 +48,14 @@
             <span class="hand-sale-strip__title">
               <span v-i18n>Patent sale</span><span class="hand-sale-strip__kind">&nbsp;·&nbsp;<span v-i18n>a standard project</span></span>
             </span>
+            <!-- Info text stays plain text ("… 1 M€ per card") so the gold
+                 megacredit coin lives ONLY in the CTA button (no visual dup). -->
             <span class="hand-sale-strip__hint">{{ saleHint }}</span>
           </div>
         </div>
         <div class="hand-sale-strip__actions">
+          <!-- Summary in plain text ("Получите: 5 M€") — the coin is reserved
+               for the primary CTA button below. -->
           <span class="hand-sale-strip__summary">{{ saleSummaryLabel }}</span>
           <button
             type="button"
@@ -59,7 +63,14 @@
             :disabled="!canConfirmSale"
             @click="confirmSale">
             <span class="hand-sale-confirm-btn__glow" aria-hidden="true"></span>
-            <span class="hand-sale-confirm-btn__label">{{ saleConfirmLabel }}</span>
+            <span class="hand-sale-confirm-btn__label">
+              <span v-i18n>Sell</span>
+              <template v-if="saleSelectedCount > 0">
+                <span class="hand-sale-confirm-btn__count">{{ saleSelectedCount }}</span>
+                <span class="hand-sale-confirm-btn__sep" aria-hidden="true">·</span>
+                <span class="hand-sale-confirm-btn__gain">+<span class="mc-coin mc-coin--sm">{{ salePayout }}</span></span>
+              </template>
+            </span>
           </button>
           <button type="button" class="hand-sale-cancel-btn" @click="cancelSale" v-i18n>Cancel sale</button>
         </div>
@@ -119,7 +130,7 @@
             <span v-i18n>Play card</span>
           </button>
           <div v-else-if="zoomReasons.length > 0" class="hand-zoom-reason">
-            <HandCardReasonPopover :reasons="zoomReasons" />
+            <HandCardReasonPopover :reasons="zoomReasons" heading="Cannot play now" />
           </div>
         </template>
       </CardZoomModal>
@@ -326,12 +337,8 @@ export default defineComponent({
     canConfirmSale(): boolean {
       return this.saleSelectedCount > 0 && this.sellPatentsAvailable && !sellPatentsState.submitting;
     },
-    saleConfirmLabel(): string {
-      if (this.saleSelectedCount === 0) {
-        return translateTextWithParams('Sell', []);
-      }
-      return translateTextWithParams('Sell ${0} · +${1} M€', [String(this.saleSelectedCount), String(this.salePayout)]);
-    },
+    // Info strip text (plain "… M€" — the coin lives only in the CTA button so
+    // money isn't shown twice in the same strip).
     saleSummaryLabel(): string {
       return translateTextWithParams('Selected: ${0} · Gain: ${1} M€', [String(this.saleSelectedCount), String(this.salePayout)]);
     },
@@ -376,14 +383,14 @@ export default defineComponent({
       this.filter.availability = value;
     },
     toggleType(key: HandTypeKey): void {
-      const hidden = this.filter.hiddenTypes.slice();
-      const idx = hidden.indexOf(key);
+      const types = this.filter.activeTypes.slice();
+      const idx = types.indexOf(key);
       if (idx === -1) {
-        hidden.push(key);
+        types.push(key);
       } else {
-        hidden.splice(idx, 1);
+        types.splice(idx, 1);
       }
-      this.filter.hiddenTypes = hidden;
+      this.filter.activeTypes = types;
     },
     toggleTag(tag: Tag): void {
       const tags = this.filter.activeTags.slice();

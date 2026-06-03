@@ -8,7 +8,7 @@
       </div>
       <div class="awards-overlay-cost" v-if="!allFunded">
         <span class="awards-overlay-cost-label" v-i18n>Cost</span>
-        <span class="awards-overlay-cost-value">{{ nextFundingCost }} M€</span>
+        <span class="mc-coin mc-coin--sm awards-overlay-cost-coin">{{ nextFundingCost }}</span>
       </div>
       <div class="awards-overlay-close" v-on:click="$emit('close')">✕</div>
     </div>
@@ -76,8 +76,7 @@
                   v-on:click.stop="onFundClick(a)">
             <span class="award-fund-btn-label" v-i18n>Fund</span>
             <span class="award-fund-btn-cost">
-              <span class="award-fund-btn-cost-value">{{ nextFundingCost }}</span>
-              <span class="award-fund-btn-cost-mc">M€</span>
+              <span class="mc-coin mc-coin--sm">{{ nextFundingCost }}</span>
             </span>
           </button>
           <div v-else-if="a.playerName" class="award-row-funded-badge" v-i18n>Funded</div>

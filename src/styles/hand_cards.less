@@ -25,6 +25,7 @@
 @hc-event:       #d64040;
 
 @hc-ready:       #58d6a6; /* playable accent — calm teal-green, not shouty */
+@hc-warn:        #e6953c; /* "can't play right now" — calm orange, not a red error */
 
 /* Premium "this chip is empty in the current filter" treatment — desaturated
    + dimmed, with a small custom hover tooltip (no native title) fed by the
@@ -321,20 +322,21 @@
     gap: 7px;
 }
 
-/* Type chips (toggle to hide) */
+/* Type chips (positive narrowing — same model + visual language as the tag
+   chips: neutral at rest, cyan highlight when selected, muted at 0-count). */
 .hand-filter-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     padding: 4px 9px 4px 8px;
     border-radius: 999px;
-    border: 1px solid rgba(106, 176, 230, 0.22);
-    background: rgba(18, 28, 42, 0.6);
+    border: 1px solid rgba(106, 176, 230, 0.2);
+    background: rgba(18, 28, 42, 0.5);
     color: @hc-text;
     font-size: 11.5px;
     font-weight: 600;
     cursor: pointer;
-    transition: opacity 140ms, border-color 140ms, background 140ms, filter 140ms;
+    transition: border-color 140ms, background 140ms, box-shadow 140ms, transform 120ms, opacity 140ms, filter 140ms;
 
     &__dot {
         width: 8px;
@@ -350,18 +352,27 @@
         font-variant-numeric: tabular-nums;
     }
 
+    /* `--active` here is the card-TYPE key (key='active'), recolouring the dot
+       — NOT a selected state. The selected state is `--selected` (below). */
     &--active  &__dot { background: @hc-active;    box-shadow: 0 0 6px fade(@hc-active, 70%); }
     &--automated &__dot { background: @hc-automated; box-shadow: 0 0 6px fade(@hc-automated, 70%); }
     &--event   &__dot { background: @hc-event;     box-shadow: 0 0 6px fade(@hc-event, 70%); }
 
-    &--off {
-        opacity: 0.4;
-        filter: saturate(0.4);
-        border-color: rgba(106, 176, 230, 0.12);
+    &:hover {
+        border-color: rgba(106, 176, 230, 0.5);
+        transform: translateY(-1px);
     }
-    &:hover { border-color: rgba(106, 176, 230, 0.45); }
+    /* Selected → narrows to this type. Cyan highlight, identical to a
+       selected tag chip, so the two filter rows read as one system. */
+    &--selected {
+        border-color: @hc-cyan;
+        background: rgba(106, 176, 230, 0.18);
+        box-shadow: 0 0 0 1px fade(@hc-cyan, 45%), 0 0 10px fade(@hc-cyan, 30%);
+    }
+    &--selected &__count { color: @hc-text; }
 
-    /* Faceted count 0 — present in the hand but not in this slice. */
+    /* Faceted count 0 and not selected — render muted (selected chips stay
+       bright + clickable so they can always be cleared). */
     &--muted { .muted-chip(); }
 }
 
@@ -575,6 +586,14 @@
        a re-entering card never double-animates. */
 }
 
+/* While the "Cannot play now" chip popover is open, lift the whole card item
+   above its grid siblings so the popover (which lives inside the card's own
+   filtered/transformed stacking context) is never clipped by a later card. */
+.hand-card-item--reason-open {
+    position: relative;
+    z-index: 30;
+}
+
 .hand-card-item__card {
     position: relative;
     cursor: pointer;
@@ -673,6 +692,51 @@
     }
 }
 
+/* ── "Cannot play now" badge (secondary playability indicator) ─────────
+   A COMPACT icon-only badge pinned to the card's top-left corner, rendered
+   whenever the card can't be PLAYED — in BOTH normal and sale modes, so it
+   never pops in / out when the player toggles sale. Icon-only so it fits at
+   every card zoom (the long label that used to live here overflowed small
+   cards). Calm orange (not the red "error" of the reason popover it triggers).
+   Hover / focus reveals the shared reason popover (hosted in the footer). */
+.hand-card-item__playblock {
+    position: absolute;
+    /* Bottom-left corner — clear of the card cost (top-left) and the sale
+       tick (top-right). */
+    bottom: 7px;
+    left: 7px;
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid fade(@hc-warn, 60%);
+    background: radial-gradient(120% 120% at 50% 20%, rgba(46, 28, 12, 0.96), rgba(26, 16, 9, 0.96));
+    box-shadow: 0 2px 7px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    color: @hc-warn;
+    cursor: help;
+    outline: none;
+    transition: border-color 140ms, box-shadow 140ms, color 140ms, transform 140ms;
+
+    &:hover,
+    &:focus-visible {
+        color: #ffd9b0;
+        border-color: @hc-warn;
+        transform: scale(1.08);
+        box-shadow: 0 3px 11px fade(@hc-warn, 45%), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    }
+}
+.hand-card-item__playblock-icon {
+    font-size: 14px;
+    line-height: 1;
+    font-weight: 700;
+}
+
+/* The disabled "НЕДОСТУПНА" footer is also a reason-popover trigger (hover /
+   focus). Keep its layout identical to the play button slot. */
 .hand-card-item__disabled {
     position: relative;
     width: 100%;
@@ -778,7 +842,15 @@
         box-shadow: 0 0 6px fade(@hc-event, 55%);
         transform: rotate(45deg);
     }
-    &__text { flex: 1; min-width: 0; }
+    &__text {
+        flex: 1;
+        min-width: 0;
+        /* Wrap long reasons (e.g. "Нет разыгранной карты с символом
+           строительства …") instead of overflowing on one line — the
+           popover host may carry `white-space: nowrap`, so force normal here. */
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
     &__now {
         flex-shrink: 0;
         font-family: Prototype, Orbitron, monospace;
@@ -826,8 +898,8 @@
     &__row--rule &__glyph { background: #8aa0b4; box-shadow: none; }
 }
 
-/* Flip below the button when there isn't room above (set by HandCardItem). */
-.hand-card-item__disabled--below .hand-reason {
+/* Flip below the footer when there isn't room above (set by HandCardItem). */
+.hand-reason--below {
     bottom: auto;
     top: calc(100% + 9px);
     &::after {
@@ -1016,6 +1088,9 @@
 @hc-sale:      #f2c14e; /* amber — patents / money accent */
 
 /* Header toggle to enter / leave sale mode. */
+/* Header mode toggle — NOT a primary CTA. Reads as an on/off switch: calm
+   dark glass when off, an amber-tinted (not solid-filled) state when on. The
+   lit dot is the main on/off signal. */
 .hand-board__sale-toggle {
     display: inline-flex;
     align-items: center;
@@ -1023,9 +1098,9 @@
     flex-shrink: 0;
     padding: 5px 12px;
     border-radius: 7px;
-    border: 1px solid rgba(242, 193, 78, 0.4);
-    background: rgba(242, 193, 78, 0.1);
-    color: @hc-sale;
+    border: 1px solid rgba(242, 193, 78, 0.26);
+    background: rgba(28, 32, 42, 0.55);
+    color: fade(@hc-sale, 82%);
     font-family: Prototype, Orbitron, sans-serif;
     font-size: 11px;
     letter-spacing: 1px;
@@ -1038,20 +1113,35 @@
         width: 7px;
         height: 7px;
         border-radius: 50%;
-        background: @hc-sale;
-        box-shadow: 0 0 7px fade(@hc-sale, 70%);
+        background: fade(@hc-sale, 50%);
+        box-shadow: none;
+        transition: background 150ms, box-shadow 150ms;
     }
+    /* Off → hover: gently brighten. */
     &:hover {
-        border-color: @hc-sale;
-        background: rgba(242, 193, 78, 0.16);
+        border-color: fade(@hc-sale, 55%);
+        color: @hc-sale;
+        background: rgba(36, 40, 50, 0.6);
     }
+    &:hover &-dot { background: @hc-sale; }
+
+    /* On (in sale mode): amber-tinted glass + lit dot, but never the loud
+       solid-gold fill of a primary CTA. */
     &--active {
-        color: #16110a;
-        background: linear-gradient(180deg, lighten(@hc-sale, 6%), @hc-sale);
-        border-color: @hc-sale;
-        box-shadow: 0 0 12px fade(@hc-sale, 40%);
+        color: @hc-sale;
+        background: rgba(242, 193, 78, 0.13);
+        border-color: fade(@hc-sale, 65%);
+        box-shadow: inset 0 0 0 1px fade(@hc-sale, 18%), 0 0 9px fade(@hc-sale, 16%);
     }
-    &--active &-dot { background: #16110a; box-shadow: none; }
+    &--active &-dot { background: @hc-sale; box-shadow: 0 0 7px fade(@hc-sale, 70%); }
+    /* On → hover hints "click to exit" with a calm lift in tint, not a jarring
+       colour flip. */
+    &--active:hover {
+        color: #fff1d4;
+        background: rgba(242, 193, 78, 0.19);
+        border-color: @hc-sale;
+        box-shadow: inset 0 0 0 1px fade(@hc-sale, 26%), 0 0 11px fade(@hc-sale, 24%);
+    }
 }
 
 /* Mode strip — premium "you are in Sell patents" banner. */
@@ -1094,10 +1184,13 @@
         color: @hc-text-muted;
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
+        line-height: 1;
     }
 }
 
-/* Primary action — ПРОДАТЬ. Calm amber glass; glow only on hover/focus. */
+/* Primary action — ПРОДАТЬ. Refined dark-amber glass (not a loud all-gold
+   fill) so the gold megacredit coin in the label reads with good contrast;
+   prominence comes from the amber border + hover glow. */
 .hand-sale-confirm-btn {
     position: relative;
     border: none;
@@ -1108,9 +1201,9 @@
     letter-spacing: 1px;
     text-transform: uppercase;
     font-weight: 700;
-    color: #16110a;
-    background: linear-gradient(180deg, lighten(@hc-sale, 8%), darken(@hc-sale, 6%));
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    color: #ffe6ad;
+    background: linear-gradient(180deg, rgba(58, 44, 18, 0.92), rgba(36, 27, 12, 0.95));
+    box-shadow: inset 0 0 0 1px fade(@hc-sale, 48%);
     cursor: pointer;
     overflow: hidden;
     white-space: nowrap;
@@ -1120,16 +1213,27 @@
         position: absolute;
         inset: 0;
         z-index: 1;
-        background: radial-gradient(120% 140% at 50% -20%, rgba(255, 255, 255, 0.4), transparent 60%);
+        background: radial-gradient(120% 140% at 50% -20%, fade(@hc-sale, 32%), transparent 62%);
         opacity: 0;
         transition: opacity 160ms;
     }
-    &__label { position: relative; z-index: 2; }
+    &__label {
+        position: relative;
+        z-index: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    &__count { font-variant-numeric: tabular-nums; }
+    &__sep { opacity: 0.6; }
+    &__gain { display: inline-flex; align-items: center; gap: 1px; }
 
     &:hover:not(:disabled),
     &:focus-visible:not(:disabled) {
+        color: #fff6e0;
         transform: translateY(-1px);
-        box-shadow: 0 7px 18px fade(@hc-sale, 42%), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+        background: linear-gradient(180deg, rgba(76, 57, 23, 0.95), rgba(48, 36, 16, 0.96));
+        box-shadow: 0 7px 18px fade(@hc-sale, 40%), inset 0 0 0 1px fade(@hc-sale, 78%);
     }
     &:hover:not(:disabled) &__glow { opacity: 1; }
     &:active:not(:disabled) { transform: translateY(0); }
@@ -1201,11 +1305,21 @@
     }
     &:hover &__glow { opacity: 1; }
 
+    /* Selected → secondary / calm: an amber-tinted glass (not a solid-gold
+       fill), so it never competes with the primary ПРОДАТЬ CTA. The card's
+       amber frame + tick are the primary "selected" signal; this just toggles. */
     &--selected {
-        color: #16110a;
-        background: linear-gradient(180deg, lighten(@hc-sale, 8%), darken(@hc-sale, 4%));
-        border-color: @hc-sale;
-        box-shadow: 0 4px 12px fade(@hc-sale, 34%), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+        color: #ffe6ad;
+        background: rgba(242, 193, 78, 0.14);
+        border-color: fade(@hc-sale, 70%);
+        box-shadow: inset 0 0 0 1px fade(@hc-sale, 22%);
+
+        &:hover,
+        &:focus-visible {
+            color: #fff3d6;
+            border-color: @hc-sale;
+            box-shadow: 0 4px 11px fade(@hc-sale, 26%), inset 0 0 0 1px fade(@hc-sale, 32%);
+        }
     }
 }
 

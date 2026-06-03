@@ -1,10 +1,11 @@
 <template>
   <div class="hand-card-item"
        :class="{
-         'hand-card-item--unplayable': !playable,
+         'hand-card-item--unplayable': showUnplayableDim,
          'hand-card-item--sale': saleMode,
          'hand-card-item--sale-selected': saleMode && selected,
          'hand-card-item--dissolving': dissolving,
+         'hand-card-item--reason-open': showReason,
        }">
     <!--
       Card silhouette. Single click opens the modern fullscreen viewer —
@@ -21,6 +22,28 @@
          @keydown.space.prevent="$emit('open', entry.card)">
       <Card :card="entry.card" />
       <span v-if="saleMode && selected" class="hand-card-item__sale-tick" aria-hidden="true">✓</span>
+
+      <!--
+        Playability indicator — a COMPACT icon-only badge pinned to the card
+        corner, rendered whenever the card can't be PLAYED right now. It's
+        present in BOTH normal and sale mode (so it never pops in / out when
+        toggling sale), icon-only so it fits at every card zoom, and purely
+        SECONDARY: in sale mode the card stays fully selectable. Hover / focus
+        reveals the shared reason popover (hosted in the action footer below,
+        so it can grow without being clipped by this small badge). No native
+        title tooltip (spec).
+      -->
+      <button v-if="!playable && reasons.length > 0"
+              type="button"
+              class="hand-card-item__playblock"
+              :aria-label="$t('Cannot play now')"
+              @click.stop
+              @mouseenter="onReasonEnter"
+              @mouseleave="onReasonLeave"
+              @focus="onReasonEnter"
+              @blur="onReasonLeave">
+        <span class="hand-card-item__playblock-icon" aria-hidden="true">⊘</span>
+      </button>
     </div>
 
     <div class="hand-card-item__action">
@@ -49,15 +72,12 @@
       </button>
 
       <!--
-        Disabled state. The button is a compact "НЕДОСТУПНА" footer; the
-        concrete server-derived reasons live in a premium popover revealed on
-        hover / focus of the (keyboard-focusable) wrapper — no native title.
-        `placeReason` flips the popover above/below and nudges it sideways so
-        it never spills out of the scroll area or fully covers the card.
+        Normal mode, unplayable: a disabled "НЕДОСТУПНА" footer. Hovering /
+        focusing it ALSO reveals the reason popover (same as the card badge),
+        so the player can read the WHY from either affordance.
       -->
       <div v-else
            class="hand-card-item__disabled"
-           :class="{'hand-card-item__disabled--below': reasonBelow}"
            tabindex="0"
            @mouseenter="onReasonEnter"
            @mouseleave="onReasonLeave"
@@ -66,10 +86,21 @@
         <button type="button" class="hand-card-play-btn hand-card-play-btn--disabled" disabled>
           <span class="hand-card-play-btn__label" v-i18n>Unavailable</span>
         </button>
-        <transition name="hand-reason-fade">
-          <HandCardReasonPopover v-if="showReason && reasons.length > 0" :reasons="reasons" :style="reasonStyle" />
-        </transition>
       </div>
+
+      <!--
+        Single shared reason popover for BOTH hover sources (card badge +
+        footer). Anchored above the action footer, flipped / nudged by
+        `placeReason` so it stays inside the scroll area.
+      -->
+      <transition name="hand-reason-fade">
+        <HandCardReasonPopover
+          v-if="showReason && reasons.length > 0"
+          :reasons="reasons"
+          heading="Cannot play now"
+          :class="{'hand-reason--below': reasonBelow}"
+          :style="reasonStyle" />
+      </transition>
     </div>
   </div>
 </template>
@@ -83,10 +114,16 @@ import HandCardReasonPopover from '@/client/components/handCards/HandCardReasonP
 
 /**
  * One slot in the hand grid: the card silhouette plus a play affordance
- * beneath it. Playable cards get the active РАЗЫГРАТЬ button; unplayable
- * cards are dimmed (CSS) and show a compact "НЕДОСТУПНА" footer that reveals
- * a premium reason popover (server-derived reasons) on hover / focus. Single
- * click on the card opens fullscreen.
+ * beneath it.
+ *
+ * Playability is shown as a compact icon-only badge on the card corner,
+ * present in both normal and sale modes so it never pops in / out when
+ * toggling sale. In normal mode an unplayable card is also dimmed and its
+ * action footer reads "НЕДОСТУПНА"; in SALE mode the card is NOT dimmed and
+ * the footer is the ВЫБРАТЬ / СНЯТЬ ВЫБОР toggle (the card stays sellable).
+ * Hovering / focusing EITHER the badge OR the disabled footer reveals the
+ * shared reason popover (server-derived reasons), anchored above the footer.
+ * Single click on the card opens fullscreen.
  */
 export default defineComponent({
   name: 'HandCardItem',
@@ -117,7 +154,7 @@ export default defineComponent({
   data() {
     return {
       showReason: false,
-      // Flip the popover below the button when there isn't room above.
+      // Flip the popover below the footer when there isn't room above.
       reasonBelow: false,
       // Horizontal nudge (px) so the popover stays inside the scroll area.
       reasonShift: 0,
@@ -126,6 +163,12 @@ export default defineComponent({
   computed: {
     playable(): boolean {
       return this.entry.state.playable;
+    },
+    // Dim the card only in NORMAL mode. In sale mode an unplayable card must
+    // read as fully selectable, so it's never dimmed — the icon badge carries
+    // the (secondary) playability info instead.
+    showUnplayableDim(): boolean {
+      return !this.playable && !this.saleMode;
     },
     reasons(): ReadonlyArray<UnplayableReason> {
       return this.entry.state.reasons;
@@ -136,7 +179,7 @@ export default defineComponent({
     reasonStyle(): Record<string, string> {
       return {
         'marginLeft': `${this.reasonShift}px`,
-        // Keep the caret pointing at the button after a sideways nudge.
+        // Keep the caret pointing at the footer after a sideways nudge.
         '--reason-caret': `${-this.reasonShift}px`,
       };
     },
@@ -153,10 +196,11 @@ export default defineComponent({
     },
     // Measure once the popover is in the DOM: flip below when it would
     // overflow the top of the scroll area, and nudge it horizontally so it
-    // doesn't spill past either edge.
+    // doesn't spill past either edge. Anchored to the action footer (the
+    // popover's positioned parent), which works for both hover sources.
     placeReason(): void {
       const root = this.$el as HTMLElement;
-      const wrapper = root.querySelector('.hand-card-item__disabled') as HTMLElement | null;
+      const wrapper = root.querySelector('.hand-card-item__action') as HTMLElement | null;
       const pop = root.querySelector('.hand-reason') as HTMLElement | null;
       if (wrapper === null || pop === null) {
         return;

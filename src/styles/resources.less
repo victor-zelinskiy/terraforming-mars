@@ -743,6 +743,42 @@
     position: relative;
 }
 
+/*
+ * Unified premium megacredit "coin" chip — a single gold megacredit disc with
+ * the value centred inside. This is THE money visual for action / price /
+ * reward UI across the fork (sell-patents strip, awards & milestones cost
+ * buttons, …), replacing ad-hoc "M€" text. The background asset is the same
+ * megacredit.png every resource icon uses, so the visual language stays
+ * consistent. Because the coin is gold, hosts should sit it on a DARK surface
+ * (not a bright gold button) so it reads with good contrast.
+ */
+.mc-coin {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    background-image: url(./assets/resources/megacredit.png);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    color: #1a1308;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    /* Land the digit on the coin's visual centre (the art has a top-rim
+     * highlight that pulls the perceived centre downward). */
+    padding-top: 1px;
+    text-shadow: 0 1px 0 rgba(255, 250, 230, 0.4);
+    font-variant-numeric: tabular-nums;
+}
+.mc-coin--xs { width: 19px; height: 19px; font-size: 10.5px; }
+.mc-coin--sm { width: 21px; height: 21px; font-size: 11px; }
+.mc-coin--lg { width: 30px; height: 30px; font-size: 15px; }
+
 @resource_types: titanium, steel, heat, data, science, seed, graphene, asteroid, hydroelectric-resource;
 each(@resource_types, {
   .resource_icon--@{value} {
