@@ -8,7 +8,6 @@
           <div v-if="!isStandardProject" class="card-cost-and-tags">
               <CardCost :amount="cost" :newCost="reducedCost" />
               <div v-if="showPlayerCube" :class="playerCubeClass"></div>
-              <card-help v-if="hasHelpText" :name="card.name" :hovering="hovering" />
               <CardTags :tags="tags" />
           </div>
           <CardTitle :title="card.name" :type="cardType"/>

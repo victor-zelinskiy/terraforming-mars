@@ -382,25 +382,16 @@ export default defineComponent({
     setAvailability(value: AvailabilityFilter): void {
       this.filter.availability = value;
     },
+    // Single-select within the group: picking a type clears any other type
+    // (clicking the active one toggles it off). Keeps the filtering simple —
+    // one type at a time, mirroring the availability segment.
     toggleType(key: HandTypeKey): void {
-      const types = this.filter.activeTypes.slice();
-      const idx = types.indexOf(key);
-      if (idx === -1) {
-        types.push(key);
-      } else {
-        types.splice(idx, 1);
-      }
-      this.filter.activeTypes = types;
+      this.filter.activeTypes = this.filter.activeTypes.includes(key) ? [] : [key];
     },
+    // Single-select within the group: picking a tag clears any other tag
+    // (clicking the active one toggles it off).
     toggleTag(tag: Tag): void {
-      const tags = this.filter.activeTags.slice();
-      const idx = tags.indexOf(tag);
-      if (idx === -1) {
-        tags.push(tag);
-      } else {
-        tags.splice(idx, 1);
-      }
-      this.filter.activeTags = tags;
+      this.filter.activeTags = this.filter.activeTags.includes(tag) ? [] : [tag];
     },
     setSort(mode: HandSortMode): void {
       this.filter.sort = mode;

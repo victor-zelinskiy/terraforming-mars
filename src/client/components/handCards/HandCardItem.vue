@@ -24,13 +24,14 @@
       <span v-if="saleMode && selected" class="hand-card-item__sale-tick" aria-hidden="true">✓</span>
 
       <!--
-        Playability indicator — a COMPACT icon-only badge pinned to the card
-        corner, rendered whenever the card can't be PLAYED right now. It's
-        present in BOTH normal and sale mode (so it never pops in / out when
-        toggling sale), icon-only so it fits at every card zoom, and purely
-        SECONDARY: in sale mode the card stays fully selectable. Hover / focus
-        reveals the shared reason popover (hosted in the action footer below,
-        so it can grow without being clipped by this small badge). No native
+        Playability indicator — a compact icon + text pill centred along the
+        bottom edge of the card (clear of the cost top-left, the sale tick
+        top-right, and the expansion glyph bottom-left). Rendered whenever the
+        card can't be PLAYED right now, in BOTH normal and sale mode (so it
+        never pops in / out when toggling sale), and purely SECONDARY: in sale
+        mode the card stays fully selectable. The short label wraps to two
+        lines on small cards instead of truncating. Hover / focus reveals the
+        shared reason popover (hosted in the action footer below). No native
         title tooltip (spec).
       -->
       <button v-if="!playable && reasons.length > 0"
@@ -43,6 +44,7 @@
               @focus="onReasonEnter"
               @blur="onReasonLeave">
         <span class="hand-card-item__playblock-icon" aria-hidden="true">⊘</span>
+        <span class="hand-card-item__playblock-label" v-i18n>Cannot play</span>
       </button>
     </div>
 

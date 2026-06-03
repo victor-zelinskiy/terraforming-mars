@@ -19,6 +19,7 @@
     "Selected: ${0} · Gain: ${1} M€": "Выбрано: ${0} · Получите: ${1} M€",
     "Select cards to sell. You gain ${0} M€ per card.": "Выберите карты для продажи. Получите ${0} M€ за каждую карту.",
     "Cannot play now": "Нельзя разыграть сейчас",
+    "Cannot play": "Нельзя разыграть",
     "No cards to sell": "Нет карт для продажи",
     "Gain 1 M€ per card sold": "Получите 1 M€ за каждую проданную карту",
     "Sell cards from your hand for 1 M€ each": "Продайте карты из руки по 1 M€ за каждую",
