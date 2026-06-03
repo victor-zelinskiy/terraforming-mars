@@ -4,6 +4,7 @@
          'hand-card-item--unplayable': !playable,
          'hand-card-item--sale': saleMode,
          'hand-card-item--sale-selected': saleMode && selected,
+         'hand-card-item--dissolving': dissolving,
        }">
     <!--
       Card silhouette. Single click opens the modern fullscreen viewer —
@@ -102,6 +103,12 @@ export default defineComponent({
     },
     // Whether this card is currently selected for sale (sale mode only).
     selected: {
+      type: Boolean,
+      default: false,
+    },
+    // True while this sold card plays its exit (dissolve) animation, just
+    // before the sale is submitted and it leaves the hand.
+    dissolving: {
       type: Boolean,
       default: false,
     },
