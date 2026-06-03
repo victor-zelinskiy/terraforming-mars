@@ -115,6 +115,7 @@ import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
 import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
+import {shouldPreserveSaleOverlay} from '@/client/components/handCards/sellPatentsState';
 import {
   armPlacementAnimations,
   shouldHoldForTilePlacement,
@@ -284,7 +285,8 @@ export default defineComponent({
           const preserveCardPickModal =
             path === paths.PLAYER &&
             (shouldPreserveCardPickModal(model as PlayerViewModel) ||
-             shouldPreserveInitialDraftOverlay(model as PlayerViewModel));
+             shouldPreserveInitialDraftOverlay(model as PlayerViewModel) ||
+             shouldPreserveSaleOverlay());
           /*
            * Arm the Board Placement Animation gate if this polling
            * update introduces a new tile vs. the currently displayed

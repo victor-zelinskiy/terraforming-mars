@@ -112,6 +112,7 @@ import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {clearIfPhaseLeftCardPick, clearDraftWaitPending, shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
+import {shouldPreserveSaleOverlay} from '@/client/components/handCards/sellPatentsState';
 import {Message} from '@/common/logs/Message';
 import {
   applyTilePlacementPreview,
@@ -503,7 +504,7 @@ export default defineComponent({
          * still fires, preserving the original "force re-render"
          * behaviour that the codebase relies on for those paths.
          */
-        if (shouldPreserveCardPickModal(playerView) || shouldPreserveInitialDraftOverlay(playerView)) {
+        if (shouldPreserveCardPickModal(playerView) || shouldPreserveInitialDraftOverlay(playerView) || shouldPreserveSaleOverlay()) {
           root.playerView = playerView;
         } else {
           root.screen = 'empty';

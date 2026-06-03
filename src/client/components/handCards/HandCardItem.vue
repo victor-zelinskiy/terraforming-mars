@@ -1,5 +1,10 @@
 <template>
-  <div class="hand-card-item" :class="{'hand-card-item--unplayable': !playable}">
+  <div class="hand-card-item"
+       :class="{
+         'hand-card-item--unplayable': !playable,
+         'hand-card-item--sale': saleMode,
+         'hand-card-item--sale-selected': saleMode && selected,
+       }">
     <!--
       Card silhouette. Single click opens the modern fullscreen viewer —
       `@click.capture.stop` suppresses Card.vue's own (preference-gated)
@@ -14,10 +19,27 @@
          @keydown.enter.prevent="$emit('open', entry.card)"
          @keydown.space.prevent="$emit('open', entry.card)">
       <Card :card="entry.card" />
+      <span v-if="saleMode && selected" class="hand-card-item__sale-tick" aria-hidden="true">✓</span>
     </div>
 
     <div class="hand-card-item__action">
-      <button v-if="playable"
+      <!--
+        Sale mode (Sell patents standard project): the action is "select this
+        card for sale", not "play it" — playability is irrelevant, every held
+        card is selectable. Selection lives in module state and is submitted
+        only on the final ПРОДАТЬ.
+      -->
+      <button v-if="saleMode"
+              type="button"
+              class="hand-card-sell-btn"
+              :class="{'hand-card-sell-btn--selected': selected}"
+              :aria-pressed="selected"
+              @click.stop="$emit('toggle-select', entry.name)">
+        <span class="hand-card-sell-btn__glow" aria-hidden="true"></span>
+        <span class="hand-card-sell-btn__label" v-i18n>{{ selected ? 'Deselect' : 'Select' }}</span>
+      </button>
+
+      <button v-else-if="playable"
               type="button"
               class="hand-card-play-btn hand-card-play-btn--ready"
               @click.stop="$emit('play', entry.name)">
@@ -73,8 +95,18 @@ export default defineComponent({
       type: Object as PropType<HandCardEntry>,
       required: true,
     },
+    // Sell-patents sale mode: swap the play affordance for a select toggle.
+    saleMode: {
+      type: Boolean,
+      default: false,
+    },
+    // Whether this card is currently selected for sale (sale mode only).
+    selected: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['open', 'play'],
+  emits: ['open', 'play', 'toggle-select'],
   data() {
     return {
       showReason: false,

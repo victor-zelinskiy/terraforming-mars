@@ -19,10 +19,18 @@ export default defineComponent({
       type: String as () => 'none' | 'filtered',
       required: true,
     },
+    // In sell-patents sale mode the "no cards" wording is sale-specific.
+    saleMode: {
+      type: Boolean,
+      default: false,
+    },
   },
   computed: {
     message(): string {
-      return this.reason === 'none' ? 'No cards in hand' : 'No cards match these filters';
+      if (this.reason === 'none') {
+        return this.saleMode ? 'No cards to sell' : 'No cards in hand';
+      }
+      return 'No cards match these filters';
     },
   },
 });

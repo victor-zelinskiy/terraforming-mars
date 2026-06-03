@@ -4295,12 +4295,53 @@ each(@players, {
         }
     }
     &--disabled {
-        opacity: 0.5;
+        // Dim the CONTENT (icon / text / button), NOT the whole row via a
+        // row-level opacity — that would also fade the premium hover tooltip
+        // below, which must stay fully legible.
+        .std-project-row-icon,
+        .std-project-row-text {
+            opacity: 0.5;
+        }
 
         &::before {
             opacity: 0.4;
         }
     }
+
+    /* Premium hover tooltip for a disabled row — replaces the native browser
+       `title`. Anchored to the ROW (not the clip-pathed button, whose
+       clip-path would clip a pseudo-element), positioned above its right edge
+       near the USE button. Only disabled rows show it (why the action is
+       off). */
+    &--disabled[data-hint]:hover::after {
+        content: attr(data-hint);
+        position: absolute;
+        bottom: calc(100% + 6px);
+        right: 12px;
+        z-index: 40;
+        padding: 6px 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(106, 176, 230, 0.34);
+        background: linear-gradient(180deg, rgba(18, 28, 42, 0.98), rgba(11, 18, 28, 0.98));
+        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.6);
+        color: #e8f1fb;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 11.5px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        line-height: 1.3;
+        white-space: normal;
+        width: max-content;
+        max-width: 240px;
+        text-align: left;
+        pointer-events: none;
+        animation: std-tooltip-in 130ms ease both;
+    }
+}
+
+@keyframes std-tooltip-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .std-project-row-icon {
@@ -4430,6 +4471,49 @@ each(@players, {
     width: 18px;
     height: 18px;
     background-size: contain;
+}
+
+/* Sell patents: the M€ is a GAIN, not a cost — tint it mint and read "+N". */
+.std-project-use-btn-gain {
+    position: relative;
+    z-index: 1;
+    font-size: 18px;
+    font-weight: 700;
+    color: #8fe0c0;
+    font-variant-numeric: tabular-nums;
+    margin-left: 4px;
+}
+
+/* Sell patents sits FIRST in the list (Steam-style). It's rendered last in
+   the template (after the v-for), so order it to the top of the flex column. */
+.std-project-row--sell {
+    order: -1;
+}
+
+/* Dedicated icon for the Sell patents row (the server excludes it from the
+   project list, so it has no PROJECT_VISUAL entry). A small mint M€ plate. */
+.std-project-row-icon--sell {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    position: relative;
+    background:
+        radial-gradient(120% 120% at 50% 0%, rgba(143, 224, 192, 0.22), transparent 70%),
+        linear-gradient(180deg, rgba(20, 34, 30, 0.9), rgba(12, 22, 20, 0.9));
+    border: 1px solid rgba(143, 224, 192, 0.4);
+
+    &::after {
+        content: 'M€';
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: Prototype, Orbitron, sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        color: #8fe0c0;
+    }
 }
 
 /*
