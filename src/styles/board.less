@@ -1200,30 +1200,34 @@
 	}
 
 	// ── Contextual bonus "attract" — draw the eye to the reward ─────────
-	// While a cell is a legal placement target its bonuses gently grow so
+	// While a cell is a legal placement target its bonuses light up so
 	// the player reads "this is what you'll gain here". On the HOVERED
 	// target (or a confirmed SELECTED one) the emphasis goes stronger and
 	// the glow shifts to the placement AMBER, so the bonus speaks the same
 	// "lock-on" language as the cell's amber outline. Deliberately calm:
-	// small scale, NO idle loop — emphasis appears only in placement mode,
+	// soft glow, NO idle loop, NO size change — emphasis only in placement mode,
 	// exactly when attention SHOULD be on the legal cells. Bonuses are
 	// pointer-events:none, so this rides the parent cell's :hover.
 	&.board-space--available .board-space-bonuses {
-		transform: scale(1.06);
-		transform-origin: center center;
-		transition: transform 200ms ease, filter 200ms ease;
+		// No resting scale — the bonus cluster already fills the hex, so any
+		// scale-up spills onto neighbours. Just arm the transition for the
+		// hover/selected glow below.
+		transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms ease;
 	}
 
 	&.board-space--available:hover .board-space-bonuses,
 	&.board-space--selected .board-space-bonuses {
-		transform: scale(1.16);
-		transform-origin: center center;
+		// Light the reward up IN PLACE: amber glow + brightness/saturation +
+		// a 2px rise toward the free hex centre. Reads as "these get collected
+		// when you place here" without ever breaking the cell boundary.
+		transform: translateY(-2px);
 		filter:
-			drop-shadow(0 0 5px rgba(255, 224, 158, 0.90))
+			drop-shadow(0 0 6px rgba(255, 216, 140, 0.95))
+			drop-shadow(0 0 2px rgba(255, 216, 140, 0.70))
 			drop-shadow(0 1.4px 1.1px rgba(20, 9, 4, 0.45))
-			brightness(1.18)
-			saturate(1.22);
-		transition: transform 200ms ease, filter 200ms ease;
+			brightness(1.20)
+			saturate(1.24);
+		transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms ease;
 	}
 
 	// `.board-space--available` styling lives at the top of the file
