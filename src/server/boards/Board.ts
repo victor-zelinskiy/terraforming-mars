@@ -144,7 +144,7 @@ export abstract class Board {
     return {megacredits: 0, production: 0, tr: {}};
   }
 
-  private computeAdditionalCosts(space: Space, aresExtension: boolean, multiplier: number | undefined): SpaceCosts {
+  protected computeAdditionalCosts(space: Space, aresExtension: boolean, multiplier: number | undefined): SpaceCosts {
     const costs: SpaceCosts = this.spaceCosts(space);
     if (multiplier !== undefined) {
       costs.megacredits *= multiplier;

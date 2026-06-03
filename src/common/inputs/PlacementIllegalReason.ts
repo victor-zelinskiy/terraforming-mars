@@ -4,10 +4,13 @@
  * client auto-picks up the new reason via the existing tooltip lookup.
  *
  * Server fills these for cells outside the legal `spaces` list so the
- * client can show a native browser tooltip (`title=` attribute) plus a
- * `cursor: not-allowed` cue on hover. Reason derivation lives in
- * `MarsBoard.computeIllegalReasons()`; card-specific reasons are produced
- * by passing a `customReasoner` callback through `createMarsSelectSpace()`.
+ * client can show a premium reason popover (the SAME `HandCardReasonPopover`
+ * the hand overlay uses, hosted by `board/PlacementReasonPopover.vue`) plus a
+ * `cursor: not-allowed` cue on hover — NOT a native browser tooltip. Reason
+ * derivation lives in `MarsBoard.computeIllegalReasons()`; card-specific
+ * reasons are produced by passing a `customReasoner` callback through
+ * `createMarsSelectSpace()`. The label below is the i18n key the popover
+ * renders; affordability reasons also carry a M€ `deficit` (see below).
  *
  * Priority order during derivation (most specific first): a custom
  * reasoner runs first per cell; if it returns undefined, the generic
@@ -26,6 +29,8 @@ export type PlacementIllegalReason =
   | 'nomad-occupies'
   | 'protected-hazard'
   | 'wrong-terrain'
+  | 'ocean-only' // a land tile (city/greenery/…) on an ocean reserve cell
+  | 'needs-ocean-space' // an ocean tile on a non-ocean (land) cell
   | 'not-ocean-reserve'
   | 'not-volcanic'
   | 'not-isolated'
@@ -72,6 +77,8 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
   'nomad-occupies': 'Mars Nomads is here',
   'protected-hazard': 'Protected hazard',
   'wrong-terrain': 'Wrong terrain type',
+  'ocean-only': 'Only an ocean tile can go here',
+  'needs-ocean-space': 'Oceans can only be placed on ocean spaces',
   'not-ocean-reserve': 'Not an ocean reserve',
   'not-volcanic': 'Not a volcanic space',
   'not-isolated': 'Not isolated from other tiles',
@@ -107,8 +114,14 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
 /**
  * Per-cell illegal-state payload returned by the server alongside the
  * legal `spaces` list.
+ *
+ * `deficit` is the M€-equivalent shortfall, set ONLY for the affordability
+ * reasons (`cannot-afford` / `cannot-afford-bonus`) when it's positive — the
+ * analog of a hand card's `Need ${0} more M€` reason, so the placement
+ * popover can show the exact gap rather than a generic "can't afford".
  */
 export type PlacementIllegalSpace = {
   spaceId: import('../Types').SpaceId;
   reason: PlacementIllegalReason;
+  deficit?: number;
 };

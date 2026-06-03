@@ -2,7 +2,7 @@
   <div class="hand-reason" role="tooltip">
     <div class="hand-reason__head">
       <span class="hand-reason__lock" aria-hidden="true">✕</span>
-      <span class="hand-reason__head-label" v-i18n>Unavailable</span>
+      <span class="hand-reason__head-label" v-i18n>{{ heading }}</span>
     </div>
     <ul class="hand-reason__list">
       <li
@@ -42,7 +42,10 @@ import {translateTextWithParams} from '@/client/directives/i18n';
  * Each row renders a category accent, an optional tag / resource icon, the
  * translated text, and a muted "now: N" badge showing the current value so
  * the player sees the gap at a glance. Positioning (above / below, clamped)
- * is owned by the host (`HandCardItem` / the fullscreen actions slot).
+ * is owned by the host (`HandCardItem` / the fullscreen actions slot /
+ * `PlacementReasonPopover` for board tiles). It is the SHARED reason
+ * renderer — the hand overlay and the board tile placement both use it so
+ * the two read as one "why unavailable" system.
  */
 export default defineComponent({
   name: 'HandCardReasonPopover',
@@ -50,6 +53,11 @@ export default defineComponent({
     reasons: {
       type: Array as PropType<ReadonlyArray<UnplayableReason>>,
       required: true,
+    },
+    // Header label. Cards use the default; tile placement passes its own.
+    heading: {
+      type: String,
+      default: 'Unavailable',
     },
   },
   methods: {
