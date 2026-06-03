@@ -173,6 +173,15 @@ export class LocalStorage implements IDatabase {
     });
   }
 
+  async deleteGame(gameId: GameId): Promise<void> {
+    const saveIds = await this.getSaveIds(gameId);
+    for (const saveId of saveIds) {
+      storage.removeItem('game:' + gameId + ':' + saveId);
+    }
+    storage.removeItem('game:' + gameId);
+    storage.removeItem('completed:' + gameId);
+  }
+
   public stats(): Promise<{[key: string]: string | number}> {
     return Promise.resolve({
       type: 'Local Storage',

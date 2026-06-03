@@ -94,6 +94,16 @@ export interface IDatabase {
     deleteGameNbrSaves(gameId: GameId, rollbackCount: number): Promise<void>;
 
     /**
+     * Permanently and completely deletes a single game and every trace of it:
+     * all of its saves, participants, results and completion records.
+     *
+     * Unlike {@link deleteGameNbrSaves} (which trims recent saves) or
+     * {@link purgeUnfinishedGames} (an age-based maintenance task), this removes
+     * one specific game outright. Used by the administrative games-overview page.
+     */
+    deleteGame(gameId: GameId): Promise<void>;
+
+    /**
      * A maintenance task on a single game to mark it as complete.
      *
      * It will:

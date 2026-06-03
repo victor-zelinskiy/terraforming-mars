@@ -8,6 +8,7 @@ import {GameLoader} from '../database/GameLoader';
 import {ApiCloneableGame} from '../routes/ApiCloneableGame';
 import {ApiCreateGame} from '../routes/ApiCreateGame';
 import {ApiGame} from '../routes/ApiGame';
+import {ApiGameDelete} from '../routes/ApiGameDelete';
 import {ApiGameHistory} from '../routes/ApiGameHistory';
 import {ApiGameLogs} from '../routes/ApiGameLogs';
 import {ApiGames} from '../routes/ApiGames';
@@ -69,6 +70,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_CLONEABLEGAME, ApiCloneableGame.INSTANCE],
     [paths.API_CREATEGAME, ApiCreateGame.INSTANCE],
     [paths.API_GAME, ApiGame.INSTANCE],
+    [paths.API_GAME_DELETE, ApiGameDelete.INSTANCE],
     [paths.API_GAME_HISTORY, ApiGameHistory.INSTANCE],
     [paths.API_GAME_LOGS, ApiGameLogs.INSTANCE],
     [paths.API_GAMES, ApiGames.INSTANCE],

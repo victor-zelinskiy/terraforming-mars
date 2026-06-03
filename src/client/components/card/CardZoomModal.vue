@@ -1,5 +1,15 @@
 <template>
-  <dialog ref="dialog" class="card-zoom-dialog" @click="onBackdropClick">
+  <!--
+    `.stop` on the backdrop click: closing the fullscreen by clicking
+    outside the card must NOT bubble to document-level outside-click
+    handlers (e.g. PlayerHome's `handleOutsideOverlayClick`). Without it,
+    the backdrop click closes the dialog AND then bubbles up — and since
+    the dialog is already closed by the time it reaches document, the
+    `dialog[open]` guard there misses it and the host overlay closes too.
+    The inner `.card-zoom-container` already has `@click.stop`, so this
+    only ever fires for genuine backdrop clicks.
+  -->
+  <dialog ref="dialog" class="card-zoom-dialog" @click.stop="onBackdropClick">
     <!--
       v40 fullscreen presentation rework:
         - Close × button removed; dismissal is backdrop click + Esc only

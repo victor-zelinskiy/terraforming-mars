@@ -80,6 +80,26 @@ export class Cache extends EventEmitter {
     this.games.set(gameId, undefined); // Setting to undefied is the same as "not yet loaded."
   }
 
+  /**
+   * Permanently removes a game from the cache: tears down a loaded instance,
+   * drops it from the games map and removes every participant pointing at it.
+   * (The database deletion is handled separately by the GameLoader.)
+   */
+  public async deleteGame(gameId: GameId): Promise<void> {
+    await this.getGames(); // Ensure the cache has finished loading.
+    const game = this.games.get(gameId);
+    if (game !== undefined) {
+      game.players.forEach((p) => p.tearDown());
+    }
+    this.games.delete(gameId);
+    for (const [participantId, id] of this.participantIds.entries()) {
+      if (id === gameId) {
+        this.participantIds.delete(participantId);
+      }
+    }
+    this.evictionSchedule.delete(gameId);
+  }
+
   public countLoadedGames(): number {
     return [...this.games.values()].filter((game) => game !== undefined).length;
   }

@@ -1435,6 +1435,14 @@ export default defineComponent({
       if (document.querySelector('dialog[open]') !== null) {
         return;
       }
+      // Defensive: a click on a fullscreen card dialog (incl. the backdrop)
+      // can reach here AFTER the dialog has already closed itself — so the
+      // `dialog[open]` guard above misses it. The click target is still the
+      // dialog element, so exempt it explicitly. (CardZoomModal also stops
+      // the backdrop click at source; this is belt-and-braces.)
+      if (target.closest('.card-zoom-dialog')) {
+        return;
+      }
       if (target.closest('.top-bar-dropdown') ||
           target.closest('.bar-overlay') ||
           target.closest('.played-board-overlay') ||

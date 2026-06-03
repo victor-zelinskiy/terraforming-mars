@@ -203,6 +203,15 @@ export class GameLoader implements IGameLoader {
     return Database.getInstance().saveGame(game);
   }
 
+  public async deleteGame(gameId: GameId): Promise<void> {
+    await this.cache.deleteGame(gameId);
+    // Guard against a concurrent save re-creating the game we just deleted.
+    if (!this.purgedGames.includes(gameId)) {
+      this.purgedGames.push(gameId);
+    }
+    await Database.getInstance().deleteGame(gameId);
+  }
+
   public async maintenance() {
     const database = Database.getInstance();
     const purgedGames = await database.purgeUnfinishedGames();
