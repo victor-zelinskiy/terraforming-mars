@@ -314,7 +314,7 @@
     <HandCardsOverlay
       v-if="activeOverlay === 'cards' && displayedPlayer.color === thisPlayer.color"
       :player="thisPlayer"
-      :cards="playerView.cardsInHand"
+      :cards="stagedCardsInHand"
       :playableCardNames="playableProjectCardNames"
       :playActionAvailable="playProjectCardActionAvailable"
       :awaitingInput="playerView.waitingFor !== undefined"
@@ -469,7 +469,7 @@
           <sortable-cards v-show="isVisible('HAND')" :playerId="playerView.id"
                           :cards="playerView.preludeCardsInHand
                                   .concat(playerView.ceoCardsInHand)
-                                  .concat(playerView.cardsInHand)"/>
+                                  .concat(stagedCardsInHand)"/>
         </div>
 
         <div v-if="thisPlayer.selfReplicatingRobotsCards.length > 0" class="player_home_block">
@@ -554,6 +554,7 @@ import WaitingFor from '@/client/components/WaitingFor.vue';
 import Sidebar from '@/client/components/Sidebar.vue';
 import Colony from '@/client/components/colonies/Colony.vue';
 import {journalState} from '@/client/components/journal/journalState';
+import {untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import GameBoardView from '@/client/components/GameBoardView.vue';
 import {useBoardAutoScale} from '@/client/utils/useBoardAutoScale';
 import InitialDraftFlowOverlay from '@/client/components/initialDraft/InitialDraftFlowOverlay.vue';
@@ -908,9 +909,31 @@ export default defineComponent({
     CardType(): typeof CardType {
       return CardType;
     },
+    // The viewer's project hand with cards still awaiting a "take" in the draw
+    // reveal modal subtracted out (by CardName multiset). Visual staging only:
+    // the server already added them to cardsInHand, but they must not appear in
+    // the КАРТЫ overlay (or its count) until the player presses ВЗЯТЬ. Reveals
+    // always belong to thisPlayer (own seat).
+    stagedCardsInHand(): ReadonlyArray<CardModel> {
+      const hand = this.playerView.cardsInHand;
+      const remove = untakenNameMultiset();
+      if (remove.size === 0) {
+        return hand;
+      }
+      const result: Array<CardModel> = [];
+      for (const card of hand) {
+        const pending = remove.get(card.name) ?? 0;
+        if (pending > 0) {
+          remove.set(card.name, pending - 1);
+          continue;
+        }
+        result.push(card);
+      }
+      return result;
+    },
     cardsInHandCount(): number {
       const playerView = this.playerView;
-      return playerView.cardsInHand.length + playerView.preludeCardsInHand.length + playerView.ceoCardsInHand.length;
+      return this.stagedCardsInHand.length + playerView.preludeCardsInHand.length + playerView.ceoCardsInHand.length;
     },
     getCardsByType(): typeof getCardsByType {
       return getCardsByType;

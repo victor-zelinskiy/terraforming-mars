@@ -112,4 +112,60 @@ describe('DrawCards', () => {
     const publicMessage = game.gameLog[1];
     expect(formatMessage(publicMessage)).matches(/blue drew .*,.*/);
   });
+
+  describe('card draw reveal queue', () => {
+    it('keepAll enqueues a reveal batch with the drawn cards', () => {
+      DrawCards.keepAll(player, 3).execute();
+      expect(player.cardDrawReveals).has.length(1);
+      expect(player.cardDrawReveals[0].cards).has.length(3);
+      expect(player.cardDrawReveals[0].cards).to.have.members(player.cardsInHand);
+    });
+
+    it('keepAll passes through the source attribution', () => {
+      player.drawCard(1, {source: {type: 'tile'}});
+      expect(player.cardDrawReveals).has.length(1);
+      expect(player.cardDrawReveals[0].source).to.deep.eq({type: 'tile'});
+    });
+
+    it('enqueueCardDrawReveal ignores an empty batch (deck exhausted / count 0)', () => {
+      player.enqueueCardDrawReveal([]);
+      expect(player.cardDrawReveals).has.length(0);
+    });
+
+    it('keepSome (player chooses) does NOT enqueue a reveal', () => {
+      cast(DrawCards.keepSome(player, 4, {keepMax: 2}).execute(), undefined);
+      runAllActions(game);
+      const action = cast(player.popWaitingFor(), SelectCard);
+      action.cb([action.cards[0], action.cards[2]]);
+      expect(player.cardsInHand).has.length(2);
+      expect(player.cardDrawReveals).has.length(0);
+    });
+
+    it('buying cards does NOT enqueue a reveal', () => {
+      player.megaCredits = 3;
+      cast(DrawCards.keepSome(player, 1, {paying: true}).execute(), undefined);
+      runAllActions(game);
+      const action = cast(player.popWaitingFor(), SelectCard);
+      action.cb([action.cards[0]]);
+      player.game.deferredActions.runNext();
+      expect(player.cardsInHand).has.length(1);
+      expect(player.cardDrawReveals).has.length(0);
+    });
+
+    it('acknowledgeCardDrawReveals removes batches by id and "all"', () => {
+      DrawCards.keepAll(player, 1).execute();
+      DrawCards.keepAll(player, 1).execute();
+      expect(player.cardDrawReveals).has.length(2);
+
+      const firstId = player.cardDrawReveals[0].id;
+      player.acknowledgeCardDrawReveals(firstId);
+      expect(player.cardDrawReveals).has.length(1);
+      // Idempotent — acking a removed id is a no-op.
+      player.acknowledgeCardDrawReveals(firstId);
+      expect(player.cardDrawReveals).has.length(1);
+
+      player.acknowledgeCardDrawReveals('all');
+      expect(player.cardDrawReveals).has.length(0);
+    });
+  });
 });

@@ -45,10 +45,14 @@ import {changeFeedbackManager, prefersReducedMotion} from '@/client/components/f
  * teardown matches the CSS fade-out end. Tweak both in lockstep.
  */
 const CHIP_VISIBLE_MS: Record<DeltaChipVariant, number> = {
-  'resource-stock': 1600,
-  'resource-production': 1350,
+  // resource-stock / resource-production / misc bumped +40% so the cell-row /
+  // production-cell / bottom-bar highlight pulses (extended to match in
+  // resource_change_feedback.less + player_home.less) play out fully before the
+  // host's --active class is cleared, instead of being cut short.
+  'resource-stock': 2240,
+  'resource-production': 1890,
   'tag': 1300,
-  'misc': 1300,
+  'misc': 1820,
   'score': 1700,
   'global-parameter': 1600,
 };

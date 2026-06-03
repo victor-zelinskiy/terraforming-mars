@@ -127,10 +127,14 @@ export function buildHandEntries(
 // (the standard faceted-search rule — a group never zeroes out its own
 // options). See `buildAvailabilityChips` / `buildTypeChips` / `buildTagChips`.
 
+// "Unplayable" means unplayable BY THE RULES (block === 'rules'). A soft block
+// (not your turn / finish your current action) is NOT a rule failure, so it
+// counts as playable here — it must never land in the "unavailable" bucket.
+// This keeps All = Playable + Unplayable, so the faceted segment math holds.
 function passAvailability(e: HandCardEntry, availability: AvailabilityFilter): boolean {
   switch (availability) {
-  case 'playable': return e.state.playable;
-  case 'unplayable': return !e.state.playable;
+  case 'playable': return e.state.block !== 'rules';
+  case 'unplayable': return e.state.block === 'rules';
   default: return true;
   }
 }
@@ -166,6 +170,9 @@ export function sortHandEntries(
   const byName = (a: HandCardEntry, b: HandCardEntry) =>
     translateText(a.name).localeCompare(translateText(b.name));
   const typeRank = (e: HandCardEntry) => (e.typeKey !== undefined ? TYPE_ORDER[e.typeKey] : 99);
+  // Availability rank: playable now → soft-blocked (waiting for turn) →
+  // unplayable by rules. So the cards the player can act on float to the top.
+  const playRank = (e: HandCardEntry) => (e.state.block === 'none' ? 0 : e.state.block === 'soft' ? 1 : 2);
   // The "natural" (ascending) comparator for each mode. Descending simply
   // flips its sign, which reverses the primary key and its tie-breakers
   // together — fine for a display sort.
@@ -175,7 +182,7 @@ export function sortHandEntries(
       // Acquisition order (server hand order). Ascending = oldest first.
       return a.order - b.order;
     case 'availability': {
-      const av = Number(b.state.playable) - Number(a.state.playable);
+      const av = playRank(a) - playRank(b);
       return av !== 0 ? av : a.cost - b.cost;
     }
     case 'cost':
@@ -226,16 +233,18 @@ export function buildAvailabilityChips(
   const activeTypes = new Set(filter.activeTypes);
   const activeTags = new Set(filter.activeTags);
   const base = entries.filter((e) => passTypes(e, activeTypes) && passTags(e, activeTags));
-  let playable = 0;
+  // Only a RULES block counts as unavailable; a soft (turn/phase) block is
+  // playable-by-rules, so it sits on the "playable" side of the segment.
+  let unplayable = 0;
   for (const e of base) {
-    if (e.state.playable) {
-      playable++;
+    if (e.state.block === 'rules') {
+      unplayable++;
     }
   }
   const counts: Record<AvailabilityFilter, number> = {
     all: base.length,
-    playable,
-    unplayable: base.length - playable,
+    playable: base.length - unplayable,
+    unplayable,
   };
   return AVAILABILITY_DEFS.map((def) => ({
     value: def.value,
@@ -344,6 +353,11 @@ export function buildTagChips(
     });
 }
 
+// The header "Can play: N" counts cards playable BY THE RULES (everything that
+// isn't a 'rules' block) — matching the "playable" availability chip. A soft
+// block (not your turn / finish current action) doesn't make a card
+// unavailable, so such cards still count here; on your own turn there are no
+// soft blocks, so this equals the count of cards you can act on right now.
 export function countPlayable(entries: ReadonlyArray<HandCardEntry>): number {
-  return entries.reduce((n, e) => n + (e.state.playable ? 1 : 0), 0);
+  return entries.reduce((n, e) => n + (e.state.block !== 'rules' ? 1 : 0), 0);
 }

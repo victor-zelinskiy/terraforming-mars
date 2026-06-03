@@ -20,6 +20,7 @@ import {ApiProfile} from '../routes/ApiProfile';
 import {ApiSpectator} from '../routes/ApiSpectator';
 import {ApiStats} from '../routes/ApiStats';
 import {ApiWaitingFor} from '../routes/ApiWaitingFor';
+import {AcknowledgeDraw} from '../routes/AcknowledgeDraw';
 import {Autopass} from '../routes/Autopass';
 import {DiscordAuth} from '../routes/DiscordAuth';
 import {GameHandler} from '../routes/Game';
@@ -98,6 +99,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.NEW_GAME, ServeApp.INSTANCE],
     [paths.PLAYER, ServeApp.INSTANCE],
     [paths.PLAYER_INPUT, PlayerInput.INSTANCE],
+    [paths.ACKNOWLEDGE_DRAW, AcknowledgeDraw.INSTANCE],
     [paths.API_PROFILE, ApiProfile.INSTANCE],
     [paths.RESET, Reset.INSTANCE],
     [paths.SPECTATOR, ServeApp.INSTANCE],

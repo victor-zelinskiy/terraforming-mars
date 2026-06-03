@@ -50,6 +50,16 @@
         v-if="screen === 'player-home' && playerView !== undefined"
         :player-view="playerView"
         :waiting-on-players="playersWaitingFor" />
+      <!--
+        Premium "you drew cards" reveal modal. App-level (like DraftFlowOverlay)
+        so the playerkey remount can't destroy the deal/collect animation or the
+        per-card take progress mid-reveal. Driven entirely by the module-level
+        drawnCardsState (reconciled from playerView.cardDrawReveals by the
+        watcher above); mounts only while cards await a take.
+      -->
+      <DrawCardRevealFlow
+        v-if="screen === 'player-home' && playerView !== undefined && hasDrawReveal"
+        :player-view="playerView" />
       <spectator-home
         v-else-if="screen === 'spectator-home' && spectator !== undefined"
         :spectator="spectator"
@@ -110,6 +120,8 @@ const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "star
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
+import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
+import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import GameAtmosphere from '@/client/components/GameAtmosphere.vue';
 import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
@@ -219,9 +231,27 @@ export default defineComponent({
     'login-home': LoginHome,
     DraftFlowOverlay,
     JournalPanel,
+    DrawCardRevealFlow,
     GameAtmosphere,
   },
+  watch: {
+    // Single point that reconciles the server's reveal list into the
+    // module-level drawnCardsState, regardless of WHICH update path replaced
+    // playerView (poll App.update, POST-input WaitingFor.updatePlayerView,
+    // DraftFlowOverlay, the reveal ack response, undo). playerView is replaced
+    // wholesale each update so this shallow watch always fires. On initial
+    // load / refresh the server queue is empty (transient) → no modal.
+    playerView(view: PlayerViewModel | undefined) {
+      reconcileDrawnCards(view?.cardDrawReveals ?? []);
+    },
+  },
   computed: {
+    // True while a non-dismissed reveal batch exists — drives the App-level
+    // reveal modal mount. Goes false the instant the last batch is taken
+    // (dismissed client-side), so the modal closes without flashing empty.
+    hasDrawReveal(): boolean {
+      return hasVisibleReveal();
+    },
     // Expose the module-level journal open flag to the template. Mounting
     // the panel HERE (not inside <player-home>) keeps it alive across the
     // `:key="playerkey"` remount that fires on every server response, so

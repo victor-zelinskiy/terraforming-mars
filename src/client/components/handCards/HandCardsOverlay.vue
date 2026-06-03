@@ -127,8 +127,17 @@
             type="button"
             class="card-zoom-actions__btn card-zoom-actions__btn--primary hand-zoom-play"
             @click="playZoom">
-            <span v-i18n>Play card</span>
+            <span v-i18n>Play now</span>
           </button>
+          <!-- Soft block (not your turn / finish current action): a calm
+               disabled РАЗЫГРАТЬ + a single one-liner, not the requirements
+               list. -->
+          <div v-else-if="zoomBlock === 'soft'" class="hand-zoom-softblock">
+            <button type="button" class="card-zoom-actions__btn hand-zoom-play-disabled" disabled>
+              <span v-i18n>Play now</span>
+            </button>
+            <span v-if="zoomSoftText !== ''" class="hand-zoom-softblock__text">{{ zoomSoftText }}</span>
+          </div>
           <div v-else-if="zoomReasons.length > 0" class="hand-zoom-reason">
             <HandCardReasonPopover :reasons="zoomReasons" heading="Cannot play now" />
           </div>
@@ -163,6 +172,7 @@ import {
   HandTypeKey,
   sortHandEntries,
 } from '@/client/components/handCards/handCardModel';
+import {HandCardBlock} from '@/client/components/handCards/cardPlayability';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
@@ -319,8 +329,16 @@ export default defineComponent({
     zoomPlayable(): boolean {
       return this.zoomEntry?.state.playable === true;
     },
+    zoomBlock(): HandCardBlock {
+      return this.zoomEntry?.state.block ?? 'rules';
+    },
     zoomReasons(): ReadonlyArray<UnplayableReason> {
       return this.zoomEntry?.state.reasons ?? [];
+    },
+    // The single calm one-liner for a soft-blocked card in the fullscreen view.
+    zoomSoftText(): string {
+      const r = this.zoomEntry?.state.softReason;
+      return r === undefined ? '' : translateTextWithParams(r.message, [...(r.params ?? [])]);
     },
     // ── Sell-patents sale mode ──────────────────────────────────────────
     saleActive(): boolean {
@@ -423,10 +441,18 @@ export default defineComponent({
     toggleSelect(name: CardName): void {
       toggleSellSelection(name);
     },
+    // Toggle this card's sale selection from the fullscreen view AND close the
+    // fullscreen — same one-tap flow as playing a card from fullscreen
+    // (`playZoom`), so the player doesn't need a second click to dismiss it.
+    // The selection lives in module state, so it survives the modal closing.
     toggleSelectZoom(): void {
-      if (this.zoomCard !== undefined) {
-        toggleSellSelection(this.zoomCard.name);
+      const card = this.zoomCard;
+      if (card === undefined) {
+        return;
       }
+      toggleSellSelection(card.name);
+      (this.$refs as {zoomModal?: {close: () => void}}).zoomModal?.close();
+      this.zoomCard = undefined;
     },
     // Final ПРОДАТЬ. Flags `submitting` (so WaitingFor PRESERVES this overlay
     // instance across the sale response instead of remounting it) and emits

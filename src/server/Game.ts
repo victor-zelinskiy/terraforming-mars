@@ -1486,7 +1486,7 @@ export class Game implements IGame, Logger {
   public grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count: number = 1) {
     switch (spaceBonus) {
     case SpaceBonus.DRAW_CARD:
-      player.drawCard(count);
+      player.drawCard(count, {source: {type: 'tile'}});
       break;
     case SpaceBonus.PLANT:
       player.stock.add(Resource.PLANTS, count, {log: true});
