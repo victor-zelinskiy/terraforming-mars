@@ -227,6 +227,13 @@ export class SQLite implements IDatabase {
     return this.runQuietly('DELETE FROM games WHERE rowid IN (SELECT rowid FROM games WHERE game_id = ? ORDER BY save_id DESC LIMIT ?)', [gameId, rollbackCount]);
   }
 
+  async deleteGame(gameId: GameId): Promise<void> {
+    await this.asyncRun('DELETE FROM games WHERE game_id = ?', [gameId]);
+    await this.asyncRun('DELETE FROM participants WHERE game_id = ?', [gameId]);
+    await this.asyncRun('DELETE FROM game_results WHERE game_id = ?', [gameId]);
+    await this.asyncRun('DELETE FROM completed_game WHERE game_id = ?', [gameId]);
+  }
+
   public stats(): Promise<{[key: string]: string | number}> {
     const size = this.filename === IN_MEMORY_SQLITE_PATH ? -1 : fs.statSync(String(this.filename)).size;
 

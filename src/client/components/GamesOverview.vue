@@ -3,7 +3,7 @@
     <h1 v-i18n>{{ constants.APP_NAME }} — Games Overview</h1>
       <p v-i18n>The following games are available on this server:</p>
       <table>
-        <game-overview v-for="entry in entries" :key="entry.id" :id="entry.id" :game="entry.game" :status="entry.status"></game-overview>
+        <game-overview v-for="entry in entries" :key="entry.id" :id="entry.id" :game="entry.game" :status="entry.status" :server-id="serverId" @deleted="onGameDeleted"></game-overview>
       </table>
   </div>
 </template>
@@ -82,6 +82,9 @@ export default defineComponent({
       } catch (error) {
         entry.status = 'error';
       }
+    },
+    onGameDeleted(gameId: GameId) {
+      this.entries = this.entries.filter((entry) => entry.id !== gameId);
     },
   },
   computed: {

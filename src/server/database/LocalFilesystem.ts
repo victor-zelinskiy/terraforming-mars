@@ -176,6 +176,23 @@ export class LocalFilesystem implements IDatabase {
     });
   }
 
+  async deleteGame(gameId: GameId): Promise<void> {
+    const saveIds = await this.getSaveIds(gameId);
+    for (const saveId of saveIds) {
+      try {
+        this.deleteVersion(gameId, saveId);
+      } catch (err) {
+        console.error(`While deleting save ${saveId} of ${gameId}`, err);
+      }
+    }
+    if (existsSync(this.filename(gameId))) {
+      unlinkSync(this.filename(gameId));
+    }
+    if (existsSync(this.completedFilename(gameId))) {
+      unlinkSync(this.completedFilename(gameId));
+    }
+  }
+
   public stats(): Promise<{[key: string]: string | number}> {
     return Promise.resolve({
       type: 'Local Filesystem',

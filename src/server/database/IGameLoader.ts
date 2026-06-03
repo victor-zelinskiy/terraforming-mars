@@ -36,6 +36,15 @@ export interface IGameLoader {
   mark(gameId: GameId): void;
 
   /**
+   * Permanently deletes a game: removes it from the in-memory cache and from
+   * the database. After this resolves the game no longer appears in `getIds()`
+   * and is no longer loadable. Used by the administrative games-overview page.
+   *
+   * @param {GameId} gameId the game to delete.
+   */
+  deleteGame(gameId: GameId): Promise<void>;
+
+  /**
    * Saves a game (but takes into account that the game might have already been purged.)
    *
    * Do not call IDatabase.saveGame directly in a running system.

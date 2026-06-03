@@ -12,6 +12,7 @@ describe('GameOverview', () => {
         status: 'loading',
         game: fakeGameModel(),
         id: 'game-123',
+        serverId: 'server-123',
       },
     });
     expect(wrapper.exists()).to.be.true;

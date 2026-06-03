@@ -343,6 +343,21 @@ export function describeDatabaseSuite<T extends ITestDatabase>(dtor: DatabaseTes
       expect(saveIds).has.members([0, 1, 2, 3]);
     });
 
+    it('deleteGame', async () => {
+      const player = TestPlayer.BLACK.newPlayer();
+      const game = Game.newInstance('game-id-1212', [player], player, 'spectatorid');
+      await db.lastSaveGamePromise;
+      await db.saveGame(game);
+      await db.saveGame(game);
+
+      expect(await db.getGameIds()).contains(game.id);
+      expect(await db.getSaveIds(game.id)).is.not.empty;
+
+      await db.deleteGame(game.id);
+
+      expect(await db.getGameIds()).does.not.contain(game.id);
+    });
+
     if (dtor.omit?.sessions !== true) {
       const discordUser = {id: 'xyz'} as DiscordUser;
       it('createSession', async () => {
