@@ -692,47 +692,62 @@
     }
 }
 
-/* ── "Cannot play now" badge (secondary playability indicator) ─────────
-   A COMPACT icon-only badge pinned to the card's top-left corner, rendered
-   whenever the card can't be PLAYED — in BOTH normal and sale modes, so it
-   never pops in / out when the player toggles sale. Icon-only so it fits at
-   every card zoom (the long label that used to live here overflowed small
-   cards). Calm orange (not the red "error" of the reason popover it triggers).
-   Hover / focus reveals the shared reason popover (hosted in the footer). */
+/* ── "Cannot play" pill (secondary playability indicator) ──────────────
+   A compact icon + text pill centred along the BOTTOM EDGE of the card (the
+   spot that read well), clear of the cost (top-left), the sale tick
+   (top-right) and the expansion glyph (bottom-left). Rendered whenever the
+   card can't be PLAYED — in BOTH normal and sale modes, so it never pops in /
+   out when the player toggles sale. Calm orange (not the red "error" of the
+   reason popover it triggers). The short label WRAPS to two lines on small
+   cards instead of truncating. Hover / focus reveals the shared reason
+   popover (hosted in the footer below). */
 .hand-card-item__playblock {
     position: absolute;
-    /* Bottom-left corner — clear of the card cost (top-left) and the sale
-       tick (top-right). */
-    bottom: 7px;
-    left: 7px;
-    z-index: 5;
+    bottom: 9px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 6;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    border-radius: 50%;
-    border: 1px solid fade(@hc-warn, 60%);
-    background: radial-gradient(120% 120% at 50% 20%, rgba(46, 28, 12, 0.96), rgba(26, 16, 9, 0.96));
-    box-shadow: 0 2px 7px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-    color: @hc-warn;
+    gap: 4px;
+    /* Stay clear of the bottom corners — the expansion glyph (bottom-left)
+       and the card's victory-point badge (bottom-right). */
+    max-width: calc(100% - 56px);
+    padding: 3px 8px;
+    border-radius: 7px;
+    border: 1px solid fade(@hc-warn, 65%);
+    background: linear-gradient(180deg, rgba(48, 29, 12, 0.95), rgba(28, 17, 9, 0.96));
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 200, 130, 0.08);
+    color: #ffdcb4;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 9px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: left;
     cursor: help;
     outline: none;
     transition: border-color 140ms, box-shadow 140ms, color 140ms, transform 140ms;
 
     &:hover,
     &:focus-visible {
-        color: #ffd9b0;
+        color: #fff0df;
         border-color: @hc-warn;
-        transform: scale(1.08);
-        box-shadow: 0 3px 11px fade(@hc-warn, 45%), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+        transform: translateX(-50%) translateY(-1px);
+        box-shadow: 0 5px 14px fade(@hc-warn, 42%), inset 0 0 0 1px rgba(255, 200, 130, 0.13);
     }
 }
 .hand-card-item__playblock-icon {
-    font-size: 14px;
+    font-size: 11px;
     line-height: 1;
-    font-weight: 700;
+    flex-shrink: 0;
+    color: @hc-warn;
+}
+.hand-card-item__playblock-label {
+    /* Wrap to a second line on narrow cards rather than truncating. */
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 /* The disabled "НЕДОСТУПНА" footer is also a reason-popover trigger (hover /
@@ -753,6 +768,9 @@
     left: 50%;
     transform: translateX(-50%);
     z-index: 20;
+    /* Read-only tooltip — must never intercept the pointer, or it would steal
+       hover from the pill it sits over and flicker itself away. */
+    pointer-events: none;
     width: max-content;
     min-width: 186px;
     max-width: 272px;
