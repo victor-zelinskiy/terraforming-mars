@@ -315,6 +315,7 @@
       :cards="playerView.cardsInHand"
       :playableCardNames="playableProjectCardNames"
       :playActionAvailable="playProjectCardActionAvailable"
+      :awaitingInput="playerView.waitingFor !== undefined"
       @play="onPlayHandCard($event)"
       @close="activeOverlay = null" />
 

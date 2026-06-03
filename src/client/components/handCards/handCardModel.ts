@@ -79,13 +79,14 @@ export function buildHandEntries(
   cards: ReadonlyArray<CardModel>,
   turnAvailable: boolean,
   playableNames: ReadonlySet<CardName>,
+  awaitingInput: boolean,
 ): ReadonlyArray<HandCardEntry> {
   return cards.map((card) => {
     const clientCard = getCard(card.name);
     const type = clientCard?.type ?? CardType.AUTOMATED;
     const tags = clientCard?.tags ?? [];
     const cost = card.calculatedCost ?? clientCard?.cost ?? 0;
-    const state = computeHandCardPlayState(card, turnAvailable, playableNames.has(card.name));
+    const state = computeHandCardPlayState(card, turnAvailable, playableNames.has(card.name), awaitingInput);
     return {
       card,
       name: card.name,

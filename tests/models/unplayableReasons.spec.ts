@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {setTemperature} from '../TestingUtils';
 import {Resource} from '../../src/common/Resource';
+import {Tag} from '../../src/common/cards/Tag';
 import {unplayableReasons} from '../../src/server/models/unplayableReasons';
 import {GeneRepair} from '../../src/server/cards/base/GeneRepair';
 import {ArchaeBacteria} from '../../src/server/cards/base/ArchaeBacteria';
@@ -64,12 +65,23 @@ describe('unplayableReasons', () => {
     expect(t?.resource).eq(Resource.HEAT);
   });
 
-  it('explains Robotic Workforce has no card to copy (bespoke hook)', () => {
+  it('explains Robotic Workforce has no card with the building symbol to copy (bespoke hook)', () => {
     const [/* game */, player] = testGame(2);
-    player.megaCredits = 50;
+    player.megaCredits = 50; // affordable → only the bespoke reason
     const reasons = unplayableReasons(player, new RoboticWorkforce());
-    const t = reasons.find((r) => r.message === 'No building card to copy a production effect from');
+    const t = reasons.find((r) => r.message === 'No card with the building symbol to copy production from');
     expect(t, 'expected the copy-target reason').is.not.undefined;
     expect(t?.type).eq('target');
+    expect(t?.tag).eq(Tag.BUILDING); // popover renders the building symbol
+  });
+
+  it('surfaces BOTH affordability and the bespoke block together', () => {
+    const [/* game */, player] = testGame(2);
+    player.megaCredits = 0; // cannot afford AND nothing to copy
+    const reasons = unplayableReasons(player, new RoboticWorkforce());
+    expect(reasons.some((r) => r.type === 'megacredits'), 'expected an affordability reason').is.true;
+    expect(
+      reasons.some((r) => r.message === 'No card with the building symbol to copy production from'),
+      'expected the copy-target reason alongside it').is.true;
   });
 });
