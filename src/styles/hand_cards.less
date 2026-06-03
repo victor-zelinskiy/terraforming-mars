@@ -316,7 +316,44 @@
 /* Sort dropdown (custom glass) */
 .hand-filters__sort {
     margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
+
+/* Ascending / descending segmented toggle — same visual language as the
+   availability segment, so it reads as "pick one of two". */
+.hand-sortdir {
+    display: inline-flex;
+    border: 1px solid rgba(106, 176, 230, 0.22);
+    border-radius: 7px;
+    overflow: hidden;
+    background: rgba(16, 26, 40, 0.55);
+    flex-shrink: 0;
+}
+.hand-sortdir__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: @hc-text-muted;
+    cursor: pointer;
+    transition: color 140ms, background 140ms;
+
+    svg { display: block; fill: currentColor; transition: transform 140ms; }
+    & + & { border-left: 1px solid rgba(106, 176, 230, 0.14); }
+    &:hover { color: @hc-text; }
+    &:hover svg { transform: scale(1.14); }
+    &--active {
+        color: #07101a;
+        background: linear-gradient(180deg, lighten(@hc-cyan, 6%), @hc-cyan);
+    }
+}
+
 .hand-sort {
     position: relative;
 }
@@ -408,6 +445,11 @@
     justify-content: center;
     gap: 26px 22px;
     align-content: start;
+    /* Positioning context for leaving cards: `@before-leave` pins each
+       leaving card with absolute left/top measured against THIS box, so
+       it fades out exactly where it sat instead of snapping to the grid
+       origin (the default for an abs-positioned former grid item). */
+    position: relative;
 }
 
 /* ── Card item ─────────────────────────────────────────────────────── */
@@ -631,14 +673,24 @@
 
 /* ── Grid move transition (filter / sort reflow) ───────────────────── */
 
-.hand-card-pop-move { transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1); }
-.hand-card-pop-enter-active { transition: opacity 200ms ease, transform 200ms ease; }
+.hand-card-pop-move { transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+.hand-card-pop-enter-active { transition: opacity 220ms ease, transform 220ms ease; }
+/*
+ * Leaving card: pinned in place by `@before-leave` (absolute left/top/
+ * width/height measured against the relative grid) and shrink-faded
+ * toward its OWN centre — it never flies to the grid origin or overlaps
+ * neighbours. While it fades, the remaining cards FLIP into place via
+ * `-move` simultaneously, so the grid tightens smoothly.
+ */
 .hand-card-pop-leave-active {
-    transition: opacity 160ms ease, transform 160ms ease;
+    transition: opacity 200ms ease, transform 240ms cubic-bezier(0.4, 0, 0.9, 1);
     position: absolute;
+    transform-origin: 50% 45%;
+    z-index: 0; /* sit below the moving (in-flow) cards so it never covers them */
+    pointer-events: none;
 }
 .hand-card-pop-enter-from { opacity: 0; transform: translateY(8px) scale(0.97); }
-.hand-card-pop-leave-to   { opacity: 0; transform: scale(0.95); }
+.hand-card-pop-leave-to   { opacity: 0; transform: scale(0.82); }
 
 /* ── Sort dropdown transition ──────────────────────────────────────── */
 

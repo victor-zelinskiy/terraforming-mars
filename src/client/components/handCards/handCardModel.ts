@@ -56,6 +56,7 @@ export type HandCardEntry = {
 
 export type AvailabilityFilter = 'all' | 'playable' | 'unplayable';
 export type HandSortMode = 'availability' | 'cost' | 'type' | 'tag' | 'name';
+export type HandSortDir = 'asc' | 'desc';
 
 export type HandFilterState = {
   availability: AvailabilityFilter;
@@ -64,6 +65,8 @@ export type HandFilterState = {
   /** Tags the player has selected to narrow to. Empty = no tag narrowing. */
   activeTags: ReadonlyArray<Tag>;
   sort: HandSortMode;
+  /** Ascending applies each sort's natural order; descending reverses it. */
+  sortDir: HandSortDir;
 };
 
 export const DEFAULT_HAND_FILTER: HandFilterState = {
@@ -71,6 +74,7 @@ export const DEFAULT_HAND_FILTER: HandFilterState = {
   hiddenTypes: [],
   activeTags: [],
   sort: 'availability',
+  sortDir: 'asc',
 };
 
 export function buildHandEntries(
@@ -124,12 +128,16 @@ export function filterHandEntries(
 export function sortHandEntries(
   entries: ReadonlyArray<HandCardEntry>,
   sort: HandSortMode,
+  dir: HandSortDir = 'asc',
 ): ReadonlyArray<HandCardEntry> {
   const out = entries.slice();
   const byName = (a: HandCardEntry, b: HandCardEntry) =>
     translateText(a.name).localeCompare(translateText(b.name));
   const typeRank = (e: HandCardEntry) => (e.typeKey !== undefined ? TYPE_ORDER[e.typeKey] : 99);
-  out.sort((a, b) => {
+  // The "natural" (ascending) comparator for each mode. Descending simply
+  // flips its sign, which reverses the primary key and its tie-breakers
+  // together — fine for a display sort.
+  const ascending = (a: HandCardEntry, b: HandCardEntry): number => {
     switch (sort) {
     case 'availability': {
       const av = Number(b.state.playable) - Number(a.state.playable);
@@ -148,7 +156,9 @@ export function sortHandEntries(
     default:
       return byName(a, b);
     }
-  });
+  };
+  const sign = dir === 'asc' ? 1 : -1;
+  out.sort((a, b) => sign * ascending(a, b));
   return out;
 }
 
