@@ -48,8 +48,10 @@
           :thisPlayer="thisPlayer"
           :actionableProjects="standardProjectsActionInput"
           :viewerActing="playerView.waitingFor !== undefined"
+          :sellPatentsAvailable="sellPatentsActionAvailable"
           @close="activeOverlay = null"
-          @use-project="onUseStandardProject($event)" />
+          @use-project="onUseStandardProject($event)"
+          @sell-patents="onEnterSellPatents" />
       </div>
       <div class="top-bar-btn-anchor">
         <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'awards'}" v-on:click="toggleOverlay('awards')"><BarButtonIcon name="awards" /><span class="bar-btn__label" v-i18n>Awards</span></div>
@@ -316,7 +318,9 @@
       :playableCardNames="playableProjectCardNames"
       :playActionAvailable="playProjectCardActionAvailable"
       :awaitingInput="playerView.waitingFor !== undefined"
+      :sellPatentsAvailable="sellPatentsActionAvailable"
       @play="onPlayHandCard($event)"
+      @sell="onSellPatents($event)"
       @close="activeOverlay = null" />
 
     <!--
@@ -571,6 +575,7 @@ import StandardProjectsOverlay from '@/client/components/overview/StandardProjec
 import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverlay.vue';
 import {totalPlayedCards} from '@/client/components/playedCards/playedCardGroups';
 import HandCardsOverlay from '@/client/components/handCards/HandCardsOverlay.vue';
+import {enterSellPatents, exitSellPatents} from '@/client/components/handCards/sellPatentsState';
 import OpponentHandOverlay from '@/client/components/handCards/OpponentHandOverlay.vue';
 import HandCardPaymentContent from '@/client/components/handCards/HandCardPaymentContent.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
@@ -801,6 +806,14 @@ export default defineComponent({
         });
       } else if (newVal === null && oldVal !== null) {
         document.removeEventListener('click', this.handleOutsideOverlayClick);
+      }
+      // Leaving the КАРТЫ В РУКЕ overlay (close, or switching to another
+      // overlay) cancels any in-progress Sell-patents sale mode with NO
+      // submit. A polling remount keeps activeOverlay === 'cards', so sale
+      // mode (held in module state) survives it — only a real navigation away
+      // clears it.
+      if (oldVal === 'cards' && newVal !== 'cards') {
+        exitSellPatents();
       }
     },
     /*
@@ -1358,6 +1371,14 @@ export default defineComponent({
         .filter((c) => c.isDisabled !== true)
         .map((c) => c.name));
     },
+    // True when the "Sell patents" standard project is offered in the action
+    // menu RIGHT NOW (server's `SellPatentsStandardProject.canAct` = the player
+    // holds cards + it's their action window). `playerView.waitingFor` is the
+    // VIEWER's own tree, so this is inherently own-seat — a spectator / other
+    // seat never sees it. Drives the SP-overlay row + the hand-overlay toggle.
+    sellPatentsActionAvailable(): boolean {
+      return this.findSellPatentsAction(this.playerView.waitingFor) !== undefined;
+    },
   },
 
   components: {
@@ -1616,6 +1637,34 @@ export default defineComponent({
             return {path: [...pathSoFar, i], input: opt as SelectProjectCardToPlayModel};
           }
           const deeper = this.findPlayProjectCardAction(opt, [...pathSoFar, i]);
+          if (deeper) {
+            return deeper;
+          }
+        }
+      }
+      return undefined;
+    },
+    // Recursively walks the waitingFor tree for the "Sell patents" action — a
+    // bare SelectCard (type 'card', title 'Sell patents', see server
+    // SellPatentsStandardProject.action). Returns its index PATH so the chosen
+    // cards can be wrapped in the nested OR response, byte-identical to the
+    // radio UI. (Sell patents is offered DIRECTLY in the action OR, not via
+    // the Standard projects sub-menu.)
+    findSellPatentsAction(
+      wf: PlayerInputModel | undefined,
+      pathSoFar: ReadonlyArray<number> = [],
+    ): {path: ReadonlyArray<number>} | undefined {
+      if (!wf) {
+        return undefined;
+      }
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const opt = options[i];
+          if (opt.type === 'card' && inputTitleText(opt.title) === 'Sell patents') {
+            return {path: [...pathSoFar, i]};
+          }
+          const deeper = this.findSellPatentsAction(opt, [...pathSoFar, i]);
           if (deeper) {
             return deeper;
           }
@@ -2163,6 +2212,41 @@ export default defineComponent({
         card: cardName,
         payment: payment,
       };
+      for (let i = action.path.length - 1; i >= 0; i--) {
+        response = {type: 'or' as const, index: action.path[i], response};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      wfRef?.onsave?.(response);
+    },
+    // ─── Sell patents (standard project) ───────────────────────────────
+    // Entry from the Standard Projects overlay: don't submit — open the hand
+    // overlay in sale mode and let the player pick cards there. The action is
+    // re-validated; nothing is sent until they press ПРОДАТЬ.
+    onEnterSellPatents(): void {
+      if (!this.sellPatentsActionAvailable) {
+        return;
+      }
+      // Always sell from YOUR OWN hand — snap back to your own view if you're
+      // currently spectating another player, so the sale UI shows your cards
+      // (the hand overlay only mounts for the own seat).
+      this.selectedPlayerColor = undefined;
+      enterSellPatents();
+      this.activeOverlay = 'cards';
+    },
+    // Final confirm from the hand overlay (ПРОДАТЬ). Wraps the chosen card
+    // names in the nested OR response and submits through WaitingFor.onsave —
+    // byte-identical to the legacy radio UI's SelectCard submit. The hand
+    // overlay already flagged `sellPatentsState.submitting`, so the post-
+    // response remount drops sale mode automatically.
+    onSellPatents(cards: ReadonlyArray<CardName>): void {
+      const action = this.findSellPatentsAction(this.playerView.waitingFor);
+      if (!action || action.path.length === 0) {
+        // Action vanished (turn ended between select and submit) — abort the
+        // sale cleanly rather than leave the overlay stuck mid-submit.
+        exitSellPatents();
+        return;
+      }
+      let response: unknown = {type: 'card' as const, cards: [...cards]};
       for (let i = action.path.length - 1; i >= 0; i--) {
         response = {type: 'or' as const, index: action.path[i], response};
       }

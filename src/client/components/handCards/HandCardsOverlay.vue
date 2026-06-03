@@ -15,15 +15,56 @@
         </span>
         <span v-if="totalCount > 0" class="hand-board__total">{{ totalCount }}</span>
         <span
-          v-if="totalCount > 0"
+          v-if="totalCount > 0 && !saleActive"
           class="hand-board__playable"
           :class="{'hand-board__playable--zero': playableCount === 0}">
           <span class="hand-board__playable-dot" aria-hidden="true"></span>
           <span v-i18n>Can play</span>:&nbsp;{{ playableCount }}
         </span>
       </div>
+      <!-- Sell-patents mode toggle. Visible only when the standard project is
+           offered (or already active); active styling while in sale mode. -->
+      <button
+        v-if="sellPatentsAvailable || saleActive"
+        type="button"
+        class="hand-board__sale-toggle"
+        :class="{'hand-board__sale-toggle--active': saleActive}"
+        :aria-pressed="saleActive"
+        @click="toggleSaleMode">
+        <span class="hand-board__sale-toggle-dot" aria-hidden="true"></span>
+        <span class="hand-board__sale-toggle-label" v-i18n>Patent sale</span>
+      </button>
       <button type="button" class="hand-board__close" :aria-label="$t('Close')" @click="$emit('close')">✕</button>
     </header>
+
+    <!-- Sale-mode strip: premium mode indicator + summary + ПРОДАТЬ / ОТМЕНИТЬ.
+         Makes it unmistakable this is the "Sell patents" standard project, not
+         a card play. -->
+    <transition name="hand-sale-strip">
+      <div v-if="saleActive" class="hand-sale-strip">
+        <div class="hand-sale-strip__mode">
+          <span class="hand-sale-strip__glyph" aria-hidden="true"></span>
+          <div class="hand-sale-strip__text">
+            <span class="hand-sale-strip__title">
+              <span v-i18n>Patent sale</span><span class="hand-sale-strip__kind">&nbsp;·&nbsp;<span v-i18n>a standard project</span></span>
+            </span>
+            <span class="hand-sale-strip__hint">{{ saleHint }}</span>
+          </div>
+        </div>
+        <div class="hand-sale-strip__actions">
+          <span class="hand-sale-strip__summary">{{ saleSummaryLabel }}</span>
+          <button
+            type="button"
+            class="hand-sale-confirm-btn"
+            :disabled="!canConfirmSale"
+            @click="confirmSale">
+            <span class="hand-sale-confirm-btn__glow" aria-hidden="true"></span>
+            <span class="hand-sale-confirm-btn__label">{{ saleConfirmLabel }}</span>
+          </button>
+          <button type="button" class="hand-sale-cancel-btn" @click="cancelSale" v-i18n>Cancel sale</button>
+        </div>
+      </div>
+    </transition>
 
     <HandCardsFilters
       v-if="totalCount > 0"
@@ -38,7 +79,7 @@
       @sort-dir="setSortDir" />
 
     <div ref="body" class="hand-board__body">
-      <HandCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" />
+      <HandCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" :saleMode="saleActive" />
       <transition-group
         v-else
         appear
@@ -50,8 +91,11 @@
           v-for="entry in sorted"
           :key="entry.name"
           :entry="entry"
+          :saleMode="saleActive"
+          :selected="isSelected(entry.name)"
           @open="openCard"
-          @play="$emit('play', $event)" />
+          @play="$emit('play', $event)"
+          @toggle-select="toggleSelect" />
       </transition-group>
     </div>
 
@@ -59,7 +103,15 @@
       <CardZoomModal v-if="zoomCard !== undefined" ref="zoomModal" :card="zoomCard" @close="zoomCard = undefined">
         <template #actions>
           <button
-            v-if="zoomPlayable"
+            v-if="saleActive && zoomCard !== undefined"
+            type="button"
+            class="card-zoom-actions__btn card-zoom-actions__btn--primary hand-zoom-sell"
+            :class="{'hand-zoom-sell--selected': zoomSelected}"
+            @click="toggleSelectZoom">
+            <span v-i18n>{{ zoomSelected ? 'Deselect' : 'Select' }}</span>
+          </button>
+          <button
+            v-else-if="zoomPlayable"
             type="button"
             class="card-zoom-actions__btn card-zoom-actions__btn--primary hand-zoom-play"
             @click="playZoom">
@@ -100,6 +152,16 @@ import {
   sortHandEntries,
 } from '@/client/components/handCards/handCardModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import {translateTextWithParams} from '@/client/directives/i18n';
+import {
+  sellPatentsState,
+  enterSellPatents,
+  exitSellPatents,
+  toggleSellSelection,
+  isSelectedForSale,
+  sellPatentsPayout,
+  SELL_PATENTS_RATE,
+} from '@/client/components/handCards/sellPatentsState';
 import HandCardItem from '@/client/components/handCards/HandCardItem.vue';
 import HandCardsFilters from '@/client/components/handCards/HandCardsFilters.vue';
 import HandCardsEmptyState from '@/client/components/handCards/HandCardsEmptyState.vue';
@@ -176,8 +238,15 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    // True when the "Sell patents" standard project is offered right now
+    // (own seat + the action is in waitingFor + the player has cards). Gates
+    // entering sale mode and the final ПРОДАТЬ submit.
+    sellPatentsAvailable: {
+      type: Boolean,
+      required: true,
+    },
   },
-  emits: ['play', 'close'],
+  emits: ['play', 'close', 'sell'],
   data(): DataModel {
     return {
       filter: {...DEFAULT_HAND_FILTER},
@@ -228,6 +297,36 @@ export default defineComponent({
     zoomReasons(): ReadonlyArray<UnplayableReason> {
       return this.zoomEntry?.state.reasons ?? [];
     },
+    // ── Sell-patents sale mode ──────────────────────────────────────────
+    saleActive(): boolean {
+      return sellPatentsState.active;
+    },
+    saleSelectedCount(): number {
+      return sellPatentsState.selected.length;
+    },
+    salePayout(): number {
+      return sellPatentsPayout(this.saleSelectedCount);
+    },
+    // Final submit is allowed only with ≥1 card AND while the action is still
+    // offered (it's the player's turn). 0 cards / not-your-turn → disabled.
+    canConfirmSale(): boolean {
+      return this.saleSelectedCount > 0 && this.sellPatentsAvailable && !sellPatentsState.submitting;
+    },
+    saleConfirmLabel(): string {
+      if (this.saleSelectedCount === 0) {
+        return translateTextWithParams('Sell', []);
+      }
+      return translateTextWithParams('Sell ${0} · +${1} M€', [String(this.saleSelectedCount), String(this.salePayout)]);
+    },
+    saleSummaryLabel(): string {
+      return translateTextWithParams('Selected: ${0} · Gain: ${1} M€', [String(this.saleSelectedCount), String(this.salePayout)]);
+    },
+    saleHint(): string {
+      return translateTextWithParams('Select cards to sell. You gain ${0} M€ per card.', [String(SELL_PATENTS_RATE)]);
+    },
+    zoomSelected(): boolean {
+      return this.zoomCard !== undefined && isSelectedForSale(this.zoomCard.name);
+    },
   },
   watch: {
     // Decide BEFORE the grid re-renders whether the upcoming patch removes
@@ -245,6 +344,16 @@ export default defineComponent({
         // animation settles, so the zoom never pops mid-transition.
         this.deferFit();
       },
+    },
+    // The sale response landed (WaitingFor preserved this instance, so `cards`
+    // updated reactively rather than remounting). The sold cards have left the
+    // hand — the transition-group is already dissolving them out + reflowing
+    // the rest, and the M€ delta chip fired from the same update. Drop sale
+    // mode so the surviving cards return to their normal play affordances.
+    cards(): void {
+      if (sellPatentsState.submitting) {
+        exitSellPatents();
+      }
     },
   },
   methods: {
@@ -276,6 +385,44 @@ export default defineComponent({
     },
     setSortDir(dir: HandSortDir): void {
       this.filter.sortDir = dir;
+    },
+    // ── Sell-patents sale mode ──────────────────────────────────────────
+    isSelected(name: CardName): boolean {
+      return isSelectedForSale(name);
+    },
+    // Header toggle: enter sale mode (only when the action is offered) or
+    // cancel it. Toggling OFF is a cancel — nothing is submitted.
+    toggleSaleMode(): void {
+      if (this.saleActive) {
+        this.cancelSale();
+      } else if (this.sellPatentsAvailable) {
+        enterSellPatents();
+      }
+    },
+    cancelSale(): void {
+      exitSellPatents();
+    },
+    toggleSelect(name: CardName): void {
+      toggleSellSelection(name);
+    },
+    toggleSelectZoom(): void {
+      if (this.zoomCard !== undefined) {
+        toggleSellSelection(this.zoomCard.name);
+      }
+    },
+    // Final ПРОДАТЬ. Flags `submitting` (so WaitingFor PRESERVES this overlay
+    // instance across the sale response instead of remounting it) and emits
+    // the chosen names — PlayerHome submits them through the existing Sell
+    // patents action. Nothing is sent until here. When the response lands the
+    // sold cards leave `cards` reactively → the transition-group plays the
+    // dissolve + reflow and the `cards` watcher drops sale mode.
+    confirmSale(): void {
+      if (!this.canConfirmSale) {
+        return;
+      }
+      const cards = [...sellPatentsState.selected];
+      sellPatentsState.submitting = true;
+      this.$emit('sell', cards);
     },
     // Pin a leaving card to its exact grid spot before it goes
     // `position: absolute`, so it shrink-fades in place instead of
@@ -310,6 +457,12 @@ export default defineComponent({
       }
       // Let an open fullscreen card (native <dialog>) take Escape first.
       if (document.querySelector('dialog[open]') !== null) {
+        return;
+      }
+      // In sale mode, Escape backs OUT of sale mode first (no submit), leaving
+      // the overlay open in normal mode. A second Escape then closes it.
+      if (this.saleActive) {
+        this.cancelSale();
         return;
       }
       this.$emit('close');
@@ -373,6 +526,11 @@ export default defineComponent({
   },
   mounted(): void {
     window.addEventListener('keydown', this.onKeydown);
+    // A remount carrying `submitting` is the post-sale server response — the
+    // sold cards are gone, so drop sale mode back to the normal hand view.
+    if (sellPatentsState.submitting === true) {
+      exitSellPatents();
+    }
     const body = this.$refs.body as HTMLElement | undefined;
     if (body !== undefined && typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(() => this.scheduleFit());

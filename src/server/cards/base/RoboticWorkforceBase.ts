@@ -16,15 +16,18 @@ export abstract class RoboticWorkforceBase extends Card {
   }
 
   // Specific reason for the premium hand overlay: these cards copy the
-  // production box of one of YOUR cards that carries the BUILDING SYMBOL (tag)
-  // — so when no such card exists the block is "no card with the building
-  // symbol to copy", not the generic "unmet conditions". The building tag is
-  // attached so the popover renders its icon, matching the card's wording.
+  // production box of one of YOUR ALREADY-PLAYED cards (the tableau) that
+  // carries the BUILDING SYMBOL (tag) — so when no such card is in play the
+  // block is "no PLAYED card with the building symbol to copy", not the generic
+  // "unmet conditions". The check reads `player.tableau` (cards in front of the
+  // player), so the wording says "played" to make clear that building cards
+  // still in hand don't count. The building tag is attached so the popover
+  // renders its icon, matching the card's wording.
   public unplayableReason(player: IPlayer): UnplayableReason | undefined {
     if (this.getPlayableBuildingCards(player).length === 0) {
       return {
         type: 'target',
-        message: 'No card with the building symbol to copy production from',
+        message: 'No played card with the building symbol to copy production from',
         tag: Tag.BUILDING,
       };
     }

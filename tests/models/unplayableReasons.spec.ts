@@ -69,7 +69,7 @@ describe('unplayableReasons', () => {
     const [/* game */, player] = testGame(2);
     player.megaCredits = 50; // affordable → only the bespoke reason
     const reasons = unplayableReasons(player, new RoboticWorkforce());
-    const t = reasons.find((r) => r.message === 'No card with the building symbol to copy production from');
+    const t = reasons.find((r) => r.message === 'No played card with the building symbol to copy production from');
     expect(t, 'expected the copy-target reason').is.not.undefined;
     expect(t?.type).eq('target');
     expect(t?.tag).eq(Tag.BUILDING); // popover renders the building symbol
@@ -81,7 +81,7 @@ describe('unplayableReasons', () => {
     const reasons = unplayableReasons(player, new RoboticWorkforce());
     expect(reasons.some((r) => r.type === 'megacredits'), 'expected an affordability reason').is.true;
     expect(
-      reasons.some((r) => r.message === 'No card with the building symbol to copy production from'),
+      reasons.some((r) => r.message === 'No played card with the building symbol to copy production from'),
       'expected the copy-target reason alongside it').is.true;
   });
 });
