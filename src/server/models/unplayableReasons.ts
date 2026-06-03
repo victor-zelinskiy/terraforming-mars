@@ -32,10 +32,12 @@ export function unplayableReasons(player: IPlayer, card: IProjectCard): Readonly
   collectAffordabilityReason(player, card, reasons);
   collectBehaviorReasons(player, card, reasons);
   if (reasons.length === 0) {
-    // The server said "no" but the block is a bespoke can-play rule we can't
-    // introspect. Be honest rather than silent — this is the fallback path,
-    // not the common one.
-    reasons.push({type: 'rule', message: 'Card is unavailable due to unmet conditions'});
+    // The block is a bespoke can-play rule the generic checks above can't
+    // introspect. Give the card itself a chance to describe it (opt-in
+    // `ICard.unplayableReason` — e.g. Robotic Workforce: "no card to copy");
+    // only if it declines do we fall back to the honest generic line.
+    const bespoke = card.unplayableReason?.(player);
+    reasons.push(bespoke ?? {type: 'rule', message: 'Card is unavailable due to unmet conditions'});
   }
   // Don't overwhelm the popover — a hand card rarely needs more than a few
   // lines. De-dupe identical entries (e.g. two tiles both lacking space).
@@ -80,9 +82,30 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
     return {type: 'count', message: 'Requires ${0} colony(ies)', params: [String(required)], current};
   case RequirementType.GREENERIES:
     return {type: 'count', message: 'Requires ${0} greenery(ies)', params: [String(required)], current};
+  case RequirementType.FLOATERS:
+    return {type: 'count', message: 'Requires ${0} floater(s)', params: [String(required)], current};
+  case RequirementType.RESOURCE_TYPES:
+    return {type: 'count', message: 'Requires ${0} resource type(s)', params: [String(required)], current};
+  case RequirementType.HABITAT_RATE:
+    return {type: 'count', message: 'Requires a habitat rate of ${0}', params: [String(required)], current};
+  case RequirementType.MINING_RATE:
+    return {type: 'count', message: 'Requires a mining rate of ${0}', params: [String(required)], current};
+  case RequirementType.LOGISTIC_RATE:
+    return {type: 'count', message: 'Requires a logistic rate of ${0}', params: [String(required)], current};
+  case RequirementType.HABITAT_TILES:
+    return {type: 'count', message: 'Requires ${0} habitat tile(s)', params: [String(required)], current};
+  case RequirementType.MINING_TILES:
+    return {type: 'count', message: 'Requires ${0} mine tile(s)', params: [String(required)], current};
+  case RequirementType.ROAD_TILES:
+    return {type: 'count', message: 'Requires ${0} road tile(s)', params: [String(required)], current};
+  case RequirementType.CORRUPTION:
+    return {type: 'count', message: 'Requires ${0} corruption', params: [String(required)], current};
+  case RequirementType.UNDERGROUND_TOKENS:
+    return {type: 'count', message: 'Requires ${0} underground token(s)', params: [String(required)], current};
+  case RequirementType.PARTY_LEADERS:
+    return {type: 'party', message: 'Requires ${0} party leader(s)', params: [String(required)], current};
   case RequirementType.CHAIRMAN:
   case RequirementType.PARTY:
-  case RequirementType.PARTY_LEADERS:
     return {type: 'party', message: 'Requires a specific political situation'};
   default:
     return {type: 'generic', message: 'Card requirement not met', current};
@@ -97,7 +120,6 @@ function collectAffordabilityReason(player: IPlayer, card: IProjectCard, out: Ar
 }
 
 const PLACEMENT: UnplayableReason = {type: 'placement', message: 'No space available for the tile'};
-const TARGET: UnplayableReason = {type: 'target', message: 'No valid target available'};
 
 /**
  * Placement / target / production blockers — mirrors the board and target
@@ -146,13 +168,15 @@ function collectBehaviorReasons(player: IPlayer, card: IProjectCard, out: Array<
     const dap = b.decreaseAnyProduction;
     const targets = game.players.filter((p) => p.canHaveProductionReduced(dap.type, dap.count, player));
     if (targets.length === 0) {
-      out.push(TARGET);
+      // Name the production via its resource icon so the player sees WHICH
+      // production has no reducible target (e.g. nobody has heat production).
+      out.push({type: 'target', message: 'No target to reduce production', resource: dap.type});
     }
   }
 
   if (b.colonies?.buildColony !== undefined) {
     if (player.colonies.getPlayableColonies(b.colonies.buildColony.allowDuplicates).length === 0) {
-      out.push(TARGET);
+      out.push({type: 'target', message: 'No colony available to build on'});
     }
   }
 
