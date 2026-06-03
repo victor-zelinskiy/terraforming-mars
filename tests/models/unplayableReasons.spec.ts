@@ -1,9 +1,13 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {setTemperature} from '../TestingUtils';
+import {Resource} from '../../src/common/Resource';
 import {unplayableReasons} from '../../src/server/models/unplayableReasons';
 import {GeneRepair} from '../../src/server/cards/base/GeneRepair';
 import {ArchaeBacteria} from '../../src/server/cards/base/ArchaeBacteria';
+import {CloudSeeding} from '../../src/server/cards/base/CloudSeeding';
+import {RoboticWorkforce} from '../../src/server/cards/base/RoboticWorkforce';
+import {AerosportTournament} from '../../src/server/cards/venusNext/AerosportTournament';
 
 describe('unplayableReasons', () => {
   it('returns no reasons for a playable card', () => {
@@ -39,5 +43,33 @@ describe('unplayableReasons', () => {
     setTemperature(game, -16); // ArchaeBacteria requires -18C or colder
     const reasons = unplayableReasons(player, new ArchaeBacteria());
     expect(reasons.some((r) => r.type === 'globalParameter'), 'expected a globalParameter reason').is.true;
+  });
+
+  it('reports an unmet floaters requirement with a specific label (not generic)', () => {
+    const [/* game */, player] = testGame(2);
+    player.megaCredits = 50;
+    const reasons = unplayableReasons(player, new AerosportTournament());
+    const f = reasons.find((r) => r.message === 'Requires ${0} floater(s)');
+    expect(f, 'expected a specific floaters reason').is.not.undefined;
+    expect(f?.params?.[0]).eq('5');
+    expect(f?.current).eq(0);
+  });
+
+  it('names the resource when no production can be reduced (target reason)', () => {
+    const [/* game */, player] = testGame(2); // not solo → decreaseAnyProduction is checked
+    player.megaCredits = 50;
+    const reasons = unplayableReasons(player, new CloudSeeding());
+    const t = reasons.find((r) => r.type === 'target');
+    expect(t, 'expected a target reason').is.not.undefined;
+    expect(t?.resource).eq(Resource.HEAT);
+  });
+
+  it('explains Robotic Workforce has no card to copy (bespoke hook)', () => {
+    const [/* game */, player] = testGame(2);
+    player.megaCredits = 50;
+    const reasons = unplayableReasons(player, new RoboticWorkforce());
+    const t = reasons.find((r) => r.message === 'No building card to copy a production effect from');
+    expect(t, 'expected the copy-target reason').is.not.undefined;
+    expect(t?.type).eq('target');
   });
 });

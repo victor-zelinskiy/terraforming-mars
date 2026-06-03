@@ -8,10 +8,21 @@ import {getBehaviorExecutor} from '../../behavior/BehaviorExecutor';
 import {PlayerInput} from '../../PlayerInput';
 import {CardName} from '../../../common/cards/CardName';
 import {CardType} from '../../../common/cards/CardType';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 
 export abstract class RoboticWorkforceBase extends Card {
   constructor(properties: StaticCardProperties) {
     super(properties);
+  }
+
+  // Specific reason for the premium hand overlay: these cards copy a building
+  // card's production box, so when there's nothing eligible to copy the block
+  // is "no card to copy" rather than the generic "unmet conditions".
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.getPlayableBuildingCards(player).length === 0) {
+      return {type: 'target', message: 'No building card to copy a production effect from'};
+    }
+    return undefined;
   }
 
   /**

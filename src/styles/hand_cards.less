@@ -797,12 +797,20 @@
     &__row--megacredits &__bar,
     &__row--megacredits &__glyph { background: #f2c14e; box-shadow: 0 0 6px fade(#f2c14e, 55%); }
     &__row--megacredits &__now { color: #f3dca0; background: rgba(242, 193, 78, 0.14); border-color: rgba(242, 193, 78, 0.3); }
+    /* Requirement family (params, TR, counts, tags, production) → cyan, so
+       e.g. "oceans" and "floaters" read identically. */
     &__row--globalParameter &__bar,
     &__row--globalParameter &__glyph,
     &__row--tr &__bar,
-    &__row--tr &__glyph { background: @hc-cyan; box-shadow: 0 0 6px fade(@hc-cyan, 55%); }
+    &__row--tr &__glyph,
+    &__row--count &__bar,
+    &__row--count &__glyph,
+    &__row--tag &__bar,
+    &__row--production &__bar { background: @hc-cyan; box-shadow: 0 0 6px fade(@hc-cyan, 55%); }
     &__row--globalParameter &__now,
-    &__row--tr &__now { color: #cfe6fb; background: rgba(106, 176, 230, 0.16); border-color: rgba(106, 176, 230, 0.32); }
+    &__row--tr &__now,
+    &__row--count &__now,
+    &__row--tag &__now,
     &__row--production &__now { color: #cfe6fb; background: rgba(106, 176, 230, 0.16); border-color: rgba(106, 176, 230, 0.32); }
     &__row--placement &__bar,
     &__row--placement &__glyph { background: #d09a64; box-shadow: 0 0 6px fade(#d09a64, 55%); }

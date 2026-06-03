@@ -19,6 +19,7 @@ import {OneOrArray} from '../../common/utils/types';
 import {JSONValue} from '../../common/Types';
 import {IStandardProjectCard} from './IStandardProjectCard';
 import {Warning} from '../../common/cards/Warning';
+import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {Resource} from '../../common/Resource';
 import {Units} from '../../common/Units';
 import {SerializedCard} from '../SerializedCard';
@@ -47,6 +48,15 @@ export interface ICard {
   readonly name: CardName;
   readonly tags: ReadonlyArray<Tag>;
   canPlay(player: IPlayer, canAffordOptions?: CanAffordOptions): boolean;
+  /**
+   * Optional structured reason this card can't be played right now, for cards
+   * whose block lives in bespoke `canPlay` / `bespokeCanPlay` logic the generic
+   * explainer can't introspect (e.g. Robotic Workforce: "no card to copy").
+   * Called by `src/server/models/unplayableReasons.ts` ONLY when the card is
+   * already known unplayable and no structured reason was derived. Return
+   * `undefined` to defer to the generic fallback.
+   */
+  unplayableReason?(player: IPlayer): UnplayableReason | undefined;
   play(player: IPlayer): PlayerInput | undefined;
   /**
    * Describes the M€ discount `player` could apply to playing `card`.
