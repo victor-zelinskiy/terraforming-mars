@@ -95,7 +95,6 @@
  * an overlay doesn't spuriously animate.
  */
 .bar-overlay,
-.top-bar-dropdown,
 .legacy-ui-overlay--open,
 .played-board-overlay,
 .vp-board-overlay {
@@ -103,7 +102,6 @@
 }
 
 #player-home.journal-open .bar-overlay,
-#player-home.journal-open .top-bar-dropdown,
 #player-home.journal-open .legacy-ui-overlay--open,
 #player-home.journal-open .played-board-overlay,
 #player-home.journal-open .hand-board-overlay,
@@ -111,9 +109,28 @@
     right: calc(var(--right-sidebar-width) + var(--journal-overlay-clearance));
 }
 
+/*
+ * Top-bar dropdowns (Milestones / Awards / Standard Projects) are CENTRED
+ * boxes, not right-anchored panels — so unlike the bar-overlays above they
+ * must NOT just pull their right edge in (that shifts a comfortably-centred
+ * box sideways for no reason). Instead they stay centred at their normal
+ * position and shift left ONLY as a fallback, when the centred box would
+ * actually overlap the open journal (small windows / monitors).
+ *
+ * `--tbd-center-left` (the normal centred position) and `--tbd-width` come
+ * from `.top-bar-dropdown` in player_home.less. We compute the journal's
+ * left inner edge and the most-right the box may start to stay clear of it;
+ * `min(centered, max-left)` keeps it centred while it fits and shifts it left
+ * only when it must, clamped so it never crosses the left chrome.
+ */
+#player-home.journal-open .top-bar-dropdown {
+    --journal-left: calc(100vw - var(--right-sidebar-width) - var(--journal-gap) - var(--journal-width) - 16px);
+    --tbd-max-left: calc(var(--journal-left) - var(--tbd-width));
+    left: max(var(--left-panel-width), min(var(--tbd-center-left), var(--tbd-max-left)));
+}
+
 @media (prefers-reduced-motion: reduce) {
     .bar-overlay,
-    .top-bar-dropdown,
     .legacy-ui-overlay--open,
     .played-board-overlay,
     .vp-board-overlay {

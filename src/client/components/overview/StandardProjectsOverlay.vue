@@ -51,7 +51,7 @@
              'std-project-row--disabled': !sellPatentsAvailable,
            }"
            :data-hint="$t(sellPatentsTooltip)">
-        <div class="std-project-row-icon std-project-row-icon--sell"></div>
+        <div class="std-project-row-icon std-icon std-icon--sell-patents"></div>
         <div class="std-project-row-text">
           <div class="std-project-row-name" v-i18n>Patent sale</div>
           <div class="std-project-row-desc" v-i18n>Gain 1 M€ per card sold</div>

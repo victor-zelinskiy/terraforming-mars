@@ -68,8 +68,7 @@
                   v-on:click.stop="onClaimClick(m)">
             <span class="milestone-claim-btn-label" v-i18n>Claim</span>
             <span class="milestone-claim-btn-cost">
-              <span class="milestone-claim-btn-cost-value">{{ milestoneCost }}</span>
-              <span class="milestone-claim-btn-cost-mc">M€</span>
+              <span class="mc-coin mc-coin--sm">{{ milestoneCost }}</span>
             </span>
           </button>
           <div v-else-if="m.playerName" class="milestone-row-claimed-badge" v-i18n>Claimed</div>

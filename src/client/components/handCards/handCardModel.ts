@@ -49,17 +49,33 @@ export type HandCardEntry = {
   tags: ReadonlyArray<Tag>;
   /** Effective (discounted) cost used for the cost sort + badges. */
   cost: number;
+  /**
+   * Acquisition order — the index of the card in the server's `cardsInHand`
+   * array. The server pushes newly drawn cards to the END of that array
+   * (`cardsInHand.push(...)`) and removing a played/sold card preserves the
+   * relative order of the rest, so a smaller index === acquired earlier.
+   * Drives the "By acquisition time" sort (the default). There's no real
+   * timestamp on a hand card, so this stable server order is the proxy.
+   */
+  order: number;
   state: HandCardPlayState;
 };
 
 export type AvailabilityFilter = 'all' | 'playable' | 'unplayable';
-export type HandSortMode = 'availability' | 'cost' | 'type' | 'tag' | 'name';
+// 'received' = acquisition order (server hand order, oldest → newest). It's
+// the default because that's the most natural way to read a freshly-grown hand.
+export type HandSortMode = 'received' | 'availability' | 'cost' | 'type' | 'tag' | 'name';
 export type HandSortDir = 'asc' | 'desc';
 
 export type HandFilterState = {
   availability: AvailabilityFilter;
-  /** Type keys the player has toggled OFF (hidden). Empty = all shown. */
-  hiddenTypes: ReadonlyArray<HandTypeKey>;
+  /**
+   * Card types the player has selected to narrow to (POSITIVE narrowing, same
+   * model as `activeTags`). Empty = no type narrowing (all shown). Unified
+   * with the tag filter so both behave identically (select-to-keep), rather
+   * than the old toggle-to-hide semantics.
+   */
+  activeTypes: ReadonlyArray<HandTypeKey>;
   /** Tags the player has selected to narrow to. Empty = no tag narrowing. */
   activeTags: ReadonlyArray<Tag>;
   sort: HandSortMode;
@@ -69,9 +85,11 @@ export type HandFilterState = {
 
 export const DEFAULT_HAND_FILTER: HandFilterState = {
   availability: 'all',
-  hiddenTypes: [],
+  activeTypes: [],
   activeTags: [],
-  sort: 'availability',
+  // Default to acquisition order (oldest → newest) — the most natural way to
+  // perceive the hand as it grows. Ascending keeps the oldest cards first.
+  sort: 'received',
   sortDir: 'asc',
 };
 
@@ -81,7 +99,7 @@ export function buildHandEntries(
   playableNames: ReadonlySet<CardName>,
   awaitingInput: boolean,
 ): ReadonlyArray<HandCardEntry> {
-  return cards.map((card) => {
+  return cards.map((card, index) => {
     const clientCard = getCard(card.name);
     const type = clientCard?.type ?? CardType.AUTOMATED;
     const tags = clientCard?.tags ?? [];
@@ -94,6 +112,9 @@ export function buildHandEntries(
       typeKey: TYPE_TO_KEY[type],
       tags,
       cost,
+      // Index in the server's cardsInHand array (newest pushed last) — the
+      // acquisition-order proxy used by the 'received' sort.
+      order: index,
       state,
     };
   });
@@ -114,8 +135,10 @@ function passAvailability(e: HandCardEntry, availability: AvailabilityFilter): b
   }
 }
 
-function passTypes(e: HandCardEntry, hidden: ReadonlySet<HandTypeKey>): boolean {
-  return e.typeKey === undefined || !hidden.has(e.typeKey);
+// Positive narrowing, mirrors passTags: no selection = all pass; otherwise
+// only the selected types pass.
+function passTypes(e: HandCardEntry, activeTypes: ReadonlySet<HandTypeKey>): boolean {
+  return activeTypes.size === 0 || (e.typeKey !== undefined && activeTypes.has(e.typeKey));
 }
 
 function passTags(e: HandCardEntry, activeTags: ReadonlySet<Tag>): boolean {
@@ -126,11 +149,11 @@ export function filterHandEntries(
   entries: ReadonlyArray<HandCardEntry>,
   filter: HandFilterState,
 ): ReadonlyArray<HandCardEntry> {
-  const hidden = new Set(filter.hiddenTypes);
+  const activeTypes = new Set(filter.activeTypes);
   const activeTags = new Set(filter.activeTags);
   return entries.filter((e) =>
     passAvailability(e, filter.availability) &&
-    passTypes(e, hidden) &&
+    passTypes(e, activeTypes) &&
     passTags(e, activeTags));
 }
 
@@ -148,6 +171,9 @@ export function sortHandEntries(
   // together — fine for a display sort.
   const ascending = (a: HandCardEntry, b: HandCardEntry): number => {
     switch (sort) {
+    case 'received':
+      // Acquisition order (server hand order). Ascending = oldest first.
+      return a.order - b.order;
     case 'availability': {
       const av = Number(b.state.playable) - Number(a.state.playable);
       return av !== 0 ? av : a.cost - b.cost;
@@ -197,9 +223,9 @@ export function buildAvailabilityChips(
   entries: ReadonlyArray<HandCardEntry>,
   filter: HandFilterState,
 ): ReadonlyArray<AvailabilityChip> {
-  const hidden = new Set(filter.hiddenTypes);
+  const activeTypes = new Set(filter.activeTypes);
   const activeTags = new Set(filter.activeTags);
-  const base = entries.filter((e) => passTypes(e, hidden) && passTags(e, activeTags));
+  const base = entries.filter((e) => passTypes(e, activeTypes) && passTags(e, activeTags));
   let playable = 0;
   for (const e of base) {
     if (e.state.playable) {
@@ -226,37 +252,40 @@ export type HandTypeChip = {
   label: string;
   /** Cards of this type WITHIN the current availability + tag slice. */
   count: number;
-  /** Not toggled off by the player. */
-  enabled: boolean;
-  /** Faceted count is 0 — present in the hand but not in this slice. */
+  /** Selected to narrow to (POSITIVE narrowing — same as tag chips). */
+  active: boolean;
+  /** Faceted count is 0 and the type isn't selected — render it muted. */
   muted: boolean;
 };
 
 /**
- * Type chips with faceted counts. The count keeps the availability + tag
- * filters but EXCLUDES the type dimension itself, so toggling one type
- * doesn't change the numbers shown on the other type chips. A chip is
- * rendered as long as the type exists ANYWHERE in the hand (so the row
- * never reflows when a slice empties a type); when its faceted count hits 0
- * it's `muted` (disabled-looking) instead of vanishing (spec rule #5).
+ * Type chips with faceted counts. POSITIVE narrowing, identical model to the
+ * tag chips: an unselected chip is neutral, a selected chip narrows the hand
+ * to that type, and selecting one doesn't change the other chips' numbers
+ * (the count keeps the availability + tag filters but EXCLUDES the type
+ * dimension itself). A chip is rendered as long as the type exists ANYWHERE
+ * in the hand (so the row never reflows); an unselected chip with a 0 faceted
+ * count goes `muted`. Selected chips stay interactive at 0 so they can always
+ * be cleared.
  */
 export function buildTypeChips(
   entries: ReadonlyArray<HandCardEntry>,
   filter: HandFilterState,
 ): ReadonlyArray<HandTypeChip> {
-  const hidden = new Set(filter.hiddenTypes);
+  const active = new Set(filter.activeTypes);
   const activeTags = new Set(filter.activeTags);
   const base = entries.filter((e) => passAvailability(e, filter.availability) && passTags(e, activeTags));
   return HAND_TYPE_DEFS
     .filter((def) => entries.some((e) => e.typeKey === def.key))
     .map((def) => {
       const count = base.filter((e) => e.typeKey === def.key).length;
+      const isActive = active.has(def.key);
       return {
         key: def.key,
         label: def.label,
         count,
-        enabled: !hidden.has(def.key),
-        muted: count === 0,
+        active: isActive,
+        muted: count === 0 && !isActive,
       };
     });
 }
@@ -292,8 +321,8 @@ export function buildTagChips(
   filter: HandFilterState,
 ): ReadonlyArray<HandTagChip> {
   const active = new Set(filter.activeTags);
-  const hidden = new Set(filter.hiddenTypes);
-  const base = entries.filter((e) => passAvailability(e, filter.availability) && passTypes(e, hidden));
+  const activeTypes = new Set(filter.activeTypes);
+  const base = entries.filter((e) => passAvailability(e, filter.availability) && passTypes(e, activeTypes));
   const globalCounts = new Map<Tag, number>();
   for (const e of entries) {
     for (const tag of e.tags) {

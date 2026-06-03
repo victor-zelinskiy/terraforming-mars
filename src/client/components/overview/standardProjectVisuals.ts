@@ -18,6 +18,14 @@ import {CardName} from '@/common/cards/CardName';
 export type StandardProjectVisual = {iconClass: string; description: string};
 
 export const PROJECT_VISUAL: Partial<Record<CardName, StandardProjectVisual>> = {
+  // Sell patents — the server excludes it from `game.standardProjects`, so the
+  // Standard Projects overlay renders a dedicated row for it; the journal
+  // logs it as a regular standard-project CARD token. Both reuse this entry
+  // so the "card → M€" icon + copy stay in one place (CardName, not text).
+  [CardName.SELL_PATENTS_STANDARD_PROJECT]: {
+    iconClass: 'std-icon std-icon--sell-patents',
+    description: 'Sell cards from your hand for 1 M€ each',
+  },
   [CardName.POWER_PLANT_STANDARD_PROJECT]: {
     iconClass: 'std-icon std-icon--energy',
     description: 'Increase energy production by 1',

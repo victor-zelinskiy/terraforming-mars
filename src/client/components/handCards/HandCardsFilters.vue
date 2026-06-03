@@ -19,16 +19,18 @@
 
     <span class="hand-filters__divider" aria-hidden="true"></span>
 
-    <!-- Type chips (toggle to hide a type). Faceted counts; a type with no
-         cards in the current slice goes muted instead of vanishing. -->
+    <!-- Type chips (positive narrowing — select to keep only that type, same
+         behaviour as the tag chips below). Faceted counts; an unselected type
+         with no cards in the current slice goes muted instead of vanishing.
+         Selected types stay clickable at 0 so they can always be cleared. -->
     <div class="hand-filters__chips">
       <button
         v-for="chip in typeChips"
         :key="chip.key"
         type="button"
         class="hand-filter-chip"
-        :class="['hand-filter-chip--' + chip.key, {'hand-filter-chip--off': !chip.enabled, 'hand-filter-chip--muted': chip.muted}]"
-        :aria-pressed="chip.enabled"
+        :class="['hand-filter-chip--' + chip.key, {'hand-filter-chip--selected': chip.active, 'hand-filter-chip--muted': chip.muted}]"
+        :aria-pressed="chip.active"
         :aria-disabled="chip.muted ? 'true' : undefined"
         :aria-label="chip.muted ? mutedHint : undefined"
         :data-hint="chip.muted ? mutedHint : null"
@@ -124,6 +126,8 @@ import {AvailabilityChip, HandFilterState, HandSortMode, HandTagChip, HandTypeCh
 import {translateText} from '@/client/directives/i18n';
 
 const SORT_OPTIONS: ReadonlyArray<{value: HandSortMode; label: string}> = [
+  // Acquisition order is the default — listed first.
+  {value: 'received', label: 'By acquisition time'},
   {value: 'availability', label: 'By availability'},
   {value: 'cost', label: 'By cost'},
   {value: 'type', label: 'By type'},
@@ -167,7 +171,7 @@ export default defineComponent({
   },
   computed: {
     currentSortLabel(): string {
-      return SORT_OPTIONS.find((o) => o.value === this.filter.sort)?.label ?? 'By availability';
+      return SORT_OPTIONS.find((o) => o.value === this.filter.sort)?.label ?? 'By acquisition time';
     },
     // Short hint shown (hover/aria) on a chip that has no cards in the
     // current slice — explains why it looks disabled without a native title.
