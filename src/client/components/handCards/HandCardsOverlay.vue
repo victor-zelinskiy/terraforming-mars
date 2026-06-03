@@ -30,11 +30,12 @@
       @availability="setAvailability"
       @toggle-type="toggleType"
       @toggle-tag="toggleTag"
-      @sort="setSort" />
+      @sort="setSort"
+      @sort-dir="setSortDir" />
 
     <div class="hand-board__body">
       <HandCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" />
-      <transition-group v-else name="hand-card-pop" tag="div" class="hand-board__grid">
+      <transition-group v-else name="hand-card-pop" tag="div" class="hand-board__grid" @before-leave="onLeaveCapture">
         <HandCardItem
           v-for="entry in sorted"
           :key="entry.name"
@@ -80,6 +81,7 @@ import {
   filterHandEntries,
   HandCardEntry,
   HandFilterState,
+  HandSortDir,
   HandSortMode,
   HandTypeKey,
   sortHandEntries,
@@ -146,7 +148,7 @@ export default defineComponent({
       return buildHandEntries(this.cards, this.game, this.player, this.playActionAvailable, this.playableCardNames);
     },
     sorted(): ReadonlyArray<HandCardEntry> {
-      return sortHandEntries(filterHandEntries(this.entries, this.filter), this.filter.sort);
+      return sortHandEntries(filterHandEntries(this.entries, this.filter), this.filter.sort, this.filter.sortDir);
     },
     typeChips() {
       return buildTypeChips(this.entries, this.filter.hiddenTypes);
@@ -205,6 +207,21 @@ export default defineComponent({
     },
     setSort(mode: HandSortMode): void {
       this.filter.sort = mode;
+    },
+    setSortDir(dir: HandSortDir): void {
+      this.filter.sortDir = dir;
+    },
+    // Pin a leaving card to its exact grid spot before it goes
+    // `position: absolute`, so it shrink-fades in place instead of
+    // snapping to the grid origin (flying left + overlapping neighbours).
+    // offsetLeft/Top are measured against the relative `.hand-board__grid`;
+    // width/height preserve its footprint once it's out of grid flow.
+    onLeaveCapture(el: Element): void {
+      const node = el as HTMLElement;
+      node.style.left = `${node.offsetLeft}px`;
+      node.style.top = `${node.offsetTop}px`;
+      node.style.width = `${node.offsetWidth}px`;
+      node.style.height = `${node.offsetHeight}px`;
     },
     openCard(card: CardModel): void {
       this.zoomCard = card;

@@ -51,8 +51,30 @@
       </div>
     </template>
 
-    <!-- Sort dropdown (custom glass, no native select). -->
+    <!-- Sort dropdown (custom glass, no native select) + direction toggle. -->
     <div class="hand-filters__sort">
+      <!-- Ascending / descending segmented toggle. Both states visible,
+           the active one highlighted — clear at a glance, no guessing. -->
+      <div class="hand-sortdir" role="group" :aria-label="$t('Sort direction')">
+        <button
+          type="button"
+          class="hand-sortdir__btn"
+          :class="{'hand-sortdir__btn--active': filter.sortDir === 'asc'}"
+          :aria-pressed="filter.sortDir === 'asc'"
+          :aria-label="$t('Sort ascending')"
+          @click="$emit('sort-dir', 'asc')">
+          <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 2 L10.5 9.5 L1.5 9.5 Z"/></svg>
+        </button>
+        <button
+          type="button"
+          class="hand-sortdir__btn"
+          :class="{'hand-sortdir__btn--active': filter.sortDir === 'desc'}"
+          :aria-pressed="filter.sortDir === 'desc'"
+          :aria-label="$t('Sort descending')"
+          @click="$emit('sort-dir', 'desc')">
+          <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 10 L1.5 2.5 L10.5 2.5 Z"/></svg>
+        </button>
+      </div>
       <div class="hand-sort" :class="{'hand-sort--open': sortOpen}">
         <button
           ref="sortTrigger"
@@ -125,7 +147,7 @@ export default defineComponent({
       required: true,
     },
   },
-  emits: ['availability', 'toggle-type', 'toggle-tag', 'sort'],
+  emits: ['availability', 'toggle-type', 'toggle-tag', 'sort', 'sort-dir'],
   data() {
     return {
       sortOpen: false,
