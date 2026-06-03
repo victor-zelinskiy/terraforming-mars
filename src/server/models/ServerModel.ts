@@ -189,6 +189,12 @@ export class Server {
       waitingFor: this.getWaitingFor(player, player.getWaitingFor()),
       players: players,
       autopass: player.autopass,
+      cardDrawReveals: player.cardDrawReveals.map((r) => ({
+        id: r.id,
+        source: r.source,
+        // Same options as cardsInHand so reveal cards render identically.
+        cards: cardsToModel(player, r.cards, {showCalculatedCost: true, unplayableReasons: true}),
+      })),
     };
     return rv;
   }

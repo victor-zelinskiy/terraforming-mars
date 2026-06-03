@@ -26,15 +26,17 @@
       <!--
         Playability indicator — a compact icon + text pill centred along the
         bottom edge of the card (clear of the cost top-left, the sale tick
-        top-right, and the expansion glyph bottom-left). Rendered whenever the
-        card can't be PLAYED right now, in BOTH normal and sale mode (so it
-        never pops in / out when toggling sale), and purely SECONDARY: in sale
-        mode the card stays fully selectable. The short label wraps to two
-        lines on small cards instead of truncating. Hover / focus reveals the
-        shared reason popover (hosted in the action footer below). No native
-        title tooltip (spec).
+        top-right, and the expansion glyph bottom-left). Rendered ONLY for a
+        genuine RULES block (the card can't be played by the game rules) — a
+        soft block (not your turn / finish your current action) is not a
+        requirement failure, so it gets no badge. Shown in BOTH normal and sale
+        mode (so it never pops in / out when toggling sale), and purely
+        SECONDARY: in sale mode the card stays fully selectable. The short label
+        wraps to two lines on small cards instead of truncating. Hover / focus
+        reveals the shared reason popover (hosted in the action footer below).
+        No native title tooltip (spec).
       -->
-      <button v-if="!playable && reasons.length > 0"
+      <button v-if="rulesBlocked && reasons.length > 0"
               type="button"
               class="hand-card-item__playblock"
               :aria-label="$t('Cannot play now')"
@@ -70,13 +72,32 @@
               class="hand-card-play-btn hand-card-play-btn--ready"
               @click.stop="$emit('play', entry.name)">
         <span class="hand-card-play-btn__glow" aria-hidden="true"></span>
-        <span class="hand-card-play-btn__label" v-i18n>Play card</span>
+        <span class="hand-card-play-btn__label" v-i18n>Play now</span>
       </button>
 
       <!--
-        Normal mode, unplayable: a disabled "НЕДОСТУПНА" footer. Hovering /
-        focusing it ALSO reveals the reason popover (same as the card badge),
-        so the player can read the WHY from either affordance.
+        Soft block (not your turn / finish your current action): the card meets
+        every rule, it's just not the player's moment. Keep the РАЗЫГРАТЬ label
+        (it IS playable, just not now) but disable it with a calm "waiting"
+        style — never the "НЕДОСТУПНА" wording. Hover / focus reveals a simple
+        one-line explanation, NOT the requirements list.
+      -->
+      <div v-else-if="softBlocked"
+           class="hand-card-item__softblock"
+           tabindex="0"
+           @mouseenter="onReasonEnter"
+           @mouseleave="onReasonLeave"
+           @focus="onReasonEnter"
+           @blur="onReasonLeave">
+        <button type="button" class="hand-card-play-btn hand-card-play-btn--waiting" disabled>
+          <span class="hand-card-play-btn__label" v-i18n>Play now</span>
+        </button>
+      </div>
+
+      <!--
+        Rules block: a disabled "НЕДОСТУПНА" footer. Hovering / focusing it ALSO
+        reveals the requirements popover (same as the card badge), so the player
+        can read the WHY from either affordance.
       -->
       <div v-else
            class="hand-card-item__disabled"
@@ -91,17 +112,27 @@
       </div>
 
       <!--
-        Single shared reason popover for BOTH hover sources (card badge +
-        footer). Anchored above the action footer, flipped / nudged by
-        `placeReason` so it stays inside the scroll area.
+        Reason hover. A RULES block shows the full requirements list (shared
+        popover, triggered from the badge or the footer); a SOFT block shows a
+        single calm one-liner. Both anchor above the action footer and are
+        flipped / nudged by `placeReason` so they stay inside the scroll area.
       -->
       <transition name="hand-reason-fade">
         <HandCardReasonPopover
-          v-if="showReason && reasons.length > 0"
+          v-if="showReason && rulesBlocked && reasons.length > 0"
           :reasons="reasons"
           heading="Cannot play now"
           :class="{'hand-reason--below': reasonBelow}"
           :style="reasonStyle" />
+        <div
+          v-else-if="showReason && softBlocked && softText !== ''"
+          class="hand-soft-reason"
+          :class="{'hand-soft-reason--below': reasonBelow}"
+          :style="reasonStyle"
+          role="tooltip">
+          <span class="hand-soft-reason__dot" aria-hidden="true"></span>
+          <span class="hand-soft-reason__text">{{ softText }}</span>
+        </div>
       </transition>
     </div>
   </div>
@@ -111,7 +142,9 @@
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/Card.vue';
 import {HandCardEntry} from '@/client/components/handCards/handCardModel';
+import {HandCardBlock} from '@/client/components/handCards/cardPlayability';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import HandCardReasonPopover from '@/client/components/handCards/HandCardReasonPopover.vue';
 
 /**
@@ -166,14 +199,33 @@ export default defineComponent({
     playable(): boolean {
       return this.entry.state.playable;
     },
-    // Dim the card only in NORMAL mode. In sale mode an unplayable card must
-    // read as fully selectable, so it's never dimmed — the icon badge carries
-    // the (secondary) playability info instead.
+    block(): HandCardBlock {
+      return this.entry.state.block;
+    },
+    // Genuinely unplayable by the game rules — drives the dim, the badge and
+    // the requirements popover.
+    rulesBlocked(): boolean {
+      return this.block === 'rules';
+    },
+    // Playable by the rules, just not the player's window (not their turn /
+    // finish current action). Calm disabled button + simple hover, no dim/badge.
+    softBlocked(): boolean {
+      return this.block === 'soft';
+    },
+    // Dim the card only for a RULES block in NORMAL mode. A soft block keeps the
+    // card bright (it IS playable, just not now); in sale mode every card must
+    // read as fully selectable, so it's never dimmed either.
     showUnplayableDim(): boolean {
-      return !this.playable && !this.saleMode;
+      return this.rulesBlocked && !this.saleMode;
     },
     reasons(): ReadonlyArray<UnplayableReason> {
       return this.entry.state.reasons;
+    },
+    // The single calm one-liner for a soft block ("Not your turn right now" /
+    // "Finish your current action first"), translated for the hover tooltip.
+    softText(): string {
+      const r = this.entry.state.softReason;
+      return r === undefined ? '' : translateTextWithParams(r.message, [...(r.params ?? [])]);
     },
     label(): string {
       return this.entry.name.split(':')[0];
@@ -203,7 +255,7 @@ export default defineComponent({
     placeReason(): void {
       const root = this.$el as HTMLElement;
       const wrapper = root.querySelector('.hand-card-item__action') as HTMLElement | null;
-      const pop = root.querySelector('.hand-reason') as HTMLElement | null;
+      const pop = root.querySelector('.hand-reason, .hand-soft-reason') as HTMLElement | null;
       if (wrapper === null || pop === null) {
         return;
       }

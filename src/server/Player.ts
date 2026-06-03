@@ -61,13 +61,14 @@ import {message} from './logs/MessageBuilder';
 import {calculateVictoryPoints} from './game/calculateVictoryPoints';
 import {VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
-import {CanAffordOptions, CardAction, IPlayer} from './IPlayer';
+import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
 import {copyAndClear, inplaceRemove, sum, toName} from '../common/utils/utils';
 import {PreludesExpansion} from './preludes/PreludesExpansion';
 import {ChooseCards} from './deferredActions/ChooseCards';
 import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
+import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
 import {Counter} from './behavior/Counter';
 import {TRSource} from '../common/cards/TRSource';
@@ -135,6 +136,9 @@ export class Player implements IPlayer {
   public cardsInHand: Array<IProjectCard> = [];
   public preludeCardsInHand: Array<IPreludeCard> = [];
   public ceoCardsInHand: Set<ICeoCard> = new Set();
+  // Transient "you drew cards" reveal queue — NOT serialized (see serialize()).
+  public cardDrawReveals: Array<CardDrawReveal> = [];
+  private nextCardDrawRevealId = 1;
   public playedCards: PlayedCards = new PlayedCards();
   public draftedCards: Array<IProjectCard> = [];
   public draftHand: Array<IProjectCard> = [];
@@ -1015,6 +1019,23 @@ export class Player implements IPlayer {
 
   public drawCardKeepSome(count: number, options: AllOptions): void {
     this.game.defer(DrawCards.keepSome(this, count, options));
+  }
+
+  public enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource): void {
+    // Never queue an empty reveal (deck exhausted / count 0) — it would show an empty modal.
+    if (cards.length === 0) {
+      return;
+    }
+    this.cardDrawReveals.push({id: this.nextCardDrawRevealId++, source, cards: [...cards]});
+  }
+
+  public acknowledgeCardDrawReveals(id: number | 'all'): void {
+    if (id === 'all') {
+      this.cardDrawReveals = [];
+      return;
+    }
+    // Idempotent: acking an already-removed id is a no-op.
+    this.cardDrawReveals = this.cardDrawReveals.filter((r) => r.id !== id);
   }
 
   public discardPlayedCard(card: IProjectCard) {

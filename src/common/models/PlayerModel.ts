@@ -13,6 +13,7 @@ import {Tag} from '../cards/Tag';
 import {UnderworldPlayerData} from '../underworld/UnderworldPlayerData';
 import {GlobalParameter} from '../GlobalParameter';
 import {DeltaProjectPlayerModel} from './DeltaProjectPlayerModel';
+import {CardDrawRevealModel} from './CardDrawRevealModel';
 
 export interface ViewModel {
   game: GameModel;
@@ -132,4 +133,8 @@ export interface PlayerViewModel extends ViewModel {
   preludeCardsInHand: ReadonlyArray<CardModel>;
   thisPlayer: PublicPlayerModel;
   waitingFor: PlayerInputModel | undefined;
+  // Batches of cards the player just drew via an in-game effect / tile bonus,
+  // awaiting the player's "take" acknowledgement in the reveal modal. Empty in
+  // the common case. See CardDrawRevealModel.
+  cardDrawReveals: ReadonlyArray<CardDrawRevealModel>;
 }

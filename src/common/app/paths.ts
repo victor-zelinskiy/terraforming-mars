@@ -27,6 +27,7 @@ export const paths = {
   NEW_GAME: 'new-game',
   PLAYER: 'player',
   PLAYER_INPUT: 'player/input',
+  ACKNOWLEDGE_DRAW: 'player/acknowledge-draw',
   RESET: 'reset',
   SPECTATOR: 'spectator',
   THE_END: 'the-end',

@@ -1,0 +1,370 @@
+/*
+ * ─────────────────────────────────────────────────────────────────────
+ *  drawn_cards.less — premium "you drew cards" reveal modal
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ *  Shown whenever the player draws cards via an in-game EFFECT / tile bonus
+ *  (NOT research / draft / buy — those have their own selection UI). The
+ *  player "takes" the cards (ВЗЯТЬ / ВЗЯТЬ ВСЁ) — only then does the КАРТЫ
+ *  badge tick up (client-side staging in PlayerHome). Mandatory by contract:
+ *  no backdrop-dismiss / Esc; the only escape hatches are taking the cards or
+ *  minimizing to the draggable pill.
+ *
+ *  Sibling of hand_cards.less / played_cards.less: same glass/HUD language
+ *  (cyan rim, mint action, Prototype font, L-corner ticks). Motion is
+ *  transform/opacity only + prefers-reduced-motion aware. See
+ *  src/client/components/drawnCards/.
+ *
+ *  z-index: sits ABOVE the mandatory-input-modal (12000) so a follow-up
+ *  waitingFor prompt arriving in the same view is covered and the reveal is
+ *  resolved first. The fullscreen CardZoomModal is a native <dialog> (top
+ *  layer) and floats above this regardless.
+ */
+
+@dr-cyan:       #6ab0e6;
+@dr-rim:        #2c4a6a;
+@dr-text:       #e8f1fb;
+@dr-text-muted: rgba(170, 195, 220, 0.74);
+@dr-ready:      #58d6a6; /* mint take accent (matches hand_cards) */
+
+/* Lock page scroll while the reveal is up (mounted) — same idea as the
+   mandatory input modal. Harmless on the single-screen layout; keeps the
+   backdrop from revealing a scrollbar gutter. */
+html.draw-reveal-open,
+body.draw-reveal-open {
+    overflow: hidden;
+}
+
+/* ── Root / backdrop ──────────────────────────────────────────────────── */
+
+.draw-reveal {
+    position: fixed;
+    inset: 0;
+    z-index: 12600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; /* children opt back in */
+}
+
+.draw-reveal__backdrop {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto; /* swallow clicks — mandatory, no dismiss handler */
+    /*
+     * Soft dark vignette + blur, so the board recedes behind the reveal
+     * (premium tabletop focus). The reveal can't be minimized, so the blur is
+     * only ever up while the modal itself is up. On close the whole flow
+     * unmounts (v-if) → this element is removed → the blur is gone instantly;
+     * the КАРТЫ delta-chip is released a couple of frames later
+     * (DrawCardRevealFlow.closeAndRelease) so it never animates behind the blur.
+     */
+    background:
+        radial-gradient(120% 90% at 50% 42%, rgba(6, 11, 18, 0.45), rgba(4, 8, 14, 0.76));
+    backdrop-filter: blur(4px) saturate(0.92);
+    -webkit-backdrop-filter: blur(4px) saturate(0.92);
+    animation: draw-reveal-backdrop-in 220ms ease both;
+}
+
+@keyframes draw-reveal-backdrop-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+
+.draw-reveal__card {
+    position: relative;
+    pointer-events: auto;
+    box-sizing: border-box;
+    max-width: min(92vw, 1040px);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 20px 18px;
+    border: 1px solid @dr-rim;
+    border-radius: 9px;
+    background: linear-gradient(180deg, rgba(13, 20, 30, 0.97) 0%, rgba(8, 13, 21, 0.98) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 28px 70px rgba(0, 0, 0, 0.62),
+        0 0 44px rgba(106, 176, 230, 0.12);
+    animation: draw-reveal-card-in 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes draw-reveal-card-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+}
+
+.draw-reveal__corner {
+    position: absolute;
+    width: 13px;
+    height: 13px;
+    pointer-events: none;
+}
+.draw-reveal__corner--tl { top: -1px; left: -1px; border-top: 1px solid @dr-cyan; border-left: 1px solid @dr-cyan; }
+.draw-reveal__corner--tr { top: -1px; right: -1px; border-top: 1px solid @dr-cyan; border-right: 1px solid @dr-cyan; }
+.draw-reveal__corner--bl { bottom: -1px; left: -1px; border-bottom: 1px solid @dr-cyan; border-left: 1px solid @dr-cyan; }
+.draw-reveal__corner--br { bottom: -1px; right: -1px; border-bottom: 1px solid @dr-cyan; border-right: 1px solid @dr-cyan; }
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+.draw-reveal__header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 11px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.14);
+}
+
+.draw-reveal__pulse {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: @dr-cyan;
+    box-shadow: 0 0 8px @dr-cyan;
+    animation: draw-reveal-pulse 1.6s ease-in-out infinite;
+}
+@keyframes draw-reveal-pulse {
+    0%, 100% { opacity: 0.5; transform: scale(0.85); }
+    50%      { opacity: 1;   transform: scale(1.15); }
+}
+
+.draw-reveal__title {
+    flex: 1 1 auto;
+    margin: 0;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: @dr-text;
+    text-shadow: 0 0 12px rgba(106, 176, 230, 0.35);
+}
+
+/* ── Content (subtitle + tray + footer) ──────────────────────────────── */
+
+.draw-reveal__content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.draw-reveal__subtitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: @dr-text-muted;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.6px;
+
+    &-dot {
+        width: 5px; height: 5px; border-radius: 50%;
+        background: @dr-ready;
+        box-shadow: 0 0 7px fade(@dr-ready, 70%);
+        flex-shrink: 0;
+    }
+    &-text { color: @dr-text; }
+}
+
+.draw-reveal__tray {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    /* `overflow-y: auto` forces the x-axis to clip too, which would cut the
+       hover-scaled card + its glow. Explicit `overflow-x: hidden` (no phantom
+       horizontal scrollbar) + generous padding gives the hover growth room so
+       the card edges/glow stay visible inside the clip box. */
+    overflow-x: hidden;
+    /* faint glass "table" so cards read as physical cards laid out on it */
+    border-radius: 8px;
+    padding: 22px 22px 26px;
+    background:
+        radial-gradient(120% 100% at 50% 0%, rgba(106, 176, 230, 0.06), transparent 60%),
+        rgba(8, 14, 22, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.06);
+}
+
+.draw-reveal__cards {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 16px;
+}
+
+.draw-reveal__slot {
+    position: relative;
+    cursor: pointer;
+    outline: none;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
+    transition: transform 170ms cubic-bezier(0.22, 1, 0.36, 1), filter 170ms;
+
+    /* Zero the legacy 30px right margin so the card centers in its slot
+       (CLAUDE.md "Centering UI under a Card"). */
+    > .card-container {
+        zoom: var(--draw-card-zoom, 0.8);
+        margin: 0;
+    }
+
+    &:hover,
+    &:focus-visible {
+        /* Gentle lift + glow kept within the tray padding so nothing clips. */
+        transform: translateY(-4px) scale(1.018);
+        filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.52)) drop-shadow(0 0 12px fade(@dr-cyan, 38%));
+    }
+}
+
+.draw-reveal__slot-hint {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(106, 176, 230, 0.35);
+    background: rgba(10, 18, 28, 0.9);
+    color: @dr-text-muted;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms;
+}
+.draw-reveal__slot:hover .draw-reveal__slot-hint,
+.draw-reveal__slot:focus-visible .draw-reveal__slot-hint { opacity: 1; }
+
+/* ── Footer (status + primary take) ──────────────────────────────────── */
+
+.draw-reveal__footer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 14px;
+}
+
+.draw-reveal__status {
+    color: @dr-text-muted;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+}
+
+.draw-reveal__take-all {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 26px;
+    overflow: hidden;
+    cursor: pointer;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: #06140e;
+    background: linear-gradient(180deg, fade(@dr-ready, 96%), darken(@dr-ready, 9%));
+    box-shadow: 0 6px 18px fade(@dr-ready, 40%), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+    transition: transform 130ms, box-shadow 170ms, filter 170ms;
+
+    &-label { position: relative; z-index: 2; }
+    &-glow {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        background: radial-gradient(120% 150% at 50% -25%, rgba(255, 255, 255, 0.5), transparent 60%);
+        opacity: 0.4;
+        transition: opacity 170ms;
+    }
+    &-count {
+        position: relative;
+        z-index: 2;
+        min-width: 20px;
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: rgba(4, 18, 12, 0.4);
+        color: #eafff6;
+        font-size: 12px;
+    }
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 26px fade(@dr-ready, 52%), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+    }
+    &:hover &-glow { opacity: 0.85; }
+    &:active { transform: translateY(0); }
+}
+
+/* Fullscreen #actions ВЗЯТЬ — primary already styled by card_selection; this
+   just nudges its accent to the mint take colour to match the modal. */
+.draw-reveal__fs-take.card-zoom-actions__btn--primary {
+    --primary-accent: @dr-ready;
+}
+
+/* ── Deal-in / collect-out animation ─────────────────────────────────── */
+
+/* Subsequent batches (enter) and first batch (appear) both deal in. */
+.draw-card-deal-enter-active,
+.draw-card-deal-appear-active {
+    transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+                transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.draw-card-deal-enter-from,
+.draw-card-deal-appear-from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.9);
+}
+
+/* Stagger the deal so cards "lay out" one after another (calm, ≤~120ms total
+   spread for the common 1–3 cards). */
+.draw-card-deal-enter-active:nth-child(1),
+.draw-card-deal-appear-active:nth-child(1) { transition-delay: 0ms; }
+.draw-card-deal-enter-active:nth-child(2),
+.draw-card-deal-appear-active:nth-child(2) { transition-delay: 90ms; }
+.draw-card-deal-enter-active:nth-child(3),
+.draw-card-deal-appear-active:nth-child(3) { transition-delay: 180ms; }
+.draw-card-deal-enter-active:nth-child(n+4),
+.draw-card-deal-appear-active:nth-child(n+4) { transition-delay: 240ms; }
+
+/* No collect/exit animation on taken cards (per design): a taken card is
+   removed at once. The full-take / take-all case dismisses the whole modal
+   immediately (no empty tray). For a partial take only the remaining cards
+   stay — they slide into place via `-move`, which is layout reflow, not a
+   card animation. */
+.draw-card-deal-leave-active {
+    position: absolute;
+}
+.draw-card-deal-leave-to {
+    opacity: 0;
+}
+.draw-card-deal-move {
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .draw-reveal__backdrop,
+    .draw-reveal__card { animation: none; }
+    .draw-reveal__pulse { animation: none; }
+    .draw-card-deal-enter-active,
+    .draw-card-deal-appear-active,
+    .draw-card-deal-leave-active,
+    .draw-card-deal-move { transition: opacity 120ms linear; }
+    .draw-card-deal-enter-from,
+    .draw-card-deal-appear-from { transform: none; }
+    .draw-card-deal-leave-to { transform: none; }
+}

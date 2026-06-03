@@ -25,6 +25,7 @@ import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {OrOptions} from '../inputs/OrOptions';
 import {SelectOption} from '../inputs/SelectOption';
 import {Payment} from '../../common/inputs/Payment';
+import {CardDrawRevealSource} from '../../common/models/CardDrawRevealModel';
 import {SelectResources} from '../inputs/SelectResources';
 import {TITLES} from '../inputs/titles';
 import {message} from '../logs/MessageBuilder';
@@ -431,12 +432,13 @@ export class Executor implements BehaviorExecutor {
     }
     if (behavior.drawCard !== undefined) {
       const drawCard = behavior.drawCard;
+      const revealSource: CardDrawRevealSource = {type: 'card', cardName: card.name};
       if (typeof(drawCard) === 'number') {
-        player.drawCard(drawCard);
+        player.drawCard(drawCard, {source: revealSource});
       } else {
         // This conditional could probably be removed, using the else clause for both.
         if (drawCard.keep === undefined && drawCard.pay === undefined) {
-          player.drawCard(ctx.count(drawCard.count), {tag: drawCard.tag, resource: drawCard.resource, cardType: drawCard.type});
+          player.drawCard(ctx.count(drawCard.count), {tag: drawCard.tag, resource: drawCard.resource, cardType: drawCard.type, source: revealSource});
         } else {
           player.drawCardKeepSome(ctx.count(drawCard.count), {
             tag: drawCard.tag,

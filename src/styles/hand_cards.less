@@ -690,6 +690,18 @@
         box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.12);
         cursor: not-allowed;
     }
+
+    /* Soft block (not your turn / finish your current action): the card IS
+       playable, just not this moment — so keep the РАЗЫГРАТЬ label but read as
+       a calm "waiting" state. A desaturated mint (echoing --ready) so it says
+       "playable, on hold", clearly distinct from the neutral-grey --disabled
+       "НЕДОСТУПНА". */
+    &--waiting {
+        color: rgba(150, 196, 180, 0.62);
+        background: rgba(30, 46, 43, 0.62);
+        box-shadow: inset 0 0 0 1px fade(@hc-ready, 16%);
+        cursor: not-allowed;
+    }
 }
 
 /* ── "Cannot play" pill (secondary playability indicator) ──────────────
@@ -750,9 +762,11 @@
     overflow-wrap: anywhere;
 }
 
-/* The disabled "НЕДОСТУПНА" footer is also a reason-popover trigger (hover /
-   focus). Keep its layout identical to the play button slot. */
-.hand-card-item__disabled {
+/* Both the disabled "НЕДОСТУПНА" footer (rules block) and the calm "waiting"
+   footer (soft block) are reason-popover triggers (hover / focus). Keep their
+   layout identical to the play button slot. */
+.hand-card-item__disabled,
+.hand-card-item__softblock {
     position: relative;
     width: 100%;
     display: flex;
@@ -928,6 +942,75 @@
     }
 }
 
+/* ── Soft-block tooltip ────────────────────────────────────────────────
+   A SOFT block (not your turn / finish your current action) is not a
+   requirement failure, so its hover is a single calm one-liner — NOT the red
+   "НЕДОСТУПНА" requirements list. Cyan-accented dark glass, no header, no
+   per-row bars, no "now: N" badge. Shares the `.hand-reason-fade` transition
+   and the `--reason-caret` / below-flip positioning owned by HandCardItem. */
+.hand-soft-reason {
+    position: absolute;
+    bottom: calc(100% + 9px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    /* Read-only tooltip — must never intercept the pointer (same as the
+       requirements popover), or it would steal hover from its trigger. */
+    pointer-events: none;
+    width: max-content;
+    max-width: 244px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(106, 176, 230, 0.34);
+    background: linear-gradient(180deg, rgba(18, 28, 42, 0.985), rgba(11, 18, 28, 0.985));
+    box-shadow: 0 13px 30px rgba(0, 0, 0, 0.58), inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+    color: @hc-text;
+    text-align: left;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+
+    /* caret — `--reason-caret` keeps it on the footer after a sideways nudge */
+    &::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: calc(50% + var(--reason-caret, 0px));
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: rgba(11, 18, 28, 0.985);
+    }
+
+    &__dot {
+        width: 8px;
+        height: 8px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: @hc-cyan;
+        box-shadow: 0 0 7px fade(@hc-cyan, 70%);
+    }
+    &__text {
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        line-height: 1.3;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+}
+.hand-soft-reason--below {
+    bottom: auto;
+    top: calc(100% + 9px);
+    &::after {
+        top: auto;
+        bottom: 100%;
+        border-top-color: transparent;
+        border-bottom-color: rgba(11, 18, 28, 0.985);
+    }
+}
+
 .hand-reason-fade-enter-active,
 .hand-reason-fade-leave-active { transition: opacity 130ms ease, transform 130ms ease; }
 .hand-reason-fade-enter-from,
@@ -1098,6 +1181,38 @@
         bottom: auto;
         left: auto;
         &::after { display: none; }
+    }
+}
+
+/* Soft block in the fullscreen actions row: a calm disabled РАЗЫГРАТЬ + a
+   one-line explanation beside it (no requirements list). */
+.hand-zoom-softblock {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+}
+.hand-zoom-play-disabled.card-zoom-actions__btn {
+    color: rgba(150, 196, 180, 0.6);
+    background: rgba(30, 46, 43, 0.62);
+    box-shadow: inset 0 0 0 1px fade(@hc-ready, 16%);
+    cursor: not-allowed;
+}
+.hand-zoom-softblock__text {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: @hc-text-muted;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+
+    &::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: @hc-cyan;
+        box-shadow: 0 0 7px fade(@hc-cyan, 70%);
     }
 }
 

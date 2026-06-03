@@ -191,6 +191,7 @@ export function fakePlayerViewModel(overrides?: RecursivePartial<PlayerViewModel
     ceoCardsInHand: [],
     pickedCorporationCard: [],
     preludeCardsInHand: [],
+    cardDrawReveals: [],
     thisPlayer,
     waitingFor: undefined,
     game: fakeGameModel(),

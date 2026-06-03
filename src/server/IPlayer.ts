@@ -28,6 +28,7 @@ import {OrOptions} from './inputs/OrOptions';
 import {Stock} from './player/Stock';
 import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
+import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
 import {AlliedParty} from '../common/turmoil/Types';
 import {IParty} from './turmoil/parties/IParty';
 import {Message} from '../common/logs/Message';
@@ -50,6 +51,16 @@ export type CanAffordOptions = Partial<PaymentOptions> & {
   tr?: TRSource,
   /** Represents when the action rewards the tile space more than once. */
   bonusMultiplier?: number,
+}
+
+/**
+ * One queued "you drew cards" reveal awaiting the player's acknowledgement.
+ * Holds live cards (serialized to model lazily). Transient — see IPlayer.cardDrawReveals.
+ */
+export type CardDrawReveal = {
+  id: number,
+  source?: CardDrawRevealSource,
+  cards: ReadonlyArray<IProjectCard>,
 }
 
 /**
@@ -110,6 +121,12 @@ export interface IPlayer {
   cardsInHand: Array<IProjectCard>;
   preludeCardsInHand: Array<IPreludeCard>;
   ceoCardsInHand: Set<ICeoCard>;
+  /**
+   * Transient (NOT serialized) queue of cards drawn via an in-game effect /
+   * tile bonus, awaiting the player's "take" acknowledgement in the reveal
+   * modal. Lost on reload/reconnect by design, so stale reveals never resurface.
+   */
+  cardDrawReveals: Array<CardDrawReveal>;
   playedCards: PlayedCards;
   cardCost: number;
   // This will eventually replace playedCards.
@@ -326,6 +343,10 @@ export interface IPlayer {
   playCorporationCard(corporationCard: ICorporationCard): void;
   drawCard(count?: number, options?: DrawOptions): void;
   drawCardKeepSome(count: number, options: AllOptions): void;
+  /** Queue a batch of just-drawn cards for the reveal modal. No-op when empty. */
+  enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource): void;
+  /** Remove a reveal batch (or all) once the player has taken the cards. Idempotent. */
+  acknowledgeCardDrawReveals(id: number | 'all'): void;
   discardPlayedCard(card: IProjectCard): void;
   discardCardFromHand(card: IProjectCard, options?: {log?: boolean}): void;
 

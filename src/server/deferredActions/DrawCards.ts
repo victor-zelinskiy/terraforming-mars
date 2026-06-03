@@ -6,12 +6,19 @@ import {Priority} from './Priority';
 import {CardResource} from '../../common/CardResource';
 import {CardType} from '../../common/cards/CardType';
 import {ChooseCards, ChooseOptions, LogType, keep} from './ChooseCards';
+import {CardDrawRevealSource} from '../../common/models/CardDrawRevealModel';
 
 export type DrawOptions = {
   tag?: Tag,
   resource?: CardResource,
   cardType?: CardType,
   include?(card: IProjectCard): boolean,
+  /**
+   * Attribution for the "you drew cards" reveal modal, when cheaply known
+   * (e.g. the behavior executor passes the card being played; tile bonuses
+   * pass {type:'tile'}). Omitted → generic "you received N cards" text.
+   */
+  source?: CardDrawRevealSource,
 }
 
 export type AllOptions = DrawOptions & ChooseOptions;
@@ -61,6 +68,11 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
         }
       }
       keep(player, cards, [], verbosity);
+      // This is exactly the "effect draws and keeps every card" path — the
+      // player never sees a selection prompt, so surface the cards in the
+      // reveal modal. keepSome / ChooseCards (research / buy / keep-some) go
+      // through their own SelectCard and never reach here.
+      player.enqueueCardDrawReveal(cards, options?.source);
     });
   }
 
