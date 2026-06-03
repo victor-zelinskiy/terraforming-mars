@@ -26,6 +26,49 @@
 
 @hc-ready:       #58d6a6; /* playable accent — calm teal-green, not shouty */
 
+/* Premium "this chip is empty in the current filter" treatment — desaturated
+   + dimmed, with a small custom hover tooltip (no native title) fed by the
+   chip's `data-hint` attribute. Shared by type + tag chips. The tooltip sits
+   BELOW the chip so it falls into the body area, never clipped by the
+   overlay's top edge. */
+.muted-chip(@accent: rgba(106, 176, 230, 0.16)) {
+    opacity: 0.34;
+    filter: saturate(0.25);
+    border-color: rgba(106, 176, 230, 0.1);
+    cursor: default;
+    position: relative;
+
+    &:hover { transform: none; border-color: rgba(106, 176, 230, 0.1); }
+
+    &[data-hint]:hover::after {
+        content: attr(data-hint);
+        position: absolute;
+        top: calc(100% + 7px);
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 30;
+        padding: 5px 9px;
+        border-radius: 6px;
+        border: 1px solid @accent;
+        background: linear-gradient(180deg, rgba(18, 28, 42, 0.98), rgba(11, 18, 28, 0.98));
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+        color: @hc-text;
+        font-family: Prototype, Orbitron, sans-serif;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+        white-space: nowrap;
+        opacity: 1;
+        filter: none;
+        pointer-events: none;
+        animation: hand-hint-in 130ms ease both;
+    }
+}
+@keyframes hand-hint-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(-3px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 /* ── Overlay frame ────────────────────────────────────────────────── */
 
 .hand-board-overlay {
@@ -205,6 +248,9 @@
     background: rgba(16, 26, 40, 0.55);
 }
 .hand-seg-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     border: none;
     background: transparent;
     color: @hc-text-muted;
@@ -216,6 +262,19 @@
     cursor: pointer;
     transition: color 140ms, background 140ms;
 
+    &__count {
+        font-family: Prototype, Orbitron, monospace;
+        font-size: 10.5px;
+        font-weight: 700;
+        line-height: 1;
+        padding: 1px 5px;
+        border-radius: 999px;
+        background: rgba(106, 176, 230, 0.14);
+        color: @hc-text-muted;
+        font-variant-numeric: tabular-nums;
+        transition: color 140ms, background 140ms, opacity 140ms;
+    }
+
     & + & { border-left: 1px solid rgba(106, 176, 230, 0.14); }
     &:hover { color: @hc-text; }
     &--active {
@@ -223,6 +282,13 @@
         background: linear-gradient(180deg, lighten(@hc-cyan, 6%), @hc-cyan);
         text-shadow: none;
     }
+    &--active &__count {
+        background: rgba(4, 16, 26, 0.22);
+        color: #04121e;
+    }
+    /* Non-active mode that would yield 0 cards: keep it selectable (it's the
+       primary mode switch) but dim its count so the dead-end reads clearly. */
+    &--empty &__count { opacity: 0.5; }
 }
 
 .hand-filters__chips,
@@ -271,6 +337,9 @@
         border-color: rgba(106, 176, 230, 0.12);
     }
     &:hover { border-color: rgba(106, 176, 230, 0.45); }
+
+    /* Faceted count 0 — present in the hand but not in this slice. */
+    &--muted { .muted-chip(); }
 }
 
 /* Tag chips (positive narrowing) */
@@ -311,6 +380,10 @@
         box-shadow: 0 0 0 1px fade(@hc-cyan, 45%), 0 0 10px fade(@hc-cyan, 30%);
     }
     &--active &__count { color: @hc-text; }
+
+    /* Faceted count 0 and not selected — render muted (selected tags stay
+       bright + clickable so they can always be cleared). */
+    &--muted { .muted-chip(); }
 }
 
 /* Sort dropdown (custom glass) */
@@ -459,21 +532,10 @@
     flex-direction: column;
     align-items: center;
     gap: 9px;
-    /* Entrance: subtle staggered rise; runs once on mount. */
-    animation: hand-card-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-/* Bucketed entrance stagger (groups of 6 share a delay) — a calm cascade
-   without a per-item loop. Later nth-child rules win, so each band of rows
-   gets a slightly longer delay. */
-.hand-card-item:nth-child(n+1)  { animation-delay: 20ms; }
-.hand-card-item:nth-child(n+7)  { animation-delay: 60ms; }
-.hand-card-item:nth-child(n+13) { animation-delay: 100ms; }
-.hand-card-item:nth-child(n+19) { animation-delay: 140ms; }
-.hand-card-item:nth-child(n+25) { animation-delay: 180ms; }
-
-@keyframes hand-card-in {
-    from { opacity: 0; transform: translateY(10px) scale(0.97); }
-    to   { opacity: 1; transform: none; }
+    /* Entrance is owned by the transition-group: `-appear-*` on the initial
+       open (staggered cascade) and `-enter-*` on re-entry after a filter
+       change — see the reflow block below. No standalone mount animation, so
+       a re-entering card never double-animates. */
 }
 
 .hand-card-item__card {
@@ -671,19 +733,40 @@
     text-transform: uppercase;
 }
 
-/* ── Grid move transition (filter / sort reflow) ───────────────────── */
+/* ── Initial open: staggered rise (appear only) ────────────────────── */
+/* `appear` on the transition-group runs these ONLY on first render, so the
+   re-enter (-enter-*) timing below can differ without touching the opening
+   cascade. Stagger is bucketed by nth-child (bands of 6 share a delay) — a
+   calm cascade with no per-item JS loop. */
+.hand-card-pop-appear-active {
+    transition: opacity 300ms ease, transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.hand-card-pop-appear-from { opacity: 0; transform: translateY(10px) scale(0.97); }
 
-.hand-card-pop-move { transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1); }
-.hand-card-pop-enter-active { transition: opacity 220ms ease, transform 220ms ease; }
+.hand-card-pop-appear-active:nth-child(n+1)  { transition-delay: 20ms; }
+.hand-card-pop-appear-active:nth-child(n+7)  { transition-delay: 60ms; }
+.hand-card-pop-appear-active:nth-child(n+13) { transition-delay: 100ms; }
+.hand-card-pop-appear-active:nth-child(n+19) { transition-delay: 140ms; }
+.hand-card-pop-appear-active:nth-child(n+25) { transition-delay: 180ms; }
+
+/* ── Grid reflow (filter / sort) — phased exit → reflow → enter ─────── */
 /*
- * Leaving card: pinned in place by `@before-leave` (absolute left/top/
- * width/height measured against the relative grid) and shrink-faded
- * toward its OWN centre — it never flies to the grid origin or overlaps
- * neighbours. While it fades, the remaining cards FLIP into place via
- * `-move` simultaneously, so the grid tightens smoothly.
+ * Phase 1 (exit): a leaving card is pinned in place by `@before-leave`
+ *   (absolute left/top/width/height measured against the relative grid) and
+ *   shrink-fades toward its OWN centre — it never flies to the grid origin.
+ * Phase 2 (reflow): the remaining cards FLIP to their new slots.
+ * Phase 3 (enter): re-entering cards fade-rise in.
+ *
+ * The exit always uses the timing below. When a change REMOVES at least one
+ * card the host sets `--exiting`, which DELAYS reflow + enter until the exit
+ * has finished — so the tightening cards never slide over a still-fading
+ * one. A pure re-sort or a widening filter (no exits) keeps `--exiting` off,
+ * so reflow + enter fire immediately and stay snappy.
  */
+.hand-card-pop-move { transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+.hand-card-pop-enter-active { transition: opacity 240ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1); }
 .hand-card-pop-leave-active {
-    transition: opacity 200ms ease, transform 240ms cubic-bezier(0.4, 0, 0.9, 1);
+    transition: opacity 180ms ease, transform 200ms cubic-bezier(0.4, 0, 0.9, 1);
     position: absolute;
     transform-origin: 50% 45%;
     z-index: 0; /* sit below the moving (in-flow) cards so it never covers them */
@@ -691,6 +774,17 @@
 }
 .hand-card-pop-enter-from { opacity: 0; transform: translateY(8px) scale(0.97); }
 .hand-card-pop-leave-to   { opacity: 0; transform: scale(0.82); }
+
+/* Exit-present change: hold reflow + enter until the ~200ms exit ends, so
+   Phase 2/3 begin only once the leaving cards are gone. */
+.hand-board__grid--exiting {
+    .hand-card-pop-move {
+        transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1) 210ms;
+    }
+    .hand-card-pop-enter-active {
+        transition: opacity 260ms ease 240ms, transform 260ms cubic-bezier(0.22, 1, 0.36, 1) 240ms;
+    }
+}
 
 /* ── Sort dropdown transition ──────────────────────────────────────── */
 
@@ -920,13 +1014,15 @@
 
 @media (prefers-reduced-motion: reduce) {
     .hand-board-overlay,
-    .hand-card-item,
     .opp-hand__card,
     .opp-hand__badge,
     .opp-hand__badge-dot { animation: none; }
+    .hand-filter-chip[data-hint]:hover::after,
+    .hand-tag-chip[data-hint]:hover::after { animation: none; }
     .hand-card-item__card,
     .hand-card-play-btn,
     .hand-tag-chip,
+    .hand-card-pop-appear-active,
     .hand-card-pop-move,
     .hand-card-pop-enter-active,
     .hand-card-pop-leave-active,

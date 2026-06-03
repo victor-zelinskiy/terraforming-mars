@@ -25,6 +25,7 @@
     <HandCardsFilters
       v-if="totalCount > 0"
       :filter="filter"
+      :availabilityChips="availabilityChips"
       :typeChips="typeChips"
       :tagChips="tagChips"
       @availability="setAvailability"
@@ -35,7 +36,13 @@
 
     <div class="hand-board__body">
       <HandCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" />
-      <transition-group v-else name="hand-card-pop" tag="div" class="hand-board__grid" @before-leave="onLeaveCapture">
+      <transition-group
+        v-else
+        appear
+        name="hand-card-pop"
+        tag="div"
+        :class="['hand-board__grid', {'hand-board__grid--exiting': reflowDelay}]"
+        @before-leave="onLeaveCapture">
         <HandCardItem
           v-for="entry in sorted"
           :key="entry.name"
@@ -72,7 +79,9 @@ import {GameModel} from '@/common/models/GameModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Tag} from '@/common/cards/Tag';
 import {
+  AvailabilityChip,
   AvailabilityFilter,
+  buildAvailabilityChips,
   buildHandEntries,
   buildTagChips,
   buildTypeChips,
@@ -83,6 +92,8 @@ import {
   HandFilterState,
   HandSortDir,
   HandSortMode,
+  HandTagChip,
+  HandTypeChip,
   HandTypeKey,
   sortHandEntries,
 } from '@/client/components/handCards/handCardModel';
@@ -109,6 +120,14 @@ import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 type DataModel = {
   filter: HandFilterState;
   zoomCard: CardModel | undefined;
+  // True only for the render that follows a filter/sort change which REMOVES
+  // at least one card. While set, the grid's `--exiting` class delays the
+  // reflow (-move) and re-enter (-enter) transitions until the exit
+  // animation has finished, so leaving cards never get overlapped by the
+  // cards tightening into their place. Recomputed on every `sorted` change
+  // (a pure re-sort or a widening filter leaves it false → snappy reflow),
+  // so it never needs a timer to clear.
+  reflowDelay: boolean;
 };
 
 export default defineComponent({
@@ -141,6 +160,7 @@ export default defineComponent({
     return {
       filter: {...DEFAULT_HAND_FILTER},
       zoomCard: undefined,
+      reflowDelay: false,
     };
   },
   computed: {
@@ -150,11 +170,14 @@ export default defineComponent({
     sorted(): ReadonlyArray<HandCardEntry> {
       return sortHandEntries(filterHandEntries(this.entries, this.filter), this.filter.sort, this.filter.sortDir);
     },
-    typeChips() {
-      return buildTypeChips(this.entries, this.filter.hiddenTypes);
+    availabilityChips(): ReadonlyArray<AvailabilityChip> {
+      return buildAvailabilityChips(this.entries, this.filter);
     },
-    tagChips() {
-      return buildTagChips(this.entries, this.filter.activeTags);
+    typeChips(): ReadonlyArray<HandTypeChip> {
+      return buildTypeChips(this.entries, this.filter);
+    },
+    tagChips(): ReadonlyArray<HandTagChip> {
+      return buildTagChips(this.entries, this.filter);
     },
     totalCount(): number {
       return this.entries.length;
@@ -179,6 +202,21 @@ export default defineComponent({
     },
     zoomReason(): UnplayableReason | undefined {
       return this.zoomEntry?.state.reason;
+    },
+  },
+  watch: {
+    // Decide BEFORE the grid re-renders whether the upcoming patch removes
+    // any card. `flush: 'pre'` runs this ahead of the component's render
+    // effect, so `reflowDelay` is already correct when the transition-group
+    // applies its -move / -enter classes in the same patch. We only delay
+    // the reflow when something actually leaves; a pure re-sort or a
+    // widening filter (no exits) keeps it false so the move stays snappy.
+    sorted: {
+      flush: 'pre',
+      handler(next: ReadonlyArray<HandCardEntry>, prev: ReadonlyArray<HandCardEntry>): void {
+        const nextNames = new Set(next.map((e) => e.name));
+        this.reflowDelay = prev.some((e) => !nextNames.has(e.name));
+      },
     },
   },
   methods: {

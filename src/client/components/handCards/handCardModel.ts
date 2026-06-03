@@ -102,27 +102,39 @@ export function buildHandEntries(
   });
 }
 
+// ── Per-dimension predicates ─────────────────────────────────────────
+// Each filter group is one independent dimension. Keeping the predicates
+// separate lets `filterHandEntries` compose all three AND lets the faceted
+// count builders re-apply every dimension EXCEPT the one they're counting
+// (the standard faceted-search rule — a group never zeroes out its own
+// options). See `buildAvailabilityChips` / `buildTypeChips` / `buildTagChips`.
+
+function passAvailability(e: HandCardEntry, availability: AvailabilityFilter): boolean {
+  switch (availability) {
+  case 'playable': return e.state.playable;
+  case 'unplayable': return !e.state.playable;
+  default: return true;
+  }
+}
+
+function passTypes(e: HandCardEntry, hidden: ReadonlySet<HandTypeKey>): boolean {
+  return e.typeKey === undefined || !hidden.has(e.typeKey);
+}
+
+function passTags(e: HandCardEntry, activeTags: ReadonlySet<Tag>): boolean {
+  return activeTags.size === 0 || e.tags.some((t) => activeTags.has(t));
+}
+
 export function filterHandEntries(
   entries: ReadonlyArray<HandCardEntry>,
   filter: HandFilterState,
 ): ReadonlyArray<HandCardEntry> {
   const hidden = new Set(filter.hiddenTypes);
   const activeTags = new Set(filter.activeTags);
-  return entries.filter((e) => {
-    if (filter.availability === 'playable' && !e.state.playable) {
-      return false;
-    }
-    if (filter.availability === 'unplayable' && e.state.playable) {
-      return false;
-    }
-    if (e.typeKey !== undefined && hidden.has(e.typeKey)) {
-      return false;
-    }
-    if (activeTags.size > 0 && !e.tags.some((t) => activeTags.has(t))) {
-      return false;
-    }
-    return true;
-  });
+  return entries.filter((e) =>
+    passAvailability(e, filter.availability) &&
+    passTypes(e, hidden) &&
+    passTags(e, activeTags));
 }
 
 export function sortHandEntries(
@@ -162,32 +174,105 @@ export function sortHandEntries(
   return out;
 }
 
+// ── Availability chips (faceted) ─────────────────────────────────────
+
+export type AvailabilityChip = {
+  value: AvailabilityFilter;
+  label: string;
+  /** Cards in this availability mode WITHIN the current type + tag slice. */
+  count: number;
+  active: boolean;
+};
+
+export const AVAILABILITY_DEFS: ReadonlyArray<{value: AvailabilityFilter; label: string}> = [
+  {value: 'all', label: 'All'},
+  {value: 'playable', label: 'Playable'},
+  {value: 'unplayable', label: 'Unplayable'},
+];
+
+/**
+ * Counts for the All / Playable / Unplayable segment. Faceted: the type +
+ * tag filters are KEPT, only the availability dimension is varied — so each
+ * button reads "how many cards would remain in that mode given everything
+ * else I've already picked" (spec rule #3).
+ */
+export function buildAvailabilityChips(
+  entries: ReadonlyArray<HandCardEntry>,
+  filter: HandFilterState,
+): ReadonlyArray<AvailabilityChip> {
+  const hidden = new Set(filter.hiddenTypes);
+  const activeTags = new Set(filter.activeTags);
+  const base = entries.filter((e) => passTypes(e, hidden) && passTags(e, activeTags));
+  let playable = 0;
+  for (const e of base) {
+    if (e.state.playable) {
+      playable++;
+    }
+  }
+  const counts: Record<AvailabilityFilter, number> = {
+    all: base.length,
+    playable,
+    unplayable: base.length - playable,
+  };
+  return AVAILABILITY_DEFS.map((def) => ({
+    value: def.value,
+    label: def.label,
+    count: counts[def.value],
+    active: filter.availability === def.value,
+  }));
+}
+
+// ── Type chips (faceted) ─────────────────────────────────────────────
+
 export type HandTypeChip = {
   key: HandTypeKey;
   label: string;
+  /** Cards of this type WITHIN the current availability + tag slice. */
   count: number;
+  /** Not toggled off by the player. */
   enabled: boolean;
+  /** Faceted count is 0 — present in the hand but not in this slice. */
+  muted: boolean;
 };
 
+/**
+ * Type chips with faceted counts. The count keeps the availability + tag
+ * filters but EXCLUDES the type dimension itself, so toggling one type
+ * doesn't change the numbers shown on the other type chips. A chip is
+ * rendered as long as the type exists ANYWHERE in the hand (so the row
+ * never reflows when a slice empties a type); when its faceted count hits 0
+ * it's `muted` (disabled-looking) instead of vanishing (spec rule #5).
+ */
 export function buildTypeChips(
   entries: ReadonlyArray<HandCardEntry>,
-  hiddenTypes: ReadonlyArray<HandTypeKey>,
+  filter: HandFilterState,
 ): ReadonlyArray<HandTypeChip> {
-  const hidden = new Set(hiddenTypes);
+  const hidden = new Set(filter.hiddenTypes);
+  const activeTags = new Set(filter.activeTags);
+  const base = entries.filter((e) => passAvailability(e, filter.availability) && passTags(e, activeTags));
   return HAND_TYPE_DEFS
-    .map((def) => ({
-      key: def.key,
-      label: def.label,
-      count: entries.filter((e) => e.typeKey === def.key).length,
-      enabled: !hidden.has(def.key),
-    }))
-    .filter((chip) => chip.count > 0);
+    .filter((def) => entries.some((e) => e.typeKey === def.key))
+    .map((def) => {
+      const count = base.filter((e) => e.typeKey === def.key).length;
+      return {
+        key: def.key,
+        label: def.label,
+        count,
+        enabled: !hidden.has(def.key),
+        muted: count === 0,
+      };
+    });
 }
+
+// ── Tag chips (faceted) ──────────────────────────────────────────────
 
 export type HandTagChip = {
   tag: Tag;
+  /** Cards carrying this tag WITHIN the current availability + type slice. */
   count: number;
   active: boolean;
+  /** Faceted count is 0 and the tag isn't selected — render it muted. */
+  muted: boolean;
 };
 
 // Tags worth offering as filters — printed gameplay tags. WILD / CLONE are
@@ -197,20 +282,40 @@ const FILTERABLE_TAGS: ReadonlyArray<Tag> = [
   Tag.VENUS, Tag.PLANT, Tag.MICROBE, Tag.ANIMAL, Tag.CITY, Tag.MOON, Tag.MARS,
 ];
 
+/**
+ * Tag chips with faceted counts. The count keeps the availability + type
+ * filters but EXCLUDES the tag dimension (the standard faceted rule for an
+ * OR multi-select group), so each tag reads "how many cards carry it in the
+ * current slice". A chip is rendered while the tag exists anywhere in the
+ * hand; an unselected tag with a 0 faceted count is `muted`. Selected tags
+ * stay interactive even at 0 so the player can always clear them.
+ */
 export function buildTagChips(
   entries: ReadonlyArray<HandCardEntry>,
-  activeTags: ReadonlyArray<Tag>,
+  filter: HandFilterState,
 ): ReadonlyArray<HandTagChip> {
-  const active = new Set(activeTags);
-  const counts = new Map<Tag, number>();
+  const active = new Set(filter.activeTags);
+  const hidden = new Set(filter.hiddenTypes);
+  const base = entries.filter((e) => passAvailability(e, filter.availability) && passTypes(e, hidden));
+  const globalCounts = new Map<Tag, number>();
   for (const e of entries) {
     for (const tag of e.tags) {
-      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      globalCounts.set(tag, (globalCounts.get(tag) ?? 0) + 1);
+    }
+  }
+  const facetCounts = new Map<Tag, number>();
+  for (const e of base) {
+    for (const tag of e.tags) {
+      facetCounts.set(tag, (facetCounts.get(tag) ?? 0) + 1);
     }
   }
   return FILTERABLE_TAGS
-    .filter((tag) => (counts.get(tag) ?? 0) > 0)
-    .map((tag) => ({tag, count: counts.get(tag) ?? 0, active: active.has(tag)}));
+    .filter((tag) => (globalCounts.get(tag) ?? 0) > 0)
+    .map((tag) => {
+      const count = facetCounts.get(tag) ?? 0;
+      const isActive = active.has(tag);
+      return {tag, count, active: isActive, muted: count === 0 && !isActive};
+    });
 }
 
 export function countPlayable(entries: ReadonlyArray<HandCardEntry>): number {

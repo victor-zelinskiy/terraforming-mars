@@ -1,31 +1,38 @@
 <template>
   <div class="hand-filters" role="group" :aria-label="$t('Filter cards in hand')">
-    <!-- Availability segmented control (single-select). -->
+    <!-- Availability segmented control (single-select) with faceted counts:
+         each mode shows how many cards remain in it given the current
+         type + tag filters. -->
     <div class="hand-filters__segment" role="tablist" :aria-label="$t('Availability')">
       <button
-        v-for="opt in availabilityOptions"
-        :key="opt.value"
+        v-for="chip in availabilityChips"
+        :key="chip.value"
         type="button"
         class="hand-seg-btn"
-        :class="{'hand-seg-btn--active': filter.availability === opt.value}"
-        :aria-pressed="filter.availability === opt.value"
-        @click="$emit('availability', opt.value)">
-        <span v-i18n>{{ opt.label }}</span>
+        :class="{'hand-seg-btn--active': chip.active, 'hand-seg-btn--empty': chip.count === 0 && !chip.active}"
+        :aria-pressed="chip.active"
+        @click="$emit('availability', chip.value)">
+        <span class="hand-seg-btn__label" v-i18n>{{ chip.label }}</span>
+        <span class="hand-seg-btn__count">{{ chip.count }}</span>
       </button>
     </div>
 
     <span class="hand-filters__divider" aria-hidden="true"></span>
 
-    <!-- Type chips (toggle to hide a type). -->
+    <!-- Type chips (toggle to hide a type). Faceted counts; a type with no
+         cards in the current slice goes muted instead of vanishing. -->
     <div class="hand-filters__chips">
       <button
         v-for="chip in typeChips"
         :key="chip.key"
         type="button"
         class="hand-filter-chip"
-        :class="['hand-filter-chip--' + chip.key, {'hand-filter-chip--off': !chip.enabled}]"
+        :class="['hand-filter-chip--' + chip.key, {'hand-filter-chip--off': !chip.enabled, 'hand-filter-chip--muted': chip.muted}]"
         :aria-pressed="chip.enabled"
-        @click="$emit('toggle-type', chip.key)">
+        :aria-disabled="chip.muted ? 'true' : undefined"
+        :aria-label="chip.muted ? mutedHint : undefined"
+        :data-hint="chip.muted ? mutedHint : null"
+        @click="onType(chip)">
         <span class="hand-filter-chip__dot" aria-hidden="true"></span>
         <span class="hand-filter-chip__label" v-i18n>{{ chip.label }}</span>
         <span class="hand-filter-chip__count">{{ chip.count }}</span>
@@ -34,17 +41,22 @@
 
     <template v-if="tagChips.length > 0">
       <span class="hand-filters__divider" aria-hidden="true"></span>
-      <!-- Tag chips (positive narrowing — select to keep only matching). -->
+      <!-- Tag chips (positive narrowing — select to keep only matching).
+           Faceted counts; an unselected tag absent from the current slice
+           goes muted. Selected tags always stay clickable so they can be
+           cleared even at a 0 count. -->
       <div class="hand-filters__tags">
         <button
           v-for="chip in tagChips"
           :key="chip.tag"
           type="button"
           class="hand-tag-chip"
-          :class="{'hand-tag-chip--active': chip.active}"
+          :class="{'hand-tag-chip--active': chip.active, 'hand-tag-chip--muted': chip.muted}"
           :aria-pressed="chip.active"
-          :aria-label="chip.tag"
-          @click="$emit('toggle-tag', chip.tag)">
+          :aria-disabled="chip.muted ? 'true' : undefined"
+          :aria-label="chip.muted ? chip.tag + ' — ' + mutedHint : chip.tag"
+          :data-hint="chip.muted ? mutedHint : null"
+          @click="onTag(chip)">
           <span class="hand-tag-chip__icon card-tag" :class="'tag-' + chip.tag" aria-hidden="true"></span>
           <span class="hand-tag-chip__count">{{ chip.count }}</span>
         </button>
@@ -108,7 +120,8 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import {AvailabilityFilter, HandFilterState, HandSortMode, HandTagChip, HandTypeChip} from '@/client/components/handCards/handCardModel';
+import {AvailabilityChip, HandFilterState, HandSortMode, HandTagChip, HandTypeChip} from '@/client/components/handCards/handCardModel';
+import {translateText} from '@/client/directives/i18n';
 
 const SORT_OPTIONS: ReadonlyArray<{value: HandSortMode; label: string}> = [
   {value: 'availability', label: 'By availability'},
@@ -116,12 +129,6 @@ const SORT_OPTIONS: ReadonlyArray<{value: HandSortMode; label: string}> = [
   {value: 'type', label: 'By type'},
   {value: 'tag', label: 'By tag'},
   {value: 'name', label: 'By name'},
-];
-
-const AVAILABILITY_OPTIONS: ReadonlyArray<{value: AvailabilityFilter; label: string}> = [
-  {value: 'all', label: 'All'},
-  {value: 'playable', label: 'Playable'},
-  {value: 'unplayable', label: 'Unplayable'},
 ];
 
 /**
@@ -138,6 +145,10 @@ export default defineComponent({
       type: Object as PropType<HandFilterState>,
       required: true,
     },
+    availabilityChips: {
+      type: Array as PropType<ReadonlyArray<AvailabilityChip>>,
+      required: true,
+    },
     typeChips: {
       type: Array as PropType<ReadonlyArray<HandTypeChip>>,
       required: true,
@@ -152,15 +163,32 @@ export default defineComponent({
     return {
       sortOpen: false,
       sortOptions: SORT_OPTIONS,
-      availabilityOptions: AVAILABILITY_OPTIONS,
     };
   },
   computed: {
     currentSortLabel(): string {
       return SORT_OPTIONS.find((o) => o.value === this.filter.sort)?.label ?? 'By availability';
     },
+    // Short hint shown (hover/aria) on a chip that has no cards in the
+    // current slice — explains why it looks disabled without a native title.
+    mutedHint(): string {
+      return translateText('No cards in this filter');
+    },
   },
   methods: {
+    // A muted chip (0 cards in the current slice) is visually disabled but
+    // kept hover-able for its hint, so we guard the toggle here rather than
+    // with a real `disabled` attribute (disabled buttons swallow :hover).
+    onType(chip: HandTypeChip): void {
+      if (!chip.muted) {
+        this.$emit('toggle-type', chip.key);
+      }
+    },
+    onTag(chip: HandTagChip): void {
+      if (!chip.muted) {
+        this.$emit('toggle-tag', chip.tag);
+      }
+    },
     choose(value: HandSortMode): void {
       this.sortOpen = false;
       this.$emit('sort', value);
