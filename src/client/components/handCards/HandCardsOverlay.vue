@@ -93,6 +93,7 @@
           :entry="entry"
           :saleMode="saleActive"
           :selected="isSelected(entry.name)"
+          :dissolving="dissolving.includes(entry.name)"
           @open="openCard"
           @play="$emit('play', $event)"
           @toggle-select="toggleSelect" />
@@ -153,6 +154,7 @@ import {
 } from '@/client/components/handCards/handCardModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {
   sellPatentsState,
   enterSellPatents,
@@ -191,6 +193,12 @@ const HAND_ZOOM_MAX = 0.82; // comfortable / large (few cards, wide screen)
 const HAND_ZOOM_MAX_NARROW = 0.66; // cap on narrow screens
 const HAND_ZOOM_MIN = 0.5; // compact floor before scroll kicks in
 
+// Premium sell-patents exit: the chosen cards dissolve IN PLACE for this long
+// BEFORE the sale is submitted, so the player sees a deliberate disappearance
+// (not an instant vanish). The submit then removes them + reflows the rest.
+// Keep in sync with the `hand-card-sale-dissolve` keyframe duration.
+const SALE_DISSOLVE_MS = 490;
+
 type DataModel = {
   filter: HandFilterState;
   zoomCard: CardModel | undefined;
@@ -208,6 +216,10 @@ type DataModel = {
   // (a pure re-sort or a widening filter leaves it false → snappy reflow),
   // so it never needs a timer to clear.
   reflowDelay: boolean;
+  // Card names currently playing their sell-patents dissolve (before submit).
+  dissolving: ReadonlyArray<CardName>;
+  // Timer handle for the dissolve → submit hand-off.
+  saleTimer: number | undefined;
 };
 
 export default defineComponent({
@@ -255,6 +267,8 @@ export default defineComponent({
       resizeObserver: undefined,
       fitScheduled: false,
       fitTimer: undefined,
+      dissolving: [],
+      saleTimer: undefined,
     };
   },
   computed: {
@@ -352,6 +366,7 @@ export default defineComponent({
     // mode so the surviving cards return to their normal play affordances.
     cards(): void {
       if (sellPatentsState.submitting) {
+        this.dissolving = [];
         exitSellPatents();
       }
     },
@@ -400,6 +415,11 @@ export default defineComponent({
       }
     },
     cancelSale(): void {
+      if (this.saleTimer !== undefined) {
+        window.clearTimeout(this.saleTimer);
+        this.saleTimer = undefined;
+      }
+      this.dissolving = [];
       exitSellPatents();
     },
     toggleSelect(name: CardName): void {
@@ -421,8 +441,18 @@ export default defineComponent({
         return;
       }
       const cards = [...sellPatentsState.selected];
+      // Arm preserve immediately (so any poll during the dissolve keeps this
+      // instance alive), play the dissolve on the chosen cards, then submit
+      // once it has been seen. The submit removes them + reflows the rest.
       sellPatentsState.submitting = true;
-      this.$emit('sell', cards);
+      this.dissolving = cards;
+      // Reduced-motion users skip the deliberate dissolve delay — submit
+      // almost immediately (the cards still vanish, just without the pause).
+      const delay = prefersReducedMotion() ? 0 : SALE_DISSOLVE_MS;
+      this.saleTimer = window.setTimeout(() => {
+        this.saleTimer = undefined;
+        this.$emit('sell', cards);
+      }, delay);
     },
     // Pin a leaving card to its exact grid spot before it goes
     // `position: absolute`, so it shrink-fades in place instead of
@@ -545,6 +575,9 @@ export default defineComponent({
     this.resizeObserver = undefined;
     if (this.fitTimer !== undefined) {
       window.clearTimeout(this.fitTimer);
+    }
+    if (this.saleTimer !== undefined) {
+      window.clearTimeout(this.saleTimer);
     }
   },
 });
