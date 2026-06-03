@@ -15,12 +15,18 @@ export abstract class RoboticWorkforceBase extends Card {
     super(properties);
   }
 
-  // Specific reason for the premium hand overlay: these cards copy a building
-  // card's production box, so when there's nothing eligible to copy the block
-  // is "no card to copy" rather than the generic "unmet conditions".
+  // Specific reason for the premium hand overlay: these cards copy the
+  // production box of one of YOUR cards that carries the BUILDING SYMBOL (tag)
+  // — so when no such card exists the block is "no card with the building
+  // symbol to copy", not the generic "unmet conditions". The building tag is
+  // attached so the popover renders its icon, matching the card's wording.
   public unplayableReason(player: IPlayer): UnplayableReason | undefined {
     if (this.getPlayableBuildingCards(player).length === 0) {
-      return {type: 'target', message: 'No building card to copy a production effect from'};
+      return {
+        type: 'target',
+        message: 'No card with the building symbol to copy production from',
+        tag: Tag.BUILDING,
+      };
     }
     return undefined;
   }

@@ -27,6 +27,7 @@ export function computeHandCardPlayState(
   card: CardModel,
   turnAvailable: boolean,
   serverPlayable: boolean,
+  awaitingInput: boolean,
 ): HandCardPlayState {
   if (turnAvailable && serverPlayable) {
     return {playable: true, reasons: []};
@@ -37,5 +38,11 @@ export function computeHandCardPlayState(
   }
   // No intrinsic blocker from the server → the card itself is fine, it's just
   // not the player's window to play it (not their turn, or mid sub-action).
+  // It's this player's turn (the server is waiting on them) but mid-way
+  // through another mandatory step (e.g. placing a tile) → finish that first.
+  // Otherwise it's simply another player's turn.
+  if (awaitingInput) {
+    return {playable: false, reasons: [{type: 'phase', message: 'Finish your current action first'}]};
+  }
   return {playable: false, reasons: [{type: 'turn', message: 'Not your turn right now'}]};
 }

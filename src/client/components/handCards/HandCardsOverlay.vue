@@ -169,6 +169,13 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    // True when the server is waiting on THIS player for some input (any
+    // `waitingFor`). Lets an otherwise-playable card distinguish "not your
+    // turn" from "your turn, but finish the current action first".
+    awaitingInput: {
+      type: Boolean,
+      required: true,
+    },
   },
   emits: ['play', 'close'],
   data(): DataModel {
@@ -183,7 +190,7 @@ export default defineComponent({
   },
   computed: {
     entries(): ReadonlyArray<HandCardEntry> {
-      return buildHandEntries(this.cards, this.playActionAvailable, this.playableCardNames);
+      return buildHandEntries(this.cards, this.playActionAvailable, this.playableCardNames, this.awaitingInput);
     },
     sorted(): ReadonlyArray<HandCardEntry> {
       return sortHandEntries(filterHandEntries(this.entries, this.filter), this.filter.sort, this.filter.sortDir);

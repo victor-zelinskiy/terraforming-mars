@@ -31,13 +31,18 @@ export function unplayableReasons(player: IPlayer, card: IProjectCard): Readonly
   collectRequirementReasons(player, card, reasons);
   collectAffordabilityReason(player, card, reasons);
   collectBehaviorReasons(player, card, reasons);
+  // Card-specific bespoke reason the generic checks can't introspect (opt-in
+  // `ICard.unplayableReason` — e.g. Robotic Workforce: "no card to copy").
+  // ALWAYS considered, not just as a fallback: a card can be blocked by BOTH
+  // affordability AND its bespoke rule (Robotic Workforce with too little M€
+  // AND nothing to copy), and we promised to surface every reason, not one.
+  const bespoke = card.unplayableReason?.(player);
+  if (bespoke !== undefined) {
+    reasons.push(bespoke);
+  }
   if (reasons.length === 0) {
-    // The block is a bespoke can-play rule the generic checks above can't
-    // introspect. Give the card itself a chance to describe it (opt-in
-    // `ICard.unplayableReason` — e.g. Robotic Workforce: "no card to copy");
-    // only if it declines do we fall back to the honest generic line.
-    const bespoke = card.unplayableReason?.(player);
-    reasons.push(bespoke ?? {type: 'rule', message: 'Card is unavailable due to unmet conditions'});
+    // Nothing concrete surfaced — be honest rather than silent.
+    reasons.push({type: 'rule', message: 'Card is unavailable due to unmet conditions'});
   }
   // Don't overwhelm the popover — a hand card rarely needs more than a few
   // lines. De-dupe identical entries (e.g. two tiles both lacking space).
