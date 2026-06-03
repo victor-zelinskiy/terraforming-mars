@@ -26,22 +26,25 @@
       </button>
 
       <!--
-        Disabled state. The button itself is non-interactive, so hover /
-        focus is tracked on the wrapper (which is keyboard-focusable) to
-        reveal the premium reason popover — no native title tooltip.
+        Disabled state. The button is a compact "НЕДОСТУПНА" footer; the
+        concrete server-derived reasons live in a premium popover revealed on
+        hover / focus of the (keyboard-focusable) wrapper — no native title.
+        `placeReason` flips the popover above/below and nudges it sideways so
+        it never spills out of the scroll area or fully covers the card.
       -->
       <div v-else
            class="hand-card-item__disabled"
+           :class="{'hand-card-item__disabled--below': reasonBelow}"
            tabindex="0"
-           @mouseenter="showReason = true"
-           @mouseleave="showReason = false"
-           @focus="showReason = true"
-           @blur="showReason = false">
+           @mouseenter="onReasonEnter"
+           @mouseleave="onReasonLeave"
+           @focus="onReasonEnter"
+           @blur="onReasonLeave">
         <button type="button" class="hand-card-play-btn hand-card-play-btn--disabled" disabled>
           <span class="hand-card-play-btn__label" v-i18n>Unavailable</span>
         </button>
         <transition name="hand-reason-fade">
-          <HandCardReasonPopover v-if="showReason && reason !== undefined" :reason="reason" />
+          <HandCardReasonPopover v-if="showReason && reasons.length > 0" :reasons="reasons" :style="reasonStyle" />
         </transition>
       </div>
     </div>
@@ -52,15 +55,15 @@
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/Card.vue';
 import {HandCardEntry} from '@/client/components/handCards/handCardModel';
-import {UnplayableReason} from '@/client/components/handCards/cardPlayability';
+import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import HandCardReasonPopover from '@/client/components/handCards/HandCardReasonPopover.vue';
 
 /**
  * One slot in the hand grid: the card silhouette plus a play affordance
  * beneath it. Playable cards get the active РАЗЫГРАТЬ button; unplayable
- * cards are dimmed (CSS) and show a disabled button that reveals the
- * reason popover on hover / focus. Single click on the card opens
- * fullscreen.
+ * cards are dimmed (CSS) and show a compact "НЕДОСТУПНА" footer that reveals
+ * a premium reason popover (server-derived reasons) on hover / focus. Single
+ * click on the card opens fullscreen.
  */
 export default defineComponent({
   name: 'HandCardItem',
@@ -75,17 +78,71 @@ export default defineComponent({
   data() {
     return {
       showReason: false,
+      // Flip the popover below the button when there isn't room above.
+      reasonBelow: false,
+      // Horizontal nudge (px) so the popover stays inside the scroll area.
+      reasonShift: 0,
     };
   },
   computed: {
     playable(): boolean {
       return this.entry.state.playable;
     },
-    reason(): UnplayableReason | undefined {
-      return this.entry.state.reason;
+    reasons(): ReadonlyArray<UnplayableReason> {
+      return this.entry.state.reasons;
     },
     label(): string {
       return this.entry.name.split(':')[0];
+    },
+    reasonStyle(): Record<string, string> {
+      return {
+        'marginLeft': `${this.reasonShift}px`,
+        // Keep the caret pointing at the button after a sideways nudge.
+        '--reason-caret': `${-this.reasonShift}px`,
+      };
+    },
+  },
+  methods: {
+    onReasonEnter(): void {
+      this.showReason = true;
+      this.$nextTick(() => this.placeReason());
+    },
+    onReasonLeave(): void {
+      this.showReason = false;
+      this.reasonBelow = false;
+      this.reasonShift = 0;
+    },
+    // Measure once the popover is in the DOM: flip below when it would
+    // overflow the top of the scroll area, and nudge it horizontally so it
+    // doesn't spill past either edge.
+    placeReason(): void {
+      const root = this.$el as HTMLElement;
+      const wrapper = root.querySelector('.hand-card-item__disabled') as HTMLElement | null;
+      const pop = root.querySelector('.hand-reason') as HTMLElement | null;
+      if (wrapper === null || pop === null) {
+        return;
+      }
+      const scroller = root.closest('.hand-board__body') as HTMLElement | null;
+      const wrapRect = wrapper.getBoundingClientRect();
+      const scRect = scroller?.getBoundingClientRect();
+      const pad = 8;
+
+      const limitTop = scRect ? scRect.top : 0;
+      this.reasonBelow = (wrapRect.top - pop.offsetHeight - 12) < limitTop;
+
+      if (scRect !== undefined) {
+        const popW = pop.offsetWidth;
+        const centerX = wrapRect.left + wrapRect.width / 2;
+        const leftEdge = centerX - popW / 2;
+        const rightEdge = centerX + popW / 2;
+        let shift = 0;
+        if (leftEdge < scRect.left + pad) {
+          shift = (scRect.left + pad) - leftEdge;
+        } else if (rightEdge > scRect.right - pad) {
+          shift = (scRect.right - pad) - rightEdge;
+        }
+        this.reasonShift = Math.round(shift);
+      }
     },
   },
 });

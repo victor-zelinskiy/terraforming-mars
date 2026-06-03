@@ -173,7 +173,7 @@ export class Server {
     const thisPlayer: PublicPlayerModel = players[thisPlayerIndex];
 
     const rv: PlayerViewModel = {
-      cardsInHand: cardsToModel(player, player.cardsInHand, {showCalculatedCost: true}),
+      cardsInHand: cardsToModel(player, player.cardsInHand, {showCalculatedCost: true, unplayableReasons: true}),
       ceoCardsInHand: cardsToModel(player, Array.from(player.ceoCardsInHand)),
       dealtCorporationCards: cardsToModel(player, player.dealtCorporationCards),
       dealtPreludeCards: cardsToModel(player, player.dealtPreludeCards),

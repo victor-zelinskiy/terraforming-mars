@@ -1,66 +1,64 @@
 <template>
   <div class="hand-reason" role="tooltip">
-    <span class="hand-reason__bar" aria-hidden="true"></span>
-    <span class="hand-reason__lock" aria-hidden="true">✕</span>
-    <span class="hand-reason__text">{{ text }}</span>
-    <span v-if="tag !== undefined" class="hand-reason__tag card-tag" :class="'tag-' + tag" aria-hidden="true"></span>
-    <i v-if="resource !== undefined" class="hand-reason__res resource_icon" :class="'resource_icon--' + resource" aria-hidden="true"></i>
-    <span v-if="multiplier !== undefined" class="hand-reason__mult">×{{ multiplier }}</span>
+    <div class="hand-reason__head">
+      <span class="hand-reason__lock" aria-hidden="true">✕</span>
+      <span class="hand-reason__head-label" v-i18n>Unavailable</span>
+    </div>
+    <ul class="hand-reason__list">
+      <li
+        v-for="(r, i) in reasons"
+        :key="i"
+        class="hand-reason__row"
+        :class="'hand-reason__row--' + r.type">
+        <span class="hand-reason__bar" aria-hidden="true"></span>
+        <span
+          v-if="r.tag !== undefined"
+          class="hand-reason__icon card-tag"
+          :class="'tag-' + r.tag"
+          aria-hidden="true"></span>
+        <i
+          v-else-if="r.resource !== undefined"
+          class="hand-reason__icon resource_icon"
+          :class="'resource_icon--' + r.resource"
+          aria-hidden="true"></i>
+        <span v-else class="hand-reason__glyph" aria-hidden="true"></span>
+        <span class="hand-reason__text">{{ text(r) }}</span>
+        <span v-if="r.current !== undefined" class="hand-reason__now">{{ now(r) }}</span>
+      </li>
+    </ul>
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import {Tag} from '@/common/cards/Tag';
-import {Resource} from '@/common/Resource';
-import {UnplayableReason} from '@/client/components/handCards/cardPlayability';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import {translateTextWithParams} from '@/client/directives/i18n';
 
 /**
- * Premium, fully custom reason popover for a card that can't be played
- * (NO native `title` tooltip — spec). Renders a short, game-language
- * explanation, with a tag / resource icon for tag and production
- * requirements so the player sees exactly which one is missing.
- * Positioning + show/hide is owned by `HandCardItem`.
+ * Premium, fully custom popover listing WHY a hand card can't be played
+ * (NO native `title` tooltip — spec). Reasons are produced authoritatively
+ * on the server (`unplayableReasons.ts`) and arrive as a list: cost,
+ * requirements, tags, production, tile placement, targets, bespoke rules.
+ * Each row renders a category accent, an optional tag / resource icon, the
+ * translated text, and a muted "now: N" badge showing the current value so
+ * the player sees the gap at a glance. Positioning (above / below, clamped)
+ * is owned by the host (`HandCardItem` / the fullscreen actions slot).
  */
 export default defineComponent({
   name: 'HandCardReasonPopover',
   props: {
-    reason: {
-      type: Object as PropType<UnplayableReason>,
+    reasons: {
+      type: Array as PropType<ReadonlyArray<UnplayableReason>>,
       required: true,
     },
   },
-  computed: {
-    text(): string {
-      const r = this.reason;
-      switch (r.kind) {
-      case 'turn':
-        return translateText('Not your turn right now');
-      case 'megacredits':
-        return translateTextWithParams('Need ${0} more M€', [String(r.deficit)]);
-      case 'param':
-        return translateTextWithParams(r.message, r.params.slice());
-      case 'tag':
-        return translateText('Requires tag');
-      case 'production':
-        return translateText('Requires production');
-      case 'generic':
-      default:
-        return translateText('Can\'t play this card right now');
-      }
+  methods: {
+    text(r: UnplayableReason): string {
+      return translateTextWithParams(r.message, [...(r.params ?? [])]);
     },
-    tag(): Tag | undefined {
-      return this.reason.kind === 'tag' ? this.reason.tag : undefined;
-    },
-    resource(): Resource | undefined {
-      return this.reason.kind === 'production' ? this.reason.resource : undefined;
-    },
-    multiplier(): number | undefined {
-      if ((this.reason.kind === 'tag' || this.reason.kind === 'production') && this.reason.count > 1) {
-        return this.reason.count;
-      }
-      return undefined;
+    now(r: UnplayableReason): string {
+      const unit = r.message.includes('%') ? '%' : (r.message.includes('°C') ? '°C' : '');
+      return translateTextWithParams('Now: ${0}', [`${r.current}${unit}`]);
     },
   },
 });

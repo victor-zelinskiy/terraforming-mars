@@ -312,7 +312,6 @@
     <HandCardsOverlay
       v-if="activeOverlay === 'cards' && displayedPlayer.color === thisPlayer.color"
       :player="thisPlayer"
-      :game="game"
       :cards="playerView.cardsInHand"
       :playableCardNames="playableProjectCardNames"
       :playActionAvailable="playProjectCardActionAvailable"

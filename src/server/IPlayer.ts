@@ -344,6 +344,8 @@ export interface IPlayer {
    */
   affordOptionsForCard(card: IProjectCard): CanAffordOptions;
   canAfford(options: number | CanAffordOptions): boolean;
+  /** The M€-equivalent shortfall to play `card` right now (0 if affordable). */
+  affordabilityDeficit(card: IProjectCard): number;
   getStandardProjectOption(): SelectStandardProjectToPlay;
   takeAction(saveBeforeTakingAction?: boolean): void;
   /** Return possible mid-game actions like play a card and fund an award, but not play prelude card. */
