@@ -15,6 +15,7 @@
       <span class="nes-text is-warning" v-i18n>{{ warning }}</span>
       <go-to-map :playerinput="playerinput"></go-to-map>
     </div>
+    <placement-reason-popover :reasons="hoverReasons" :anchor="hoverAnchor" />
   </div>
 </template>
 
@@ -27,8 +28,10 @@ import {SelectSpaceResponse} from '@/common/inputs/InputResponse';
 import ConfirmDialog from '@/client/components/common/ConfirmDialog.vue';
 import GoToMap from '@/client/components/waitingFor/GoToMap.vue';
 import {SpaceId} from '@/common/Types';
-import {PLACEMENT_REASON_LABEL, PlacementIllegalReason} from '@/common/inputs/PlacementIllegalReason';
-import {translateText} from '@/client/directives/i18n';
+import {PlacementIllegalSpace} from '@/common/inputs/PlacementIllegalReason';
+import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import PlacementReasonPopover from '@/client/components/board/PlacementReasonPopover.vue';
+import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
 
 /**
  * Marker attribute on cells we annotated with an illegal-reason tooltip.
@@ -47,6 +50,10 @@ type DataModel = {
   selectedTile: HTMLElement | undefined,
   spaceId: SpaceId | undefined;
   warning: string | undefined;
+  // Premium placement-reason popover state (replaces the native `title`).
+  hoverReasons: ReadonlyArray<UnplayableReason>;
+  hoverAnchor: DOMRect | undefined;
+  hoverSpaceId: SpaceId | undefined;
 };
 
 export default defineComponent({
@@ -79,15 +86,27 @@ export default defineComponent({
       selectedTile: undefined,
       spaceId: undefined,
       warning: undefined,
+      hoverReasons: [],
+      hoverAnchor: undefined,
+      hoverSpaceId: undefined,
     };
   },
   components: {
     'confirm-dialog': ConfirmDialog,
     GoToMap,
+    'placement-reason-popover': PlacementReasonPopover,
   },
   computed: {
     typedRefs(): Refs {
       return this.$refs as unknown as Refs;
+    },
+    // spaceId → structured illegal payload (reason + optional M€ deficit).
+    illegalBySpace(): Map<SpaceId, PlacementIllegalSpace> {
+      const map = new Map<SpaceId, PlacementIllegalSpace>();
+      for (const entry of this.playerinput.illegalSpaces ?? []) {
+        map.set(entry.spaceId, entry);
+      }
+      return map;
     },
   },
   methods: {
@@ -107,46 +126,64 @@ export default defineComponent({
       });
     },
     /**
-     * Apply native browser tooltip (`title`) + `.board-space--illegal`
-     * class to every cell the server reported as off-limits for this
-     * placement. Only touches cells whose spaceId is in `illegalSpaces`
-     * — legal cells, special cells, and unknown markers are left alone.
-     *
-     * Reason → localized string lookup via PLACEMENT_REASON_LABEL + the
-     * existing `translateText` helper so RU / other locales work out
-     * of the box once the strings are added to `ui.json`.
-     *
-     * The `data-placement-illegal` marker attribute is dropped in
-     * `removeIllegalTooltips()` so cleanup is surgical.
+     * Mark every cell the server reported as off-limits for this placement
+     * with `.board-space--illegal` (dim + cursor) + a `data-placement-illegal`
+     * marker. The marker drives BOTH surgical cleanup AND the premium
+     * hover popover (see `onBoardMouseOver`) — NO native `title` tooltip; the
+     * reason text is rendered by `PlacementReasonPopover`, the same component
+     * family the hand overlay uses, so the two read as one system.
      */
     applyIllegalTooltips(tiles: Array<Element>) {
-      const illegal = this.playerinput.illegalSpaces;
-      if (illegal === undefined || illegal.length === 0) return;
-      const reasonsBySpace = new Map<SpaceId, PlacementIllegalReason>();
-      for (const entry of illegal) {
-        reasonsBySpace.set(entry.spaceId, entry.reason);
+      const illegal = this.illegalBySpace;
+      if (illegal.size === 0) {
+        return;
       }
       for (const tile of tiles) {
         const spaceId = tile.getAttribute('data_space_id') as SpaceId;
-        if (spaceId === null) continue;
-        const reason = reasonsBySpace.get(spaceId);
-        if (reason === undefined) continue;
-        const label = PLACEMENT_REASON_LABEL[reason] ?? PLACEMENT_REASON_LABEL['unavailable'];
-        tile.setAttribute('title', translateText(label));
+        if (spaceId === null || !illegal.has(spaceId)) {
+          continue;
+        }
         tile.setAttribute(DATA_ILLEGAL_MARKER, '1');
         tile.classList.add('board-space--illegal');
       }
     },
     removeIllegalTooltips() {
-      // Use the marker so we only revert cells WE annotated. Avoids
-      // clobbering any title set elsewhere (BoardSpaceTile sets one for
-      // tile descriptions).
+      // Use the marker so we only revert cells WE annotated. Also clears any
+      // stray `title` (older builds set one) so nothing lingers.
       const marked = document.querySelectorAll('[' + DATA_ILLEGAL_MARKER + ']');
       marked.forEach((el) => {
         el.removeAttribute('title');
         el.removeAttribute(DATA_ILLEGAL_MARKER);
         el.classList.remove('board-space--illegal');
       });
+      this.clearHover();
+    },
+    // Show the premium reason popover when hovering an illegal cell. Delegated
+    // on document so it covers every board region without per-cell listeners.
+    onBoardMouseOver(e: MouseEvent) {
+      const target = e.target as Element | null;
+      const cell = target?.closest?.('[' + DATA_ILLEGAL_MARKER + ']') as HTMLElement | null;
+      if (cell === null || cell === undefined) {
+        this.clearHover();
+        return;
+      }
+      const spaceId = cell.getAttribute('data_space_id') as SpaceId;
+      if (spaceId === null || spaceId === this.hoverSpaceId) {
+        return;
+      }
+      const entry = this.illegalBySpace.get(spaceId);
+      if (entry === undefined) {
+        this.clearHover();
+        return;
+      }
+      this.hoverSpaceId = spaceId;
+      this.hoverReasons = [placementReasonToUnplayable(entry.reason, entry.deficit)];
+      this.hoverAnchor = cell.getBoundingClientRect();
+    },
+    clearHover() {
+      this.hoverSpaceId = undefined;
+      this.hoverReasons = [];
+      this.hoverAnchor = undefined;
     },
     cancelPlacement() {
       if (this.selectedTile === undefined) {
@@ -235,6 +272,10 @@ export default defineComponent({
 
       tile.onclick = () => this.onTileSelected(tile);
     }
+    // Delegated hover for the premium reason popover; clear it on scroll so a
+    // stale anchor never floats over the wrong cell.
+    document.addEventListener('mouseover', this.onBoardMouseOver);
+    window.addEventListener('scroll', this.clearHover, true);
   },
   // Cleanup is critical when SelectSpace can be UNMOUNTED without a tile
   // being picked first — e.g. when the dedicated Convert-Plants button is
@@ -249,6 +290,9 @@ export default defineComponent({
     for (const tile of tiles) {
       tile.onclick = null;
     }
+    document.removeEventListener('mouseover', this.onBoardMouseOver);
+    window.removeEventListener('scroll', this.clearHover, true);
+    this.clearHover();
   },
 });
 

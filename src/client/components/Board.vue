@@ -440,15 +440,25 @@ export default defineComponent({
       const related = e.relatedTarget as Node | null;
       // Moves from a child of the same cell don't count as "entering" the cell.
       if (related !== null && cell.contains(related)) return;
-      // During tile placement, suppress the hex-wide path on cells that are
-      // valid placement targets — the green blink owns the cell's hover
-      // semantics there. The marker badge keeps its own @mouseenter, so an
-      // explicit hover on the `i` always opens the popup, even during
-      // placement (user opting into the info).
-      if (cell.classList.contains('board-space--available')) return;
+      // During a tile placement the per-cell reason popover (SelectSpace.vue)
+      // owns whole-cell hover, so the hex-wide info path is suppressed
+      // ENTIRELY — showing the special-cell info on every cell the cursor
+      // crosses would double up with the reason popover and overload the
+      // player. The `i` marker keeps its own @mouseenter, so a deliberate
+      // hover on the badge still opens the info even during placement. Outside
+      // placement, hex-wide hover behaves exactly as before.
+      if (this.placementActive()) {
+        return;
+      }
       const spaceId = cell.getAttribute('data_space_id') as SpaceId | null;
       if (spaceId === null) return;
       activateSpecialCellBySpaceId(spaceId);
+    },
+    // True while a tile-placement prompt is on the board — SelectSpace marks
+    // its legal cells with `.board-space--available`, which exists ONLY during
+    // placement, so its presence anywhere is a reliable "placement mode" flag.
+    placementActive(): boolean {
+      return document.querySelector('.board-space--available') !== null;
     },
     onHexHoverLeave(e: MouseEvent): void {
       const cell = (e.target as HTMLElement | null)?.closest('[data_space_id]') as HTMLElement | null;

@@ -318,9 +318,61 @@ export class MarsBoard extends Board {
       }
       const custom = options?.customReasoner?.(space);
       const reason = custom ?? this.deriveIllegalReason(player, placementType, space, options?.canAffordOptions);
-      out.push({spaceId: space.id, reason});
+      const entry: PlacementIllegalSpace = {spaceId: space.id, reason};
+      // Mirror the hand card's "Need X more M€": attach the exact M€ gap for
+      // affordability blocks so the placement popover can show it.
+      if (reason === 'cannot-afford' || reason === 'cannot-afford-bonus') {
+        const deficit = this.placementMegacreditDeficit(player, space, reason, options?.canAffordOptions);
+        if (deficit > 0) {
+          entry.deficit = deficit;
+        }
+      }
+      out.push(entry);
     }
     return out;
+  }
+
+  /**
+   * M€-equivalent shortfall to place on `space` given an affordability block.
+   * `cannot-afford` reflects the tile's own placement cost (Ares hazard
+   * removal / adjacency); `cannot-afford-bonus` reflects the special-space
+   * bonus costs (Hellas ocean, Vastitas temperature, Terra Cimmeria colony).
+   * Read-only. Reds TR tax is intentionally omitted — the figure is an honest
+   * lower bound on the M€ still needed. Returns 0 when the block isn't a pure
+   * M€ gap (e.g. a production-cost block), so the popover keeps the generic
+   * "can't afford" line in that case.
+   */
+  private placementMegacreditDeficit(
+    player: IPlayer,
+    space: Space,
+    reason: PlacementIllegalReason,
+    canAffordOptions?: CanAffordOptions): number {
+    const spendable = player.spendableMegacredits();
+    if (reason === 'cannot-afford') {
+      const costs = this.computeAdditionalCosts(space, player.game.gameOptions.aresExtension, canAffordOptions?.bonusMultiplier);
+      let cost = costs.megacredits;
+      if (space.undergroundResources === 'place6mc') {
+        cost -= 6;
+      }
+      return Math.max(0, cost - spendable);
+    }
+    // cannot-afford-bonus — sum the M€ bonus costs this space would charge
+    // (mirrors MarsBoard.canAffordPlacementBonuses).
+    const game = player.game;
+    let cost = 0;
+    if (space.bonus.includes(SpaceBonus.OCEAN) && game.canAddOcean()) {
+      cost += constants.HELLAS_BONUS_OCEAN_COST;
+    }
+    if (space.bonus.includes(SpaceBonus.TEMPERATURE) && game.getTemperature() < constants.MAX_TEMPERATURE) {
+      cost += constants.VASTITAS_BOREALIS_BONUS_TEMPERATURE_COST;
+    }
+    if (space.bonus.includes(SpaceBonus.TEMPERATURE_4MC) && game.getTemperature() < constants.MAX_TEMPERATURE) {
+      cost += constants.VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST;
+    }
+    if (space.bonus.includes(SpaceBonus.COLONY)) {
+      cost += constants.TERRA_CIMMERIA_COLONY_COST;
+    }
+    return Math.max(0, cost - spendable);
   }
 
   /** @returns the first applicable reason this cell is illegal. */
@@ -352,7 +404,8 @@ export class MarsBoard extends Board {
     // Placement-type-specific terrain checks.
     if (placementType === 'ocean') {
       if (space.spaceType !== SpaceType.OCEAN) {
-        return 'wrong-terrain';
+        // Placing an ocean on a non-ocean (land) cell.
+        return 'needs-ocean-space';
       }
       if (!MarsBoard.canAffordPlacementBonuses(player, space)) {
         return 'cannot-afford-bonus';
@@ -373,11 +426,13 @@ export class MarsBoard extends Board {
     }
 
     // Land-type checks (city / greenery / land / volcanic / isolated all
-    // need a land-ish space).
+    // need a land-ish space). The common non-land cell is an ocean reserve —
+    // call that out specifically; only truly exotic cells fall back to the
+    // generic wrong-terrain.
     if (space.spaceType !== SpaceType.LAND &&
         space.spaceType !== SpaceType.COVE &&
         space.spaceType !== SpaceType.DEFLECTION_ZONE) {
-      return 'wrong-terrain';
+      return space.spaceType === SpaceType.OCEAN ? 'ocean-only' : 'wrong-terrain';
     }
 
     // Affordability (Ares hazard removal cost, etc.).
