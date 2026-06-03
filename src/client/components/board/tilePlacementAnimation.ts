@@ -40,14 +40,12 @@ import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackM
 export type PlacementKind = 'ocean' | 'greenery' | 'city' | 'special';
 
 /*
- * Length of the "hold the rest of the UI" window. The impact frame of
- * the placement keyframes lands at ~38 % of the total duration
- * (~410 ms into a 1080 ms animation); the hold continues past that
- * frame so the player's eye stays on the tile through the small
- * undershoot + settle before resource chips / scale markers / next
- * prompt land. The settle tail continues running while resources
- * update — settle is a calm outline pulse, doesn't compete with the
- * right-hand panel chips.
+ * Length of the "hold the rest of the UI" window. By the end of the
+ * hold (~330 ms) the tile is fully formed (opacity 1, scale ~0.99,
+ * about to pop at ~390 ms / 54 % of the 720 ms animation); resources /
+ * scale markers / the next prompt then land while the damped spring
+ * tail settles to rest. The settle tail is a calm transform-only
+ * motion, so it doesn't compete with the right-hand panel chips.
  *
  * Reduced-motion path holds for substantially less since the animation
  * itself collapses to a brief fade.
@@ -58,13 +56,14 @@ export const PLACEMENT_HOLD_REDUCED_MS = 100;
 /*
  * Total CSS animation duration on the tile div. Driven by the
  * `tile-placement-impact` + `tile-placement-ring` keyframes in
- * board_placement_animation.less. 1080 ms (was 880 ms) — the extra
- * 200 ms goes entirely into the pre-impact glide + post-impact
- * settle so the back-ease overshoot reads as a deliberate "impact"
- * rather than as a snap, and the keyframe stops have room to
- * interpolate smoothly between each other.
+ * board_placement_animation.less. 720 ms (trimmed from 930) — the
+ * GPU-only transform/opacity rework lands a snappier, more responsive
+ * "materialise + spring-settle" that no longer needs the longer window
+ * the old filter/blend version used to mask its stepping. The scale
+ * pop lands at ~54 % (~390 ms), with the damped spring tail settling
+ * to rest by 720 ms.
  */
-export const PLACEMENT_ANIMATION_MS = 930;
+export const PLACEMENT_ANIMATION_MS = 720;
 export const PLACEMENT_ANIMATION_REDUCED_MS = 280;
 
 /*
