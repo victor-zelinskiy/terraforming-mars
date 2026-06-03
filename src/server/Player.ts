@@ -1408,6 +1408,26 @@ export class Player implements IPlayer {
   }
 
   /**
+   * The M€-equivalent shortfall to play `card` right now — 0 when the player
+   * can afford it. Mirrors `canAffordInternal` but returns the gap instead of
+   * a boolean, so the premium hand overlay can explain WHY a card is
+   * unplayable (see src/server/models/unplayableReasons.ts). Read-only.
+   */
+  public affordabilityDeficit(card: IProjectCard): number {
+    const options = this.affordOptionsForCard(card);
+    options.heat = this.canUseHeatAsMegaCredits;
+    options.lunaTradeFederationTitanium = this.canUseTitaniumAsMegacredits;
+    const reserveUnits = options.reserveUnits ?? Units.EMPTY;
+    // maxSpendable already subtracts the reserved units; if they exceed what
+    // the player holds the components go negative, which correctly inflates
+    // the reported gap.
+    const maxPayable = this.maxSpendable(reserveUnits);
+    const redsCost = TurmoilHandler.computeTerraformRatingBump(this, options.tr) * REDS_RULING_POLICY_COST;
+    const usable = this.payingAmount(maxPayable, options);
+    return Math.max(0, (options.cost + redsCost) - usable);
+  }
+
+  /**
    * Returns `true` if the player can afford to pay `options.cost` mc (possibly replaceable with steel, titanium etc.)
    * and additionally pay the reserveUnits (no replaces here)
    */

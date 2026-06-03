@@ -2,8 +2,6 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardType} from '@/common/cards/CardType';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
-import {GameModel} from '@/common/models/GameModel';
-import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {translateText} from '@/client/directives/i18n';
 import {computeHandCardPlayState, HandCardPlayState} from '@/client/components/handCards/cardPlayability';
@@ -79,8 +77,6 @@ export const DEFAULT_HAND_FILTER: HandFilterState = {
 
 export function buildHandEntries(
   cards: ReadonlyArray<CardModel>,
-  game: GameModel,
-  player: PublicPlayerModel,
   turnAvailable: boolean,
   playableNames: ReadonlySet<CardName>,
 ): ReadonlyArray<HandCardEntry> {
@@ -89,7 +85,7 @@ export function buildHandEntries(
     const type = clientCard?.type ?? CardType.AUTOMATED;
     const tags = clientCard?.tags ?? [];
     const cost = card.calculatedCost ?? clientCard?.cost ?? 0;
-    const state = computeHandCardPlayState(card, game, player, turnAvailable, playableNames.has(card.name));
+    const state = computeHandCardPlayState(card, turnAvailable, playableNames.has(card.name));
     return {
       card,
       name: card.name,

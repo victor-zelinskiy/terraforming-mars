@@ -14,7 +14,10 @@
           {{ player.name }}
         </span>
         <span v-if="totalCount > 0" class="hand-board__total">{{ totalCount }}</span>
-        <span v-if="totalCount > 0" class="hand-board__playable">
+        <span
+          v-if="totalCount > 0"
+          class="hand-board__playable"
+          :class="{'hand-board__playable--zero': playableCount === 0}">
           <span class="hand-board__playable-dot" aria-hidden="true"></span>
           <span v-i18n>Can play</span>:&nbsp;{{ playableCount }}
         </span>
@@ -34,7 +37,7 @@
       @sort="setSort"
       @sort-dir="setSortDir" />
 
-    <div class="hand-board__body">
+    <div ref="body" class="hand-board__body">
       <HandCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" />
       <transition-group
         v-else
@@ -62,8 +65,8 @@
             @click="playZoom">
             <span v-i18n>Play card</span>
           </button>
-          <div v-else-if="zoomReason !== undefined" class="hand-zoom-reason">
-            <HandCardReasonPopover :reason="zoomReason" />
+          <div v-else-if="zoomReasons.length > 0" class="hand-zoom-reason">
+            <HandCardReasonPopover :reasons="zoomReasons" />
           </div>
         </template>
       </CardZoomModal>
@@ -72,10 +75,9 @@
 </template>
 
 <script lang="ts">
-import {defineComponent, nextTick, PropType} from 'vue';
+import {defineComponent, markRaw, nextTick, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
-import {GameModel} from '@/common/models/GameModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Tag} from '@/common/cards/Tag';
 import {
@@ -97,7 +99,7 @@ import {
   HandTypeKey,
   sortHandEntries,
 } from '@/client/components/handCards/handCardModel';
-import {UnplayableReason} from '@/client/components/handCards/cardPlayability';
+import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import HandCardItem from '@/client/components/handCards/HandCardItem.vue';
 import HandCardsFilters from '@/client/components/handCards/HandCardsFilters.vue';
 import HandCardsEmptyState from '@/client/components/handCards/HandCardsEmptyState.vue';
@@ -115,11 +117,27 @@ import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
  * Only ever mounted for the viewer's OWN seat (the server never sends
  * opponents' hand contents) — PlayerHome renders card-backs otherwise.
  * The authoritative "playable now" gate is `playableCardNames` (the
- * server's action-menu list); reasons are derived client-side.
+ * server's action-menu list); the WHY-unplayable reasons are produced
+ * authoritatively on the server and ride on each card model
+ * (`card.unplayableReasons`).
  */
+// Adaptive card scale (HandCardsOverlay.fit). Cards start LARGE and the
+// engine only scales DOWN to fit the available height — a small hand reads
+// roomy/comfortable, a big hand stays compact, and vertical scroll is the
+// last resort (only when even MIN overflows).
+const HAND_ZOOM_MAX = 0.82; // comfortable / large (few cards, wide screen)
+const HAND_ZOOM_MAX_NARROW = 0.66; // cap on narrow screens
+const HAND_ZOOM_MIN = 0.5; // compact floor before scroll kicks in
+
 type DataModel = {
   filter: HandFilterState;
   zoomCard: CardModel | undefined;
+  // ResizeObserver on the scroll body (markRaw — must not be made reactive).
+  resizeObserver: ResizeObserver | undefined;
+  // rAF debounce flag for fit().
+  fitScheduled: boolean;
+  // Timer handle for the post-animation deferred re-fit (filter/sort changes).
+  fitTimer: number | undefined;
   // True only for the render that follows a filter/sort change which REMOVES
   // at least one card. While set, the grid's `--exiting` class delays the
   // reflow (-move) and re-enter (-enter) transitions until the exit
@@ -138,14 +156,11 @@ export default defineComponent({
       type: Object as PropType<PublicPlayerModel>,
       required: true,
     },
-    game: {
-      type: Object as PropType<GameModel>,
-      required: true,
-    },
     cards: {
       type: Array as PropType<ReadonlyArray<CardModel>>,
       required: true,
     },
+    // (The full hand carries its own server-derived unplayableReasons.)
     playableCardNames: {
       type: Object as PropType<ReadonlySet<CardName>>,
       required: true,
@@ -161,11 +176,14 @@ export default defineComponent({
       filter: {...DEFAULT_HAND_FILTER},
       zoomCard: undefined,
       reflowDelay: false,
+      resizeObserver: undefined,
+      fitScheduled: false,
+      fitTimer: undefined,
     };
   },
   computed: {
     entries(): ReadonlyArray<HandCardEntry> {
-      return buildHandEntries(this.cards, this.game, this.player, this.playActionAvailable, this.playableCardNames);
+      return buildHandEntries(this.cards, this.playActionAvailable, this.playableCardNames);
     },
     sorted(): ReadonlyArray<HandCardEntry> {
       return sortHandEntries(filterHandEntries(this.entries, this.filter), this.filter.sort, this.filter.sortDir);
@@ -200,8 +218,8 @@ export default defineComponent({
     zoomPlayable(): boolean {
       return this.zoomEntry?.state.playable === true;
     },
-    zoomReason(): UnplayableReason | undefined {
-      return this.zoomEntry?.state.reason;
+    zoomReasons(): ReadonlyArray<UnplayableReason> {
+      return this.zoomEntry?.state.reasons ?? [];
     },
   },
   watch: {
@@ -216,6 +234,9 @@ export default defineComponent({
       handler(next: ReadonlyArray<HandCardEntry>, prev: ReadonlyArray<HandCardEntry>): void {
         const nextNames = new Set(next.map((e) => e.name));
         this.reflowDelay = prev.some((e) => !nextNames.has(e.name));
+        // Card set changed → re-fit the scale, but AFTER the exit→reflow→enter
+        // animation settles, so the zoom never pops mid-transition.
+        this.deferFit();
       },
     },
   },
@@ -286,12 +307,80 @@ export default defineComponent({
       }
       this.$emit('close');
     },
+    // Coalesce fit() to one run per frame (resize bursts).
+    scheduleFit(): void {
+      if (this.fitScheduled) {
+        return;
+      }
+      this.fitScheduled = true;
+      requestAnimationFrame(() => {
+        this.fitScheduled = false;
+        this.fit();
+      });
+    },
+    // Re-fit AFTER the filter/sort animation has settled — fitting mid-reflow
+    // would resize cards while they're still sliding/fading. One centralized
+    // timer (reset on each change), not a per-change hack.
+    deferFit(): void {
+      if (this.fitTimer !== undefined) {
+        window.clearTimeout(this.fitTimer);
+      }
+      this.fitTimer = window.setTimeout(() => {
+        this.fitTimer = undefined;
+        this.fit();
+      }, 380);
+    },
+    // Adaptive scale: start large and scale the card zoom DOWN only as far as
+    // needed to fit the available height. A few cards stay comfortable/large;
+    // a big hand compacts to MIN; vertical scroll engages only if MIN still
+    // overflows. Measures imperatively (sets the CSS var + reads scrollHeight)
+    // because column count shifts with zoom — a sqrt step converges fast.
+    fit(): void {
+      const body = this.$refs.body as HTMLElement | undefined;
+      if (body === undefined) {
+        return;
+      }
+      const grid = body.querySelector('.hand-board__grid') as HTMLElement | null;
+      if (grid === null) {
+        return; // empty / filtered state — nothing to size
+      }
+      const cs = window.getComputedStyle(body);
+      const avail = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      if (avail <= 0) {
+        return;
+      }
+      const maxZoom = body.clientWidth < 1180 ? HAND_ZOOM_MAX_NARROW : HAND_ZOOM_MAX;
+      let zoom = maxZoom;
+      body.style.setProperty('--hand-card-zoom', zoom.toFixed(3));
+      for (let i = 0; i < 14; i++) {
+        const overflow = grid.scrollHeight;
+        if (overflow <= avail || zoom <= HAND_ZOOM_MIN) {
+          break;
+        }
+        // Shrink at least 3%/step so we always make progress near the edge.
+        const ratio = Math.min(Math.sqrt(avail / overflow), 0.97);
+        zoom = Math.max(HAND_ZOOM_MIN, zoom * ratio);
+        body.style.setProperty('--hand-card-zoom', zoom.toFixed(3));
+      }
+    },
   },
   mounted(): void {
     window.addEventListener('keydown', this.onKeydown);
+    const body = this.$refs.body as HTMLElement | undefined;
+    if (body !== undefined && typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => this.scheduleFit());
+      ro.observe(body);
+      this.resizeObserver = markRaw(ro);
+    }
+    nextTick(() => this.fit());
   },
   beforeUnmount(): void {
     window.removeEventListener('keydown', this.onKeydown);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = undefined;
+    if (this.fitTimer !== undefined) {
+      window.clearTimeout(this.fitTimer);
+    }
   },
 });
 </script>

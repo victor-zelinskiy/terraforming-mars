@@ -12,6 +12,8 @@ import {CardName} from '../../common/cards/CardName';
 import {Tag} from '../../common/cards/Tag';
 import {asArray} from '../../common/utils/utils';
 import {isIStandardProjectCard} from '../cards/IStandardProjectCard';
+import {UnplayableReason} from '../../common/cards/UnplayableReason';
+import {unplayableReasons as computeUnplayableReasons} from './unplayableReasons';
 
 export function cardsToModel(
   player: IPlayer,
@@ -21,9 +23,20 @@ export function cardsToModel(
     showCalculatedCost?: boolean,
     extras?: Map<CardName, PlayCardMetadata>,
     enabled?: ReadonlyArray<boolean>, // If provided, then the cards with false in `enabled` are not selectable and grayed out
+    unplayableReasons?: boolean, // If true, attach structured "why unplayable" reasons to each currently-unplayable project card (own hand only).
   } = {},
 ): ReadonlyArray<CardModel> {
   return cards.map((card, index) => {
+    // Computed first so the canPlay it runs refreshes the card's ephemeral
+    // additionalProjectCosts before we read them below.
+    let unplayableReasonList: ReadonlyArray<UnplayableReason> | undefined;
+    if (options.unplayableReasons === true && isIProjectCard(card)) {
+      const reasons = computeUnplayableReasons(player, card);
+      if (reasons.length > 0) {
+        unplayableReasonList = reasons;
+      }
+    }
+
     let discount = card.cardDiscount === undefined ? undefined : asArray(card.cardDiscount);
 
     // Too bad this is hard-coded
@@ -76,6 +89,9 @@ export function cardsToModel(
     }
     if (card.warnings.size > 0) {
       model.warnings = Array.from(card.warnings);
+    }
+    if (unplayableReasonList !== undefined) {
+      model.unplayableReasons = unplayableReasonList;
     }
     return model;
   });

@@ -181,16 +181,23 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* Playable-count status as a HUD chip: mint + a soft pulse when the player
+   can act, calm muted grey (no alarm) when nothing is playable. */
 .hand-board__playable {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    padding: 2px 10px 2px 8px;
+    border-radius: 999px;
     font-size: 11.5px;
     letter-spacing: 0.4px;
     text-transform: uppercase;
     color: @hc-ready;
     font-weight: 600;
     white-space: nowrap;
+    border: 1px solid fade(@hc-ready, 38%);
+    background: fade(@hc-ready, 11%);
+    transition: color 160ms, border-color 160ms, background 160ms;
 }
 .hand-board__playable-dot {
     width: 7px;
@@ -198,6 +205,22 @@
     border-radius: 50%;
     background: @hc-ready;
     box-shadow: 0 0 7px fade(@hc-ready, 70%);
+    animation: hand-playable-pulse 2.6s ease-in-out infinite;
+}
+@keyframes hand-playable-pulse {
+    0%, 100% { opacity: 0.6; }
+    50%      { opacity: 1; }
+}
+.hand-board__playable--zero {
+    color: @hc-text-muted;
+    border-color: rgba(170, 195, 220, 0.22);
+    background: rgba(170, 195, 220, 0.06);
+
+    .hand-board__playable-dot {
+        background: @hc-text-muted;
+        box-shadow: none;
+        animation: none;
+    }
 }
 
 .hand-board__close {
@@ -487,12 +510,23 @@
 /* ── Body / adaptive grid ──────────────────────────────────────────── */
 
 .hand-board__body {
+    /* Default before the JS fit engine (HandCardsOverlay.fit) sizes cards to
+       the available space. The engine sets `--hand-card-zoom` inline between
+       MIN and MAX, scaling DOWN from large only as far as needed so a small
+       hand reads roomy and scroll is a last resort. */
     --hand-card-zoom: 0.62;
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 16px 18px 22px;
+    padding: 18px 18px 24px;
+
+    /* Calm "card tray" surface — a faint glass plate the cards sit on, so the
+       zone reads as the player's hand tablet rather than items on a void.
+       Kept very subtle (CLAUDE goal: no noise). */
+    background:
+        radial-gradient(130% 70% at 50% -4%, rgba(106, 176, 230, 0.055), transparent 62%),
+        linear-gradient(180deg, rgba(8, 13, 21, 0), rgba(8, 13, 21, 0.22));
 
     /* Custom thin scrollbar (no native look) */
     scrollbar-width: thin;
@@ -514,9 +548,12 @@
 
 .hand-board__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, calc(300px * var(--hand-card-zoom)));
+    /* auto-FIT (not auto-fill): empty tracks collapse, so a small hand stays
+       a centred cluster (via justify-content) instead of hugging the left,
+       while a full hand spreads across the whole width. */
+    grid-template-columns: repeat(auto-fit, calc(300px * var(--hand-card-zoom)));
     justify-content: center;
-    gap: 26px 22px;
+    gap: 24px 22px;
     align-content: start;
     /* Positioning context for leaving cards: `@before-leave` pins each
        leaving card with absolute left/top measured against THIS box, so
@@ -542,6 +579,8 @@
     position: relative;
     cursor: pointer;
     transition: transform 170ms cubic-bezier(0.22, 1, 0.36, 1), filter 170ms;
+    /* Resting depth so cards read as physical cards laid on the tray. */
+    filter: drop-shadow(0 5px 11px rgba(0, 0, 0, 0.42));
 
     /* Zero the legacy asymmetric 30px right margin so the card silhouette
        centers under the action button (see CLAUDE.md "Centering UI"). */
@@ -554,18 +593,19 @@
 /* Playable: calm premium lift + glow on hover. */
 .hand-card-item:not(.hand-card-item--unplayable) .hand-card-item__card:hover {
     transform: translateY(-5px) scale(1.018);
-    filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 10px fade(@hc-ready, 35%));
+    filter: drop-shadow(0 11px 20px rgba(0, 0, 0, 0.52)) drop-shadow(0 0 11px fade(@hc-ready, 32%));
 }
 
-/* Unplayable: dimmed like the draft/select disabled cards. */
+/* Unplayable: dimmed like the draft/select disabled cards, but still legible.
+   Resting depth is kept (lighter) so they still sit on the tray. */
 .hand-card-item--unplayable .hand-card-item__card {
-    filter: grayscale(0.55) brightness(0.62);
-    opacity: 0.8;
+    filter: grayscale(0.55) brightness(0.62) drop-shadow(0 4px 9px rgba(0, 0, 0, 0.4));
+    opacity: 0.82;
     transition: filter 170ms, opacity 170ms;
 }
 .hand-card-item--unplayable .hand-card-item__card:hover {
-    filter: grayscale(0.4) brightness(0.72);
-    opacity: 0.92;
+    filter: grayscale(0.36) brightness(0.74) drop-shadow(0 7px 14px rgba(0, 0, 0, 0.46));
+    opacity: 0.94;
 }
 
 /* ── Play button ───────────────────────────────────────────────────── */
@@ -602,15 +642,25 @@
         transition: opacity 160ms;
     }
 
+    /* Calm by default — a mint glass action footer that reads as clearly
+       clickable but never out-shouts the card above it. The lift + glow are
+       reserved for hover / focus (CLAUDE goal #3). */
     &--ready {
-        color: #04130d;
-        background: linear-gradient(180deg, lighten(@hc-ready, 8%), darken(@hc-ready, 6%));
-        box-shadow: 0 4px 12px fade(@hc-ready, 30%), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+        color: #aef0d3;
+        background: linear-gradient(180deg, rgba(46, 78, 70, 0.5), rgba(28, 50, 46, 0.58));
+        box-shadow: inset 0 0 0 1px fade(@hc-ready, 30%);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+        transition: transform 130ms, box-shadow 180ms, background 180ms, color 180ms;
 
-        &:hover {
+        &:hover,
+        &:focus-visible {
+            color: #f1fff8;
+            background: linear-gradient(180deg, fade(@hc-ready, 90%), darken(@hc-ready, 8%));
+            box-shadow: 0 6px 16px fade(@hc-ready, 38%), inset 0 0 0 1px rgba(255, 255, 255, 0.26);
             transform: translateY(-1px);
-            box-shadow: 0 7px 18px fade(@hc-ready, 45%), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+            text-shadow: none;
         }
+        &:hover { color: #04130d; }
         &:hover .hand-card-play-btn__glow { opacity: 1; }
         &:active { transform: translateY(0); }
     }
@@ -635,67 +685,148 @@
 
 .hand-reason {
     position: absolute;
-    bottom: calc(100% + 8px);
+    bottom: calc(100% + 9px);
     left: 50%;
     transform: translateX(-50%);
     z-index: 20;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    max-width: 240px;
-    padding: 7px 11px 7px 9px;
-    border-radius: 8px;
-    border: 1px solid rgba(214, 64, 64, 0.45);
-    background: linear-gradient(180deg, rgba(28, 18, 22, 0.98), rgba(18, 12, 16, 0.98));
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(214, 64, 64, 0.12);
-    color: #f4e6e6;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.25;
-    white-space: normal;
+    width: max-content;
+    min-width: 186px;
+    max-width: 272px;
+    padding: 9px 11px 10px;
+    border-radius: 9px;
+    border: 1px solid rgba(214, 64, 64, 0.4);
+    background: linear-gradient(180deg, rgba(23, 17, 22, 0.985), rgba(14, 11, 15, 0.985));
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.62), inset 0 0 0 1px rgba(214, 64, 64, 0.1);
+    color: #f3e8e8;
     text-align: left;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 
-    /* downward caret */
+    /* caret — `--reason-caret` keeps it on the button after a sideways nudge */
     &::after {
         content: '';
         position: absolute;
         top: 100%;
-        left: 50%;
+        left: calc(50% + var(--reason-caret, 0px));
         transform: translateX(-50%);
         border: 6px solid transparent;
-        border-top-color: rgba(18, 12, 16, 0.98);
+        border-top-color: rgba(14, 11, 15, 0.985);
     }
 
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 7px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(214, 64, 64, 0.18);
+    }
+    &__lock { color: @hc-event; font-size: 10px; flex-shrink: 0; }
+    &__head-label {
+        font-family: Prototype, Orbitron, sans-serif;
+        font-size: 10.5px;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: #f1cccc;
+    }
+
+    &__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    &__row {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding-left: 9px;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.25;
+    }
     &__bar {
+        position: absolute;
+        left: 0;
+        top: 2px;
+        bottom: 2px;
         width: 3px;
-        align-self: stretch;
         border-radius: 2px;
         background: @hc-event;
-        box-shadow: 0 0 7px fade(@hc-event, 70%);
-        flex-shrink: 0;
+        box-shadow: 0 0 6px fade(@hc-event, 60%);
     }
-    &__lock {
-        color: @hc-event;
-        font-size: 10px;
-        flex-shrink: 0;
-    }
-    &__text { flex: 1; min-width: 0; }
-    &__tag.card-tag {
-        width: 20px;
-        height: 20px;
+    &__icon.card-tag {
+        width: 19px;
+        height: 19px;
         margin: 0;
         flex-shrink: 0;
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
     }
-    &__res.resource_icon { flex-shrink: 0; }
-    &__mult {
+    &__icon.resource_icon { flex-shrink: 0; }
+    &__glyph {
+        width: 7px;
+        height: 7px;
+        flex-shrink: 0;
+        border-radius: 2px;
+        background: @hc-event;
+        box-shadow: 0 0 6px fade(@hc-event, 55%);
+        transform: rotate(45deg);
+    }
+    &__text { flex: 1; min-width: 0; }
+    &__now {
+        flex-shrink: 0;
         font-family: Prototype, Orbitron, monospace;
-        color: @hc-cyan;
-        font-size: 12px;
+        font-size: 10.5px;
+        font-variant-numeric: tabular-nums;
+        color: #f0b9b9;
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: rgba(214, 64, 64, 0.16);
+        border: 1px solid rgba(214, 64, 64, 0.28);
+    }
+
+    /* Category accents — recolour the marker (and "now" badge) per reason
+       type so the player can scan resource vs. requirement vs. phase at a
+       glance, while the popover stays a calm dark-glass card. */
+    &__row--megacredits &__bar,
+    &__row--megacredits &__glyph { background: #f2c14e; box-shadow: 0 0 6px fade(#f2c14e, 55%); }
+    &__row--megacredits &__now { color: #f3dca0; background: rgba(242, 193, 78, 0.14); border-color: rgba(242, 193, 78, 0.3); }
+    &__row--globalParameter &__bar,
+    &__row--globalParameter &__glyph,
+    &__row--tr &__bar,
+    &__row--tr &__glyph { background: @hc-cyan; box-shadow: 0 0 6px fade(@hc-cyan, 55%); }
+    &__row--globalParameter &__now,
+    &__row--tr &__now { color: #cfe6fb; background: rgba(106, 176, 230, 0.16); border-color: rgba(106, 176, 230, 0.32); }
+    &__row--production &__now { color: #cfe6fb; background: rgba(106, 176, 230, 0.16); border-color: rgba(106, 176, 230, 0.32); }
+    &__row--placement &__bar,
+    &__row--placement &__glyph { background: #d09a64; box-shadow: 0 0 6px fade(#d09a64, 55%); }
+    &__row--target &__bar,
+    &__row--target &__glyph { background: #b483d6; box-shadow: 0 0 6px fade(#b483d6, 55%); }
+    &__row--party &__bar,
+    &__row--party &__glyph { background: #b483d6; box-shadow: 0 0 6px fade(#b483d6, 55%); }
+    &__row--turn &__bar,
+    &__row--turn &__glyph,
+    &__row--phase &__bar,
+    &__row--phase &__glyph,
+    &__row--rule &__bar,
+    &__row--rule &__glyph { background: #8aa0b4; box-shadow: none; }
+}
+
+/* Flip below the button when there isn't room above (set by HandCardItem). */
+.hand-card-item__disabled--below .hand-reason {
+    bottom: auto;
+    top: calc(100% + 9px);
+    &::after {
+        top: auto;
+        bottom: 100%;
+        border-top-color: transparent;
+        border-bottom-color: rgba(14, 11, 15, 0.985);
     }
 }
 
