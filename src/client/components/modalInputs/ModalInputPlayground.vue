@@ -46,6 +46,7 @@
                                       @cancel="onSave('colony-trade cancel')" />
         </div>
       </section>
+
     </div>
   </div>
 </template>

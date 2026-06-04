@@ -53,6 +53,16 @@
         :player-view="playerView"
         :waiting-on-players="playersWaitingFor" />
       <!--
+        Unified start-of-game orchestration modal. App-level (like
+        DraftFlowOverlay) so the playerkey remount can't destroy the flow
+        mid-sequence. Self-gates via startGameFlowActive(playerView): only
+        mounts in generation 1 while preludes / the corp first action are owed.
+      -->
+      <StartGameFlowOverlay
+        v-if="screen === 'player-home' && playerView !== undefined"
+        :player-view="playerView"
+        :waiting-on-players="playersWaitingFor" />
+      <!--
         Premium "you drew cards" reveal modal. App-level (like DraftFlowOverlay)
         so the playerkey remount can't destroy the deal/collect animation or the
         per-card take progress mid-reveal. Driven entirely by the module-level
@@ -120,6 +130,7 @@ const PlayerHome = defineAsyncComponent(() => import(/* webpackChunkName: "playe
 const SpectatorHome = defineAsyncComponent(() => import(/* webpackChunkName: "spectator-home" */ '@/client/components/SpectatorHome.vue'));
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
+import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
 const ModalInputPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "modal-input-playground" */ '@/client/components/modalInputs/ModalInputPlayground.vue'));
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
@@ -233,6 +244,7 @@ export default defineComponent({
     'admin-home': AdminHome,
     'login-home': LoginHome,
     DraftFlowOverlay,
+    StartGameFlowOverlay,
     ModalInputPlayground,
     JournalPanel,
     DrawCardRevealFlow,

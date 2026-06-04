@@ -345,18 +345,17 @@
     -->
     <Teleport to="body">
       <div v-if="handPillVisible"
-           class="hand-select-pill"
+           class="hand-select-pill mandatory-input-modal-pill mandatory-input-modal-pill--visible"
            role="button"
            tabindex="0"
-           :title="$t('Click to resume the card selection')"
            @click="restoreHandPill"
            @keydown.enter="restoreHandPill"
            @keydown.space="restoreHandPill">
-        <span class="hand-select-pill__dot" aria-hidden="true"></span>
-        <span class="hand-select-pill__label">{{ handPillLabel }}</span>
-        <span class="hand-select-pill__sep" aria-hidden="true">/</span>
-        <span class="hand-select-pill__title">{{ handPillTitle }}</span>
-        <span class="hand-select-pill__restore" aria-hidden="true">⤢</span>
+        <span class="mandatory-input-modal-pill__dot" aria-hidden="true"></span>
+        <span class="mandatory-input-modal-pill__label">{{ handPillLabel }}</span>
+        <span class="mandatory-input-modal-pill__sep" aria-hidden="true">/</span>
+        <span class="mandatory-input-modal-pill__title">{{ handPillTitle }}</span>
+        <span class="mandatory-input-modal-pill__restore" aria-hidden="true">⤢</span>
       </div>
     </Teleport>
 
@@ -1605,10 +1604,11 @@ export default defineComponent({
              (standardProjectPlayState.active && standardProjectPlayState.minimized);
     },
     handPillLabel(): string {
-      if (standardProjectPlayState.active) {
-        return translateText('STANDARD PROJECT');
-      }
-      return handPlayState.active ? translateText('PLAY A CARD') : translateText('SELECT CARDS');
+      // Unified with the mandatory-modal pill ("ОЖИДАЕТ РЕШЕНИЯ") so every
+      // awaiting-prompt pill reads the same — the "ожидает" wording underlines
+      // that the action is mandatory and can't be skipped. The specific kind
+      // (play / select / standard project) is conveyed by the title below.
+      return translateText('AWAITING DECISION');
     },
     handPillTitle(): string {
       let title: string | Message = handSelectState.title;
@@ -1660,7 +1660,31 @@ export default defineComponent({
       return playerView.players.length > 1 && playerView.waitingFor !== undefined;
     },
     toggleOverlay(id: OverlayId): void {
+      // Leaving an overlay that hosts a MANDATORY prompt via the bottom bar
+      // (toggle it off, or switch to another overlay) must minimize the pending
+      // prompt to its pill — otherwise the overlay vanishes and the player loses
+      // track of an action they MUST complete. (The ✕ and outside-click paths
+      // already minimize; this was the missing button / overlay-switch path.)
+      // From a prompt overlay, ANY toggle leaves it (toggle-off → null, or
+      // switch → another overlay), so minimize unconditionally when on one.
+      if (this.activeOverlay === 'cards' || this.activeOverlay === 'standardProjects') {
+        this.minimizeMandatoryHandPrompts();
+      }
       this.activeOverlay = this.activeOverlay === id ? null : id;
+    },
+    // Minimize whichever mandatory hand/standard-project prompt is currently
+    // active to its shared pill (no-op when none is active). Shared by every
+    // "close the hosting overlay while the prompt is still pending" path.
+    minimizeMandatoryHandPrompts(): void {
+      if (handSelectState.active) {
+        handSelectState.minimized = true;
+      }
+      if (handPlayState.active) {
+        handPlayState.minimized = true;
+      }
+      if (standardProjectPlayState.active) {
+        standardProjectPlayState.minimized = true;
+      }
     },
     // The journal is a side panel, not a board-covering bar-overlay, so
     // it has its own toggle. An already-open overlay is NOT closed when
@@ -1720,15 +1744,7 @@ export default defineComponent({
       // A mandatory prompt (hand select / hand play / standard project) can't be
       // dismissed by clicking away — minimize it to its pill instead of
       // dropping the overlay.
-      if (handSelectState.active) {
-        handSelectState.minimized = true;
-      }
-      if (handPlayState.active) {
-        handPlayState.minimized = true;
-      }
-      if (standardProjectPlayState.active) {
-        standardProjectPlayState.minimized = true;
-      }
+      this.minimizeMandatoryHandPrompts();
       this.activeOverlay = null;
     },
     // Recursively walks the waitingFor tree looking for an OrOptions whose
@@ -2542,12 +2558,7 @@ export default defineComponent({
     // hand-select prompt is pending, "close" MINIMIZES to a pill (the prompt
     // can't be dismissed) instead of dropping the overlay.
     onHandOverlayClose(): void {
-      if (handSelectState.active) {
-        handSelectState.minimized = true;
-      }
-      if (handPlayState.active) {
-        handPlayState.minimized = true;
-      }
+      this.minimizeMandatoryHandPrompts();
       this.activeOverlay = null;
     },
     // Restore the minimized mandatory overlay from the shared pill — re-opens
@@ -2565,9 +2576,7 @@ export default defineComponent({
     // sets activeOverlay=null directly to show the payment step — that path
     // doesn't go through here, so it doesn't minimize.)
     onStdProjectOverlayClose(): void {
-      if (standardProjectPlayState.active) {
-        standardProjectPlayState.minimized = true;
-      }
+      this.minimizeMandatoryHandPrompts();
       this.activeOverlay = null;
     },
     // ─── Play a card from the hand overlay ─────────────────────────────
