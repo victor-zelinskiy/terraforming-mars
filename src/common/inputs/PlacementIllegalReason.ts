@@ -59,6 +59,11 @@ export type PlacementIllegalReason =
   | 'no-triangle-with-this-space'
   | 'breaks-current-triangle'
   | 'not-enough-adjacent-oceans'
+  | 'requires-adjacent-greenery'
+  | 'requires-adjacent-city'
+  | 'requires-adjacent-ocean'
+  | 'requires-2-adjacent-cities'
+  | 'ocean-requires-adjacent-greenery'
   // ── Fallback ─────────────────────────────────────────────────────────
   | 'unavailable';
 
@@ -107,6 +112,11 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
   'no-triangle-with-this-space': 'Not part of any valid triangle',
   'breaks-current-triangle': 'Not in a triangle with your prior picks',
   'not-enough-adjacent-oceans': 'Needs at least 2 adjacent ocean tiles',
+  'requires-adjacent-greenery': 'Must be adjacent to a greenery',
+  'requires-adjacent-city': 'Must be adjacent to a city',
+  'requires-adjacent-ocean': 'Must be adjacent to an ocean',
+  'requires-2-adjacent-cities': 'Must be adjacent to at least 2 cities',
+  'ocean-requires-adjacent-greenery': 'Ocean must be adjacent to a greenery',
   // Fallback
   'unavailable': 'Not available for this placement',
 };

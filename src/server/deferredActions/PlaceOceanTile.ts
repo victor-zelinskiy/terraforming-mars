@@ -6,6 +6,7 @@ import {Space} from '../boards/Space';
 import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
+import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 
 type Options = {
   title?: string | Message,
@@ -13,6 +14,9 @@ type Options = {
   spaces?: Array<Space>,
   /** For Icy Impactors */
   creditedPlayer?: IPlayer,
+  // Card-specific per-cell reason for cells excluded by a custom `spaces`
+  // filter (e.g. PolderTech's "ocean must be adjacent to a greenery").
+  customReasoner?: (space: Space) => PlacementIllegalReason | undefined,
 };
 
 export class PlaceOceanTile extends DeferredAction<Space | undefined> {
@@ -48,7 +52,7 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
       placementType = on;
     }
 
-    return createMarsSelectSpace(this.player, title, availableSpaces, {placementType})
+    return createMarsSelectSpace(this.player, title, availableSpaces, {placementType, customReasoner: this.options.customReasoner})
       .andThen((space) => {
         this.creditedPlayer.game.addOcean(this.creditedPlayer, space);
         this.creditedPlayer.defer(this.cb(space));

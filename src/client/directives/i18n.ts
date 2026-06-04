@@ -36,6 +36,18 @@ export function translateMessage(message: Message): string {
       return context.players.get(datum.value) ?? datum.value;
     case LogMessageDataType.TILE_TYPE:
       return tileTypeToString[datum.value];
+    case LogMessageDataType.CARD: {
+      const cardValue = String(datum.value);
+      const translatedCard = translateText(cardValue);
+      // Variant cards (`:promo` / `:venus` / …) carry a `Name:variant` enum id;
+      // the dictionary only keys the BASE name, so when the full id isn't
+      // translated fall back to the part before the colon. Fixes prompts like
+      // "Select space for Deimos Down:promo tile" showing the raw id.
+      if (translatedCard === cardValue && cardValue.includes(':')) {
+        return translateText(cardValue.substring(0, cardValue.indexOf(':')));
+      }
+      return translatedCard;
+    }
     default:
       return translateText(String(datum.value));
     }

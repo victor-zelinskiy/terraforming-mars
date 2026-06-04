@@ -2,7 +2,7 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {IProjectCard} from '../IProjectCard';
 import {IPlayer} from '../../IPlayer';
-import {SelectSpace} from '../../inputs/SelectSpace';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {CardName} from '../../../common/cards/CardName';
 import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
@@ -27,9 +27,14 @@ export class LandClaim extends Card implements IProjectCard {
     return player.game.board.getNonReservedLandSpaces().length > 0;
   }
   public override bespokePlay(player: IPlayer) {
-    return new SelectSpace(
+    // Land Claim marks any non-reserved land. Off-limits cells get their
+    // generic reason (occupied / reserved-noctis / reserved-colony /
+    // owned-by-other / ocean-only) — no card-specific rule, so no customReasoner.
+    return createMarsSelectSpace(
+      player,
       'Select space for claim',
-      player.game.board.getNonReservedLandSpaces())
+      player.game.board.getNonReservedLandSpaces(),
+      {placementType: 'land'})
       .andThen((space) => {
         space.player = player;
         LogHelper.logBoardTileAction(player, space, 'land claim');

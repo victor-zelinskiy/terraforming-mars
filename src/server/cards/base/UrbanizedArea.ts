@@ -55,10 +55,21 @@ export class UrbanizedArea extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
+    const board = player.game.board;
+    const cityPlaceable = new Set(board.getAvailableSpacesForCity(player).map((s) => s.id));
     const spaces = MarsBoard.filterForEnergy(player, this.getAvailableSpaces(player));
     player.game.defer(new PlaceCityTile(player, {
       title: 'Select space next to at least 2 other city tiles',
       spaces,
+      customReasoner: (space) => {
+        // A city-placeable cell that simply doesn't have 2 adjacent cities.
+        // (A qualifying cell filtered out by energy coverage keeps the generic
+        // reason.)
+        if (cityPlaceable.has(space.id) && board.getAdjacentSpaces(space).filter((s) => Board.isCitySpace(s)).length < 2) {
+          return 'requires-2-adjacent-cities';
+        }
+        return undefined;
+      },
     })).andThen(() => {
       player.game.defer(new LoseProduction(player, Resource.ENERGY, {count: 1}));
     });

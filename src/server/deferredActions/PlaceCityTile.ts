@@ -5,6 +5,7 @@ import {Priority} from './Priority';
 import {PlacementType} from '../boards/PlacementType';
 import {Message} from '../../common/logs/Message';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
+import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 
 export class PlaceCityTile extends DeferredAction<Space | undefined> {
   constructor(
@@ -13,6 +14,9 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       on?: PlacementType,
       title?: string | Message,
       spaces?: ReadonlyArray<Space>,
+      // Card-specific per-cell reason for cells excluded by a custom `spaces`
+      // filter (e.g. UrbanizedArea's "2+ adjacent cities", LavaTube's volcanic).
+      customReasoner?: (space: Space) => PlacementIllegalReason | undefined,
     }) {
     super(player, Priority.DEFAULT);
   }
@@ -26,7 +30,7 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       this.cb(undefined);
       return undefined;
     }
-    return createMarsSelectSpace(this.player, title, spaces, {placementType: type})
+    return createMarsSelectSpace(this.player, title, spaces, {placementType: type, customReasoner: this.options?.customReasoner})
       .andThen((space) => {
         this.player.game.addCity(this.player, space);
         this.cb(space);

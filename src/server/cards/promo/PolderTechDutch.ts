@@ -45,7 +45,17 @@ export class PolderTechDutch extends CorporationCard implements ICorporationCard
       return board.getAdjacentSpaces(space).some((adjacentSpace) => greenerySpaces.includes(adjacentSpace));
     });
 
-    player.game.defer(new PlaceOceanTile(player, {spaces: oceanSpacesNextToGreenerySpaces}))
+    player.game.defer(new PlaceOceanTile(player, {
+      spaces: oceanSpacesNextToGreenerySpaces,
+      customReasoner: (space) => {
+        // Ocean-placeable cell that isn't next to a land cell where the paired
+        // greenery could go — the one rule for this step.
+        if (oceanSpaces.includes(space) && !board.getAdjacentSpaces(space).some((a) => greenerySpaces.includes(a))) {
+          return 'ocean-requires-adjacent-greenery';
+        }
+        return undefined;
+      },
+    }))
       .andThen((space) => {
         // Should not happen.
         if (space === undefined) {

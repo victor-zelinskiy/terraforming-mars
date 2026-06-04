@@ -1603,6 +1603,27 @@
     .hand-card-item__sale-tick { color: @hc-cyan; }
 }
 
+/* Mandatory SELECT mode: a card OUTSIDE the prompt's candidate set (filtered
+   prompt) is shown for context but dimmed, with its toggle disabled, so the
+   player can see it isn't a valid pick. */
+.hand-card-item--select-disabled {
+    .hand-card-item__card {
+        filter: grayscale(0.85) brightness(0.62);
+        opacity: 0.55;
+    }
+    .hand-card-sell-btn {
+        opacity: 0.4;
+        cursor: not-allowed;
+        &:hover, &:focus-visible {
+            transform: none;
+            box-shadow: none;
+            border-color: fade(@hc-cyan, 32%);
+            color: #cfe6fb;
+        }
+        &:hover .hand-card-sell-btn__glow { opacity: 0; }
+    }
+}
+
 /* Minimized mandatory-select pill. Floats at the top of the viewport while the
    player inspects the board; click to re-open the overlay in select mode. */
 .hand-select-pill {
