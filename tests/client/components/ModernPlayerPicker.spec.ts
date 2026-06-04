@@ -19,7 +19,7 @@ describe('ModernPlayerPicker', () => {
     ],
   };
 
-  it('commits the picked player', async () => {
+  it('selects a target then commits via the confirm CTA', async () => {
     let saved: InputResponse | undefined;
     const component = factory(
       {type: 'player', title: 'Select a player to attack', buttonLabel: '', players: ['red', 'blue']},
@@ -31,7 +31,12 @@ describe('ModernPlayerPicker', () => {
     const buttons = component.findAll('[data-test^="modern-player-"]');
     expect(buttons.length).to.eq(2);
     expect(component.find('[data-test="modern-player-blue"]').text()).to.include('Bob');
+    // Clicking a target SELECTS it (no commit yet) — the CTA appears.
+    expect(component.find('[data-test="modern-player-confirm"]').exists()).to.eq(false);
     await component.find('[data-test="modern-player-red"]').trigger('click');
+    expect(saved).to.eq(undefined);
+    // Confirm commits the selected target.
+    await component.find('[data-test="modern-player-confirm"]').trigger('click');
     expect(saved).to.deep.eq({type: 'player', player: 'red'});
   });
 

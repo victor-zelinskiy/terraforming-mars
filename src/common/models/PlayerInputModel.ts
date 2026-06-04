@@ -119,6 +119,11 @@ export type SelectPlayerModel = BaseInputModel & {
   // `amount` the magnitude. Backward-compatible — omit for a bare player list.
   icon?: string;
   amount?: number;
+  // Whether `icon`/`amount` affect the player's resource STOCK (e.g. spend M€)
+  // or their PRODUCTION rate (e.g. decrease energy production). Lets the premium
+  // picker read the right per-target value and frame the icon accordingly.
+  // Defaults to 'stock' when omitted.
+  scope?: 'stock' | 'production';
 }
 
 export type SelectSpaceModel = BaseInputModel & {

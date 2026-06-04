@@ -36,10 +36,27 @@ import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {setTranslationContext} from '@/client/directives/i18n';
 import {MANDATORY_MODAL_PICKER_SETTER} from '@/client/components/MandatoryInputModal.vue';
 
-// Two mock players so player-target options + colour accents render.
+// Two mock players, full enough that the rich target picker can read each
+// player's stock + production + corporation. Victor (red) is `thisPlayer` so
+// the self-target warning renders; Nastya (blue) has 0 energy production and
+// only 2 M€ so the disabled-production and capped-stock states are demoable.
+function mockPlayer(color: string, name: string, corp: string, overrides: Record<string, unknown>) {
+  return {
+    color, name,
+    tableau: [{name: corp}],
+    energy: 4, energyProduction: 2,
+    heat: 6, heatProduction: 1,
+    megacredits: 30, megacreditProduction: 3,
+    plants: 6, plantProduction: 2,
+    steel: 3, steelProduction: 1,
+    titanium: 2, titaniumProduction: 0,
+    cardCost: 3,
+    ...overrides,
+  };
+}
 const PLAYERS = [
-  {color: 'red', name: 'Victor', plants: 6, megacredits: 40, cardCost: 3},
-  {color: 'blue', name: 'Nastya', plants: 6, megacredits: 22, cardCost: 3},
+  mockPlayer('red', 'Victor', 'Tharsis Republic', {energyProduction: 2, megacredits: 40}),
+  mockPlayer('blue', 'Nastya', 'Ecoline', {energyProduction: 0, megacredits: 2, plants: 9}),
 ];
 
 function player(color: string) {
@@ -65,7 +82,7 @@ export default defineComponent({
       playerView: {
         id: 'p-dev',
         players: PLAYERS,
-        thisPlayer: {color: 'red', name: 'Victor', plants: 6, megacredits: 40, cardCost: 3},
+        thisPlayer: PLAYERS[0],
         game: {phase: 'action'},
         cardsInHand: [],
       } as any,
@@ -130,12 +147,16 @@ export default defineComponent({
           },
         },
         {
-          label: 'SelectPlayer — remove M€ (Flooding / Comet for Venus)',
-          input: {type: 'player', title: 'Select player to remove up to 4 M€ from', buttonLabel: 'Remove M€', players: ['red', 'blue'], icon: 'megacredits', amount: 4},
+          label: 'SelectPlayer — decrease energy production (Energy Tapping) · self + disabled',
+          input: {type: 'player', title: {message: 'Select player to decrease ${0} production by ${1} step(s)', data: [raw('energy'), raw(1)]}, buttonLabel: 'Decrease', players: ['red', 'blue'], icon: 'energy', amount: 1, scope: 'production'},
         },
         {
-          label: 'SelectPlayer — decrease production (Energy Tapping)',
-          input: {type: 'player', title: {message: 'Select player to decrease ${0} production by ${1} step(s)', data: [raw('energy'), raw(1)]}, buttonLabel: 'Decrease', players: ['red', 'blue'], icon: 'energy', amount: 1},
+          label: 'SelectPlayer — remove M€ (Flooding / LawSuit) · stock + capped',
+          input: {type: 'player', title: 'Select player to remove up to 4 M€ from', buttonLabel: 'Remove M€', players: ['red', 'blue'], icon: 'megacredits', amount: 4, scope: 'stock'},
+        },
+        {
+          label: 'SelectPlayer — plain (no impact metadata)',
+          input: {type: 'player', title: 'Select player to discard a card', buttonLabel: 'Select', players: ['red', 'blue']},
         },
         {
           label: 'SelectAmount — heat production (Insulation)',
@@ -177,6 +198,11 @@ export default defineComponent({
       }
       if (input.type === 'option' && input.metadata !== undefined) {
         return [{text: 'metadata', kind: 'ok'}];
+      }
+      if (input.type === 'player') {
+        return input.icon !== undefined ?
+          [{text: 'rich target (' + (input.scope ?? 'stock') + ')', kind: 'ok'}] :
+          [{text: 'plain target', kind: 'warn'}];
       }
       return [{text: input.type, kind: 'neutral'}];
     },
