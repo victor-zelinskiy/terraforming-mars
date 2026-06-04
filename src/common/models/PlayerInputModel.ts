@@ -115,6 +115,15 @@ export type SelectCardModel = BaseInputModel & {
 export type SelectColonyModel = BaseInputModel & {
   type: 'colony';
   coloniesModel: ReadonlyArray<ColonyModel>;
+  // Distinguishes "pick an existing in-game colony" (show ALL game colonies,
+  // disabling the unpickable ones) from "add a NEW colony tile to the game"
+  // (show only the offered tiles). Defaults to 'selectExistingColony'.
+  purpose?: 'selectExistingColony' | 'addNewColonyToGame';
+  // OPTIONAL relevant-but-unpickable colonies shown DISABLED with a reason —
+  // populated by the server for rule failures the client can't derive (e.g.
+  // Venus/Europa/Leavitt TR affordability). The selectable `coloniesModel` is
+  // what the server validates against; these never submit.
+  disabledColonies?: ReadonlyArray<{name: import('../colonies/ColonyName').ColonyName, reason: string | Message}>;
 }
 
 export type SelectPaymentModel = BaseInputModel & {
