@@ -119,6 +119,7 @@ import {clearIfPhaseLeftCardPick, clearDraftWaitPending, shouldPreserveCardPickM
 import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
 import {shouldPreserveSaleOverlay} from '@/client/components/handCards/sellPatentsState';
 import {handPlayPrompt} from '@/client/components/handCards/handPlayState';
+import {standardProjectPlayPrompt} from '@/client/components/handCards/standardProjectPlayState';
 import {Message} from '@/common/logs/Message';
 import {
   applyTilePlacementPreview,
@@ -690,12 +691,15 @@ export default defineComponent({
       if (wf === undefined) {
         return false;
       }
-      // A top-level `projectCard` whose candidates are all in hand is a "play a
-      // card from hand" prompt (EccentricSponsor / EcologyExperts) — the КАРТЫ
-      // В РУКЕ overlay hosts it via the normal РАЗЫГРАТЬ play flow, so suppress
-      // the modal route. Standard-project play prompts (cards not in hand) still
-      // go to the modal.
-      if (wf.type === 'projectCard' && handPlayPrompt(this.playerViewForPrompt) !== undefined) {
+      // A top-level `projectCard` is hosted by a dedicated overlay, not the
+      // modal: "play a card from hand" (EccentricSponsor / EcologyExperts,
+      // candidates ⊆ hand) → КАРТЫ В РУКЕ overlay; "play a standard project"
+      // (EstablishedMethods, candidates are standard projects) → Standard
+      // Projects overlay. Suppress the modal route for both. (A degenerate
+      // projectCard matching neither still falls back to the modal.)
+      if (wf.type === 'projectCard' &&
+          (handPlayPrompt(this.playerViewForPrompt) !== undefined ||
+           standardProjectPlayPrompt(this.playerViewForPrompt) !== undefined)) {
         return false;
       }
       return shouldRouteToModal(wf);

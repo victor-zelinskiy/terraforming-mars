@@ -1,7 +1,14 @@
 <template>
   <div class="std-projects-overlay">
     <div class="std-projects-overlay-header">
-      <div class="std-projects-overlay-title" v-i18n>Standard Projects</div>
+      <div class="std-projects-overlay-title-group">
+        <div class="std-projects-overlay-title" v-i18n>Standard Projects</div>
+        <!-- When the overlay is opened by a CARD (a top-level
+             SelectStandardProjectToPlay, e.g. EstablishedMethods), show that
+             card's prompt title so the player knows the context — not just the
+             generic "Standard Projects" header. -->
+        <div v-if="cardPromptTitle !== ''" class="std-projects-overlay-subtitle">{{ cardPromptTitle }}</div>
+      </div>
       <div class="std-projects-overlay-close" @click="$emit('close')">✕</div>
     </div>
 
@@ -78,6 +85,7 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {PROJECT_VISUAL} from '@/client/components/overview/standardProjectVisuals';
 import {SELL_PATENTS_RATE} from '@/client/components/handCards/sellPatentsState';
+import {translateText, translateMessage} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'StandardProjectsOverlay',
@@ -114,6 +122,20 @@ export default defineComponent({
   computed: {
     projects(): ReadonlyArray<StandardProjectModel> {
       return this.game.standardProjects;
+    },
+    // Card-driven prompt title (e.g. EstablishedMethods' "Select your first
+    // standard project"). Empty for the regular action-menu standard-projects
+    // flow (title 'Standard projects') so the generic header stands alone.
+    cardPromptTitle(): string {
+      const t = this.actionableProjects?.title;
+      if (t === undefined) {
+        return '';
+      }
+      const text = typeof t === 'string' ? t : (t.message ?? '');
+      if (text === '' || text === 'Standard projects') {
+        return '';
+      }
+      return typeof t === 'string' ? translateText(t) : translateMessage(t);
     },
     sellPatentsTooltip(): string {
       if (this.sellPatentsAvailable) {

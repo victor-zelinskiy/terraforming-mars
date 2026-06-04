@@ -47,7 +47,10 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     this.blockable = options?.blockable ?? true;
     this.autoselect = options?.autoselect ?? true;
     this.log = options?.log ?? false;
-    this.title = options?.title ?? (`Select card to remove ${count} ${cardResource}(s)`);
+    // A `message()` (NOT a raw template literal) so the title is a translatable
+    // key — the ${1} resource token is translated client-side, and the template
+    // 'Select card to remove ${0} ${1}' has a single stable i18n key.
+    this.title = options?.title ?? message('Select card to remove ${0} ${1}', (b) => b.number(count).string(cardResource ?? ''));
     if (this.source === 'self') {
       this.priority = Priority.LOSE_RESOURCE_OR_PRODUCTION;
       if (this.blockable) {
