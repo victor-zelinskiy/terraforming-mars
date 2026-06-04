@@ -1,0 +1,407 @@
+/*
+ * StartGameFlowOverlay — the unified premium start-of-game orchestration modal.
+ * Mirrors the MandatoryInputModal chrome (dark-glass card, L-corner ticks,
+ * backdrop) but lays out multiple sections (corp area + prelude grid + waiting +
+ * begin footer) rather than hosting a single input. Reuses the shared
+ * `.mandatory-input-modal-pill` chrome for its minimized pill.
+ */
+
+.start-game-flow {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.start-game-flow__backdrop {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center,
+        rgba(8, 14, 22, 0.6) 0%,
+        rgba(2, 4, 8, 0.88) 100%);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    animation: start-game-flow-backdrop-in 180ms ease-out;
+}
+
+@keyframes start-game-flow-backdrop-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.start-game-flow__card {
+    position: relative;
+    z-index: 1;
+    width: auto;
+    max-width: min(900px, calc(100vw - 48px));
+    padding: 24px 28px 22px;
+    border-radius: 5px;
+    background: linear-gradient(180deg,
+        rgba(18, 28, 42, 0.96) 0%,
+        rgba(10, 18, 28, 0.96) 100%);
+    box-shadow:
+        0 0 0 1px rgba(106, 176, 230, 0.22),
+        0 30px 60px rgba(0, 0, 0, 0.6),
+        0 0 60px rgba(106, 176, 230, 0.12);
+    animation: start-game-flow-card-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    font-family: Prototype, Ubuntu, sans-serif;
+    color: #e8f1fb;
+}
+
+@keyframes start-game-flow-card-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.start-game-flow__corner {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+    border-color: #6ab0e6;
+    opacity: 0.7;
+    filter: drop-shadow(0 0 6px rgba(106, 176, 230, 0.35));
+
+    &--tl { top: -8px; left: -8px;     border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -8px; right: -8px;    border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -8px; left: -8px;  border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -8px; right: -8px; border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────── */
+
+.start-game-flow__header {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+}
+
+.start-game-flow__heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.start-game-flow__heading-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #7fd4ff;
+    box-shadow: 0 0 10px rgba(127, 212, 255, 0.8);
+    animation: start-game-flow-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes start-game-flow-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(0.9); }
+    50%      { opacity: 1; transform: scale(1.15); }
+}
+
+.start-game-flow__title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #eaf3fc;
+    text-shadow: 0 0 12px rgba(106, 176, 230, 0.25);
+}
+
+.start-game-flow__subtitle {
+    margin: 8px 0 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #9bb5d0;
+}
+
+.start-game-flow__progress {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.start-game-flow__chip {
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    border-radius: 3px;
+    border: 1px solid rgba(106, 176, 230, 0.3);
+    background: rgba(20, 36, 52, 0.6);
+    color: #bcd6ee;
+
+    &--ready {
+        border-color: rgba(120, 230, 180, 0.5);
+        background: rgba(24, 70, 52, 0.5);
+        color: #b8f4d6;
+    }
+    &--pending {
+        border-color: rgba(230, 200, 120, 0.45);
+        background: rgba(70, 56, 22, 0.45);
+        color: #f0dca8;
+    }
+    &--done {
+        border-color: rgba(120, 150, 180, 0.35);
+        background: rgba(28, 40, 54, 0.5);
+        color: #9fb6cc;
+    }
+}
+
+/* ─── Body sections ──────────────────────────────────────────────────── */
+
+.start-game-flow__body {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.start-game-flow__section-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #7fb4dc;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.12);
+    padding-bottom: 5px;
+}
+
+/* The legacy `.card-container` margin offsets the card; zero it and scale the
+   card to a compact thumbnail in every start-flow slot. */
+.start-game-flow__card-thumb {
+    position: relative;
+    flex-shrink: 0;
+
+    > .card-container {
+        margin: 0;
+        zoom: 0.6;
+        position: relative;
+        z-index: 0;
+    }
+}
+
+/* ─── Corporation area ───────────────────────────────────────────────── */
+
+.start-game-flow__corp-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.start-game-flow__corp-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.start-game-flow__corp-status {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+
+    &--ready  { color: #b8f4d6; }
+    &--pending { color: #f0dca8; }
+    &--done   { color: #9fb6cc; }
+}
+
+/* ─── Prelude area ───────────────────────────────────────────────────── */
+
+.start-game-flow__prelude-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+}
+
+.start-game-flow__prelude {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    transition: filter 180ms ease, opacity 180ms ease;
+
+    &--played {
+        opacity: 0.78;
+        filter: saturate(0.7);
+    }
+}
+
+.start-game-flow__played-check {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    /* Above the card content (the card-container is z-index 0 in this slot) so
+       the "applied" stamp is never painted under the card's own symbols. */
+    z-index: 3;
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 34px;
+    font-weight: 700;
+    color: #6cf0ac;
+    /* Near-opaque disc so it reads as a clean stamp over any icon beneath it. */
+    background: rgba(6, 24, 16, 0.9);
+    border: 2px solid rgba(108, 240, 172, 0.9);
+    border-radius: 50%;
+    box-shadow: 0 0 18px rgba(108, 240, 172, 0.5), 0 2px 8px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+
+.start-game-flow__prelude-status {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+
+    &--awaiting { color: #9fb6cc; }
+    &--playable { color: #b8f4d6; }
+    &--played   { color: #6cf0ac; }
+}
+
+/* ─── Action buttons (premium dark-glass; play=mint, apply=cyan) ─────── */
+
+.start-game-flow__play-btn,
+.start-game-flow__apply-btn {
+    border: none;
+    cursor: pointer;
+    height: 34px;
+    padding: 0 22px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #eafff5;
+    border-radius: 3px;
+    position: relative;
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.start-game-flow__play-btn {
+    background: linear-gradient(180deg, rgba(70, 200, 150, 0.5), rgba(24, 70, 52, 0.6));
+    box-shadow: inset 0 0 0 1px rgba(120, 230, 180, 0.55);
+    &:hover {
+        transform: translateY(-1px);
+        box-shadow: inset 0 0 0 1px rgba(120, 230, 180, 0.8), 0 6px 16px rgba(40, 160, 110, 0.35);
+    }
+}
+
+.start-game-flow__apply-btn {
+    color: #eaf6ff;
+    background: linear-gradient(180deg, rgba(80, 170, 230, 0.5), rgba(22, 52, 78, 0.6));
+    box-shadow: inset 0 0 0 1px rgba(120, 200, 240, 0.55);
+    &:hover {
+        transform: translateY(-1px);
+        box-shadow: inset 0 0 0 1px rgba(120, 200, 240, 0.85), 0 6px 16px rgba(60, 140, 210, 0.35);
+    }
+}
+
+/* ─── Waiting-for-others ─────────────────────────────────────────────── */
+
+.start-game-flow__waiting {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 0 4px;
+}
+
+.start-game-flow__waiting-dots {
+    display: flex;
+    gap: 8px;
+
+    span {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #6ab0e6;
+        animation: start-game-flow-bounce 1.4s ease-in-out infinite;
+    }
+    span:nth-child(2) { animation-delay: 0.18s; }
+    span:nth-child(3) { animation-delay: 0.36s; }
+}
+
+@keyframes start-game-flow-bounce {
+    0%, 80%, 100% { transform: scale(0.5); opacity: 0.4; }
+    40%           { transform: scale(1); opacity: 1; }
+}
+
+.start-game-flow__waiting-text {
+    margin: 0;
+    font-size: 13px;
+    color: #9bb5d0;
+    text-align: center;
+}
+
+/* ─── Completion footer ──────────────────────────────────────────────── */
+
+.start-game-flow__footer {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(106, 176, 230, 0.18);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.start-game-flow__done-note {
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #b8f4d6;
+}
+
+/* The single strongest control — bright mint plate with dark text + slow glow. */
+.start-game-flow__begin-btn {
+    border: none;
+    cursor: pointer;
+    height: 44px;
+    padding: 0 42px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2.4px;
+    text-transform: uppercase;
+    color: #06231a;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #9cf3cf 0%, #5fd6a6 100%);
+    box-shadow: 0 0 0 1px rgba(120, 230, 180, 0.6), 0 0 24px rgba(95, 214, 166, 0.4);
+    animation: start-game-flow-begin-glow 2.6s ease-in-out infinite;
+    transition: filter 150ms ease, transform 150ms ease;
+
+    &:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.08);
+    }
+}
+
+@keyframes start-game-flow-begin-glow {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(120, 230, 180, 0.6), 0 0 18px rgba(95, 214, 166, 0.3); }
+    50%      { box-shadow: 0 0 0 1px rgba(120, 230, 180, 0.8), 0 0 30px rgba(95, 214, 166, 0.55); }
+}
+
+/* ─── Minimized pill (reuses .mandatory-input-modal-pill chrome) ─────── */
+
+.start-game-flow-pill {
+    cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .start-game-flow__card,
+    .start-game-flow__backdrop,
+    .start-game-flow__heading-dot,
+    .start-game-flow__waiting-dots span,
+    .start-game-flow__begin-btn {
+        animation: none;
+    }
+}

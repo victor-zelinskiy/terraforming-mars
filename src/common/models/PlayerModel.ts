@@ -131,6 +131,12 @@ export interface PlayerViewModel extends ViewModel {
   ceoCardsInHand: ReadonlyArray<CardModel>;
   pickedCorporationCard: ReadonlyArray<CardModel>; // Why Array?
   preludeCardsInHand: ReadonlyArray<CardModel>;
+  // Corporations whose MANDATORY first action this player still owes (server's
+  // `pendingInitialActions`, projected to names). Self-only — corp identity is
+  // already public via the tableau, so this leaks nothing; it only signals WHEN
+  // the start-of-game corp action is still outstanding. Drives the Start Game
+  // Flow modal's corp area + its final "begin the game" gate.
+  pendingInitialActions: ReadonlyArray<CardName>;
   thisPlayer: PublicPlayerModel;
   waitingFor: PlayerInputModel | undefined;
   // Batches of cards the player just drew via an in-game effect / tile bonus,

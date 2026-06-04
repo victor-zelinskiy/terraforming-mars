@@ -1508,64 +1508,11 @@
     }
 }
 
-/* Minimized mandatory-select pill. Floats at the top of the viewport while the
-   player inspects the board; click to re-open the overlay in select mode. */
-.hand-select-pill {
-    position: fixed;
-    top: calc(var(--bottom-bar-button-height, 36px) + 32px);
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 107;
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    padding: 8px 16px;
-    border-radius: 999px;
-    border: 1px solid fade(@hc-cyan, 55%);
-    background: linear-gradient(180deg, rgba(16, 30, 44, 0.95), rgba(10, 20, 30, 0.95));
-    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45), inset 0 0 0 1px fade(@hc-cyan, 14%);
-    color: @hc-text;
-    font-family: Prototype, Orbitron, sans-serif;
-    font-size: 12px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    cursor: pointer;
-    user-select: none;
-    transition: transform 140ms, box-shadow 160ms, border-color 160ms;
-
-    &:hover, &:focus-visible {
-        transform: translateX(-50%) translateY(-1px);
-        border-color: @hc-cyan;
-        box-shadow: 0 10px 26px fade(@hc-cyan, 30%), inset 0 0 0 1px fade(@hc-cyan, 22%);
-    }
-    &__dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: @hc-cyan;
-        box-shadow: 0 0 8px @hc-cyan;
-        animation: hand-select-pill-pulse 1.8s ease-in-out infinite;
-    }
-    &__label { font-weight: 700; color: @hc-cyan; }
-    &__sep { opacity: 0.5; }
-    &__title {
-        color: @hc-text-muted;
-        text-transform: none;
-        letter-spacing: 0.4px;
-        max-width: 320px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    &__restore { margin-left: 4px; opacity: 0.7; }
-}
-@keyframes hand-select-pill-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-}
-@media (prefers-reduced-motion: reduce) {
-    .hand-select-pill__dot { animation: none; }
-}
+/* The minimized mandatory hand/standard-project pill REUSES the shared
+   `.mandatory-input-modal-pill` chrome (mandatory_input_modal.less) so every
+   "awaiting prompt" pill is visually identical. `.hand-select-pill` is kept as a
+   bare JS hook only (the outside-click handler excludes it); it carries NO
+   visual styling of its own — see PlayerHome's pill template. */
 
 /* Premium sell-patents exit — the chosen cards dissolve IN PLACE over ~490ms
    (a brief lift-off pop, then fade + shrink + rise, carrying their cyan

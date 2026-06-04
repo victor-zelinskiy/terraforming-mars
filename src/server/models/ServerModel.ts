@@ -185,6 +185,7 @@ export class Server {
       runId: runId,
       pickedCorporationCard: player.pickedCorporationCard ? cardsToModel(player, [player.pickedCorporationCard]) : [],
       preludeCardsInHand: cardsToModel(player, player.preludeCardsInHand),
+      pendingInitialActions: player.pendingInitialActions.map((c) => c.name),
       thisPlayer: thisPlayer,
       waitingFor: this.getWaitingFor(player, player.getWaitingFor()),
       players: players,

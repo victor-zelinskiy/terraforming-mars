@@ -120,6 +120,7 @@ import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraf
 import {shouldPreserveSaleOverlay} from '@/client/components/handCards/sellPatentsState';
 import {handPlayPrompt} from '@/client/components/handCards/handPlayState';
 import {standardProjectPlayPrompt} from '@/client/components/handCards/standardProjectPlayState';
+import {startFlowCorpPrompt, startGameFlowActive} from '@/client/components/startGameFlow/startGameFlowState';
 import {Message} from '@/common/logs/Message';
 import {
   applyTilePlacementPreview,
@@ -700,6 +701,14 @@ export default defineComponent({
       if (wf.type === 'projectCard' &&
           (handPlayPrompt(this.playerViewForPrompt) !== undefined ||
            standardProjectPlayPrompt(this.playerViewForPrompt) !== undefined)) {
+        return false;
+      }
+      // The corporation first-action OrOptions ('Take first action of X
+      // corporation') is hosted by StartGameFlowOverlay (App level) while the
+      // start flow is active — suppress the modal route so ModernOptionPicker
+      // doesn't also render it, and so the Pass option is never shown.
+      if (startFlowCorpPrompt(this.playerViewForPrompt) !== undefined &&
+          startGameFlowActive(this.playerViewForPrompt)) {
         return false;
       }
       return shouldRouteToModal(wf);

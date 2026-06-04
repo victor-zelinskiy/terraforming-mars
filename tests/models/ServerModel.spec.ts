@@ -9,6 +9,7 @@ import {testGame} from '../TestGame';
 import {Server} from '../../src/server/models/ServerModel';
 import {GlobalParameter} from '../../src/common/GlobalParameter';
 import {Phase} from '../../src/common/Phase';
+import {TharsisRepublic} from '../../src/server/cards/corporation/TharsisRepublic';
 
 describe('ServerModel', () => {
   let player: TestPlayer;
@@ -121,5 +122,21 @@ describe('ServerModel', () => {
     const otherPlayer = response.players.find((p) => p.color === player2.color && p.name === player2.name);
     expect(otherPlayer).is.not.undefined;
     expect(otherPlayer!.globalParameterSteps[GlobalParameter.OXYGEN]).eq(7);
+  });
+
+  it('serializes pendingInitialActions as card names (empty by default)', () => {
+    createTestGame(false);
+    // No corp first action owed in a default test game.
+    expect(Server.getPlayerModel(player).pendingInitialActions).deep.eq([]);
+
+    const corp = new TharsisRepublic();
+    player.pendingInitialActions.push(corp);
+    expect(Server.getPlayerModel(player).pendingInitialActions).deep.eq([corp.name]);
+  });
+
+  it('does not expose pendingInitialActions on the spectator model', () => {
+    createTestGame(false);
+    const spectator = Server.getSpectatorModel(game);
+    expect((spectator as any).pendingInitialActions).eq(undefined);
   });
 });
