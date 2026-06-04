@@ -10,6 +10,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {all} from '../Options';
 import {message} from '../../logs/MessageBuilder';
+import {stealResourceFromPlayer, skip} from '../../inputs/optionMetadata';
 
 export class HiredRaiders extends Card implements IProjectCard {
   constructor() {
@@ -51,25 +52,29 @@ export class HiredRaiders extends Card implements IProjectCard {
         const amountStolen = Math.min(2, target.steel);
         const optionTitle = message('Steal ${0} steel from ${1}', (b) => b.number(amountStolen).player(target).getMessage());
 
-        availableActions.options.push(new SelectOption(optionTitle).andThen(() => {
-          target.attack(player, Resource.STEEL, 2, {stealing: true, log: true});
-          return undefined;
-        }));
+        availableActions.options.push(new SelectOption(optionTitle, 'Steal')
+          .withMetadata(stealResourceFromPlayer(target, Resource.STEEL, amountStolen, target.steel))
+          .andThen(() => {
+            target.attack(player, Resource.STEEL, 2, {stealing: true, log: true});
+            return undefined;
+          }));
       }
 
       if (target.megaCredits > 0) {
         const amountStolen = Math.min(3, target.megaCredits);
         const optionTitle = message('Steal ${0} M€ from ${1}', (b) => b.number(amountStolen).player(target));
 
-        availableActions.options.push(new SelectOption(optionTitle).andThen(() => {
-          target.attack(player, Resource.MEGACREDITS, 3, {log: true, stealing: true});
-          return undefined;
-        }));
+        availableActions.options.push(new SelectOption(optionTitle, 'Steal')
+          .withMetadata(stealResourceFromPlayer(target, Resource.MEGACREDITS, amountStolen, target.megaCredits))
+          .andThen(() => {
+            target.attack(player, Resource.MEGACREDITS, 3, {log: true, stealing: true});
+            return undefined;
+          }));
       }
     });
 
     if (availableActions.options.length > 0) {
-      availableActions.options.push(new SelectOption('Do not steal').andThen(() => {
+      availableActions.options.push(new SelectOption('Do not steal').withMetadata(skip()).andThen(() => {
         return undefined;
       }));
       return availableActions;

@@ -10,6 +10,7 @@ import {Resource} from '../../../common/Resource';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
+import {skip} from '../../inputs/optionMetadata';
 
 export class Flooding extends Card implements IProjectCard {
   constructor() {
@@ -54,11 +55,12 @@ export class Flooding extends Card implements IProjectCard {
             Array.from(adjacentPlayers),
             'Select adjacent player to remove 4 M€ from',
             'Remove credits',
+            {icon: 'megacredits', amount: 4},
           ).andThen((target) => {
             target.attack(player, Resource.MEGACREDITS, 4, {log: true});
             return undefined;
           }),
-          new SelectOption('Don\'t remove M€ from adjacent player'));
+          new SelectOption('Don\'t remove M€ from adjacent player').withMetadata(skip()));
       }
       return undefined;
     });

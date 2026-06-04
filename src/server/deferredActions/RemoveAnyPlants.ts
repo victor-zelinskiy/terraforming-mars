@@ -7,6 +7,7 @@ import {Priority} from './Priority';
 import {CardName} from '../../common/cards/CardName';
 import {MessageBuilder, message} from '../logs/MessageBuilder';
 import {Message} from '../../common/logs/Message';
+import {removeResourceFromPlayer, skip} from '../inputs/optionMetadata';
 export class RemoveAnyPlants extends DeferredAction {
   private title: string | Message;
   private count: number;
@@ -31,11 +32,12 @@ export class RemoveAnyPlants extends DeferredAction {
         .player(target)
         .getMessage();
 
-    return new SelectOption(
-      message, 'Remove plants').andThen(() => {
-      target.attack(this.player, Resource.PLANTS, qtyToRemove, {log: true});
-      return undefined;
-    });
+    return new SelectOption(message, 'Remove plants')
+      .withMetadata(removeResourceFromPlayer(target, Resource.PLANTS, qtyToRemove, target.plants))
+      .andThen(() => {
+        target.attack(this.player, Resource.PLANTS, qtyToRemove, {log: true});
+        return undefined;
+      });
   }
 
   public execute() {
@@ -80,13 +82,14 @@ export class RemoveAnyPlants extends DeferredAction {
         message,
         'Remove plants',
         (target === player) ? ['removeOwnPlants'] : undefined)
+        .withMetadata(removeResourceFromPlayer(target, Resource.PLANTS, qtyToRemove, target.plants))
         .andThen(() => {
           target.attack(player, Resource.PLANTS, qtyToRemove, {log: true});
           return undefined;
         });
     }));
 
-    removalOptions.push(new SelectOption('Skip removing plants').andThen(() => {
+    removalOptions.push(new SelectOption('Skip removing plants').withMetadata(skip()).andThen(() => {
       return undefined;
     }));
 

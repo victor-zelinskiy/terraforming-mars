@@ -10,6 +10,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {all, digit} from '../Options';
 import {message} from '../../logs/MessageBuilder';
+import {removeResourceFromPlayer, skip} from '../../inputs/optionMetadata';
 
 export class Sabotage extends Card implements IProjectCard {
   constructor() {
@@ -50,34 +51,40 @@ export class Sabotage extends Card implements IProjectCard {
         if (target.titanium > 0 && !target.alloysAreProtected()) {
           const amountRemoved = Math.min(3, target.titanium);
           const optionTitle = this.title(amountRemoved, 'titanium', target);
-          availableActions.options.push(new SelectOption(optionTitle).andThen(() => {
-            target.attack(player, Resource.TITANIUM, 3, {log: true});
-            return undefined;
-          }));
+          availableActions.options.push(new SelectOption(optionTitle, 'Remove')
+            .withMetadata(removeResourceFromPlayer(target, Resource.TITANIUM, amountRemoved, target.titanium))
+            .andThen(() => {
+              target.attack(player, Resource.TITANIUM, 3, {log: true});
+              return undefined;
+            }));
         }
 
         if (target.steel > 0 && !target.alloysAreProtected()) {
           const amountRemoved = Math.min(4, target.steel);
           const optionTitle = this.title(amountRemoved, 'steel', target);
-          availableActions.options.push(new SelectOption(optionTitle).andThen(() => {
-            target.attack(player, Resource.STEEL, 4, {log: true});
-            return undefined;
-          }));
+          availableActions.options.push(new SelectOption(optionTitle, 'Remove')
+            .withMetadata(removeResourceFromPlayer(target, Resource.STEEL, amountRemoved, target.steel))
+            .andThen(() => {
+              target.attack(player, Resource.STEEL, 4, {log: true});
+              return undefined;
+            }));
         }
 
         if (target.megaCredits > 0) {
           const amountRemoved = Math.min(7, target.megaCredits);
           const optionTitle = this.title(amountRemoved, 'M€', target);
-          availableActions.options.push(new SelectOption(optionTitle).andThen(() => {
-            target.attack(player, Resource.MEGACREDITS, 7, {log: true});
-            return undefined;
-          }));
+          availableActions.options.push(new SelectOption(optionTitle, 'Remove')
+            .withMetadata(removeResourceFromPlayer(target, Resource.MEGACREDITS, amountRemoved, target.megaCredits))
+            .andThen(() => {
+              target.attack(player, Resource.MEGACREDITS, 7, {log: true});
+              return undefined;
+            }));
         }
       });
     }
 
     if (availableActions.options.length > 0) {
-      availableActions.options.push(new SelectOption('Do not remove resource').andThen(() => {
+      availableActions.options.push(new SelectOption('Do not remove resource').withMetadata(skip()).andThen(() => {
         return undefined;
       }));
       return availableActions;

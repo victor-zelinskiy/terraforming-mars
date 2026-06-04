@@ -49,19 +49,35 @@
         <span class="modal-input__option-accent"
               :class="optionColor(opt) !== undefined ? ('player_bg_color_' + optionColor(opt)) : ''"
               aria-hidden="true"></span>
-        <span v-if="optionColor(opt) !== undefined"
-              class="modal-input__option-dot"
-              :class="'player_bg_color_' + optionColor(opt)"
+
+        <!-- Lead: player chip (colour dot + name) for player-target options,
+             else a resource/parameter icon when the metadata supplies one. -->
+        <span v-if="optionColor(opt) !== undefined" class="modal-input__option-lead modal-input__option-player">
+          <span class="modal-input__option-dot" :class="'player_bg_color_' + optionColor(opt)" aria-hidden="true"></span>
+          <span v-if="optionPlayerName(opt) !== ''" class="modal-input__option-player-name">{{ optionPlayerName(opt) }}</span>
+        </span>
+        <span v-else-if="optionIcon(opt) !== ''"
+              class="modal-input__option-lead modal-input__option-icon"
+              :class="optionIconClass(opt)"
               aria-hidden="true"></span>
+
         <span class="modal-input__option-body">
-          <span class="modal-input__option-label">{{ optionTitle(opt) }}</span>
+          <span class="modal-input__option-label">{{ optionActionText(opt) }}</span>
           <span v-if="optionWarnings(opt) !== undefined" class="modal-input__option-warn-chip">
             <span class="modal-input__option-warn-icon" aria-hidden="true">⚠</span>
             <warnings-component :warnings="optionWarnings(opt)"
                                 class="modal-input__option-warnings"></warnings-component>
           </span>
         </span>
-        <span v-if="optionKind(opt) === 'space'" class="modal-input__option-hint" v-i18n>on the board</span>
+
+        <!-- Impact preview: resource icon + current → resulting. -->
+        <span v-if="hasPreview(opt)" class="modal-input__option-preview" aria-hidden="true">
+          <span v-if="optionIcon(opt) !== ''" class="modal-input__option-icon" :class="optionIconClass(opt)"></span>
+          <span class="modal-input__option-preview-from">{{ previewFrom(opt) }}</span>
+          <span class="modal-input__option-preview-arrow">→</span>
+          <span class="modal-input__option-preview-to">{{ previewTo(opt) }}</span>
+        </span>
+        <span v-else-if="optionKind(opt) === 'space'" class="modal-input__option-hint" v-i18n>on the board</span>
         <span v-else-if="optionKind(opt) === 'nested'" class="modal-input__option-chevron" aria-hidden="true">›</span>
         <span v-else-if="selectedIdx === i" class="modal-input__option-check" aria-hidden="true">✓</span>
       </button>
@@ -109,7 +125,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {OrOptionsModel, PlayerInputModel, SelectSpaceModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
+import {OrOptionsModel, PlayerInputModel, SelectSpaceModel, SelectOptionModel, OptionMetadata} from '@/common/models/PlayerInputModel';
 import {InputResponse, OrOptionsResponse, SelectSpaceResponse} from '@/common/inputs/InputResponse';
 import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
@@ -120,6 +136,7 @@ import {translateText, translateMessage} from '@/client/directives/i18n';
 import {MANDATORY_MODAL_PICKER_SETTER} from '@/client/components/MandatoryInputModal.vue';
 import SelectSpace from '@/client/components/SelectSpace.vue';
 import WarningsComponent from '@/client/components/WarningsComponent.vue';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 
 type PickerModeSetter = (mode: boolean, title?: string | Message) => void;
 
@@ -237,16 +254,78 @@ export default defineComponent({
       }
       return undefined;
     },
-    // Player colour for an option whose title carries a PLAYER token (e.g.
-    // "Remove 6 plants from Nastya"). Read straight from the Message data — the
-    // PLAYER token's value IS the colour — so no fragile name matching.
+    // The option's structured UI metadata (premium render), or undefined.
+    optionMeta(opt: PlayerInputModel): OptionMetadata | undefined {
+      return opt.type === 'option' ? (opt as SelectOptionModel).metadata : undefined;
+    },
+    // Player colour for a player-target option. Prefer the explicit metadata
+    // colour; fall back to a PLAYER token in the title Message (the token's
+    // value IS the colour) so options without metadata still get the accent.
     optionColor(opt: PlayerInputModel): Color | undefined {
+      const meta = this.optionMeta(opt);
+      if (meta?.player !== undefined) {
+        return meta.player.color;
+      }
       const t = opt.title;
       if (t === undefined || typeof t === 'string' || t.data === undefined) {
         return undefined;
       }
       const token = t.data.find((d) => d?.type === LogMessageDataType.PLAYER);
       return token?.value as Color | undefined;
+    },
+    optionPlayerName(opt: PlayerInputModel): string {
+      const color = this.optionColor(opt);
+      if (color === undefined) {
+        return '';
+      }
+      const p = this.playerView.players.find((pp) => pp.color === color);
+      return p?.name ?? '';
+    },
+    // Resource/parameter icon key from metadata (e.g. 'plants', 'megacredits',
+    // 'temperature'); '' when none.
+    optionIcon(opt: PlayerInputModel): string {
+      return this.optionMeta(opt)?.icon ?? '';
+    },
+    optionIconClass(opt: PlayerInputModel): string {
+      return iconClassFor(this.optionIcon(opt));
+    },
+    // Main action text. For a player-target option the player + amount live in
+    // the chip + preview, so the action verb (the buttonLabel — "Remove plants")
+    // reads cleaner than the full sentence; otherwise the descriptive title.
+    optionActionText(opt: PlayerInputModel): string {
+      const meta = this.optionMeta(opt);
+      if (meta?.player !== undefined && opt.type === 'option') {
+        const label = (opt as SelectOptionModel).buttonLabel;
+        if (label !== undefined && label !== '') {
+          return translateText(label);
+        }
+      }
+      return this.optionTitle(opt);
+    },
+    hasPreview(opt: PlayerInputModel): boolean {
+      const meta = this.optionMeta(opt);
+      return (meta?.player?.current !== undefined && meta?.player?.resulting !== undefined) ||
+             (meta?.global?.current !== undefined && meta?.global?.resulting !== undefined);
+    },
+    previewFrom(opt: PlayerInputModel): string {
+      const meta = this.optionMeta(opt);
+      if (meta?.player?.current !== undefined) {
+        return String(meta.player.current);
+      }
+      if (meta?.global?.current !== undefined) {
+        return String(meta.global.current) + (meta.global.unit ?? '');
+      }
+      return '';
+    },
+    previewTo(opt: PlayerInputModel): string {
+      const meta = this.optionMeta(opt);
+      if (meta?.player?.resulting !== undefined) {
+        return String(meta.player.resulting);
+      }
+      if (meta?.global?.resulting !== undefined) {
+        return String(meta.global.resulting) + (meta.global.unit ?? '');
+      }
+      return '';
     },
     isPendingSpace(displayedIdx: number): boolean {
       return this.pendingSpacePrompt !== undefined &&

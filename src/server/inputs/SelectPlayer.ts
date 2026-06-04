@@ -6,7 +6,14 @@ import {SelectPlayerModel} from '../../common/models/PlayerInputModel';
 import {InputError} from './InputError';
 
 export class SelectPlayer extends BasePlayerInput<IPlayer> {
-  constructor(public players: ReadonlyArray<IPlayer>, title: string | Message, buttonLabel: string = 'Save') {
+  constructor(
+    public players: ReadonlyArray<IPlayer>,
+    title: string | Message,
+    buttonLabel: string = 'Save',
+    // OPTIONAL premium-UI hint for the action applied to the chosen player
+    // (see SelectPlayerModel). Cosmetic — omit for a bare picker.
+    public options?: {icon?: string, amount?: number},
+  ) {
     super('player', title);
     this.buttonLabel = buttonLabel;
   }
@@ -17,6 +24,8 @@ export class SelectPlayer extends BasePlayerInput<IPlayer> {
       buttonLabel: this.buttonLabel,
       type: 'player',
       players: this.players.map((player) => player.color),
+      icon: this.options?.icon,
+      amount: this.options?.amount,
     };
   }
 

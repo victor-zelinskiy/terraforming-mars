@@ -13,6 +13,13 @@
       <h3 class="modal-input__title">{{ titleText }}</h3>
     </header>
 
+    <!-- Action badge: the (constant) effect applied to whichever player is
+         picked, e.g. "−4 M€". Only shown when the server supplies icon/amount. -->
+    <div v-if="actionIconClass !== ''" class="modal-input__player-action" aria-hidden="true">
+      <span v-if="actionAmount !== undefined" class="modal-input__player-action-amount">−{{ actionAmount }}</span>
+      <span class="modal-input__option-icon modal-input__player-action-icon" :class="actionIconClass"></span>
+    </div>
+
     <div v-if="warningText !== ''" class="modal-input__warning">{{ warningText }}</div>
 
     <div class="modal-input__players">
@@ -36,6 +43,7 @@ import {SelectPlayerResponse} from '@/common/inputs/InputResponse';
 import {Color} from '@/common/Color';
 import {playerColorClass} from '@/common/utils/utils';
 import {translateText, translateMessage} from '@/client/directives/i18n';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 
 export default defineComponent({
   name: 'ModernPlayerPicker',
@@ -67,6 +75,12 @@ export default defineComponent({
         return '';
       }
       return typeof w === 'string' ? translateText(w) : translateMessage(w);
+    },
+    actionIconClass(): string {
+      return iconClassFor(this.playerinput.icon);
+    },
+    actionAmount(): number | undefined {
+      return this.playerinput.amount;
     },
   },
   methods: {

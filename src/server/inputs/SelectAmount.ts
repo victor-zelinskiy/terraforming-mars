@@ -13,6 +13,9 @@ export class SelectAmount extends BasePlayerInput<number> {
     public min: number,
     public max: number,
     public maxByDefault?: boolean,
+    // OPTIONAL premium-UI hints for the modern stepper (see SelectAmountModel).
+    // Purely cosmetic — backward-compatible, omit for a bare number stepper.
+    public options?: {icon?: string, unit?: string},
   ) {
     super('amount', title);
     this.buttonLabel = buttonLabel;
@@ -26,6 +29,8 @@ export class SelectAmount extends BasePlayerInput<number> {
       max: this.max,
       min: this.min,
       maxByDefault: this.maxByDefault ?? false,
+      icon: this.options?.icon,
+      unit: this.options?.unit,
     };
   }
 
