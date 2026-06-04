@@ -118,6 +118,7 @@ import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {clearIfPhaseLeftCardPick, clearDraftWaitPending, shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
 import {shouldPreserveSaleOverlay} from '@/client/components/handCards/sellPatentsState';
+import {handPlayPrompt} from '@/client/components/handCards/handPlayState';
 import {Message} from '@/common/logs/Message';
 import {
   applyTilePlacementPreview,
@@ -685,7 +686,19 @@ export default defineComponent({
        * (payment, WGT). The card / waiting-state flow has moved to
        * `DraftFlowOverlay` mounted at App level.
        */
-      return this.waitingfor !== undefined && shouldRouteToModal(this.waitingfor);
+      const wf = this.waitingfor;
+      if (wf === undefined) {
+        return false;
+      }
+      // A top-level `projectCard` whose candidates are all in hand is a "play a
+      // card from hand" prompt (EccentricSponsor / EcologyExperts) — the КАРТЫ
+      // В РУКЕ overlay hosts it via the normal РАЗЫГРАТЬ play flow, so suppress
+      // the modal route. Standard-project play prompts (cards not in hand) still
+      // go to the modal.
+      if (wf.type === 'projectCard' && handPlayPrompt(this.playerViewForPrompt) !== undefined) {
+        return false;
+      }
+      return shouldRouteToModal(wf);
     },
     isWgtInput(): boolean {
       return this.wgtInput !== undefined;

@@ -8,6 +8,7 @@ import {Space} from '../../boards/Space';
 import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {Resource} from '../../../common/Resource';
 import {SelectSpace} from '../../inputs/SelectSpace';
+import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {Tag} from '../../../common/cards/Tag';
 import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 import {TileType} from '../../../common/TileType';
@@ -63,7 +64,28 @@ export abstract class MiningCard extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer): SelectSpace {
-    return new SelectSpace(this.title, this.getAvailableSpaces(player))
+    // Every cell the player COULD build on (empty, non-reserved land). A cell
+    // here that isn't offered is illegal for exactly one reason: it lacks the
+    // required steel/titanium placement bonus → 'wrong-bonus-type'. Reserved /
+    // occupied / ocean cells aren't in this set and fall through to their
+    // generic reason.
+    const placeable = new Set(player.game.board.getAvailableSpacesOnLand(player).map((s) => s.id));
+    return createMarsSelectSpace(player, this.title, this.getAvailableSpaces(player), {
+      placementType: 'land',
+      customReasoner: (space) => {
+        // 'wrong-bonus-type' ONLY for a genuinely placeable land cell (not
+        // reserved / occupied / ocean — those fall through to generic) that
+        // simply lacks the steel/titanium bonus. A cell that HAS the bonus but
+        // is illegal for another reason (e.g. MiningArea's adjacency rule)
+        // keeps its generic reason rather than a misleading "no bonus".
+        if (placeable.has(space.id) &&
+            !space.bonus.includes(SpaceBonus.STEEL) &&
+            !space.bonus.includes(SpaceBonus.TITANIUM)) {
+          return 'wrong-bonus-type';
+        }
+        return undefined;
+      },
+    })
       .andThen((space) => {
         this.spaceSelected(player, space);
         return undefined;

@@ -45,12 +45,23 @@ export class LavaTubeSettlement extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
+    const board = player.game.board;
+    const volcanicMode = board.volcanicSpaceIds.length > 0;
+    const cityPlaceable = new Set(board.getAvailableSpacesForType(player, 'city').map((s) => s.id));
     player.game.defer(
       new PlaceCityTile(
         player,
         {
           spaces: this.getSpacesForCity(player),
           title: 'Select either Tharsis Tholus, Ascraeus Mons, Pavonis Mons or Arsia Mons',
+          // When volcanic spaces exist the city must go on one — a city-placeable
+          // non-volcanic cell is off-limits for that reason.
+          customReasoner: (space) => {
+            if (volcanicMode && cityPlaceable.has(space.id) && !board.volcanicSpaceIds.includes(space.id)) {
+              return 'not-volcanic';
+            }
+            return undefined;
+          },
         }));
     return undefined;
   }

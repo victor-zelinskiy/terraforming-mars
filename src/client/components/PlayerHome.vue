@@ -344,18 +344,18 @@
       mode. Teleported to body so it floats above the board chrome.
     -->
     <Teleport to="body">
-      <div v-if="handSelectMinimized"
+      <div v-if="handPillVisible"
            class="hand-select-pill"
            role="button"
            tabindex="0"
            :title="$t('Click to resume the card selection')"
-           @click="restoreHandSelect"
-           @keydown.enter="restoreHandSelect"
-           @keydown.space="restoreHandSelect">
+           @click="restoreHandPill"
+           @keydown.enter="restoreHandPill"
+           @keydown.space="restoreHandPill">
         <span class="hand-select-pill__dot" aria-hidden="true"></span>
-        <span class="hand-select-pill__label" v-i18n>SELECT CARDS</span>
+        <span class="hand-select-pill__label">{{ handPillLabel }}</span>
         <span class="hand-select-pill__sep" aria-hidden="true">/</span>
-        <span class="hand-select-pill__title">{{ handSelectPillTitle }}</span>
+        <span class="hand-select-pill__title">{{ handPillTitle }}</span>
         <span class="hand-select-pill__restore" aria-hidden="true">⤢</span>
       </div>
     </Teleport>
@@ -608,6 +608,13 @@ import {
   enterHandSelect,
   exitHandSelect,
 } from '@/client/components/handCards/handSelectState';
+import {
+  handPlayState,
+  handPlayPrompt,
+  handPlaySignature,
+  enterHandPlay,
+  exitHandPlay,
+} from '@/client/components/handCards/handPlayState';
 import OpponentHandOverlay from '@/client/components/handCards/OpponentHandOverlay.vue';
 import HandCardPaymentContent from '@/client/components/handCards/HandCardPaymentContent.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
@@ -874,6 +881,31 @@ export default defineComponent({
           enterHandSelect(input);
         }
         if (!handSelectState.minimized) {
+          this.activeOverlay = 'cards';
+        }
+      },
+    },
+    /*
+     * Server-driven mandatory "play a card from your hand" prompt (top-level
+     * projectCard — EccentricSponsor / EcologyExperts). Hosted by the КАРТЫ В
+     * РУКЕ overlay in its normal PLAY mode (РАЗЫГРАТЬ → payment → submit). Same
+     * enter / auto-open / minimize lifecycle as the hand-select prompt.
+     */
+    handPlayInput: {
+      immediate: true,
+      handler(input: SelectProjectCardToPlayModel | undefined): void {
+        if (input === undefined) {
+          if (handPlayState.active) {
+            exitHandPlay();
+          }
+          return;
+        }
+        const sig = handPlaySignature(input);
+        if (!handPlayState.active || handPlayState.signature !== sig) {
+          this.selectedPlayerColor = undefined;
+          enterHandPlay(input);
+        }
+        if (!handPlayState.minimized) {
           this.activeOverlay = 'cards';
         }
       },
@@ -1434,7 +1466,19 @@ export default defineComponent({
     // The current "Play project card" action in the action menu, or
     // undefined if the player isn't being offered card plays right now.
     playProjectCardAction(): {path: ReadonlyArray<number>; input: SelectProjectCardToPlayModel} | undefined {
-      return this.findPlayProjectCardAction(this.playerView.waitingFor);
+      const menu = this.findPlayProjectCardAction(this.playerView.waitingFor);
+      if (menu !== undefined) {
+        return menu;
+      }
+      // A top-level "play a card from hand" projectCard prompt (EccentricSponsor
+      // / EcologyExperts via PlayProjectCard) acts as a play action with an
+      // EMPTY response path — the hand overlay's РАЗЫГРАТЬ → payment → submit
+      // flow then drives it exactly like the action-menu play.
+      const top = handPlayPrompt(this.playerView);
+      if (top !== undefined) {
+        return {path: [], input: top};
+      }
+      return undefined;
     },
     // True when the action menu currently offers playing a project card —
     // i.e. it's the viewer's action window. Drives the hand overlay's
@@ -1471,15 +1515,25 @@ export default defineComponent({
     handCardSelectionInput(): SelectCardModel | undefined {
       return handCardSelectionPrompt(this.playerView);
     },
-    // Module-state accessors for the template (pill + overlay open gating).
-    handSelectActive(): boolean {
-      return handSelectState.active;
+    // The top-level "play a card from hand" projectCard prompt (EccentricSponsor
+    // / EcologyExperts), or undefined. Drives the hand overlay's mandatory PLAY
+    // mode.
+    handPlayInput(): SelectProjectCardToPlayModel | undefined {
+      return handPlayPrompt(this.playerView);
     },
-    handSelectMinimized(): boolean {
-      return handSelectState.active && handSelectState.minimized;
+    // Unified mandatory-hand pill. Select-from-hand and play-from-hand are
+    // mutually exclusive (the top-level waitingFor is either a `card` or a
+    // `projectCard`), so one pill serves both minimized states.
+    handPillVisible(): boolean {
+      return (handSelectState.active && handSelectState.minimized) ||
+             (handPlayState.active && handPlayState.minimized);
     },
-    handSelectPillTitle(): string {
-      return translateText(inputTitleText(handSelectState.title) ?? '');
+    handPillLabel(): string {
+      return handPlayState.active ? translateText('PLAY A CARD') : translateText('SELECT CARDS');
+    },
+    handPillTitle(): string {
+      const title = handPlayState.active ? handPlayState.title : handSelectState.title;
+      return translateText(inputTitleText(title) ?? '');
     },
   },
 
@@ -1579,10 +1633,13 @@ export default defineComponent({
           target.closest('.hand-select-pill')) {
         return;
       }
-      // A mandatory hand-select prompt can't be dismissed by clicking away —
-      // minimize it to its pill instead of dropping the overlay.
+      // A mandatory hand prompt (select or play) can't be dismissed by clicking
+      // away — minimize it to its pill instead of dropping the overlay.
       if (handSelectState.active) {
         handSelectState.minimized = true;
+      }
+      if (handPlayState.active) {
+        handPlayState.minimized = true;
       }
       this.activeOverlay = null;
     },
@@ -2384,11 +2441,15 @@ export default defineComponent({
       if (handSelectState.active) {
         handSelectState.minimized = true;
       }
+      if (handPlayState.active) {
+        handPlayState.minimized = true;
+      }
       this.activeOverlay = null;
     },
-    // Restore the minimized hand-select overlay from its pill.
-    restoreHandSelect(): void {
+    // Restore the minimized mandatory hand overlay (select OR play) from its pill.
+    restoreHandPill(): void {
       handSelectState.minimized = false;
+      handPlayState.minimized = false;
       this.selectedPlayerColor = undefined;
       this.activeOverlay = 'cards';
     },
@@ -2398,7 +2459,9 @@ export default defineComponent({
     // payment widget does the rest). No server round-trip yet — the modal
     // builds the payment locally; nothing is committed until Confirm.
     onPlayHandCard(cardName: CardName): void {
-      const action = this.findPlayProjectCardAction(this.playerView.waitingFor);
+      // Generalized: matches the action-menu "Play project card" OR a top-level
+      // "play a card from hand" projectCard prompt (empty path).
+      const action = this.playProjectCardAction;
       if (!action) {
         return;
       }
@@ -2439,8 +2502,11 @@ export default defineComponent({
     // response that mirrors what the legacy radio UI submits, and routes
     // it through WaitingFor.onsave. Same shape as submitStandardProjectPayment.
     submitPlayCard(response: SelectProjectCardToPlayResponse): void {
-      const action = this.findPlayProjectCardAction(this.playerView.waitingFor);
-      if (!action || action.path.length === 0) {
+      // Generalized: action-menu play (non-empty path → wrap in nested OR) OR a
+      // top-level "play a card from hand" prompt (EMPTY path → submit the bare
+      // projectCard response).
+      const action = this.playProjectCardAction;
+      if (!action) {
         console.warn('Play card: action not found in waitingFor tree');
         return;
       }

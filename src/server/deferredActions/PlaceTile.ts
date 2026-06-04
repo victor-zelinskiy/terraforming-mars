@@ -7,6 +7,7 @@ import {Tile} from '../Tile';
 import {AdjacencyBonus} from '../ares/AdjacencyBonus';
 import {Message} from '../../common/logs/Message';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
+import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 
 export class PlaceTile extends DeferredAction<Space> {
   constructor(
@@ -16,6 +17,11 @@ export class PlaceTile extends DeferredAction<Space> {
       on: PlacementType | (() => ReadonlyArray<Space>),
       title: string | Message,
       adjacencyBonus?: AdjacencyBonus;
+      // When `on` is a custom function, a card can still declare the base
+      // placement terrain so generic per-cell reasons (occupied / ocean /
+      // reserved) are derived, plus a `customReasoner` for its OWN rule.
+      placementType?: PlacementType;
+      customReasoner?: (space: Space) => PlacementIllegalReason | undefined;
     }) {
     super(player, Priority.DEFAULT);
   }
@@ -30,7 +36,8 @@ export class PlaceTile extends DeferredAction<Space> {
     const title = this.options?.title;
 
     return createMarsSelectSpace(this.player, title, availableSpaces, {
-      placementType: typeof on === 'string' ? on : undefined,
+      placementType: typeof on === 'string' ? on : this.options.placementType,
+      customReasoner: this.options.customReasoner,
     })
       .andThen((space: Space) => {
         const tile: Tile = {...this.options.tile};

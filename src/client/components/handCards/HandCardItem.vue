@@ -4,6 +4,7 @@
          'hand-card-item--unplayable': showUnplayableDim,
          'hand-card-item--sale': saleMode,
          'hand-card-item--sale-selected': saleMode && selected,
+         'hand-card-item--select-disabled': selectDisabled,
          'hand-card-item--dissolving': dissolving,
          'hand-card-item--reason-open': showReason,
        }">
@@ -57,12 +58,24 @@
         card is selectable. Selection lives in module state and is submitted
         only on the final ПРОДАТЬ.
       -->
+      <!--
+        `aria-disabled` (NOT the native `disabled` attr) so the button still
+        receives :hover/:focus — a native disabled button swallows hover and the
+        reason popover below would never show (CLAUDE.md "disabled buttons
+        swallow :hover"). The click is a safe no-op for a non-candidate
+        (`toggleHandSelectSelection` ignores names outside `selectable`).
+      -->
       <button v-if="saleMode"
               type="button"
               class="hand-card-sell-btn"
               :class="{'hand-card-sell-btn--selected': selected}"
               :aria-pressed="selected"
-              @click.stop="$emit('toggle-select', entry.name)">
+              :aria-disabled="selectDisabled"
+              @click.stop="onSellClick"
+              @mouseenter="selectDisabled && onReasonEnter()"
+              @mouseleave="selectDisabled && onReasonLeave()"
+              @focus="selectDisabled && onReasonEnter()"
+              @blur="selectDisabled && onReasonLeave()">
         <span class="hand-card-sell-btn__glow" aria-hidden="true"></span>
         <span class="hand-card-sell-btn__label" v-i18n>{{ selected ? 'Deselect' : 'Select' }}</span>
       </button>
@@ -133,6 +146,21 @@
           <span class="hand-soft-reason__dot" aria-hidden="true"></span>
           <span class="hand-soft-reason__text">{{ softText }}</span>
         </div>
+        <!--
+          Mandatory SELECT mode, non-candidate card. The server only sends the
+          candidate LIST for a SelectCard (no per-card rejection reason), so the
+          one-liner states the card isn't eligible; the exact requirement is the
+          prompt title shown in the overlay's select strip.
+        -->
+        <div
+          v-else-if="showReason && selectDisabled"
+          class="hand-soft-reason"
+          :class="{'hand-soft-reason--below': reasonBelow}"
+          :style="reasonStyle"
+          role="tooltip">
+          <span class="hand-soft-reason__dot" aria-hidden="true"></span>
+          <span class="hand-soft-reason__text" v-i18n>This card doesn't match the current selection</span>
+        </div>
       </transition>
     </div>
   </div>
@@ -175,6 +203,13 @@ export default defineComponent({
     },
     // Whether this card is currently selected for sale (sale mode only).
     selected: {
+      type: Boolean,
+      default: false,
+    },
+    // Mandatory SELECT mode only: this card is NOT in the prompt's candidate
+    // set (a filtered prompt) — show it for context but dim it + disable its
+    // toggle so the player can see it's not a valid pick.
+    selectDisabled: {
       type: Boolean,
       default: false,
     },
@@ -239,6 +274,15 @@ export default defineComponent({
     },
   },
   methods: {
+    // Select-toggle click. A no-op for a non-candidate card (the button is only
+    // aria-disabled, so the click still fires) — keeps the selection clean
+    // without relying on the downstream guard alone.
+    onSellClick(): void {
+      if (this.selectDisabled) {
+        return;
+      }
+      this.$emit('toggle-select', this.entry.name);
+    },
     onReasonEnter(): void {
       this.showReason = true;
       this.$nextTick(() => this.placeReason());

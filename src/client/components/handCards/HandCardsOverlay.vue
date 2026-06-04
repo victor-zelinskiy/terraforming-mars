@@ -137,6 +137,7 @@
           :entry="entry"
           :saleMode="saleActive || selectActive"
           :selected="isSelected(entry.name)"
+          :selectDisabled="entrySelectDisabled(entry.name)"
           :dissolving="dissolving.includes(entry.name)"
           @open="openCard"
           @play="$emit('play', $event)"
@@ -152,6 +153,7 @@
             type="button"
             class="card-zoom-actions__btn card-zoom-actions__btn--primary hand-zoom-sell"
             :class="{'hand-zoom-sell--selected': zoomSelected}"
+            :disabled="zoomCard !== undefined && entrySelectDisabled(zoomCard.name)"
             @click="toggleSelectZoom">
             <span v-i18n>{{ zoomSelected ? 'Deselect' : 'Select' }}</span>
           </button>
@@ -222,6 +224,7 @@ import {
   handSelectState,
   toggleHandSelectSelection,
   isSelectedForHandSelect,
+  isHandSelectable,
 } from '@/client/components/handCards/handSelectState';
 import HandCardItem from '@/client/components/handCards/HandCardItem.vue';
 import HandCardsFilters from '@/client/components/handCards/HandCardsFilters.vue';
@@ -490,6 +493,13 @@ export default defineComponent({
         return isSelectedForHandSelect(name);
       }
       return isSelectedForSale(name);
+    },
+    // In mandatory SELECT mode, cards OUTSIDE the prompt's candidate set are
+    // shown for context but can't be picked — dim + disable them so the
+    // affordance isn't misleading for a FILTERED prompt (e.g. "discard a card
+    // with a microbe tag"). Sale mode has no subset, so this is never true.
+    entrySelectDisabled(name: CardName): boolean {
+      return this.selectActive && !isHandSelectable(name);
     },
     // Header toggle: enter sale mode (only when the action is offered) or
     // cancel it. Toggling OFF is a cancel — nothing is submitted.
