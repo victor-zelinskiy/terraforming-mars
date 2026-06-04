@@ -49,7 +49,7 @@
           :actionableProjects="standardProjectsActionInput"
           :viewerActing="playerView.waitingFor !== undefined"
           :sellPatentsAvailable="sellPatentsActionAvailable"
-          @close="activeOverlay = null"
+          @close="onStdProjectOverlayClose"
           @use-project="onUseStandardProject($event)"
           @sell-patents="onEnterSellPatents" />
       </div>
@@ -615,6 +615,13 @@ import {
   enterHandPlay,
   exitHandPlay,
 } from '@/client/components/handCards/handPlayState';
+import {
+  standardProjectPlayState,
+  standardProjectPlayPrompt,
+  standardProjectPlaySignature,
+  enterStandardProjectPlay,
+  exitStandardProjectPlay,
+} from '@/client/components/handCards/standardProjectPlayState';
 import OpponentHandOverlay from '@/client/components/handCards/OpponentHandOverlay.vue';
 import HandCardPaymentContent from '@/client/components/handCards/HandCardPaymentContent.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
@@ -907,6 +914,31 @@ export default defineComponent({
         }
         if (!handPlayState.minimized) {
           this.activeOverlay = 'cards';
+        }
+      },
+    },
+    /*
+     * Server-driven mandatory "play a standard project" prompt (top-level
+     * SelectStandardProjectToPlay — EstablishedMethods). Hosted by the Standard
+     * Projects overlay (pick a project → existing payment path → submit). Same
+     * enter / auto-open / minimize lifecycle as the hand-play prompt.
+     */
+    standardProjectPlayInput: {
+      immediate: true,
+      handler(input: SelectProjectCardToPlayModel | undefined): void {
+        if (input === undefined) {
+          if (standardProjectPlayState.active) {
+            exitStandardProjectPlay();
+          }
+          return;
+        }
+        const sig = standardProjectPlaySignature(input);
+        if (!standardProjectPlayState.active || standardProjectPlayState.signature !== sig) {
+          this.selectedPlayerColor = undefined;
+          enterStandardProjectPlay(input);
+        }
+        if (!standardProjectPlayState.minimized) {
+          this.activeOverlay = 'standardProjects';
         }
       },
     },
@@ -1460,8 +1492,27 @@ export default defineComponent({
     // projects. Exposed to the overlay so each project's "USE" button can
     // tell whether THIS project is actionable right now (and what its
     // adjusted cost / canPayWith flags are).
+    // The standard-projects play action: the action-menu's 'Standard projects'
+    // option OR a top-level "play a standard project" prompt (EstablishedMethods
+    // via SelectStandardProjectToPlay), which has an EMPTY response path.
+    standardProjectsAction(): {path: ReadonlyArray<number>; input: SelectProjectCardToPlayModel} | undefined {
+      const menu = this.findStandardProjectsAction(this.playerView.waitingFor);
+      if (menu !== undefined) {
+        return menu;
+      }
+      const top = standardProjectPlayPrompt(this.playerView);
+      if (top !== undefined) {
+        return {path: [], input: top};
+      }
+      return undefined;
+    },
     standardProjectsActionInput(): SelectProjectCardToPlayModel | undefined {
-      return this.findStandardProjectsAction(this.playerView.waitingFor)?.input;
+      return this.standardProjectsAction?.input;
+    },
+    // The top-level "play a standard project" prompt, or undefined. Drives the
+    // Standard Projects overlay's mandatory auto-open + minimize.
+    standardProjectPlayInput(): SelectProjectCardToPlayModel | undefined {
+      return standardProjectPlayPrompt(this.playerView);
     },
     // The current "Play project card" action in the action menu, or
     // undefined if the player isn't being offered card plays right now.
@@ -1521,18 +1572,28 @@ export default defineComponent({
     handPlayInput(): SelectProjectCardToPlayModel | undefined {
       return handPlayPrompt(this.playerView);
     },
-    // Unified mandatory-hand pill. Select-from-hand and play-from-hand are
-    // mutually exclusive (the top-level waitingFor is either a `card` or a
-    // `projectCard`), so one pill serves both minimized states.
+    // Unified mandatory pill. Select-from-hand, play-from-hand and play-a-
+    // standard-project are mutually exclusive (the top-level waitingFor is one
+    // prompt), so one pill serves all three minimized states; restore re-opens
+    // whichever overlay owns the active prompt.
     handPillVisible(): boolean {
       return (handSelectState.active && handSelectState.minimized) ||
-             (handPlayState.active && handPlayState.minimized);
+             (handPlayState.active && handPlayState.minimized) ||
+             (standardProjectPlayState.active && standardProjectPlayState.minimized);
     },
     handPillLabel(): string {
+      if (standardProjectPlayState.active) {
+        return translateText('STANDARD PROJECT');
+      }
       return handPlayState.active ? translateText('PLAY A CARD') : translateText('SELECT CARDS');
     },
     handPillTitle(): string {
-      const title = handPlayState.active ? handPlayState.title : handSelectState.title;
+      let title: string | Message = handSelectState.title;
+      if (standardProjectPlayState.active) {
+        title = standardProjectPlayState.title;
+      } else if (handPlayState.active) {
+        title = handPlayState.title;
+      }
       return translateText(inputTitleText(title) ?? '');
     },
   },
@@ -1633,13 +1694,17 @@ export default defineComponent({
           target.closest('.hand-select-pill')) {
         return;
       }
-      // A mandatory hand prompt (select or play) can't be dismissed by clicking
-      // away — minimize it to its pill instead of dropping the overlay.
+      // A mandatory prompt (hand select / hand play / standard project) can't be
+      // dismissed by clicking away — minimize it to its pill instead of
+      // dropping the overlay.
       if (handSelectState.active) {
         handSelectState.minimized = true;
       }
       if (handPlayState.active) {
         handPlayState.minimized = true;
+      }
+      if (standardProjectPlayState.active) {
+        standardProjectPlayState.minimized = true;
       }
       this.activeOverlay = null;
     },
@@ -2260,7 +2325,7 @@ export default defineComponent({
     // accepts AND owns any of it, open the client-side payment-preview
     // modal so they can dial in the mix before submitting.
     onUseStandardProject(cardName: CardName): void {
-      const action = this.findStandardProjectsAction(this.playerView.waitingFor);
+      const action = this.standardProjectsAction;
       if (!action) return;
       const card = action.input.cards.find((c) => c.name === cardName);
       if (card === undefined || card.isDisabled === true) return;
@@ -2367,8 +2432,10 @@ export default defineComponent({
     // matches what the legacy radio UI submits when the player picks
     // Standard Projects → <card> → Confirm. Routes through WaitingFor.onsave.
     submitStandardProjectPayment(cardName: CardName, payment: Payment): void {
-      const action = this.findStandardProjectsAction(this.playerView.waitingFor);
-      if (!action || action.path.length === 0) {
+      // Action-menu standard project (non-empty path → nested OR) OR a top-level
+      // SelectStandardProjectToPlay (EMPTY path → bare projectCard response).
+      const action = this.standardProjectsAction;
+      if (!action) {
         console.warn('Standard project: action not found in waitingFor tree');
         return;
       }
@@ -2446,12 +2513,25 @@ export default defineComponent({
       }
       this.activeOverlay = null;
     },
-    // Restore the minimized mandatory hand overlay (select OR play) from its pill.
+    // Restore the minimized mandatory overlay from the shared pill — re-opens
+    // whichever overlay owns the active prompt (hand vs standard projects).
     restoreHandPill(): void {
       handSelectState.minimized = false;
       handPlayState.minimized = false;
+      standardProjectPlayState.minimized = false;
       this.selectedPlayerColor = undefined;
-      this.activeOverlay = 'cards';
+      this.activeOverlay = standardProjectPlayState.active ? 'standardProjects' : 'cards';
+    },
+    // Close (✕ / outside click) of the Standard Projects overlay. While the
+    // mandatory "play a standard project" prompt is pending, "close" MINIMIZES
+    // to the shared pill instead of dropping the prompt. (onUseStandardProject
+    // sets activeOverlay=null directly to show the payment step — that path
+    // doesn't go through here, so it doesn't minimize.)
+    onStdProjectOverlayClose(): void {
+      if (standardProjectPlayState.active) {
+        standardProjectPlayState.minimized = true;
+      }
+      this.activeOverlay = null;
     },
     // ─── Play a card from the hand overlay ─────────────────────────────
     // РАЗЫГРАТЬ pressed on a hand card. Opens the client-side payment

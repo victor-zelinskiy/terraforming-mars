@@ -318,11 +318,19 @@ export default defineComponent({
       if (this.isBuyMode) {
         return translateText('Buy up to ${0} cards').replace('${0}', String(this.playerinput.max));
       }
-      if (this.isSingleSelect) {
+      /*
+       * A REAL draft pick keeps the curated generic "Choose a card" label (the
+       * server title there is "Select a card to keep and pass the rest to X").
+       * Every OTHER prompt — including a single-select card-driven prompt like
+       * "Select builder card to copy" (Robotic Workforce), "Select card to add
+       * resources", etc. — renders the SERVER's descriptive title so the player
+       * knows exactly what the card is making them do. (Previously every
+       * single-select showed "Choose a card", hiding the card context — the
+       * minimize pill showed the real title, the modal header didn't.)
+       */
+      if (this.isSingleSelect && this.isDraftPhase) {
         return translateText('Choose a card');
       }
-      /* Fallback for "select N cards" prompts that aren't buy and
-       * aren't single-select — render server's localized title. */
       const t = this.playerinput.title;
       return typeof t === 'string' ? translateText(t) : translateMessage(t);
     },

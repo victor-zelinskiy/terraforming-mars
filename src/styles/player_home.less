@@ -4225,6 +4225,13 @@ each(@players, {
     position: relative;
 }
 
+.std-projects-overlay-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
 .std-projects-overlay-title {
     font-size: 18px;
     font-weight: 700;
@@ -4233,6 +4240,16 @@ each(@players, {
     color: #e8f1fb;
     text-shadow: 0 0 8px rgba(106, 176, 230, 0.25);
     flex-shrink: 0;
+}
+
+/* Card-driven prompt context (EstablishedMethods etc.) under the generic
+   header — cyan, sentence case, so the player sees what the card asks. */
+.std-projects-overlay-subtitle {
+    font-size: 12.5px;
+    letter-spacing: 0.4px;
+    color: #6ab0e6;
+    text-shadow: 0 0 6px rgba(106, 176, 230, 0.25);
+    line-height: 1.3;
 }
 
 .std-projects-overlay-status {
