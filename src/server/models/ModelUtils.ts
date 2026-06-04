@@ -14,6 +14,7 @@ import {asArray} from '../../common/utils/utils';
 import {isIStandardProjectCard} from '../cards/IStandardProjectCard';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {unplayableReasons as computeUnplayableReasons} from './unplayableReasons';
+import {Message} from '../../common/logs/Message';
 
 export function cardsToModel(
   player: IPlayer,
@@ -23,6 +24,9 @@ export function cardsToModel(
     showCalculatedCost?: boolean,
     extras?: Map<CardName, PlayCardMetadata>,
     enabled?: ReadonlyArray<boolean>, // If provided, then the cards with false in `enabled` are not selectable and grayed out
+    // Per-card user-facing reason (parallel to `enabled`) for why a disabled
+    // candidate can't be picked. Shown by the premium card picker as a badge.
+    disabledReasons?: ReadonlyArray<string | Message | undefined>,
     unplayableReasons?: boolean, // If true, attach structured "why unplayable" reasons to each currently-unplayable project card (own hand only).
   } = {},
 ): ReadonlyArray<CardModel> {
@@ -71,6 +75,10 @@ export function cardsToModel(
       model.isDisabled = true;
     } else if (options.enabled?.[index] === false) {
       model.isDisabled = true;
+      const reason = options.disabledReasons?.[index];
+      if (reason !== undefined) {
+        model.disabledReason = reason;
+      }
     }
     const playCardMetadata = options?.extras?.get(card.name);
 

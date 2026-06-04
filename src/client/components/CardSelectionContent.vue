@@ -51,6 +51,24 @@
     </header>
 
     <!--
+      Availability filter — shown ONLY when the server flagged some cards as
+      DISABLED candidates (relevant but unpickable). Default 'available' so the
+      grid isn't cluttered; the player can switch to inspect the unavailable
+      ones + their reason. No disabled cards → no filter row at all.
+    -->
+    <div v-if="hasDisabledCards" class="card-selection__filter" role="group">
+      <button v-for="mode in filterModes"
+              :key="mode.key"
+              type="button"
+              class="card-selection__filter-btn"
+              :class="{'card-selection__filter-btn--active': filterMode === mode.key}"
+              @click="filterMode = mode.key"
+              :data-test="'card-selection-filter-' + mode.key">
+        {{ mode.label }}<span class="card-selection__filter-count">{{ mode.count }}</span>
+      </button>
+    </div>
+
+    <!--
       Card grid. Steam-like interaction model (v40-m):
         - SINGLE click on the card → opens fullscreen preview (was:
           toggled selection). Card click is now a safe inspection
@@ -68,16 +86,27 @@
           shared openFullscreen so the actions slot is wired up.
     -->
     <div class="card-selection__cards">
-      <div v-for="card in playerinput.cards"
+      <div v-for="card in visibleCards"
            :key="card.name"
            class="card-selection__card-slot"
-           :class="{ 'card-selection__card-slot--selected': isSelected(card.name) }"
+           :class="{
+             'card-selection__card-slot--selected': isSelected(card.name),
+             'card-selection__card-slot--disabled': isCardDisabled(card.name),
+           }"
            :data-test="'card-selection-' + card.name">
         <div class="card-selection__card-clickable"
              @click.capture.stop="openFullscreen(card)">
           <Card :card="card" />
         </div>
-        <button class="card-selection__card-action-btn"
+        <!-- Disabled candidate: a muted reason chip replaces the action button. -->
+        <span v-if="isCardDisabled(card.name)"
+              class="card-selection__card-reason"
+              :data-hint="cardDisabledReason(card.name)"
+              :data-test="'card-selection-reason-' + card.name">
+          {{ cardDisabledReason(card.name) }}
+        </span>
+        <button v-else
+                class="card-selection__card-action-btn"
                 :class="{
                   'card-selection__card-action-btn--selected': isBuyMode && isSelected(card.name),
                 }"
@@ -138,6 +167,8 @@
       <template #actions>
         <button v-if="!isMultiSelect"
                 class="card-zoom-actions__btn card-zoom-actions__btn--primary"
+                :disabled="isCardDisabled(zoomCard.name)"
+                :title="isCardDisabled(zoomCard.name) ? cardDisabledReason(zoomCard.name) : ''"
                 @click="onFullscreenDraftSelect"
                 data-test="card-selection-fullscreen-select">
           {{ translateLabel('Select') }}
@@ -145,8 +176,8 @@
         <button v-else
                 class="card-zoom-actions__btn card-zoom-actions__btn--primary"
                 :class="{ 'card-zoom-actions__btn--unselect': isSelected(zoomCard.name) }"
-                :disabled="!isSelected(zoomCard.name) && isMaxedOut"
-                :title="fullscreenToggleTooltip"
+                :disabled="isCardDisabled(zoomCard.name) || (!isSelected(zoomCard.name) && isMaxedOut)"
+                :title="isCardDisabled(zoomCard.name) ? cardDisabledReason(zoomCard.name) : fullscreenToggleTooltip"
                 @click="onFullscreenBuyToggle"
                 data-test="card-selection-fullscreen-toggle">
           {{ isSelected(zoomCard.name) ? translateLabel('Unselect') : translateLabel('Select') }}
@@ -185,6 +216,12 @@ type DataModel = {
    * element exists before we ask it to open.
    */
   zoomCard: CardModel | undefined;
+  /*
+   * Availability filter. 'available' (default) hides server-flagged DISABLED
+   * candidates; 'unavailable' shows only them (+ reason); 'all' shows both.
+   * Only surfaced when the prompt actually has disabled cards.
+   */
+  filterMode: 'available' | 'all' | 'unavailable';
 };
 
 export default defineComponent({
@@ -208,6 +245,7 @@ export default defineComponent({
     return {
       selected: [],
       zoomCard: undefined,
+      filterMode: 'available',
     };
   },
   watch: {
@@ -229,6 +267,7 @@ export default defineComponent({
       if (newInput !== oldInput) {
         this.selected = [];
         this.zoomCard = undefined;
+        this.filterMode = 'available';
       }
     },
   },
@@ -249,6 +288,38 @@ export default defineComponent({
     },
     isSingleSelect(): boolean {
       return this.playerinput.min === 1 && this.playerinput.max === 1;
+    },
+    // Server-flagged DISABLED candidates (relevant but unpickable) ride their
+    // OWN `disabledCards` channel; they drive the availability filter + the
+    // muted reason chips. `cards` stays the selectable set.
+    disabledCardsList(): ReadonlyArray<CardModel> {
+      return this.playerinput.disabledCards ?? [];
+    },
+    hasDisabledCards(): boolean {
+      return this.disabledCardsList.length > 0;
+    },
+    selectableCount(): number {
+      return this.playerinput.cards.length;
+    },
+    // Cards shown under the current filter. With no disabled cards the filter is
+    // hidden and only the selectable `cards` show.
+    visibleCards(): ReadonlyArray<CardModel> {
+      if (!this.hasDisabledCards || this.filterMode === 'available') {
+        return this.playerinput.cards;
+      }
+      if (this.filterMode === 'unavailable') {
+        return this.disabledCardsList;
+      }
+      return [...this.playerinput.cards, ...this.disabledCardsList];
+    },
+    filterModes(): ReadonlyArray<{key: 'all' | 'available' | 'unavailable', label: string, count: number}> {
+      const available = this.selectableCount;
+      const unavailable = this.disabledCardsList.length;
+      return [
+        {key: 'available', label: translateText('Available cards'), count: available},
+        {key: 'all', label: translateText('All'), count: available + unavailable},
+        {key: 'unavailable', label: translateText('Unavailable cards'), count: unavailable},
+      ];
     },
     /*
      * Multi-select mode: the per-card buttons TOGGLE local selection and the
@@ -336,7 +407,7 @@ export default defineComponent({
     },
     counterText(): string {
       if (this.isSingleSelect) {
-        return translateText('1 card out of ${0}').replace('${0}', String(this.playerinput.cards.length));
+        return translateText('1 card out of ${0}').replace('${0}', String(this.selectableCount));
       }
       if (this.playerinput.max > 1) {
         return translateText('Selected ${0} of ${1}')
@@ -390,6 +461,20 @@ export default defineComponent({
     isSelected(name: CardName): boolean {
       return this.selected.includes(name);
     },
+    cardModel(name: CardName): CardModel | undefined {
+      return this.playerinput.cards.find((c) => c.name === name) ??
+        this.disabledCardsList.find((c) => c.name === name);
+    },
+    isCardDisabled(name: CardName): boolean {
+      return this.disabledCardsList.some((c) => c.name === name);
+    },
+    cardDisabledReason(name: CardName): string {
+      const reason = this.cardModel(name)?.disabledReason;
+      if (reason === undefined) {
+        return translateText('Unavailable');
+      }
+      return typeof reason === 'string' ? translateText(reason) : translateMessage(reason);
+    },
     /*
      * Per-card action button. The behaviour fans out by mode:
      *
@@ -418,6 +503,9 @@ export default defineComponent({
      * just adds when it can.
      */
     toggleSelected(name: CardName): void {
+      if (this.isCardDisabled(name)) {
+        return;
+      }
       const idx = this.selected.indexOf(name);
       if (idx >= 0) {
         this.selected.splice(idx, 1);
@@ -469,7 +557,9 @@ export default defineComponent({
      * closes the fullscreen, and submits. One click commits.
      */
     onFullscreenDraftSelect(): void {
-      if (this.zoomCard === undefined) return;
+      if (this.zoomCard === undefined || this.isCardDisabled(this.zoomCard.name)) {
+        return;
+      }
       this.selected = [this.zoomCard.name];
       this.closeFullscreen();
       this.submitNow();
@@ -486,7 +576,9 @@ export default defineComponent({
      * it from the grid.
      */
     onFullscreenBuyToggle(): void {
-      if (this.zoomCard === undefined) return;
+      if (this.zoomCard === undefined || this.isCardDisabled(this.zoomCard.name)) {
+        return;
+      }
       this.toggleSelected(this.zoomCard.name);
       this.closeFullscreen();
     },
