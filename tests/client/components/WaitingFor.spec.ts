@@ -22,7 +22,33 @@ describe('WaitingFor', () => {
     },
   };
 
-  it('renders player-input-factory when waitingfor is provided', () => {
+  it('renders the inline input factory for a non-modal prompt', () => {
+    const wrapper = shallowMount(WaitingFor, {
+      ...globalConfig,
+      global: {
+        ...globalConfig.global,
+        stubs: {
+          'player-input-factory': {template: '<div class="stub-pif"></div>'},
+        },
+      },
+      props: {
+        playerView: playerView as PlayerViewModel,
+        players: [thisPlayer as PublicPlayerModel],
+        // 'space' is NOT routed to the mandatory modal (it drives the
+        // PlacementBanner instead), so it still renders the inline factory.
+        waitingfor: {
+          type: 'space',
+          title: 'test',
+          buttonLabel: 'save',
+          spaces: [],
+        },
+      },
+    });
+    expect(wrapper.find('.stub-pif').exists()).to.be.true;
+    expect(wrapper.text()).to.not.include('Not your turn');
+  });
+
+  it('routes a mandatory sub-prompt (option) to the mandatory modal', () => {
     const wrapper = shallowMount(WaitingFor, {
       ...globalConfig,
       global: {
@@ -41,7 +67,10 @@ describe('WaitingFor', () => {
         },
       },
     });
-    expect(wrapper.find('.stub-pif').exists()).to.be.true;
+    // The 'option' sub-prompt is hosted by MandatoryInputModal now, not the
+    // inline factory.
+    expect(wrapper.findComponent({name: 'MandatoryInputModal'}).exists()).to.be.true;
+    expect(wrapper.find('.stub-pif').exists()).to.be.false;
     expect(wrapper.text()).to.not.include('Not your turn');
   });
 

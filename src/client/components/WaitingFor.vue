@@ -49,13 +49,17 @@
                                    :playerView="playerViewForPrompt"
                                    :playerinput="wgtInput"
                                    :onsave="onsave" />
-      <player-input-factory v-else
-                            :players="playerView.players"
-                            :playerView="playerView"
-                            :playerinput="waitingfor"
-                            :onsave="onsave"
-                            :showsave="true"
-                            :showtitle="true" />
+      <!--
+        Premium-first host for every other modal-routed sub-prompt. Renders a
+        modern component where one exists (OrOptions, SelectOption, …) and
+        falls back to the legacy PlayerInputFactory otherwise, so a not-yet-
+        migrated input type is still visible inside the modal instead of being
+        buried in the hidden .legacy-ui-overlay.
+      -->
+      <ModalInputHost v-else
+                      :playerView="playerViewForPrompt"
+                      :playerinput="waitingfor"
+                      :onsave="onsave" />
     </MandatoryInputModal>
 
     <player-input-factory v-else
@@ -108,6 +112,7 @@ import {Color} from '@/common/Color';
 import {gameDocumentTitle} from '../utils/documentTitle';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import WorldGovernmentModalContent from '@/client/components/WorldGovernmentModalContent.vue';
+import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {clearIfPhaseLeftCardPick, clearDraftWaitPending, shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
@@ -142,25 +147,44 @@ const WGT_TITLE = 'Select action for World Government Terraforming';
  */
 const WGT_MARKER_HOLD_MS = 1100;
 
-// Title strings (from the server-side prompt) that identify specific
-// OrOptions prompts which should pop as a modal. Matched by exact equality
-// after unwrapping `Message` objects to their `.message` field. See
-// CLAUDE.md "Mandatory-input modal pattern".
-const MODAL_OR_TITLES: ReadonlySet<string> = new Set([
-  WGT_TITLE,
+// Titles of the regular per-turn action menu (`Player.getActions()` in
+// Player.ts). This is the ONE top-level `OrOptions` that must NOT pop as a
+// modal — it's driven by the fork's dedicated action buttons (and renders
+// inline in the hidden legacy overlay as a fallback). Every OTHER top-level
+// `or` is a card-play / forced-event sub-prompt and belongs in the modal.
+const ACTION_MENU_TITLES: ReadonlySet<string> = new Set([
+  'Take your first action',
+  'Take your next action',
 ]);
 
-// PlayerInput types that ALWAYS render in the modal regardless of title
-// (used for `'payment'`-style prompts where every instance is mandatory).
+// PlayerInput types that ALWAYS render in the modal when they are the
+// top-level prompt. These can only ever be mandatory sub-decisions (a card
+// play, a forced game event, a payment) — never the per-turn action menu —
+// so routing every instance to the modal is safe and makes them visible
+// instead of buried in the hidden `.legacy-ui-overlay`.
 //
-// `'card'` is INTENTIONALLY NOT here — top-level SelectCard prompts are
-// hosted by `DraftFlowOverlay` mounted at App level, OUTSIDE the
-// `<player-home :key="playerkey">` subtree. That keeps the draft / buy
-// modal alive across the playerkey++ remount that fires on every
-// server response (which previously destroyed the modal mid-submit
-// and caused the "modal closes when I press ВЫБРАТЬ" bug).
+// Deliberately NOT here (handled by dedicated surfaces outside the modal):
+//   'card'    → DraftFlowOverlay (App level, survives playerkey++ remount)
+//   'space'   → PlacementBanner (board picker)
+//   'colony'  → ColoniesOverlay (auto-mounts on a SelectColony, even nested)
+//   'initialCards' → InitialDraftFlowOverlay
 const MODAL_INPUT_TYPES: ReadonlySet<PlayerInputModel['type']> = new Set([
   'payment',
+  'option',
+  'player',
+  'amount',
+  'resource',
+  'resources',
+  'productionToLose',
+  'and',
+  // A TOP-LEVEL `projectCard` is NOT the action menu (that's an `or` whose
+  // `projectCard` is a nested option) — it's a card-driven "play a card / play
+  // a standard project" sub-prompt (EccentricSponsor, EcologyExperts via
+  // PlayProjectCard; EstablishedMethods via SelectStandardProjectToPlay). Route
+  // it to the modal so it's visible (hosted via the legacy SelectProjectCardToPlay
+  // form inside ModalInputHost's factory fallback) instead of buried in the
+  // hidden legacy overlay.
+  'projectCard',
 ]);
 
 function titleText(title: string | Message | undefined): string | undefined {
@@ -170,24 +194,22 @@ function titleText(title: string | Message | undefined): string | undefined {
   return typeof title === 'string' ? title : title.message;
 }
 
-// Returns true when the given top-level PlayerInput is one of the
-// "mandatory choice" prompts we route through MandatoryInputModal.
+// Returns true when the given top-level PlayerInput should be hosted inside
+// MandatoryInputModal.
 //
-// Two-layer detection:
-//  - by `type`: any input whose type unconditionally belongs in a modal
-//    (currently `'payment'`).
-//  - by title: specific `OrOptions` prompts that share the generic `'or'`
-//    type with the regular action menu but should be modal'd (World
-//    Government Terraforming is the first).
+//  - by `type`: any input in MODAL_INPUT_TYPES (always a mandatory sub-prompt).
+//  - `'or'`: every top-level OrOptions EXCEPT the per-turn action menu. This
+//    covers World Government Terraforming (rendered by a dedicated component
+//    inside the modal) and every card-driven OrOptions (raise temp / raise
+//    Venus, pick an attack target, choose an effect, …) which previously fell
+//    into the hidden legacy radio stack.
 function shouldRouteToModal(input: PlayerInputModel): boolean {
   if (MODAL_INPUT_TYPES.has(input.type)) {
     return true;
   }
   if (input.type === 'or') {
     const t = titleText(input.title);
-    if (t !== undefined && MODAL_OR_TITLES.has(t)) {
-      return true;
-    }
+    return t === undefined || !ACTION_MENU_TITLES.has(t);
   }
   return false;
 }
@@ -234,6 +256,7 @@ export default defineComponent({
   components: {
     MandatoryInputModal,
     WorldGovernmentModalContent,
+    ModalInputHost,
     PlacementBanner,
   },
   props: {

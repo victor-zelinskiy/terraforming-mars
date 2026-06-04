@@ -1,0 +1,548 @@
+/* ===========================================================================
+ * Modern modal-hosted player inputs (ModalInputHost + ModernOptionPicker +
+ * ModernConfirm). Premium replacement for the legacy radio / option stack
+ * when a card-play (or forced-event) sub-prompt is hosted inside
+ * MandatoryInputModal. Visual language matches the WGT modal
+ * (`.wgt-modal__*` in mandatory_input_modal.less): dark glass, cyan accents,
+ * Prototype font, calm hover glow.
+ *
+ * The legacy components (OrOptions.vue / SelectOption.vue) keep their own
+ * styling for the inline / hidden-legacy path — this file never touches them.
+ * =========================================================================== */
+
+/* Top-level content sits directly in the modal card → full glass frame.
+ * Nested ModernOptionPicker instances (inside a wizard step) are plain
+ * descendants and inherit only typography (no double frame). */
+.mandatory-input-modal__card > .modal-input {
+    position: relative;
+    padding: 14px 18px 16px;
+    min-width: 420px;
+    max-width: 720px;
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    background:
+        linear-gradient(180deg,
+            rgba(20, 30, 45, 0.92) 0%,
+            rgba(12, 20, 32, 0.92) 100%);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
+}
+
+@media (max-width: 520px) {
+    .mandatory-input-modal__card > .modal-input {
+        min-width: 0;
+    }
+}
+
+.modal-input {
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+}
+
+.modal-input__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+}
+
+.modal-input__header-tab {
+    width: 4px;
+    height: 22px;
+    background: linear-gradient(180deg, #6ab0e6 0%, #2c4a6a 100%);
+    border-radius: 1px;
+    box-shadow: 0 0 6px rgba(106, 176, 230, 0.55);
+    flex-shrink: 0;
+}
+
+.modal-input__title {
+    flex: 1;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #e8f1fb;
+    text-shadow: 0 0 8px rgba(106, 176, 230, 0.25);
+    line-height: 1.25;
+}
+
+/* OrOptions-level warning (the singular `warning` field). */
+.modal-input__warning {
+    margin: -4px 0 12px;
+    padding: 8px 10px;
+    border-left: 3px solid rgba(255, 200, 80, 0.7);
+    border-radius: 2px;
+    background: rgba(255, 200, 80, 0.08);
+    color: #f0d9a8;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+/* SelectOption confirm warnings (legacy WarningsComponent host). */
+.modal-input__warnings {
+    margin: -4px 0 14px;
+
+    .card-warning {
+        margin: 4px 0;
+        padding: 8px 10px;
+        border-left: 3px solid rgba(255, 200, 80, 0.7);
+        border-radius: 2px;
+        background: rgba(255, 200, 80, 0.08);
+        color: #f0d9a8;
+        font-size: 12px;
+        line-height: 1.35;
+    }
+}
+
+/* ===== Option list ===== */
+
+.modal-input__options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.modal-input__option-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #28415e;
+    border-radius: 3px;
+    background: rgba(16, 24, 36, 0.7);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    text-align: left;
+    cursor: pointer;
+    line-height: 1.2;
+    min-height: 52px;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+
+    &:hover {
+        border-color: #6ab0e6;
+        background: rgba(24, 38, 56, 0.85);
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.3);
+        transform: translateY(-1px);
+    }
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+/* 'space' options open a board picker — amber hint accent. */
+.modal-input__option-btn--space {
+    border-left: 3px solid rgba(255, 200, 80, 0.65);
+
+    &:hover {
+        border-left-color: #ffd87a;
+        box-shadow: 0 0 8px rgba(255, 200, 80, 0.4);
+    }
+}
+
+/* The currently-armed board picker option stays highlighted while the
+ * modal fades for board interaction. */
+.modal-input__option-btn--active {
+    border-color: #ffd87a;
+    box-shadow: 0 0 10px rgba(255, 200, 80, 0.45);
+    background: rgba(40, 34, 18, 0.7);
+}
+
+.modal-input__option-marker {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(106, 176, 230, 0.55);
+    background: rgba(106, 176, 230, 0.12);
+    box-shadow: inset 0 0 4px rgba(106, 176, 230, 0.4);
+}
+.modal-input__option-marker--space {
+    border-color: rgba(255, 200, 80, 0.7);
+    background: rgba(255, 200, 80, 0.14);
+    box-shadow: inset 0 0 4px rgba(255, 200, 80, 0.45);
+}
+
+.modal-input__option-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.modal-input__option-label {
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.modal-input__option-warnings {
+    .card-warning {
+        margin: 0;
+        color: #f0d9a8;
+        font-size: 11px;
+        letter-spacing: 0;
+        text-transform: none;
+        line-height: 1.3;
+    }
+}
+
+.modal-input__option-hint {
+    flex-shrink: 0;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #ffd87a;
+    opacity: 0.85;
+}
+
+.modal-input__option-chevron {
+    flex-shrink: 0;
+    font-size: 22px;
+    line-height: 1;
+    color: #6ab0e6;
+    opacity: 0.75;
+}
+
+/* ===== Nested wizard step ===== */
+
+.modal-input__nested {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.modal-input__back-btn {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px 5px 8px;
+    border: 1px solid #28415e;
+    border-radius: 3px;
+    background: rgba(16, 24, 36, 0.7);
+    color: #9fc4e6;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+
+    &:hover {
+        border-color: #6ab0e6;
+        color: #e8f1fb;
+        background: rgba(24, 38, 56, 0.85);
+    }
+}
+.modal-input__back-glyph {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.modal-input__nested-label {
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #9fc4e6;
+}
+
+/* ===== Confirm (bare SelectOption) ===== */
+
+.modal-input__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.modal-input__primary-btn {
+    padding: 11px 22px;
+    border: 1px solid #2f6f4f;
+    border-radius: 3px;
+    background:
+        linear-gradient(180deg,
+            rgba(46, 122, 84, 0.92) 0%,
+            rgba(30, 82, 58, 0.92) 100%);
+    color: #eafff3;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, filter 0.15s ease;
+
+    &:hover {
+        border-color: #57c98c;
+        box-shadow: 0 0 10px rgba(87, 201, 140, 0.4);
+        transform: translateY(-1px);
+    }
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+/* ===== Player picker ===== */
+
+.modal-input__players {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.modal-input__player-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #28415e;
+    border-radius: 3px;
+    background: rgba(16, 24, 36, 0.7);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    text-align: left;
+    cursor: pointer;
+    min-height: 52px;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+
+    &:hover {
+        border-color: #6ab0e6;
+        background: rgba(24, 38, 56, 0.85);
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.3);
+        transform: translateY(-1px);
+    }
+    &:active {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+
+.modal-input__player-swatch {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.modal-input__player-name {
+    flex: 1;
+    line-height: 1.2;
+}
+
+/* ===== Subtitle (secondary prompt line) ===== */
+
+.modal-input__subtitle {
+    margin: -4px 0 12px;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    color: #9fc4e6;
+    line-height: 1.35;
+}
+
+/* ===== Amount stepper ===== */
+
+.modal-input__stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 6px 0 4px;
+}
+
+.modal-input__step-btn {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #28415e;
+    border-radius: 50%;
+    background: rgba(16, 24, 36, 0.7);
+    color: #d6e2f2;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+
+    &:hover:not(:disabled) {
+        border-color: #6ab0e6;
+        background: rgba(24, 38, 56, 0.85);
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.3);
+    }
+    &:active:not(:disabled) {
+        transform: scale(0.92);
+    }
+    &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+}
+
+.modal-input__step-value {
+    min-width: 64px;
+    text-align: center;
+    font-size: 30px;
+    font-weight: 700;
+    color: #e8f1fb;
+    text-shadow: 0 0 8px rgba(106, 176, 230, 0.3);
+    font-variant-numeric: tabular-nums;
+}
+.modal-input__step-value--sm {
+    min-width: 36px;
+    font-size: 20px;
+}
+
+.modal-input__max-btn {
+    padding: 8px 14px;
+    border: 1px solid #2c4a6a;
+    border-radius: 3px;
+    background: rgba(16, 24, 36, 0.7);
+    color: #9fc4e6;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+        border-color: #6ab0e6;
+        color: #e8f1fb;
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.3);
+    }
+}
+
+.modal-input__range-hint {
+    text-align: center;
+    margin-bottom: 14px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: #6f8aa8;
+}
+
+/* ===== Single-resource grid ===== */
+
+.modal-input__resource-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.modal-input__resource-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 8px;
+    border: 1px solid #28415e;
+    border-radius: 3px;
+    background: rgba(16, 24, 36, 0.7);
+    color: #d6e2f2;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+
+    .resource_icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    &:hover {
+        border-color: #6ab0e6;
+        background: rgba(24, 38, 56, 0.85);
+        transform: translateY(-1px);
+    }
+}
+.modal-input__resource-tile--selected {
+    border-color: #6ab0e6;
+    background: rgba(24, 44, 64, 0.9);
+    box-shadow: 0 0 10px rgba(106, 176, 230, 0.45), inset 0 0 0 1px rgba(106, 176, 230, 0.3);
+}
+
+.modal-input__resource-label {
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    text-align: center;
+    line-height: 1.2;
+}
+
+/* ===== Resource / production distribution ===== */
+
+.modal-input__dist {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.modal-input__dist-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border: 1px solid #233852;
+    border-radius: 3px;
+    background: rgba(16, 24, 36, 0.55);
+
+    .resource_icon {
+        width: 26px;
+        height: 26px;
+        flex-shrink: 0;
+    }
+    .modal-input__step-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 18px;
+    }
+}
+
+.modal-input__dist-name {
+    flex: 1;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: #c5d6ea;
+    min-width: 0;
+}
+
+.modal-input__dist-counter {
+    text-align: center;
+    margin-bottom: 12px;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: #9fc4e6;
+}
+.modal-input__dist-counter--complete {
+    color: #57c98c;
+    text-shadow: 0 0 8px rgba(87, 201, 140, 0.35);
+}
+
+.modal-input__primary-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    &:hover { transform: none; box-shadow: none; border-color: #2f6f4f; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .modal-input__option-btn,
+    .modal-input__player-btn,
+    .modal-input__resource-tile,
+    .modal-input__step-btn,
+    .modal-input__primary-btn {
+        transition: none;
+        &:hover { transform: none; }
+    }
+}
