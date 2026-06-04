@@ -10,6 +10,7 @@ import {Message} from '../../common/logs/Message';
 import {UnderworldExpansion} from '../underworld/UnderworldExpansion';
 import {message} from '../logs/MessageBuilder';
 import {CardName} from '../../common/cards/CardName';
+import {skip} from '../inputs/optionMetadata';
 
 export type Source = 'self' | 'opponents' | 'all';
 export type Response = {card: ICard, owner: IPlayer, proceed: boolean} | {card: undefined, owner: undefined, proceed: boolean};
@@ -93,7 +94,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
 
     return new OrOptions(
       selectCard,
-      new SelectOption('Do not remove'));
+      new SelectOption('Do not remove').withMetadata(skip()));
   }
 
   private attack(card: ICard) {

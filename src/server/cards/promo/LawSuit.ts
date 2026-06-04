@@ -40,7 +40,7 @@ export class LawSuit extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    return new SelectPlayer(this.targets(player), 'Select player to sue (steal 3 M€ from)', 'Steal M€')
+    return new SelectPlayer(this.targets(player), 'Select player to sue (steal 3 M€ from)', 'Steal M€', {icon: 'megacredits', amount: 3})
       .andThen((suedPlayer: IPlayer) => {
         const amount = Math.min(3, suedPlayer.megaCredits);
         if (amount === 0) {

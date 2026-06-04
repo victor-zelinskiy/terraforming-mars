@@ -134,6 +134,10 @@ export default defineComponent({
           input: {type: 'player', title: 'Select player to remove up to 4 M€ from', buttonLabel: 'Remove M€', players: ['red', 'blue'], icon: 'megacredits', amount: 4},
         },
         {
+          label: 'SelectPlayer — decrease production (Energy Tapping)',
+          input: {type: 'player', title: {message: 'Select player to decrease ${0} production by ${1} step(s)', data: [raw('energy'), raw(1)]}, buttonLabel: 'Decrease', players: ['red', 'blue'], icon: 'energy', amount: 1},
+        },
+        {
           label: 'SelectAmount — heat production (Insulation)',
           input: {type: 'amount', title: 'Select amount of heat production to decrease', buttonLabel: 'Decrease', min: 1, max: 6, maxByDefault: false, icon: 'heat'},
         },

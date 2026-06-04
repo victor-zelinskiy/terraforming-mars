@@ -48,7 +48,9 @@ export class DecreaseAnyProduction extends DeferredAction<boolean> {
       }
       if (targets.length > 0) {
         if (targets.length > 1 || targets[0] === this.player) {
-          return new SelectPlayer(targets, this.title, 'Decrease')
+          // Resource enum values double as standard-resource icon keys, so the
+          // premium player picker shows a "−N <resource>" production badge.
+          return new SelectPlayer(targets, this.title, 'Decrease', {icon: this.resource, amount: this.options.count})
             .andThen((candidate) => {
               this.attack(candidate);
               return undefined;
