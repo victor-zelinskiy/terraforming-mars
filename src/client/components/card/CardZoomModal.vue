@@ -9,7 +9,10 @@
     The inner `.card-zoom-container` already has `@click.stop`, so this
     only ever fires for genuine backdrop clicks.
   -->
-  <dialog ref="dialog" class="card-zoom-dialog" @click.stop="onBackdropClick">
+  <dialog ref="dialog"
+          class="card-zoom-dialog"
+          :class="{'card-zoom-dialog--nav': navEnabled}"
+          @click.stop="onBackdropClick">
     <!--
       v40 fullscreen presentation rework:
         - Close × button removed; dismissal is backdrop click + Esc only
@@ -19,61 +22,83 @@
         - @click.stop on the container (NOT just inner pieces) keeps the
           backdrop dismiss working only when the click is genuinely
           outside the presentation area.
-        - card-zoom-actions slot is always rendered (it reserves the
-          space) but only fills with content when a parent supplies the
-          'actions' slot — keeps a future action button addable without
-          a relayout, while empty state shows nothing visible to the
-          player.
+
+      v41 navigation rework (OPT-IN via the `cards` prop):
+        - When a parent passes an ordered `cards` list (> 1) the viewer
+          turns into a bounded browser: prev/next HUD arrows, a counter,
+          keyboard nav (← / →), and a directional slide animation.
+          It lets the player decide IN fullscreen across the SAME list
+          (filtered/sorted as the source UI showed it), without close +
+          reopen. The `#actions` slot keeps mirroring the CURRENT card
+          because the parent re-points its zoom variable from `@navigate`.
+        - Omitting `cards` (journal chip, played-cards, Card.vue built-in,
+          final-confirm preview, …) keeps the classic single-card view —
+          no arrows, no keyboard nav, identical to before.
     -->
     <div class="card-zoom-container" @click.stop>
-      <div v-if="cardInstance"
-           class="card-zoom-card"
-           :class="{ 'card-zoom-card--selected': selected }">
-        <div class="card-container filterDiv card-auto-tall" v-i18n>
-          <span class="card-corner card-corner--tl" aria-hidden="true"></span>
-          <span class="card-corner card-corner--tr" aria-hidden="true"></span>
-          <span class="card-corner card-corner--bl" aria-hidden="true"></span>
-          <span class="card-corner card-corner--br" aria-hidden="true"></span>
-          <div class="card-content-wrapper">
-            <div v-if="!isStandardProject" class="card-cost-and-tags">
-              <CardCost :amount="cost" :newCost="reducedCost" />
-              <CardTags :tags="tags" />
-            </div>
-            <CardTitle :title="card.name" :type="cardType"/>
-            <CardContent
-                :metadata="cardMetadata"
-                :isCorporation="isCorporationCard"
-                :bottomPadding="bottomPadding" />
-          </div>
-          <CardRequirementsComponent v-if="cardRequirements !== undefined && cardRequirements.length > 0" :requirements="cardRequirements" />
-          <CardExpansion :expansion="cardExpansion" :isCorporation="isCorporationCard" :isResourceCard="isResourceCard" :compatibility="cardCompatibility" />
-          <CardResourceCounter v-if="hasResourceType" :amount="resourceAmount" :type="resourceType" />
-          <CardVictoryPoints v-if="cardMetadata.victoryPoints" :victoryPoints="cardMetadata.victoryPoints" />
-        </div>
-      </div>
+
       <!--
-        Fullscreen action zone (v40-o redesign).
+        Counter pill (nav mode only). Calm, low-contrast — informs without
+        pulling the eye off the card. `1 / N`, updates on every step.
+      -->
+      <div v-if="navEnabled" class="card-zoom-counter" aria-hidden="true">
+        <span class="card-zoom-counter__current">{{ currentIndex + 1 }}</span>
+        <span class="card-zoom-counter__sep">/</span>
+        <span class="card-zoom-counter__total">{{ navCount }}</span>
+      </div>
 
-        Inner `__panel` wraps the buttons in a glassmorphic sci-fi
-        strip so the controls read as the card's built-in lower
-        chrome — not floating HTML buttons. L-corner accents on the
-        panel match the bigger modal corners; the panel itself has
-        a top/bottom cyan-tinted border and a soft underglow so it
-        anchors visually to the card above.
+      <!--
+        Prev / next arrows (nav mode only). Bounded — NOT a carousel: the
+        arrow fades out (visibility + opacity) at the first / last card
+        instead of wrapping, so reaching an end reads as "edge of the set",
+        never as a broken button. Sized large for easy targeting but kept
+        to the viewport gutters so they never cover the card.
+      -->
+      <button v-if="navEnabled"
+              type="button"
+              class="card-zoom-nav card-zoom-nav--prev"
+              :class="{'card-zoom-nav--hidden': !canPrev}"
+              :disabled="!canPrev"
+              :aria-label="$t('Previous card')"
+              data-test="card-zoom-prev"
+              @click="prev">
+        <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
+      </button>
 
-        Layout:
-          [ ЗАКРЫТЬ (secondary) ] ←gap→ [ ВЫБРАТЬ (primary slot) ]
+      <!--
+        Card stage. A relative-positioned wrapper around exactly the card,
+        so the leaving card can be pinned absolute (overlap, not stack)
+        during the slide while the entering card defines the stage size.
+        The actions panel below therefore never jumps as cards swap.
+      -->
+      <div class="card-zoom-stage">
+        <transition :name="transitionName"
+                    @enter="onCardEnter"
+                    @after-enter="onCardAfterEnter">
+          <CardZoomCard :key="activeCard.name"
+                        :card="activeCard"
+                        :selected="selected" />
+        </transition>
+      </div>
 
-        Order (left → right): secondary first, primary second. This
-        matches modal/dialog convention (Cancel left, Confirm right)
-        and means the player's "exit" affordance never sits where the
-        cursor lands when they intend to commit. The 56-px gap keeps
-        them visually separate even on touch devices.
+      <button v-if="navEnabled"
+              type="button"
+              class="card-zoom-nav card-zoom-nav--next"
+              :class="{'card-zoom-nav--hidden': !canNext}"
+              :disabled="!canNext"
+              :aria-label="$t('Next card')"
+              data-test="card-zoom-next"
+              @click="next">
+        <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
+      </button>
 
-        The slot is empty when fullscreen is opened from Card.vue's
-        built-in path (no parent provided actions). In that case
-        only the close button shows — sensible default for a pure
-        preview view.
+      <!--
+        Fullscreen action zone (v40-o redesign). Glassmorphic sci-fi strip
+        that reads as the card's built-in lower chrome. The slot is empty
+        when fullscreen is opened from Card.vue's built-in path (no parent
+        actions) — only ЗАКРЫТЬ shows. In nav mode the slot still hosts the
+        CURRENT card's action (the parent re-points its zoom var on
+        @navigate), so the button always applies to what's on screen.
       -->
       <div class="card-zoom-actions">
         <div class="card-zoom-actions__panel">
@@ -89,6 +114,17 @@
           <slot name="actions" />
         </div>
       </div>
+
+      <!--
+        Off-screen preload of the immediate neighbours (nav mode only).
+        Warms their render + assets so the next slide is instant. Lives
+        OUTSIDE `.card-zoom-stage` so the fit-to-viewport measurer never
+        picks it up; refreshed when idle (after each slide settles), not
+        during the animation, so it never competes for a frame mid-slide.
+      -->
+      <div v-if="navEnabled" class="card-zoom-preload" aria-hidden="true">
+        <CardZoomCard v-for="c in preloadCards" :key="'preload-' + c.name" :card="c" />
+      </div>
     </div>
   </dialog>
 </template>
@@ -97,22 +133,8 @@
 import {defineComponent} from 'vue';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
 import {CardModel} from '@/common/models/CardModel';
-import {ClientCard} from '@/common/cards/ClientCard';
-import {getCard, getCardOrThrow} from '@/client/cards/ClientCardManifest';
-import {CardType} from '@/common/cards/CardType';
-import {CardMetadata} from '@/common/cards/CardMetadata';
-import {Tag} from '@/common/cards/Tag';
-import {CardResource} from '@/common/CardResource';
-import {CardRequirementDescriptor} from '@/common/cards/CardRequirementDescriptor';
-import {GameModule} from '@/common/cards/GameModule';
-import CardTitle from './CardTitle.vue';
-import CardCost from './CardCost.vue';
-import CardTags from './CardTags.vue';
-import CardContent from './CardContent.vue';
-import CardRequirementsComponent from './CardRequirementsComponent.vue';
-import CardExpansion from './CardExpansion.vue';
-import CardResourceCounter from './CardResourceCounter.vue';
-import CardVictoryPoints from './CardVictoryPoints.vue';
+import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
+import CardZoomCard from './CardZoomCard.vue';
 
 import dialogPolyfill from 'dialog-polyfill';
 
@@ -120,17 +142,17 @@ type Refs = {
   dialog: HTMLDialogElement;
 };
 
+type SlideDir = '' | 'next' | 'prev' | 'consume';
+
+// Keep in sync with the slide transition duration in preferences.less. Used
+// only as a fallback to release the rapid-press guard if a transition hook
+// never fires (e.g. reduced-motion, element reuse).
+const ANIM_MS = 240;
+
 export default defineComponent({
   name: 'CardZoomModal',
   components: {
-    CardTitle,
-    CardCost,
-    CardTags,
-    CardContent,
-    CardRequirementsComponent,
-    CardExpansion,
-    CardResourceCounter,
-    CardVictoryPoints,
+    CardZoomCard,
   },
   props: {
     card: {
@@ -142,106 +164,152 @@ export default defineComponent({
       default: false,
     },
     /*
-     * When true, the fullscreen card gets the strong "selected"
-     * presentation — multi-ring cyan halo on the frame, slow
-     * pulsing aura, and a "ВЫБРАНО" / "SELECTED" ribbon above
-     * the card. Used by BUY-mode card selection: the player
-     * toggles the card from inside the fullscreen and the
-     * selected affordance has to be visible on the very card
-     * they're inspecting, not just on the grid behind. DRAFT
-     * mode never sets this (the modal closes before the state
-     * changes).
+     * Strong "selected" presentation on the current card — see CardZoomCard.
+     * In nav mode the parent re-binds this to the CURRENT card (it re-points
+     * its zoom variable on @navigate), so the halo tracks the visible card.
      */
     selected: {
       type: Boolean,
       default: false,
     },
+    /*
+     * OPT-IN navigation context. The ordered list of cards the player was
+     * looking at (filtered/sorted in the SOURCE order). When provided AND it
+     * has more than one card, fullscreen navigation turns on. Leave undefined
+     * for a pure single-card preview.
+     */
+    cards: {
+      type: Array as () => ReadonlyArray<CardModel> | undefined,
+      default: undefined,
+    },
+    /*
+     * Optional starting index into `cards`. Used only to seed the initial
+     * card on show() (handy when the list can contain duplicate card names,
+     * e.g. drawn cards). Navigation afterwards is owned internally; parents
+     * track the current card via `@navigate`, not by binding this back.
+     */
+    index: {
+      type: Number as () => number | undefined,
+      default: undefined,
+    },
+  },
+  emits: ['close', 'navigate', 'update:index'],
+  data() {
+    return {
+      currentIndex: 0,
+      slideDir: '' as SlideDir,
+      // True while a slide is mid-flight — blocks rapid arrow/key re-entry so
+      // transitions never pile up and the index never races.
+      animating: false,
+      animTimer: undefined as number | undefined,
+      // Names of the cards rendered off-screen for preload (neighbours).
+      preloadNames: [] as ReadonlyArray<string>,
+    };
   },
   computed: {
     typedRefs(): Refs {
       return this.$refs as unknown as Refs;
     },
-    // `cardInstance` returns undefined for unknown card names (e.g. custom cards
-    // not registered in the manifest). The template guards every dependent
-    // accessor with `v-if="cardInstance"`, so `card` (which throws on undefined)
-    // is only ever evaluated when the card is known.
-    cardInstance(): ClientCard | undefined {
-      return getCard(this.card.name);
+    navList(): ReadonlyArray<CardModel> {
+      return this.cards ?? [];
     },
-    cardOrThrow(): ClientCard {
-      return getCardOrThrow(this.card.name);
+    navEnabled(): boolean {
+      return this.navList.length > 1;
     },
-    cardType(): CardType {
-      return this.cardOrThrow.type;
+    navCount(): number {
+      return this.navList.length;
     },
-    cardMetadata(): CardMetadata {
-      return this.cardOrThrow.metadata;
-    },
-    cardRequirements(): ReadonlyArray<CardRequirementDescriptor> | undefined {
-      return this.cardOrThrow.requirements;
-    },
-    cardExpansion(): GameModule {
-      return this.cardOrThrow.module;
-    },
-    cardCompatibility(): Array<GameModule> {
-      return this.cardOrThrow.compatibility;
-    },
-    isCorporationCard(): boolean {
-      return this.cardType === CardType.CORPORATION;
-    },
-    isProjectCard(): boolean {
-      const type = this.cardType;
-      return type === CardType.AUTOMATED || type === CardType.ACTIVE || type === CardType.EVENT;
-    },
-    isStandardProject(): boolean {
-      return this.cardType === CardType.STANDARD_PROJECT || this.cardType === CardType.STANDARD_ACTION;
-    },
-    isResourceCard(): boolean {
-      return this.cardOrThrow.resourceType !== undefined;
-    },
-    hasResourceType(): boolean {
-      return this.card.isSelfReplicatingRobotsCard === true || this.cardOrThrow.resourceType !== undefined;
-    },
-    resourceType(): CardResource {
-      if (this.card.isSelfReplicatingRobotsCard === true) {
-        return CardResource.RESOURCE_CUBE;
-      }
-      return this.cardOrThrow.resourceType ?? CardResource.RESOURCE_CUBE;
-    },
-    resourceAmount(): number {
-      return this.card.resources || 0;
-    },
-    tags(): Array<Tag> {
-      const tags = [...this.cardOrThrow.tags || []];
-      tags.forEach((tag, idx) => {
-        if (tag === Tag.CLONE && this.card.cloneTag !== undefined) {
-          tags[idx] = this.card.cloneTag;
+    // The card currently on screen. In nav mode it's the list entry at
+    // currentIndex; otherwise the single `card` prop. Falls back to `card`
+    // defensively if the index is ever transiently out of range.
+    activeCard(): CardModel {
+      if (this.navEnabled) {
+        const c = this.navList[this.currentIndex];
+        if (c !== undefined) {
+          return c;
         }
-      });
-      if (this.cardType === CardType.EVENT) {
-        tags.push(Tag.EVENT);
       }
-      return tags;
+      return this.card;
     },
-    cost(): number | undefined {
-      return this.isProjectCard ? this.cardOrThrow.cost : undefined;
+    canPrev(): boolean {
+      return this.navEnabled && this.currentIndex > 0;
     },
-    reducedCost(): number | undefined {
-      return this.isProjectCard ? this.card.calculatedCost : undefined;
+    canNext(): boolean {
+      return this.navEnabled && this.currentIndex < this.navList.length - 1;
     },
-    bottomPadding(): string {
-      if (this.cardMetadata.victoryPoints !== undefined) {
-        return 'long';
+    transitionName(): string {
+      // No-op name (no matching CSS) so the single-card / initial-mount path
+      // never picks up stray default transition classes.
+      if (this.slideDir === '') {
+        return 'card-zoom-none';
       }
-      if (this.hasResourceType) {
-        return 'short';
+      // Reduced-motion: collapse every direction to a quick fade (no slide).
+      if (prefersReducedMotion()) {
+        return 'card-zoom-rm';
       }
-      return '';
+      return 'card-zoom-' + this.slideDir;
+    },
+    preloadCards(): ReadonlyArray<CardModel> {
+      const out: Array<CardModel> = [];
+      for (const name of this.preloadNames) {
+        const c = this.navList.find((card) => card.name === name);
+        if (c !== undefined) {
+          out.push(c);
+        }
+      }
+      return out;
+    },
+  },
+  watch: {
+    /*
+     * Controlled-index escape hatch: if a parent ever drives `index` two-way,
+     * follow it. No bundled context binds it back today (they track the card
+     * via @navigate), so this stays a no-op in practice — `index` only seeds
+     * the start in show(). Pre-flush (Vue 3 default) so slideDir lands before
+     * the keyed card re-renders.
+     */
+    index(next: number | undefined) {
+      if (next === undefined || next === this.currentIndex) {
+        return;
+      }
+      this.applyIndex(next, next > this.currentIndex ? 'next' : 'prev');
+    },
+    /*
+     * The list can mutate under an open modal (drawn-cards "take" removes a
+     * card). Clamp the index; if a different card slid into the same slot
+     * (a removal shifted the next card into place) play the calmer "consume"
+     * swap and re-sync the parent + fit.
+     */
+    cards(next: ReadonlyArray<CardModel> | undefined, prev: ReadonlyArray<CardModel> | undefined) {
+      if (next === undefined || next.length === 0) {
+        return;
+      }
+      const prevName = prev?.[this.currentIndex]?.name;
+      const clamped = Math.min(this.currentIndex, next.length - 1);
+      if (clamped !== this.currentIndex) {
+        this.currentIndex = clamped;
+      }
+      const nextName = next[clamped]?.name;
+      if (nextName !== undefined && nextName !== prevName) {
+        this.slideDir = 'consume';
+        this.$emit('navigate', this.activeCard, this.currentIndex);
+        this.$nextTick(() => this.fitCardToViewport());
+        this.refreshPreload();
+      }
     },
   },
   methods: {
     show() {
+      this.currentIndex = this.computeStartIndex();
+      this.slideDir = '';
+      this.refreshPreload();
       showModal(this.typedRefs.dialog);
+      // Sync the parent to the card we actually opened on (the start index may
+      // differ from the raw `card` prop, e.g. a list with duplicate names), so
+      // the action slot + any index tracking are correct from the first frame.
+      if (this.navEnabled) {
+        this.$emit('navigate', this.activeCard, this.currentIndex);
+      }
       // Fit card after the dialog is open so its natural size can be
       // measured against the actual viewport. nextTick ensures the
       // card's content has flowed before we read offsetHeight.
@@ -255,37 +323,145 @@ export default defineComponent({
     onBackdropClick() {
       this.close();
     },
+    computeStartIndex(): number {
+      if (!this.navEnabled) {
+        return 0;
+      }
+      if (this.index !== undefined && this.index >= 0 && this.index < this.navList.length) {
+        return this.index;
+      }
+      const byName = this.navList.findIndex((c) => c.name === this.card.name);
+      return byName >= 0 ? byName : 0;
+    },
+    prev() {
+      this.go(-1);
+    },
+    next() {
+      this.go(1);
+    },
+    /*
+     * Step the viewer. Bounded (no wrap) and guarded against rapid re-entry:
+     * while a slide is animating further steps are ignored, so the transition
+     * never piles up and currentIndex (the single source of truth) never
+     * races. Holding an arrow simply paces at the animation rate.
+     */
+    go(delta: number) {
+      if (!this.navEnabled || this.animating) {
+        return;
+      }
+      const target = this.currentIndex + delta;
+      if (target < 0 || target >= this.navList.length) {
+        return;
+      }
+      this.applyIndex(target, delta > 0 ? 'next' : 'prev');
+      this.$emit('update:index', target);
+    },
+    /*
+     * Commit a new index + slide direction. Sets slideDir BEFORE currentIndex
+     * so the keyed-card transition in the same render flush picks the right
+     * direction. Emits `navigate(card, index)` so the parent re-points its
+     * zoom variable → the action slot + selected halo follow the visible card.
+     */
+    applyIndex(target: number, dir: SlideDir) {
+      this.slideDir = dir;
+      this.currentIndex = target;
+      this.startAnimGuard();
+      this.$emit('navigate', this.activeCard, target);
+      this.$nextTick(() => this.fitCardToViewport());
+    },
+    startAnimGuard() {
+      this.animating = true;
+      this.clearAnimTimer();
+      const wait = (prefersReducedMotion() ? 0 : ANIM_MS) + 80;
+      this.animTimer = window.setTimeout(() => {
+        this.animating = false;
+        this.animTimer = undefined;
+      }, wait);
+    },
+    clearAnimTimer() {
+      if (this.animTimer !== undefined) {
+        window.clearTimeout(this.animTimer);
+        this.animTimer = undefined;
+      }
+    },
+    onCardEnter(el: Element) {
+      // Fit the INCOMING card before its enter frame paints so it never pops
+      // from the default zoom to the fitted one mid-slide.
+      this.fitCardToViewport(el as HTMLElement);
+    },
+    onCardAfterEnter() {
+      // Slide settled — release the guard early (don't wait for the fallback
+      // timer) and warm the next neighbours while idle.
+      this.animating = false;
+      this.clearAnimTimer();
+      this.refreshPreload();
+    },
+    refreshPreload() {
+      if (!this.navEnabled) {
+        this.preloadNames = [];
+        return;
+      }
+      const names: Array<string> = [];
+      const before = this.navList[this.currentIndex - 1];
+      const after = this.navList[this.currentIndex + 1];
+      if (before !== undefined) {
+        names.push(before.name);
+      }
+      if (after !== undefined) {
+        names.push(after.name);
+      }
+      this.preloadNames = names;
+    },
+    onKeydown(e: KeyboardEvent) {
+      if (!this.navEnabled) {
+        return;
+      }
+      // Only act while THIS dialog is the open one.
+      if (this.typedRefs.dialog === undefined || !this.typedRefs.dialog.open) {
+        return;
+      }
+      // Never hijack typing.
+      const t = e.target as HTMLElement | null;
+      if (t !== null && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+        return;
+      }
+      // Arrow keys only. A/D are deliberately NOT bound: HomeMixin.navigatePage
+      // already owns KeyA/KeyD (jump to board / hand) on a window listener that
+      // doesn't check for an open dialog, so binding them here would double-fire
+      // (navigate the card AND scroll the board behind the modal). Arrow keys
+      // have no such global owner.
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        this.next();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        this.prev();
+      }
+      // Escape stays native (<dialog> 'cancel' → 'close' → @close).
+    },
+    onResize() {
+      this.fitCardToViewport();
+    },
     /*
      * Dynamic fit-to-viewport zoom calculator. The static media-query
      * ladder in preferences.less worked for short cards but blew past
-     * the viewport on tall ones (long Russian Venus translations,
-     * corp cards with big logos + flavor text — user-flagged
-     * "Биокуполы Фрейя" overflowing the top of the screen).
+     * the viewport on tall ones. Algorithm: reset zoom to 1, measure the
+     * natural size, compute the largest zoom that fits both axes inside
+     * the available viewport (minus chrome), clamp to [1.0, 2.8], apply
+     * inline. Runs on show(), on every slide (via @enter), and on resize.
      *
-     * Algorithm:
-     *   1. Reset card's `zoom` to 1 so we can measure its natural,
-     *      content-driven dimensions.
-     *   2. Force a synchronous reflow (read offsetHeight) so the
-     *      browser actually re-computes layout at zoom 1.
-     *   3. Read natural width / height.
-     *   4. Compute available viewport space (subtract container
-     *      padding, gap, and the actions-slot reservation — ~140 px
-     *      vertically, ~64 px horizontally).
-     *   5. Compute the largest zoom that satisfies BOTH axes
-     *      (min of width-fit and height-fit zoom).
-     *   6. Clamp to [1.0, 2.8] so cards never shrink below readable
-     *      or balloon past the previous ceiling.
-     *   7. Apply via inline `zoom`. Inline beats the media-query CSS
-     *      so the ladder becomes a graceful fallback only if JS
-     *      never runs (e.g., scripting disabled).
-     *
-     * Runs on every show() and on window resize so a player who
-     * resizes mid-game gets a re-fit.
+     * `cardRoot` is the entering `.card-zoom-card` passed by the transition
+     * @enter hook; without it we query the VISIBLE stage card (never the
+     * off-screen preload clones).
      */
-    fitCardToViewport(): void {
+    fitCardToViewport(cardRoot?: HTMLElement): void {
       const dialog = this.typedRefs.dialog;
-      const cardEl = dialog.querySelector('.card-zoom-card .card-container.filterDiv') as HTMLElement | null;
-      if (cardEl === null) return;
+      const cardEl = (cardRoot !== undefined ?
+        cardRoot.querySelector('.card-container.filterDiv') :
+        dialog?.querySelector('.card-zoom-stage .card-zoom-card .card-container.filterDiv')) as HTMLElement | null;
+      if (cardEl === null || cardEl === undefined) {
+        return;
+      }
 
       // Step 1+2: reset to zoom 1 and force reflow for natural size.
       const previousZoom = cardEl.style.zoom;
@@ -297,19 +473,18 @@ export default defineComponent({
       const naturalHeight = cardEl.offsetHeight;
       if (naturalWidth === 0 || naturalHeight === 0) {
         // Card not rendered yet (e.g., display:none mid-transition).
-        // Restore whatever was there and bail; next show / resize
-        // will try again.
         cardEl.style.zoom = previousZoom;
         return;
       }
 
       // Step 4: available space. Numbers mirror .card-zoom-container's
-      // padding (24+24=48) + gap (20) + actions-panel reservation (96
-      // — v40-o panel is taller than the bare actions row to fit the
-      // 52-px primary button + 18-px top/bottom padding + 1-px borders)
-      // plus a small safety buffer (8).
-      const chromeVertical = 48 + 20 + 96 + 8;
-      const chromeHorizontal = 32 + 8;
+      // padding (24+24=48) + gap (20) + actions-panel reservation (96)
+      // plus a small safety buffer (8). In nav mode reserve extra room so
+      // the card never grows under the side arrows (~70px each gutter) or
+      // the top counter pill (~36px), keeping them clear of card content
+      // even on narrow viewports.
+      const chromeVertical = 48 + 20 + 96 + 8 + (this.navEnabled ? 36 : 0);
+      const chromeHorizontal = 32 + 8 + (this.navEnabled ? 140 : 0);
       const availHeight = window.innerHeight - chromeVertical;
       const availWidth = window.innerWidth - chromeHorizontal;
 
@@ -335,10 +510,14 @@ export default defineComponent({
     });
     // Re-fit on viewport resize so cards stay within bounds when the
     // player resizes the window with the modal open.
-    window.addEventListener('resize', this.fitCardToViewport);
+    window.addEventListener('resize', this.onResize);
+    // Keyboard navigation (nav mode only; the handler self-gates).
+    window.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
-    window.removeEventListener('resize', this.fitCardToViewport);
+    window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('keydown', this.onKeydown);
+    this.clearAnimTimer();
   },
 });
 </script>

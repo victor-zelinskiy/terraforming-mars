@@ -46,6 +46,8 @@
     <CardZoomModal v-if="fullscreenCard"
                    ref="zoom"
                    :card="fullscreenCard"
+                   :cards="navCards"
+                   @navigate="onZoomNavigate"
                    @close="onFullscreenClosed">
       <template #actions>
         <button type="button"
@@ -99,10 +101,26 @@ export default defineComponent({
       const e = drawnCardsState.events.find((ev) => ev.id === fs.eventId);
       return e?.cards[fs.index];
     },
+    // The UNTAKEN cards of the active batch, in tray order — the list the
+    // fullscreen viewer navigates. Taken cards are excluded (the modal only
+    // browses what's still on offer, mirroring the tray).
+    navCards(): ReadonlyArray<CardModel> {
+      const e = this.activeEvent;
+      if (e === undefined) {
+        return [];
+      }
+      return this.untakenEntriesOf(e).map((x) => x.card);
+    },
   },
   watch: {
-    fullscreenCard(card: CardModel | undefined) {
-      if (card !== undefined) {
+    /*
+     * Open the dialog only on the OPEN transition (undefined → a card).
+     * Navigating WITHIN fullscreen changes `fullscreenCard` (the parent
+     * mirror of the current card) defined → defined — re-calling show() there
+     * would reset the viewer's index + re-fit, breaking navigation.
+     */
+    fullscreenCard(card: CardModel | undefined, prev: CardModel | undefined) {
+      if (card !== undefined && prev === undefined) {
         this.$nextTick(() => (this.$refs.zoom as any)?.show?.());
       }
     },
@@ -185,6 +203,18 @@ export default defineComponent({
           console.error(err);
         });
     },
+    // The untaken cards of a batch, paired with their full-array index, in
+    // tray order. Both the nav list and the take mapping derive from this so
+    // they never drift.
+    untakenEntriesOf(e: DrawnCardEntry): Array<{card: CardModel, index: number}> {
+      const out: Array<{card: CardModel, index: number}> = [];
+      e.cards.forEach((card, index) => {
+        if (!e.takenIndices.has(index)) {
+          out.push({card, index});
+        }
+      });
+      return out;
+    },
     openFullscreen(index: number): void {
       const e = this.activeEvent;
       if (e === undefined) {
@@ -195,19 +225,47 @@ export default defineComponent({
     onFullscreenClosed(): void {
       drawnCardsState.fullscreen = null;
     },
-    takeFromFullscreen(): void {
-      const fs = drawnCardsState.fullscreen;
-      if (fs === null) {
+    // The viewer navigated to a different untaken card — mirror the current
+    // card into `fullscreen.index` (a FULL-array index) so the ВЗЯТЬ action
+    // always takes exactly what's on screen.
+    onZoomNavigate(_card: CardModel, pos: number): void {
+      const e = this.activeEvent;
+      if (e === undefined || drawnCardsState.fullscreen === null) {
         return;
       }
-      const index = fs.index;
-      // Close the fullscreen dialog and clear it first, then take the card. If
-      // it was the LAST card, take() closes the whole modal (the player, already
-      // in fullscreen, never sees an empty tray); otherwise we return to the
-      // modal with the remaining cards.
-      (this.$refs.zoom as any)?.close?.();
-      drawnCardsState.fullscreen = null;
-      this.take(index);
+      const entry = this.untakenEntriesOf(e)[pos];
+      if (entry !== undefined) {
+        drawnCardsState.fullscreen = {eventId: e.id, index: entry.index};
+      }
+    },
+    takeFromFullscreen(): void {
+      const fs = drawnCardsState.fullscreen;
+      const e = this.activeEvent;
+      if (fs === null || e === undefined) {
+        return;
+      }
+      const list = this.untakenEntriesOf(e);
+      const pos = list.findIndex((x) => x.index === fs.index);
+      if (pos < 0) {
+        return;
+      }
+      const fullIndex = fs.index;
+      // Last untaken card → close the fullscreen and let take() close the whole
+      // reveal modal, so the player never lands on an empty tray.
+      if (list.length <= 1) {
+        (this.$refs.zoom as any)?.close?.();
+        drawnCardsState.fullscreen = null;
+        this.take(fullIndex);
+        return;
+      }
+      // Otherwise stay in fullscreen and advance to the next untaken card: mark
+      // this one taken (no modal close), then point fullscreen at the neighbour
+      // that slides into the same slot (or the new last card). The viewer's own
+      // list-shrink watcher plays the "consume" swap to the next card.
+      markCardTaken(e.id, fullIndex);
+      const after = this.untakenEntriesOf(e);
+      const nextPos = Math.min(pos, after.length - 1);
+      drawnCardsState.fullscreen = {eventId: e.id, index: after[nextPos].index};
     },
   },
 });
