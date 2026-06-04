@@ -1,5 +1,7 @@
 <template>
   <div :class="'topmost-'+screen">
+    <!-- Dev-only modal-input visual playground (URL: ?modalPlayground). -->
+    <ModalInputPlayground v-if="showModalPlayground" />
     <!--
       Game-screen atmosphere backdrop. Mounted ONLY on in-game screens
       (player-home / spectator-home) — start / create / load / the-end
@@ -118,6 +120,7 @@ const PlayerHome = defineAsyncComponent(() => import(/* webpackChunkName: "playe
 const SpectatorHome = defineAsyncComponent(() => import(/* webpackChunkName: "spectator-home" */ '@/client/components/SpectatorHome.vue'));
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
+const ModalInputPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "modal-input-playground" */ '@/client/components/modalInputs/ModalInputPlayground.vue'));
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
@@ -230,6 +233,7 @@ export default defineComponent({
     'admin-home': AdminHome,
     'login-home': LoginHome,
     DraftFlowOverlay,
+    ModalInputPlayground,
     JournalPanel,
     DrawCardRevealFlow,
     GameAtmosphere,
@@ -259,6 +263,11 @@ export default defineComponent({
     // live-follow state. See journalState.ts + journal.less.
     journalState() {
       return journalState;
+    },
+    // Dev-only: render the modal-input visual playground when the URL carries
+    // `?modalPlayground` (or `&modalPlayground`). Never shown in normal play.
+    showModalPlayground(): boolean {
+      return window.location.search.includes('modalPlayground');
     },
   },
   methods: {

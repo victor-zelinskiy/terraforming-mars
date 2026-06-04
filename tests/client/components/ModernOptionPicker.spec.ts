@@ -45,11 +45,14 @@ describe('ModernOptionPicker', () => {
         saved = out;
       },
     );
-    // The learner-only card is filtered, so two buttons are displayed.
-    const buttons = component.findAll('[data-test^="modern-option-"]');
+    // The learner-only card is filtered, so two option cards are displayed.
+    const buttons = component.findAll('.modal-input__option-card');
     expect(buttons.length).to.eq(2);
-    // Displayed index 1 → original index 2 (select b).
+    // Click SELECTS (no commit yet — select → confirm flow).
     await buttons[1].trigger('click');
+    expect(saved).to.eq(undefined);
+    // Confirm commits the selected option (displayed index 1 → original 2).
+    await component.find('[data-test="modern-option-confirm"]').trigger('click');
     expect(saved).to.deep.eq({type: 'or', index: 2, response: {type: 'option'}});
   });
 
