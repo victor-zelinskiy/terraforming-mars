@@ -12,7 +12,7 @@ export class SelectPlayer extends BasePlayerInput<IPlayer> {
     buttonLabel: string = 'Save',
     // OPTIONAL premium-UI hint for the action applied to the chosen player
     // (see SelectPlayerModel). Cosmetic — omit for a bare picker.
-    public options?: {icon?: string, amount?: number},
+    public options?: {icon?: string, amount?: number, scope?: 'stock' | 'production'},
   ) {
     super('player', title);
     this.buttonLabel = buttonLabel;
@@ -26,6 +26,7 @@ export class SelectPlayer extends BasePlayerInput<IPlayer> {
       players: this.players.map((player) => player.color),
       icon: this.options?.icon,
       amount: this.options?.amount,
+      scope: this.options?.scope,
     };
   }
 

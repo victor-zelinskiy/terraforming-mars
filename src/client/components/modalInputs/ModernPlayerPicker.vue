@@ -1,35 +1,86 @@
 <template>
   <!--
     Premium replacement for the legacy SelectPlayer radio list, hosted inside
-    MandatoryInputModal via ModalInputHost. Each selectable player is a glass
-    chip with their colour swatch + name; clicking commits the choice (single
-    select — same as the legacy radio + save, just one tap).
+    MandatoryInputModal via ModalInputHost. This is a TARGET PICKER, not a name
+    list: each candidate is a rich glass card showing who they are (colour +
+    name + corporation) and — when the server supplies icon/amount/scope — the
+    exact per-target impact of the effect ("Production: 2 → 1") plus a self
+    warning when the target is the acting player. Pick a card → it selects →
+    a premium CTA commits (select → confirm, like ModernOptionPicker), so a
+    destructive choice is never a single mis-click.
+
+    Per-target current/resulting values are computed CLIENT-SIDE from the public
+    player models (every player's stock + production is public info), so the
+    server only needs the {icon, amount, scope} hint.
 
     Submission is byte-identical to SelectPlayer.vue: {type: 'player', player}.
   -->
   <div class="modal-input modal-input--players">
-    <header class="modal-input__header">
+    <header class="modal-input__header modal-input__header--rich">
       <div class="modal-input__header-tab"></div>
-      <h3 class="modal-input__title">{{ titleText }}</h3>
+      <div class="modal-input__header-text">
+        <h3 class="modal-input__title">{{ headingText }}</h3>
+        <p v-if="subtitleText !== ''" class="modal-input__subtitle">{{ subtitleText }}</p>
+      </div>
+      <!-- HUD summary of the effect ("−1 ⚡prod"). Secondary to the per-card
+           previews, which carry the target-specific result. -->
+      <div v-if="actionIconClass !== ''"
+           class="modal-input__impact-chip"
+           :class="{'modal-input__impact-chip--prod': isProduction}"
+           aria-hidden="true">
+        <span class="modal-input__impact-amount">−{{ actionAmount }}</span>
+        <span class="modal-input__impact-icon-wrap" :class="{'modal-input__prod-frame': isProduction}">
+          <span class="modal-input__option-icon" :class="actionIconClass"></span>
+        </span>
+      </div>
     </header>
-
-    <!-- Action badge: the (constant) effect applied to whichever player is
-         picked, e.g. "−4 M€". Only shown when the server supplies icon/amount. -->
-    <div v-if="actionIconClass !== ''" class="modal-input__player-action" aria-hidden="true">
-      <span v-if="actionAmount !== undefined" class="modal-input__player-action-amount">−{{ actionAmount }}</span>
-      <span class="modal-input__option-icon modal-input__player-action-icon" :class="actionIconClass"></span>
-    </div>
 
     <div v-if="warningText !== ''" class="modal-input__warning">{{ warningText }}</div>
 
-    <div class="modal-input__players">
-      <button v-for="color in players"
-              :key="color"
-              class="modal-input__player-btn"
-              @click="pick(color)"
-              :data-test="'modern-player-' + color">
-        <span class="modal-input__player-swatch" :class="swatchClass(color)"></span>
-        <span class="modal-input__player-name">{{ playerName(color) }}</span>
+    <div class="modal-input__targets">
+      <button v-for="t in targets"
+              :key="t.color"
+              type="button"
+              class="modal-input__target-card"
+              :class="{
+                'modal-input__target-card--selected': selectedColor === t.color,
+                'modal-input__target-card--self': t.self,
+                'modal-input__target-card--disabled': t.disabled,
+                'modal-input__target-card--muted': t.muted && !t.disabled,
+              }"
+              :disabled="t.disabled"
+              @click="pick(t)"
+              :data-test="'modern-player-' + t.color">
+        <span class="modal-input__target-accent" :class="'player_bg_color_' + t.color" aria-hidden="true"></span>
+
+        <span class="modal-input__target-dot" :class="'player_bg_color_' + t.color" aria-hidden="true"></span>
+
+        <span class="modal-input__target-id">
+          <span class="modal-input__target-name">{{ t.name }}</span>
+          <span v-if="t.corporation !== ''" class="modal-input__target-corp">{{ t.corporation }}</span>
+          <span v-if="t.self" class="modal-input__target-self-chip">
+            <span class="modal-input__target-self-icon" aria-hidden="true">⚠</span>
+            <span>{{ selfWarningText }}</span>
+          </span>
+        </span>
+
+        <!-- Target-specific impact: framed icon (brown = production) + from→to. -->
+        <span v-if="t.hasPreview" class="modal-input__target-impact" aria-hidden="true">
+          <span class="modal-input__target-impact-icon-wrap" :class="{'modal-input__prod-frame': isProduction}">
+            <span class="modal-input__option-icon" :class="actionIconClass"></span>
+          </span>
+          <span class="modal-input__target-impact-from">{{ t.current }}</span>
+          <span class="modal-input__target-impact-arrow">→</span>
+          <span class="modal-input__target-impact-to">{{ t.resulting }}</span>
+        </span>
+        <span v-else-if="t.disabled" class="modal-input__target-disabled-reason">{{ t.disabledReason }}</span>
+        <span v-else-if="selectedColor === t.color" class="modal-input__target-check" aria-hidden="true">✓</span>
+      </button>
+    </div>
+
+    <div v-if="selectedColor !== undefined" class="modal-input__actions">
+      <button type="button" class="modal-input__primary-btn" @click="confirm" data-test="modern-player-confirm">
+        {{ confirmLabel }}
       </button>
     </div>
   </div>
@@ -37,13 +88,44 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
-import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SelectPlayerModel} from '@/common/models/PlayerInputModel';
 import {SelectPlayerResponse} from '@/common/inputs/InputResponse';
 import {Color} from '@/common/Color';
-import {playerColorClass} from '@/common/utils/utils';
+import {CardType} from '@/common/cards/CardType';
 import {translateText, translateMessage} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {getCard} from '@/client/cards/ClientCardManifest';
+
+// Icon-key → the public-player-model field carrying its current value, for the
+// two scopes. Megacredits is the singular `megacredit*` field.
+const STOCK_FIELD: Record<string, keyof PublicPlayerModel> = {
+  megacredits: 'megacredits', steel: 'steel', titanium: 'titanium',
+  plants: 'plants', energy: 'energy', heat: 'heat',
+};
+const PRODUCTION_FIELD: Record<string, keyof PublicPlayerModel> = {
+  megacredits: 'megacreditProduction', steel: 'steelProduction', titanium: 'titaniumProduction',
+  plants: 'plantProduction', energy: 'energyProduction', heat: 'heatProduction',
+};
+// M€ production can go to -5; every other production and all stocks floor at 0.
+const MC_PRODUCTION_FLOOR = -5;
+
+type TargetCard = {
+  color: Color;
+  name: string;
+  corporation: string;
+  self: boolean;
+  hasPreview: boolean;
+  current: number;
+  resulting: number;
+  muted: boolean;     // the effect produces no change (e.g. 0 → 0)
+  disabled: boolean;  // the effect cannot apply at all (production at floor)
+  disabledReason: string;
+};
+
+type DataModel = {
+  selectedColor: Color | undefined;
+};
 
 export default defineComponent({
   name: 'ModernPlayerPicker',
@@ -61,13 +143,43 @@ export default defineComponent({
       required: true,
     },
   },
+  data(): DataModel {
+    return {selectedColor: undefined};
+  },
   computed: {
-    players(): ReadonlyArray<Color> {
-      return this.playerinput.players;
+    icon(): string {
+      return this.playerinput.icon ?? '';
     },
-    titleText(): string {
+    actionIconClass(): string {
+      return iconClassFor(this.playerinput.icon);
+    },
+    actionAmount(): number | undefined {
+      return this.playerinput.amount;
+    },
+    isProduction(): boolean {
+      return this.playerinput.scope === 'production';
+    },
+    titleAsText(): string {
       const t = this.playerinput.title;
       return typeof t === 'string' ? translateText(t) : translateMessage(t);
+    },
+    buttonAsText(): string {
+      const b = this.playerinput.buttonLabel;
+      return b !== undefined && b !== '' ? translateText(b) : '';
+    },
+    // Rich mode (icon supplied): short heading + the full instruction as a
+    // lighter subtitle. Plain mode: keep the instruction as the heading.
+    headingText(): string {
+      if (this.icon === '') {
+        return this.titleAsText;
+      }
+      if (this.isProduction) {
+        return translateText('Reduce production');
+      }
+      return this.buttonAsText !== '' ? this.buttonAsText : this.titleAsText;
+    },
+    subtitleText(): string {
+      return this.icon === '' ? '' : this.titleAsText;
     },
     warningText(): string {
       const w = this.playerinput.warning;
@@ -76,24 +188,73 @@ export default defineComponent({
       }
       return typeof w === 'string' ? translateText(w) : translateMessage(w);
     },
-    actionIconClass(): string {
-      return iconClassFor(this.playerinput.icon);
+    selfWarningText(): string {
+      return translateText('This is you');
     },
-    actionAmount(): number | undefined {
-      return this.playerinput.amount;
+    confirmLabel(): string {
+      if (this.isProduction) {
+        return translateText('Reduce production');
+      }
+      return this.buttonAsText !== '' ? this.buttonAsText : translateText('Confirm');
+    },
+    targets(): ReadonlyArray<TargetCard> {
+      return this.playerinput.players.map((color) => this.buildTarget(color));
     },
   },
   methods: {
+    publicPlayer(color: Color): PublicPlayerModel | undefined {
+      return this.playerView.players.find((p) => p.color === color);
+    },
     playerName(color: Color): string {
-      const player = this.playerView.players.find((p) => p.color === color);
+      const player = this.publicPlayer(color);
       // 'neutral' (solo opponent) isn't in the players list — label it plainly.
       return player !== undefined ? player.name : translateText('Neutral');
     },
-    swatchClass(color: Color): string {
-      return playerColorClass(color, 'bg');
+    corporationName(color: Color): string {
+      const player = this.publicPlayer(color);
+      const corp = (player?.tableau ?? []).find((card) => getCard(card.name)?.type === CardType.CORPORATION);
+      return corp !== undefined ? translateText(corp.name) : '';
     },
-    pick(color: Color): void {
-      this.onsave({type: 'player', player: color});
+    buildTarget(color: Color): TargetCard {
+      const self = this.playerView.thisPlayer?.color === color;
+      const base: TargetCard = {
+        color,
+        name: this.playerName(color),
+        corporation: this.corporationName(color),
+        self,
+        hasPreview: false,
+        current: 0,
+        resulting: 0,
+        muted: false,
+        disabled: false,
+        disabledReason: '',
+      };
+      const player = this.publicPlayer(color);
+      const field = (this.isProduction ? PRODUCTION_FIELD : STOCK_FIELD)[this.icon];
+      if (this.icon === '' || this.actionAmount === undefined || player === undefined || field === undefined) {
+        return base;
+      }
+      const current = player[field] as number;
+      const floor = (this.isProduction && this.icon === 'megacredits') ? MC_PRODUCTION_FLOOR : 0;
+      const resulting = Math.max(floor, current - this.actionAmount);
+      // Production already at the floor can't be reduced (defensive — the server
+      // normally pre-filters these out of the candidate list).
+      if (this.isProduction && current <= floor) {
+        return {...base, disabled: true, disabledReason: translateText('Production already at minimum')};
+      }
+      return {...base, hasPreview: true, current, resulting, muted: resulting === current};
+    },
+    pick(target: TargetCard): void {
+      if (target.disabled) {
+        return;
+      }
+      this.selectedColor = target.color;
+    },
+    confirm(): void {
+      if (this.selectedColor === undefined) {
+        return;
+      }
+      this.onsave({type: 'player', player: this.selectedColor});
     },
   },
 });

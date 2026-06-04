@@ -405,78 +405,187 @@
 
 /* ===== Player picker ===== */
 
-.modal-input__players {
+/* ===========================================================================
+ * Rich target picker (ModernPlayerPicker.vue) — target cards, not a name list.
+ * =========================================================================== */
+
+/* Header carries a short heading + lighter subtitle, with the effect summary
+   chip pinned to the right. */
+.modal-input__header--rich {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 14px;
+}
+.modal-input__header--rich .modal-input__header-tab {
+    margin-top: 3px;
+}
+.modal-input__header-text {
+    flex: 1;
+    min-width: 0;
+}
+.modal-input__header--rich .modal-input__subtitle {
+    margin: 4px 0 0;
 }
 
-/* Action badge above the player list: the constant effect ("−4 M€") applied to
-   whichever player is picked. */
-.modal-input__player-action {
+/* HUD effect summary ("−1 ⚡prod") — secondary to the per-card previews. */
+.modal-input__impact-chip {
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    align-self: center;
-    margin: 2px 0 8px;
-    padding: 5px 12px;
-    border-radius: 6px;
-    background: rgba(8, 14, 22, 0.55);
-    box-shadow: inset 0 0 0 1px rgba(214, 158, 46, 0.32);
+    gap: 7px;
+    padding: 5px 10px 5px 12px;
+    border-radius: 7px;
+    background: rgba(8, 14, 22, 0.6);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.22);
 }
-.modal-input__player-action-amount {
-    font-size: 18px;
+.modal-input__impact-chip--prod {
+    box-shadow: inset 0 0 0 1px rgba(196, 134, 74, 0.4);
+}
+.modal-input__impact-amount {
+    font-size: 17px;
     font-weight: 700;
-    color: #f0d28a;
+    color: #e8f1fb;
     font-variant-numeric: tabular-nums;
 }
-.modal-input__player-action-icon {
-    width: 22px;
-    height: 22px;
+.modal-input__impact-icon-wrap .modal-input__option-icon { width: 20px; height: 20px; }
+
+/* Production frame: a brown "production tile" box behind the icon so production
+   reads distinct from stock at a glance (matches the game's brown prod tiles). */
+.modal-input__prod-frame {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px;
+    border-radius: 4px;
+    background: rgba(120, 78, 42, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(196, 134, 74, 0.55);
 }
 
-.modal-input__player-btn {
+.modal-input__targets {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+.modal-input__target-card {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
     width: 100%;
-    padding: 12px 14px;
+    padding: 12px 16px 12px 18px;
     border: 1px solid #28415e;
-    border-radius: 3px;
-    background: rgba(16, 24, 36, 0.7);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(20, 30, 44, 0.82), rgba(12, 20, 30, 0.82));
     color: #d6e2f2;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 15px;
-    letter-spacing: 0.5px;
     text-align: left;
     cursor: pointer;
-    min-height: 52px;
-    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    overflow: hidden;
+    transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 
     &:hover {
         border-color: #6ab0e6;
-        background: rgba(24, 38, 56, 0.85);
-        box-shadow: 0 0 8px rgba(106, 176, 230, 0.3);
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35), 0 0 10px rgba(106, 176, 230, 0.25);
         transform: translateY(-1px);
     }
-    &:active {
-        transform: translateY(0);
-        filter: brightness(0.92);
-    }
+    &:active { transform: translateY(0); }
+}
+.modal-input__target-card--selected {
+    border-color: #7fd4ff;
+    box-shadow: 0 0 0 1px rgba(127, 212, 255, 0.5), 0 0 18px rgba(106, 176, 230, 0.35);
+}
+.modal-input__target-card--self {
+    border-color: rgba(214, 158, 46, 0.5);
+}
+.modal-input__target-card--muted .modal-input__target-impact { opacity: 0.5; }
+.modal-input__target-card--disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    filter: saturate(0.6);
+    &:hover { transform: none; border-color: #28415e; box-shadow: none; }
 }
 
-.modal-input__player-swatch {
-    width: 18px;
-    height: 18px;
+.modal-input__target-accent {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+}
+.modal-input__target-dot {
     flex-shrink: 0;
-    border-radius: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
     border: 1px solid rgba(255, 255, 255, 0.25);
     box-shadow: 0 0 6px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
-
-.modal-input__player-name {
+.modal-input__target-id {
     flex: 1;
-    line-height: 1.2;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.modal-input__target-name {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    color: #eaf3fc;
+    line-height: 1.15;
+}
+.modal-input__target-corp {
+    font-size: 11.5px;
+    letter-spacing: 0.3px;
+    color: #8fa9c4;
+    line-height: 1.1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.modal-input__target-self-chip {
+    margin-top: 3px;
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 5px;
+    background: rgba(214, 158, 46, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(214, 158, 46, 0.4);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: #f0d28a;
+}
+.modal-input__target-self-icon { font-size: 11px; }
+
+.modal-input__target-impact {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 7px;
+    background: rgba(8, 14, 22, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.18);
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+}
+.modal-input__target-impact-icon-wrap .modal-input__option-icon { width: 18px; height: 18px; }
+.modal-input__target-impact-from { color: #9fb4cc; }
+.modal-input__target-impact-arrow { color: #5e7790; }
+.modal-input__target-impact-to { color: #f0c878; font-weight: 700; }
+.modal-input__target-disabled-reason {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: #c98e4a;
+    font-style: italic;
+}
+.modal-input__target-check {
+    flex-shrink: 0;
+    font-size: 18px;
+    color: #7fd4ff;
 }
 
 /* ===== Subtitle (secondary prompt line) ===== */
@@ -694,7 +803,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .modal-input__option-btn,
-    .modal-input__player-btn,
+    .modal-input__target-card,
     .modal-input__resource-tile,
     .modal-input__step-btn,
     .modal-input__primary-btn {
