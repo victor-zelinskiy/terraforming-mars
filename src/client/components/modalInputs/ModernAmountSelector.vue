@@ -17,7 +17,11 @@
               :disabled="amount <= playerinput.min"
               @click="step(-1)"
               data-test="modern-amount-dec">−</button>
-      <span class="modal-input__step-value" data-test="modern-amount-value">{{ amount }}</span>
+      <span class="modal-input__step-readout">
+        <span class="modal-input__step-value" data-test="modern-amount-value">{{ amount }}</span>
+        <span v-if="unitText !== ''" class="modal-input__step-unit">{{ unitText }}</span>
+        <span v-if="iconClass !== ''" class="modal-input__step-icon modal-input__option-icon" :class="iconClass" aria-hidden="true"></span>
+      </span>
       <button class="modal-input__step-btn"
               :disabled="amount >= playerinput.max"
               @click="step(1)"
@@ -41,6 +45,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectAmountModel} from '@/common/models/PlayerInputModel';
 import {SelectAmountResponse} from '@/common/inputs/InputResponse';
 import {translateText, translateMessage} from '@/client/directives/i18n';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 
 type DataModel = {
   amount: number;
@@ -74,6 +79,12 @@ export default defineComponent({
     },
     buttonText(): string {
       return translateText(this.playerinput.buttonLabel);
+    },
+    iconClass(): string {
+      return iconClassFor(this.playerinput.icon);
+    },
+    unitText(): string {
+      return this.playerinput.unit ?? '';
     },
   },
   methods: {

@@ -10,6 +10,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {Priority} from '../../deferredActions/Priority';
 import {CardRenderer} from '../render/CardRenderer';
 import {ICard} from '../ICard';
+import {addResourceToCard, removeResourceFromCard} from '../../inputs/optionMetadata';
 
 export class OlympusConference extends Card implements IProjectCard {
   constructor() {
@@ -52,16 +53,20 @@ export class OlympusConference extends Card implements IProjectCard {
           return undefined;
         }
         return new OrOptions(
-          new SelectOption('Remove a science resource from this card to draw a card', 'Remove resource').andThen(() => {
-            player.removeResourceFrom(this, 1, {log: false});
-            player.game.log('${0} removed a resource from ${1} to draw a card', (b) => b.player(player).card(this));
-            player.drawCard();
-            return undefined;
-          }),
-          new SelectOption('Add a science resource to this card', 'Add resource').andThen(() => {
-            player.addResourceTo(this, {log: true});
-            return undefined;
-          }),
+          new SelectOption('Remove a science resource from this card to draw a card', 'Remove resource')
+            .withMetadata(removeResourceFromCard(CardResource.SCIENCE))
+            .andThen(() => {
+              player.removeResourceFrom(this, 1, {log: false});
+              player.game.log('${0} removed a resource from ${1} to draw a card', (b) => b.player(player).card(this));
+              player.drawCard();
+              return undefined;
+            }),
+          new SelectOption('Add a science resource to this card', 'Add resource')
+            .withMetadata(addResourceToCard(CardResource.SCIENCE))
+            .andThen(() => {
+              player.addResourceTo(this, {log: true});
+              return undefined;
+            }),
         ).setTitle('Select an option for Olympus Conference');
       },
       Priority.OLYMPUS_CONFERENCE); // Unshift that deferred action

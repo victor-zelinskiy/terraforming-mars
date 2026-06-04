@@ -36,9 +36,34 @@ export type SelectInitialCardsModel = BaseInputModel & {
   options: Array<PlayerInputModel>;
 }
 
+/**
+ * OPTIONAL structured UI metadata attached to a SelectOption so the premium
+ * client can render a rich choice card (icon + player chip + impact preview)
+ * instead of a text-only row. Everything is optional and backward-compatible:
+ * an option WITHOUT metadata still renders via the text fallback. The server
+ * fills it for in-scope cards via the `option-metadata.ts` helpers; the client
+ * (ModernOptionPicker) reads it and a dev playground flags options that are
+ * still on the fallback path.
+ */
+export type OptionMetadata = {
+  /** Semantic kind — drives accent/icon defaults + playground status. */
+  kind?: 'resourceRemoval' | 'resourceGain' | 'steal' | 'globalParameter' | 'playerTarget' | 'skip' | 'confirm' | 'generic';
+  /** Icon key (a resource or global-parameter token), e.g. 'plants',
+   *  'megacredits', 'steel', 'titanium', 'energy', 'heat', 'microbe',
+   *  'animal', 'floater', 'temperature', 'venus', 'oxygen', 'oceans'. */
+  icon?: string;
+  /** Magnitude involved (plants removed, M€ stolen, parameter steps…). */
+  amount?: number;
+  /** Player-target context (remove / steal from a player) for the preview. */
+  player?: {color: Color, current?: number, resulting?: number};
+  /** Global-parameter context for the preview. */
+  global?: {current?: number, resulting?: number, unit?: string};
+};
+
 export type SelectOptionModel = BaseInputModel & {
   type: 'option';
   warnings?: ReadonlyArray<Warning>;
+  metadata?: OptionMetadata;
 }
 
 export type SelectProjectCardToPlayModel = BaseInputModel & {
@@ -89,6 +114,11 @@ export type SelectPaymentModel = BaseInputModel & {
 export type SelectPlayerModel = BaseInputModel & {
   type: 'player';
   players: ReadonlyArray<Color>;
+  // OPTIONAL premium-UI hint describing the action applied to the chosen player
+  // (constant across candidates, e.g. "remove 4 M€"): `icon` is an icon-key and
+  // `amount` the magnitude. Backward-compatible — omit for a bare player list.
+  icon?: string;
+  amount?: number;
 }
 
 export type SelectSpaceModel = BaseInputModel & {
@@ -108,6 +138,12 @@ export type SelectAmountModel = BaseInputModel & {
   min: number;
   max: number;
   maxByDefault: boolean;
+  // OPTIONAL premium-UI hints. `icon` is an icon-key (a standard resource like
+  // 'heat'/'energy', a global parameter, or a card resource) shown beside the
+  // amount; `unit` is a short suffix ('°C', '%') for parameter-style amounts.
+  // Both fall back cleanly — a model without them renders a bare stepper.
+  icon?: string;
+  unit?: string;
 }
 
 export type DeltaProjectInputModel = BaseInputModel & {

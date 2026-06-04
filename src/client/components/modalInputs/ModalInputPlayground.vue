@@ -13,7 +13,15 @@
     </header>
     <div class="modal-input-playground__grid">
       <section v-for="s in scenarios" :key="s.label" class="modal-input-playground__cell">
-        <div class="modal-input-playground__cell-label">{{ s.label }}</div>
+        <div class="modal-input-playground__cell-head">
+          <span class="modal-input-playground__cell-label">{{ s.label }}</span>
+          <span class="modal-input-playground__tags">
+            <span v-for="tag in scenarioTags(s)"
+                  :key="tag.text"
+                  class="modal-input-playground__tag"
+                  :class="'modal-input-playground__tag--' + tag.kind">{{ tag.text }}</span>
+          </span>
+        </div>
         <div class="modal-input-playground__stage">
           <modal-input-host :playerView="playerView" :playerinput="s.input" :onsave="onSave" />
         </div>
@@ -73,35 +81,61 @@ export default defineComponent({
             title: {message: 'Select player to remove up to ${0} plants', data: [raw(6)]},
             options: [
               {type: 'option', buttonLabel: 'Remove plants',
-                title: {message: 'Remove ${0} plants from ${1}', data: [raw(6), player('blue')]}},
-              {type: 'option', title: 'Skip removing plants', buttonLabel: ''},
+                title: {message: 'Remove ${0} plants from ${1}', data: [raw(6), player('blue')]},
+                metadata: {kind: 'resourceRemoval', icon: 'plants', amount: 6, player: {color: 'blue', current: 9, resulting: 3}}},
+              {type: 'option', title: 'Skip removing plants', buttonLabel: '', metadata: {kind: 'skip'}},
               {type: 'option', buttonLabel: 'Remove plants', warnings: ['removeOwnPlants'],
-                title: {message: 'Remove ${0} plants from ${1}', data: [raw(6), player('red')]}},
+                title: {message: 'Remove ${0} plants from ${1}', data: [raw(6), player('red')]},
+                metadata: {kind: 'resourceRemoval', icon: 'plants', amount: 6, player: {color: 'red', current: 6, resulting: 0}}},
             ],
           },
         },
         {
-          label: 'OrOptions — choose an effect (Atmoscoop)',
+          label: 'OrOptions — global parameter (Atmoscoop)',
           input: {
             type: 'or',
             title: 'Choose global parameter to raise',
             options: [
-              {type: 'option', title: 'Raise temperature 2 steps', buttonLabel: 'Raise temperature'},
-              {type: 'option', title: 'Raise Venus 2 steps', buttonLabel: 'Raise Venus'},
+              {type: 'option', title: 'Raise temperature 2 steps', buttonLabel: 'Raise temperature',
+                metadata: {kind: 'globalParameter', icon: 'temperature', amount: 2, global: {current: -8, resulting: -4, unit: '°C'}}},
+              {type: 'option', title: 'Raise Venus 2 steps', buttonLabel: 'Raise Venus',
+                metadata: {kind: 'globalParameter', icon: 'venus', amount: 2, global: {current: 10, resulting: 14, unit: '%'}}},
             ],
           },
         },
         {
-          label: 'SelectOption — confirm',
-          input: {type: 'option', title: 'Add a science resource to this card', buttonLabel: 'Add resource'},
+          label: 'OrOptions — steal M€ (Hired Raiders)',
+          input: {
+            type: 'or',
+            title: {message: 'Select player to steal up to ${0} ${1} from', data: [raw(3), raw('M€')]},
+            options: [
+              {type: 'option', buttonLabel: 'Steal',
+                title: {message: 'Steal ${0} M€ from ${1}', data: [raw(3), player('blue')]},
+                metadata: {kind: 'steal', icon: 'megacredits', amount: 3, player: {color: 'blue', current: 22, resulting: 19}}},
+              {type: 'option', title: 'Do not steal', buttonLabel: '', metadata: {kind: 'skip'}},
+            ],
+          },
         },
         {
-          label: 'SelectPlayer',
-          input: {type: 'player', title: 'Select player to sue (steal 3 M€ from)', buttonLabel: '', players: ['red', 'blue']},
+          label: 'OrOptions — add/remove card resource (Olympus Conference)',
+          input: {
+            type: 'or',
+            title: 'Select an option for Olympus Conference',
+            options: [
+              {type: 'option', title: 'Add a science resource to this card', buttonLabel: 'Add resource',
+                metadata: {kind: 'resourceGain', icon: 'science', amount: 1}},
+              {type: 'option', title: 'Remove a science resource from this card to draw a card', buttonLabel: 'Remove resource',
+                metadata: {kind: 'resourceRemoval', icon: 'science', amount: 1}},
+            ],
+          },
         },
         {
-          label: 'SelectAmount',
-          input: {type: 'amount', title: 'Select amount of energy to gain', buttonLabel: 'OK', min: 1, max: 8, maxByDefault: false},
+          label: 'SelectPlayer — remove M€ (Flooding / Comet for Venus)',
+          input: {type: 'player', title: 'Select player to remove up to 4 M€ from', buttonLabel: 'Remove M€', players: ['red', 'blue'], icon: 'megacredits', amount: 4},
+        },
+        {
+          label: 'SelectAmount — heat production (Insulation)',
+          input: {type: 'amount', title: 'Select amount of heat production to decrease', buttonLabel: 'Decrease', min: 1, max: 6, maxByDefault: false, icon: 'heat'},
         },
         {
           label: 'SelectResource',
@@ -109,7 +143,7 @@ export default defineComponent({
         },
         {
           label: 'SelectResources — distribute',
-          input: {type: 'resources', title: 'Gain 2 standard resources', buttonLabel: 'Gain', count: 2},
+          input: {type: 'resources', title: {message: 'Gain ${0} standard resources', data: [raw(2)]}, buttonLabel: 'Gain', count: 2},
         },
       ];
     },
@@ -121,6 +155,26 @@ export default defineComponent({
   methods: {
     onSave(out: unknown): void {
       this.lastResponse = 'submitted: ' + JSON.stringify(out);
+    },
+    // Quality-gate debug chips: which scenarios drive the rich (metadata) render
+    // vs. the text fallback. Makes "this one is still legacy/fallback" obvious.
+    scenarioTags(s: {input: any}): Array<{text: string, kind: string}> {
+      const input = s.input;
+      if (input.type === 'or') {
+        const leaves = (input.options as Array<any>).filter((o) => o.type === 'option');
+        const withMeta = leaves.filter((o) => o.metadata !== undefined);
+        if (leaves.length > 0 && withMeta.length === leaves.length) {
+          return [{text: 'metadata: complete', kind: 'ok'}];
+        }
+        if (withMeta.length > 0) {
+          return [{text: 'metadata: partial', kind: 'warn'}];
+        }
+        return [{text: 'fallback (text only)', kind: 'fallback'}];
+      }
+      if (input.type === 'option' && input.metadata !== undefined) {
+        return [{text: 'metadata', kind: 'ok'}];
+      }
+      return [{text: input.type, kind: 'neutral'}];
     },
   },
 });

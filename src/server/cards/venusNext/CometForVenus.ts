@@ -10,6 +10,7 @@ import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {all} from '../Options';
 import {IProjectCard} from '../IProjectCard';
+import {skip} from '../../inputs/optionMetadata';
 
 export class CometForVenus extends Card implements IProjectCard {
   constructor() {
@@ -45,12 +46,13 @@ export class CometForVenus extends Card implements IProjectCard {
         new SelectPlayer(
           Array.from(venusTagPlayers),
           'Select player to remove up to 4 M€ from',
-          'Remove M€')
+          'Remove M€',
+          {icon: 'megacredits', amount: 4})
           .andThen((target) => {
             target.attack(player, Resource.MEGACREDITS, 4, {log: true});
             return undefined;
           }),
-        new SelectOption('Do not remove M€'));
+        new SelectOption('Do not remove M€').withMetadata(skip()));
     }
 
     return undefined;

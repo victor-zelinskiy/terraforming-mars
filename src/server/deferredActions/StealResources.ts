@@ -7,6 +7,7 @@ import {Priority} from './Priority';
 import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
+import {stealResourceFromPlayer, skip} from '../inputs/optionMetadata';
 
 export class StealResources extends DeferredAction {
   constructor(
@@ -73,6 +74,7 @@ export class StealResources extends DeferredAction {
       return new SelectOption(
         message('Steal ${0} ${1} from ${2}', (b) => b.number(qtyToSteal).string(this.resource).player(target)),
         'Steal')
+        .withMetadata(stealResourceFromPlayer(target, this.resource, qtyToSteal, target.stock.get(this.resource)))
         .andThen(() => {
           target.attack(this.player, this.resource, qtyToSteal, {log: true, stealing: true});
           return undefined;
@@ -80,7 +82,7 @@ export class StealResources extends DeferredAction {
     });
 
     if (!this.mandatory) {
-      stealOptions.push(new SelectOption('Do not steal'));
+      stealOptions.push(new SelectOption('Do not steal').withMetadata(skip()));
     }
     return new OrOptions(...stealOptions);
   }

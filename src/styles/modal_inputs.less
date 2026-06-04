@@ -258,6 +258,65 @@
     font-weight: 700;
 }
 
+/* ── Rich (metadata-driven) option card bits ── */
+
+/* Lead column: a player chip (colour dot + name) or a resource/param icon. */
+.modal-input__option-lead {
+    flex-shrink: 0;
+}
+/* Normalise every icon family (resource_icon / wgt-icon / card-resource) so it
+   fits its slot regardless of the family's native background-size. `contain`
+   keeps aspect ratio; `!important` beats the per-variant background-size. */
+.modal-input__option-icon {
+    flex-shrink: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain !important;
+}
+.modal-input__option-lead.modal-input__option-icon {
+    width: 30px;
+    height: 30px;
+}
+.modal-input__option-player {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 52px;
+    max-width: 78px;
+}
+.modal-input__option-player-name {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: #cfe0f2;
+    line-height: 1.1;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+/* Impact preview: icon + current → resulting. */
+.modal-input__option-preview {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    background: rgba(8, 14, 22, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.16);
+    font-variant-numeric: tabular-nums;
+    font-size: 14px;
+
+    .modal-input__option-icon { width: 18px; height: 18px; }
+}
+.modal-input__option-preview-from { color: #9fb4cc; }
+.modal-input__option-preview-arrow { color: #6f8aa8; font-size: 12px; }
+.modal-input__option-preview-to { color: #aed8ff; font-weight: 700; }
+
 @media (prefers-reduced-motion: reduce) {
     .modal-input__option-card {
         transition: none;
@@ -350,6 +409,30 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+/* Action badge above the player list: the constant effect ("−4 M€") applied to
+   whichever player is picked. */
+.modal-input__player-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: center;
+    margin: 2px 0 8px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    background: rgba(8, 14, 22, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(214, 158, 46, 0.32);
+}
+.modal-input__player-action-amount {
+    font-size: 18px;
+    font-weight: 700;
+    color: #f0d28a;
+    font-variant-numeric: tabular-nums;
+}
+.modal-input__player-action-icon {
+    width: 22px;
+    height: 22px;
 }
 
 .modal-input__player-btn {
@@ -446,8 +529,15 @@
     }
 }
 
-.modal-input__step-value {
+/* Readout = the numeric value plus an optional unit suffix + resource icon. */
+.modal-input__step-readout {
     min-width: 64px;
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+}
+.modal-input__step-value {
     text-align: center;
     font-size: 30px;
     font-weight: 700;
@@ -458,6 +548,16 @@
 .modal-input__step-value--sm {
     min-width: 36px;
     font-size: 20px;
+}
+.modal-input__step-unit {
+    font-size: 18px;
+    font-weight: 600;
+    color: #9fc4e6;
+}
+.modal-input__step-icon {
+    align-self: center;
+    width: 26px;
+    height: 26px;
 }
 
 .modal-input__max-btn {
@@ -649,10 +749,29 @@
         flex-direction: column;
         gap: 8px;
     }
+    &__cell-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
     &__cell-label {
         font-size: 12px;
         letter-spacing: 0.5px;
         color: #6ab0e6;
         font-family: Prototype, Ubuntu, sans-serif;
+    }
+    &__tags { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+    &__tag {
+        font-size: 10px;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-family: Prototype, Ubuntu, sans-serif;
+        &--ok { color: #7fe0b0; background: rgba(87, 201, 140, 0.14); box-shadow: inset 0 0 0 1px rgba(87, 201, 140, 0.3); }
+        &--warn { color: #f0d79a; background: rgba(242, 193, 78, 0.14); box-shadow: inset 0 0 0 1px rgba(242, 193, 78, 0.3); }
+        &--fallback { color: #e6953c; background: rgba(230, 149, 60, 0.14); box-shadow: inset 0 0 0 1px rgba(230, 149, 60, 0.3); }
+        &--neutral { color: #9fb4cc; background: rgba(106, 176, 230, 0.12); box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.22); }
     }
 }

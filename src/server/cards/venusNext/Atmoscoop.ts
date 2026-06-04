@@ -12,6 +12,7 @@ import {PartyHooks} from '../../turmoil/parties/PartyHooks';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {Card} from '../Card';
+import {globalParameter} from '../../inputs/optionMetadata';
 
 export class Atmoscoop extends Card implements IProjectCard {
   constructor() {
@@ -59,14 +60,20 @@ export class Atmoscoop extends Card implements IProjectCard {
       return undefined;
     }
 
-    const increaseTemp = new SelectOption('Raise temperature 2 steps', 'Raise temperature').andThen(() => {
-      game.increaseTemperature(player, 2);
-      return undefined;
-    });
-    const increaseVenus = new SelectOption('Raise Venus 2 steps', 'Raise Venus').andThen(() => {
-      game.increaseVenusScaleLevel(player, 2);
-      return undefined;
-    });
+    const tempNow = game.getTemperature();
+    const venusNow = game.getVenusScaleLevel();
+    const increaseTemp = new SelectOption('Raise temperature 2 steps', 'Raise temperature')
+      .withMetadata(globalParameter('temperature', 2, tempNow, Math.min(constants.MAX_TEMPERATURE, tempNow + 4), '°C'))
+      .andThen(() => {
+        game.increaseTemperature(player, 2);
+        return undefined;
+      });
+    const increaseVenus = new SelectOption('Raise Venus 2 steps', 'Raise Venus')
+      .withMetadata(globalParameter('venus', 2, venusNow, Math.min(constants.MAX_VENUS_SCALE, venusNow + 4), '%'))
+      .andThen(() => {
+        game.increaseVenusScaleLevel(player, 2);
+        return undefined;
+      });
     const increaseTempOrVenus = new OrOptions(increaseTemp, increaseVenus)
       .setTitle('Choose global parameter to raise');
 
