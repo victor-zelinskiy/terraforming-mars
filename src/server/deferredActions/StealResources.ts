@@ -7,7 +7,7 @@ import {Priority} from './Priority';
 import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
-import {stealResourceFromPlayer, skip} from '../inputs/optionMetadata';
+import {disabledPlayerTarget, stealResourceFromPlayer, skip} from '../inputs/optionMetadata';
 
 export class StealResources extends DeferredAction {
   constructor(
@@ -84,6 +84,17 @@ export class StealResources extends DeferredAction {
     if (!this.mandatory) {
       stealOptions.push(new SelectOption('Do not steal').withMetadata(skip()));
     }
-    return new OrOptions(...stealOptions);
+
+    // Surface opponents we can't steal from as greyed cards with a reason.
+    const disabled = this.player.opponents
+      .filter((p) => !candidates.includes(p))
+      .map((p) => {
+        const protectedResource =
+          (this.resource === Resource.PLANTS && p.plantsAreProtected()) ||
+          ((this.resource === Resource.STEEL || this.resource === Resource.TITANIUM) && p.alloysAreProtected());
+        return disabledPlayerTarget(p, this.resource, protectedResource ? 'Resources are protected' : 'Nothing to steal');
+      });
+
+    return new OrOptions(...stealOptions).setDisabledOptions(disabled);
   }
 }

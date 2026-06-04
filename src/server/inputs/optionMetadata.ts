@@ -1,6 +1,8 @@
-import {OptionMetadata} from '../../common/models/PlayerInputModel';
+import {DisabledOptionModel, OptionMetadata} from '../../common/models/PlayerInputModel';
 import {Resource} from '../../common/Resource';
 import {CardResource} from '../../common/CardResource';
+import {Message} from '../../common/logs/Message';
+import {message} from '../logs/MessageBuilder';
 import {IPlayer} from '../IPlayer';
 
 /**
@@ -78,4 +80,18 @@ export function removeResourceFromCard(cardResource: CardResource, amount: numbe
 /** A "do nothing / skip" option. */
 export function skip(): OptionMetadata {
   return {kind: 'skip'};
+}
+
+/**
+ * An informational, non-selectable OrOptions entry for a player target that's
+ * relevant but unavailable right now (e.g. an opponent with no plants). Renders
+ * as a greyed twin of a real target card: player chip + (greyed) icon + reason.
+ * `icon` is optional (omit when no single resource applies, e.g. Sabotage).
+ */
+export function disabledPlayerTarget(target: IPlayer, icon: string | undefined, reason: string | Message): DisabledOptionModel {
+  return {
+    title: message('${0}', (b) => b.player(target)),
+    metadata: {kind: 'playerTarget', icon, player: {color: target.color}},
+    reason,
+  };
 }

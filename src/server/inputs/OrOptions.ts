@@ -1,13 +1,24 @@
 import {PlayerInput} from '../PlayerInput';
 import {InputResponse, isOrOptionsResponse} from '../../common/inputs/InputResponse';
 import {IPlayer} from '../IPlayer';
-import {OrOptionsModel} from '../../common/models/PlayerInputModel';
+import {DisabledOptionModel, OrOptionsModel} from '../../common/models/PlayerInputModel';
 import {OptionsInput} from './OptionsPlayerInput';
 import {InputError} from './InputError';
 
 export class OrOptions extends OptionsInput<undefined> {
+  // Informational-only, non-selectable cards the premium client shows greyed
+  // alongside the real options (e.g. an opponent with no plants to remove).
+  // Never processed — purely for clarity. See OrOptionsModel.disabledOptions.
+  public disabledOptions: ReadonlyArray<DisabledOptionModel> = [];
+
   constructor(...options: Array<PlayerInput>) {
     super('or', 'Select one option', options);
+  }
+
+  /** Attach informational disabled entries (chainable). */
+  public setDisabledOptions(disabled: ReadonlyArray<DisabledOptionModel>): this {
+    this.disabledOptions = disabled;
+    return this;
   }
 
   public toModel(player: IPlayer): OrOptionsModel {
@@ -20,6 +31,9 @@ export class OrOptions extends OptionsInput<undefined> {
     };
     if (initialIdx > -1) {
       model.initialIdx = initialIdx;
+    }
+    if (this.disabledOptions.length > 0) {
+      model.disabledOptions = this.disabledOptions;
     }
     return model;
   }

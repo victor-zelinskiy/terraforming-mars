@@ -48,4 +48,26 @@ describe('ModernPlayerPicker', () => {
     );
     expect(component.find('[data-test="modern-player-neutral"]').text()).to.not.eq('');
   });
+
+  it('renders server-flagged disabled targets as non-selectable cards with a reason', async () => {
+    let saved: InputResponse | undefined;
+    const component = factory(
+      {type: 'player', title: 'Decrease production', buttonLabel: 'Decrease', players: ['red'],
+        icon: 'energy', amount: 1, scope: 'production',
+        disabledPlayers: [{color: 'blue', reason: 'Production already at minimum'}]},
+      playerView,
+      (out) => {
+        saved = out;
+      },
+    );
+    // Both a selectable and a disabled card render.
+    expect(component.find('[data-test="modern-player-red"]').exists()).to.eq(true);
+    const disabled = component.find('[data-test="modern-player-blue"]');
+    expect(disabled.exists()).to.eq(true);
+    expect((disabled.element as HTMLButtonElement).disabled).to.eq(true);
+    // Clicking the disabled card neither selects nor commits.
+    await disabled.trigger('click');
+    expect(component.find('[data-test="modern-player-confirm"]').exists()).to.eq(false);
+    expect(saved).to.eq(undefined);
+  });
 });

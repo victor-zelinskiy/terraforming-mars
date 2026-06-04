@@ -7,7 +7,7 @@ import {Priority} from './Priority';
 import {CardName} from '../../common/cards/CardName';
 import {MessageBuilder, message} from '../logs/MessageBuilder';
 import {Message} from '../../common/logs/Message';
-import {removeResourceFromPlayer, skip} from '../inputs/optionMetadata';
+import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../inputs/optionMetadata';
 export class RemoveAnyPlants extends DeferredAction {
   private title: string | Message;
   private count: number;
@@ -103,6 +103,11 @@ export class RemoveAnyPlants extends DeferredAction {
       removalOptions.push(option);
     }
 
-    return new OrOptions(...removalOptions).setTitle(this.title);
+    // Surface opponents we can't take plants from as greyed cards with a reason.
+    const disabled = player.opponents
+      .filter((p) => p.plants === 0 || p.plantsAreProtected())
+      .map((p) => disabledPlayerTarget(p, 'plants', p.plantsAreProtected() ? 'Plants are protected' : 'No plants to remove'));
+
+    return new OrOptions(...removalOptions).setTitle(this.title).setDisabledOptions(disabled);
   }
 }

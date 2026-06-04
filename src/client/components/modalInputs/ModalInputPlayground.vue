@@ -121,7 +121,7 @@ export default defineComponent({
           },
         },
         {
-          label: 'OrOptions — steal M€ (Hired Raiders)',
+          label: 'OrOptions — steal M€ (Hired Raiders) · with disabled target',
           input: {
             type: 'or',
             title: {message: 'Select player to steal up to ${0} ${1} from', data: [raw(3), raw('M€')]},
@@ -130,6 +130,11 @@ export default defineComponent({
                 title: {message: 'Steal ${0} M€ from ${1}', data: [raw(3), player('blue')]},
                 metadata: {kind: 'steal', icon: 'megacredits', amount: 3, player: {color: 'blue', current: 22, resulting: 19}}},
               {type: 'option', title: 'Do not steal', buttonLabel: '', metadata: {kind: 'skip'}},
+            ],
+            disabledOptions: [
+              {title: {message: '${0}', data: [player('red')]},
+                metadata: {kind: 'playerTarget', icon: 'megacredits', player: {color: 'red'}},
+                reason: 'Nothing to steal'},
             ],
           },
         },
@@ -148,7 +153,8 @@ export default defineComponent({
         },
         {
           label: 'SelectPlayer — decrease energy production (Energy Tapping) · self + disabled',
-          input: {type: 'player', title: {message: 'Select player to decrease ${0} production by ${1} step(s)', data: [raw('energy'), raw(1)]}, buttonLabel: 'Decrease', players: ['red', 'blue'], icon: 'energy', amount: 1, scope: 'production'},
+          input: {type: 'player', title: {message: 'Select player to decrease ${0} production by ${1} step(s)', data: [raw('energy'), raw(1)]}, buttonLabel: 'Decrease', players: ['red'], icon: 'energy', amount: 1, scope: 'production',
+            disabledPlayers: [{color: 'blue', reason: 'Production already at minimum'}]},
         },
         {
           label: 'SelectPlayer — remove M€ (Flooding / LawSuit) · stock + capped',
@@ -185,26 +191,35 @@ export default defineComponent({
     // vs. the text fallback. Makes "this one is still legacy/fallback" obvious.
     scenarioTags(s: {input: any}): Array<{text: string, kind: string}> {
       const input = s.input;
+      const tags: Array<{text: string, kind: string}> = [];
+      const disabledCount = (input.disabledOptions?.length ?? 0) + (input.disabledPlayers?.length ?? 0);
+      if (disabledCount > 0) {
+        tags.push({text: 'disabled: ' + disabledCount, kind: 'info'});
+      }
       if (input.type === 'or') {
         const leaves = (input.options as Array<any>).filter((o) => o.type === 'option');
         const withMeta = leaves.filter((o) => o.metadata !== undefined);
         if (leaves.length > 0 && withMeta.length === leaves.length) {
-          return [{text: 'metadata: complete', kind: 'ok'}];
+          tags.unshift({text: 'metadata: complete', kind: 'ok'});
+        } else if (withMeta.length > 0) {
+          tags.unshift({text: 'metadata: partial', kind: 'warn'});
+        } else {
+          tags.unshift({text: 'fallback (text only)', kind: 'fallback'});
         }
-        if (withMeta.length > 0) {
-          return [{text: 'metadata: partial', kind: 'warn'}];
-        }
-        return [{text: 'fallback (text only)', kind: 'fallback'}];
+        return tags;
       }
       if (input.type === 'option' && input.metadata !== undefined) {
-        return [{text: 'metadata', kind: 'ok'}];
+        tags.unshift({text: 'metadata', kind: 'ok'});
+        return tags;
       }
       if (input.type === 'player') {
-        return input.icon !== undefined ?
-          [{text: 'rich target (' + (input.scope ?? 'stock') + ')', kind: 'ok'}] :
-          [{text: 'plain target', kind: 'warn'}];
+        tags.unshift(input.icon !== undefined ?
+          {text: 'rich target (' + (input.scope ?? 'stock') + ')', kind: 'ok'} :
+          {text: 'plain target', kind: 'warn'});
+        return tags;
       }
-      return [{text: input.type, kind: 'neutral'}];
+      tags.unshift({text: input.type, kind: 'neutral'});
+      return tags;
     },
   },
 });

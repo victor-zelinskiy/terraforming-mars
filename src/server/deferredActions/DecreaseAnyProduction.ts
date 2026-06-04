@@ -50,7 +50,14 @@ export class DecreaseAnyProduction extends DeferredAction<boolean> {
         if (targets.length > 1 || targets[0] === this.player) {
           // Resource enum values double as standard-resource icon keys, so the
           // premium player picker shows a per-target "production: X → Y" preview.
-          return new SelectPlayer(targets, this.title, 'Decrease', {icon: this.resource, amount: this.options.count, scope: 'production'})
+          // Opponents who CAN'T be reduced are surfaced as disabled cards with a
+          // reason instead of silently vanishing.
+          return new SelectPlayer(targets, this.title, 'Decrease', {
+            icon: this.resource,
+            amount: this.options.count,
+            scope: 'production',
+            disabled: this.blockedTargets(targets),
+          })
             .andThen((candidate) => {
               this.attack(candidate);
               return undefined;
@@ -62,5 +69,23 @@ export class DecreaseAnyProduction extends DeferredAction<boolean> {
     }
 
     return undefined;
+  }
+
+  /** Opponents who are relevant but can't have this production reduced, with a
+   *  user-facing reason (mirrors Player.canHaveProductionReduced). */
+  private blockedTargets(valid: ReadonlyArray<IPlayer>): Array<{player: IPlayer, reason: string | Message}> {
+    const result: Array<{player: IPlayer, reason: string | Message}> = [];
+    for (const target of this.player.opponents) {
+      if (valid.includes(target)) {
+        continue;
+      }
+      const reducable = target.production[this.resource] + (this.resource === Resource.MEGACREDITS ? 5 : 0);
+      let reason: string | Message = 'Production is protected';
+      if (reducable < this.options.count) {
+        reason = 'Production already at minimum';
+      }
+      result.push({player: target, reason});
+    }
+    return result;
   }
 }

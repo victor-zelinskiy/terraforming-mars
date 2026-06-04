@@ -29,6 +29,22 @@ export type OrOptionsModel = BaseInputModel & {
   // When set, initialIdx represents the option within `options` that should be
   // shows as the default selection.
   initialIdx?: number;
+  // OPTIONAL informational-only entries the premium client renders as DISABLED
+  // (greyed, non-selectable) cards alongside the real options, each with a
+  // user-facing reason. Lets a card surface "this target exists but you can't
+  // pick it right now (no plants / protected / …)" instead of silently
+  // dropping it. Never submitted — purely for clarity. See `DisabledOptionModel`.
+  disabledOptions?: ReadonlyArray<DisabledOptionModel>;
+}
+
+/** An informational, non-selectable option shown in a premium OrOptions modal. */
+export type DisabledOptionModel = {
+  title: string | Message;
+  // Same rich-render metadata as a real option (player chip + icon), so a
+  // disabled target looks like a greyed twin of a selectable one.
+  metadata?: OptionMetadata;
+  // User-facing reason it can't be picked (already localized key/template).
+  reason?: string | Message;
 }
 
 export type SelectInitialCardsModel = BaseInputModel & {
@@ -124,6 +140,12 @@ export type SelectPlayerModel = BaseInputModel & {
   // picker read the right per-target value and frame the icon accordingly.
   // Defaults to 'stock' when omitted.
   scope?: 'stock' | 'production';
+  // OPTIONAL informational-only targets the premium picker renders as DISABLED
+  // (greyed, non-selectable) cards with a reason — players who are potentially
+  // relevant but can't be chosen right now (production at minimum, protected,
+  // no Venus tag, …). The selectable `players` list is unchanged (and is what
+  // the server validates against); these never get submitted.
+  disabledPlayers?: ReadonlyArray<{color: Color, reason?: string | Message}>;
 }
 
 export type SelectSpaceModel = BaseInputModel & {

@@ -10,7 +10,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {all} from '../Options';
 import {message} from '../../logs/MessageBuilder';
-import {stealResourceFromPlayer, skip} from '../../inputs/optionMetadata';
+import {disabledPlayerTarget, stealResourceFromPlayer, skip} from '../../inputs/optionMetadata';
 
 export class HiredRaiders extends Card implements IProjectCard {
   constructor() {
@@ -72,6 +72,15 @@ export class HiredRaiders extends Card implements IProjectCard {
           }));
       }
     });
+
+    // Opponents we can't take steel or M€ from → greyed cards with a reason.
+    const disabled = player.opponents
+      .filter((target) => !((target.steel > 0 && !target.alloysAreProtected()) || target.megaCredits > 0))
+      .map((target) => {
+        const alloyOnly = target.steel > 0 && target.alloysAreProtected() && target.megaCredits === 0;
+        return disabledPlayerTarget(target, undefined, alloyOnly ? 'Resources are protected' : 'No resources to remove');
+      });
+    availableActions.setDisabledOptions(disabled);
 
     if (availableActions.options.length > 0) {
       availableActions.options.push(new SelectOption('Do not steal').withMetadata(skip()).andThen(() => {
