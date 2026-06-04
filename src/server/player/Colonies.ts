@@ -18,6 +18,7 @@ import {TradeWithDarksideSmugglersUnion} from '../cards/moon/DarksideSmugglersUn
 import {Payment} from '../../common/inputs/Payment';
 import {TradeWithHectateSpeditions} from '../cards/underworld/HecateSpeditions';
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
+import {DisabledOptionModel} from '../../common/models/PlayerInputModel';
 
 export class Colonies {
   private player: IPlayer;
@@ -58,7 +59,7 @@ export class Colonies {
 
   private tradeWithColony(openColonies: Array<IColony>): AndOptions | undefined {
     const player = this.player;
-    const handlers = [
+    const handlers: Array<IColonyTrader> = [
       new TradeWithDarksideSmugglersUnion(player),
       new TradeWithTitanFloatingLaunchPad(player),
       new TradeWithCollegiumCopernicus(player),
@@ -73,19 +74,32 @@ export class Colonies {
     const howToPayForTrade = new OrOptions()
       .setTitle('Pay trade fee')
       .setButtonLabel('Pay');
+    const disabledPayments: Array<DisabledOptionModel> = [];
     handlers.forEach((handler) => {
+      const metadata = handler.optionMetadata?.();
       if (handler.canUse()) {
-        howToPayForTrade.options.push(new SelectOption(
-          handler.optionText()).andThen(() => {
+        const option = new SelectOption(handler.optionText()).andThen(() => {
           selected = handler;
           return undefined;
-        }));
+        });
+        if (metadata !== undefined) {
+          option.withMetadata(metadata);
+        }
+        howToPayForTrade.options.push(option);
+      } else {
+        // Show an unaffordable STANDARD resource as a DISABLED option with a
+        // reason (card-specific traders without a reason just stay hidden).
+        const reason = handler.disabledReason?.();
+        if (metadata !== undefined && reason !== undefined) {
+          disabledPayments.push({title: handler.optionText(), metadata, reason});
+        }
       }
     });
 
     if (howToPayForTrade.options.length === 0) {
       return undefined;
     }
+    howToPayForTrade.setDisabledOptions(disabledPayments);
 
     const selectColony = new SelectColony('Select colony tile for trade', 'trade', openColonies)
       .andThen((colony) => {
@@ -189,6 +203,13 @@ export class TradeWithEnergy implements IColonyTrader {
   public optionText() {
     return message('Pay ${0} energy', (b) => b.number(this.tradeCost));
   }
+  public optionMetadata() {
+    return {kind: 'resourceRemoval' as const, icon: 'energy', amount: this.tradeCost,
+      resource: {current: this.player.energy, resulting: Math.max(0, this.player.energy - this.tradeCost)}};
+  }
+  public disabledReason() {
+    return 'Not enough energy';
+  }
 
   public trade(colony: IColony) {
     this.player.stock.deduct(Resource.ENERGY, this.tradeCost);
@@ -209,6 +230,13 @@ export class TradeWithTitanium implements IColonyTrader {
   }
   public optionText() {
     return message('Pay ${0} titanium', (b) => b.number(this.tradeCost));
+  }
+  public optionMetadata() {
+    return {kind: 'resourceRemoval' as const, icon: 'titanium', amount: this.tradeCost,
+      resource: {current: this.player.titanium, resulting: Math.max(0, this.player.titanium - this.tradeCost)}};
+  }
+  public disabledReason() {
+    return 'Not enough titanium';
   }
 
   public trade(colony: IColony) {
@@ -236,6 +264,14 @@ export class TradeWithMegacredits implements IColonyTrader {
   }
   public optionText() {
     return message('Pay ${0} M€', (b) => b.number(this.tradeCost));
+  }
+  public optionMetadata() {
+    const current = this.player.spendableMegacredits();
+    return {kind: 'resourceRemoval' as const, icon: 'megacredits', amount: this.tradeCost,
+      resource: {current, resulting: Math.max(0, current - this.tradeCost)}};
+  }
+  public disabledReason() {
+    return 'Not enough M€';
   }
 
   public trade(colony: IColony) {

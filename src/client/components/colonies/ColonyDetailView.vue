@@ -219,7 +219,7 @@
                 :title="disabledReason || ''"
                 @click="$emit('select', colony.name)"
                 data-test="colony-detail-select">
-          <span v-i18n>Select</span>
+          <span>{{ selectLabel }}</span>
         </button>
       </div>
     </div>
@@ -234,6 +234,7 @@ import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
+import {translateText} from '@/client/directives/i18n';
 import BenefitGlyph from './BenefitGlyph.vue';
 
 export default defineComponent({
@@ -243,6 +244,12 @@ export default defineComponent({
     colony: {
       type: Object as () => ColonyModel,
       required: true,
+    },
+    // Overlay mode — drives the action-button label (ТОРГОВАТЬ in trade mode,
+    // ВЫБРАТЬ otherwise), matching ColonyTile.
+    mode: {
+      type: String as () => 'trade' | 'build' | 'view',
+      default: 'view',
     },
     selectable: {
       type: Boolean,
@@ -265,6 +272,11 @@ export default defineComponent({
   computed: {
     metadata(): ColonyMetadata {
       return getColony(this.colony.name);
+    },
+    // Action-button label: ТОРГОВАТЬ when this detail view was opened from the
+    // trade flow, ВЫБРАТЬ for a SelectColony pick.
+    selectLabel(): string {
+      return translateText(this.mode === 'trade' ? 'Trade' : 'Select');
     },
     planetClass(): string {
       return this.colony.name.replace(' ', '-') + '-background';

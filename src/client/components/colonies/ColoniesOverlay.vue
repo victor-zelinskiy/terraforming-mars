@@ -88,6 +88,7 @@
             v-for="colony in colonies"
             :key="colony.name"
             :colony="colony"
+            :mode="mode"
             :selectable="selectableSet.has(colony.name)"
             :disabledReason="reasonFor(colony)"
             :visitor="colony.visitor"
@@ -147,6 +148,7 @@
       -->
       <ColonyDetailView v-else
                         :colony="detailColony"
+                        :mode="mode"
                         :selectable="selectableSet.has(detailColonyName)"
                         :disabledReason="reasonFor(detailColony)"
                         :activationReason="detailColony.isActive ? '' : reasonFor(detailColony)"
