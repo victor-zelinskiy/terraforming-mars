@@ -58,6 +58,7 @@ import {
   draftWaitState,
   shouldPreserveCardPickModal,
 } from '@/client/components/draftWaitState';
+import {handCardSelectionPrompt} from '@/client/components/handCards/handSelectState';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
 import DraftWaitingContent from '@/client/components/DraftWaitingContent.vue';
@@ -164,6 +165,15 @@ export default defineComponent({
       if (view === undefined) return undefined;
       const wf = view.waitingFor;
       if (wf === undefined || wf.type !== 'card') return undefined;
+      // Hand-card selections (discard / reveal / pick FROM the player's hand)
+      // are hosted by the КАРТЫ В РУКЕ overlay (HandCardsOverlay) in its
+      // mandatory-select mode — far better for browsing a large hand than this
+      // modal grid. Let PlayerHome drive those; suppress the modal here so the
+      // two don't both render. Draft / research / generic non-hand SelectCard
+      // (played-card targets, dealt corps) still use this modal grid.
+      if (handCardSelectionPrompt(view) !== undefined) {
+        return undefined;
+      }
       return wf;
     },
     /*

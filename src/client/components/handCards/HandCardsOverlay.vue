@@ -1,5 +1,8 @@
 <template>
-  <div class="hand-board-overlay" role="region" :aria-label="$t('Cards in hand')">
+  <div class="hand-board-overlay"
+       :class="{'hand-board-overlay--mandatory-select': selectActive}"
+       role="region"
+       :aria-label="$t('Cards in hand')">
     <span class="hand-board-overlay__corner hand-board-overlay__corner--tl" aria-hidden="true"></span>
     <span class="hand-board-overlay__corner hand-board-overlay__corner--tr" aria-hidden="true"></span>
     <span class="hand-board-overlay__corner hand-board-overlay__corner--bl" aria-hidden="true"></span>
@@ -15,7 +18,7 @@
         </span>
         <span v-if="totalCount > 0" class="hand-board__total">{{ totalCount }}</span>
         <span
-          v-if="totalCount > 0 && !saleActive"
+          v-if="totalCount > 0 && !saleActive && !selectActive"
           class="hand-board__playable"
           :class="{'hand-board__playable--zero': playableCount === 0}">
           <span class="hand-board__playable-dot" aria-hidden="true"></span>
@@ -25,7 +28,7 @@
       <!-- Sell-patents mode toggle. Visible only when the standard project is
            offered (or already active); active styling while in sale mode. -->
       <button
-        v-if="sellPatentsAvailable || saleActive"
+        v-if="(sellPatentsAvailable || saleActive) && !selectActive"
         type="button"
         class="hand-board__sale-toggle"
         :class="{'hand-board__sale-toggle--active': saleActive}"
@@ -77,6 +80,36 @@
       </div>
     </transition>
 
+    <!-- Mandatory hand-select strip: the game is waiting for the player to pick
+         cards FROM their hand (discard / reveal / keep / copy). Cyan accent (vs
+         the amber sell strip) + the server's prompt title + ПОДТВЕРДИТЬ. There
+         is NO cancel — the prompt is mandatory; the header ✕ minimizes it to a
+         pill so the player can inspect the board, never dismiss it. -->
+    <transition name="hand-sale-strip">
+      <div v-if="selectActive" class="hand-select-strip">
+        <div class="hand-select-strip__mode">
+          <span class="hand-select-strip__glyph" aria-hidden="true"></span>
+          <div class="hand-select-strip__text">
+            <span class="hand-select-strip__title">{{ selectTitleText }}</span>
+            <span class="hand-select-strip__hint">{{ selectCounterLabel }}</span>
+          </div>
+        </div>
+        <div class="hand-select-strip__actions">
+          <button
+            type="button"
+            class="hand-select-confirm-btn"
+            :disabled="!canConfirmSelect"
+            @click="confirmSelect">
+            <span class="hand-select-confirm-btn__glow" aria-hidden="true"></span>
+            <span class="hand-select-confirm-btn__label">
+              {{ selectButtonLabel }}
+              <span v-if="selectSelectedCount > 0" class="hand-select-confirm-btn__count">{{ selectSelectedCount }}</span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </transition>
+
     <HandCardsFilters
       v-if="totalCount > 0"
       :filter="filter"
@@ -102,7 +135,7 @@
           v-for="entry in sorted"
           :key="entry.name"
           :entry="entry"
-          :saleMode="saleActive"
+          :saleMode="saleActive || selectActive"
           :selected="isSelected(entry.name)"
           :dissolving="dissolving.includes(entry.name)"
           @open="openCard"
@@ -115,7 +148,7 @@
       <CardZoomModal v-if="zoomCard !== undefined" ref="zoomModal" :card="zoomCard" @close="zoomCard = undefined">
         <template #actions>
           <button
-            v-if="saleActive && zoomCard !== undefined"
+            v-if="(saleActive || selectActive) && zoomCard !== undefined"
             type="button"
             class="card-zoom-actions__btn card-zoom-actions__btn--primary hand-zoom-sell"
             :class="{'hand-zoom-sell--selected': zoomSelected}"
@@ -174,7 +207,7 @@ import {
 } from '@/client/components/handCards/handCardModel';
 import {HandCardBlock} from '@/client/components/handCards/cardPlayability';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {
   sellPatentsState,
@@ -185,6 +218,11 @@ import {
   sellPatentsPayout,
   SELL_PATENTS_RATE,
 } from '@/client/components/handCards/sellPatentsState';
+import {
+  handSelectState,
+  toggleHandSelectSelection,
+  isSelectedForHandSelect,
+} from '@/client/components/handCards/handSelectState';
 import HandCardItem from '@/client/components/handCards/HandCardItem.vue';
 import HandCardsFilters from '@/client/components/handCards/HandCardsFilters.vue';
 import HandCardsEmptyState from '@/client/components/handCards/HandCardsEmptyState.vue';
@@ -279,7 +317,7 @@ export default defineComponent({
       required: true,
     },
   },
-  emits: ['play', 'close', 'sell'],
+  emits: ['play', 'close', 'sell', 'hand-select'],
   data(): DataModel {
     return {
       filter: {...DEFAULT_HAND_FILTER},
@@ -364,7 +402,36 @@ export default defineComponent({
       return translateTextWithParams('Select cards to sell. You gain ${0} M€ per card.', [String(SELL_PATENTS_RATE)]);
     },
     zoomSelected(): boolean {
-      return this.zoomCard !== undefined && isSelectedForSale(this.zoomCard.name);
+      if (this.zoomCard === undefined) {
+        return false;
+      }
+      if (this.selectActive) {
+        return isSelectedForHandSelect(this.zoomCard.name);
+      }
+      return isSelectedForSale(this.zoomCard.name);
+    },
+    // ── Mandatory "select cards from hand" mode ─────────────────────────
+    selectActive(): boolean {
+      return handSelectState.active;
+    },
+    selectSelectedCount(): number {
+      return handSelectState.selected.length;
+    },
+    // Confirm is allowed once the selection is within [min, max]. min === 0
+    // means the player may confirm with nothing picked (an optional reveal).
+    canConfirmSelect(): boolean {
+      const n = this.selectSelectedCount;
+      return n >= handSelectState.min && n <= handSelectState.max;
+    },
+    selectTitleText(): string {
+      const t = handSelectState.title;
+      return typeof t === 'string' ? translateText(t) : translateMessage(t);
+    },
+    selectButtonLabel(): string {
+      return handSelectState.buttonLabel !== '' ? translateText(handSelectState.buttonLabel) : translateText('Confirm selection');
+    },
+    selectCounterLabel(): string {
+      return translateTextWithParams('Selected ${0} of ${1}', [String(this.selectSelectedCount), String(handSelectState.max)]);
     },
   },
   watch: {
@@ -419,6 +486,9 @@ export default defineComponent({
     },
     // ── Sell-patents sale mode ──────────────────────────────────────────
     isSelected(name: CardName): boolean {
+      if (this.selectActive) {
+        return isSelectedForHandSelect(name);
+      }
       return isSelectedForSale(name);
     },
     // Header toggle: enter sale mode (only when the action is offered) or
@@ -439,7 +509,20 @@ export default defineComponent({
       exitSellPatents();
     },
     toggleSelect(name: CardName): void {
+      if (this.selectActive) {
+        toggleHandSelectSelection(name);
+        return;
+      }
       toggleSellSelection(name);
+    },
+    // Final ПОДТВЕРДИТЬ in mandatory hand-select mode. Emits the chosen names;
+    // PlayerHome submits them through WaitingFor.onsave as a top-level
+    // {type:'card', cards}. Nothing is sent until here.
+    confirmSelect(): void {
+      if (!this.canConfirmSelect) {
+        return;
+      }
+      this.$emit('hand-select', [...handSelectState.selected]);
     },
     // Toggle this card's sale selection from the fullscreen view AND close the
     // fullscreen — same one-tap flow as playing a card from fullscreen
@@ -450,7 +533,11 @@ export default defineComponent({
       if (card === undefined) {
         return;
       }
-      toggleSellSelection(card.name);
+      if (this.selectActive) {
+        toggleHandSelectSelection(card.name);
+      } else {
+        toggleSellSelection(card.name);
+      }
       (this.$refs as {zoomModal?: {close: () => void}}).zoomModal?.close();
       this.zoomCard = undefined;
     },

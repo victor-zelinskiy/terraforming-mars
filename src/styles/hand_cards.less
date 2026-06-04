@@ -1479,6 +1479,189 @@
     to   { opacity: 1; transform: scale(1); }
 }
 
+/* ── Mandatory "select cards from hand" mode (discard / reveal / keep) ──────
+   Cyan sibling of the amber sell strip. Reuses the same HandCardItem toggle
+   rendering (saleMode) but recolours the selected-state from amber to cyan so
+   it reads as "choose", not "sell". */
+.hand-select-strip {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 16px;
+    border-bottom: 1px solid fade(@hc-cyan, 22%);
+    background:
+        radial-gradient(120% 180% at 0% 0%, fade(@hc-cyan, 12%), transparent 60%),
+        linear-gradient(180deg, rgba(14, 26, 38, 0.6), rgba(8, 16, 24, 0.3));
+
+    &__mode { display: flex; align-items: center; gap: 11px; min-width: 0; margin-right: auto; }
+    &__glyph {
+        width: 7px;
+        height: 24px;
+        flex-shrink: 0;
+        background: linear-gradient(180deg, @hc-cyan, fade(@hc-cyan, 25%));
+        box-shadow: 0 0 8px fade(@hc-cyan, 50%);
+        clip-path: polygon(0 0, 100% 12%, 100% 88%, 0 100%);
+    }
+    &__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    &__title {
+        font-family: Prototype, Orbitron, sans-serif;
+        font-size: 13px;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: @hc-text;
+        font-weight: 700;
+        text-shadow: 0 0 10px fade(@hc-cyan, 30%);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__hint { font-size: 11.5px; color: @hc-text-muted; }
+    &__actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+}
+
+.hand-select-confirm-btn {
+    position: relative;
+    border: none;
+    border-radius: 7px;
+    padding: 9px 18px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: @hc-text;
+    background: linear-gradient(180deg, rgba(24, 52, 74, 0.95), rgba(14, 32, 48, 0.96));
+    box-shadow: inset 0 0 0 1px fade(@hc-cyan, 48%);
+    cursor: pointer;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: transform 130ms, box-shadow 160ms, filter 160ms, background 160ms, color 160ms;
+
+    &__glow {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        background: radial-gradient(120% 140% at 50% -20%, fade(@hc-cyan, 32%), transparent 62%);
+        opacity: 0;
+        transition: opacity 160ms;
+    }
+    &__label { position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 6px; }
+    &__count {
+        font-variant-numeric: tabular-nums;
+        background: fade(@hc-cyan, 22%);
+        border-radius: 10px;
+        padding: 1px 7px;
+        font-size: 11px;
+    }
+    &:hover:not(:disabled),
+    &:focus-visible:not(:disabled) {
+        transform: translateY(-1px);
+        background: linear-gradient(180deg, rgba(32, 66, 92, 0.96), rgba(18, 40, 58, 0.97));
+        box-shadow: 0 7px 18px fade(@hc-cyan, 40%), inset 0 0 0 1px fade(@hc-cyan, 78%);
+    }
+    &:hover:not(:disabled) &__glow { opacity: 1; }
+    &:active:not(:disabled) { transform: translateY(0); }
+    &:disabled {
+        cursor: not-allowed;
+        color: rgba(190, 205, 222, 0.5);
+        background: rgba(26, 36, 50, 0.7);
+        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.12);
+    }
+}
+
+/* Recolour the reused sell visuals from amber → cyan in select mode. */
+.hand-board-overlay--mandatory-select {
+    .hand-card-sell-btn {
+        border-color: fade(@hc-cyan, 32%);
+        color: #cfe6fb;
+        background: rgba(14, 32, 48, 0.5);
+        &:hover, &:focus-visible {
+            border-color: @hc-cyan;
+            color: @hc-text;
+            box-shadow: 0 6px 14px fade(@hc-cyan, 28%);
+        }
+        &--selected {
+            color: @hc-text;
+            background: fade(@hc-cyan, 14%);
+            border-color: fade(@hc-cyan, 70%);
+            box-shadow: inset 0 0 0 1px fade(@hc-cyan, 22%);
+            &:hover, &:focus-visible {
+                border-color: @hc-cyan;
+                box-shadow: 0 4px 11px fade(@hc-cyan, 26%), inset 0 0 0 1px fade(@hc-cyan, 32%);
+            }
+        }
+    }
+    .hand-card-item--sale-selected .hand-card-item__card,
+    .hand-card-item--sale-selected .hand-card-item__card:hover {
+        filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 10px fade(@hc-cyan, 45%));
+    }
+    .hand-card-item--sale-selected .hand-card-item__card::after {
+        border-color: @hc-cyan;
+        box-shadow: 0 0 0 1px fade(@hc-cyan, 30%), inset 0 0 12px fade(@hc-cyan, 22%);
+    }
+    .hand-card-item__sale-tick { color: @hc-cyan; }
+}
+
+/* Minimized mandatory-select pill. Floats at the top of the viewport while the
+   player inspects the board; click to re-open the overlay in select mode. */
+.hand-select-pill {
+    position: fixed;
+    top: calc(var(--bottom-bar-button-height, 36px) + 32px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 107;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid fade(@hc-cyan, 55%);
+    background: linear-gradient(180deg, rgba(16, 30, 44, 0.95), rgba(10, 20, 30, 0.95));
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45), inset 0 0 0 1px fade(@hc-cyan, 14%);
+    color: @hc-text;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 140ms, box-shadow 160ms, border-color 160ms;
+
+    &:hover, &:focus-visible {
+        transform: translateX(-50%) translateY(-1px);
+        border-color: @hc-cyan;
+        box-shadow: 0 10px 26px fade(@hc-cyan, 30%), inset 0 0 0 1px fade(@hc-cyan, 22%);
+    }
+    &__dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: @hc-cyan;
+        box-shadow: 0 0 8px @hc-cyan;
+        animation: hand-select-pill-pulse 1.8s ease-in-out infinite;
+    }
+    &__label { font-weight: 700; color: @hc-cyan; }
+    &__sep { opacity: 0.5; }
+    &__title {
+        color: @hc-text-muted;
+        text-transform: none;
+        letter-spacing: 0.4px;
+        max-width: 320px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__restore { margin-left: 4px; opacity: 0.7; }
+}
+@keyframes hand-select-pill-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .hand-select-pill__dot { animation: none; }
+}
+
 /* Premium sell-patents exit — the chosen cards dissolve IN PLACE over ~490ms
    (a brief lift-off pop, then fade + shrink + rise, carrying their amber
    frame + tick) BEFORE the sale submits and they leave the hand. transform +

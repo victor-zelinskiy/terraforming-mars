@@ -321,7 +321,8 @@
       :sellPatentsAvailable="sellPatentsActionAvailable"
       @play="onPlayHandCard($event)"
       @sell="onSellPatents($event)"
-      @close="activeOverlay = null" />
+      @hand-select="onHandSelect($event)"
+      @close="onHandOverlayClose" />
 
     <!--
       Another player's seat: the server never sends opponents' hand
@@ -335,6 +336,29 @@
       :player="displayedPlayer"
       :count="displayedCardsInHandCount"
       @close="activeOverlay = null" />
+
+    <!--
+      Minimized mandatory hand-select pill. Shown when the player collapsed the
+      КАРТЫ В РУКЕ overlay (mandatory-select mode) to inspect the board — the
+      server prompt is still pending. Clicking re-opens the overlay in select
+      mode. Teleported to body so it floats above the board chrome.
+    -->
+    <Teleport to="body">
+      <div v-if="handSelectMinimized"
+           class="hand-select-pill"
+           role="button"
+           tabindex="0"
+           :title="$t('Click to resume the card selection')"
+           @click="restoreHandSelect"
+           @keydown.enter="restoreHandSelect"
+           @keydown.space="restoreHandSelect">
+        <span class="hand-select-pill__dot" aria-hidden="true"></span>
+        <span class="hand-select-pill__label" v-i18n>SELECT CARDS</span>
+        <span class="hand-select-pill__sep" aria-hidden="true">/</span>
+        <span class="hand-select-pill__title">{{ handSelectPillTitle }}</span>
+        <span class="hand-select-pill__restore" aria-hidden="true">⤢</span>
+      </div>
+    </Teleport>
 
     <!--
       Action (blue) cards overlay (viewer). Shows the displayed player's
@@ -577,6 +601,13 @@ import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverl
 import {totalPlayedCards} from '@/client/components/playedCards/playedCardGroups';
 import HandCardsOverlay from '@/client/components/handCards/HandCardsOverlay.vue';
 import {enterSellPatents, exitSellPatents} from '@/client/components/handCards/sellPatentsState';
+import {
+  handSelectState,
+  handCardSelectionPrompt,
+  handSelectSignature,
+  enterHandSelect,
+  exitHandSelect,
+} from '@/client/components/handCards/handSelectState';
 import OpponentHandOverlay from '@/client/components/handCards/OpponentHandOverlay.vue';
 import HandCardPaymentContent from '@/client/components/handCards/HandCardPaymentContent.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
@@ -600,7 +631,7 @@ import {FundedAwardModel} from '@/common/models/FundedAwardModel';
 import {AwardName} from '@/common/ma/AwardName';
 import {MAX_MILESTONES, MAX_AWARDS} from '@/common/constants';
 import {MilestoneName} from '@/common/ma/MilestoneName';
-import {PlayerInputModel, OrOptionsModel, AndOptionsModel, SelectOptionModel, SelectPaymentModel, SelectColonyModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, OrOptionsModel, AndOptionsModel, SelectOptionModel, SelectPaymentModel, SelectColonyModel, SelectProjectCardToPlayModel, SelectSpaceModel, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Message} from '@/common/logs/Message';
 import {vueRoot} from '@/client/components/vueRoot';
@@ -816,6 +847,36 @@ export default defineComponent({
       if (oldVal === 'cards' && newVal !== 'cards') {
         exitSellPatents();
       }
+    },
+    /*
+     * Server-driven mandatory "select cards from your hand" prompt. When the
+     * top-level waitingFor is a SelectCard whose candidates are all in the
+     * player's hand (discard / reveal / keep / copy), drive it through the
+     * КАРТЫ В РУКЕ overlay's mandatory-select mode rather than the modal card
+     * grid. Enter the mode (reset picks) for a NEW prompt; auto-open the
+     * overlay unless the player has minimized it to a pill to inspect the
+     * board. When the prompt resolves, drop the mode.
+     */
+    handCardSelectionInput: {
+      immediate: true,
+      handler(input: SelectCardModel | undefined): void {
+        if (input === undefined) {
+          if (handSelectState.active) {
+            exitHandSelect();
+          }
+          return;
+        }
+        const sig = handSelectSignature(input);
+        if (!handSelectState.active || handSelectState.signature !== sig) {
+          // Always select from YOUR OWN hand — snap back if spectating another
+          // seat (the overlay only mounts for the own seat).
+          this.selectedPlayerColor = undefined;
+          enterHandSelect(input);
+        }
+        if (!handSelectState.minimized) {
+          this.activeOverlay = 'cards';
+        }
+      },
     },
     /*
      * Server-driven auto-open of the colonies overlay. When the server's
@@ -1402,6 +1463,24 @@ export default defineComponent({
     sellPatentsActionAvailable(): boolean {
       return this.findSellPatentsAction(this.playerView.waitingFor) !== undefined;
     },
+    // The top-level SelectCard prompt IF it's a selection FROM the player's own
+    // hand (discard / reveal / keep / copy). Such prompts are hosted by the
+    // КАРТЫ В РУКЕ overlay in its mandatory-select mode rather than the modal
+    // card grid (DraftFlowOverlay suppresses itself for these). undefined for
+    // draft / research / non-hand card prompts.
+    handCardSelectionInput(): SelectCardModel | undefined {
+      return handCardSelectionPrompt(this.playerView);
+    },
+    // Module-state accessors for the template (pill + overlay open gating).
+    handSelectActive(): boolean {
+      return handSelectState.active;
+    },
+    handSelectMinimized(): boolean {
+      return handSelectState.active && handSelectState.minimized;
+    },
+    handSelectPillTitle(): string {
+      return translateText(inputTitleText(handSelectState.title) ?? '');
+    },
   },
 
   components: {
@@ -1496,8 +1575,14 @@ export default defineComponent({
           target.closest('.sidebar_cont') ||
           target.closest('.bottom-bar-btn') ||
           target.closest('.bar-rail') ||
-          target.closest('.left-panel')) {
+          target.closest('.left-panel') ||
+          target.closest('.hand-select-pill')) {
         return;
+      }
+      // A mandatory hand-select prompt can't be dismissed by clicking away —
+      // minimize it to its pill instead of dropping the overlay.
+      if (handSelectState.active) {
+        handSelectState.minimized = true;
       }
       this.activeOverlay = null;
     },
@@ -2275,6 +2360,37 @@ export default defineComponent({
       }
       const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
       wfRef?.onsave?.(response);
+    },
+    // ─── Mandatory "select cards from hand" (discard / reveal / keep) ───────
+    // Final ПОДТВЕРДИТЬ from the hand overlay's mandatory-select mode. The
+    // prompt is the TOP-LEVEL waitingFor, so the response is the bare
+    // {type:'card', cards} (no nested-OR wrapping, unlike sell-patents which is
+    // an action-menu option). Submitted through WaitingFor.onsave; the server
+    // resolves the prompt and the post-response remount drops the mode via the
+    // handCardSelectionInput watcher.
+    onHandSelect(cards: ReadonlyArray<CardName>): void {
+      const input = handCardSelectionPrompt(this.playerView);
+      if (input === undefined) {
+        exitHandSelect();
+        return;
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      wfRef?.onsave?.({type: 'card', cards: [...cards]});
+    },
+    // Close (✕ / Escape / outside click) of the hand overlay. While a mandatory
+    // hand-select prompt is pending, "close" MINIMIZES to a pill (the prompt
+    // can't be dismissed) instead of dropping the overlay.
+    onHandOverlayClose(): void {
+      if (handSelectState.active) {
+        handSelectState.minimized = true;
+      }
+      this.activeOverlay = null;
+    },
+    // Restore the minimized hand-select overlay from its pill.
+    restoreHandSelect(): void {
+      handSelectState.minimized = false;
+      this.selectedPlayerColor = undefined;
+      this.activeOverlay = 'cards';
     },
     // ─── Play a card from the hand overlay ─────────────────────────────
     // РАЗЫГРАТЬ pressed on a hand card. Opens the client-side payment

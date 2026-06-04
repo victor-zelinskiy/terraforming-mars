@@ -96,7 +96,7 @@
       second confirmation step. Buy mode keeps the footer because
       multi-card toggling needs an explicit final commit.
     -->
-    <footer v-if="isBuyMode" class="card-selection__footer">
+    <footer v-if="isMultiSelect" class="card-selection__footer">
       <button class="card-selection__confirm"
               :disabled="!canConfirm"
               :title="confirmTooltip"
@@ -136,7 +136,7 @@
                    :selected="isSelected(zoomCard.name)"
                    @close="zoomCard = undefined">
       <template #actions>
-        <button v-if="!isBuyMode"
+        <button v-if="!isMultiSelect"
                 class="card-zoom-actions__btn card-zoom-actions__btn--primary"
                 @click="onFullscreenDraftSelect"
                 data-test="card-selection-fullscreen-select">
@@ -160,6 +160,7 @@
 import {defineComponent, PropType, nextTick} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
+import {Phase} from '@/common/Phase';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {SelectCardResponse} from '@/common/inputs/InputResponse';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -248,6 +249,31 @@ export default defineComponent({
     },
     isSingleSelect(): boolean {
       return this.playerinput.min === 1 && this.playerinput.max === 1;
+    },
+    /*
+     * Multi-select mode: the per-card buttons TOGGLE local selection and the
+     * commit happens via the bottom confirm footer. Buy is always multi (cost
+     * + confirm), and any non-single generic prompt (discard N, reveal 0-N,
+     * "select up to N cards") is multi too. Only a single forced pick
+     * (min === max === 1) commits on one click without a footer.
+     *
+     * This is what fixes generic top-level SelectCard prompts: previously every
+     * non-buy prompt single-committed the first clicked card, silently breaking
+     * "discard 2 cards" / "reveal any number of cards".
+     */
+    isMultiSelect(): boolean {
+      return this.isBuyMode || !this.isSingleSelect;
+    },
+    /*
+     * Whether the current SelectCard is an actual draft pick (card-pick
+     * phases), as opposed to a research buy (RESEARCH) or a generic card
+     * selection during a normal turn (ACTION — discard / reveal / target a
+     * card). Only a real draft pick should arm the "waiting for the rest of
+     * the table" view after submit.
+     */
+    isDraftPhase(): boolean {
+      const phase = this.playerView.game.phase;
+      return phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING;
     },
     isMaxedOut(): boolean {
       return this.selected.length >= this.playerinput.max;
@@ -369,7 +395,7 @@ export default defineComponent({
      *           bottom "КУПИТЬ" / "ПРОПУСТИТЬ" button.
      */
     onActionClick(name: CardName): void {
-      if (this.isBuyMode) {
+      if (this.isMultiSelect) {
         this.toggleSelected(name);
         return;
       }
@@ -413,10 +439,10 @@ export default defineComponent({
      *                  payment / commit completes.
      */
     submitNow(): void {
-      if (this.isBuyMode) {
-        clearDraftWaitPending();
-      } else {
+      if (this.isDraftPhase) {
         setDraftWaitPending();
+      } else {
+        clearDraftWaitPending();
       }
       this.onsave({type: 'card', cards: [...this.selected]});
     },
@@ -462,7 +488,9 @@ export default defineComponent({
      * "ВЫБРАТЬ" and "СНЯТЬ ВЫБОР" to telegraph the current state.
      */
     actionLabel(name: CardName): string {
-      if (!this.isBuyMode) return translateText('Select');
+      if (!this.isMultiSelect) {
+        return translateText('Select');
+      }
       return this.isSelected(name) ? translateText('Unselect') : translateText('Select');
     },
     /*
@@ -473,7 +501,9 @@ export default defineComponent({
      * cards are valid commits.
      */
     actionDisabled(name: CardName): boolean {
-      if (!this.isBuyMode) return false;
+      if (!this.isMultiSelect) {
+        return false;
+      }
       return !this.isSelected(name) && this.isMaxedOut;
     },
     actionTooltip(name: CardName): string {
