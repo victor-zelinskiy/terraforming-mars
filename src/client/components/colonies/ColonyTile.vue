@@ -214,10 +214,24 @@
         signal of "can't pick right now" — the card body stays fully
         visible so the player can still read all the colony info.
       -->
-      <button class="colony-tile__select-btn"
+      <!--
+        Footer: a disabled colony with a reason shows a visible REASON CHIP
+        (with a premium hover tooltip for the full text) instead of a dead
+        SELECT button, so the player reads WHY at a glance. Selectable colonies
+        (and the rare disabled-without-reason case) keep the SELECT button.
+      -->
+      <div v-if="showReasonChip"
+           class="colony-tile__reason"
+           :data-hint="disabledReason"
+           :data-test="'colony-reason-' + colony.name">
+        <span class="colony-tile__reason-icon" aria-hidden="true">⊘</span>
+        <span class="colony-tile__reason-text">{{ disabledReason }}</span>
+      </div>
+      <button v-else
+              class="colony-tile__select-btn"
               :class="{'colony-tile__select-btn--disabled': !selectable}"
               :disabled="!selectable"
-              :title="disabledReason || selectButtonTooltip"
+              :title="selectButtonTooltip"
               @click.stop="$emit('select', colony.name)"
               :data-test="'colony-select-' + colony.name">
         <span class="colony-tile__select-btn-glyph">▸</span>
@@ -293,6 +307,11 @@ export default defineComponent({
     },
     hasVisitor(): boolean {
       return this.visitor !== undefined;
+    },
+    // A non-selectable colony with a known reason shows a visible reason chip
+    // instead of a dead SELECT button.
+    showReasonChip(): boolean {
+      return this.selectable === false && this.disabledReason !== '';
     },
     trackPositionDisplay(): number {
       const pos = Math.min(this.colony.trackPosition, 6);

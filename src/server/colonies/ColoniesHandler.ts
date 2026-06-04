@@ -110,6 +110,9 @@ export class ColoniesHandler {
         return undefined;
       });
     selectColonyTile.showTileOnly = true;
+    // Adding a NEW tile to the game — the picker must show ONLY the offered
+    // (not-in-play) tiles, never the existing colonies. See SelectColonyModel.
+    selectColonyTile.purpose = 'addNewColonyToGame';
     player.defer(selectColonyTile);
   }
 }

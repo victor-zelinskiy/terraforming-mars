@@ -634,7 +634,7 @@ import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePay
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {CardResource} from '@/common/CardResource';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams, translateMessage} from '@/client/directives/i18n';
 import {Payment} from '@/common/inputs/Payment';
 import {SelectProjectCardToPlayResponse} from '@/common/inputs/InputResponse';
 import {CardName} from '@/common/cards/CardName';
@@ -1245,6 +1245,8 @@ export default defineComponent({
       // («... для строительства» vs «... для добавления в игру»), без
       // частного if по имени корпорации.
       buttonLabel: string;
+      purpose: 'selectExistingColony' | 'addNewColonyToGame';
+      disabledReasons: Partial<Record<ColonyName, string>>;
     } | undefined {
       return this.findBuildColonyContext(this.playerView.waitingFor);
     },
@@ -1265,8 +1267,12 @@ export default defineComponent({
      * автоматически работает тем же путём.
      */
     coloniesOverlayColonies(): ReadonlyArray<ColonyModel> {
+      // ADD-NEW-TILE (Aridor): the offered tiles are NOT in play (discarded
+      // pool), so show EXACTLY the server's coloniesModel and never the
+      // existing colonies. SELECT-EXISTING build (and trade / view) shows every
+      // in-play colony, disabling the unbuildable ones with a reason.
       if (this.coloniesOverlayMode === 'build' &&
-          this.buildColonyContext !== undefined) {
+          this.buildColonyContext?.purpose === 'addNewColonyToGame') {
         return this.buildColonyContext.coloniesModel;
       }
       return this.game.colonies;
@@ -1370,6 +1376,14 @@ export default defineComponent({
           continue;
         }
         if (mode === 'build') {
+          // Prefer the server-derived reason when present — it names the
+          // rule failures the client can't compute (Venus / Europa / Leavitt
+          // TR affordability) instead of the generic fallback below.
+          const serverReason = this.buildColonyContext?.disabledReasons[c.name];
+          if (serverReason !== undefined) {
+            out[c.name] = serverReason;
+            continue;
+          }
           if (c.colonies.length >= 3) {
             out[c.name] = 'Colony is full';
             continue;
@@ -1378,10 +1392,6 @@ export default defineComponent({
             out[c.name] = 'You already have a colony here';
             continue;
           }
-          // Falls through to a generic reason — Venus / Europa / Leavitt
-          // TR-affordability checks happen server-side and produce the
-          // colony's absence from `coloniesModel`. We don't replicate the
-          // canAfford math here.
           out[c.name] = 'Cannot build on this colony right now';
           continue;
         }
@@ -2034,15 +2044,27 @@ export default defineComponent({
       colonies: ReadonlyArray<ColonyName>;
       coloniesModel: ReadonlyArray<ColonyModel>;
       buttonLabel: string;
+      // 'addNewColonyToGame' (Aridor) → show ONLY the offered tiles; otherwise
+      // show every in-play colony, disabling the unbuildable ones.
+      purpose: 'selectExistingColony' | 'addNewColonyToGame';
+      // Server-derived per-colony reasons (rule failures the client can't
+      // compute, e.g. TR affordability). Keyed by colony name.
+      disabledReasons: Partial<Record<ColonyName, string>>;
     } | undefined {
       if (!wf) return undefined;
       if (wf.type === 'colony' && !insideTradeAnd) {
         const select = wf as SelectColonyModel;
+        const disabledReasons: Partial<Record<ColonyName, string>> = {};
+        for (const d of select.disabledColonies ?? []) {
+          disabledReasons[d.name] = typeof d.reason === 'string' ? d.reason : translateMessage(d.reason);
+        }
         return {
           path: pathSoFar,
           colonies: select.coloniesModel.map((c) => c.name),
           coloniesModel: select.coloniesModel,
           buttonLabel: select.buttonLabel,
+          purpose: select.purpose ?? 'selectExistingColony',
+          disabledReasons,
         };
       }
       // Don't descend INTO the trade AndOptions — its child SelectColony

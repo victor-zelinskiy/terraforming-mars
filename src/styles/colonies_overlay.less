@@ -1105,6 +1105,58 @@
     line-height: 1;
 }
 
+/* Reason chip — replaces the SELECT button on a disabled colony so the player
+   reads WHY at a glance (full text on hover via the data-hint tooltip). Same
+   footer geometry as the button (full-width bottom strip). */
+.colony-tile__reason {
+    position: relative;
+    margin-top: 12px;
+    padding: 8px 12px;
+    width: 100%;
+    border-top: 1px solid rgba(201, 142, 74, 0.32);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: linear-gradient(180deg, rgba(60, 42, 24, 0.55) 0%, rgba(34, 24, 16, 0.7) 100%);
+    color: #d6a877;
+    font-family: Prototype, sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 0.4px;
+    line-height: 1.15;
+    text-align: center;
+}
+.colony-tile__reason-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+    opacity: 0.85;
+}
+.colony-tile__reason-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.colony-tile__reason[data-hint]:hover::after {
+    content: attr(data-hint);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: normal;
+    width: max-content;
+    max-width: 220px;
+    padding: 7px 11px;
+    border-radius: 6px;
+    background: rgba(8, 14, 22, 0.96);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(201, 142, 74, 0.4);
+    color: #e8d4bc;
+    font-size: 12px;
+    line-height: 1.35;
+    letter-spacing: 0.2px;
+    z-index: 6;
+    pointer-events: none;
+}
+
 /* ───── Colony detail view — custom sci-fi layout ──────────────────── */
 
 .colony-detail {
