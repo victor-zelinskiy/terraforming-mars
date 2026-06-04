@@ -551,10 +551,11 @@
       overlay stays open) so the player can pick a different colony.
     -->
     <MandatoryInputModal v-if="pendingTradeColony !== undefined"
-                         :title="$t('Pay trade fee')"
                          :minimizable="false">
-      <ColonyTradePaymentModal :colonyName="pendingTradeColony.colonyName"
+      <ColonyTradePaymentModal :colony="pendingTradeColonyModel"
+                               :colonyName="pendingTradeColony.colonyName"
                                :options="pendingTradeColony.paymentOptions"
+                               :disabledOptions="pendingTradeColony.disabledPayments"
                                @select="onColonyTradePaymentSelected($event)"
                                @cancel="onColonyTradePaymentCancel" />
     </MandatoryInputModal>
@@ -645,7 +646,7 @@ import {FundedAwardModel} from '@/common/models/FundedAwardModel';
 import {AwardName} from '@/common/ma/AwardName';
 import {MAX_MILESTONES, MAX_AWARDS} from '@/common/constants';
 import {MilestoneName} from '@/common/ma/MilestoneName';
-import {PlayerInputModel, OrOptionsModel, AndOptionsModel, SelectOptionModel, SelectPaymentModel, SelectColonyModel, SelectProjectCardToPlayModel, SelectSpaceModel, SelectCardModel} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, OrOptionsModel, AndOptionsModel, SelectOptionModel, DisabledOptionModel, SelectPaymentModel, SelectColonyModel, SelectProjectCardToPlayModel, SelectSpaceModel, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Message} from '@/common/logs/Message';
 import {vueRoot} from '@/client/components/vueRoot';
@@ -715,6 +716,7 @@ type PendingTradeColony = {
   colonyName: ColonyName;
   tradeActionPath: ReadonlyArray<number>;
   paymentOptions: ReadonlyArray<SelectOptionModel>;
+  disabledPayments: ReadonlyArray<DisabledOptionModel>;
 };
 
 type PlayerHomeModel = ToggleableState & {
@@ -1224,9 +1226,20 @@ export default defineComponent({
     tradeColonyContext(): {
       path: ReadonlyArray<number>;
       paymentOptions: ReadonlyArray<SelectOptionModel>;
+      disabledPayments: ReadonlyArray<DisabledOptionModel>;
       colonies: ReadonlyArray<ColonyName>;
     } | undefined {
       return this.findTradeColonyContext(this.playerView.waitingFor);
+    },
+    // The full ColonyModel for the colony the player is about to trade with —
+    // lets the trade-payment modal show a colony summary (planet + name + the
+    // reward at the current track position).
+    pendingTradeColonyModel(): ColonyModel | undefined {
+      const pending = this.pendingTradeColony;
+      if (pending === undefined) {
+        return undefined;
+      }
+      return this.game.colonies.find((c) => c.name === pending.colonyName);
     },
     buildColonyContext(): {
       path: ReadonlyArray<number>;
@@ -2004,6 +2017,7 @@ export default defineComponent({
     ): {
       path: ReadonlyArray<number>;
       paymentOptions: ReadonlyArray<SelectOptionModel>;
+      disabledPayments: ReadonlyArray<DisabledOptionModel>;
       colonies: ReadonlyArray<ColonyName>;
     } | undefined {
       if (!wf) return undefined;
@@ -2016,8 +2030,9 @@ export default defineComponent({
         if (payOr === undefined || selectColony === undefined) return undefined;
         const paymentOptions = payOr.options.filter(
           (o) => o.type === 'option') as ReadonlyArray<SelectOptionModel>;
+        const disabledPayments = payOr.disabledOptions ?? [];
         const colonies = selectColony.coloniesModel.map((c) => c.name);
-        return {path: pathSoFar, paymentOptions, colonies};
+        return {path: pathSoFar, paymentOptions, disabledPayments, colonies};
       }
       if (wf.type === 'or' || wf.type === 'and') {
         const options = (wf as OrOptionsModel).options;
@@ -2652,18 +2667,15 @@ export default defineComponent({
       if (this.coloniesOverlayMode === 'trade') {
         const ctx = this.tradeColonyContext;
         if (!ctx) return;
-        // If there's exactly one payment option, skip the second-step
-        // modal — auto-submit with that single option. This matches the
-        // "single click trade" UX of the Steam version when only one
-        // pay path is available.
-        if (ctx.paymentOptions.length === 1) {
-          this.submitTradeColony(colonyName, 0);
-          return;
-        }
+        // ALWAYS open the premium confirmation/payment modal — never trade
+        // instantly, even with a single pay path. The player must explicitly
+        // confirm (and see the cost + their resources) before the server
+        // action fires. Predictable > "sometimes asks, sometimes doesn't".
         this.pendingTradeColony = {
           colonyName,
           tradeActionPath: ctx.path,
           paymentOptions: ctx.paymentOptions,
+          disabledPayments: ctx.disabledPayments,
         };
       }
     },

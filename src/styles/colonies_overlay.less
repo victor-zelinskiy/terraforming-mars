@@ -1133,8 +1133,13 @@
 }
 .colony-tile__reason-text {
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    /* Allow up to two lines so most reasons fit; the hover tooltip still shows
+       the full text for the rare very long ones (e.g. activation triggers). */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.25;
 }
 .colony-tile__reason[data-hint]:hover::after {
     content: attr(data-hint);
@@ -2068,48 +2073,198 @@
     margin-left: 4px;
 }
 
+.colony-trade-pay__header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 14px;
+}
+.colony-trade-pay__header-tab {
+    width: 46px;
+    height: 3px;
+    border-radius: 2px;
+    background: @colony-amber-warn;
+    margin-bottom: 9px;
+    opacity: 0.85;
+}
+
+/* Colony summary — which colony + what you receive. */
+.colony-trade-pay__colony {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(8, 14, 22, 0.5);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.16);
+}
+.colony-trade-pay__colony-planet {
+    flex-shrink: 0;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(106, 176, 230, 0.25);
+}
+.colony-trade-pay__colony-info {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.colony-trade-pay__colony-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #eaf3fc;
+}
+.colony-trade-pay__colony-reward {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+}
+.colony-trade-pay__colony-reward-label {
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    color: #8fa9c4;
+    text-transform: uppercase;
+}
+
 .colony-trade-pay__options {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-bottom: 16px;
+    gap: 9px;
+    margin-bottom: 18px;
 }
 
 .colony-trade-pay__option {
-    padding: 10px 14px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 15px;
     border: 1px solid #28415e;
-    border-radius: 3px;
-    background: rgba(16, 24, 36, 0.7);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(20, 30, 44, 0.82), rgba(12, 20, 30, 0.82));
     color: #d6e2f2;
     font-family: Prototype, sans-serif;
-    font-size: 14px;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
     text-align: left;
     cursor: pointer;
-    transition: border-color 150ms ease, background 150ms ease,
-                box-shadow 150ms ease, transform 150ms ease;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 
     &:hover {
         border-color: @colony-cyan-text;
-        background: rgba(24, 38, 56, 0.85);
-        box-shadow: 0 0 8px rgba(106, 176, 230, 0.32);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 9px rgba(106, 176, 230, 0.25);
         transform: translateY(-1px);
     }
-    &:active {
-        transform: translateY(0);
-        filter: brightness(0.92);
+    &:active { transform: translateY(0); }
+}
+.colony-trade-pay__option--selected {
+    border-color: #7fd4ff;
+    box-shadow: 0 0 0 1px rgba(127, 212, 255, 0.5), 0 0 16px rgba(106, 176, 230, 0.32);
+}
+.colony-trade-pay__option--disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    filter: saturate(0.5);
+    &:hover { transform: none; border-color: #28415e; box-shadow: none; }
+
+    &[data-hint]:hover::after {
+        content: attr(data-hint);
+        position: absolute;
+        bottom: calc(100% + 6px);
+        right: 8px;
+        white-space: normal;
+        width: max-content;
+        max-width: 220px;
+        padding: 7px 11px;
+        border-radius: 6px;
+        background: rgba(8, 14, 22, 0.96);
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(201, 142, 74, 0.4);
+        color: #e8d4bc;
+        font-size: 12px;
+        line-height: 1.35;
+        z-index: 6;
+        pointer-events: none;
     }
 }
-
+.colony-trade-pay__option-icon {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain !important;
+}
+.colony-trade-pay__option-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
 .colony-trade-pay__option-label {
+    font-size: 15px;
     font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #eaf3fc;
+}
+.colony-trade-pay__option-stock {
+    font-size: 11.5px;
+    letter-spacing: 0.3px;
+    color: #9fb4cc;
+    font-variant-numeric: tabular-nums;
+}
+.colony-trade-pay__option-check {
+    flex-shrink: 0;
+    font-size: 18px;
+    color: #7fd4ff;
+}
+.colony-trade-pay__option-reason {
+    flex-shrink: 0;
+    max-width: 130px;
+    font-size: 12px;
+    font-style: italic;
+    color: #c98e4a;
+    text-align: right;
+    line-height: 1.2;
 }
 
 .colony-trade-pay__actions {
     display: flex;
     justify-content: center;
     gap: 12px;
+}
+
+.colony-trade-pay__confirm {
+    position: relative;
+    padding: 10px 26px;
+    border: none;
+    cursor: pointer;
+    color: #04121e;
+    font-family: Prototype, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    line-height: 1;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #8fe0ff 0%, #4ba8d8 100%);
+    box-shadow: 0 0 14px rgba(106, 176, 230, 0.5);
+    transition: filter 150ms ease, transform 150ms ease, opacity 150ms ease;
+
+    &:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); }
+    &:active:not(:disabled) { transform: translateY(0); }
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.4;
+        filter: saturate(0.5);
+        box-shadow: none;
+    }
 }
 
 .colony-trade-pay__cancel {

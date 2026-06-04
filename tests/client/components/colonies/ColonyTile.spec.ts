@@ -38,4 +38,13 @@ describe('ColonyTile — disabled reason chip', () => {
     expect(btn.exists()).to.eq(true);
     expect((btn.element as HTMLButtonElement).disabled).to.eq(true);
   });
+
+  it('labels the action button for trading in trade mode', () => {
+    const trade = factory({selectable: true, mode: 'trade'});
+    const view = factory({selectable: true, mode: 'view'});
+    const tradeLabel = trade.find('[data-test="colony-select-' + ColonyName.GANYMEDE + '"]').text();
+    const viewLabel = view.find('[data-test="colony-select-' + ColonyName.GANYMEDE + '"]').text();
+    expect(tradeLabel).to.not.eq(viewLabel);
+    expect(tradeLabel.toLowerCase()).to.satisfy((t: string) => t.includes('trade') || t.includes('торгов'));
+  });
 });

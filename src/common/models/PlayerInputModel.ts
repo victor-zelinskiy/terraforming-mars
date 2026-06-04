@@ -74,6 +74,9 @@ export type OptionMetadata = {
   player?: {color: Color, current?: number, resulting?: number};
   /** Global-parameter context for the preview. */
   global?: {current?: number, resulting?: number, unit?: string};
+  /** SELF-resource spend context (e.g. paying a trade fee) — the viewer's own
+   *  stock of `icon` before/after, for a "5 → 2" preview + "available" badge. */
+  resource?: {current: number, resulting: number};
 };
 
 export type SelectOptionModel = BaseInputModel & {

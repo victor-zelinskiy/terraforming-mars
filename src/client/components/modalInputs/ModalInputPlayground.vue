@@ -26,6 +26,26 @@
           <modal-input-host :playerView="playerView" :playerinput="s.input" :onsave="onSave" />
         </div>
       </section>
+
+      <!-- Bespoke colony-flow modals (not routed via modal-input-host) — kept in
+           the same audit gate so weak/legacy colony modals can't slip past. -->
+      <section class="modal-input-playground__cell">
+        <div class="modal-input-playground__cell-head">
+          <span class="modal-input-playground__cell-label">Colony trade payment (affordable + disabled)</span>
+          <span class="modal-input-playground__tags">
+            <span class="modal-input-playground__tag modal-input-playground__tag--ok">premium</span>
+            <span class="modal-input-playground__tag modal-input-playground__tag--info">disabled: 1</span>
+          </span>
+        </div>
+        <div class="modal-input-playground__stage">
+          <colony-trade-payment-modal :colony="colonyTradeMock.colony"
+                                      :colonyName="colonyTradeMock.colonyName"
+                                      :options="colonyTradeMock.options"
+                                      :disabledOptions="colonyTradeMock.disabledOptions"
+                                      @select="onColonyTradeSelect"
+                                      @cancel="onSave('colony-trade cancel')" />
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -35,6 +55,8 @@ import {defineComponent} from 'vue';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {setTranslationContext} from '@/client/directives/i18n';
 import {MANDATORY_MODAL_PICKER_SETTER} from '@/client/components/MandatoryInputModal.vue';
+import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePaymentModal.vue';
+import {ColonyName} from '@/common/colonies/ColonyName';
 
 // Two mock players, full enough that the rich target picker can read each
 // player's stock + production + corporation. Victor (red) is `thisPlayer` so
@@ -68,6 +90,7 @@ function raw(value: string | number) {
 
 export default defineComponent({
   name: 'ModalInputPlayground',
+  components: {ColonyTradePaymentModal},
   // Stub the modal's picker-mode setter so ModernOptionPicker's space options
   // don't blow up outside a real MandatoryInputModal.
   provide() {
@@ -85,6 +108,23 @@ export default defineComponent({
         thisPlayer: PLAYERS[0],
         game: {phase: 'action'},
         cardsInHand: [],
+      } as any,
+      // Mock for the bespoke colony trade-payment modal: titanium/M€ affordable,
+      // energy unaffordable (disabled with a reason).
+      colonyTradeMock: {
+        colonyName: ColonyName.IO,
+        colony: {colonies: [], isActive: true, name: ColonyName.IO, trackPosition: 3, visitor: undefined},
+        options: [
+          {type: 'option', title: 'Pay 3 titanium', buttonLabel: '',
+            metadata: {kind: 'resourceRemoval', icon: 'titanium', amount: 3, resource: {current: 5, resulting: 2}}},
+          {type: 'option', title: 'Pay 9 M€', buttonLabel: '',
+            metadata: {kind: 'resourceRemoval', icon: 'megacredits', amount: 9, resource: {current: 21, resulting: 12}}},
+        ],
+        disabledOptions: [
+          {title: 'Pay 3 energy',
+            metadata: {kind: 'resourceRemoval', icon: 'energy', amount: 3, resource: {current: 2, resulting: 0}},
+            reason: 'Not enough energy'},
+        ],
       } as any,
     };
   },
@@ -186,6 +226,9 @@ export default defineComponent({
   methods: {
     onSave(out: unknown): void {
       this.lastResponse = 'submitted: ' + JSON.stringify(out);
+    },
+    onColonyTradeSelect(idx: number): void {
+      this.lastResponse = 'colony-trade pay option ' + idx;
     },
     // Quality-gate debug chips: which scenarios drive the rich (metadata) render
     // vs. the text fallback. Makes "this one is still legacy/fallback" obvious.

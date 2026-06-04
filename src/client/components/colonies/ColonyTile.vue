@@ -235,7 +235,7 @@
               @click.stop="$emit('select', colony.name)"
               :data-test="'colony-select-' + colony.name">
         <span class="colony-tile__select-btn-glyph">▸</span>
-        <span class="colony-tile__select-btn-label" v-i18n>Select</span>
+        <span class="colony-tile__select-btn-label">{{ selectLabel }}</span>
       </button>
     </div>
   </div>
@@ -263,6 +263,12 @@ export default defineComponent({
     colony: {
       type: Object as () => ColonyModel,
       required: true,
+    },
+    // Overlay mode — drives the action-button label (ТОРГОВАТЬ in trade mode,
+    // ВЫБРАТЬ otherwise).
+    mode: {
+      type: String as () => 'trade' | 'build' | 'view',
+      default: 'view',
     },
     selectable: {
       type: Boolean,
@@ -312,6 +318,11 @@ export default defineComponent({
     // instead of a dead SELECT button.
     showReasonChip(): boolean {
       return this.selectable === false && this.disabledReason !== '';
+    },
+    // Action-button label: ТОРГОВАТЬ when the overlay is opened for trading,
+    // ВЫБРАТЬ for SelectColony (build / pick a colony for an effect).
+    selectLabel(): string {
+      return translateText(this.mode === 'trade' ? 'Trade' : 'Select');
     },
     trackPositionDisplay(): number {
       const pos = Math.min(this.colony.trackPosition, 6);
