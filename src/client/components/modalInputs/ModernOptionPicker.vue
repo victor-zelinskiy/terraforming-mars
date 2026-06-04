@@ -83,6 +83,32 @@
       </button>
     </div>
 
+    <!-- Informational, non-selectable targets the server flagged as unavailable
+         (e.g. an opponent with no plants), each with a reason. -->
+    <div v-if="expandedIdx === -1 && disabledOptions.length > 0" class="modal-input__disabled-options">
+      <span class="modal-input__disabled-head" v-i18n>Unavailable targets</span>
+      <div v-for="(d, di) in disabledOptions"
+           :key="'disabled-' + di"
+           class="modal-input__option-card modal-input__option-card--unavailable"
+           :data-test="'modern-option-disabled-' + di">
+        <span class="modal-input__option-accent"
+              :class="disabledColor(d) !== undefined ? ('player_bg_color_' + disabledColor(d)) : ''"
+              aria-hidden="true"></span>
+        <span v-if="disabledColor(d) !== undefined" class="modal-input__option-lead modal-input__option-player">
+          <span class="modal-input__option-dot" :class="'player_bg_color_' + disabledColor(d)" aria-hidden="true"></span>
+          <span v-if="disabledName(d) !== ''" class="modal-input__option-player-name">{{ disabledName(d) }}</span>
+        </span>
+        <span v-else-if="disabledIconClass(d) !== ''"
+              class="modal-input__option-lead modal-input__option-icon"
+              :class="disabledIconClass(d)"
+              aria-hidden="true"></span>
+        <span class="modal-input__option-body">
+          <span v-if="disabledColor(d) === undefined" class="modal-input__option-label">{{ disabledTitle(d) }}</span>
+          <span class="modal-input__option-disabled-reason">{{ disabledReason(d) }}</span>
+        </span>
+      </div>
+    </div>
+
     <!-- Confirm bar — only for a SELECTED leaf option (select → confirm flow).
          Space / nested options act on click and never reach here. -->
     <div v-if="expandedIdx === -1 && confirmableSelection" class="modal-input__actions">
@@ -125,7 +151,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {OrOptionsModel, PlayerInputModel, SelectSpaceModel, SelectOptionModel, OptionMetadata} from '@/common/models/PlayerInputModel';
+import {DisabledOptionModel, OrOptionsModel, PlayerInputModel, SelectSpaceModel, SelectOptionModel, OptionMetadata} from '@/common/models/PlayerInputModel';
 import {InputResponse, OrOptionsResponse, SelectSpaceResponse} from '@/common/inputs/InputResponse';
 import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
@@ -234,6 +260,9 @@ export default defineComponent({
       const label = (opt as SelectOptionModel | undefined)?.buttonLabel;
       return label !== undefined && label !== '' ? translateText(label) : translateText('Confirm');
     },
+    disabledOptions(): ReadonlyArray<DisabledOptionModel> {
+      return this.playerinput.disabledOptions ?? [];
+    },
   },
   methods: {
     optionTitle(opt: PlayerInputModel): string {
@@ -257,6 +286,27 @@ export default defineComponent({
     // The option's structured UI metadata (premium render), or undefined.
     optionMeta(opt: PlayerInputModel): OptionMetadata | undefined {
       return opt.type === 'option' ? (opt as SelectOptionModel).metadata : undefined;
+    },
+    // ----- informational disabled (non-selectable) targets -----
+    disabledColor(d: DisabledOptionModel): Color | undefined {
+      return d.metadata?.player?.color;
+    },
+    disabledName(d: DisabledOptionModel): string {
+      const color = this.disabledColor(d);
+      if (color === undefined) {
+        return '';
+      }
+      const p = (this.playerView.players ?? []).find((pp) => pp.color === color);
+      return p?.name ?? '';
+    },
+    disabledIconClass(d: DisabledOptionModel): string {
+      return iconClassFor(d.metadata?.icon);
+    },
+    disabledTitle(d: DisabledOptionModel): string {
+      return optionTitleText(d.title);
+    },
+    disabledReason(d: DisabledOptionModel): string {
+      return optionTitleText(d.reason);
     },
     // Player colour for a player-target option. Prefer the explicit metadata
     // colour; fall back to a PLAYER token in the title Message (the token's

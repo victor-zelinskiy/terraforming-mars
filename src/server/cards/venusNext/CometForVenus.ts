@@ -42,12 +42,15 @@ export class CometForVenus extends Card implements IProjectCard {
     }
 
     if (venusTagPlayers.length > 0) {
+      const noVenusTag = player.opponents
+        .filter((opponent) => opponent.tags.count(Tag.VENUS, 'raw') === 0)
+        .map((opponent) => ({player: opponent, reason: 'No Venus tag' as const}));
       return new OrOptions(
         new SelectPlayer(
           Array.from(venusTagPlayers),
           'Select player to remove up to 4 M€ from',
           'Remove M€',
-          {icon: 'megacredits', amount: 4})
+          {icon: 'megacredits', amount: 4, scope: 'stock', disabled: noVenusTag})
           .andThen((target) => {
             target.attack(player, Resource.MEGACREDITS, 4, {log: true});
             return undefined;

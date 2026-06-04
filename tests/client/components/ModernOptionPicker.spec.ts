@@ -82,6 +82,37 @@ describe('ModernOptionPicker', () => {
     expect(saved).to.deep.eq({type: 'or', index: 1, response: {type: 'player', player: 'red'}});
   });
 
+  it('renders informational disabledOptions that are not selectable', async () => {
+    PreferencesManager.INSTANCE.set('learner_mode', false);
+    let saved: InputResponse | undefined;
+    const component = factory(
+      {
+        type: 'or',
+        title: 'Choose',
+        options: [
+          {type: 'option', title: 'steal from blue', buttonLabel: 'Steal'},
+          {type: 'option', title: 'do nothing', buttonLabel: ''},
+        ],
+        disabledOptions: [
+          {title: {message: '${0}', data: [{type: 0, value: 'red'}]},
+            metadata: {kind: 'playerTarget', icon: 'megacredits', player: {color: 'red'}},
+            reason: 'Nothing to steal'},
+        ],
+      },
+      (out) => {
+        saved = out;
+      },
+    );
+    // Only the two real options are selectable cards; the disabled one renders
+    // separately and never participates in selection.
+    expect(component.findAll('[data-test^="modern-option-disabled-"]').length).to.eq(1);
+    const disabled = component.find('[data-test="modern-option-disabled-0"]');
+    expect(disabled.text()).to.include('Nothing to steal');
+    await disabled.trigger('click');
+    expect(saved).to.eq(undefined);
+    expect(component.find('[data-test="modern-option-confirm"]').exists()).to.eq(false);
+  });
+
   it('arms board picker-mode for a SelectSpace option', async () => {
     PreferencesManager.INSTANCE.set('learner_mode', false);
     const calls: Array<[boolean, unknown]> = [];

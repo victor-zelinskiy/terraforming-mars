@@ -10,7 +10,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {all, digit} from '../Options';
 import {message} from '../../logs/MessageBuilder';
-import {removeResourceFromPlayer, skip} from '../../inputs/optionMetadata';
+import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../../inputs/optionMetadata';
 
 export class Sabotage extends Card implements IProjectCard {
   constructor() {
@@ -81,6 +81,20 @@ export class Sabotage extends Card implements IProjectCard {
             }));
         }
       });
+
+      // Opponents we can't take anything from → greyed cards with a reason.
+      const disabled = player.opponents
+        .filter((target) => {
+          const hasRemovable = (target.titanium > 0 && !target.alloysAreProtected()) ||
+            (target.steel > 0 && !target.alloysAreProtected()) ||
+            target.megaCredits > 0;
+          return !hasRemovable;
+        })
+        .map((target) => {
+          const alloyOnly = (target.titanium > 0 || target.steel > 0) && target.alloysAreProtected() && target.megaCredits === 0;
+          return disabledPlayerTarget(target, undefined, alloyOnly ? 'Resources are protected' : 'No resources to remove');
+        });
+      availableActions.setDisabledOptions(disabled);
     }
 
     if (availableActions.options.length > 0) {

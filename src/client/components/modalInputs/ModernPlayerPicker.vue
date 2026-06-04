@@ -64,14 +64,21 @@
           </span>
         </span>
 
-        <!-- Target-specific impact: framed icon (brown = production) + from→to. -->
-        <span v-if="t.hasPreview" class="modal-input__target-impact" aria-hidden="true">
-          <span class="modal-input__target-impact-icon-wrap" :class="{'modal-input__prod-frame': isProduction}">
-            <span class="modal-input__option-icon" :class="actionIconClass"></span>
+        <!-- Target-specific impact mini-HUD: a "ПРОИЗВОДСТВО" label (production
+             only) over a framed icon (brown = production) + from→to. -->
+        <span v-if="t.hasPreview"
+              class="modal-input__target-impact"
+              :class="{'modal-input__target-impact--prod': isProduction}"
+              aria-hidden="true">
+          <span v-if="isProduction" class="modal-input__target-impact-label">{{ productionWord }}</span>
+          <span class="modal-input__target-impact-row">
+            <span class="modal-input__target-impact-icon-wrap" :class="{'modal-input__prod-frame': isProduction}">
+              <span class="modal-input__option-icon" :class="actionIconClass"></span>
+            </span>
+            <span class="modal-input__target-impact-from">{{ t.current }}</span>
+            <span class="modal-input__target-impact-arrow">→</span>
+            <span class="modal-input__target-impact-to">{{ t.resulting }}</span>
           </span>
-          <span class="modal-input__target-impact-from">{{ t.current }}</span>
-          <span class="modal-input__target-impact-arrow">→</span>
-          <span class="modal-input__target-impact-to">{{ t.resulting }}</span>
         </span>
         <span v-else-if="t.disabled" class="modal-input__target-disabled-reason">{{ t.disabledReason }}</span>
         <span v-else-if="selectedColor === t.color" class="modal-input__target-check" aria-hidden="true">✓</span>
@@ -197,8 +204,15 @@ export default defineComponent({
       }
       return this.buttonAsText !== '' ? this.buttonAsText : translateText('Confirm');
     },
+    // The "ПРОИЗВОДСТВО" label shown above the from→to in production previews
+    // (the resource itself is carried by the framed icon, so no declension).
+    productionWord(): string {
+      return translateText('Production rate');
+    },
     targets(): ReadonlyArray<TargetCard> {
-      return this.playerinput.players.map((color) => this.buildTarget(color));
+      const selectable = this.playerinput.players.map((color) => this.buildTarget(color));
+      const disabled = (this.playerinput.disabledPlayers ?? []).map((d) => this.buildDisabledTarget(d.color, d.reason));
+      return [...selectable, ...disabled];
     },
   },
   methods: {
@@ -243,6 +257,23 @@ export default defineComponent({
         return {...base, disabled: true, disabledReason: translateText('Production already at minimum')};
       }
       return {...base, hasPreview: true, current, resulting, muted: resulting === current};
+    },
+    // A relevant-but-unavailable target the server flagged: rendered greyed,
+    // non-selectable, with the server's reason. No impact preview.
+    buildDisabledTarget(color: Color, reason: string | import('@/common/logs/Message').Message | undefined): TargetCard {
+      const reasonText = reason === undefined ? '' : (typeof reason === 'string' ? translateText(reason) : translateMessage(reason));
+      return {
+        color,
+        name: this.playerName(color),
+        corporation: this.corporationName(color),
+        self: this.playerView.thisPlayer?.color === color,
+        hasPreview: false,
+        current: 0,
+        resulting: 0,
+        muted: false,
+        disabled: true,
+        disabledReason: reasonText,
+      };
     },
     pick(target: TargetCard): void {
       if (target.disabled) {
