@@ -38,15 +38,15 @@
         -->
         <span v-if="!colony.isActive"
               class="colony-detail__status-pill colony-detail__status-pill--inactive"
-              :title="activationReason"
+              :data-hint="activationReason"
               v-i18n>Inactive</span>
         <span v-else-if="!selectable"
               class="colony-detail__status-pill"
-              :title="disabledReason"
+              :data-hint="disabledReason"
               v-i18n>Unavailable</span>
         <span v-else
               class="colony-detail__status-pill colony-detail__status-pill--ok"
-              :title="$t('This colony is currently available to pick')"
+              :data-hint="$t('This colony is currently available to pick')"
               v-i18n>Available</span>
       </header>
 
@@ -103,8 +103,7 @@
                 <BenefitGlyph :benefit="metadata.build" :idx="idx" :cardResource="metadata.cardResource" />
                 <div v-if="colony.colonies[idx] !== undefined"
                      class="colony-detail__build-slot-stamp"
-                     :class="'player_bg_color_' + colony.colonies[idx]"
-                     :title="playerName(colony.colonies[idx])"></div>
+                     :class="'player_bg_color_' + colony.colonies[idx]"></div>
                 <div class="colony-detail__build-slot-num">{{ idx + 1 }}</div>
               </div>
             </div>
@@ -216,7 +215,6 @@
         <button class="colony-detail__select-btn"
                 :class="{'colony-detail__select-btn--disabled': !selectable}"
                 :disabled="!selectable"
-                :title="disabledReason || ''"
                 @click="$emit('select', colony.name)"
                 data-test="colony-detail-select">
           <span>{{ selectLabel }}</span>

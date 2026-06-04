@@ -565,106 +565,37 @@
  * toggle (label "ВЫБРАТЬ" / "СНЯТЬ ВЫБОР", colour swaps via the
  * `--selected` modifier).
  */
+/* Wrapper around the per-card action button — hosts the premium "why disabled"
+   tooltip (a disabled button can't fire :hover, so the reason rides the wrap). */
+.card-selection__action-wrap {
+    .premium-tooltip(220px);
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
 .card-selection__card-action-btn {
-    position: relative;
-    /* Explicit centering — `margin: 0 auto` plus `align-self: center`
-     * stacked so any future change to the slot's flex behaviour
-     * doesn't accidentally pull the button off the card's centre
-     * line. The 30-px legacy right-margin on `.card-container` that
-     * used to make this drift is zeroed in `.card-selection__card-
-     * clickable > .card-container` above (see comment there). */
+    /* Shared card-action system: NEUTRAL ("ВЫБРАТЬ") at rest, calm
+       DESELECT ("СНЯТЬ ВЫБОР") when selected. The 30-px legacy right-margin
+       on `.card-container` that used to pull this off-centre is zeroed in
+       `.card-selection__card-clickable > .card-container` above. */
+    .cab-base();
+    .cab-palette-neutral();
     margin: 14px auto 0;
     align-self: center;
     min-width: 160px;
     height: 34px;
     padding: 0 26px;
-    border: 1px solid rgba(106, 176, 230, 0.5);
-    background: linear-gradient(180deg,
-        rgba(40, 60, 92, 0.95) 0%,
-        rgba(20, 32, 52, 0.95) 100%);
-    color: #e8f1fb;
-    font-family: Prototype, Ubuntu, sans-serif;
     font-size: 12px;
-    font-weight: 700;
     letter-spacing: 2px;
-    text-transform: uppercase;
-    text-align: center;
-    cursor: pointer;
-    clip-path: polygon(6% 0%, 94% 0%, 100% 100%, 0% 100%);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.1),
-        0 2px 8px rgba(0, 0, 0, 0.5);
-    transition:
-        background 200ms ease,
-        color 200ms ease,
-        border-color 200ms ease,
-        box-shadow 200ms ease,
-        transform 150ms ease,
-        filter 150ms ease;
-
-    &:hover:not(:disabled) {
-        filter: brightness(1.18);
-        transform: translateY(-1px);
-        box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.18),
-            0 0 14px rgba(106, 176, 230, 0.45),
-            0 4px 10px rgba(0, 0, 0, 0.55);
-    }
-    &:active:not(:disabled) { transform: translateY(0); }
 
     /*
-     * `disabled` state — fires in buy mode when player is at max
-     * selections. Card stays readable, only the button defocuses.
+     * SELECTED → calm DESELECT (amber rim, dark glass). Was a solid bright
+     * cyan fill that competed with the КУПИТЬ CTA; now deliberately weaker —
+     * the "ВЫБРАНА" ribbon + glow on the CARD carry the selected signal, this
+     * button just toggles it off.
      */
-    &:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-        filter: saturate(0.45);
-    }
-
-    /*
-     * SELECTED variant — SOLID bright cyan fill, not translucent
-     * glass. Earlier iteration used low-alpha cyan-glass
-     * (background alpha 0.32); player feedback called it "немного
-     * прозрачная" — felt less committed than the unselected dark
-     * button. On a variable backdrop the glass treatment also
-     * inherits backdrop tint, which can drift the perceived colour.
-     *
-     * Fix: high-opacity cyan gradient (0.92-0.95 alpha) with the
-     * same parallelogram structure as the unselected button —
-     * equal visual WEIGHT, opposite palette. Unselected reads as
-     * "dark cyan tile"; selected reads as "bright cyan tile". The
-     * "click to deselect" semantics is carried by the LABEL
-     * ("СНЯТЬ ВЫБОР"), not by colour-as-alarm.
-     *
-     * Border bumped to match (brighter cyan rim at 0.95 alpha),
-     * dark text for contrast against the bright fill.
-     */
-    &--selected {
-        background: linear-gradient(180deg,
-            rgba(180, 225, 250, 0.95) 0%,
-            rgba(106, 176, 230, 0.92) 50%,
-            rgba(55, 115, 175, 0.92) 100%);
-        border-color: rgba(220, 240, 255, 0.95);
-        /* Light text with dark shadow — matches the fullscreen
-         * primary "ВЫБРАТЬ" button's known-good readability on
-         * bright cyan-fill chrome. Dark text on this same gradient
-         * (previous attempt) disappeared against the pale top. */
-        color: #f5fbff;
-        text-shadow: 0 1px 0 rgba(8, 16, 28, 0.6);
-        box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.4),
-            0 0 18px rgba(106, 176, 230, 0.45),
-            0 2px 8px rgba(0, 0, 0, 0.5);
-
-        &:hover:not(:disabled) {
-            filter: brightness(1.08) saturate(1.05);
-            box-shadow:
-                inset 0 1px 0 rgba(255, 255, 255, 0.5),
-                0 0 28px rgba(106, 176, 230, 0.7),
-                0 4px 10px rgba(0, 0, 0, 0.55);
-        }
-    }
+    &--selected { .cab-palette-deselect(); }
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -860,37 +791,14 @@
          * blue-card chrome. Text colour stays dark for legibility
          * against the pale fill.
          */
+        /* Shared "ВЫБРАНА" status pill (one source — see card_action_buttons). */
         &::after {
             content: 'ВЫБРАНА';
+            .cab-selected-ribbon();
             position: absolute;
             top: -14px;
             left: 50%;
             transform: translateX(-50%);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 78px;
-            height: 20px;
-            padding: 0 14px;
-            background: linear-gradient(180deg,
-                rgba(210, 225, 240, 0.94) 0%,
-                rgba(170, 195, 220, 0.92) 50%,
-                rgba(130, 165, 195, 0.92) 100%);
-            color: #0b1a2a;
-            font-family: "Russo One", Prototype, Ubuntu, sans-serif;
-            font-size: 9.5px;
-            font-weight: 700;
-            letter-spacing: 2.2px;
-            text-transform: uppercase;
-            line-height: 1;
-            clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
-            box-shadow:
-                inset 0 1px 0 rgba(255, 255, 255, 0.4),
-                0 0 6px rgba(106, 176, 230, 0.22),
-                0 2px 5px rgba(0, 0, 0, 0.5);
-            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
-            white-space: nowrap;
-            pointer-events: none;
             z-index: 4;
         }
     }
@@ -1034,52 +942,27 @@
     }
 }
 
+/* Premium "why is confirm disabled" tooltip. Hosted on the FOOTER (not the
+   disabled button — disabled buttons don't fire :hover), shown when the confirm
+   CTA is blocked (e.g. "select at least 2 cards" / "not enough M€"). */
+.card-selection__footer--blocked {
+    .premium-tooltip(280px);
+    cursor: not-allowed;
+}
+
+/* КУПИТЬ / ПОДТВЕРДИТЬ / ПРОПУСТИТЬ — the final screen CTA. Shared mint CTA
+   role: the single strongest control, so it always out-weighs the per-card
+   ВЫБРАТЬ / СНЯТЬ ВЫБОР buttons above it. */
 .card-selection__confirm {
-    position: relative;
+    .cab-base();
+    .cab-palette-cta-mint();
     display: inline-flex;
     align-items: center;
     gap: 10px;
     height: 44px;
     padding: 0 32px;
-    border: none;
-    color: #e8f1fb;
-    cursor: pointer;
-    font-family: Prototype, Ubuntu, sans-serif;
     font-size: 16px;
-    font-weight: 700;
     letter-spacing: 3px;
-    text-transform: uppercase;
-    line-height: 1;
-    white-space: nowrap;
-    background: linear-gradient(180deg,
-        rgba(160, 200, 230, 0.78) 0%,
-        rgba(80, 120, 160, 0.28) 50%,
-        rgba(130, 170, 210, 0.6) 100%);
-    clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
-    isolation: isolate;
-    transition: filter 150ms ease, transform 150ms ease, opacity 150ms ease;
-
-    &::before {
-        content: '';
-        position: absolute;
-        inset: 1.5px;
-        clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
-        background: linear-gradient(180deg,
-            rgba(14, 26, 42, 0.95) 0%,
-            rgba(6, 14, 22, 0.95) 100%);
-        z-index: -1;
-    }
-
-    &:not(:disabled):hover {
-        filter: brightness(1.18);
-        transform: translateY(-1px);
-    }
-    &:not(:disabled):active { transform: translateY(0); }
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-        filter: saturate(0.45);
-    }
 }
 
 /*

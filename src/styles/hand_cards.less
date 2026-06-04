@@ -528,7 +528,13 @@
     --hand-card-zoom: 0.62;
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
+    /* ALWAYS reserve the scrollbar gutter (scroll, not auto): selecting /
+       deselecting a card must not toggle the scrollbar on/off, because the
+       content-box width change would fire the fit() ResizeObserver and resize
+       every card — the micro-lag / shift the player reported. The custom thin
+       scrollbar has a transparent track, so a reserved-but-empty gutter is
+       invisible when there's nothing to scroll. */
+    overflow-y: scroll;
     overflow-x: hidden;
     padding: 18px 18px 24px;
 
@@ -637,70 +643,38 @@
 }
 
 .hand-card-play-btn {
-    position: relative;
+    .cab-base();
     width: 100%;
-    border: none;
-    border-radius: 7px;
-    padding: 8px 12px;
-    font-family: Prototype, Orbitron, sans-serif;
+    padding: 9px 14px;
     font-size: 12px;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    font-weight: 700;
-    cursor: pointer;
-    overflow: hidden;
-    transition: transform 130ms, box-shadow 160ms, filter 160ms;
+    letter-spacing: 1.4px;
 
-    &__label { position: relative; z-index: 2; }
-    &__glow {
-        position: absolute;
-        inset: 0;
-        z-index: 1;
-        background: radial-gradient(120% 140% at 50% -20%, rgba(255, 255, 255, 0.35), transparent 60%);
-        opacity: 0;
-        transition: opacity 160ms;
-    }
+    /* Calm mint play action at rest; lift + glow only on hover/focus
+       (CLAUDE goal #3) — the РАЗЫГРАТЬ "play" role in the shared system. */
+    &--ready { .cab-palette-play(); }
 
-    /* Calm by default — a mint glass action footer that reads as clearly
-       clickable but never out-shouts the card above it. The lift + glow are
-       reserved for hover / focus (CLAUDE goal #3). */
-    &--ready {
-        color: #aef0d3;
-        background: linear-gradient(180deg, rgba(46, 78, 70, 0.5), rgba(28, 50, 46, 0.58));
-        box-shadow: inset 0 0 0 1px fade(@hc-ready, 30%);
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-        transition: transform 130ms, box-shadow 180ms, background 180ms, color 180ms;
-
-        &:hover,
-        &:focus-visible {
-            color: #f1fff8;
-            background: linear-gradient(180deg, fade(@hc-ready, 90%), darken(@hc-ready, 8%));
-            box-shadow: 0 6px 16px fade(@hc-ready, 38%), inset 0 0 0 1px rgba(255, 255, 255, 0.26);
-            transform: translateY(-1px);
-            text-shadow: none;
-        }
-        &:hover { color: #04130d; }
-        &:hover .hand-card-play-btn__glow { opacity: 1; }
-        &:active { transform: translateY(0); }
-    }
-
+    /* Rules block — "НЕДОСТУПНА". Neutral-grey muted plate; the base
+       :disabled dim handles the rest. */
     &--disabled {
-        color: rgba(190, 205, 222, 0.55);
-        background: rgba(26, 36, 50, 0.7);
+        color: rgba(190, 205, 222, 0.6);
+        background: rgba(26, 36, 50, 0.72);
         box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.12);
         cursor: not-allowed;
+        &::before { background: rgba(20, 30, 44, 0.85); }
     }
 
     /* Soft block (not your turn / finish your current action): the card IS
-       playable, just not this moment — so keep the РАЗЫГРАТЬ label but read as
-       a calm "waiting" state. A desaturated mint (echoing --ready) so it says
-       "playable, on hold", clearly distinct from the neutral-grey --disabled
-       "НЕДОСТУПНА". */
+       playable, just not this moment — keep the РАЗЫГРАТЬ label but read as a
+       calm "waiting" state. Desaturated mint (echoing --ready), clearly distinct
+       from the neutral-grey --disabled. Stays a touch more visible than a hard
+       disabled so it reads "on hold", not "dead". */
     &--waiting {
-        color: rgba(150, 196, 180, 0.62);
-        background: rgba(30, 46, 43, 0.62);
+        color: rgba(150, 196, 180, 0.66);
+        background: rgba(30, 46, 43, 0.64);
         box-shadow: inset 0 0 0 1px fade(@hc-ready, 16%);
         cursor: not-allowed;
+        &::before { background: rgba(18, 30, 28, 0.85); }
+        &:disabled { opacity: 0.74; filter: none; }
     }
 }
 
@@ -713,53 +687,42 @@
    reason popover it triggers). The short label WRAPS to two lines on small
    cards instead of truncating. Hover / focus reveals the shared reason
    popover (hosted in the footer below). */
+/* Compact ICON-ONLY "cannot play" badge, centred along the BOTTOM edge —
+   small + narrow, so it sits BETWEEN the bottom corners (expansion glyph
+   bottom-left, victory-point badge bottom-right) and never overlaps the VP
+   the way the old wide text pill did. Icon-only so it never wraps either.
+   Centred via `left: calc(...)` (NOT translateX) so the hover scale doesn't
+   knock it off-centre. Hover / focus reveals the shared reason popover. */
 .hand-card-item__playblock {
     position: absolute;
-    bottom: 9px;
-    left: 50%;
-    transform: translateX(-50%);
+    bottom: 8px;
+    left: calc(50% - 12.5px);
     z-index: 6;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    /* Stay clear of the bottom corners — the expansion glyph (bottom-left)
-       and the card's victory-point badge (bottom-right). */
-    max-width: calc(100% - 56px);
-    padding: 3px 8px;
-    border-radius: 7px;
-    border: 1px solid fade(@hc-warn, 65%);
-    background: linear-gradient(180deg, rgba(48, 29, 12, 0.95), rgba(28, 17, 9, 0.96));
+    justify-content: center;
+    width: 25px;
+    height: 25px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid fade(@hc-warn, 68%);
+    background: linear-gradient(180deg, rgba(48, 29, 12, 0.96), rgba(28, 17, 9, 0.97));
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 200, 130, 0.08);
-    color: #ffdcb4;
-    font-family: Prototype, Orbitron, sans-serif;
-    font-size: 9px;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    font-weight: 700;
-    line-height: 1.1;
-    text-align: left;
     cursor: help;
     outline: none;
-    transition: border-color 140ms, box-shadow 140ms, color 140ms, transform 140ms;
+    transition: border-color 140ms, box-shadow 140ms, transform 140ms;
 
     &:hover,
     &:focus-visible {
-        color: #fff0df;
         border-color: @hc-warn;
-        transform: translateX(-50%) translateY(-1px);
-        box-shadow: 0 5px 14px fade(@hc-warn, 42%), inset 0 0 0 1px rgba(255, 200, 130, 0.13);
+        transform: scale(1.08);
+        box-shadow: 0 5px 14px fade(@hc-warn, 45%), inset 0 0 0 1px rgba(255, 200, 130, 0.14);
     }
 }
 .hand-card-item__playblock-icon {
-    font-size: 11px;
+    font-size: 14px;
     line-height: 1;
-    flex-shrink: 0;
     color: @hc-warn;
-}
-.hand-card-item__playblock-label {
-    /* Wrap to a second line on narrow cards rather than truncating. */
-    white-space: normal;
-    overflow-wrap: anywhere;
 }
 
 /* Both the disabled "НЕДОСТУПНА" footer (rules block) and the calm "waiting"
@@ -1165,9 +1128,28 @@
 
 /* ── Fullscreen (CardZoomModal) РАЗЫГРАТЬ ───────────────────────────── */
 
+/* РАЗЫГРАТЬ in fullscreen — the mint "play" role recoloured onto the modal
+   primary chassis (incl. its glow + breathing), so it no longer mixes a mint
+   fill with a cyan glow. */
 .hand-zoom-play.card-zoom-actions__btn--primary {
-    background: linear-gradient(180deg, lighten(@hc-ready, 8%), darken(@hc-ready, 6%));
+    background: linear-gradient(180deg, fade(@cab-mint, 92%) 0%, darken(@cab-mint, 8%) 100%);
     color: #04130d;
+    text-shadow: none;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.22),
+        0 0 22px fade(@cab-mint, 48%),
+        0 9px 16px rgba(0, 0, 0, 0.5);
+    &::before { background: linear-gradient(180deg, rgba(22, 46, 40, 0.2) 0%, rgba(12, 28, 25, 0.5) 100%); }
+    &::after {
+        background: radial-gradient(ellipse at center,
+            fade(@cab-mint, 50%) 0%, fade(@cab-mint, 16%) 50%, fade(@cab-mint, 0%) 80%);
+    }
+    &:hover:not(:disabled) {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.3),
+            0 0 34px fade(@cab-mint, 85%),
+            0 13px 24px rgba(0, 0, 0, 0.55);
+    }
 }
 .hand-zoom-reason {
     position: relative;
@@ -1324,159 +1306,121 @@
 /* Primary action — ПРОДАТЬ. Refined dark-amber glass (not a loud all-gold
    fill) so the gold megacredit coin in the label reads with good contrast;
    prominence comes from the amber border + hover glow. */
+/* ПРОДАТЬ — the single strongest CTA in sale mode (shared amber CTA role). */
 .hand-sale-confirm-btn {
-    position: relative;
-    border: none;
-    border-radius: 7px;
-    padding: 9px 16px;
-    font-family: Prototype, Orbitron, sans-serif;
+    .cab-base();
+    .cab-palette-cta-amber();
+    padding: 11px 20px;
     font-size: 12px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    font-weight: 700;
-    color: #ffe6ad;
-    background: linear-gradient(180deg, rgba(58, 44, 18, 0.92), rgba(36, 27, 12, 0.95));
-    box-shadow: inset 0 0 0 1px fade(@hc-sale, 48%);
-    cursor: pointer;
-    overflow: hidden;
-    white-space: nowrap;
-    transition: transform 130ms, box-shadow 160ms, filter 160ms, background 160ms, color 160ms;
+    letter-spacing: 1.2px;
 
-    &__glow {
-        position: absolute;
-        inset: 0;
-        z-index: 1;
-        background: radial-gradient(120% 140% at 50% -20%, fade(@hc-sale, 32%), transparent 62%);
-        opacity: 0;
-        transition: opacity 160ms;
-    }
-    &__label {
-        position: relative;
-        z-index: 2;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-    }
+    /* Keep the base label position/z-index, add the inline-flex layout for
+       the count / separator / gain run. */
+    &__label { display: inline-flex; align-items: center; gap: 5px; }
     &__count { font-variant-numeric: tabular-nums; }
     &__sep { opacity: 0.6; }
     &__gain { display: inline-flex; align-items: center; gap: 1px; }
-
-    &:hover:not(:disabled),
-    &:focus-visible:not(:disabled) {
-        color: #fff6e0;
-        transform: translateY(-1px);
-        background: linear-gradient(180deg, rgba(76, 57, 23, 0.95), rgba(48, 36, 16, 0.96));
-        box-shadow: 0 7px 18px fade(@hc-sale, 40%), inset 0 0 0 1px fade(@hc-sale, 78%);
-    }
-    &:hover:not(:disabled) &__glow { opacity: 1; }
-    &:active:not(:disabled) { transform: translateY(0); }
-
-    &:disabled {
-        cursor: not-allowed;
-        color: rgba(190, 205, 222, 0.5);
-        background: rgba(26, 36, 50, 0.7);
-        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.12);
-    }
 }
 
 /* Secondary — ОТМЕНИТЬ. */
+/* ОТМЕНИТЬ — shared SECONDARY role (quiet, subordinate). */
 .hand-sale-cancel-btn {
-    border: 1px solid rgba(106, 176, 230, 0.28);
-    border-radius: 7px;
-    padding: 8px 14px;
-    background: rgba(20, 32, 48, 0.5);
-    color: @hc-text-muted;
-    font-family: Prototype, Orbitron, sans-serif;
+    .cab-base();
+    .cab-palette-secondary();
+    padding: 9px 16px;
     font-size: 11px;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
+    letter-spacing: 1px;
     font-weight: 600;
-    cursor: pointer;
-    transition: color 140ms, border-color 140ms, background 140ms;
-    &:hover {
-        color: #fff;
-        border-color: rgba(214, 64, 64, 0.5);
-        background: rgba(50, 26, 30, 0.55);
-    }
 }
 
 /* Per-card select button (replaces РАЗЫГРАТЬ in sale mode). Calm at rest;
    solid amber when selected. */
+/* Per-card select button (replaces РАЗЫГРАТЬ in sale / mandatory-select mode).
+   Shared system: NEUTRAL ("ВЫБРАТЬ") at rest, DESELECT ("СНЯТЬ ВЫБОР") when
+   selected. In sale mode deselect is amber; the mandatory-select recolour
+   below swaps it to cyan to match the cyan "choose" context. */
 .hand-card-sell-btn {
-    position: relative;
+    .cab-base();
+    .cab-palette-neutral();
     width: 100%;
-    border: 1px solid rgba(242, 193, 78, 0.32);
-    border-radius: 7px;
-    padding: 8px 12px;
-    font-family: Prototype, Orbitron, sans-serif;
+    padding: 9px 14px;
     font-size: 12px;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    font-weight: 700;
-    color: #f0d79a;
-    background: rgba(40, 32, 14, 0.5);
-    cursor: pointer;
-    overflow: hidden;
-    transition: transform 130ms, box-shadow 160ms, color 160ms, background 160ms, border-color 160ms;
+    letter-spacing: 1.4px;
 
-    &__glow {
-        position: absolute;
-        inset: 0;
-        z-index: 1;
-        background: radial-gradient(120% 140% at 50% -20%, rgba(255, 255, 255, 0.3), transparent 60%);
-        opacity: 0;
-        transition: opacity 160ms;
-    }
-    &__label { position: relative; z-index: 2; }
-
-    &:hover,
-    &:focus-visible {
-        border-color: @hc-sale;
-        color: #fff3d6;
-        transform: translateY(-1px);
-        box-shadow: 0 6px 14px fade(@hc-sale, 28%);
-    }
-    &:hover &__glow { opacity: 1; }
-
-    /* Selected → secondary / calm: an amber-tinted glass (not a solid-gold
-       fill), so it never competes with the primary ПРОДАТЬ CTA. The card's
-       amber frame + tick are the primary "selected" signal; this just toggles. */
-    &--selected {
-        color: #ffe6ad;
-        background: rgba(242, 193, 78, 0.14);
-        border-color: fade(@hc-sale, 70%);
-        box-shadow: inset 0 0 0 1px fade(@hc-sale, 22%);
-
-        &:hover,
-        &:focus-visible {
-            color: #fff3d6;
-            border-color: @hc-sale;
-            box-shadow: 0 4px 11px fade(@hc-sale, 26%), inset 0 0 0 1px fade(@hc-sale, 32%);
-        }
-    }
+    &--selected { .cab-palette-deselect(); }
 }
 
-/* Selected card — premium amber frame + glow (matches the draft/select
-   language). Overrides the unplayable dim (base AND hover) so a chosen card
-   reads as fully lit, not greyed. */
+/* Selected card — the SHARED selected-state: cyan glow + cyan frame + the
+   "ВЫБРАНА" ribbon, identical to the buy / draft / select flows (so a picked
+   card reads the same everywhere, sale or discard). The amber lives only in
+   the sale STRIP + the ПРОДАТЬ CTA + the СНЯТЬ ВЫБОР rim, never on the card.
+   Overrides the unplayable dim (base AND hover) so a chosen card reads fully
+   lit, not greyed. */
 .hand-card-item--sale-selected .hand-card-item__card,
 .hand-card-item--sale-selected .hand-card-item__card:hover {
-    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 10px fade(@hc-sale, 45%));
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 10px fade(@hc-cyan, 45%));
     opacity: 1;
+}
+/* Lift the selected card a touch (TRANSFORM, not margin — no reflow, so it
+   never shifts neighbours or re-triggers the fit engine). Matches the
+   translateY the playable hover uses, so hovering a selected card only adds
+   the scale — no vertical jump. Opens a gap the connector bridges. */
+.hand-card-item--sale-selected .hand-card-item__card {
+    transform: translateY(-5px);
 }
 .hand-card-item--sale-selected .hand-card-item__card::after {
     content: '';
     position: absolute;
     inset: -4px;
-    border: 2px solid @hc-sale;
+    border: 2px solid @hc-cyan;
     border-radius: 10px;
-    box-shadow: 0 0 0 1px fade(@hc-sale, 30%), inset 0 0 12px fade(@hc-sale, 22%);
+    box-shadow: 0 0 0 1px fade(@hc-cyan, 30%), inset 0 0 12px fade(@hc-cyan, 22%);
     pointer-events: none;
+    animation: hand-sale-frame-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* "ВЫБРАНА" status ribbon, CENTERED above the selected card (shared ribbon
+   look). Uses a dedicated keyframe that keeps `translateX(-50%)` in BOTH
+   frames — the generic scale-in keyframe set `transform: scale()` which (with
+   fill:both) clobbered the centering transform and left the ribbon shifted to
+   the right. */
+.hand-card-item--sale-selected .hand-card-item__card::before {
+    content: 'ВЫБРАНА';
+    .cab-selected-ribbon();
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 7;
+    animation: hand-ribbon-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+:lang(en) .hand-card-item--sale-selected .hand-card-item__card::before { content: 'SELECTED'; }
+/* Connector line bridging the lifted card to its СНЯТЬ ВЫБОР button (mirrors
+   the modal's). On the action wrapper so it sits in the card→button gap;
+   transparent at the card end → bright at the button end. */
+.hand-card-item--sale-selected .hand-card-item__action::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    margin-left: -1px;
+    width: 2px;
+    height: 14px;
+    background: linear-gradient(180deg,
+        fade(@hc-cyan, 0%) 0%,
+        fade(@hc-cyan, 50%) 45%,
+        rgba(170, 215, 245, 0.85) 100%);
+    box-shadow: 0 0 6px fade(@hc-cyan, 40%);
+    pointer-events: none;
+    z-index: 2;
     animation: hand-sale-frame-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes hand-sale-frame-in {
     from { opacity: 0; transform: scale(1.04); }
     to   { opacity: 1; transform: scale(1); }
+}
+@keyframes hand-ribbon-in {
+    from { opacity: 0; transform: translateX(-50%) scale(1.04); }
+    to   { opacity: 1; transform: translateX(-50%) scale(1); }
 }
 
 /* ── Mandatory "select cards from hand" mode (discard / reveal / keep) ──────
@@ -1520,88 +1464,29 @@
     &__actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 }
 
+/* ПОДТВЕРДИТЬ (mandatory hand-select) — shared cyan CTA role. */
 .hand-select-confirm-btn {
-    position: relative;
-    border: none;
-    border-radius: 7px;
-    padding: 9px 18px;
-    font-family: Prototype, Orbitron, sans-serif;
+    .cab-base();
+    .cab-palette-cta-cyan();
+    padding: 11px 20px;
     font-size: 12px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    font-weight: 700;
-    color: @hc-text;
-    background: linear-gradient(180deg, rgba(24, 52, 74, 0.95), rgba(14, 32, 48, 0.96));
-    box-shadow: inset 0 0 0 1px fade(@hc-cyan, 48%);
-    cursor: pointer;
-    overflow: hidden;
-    white-space: nowrap;
-    transition: transform 130ms, box-shadow 160ms, filter 160ms, background 160ms, color 160ms;
+    letter-spacing: 1.2px;
 
-    &__glow {
-        position: absolute;
-        inset: 0;
-        z-index: 1;
-        background: radial-gradient(120% 140% at 50% -20%, fade(@hc-cyan, 32%), transparent 62%);
-        opacity: 0;
-        transition: opacity 160ms;
-    }
-    &__label { position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 6px; }
+    &__label { display: inline-flex; align-items: center; gap: 6px; }
     &__count {
         font-variant-numeric: tabular-nums;
-        background: fade(@hc-cyan, 22%);
+        background: rgba(0, 0, 0, 0.28);
         border-radius: 10px;
         padding: 1px 7px;
         font-size: 11px;
     }
-    &:hover:not(:disabled),
-    &:focus-visible:not(:disabled) {
-        transform: translateY(-1px);
-        background: linear-gradient(180deg, rgba(32, 66, 92, 0.96), rgba(18, 40, 58, 0.97));
-        box-shadow: 0 7px 18px fade(@hc-cyan, 40%), inset 0 0 0 1px fade(@hc-cyan, 78%);
-    }
-    &:hover:not(:disabled) &__glow { opacity: 1; }
-    &:active:not(:disabled) { transform: translateY(0); }
-    &:disabled {
-        cursor: not-allowed;
-        color: rgba(190, 205, 222, 0.5);
-        background: rgba(26, 36, 50, 0.7);
-        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.12);
-    }
 }
 
-/* Recolour the reused sell visuals from amber → cyan in select mode. */
-.hand-board-overlay--mandatory-select {
-    .hand-card-sell-btn {
-        border-color: fade(@hc-cyan, 32%);
-        color: #cfe6fb;
-        background: rgba(14, 32, 48, 0.5);
-        &:hover, &:focus-visible {
-            border-color: @hc-cyan;
-            color: @hc-text;
-            box-shadow: 0 6px 14px fade(@hc-cyan, 28%);
-        }
-        &--selected {
-            color: @hc-text;
-            background: fade(@hc-cyan, 14%);
-            border-color: fade(@hc-cyan, 70%);
-            box-shadow: inset 0 0 0 1px fade(@hc-cyan, 22%);
-            &:hover, &:focus-visible {
-                border-color: @hc-cyan;
-                box-shadow: 0 4px 11px fade(@hc-cyan, 26%), inset 0 0 0 1px fade(@hc-cyan, 32%);
-            }
-        }
-    }
-    .hand-card-item--sale-selected .hand-card-item__card,
-    .hand-card-item--sale-selected .hand-card-item__card:hover {
-        filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 10px fade(@hc-cyan, 45%));
-    }
-    .hand-card-item--sale-selected .hand-card-item__card::after {
-        border-color: @hc-cyan;
-        box-shadow: 0 0 0 1px fade(@hc-cyan, 30%), inset 0 0 12px fade(@hc-cyan, 22%);
-    }
-    .hand-card-item__sale-tick { color: @hc-cyan; }
-}
+/* Mandatory-select mode shares the SAME selected-state as every other flow:
+   cyan glow + cyan frame + "ВЫБРАНА" ribbon on the card, amber-rim СНЯТЬ ВЫБОР
+   on the button. The mode is distinguished by the cyan select strip + cyan
+   ПОДТВЕРДИТЬ CTA, not by recolouring the card — so no per-card overrides are
+   needed here any more. */
 
 /* Mandatory SELECT mode: a card OUTSIDE the prompt's candidate set (filtered
    prompt) is shown for context but dimmed, with its toggle disabled, so the
@@ -1614,11 +1499,10 @@
     .hand-card-sell-btn {
         opacity: 0.4;
         cursor: not-allowed;
-        &:hover, &:focus-visible {
+        &:hover,
+        &:focus-visible {
             transform: none;
-            box-shadow: none;
-            border-color: fade(@hc-cyan, 32%);
-            color: #cfe6fb;
+            filter: none;
         }
         &:hover .hand-card-sell-btn__glow { opacity: 0; }
     }
@@ -1684,9 +1568,9 @@
 }
 
 /* Premium sell-patents exit — the chosen cards dissolve IN PLACE over ~490ms
-   (a brief lift-off pop, then fade + shrink + rise, carrying their amber
-   frame + tick) BEFORE the sale submits and they leave the hand. transform +
-   opacity only (GPU); duration matches SALE_DISSOLVE_MS in HandCardsOverlay. */
+   (a brief lift-off pop, then fade + shrink + rise, carrying their cyan
+   selected frame + ribbon) BEFORE the sale submits and they leave the hand.
+   transform + opacity only (GPU); duration matches SALE_DISSOLVE_MS. */
 .hand-card-item--dissolving {
     animation: hand-card-sale-dissolve 490ms cubic-bezier(0.4, 0, 0.2, 1) both;
     pointer-events: none;
@@ -1698,34 +1582,14 @@
     100% { opacity: 0; transform: scale3d(0.86, 0.86, 1) translateY(-12px); }
 }
 
-/* Selected tick badge over the card. */
-.hand-card-item__sale-tick {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    z-index: 4;
-    width: 22px;
-    height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: linear-gradient(180deg, lighten(@hc-sale, 6%), @hc-sale);
-    color: #16110a;
-    font-size: 13px;
-    font-weight: 700;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 10px fade(@hc-sale, 55%);
-    animation: hand-sale-tick-in 220ms cubic-bezier(0.34, 1.4, 0.7, 1) both;
-}
-@keyframes hand-sale-tick-in {
-    from { opacity: 0; transform: scale(0.4); }
-    to   { opacity: 1; transform: scale(1); }
-}
+/* (The selected ✓ tick was removed — the centered "ВЫБРАНА" ribbon + cyan
+   glow are the single selected signal now; a separate corner check was
+   redundant.) */
 
 /* When the sold cards leave the hand (reactive sale response, instance
    preserved), they exit through the shared transition-group leave — keeping
-   their amber selected frame as they shrink-fade, which reads as a clean
-   "dissolve". The remaining cards then reflow via the existing
+   their cyan selected frame + ribbon as they shrink-fade, which reads as a
+   clean "dissolve". The remaining cards then reflow via the existing
    exit → reflow → enter machinery. No bespoke selling class needed. */
 
 /* Mode-strip enter / leave. */
@@ -1739,15 +1603,48 @@
     transform: translateY(-8px);
 }
 
-/* Fullscreen (CardZoomModal) select button. */
+/* Fullscreen (CardZoomModal) select toggle for sale / mandatory-select.
+   NEUTRAL ("ВЫБРАТЬ") at rest, calm DESELECT ("СНЯТЬ ВЫБОР") when selected —
+   the same roles as the under-card buttons, so the fullscreen matches the
+   overlay AND sale-mode fullscreen matches hand-play fullscreen. No breathing
+   (these are toggles, not the screen's CTA). */
 .hand-zoom-sell.card-zoom-actions__btn--primary {
-    background: linear-gradient(180deg, lighten(@hc-sale, 8%), darken(@hc-sale, 6%));
-    color: #16110a;
+    color: @hc-text;
+    background: linear-gradient(180deg, fade(@cab-cyan, 55%) 0%, fade(@cab-cyan, 28%) 100%);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 6px 13px rgba(0, 0, 0, 0.5);
+    &::before { background: linear-gradient(180deg, rgba(26, 42, 64, 0.94) 0%, rgba(13, 22, 36, 0.96) 100%); }
+    &::after { display: none; }
+    &:hover:not(:disabled) {
+        filter: none;
+        color: #f3f9ff;
+        background: linear-gradient(180deg, fade(@cab-cyan, 80%) 0%, fade(@cab-cyan, 44%) 100%);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.16),
+            0 0 17px fade(@cab-cyan, 42%),
+            0 8px 16px rgba(0, 0, 0, 0.5);
+    }
 }
 .hand-zoom-sell--selected.card-zoom-actions__btn--primary {
-    background: rgba(40, 32, 14, 0.7);
-    color: #f0d79a;
-    box-shadow: inset 0 0 0 1px @hc-sale;
+    color: #ffe6ad;
+    background: linear-gradient(180deg, fade(@cab-amber, 30%) 0%, fade(@cab-amber, 15%) 100%);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 6px 13px rgba(0, 0, 0, 0.5);
+    &::before { background: linear-gradient(180deg, rgba(46, 36, 14, 0.92) 0%, rgba(28, 22, 9, 0.95) 100%); }
+    &::after { display: none; }
+    &:hover:not(:disabled) {
+        filter: none;
+        color: #fff3d6;
+        background: linear-gradient(180deg, fade(@cab-amber, 48%) 0%, fade(@cab-amber, 24%) 100%);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            0 0 17px fade(@cab-amber, 38%),
+            0 8px 16px rgba(0, 0, 0, 0.5);
+    }
 }
 
 /* ── Opponent seat (hand hidden, count only) ───────────────────────── */
@@ -1898,7 +1795,8 @@
     .hand-filter-chip[data-hint]:hover::after,
     .hand-tag-chip[data-hint]:hover::after,
     .hand-card-item--sale-selected .hand-card-item__card::after,
-    .hand-card-item__sale-tick,
+    .hand-card-item--sale-selected .hand-card-item__card::before,
+    .hand-card-item--sale-selected .hand-card-item__action::before,
     .hand-card-item--dissolving { animation: none; }
     .hand-card-item__card,
     .hand-card-play-btn,

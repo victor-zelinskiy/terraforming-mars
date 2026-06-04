@@ -105,17 +105,19 @@
               :data-test="'card-selection-reason-' + card.name">
           {{ cardDisabledReason(card.name) }}
         </span>
-        <button v-else
-                class="card-selection__card-action-btn"
-                :class="{
-                  'card-selection__card-action-btn--selected': isBuyMode && isSelected(card.name),
-                }"
-                :disabled="actionDisabled(card.name)"
-                :title="actionTooltip(card.name)"
-                @click="onActionClick(card.name)"
-                data-test="card-selection-action">
-          {{ actionLabel(card.name) }}
-        </button>
+        <span v-else
+              class="card-selection__action-wrap"
+              :data-hint="actionDisabled(card.name) ? actionTooltip(card.name) : ''">
+          <button class="card-selection__card-action-btn"
+                  :class="{
+                    'card-selection__card-action-btn--selected': isBuyMode && isSelected(card.name),
+                  }"
+                  :disabled="actionDisabled(card.name)"
+                  @click="onActionClick(card.name)"
+                  data-test="card-selection-action">
+            {{ actionLabel(card.name) }}
+          </button>
+        </span>
       </div>
     </div>
 
@@ -125,10 +127,12 @@
       second confirmation step. Buy mode keeps the footer because
       multi-card toggling needs an explicit final commit.
     -->
-    <footer v-if="isMultiSelect" class="card-selection__footer">
+    <footer v-if="isMultiSelect"
+            class="card-selection__footer"
+            :class="{'card-selection__footer--blocked': !canConfirm && confirmTooltip !== ''}"
+            :data-hint="!canConfirm ? confirmTooltip : ''">
       <button class="card-selection__confirm"
               :disabled="!canConfirm"
-              :title="confirmTooltip"
               @click="onBottomConfirm"
               data-test="card-selection-confirm">
         <span class="card-selection__confirm-label">{{ confirmLabel }}</span>
@@ -162,26 +166,32 @@
     <CardZoomModal v-if="zoomCard !== undefined"
                    ref="zoomModal"
                    :card="zoomCard"
+                   :cards="visibleCards"
                    :selected="isSelected(zoomCard.name)"
+                   @navigate="zoomCard = $event"
                    @close="zoomCard = undefined">
       <template #actions>
-        <button v-if="!isMultiSelect"
-                class="card-zoom-actions__btn card-zoom-actions__btn--primary"
-                :disabled="isCardDisabled(zoomCard.name)"
-                :title="isCardDisabled(zoomCard.name) ? cardDisabledReason(zoomCard.name) : ''"
-                @click="onFullscreenDraftSelect"
-                data-test="card-selection-fullscreen-select">
-          {{ translateLabel('Select') }}
-        </button>
-        <button v-else
-                class="card-zoom-actions__btn card-zoom-actions__btn--primary"
-                :class="{ 'card-zoom-actions__btn--unselect': isSelected(zoomCard.name) }"
-                :disabled="isCardDisabled(zoomCard.name) || (!isSelected(zoomCard.name) && isMaxedOut)"
-                :title="isCardDisabled(zoomCard.name) ? cardDisabledReason(zoomCard.name) : fullscreenToggleTooltip"
-                @click="onFullscreenBuyToggle"
-                data-test="card-selection-fullscreen-toggle">
-          {{ isSelected(zoomCard.name) ? translateLabel('Unselect') : translateLabel('Select') }}
-        </button>
+        <span v-if="!isMultiSelect"
+              class="card-zoom-actions__tip"
+              :data-hint="isCardDisabled(zoomCard.name) ? cardDisabledReason(zoomCard.name) : ''">
+          <button class="card-zoom-actions__btn card-zoom-actions__btn--primary"
+                  :disabled="isCardDisabled(zoomCard.name)"
+                  @click="onFullscreenDraftSelect"
+                  data-test="card-selection-fullscreen-select">
+            {{ translateLabel('Select') }}
+          </button>
+        </span>
+        <span v-else
+              class="card-zoom-actions__tip"
+              :data-hint="isCardDisabled(zoomCard.name) ? cardDisabledReason(zoomCard.name) : fullscreenToggleTooltip">
+          <button class="card-zoom-actions__btn card-zoom-actions__btn--primary"
+                  :class="{ 'card-zoom-actions__btn--unselect': isSelected(zoomCard.name) }"
+                  :disabled="isCardDisabled(zoomCard.name) || (!isSelected(zoomCard.name) && isMaxedOut)"
+                  @click="onFullscreenBuyToggle"
+                  data-test="card-selection-fullscreen-toggle">
+            {{ isSelected(zoomCard.name) ? translateLabel('Unselect') : translateLabel('Select') }}
+          </button>
+        </span>
       </template>
     </CardZoomModal>
   </div>
@@ -565,22 +575,20 @@ export default defineComponent({
       this.submitNow();
     },
     /*
-     * Fullscreen primary action — BUY mode. Toggles the card's
-     * selection AND closes the fullscreen, so the player sees the
-     * updated grid state immediately without a second click. The
-     * earlier "stay open after toggle" behavior added one extra
-     * click for the common case ("pick / unpick and move on") and
-     * the grid behind is the canonical place to review choices —
-     * collapsing fullscreen on toggle gets the player there
-     * faster. To inspect another card, the player single-clicks
-     * it from the grid.
+     * Fullscreen primary action — BUY (multi-select) mode. Toggles the
+     * card's selection but KEEPS the fullscreen open: with in-viewer
+     * navigation (the `cards` list), the player browses + picks several
+     * cards without leaving fullscreen, and the card's own halo/ribbon
+     * (`:selected`) plus the button label flip in place to confirm the
+     * toggle. They exit via ЗАКРЫТЬ / Esc / backdrop when done. A toggle
+     * never removes the card from the list, so we stay on it (spec: a
+     * non-removing action keeps the current card).
      */
     onFullscreenBuyToggle(): void {
       if (this.zoomCard === undefined || this.isCardDisabled(this.zoomCard.name)) {
         return;
       }
       this.toggleSelected(this.zoomCard.name);
-      this.closeFullscreen();
     },
     /*
      * Per-card action button label. Steam-like — draft cards always

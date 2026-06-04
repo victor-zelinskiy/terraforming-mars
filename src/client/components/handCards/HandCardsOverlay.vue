@@ -146,7 +146,13 @@
     </div>
 
     <Teleport to="body">
-      <CardZoomModal v-if="zoomCard !== undefined" ref="zoomModal" :card="zoomCard" @close="zoomCard = undefined">
+      <CardZoomModal v-if="zoomCard !== undefined"
+                     ref="zoomModal"
+                     :card="zoomCard"
+                     :cards="zoomNavCards"
+                     :selected="zoomSelected"
+                     @navigate="zoomCard = $event"
+                     @close="zoomCard = undefined">
         <template #actions>
           <button
             v-if="(saleActive || selectActive) && zoomCard !== undefined"
@@ -361,6 +367,12 @@ export default defineComponent({
       }
       return this.sorted.length === 0 ? 'filtered' : undefined;
     },
+    // The filtered/sorted visible cards, in the SAME order the player sees in
+    // the grid — drives in-fullscreen navigation so the arrows browse exactly
+    // that order (not the raw hand).
+    zoomNavCards(): ReadonlyArray<CardModel> {
+      return this.sorted.map((e) => e.card);
+    },
     zoomEntry(): HandCardEntry | undefined {
       if (this.zoomCard === undefined) {
         return undefined;
@@ -534,10 +546,13 @@ export default defineComponent({
       }
       this.$emit('hand-select', [...handSelectState.selected]);
     },
-    // Toggle this card's sale selection from the fullscreen view AND close the
-    // fullscreen — same one-tap flow as playing a card from fullscreen
-    // (`playZoom`), so the player doesn't need a second click to dismiss it.
-    // The selection lives in module state, so it survives the modal closing.
+    // Toggle this card's sale / mandatory-select selection from the fullscreen
+    // view and KEEP the fullscreen open. With in-viewer navigation the player
+    // browses + marks several cards without leaving fullscreen; the button
+    // label + amber/cyan tick flip in place (`zoomSelected`) to confirm each
+    // toggle. A toggle never removes the card from the list, so we stay on it
+    // (spec: a non-removing action keeps the current card). The selection
+    // lives in module state, so it persists. Exit via ЗАКРЫТЬ / Esc / backdrop.
     toggleSelectZoom(): void {
       const card = this.zoomCard;
       if (card === undefined) {
@@ -548,8 +563,6 @@ export default defineComponent({
       } else {
         toggleSellSelection(card.name);
       }
-      (this.$refs as {zoomModal?: {close: () => void}}).zoomModal?.close();
-      this.zoomCard = undefined;
     },
     // Final ПРОДАТЬ. Flags `submitting` (so WaitingFor PRESERVES this overlay
     // instance across the sale response instead of remounting it) and emits

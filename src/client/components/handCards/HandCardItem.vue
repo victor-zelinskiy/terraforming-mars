@@ -22,20 +22,19 @@
          @keydown.enter.prevent="$emit('open', entry.card)"
          @keydown.space.prevent="$emit('open', entry.card)">
       <Card :card="entry.card" />
-      <span v-if="saleMode && selected" class="hand-card-item__sale-tick" aria-hidden="true">✓</span>
 
       <!--
-        Playability indicator — a compact icon + text pill centred along the
-        bottom edge of the card (clear of the cost top-left, the sale tick
-        top-right, and the expansion glyph bottom-left). Rendered ONLY for a
-        genuine RULES block (the card can't be played by the game rules) — a
-        soft block (not your turn / finish your current action) is not a
-        requirement failure, so it gets no badge. Shown in BOTH normal and sale
-        mode (so it never pops in / out when toggling sale), and purely
-        SECONDARY: in sale mode the card stays fully selectable. The short label
-        wraps to two lines on small cards instead of truncating. Hover / focus
-        reveals the shared reason popover (hosted in the action footer below).
-        No native title tooltip (spec).
+        Playability indicator — a compact ICON-ONLY badge (⊘) in the card's
+        top-right corner (free of the cost top-left, the VP bottom-right and the
+        expansion glyph bottom-left). Icon-only so it never wraps and never
+        overlaps the victory-point badge. Rendered ONLY for a genuine RULES
+        block (the card can't be played by the game rules) — a soft block (not
+        your turn / finish your current action) is not a requirement failure, so
+        it gets no badge. Shown in BOTH normal and sale mode (so it never pops
+        in / out when toggling sale), purely SECONDARY: in sale mode the card
+        stays fully selectable. Hover / focus reveals the shared reason popover
+        (hosted in the action footer below) — that's the text channel. The
+        accessible name carries the meaning for screen readers.
       -->
       <button v-if="rulesBlocked && reasons.length > 0"
               type="button"
@@ -47,7 +46,6 @@
               @focus="onReasonEnter"
               @blur="onReasonLeave">
         <span class="hand-card-item__playblock-icon" aria-hidden="true">⊘</span>
-        <span class="hand-card-item__playblock-label" v-i18n>Cannot play</span>
       </button>
     </div>
 

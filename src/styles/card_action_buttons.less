@@ -1,0 +1,337 @@
+/* ═══════════════════════════════════════════════════════════════════
+ *  Card-action button design system  (cab-*)
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ *  ONE angular / HUD button language shared by every card-selection
+ *  flow — the hand overlay ("КАРТЫ В РУКЕ"), sale-patents mode, the
+ *  fullscreen card viewer, and the buy / select / draft modals — so a
+ *  button never looks like a premium HUD plate in one place and a plain
+ *  rounded web-button in another.
+ *
+ *  Visual signature (taken from the modal buttons the user flagged as
+ *  the "premium" reference):
+ *    - dark glass / metal base
+ *    - a single px-based chamfered (parallelogram) silhouette, so the
+ *      slant is identical regardless of button width
+ *    - a thin role-coloured rim (the role paints the rim via the plate
+ *      `background`; the `::before` chassis paints a darker body 1 px
+ *      inside → the rim reads brighter than the plate)
+ *    - an inner highlight + a CONTROLLED glow that only blooms on
+ *      hover / focus (Ark-Nova-calm; nothing flashes at rest)
+ *
+ *  Role hierarchy (visual weight, low → high):
+ *    secondary  (ЗАКРЫТЬ / ОТМЕНА)            — quiet, subordinate
+ *    neutral    (ВЫБРАТЬ)                     — local card action
+ *    deselect   (СНЯТЬ ВЫБОР)                 — selected-secondary, calm
+ *    play       (РАЗЫГРАТЬ КАРТУ)             — local card action, mint
+ *    cta-cyan   (КУПИТЬ / ПОДТВЕРДИТЬ)        — final screen CTA
+ *    cta-amber  (ПРОДАТЬ)                     — final screen CTA (sale)
+ *
+ *  Hard rule: a local under-card button (neutral / deselect / play)
+ *  must NEVER out-shout the final screen CTA. `deselect` in particular
+ *  is rim-only dark glass — it used to be a solid bright fill that
+ *  competed with the CTA; it is now deliberately calmer.
+ *
+ *  USAGE — apply `.cab-base()` to the BASE class (so the `&__label`,
+ *  `&__glow`, `&::before` selectors resolve onto the real BEM children),
+ *  then layer a `.cab-palette-*()` mixin on the base AND/OR its
+ *  modifier. Palette mixins only touch element-level / pseudo selectors
+ *  (`&`, `&::before`, `&::after`, `&:hover`), never BEM children, so
+ *  they are safe to drop on a `--modifier`.
+ */
+
+/* ── Premium tooltip ──────────────────────────────────────────────── *
+ *  The ONE tooltip primitive for the whole UI. NEVER use the native browser
+ *  `title=""` attribute — it can't be styled, it doesn't match the sci-fi
+ *  chrome, and (critically) it's unreliable on `:disabled` controls. Instead
+ *  put the reason on a HOST element's `data-hint` attribute and mix this in:
+ *
+ *      <span class="x" :data-hint="reason"> … </span>   // host, NOT the button
+ *      .x { .premium-tooltip(); }
+ *
+ *  Put `data-hint` on a NON-disabled wrapper (a disabled button never fires
+ *  `:hover`); the wrapper gets `:hover` from the pointer position even when the
+ *  control inside it is disabled. An empty `data-hint` shows nothing. */
+.premium-tooltip(@max-width: 240px) {
+    position: relative;
+    &[data-hint]:not([data-hint=""]):hover::after {
+        content: attr(data-hint);
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: normal;
+        width: max-content;
+        max-width: @max-width;
+        padding: 7px 11px;
+        border-radius: 6px;
+        background: rgba(8, 14, 22, 0.97);
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(106, 176, 230, 0.4);
+        color: #d6e8fb;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 12px;
+        line-height: 1.4;
+        letter-spacing: 0.2px;
+        z-index: 30;
+        pointer-events: none;
+    }
+}
+
+/* ── Palette ──────────────────────────────────────────────────────── */
+@cab-cyan:      #6ab0e6; // neutral "ВЫБРАТЬ" + cyan selected accent
+@cab-mint:      #58d6a6; // "РАЗЫГРАТЬ" + buy / confirm CTA
+@cab-amber:     #f2c14e; // "СНЯТЬ ВЫБОР" rim + sale CTA + sale selected accent
+@cab-text:      #e8f1fb;
+@cab-text-dark: #061018; // dark glyphs on the bright CTA plate
+@cab-text-dim:  rgba(184, 205, 226, 0.66);
+
+/* Canonical silhouette — px-based parallelogram (width-independent). */
+@cab-shape: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+
+/* ── Base geometry / typography / structure (apply to the BASE class) ─ */
+.cab-base() {
+    position: relative;
+    isolation: isolate;
+    border: none;
+    cursor: pointer;
+    font-family: Prototype, Orbitron, Ubuntu, sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    text-align: center;
+    /* clip-path replaces border-radius/overflow; never set both. */
+    clip-path: @cab-shape;
+    transition:
+        background 180ms ease,
+        color 180ms ease,
+        border-color 180ms ease,
+        box-shadow 220ms ease,
+        transform 150ms ease,
+        filter 150ms ease;
+
+    &:active:not(:disabled) { transform: translateY(0); }
+    &:focus-visible {
+        outline: 2px solid fade(@cab-text, 78%);
+        outline-offset: 3px;
+    }
+    /* DISABLED — never drop the whole element's `opacity` (that makes the
+       button see-through over the board). Keep it OPAQUE and dim via filter +
+       a muted text colour; the dark `::before` chassis stays solid. CTA roles
+       additionally override their bright plate to a solid dark one. */
+    &:disabled {
+        cursor: not-allowed;
+        filter: saturate(0.32) brightness(0.6);
+        color: @cab-text-dim;
+        transform: none;
+    }
+
+    /* Inner chassis structure (a role sets `&::before { background }`). */
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1px;
+        clip-path: @cab-shape;
+        z-index: -1;
+    }
+    &__label {
+        position: relative;
+        z-index: 2;
+    }
+    /* Optional white hover-glow layer (only blooms on hover). Buttons
+       that ship a `__glow` child get it for free; others ignore it. */
+    &__glow {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        opacity: 0;
+        pointer-events: none;
+        background: radial-gradient(120% 140% at 50% -20%, rgba(255, 255, 255, 0.32), transparent 60%);
+        transition: opacity 170ms ease;
+    }
+    &:hover:not(:disabled) > &__glow,
+    &:focus-visible:not(:disabled) > &__glow { opacity: 1; }
+}
+
+/* ── Palette: NEUTRAL — "ВЫБРАТЬ" (local card action) ──────────────── */
+.cab-palette-neutral() {
+    color: @cab-text;
+    background: linear-gradient(180deg, fade(@cab-cyan, 52%) 0%, fade(@cab-cyan, 26%) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 3px 9px rgba(0, 0, 0, 0.45);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+
+    &::before { background: linear-gradient(180deg, rgba(26, 42, 64, 0.94) 0%, rgba(13, 22, 36, 0.96) 100%); }
+    &:hover:not(:disabled),
+    &:focus-visible:not(:disabled) {
+        color: #f3f9ff;
+        background: linear-gradient(180deg, fade(@cab-cyan, 78%) 0%, fade(@cab-cyan, 42%) 100%);
+        transform: translateY(-1px);
+        /* drop-shadow glow renders around the clipped silhouette (box-shadow
+           would be clipped away). */
+        filter: drop-shadow(0 0 8px fade(@cab-cyan, 40%));
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.16),
+            0 5px 12px rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* ── Palette: DESELECT — "СНЯТЬ ВЫБОР" (selected-secondary) ────────── *
+ *  Dark glass + amber rim. Deliberately rim-only (NOT a solid amber
+ *  fill) so it stays clearly weaker than the final CTA — a toggle, not
+ *  a danger and not the main action of the screen. */
+.cab-palette-deselect() {
+    color: #ffe6ad;
+    background: linear-gradient(180deg, fade(@cab-amber, 30%) 0%, fade(@cab-amber, 15%) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 3px 9px rgba(0, 0, 0, 0.45);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+
+    &::before { background: linear-gradient(180deg, rgba(46, 36, 14, 0.92) 0%, rgba(28, 22, 9, 0.95) 100%); }
+    &:hover:not(:disabled),
+    &:focus-visible:not(:disabled) {
+        color: #fff3d6;
+        background: linear-gradient(180deg, fade(@cab-amber, 48%) 0%, fade(@cab-amber, 24%) 100%);
+        transform: translateY(-1px);
+        filter: drop-shadow(0 0 8px fade(@cab-amber, 34%));
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            0 5px 12px rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* ── Palette: PLAY — "РАЗЫГРАТЬ КАРТУ" (local card action) ─────────── */
+.cab-palette-play() {
+    color: #aef0d3;
+    background: linear-gradient(180deg, fade(@cab-mint, 38%) 0%, fade(@cab-mint, 19%) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 3px 9px rgba(0, 0, 0, 0.45);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+
+    &::before { background: linear-gradient(180deg, rgba(22, 46, 40, 0.92) 0%, rgba(12, 28, 25, 0.95) 100%); }
+    &:hover:not(:disabled),
+    &:focus-visible:not(:disabled) {
+        color: #04130d;
+        background: linear-gradient(180deg, fade(@cab-mint, 92%) 0%, darken(@cab-mint, 8%) 100%);
+        transform: translateY(-1px);
+        text-shadow: none;
+        filter: drop-shadow(0 0 9px fade(@cab-mint, 42%));
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.26),
+            0 6px 14px rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* ── Palette: SECONDARY — "ЗАКРЫТЬ / ОТМЕНА" ──────────────────────── */
+.cab-palette-secondary() {
+    color: @cab-text-dim;
+    background: linear-gradient(180deg, rgba(50, 70, 96, 0.5) 0%, rgba(28, 38, 54, 0.5) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 3px 8px rgba(0, 0, 0, 0.4);
+
+    &::before { background: linear-gradient(180deg, rgba(20, 30, 44, 0.88) 0%, rgba(10, 16, 26, 0.9) 100%); }
+    &:hover:not(:disabled),
+    &:focus-visible:not(:disabled) {
+        color: #e8eef7;
+        transform: translateY(-1px);
+        filter: drop-shadow(0 0 7px fade(@cab-cyan, 20%));
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 5px 11px rgba(0, 0, 0, 0.45);
+    }
+}
+
+/* ── Palette: CTA — strong final screen action ────────────────────── *
+ *  The single strongest control on the screen (КУПИТЬ / ПРОДАТЬ /
+ *  ПОДТВЕРДИТЬ). A bright accent PLATE with DARK text — dark glyphs keep
+ *  good contrast on cyan / mint / amber alike (white text fails on the
+ *  lighter accents), a bright rim, and a slow breathing under-glow. This
+ *  is the only role that inverts to a light fill; every other role is
+ *  dark glass, so the CTA reads as the unmistakable primary. */
+.cab-palette-cta(@accent) {
+    color: @cab-text-dark;
+    background: linear-gradient(180deg,
+        lighten(@accent, 14%) 0%,
+        @accent 55%,
+        darken(@accent, 6%) 100%);
+    box-shadow:
+        0 0 0 1px fade(lighten(@accent, 32%), 90%),
+        0 0 22px fade(@accent, 50%),
+        inset 0 1px 0 rgba(255, 255, 255, 0.42),
+        0 9px 16px rgba(0, 0, 0, 0.5);
+    text-shadow: 0 1px 0 fade(lighten(@accent, 42%), 55%);
+    /* The angular `clip-path` clips `box-shadow` to the silhouette, so the
+       outer accent halo is painted with `filter: drop-shadow()` instead (it
+       renders AROUND the clipped shape). A calm resting glow marks the one
+       primary control; hover blooms it. */
+    filter: drop-shadow(0 0 6px fade(@accent, 38%));
+
+    /* The plate IS the body — no dark chassis (would fight the dark text). */
+    &::before { background: transparent; }
+    /* DISABLED — the bright accent plate at `.cab-base` opacity 0.42 reads as a
+       see-through smudge over the board. Override to a SOLID dark "off" plate so
+       a not-yet-actionable CTA is clearly disabled but not transparent. */
+    &:disabled {
+        opacity: 1;
+        background: linear-gradient(180deg,
+            rgba(38, 50, 64, 0.97) 0%,
+            rgba(24, 34, 46, 0.97) 100%);
+        color: #6f8194;
+        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.18);
+        filter: none;
+        text-shadow: none;
+    }
+    &:hover:not(:disabled),
+    &:focus-visible:not(:disabled) {
+        filter: brightness(1.08) saturate(1.05) drop-shadow(0 0 13px fade(@accent, 62%));
+        transform: translateY(-2px);
+        box-shadow:
+            0 0 0 1px fade(lighten(@accent, 40%), 100%),
+            inset 0 1px 0 rgba(255, 255, 255, 0.52),
+            0 13px 24px rgba(0, 0, 0, 0.55);
+    }
+}
+
+.cab-palette-cta-cyan()  { .cab-palette-cta(@cab-cyan); }
+.cab-palette-cta-mint()  { .cab-palette-cta(@cab-mint); }
+.cab-palette-cta-amber() { .cab-palette-cta(@cab-amber); }
+
+/* ── Selected-card "ВЫБРАНА" ribbon ───────────────────────────────── *
+ *  The single status pill that marks a card as picked, shared by every
+ *  card-selection flow so a selected card reads identically everywhere
+ *  (buy / draft / sale / mandatory-select / fullscreen). A slim
+ *  steel-silver-cyan plate — neutral enough not to fight blue card
+ *  chrome, distinctly NOT a neon banner. Host it on the pseudo of your
+ *  choice; set `content` + position (top/left/transform/z-index)
+ *  separately. */
+.cab-selected-ribbon() {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 78px;
+    height: 20px;
+    padding: 0 14px;
+    background: linear-gradient(180deg,
+        rgba(210, 225, 240, 0.94) 0%,
+        rgba(170, 195, 220, 0.92) 50%,
+        rgba(130, 165, 195, 0.92) 100%);
+    color: #0b1a2a;
+    font-family: "Russo One", Prototype, Ubuntu, sans-serif;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 2.2px;
+    text-transform: uppercase;
+    line-height: 1;
+    clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        0 0 6px rgba(106, 176, 230, 0.22),
+        0 2px 5px rgba(0, 0, 0, 0.5);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
+    white-space: nowrap;
+    pointer-events: none;
+}

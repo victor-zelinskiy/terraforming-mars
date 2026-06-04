@@ -94,7 +94,9 @@
     <CardZoomModal v-if="zoomCard !== undefined"
                    ref="zoomModal"
                    :card="zoomCard"
+                   :cards="cards"
                    :selected="isSelected(zoomCard.name)"
+                   @navigate="zoomCard = $event"
                    @close="onZoomClose">
       <template #actions>
         <button class="card-zoom-actions__btn card-zoom-actions__btn--primary"
@@ -329,20 +331,20 @@ export default defineComponent({
       this.zoomCard = undefined;
     },
     /*
-     * Fullscreen primary action — toggles selection AND closes the
-     * fullscreen so the player sees the updated grid state
-     * immediately. The grid behind is the canonical review surface;
-     * collapsing on toggle removes a redundant "close" click for
-     * the common pick/unpick-and-move-on flow. To inspect another
-     * card, the player single-clicks it in the grid.
+     * Fullscreen primary action — toggles selection and KEEPS the
+     * fullscreen open. With in-viewer navigation the player browses
+     * the whole offer and picks several cards without leaving
+     * fullscreen; the card halo/ribbon (`:selected`) and the button
+     * label flip in place to confirm each toggle. A toggle never
+     * removes the card from the list, so we stay on it (spec: a
+     * non-removing action keeps the current card). Exit via ЗАКРЫТЬ /
+     * Esc / backdrop.
      */
     onFullscreenToggle(): void {
       if (this.zoomCard === undefined) {
         return;
       }
       this.toggleSelected(this.zoomCard.name);
-      const modal = this.$refs.zoomModal as InstanceType<typeof CardZoomModal> | undefined;
-      modal?.close();
     },
     onFooterClick(): void {
       if (this.selected.length === 0) {

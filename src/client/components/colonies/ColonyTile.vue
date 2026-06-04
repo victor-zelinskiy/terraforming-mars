@@ -41,7 +41,7 @@
         -->
         <span v-if="hasVisitor" class="colony-tile__header-fleet"
               :class="'player_bg_color_' + visitor"
-              :title="visitorTooltip">
+              :data-hint="visitorTooltip">
           <span class="colony-tile__header-fleet-ship colonies-fleet"
                 :class="'colonies-fleet-' + visitor"></span>
           <span class="colony-tile__header-fleet-label" v-i18n>Fleet</span>
@@ -231,7 +231,7 @@
               class="colony-tile__select-btn"
               :class="{'colony-tile__select-btn--disabled': !selectable}"
               :disabled="!selectable"
-              :title="selectButtonTooltip"
+              :data-hint="selectButtonTooltip"
               @click.stop="$emit('select', colony.name)"
               :data-test="'colony-select-' + colony.name">
         <span class="colony-tile__select-btn-glyph">▸</span>

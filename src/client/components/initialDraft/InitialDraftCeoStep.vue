@@ -40,7 +40,9 @@
     <CardZoomModal v-if="zoomCard !== undefined"
                    ref="zoomModal"
                    :card="zoomCard"
+                   :cards="cards"
                    :selected="false"
+                   @navigate="zoomCard = $event"
                    @close="onZoomClose">
       <template #actions>
         <button class="card-zoom-actions__btn card-zoom-actions__btn--primary"

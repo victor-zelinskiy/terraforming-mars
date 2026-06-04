@@ -260,33 +260,24 @@ body.draw-reveal-open {
     text-transform: uppercase;
 }
 
+/* ВЗЯТЬ / ВЗЯТЬ ВСЁ — the draw-reveal CTA (shared mint CTA role). */
 .draw-reveal__take-all {
-    position: relative;
+    .cab-base();
+    .cab-palette-cta-mint();
     display: inline-flex;
     align-items: center;
     gap: 9px;
-    border: none;
-    border-radius: 8px;
-    padding: 11px 26px;
-    overflow: hidden;
-    cursor: pointer;
-    font-family: Prototype, Orbitron, sans-serif;
+    padding: 12px 28px;
     font-size: 13px;
-    font-weight: 700;
     letter-spacing: 1.4px;
-    text-transform: uppercase;
-    color: #06140e;
-    background: linear-gradient(180deg, fade(@dr-ready, 96%), darken(@dr-ready, 9%));
-    box-shadow: 0 6px 18px fade(@dr-ready, 40%), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
-    transition: transform 130ms, box-shadow 170ms, filter 170ms;
 
     &-label { position: relative; z-index: 2; }
     &-glow {
         position: absolute;
         inset: 0;
         z-index: 1;
-        background: radial-gradient(120% 150% at 50% -25%, rgba(255, 255, 255, 0.5), transparent 60%);
-        opacity: 0.4;
+        background: radial-gradient(120% 150% at 50% -25%, rgba(255, 255, 255, 0.4), transparent 60%);
+        opacity: 0.32;
         transition: opacity 170ms;
     }
     &-count {
@@ -299,19 +290,30 @@ body.draw-reveal-open {
         color: #eafff6;
         font-size: 12px;
     }
-
-    &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 26px fade(@dr-ready, 52%), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
-    }
-    &:hover &-glow { opacity: 0.85; }
-    &:active { transform: translateY(0); }
+    &:hover &-glow { opacity: 0.7; }
 }
 
-/* Fullscreen #actions ВЗЯТЬ — primary already styled by card_selection; this
-   just nudges its accent to the mint take colour to match the modal. */
+/* Fullscreen #actions ВЗЯТЬ — the mint "take" colour recoloured onto the
+   modal primary chassis (incl. its glow + breathing), matching the tray CTA. */
 .draw-reveal__fs-take.card-zoom-actions__btn--primary {
-    --primary-accent: @dr-ready;
+    background: linear-gradient(180deg, fade(@cab-mint, 92%) 0%, darken(@cab-mint, 8%) 100%);
+    color: @cab-text-dark;
+    text-shadow: 0 1px 0 fade(lighten(@cab-mint, 42%), 55%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        0 0 22px fade(@cab-mint, 48%),
+        0 9px 16px rgba(0, 0, 0, 0.5);
+    &::before { background: transparent; }
+    &::after {
+        background: radial-gradient(ellipse at center,
+            fade(@cab-mint, 50%) 0%, fade(@cab-mint, 16%) 50%, fade(@cab-mint, 0%) 80%);
+    }
+    &:hover:not(:disabled) {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.52),
+            0 0 34px fade(@cab-mint, 85%),
+            0 13px 24px rgba(0, 0, 0, 0.55);
+    }
 }
 
 /* ── Deal-in / collect-out animation ─────────────────────────────────── */
