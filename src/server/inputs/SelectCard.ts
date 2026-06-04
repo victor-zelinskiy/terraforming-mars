@@ -16,6 +16,10 @@ export type Options = {
   selectBlueCardAction: boolean,
   /** When provided, then the cards with false in `enabled` are not selectable and grayed out */
   enabled: ReadonlyArray<boolean> | undefined,
+  /** Relevant-but-unselectable candidates shown DISABLED with a reason. Kept
+   *  separate from `cards` so the server never validates/accepts them; the
+   *  premium picker merges them for display behind an availability filter. */
+  disabled: ReadonlyArray<{card: ICard, reason: string | Message}> | undefined,
   /** Default is true. If true, then shows resources on those cards. If false than shows discounted price. */
   played: boolean | CardName.SELF_REPLICATING_ROBOTS
   /** Default is false. If true then show the name of the card owner below. */
@@ -38,6 +42,7 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
       min: config?.min ?? 1,
       selectBlueCardAction: config?.selectBlueCardAction ?? false,
       enabled: config?.enabled,
+      disabled: config?.disabled,
       played: config?.played ?? true,
       showOwner: config?.showOwner ?? false,
       showSelectAll: config?.showSelectAll ?? false,
@@ -46,13 +51,15 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
   }
 
   public toModel(player: IPlayer): SelectCardModel {
-    return {
+    const showCalculatedCost = this.config.played === false || this.config.played === CardName.SELF_REPLICATING_ROBOTS;
+    const showResources = this.config.played === true || this.config.played === CardName.SELF_REPLICATING_ROBOTS;
+    const model: SelectCardModel = {
       title: this.title,
       buttonLabel: this.buttonLabel,
       type: 'card',
       cards: cardsToModel(player, this.cards, {
-        showCalculatedCost: this.config.played === false || this.config.played === CardName.SELF_REPLICATING_ROBOTS,
-        showResources: this.config.played === true || this.config.played === CardName.SELF_REPLICATING_ROBOTS,
+        showCalculatedCost,
+        showResources,
         enabled: this.config.enabled,
       }),
       max: this.config.max,
@@ -62,6 +69,16 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
       showOwner: this.config.showOwner === true,
       showSelectAll: this.config.showSelectAll === true,
     };
+    const disabled = this.config.disabled;
+    if (disabled !== undefined && disabled.length > 0) {
+      model.disabledCards = cardsToModel(player, disabled.map((d) => d.card), {
+        showCalculatedCost,
+        showResources,
+        enabled: disabled.map(() => false),
+        disabledReasons: disabled.map((d) => d.reason),
+      });
+    }
+    return model;
   }
 
   public process(input: InputResponse) {

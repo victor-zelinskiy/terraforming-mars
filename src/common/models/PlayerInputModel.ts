@@ -105,6 +105,11 @@ export type SelectCardModel = BaseInputModel & {
   selectBlueCardAction: boolean;
   showOwner: boolean;
   showSelectAll: boolean;
+  // OPTIONAL relevant-but-unpickable candidates shown DISABLED (greyed, with a
+  // reason on each card's `disabledReason`) — separate from the selectable
+  // `cards` so the server never validates/accepts them. The premium picker
+  // merges them for display behind an All/Available/Unavailable filter.
+  disabledCards?: ReadonlyArray<CardModel>;
 }
 
 export type SelectColonyModel = BaseInputModel & {

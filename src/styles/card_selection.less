@@ -337,6 +337,91 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────
+ *  Availability filter + disabled candidate cards (v53)
+ *  Only rendered when the server flags some cards DISABLED (relevant but
+ *  unpickable, e.g. a resource card with 0 resources). Default 'available'.
+ * ────────────────────────────────────────────────────────────────── */
+.card-selection__filter {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 2px 0 14px;
+}
+.card-selection__filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border: 1px solid #2c4a6a;
+    border-radius: 999px;
+    background: rgba(16, 24, 36, 0.7);
+    color: #9fc4e6;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    &:hover { border-color: #6ab0e6; color: #d6e8fb; }
+}
+.card-selection__filter-btn--active {
+    border-color: #7fd4ff;
+    background: rgba(46, 86, 120, 0.55);
+    color: #eaf3fc;
+    box-shadow: 0 0 10px rgba(106, 176, 230, 0.3);
+}
+.card-selection__filter-count {
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.75;
+}
+
+.card-selection__card-slot--disabled .card-selection__card-clickable {
+    filter: grayscale(0.85) brightness(0.7);
+    opacity: 0.72;
+}
+.card-selection__card-reason {
+    position: relative;
+    margin-top: 12px;
+    max-width: 100%;
+    padding: 5px 12px;
+    border-radius: 4px;
+    background: rgba(120, 78, 42, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(201, 142, 74, 0.45);
+    color: #d6a877;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    /* Premium hover tooltip with the full reason (when the chip is truncated). */
+    &[data-hint]:hover::after {
+        content: attr(data-hint);
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: normal;
+        width: max-content;
+        max-width: 220px;
+        padding: 7px 11px;
+        border-radius: 6px;
+        background: rgba(8, 14, 22, 0.96);
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(201, 142, 74, 0.4);
+        color: #e8d4bc;
+        font-size: 12px;
+        line-height: 1.35;
+        letter-spacing: 0.2px;
+        z-index: 5;
+        pointer-events: none;
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────
  *  Deal-in entrance (v47) — cards are "dealt" onto the modal
  * ──────────────────────────────────────────────────────────────────
  *

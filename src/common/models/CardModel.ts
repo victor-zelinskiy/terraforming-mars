@@ -5,6 +5,7 @@ import {AdditionalProjectCosts, CardDiscount, StandardProjectCanPayWith} from '.
 import {Tag} from '../cards/Tag';
 import {Warning} from '../cards/Warning';
 import {UnplayableReason} from '../cards/UnplayableReason';
+import {Message} from '../logs/Message';
 
 export interface CardModel {
     name: CardName;
@@ -13,6 +14,10 @@ export interface CardModel {
     isSelfReplicatingRobotsCard?: boolean,
     discount?: Array<CardDiscount>,
     isDisabled?: boolean; // Used with Pharmacy Union
+    // When this card is a DISABLED candidate in a SelectCard prompt (it's a
+    // relevant target but can't be picked right now — e.g. no resources on it),
+    // a user-facing reason. Shown as a badge/popover in the premium card picker.
+    disabledReason?: string | Message;
     additionalProjectCosts?: AdditionalProjectCosts;
     warnings?: ReadonlyArray<Warning>;
     // Structured reasons this card can't be played right now. Set only for

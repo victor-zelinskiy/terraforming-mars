@@ -74,11 +74,18 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
       return undefined;
     }
 
+    // Relevant cards of the same resource type that CAN'T be picked right now
+    // (no resources / protected) are shown DISABLED with a reason instead of
+    // vanishing — the premium picker's All/Available/Unavailable filter hides
+    // them by default. They ride a SEPARATE `disabled` channel, so `cards`
+    // stays the selectable set (auto-select / counts / validation unchanged).
+    const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards);
+
     const selectCard = new SelectCard(
       this.title,
       'Remove resource(s)',
       cards,
-      {showOwner: this.source !== 'self'})
+      {showOwner: this.source !== 'self', disabled: disabledCards.length > 0 ? disabledCards : undefined})
       .andThen(([card]) => {
         this.attack(card);
         return undefined;
@@ -140,5 +147,38 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
       }
     }
     return resourceCards;
+  }
+
+  /**
+   * Cards of the same resource type that are RELEVANT to this removal but can't
+   * be picked right now — shown disabled with a reason. Only meaningful for a
+   * specific `resourceType` (the "cards that can hold X" pool). All cards here
+   * are played/tableau cards (public), so there's no privacy concern.
+   */
+  public static getUnavailableTargetCards(
+    player: IPlayer,
+    resourceType: CardResource | undefined,
+    source: Source,
+    available: ReadonlyArray<ICard>,
+  ): Array<{card: ICard, reason: string}> {
+    if (resourceType === undefined) {
+      return [];
+    }
+    const result: Array<{card: ICard, reason: string}> = [];
+    for (const p of player.game.players) {
+      if (p === player ? source === 'opponents' : source === 'self') {
+        continue;
+      }
+      for (const card of p.getResourceCards(resourceType)) {
+        if (available.includes(card)) {
+          continue;
+        }
+        result.push({
+          card,
+          reason: card.resourceCount === 0 ? 'No resources on this card' : 'Card resources are protected',
+        });
+      }
+    }
+    return result;
   }
 }
