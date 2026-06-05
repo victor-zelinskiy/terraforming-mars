@@ -2138,6 +2138,69 @@
     text-transform: uppercase;
 }
 
+/* ─── Secondary "who else gets the colony bonus" block ─────────────────────
+   Deliberately quieter than the colony summary (smaller label, flat tinted
+   inset, no amber title) so it informs without competing with the payment
+   decision. Only rendered when colonies are already built on the tile. */
+.colony-trade-pay__bonus {
+    margin-bottom: 16px;
+    padding: 9px 13px 11px;
+    border-radius: 8px;
+    background: rgba(106, 176, 230, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.14);
+}
+.colony-trade-pay__bonus-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 9px;
+}
+.colony-trade-pay__bonus-label {
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #8aa6c2;
+}
+.colony-trade-pay__bonus-reward {
+    display: inline-flex;
+    align-items: center;
+}
+.colony-trade-pay__bonus-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+.colony-trade-pay__bonus-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 10px 4px 8px;
+    border-radius: 999px;
+    background: rgba(20, 30, 44, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.22);
+    font-size: 12px;
+    color: #d6e2f2;
+}
+.colony-trade-pay__bonus-cube {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+.colony-trade-pay__bonus-name {
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+.colony-trade-pay__bonus-count {
+    padding: 0 6px;
+    border-radius: 3px;
+    background: rgba(106, 176, 230, 0.22);
+    color: #aed8ff;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
 .colony-trade-pay__options {
     display: flex;
     flex-direction: column;

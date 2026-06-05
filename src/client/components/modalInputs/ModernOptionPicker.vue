@@ -29,57 +29,59 @@
 
     <div v-if="warningText !== ''" class="modal-input__warning">{{ warningText }}</div>
 
-    <!-- Collapsed view: the choice cards. -->
+    <!-- Collapsed view: the real choice cards (skip / "do nothing" options are
+         pulled OUT into a separate neutral block below, so a safe fallback never
+         sits BETWEEN two real targets). -->
     <div v-if="expandedIdx === -1" class="modal-input__options">
-      <button v-for="(opt, i) in displayedOptions"
-              :key="i"
+      <button v-for="e in primaryEntries"
+              :key="e.i"
               type="button"
               class="modal-input__option-card"
               :class="[
-                'modal-input__option-card--' + optionKind(opt),
+                'modal-input__option-card--' + optionKind(e.opt),
                 {
-                  'modal-input__option-card--selected': selectedIdx === i,
-                  'modal-input__option-card--armed': isPendingSpace(i),
-                  'modal-input__option-card--player': optionColor(opt) !== undefined,
-                  'modal-input__option-card--warn': optionWarnings(opt) !== undefined,
+                  'modal-input__option-card--selected': selectedIdx === e.i,
+                  'modal-input__option-card--armed': isPendingSpace(e.i),
+                  'modal-input__option-card--player': optionColor(e.opt) !== undefined,
+                  'modal-input__option-card--warn': optionWarnings(e.opt) !== undefined,
                 },
               ]"
-              @click="pickOption(i)"
-              :data-test="'modern-option-' + i">
+              @click="pickOption(e.i)"
+              :data-test="'modern-option-' + e.i">
         <span class="modal-input__option-accent"
-              :class="optionColor(opt) !== undefined ? ('player_bg_color_' + optionColor(opt)) : ''"
+              :class="optionColor(e.opt) !== undefined ? ('player_bg_color_' + optionColor(e.opt)) : ''"
               aria-hidden="true"></span>
 
         <!-- Lead: player chip (colour dot + name) for player-target options,
              else a resource/parameter icon when the metadata supplies one. -->
-        <span v-if="optionColor(opt) !== undefined" class="modal-input__option-lead modal-input__option-player">
-          <span class="modal-input__option-dot" :class="'player_bg_color_' + optionColor(opt)" aria-hidden="true"></span>
-          <span v-if="optionPlayerName(opt) !== ''" class="modal-input__option-player-name">{{ optionPlayerName(opt) }}</span>
+        <span v-if="optionColor(e.opt) !== undefined" class="modal-input__option-lead modal-input__option-player">
+          <span class="modal-input__option-dot" :class="'player_bg_color_' + optionColor(e.opt)" aria-hidden="true"></span>
+          <span v-if="optionPlayerName(e.opt) !== ''" class="modal-input__option-player-name">{{ optionPlayerName(e.opt) }}</span>
         </span>
-        <span v-else-if="optionIcon(opt) !== ''"
+        <span v-else-if="optionIcon(e.opt) !== ''"
               class="modal-input__option-lead modal-input__option-icon"
-              :class="optionIconClass(opt)"
+              :class="optionIconClass(e.opt)"
               aria-hidden="true"></span>
 
         <span class="modal-input__option-body">
-          <span class="modal-input__option-label">{{ optionActionText(opt) }}</span>
-          <span v-if="optionWarnings(opt) !== undefined" class="modal-input__option-warn-chip">
+          <span class="modal-input__option-label">{{ optionActionText(e.opt) }}</span>
+          <span v-if="optionWarnings(e.opt) !== undefined" class="modal-input__option-warn-chip">
             <span class="modal-input__option-warn-icon" aria-hidden="true">⚠</span>
-            <warnings-component :warnings="optionWarnings(opt)"
+            <warnings-component :warnings="optionWarnings(e.opt)"
                                 class="modal-input__option-warnings"></warnings-component>
           </span>
         </span>
 
         <!-- Impact preview: resource icon + current → resulting. -->
-        <span v-if="hasPreview(opt)" class="modal-input__option-preview" aria-hidden="true">
-          <span v-if="optionIcon(opt) !== ''" class="modal-input__option-icon" :class="optionIconClass(opt)"></span>
-          <span class="modal-input__option-preview-from">{{ previewFrom(opt) }}</span>
+        <span v-if="hasPreview(e.opt)" class="modal-input__option-preview" aria-hidden="true">
+          <span v-if="optionIcon(e.opt) !== ''" class="modal-input__option-icon" :class="optionIconClass(e.opt)"></span>
+          <span class="modal-input__option-preview-from">{{ previewFrom(e.opt) }}</span>
           <span class="modal-input__option-preview-arrow">→</span>
-          <span class="modal-input__option-preview-to">{{ previewTo(opt) }}</span>
+          <span class="modal-input__option-preview-to">{{ previewTo(e.opt) }}</span>
         </span>
-        <span v-else-if="optionKind(opt) === 'space'" class="modal-input__option-hint" v-i18n>on the board</span>
-        <span v-else-if="optionKind(opt) === 'nested'" class="modal-input__option-chevron" aria-hidden="true">›</span>
-        <span v-else-if="selectedIdx === i" class="modal-input__option-check" aria-hidden="true">✓</span>
+        <span v-else-if="optionKind(e.opt) === 'space'" class="modal-input__option-hint" v-i18n>on the board</span>
+        <span v-else-if="optionKind(e.opt) === 'nested'" class="modal-input__option-chevron" aria-hidden="true">›</span>
+        <span v-else-if="selectedIdx === e.i" class="modal-input__option-check" aria-hidden="true">✓</span>
       </button>
     </div>
 
@@ -107,6 +109,25 @@
           <span class="modal-input__option-disabled-reason">{{ disabledReason(d) }}</span>
         </span>
       </div>
+    </div>
+
+    <!-- Neutral / SAFE fallback ("Do not remove plants", "Do nothing"). Pulled
+         out of the target list into its own block at the bottom + a distinct calm
+         look, so it never reads as just another target sitting in the middle. -->
+    <div v-if="expandedIdx === -1 && skipEntries.length > 0" class="modal-input__skip-options">
+      <button v-for="e in skipEntries"
+              :key="'skip-' + e.i"
+              type="button"
+              class="modal-input__option-card modal-input__option-card--skip"
+              :class="{'modal-input__option-card--selected': selectedIdx === e.i}"
+              @click="pickOption(e.i)"
+              :data-test="'modern-option-' + e.i">
+        <span class="modal-input__option-skip-glyph" aria-hidden="true">⊘</span>
+        <span class="modal-input__option-body">
+          <span class="modal-input__option-label">{{ optionActionText(e.opt) }}</span>
+        </span>
+        <span v-if="selectedIdx === e.i" class="modal-input__option-check" aria-hidden="true">✓</span>
+      </button>
     </div>
 
     <!-- Confirm bar — only for a SELECTED leaf option (select → confirm flow).
@@ -263,8 +284,25 @@ export default defineComponent({
     disabledOptions(): ReadonlyArray<DisabledOptionModel> {
       return this.playerinput.disabledOptions ?? [];
     },
+    // Every shown option paired with its DISPLAYED index (the index pickOption /
+    // selectedIdx / data-test all key off — preserved when we split the list).
+    optionEntries(): ReadonlyArray<{opt: PlayerInputModel, i: number}> {
+      return this.displayedOptions.map((opt, i) => ({opt, i}));
+    },
+    // Real, actionable choices (targets / space / nested) — skip options excluded.
+    primaryEntries(): ReadonlyArray<{opt: PlayerInputModel, i: number}> {
+      return this.optionEntries.filter((e) => !this.isSkipOption(e.opt));
+    },
+    // The neutral "do nothing / don't remove" fallback(s), rendered separately.
+    skipEntries(): ReadonlyArray<{opt: PlayerInputModel, i: number}> {
+      return this.optionEntries.filter((e) => this.isSkipOption(e.opt));
+    },
   },
   methods: {
+    // A skip / neutral-safe option, flagged by the server via metadata.kind.
+    isSkipOption(opt: PlayerInputModel): boolean {
+      return this.optionMeta(opt)?.kind === 'skip';
+    },
     optionTitle(opt: PlayerInputModel): string {
       return optionTitleText(opt.title);
     },

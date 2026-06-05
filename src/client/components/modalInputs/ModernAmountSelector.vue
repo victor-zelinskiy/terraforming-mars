@@ -26,7 +26,10 @@
               :disabled="amount >= playerinput.max"
               @click="step(1)"
               data-test="modern-amount-inc">+</button>
-      <button class="modal-input__max-btn" @click="setMax" data-test="modern-amount-max" v-i18n>MAX</button>
+      <button class="modal-input__max-btn" @click="setMax" data-test="modern-amount-max">
+        <span v-i18n>MAX</span>
+        <span class="modal-input__max-btn-value">{{ playerinput.max }}</span>
+      </button>
     </div>
 
     <div class="modal-input__range-hint">{{ playerinput.min }} – {{ playerinput.max }}</div>

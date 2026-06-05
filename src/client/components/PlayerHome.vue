@@ -556,6 +556,7 @@
                                :colonyName="pendingTradeColony.colonyName"
                                :options="pendingTradeColony.paymentOptions"
                                :disabledOptions="pendingTradeColony.disabledPayments"
+                               :players="playerView.players"
                                @select="onColonyTradePaymentSelected($event)"
                                @cancel="onColonyTradePaymentCancel" />
     </MandatoryInputModal>

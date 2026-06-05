@@ -34,6 +34,31 @@
       </div>
     </div>
 
+    <!--
+      SECONDARY transparency block: who ELSE gains the (fixed) colony bonus when
+      you trade here. Shown ONLY when colonies are already built on this tile, so
+      it never appears for an empty colony and never steals focus from the payment
+      decision. A player with several colonies here shows an explicit ×N.
+    -->
+    <div v-if="beneficiaries.length > 0" class="colony-trade-pay__bonus">
+      <div class="colony-trade-pay__bonus-head">
+        <span class="colony-trade-pay__bonus-label" v-i18n>Trade bonus to colonies here</span>
+        <span v-if="colonyBonus !== undefined" class="colony-trade-pay__bonus-reward">
+          <BenefitGlyph :benefit="colonyBonus" :idx="0" :cardResource="cardResource" />
+        </span>
+      </div>
+      <div class="colony-trade-pay__bonus-list">
+        <span v-for="b in beneficiaries"
+              :key="'ben-' + b.color"
+              class="colony-trade-pay__bonus-chip"
+              :data-test="'colony-trade-bonus-' + b.color">
+          <span class="colony-trade-pay__bonus-cube" :class="'player_bg_color_' + b.color" aria-hidden="true"></span>
+          <span class="colony-trade-pay__bonus-name">{{ b.name }}</span>
+          <span v-if="b.count > 1" class="colony-trade-pay__bonus-count">×{{ b.count }}</span>
+        </span>
+      </div>
+    </div>
+
     <div class="colony-trade-pay__options">
       <button v-for="(opt, idx) in options"
               :key="'pay-' + idx"
@@ -99,6 +124,8 @@ import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {CardResource} from '@/common/CardResource';
+import {Color} from '@/common/Color';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SelectOptionModel, DisabledOptionModel, OptionMetadata} from '@/common/models/PlayerInputModel';
 import {translateText, translateMessage} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -131,6 +158,11 @@ export default defineComponent({
       type: Array as () => ReadonlyArray<DisabledOptionModel>,
       default: () => [],
     },
+    // Public player models — used to name the colony-bonus beneficiaries.
+    players: {
+      type: Array as () => ReadonlyArray<PublicPlayerModel>,
+      default: () => [],
+    },
   },
   emits: ['select', 'cancel'],
   data(): DataModel {
@@ -157,6 +189,37 @@ export default defineComponent({
       const t = meta.trade;
       const resource = Array.isArray(t.resource) ? t.resource[idx] : t.resource;
       return {type: t.type, quantity: [t.quantity[idx] ?? 0], resource};
+    },
+    // The FIXED colony bonus EVERY player with a colony on this tile receives
+    // when a trade happens here — a SEPARATE, track-independent reward (e.g. Luna
+    // 2 M€, Ceres 2 steel), not the trade reward. Built for BenefitGlyph like
+    // tradeReward, from the same client metadata manifest.
+    colonyBonus(): {type: ColonyBenefit, quantity: Array<number>, resource?: unknown} | undefined {
+      const meta = getColony(this.colonyName);
+      if (meta === undefined) {
+        return undefined;
+      }
+      const c = meta.colony;
+      return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
+    },
+    // Everyone who already has a colony built on this tile — they ALL gain the
+    // colony bonus when this trade resolves (INCLUDING the trading player). Grouped
+    // by colour with a count, since a player can hold multiple colonies here and
+    // thus receive the bonus several times.
+    beneficiaries(): Array<{color: Color, name: string, count: number}> {
+      if (this.colony === undefined) {
+        return [];
+      }
+      const counts = new Map<Color, number>();
+      for (const color of this.colony.colonies) {
+        counts.set(color, (counts.get(color) ?? 0) + 1);
+      }
+      const out: Array<{color: Color, name: string, count: number}> = [];
+      counts.forEach((count, color) => {
+        const p = this.players.find((pp) => pp.color === color);
+        out.push({color, name: p?.name ?? String(color), count});
+      });
+      return out;
     },
   },
   methods: {
