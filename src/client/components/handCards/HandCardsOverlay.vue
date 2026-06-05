@@ -461,9 +461,18 @@ export default defineComponent({
       handler(next: ReadonlyArray<HandCardEntry>, prev: ReadonlyArray<HandCardEntry>): void {
         const nextNames = new Set(next.map((e) => e.name));
         this.reflowDelay = prev.some((e) => !nextNames.has(e.name));
-        // Card set changed → re-fit the scale, but AFTER the exit→reflow→enter
-        // animation settles, so the zoom never pops mid-transition.
-        this.deferFit();
+        // Re-fit the scale ONLY when the card COUNT changes. Hand cards have a
+        // FIXED height (card-content is a fixed 280px and the grid never renders
+        // them autoTall), so the grid height is a function of count alone — a
+        // pure re-sort / sort-direction flip / same-size filter swap cannot
+        // change it. Skipping deferFit there avoids a full 14-iteration fit()
+        // thrash (each iteration relayouts every card via `zoom`) on the most
+        // common filter-bar interactions. A real add/remove still re-fits, AFTER
+        // the exit→reflow→enter animation settles so the zoom never pops
+        // mid-transition. (perf hand-A1)
+        if (next.length !== prev.length) {
+          this.deferFit();
+        }
       },
     },
     // The sale response landed (WaitingFor preserved this instance, so `cards`
