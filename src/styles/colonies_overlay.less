@@ -555,6 +555,8 @@
 .colony-tile__frame {
     position: relative;
     flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
     padding: 0 0 12px;
     border: 1px solid @colony-cyan-rim;
     border-radius: 5px;
@@ -1042,7 +1044,7 @@
     .premium-tooltip(200px);
     position: relative;
     z-index: 3;
-    margin-top: 12px;
+    margin-top: auto;
     margin-bottom: 0;
     padding: 9px 14px;
     width: 100%;
@@ -1113,7 +1115,7 @@
    footer geometry as the button (full-width bottom strip). */
 .colony-tile__reason {
     position: relative;
-    margin-top: 12px;
+    margin-top: auto;
     padding: 8px 12px;
     width: 100%;
     border-top: 1px solid rgba(201, 142, 74, 0.32);

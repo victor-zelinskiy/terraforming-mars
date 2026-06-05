@@ -8,9 +8,16 @@
       </div>
       <div class="awards-overlay-cost" v-if="!allFunded">
         <span class="awards-overlay-cost-label" v-i18n>Cost</span>
-        <span class="mc-coin mc-coin--sm awards-overlay-cost-coin">{{ nextFundingCost }}</span>
+        <span v-if="freeFunding" class="awards-overlay-cost-free" v-i18n>Free</span>
+        <span v-else class="mc-coin mc-coin--sm awards-overlay-cost-coin">{{ nextFundingCost }}</span>
       </div>
       <div class="awards-overlay-close" v-on:click="$emit('close')">✕</div>
+    </div>
+
+    <!-- Free-sponsorship mode banner (Vitor start action). -->
+    <div v-if="freeFunding" class="awards-overlay-free-banner">
+      <span class="awards-overlay-free-chip" v-i18n>Free sponsorship</span>
+      <span class="awards-overlay-free-hint" v-i18n>Choose an award to sponsor for free.</span>
     </div>
 
     <div class="awards-overlay-list">
@@ -76,7 +83,7 @@
                   v-on:click.stop="onFundClick(a)">
             <span class="award-fund-btn-label" v-i18n>Fund</span>
             <span class="award-fund-btn-cost">
-              <span class="mc-coin mc-coin--sm">{{ nextFundingCost }}</span>
+              <span class="mc-coin mc-coin--sm">{{ effectiveCost }}</span>
             </span>
           </button>
           <div v-else-if="a.playerName" class="award-row-funded-badge" v-i18n>Funded</div>
@@ -142,6 +149,14 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    // FREE-sponsorship mode (Vitor's start action funds an award for free). Adds
+    // the "free sponsorship" banner, shows the cost as 0 / Free, and drops the
+    // M€ affordability check. The overlay is auto-opened + minimizable-to-pill by
+    // PlayerHome via awardFundingState; the tiles + fund flow are unchanged.
+    freeFunding: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['fund', 'close'],
   data(): {hoveredAward: FundedAwardModel | null; tooltipPos: TooltipPos} {
@@ -162,6 +177,11 @@ export default defineComponent({
     nextFundingCost(): number {
       const idx = Math.min(this.fundedCount, AWARD_COSTS.length - 1);
       return AWARD_COSTS[idx];
+    },
+    // What the fund button + tooltip should display: 0 in free-sponsorship mode,
+    // else the normal next-award cost.
+    effectiveCost(): number {
+      return this.freeFunding ? 0 : this.nextFundingCost;
     },
     tooltipStyle(): Record<string, string> {
       return {
@@ -230,7 +250,8 @@ export default defineComponent({
     fundBlockerReason(a: FundedAwardModel): string | null {
       if (this.fundableNow.has(a.name)) return null;
       if (!this.viewerActing) return 'Not your turn to take any actions';
-      if (this.thisPlayerMegacredits < this.nextFundingCost) return 'Not enough M€';
+      // Free sponsorship costs nothing — never block on M€.
+      if (!this.freeFunding && this.thisPlayerMegacredits < this.nextFundingCost) return 'Not enough M€';
       // Viewer IS acting and has the money, but the prompt-tree doesn't
       // currently surface the fund action (mid sub-prompt, special phase,
       // etc.). Don't lie about it being someone else's turn — give a

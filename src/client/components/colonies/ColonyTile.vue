@@ -222,7 +222,7 @@
       -->
       <div v-if="showReasonChip"
            class="colony-tile__reason"
-           :data-hint="disabledReason"
+           :data-hint="reasonTooltip"
            :data-test="'colony-reason-' + colony.name">
         <span class="colony-tile__reason-icon" aria-hidden="true">⊘</span>
         <span class="colony-tile__reason-text">{{ disabledReason }}</span>
@@ -386,6 +386,12 @@ export default defineComponent({
     },
     selectButtonTooltip(): string {
       return this.$t('Select this colony');
+    },
+    reasonTooltip(): string {
+      if (!this.colony.isActive) {
+        return translateText('Once activated, this colony joins the active colony pool and can be built on or traded with normally.');
+      }
+      return this.disabledReason;
     },
     // Tooltip for the in-header fleet badge. Three cases:
     //   1. visitor === viewer  → "Your trade fleet is currently here"

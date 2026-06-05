@@ -305,6 +305,10 @@ export class Server {
     if (waitingFor.startGamePrompt !== undefined) {
       model.startGamePrompt = waitingFor.startGamePrompt;
     }
+    // Award-funding marker — routes the prompt to the modern AwardsOverlay.
+    if (waitingFor.awardFundingPrompt !== undefined) {
+      model.awardFundingPrompt = waitingFor.awardFundingPrompt;
+    }
     return model;
     // showReset: player.game.inputsThisRound > 0 && player.game.resettable === true && player.game.phase === Phase.ACTION,
   }

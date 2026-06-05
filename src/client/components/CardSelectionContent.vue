@@ -21,7 +21,7 @@
     MandatoryInputModal payment route handles it; this component does
     NOT submit a payment, just `{type:'card', cards:[...]}`.
   -->
-  <div class="card-selection">
+  <div class="card-selection" ref="root">
 
     <!--
       Header layout: title-group centred (title + counter pill as a
@@ -85,7 +85,7 @@
           Card.vue's slot-less default. Our wrapper invokes the
           shared openFullscreen so the actions slot is wired up.
     -->
-    <div class="card-selection__cards">
+    <div class="card-selection__cards" ref="grid">
       <div v-for="card in visibleCards"
            :key="card.name"
            class="card-selection__card-slot"
@@ -198,7 +198,7 @@
 </template>
 
 <script lang="ts">
-import {defineComponent, PropType, nextTick} from 'vue';
+import {defineComponent, PropType, nextTick, markRaw} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {Phase} from '@/common/Phase';
@@ -232,7 +232,25 @@ type DataModel = {
    * Only surfaced when the prompt actually has disabled cards.
    */
   filterMode: 'available' | 'all' | 'unavailable';
+  /*
+   * Adaptive-fit engine plumbing (mirrors HandCardsOverlay). The grid scales a
+   * continuous `--cs-zoom` + sets a count-aware `--cs-content-width` so the modal
+   * adapts to card count + viewport: few cards big & centred, many cards a wider
+   * balanced grid, vertical scroll only as a last resort.
+   */
+  resizeObserver: ResizeObserver | undefined;
+  fitTimer: number | undefined;
+  fitScheduled: boolean;
 };
+
+// Few cards → large; many cards → start smaller (the height-fit loop shrinks
+// further only if the rows would overflow the viewport).
+const FIT_MIN_ZOOM = 0.5;
+const FIT_MAX_ITER = 12;
+const FIT_VIEWPORT_W_MARGIN = 48; // matches the modal's calc(100vw - 48px) cap
+const FIT_VIEWPORT_H_RATIO = 0.92;
+const FIT_MODAL_FRAME_V = 64;     // approx modal frame + outer margins (vertical)
+const FIT_SLOT_MIN_W = 168;       // action button floor — slot never narrower
 
 export default defineComponent({
   name: 'CardSelectionContent',
@@ -256,6 +274,9 @@ export default defineComponent({
       selected: [],
       zoomCard: undefined,
       filterMode: 'available',
+      resizeObserver: undefined,
+      fitTimer: undefined,
+      fitScheduled: false,
     };
   },
   watch: {
@@ -278,7 +299,13 @@ export default defineComponent({
         this.selected = [];
         this.zoomCard = undefined;
         this.filterMode = 'available';
+        this.deferFit();
       }
+    },
+    // Re-fit whenever the number of shown cards changes (filter toggle, new
+    // prompt) so the layout re-balances for the new count.
+    visibleCardCount() {
+      this.deferFit();
     },
   },
   computed: {
@@ -321,6 +348,10 @@ export default defineComponent({
         return this.disabledCardsList;
       }
       return [...this.playerinput.cards, ...this.disabledCardsList];
+    },
+    // Drives the re-fit watcher — the number of cards currently in the grid.
+    visibleCardCount(): number {
+      return this.visibleCards.length;
     },
     filterModes(): ReadonlyArray<{key: 'all' | 'available' | 'unavailable', label: string, count: number}> {
       const available = this.selectableCount;

@@ -121,6 +121,7 @@ import {shouldPreserveSaleOverlay} from '@/client/components/handCards/sellPaten
 import {handPlayPrompt} from '@/client/components/handCards/handPlayState';
 import {standardProjectPlayPrompt} from '@/client/components/handCards/standardProjectPlayState';
 import {startFlowCorpPrompt, startGameFlowActive} from '@/client/components/startGameFlow/startGameFlowState';
+import {freeAwardFundingPrompt} from '@/client/components/awards/awardFundingState';
 import {Message} from '@/common/logs/Message';
 import {
   applyTilePlacementPreview,
@@ -709,6 +710,12 @@ export default defineComponent({
       // doesn't also render it, and so the Pass option is never shown.
       if (startFlowCorpPrompt(this.playerViewForPrompt) !== undefined &&
           startGameFlowActive(this.playerViewForPrompt)) {
+        return false;
+      }
+      // A FREE award-funding OrOptions (Vitor start action) is hosted by the
+      // modern AwardsOverlay in free-sponsorship mode — suppress the generic
+      // option modal so the player picks the award in its full visual context.
+      if (freeAwardFundingPrompt(this.playerViewForPrompt) !== undefined) {
         return false;
       }
       return shouldRouteToModal(wf);

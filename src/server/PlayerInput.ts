@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta} from '../common/models/PlayerInputModel';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -13,6 +13,9 @@ export interface PlayerInput {
     // Explicit start-of-game-flow marker (see StartGamePromptMeta). Serialized
     // centrally in ServerModel.getWaitingFor.
     startGamePrompt?: StartGamePromptMeta;
+    // Explicit award-funding marker (see AwardFundingPromptMeta). Routes the
+    // prompt to the modern AwardsOverlay. Serialized in ServerModel.getWaitingFor.
+    awardFundingPrompt?: AwardFundingPromptMeta;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -50,6 +53,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public eligibleForDefault: boolean | undefined = undefined;
   public annotation: string | undefined;
   public startGamePrompt: StartGamePromptMeta | undefined;
+  public awardFundingPrompt: AwardFundingPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -96,6 +100,12 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   /** Mark this prompt as belonging to the start-of-game flow (chainable). */
   public markStartGamePrompt(meta: StartGamePromptMeta): this {
     this.startGamePrompt = meta;
+    return this;
+  }
+
+  /** Mark this prompt as an award-funding selection (chainable). */
+  public markAwardFundingPrompt(meta: AwardFundingPromptMeta): this {
+    this.awardFundingPrompt = meta;
     return this;
   }
 }

@@ -31,6 +31,16 @@ describe('Vitor', () => {
     expect(game.hasBeenFunded(game.awards[0])).is.true;
   });
 
+  it('Initial action is marked as a free award-funding prompt with award-name options', () => {
+    const action = cast(card.initialAction(player), OrOptions);
+    // Routes to the modern AwardsOverlay in free-sponsorship mode.
+    expect(action.awardFundingPrompt).to.deep.eq({free: true});
+    // Each option's title is the bare award NAME so the overlay (and the shared
+    // submit machinery) can map option → award.
+    const titles = action.options.map((o) => o.title);
+    expect(titles).to.deep.eq(game.awards.map((a) => a.name));
+  });
+
   it('No initial action for solo games', () => {
     testGame(1);
     const action = player.defer(card.initialAction(player));

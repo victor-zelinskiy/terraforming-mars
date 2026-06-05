@@ -83,8 +83,9 @@
           :viewerActing="playerView.waitingFor !== undefined"
           :fundableNow="fundableAwards"
           :fundedCount="fundedAwardsCount"
+          :freeFunding="freeFundingActive"
           @fund="fundAward($event)"
-          @close="activeOverlay = null" />
+          @close="onAwardsOverlayClose" />
       </div>
     </div>
 
@@ -622,6 +623,13 @@ import {
   enterStandardProjectPlay,
   exitStandardProjectPlay,
 } from '@/client/components/handCards/standardProjectPlayState';
+import {
+  awardFundingState,
+  freeAwardFundingPrompt,
+  awardFundingSignature,
+  enterAwardFunding,
+  exitAwardFunding,
+} from '@/client/components/awards/awardFundingState';
 import OpponentHandOverlay from '@/client/components/handCards/OpponentHandOverlay.vue';
 import HandCardPaymentContent from '@/client/components/handCards/HandCardPaymentContent.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
@@ -940,6 +948,32 @@ export default defineComponent({
         }
         if (!standardProjectPlayState.minimized) {
           this.activeOverlay = 'standardProjects';
+        }
+      },
+    },
+    /*
+     * Server-driven FREE award-funding prompt (Vitor's start-of-game action).
+     * Hosted by the modern AwardsOverlay in its free-sponsorship mode rather than
+     * the generic option modal (WaitingFor suppresses the modal route). Enter the
+     * mode (reset on a NEW prompt), auto-open the overlay unless minimized to its
+     * pill, and drop the mode when the prompt resolves. The fundable set + submit
+     * ride the existing fundableAwards / fundAward machinery.
+     */
+    awardFundingInput: {
+      immediate: true,
+      handler(input: OrOptionsModel | undefined): void {
+        if (input === undefined) {
+          if (awardFundingState.active) {
+            exitAwardFunding();
+          }
+          return;
+        }
+        const sig = awardFundingSignature(input);
+        if (!awardFundingState.active || awardFundingState.signature !== sig) {
+          enterAwardFunding(sig);
+        }
+        if (!awardFundingState.minimized) {
+          this.activeOverlay = 'awards';
         }
       },
     },
@@ -1603,6 +1637,15 @@ export default defineComponent({
     handPlayInput(): SelectProjectCardToPlayModel | undefined {
       return handPlayPrompt(this.playerView);
     },
+    // The top-level FREE award-funding prompt (Vitor's start action), or
+    // undefined. Drives the AwardsOverlay's free-sponsorship mode.
+    awardFundingInput(): OrOptionsModel | undefined {
+      return freeAwardFundingPrompt(this.playerView);
+    },
+    // Template flag: the AwardsOverlay should render in free-sponsorship mode.
+    freeFundingActive(): boolean {
+      return awardFundingState.active;
+    },
     // Unified mandatory pill. Select-from-hand, play-from-hand and play-a-
     // standard-project are mutually exclusive (the top-level waitingFor is one
     // prompt), so one pill serves all three minimized states; restore re-opens
@@ -1610,7 +1653,8 @@ export default defineComponent({
     handPillVisible(): boolean {
       return (handSelectState.active && handSelectState.minimized) ||
              (handPlayState.active && handPlayState.minimized) ||
-             (standardProjectPlayState.active && standardProjectPlayState.minimized);
+             (standardProjectPlayState.active && standardProjectPlayState.minimized) ||
+             (awardFundingState.active && awardFundingState.minimized);
     },
     handPillLabel(): string {
       // Unified with the mandatory-modal pill ("ОЖИДАЕТ РЕШЕНИЯ") so every
@@ -1620,6 +1664,9 @@ export default defineComponent({
       return translateText('AWAITING DECISION');
     },
     handPillTitle(): string {
+      if (awardFundingState.active) {
+        return translateText('Free sponsorship');
+      }
       let title: string | Message = handSelectState.title;
       if (standardProjectPlayState.active) {
         title = standardProjectPlayState.title;
@@ -1676,14 +1723,14 @@ export default defineComponent({
       // already minimize; this was the missing button / overlay-switch path.)
       // From a prompt overlay, ANY toggle leaves it (toggle-off → null, or
       // switch → another overlay), so minimize unconditionally when on one.
-      if (this.activeOverlay === 'cards' || this.activeOverlay === 'standardProjects') {
+      if (this.activeOverlay === 'cards' || this.activeOverlay === 'standardProjects' || this.activeOverlay === 'awards') {
         this.minimizeMandatoryHandPrompts();
       }
       this.activeOverlay = this.activeOverlay === id ? null : id;
     },
-    // Minimize whichever mandatory hand/standard-project prompt is currently
-    // active to its shared pill (no-op when none is active). Shared by every
-    // "close the hosting overlay while the prompt is still pending" path.
+    // Minimize whichever mandatory hand/standard-project/award prompt is
+    // currently active to its shared pill (no-op when none is active). Shared by
+    // every "close the hosting overlay while the prompt is still pending" path.
     minimizeMandatoryHandPrompts(): void {
       if (handSelectState.active) {
         handSelectState.minimized = true;
@@ -1693,6 +1740,9 @@ export default defineComponent({
       }
       if (standardProjectPlayState.active) {
         standardProjectPlayState.minimized = true;
+      }
+      if (awardFundingState.active) {
+        awardFundingState.minimized = true;
       }
     },
     // The journal is a side panel, not a board-covering bar-overlay, so
@@ -2201,6 +2251,9 @@ export default defineComponent({
       if (!found) return;
       if (this.submitInnerActionResponse(found, name)) {
         this.activeOverlay = null;
+        // Free-sponsorship flow: exit the mode on submit so no pill flashes
+        // while the server resolves the prompt (no-op for the paid flow).
+        exitAwardFunding();
       }
     },
     // Submits a top-level SelectOption picked from the action menu via its
@@ -2576,8 +2629,21 @@ export default defineComponent({
       handSelectState.minimized = false;
       handPlayState.minimized = false;
       standardProjectPlayState.minimized = false;
+      awardFundingState.minimized = false;
       this.selectedPlayerColor = undefined;
-      this.activeOverlay = standardProjectPlayState.active ? 'standardProjects' : 'cards';
+      if (awardFundingState.active) {
+        this.activeOverlay = 'awards';
+      } else {
+        this.activeOverlay = standardProjectPlayState.active ? 'standardProjects' : 'cards';
+      }
+    },
+    // Close (✕ / outside click) of the awards overlay. While a mandatory
+    // free-sponsorship prompt is pending, "close" MINIMIZES to the shared pill
+    // (the prompt can't be dismissed) instead of dropping the overlay; otherwise
+    // (normal viewing) it just closes.
+    onAwardsOverlayClose(): void {
+      this.minimizeMandatoryHandPrompts();
+      this.activeOverlay = null;
     },
     // Close (✕ / outside click) of the Standard Projects overlay. While the
     // mandatory "play a standard project" prompt is pending, "close" MINIMIZES

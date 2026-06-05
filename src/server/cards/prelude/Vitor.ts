@@ -8,7 +8,6 @@ import {IAward} from '../../awards/IAward';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Resource} from '../../../common/Resource';
-import {message} from '../../logs/MessageBuilder';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 
 export class Vitor extends CorporationCard implements ICorporationCard {
@@ -36,7 +35,11 @@ export class Vitor extends CorporationCard implements ICorporationCard {
   }
 
   private selectAwardToFund(player: IPlayer, award: IAward): SelectOption {
-    return new SelectOption(message('Fund ${0} award', (b) => b.award(award))).andThen(() => {
+    // The option title is the bare award NAME (not "Fund X award") so the
+    // premium AwardsOverlay — and the shared findAwardOptionPath /
+    // submitInnerActionResponse machinery — can map the option to its award and
+    // submit it, exactly like the paid Fund-an-award action does.
+    return new SelectOption(award.name).andThen(() => {
       player.game.fundAward(player, award);
       return undefined;
     });
@@ -50,7 +53,12 @@ export class Vitor extends CorporationCard implements ICorporationCard {
       return;
     }
 
-    const freeAward = new OrOptions().setTitle('Select award to fund').setButtonLabel('Confirm');
+    // markAwardFundingPrompt({free}) routes this to the modern AwardsOverlay in
+    // its free-sponsorship mode instead of the generic option modal.
+    const freeAward = new OrOptions()
+      .setTitle('Select award to fund')
+      .setButtonLabel('Confirm')
+      .markAwardFundingPrompt({free: true});
 
     // If Vitor isn't going first and someone else funds awards, filter them out.
     const availableAwards = game.awards.filter((award) => !game.fundedAwards.map((fa) => fa.award).includes(award));
