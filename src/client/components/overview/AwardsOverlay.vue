@@ -198,11 +198,15 @@ export default defineComponent({
       return a.scores.find((s) => s.color === this.thisPlayerColor);
     },
     leaderScore(a: FundedAwardModel): number {
-      if (a.scores.length === 0) return 0;
+      if (a.scores.length === 0) {
+        return 0;
+      }
       return Math.max(...a.scores.map((s) => s.score));
     },
     isLeaderScore(s: AwardScore, sorted: Array<AwardScore>): boolean {
-      if (sorted.length === 0) return false;
+      if (sorted.length === 0) {
+        return false;
+      }
       // Tied leaders all count as leading. A 0-vs-0 game start isn't
       // leadership — only counts once someone has a non-zero score.
       return s.score === sorted[0].score && s.score > 0;
@@ -211,15 +215,21 @@ export default defineComponent({
     // so we show only the viewer's own score in the chip. Leadership status
     // is encoded in the chip's color modifier (`countClass`) instead.
     countLabel(a: FundedAwardModel): string {
-      if (a.scores.length === 0) return '–';
+      if (a.scores.length === 0) {
+        return '–';
+      }
       const mine = this.myScore(a)?.score ?? 0;
       return String(mine);
     },
     countClass(a: FundedAwardModel): string {
-      if (a.scores.length === 0) return 'award-row-count--neutral';
+      if (a.scores.length === 0) {
+        return 'award-row-count--neutral';
+      }
       const mine = this.myScore(a)?.score ?? 0;
       const leader = this.leaderScore(a);
-      if (mine === 0 && leader === 0) return 'award-row-count--neutral';
+      if (mine === 0 && leader === 0) {
+        return 'award-row-count--neutral';
+      }
       return mine >= leader ? 'award-row-count--leading' : 'award-row-count--behind';
     },
     rowClasses(a: FundedAwardModel): Record<string, boolean> {
@@ -248,10 +258,16 @@ export default defineComponent({
       return !a.playerName && !this.allFunded;
     },
     fundBlockerReason(a: FundedAwardModel): string | null {
-      if (this.fundableNow.has(a.name)) return null;
-      if (!this.viewerActing) return 'Not your turn to take any actions';
+      if (this.fundableNow.has(a.name)) {
+        return null;
+      }
+      if (!this.viewerActing) {
+        return 'Not your turn to take any actions';
+      }
       // Free sponsorship costs nothing — never block on M€.
-      if (!this.freeFunding && this.thisPlayerMegacredits < this.nextFundingCost) return 'Not enough M€';
+      if (!this.freeFunding && this.thisPlayerMegacredits < this.nextFundingCost) {
+        return 'Not enough M€';
+      }
       // Viewer IS acting and has the money, but the prompt-tree doesn't
       // currently surface the fund action (mid sub-prompt, special phase,
       // etc.). Don't lie about it being someone else's turn — give a
@@ -259,7 +275,9 @@ export default defineComponent({
       return 'Finish your current action first';
     },
     onFundClick(a: FundedAwardModel): void {
-      if (this.fundBlockerReason(a) !== null) return;
+      if (this.fundBlockerReason(a) !== null) {
+        return;
+      }
       this.$emit('fund', a.name);
     },
     onRowEnter(e: MouseEvent, a: FundedAwardModel): void {
