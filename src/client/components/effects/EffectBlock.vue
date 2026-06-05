@@ -40,6 +40,10 @@
         <div v-if="eff.effectNode !== undefined" class="effect-item__render card-container" v-i18n>
           <CardRenderEffectBoxComponent :effectData="eff.effectNode" />
         </div>
+        <div v-else-if="eff.renderRoot !== undefined" class="effect-item__render card-container" v-i18n>
+          <CardRenderData :renderData="eff.renderRoot" />
+          <div v-if="eff.text" class="effect-item__desc">(<span v-i18n>{{ eff.text }}</span>)</div>
+        </div>
         <div v-else class="effect-item__text" v-i18n>{{ eff.text }}</div>
       </div>
     </div>
@@ -51,10 +55,11 @@ import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {EffectGroup} from '@/client/components/effects/effectExtraction';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
+import CardRenderData from '@/client/components/card/CardRenderData.vue';
 
 export default defineComponent({
   name: 'EffectBlock',
-  components: {CardRenderEffectBoxComponent},
+  components: {CardRenderEffectBoxComponent, CardRenderData},
   props: {
     group: {
       type: Object as PropType<EffectGroup>,
