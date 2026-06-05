@@ -702,18 +702,43 @@
     flex: 0 0 auto;
 }
 
-/* ── Prev / next navigation controls (premium HUD side controls) ────── *
- *  A hit-area button hosting a clipped dark-glass PLATE + a clean chevron.
- *  The plate carries the rim + glass + glow so it can animate independently
- *  of the (larger) hit-area. Angular HUD silhouette, in the same dark-glass
- *  + cyan-rim language as the action buttons. */
-@card-zoom-nav-shape: polygon(11px 0, calc(100% - 11px) 0, 100% 11px, 100% calc(100% - 11px), calc(100% - 11px) 100%, 11px 100%, 0 calc(100% - 11px), 0 11px);
+/* ── Prev / next navigation controls (premium rounded side controls) ── *
+ *  Clean rounded form — no angular cuts, no decorative side ticks. A
+ *  smooth dark-glass plate (generous border-radius), a thin cyan rim, soft
+ *  top highlight + bottom shade for weight, and a controlled glow on hover.
+ *  Each control is wrapped in a `-slot` that (a) hosts the disabled-reason
+ *  tooltip and (b) carries the z-index so BOTH controls sit on the SAME
+ *  level above the card (the old asymmetry — left behind / right on top —
+ *  was just DOM paint order with no explicit z-index). */
+.card-zoom-nav-slot {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* z-index FIX: lift both controls onto one level above the card stage,
+       so the card's glow / edges never paint over one arrow but under the
+       other. */
+    z-index: 3;
+    .premium-tooltip(220px);
+}
+/* The controls sit in the viewport gutters, so the shared (centred) tooltip
+   would overflow the screen edge — anchor prev's tooltip to its left edge and
+   next's to its right edge so the hint always stays on-screen. */
+.card-zoom-nav-slot--prev[data-hint]:not([data-hint=""]):hover::after {
+    left: 0;
+    right: auto;
+    transform: none;
+}
+.card-zoom-nav-slot--next[data-hint]:not([data-hint=""]):hover::after {
+    left: auto;
+    right: 0;
+    transform: none;
+}
 
 .card-zoom-nav {
     position: relative;
-    flex-shrink: 0;
-    width: 60px;
-    height: 128px;
+    width: 58px;
+    height: 104px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -728,28 +753,28 @@
 
 .card-zoom-nav__plate {
     position: absolute;
-    inset: 6px 3px;
+    inset: 0;
     z-index: 0;
-    clip-path: @card-zoom-nav-shape;
-    background: linear-gradient(158deg, rgba(24, 38, 55, 0.84) 0%, rgba(11, 19, 29, 0.8) 100%);
-    /* rim + top highlight are INSET (within the clip); the drop shadow is a
-       `filter` so it renders AROUND the clipped silhouette (box-shadow would
-       be clipped away). */
+    /* Clean rounded silhouette — no clip-path, so box-shadow renders fully
+       (rim + glow + drop) without the angular-clip workaround. */
+    border-radius: 24px;
+    background: linear-gradient(160deg, rgba(26, 41, 59, 0.88) 0%, rgba(12, 20, 31, 0.84) 100%);
     box-shadow:
-        inset 0 0 0 1px rgba(120, 178, 228, 0.34),
-        inset 0 1px 0 rgba(176, 210, 240, 0.14);
-    filter: drop-shadow(0 7px 18px rgba(0, 0, 0, 0.5));
-    transition: background 200ms ease, box-shadow 220ms ease, filter 220ms ease;
+        inset 0 0 0 1px rgba(122, 180, 230, 0.38),   /* thin cyan rim */
+        inset 0 1px 0 rgba(182, 215, 243, 0.16),       /* top highlight */
+        inset 0 -12px 20px rgba(0, 0, 0, 0.26),         /* bottom shade → weight */
+        0 10px 26px rgba(0, 0, 0, 0.5);                  /* drop */
+    transition: background 200ms ease, box-shadow 220ms ease, transform 200ms ease;
 }
 
 .card-zoom-nav__chevron {
     position: relative;
     z-index: 1;
-    width: 17px;
-    height: 17px;
+    width: 16px;
+    height: 16px;
     border-style: solid;
     border-width: 0;
-    border-color: rgba(200, 224, 246, 0.92);
+    border-color: rgba(204, 226, 247, 0.94);
     transform: rotate(45deg);
     filter: drop-shadow(0 0 5px rgba(106, 176, 230, 0.32));
     transition: border-color 180ms ease, filter 180ms ease;
@@ -757,23 +782,25 @@
 .card-zoom-nav--prev .card-zoom-nav__chevron {
     border-left-width: 3px;
     border-bottom-width: 3px;
-    margin-left: 7px;
+    margin-left: 5px;
 }
 .card-zoom-nav--next .card-zoom-nav__chevron {
     border-right-width: 3px;
     border-top-width: 3px;
-    margin-right: 7px;
+    margin-right: 5px;
 }
 
 /* Hover / focus — brighter rim + controlled cyan glow + a nudge toward
    the travel direction. */
 .card-zoom-nav:hover:not(:disabled) .card-zoom-nav__plate,
 .card-zoom-nav:focus-visible:not(:disabled) .card-zoom-nav__plate {
-    background: linear-gradient(158deg, rgba(34, 54, 76, 0.9) 0%, rgba(16, 27, 40, 0.85) 100%);
+    background: linear-gradient(160deg, rgba(38, 60, 84, 0.92) 0%, rgba(18, 30, 45, 0.88) 100%);
     box-shadow:
-        inset 0 0 0 1px rgba(150, 205, 245, 0.72),
-        inset 0 1px 0 rgba(190, 222, 248, 0.2);
-    filter: drop-shadow(0 0 13px rgba(106, 176, 230, 0.5)) drop-shadow(0 8px 18px rgba(0, 0, 0, 0.5));
+        inset 0 0 0 1px rgba(156, 210, 248, 0.85),
+        inset 0 1px 0 rgba(196, 226, 250, 0.24),
+        inset 0 -12px 20px rgba(0, 0, 0, 0.22),
+        0 0 22px rgba(106, 176, 230, 0.5),
+        0 12px 28px rgba(0, 0, 0, 0.5);
 }
 .card-zoom-nav:hover:not(:disabled) .card-zoom-nav__chevron,
 .card-zoom-nav:focus-visible:not(:disabled) .card-zoom-nav__chevron {
@@ -788,10 +815,10 @@
 /* Pressed — short tactile feedback: settle in + deepen the plate. */
 .card-zoom-nav:active:not(:disabled) { transform: scale(0.95); }
 .card-zoom-nav:active:not(:disabled) .card-zoom-nav__plate {
-    filter: drop-shadow(0 3px 9px rgba(0, 0, 0, 0.5));
     box-shadow:
-        inset 0 0 0 1px rgba(130, 188, 232, 0.5),
-        inset 0 2px 7px rgba(0, 0, 0, 0.42);
+        inset 0 0 0 1px rgba(140, 195, 240, 0.6),
+        inset 0 3px 11px rgba(0, 0, 0, 0.42),
+        0 4px 12px rgba(0, 0, 0, 0.45);
 }
 
 /* Disabled — dimmed but PRESENT (the player sees the control exists, just
@@ -800,9 +827,11 @@
     cursor: default;
 }
 .card-zoom-nav:disabled .card-zoom-nav__plate {
-    opacity: 0.3;
-    filter: saturate(0.35) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
-    box-shadow: inset 0 0 0 1px rgba(120, 178, 228, 0.18);
+    opacity: 0.32;
+    background: linear-gradient(160deg, rgba(22, 33, 47, 0.8) 0%, rgba(11, 18, 28, 0.78) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(120, 178, 228, 0.2),
+        0 6px 14px rgba(0, 0, 0, 0.35);
 }
 .card-zoom-nav:disabled .card-zoom-nav__chevron {
     opacity: 0.45;

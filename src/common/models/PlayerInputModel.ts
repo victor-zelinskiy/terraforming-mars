@@ -20,14 +20,18 @@ import {ClaimedToken} from '../underworld/UnderworldPlayerData';
  *
  *  - corporationInitialAction: the corp first-action OrOptions
  *    ('Take first action of X corporation' + Pass).
+ *  - corporationSelection: a 'choose an additional corporation to merge' SelectCard
+ *    (Merger prelude) — pick ONE of the dealt corps; it joins the player's tableau.
  *  - preludeSelection: a 'play a prelude' SelectCard. `preludeMode`:
  *      'hand' = the player's own starting preludes (play each, one at a time);
  *      'draw' = drew N, play exactly ONE, discard the rest (New Partner /
- *               Valley Trust) — rendered as a distinct "choose one" block.
+ *               Valley Trust) — rendered as a distinct "choose one" block;
+ *      'copy' = pick one ALREADY-PLAYED prelude to copy (Double Down) — the
+ *               source must stay in the grid (nothing is drawn or discarded).
  */
 export type StartGamePromptMeta = {
-  kind: 'corporationInitialAction' | 'preludeSelection';
-  preludeMode?: 'hand' | 'draw';
+  kind: 'corporationInitialAction' | 'corporationSelection' | 'preludeSelection';
+  preludeMode?: 'hand' | 'draw' | 'copy';
 }
 
 export type BaseInputModel = {

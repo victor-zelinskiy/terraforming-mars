@@ -67,21 +67,29 @@
       -->
       <div class="card-zoom-midrow">
         <!--
-          Prev / next navigation controls. Premium HUD side controls that live
-          in the viewer's gutters, never on the card. Bounded: at the first /
-          last card the control is DISABLED (dimmed but still visible) so the
-          edge of the set is felt, rather than a button vanishing.
+          Prev / next navigation controls. Premium side controls that live in
+          the viewer's gutters, never on the card. Bounded: at the first / last
+          card the control is DISABLED (dimmed but still visible) so the edge of
+          the set is felt, rather than a button vanishing.
+
+          The button is wrapped in a `-slot` that hosts the disabled-reason
+          tooltip via `data-hint` — a disabled <button> never fires `:hover`, so
+          the hint lives on the wrapper (which DOES get hover from the pointer).
+          `data-hint` is empty while the control is enabled (no tooltip then).
         -->
-        <button v-if="navEnabled"
-                type="button"
-                class="card-zoom-nav card-zoom-nav--prev"
-                :disabled="!canPrev"
-                :aria-label="$t('Previous card')"
-                data-test="card-zoom-prev"
-                @click="prev">
-          <span class="card-zoom-nav__plate" aria-hidden="true"></span>
-          <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
-        </button>
+        <div v-if="navEnabled"
+             class="card-zoom-nav-slot card-zoom-nav-slot--prev"
+             :data-hint="canPrev ? '' : $t('This is the first card')">
+          <button type="button"
+                  class="card-zoom-nav card-zoom-nav--prev"
+                  :disabled="!canPrev"
+                  :aria-label="$t('Previous card')"
+                  data-test="card-zoom-prev"
+                  @click="prev">
+            <span class="card-zoom-nav__plate" aria-hidden="true"></span>
+            <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
+          </button>
+        </div>
 
         <!--
           Card stage. A relative-positioned wrapper around exactly the card,
@@ -99,16 +107,19 @@
           </transition>
         </div>
 
-        <button v-if="navEnabled"
-                type="button"
-                class="card-zoom-nav card-zoom-nav--next"
-                :disabled="!canNext"
-                :aria-label="$t('Next card')"
-                data-test="card-zoom-next"
-                @click="next">
-          <span class="card-zoom-nav__plate" aria-hidden="true"></span>
-          <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
-        </button>
+        <div v-if="navEnabled"
+             class="card-zoom-nav-slot card-zoom-nav-slot--next"
+             :data-hint="canNext ? '' : $t('This is the last card')">
+          <button type="button"
+                  class="card-zoom-nav card-zoom-nav--next"
+                  :disabled="!canNext"
+                  :aria-label="$t('Next card')"
+                  data-test="card-zoom-next"
+                  @click="next">
+            <span class="card-zoom-nav__plate" aria-hidden="true"></span>
+            <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
+          </button>
+        </div>
       </div>
 
       <!--

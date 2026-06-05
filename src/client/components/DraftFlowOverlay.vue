@@ -59,7 +59,7 @@ import {
   shouldPreserveCardPickModal,
 } from '@/client/components/draftWaitState';
 import {handCardSelectionPrompt} from '@/client/components/handCards/handSelectState';
-import {startFlowAnyPreludePrompt} from '@/client/components/startGameFlow/startGameFlowState';
+import {startFlowAnyPreludePrompt, startFlowCorpSelectPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
 import DraftWaitingContent from '@/client/components/DraftWaitingContent.vue';
@@ -175,12 +175,11 @@ export default defineComponent({
       if (handCardSelectionPrompt(view) !== undefined) {
         return undefined;
       }
-      // Every start-of-game prelude selection — both the player's own starting
-      // preludes ('hand') AND the drew-N-choose-ONE prompts (New Partner /
-      // Valley Trust, 'draw') — is owned by StartGameFlowOverlay, not this draft
-      // modal. Suppress them here so the two don't both render. Detected via the
-      // explicit server marker (startGamePrompt).
-      if (startFlowAnyPreludePrompt(view) !== undefined) {
+      // Every start-of-game card prompt owned by StartGameFlowOverlay — prelude
+      // selections (hand / draw / copy) AND Merger's 'choose a corporation'
+      // (corporationSelection) — is suppressed here so the two don't both render.
+      // Detected via the explicit server marker (startGamePrompt).
+      if (startFlowAnyPreludePrompt(view) !== undefined || startFlowCorpSelectPrompt(view) !== undefined) {
         return undefined;
       }
       return wf;

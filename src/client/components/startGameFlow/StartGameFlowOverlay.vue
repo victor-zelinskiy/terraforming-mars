@@ -59,25 +59,66 @@
         </div>
 
         <div class="start-game-flow__body">
-          <!-- Corporation area -->
-          <section v-if="corpName !== undefined" class="start-game-flow__corp">
+          <!--
+            Corporation area — one column PER corporation (base corp + any
+            merged corp from Merger), side by side. Each corp's status + its
+            ПРИМЕНИТЬ ЭФФЕКТ button sit UNDER the card (so a second corp has room
+            to its right).
+          -->
+          <section v-if="corpCards.length > 0" class="start-game-flow__corp">
             <div class="start-game-flow__section-label" v-i18n>Corporation</div>
-            <div class="start-game-flow__corp-row">
-              <div class="start-game-flow__card-thumb">
-                <Card :card="{name: corpName}" />
-              </div>
-              <div class="start-game-flow__corp-meta">
-                <div class="start-game-flow__corp-status"
-                     :class="'start-game-flow__corp-status--' + corpStatus"
-                     data-test="start-game-flow-corp-status">
-                  <span v-i18n>{{ corpStatusLabel }}</span>
+            <div class="start-game-flow__corp-grid">
+              <div v-for="corp in corpCards"
+                   :key="corp.name"
+                   class="start-game-flow__corp-item"
+                   :data-test="'start-game-flow-corp-' + corp.name">
+                <div class="start-game-flow__card-thumb">
+                  <Card :card="{name: corp.name}" />
                 </div>
-                <button v-if="corpStatus === 'ready'"
+                <div v-if="corpStatusLabelFor(corp) !== ''"
+                     class="start-game-flow__corp-status"
+                     :class="'start-game-flow__corp-status--' + corp.status">
+                  <span v-i18n>{{ corpStatusLabelFor(corp) }}</span>
+                </div>
+                <button v-if="corp.status === 'ready'"
                         class="start-game-flow__apply-btn"
-                        @click="applyCorpEffect"
-                        data-test="start-game-flow-apply">
+                        @click="applyCorpEffect(corp.name)"
+                        :data-test="'start-game-flow-apply-' + corp.name">
                   <span v-i18n>Apply effect</span>
                 </button>
+              </div>
+            </div>
+          </section>
+
+          <!--
+            Merger ('MERGER') — choose ONE additional corporation to merge. The
+            chosen corp joins the corporation area above; unaffordable corps are
+            shown disabled with a hint. (Payment of 42 M€ follows as a normal
+            sub-action via MandatoryInputModal.)
+          -->
+          <section v-if="corpSelectCandidates.length > 0"
+                   class="start-game-flow__corp-select"
+                   data-test="start-game-flow-corp-select">
+            <div class="start-game-flow__section-label" v-i18n>Choose a corporation</div>
+            <div class="start-game-flow__prelude-grid">
+              <div v-for="cand in corpSelectCandidates"
+                   :key="cand.name"
+                   class="start-game-flow__prelude"
+                   :class="cand.disabled ? 'start-game-flow__prelude--discarded' : 'start-game-flow__prelude--playable'">
+                <div class="start-game-flow__card-thumb">
+                  <Card :card="{name: cand.name}" />
+                </div>
+                <button v-if="!cand.disabled"
+                        class="start-game-flow__play-btn"
+                        @click="selectMergerCorp(cand.name)"
+                        :data-test="'start-game-flow-corp-select-' + cand.name">
+                  <span v-i18n>Select</span>
+                </button>
+                <div v-else
+                     class="start-game-flow__blocked-note"
+                     :data-test="'start-game-flow-corp-disabled-' + cand.name">
+                  <span v-i18n>Not enough M€</span>
+                </div>
               </div>
             </div>
           </section>
@@ -86,8 +127,8 @@
           <section v-if="preludeTotal > 0" class="start-game-flow__preludes">
             <div class="start-game-flow__section-label" v-i18n>Preludes</div>
             <div class="start-game-flow__prelude-grid">
-              <div v-for="(entry, i) in preludes"
-                   :key="entry.name + '-' + i"
+              <div v-for="entry in preludes"
+                   :key="entry.name"
                    class="start-game-flow__prelude"
                    :class="'start-game-flow__prelude--' + entry.status"
                    :data-test="'start-game-flow-prelude-' + entry.status">
@@ -100,12 +141,23 @@
                      :class="'start-game-flow__prelude-status--' + entry.status">
                   <span v-i18n>{{ preludeStatusLabel(entry.status) }}</span>
                 </div>
-                <button v-if="entry.status === 'playable'"
+                <button v-if="entry.status === 'playable' && !entry.blocked"
                         class="start-game-flow__play-btn"
                         @click="playPrelude(entry.name)"
                         :data-test="'start-game-flow-play-' + entry.name">
                   <span v-i18n>Play now</span>
                 </button>
+                <!--
+                  Would FIZZLE right now (e.g. Double Down before any other
+                  prelude is played — nothing to copy). РАЗЫГРАТЬ is withheld
+                  with a clear hint so the player plays a productive prelude
+                  first instead of wasting this one for 15 M€.
+                -->
+                <div v-else-if="entry.blocked"
+                     class="start-game-flow__blocked-note"
+                     :data-test="'start-game-flow-blocked-' + entry.name">
+                  <span v-i18n>Play another prelude first</span>
+                </div>
               </div>
             </div>
           </section>
@@ -157,6 +209,33 @@
                      :class="name === rec.chosen ? 'start-game-flow__prelude-status--played' : 'start-game-flow__prelude-status--discarded'">
                   <span v-i18n>{{ name === rec.chosen ? 'Played' : 'Discarded' }}</span>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <!--
+            Double Down ('УДВОЕНИЕ') — pick one ALREADY-PLAYED prelude to copy.
+            The source stays in the grid above (it's a played prelude); this is
+            just the actionable picker. Nothing is drawn or discarded, so there
+            is no РАЗЫГРАНА/СБРОШЕНА resolution and no grid exclusion.
+          -->
+          <section v-if="copyCandidates.length > 0"
+                   class="start-game-flow__draw start-game-flow__copy"
+                   data-test="start-game-flow-copy">
+            <div class="start-game-flow__section-label" v-i18n>Choose a prelude to copy</div>
+            <div class="start-game-flow__prelude-grid">
+              <div v-for="(name, i) in copyCandidates"
+                   :key="'copy-' + name + '-' + i"
+                   class="start-game-flow__prelude start-game-flow__prelude--playable">
+                <div class="start-game-flow__card-thumb"
+                     @click.capture.stop="openZoom(name)">
+                  <Card :card="{name}" />
+                </div>
+                <button class="start-game-flow__play-btn"
+                        @click="playCopyPrelude(name)"
+                        :data-test="'start-game-flow-copy-play-' + name">
+                  <span v-i18n>Copy</span>
+                </button>
               </div>
             </div>
           </section>
@@ -257,16 +336,20 @@ import {
   startGameFlowAllDone,
   startFlowHasFocusedSubAction,
   startFlowCorpPrompt,
+  startFlowCorpSelectPrompt,
   startFlowPreludeDrawPrompt,
-  corpActionOptionIndex,
+  startFlowPreludeCopyPrompt,
+  corpActionOptionIndexFor,
+  corporationCardNames,
+  corpStatusFor,
   preludeEntries,
-  corporationCardName,
   markStartFlowActivated,
   markStartFlowCompleted,
   recordDrawChoice,
   drawChoicesFor,
   PreludeEntry,
   PreludeStatus,
+  CorpStatus,
   DrawChoiceRecord,
 } from '@/client/components/startGameFlow/startGameFlowState';
 
@@ -277,9 +360,10 @@ function isPlayerView(view: ViewModel | undefined): view is PlayerViewModel {
 }
 
 type DataModel = {
-  // Latches true once we've seen the corp owe an initial action, so the "done"
-  // state can read "effect applied" rather than "no start action".
-  corpActionWasPending: boolean;
+  // Corp names we've seen owe an initial action, so a 'done' corp reads "effect
+  // applied" rather than nothing (per-corp — a Merger can give two corps each
+  // with an effect).
+  corpsThatHadAction: Array<CardName>;
   // Player pressed ↗ СВЕРНУТЬ — collapse to the pill (distinct from the
   // automatic sub-action minimize). Reset when the actionable step changes.
   userMinimized: boolean;
@@ -306,7 +390,7 @@ export default defineComponent({
     },
   },
   data(): DataModel {
-    return {corpActionWasPending: false, userMinimized: false, lastStepSignature: '', zoomCard: undefined};
+    return {corpsThatHadAction: [], userMinimized: false, lastStepSignature: '', zoomCard: undefined};
   },
   watch: {
     // Latch activation + derive the minimize state on every view change.
@@ -319,8 +403,12 @@ export default defineComponent({
         if (startGameFlowEligible(view)) {
           markStartFlowActivated(view.id);
         }
-        if ((view.pendingInitialActions ?? []).length > 0 || startFlowCorpPrompt(view) !== undefined) {
-          this.corpActionWasPending = true;
+        // Remember every corp that owed an action (so a later 'done' reads
+        // "effect applied"). Per-corp, since Merger can add a second such corp.
+        for (const name of view.pendingInitialActions ?? []) {
+          if (!this.corpsThatHadAction.includes(name)) {
+            this.corpsThatHadAction.push(name);
+          }
         }
         startGameFlowState.minimized = startFlowHasFocusedSubAction(view);
         // A NEW actionable step un-minimizes the manual collapse so the player
@@ -365,16 +453,30 @@ export default defineComponent({
       const view = this.playerViewTyped;
       return view === undefined ? [] : drawChoicesFor(view.id);
     },
+    // Candidates of the live "pick a played prelude to copy" prompt (Double Down).
+    // These are ALREADY-PLAYED preludes — they stay in the grid, nothing is
+    // discarded, so they're NOT recorded as draw-choices.
+    copyCandidates(): ReadonlyArray<CardName> {
+      const view = this.playerViewTyped;
+      if (view === undefined) {
+        return [];
+      }
+      const prompt = startFlowPreludeCopyPrompt(view);
+      return prompt === undefined ? [] : prompt.cards.map((c) => c.name);
+    },
     // Names the player can PLAY right now (a playable starting prelude OR a live
-    // draw candidate) — gates the РАЗЫГРАТЬ in the fullscreen viewer.
+    // draw / copy candidate) — gates the РАЗЫГРАТЬ in the fullscreen viewer.
     playableZoomNames(): ReadonlySet<CardName> {
       const s = new Set<CardName>();
       for (const e of this.preludes) {
-        if (e.status === 'playable') {
+        if (e.status === 'playable' && !e.blocked) {
           s.add(e.name);
         }
       }
       for (const n of this.drawCandidates) {
+        s.add(n);
+      }
+      for (const n of this.copyCandidates) {
         s.add(n);
       }
       return s;
@@ -391,6 +493,9 @@ export default defineComponent({
       for (const n of this.drawCandidates) {
         names.push(n);
       }
+      for (const n of this.copyCandidates) {
+        names.push(n);
+      }
       for (const rec of this.resolvedDrawChoices) {
         for (const n of rec.candidates) {
           names.push(n);
@@ -398,9 +503,23 @@ export default defineComponent({
       }
       return [...new Set(names)].map((name) => ({name}));
     },
-    corpName(): CardName | undefined {
+    // Every corporation the player has (base + any merged from Merger), each
+    // with its own start-effect status — drives the per-corp columns.
+    corpCards(): ReadonlyArray<{name: CardName, status: CorpStatus}> {
       const view = this.playerViewTyped;
-      return view === undefined ? undefined : corporationCardName(view);
+      if (view === undefined) {
+        return [];
+      }
+      return corporationCardNames(view).map((name) => ({name, status: corpStatusFor(view, name)}));
+    },
+    // Merger's 'choose a corporation' candidates (disabled = unaffordable).
+    corpSelectCandidates(): ReadonlyArray<{name: CardName, disabled: boolean}> {
+      const view = this.playerViewTyped;
+      if (view === undefined) {
+        return [];
+      }
+      const prompt = startFlowCorpSelectPrompt(view);
+      return (prompt?.cards ?? []).map((c) => ({name: c.name, disabled: c.isDisabled === true}));
     },
     preludes(): ReadonlyArray<PreludeEntry> {
       const view = this.playerViewTyped;
@@ -412,18 +531,14 @@ export default defineComponent({
     preludePlayedCount(): number {
       return this.preludes.filter((p) => p.status === 'played').length;
     },
-    // 'ready'   — corp prompt is live → show ПРИМЕНИТЬ ЭФФЕКТ.
-    // 'pending' — corp owes an action but not promptable yet (preludes / waiting).
-    // 'done'    — no action owed: applied earlier, or never had one.
-    corpStatus(): 'ready' | 'pending' | 'done' {
-      const view = this.playerViewTyped;
-      if (view === undefined) {
-        return 'done';
-      }
-      if (startFlowCorpPrompt(view) !== undefined) {
+    // Aggregate corp status for the HEADER chip: ready if any corp is ready,
+    // else pending if any is pending, else done.
+    corpStatus(): CorpStatus {
+      const cards = this.corpCards;
+      if (cards.some((c) => c.status === 'ready')) {
         return 'ready';
       }
-      if ((view.pendingInitialActions ?? []).length > 0) {
+      if (cards.some((c) => c.status === 'pending')) {
         return 'pending';
       }
       return 'done';
@@ -435,7 +550,7 @@ export default defineComponent({
       if (this.corpStatus === 'pending') {
         return 'Start effect awaiting';
       }
-      return this.corpActionWasPending ? 'Effect applied' : 'No start action';
+      return 'Ready';
     },
     allDone(): boolean {
       const view = this.playerViewTyped;
@@ -496,6 +611,12 @@ export default defineComponent({
       recordDrawChoice(view.id, prompt.cards.map((c) => c.name), name);
       this.onsave({type: 'card', cards: [name]});
     },
+    // A Double Down copy-source pick: just submit the chosen prelude. NO
+    // recordDrawChoice — the source is an already-played prelude that must stay
+    // in the grid, and nothing is discarded.
+    playCopyPrelude(name: CardName): void {
+      this.onsave({type: 'card', cards: [name]});
+    },
     // Open a prelude in the fullscreen viewer (suppressing the card's own zoom).
     openZoom(name: CardName): void {
       this.zoomCard = {name};
@@ -504,10 +625,13 @@ export default defineComponent({
       });
     },
     // Dispatch a play to the right path: a live draw candidate goes through the
-    // draw-choice recorder, a starting prelude through the normal play.
+    // draw-choice recorder; a copy candidate (Double Down) submits without
+    // recording; a starting prelude through the normal play.
     playByName(name: CardName): void {
       if (this.drawCandidates.includes(name)) {
         this.playDrawPrelude(name);
+      } else if (this.copyCandidates.includes(name)) {
+        this.playCopyPrelude(name);
       } else {
         this.playPrelude(name);
       }
@@ -533,21 +657,40 @@ export default defineComponent({
     stepSignature(view: PlayerViewModel): string {
       const wf = view.waitingFor === undefined ? 'wait' : view.waitingFor.type;
       const corp = startFlowCorpPrompt(view) !== undefined ? 'c' : '';
+      const corpSel = startFlowCorpSelectPrompt(view) !== undefined ? 's' : '';
       const draw = startFlowPreludeDrawPrompt(view) !== undefined ? 'd' : '';
       const done = startGameFlowAllDone(view) ? 'done' : '';
-      return [wf, corp, draw, done].join('|');
+      return [wf, corp, corpSel, draw, done].join('|');
     },
-    applyCorpEffect(): void {
+    // Per-corp status label for the corp columns. Empty for a 'done' corp that
+    // never owed an action (e.g. most base corps) — that column shows just the
+    // card with no status line.
+    corpStatusLabelFor(corp: {name: CardName, status: CorpStatus}): string {
+      if (corp.status === 'ready') {
+        return 'Start effect ready';
+      }
+      if (corp.status === 'pending') {
+        return 'Start effect awaiting';
+      }
+      return this.corpsThatHadAction.includes(corp.name) ? 'Effect applied' : '';
+    },
+    // Apply a SPECIFIC corp's first action — submit the corp OrOptions option
+    // matching that corp (by CARD token, never Pass). Handles the multi-corp
+    // (Merger) case where the OrOptions offers more than one corp.
+    applyCorpEffect(corpName: CardName): void {
       const view = this.playerViewTyped;
       if (view === undefined) {
         return;
       }
-      const prompt = startFlowCorpPrompt(view);
-      const index = corpActionOptionIndex(prompt);
+      const index = corpActionOptionIndexFor(startFlowCorpPrompt(view), corpName);
       if (index === -1) {
         return;
       }
       this.onsave({type: 'or', index, response: {type: 'option'}});
+    },
+    // Merger: pick one of the dealt corporations to merge into the tableau.
+    selectMergerCorp(name: CardName): void {
+      this.onsave({type: 'card', cards: [name]});
     },
     beginGame(): void {
       // No server round-trip — the action menu ('Take your first action') is

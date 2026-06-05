@@ -14,6 +14,7 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Message} from '@/common/logs/Message';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectCardModel, OrOptionsModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -75,11 +76,23 @@ export const startGameFlowState: StartGameFlowStateShape = reactive({
   drawChoices: [],
 });
 
+/*
+ * STABLE display order of each player's starting preludes (per player id),
+ * append-only: a prelude's slot is fixed the first time it appears and NEVER
+ * reorders, so playing it only flips its visual status (it does NOT jump to the
+ * front). Deliberately NON-reactive — `preludeEntries` records into it during a
+ * computed, and a reactive write there would re-trigger the computed; the
+ * non-reactive store mutates quietly and is read back on the next natural
+ * re-run (driven by tableau/hand changes).
+ */
+const preludeOrderStore = new Map<string, Array<CardName>>();
+
 export function resetStartGameFlow(): void {
   startGameFlowState.activatedPlayers = [];
   startGameFlowState.completedPlayers = [];
   startGameFlowState.minimized = false;
   startGameFlowState.drawChoices = [];
+  preludeOrderStore.clear();
 }
 
 /** Record a resolved draw-choice (called at pick time, before submitting). */
@@ -117,18 +130,21 @@ export function markStartFlowCompleted(id: string): void {
   if (!startGameFlowState.completedPlayers.includes(id)) {
     startGameFlowState.completedPlayers.push(id);
   }
-  // The draw-choice history was only for this flow's display — drop it so it
-  // can't leak into a later game in the same client session.
+  // The draw-choice history + stable order were only for this flow's display —
+  // drop them so they can't leak into a later game in the same client session.
   startGameFlowState.drawChoices = startGameFlowState.drawChoices.filter((r) => r.ownerId !== id);
+  preludeOrderStore.delete(id);
 }
 
 /**
  * A start-flow prelude selection of the given mode, detected PURELY via the
  * explicit server marker (`startGamePrompt`) — never the (translatable) title.
  *   'hand' = the player's own starting preludes (played one at a time → the grid);
- *   'draw' = drew N, choose ONE, discard the rest (New Partner / Valley Trust).
+ *   'draw' = drew N, choose ONE, discard the rest (New Partner / Valley Trust);
+ *   'copy' = pick one already-played prelude to copy (Double Down) — the source
+ *            STAYS in the grid, nothing is discarded.
  */
-function preludeSelectionPrompt(view: PlayerViewModel | undefined, mode: 'hand' | 'draw'): SelectCardModel | undefined {
+function preludeSelectionPrompt(view: PlayerViewModel | undefined, mode: 'hand' | 'draw' | 'copy'): SelectCardModel | undefined {
   if (view === undefined) {
     return undefined;
   }
@@ -150,9 +166,14 @@ export function startFlowPreludeDrawPrompt(view: PlayerViewModel | undefined): S
   return preludeSelectionPrompt(view, 'draw');
 }
 
-/** Either kind of start-flow prelude prompt (used by legacy-route suppression). */
+/** Start-flow 'pick a played prelude to copy' prompt (Double Down). */
+export function startFlowPreludeCopyPrompt(view: PlayerViewModel | undefined): SelectCardModel | undefined {
+  return preludeSelectionPrompt(view, 'copy');
+}
+
+/** Any start-flow prelude prompt — hand / draw / copy (used by suppression). */
 export function startFlowAnyPreludePrompt(view: PlayerViewModel | undefined): SelectCardModel | undefined {
-  return startFlowPreludePrompt(view) ?? startFlowPreludeDrawPrompt(view);
+  return startFlowPreludePrompt(view) ?? startFlowPreludeDrawPrompt(view) ?? startFlowPreludeCopyPrompt(view);
 }
 
 /**
@@ -173,7 +194,7 @@ export function startFlowCorpPrompt(view: PlayerViewModel | undefined): OrOption
 /**
  * Index of the corp-action option inside the corp OrOptions — the option that
  * does NOT carry the 'pass' warning (the Pass option always does). Structural &
- * translation-proof. Returns -1 if not found.
+ * translation-proof. Returns -1 if not found. Used for the single-corp case.
  */
 export function corpActionOptionIndex(prompt: OrOptionsModel | undefined): number {
   if (prompt === undefined) {
@@ -183,49 +204,159 @@ export function corpActionOptionIndex(prompt: OrOptionsModel | undefined): numbe
     (o) => !((o as SelectOptionModel).warnings ?? []).includes('pass'));
 }
 
+/** Card names referenced by an option title's CARD data tokens (NOT translated). */
+function titleCardNames(title: string | Message | undefined): ReadonlyArray<string> {
+  if (title === undefined || typeof title === 'string') {
+    return [];
+  }
+  return (title.data ?? [])
+    .filter((d) => d.type === LogMessageDataType.CARD)
+    .map((d) => String(d.value));
+}
+
+/**
+ * Index of the option inside the corp OrOptions that applies a SPECIFIC corp's
+ * first action — matched by the CARD token in the option title (the corp name,
+ * which i18n never translates). Needed when the player has MORE than one corp
+ * owing an action (Merger): each gets its own ПРИМЕНИТЬ ЭФФЕКТ button. -1 if not
+ * present (that corp isn't currently offered).
+ */
+export function corpActionOptionIndexFor(prompt: OrOptionsModel | undefined, corpName: CardName): number {
+  if (prompt === undefined) {
+    return -1;
+  }
+  return (prompt.options ?? []).findIndex(
+    (o) => titleCardNames(o.title).includes(corpName));
+}
+
+/**
+ * The current waitingFor IS the 'choose an additional corporation' SelectCard
+ * (Merger) — detected via the explicit server marker. Unaffordable corps arrive
+ * with `isDisabled` on their CardModel.
+ */
+export function startFlowCorpSelectPrompt(view: PlayerViewModel | undefined): SelectCardModel | undefined {
+  if (view === undefined) {
+    return undefined;
+  }
+  const wf = view.waitingFor;
+  if (wf === undefined || wf.type !== 'card') {
+    return undefined;
+  }
+  return wf.startGamePrompt?.kind === 'corporationSelection' ? wf : undefined;
+}
+
 export type PreludeStatus = 'awaiting' | 'playable' | 'played';
 
 export type PreludeEntry = {
   name: CardName;
   status: PreludeStatus;
+  // A 'playable' prelude that would FIZZLE right now (server `preludeFizzle`
+  // warning — e.g. Double Down with nothing yet to copy) AND there is a better,
+  // non-fizzling prelude still to play. Its РАЗЫГРАТЬ is disabled so the player
+  // plays the productive one first. NOT set when every remaining prelude would
+  // fizzle (then the player must be allowed to play one — no trap).
+  blocked: boolean;
 };
 
 /**
- * The player's STARTING prelude set for the grid: played preludes (tableau cards
- * whose ClientCard.type === PRELUDE) first, then still-awaiting preludes
- * (preludeCardsInHand). A still-awaiting prelude is 'playable' when it's a
- * candidate of the live prelude prompt, else 'awaiting'. Filtering tableau by
- * type excludes the corporation + every project card. Drew-N-choose-ONE preludes
- * (New Partner / Valley Trust) are EXCLUDED — they live in their own
- * draw-choice block, not the starting grid, even after the chosen one is played
- * (and thus appears in the tableau).
+ * The player's STARTING prelude set for the grid, in a STABLE order: a prelude's
+ * slot is fixed the first time it appears (`preludeOrderStore`, append-only) and
+ * NEVER moves — playing it only flips its visual status from playable/awaiting to
+ * played, it does NOT jump to the front. Statuses: played = a tableau card whose
+ * ClientCard.type === PRELUDE; awaiting/playable = a `preludeCardsInHand` card
+ * ('playable' when it's a candidate of the live prelude prompt). Filtering by
+ * type excludes the corporation + project cards. Drew-N-choose-ONE preludes
+ * (New Partner / Valley Trust) are EXCLUDED (their own block); Double Down copy
+ * candidates are already-played preludes and DO stay (they're not draw-choices).
  */
 export function preludeEntries(view: PlayerViewModel): ReadonlyArray<PreludeEntry> {
-  const prompt = startFlowPreludePrompt(view);
-  const playableNames = new Set((prompt?.cards ?? []).map((c) => c.name));
+  const candidates = startFlowPreludePrompt(view)?.cards ?? [];
+  const playableNames = new Set(candidates.map((c) => c.name));
+  // Candidates the server flagged as 'preludeFizzle' — they'd do nothing now
+  // (Double Down with nothing to copy; a prelude with unmet requirements).
+  const fizzleNames = new Set(
+    candidates.filter((c) => (c.warnings ?? []).includes('preludeFizzle')).map((c) => c.name));
   const drawNames = drawChoiceCandidateNames(view.id);
 
-  const played: Array<PreludeEntry> = [];
+  // Current name → status (insertion order: played, then hand — only used the
+  // FIRST time a name is seen, to seed its permanent slot).
+  const statusByName = new Map<CardName, PreludeStatus>();
   for (const c of view.thisPlayer.tableau) {
     if (getCard(c.name)?.type === CardType.PRELUDE && !drawNames.has(c.name)) {
-      played.push({name: c.name, status: 'played'});
+      statusByName.set(c.name, 'played');
     }
   }
-  const awaiting: Array<PreludeEntry> = (view.preludeCardsInHand ?? []).map((c) => ({
-    name: c.name,
-    status: playableNames.has(c.name) ? 'playable' : 'awaiting',
-  }));
-  return [...played, ...awaiting];
+  for (const c of view.preludeCardsInHand ?? []) {
+    statusByName.set(c.name, playableNames.has(c.name) ? 'playable' : 'awaiting');
+  }
+
+  // Append any newly-seen prelude to this player's permanent order, then render
+  // in that order so positions never shuffle as cards move hand → tableau.
+  let order = preludeOrderStore.get(view.id);
+  if (order === undefined) {
+    order = [];
+    preludeOrderStore.set(view.id, order);
+  }
+  for (const name of statusByName.keys()) {
+    if (!order.includes(name)) {
+      order.push(name);
+    }
+  }
+
+  const entries: Array<PreludeEntry> = [];
+  for (const name of order) {
+    const status = statusByName.get(name);
+    if (status !== undefined) {
+      entries.push({name, status, blocked: false});
+    }
+  }
+  // Block a would-fizzle playable prelude ONLY while a non-fizzling playable
+  // alternative exists — so the player plays the productive prelude first, but
+  // is never trapped when everything left would fizzle.
+  const hasNonFizzlePlayable = entries.some((e) => e.status === 'playable' && !fizzleNames.has(e.name));
+  if (hasNonFizzlePlayable) {
+    for (const e of entries) {
+      if (e.status === 'playable' && fizzleNames.has(e.name)) {
+        e.blocked = true;
+      }
+    }
+  }
+  return entries;
 }
 
-/** The corporation card on this player's tableau (CardType.CORPORATION), if any. */
-export function corporationCardName(view: PlayerViewModel): CardName | undefined {
+/** Every corporation on this player's tableau (CardType.CORPORATION), in play
+ * order (base corp first, then any merged corp from Merger). */
+export function corporationCardNames(view: PlayerViewModel): ReadonlyArray<CardName> {
+  const names: Array<CardName> = [];
   for (const c of view.thisPlayer.tableau) {
     if (getCard(c.name)?.type === CardType.CORPORATION) {
-      return c.name;
+      names.push(c.name);
     }
   }
-  return undefined;
+  return names;
+}
+
+/** The (first) corporation on this player's tableau, if any. */
+export function corporationCardName(view: PlayerViewModel): CardName | undefined {
+  return corporationCardNames(view)[0];
+}
+
+export type CorpStatus = 'ready' | 'pending' | 'done';
+
+/**
+ * A specific corp's start-effect status: 'ready' = the live corp OrOptions has
+ * an option for THIS corp (apply now); 'pending' = it still owes its action but
+ * isn't promptable yet; 'done' = no action owed (applied, or never had one).
+ */
+export function corpStatusFor(view: PlayerViewModel, corpName: CardName): CorpStatus {
+  const prompt = startFlowCorpPrompt(view);
+  if (prompt !== undefined && corpActionOptionIndexFor(prompt, corpName) !== -1) {
+    return 'ready';
+  }
+  if ((view.pendingInitialActions ?? []).includes(corpName)) {
+    return 'pending';
+  }
+  return 'done';
 }
 
 /**
@@ -250,7 +381,8 @@ export function startGameFlowEligible(view: PlayerViewModel | undefined): boolea
     startFlowAnyPreludePrompt(view) !== undefined;
   const owesCorp =
     (view.pendingInitialActions ?? []).length > 0 ||
-    startFlowCorpPrompt(view) !== undefined;
+    startFlowCorpPrompt(view) !== undefined ||
+    startFlowCorpSelectPrompt(view) !== undefined;
   return owesPrelude || owesCorp;
 }
 
@@ -289,7 +421,8 @@ export function startGameFlowAllDone(view: PlayerViewModel): boolean {
     startFlowAnyPreludePrompt(view) === undefined;
   const corpDone =
     (view.pendingInitialActions ?? []).length === 0 &&
-    startFlowCorpPrompt(view) === undefined;
+    startFlowCorpPrompt(view) === undefined &&
+    startFlowCorpSelectPrompt(view) === undefined;
   return preludesDone && corpDone;
 }
 
@@ -314,6 +447,9 @@ export function startFlowHasFocusedSubAction(view: PlayerViewModel | undefined):
     return false;
   }
   if (startFlowCorpPrompt(view) !== undefined) {
+    return false;
+  }
+  if (startFlowCorpSelectPrompt(view) !== undefined) {
     return false;
   }
   if (ACTION_MENU_TITLES.has(titleText(wf.title))) {

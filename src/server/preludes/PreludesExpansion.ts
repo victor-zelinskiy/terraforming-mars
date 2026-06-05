@@ -41,11 +41,17 @@ export class PreludesExpansion {
 
     // 'hand' = the player's own starting preludes (Player.takeAction plays them
     // one at a time); 'draw' = freshly drawn preludes where the player picks ONE
-    // and the rest are discarded (New Partner / Valley Trust). Authoritative on
-    // the server, so the premium modal never has to guess. The cards are drawn
-    // anew for 'draw' callers, so none of them is in the player's prelude hand.
-    const preludeMode: 'hand' | 'draw' =
-      cards.every((c) => player.preludeCardsInHand.includes(c)) ? 'hand' : 'draw';
+    // and the rest are discarded (New Partner / Valley Trust); 'copy' = pick one
+    // ALREADY-PLAYED prelude to copy (Double Down, `cardAction === 'double-down'`)
+    // — the source stays in play, nothing is discarded, so the premium modal must
+    // NOT drop it from the grid. Authoritative on the server, so the modal never
+    // has to guess (and `cardAction` is the only reliable signal for 'copy' —
+    // Double Down's candidates are played preludes, but can include New Partner
+    // from the hand, so a cards-vs-hand check would misclassify it).
+    const preludeMode: 'hand' | 'draw' | 'copy' =
+      cardAction === 'double-down' ?
+        'copy' :
+        (cards.every((c) => player.preludeCardsInHand.includes(c)) ? 'hand' : 'draw');
     return new SelectCard(
       'Select prelude card to play', 'Play', cards)
       .markStartGamePrompt({kind: 'preludeSelection', preludeMode})
