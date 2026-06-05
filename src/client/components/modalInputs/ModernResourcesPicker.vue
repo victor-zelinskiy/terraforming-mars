@@ -15,25 +15,31 @@
     </header>
 
     <div class="modal-input__dist">
-      <div v-for="unit in keys" :key="unit" class="modal-input__dist-row">
-        <span class="resource_icon" :class="'resource_icon--' + unit"></span>
-        <span class="modal-input__dist-name">{{ resourceName(unit) }}</span>
-        <button class="modal-input__step-btn"
-                :disabled="units[unit] <= 0"
-                @click="reduce(unit)"
-                :data-test="'modern-resources-dec-' + unit">−</button>
-        <span class="modal-input__step-value modal-input__step-value--sm"
-              :data-test="'modern-resources-value-' + unit">{{ units[unit] }}</span>
-        <button class="modal-input__step-btn"
-                :disabled="total >= playerinput.count"
-                @click="add(unit)"
-                :data-test="'modern-resources-inc-' + unit">+</button>
+      <div v-for="unit in keys" :key="unit"
+           class="modal-input__dist-row"
+           :class="{'modal-input__dist-row--active': units[unit] > 0}">
+        <span class="modal-input__dist-id">
+          <span class="resource_icon" :class="'resource_icon--' + unit"></span>
+          <span class="modal-input__dist-name">{{ resourceName(unit) }}</span>
+        </span>
+        <span class="modal-input__dist-controls">
+          <button class="modal-input__step-btn"
+                  :disabled="units[unit] <= 0"
+                  @click="reduce(unit)"
+                  :data-test="'modern-resources-dec-' + unit">−</button>
+          <span class="modal-input__step-value modal-input__step-value--sm"
+                :data-test="'modern-resources-value-' + unit">{{ units[unit] }}</span>
+          <button class="modal-input__step-btn"
+                  :disabled="total >= playerinput.count"
+                  @click="add(unit)"
+                  :data-test="'modern-resources-inc-' + unit">+</button>
+        </span>
       </div>
     </div>
 
     <div class="modal-input__dist-counter"
          :class="{'modal-input__dist-counter--complete': total === playerinput.count}">
-      {{ counterText }}
+      <span class="modal-input__dist-counter-text">{{ counterText }}</span>
     </div>
 
     <div class="modal-input__actions">

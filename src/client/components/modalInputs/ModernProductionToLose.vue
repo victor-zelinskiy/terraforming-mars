@@ -18,25 +18,33 @@
     <div class="modal-input__subtitle" v-i18n>Which resource production would you prefer to decrease?</div>
 
     <div class="modal-input__dist">
-      <div v-for="unit in deductibleUnits" :key="unit" class="modal-input__dist-row">
-        <span class="resource_icon" :class="'resource_icon--' + unit"></span>
-        <span class="modal-input__dist-name">{{ resourceName(unit) }}</span>
-        <button class="modal-input__step-btn"
-                :disabled="units[unit] <= 0"
-                @click="step(unit, -1)"
-                :data-test="'modern-ptl-dec-' + unit">−</button>
-        <span class="modal-input__step-value modal-input__step-value--sm"
-              :data-test="'modern-ptl-value-' + unit">{{ units[unit] }}</span>
-        <button class="modal-input__step-btn"
-                :disabled="total >= cost || units[unit] >= maxFor(unit)"
-                @click="step(unit, 1)"
-                :data-test="'modern-ptl-inc-' + unit">+</button>
+      <div v-for="unit in deductibleUnits" :key="unit"
+           class="modal-input__dist-row"
+           :class="{'modal-input__dist-row--active': units[unit] > 0}">
+        <span class="modal-input__dist-id">
+          <span class="modal-input__prod-frame">
+            <span class="resource_icon" :class="'resource_icon--' + unit"></span>
+          </span>
+          <span class="modal-input__dist-name">{{ resourceName(unit) }}</span>
+        </span>
+        <span class="modal-input__dist-controls">
+          <button class="modal-input__step-btn"
+                  :disabled="units[unit] <= 0"
+                  @click="step(unit, -1)"
+                  :data-test="'modern-ptl-dec-' + unit">−</button>
+          <span class="modal-input__step-value modal-input__step-value--sm"
+                :data-test="'modern-ptl-value-' + unit">{{ units[unit] }}</span>
+          <button class="modal-input__step-btn"
+                  :disabled="total >= cost || units[unit] >= maxFor(unit)"
+                  @click="step(unit, 1)"
+                  :data-test="'modern-ptl-inc-' + unit">+</button>
+        </span>
       </div>
     </div>
 
     <div class="modal-input__dist-counter"
          :class="{'modal-input__dist-counter--complete': total === cost}">
-      {{ counterText }}
+      <span class="modal-input__dist-counter-text">{{ counterText }}</span>
     </div>
 
     <div class="modal-input__actions">
