@@ -1,0 +1,360 @@
+/*
+ * effects_overlay.less — the premium "Эффекты" overlay (EffectsOverlay.vue +
+ * EffectBlock.vue). A centred dark-glass panel whose WIDTH + column count are
+ * JS-driven (`--effects-overlay-width`, `--effects-cols`) so it adapts from a
+ * narrow 1-column list to a wide multi-column grid filling the centre zone.
+ * Each effect is a self-contained premium block reusing the card's own effect
+ * render (CardRenderEffectBoxComponent). Shares the fork's sci-fi language:
+ * dark glass, cyan accents, L-corner ticks, Prototype font.
+ */
+
+.effects-board-overlay {
+    position: fixed;
+    z-index: 96;
+    top: 62px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--effects-overlay-width, 720px);
+    max-width: calc(100vw - 96px);
+    max-height: 86vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 7px;
+    border: 1px solid rgba(106, 176, 230, 0.26);
+    background:
+        radial-gradient(120% 80% at 50% -8%, rgba(120, 190, 240, 0.08), rgba(120, 190, 240, 0) 60%),
+        linear-gradient(180deg, rgba(18, 28, 42, 0.97) 0%, rgba(10, 18, 28, 0.98) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 30px 64px rgba(0, 0, 0, 0.6),
+        0 0 60px rgba(106, 176, 230, 0.1);
+    color: #e8f1fb;
+    font-family: Prototype, Ubuntu, sans-serif;
+    animation: effects-board-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes effects-board-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.effects-board__corner {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+    border-color: #6ab0e6;
+    opacity: 0.7;
+    filter: drop-shadow(0 0 5px rgba(106, 176, 230, 0.35));
+
+    &--tl { top: -7px; left: -7px;     border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -7px; right: -7px;    border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -7px; left: -7px;  border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -7px; right: -7px; border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────── */
+
+.effects-board__header {
+    flex-shrink: 0;
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+}
+.effects-board__title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.effects-board__glyph {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #7fd4ff;
+    box-shadow: 0 0 10px rgba(127, 212, 255, 0.85);
+    flex-shrink: 0;
+}
+.effects-board__title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #eaf3fc;
+    text-shadow: 0 0 12px rgba(106, 176, 230, 0.25);
+}
+.effects-board__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(106, 176, 230, 0.4);
+    background: rgba(8, 14, 22, 0.6);
+    font-size: 14px;
+    font-weight: 700;
+    color: #9ee0ff;
+    font-variant-numeric: tabular-nums;
+}
+.effects-board__close {
+    margin-left: auto;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(16, 26, 40, 0.7);
+    color: #9fb6cc;
+    font-size: 15px;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover { color: #fff; background: rgba(28, 44, 64, 0.9); box-shadow: 0 0 9px rgba(106, 176, 230, 0.3); }
+}
+
+/* Player switcher. */
+.effects-board__players {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 11px;
+}
+.effects-board__player {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px 5px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(106, 176, 230, 0.22);
+    background: rgba(16, 26, 40, 0.6);
+    color: #bcd0e6;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+
+    &:hover { border-color: #6ab0e6; color: #eaf3fc; transform: translateY(-1px); }
+}
+.effects-board__player--active {
+    border-color: #7fd4ff;
+    color: #eaf6ff;
+    background: rgba(16, 44, 64, 0.7);
+    box-shadow: 0 0 0 1px rgba(127, 212, 255, 0.4), 0 0 12px rgba(106, 176, 230, 0.3);
+}
+.effects-board__player-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+.effects-board__player-name { letter-spacing: 0.3px; }
+.effects-board__player-you {
+    font-size: 9px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #f0d28a;
+}
+
+/* ─── Body + adaptive grid ───────────────────────────────────────────── */
+
+.effects-board__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 18px 18px;
+    /* Custom thin scrollbar (scroll is the last resort). */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.35) transparent;
+    &::-webkit-scrollbar { width: 9px; }
+    &::-webkit-scrollbar-thumb { background: rgba(106, 176, 230, 0.3); border-radius: 5px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+}
+.effects-board__grid {
+    display: grid;
+    grid-template-columns: repeat(var(--effects-cols, 1), minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+.effects-board__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 48px 0;
+    color: #7f9bb8;
+}
+.effects-board__empty-glyph { font-size: 40px; opacity: 0.5; }
+.effects-board__empty-text { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; }
+
+/* ─── Effect block ───────────────────────────────────────────────────── */
+
+.effect-block {
+    display: flex;
+    flex-direction: column;
+    border-radius: 10px;
+    border: 1px solid rgba(106, 176, 230, 0.22);
+    background: linear-gradient(180deg, rgba(20, 30, 44, 0.9), rgba(12, 20, 32, 0.92));
+    overflow: hidden;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+
+    &:hover, &:focus-visible {
+        border-color: #6ab0e6;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4), 0 0 14px rgba(106, 176, 230, 0.22);
+        transform: translateY(-2px);
+    }
+}
+/* Corporation effects read with an amber accent (their defining ongoing rule). */
+.effect-block--corp {
+    border-color: rgba(230, 200, 120, 0.3);
+    &:hover, &:focus-visible {
+        border-color: #e6c87e;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4), 0 0 14px rgba(230, 200, 120, 0.25);
+    }
+}
+.effect-block--disabled {
+    opacity: 0.5;
+    filter: grayscale(0.55);
+}
+
+.effect-block__head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.14);
+    background: rgba(106, 176, 230, 0.06);
+}
+.effect-block--corp .effect-block__head {
+    border-bottom-color: rgba(230, 200, 120, 0.18);
+    background: rgba(230, 200, 120, 0.08);
+}
+.effect-block__accent {
+    width: 3px;
+    height: 15px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    background: #6ab0e6;
+    box-shadow: 0 0 6px rgba(106, 176, 230, 0.5);
+}
+.effect-block--corp .effect-block__accent {
+    background: #e6c87e;
+    box-shadow: 0 0 6px rgba(230, 200, 120, 0.5);
+}
+.effect-block__source {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #eaf3fc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.effect-block__type {
+    flex-shrink: 0;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #7f9bb8;
+}
+.effect-block--corp .effect-block__type { color: #c9a86a; }
+
+.effect-block__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 14px 12px 13px;
+
+    /* Reused card effect-box render: centre it + give the description a calm,
+       readable treatment inside the block (it carries the localized text). */
+    .card-effect-box {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 7px;
+    }
+    .card-effect-box-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 4px;
+        transform: scale(1.12);
+        transform-origin: center top;
+        margin-bottom: 4px;
+    }
+    .card-description {
+        font-size: 11.5px;
+        line-height: 1.4;
+        color: #c9d8ea;
+        text-align: center;
+        letter-spacing: 0.1px;
+    }
+}
+.effect-block__text {
+    font-size: 11.5px;
+    line-height: 1.4;
+    color: #c9d8ea;
+    text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .effects-board-overlay,
+    .effect-block,
+    .effects-board__player {
+        animation: none;
+        transition: none;
+    }
+    .effect-block:hover { transform: none; }
+}
+
+/* ─── Dev playground (?effectsPlayground) ────────────────────────────── */
+.effects-playground {
+    position: fixed;
+    inset: 0;
+    background:
+        radial-gradient(80% 60% at 50% 0%, rgba(40, 60, 90, 0.5), transparent 70%),
+        #0a121c;
+    z-index: 50;
+}
+.effects-playground__bar {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(106, 176, 230, 0.3);
+    background: rgba(14, 22, 34, 0.92);
+    color: #d6e2f2;
+    font-family: Prototype, Ubuntu, sans-serif;
+}
+.effects-playground__title { font-size: 12px; font-weight: 700; letter-spacing: 2px; color: #9ee0ff; }
+.effects-playground__hint { font-size: 11px; color: #8fa9c4; }
+.effects-playground__btn {
+    padding: 7px 16px;
+    border: 1px solid rgba(127, 212, 255, 0.5);
+    border-radius: 5px;
+    background: linear-gradient(180deg, #8fe0ff, #4ba8d8);
+    color: #04121e;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-size: 12px;
+    cursor: pointer;
+}

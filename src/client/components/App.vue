@@ -2,6 +2,8 @@
   <div :class="'topmost-'+screen">
     <!-- Dev-only modal-input visual playground (URL: ?modalPlayground). -->
     <ModalInputPlayground v-if="showModalPlayground" />
+    <!-- Dev-only effects-overlay visual playground (URL: ?effectsPlayground). -->
+    <EffectsPlayground v-if="showEffectsPlayground" />
     <!--
       Game-screen atmosphere backdrop. Mounted ONLY on in-game screens
       (player-home / spectator-home) — start / create / load / the-end
@@ -132,6 +134,7 @@ const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "star
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
 const ModalInputPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "modal-input-playground" */ '@/client/components/modalInputs/ModalInputPlayground.vue'));
+const EffectsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "effects-playground" */ '@/client/components/effects/EffectsPlayground.vue'));
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
@@ -246,6 +249,7 @@ export default defineComponent({
     DraftFlowOverlay,
     StartGameFlowOverlay,
     ModalInputPlayground,
+    EffectsPlayground,
     JournalPanel,
     DrawCardRevealFlow,
     GameAtmosphere,
@@ -280,6 +284,11 @@ export default defineComponent({
     // `?modalPlayground` (or `&modalPlayground`). Never shown in normal play.
     showModalPlayground(): boolean {
       return window.location.search.includes('modalPlayground');
+    },
+    // Dev-only: render the effects-overlay playground when the URL carries
+    // `?effectsPlayground`. Never shown in normal play.
+    showEffectsPlayground(): boolean {
+      return window.location.search.includes('effectsPlayground');
     },
   },
   methods: {

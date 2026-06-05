@@ -124,6 +124,10 @@
           <BarButtonIcon name="played" /><span class="bar-btn__label" v-i18n>Played</span>
           <span class="bar-btn__value">{{ displayedPlayedCardsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedPlayedCardsCount" metricKey="bar.played" :scopeKey="displayedPlayer.color" variant="misc" /></span>
         </div>
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'effects'}" v-on:click="toggleOverlay('effects')">
+          <BarButtonIcon name="effects" /><span class="bar-btn__label" v-i18n>Effects</span>
+          <span class="bar-btn__value">{{ displayedEffectsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedEffectsCount" metricKey="bar.effects" :scopeKey="displayedPlayer.color" variant="misc" /></span>
+        </div>
         <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'victoryPoints'}" v-on:click="toggleOverlay('victoryPoints')">
           <BarButtonIcon name="victory-points" /><span class="bar-btn__label" v-i18n>Victory Points</span>
           <span class="bar-btn__value">{{ displayedVictoryPoints }}<AnimatedMetricValue v-if="typeof displayedVictoryPoints === 'number'" class="bar-btn__feedback" :value="displayedVictoryPoints" metricKey="bar.vp" :scopeKey="displayedPlayer.color" variant="score" /></span>
@@ -298,6 +302,19 @@
       v-if="activeOverlay === 'played'"
       :displayedPlayer="displayedPlayer"
       :viewerColor="thisPlayer.color"
+      @close="activeOverlay = null" />
+
+    <!--
+      Effects overlay — the displayed player's ongoing/passive rules (blue cards
+      + corporations). Open information, so it offers an in-overlay player
+      switcher (re-points the global displayedPlayer via selectedPlayerColor).
+    -->
+    <EffectsOverlay
+      v-if="activeOverlay === 'effects'"
+      :displayedPlayer="displayedPlayer"
+      :players="playerView.players"
+      :viewerColor="thisPlayer.color"
+      @selectPlayer="selectedPlayerColor = $event"
       @close="activeOverlay = null" />
 
     <!--
@@ -600,6 +617,8 @@ import AwardFundedBadge from '@/client/components/overview/AwardFundedBadge.vue'
 import SelectSpace from '@/client/components/SelectSpace.vue';
 import StandardProjectsOverlay from '@/client/components/overview/StandardProjectsOverlay.vue';
 import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverlay.vue';
+import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
+import {playerEffectCount} from '@/client/components/effects/effectExtraction';
 import {totalPlayedCards} from '@/client/components/playedCards/playedCardGroups';
 import HandCardsOverlay from '@/client/components/handCards/HandCardsOverlay.vue';
 import {enterSellPatents, exitSellPatents} from '@/client/components/handCards/sellPatentsState';
@@ -689,7 +708,7 @@ type ToggleableState = {
 // Overlays opened by the top/bottom bar buttons. Only one can be visible at a time —
 // pressing a different button closes the previous overlay. Pressing the same button
 // again closes the active overlay.
-type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'actions' | 'played' | 'victoryPoints' | 'legacyUi';
+type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'actions' | 'played' | 'effects' | 'victoryPoints' | 'legacyUi';
 
 // Set while the player has chosen a Standard Project from the overlay
 // AND the choice requires picking between M€ and alternative resources.
@@ -1154,6 +1173,11 @@ export default defineComponent({
       // actually groups (known types via the client manifest), not the raw
       // tableau length.
       return totalPlayedCards(this.displayedPlayer);
+    },
+    // Number of active passive effects for the displayed player — drives the
+    // ЭФФЕКТЫ button badge + delta-chip.
+    displayedEffectsCount(): number {
+      return playerEffectCount(this.displayedPlayer.tableau);
     },
     displayedVictoryPoints(): number | string {
       const hide = !this.game.gameOptions.showOtherPlayersVP &&
@@ -1700,6 +1724,7 @@ export default defineComponent({
     'select-space': SelectSpace,
     StandardProjectsOverlay,
     PlayedCardsOverlay,
+    EffectsOverlay,
     HandCardsOverlay,
     OpponentHandOverlay,
     HandCardPaymentContent,
@@ -1791,6 +1816,7 @@ export default defineComponent({
       if (target.closest('.top-bar-dropdown') ||
           target.closest('.bar-overlay') ||
           target.closest('.played-board-overlay') ||
+          target.closest('.effects-board-overlay') ||
           target.closest('.hand-board-overlay') ||
           target.closest('.vp-board-overlay') ||
           target.closest('.legacy-ui-overlay') ||
