@@ -595,10 +595,19 @@ export default defineComponent({
     // width/height preserve its footprint once it's out of grid flow.
     onLeaveCapture(el: Element): void {
       const node = el as HTMLElement;
-      node.style.left = `${node.offsetLeft}px`;
-      node.style.top = `${node.offsetTop}px`;
-      node.style.width = `${node.offsetWidth}px`;
-      node.style.height = `${node.offsetHeight}px`;
+      // Read ALL geometry FIRST, then write. Reading an `offset*` after
+      // writing a style forces a synchronous reflow, so the previous
+      // interleaved form (write left = read offsetLeft; write top = read
+      // offsetTop; …) thrashed layout up to 4× per leaving card. One read
+      // pass + one write pass = a single forced reflow per card. (perf B12)
+      const left = node.offsetLeft;
+      const top = node.offsetTop;
+      const width = node.offsetWidth;
+      const height = node.offsetHeight;
+      node.style.left = `${left}px`;
+      node.style.top = `${top}px`;
+      node.style.width = `${width}px`;
+      node.style.height = `${height}px`;
     },
     openCard(card: CardModel): void {
       this.zoomCard = card;

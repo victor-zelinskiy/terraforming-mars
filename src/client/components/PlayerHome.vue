@@ -370,10 +370,10 @@
         <div :class="playedCardsTitleClass">{{ displayedPlayer.name }} — <span v-i18n>Action cards</span> ({{ availableActionsCount }})</div>
       </div>
       <div class="bar-overlay--played-cards">
-        <div v-for="card in sortActiveCards(getCardsByType(displayedPlayer.tableau, [CardType.ACTIVE, CardType.PRELUDE]).filter(isActive))" :key="card.name" class="cardbox">
+        <div v-for="card in displayedActionCards" :key="card.name" class="cardbox">
           <Card :card="card" :actionUsed="isCardActivated(card, displayedPlayer)" :cubeColor="displayedPlayer.color"/>
         </div>
-        <div v-if="sortActiveCards(getCardsByType(displayedPlayer.tableau, [CardType.ACTIVE, CardType.PRELUDE]).filter(isActive)).length === 0" class="bar-overlay__empty" v-i18n>No action cards</div>
+        <div v-if="displayedActionCards.length === 0" class="bar-overlay__empty" v-i18n>No action cards</div>
       </div>
     </div>
 
@@ -1095,6 +1095,15 @@ export default defineComponent({
     },
     availableActionsCount(): number {
       return this.displayedPlayer.availableBlueCardActionCount;
+    },
+    // Sorted ACTIVE/PRELUDE cards for the blue-card actions overlay. Cached as
+    // a computed (was an inline `sortActiveCards(getCardsByType(...).filter(...))`
+    // evaluated TWICE in the template — once for the v-for and once for the
+    // empty-state `.length === 0` check) so the getCardsByType→filter→sort
+    // chain runs at most once per relevant change instead of twice per render. (perf B11)
+    displayedActionCards(): ReadonlyArray<CardModel> {
+      return sortActiveCards(
+        getCardsByType(this.displayedPlayer.tableau, [CardType.ACTIVE, CardType.PRELUDE]).filter(this.isActive));
     },
     displayedCardsInHandCount(): number {
       // For the current user we know the exact cards in hand (preludes + ceos

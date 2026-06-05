@@ -305,3 +305,30 @@
 | 11 | Сохранение premium-стиля | ✅ раздел H |
 
 > **Не реализовано намеренно (по условию задачи): никаких фиксов.** Только исследование, доказательства и план.
+
+---
+
+## I. Implementation status (обновление: фиксы применены)
+
+После отчёта реализован **безопасный, верифицируемый код-ревью-чистый набор** из этапов 1–2. Остальные пункты — визуальные компромиссы / связаны с рисковым B8 — отложены до визуальной проверки пользователем (нельзя проверить в headless-окружении).
+
+### ✅ Сделано и проверено (build/types/tests/CSS зелёные)
+| Пункт | Файл(ы) | Суть |
+| --- | --- | --- |
+| **B11** | `Board.vue`, `PlayerHome.vue` | `getAllSpacesOnMars`/`getValuesForParameter`/inline-`sortActiveCards` → `computed` (стабильная identity, нет new-array per render) |
+| **B4** | `mandatory_input_modal.less` | `animation-play-state: paused` на `#player-home` под full-viewport blur (mandatory/colonies/card-zoom, исключая minimized/picker) — blur-backdrop перестаёт пересчитываться каждый кадр |
+| **B7** | `useBoardAutoScale.ts` | один `getComputedStyle` вместо двух + guard «не писать `--board-scale`, если значение не изменилось» (разрыв ResizeObserver→write→ResizeObserver петли) |
+| **B12** | `HandCardsOverlay.vue` | `onLeaveCapture`: батч read→write (было 4 forced reflow на уходящую карту, стало 1) |
+| **B13** | `CardZoomModal.vue` | preload соседних карт отложен на idle после open — открытие fullscreen рендерит 1 карту вместо 3 |
+
+Верификация: `vue-tsc --noEmit` — чисто; `Board.spec`/`PlayerHome.spec` — релевантные кейсы проходят (3 падения Board.spec про `hide-tiles-button` — пред-существующие, форк убрал кнопку); `lessc` — компилируется, правило паузы развёрнуто в 6 селекторов. **Runtime/визуальная проверка — за пользователем** (см. протокол G).
+
+### ⏸ Отложено (нужна визуальная проверка / связано с рисковым B8)
+| Пункт | Почему отложено |
+| --- | --- |
+| **B5 / B9** (схлопнуть multi-drop-shadow, per-card `filter`→`box-shadow`/спрайт) | Карты/тайлы с clip-path углами: `drop-shadow` (по альфе) ≠ `box-shadow` (по bbox) — видимая разница на срезанных углах; уменьшение слоёв «уплощает» глубину. Нужен визуальный сравнительный просмотр. |
+| **B6** (containment) | `contain: paint` обрезает выходящие за клетку/карту тени и glow; `contain: layout` рискует переякорить fixed/absolute popover недоступности; `content-visibility` ломает измерение `scrollHeight` в fit-движке. Все варианты требуют визуальной верификации. |
+| **B8** (`zoom`→`transform: scale`) | Жёстко связано с fit-движком: `transform` не меняет layout-box → `grid.scrollHeight` не уменьшается → fit ушёл бы в MIN. Требует переписать измерение fit + проверить auto-fit грид глазами. Самый высокий риск (в отчёте сам помечен «не делать рано»). |
+| **B10** (convert-icon `filter`/`mix-blend`→`opacity`/`transform`) | Модест-импакт (≤2 иконки), а `mix-blend-mode: screen` shimmer — специфичный «искрящийся» вид, рискованно воспроизвести 1-в-1. Нужен визуальный апрув. |
+| **B3** (агрессивный fit) | Шаг 3% выбран НАМЕРЕННО, чтобы карты были максимально крупными (цель no-scroll roomy); более крупный шаг ухудшает визуал. Реальный остаток выигрыша связан с B8. |
+| **B15** (облегчённый `mars.png`) | `original/mars.png` (~407 KB) сильно ниже разрешением — при scale 3–4× может замылиться (нарушает premium-цель). К тому же не влияет на runtime-лаги действий. Нужно сравнить качество глазами. |
