@@ -222,7 +222,7 @@
     "Pick a colony": "Выберите колонию",
     "Colony is inactive": "Колония неактивна",
     "Colony is inactive (not yet built on this game)": "Колония ещё не активирована в этой партии",
-    "Once activated, this colony joins the active colony pool and can be built on or traded with normally.": "После активации колония войдёт в общий пул: на ней можно будет строить и с ней можно будет торговать как с другими активными колониями.",
+    "After activation, you can build a colony here or send a trade fleet here.": "После активации здесь можно будет построить колонию или отправить торговый флот.",
     "Activated when any player plays a card with a microbe resource": "Активируется, когда любой игрок разыграет карту с ресурсом «микроб»",
     "Activated when any player plays a card with an animal resource": "Активируется, когда любой игрок разыграет карту с ресурсом «животное»",
     "Activated when any player plays a card with a floater resource": "Активируется, когда любой игрок разыграет карту с ресурсом «аэростат»",
@@ -514,6 +514,7 @@
 
     "Confirm": "Ok",
     "Pass": "Пас",
+    "Beginner Corporation": "Начинающая корпорация",
     "BEGINNER CORPORATION": "Начинающая корпорация",
     "Standard projects": "Стандартные проекты",
     "Play card": "Разыграть карту",

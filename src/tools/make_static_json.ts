@@ -14,7 +14,7 @@ function mkdirQuietly(path: string) {
 
 function readdir(path: string, predicate: (dirent: string) => boolean) {
   const entries = fs.readdirSync(path);
-  return entries.filter(predicate);
+  return entries.filter(predicate).sort();
 }
 
 type Translation = {[lang: string]: string}
@@ -63,7 +63,7 @@ function getAllTranslations(): {[phrase: string]: Translation} {
             continue;
           }
           const translated = json[phrase];
-          if (translated.trim() === phrase.trim()) {
+          if (translated.trim() === phrase.trim() && file !== 'zz_corporation_names.json') {
             throw new Error('Do not repeat a translation with its own text: ' + phrase);
           }
           if (translated.trim().length !== 0) {

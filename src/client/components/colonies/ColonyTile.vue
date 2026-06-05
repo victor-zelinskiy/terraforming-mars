@@ -389,7 +389,7 @@ export default defineComponent({
     },
     reasonTooltip(): string {
       if (!this.colony.isActive) {
-        return translateText('Once activated, this colony joins the active colony pool and can be built on or traded with normally.');
+        return translateText('After activation, you can build a colony here or send a trade fleet here.');
       }
       return this.disabledReason;
     },
