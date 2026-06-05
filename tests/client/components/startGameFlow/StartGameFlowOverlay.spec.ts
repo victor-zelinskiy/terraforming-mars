@@ -11,19 +11,36 @@ const PRELUDE_A = CardName.ECOLOGY_EXPERTS;
 const PRELUDE_B = CardName.SUPPLIER;
 const CORP = CardName.THARSIS_REPUBLIC;
 
-function preludePrompt(cards: ReadonlyArray<CardName>, mode: 'hand' | 'draw' = 'hand'): any {
+function preludePrompt(cards: ReadonlyArray<CardName>, mode: 'hand' | 'draw' | 'copy' = 'hand'): any {
   return {
     type: 'card', title: 'Select prelude card to play', buttonLabel: 'Play',
     startGamePrompt: {kind: 'preludeSelection', preludeMode: mode},
     cards: cards.map((name) => ({name})), min: 1, max: 1,
   };
 }
-function corpPrompt(): any {
+function corpPrompt(corpName: CardName = CORP): any {
   return {
     type: 'or', title: '', buttonLabel: '',
     startGamePrompt: {kind: 'corporationInitialAction'},
     options: [
-      {type: 'option', title: 'Take first action of Tharsis Republic corporation', buttonLabel: ''},
+      // Real option title shape: a Message with a CARD token = the corp name
+      // (the token value is what corpActionOptionIndexFor matches on).
+      {type: 'option', buttonLabel: '', title: {message: 'Take first action of ${0} corporation', data: [{type: 3, value: corpName}]}},
+      {type: 'option', title: 'Pass for this generation', buttonLabel: 'Pass', warnings: ['pass']},
+    ],
+  };
+}
+function corpSelectPrompt(cards: ReadonlyArray<any>): any {
+  return {
+    type: 'card', title: 'Choose corporation card to play', buttonLabel: 'Play',
+    startGamePrompt: {kind: 'corporationSelection'}, cards,
+  };
+}
+function multiCorpPrompt(corps: ReadonlyArray<CardName>): any {
+  return {
+    type: 'or', title: '', buttonLabel: '', startGamePrompt: {kind: 'corporationInitialAction'},
+    options: [
+      ...corps.map((name) => ({type: 'option', buttonLabel: '', title: {message: 'Take first action of ${0} corporation', data: [{type: 3, value: name}]}})),
       {type: 'option', title: 'Pass for this generation', buttonLabel: 'Pass', warnings: ['pass']},
     ],
   };
@@ -84,7 +101,7 @@ describe('StartGameFlowOverlay', () => {
       waitingFor: corpPrompt(),
       thisPlayer: {tableau: [{name: CORP}]} as any,
     }));
-    const apply = document.body.querySelector('[data-test="start-game-flow-apply"]');
+    const apply = document.body.querySelector(`[data-test="start-game-flow-apply-${CORP}"]`);
     expect(apply, 'apply button should render').to.not.eq(null);
     (apply as HTMLElement).click();
     await new Promise((r) => setTimeout(r, 0));
@@ -148,6 +165,81 @@ describe('StartGameFlowOverlay', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(lastBody?.type).to.eq('card');
     expect(lastBody?.cards).to.deep.eq([PRELUDE_A]);
+  });
+
+  it('blocks Double Down РАЗЫГРАТЬ (fizzle) while another prelude is playable, with a hint', () => {
+    markStartFlowActivated('p-blue-id');
+    const DD = CardName.DOUBLE_DOWN;
+    const w = harness(fakePlayerViewModel({
+      preludeCardsInHand: [{name: DD}, {name: PRELUDE_A}] as any,
+      waitingFor: {
+        type: 'card', title: 'Select prelude card to play', buttonLabel: 'Play',
+        startGamePrompt: {kind: 'preludeSelection', preludeMode: 'hand'},
+        cards: [{name: DD, warnings: ['preludeFizzle']}, {name: PRELUDE_A}],
+      } as any,
+    }));
+    // No РАЗЫГРАТЬ for the fizzling Double Down — a hint note instead.
+    expect(document.body.querySelector(`[data-test="start-game-flow-play-${DD}"]`)).to.eq(null);
+    expect(document.body.querySelector(`[data-test="start-game-flow-blocked-${DD}"]`)).to.not.eq(null);
+    // The productive prelude is still playable.
+    expect(document.body.querySelector(`[data-test="start-game-flow-play-${PRELUDE_A}"]`)).to.not.eq(null);
+    // And it can't be played from fullscreen either.
+    const vm: any = w.findComponent(StartGameFlowOverlay).vm;
+    expect(vm.playableZoomNames.has(DD)).to.eq(false);
+    expect(vm.playableZoomNames.has(PRELUDE_A)).to.eq(true);
+  });
+
+  it('Merger: renders the corp-selection block; unaffordable corp not selectable; select submits', async () => {
+    markStartFlowActivated('p-blue-id');
+    const HELION = CardName.HELION;
+    harness(fakePlayerViewModel({
+      waitingFor: corpSelectPrompt([{name: CORP}, {name: HELION, isDisabled: true}]),
+    }));
+    expect(document.body.querySelector('[data-test="start-game-flow-corp-select"]')).to.not.eq(null);
+    const sel = document.body.querySelector(`[data-test="start-game-flow-corp-select-${CORP}"]`);
+    expect(sel, 'affordable corp is selectable').to.not.eq(null);
+    // Unaffordable corp: a hint, not a select button.
+    expect(document.body.querySelector(`[data-test="start-game-flow-corp-select-${HELION}"]`)).to.eq(null);
+    expect(document.body.querySelector(`[data-test="start-game-flow-corp-disabled-${HELION}"]`)).to.not.eq(null);
+    (sel as HTMLElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(lastBody?.type).to.eq('card');
+    expect(lastBody?.cards).to.deep.eq([CORP]);
+  });
+
+  it('Merger: TWO corps owing actions each get their own ПРИМЕНИТЬ ЭФФЕКТ (under the card)', async () => {
+    const HELION = CardName.HELION;
+    harness(fakePlayerViewModel({
+      pendingInitialActions: [CORP, HELION],
+      waitingFor: multiCorpPrompt([CORP, HELION]),
+      thisPlayer: {tableau: [{name: CORP}, {name: HELION}]} as any,
+    }));
+    const applyA = document.body.querySelector(`[data-test="start-game-flow-apply-${CORP}"]`);
+    const applyB = document.body.querySelector(`[data-test="start-game-flow-apply-${HELION}"]`);
+    expect(applyA, 'corp A apply').to.not.eq(null);
+    expect(applyB, 'corp B apply').to.not.eq(null);
+    // Applying corp B submits B's option index (1), not A's (0) nor Pass (2).
+    (applyB as HTMLElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(lastBody?.type).to.eq('or');
+    expect(lastBody?.index).to.eq(1);
+  });
+
+  it('Double Down (copy): renders the copy block and submits WITHOUT recording a draw-choice', async () => {
+    markStartFlowActivated('p-blue-id');
+    const w = harness(fakePlayerViewModel({
+      waitingFor: preludePrompt([PRELUDE_A], 'copy'),
+      thisPlayer: {tableau: [{name: PRELUDE_A}]} as any,
+    }));
+    // The copy picker renders (and the source stays in the grid above it).
+    expect(document.body.querySelector('[data-test="start-game-flow-copy"]')).to.not.eq(null);
+    const vm: any = w.findComponent(StartGameFlowOverlay).vm;
+    expect([...vm.copyCandidates]).to.deep.eq([PRELUDE_A]);
+    vm.playByName(PRELUDE_A);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(lastBody?.cards).to.deep.eq([PRELUDE_A]);
+    // Crucially: a copy pick is NOT recorded as a draw-choice (no exclusion / no СБРОШЕНА).
+    expect(startGameFlowState.drawChoices.length).to.eq(0);
   });
 
   it('dispatches a fullscreen play of a draw candidate through the draw recorder', async () => {

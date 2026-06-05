@@ -238,28 +238,39 @@
 
 /* ─── Corporation area ───────────────────────────────────────────────── */
 
-.start-game-flow__corp-row {
+/* One COLUMN per corporation (base + any merged), side by side. */
+.start-game-flow__corp-grid {
     display: flex;
-    align-items: center;
-    gap: 18px;
+    flex-wrap: wrap;
+    gap: 22px;
+    align-items: flex-start;
 }
 
-.start-game-flow__corp-meta {
+/* A corp column: card → status → ПРИМЕНИТЬ ЭФФЕКТ, stacked vertically so the
+   apply button sits UNDER the card and a second corp has room to the right. */
+.start-game-flow__corp-item {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    min-width: 0;
+    align-items: center;
+    gap: 10px;
 }
 
 .start-game-flow__corp-status {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
+    text-align: center;
 
     &--ready  { color: #b8f4d6; }
     &--pending { color: #f0dca8; }
     &--done   { color: #9fb6cc; }
+}
+
+/* ─── Merger corp-selection block (cyan accent, like the copy block) ──── */
+.start-game-flow__corp-select .start-game-flow__section-label {
+    color: #7fd4ff;
+    border-bottom-color: rgba(127, 212, 255, 0.22);
 }
 
 /* ─── Prelude area ───────────────────────────────────────────────────── */
@@ -352,6 +363,12 @@
     border-bottom-color: rgba(230, 184, 106, 0.22);
 }
 
+/* The Double Down copy block uses a cyan accent (distinct from amber draw). */
+.start-game-flow__copy .start-game-flow__section-label {
+    color: #7fd4ff;
+    border-bottom-color: rgba(127, 212, 255, 0.22);
+}
+
 /* ─── Action buttons (premium dark-glass; play=mint, apply=cyan) ─────── */
 
 .start-game-flow__play-btn,
@@ -379,6 +396,26 @@
         transform: translateY(-1px);
         box-shadow: inset 0 0 0 1px rgba(120, 230, 180, 0.8), 0 6px 16px rgba(40, 160, 110, 0.35);
     }
+}
+
+/*
+ * Withheld-play hint — shown instead of РАЗЫГРАТЬ for a prelude that would
+ * fizzle right now (e.g. Double Down with nothing to copy). Amber, muted,
+ * reads as "not yet, do something else first".
+ */
+.start-game-flow__blocked-note {
+    max-width: 150px;
+    text-align: center;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #f0dca8;
+    background: rgba(70, 56, 22, 0.4);
+    border: 1px solid rgba(230, 200, 120, 0.4);
+    border-radius: 3px;
 }
 
 .start-game-flow__apply-btn {

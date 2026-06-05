@@ -8,9 +8,14 @@ import {
   markStartFlowCompleted,
   startFlowPreludePrompt,
   startFlowPreludeDrawPrompt,
+  startFlowPreludeCopyPrompt,
   startFlowAnyPreludePrompt,
   startFlowCorpPrompt,
+  startFlowCorpSelectPrompt,
+  corporationCardNames,
+  corpStatusFor,
   corpActionOptionIndex,
+  corpActionOptionIndexFor,
   startGameFlowEligible,
   startGameFlowActive,
   startGameFlowAllDone,
@@ -26,7 +31,7 @@ const PRELUDE_C = CardName.UNMI_CONTRACTOR;
 
 // Detection is via the explicit server marker (startGamePrompt), never the
 // title — so the helpers set that marker and can use any (even garbage) title.
-function preludePrompt(cards: ReadonlyArray<CardName>, mode: 'hand' | 'draw' = 'hand'): any {
+function preludePrompt(cards: ReadonlyArray<CardName>, mode: 'hand' | 'draw' | 'copy' = 'hand'): any {
   return {
     type: 'card',
     title: 'Select prelude card to play',
@@ -82,6 +87,19 @@ describe('startGameFlowState predicates', () => {
       });
       expect(startFlowAnyPreludePrompt(view)).to.eq(undefined);
     });
+
+    it('routes a Double Down (copy) prompt to the COPY predicate, and keeps the source in the grid', () => {
+      const view = fakePlayerViewModel({
+        // The candidate is an ALREADY-PLAYED prelude (in the tableau).
+        waitingFor: preludePrompt([PRELUDE_A], 'copy'),
+        thisPlayer: {tableau: [{name: PRELUDE_A}]} as any,
+      });
+      expect(startFlowPreludeCopyPrompt(view)).to.not.eq(undefined);
+      expect(startFlowPreludeDrawPrompt(view)).to.eq(undefined);
+      expect(startFlowAnyPreludePrompt(view)).to.not.eq(undefined);
+      // The played source must STAY in the grid (NOT excluded like a draw candidate).
+      expect(preludeEntries(view).some((e) => e.name === PRELUDE_A && e.status === 'played')).to.eq(true);
+    });
   });
 
   describe('startFlowCorpPrompt + corpActionOptionIndex', () => {
@@ -111,6 +129,61 @@ describe('startGameFlowState predicates', () => {
         waitingFor: {type: 'or', title: 'Take your first action', buttonLabel: '', options: []} as any,
       });
       expect(startFlowCorpPrompt(view)).to.eq(undefined);
+    });
+  });
+
+  describe('Merger — corp selection + multi-corp', () => {
+    const A = CardName.THARSIS_REPUBLIC;
+    const B = CardName.HELION;
+
+    function corpSelectPrompt(cards: ReadonlyArray<any>): any {
+      return {
+        type: 'card', title: 'Choose corporation card to play', buttonLabel: 'Play',
+        startGamePrompt: {kind: 'corporationSelection'}, cards,
+      };
+    }
+    function multiCorpPrompt(corps: ReadonlyArray<CardName>): any {
+      return {
+        type: 'or', title: '', buttonLabel: '', startGamePrompt: {kind: 'corporationInitialAction'},
+        options: [
+          ...corps.map((name) => ({type: 'option', buttonLabel: '', title: {message: 'Take first action of ${0} corporation', data: [{type: 3, value: name}]}})),
+          {type: 'option', title: 'Pass for this generation', buttonLabel: 'Pass', warnings: ['pass']},
+        ],
+      };
+    }
+
+    it('detects the corp-selection prompt (Merger) via the marker', () => {
+      const view = fakePlayerViewModel({waitingFor: corpSelectPrompt([{name: A}, {name: B}])});
+      expect(startFlowCorpSelectPrompt(view)).to.not.eq(undefined);
+      // It's not a prelude prompt.
+      expect(startFlowAnyPreludePrompt(view)).to.eq(undefined);
+    });
+
+    it('corporationCardNames returns base + merged in tableau order (preludes excluded)', () => {
+      const view = fakePlayerViewModel({
+        thisPlayer: {tableau: [{name: A}, {name: PRELUDE_A}, {name: B}]} as any,
+      });
+      expect([...corporationCardNames(view)]).to.deep.eq([A, B]);
+    });
+
+    it('corpStatusFor + corpActionOptionIndexFor handle TWO corps owing actions', () => {
+      const view = fakePlayerViewModel({
+        pendingInitialActions: [A, B],
+        waitingFor: multiCorpPrompt([A, B]),
+        thisPlayer: {tableau: [{name: A}, {name: B}]} as any,
+      });
+      expect(corpStatusFor(view, A)).to.eq('ready');
+      expect(corpStatusFor(view, B)).to.eq('ready');
+      const prompt = startFlowCorpPrompt(view);
+      expect(corpActionOptionIndexFor(prompt, A)).to.eq(0);
+      expect(corpActionOptionIndexFor(prompt, B)).to.eq(1);
+      // Pass (last option) is never matched.
+      expect(corpActionOptionIndexFor(prompt, A)).to.not.eq(2);
+    });
+
+    it('corpStatusFor reports pending when owed but no live prompt', () => {
+      const view = fakePlayerViewModel({pendingInitialActions: [A], thisPlayer: {tableau: [{name: A}]} as any});
+      expect(corpStatusFor(view, A)).to.eq('pending');
     });
   });
 
@@ -248,6 +321,56 @@ describe('startGameFlowState predicates', () => {
       expect(played?.status).to.eq('played');
       expect(awaiting?.status).to.eq('playable');
       expect(entries.some((e) => e.name === CardName.THARSIS_REPUBLIC)).to.eq(false);
+    });
+
+    it('keeps a played prelude in its ORIGINAL slot (no jump to the front)', () => {
+      // First sight: both preludes awaiting in hand → slots [A, B].
+      const before = fakePlayerViewModel({
+        preludeCardsInHand: [{name: PRELUDE_A}, {name: PRELUDE_B}] as any,
+        waitingFor: preludePrompt([PRELUDE_A, PRELUDE_B]),
+      });
+      const e0 = preludeEntries(before);
+      expect(e0.map((e) => e.name)).to.deep.eq([PRELUDE_A, PRELUDE_B]);
+
+      // Now A is PLAYED (moved hand → tableau), B still in hand. The order MUST
+      // stay [A, B] — A keeps slot 0, only its status flips to 'played'.
+      const after = fakePlayerViewModel({
+        preludeCardsInHand: [{name: PRELUDE_B}] as any,
+        waitingFor: preludePrompt([PRELUDE_B]),
+        thisPlayer: {tableau: [{name: PRELUDE_A}]} as any,
+      });
+      const e1 = preludeEntries(after);
+      expect(e1.map((e) => e.name)).to.deep.eq([PRELUDE_A, PRELUDE_B]);
+      expect(e1[0].status).to.eq('played');
+      expect(e1[1].status).to.eq('playable');
+    });
+
+    it('BLOCKS a would-fizzle prelude (Double Down) while a non-fizzling one remains', () => {
+      const DD = CardName.DOUBLE_DOWN;
+      const view = fakePlayerViewModel({
+        preludeCardsInHand: [{name: DD}, {name: PRELUDE_A}] as any,
+        waitingFor: {
+          type: 'card', title: 'Select prelude card to play', buttonLabel: 'Play',
+          startGamePrompt: {kind: 'preludeSelection', preludeMode: 'hand'},
+          cards: [{name: DD, warnings: ['preludeFizzle']}, {name: PRELUDE_A}],
+        } as any,
+      });
+      const entries = preludeEntries(view);
+      expect(entries.find((e) => e.name === DD)?.blocked).to.eq(true);
+      expect(entries.find((e) => e.name === PRELUDE_A)?.blocked).to.eq(false);
+    });
+
+    it('does NOT block when EVERY remaining prelude would fizzle (no trap)', () => {
+      const DD = CardName.DOUBLE_DOWN;
+      const view = fakePlayerViewModel({
+        preludeCardsInHand: [{name: DD}] as any,
+        waitingFor: {
+          type: 'card', title: 'Select prelude card to play', buttonLabel: 'Play',
+          startGamePrompt: {kind: 'preludeSelection', preludeMode: 'hand'},
+          cards: [{name: DD, warnings: ['preludeFizzle']}],
+        } as any,
+      });
+      expect(preludeEntries(view).find((e) => e.name === DD)?.blocked).to.eq(false);
     });
   });
 });
