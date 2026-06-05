@@ -12,10 +12,29 @@ import {Warning} from '../cards/Warning';
 import {Units} from '../Units';
 import {ClaimedToken} from '../underworld/UnderworldPlayerData';
 
+/**
+ * EXPLICIT, translation-proof marker that a top-level prompt belongs to the
+ * start-of-game flow (StartGameFlowOverlay). Set server-side at the prompt's
+ * construction and serialized centrally in ServerModel.getWaitingFor. The
+ * client routes/labels purely off this — never off the (translatable) title.
+ *
+ *  - corporationInitialAction: the corp first-action OrOptions
+ *    ('Take first action of X corporation' + Pass).
+ *  - preludeSelection: a 'play a prelude' SelectCard. `preludeMode`:
+ *      'hand' = the player's own starting preludes (play each, one at a time);
+ *      'draw' = drew N, play exactly ONE, discard the rest (New Partner /
+ *               Valley Trust) — rendered as a distinct "choose one" block.
+ */
+export type StartGamePromptMeta = {
+  kind: 'corporationInitialAction' | 'preludeSelection';
+  preludeMode?: 'hand' | 'draw';
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
   buttonLabel: string;
+  startGamePrompt?: StartGamePromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

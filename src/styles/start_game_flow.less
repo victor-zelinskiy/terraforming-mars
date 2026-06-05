@@ -20,11 +20,15 @@
 .start-game-flow__backdrop {
     position: fixed;
     inset: 0;
+    /*
+     * No blur + a LIGHT vignette (not a full dark cover): the player must be
+     * able to read their resource counters and SEE the delta-chips that animate
+     * on the panels when a prelude / corp effect resolves. A soft radial darken
+     * focuses attention on the centred card without hiding the board chrome.
+     */
     background: radial-gradient(ellipse at center,
-        rgba(8, 14, 22, 0.6) 0%,
-        rgba(2, 4, 8, 0.88) 100%);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+        rgba(6, 10, 16, 0.12) 0%,
+        rgba(2, 4, 8, 0.5) 100%);
     animation: start-game-flow-backdrop-in 180ms ease-out;
 }
 
@@ -70,6 +74,54 @@
     &--tr { top: -8px; right: -8px;    border-top: 2px solid; border-right: 2px solid; }
     &--bl { bottom: -8px; left: -8px;  border-bottom: 2px solid; border-left: 2px solid; }
     &--br { bottom: -8px; right: -8px; border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+/* ─── Minimize button (↗ СВЕРНУТЬ) — mirrors MandatoryInputModal ──────── */
+
+.start-game-flow__minimize-btn {
+    position: absolute;
+    top: -34px;       /* lifted into the chrome zone above the card */
+    right: 0;
+    z-index: 3;
+    height: 26px;
+    padding: 0 14px 0 16px;
+    border: none;
+    color: #e8f1fb;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    background: linear-gradient(180deg,
+        rgba(160, 200, 230, 0.7) 0%,
+        rgba(80, 120, 160, 0.22) 50%,
+        rgba(130, 170, 210, 0.55) 100%);
+    clip-path: polygon(8% 0%, 100% 0%, 100% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(8% 0%, 100% 0%, 100% 100%, 0% 100%);
+        background: linear-gradient(180deg, rgba(14, 26, 42, 0.95) 0%, rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+    &:hover {
+        filter: brightness(1.12);
+        transform: translateY(-1px);
+    }
+}
+.start-game-flow__minimize-glyph {
+    font-size: 14px;
+    color: #7fd4ff;
 }
 
 /* ─── Header ─────────────────────────────────────────────────────────── */
@@ -229,6 +281,11 @@
         opacity: 0.78;
         filter: saturate(0.7);
     }
+    /* Discarded (a non-chosen drew-N prelude) — clearly de-emphasised + red. */
+    &--discarded {
+        opacity: 0.6;
+        filter: grayscale(0.65) brightness(0.85);
+    }
 }
 
 .start-game-flow__played-check {
@@ -264,6 +321,35 @@
     &--awaiting { color: #9fb6cc; }
     &--playable { color: #b8f4d6; }
     &--played   { color: #6cf0ac; }
+    &--discarded { color: #f08a8a; }
+}
+
+/* Red ✕ discard stamp — twin of the green played-check, for clarity. */
+.start-game-flow__discard-mark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 700;
+    color: #ff9a9a;
+    background: rgba(34, 8, 8, 0.9);
+    border: 2px solid rgba(240, 120, 120, 0.9);
+    border-radius: 50%;
+    box-shadow: 0 0 18px rgba(240, 120, 120, 0.45), 0 2px 8px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+
+/* The draw-choice block gets an amber section accent to set it apart. */
+.start-game-flow__draw .start-game-flow__section-label {
+    color: #e6b86a;
+    border-bottom-color: rgba(230, 184, 106, 0.22);
 }
 
 /* ─── Action buttons (premium dark-glass; play=mint, apply=cyan) ─────── */
@@ -393,7 +479,7 @@
 /* ─── Minimized pill (reuses .mandatory-input-modal-pill chrome) ─────── */
 
 .start-game-flow-pill {
-    cursor: default;
+    cursor: pointer;
 }
 
 @media (prefers-reduced-motion: reduce) {

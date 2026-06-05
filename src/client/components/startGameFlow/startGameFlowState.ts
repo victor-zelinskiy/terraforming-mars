@@ -15,18 +15,26 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Message} from '@/common/logs/Message';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {PlayerInputModel, SelectCardModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
+import {SelectCardModel, OrOptionsModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {isInitialDraftAwaiting} from '@/client/components/initialDraft/initialDraftSharedState';
 
-// Server-side prompt strings we match on. The prelude title is built by
-// PreludesExpansion.selectPreludeToPlay; the corp option title by Player.ts.
-const PRELUDE_PROMPT_TITLE = 'Select prelude card to play';
-const CORP_FIRST_ACTION_PREFIX = 'Take first action of';
+// The per-turn action menu. Its OrOptions TITLE (unlike the corp OPTION titles)
+// is NOT mutated in place by i18n — the fork's inline action UI relies on this
+// exact match to keep the menu out of the modal, and it works — so matching it
+// here is safe. Used only to tell the action menu apart from a focused
+// sub-action (both are 'or') when deciding whether to collapse to the pill.
 const ACTION_MENU_TITLES: ReadonlySet<string> = new Set([
   'Take your first action',
   'Take your next action',
 ]);
+
+function titleText(t: string | Message | undefined): string {
+  if (t === undefined) {
+    return '';
+  }
+  return typeof t === 'string' ? t : t.message;
+}
 
 type StartGameFlowStateShape = {
   // Player ids (PlayerViewModel.id) whose start flow has been ENTERED. Sticky —
@@ -45,18 +53,56 @@ type StartGameFlowStateShape = {
   // viewport. Single transient value: always reflects the currently-viewed
   // player (re-derived by the overlay watcher on every view change).
   minimized: boolean;
+  // RESOLVED drew-N-choose-ONE prelude decisions (New Partner / Valley Trust).
+  // Captured client-side at pick time because the server immediately discards
+  // the non-chosen cards — they vanish from playerView — yet we still want to
+  // show the player which prelude was РАЗЫГРАНА and which were СБРОШЕНА. Kept
+  // per-player; cleared on completion / reset.
+  drawChoices: Array<DrawChoiceRecord>;
+};
+
+/** A resolved drew-N-choose-ONE prelude decision, for the post-pick display. */
+export type DrawChoiceRecord = {
+  ownerId: string;
+  candidates: ReadonlyArray<CardName>;
+  chosen: CardName;
 };
 
 export const startGameFlowState: StartGameFlowStateShape = reactive({
   activatedPlayers: [],
   completedPlayers: [],
   minimized: false,
+  drawChoices: [],
 });
 
 export function resetStartGameFlow(): void {
   startGameFlowState.activatedPlayers = [];
   startGameFlowState.completedPlayers = [];
   startGameFlowState.minimized = false;
+  startGameFlowState.drawChoices = [];
+}
+
+/** Record a resolved draw-choice (called at pick time, before submitting). */
+export function recordDrawChoice(ownerId: string, candidates: ReadonlyArray<CardName>, chosen: CardName): void {
+  startGameFlowState.drawChoices.push({ownerId, candidates: [...candidates], chosen});
+}
+
+/** Resolved draw-choices for a given player (newest last). */
+export function drawChoicesFor(ownerId: string): ReadonlyArray<DrawChoiceRecord> {
+  return startGameFlowState.drawChoices.filter((r) => r.ownerId === ownerId);
+}
+
+/** All candidate names across a player's draw-choices — excluded from the grid. */
+export function drawChoiceCandidateNames(ownerId: string): ReadonlySet<CardName> {
+  const names = new Set<CardName>();
+  for (const r of startGameFlowState.drawChoices) {
+    if (r.ownerId === ownerId) {
+      for (const c of r.candidates) {
+        names.add(c);
+      }
+    }
+  }
+  return names;
 }
 
 /** Latch this player's flow as entered (called by the overlay when eligible). */
@@ -71,24 +117,18 @@ export function markStartFlowCompleted(id: string): void {
   if (!startGameFlowState.completedPlayers.includes(id)) {
     startGameFlowState.completedPlayers.push(id);
   }
-}
-
-function titleText(t: string | Message | undefined): string {
-  if (t === undefined) {
-    return '';
-  }
-  return typeof t === 'string' ? t : t.message;
+  // The draw-choice history was only for this flow's display — drop it so it
+  // can't leak into a later game in the same client session.
+  startGameFlowState.drawChoices = startGameFlowState.drawChoices.filter((r) => r.ownerId !== id);
 }
 
 /**
- * The current waitingFor IS the start-flow prelude prompt:
- *   title === 'Select prelude card to play' AND every candidate is one of the
- *   player's own awaiting preludes (preludeCardsInHand). The second clause is
- *   load-bearing: ValleyTrust's prelude draws 3 FRESH preludes (NOT in
- *   preludeCardsInHand) reusing the same title — that nested in-card choice must
- *   keep its normal surface, so it fails here.
+ * A start-flow prelude selection of the given mode, detected PURELY via the
+ * explicit server marker (`startGamePrompt`) — never the (translatable) title.
+ *   'hand' = the player's own starting preludes (played one at a time → the grid);
+ *   'draw' = drew N, choose ONE, discard the rest (New Partner / Valley Trust).
  */
-export function startFlowPreludePrompt(view: PlayerViewModel | undefined): SelectCardModel | undefined {
+function preludeSelectionPrompt(view: PlayerViewModel | undefined, mode: 'hand' | 'draw'): SelectCardModel | undefined {
   if (view === undefined) {
     return undefined;
   }
@@ -96,23 +136,28 @@ export function startFlowPreludePrompt(view: PlayerViewModel | undefined): Selec
   if (wf === undefined || wf.type !== 'card') {
     return undefined;
   }
-  if (titleText(wf.title) !== PRELUDE_PROMPT_TITLE) {
-    return undefined;
-  }
-  const owed = new Set(view.preludeCardsInHand.map((c) => c.name));
-  if (wf.cards.length === 0 || owed.size === 0) {
-    return undefined;
-  }
-  if (!wf.cards.every((c) => owed.has(c.name))) {
-    return undefined;
-  }
-  return wf;
+  const m = wf.startGamePrompt;
+  return (m?.kind === 'preludeSelection' && m.preludeMode === mode) ? wf : undefined;
+}
+
+/** Start-flow 'play your starting preludes' prompt (drives the grid). */
+export function startFlowPreludePrompt(view: PlayerViewModel | undefined): SelectCardModel | undefined {
+  return preludeSelectionPrompt(view, 'hand');
+}
+
+/** Start-flow 'drew N preludes — choose ONE' prompt (New Partner / Valley Trust). */
+export function startFlowPreludeDrawPrompt(view: PlayerViewModel | undefined): SelectCardModel | undefined {
+  return preludeSelectionPrompt(view, 'draw');
+}
+
+/** Either kind of start-flow prelude prompt (used by legacy-route suppression). */
+export function startFlowAnyPreludePrompt(view: PlayerViewModel | undefined): SelectCardModel | undefined {
+  return startFlowPreludePrompt(view) ?? startFlowPreludeDrawPrompt(view);
 }
 
 /**
- * The current waitingFor IS the corp first-action OrOptions
- * ('Take first action of X corporation'). Matched by an option whose title
- * starts with the template head, so it's corp-agnostic and needs no `source`.
+ * The current waitingFor IS the corp first-action OrOptions — detected PURELY
+ * via the explicit server marker. Translation-proof; no title/token matching.
  */
 export function startFlowCorpPrompt(view: PlayerViewModel | undefined): OrOptionsModel | undefined {
   if (view === undefined) {
@@ -122,22 +167,20 @@ export function startFlowCorpPrompt(view: PlayerViewModel | undefined): OrOption
   if (wf === undefined || wf.type !== 'or') {
     return undefined;
   }
-  const looksLikeCorpFirstAction = wf.options.some(
-    (o) => titleText(o.title).startsWith(CORP_FIRST_ACTION_PREFIX));
-  return looksLikeCorpFirstAction ? wf : undefined;
+  return wf.startGamePrompt?.kind === 'corporationInitialAction' ? wf : undefined;
 }
 
 /**
- * Index of the corp-action option inside the corp OrOptions — the option whose
- * title starts with the template head, NEVER the Pass option ('Pass for this
- * generation'). Returns -1 if not found.
+ * Index of the corp-action option inside the corp OrOptions — the option that
+ * does NOT carry the 'pass' warning (the Pass option always does). Structural &
+ * translation-proof. Returns -1 if not found.
  */
 export function corpActionOptionIndex(prompt: OrOptionsModel | undefined): number {
   if (prompt === undefined) {
     return -1;
   }
-  return prompt.options.findIndex(
-    (o) => titleText(o.title).startsWith(CORP_FIRST_ACTION_PREFIX));
+  return (prompt.options ?? []).findIndex(
+    (o) => !((o as SelectOptionModel).warnings ?? []).includes('pass'));
 }
 
 export type PreludeStatus = 'awaiting' | 'playable' | 'played';
@@ -148,24 +191,27 @@ export type PreludeEntry = {
 };
 
 /**
- * The player's prelude set for stable display: played preludes (tableau cards
+ * The player's STARTING prelude set for the grid: played preludes (tableau cards
  * whose ClientCard.type === PRELUDE) first, then still-awaiting preludes
  * (preludeCardsInHand). A still-awaiting prelude is 'playable' when it's a
  * candidate of the live prelude prompt, else 'awaiting'. Filtering tableau by
- * type excludes the corporation + every project card. No cap — we show the
- * truth (a ValleyTrust-played extra prelude shows as played).
+ * type excludes the corporation + every project card. Drew-N-choose-ONE preludes
+ * (New Partner / Valley Trust) are EXCLUDED — they live in their own
+ * draw-choice block, not the starting grid, even after the chosen one is played
+ * (and thus appears in the tableau).
  */
 export function preludeEntries(view: PlayerViewModel): ReadonlyArray<PreludeEntry> {
   const prompt = startFlowPreludePrompt(view);
   const playableNames = new Set((prompt?.cards ?? []).map((c) => c.name));
+  const drawNames = drawChoiceCandidateNames(view.id);
 
   const played: Array<PreludeEntry> = [];
   for (const c of view.thisPlayer.tableau) {
-    if (getCard(c.name)?.type === CardType.PRELUDE) {
+    if (getCard(c.name)?.type === CardType.PRELUDE && !drawNames.has(c.name)) {
       played.push({name: c.name, status: 'played'});
     }
   }
-  const awaiting: Array<PreludeEntry> = view.preludeCardsInHand.map((c) => ({
+  const awaiting: Array<PreludeEntry> = (view.preludeCardsInHand ?? []).map((c) => ({
     name: c.name,
     status: playableNames.has(c.name) ? 'playable' : 'awaiting',
   }));
@@ -195,11 +241,15 @@ export function startGameFlowEligible(view: PlayerViewModel | undefined): boolea
   if (view.game.generation !== 1) {
     return false;
   }
+  // Guard against undefined — an older server (not yet restarted after the
+  // model change) omits `pendingInitialActions`; `preludeCardsInHand` is always
+  // present, but guarded too for safety. Detection must NEVER throw inside a
+  // computed (it would break WaitingFor's render and leak the legacy modal).
   const owesPrelude =
-    view.preludeCardsInHand.length > 0 ||
-    startFlowPreludePrompt(view) !== undefined;
+    (view.preludeCardsInHand ?? []).length > 0 ||
+    startFlowAnyPreludePrompt(view) !== undefined;
   const owesCorp =
-    view.pendingInitialActions.length > 0 ||
+    (view.pendingInitialActions ?? []).length > 0 ||
     startFlowCorpPrompt(view) !== undefined;
   return owesPrelude || owesCorp;
 }
@@ -235,10 +285,10 @@ export function startGameFlowActive(view: PlayerViewModel | undefined): boolean 
  */
 export function startGameFlowAllDone(view: PlayerViewModel): boolean {
   const preludesDone =
-    view.preludeCardsInHand.length === 0 &&
-    startFlowPreludePrompt(view) === undefined;
+    (view.preludeCardsInHand ?? []).length === 0 &&
+    startFlowAnyPreludePrompt(view) === undefined;
   const corpDone =
-    view.pendingInitialActions.length === 0 &&
+    (view.pendingInitialActions ?? []).length === 0 &&
     startFlowCorpPrompt(view) === undefined;
   return preludesDone && corpDone;
 }
@@ -246,19 +296,21 @@ export function startGameFlowAllDone(view: PlayerViewModel): boolean {
 /**
  * Is the active prompt a FOCUSED sub-action the modal must step aside for
  * (board placement / colony / payment / play-a-card / generic mandatory input)?
- * TRUE when waitingFor is defined AND is neither our prelude prompt nor our corp
- * prompt nor the normal action menu. The dedicated surfaces render it; we
- * collapse to the pill.
+ * TRUE when waitingFor is defined AND is none of our own start-flow prompts AND
+ * not the per-turn action menu. The dedicated surfaces render it; we collapse to
+ * the pill. (A sub-action can fire even when `allDone` is true — e.g. the corp
+ * action was answered, pendingInitialActions is already empty, and the deferred
+ * placement is now resolving — so this must NOT gate on allDone.)
  */
 export function startFlowHasFocusedSubAction(view: PlayerViewModel | undefined): boolean {
   if (view === undefined) {
     return false;
   }
-  const wf: PlayerInputModel | undefined = view.waitingFor;
+  const wf = view.waitingFor;
   if (wf === undefined) {
     return false;
   }
-  if (startFlowPreludePrompt(view) !== undefined) {
+  if (startFlowAnyPreludePrompt(view) !== undefined) {
     return false;
   }
   if (startFlowCorpPrompt(view) !== undefined) {

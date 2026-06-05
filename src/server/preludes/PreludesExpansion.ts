@@ -39,8 +39,16 @@ export class PreludesExpansion {
       }
     }
 
+    // 'hand' = the player's own starting preludes (Player.takeAction plays them
+    // one at a time); 'draw' = freshly drawn preludes where the player picks ONE
+    // and the rest are discarded (New Partner / Valley Trust). Authoritative on
+    // the server, so the premium modal never has to guess. The cards are drawn
+    // anew for 'draw' callers, so none of them is in the player's prelude hand.
+    const preludeMode: 'hand' | 'draw' =
+      cards.every((c) => player.preludeCardsInHand.includes(c)) ? 'hand' : 'draw';
     return new SelectCard(
       'Select prelude card to play', 'Play', cards)
+      .markStartGamePrompt({kind: 'preludeSelection', preludeMode})
       .andThen(([card]) => {
         if (card.canPlay?.(player) === false) {
           PreludesExpansion.fizzle(player, card);

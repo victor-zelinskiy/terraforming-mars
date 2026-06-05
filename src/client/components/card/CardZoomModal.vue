@@ -38,59 +38,78 @@
     <div class="card-zoom-container" @click.stop>
 
       <!--
-        Counter pill (nav mode only). Calm, low-contrast — informs without
-        pulling the eye off the card. `1 / N`, updates on every step.
+        Navigation status zone (nav mode only). A DEDICATED top band that
+        owns the position counter as its OWN viewer element — never sitting on
+        the card and never competing with the on-card "ВЫБРАНА" ribbon. It is
+        IN-FLOW (not absolute), so the card stage is pushed below it and the
+        two can't overlap; the fit engine reserves its height. Three interface
+        layers, cleanly separated: counter ABOVE the card, "ВЫБРАНА" ON the
+        card, actions BELOW the card.
       -->
-      <div v-if="navEnabled" class="card-zoom-counter" aria-hidden="true">
-        <span class="card-zoom-counter__current">{{ currentIndex + 1 }}</span>
-        <span class="card-zoom-counter__sep">/</span>
-        <span class="card-zoom-counter__total">{{ navCount }}</span>
+      <div v-if="navEnabled" class="card-zoom-topbar">
+        <div class="card-zoom-counter" aria-hidden="true">
+          <span class="card-zoom-counter__corner card-zoom-counter__corner--l" aria-hidden="true"></span>
+          <span class="card-zoom-counter__current">{{ currentIndex + 1 }}</span>
+          <span class="card-zoom-counter__sep">/</span>
+          <span class="card-zoom-counter__total">{{ navCount }}</span>
+          <span class="card-zoom-counter__corner card-zoom-counter__corner--r" aria-hidden="true"></span>
+        </div>
       </div>
 
       <!--
-        Prev / next arrows (nav mode only). Bounded — NOT a carousel: the
-        arrow fades out (visibility + opacity) at the first / last card
-        instead of wrapping, so reaching an end reads as "edge of the set",
-        never as a broken button. Sized large for easy targeting but kept
-        to the viewport gutters so they never cover the card.
+        Middle row: [ prev control ] [ card stage ] [ next control ]. A flex
+        row so the navigation controls are vertically centred ON the card and
+        sit just OUTSIDE its left / right edges — "a viewer, the card inside,
+        navigation around it". `display: contents` in the single-card (no-nav)
+        path makes this wrapper layout-transparent, so every existing
+        single-card use is byte-identical (the stage stays a direct container
+        child); only nav mode turns it into the flanking flex row.
       -->
-      <button v-if="navEnabled"
-              type="button"
-              class="card-zoom-nav card-zoom-nav--prev"
-              :class="{'card-zoom-nav--hidden': !canPrev}"
-              :disabled="!canPrev"
-              :aria-label="$t('Previous card')"
-              data-test="card-zoom-prev"
-              @click="prev">
-        <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
-      </button>
+      <div class="card-zoom-midrow">
+        <!--
+          Prev / next navigation controls. Premium HUD side controls that live
+          in the viewer's gutters, never on the card. Bounded: at the first /
+          last card the control is DISABLED (dimmed but still visible) so the
+          edge of the set is felt, rather than a button vanishing.
+        -->
+        <button v-if="navEnabled"
+                type="button"
+                class="card-zoom-nav card-zoom-nav--prev"
+                :disabled="!canPrev"
+                :aria-label="$t('Previous card')"
+                data-test="card-zoom-prev"
+                @click="prev">
+          <span class="card-zoom-nav__plate" aria-hidden="true"></span>
+          <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
+        </button>
 
-      <!--
-        Card stage. A relative-positioned wrapper around exactly the card,
-        so the leaving card can be pinned absolute (overlap, not stack)
-        during the slide while the entering card defines the stage size.
-        The actions panel below therefore never jumps as cards swap.
-      -->
-      <div class="card-zoom-stage">
-        <transition :name="transitionName"
-                    @enter="onCardEnter"
-                    @after-enter="onCardAfterEnter">
-          <CardZoomCard :key="activeCard.name"
-                        :card="activeCard"
-                        :selected="selected" />
-        </transition>
+        <!--
+          Card stage. A relative-positioned wrapper around exactly the card,
+          so the leaving card can be pinned absolute (overlap, not stack)
+          during the slide while the entering card defines the stage size.
+          The actions panel below therefore never jumps as cards swap.
+        -->
+        <div class="card-zoom-stage">
+          <transition :name="transitionName"
+                      @enter="onCardEnter"
+                      @after-enter="onCardAfterEnter">
+            <CardZoomCard :key="activeCard.name"
+                          :card="activeCard"
+                          :selected="selected" />
+          </transition>
+        </div>
+
+        <button v-if="navEnabled"
+                type="button"
+                class="card-zoom-nav card-zoom-nav--next"
+                :disabled="!canNext"
+                :aria-label="$t('Next card')"
+                data-test="card-zoom-next"
+                @click="next">
+          <span class="card-zoom-nav__plate" aria-hidden="true"></span>
+          <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
+        </button>
       </div>
-
-      <button v-if="navEnabled"
-              type="button"
-              class="card-zoom-nav card-zoom-nav--next"
-              :class="{'card-zoom-nav--hidden': !canNext}"
-              :disabled="!canNext"
-              :aria-label="$t('Next card')"
-              data-test="card-zoom-next"
-              @click="next">
-        <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
-      </button>
 
       <!--
         Fullscreen action zone (v40-o redesign). Glassmorphic sci-fi strip
@@ -478,13 +497,14 @@ export default defineComponent({
       }
 
       // Step 4: available space. Numbers mirror .card-zoom-container's
-      // padding (24+24=48) + gap (20) + actions-panel reservation (96)
-      // plus a small safety buffer (8). In nav mode reserve extra room so
-      // the card never grows under the side arrows (~70px each gutter) or
-      // the top counter pill (~36px), keeping them clear of card content
-      // even on narrow viewports.
-      const chromeVertical = 48 + 20 + 96 + 8 + (this.navEnabled ? 36 : 0);
-      const chromeHorizontal = 32 + 8 + (this.navEnabled ? 140 : 0);
+      // padding (24+24=48) + gap (20) + actions-panel reservation (96) plus a
+      // small safety buffer (8). In nav mode reserve MORE so the card lands in
+      // a clean centre band: the top counter zone is its OWN in-flow row
+      // (~44px + a 20px gap) so the card never grows up under it, and each side
+      // gutter (~120px) is wide enough that the navigation controls sit fully
+      // OUTSIDE the card, not on it — even on narrow viewports.
+      const chromeVertical = 48 + 20 + 96 + 8 + (this.navEnabled ? 64 : 0);
+      const chromeHorizontal = 32 + 8 + (this.navEnabled ? 200 : 0);
       const availHeight = window.innerHeight - chromeVertical;
       const availWidth = window.innerWidth - chromeHorizontal;
 

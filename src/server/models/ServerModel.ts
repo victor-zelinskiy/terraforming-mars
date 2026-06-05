@@ -300,6 +300,11 @@ export class Server {
     // TODO(kberg): in theory this should be in all the other toModel calls.
     const model = waitingFor.toModel(player);
     model.warning = waitingFor.warning;
+    // Start-of-game-flow marker (corp initial action / prelude selection) — set
+    // centrally so any input type carries it without touching per-type toModel.
+    if (waitingFor.startGamePrompt !== undefined) {
+      model.startGamePrompt = waitingFor.startGamePrompt;
+    }
     return model;
     // showReset: player.game.inputsThisRound > 0 && player.game.resettable === true && player.game.phase === Phase.ACTION,
   }

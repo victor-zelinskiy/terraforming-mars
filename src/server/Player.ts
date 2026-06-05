@@ -1572,6 +1572,8 @@ export class Player implements IPlayer {
 
     if (this.pendingInitialActions.length > 0) {
       const orOptions = new OrOptions();
+      // Explicit marker for the premium Start Game Flow modal (translation-proof).
+      orOptions.markStartGamePrompt({kind: 'corporationInitialAction'});
 
       this.pendingInitialActions.forEach((corp) => {
         const option = new SelectOption(

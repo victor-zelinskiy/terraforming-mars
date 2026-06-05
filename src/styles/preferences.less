@@ -608,153 +608,205 @@
     max-width: 100%;
 }
 
-/* Counter chip — top-centred, larger + clearer (its own zone above the card,
-   well clear of the card's "ВЫБРАНА" ribbon). Reads as a HUD position
-   indicator; the current index is emphasised, the total subordinate. */
+/* ── Counter: a DEDICATED top navigation zone (its own viewer layer) ── *
+ *  In-flow band ABOVE the card (NOT absolute, NOT on the card), so the
+ *  position counter never sits on the card's header and never collides with
+ *  the on-card "ВЫБРАНА" ribbon. Three cleanly separated layers: counter
+ *  ABOVE the card, "ВЫБРАНА" ON the card, actions BELOW it. */
+.card-zoom-topbar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    z-index: 6;
+}
+
+/* Premium HUD position chip — larger, cleaner, unmistakably a navigation
+   status indicator. Current index emphasised (bright cyan), total
+   subordinate; quiet HUD bracket ticks frame the count. */
 .card-zoom-counter {
-    position: absolute;
-    top: 18px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 5;
+    position: relative;
     display: inline-flex;
     align-items: baseline;
     gap: 2px;
+    padding: 9px 30px;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 700;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.16em;
     line-height: 1;
-    padding: 8px 20px;
-    color: rgba(196, 220, 242, 0.85);
-    background: rgba(8, 14, 22, 0.62);
-    border: 1px solid rgba(106, 176, 230, 0.3);
+    color: rgba(196, 220, 242, 0.78);
+    background: linear-gradient(180deg, rgba(16, 27, 40, 0.82) 0%, rgba(9, 15, 24, 0.78) 100%);
+    border: 1px solid rgba(106, 176, 230, 0.34);
     border-radius: 999px;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
     box-shadow:
-        inset 0 0 0 1px rgba(106, 176, 230, 0.06),
-        0 5px 18px rgba(0, 0, 0, 0.45);
+        inset 0 1px 0 rgba(170, 205, 238, 0.14),
+        0 6px 20px rgba(0, 0, 0, 0.45);
     pointer-events: none;
     user-select: none;
 }
-
 .card-zoom-counter__current {
-    font-size: 19px;
-    color: rgba(160, 216, 248, 1);
-    text-shadow: 0 0 10px rgba(106, 176, 230, 0.5);
+    font-size: 21px;
+    color: #b2daf8;
+    text-shadow: 0 0 12px rgba(106, 176, 230, 0.55);
 }
-
 .card-zoom-counter__total {
-    opacity: 0.9;
+    font-size: 16px;
+    opacity: 0.8;
 }
-
 .card-zoom-counter__sep {
-    margin: 0 6px;
-    opacity: 0.4;
+    margin: 0 9px;
+    font-weight: 400;
+    opacity: 0.36;
 }
-
-/* ── Prev / next HUD arrows ───────────────────────────────────────── */
-.card-zoom-nav {
+.card-zoom-counter__corner {
     position: absolute;
     top: 50%;
+    width: 6px;
+    height: 14px;
     transform: translateY(-50%);
-    z-index: 5;
-    width: 54px;
-    height: 96px;
+    border: 1px solid rgba(106, 176, 230, 0.4);
+    pointer-events: none;
+}
+.card-zoom-counter__corner--l { left: 11px; border-right: none; }
+.card-zoom-counter__corner--r { right: 11px; border-left: none; }
+
+/* ── Middle row: navigation controls flank the card ─────────────────── *
+ *  Single-card (no-nav) path: a plain centred flex row that shrinks to the
+ *  card width (the container's `align-items: center` keeps it card-sized and
+ *  centred) — so every existing single-card use looks exactly as before, just
+ *  with one transparent wrapper. Nav mode makes it a full-width row that fills
+ *  the middle band, with the controls pinned to the gutters. */
+.card-zoom-midrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.card-zoom-dialog--nav .card-zoom-midrow {
+    flex: 1 1 auto;
+    /* space-between → prev pins to the left gutter, next to the right gutter
+       (STABLE positions), and the card sits centred between them regardless of
+       its width — so the controls never drift as you page through cards of
+       different sizes. The fit engine reserves enough width that the card edge
+       always clears the controls. */
+    justify-content: space-between;
+    min-height: 0;
+    width: 100%;
+}
+/* The card stage is the row's middle slot — sized to the card, centred by
+   space-between, never shrunk below the card. */
+.card-zoom-dialog--nav .card-zoom-stage {
+    flex: 0 0 auto;
+}
+
+/* ── Prev / next navigation controls (premium HUD side controls) ────── *
+ *  A hit-area button hosting a clipped dark-glass PLATE + a clean chevron.
+ *  The plate carries the rim + glass + glow so it can animate independently
+ *  of the (larger) hit-area. Angular HUD silhouette, in the same dark-glass
+ *  + cyan-rim language as the action buttons. */
+@card-zoom-nav-shape: polygon(11px 0, calc(100% - 11px) 0, 100% 11px, 100% calc(100% - 11px), calc(100% - 11px) 100%, 11px 100%, 0 calc(100% - 11px), 0 11px);
+
+.card-zoom-nav {
+    position: relative;
+    flex-shrink: 0;
+    width: 60px;
+    height: 128px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
+    border: none;
+    background: transparent;
     cursor: pointer;
-    border: 1px solid rgba(106, 176, 230, 0.26);
-    border-radius: 16px;
-    background:
-        linear-gradient(135deg,
-            rgba(18, 30, 44, 0.62) 0%,
-            rgba(10, 18, 28, 0.5) 100%);
-    backdrop-filter: blur(6px) saturate(0.9);
-    -webkit-backdrop-filter: blur(6px) saturate(0.9);
+    transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+
+    &:focus-visible { outline: none; }
+}
+
+.card-zoom-nav__plate {
+    position: absolute;
+    inset: 6px 3px;
+    z-index: 0;
+    clip-path: @card-zoom-nav-shape;
+    background: linear-gradient(158deg, rgba(24, 38, 55, 0.84) 0%, rgba(11, 19, 29, 0.8) 100%);
+    /* rim + top highlight are INSET (within the clip); the drop shadow is a
+       `filter` so it renders AROUND the clipped silhouette (box-shadow would
+       be clipped away). */
     box-shadow:
-        inset 0 0 0 1px rgba(106, 176, 230, 0.06),
-        0 6px 22px rgba(0, 0, 0, 0.5);
-    transition:
-        opacity 180ms ease,
-        transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
-        background 180ms ease,
-        border-color 180ms ease,
-        box-shadow 180ms ease;
-}
-
-.card-zoom-nav--prev {
-    left: clamp(8px, 2.4vw, 30px);
-}
-
-.card-zoom-nav--next {
-    right: clamp(8px, 2.4vw, 30px);
-}
-
-.card-zoom-nav:hover,
-.card-zoom-nav:focus-visible {
-    outline: none;
-    border-color: rgba(106, 176, 230, 0.6);
-    background:
-        linear-gradient(135deg,
-            rgba(26, 42, 60, 0.72) 0%,
-            rgba(14, 24, 36, 0.6) 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(106, 176, 230, 0.16),
-        0 0 20px rgba(106, 176, 230, 0.28),
-        0 8px 26px rgba(0, 0, 0, 0.55);
-}
-
-.card-zoom-nav--prev:hover,
-.card-zoom-nav--prev:focus-visible {
-    transform: translateY(-50%) translateX(-3px);
-}
-
-.card-zoom-nav--next:hover,
-.card-zoom-nav--next:focus-visible {
-    transform: translateY(-50%) translateX(3px);
-}
-
-.card-zoom-nav:active {
-    transform: translateY(-50%) scale(0.95);
-}
-
-/* Edge of the set → the arrow retreats without reading as an error. */
-.card-zoom-nav--hidden {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
+        inset 0 0 0 1px rgba(120, 178, 228, 0.34),
+        inset 0 1px 0 rgba(176, 210, 240, 0.14);
+    filter: drop-shadow(0 7px 18px rgba(0, 0, 0, 0.5));
+    transition: background 200ms ease, box-shadow 220ms ease, filter 220ms ease;
 }
 
 .card-zoom-nav__chevron {
-    width: 15px;
-    height: 15px;
+    position: relative;
+    z-index: 1;
+    width: 17px;
+    height: 17px;
     border-style: solid;
     border-width: 0;
-    border-color: rgba(186, 214, 238, 0.9);
+    border-color: rgba(200, 224, 246, 0.92);
     transform: rotate(45deg);
-    filter: drop-shadow(0 0 4px rgba(106, 176, 230, 0.3));
-    transition: border-color 180ms ease;
+    filter: drop-shadow(0 0 5px rgba(106, 176, 230, 0.32));
+    transition: border-color 180ms ease, filter 180ms ease;
 }
-
 .card-zoom-nav--prev .card-zoom-nav__chevron {
-    border-left-width: 2.5px;
-    border-bottom-width: 2.5px;
-    margin-left: 6px;
+    border-left-width: 3px;
+    border-bottom-width: 3px;
+    margin-left: 7px;
 }
-
 .card-zoom-nav--next .card-zoom-nav__chevron {
-    border-right-width: 2.5px;
-    border-top-width: 2.5px;
-    margin-right: 6px;
+    border-right-width: 3px;
+    border-top-width: 3px;
+    margin-right: 7px;
 }
 
-.card-zoom-nav:hover .card-zoom-nav__chevron,
-.card-zoom-nav:focus-visible .card-zoom-nav__chevron {
-    border-color: rgba(160, 214, 248, 1);
+/* Hover / focus — brighter rim + controlled cyan glow + a nudge toward
+   the travel direction. */
+.card-zoom-nav:hover:not(:disabled) .card-zoom-nav__plate,
+.card-zoom-nav:focus-visible:not(:disabled) .card-zoom-nav__plate {
+    background: linear-gradient(158deg, rgba(34, 54, 76, 0.9) 0%, rgba(16, 27, 40, 0.85) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(150, 205, 245, 0.72),
+        inset 0 1px 0 rgba(190, 222, 248, 0.2);
+    filter: drop-shadow(0 0 13px rgba(106, 176, 230, 0.5)) drop-shadow(0 8px 18px rgba(0, 0, 0, 0.5));
+}
+.card-zoom-nav:hover:not(:disabled) .card-zoom-nav__chevron,
+.card-zoom-nav:focus-visible:not(:disabled) .card-zoom-nav__chevron {
+    border-color: #d6ecff;
+    filter: drop-shadow(0 0 9px rgba(130, 195, 245, 0.65));
+}
+.card-zoom-nav--prev:hover:not(:disabled),
+.card-zoom-nav--prev:focus-visible:not(:disabled) { transform: translateX(-4px); }
+.card-zoom-nav--next:hover:not(:disabled),
+.card-zoom-nav--next:focus-visible:not(:disabled) { transform: translateX(4px); }
+
+/* Pressed — short tactile feedback: settle in + deepen the plate. */
+.card-zoom-nav:active:not(:disabled) { transform: scale(0.95); }
+.card-zoom-nav:active:not(:disabled) .card-zoom-nav__plate {
+    filter: drop-shadow(0 3px 9px rgba(0, 0, 0, 0.5));
+    box-shadow:
+        inset 0 0 0 1px rgba(130, 188, 232, 0.5),
+        inset 0 2px 7px rgba(0, 0, 0, 0.42);
+}
+
+/* Disabled — dimmed but PRESENT (the player sees the control exists, just
+   can't travel that way), never hidden. */
+.card-zoom-nav:disabled {
+    cursor: default;
+}
+.card-zoom-nav:disabled .card-zoom-nav__plate {
+    opacity: 0.3;
+    filter: saturate(0.35) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
+    box-shadow: inset 0 0 0 1px rgba(120, 178, 228, 0.18);
+}
+.card-zoom-nav:disabled .card-zoom-nav__chevron {
+    opacity: 0.45;
+    filter: none;
 }
 
 /* Off-screen preload layer — render-warm the neighbours, never visible. */
@@ -877,8 +929,10 @@
         opacity: 0;
     }
 
-    .card-zoom-nav {
-        transition: opacity 120ms ease;
+    .card-zoom-nav,
+    .card-zoom-nav__plate,
+    .card-zoom-nav__chevron {
+        transition: none;
     }
 }
 

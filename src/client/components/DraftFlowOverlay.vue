@@ -59,7 +59,7 @@ import {
   shouldPreserveCardPickModal,
 } from '@/client/components/draftWaitState';
 import {handCardSelectionPrompt} from '@/client/components/handCards/handSelectState';
-import {startFlowPreludePrompt} from '@/client/components/startGameFlow/startGameFlowState';
+import {startFlowAnyPreludePrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
 import DraftWaitingContent from '@/client/components/DraftWaitingContent.vue';
@@ -175,12 +175,12 @@ export default defineComponent({
       if (handCardSelectionPrompt(view) !== undefined) {
         return undefined;
       }
-      // The start-of-game prelude-play prompt ('Select prelude card to play'
-      // whose candidates are all the player's own awaiting preludes) is owned
-      // by StartGameFlowOverlay, not this draft modal. Suppress it so the two
-      // don't both render. ValleyTrust's freshly-drawn preludes (NOT in hand)
-      // fail that predicate and keep this surface.
-      if (startFlowPreludePrompt(view) !== undefined) {
+      // Every start-of-game prelude selection — both the player's own starting
+      // preludes ('hand') AND the drew-N-choose-ONE prompts (New Partner /
+      // Valley Trust, 'draw') — is owned by StartGameFlowOverlay, not this draft
+      // modal. Suppress them here so the two don't both render. Detected via the
+      // explicit server marker (startGamePrompt).
+      if (startFlowAnyPreludePrompt(view) !== undefined) {
         return undefined;
       }
       return wf;
