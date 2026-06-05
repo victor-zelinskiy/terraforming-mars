@@ -61,19 +61,23 @@ export type EffectEntry = {
  * The generic renderData scan handles everything else. Populate this as the
  * ?effectsPlayground "flagged" tab surfaces problem cards.
  */
-type EffectOverride = {exclude?: boolean; renderWhole?: boolean; text?: string};
+type EffectOverride = {exclude?: boolean; renderWhole?: boolean; descFromMeta?: boolean; text?: string};
 const EFFECT_OVERRIDES: Partial<Record<CardName, EffectOverride>> = {
   // Olympus Conference draws its trigger as RAW root rows (science tag : science
-  // / OR / −science +card), not an effect() box — render the whole renderData so
-  // the real symbols show; the description is pulled from the card automatically.
-  [CardName.OLYMPUS_CONFERENCE]: {renderWhole: true},
-  // TODO(effects-playground): these three encode a passive rule as bespoke
-  // renderData text with no `effect()` node AND no usable graphic, so they need
-  // a hand-written localized descriptor. Surfaced by the playground; left as the
-  // documented edge-case backlog (they don't block the system).
-  //   PROTECTED_HABITATS          — "Opponents may not remove your plants/animals/microbes."
-  //   SUPERCAPACITORS             — heat-as-energy conversion rule.
-  //   NEPTUNIAN_POWER_CONSULTANTS — ocean-placed optional resource gain.
+  // / OR / −science +card), not an effect() box; its description lives in
+  // metadata.description → render the whole renderData + append that description.
+  [CardName.OLYMPUS_CONFERENCE]: {renderWhole: true, descFromMeta: true},
+  // Protected Habitats: the WHOLE renderData is the rule ("Opponents may not
+  // remove your" + plant/animal/microbe icons) — render it as-is (it's fully
+  // localized + self-explanatory, no immediate effect to strip).
+  [CardName.PROTECTED_HABITATS]: {renderWhole: true},
+  // Neptunian Power Consultants: the whole renderData IS the ocean-trigger effect
+  // (incl. its own "(Effect: …)" text row); metadata.description is the VP, so do
+  // NOT append it. (The effect text row isn't in ru/cards.json yet — a base-game
+  // translation gap, so it shows in English; not this feature's bug.)
+  [CardName.NEPTUNIAN_POWER_CONSULTANTS]: {renderWhole: true},
+  // Supercapacitors now carries a real effect() node (energy -> heat with a
+  // crossed-out arrow); the generic scan extracts it, so no override is needed.
 };
 
 /** The (prefixed) description string of an effect node, if present. */
@@ -192,7 +196,10 @@ function cardEffectEntries(card: CardModel): Array<EffectEntry> {
       key: cardName + '#whole',
       effectNode: undefined,
       renderRoot: cardRenderRoot(cardName),
-      text: override.text ?? cardDescriptionText(cardName),
+      // Only append the card description when asked (some renderWhole cards
+      // already carry their effect text inside the render, or their
+      // metadata.description is a VP, not the effect).
+      text: override.text ?? (override.descFromMeta === true ? cardDescriptionText(cardName) : undefined),
     }];
   }
 

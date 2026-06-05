@@ -1833,6 +1833,32 @@
         background-repeat: no-repeat;
         background-position: 0px;
     }
+    /* A struck-through (cancelled) arrow — a red line across it meaning "optional / not forced",
+       e.g. Supercapacitors' energy->heat conversion. Shared, any crossed symbol can reuse it. */
+    .card-red-arrow.card-symbol-cancelled,
+    .card-red-arrow--small.card-symbol-cancelled {
+        position: relative;
+    }
+    .card-red-arrow.card-symbol-cancelled::after,
+    .card-red-arrow--small.card-symbol-cancelled::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        /* Cross only the arrow itself — must not reach the neighbouring icons. */
+        width: 90%;
+        /* Light line: the arrow is red, so a red strike wouldn't read — use a
+           near-white line with a dark edge so it pops on the red arrow. */
+        border-top: 3px solid #f5f8fc;
+        transform: translate(-50%, -50%) rotate(-20deg);
+        box-shadow: 0 0 1.5px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.55);
+        border-radius: 2px;
+        pointer-events: none;
+    }
+    .card-red-arrow--small.card-symbol-cancelled::after {
+        width: 88%;
+        border-top-width: 2px;
+    }
 
 
     /*colony special*/

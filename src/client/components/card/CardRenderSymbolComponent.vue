@@ -65,6 +65,10 @@ export default defineComponent({
         }
       }
 
+      if (this.item.cancelled === true) {
+        classes.push('card-symbol-cancelled');
+      }
+
       return classes.join(' ');
     },
     content(): string {

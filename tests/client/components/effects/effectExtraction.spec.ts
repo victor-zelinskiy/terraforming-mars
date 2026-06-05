@@ -78,21 +78,38 @@ describe('effectExtraction', () => {
     expect(groups[1].isCorporation).to.eq(false);
   });
 
-  it('lists override-covered cards as a diagnostic (Olympus Conference)', () => {
-    expect(overriddenEffectCards()).to.include(CardName.OLYMPUS_CONFERENCE);
+  it('covers the bespoke-render edge cases so they show in the all-effects list', () => {
+    // Olympus / Protected Habitats / Neptunian render the WHOLE renderData.
+    for (const c of [
+      CardName.OLYMPUS_CONFERENCE,
+      CardName.PROTECTED_HABITATS,
+      CardName.NEPTUNIAN_POWER_CONSULTANTS,
+    ]) {
+      expect(cardHasPassiveEffect(c), c).to.eq(true);
+      expect(overriddenEffectCards(), c).to.include(c);
+      expect(flaggedEffectCandidates(), c).to.not.include(c);
+    }
+    // Protected Habitats renders its whole renderData (graphic).
+    expect(playerEffects([model(CardName.PROTECTED_HABITATS)])[0].renderRoot).to.not.eq(undefined);
   });
 
-  it('flags in-scope passive cards with no effect graphic (needs descriptor)', () => {
+  it('extracts Supercapacitors via the generic scan (real effect() node, no override)', () => {
+    // Supercapacitors now carries a clean effect() node (energy -> heat with a
+    // crossed-out arrow), so the generic renderData scan finds it — no override.
+    expect(cardHasPassiveEffect(CardName.SUPERCAPACITORS)).to.eq(true);
+    expect(overriddenEffectCards()).to.not.include(CardName.SUPERCAPACITORS);
+    expect(flaggedEffectCandidates()).to.not.include(CardName.SUPERCAPACITORS);
+    const entry = playerEffects([model(CardName.SUPERCAPACITORS)])[0];
+    expect(entry.effectNode).to.not.eq(undefined); // a real effect box, not a fallback
+    expect(entry.text).to.eq(undefined);
+    expect(entry.renderRoot).to.eq(undefined);
+  });
+
+  it('keeps the flagged-candidates list small (only true unknowns / vanilla)', () => {
     const flagged = flaggedEffectCandidates();
-    expect(flagged).to.include(CardName.PROTECTED_HABITATS);
-    expect(flagged).to.include(CardName.SUPERCAPACITORS);
-    expect(flagged).to.include(CardName.NEPTUNIAN_POWER_CONSULTANTS);
-    // Must NOT include cards that already render (Space Station), action cards
-    // (Ants), or text-override cards (Olympus Conference).
-    expect(flagged).to.not.include(CardName.SPACE_STATION);
-    expect(flagged).to.not.include(CardName.ANTS);
-    expect(flagged).to.not.include(CardName.OLYMPUS_CONFERENCE);
-    // Stays a small, focused list (not a dump of every card).
-    expect(flagged.length).to.be.lessThan(12);
+    expect(flagged).to.not.include(CardName.SPACE_STATION); // already renders
+    expect(flagged).to.not.include(CardName.ANTS); // action-only
+    expect(flagged).to.not.include(CardName.OLYMPUS_CONFERENCE); // overridden
+    expect(flagged.length).to.be.lessThan(8);
   });
 });
