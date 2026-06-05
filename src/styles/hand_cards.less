@@ -678,15 +678,11 @@
     }
 }
 
-/* ── "Cannot play" pill (secondary playability indicator) ──────────────
-   A compact icon + text pill centred along the BOTTOM EDGE of the card (the
-   spot that read well), clear of the cost (top-left), the sale tick
-   (top-right) and the expansion glyph (bottom-left). Rendered whenever the
-   card can't be PLAYED — in BOTH normal and sale modes, so it never pops in /
-   out when the player toggles sale. Calm orange (not the red "error" of the
-   reason popover it triggers). The short label WRAPS to two lines on small
-   cards instead of truncating. Hover / focus reveals the shared reason
-   popover (hosted in the footer below). */
+/* ── "Cannot play" badge (secondary playability indicator) ─────────────
+   Rendered by HandCardItem only in sale / mandatory-select modes. Normal play
+   already dims rules-blocked cards and exposes the same reason on the
+   disabled footer button, so the card-level badge is deliberately hidden
+   there to avoid duplicate affordances. */
 /* Compact ICON-ONLY "cannot play" badge, centred along the BOTTOM edge —
    small + narrow, so it sits BETWEEN the bottom corners (expansion glyph
    bottom-left, victory-point badge bottom-right) and never overlaps the VP
