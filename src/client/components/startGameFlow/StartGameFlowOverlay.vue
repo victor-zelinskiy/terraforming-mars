@@ -41,19 +41,25 @@
           <span class="start-game-flow__minimize-label" v-i18n>Minimize</span>
         </button>
 
-        <!-- Header: title + progress chips -->
+        <!-- Header: hero title + subtitle (left) · progress chips (right) -->
         <div class="start-game-flow__header">
-          <div class="start-game-flow__heading">
-            <span class="start-game-flow__heading-dot"></span>
-            <h1 class="start-game-flow__title" v-i18n>Start of the game</h1>
+          <div class="start-game-flow__header-lead">
+            <div class="start-game-flow__heading">
+              <span class="start-game-flow__heading-dot"></span>
+              <h1 class="start-game-flow__title" v-i18n>Start of the game</h1>
+            </div>
+            <p class="start-game-flow__subtitle" v-i18n>Play your prelude cards and apply your corporation's start effect.</p>
           </div>
-          <p class="start-game-flow__subtitle" v-i18n>Play your prelude cards and apply your corporation's start effect.</p>
           <div class="start-game-flow__progress">
-            <span v-if="preludeTotal > 0" class="start-game-flow__chip">
-              <span v-i18n>Preludes</span>: {{ preludePlayedCount }} / {{ preludeTotal }}
+            <span v-if="preludeTotal > 0" class="start-game-flow__chip" :class="'start-game-flow__chip--' + preludeChipState">
+              <span class="start-game-flow__chip-dot"></span>
+              <span class="start-game-flow__chip-label" v-i18n>Preludes</span>
+              <span class="start-game-flow__chip-value">{{ preludePlayedCount }} / {{ preludeTotal }}</span>
             </span>
             <span class="start-game-flow__chip" :class="'start-game-flow__chip--' + corpStatus">
-              <span v-i18n>Corporation</span>: <span v-i18n>{{ corpStatusLabel }}</span>
+              <span class="start-game-flow__chip-dot"></span>
+              <span class="start-game-flow__chip-label" v-i18n>Corporation</span>
+              <span class="start-game-flow__chip-value" v-i18n>{{ corpStatusLabel }}</span>
             </span>
           </div>
         </div>
@@ -72,12 +78,20 @@
                    :key="corp.name"
                    class="start-game-flow__corp-item"
                    :data-test="'start-game-flow-corp-' + corp.name">
-                <div class="start-game-flow__card-thumb">
+                <div class="start-game-flow__card-thumb"
+                     :class="{
+                       'start-game-flow__card-thumb--ready': corp.status === 'ready',
+                       'start-game-flow__card-thumb--applied': corp.status === 'done' && corpHadAction(corp.name),
+                     }">
                   <Card :card="{name: corp.name}" />
+                  <span v-if="corp.status === 'done' && corpHadAction(corp.name)"
+                        class="start-game-flow__played-check start-game-flow__played-check--corp"
+                        aria-hidden="true">✓</span>
                 </div>
                 <div v-if="corpStatusLabelFor(corp) !== ''"
                      class="start-game-flow__corp-status"
                      :class="'start-game-flow__corp-status--' + corp.status">
+                  <span class="start-game-flow__corp-status-dot"></span>
                   <span v-i18n>{{ corpStatusLabelFor(corp) }}</span>
                 </div>
                 <button v-if="corp.status === 'ready'"
@@ -242,20 +256,33 @@
 
           <!-- Waiting-for-others state -->
           <section v-if="waitingState" class="start-game-flow__waiting" data-test="start-game-flow-waiting">
-            <div class="start-game-flow__waiting-dots" aria-hidden="true">
-              <span></span><span></span><span></span>
+            <div class="start-game-flow__waiting-loader" aria-hidden="true">
+              <span class="start-game-flow__waiting-ring"></span>
+              <div class="start-game-flow__waiting-dots">
+                <span></span><span></span><span></span>
+              </div>
             </div>
-            <p class="start-game-flow__waiting-text">{{ waitingText }}</p>
+            <p class="start-game-flow__waiting-text" v-i18n>Waiting for other players</p>
+            <div v-if="waitingPlayers.length > 0" class="start-game-flow__waiting-players">
+              <span v-for="p in waitingPlayers"
+                    :key="p.color"
+                    class="start-game-flow__waiting-chip">
+                <span class="start-game-flow__waiting-chip-dot"
+                      :class="'player_bg_color_' + p.color"></span>
+                <span class="start-game-flow__waiting-chip-name">{{ p.name }}</span>
+              </span>
+            </div>
           </section>
         </div>
 
-        <!-- Completion footer -->
+        <!-- Completion footer — the reward / payoff after setup is finished. -->
         <div v-if="allDone" class="start-game-flow__footer">
+          <div class="start-game-flow__done-badge" aria-hidden="true">✓</div>
           <div class="start-game-flow__done-note" v-i18n>Initial setup complete.</div>
           <button class="start-game-flow__begin-btn"
                   @click="beginGame"
                   data-test="start-game-flow-begin">
-            <span v-i18n>Begin the game</span>
+            <span class="start-game-flow__begin-label" v-i18n>Begin the game</span>
           </button>
         </div>
       </div>
@@ -325,7 +352,6 @@ import {InputResponse} from '@/common/inputs/InputResponse';
 import {paths} from '@/common/app/paths';
 import {statusCode} from '@/common/http/statusCode';
 import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
-import {translateText} from '@/client/directives/i18n';
 import {vueRoot} from '@/client/components/vueRoot';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -552,6 +578,11 @@ export default defineComponent({
       }
       return 'Ready';
     },
+    // Header prelude-chip state: 'complete' (cool-green, closed) once every
+    // prelude is played, else 'neutral' (steel, in-progress).
+    preludeChipState(): string {
+      return this.preludeTotal > 0 && this.preludePlayedCount === this.preludeTotal ? 'complete' : 'neutral';
+    },
     allDone(): boolean {
       const view = this.playerViewTyped;
       return view !== undefined && startGameFlowAllDone(view);
@@ -565,22 +596,26 @@ export default defineComponent({
       }
       return view.waitingFor === undefined && !this.allDone;
     },
-    waitingText(): string {
+    // The specific players we're still waiting on, with their seat colour — drives
+    // the waiting-state chips (colour dot + name). The calm "Waiting for other
+    // players" label always shows above them, so an empty list is fine.
+    waitingPlayers(): ReadonlyArray<{name: string, color: Color}> {
       const view = this.playerViewTyped;
       if (view === undefined) {
-        return translateText('Waiting for other players');
+        return [];
       }
       const me = view.thisPlayer.color;
-      const names = this.waitingOnPlayers
-        .filter((color: Color) => color !== me)
-        .map((color: Color) => view.players.find((p) => p.color === color)?.name)
-        .filter((n): n is string => typeof n === 'string' && n.length > 0);
-      if (names.length === 0) {
-        return translateText('Waiting for other players');
+      const out: Array<{name: string, color: Color}> = [];
+      for (const color of this.waitingOnPlayers) {
+        if (color === me) {
+          continue;
+        }
+        const p = view.players.find((pp) => pp.color === color);
+        if (p !== undefined && typeof p.name === 'string' && p.name.length > 0) {
+          out.push({name: p.name, color});
+        }
       }
-      // Neutral phrasing — the awaited player may be playing preludes OR taking
-      // their first turn; don't claim they're "playing prelude cards".
-      return translateText('Waiting for: ${0}').replace('${0}', names.join(', '));
+      return out;
     },
   },
   methods: {
@@ -673,6 +708,12 @@ export default defineComponent({
         return 'Start effect awaiting';
       }
       return this.corpsThatHadAction.includes(corp.name) ? 'Effect applied' : '';
+    },
+    // Whether this corp ever owed a start action (so a 'done' corp shows the
+    // green "applied" check + badge, mirroring a played prelude). A base corp
+    // with no start action stays badge-less.
+    corpHadAction(name: CardName): boolean {
+      return this.corpsThatHadAction.includes(name);
     },
     // Apply a SPECIFIC corp's first action — submit the corp OrOptions option
     // matching that corp (by CARD token, never Pass). Handles the multi-corp

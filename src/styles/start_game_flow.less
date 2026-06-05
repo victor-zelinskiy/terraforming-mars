@@ -2,9 +2,24 @@
  * StartGameFlowOverlay — the unified premium start-of-game orchestration modal.
  * Mirrors the MandatoryInputModal chrome (dark-glass card, L-corner ticks,
  * backdrop) but lays out multiple sections (corp area + prelude grid + waiting +
- * begin footer) rather than hosting a single input. Reuses the shared
- * `.mandatory-input-modal-pill` chrome for its minimized pill.
+ * begin footer) as ONE cohesive first-impression screen rather than hosting a
+ * single input. Reuses the shared `.mandatory-input-modal-pill` chrome for its
+ * minimized pill.
+ *
+ * Unified status language (every state on every card reads the same way):
+ *   AWAITING  → steel-blue, muted        (a prelude not yet reachable)
+ *   ACT NOW   → cyan, gentle glow + dot  (playable prelude / corp effect ready)
+ *   DONE      → green check badge + frame (prelude played / corp effect applied)
+ *   DISCARDED → grey, red check badge     (a non-chosen drew-N prelude)
  */
+
+@sgf-cyan:   #7fd4ff;
+@sgf-mint:   #6cf0ac;
+@sgf-green:  #5fd6a6;
+@sgf-amber:  #e6b86a;
+@sgf-red:    #f08a8a;
+@sgf-steel:  #9fb6cc;
+@sgf-rim:    rgba(106, 176, 230, 0.22);
 
 .start-game-flow {
     position: fixed;
@@ -28,7 +43,7 @@
      */
     background: radial-gradient(ellipse at center,
         rgba(6, 10, 16, 0.12) 0%,
-        rgba(2, 4, 8, 0.5) 100%);
+        rgba(2, 4, 8, 0.52) 100%);
     animation: start-game-flow-backdrop-in 180ms ease-out;
 }
 
@@ -41,16 +56,25 @@
     position: relative;
     z-index: 1;
     width: auto;
-    max-width: min(900px, calc(100vw - 48px));
-    padding: 24px 28px 22px;
-    border-radius: 5px;
-    background: linear-gradient(180deg,
-        rgba(18, 28, 42, 0.96) 0%,
-        rgba(10, 18, 28, 0.96) 100%);
+    min-width: min(540px, calc(100vw - 48px));
+    max-width: min(920px, calc(100vw - 48px));
+    padding: 28px 32px 26px;
+    border-radius: 6px;
+    /*
+     * Depth: a top accent glow + a faint iso-tech grid (two ±60° hairlines) over
+     * the dark glass — premium HUD texture that supports, never competes with,
+     * the cards. The inner vignette in the box-shadow sinks the edges.
+     */
+    background:
+        radial-gradient(125% 90% at 50% -8%, rgba(120, 190, 240, 0.10), rgba(120, 190, 240, 0) 55%),
+        repeating-linear-gradient(60deg, rgba(120, 180, 230, 0.028) 0 1px, transparent 1px 26px),
+        repeating-linear-gradient(-60deg, rgba(120, 180, 230, 0.028) 0 1px, transparent 1px 26px),
+        linear-gradient(180deg, rgba(18, 28, 42, 0.975) 0%, rgba(9, 16, 26, 0.985) 100%);
     box-shadow:
-        0 0 0 1px rgba(106, 176, 230, 0.22),
-        0 30px 60px rgba(0, 0, 0, 0.6),
-        0 0 60px rgba(106, 176, 230, 0.12);
+        0 0 0 1px rgba(106, 176, 230, 0.24),
+        inset 0 0 120px rgba(0, 0, 0, 0.34),
+        0 30px 64px rgba(0, 0, 0, 0.62),
+        0 0 64px rgba(106, 176, 230, 0.12);
     animation: start-game-flow-card-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
     font-family: Prototype, Ubuntu, sans-serif;
     color: #e8f1fb;
@@ -63,12 +87,12 @@
 
 .start-game-flow__corner {
     position: absolute;
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     pointer-events: none;
-    border-color: #6ab0e6;
-    opacity: 0.7;
-    filter: drop-shadow(0 0 6px rgba(106, 176, 230, 0.35));
+    border-color: @sgf-cyan;
+    opacity: 0.75;
+    filter: drop-shadow(0 0 6px rgba(106, 176, 230, 0.4));
 
     &--tl { top: -8px; left: -8px;     border-top: 2px solid; border-left: 2px solid; }
     &--tr { top: -8px; right: -8px;    border-top: 2px solid; border-right: 2px solid; }
@@ -124,27 +148,52 @@
     color: #7fd4ff;
 }
 
-/* ─── Header ─────────────────────────────────────────────────────────── */
+/* ─── Header (hero title + subtitle · progress chips) ─────────────────── */
 
 .start-game-flow__header {
-    margin-bottom: 18px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-bottom: 22px;
+    padding-bottom: 16px;
+
+    /* Noble divider — a left-weighted accent line, not a flat hairline. */
+    &::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 1px;
+        background: linear-gradient(90deg,
+            rgba(106, 176, 230, 0.4) 0%,
+            rgba(106, 176, 230, 0.14) 55%,
+            rgba(106, 176, 230, 0) 100%);
+    }
+}
+
+.start-game-flow__header-lead {
+    flex: 1 1 auto;
+    min-width: 260px;
 }
 
 .start-game-flow__heading {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 }
 
 .start-game-flow__heading-dot {
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: #7fd4ff;
-    box-shadow: 0 0 10px rgba(127, 212, 255, 0.8);
+    background: @sgf-cyan;
+    box-shadow: 0 0 10px rgba(127, 212, 255, 0.85);
     animation: start-game-flow-pulse 2.4s ease-in-out infinite;
+    flex: none;
 }
 
 @keyframes start-game-flow-pulse {
@@ -154,54 +203,87 @@
 
 .start-game-flow__title {
     margin: 0;
-    font-size: 24px;
+    font-size: 27px;
     font-weight: 700;
-    letter-spacing: 2px;
+    letter-spacing: 3px;
     text-transform: uppercase;
-    color: #eaf3fc;
-    text-shadow: 0 0 12px rgba(106, 176, 230, 0.25);
+    background: linear-gradient(180deg, #f3f9ff 0%, #bcd9f4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 14px rgba(120, 190, 240, 0.28));
 }
 
 .start-game-flow__subtitle {
-    margin: 8px 0 0;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #9bb5d0;
+    margin: 9px 0 0;
+    max-width: 460px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    letter-spacing: 0.2px;
+    color: #93b0cd;
 }
 
 .start-game-flow__progress {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
+    gap: 10px;
+    justify-content: flex-end;
+    align-content: flex-start;
+    padding-top: 4px;
 }
 
 .start-game-flow__chip {
-    padding: 3px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px 6px 11px;
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.6px;
     text-transform: uppercase;
-    border-radius: 3px;
-    border: 1px solid rgba(106, 176, 230, 0.3);
-    background: rgba(20, 36, 52, 0.6);
+    border-radius: 999px;
+    border: 1px solid rgba(140, 180, 215, 0.3);
+    background: linear-gradient(180deg, rgba(26, 42, 60, 0.7), rgba(16, 28, 42, 0.7));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     color: #bcd6ee;
 
+    &--neutral  { color: #bcd6ee; }
+    &--complete {
+        color: #9af0c8;
+        border-color: rgba(120, 230, 180, 0.45);
+        background: linear-gradient(180deg, rgba(20, 52, 40, 0.6), rgba(12, 30, 24, 0.6));
+    }
     &--ready {
-        border-color: rgba(120, 230, 180, 0.5);
-        background: rgba(24, 70, 52, 0.5);
-        color: #b8f4d6;
+        color: #9ee0ff;
+        border-color: rgba(120, 205, 255, 0.5);
+        background: linear-gradient(180deg, rgba(16, 44, 64, 0.6), rgba(10, 28, 42, 0.6));
+        .start-game-flow__chip-dot { animation: start-game-flow-pulse 2s ease-in-out infinite; }
     }
     &--pending {
+        color: #f0d49a;
         border-color: rgba(230, 200, 120, 0.45);
-        background: rgba(70, 56, 22, 0.45);
-        color: #f0dca8;
+        background: linear-gradient(180deg, rgba(58, 46, 18, 0.55), rgba(34, 26, 10, 0.55));
     }
     &--done {
-        border-color: rgba(120, 150, 180, 0.35);
-        background: rgba(28, 40, 54, 0.5);
-        color: #9fb6cc;
+        color: #9fcfb6;
+        border-color: rgba(120, 180, 150, 0.4);
+        background: linear-gradient(180deg, rgba(22, 40, 32, 0.55), rgba(14, 26, 20, 0.55));
     }
+}
+.start-game-flow__chip-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+}
+.start-game-flow__chip-label {
+    opacity: 0.72;
+    font-weight: 700;
+}
+.start-game-flow__chip-value {
+    font-weight: 700;
 }
 
 /* ─── Body sections ──────────────────────────────────────────────────── */
@@ -209,24 +291,46 @@
 .start-game-flow__body {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 22px;
 }
 
 .start-game-flow__section-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     font-size: 11px;
-    letter-spacing: 2px;
+    letter-spacing: 2.5px;
     text-transform: uppercase;
-    color: #7fb4dc;
-    margin-bottom: 10px;
-    border-bottom: 1px solid rgba(106, 176, 230, 0.12);
-    padding-bottom: 5px;
+    color: #8fc0e4;
+    margin-bottom: 14px;
+
+    /* Leading accent tick + a fading rule = a nobler section divider. */
+    &::before {
+        content: '';
+        flex: none;
+        width: 16px;
+        height: 2px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, #6ab0e6, rgba(106, 176, 230, 0));
+        box-shadow: 0 0 8px rgba(106, 176, 230, 0.5);
+    }
+    &::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(106, 176, 230, 0.28), rgba(106, 176, 230, 0.02));
+    }
 }
 
-/* The legacy `.card-container` margin offsets the card; zero it and scale the
-   card to a compact thumbnail in every start-flow slot. */
+/* Card thumbnail slot. The legacy `.card-container` margin offsets the card; zero
+   it and scale to a compact thumbnail. The thumb hosts the per-state glow frame
+   (parent modifier drives it) + the corner status badge. */
 .start-game-flow__card-thumb {
     position: relative;
     flex-shrink: 0;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: box-shadow 200ms ease, filter 200ms ease, transform 180ms ease;
 
     > .card-container {
         margin: 0;
@@ -234,43 +338,101 @@
         position: relative;
         z-index: 0;
     }
+    &:hover { transform: translateY(-2px); }
 }
 
-/* ─── Corporation area ───────────────────────────────────────────────── */
+/* ─── Corporation area (hero) ────────────────────────────────────────── */
 
-/* One COLUMN per corporation (base + any merged), side by side. */
+/* One COLUMN per corporation (base + any merged), side by side, centred. */
 .start-game-flow__corp-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 22px;
+    justify-content: center;
+    gap: 26px;
     align-items: flex-start;
 }
 
-/* A corp column: card → status → ПРИМЕНИТЬ ЭФФЕКТ, stacked vertically so the
-   apply button sits UNDER the card and a second corp has room to the right. */
+/* A corp column: card → status badge → ПРИМЕНИТЬ ЭФФЕКТ, stacked vertically so
+   the apply button sits UNDER the card and a second corp has room to the right. */
 .start-game-flow__corp-item {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 }
 
+/* The corp is the hero card — a focus frame + outer glow, and a touch larger
+   than the preludes. */
+.start-game-flow__corp-item .start-game-flow__card-thumb {
+    box-shadow:
+        0 0 0 1px rgba(127, 212, 255, 0.28),
+        0 0 26px rgba(106, 176, 230, 0.16),
+        0 10px 26px rgba(0, 0, 0, 0.45);
+
+    > .card-container { zoom: 0.66; }
+}
+/* Effect ready to apply → brighter cyan attention glow (draws the eye to the
+   apply button beneath). */
+.start-game-flow__corp-item .start-game-flow__card-thumb--ready {
+    box-shadow:
+        0 0 0 1px rgba(127, 212, 255, 0.6),
+        0 0 30px rgba(120, 200, 255, 0.32),
+        0 10px 26px rgba(0, 0, 0, 0.45);
+    animation: start-game-flow-card-glow 2.8s ease-in-out infinite;
+}
+/* Effect applied → calm green frame (unified with a played prelude). */
+.start-game-flow__corp-item .start-game-flow__card-thumb--applied {
+    box-shadow:
+        0 0 0 1px rgba(108, 240, 172, 0.55),
+        0 0 24px rgba(95, 214, 166, 0.24),
+        0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+/* Corp status caption — a premium pill badge, not bare text. */
 .start-game-flow__corp-status {
-    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 13px;
+    font-size: 10.5px;
     font-weight: 700;
-    letter-spacing: 0.5px;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
-    text-align: center;
+    border-radius: 999px;
+    border: 1px solid rgba(106, 176, 230, 0.22);
+    background: rgba(16, 28, 42, 0.6);
 
-    &--ready  { color: #b8f4d6; }
-    &--pending { color: #f0dca8; }
-    &--done   { color: #9fb6cc; }
+    &--ready {
+        color: #9ee0ff;
+        border-color: rgba(120, 205, 255, 0.45);
+        background: rgba(14, 40, 58, 0.55);
+        .start-game-flow__corp-status-dot { animation: start-game-flow-pulse 2s ease-in-out infinite; }
+    }
+    &--pending {
+        color: #f0d49a;
+        border-color: rgba(230, 200, 120, 0.4);
+        background: rgba(54, 42, 16, 0.5);
+    }
+    &--done {
+        color: #7af0b8;
+        border-color: rgba(120, 230, 180, 0.45);
+        background: rgba(18, 48, 36, 0.55);
+    }
+}
+.start-game-flow__corp-status-dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
 }
 
-/* ─── Merger corp-selection block (cyan accent, like the copy block) ──── */
+/* ─── Merger corp-selection block (cyan accent) ──────────────────────── */
 .start-game-flow__corp-select .start-game-flow__section-label {
-    color: #7fd4ff;
-    border-bottom-color: rgba(127, 212, 255, 0.22);
+    color: @sgf-cyan;
+    &::before { background: linear-gradient(90deg, @sgf-cyan, rgba(127, 212, 255, 0)); box-shadow: 0 0 8px rgba(127, 212, 255, 0.55); }
+    &::after  { background: linear-gradient(90deg, rgba(127, 212, 255, 0.3), rgba(127, 212, 255, 0.02)); }
 }
 
 /* ─── Prelude area ───────────────────────────────────────────────────── */
@@ -278,6 +440,7 @@
 .start-game-flow__prelude-grid {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: 22px;
 }
 
@@ -285,117 +448,173 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
-    transition: filter 180ms ease, opacity 180ms ease;
+    gap: 11px;
+    transition: opacity 180ms ease;
 
-    &--played {
-        opacity: 0.78;
-        filter: saturate(0.7);
-    }
-    /* Discarded (a non-chosen drew-N prelude) — clearly de-emphasised + red. */
-    &--discarded {
-        opacity: 0.6;
-        filter: grayscale(0.65) brightness(0.85);
-    }
+    /* Discarded (a non-chosen drew-N prelude) — de-emphasised; the red ✕ badge
+       + status carry the "rejected" meaning. Not red-dimmed (stays readable). */
+    &--discarded { opacity: 0.72; }
 }
 
+/* Per-state card frame — the unified visual language. */
+.start-game-flow__prelude--awaiting .start-game-flow__card-thumb {
+    filter: saturate(0.82) brightness(0.9);
+    box-shadow: 0 0 0 1px rgba(120, 150, 180, 0.18), 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+.start-game-flow__prelude--playable .start-game-flow__card-thumb {
+    box-shadow: 0 0 0 1px rgba(127, 212, 255, 0.5), 0 0 22px rgba(120, 200, 255, 0.28), 0 8px 20px rgba(0, 0, 0, 0.4);
+    animation: start-game-flow-card-glow 2.8s ease-in-out infinite;
+}
+.start-game-flow__prelude--played .start-game-flow__card-thumb {
+    filter: saturate(0.94);
+    box-shadow: 0 0 0 1px rgba(108, 240, 172, 0.45), 0 0 18px rgba(95, 214, 166, 0.2), 0 6px 16px rgba(0, 0, 0, 0.38);
+}
+.start-game-flow__prelude--discarded .start-game-flow__card-thumb {
+    filter: grayscale(0.7) brightness(0.82);
+    box-shadow: 0 0 0 1px rgba(120, 130, 145, 0.2), 0 6px 14px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes start-game-flow-card-glow {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(127, 212, 255, 0.4),  0 0 16px rgba(120, 200, 255, 0.18), 0 8px 20px rgba(0, 0, 0, 0.4); }
+    50%      { box-shadow: 0 0 0 1px rgba(127, 212, 255, 0.65), 0 0 30px rgba(120, 200, 255, 0.36), 0 8px 20px rgba(0, 0, 0, 0.4); }
+}
+
+/*
+ * DONE check badge (prelude played / corp effect applied) — a small bright-green
+ * corner stamp with a dark glyph. Corner, NOT a big centre disc, so it never
+ * covers the card art / text (readability rule). Unified across preludes + corp.
+ */
 .start-game-flow__played-check {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    /* Above the card content (the card-container is z-index 0 in this slot) so
-       the "applied" stamp is never painted under the card's own symbols. */
-    z-index: 3;
-    width: 54px;
-    height: 54px;
+    top: 6px;
+    right: 6px;
+    z-index: 4;
+    width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 34px;
+    font-size: 18px;
     font-weight: 700;
-    color: #6cf0ac;
-    /* Near-opaque disc so it reads as a clean stamp over any icon beneath it. */
-    background: rgba(6, 24, 16, 0.9);
-    border: 2px solid rgba(108, 240, 172, 0.9);
+    line-height: 1;
+    color: #06231a;
+    background: linear-gradient(180deg, #9cf3cf, @sgf-green);
+    border: 1px solid rgba(255, 255, 255, 0.5);
     border-radius: 50%;
-    box-shadow: 0 0 18px rgba(108, 240, 172, 0.5), 0 2px 8px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 0 14px rgba(95, 214, 166, 0.6), 0 2px 6px rgba(0, 0, 0, 0.5);
     pointer-events: none;
+    animation: start-game-flow-badge-pop 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.start-game-flow__played-check--corp {
+    top: 8px;
+    right: 8px;
+    width: 34px;
+    height: 34px;
+    font-size: 20px;
 }
 
-.start-game-flow__prelude-status {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-
-    &--awaiting { color: #9fb6cc; }
-    &--playable { color: #b8f4d6; }
-    &--played   { color: #6cf0ac; }
-    &--discarded { color: #f08a8a; }
-}
-
-/* Red ✕ discard stamp — twin of the green played-check, for clarity. */
+/* DISCARDED ✕ badge — the red twin of the done check (same corner stamp shape). */
 .start-game-flow__discard-mark {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 3;
-    width: 54px;
-    height: 54px;
+    top: 6px;
+    right: 6px;
+    z-index: 4;
+    width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 32px;
+    font-size: 17px;
     font-weight: 700;
-    color: #ff9a9a;
-    background: rgba(34, 8, 8, 0.9);
-    border: 2px solid rgba(240, 120, 120, 0.9);
+    line-height: 1;
+    color: #3a0c0c;
+    background: linear-gradient(180deg, #ffb0b0, #e87676);
+    border: 1px solid rgba(255, 255, 255, 0.42);
     border-radius: 50%;
-    box-shadow: 0 0 18px rgba(240, 120, 120, 0.45), 0 2px 8px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 0 12px rgba(232, 118, 118, 0.5), 0 2px 6px rgba(0, 0, 0, 0.5);
     pointer-events: none;
+}
+
+@keyframes start-game-flow-badge-pop {
+    from { opacity: 0; transform: scale(0.4); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+/* Status caption under each prelude — leading dot ties it to the chip language. */
+.start-game-flow__prelude-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+
+    &::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 7px currentColor;
+    }
+
+    &--awaiting  { color: @sgf-steel; }
+    &--playable  { color: #86e3ff; }
+    &--played    { color: @sgf-mint; }
+    &--discarded { color: @sgf-red; }
 }
 
 /* The draw-choice block gets an amber section accent to set it apart. */
 .start-game-flow__draw .start-game-flow__section-label {
-    color: #e6b86a;
-    border-bottom-color: rgba(230, 184, 106, 0.22);
+    color: @sgf-amber;
+    &::before { background: linear-gradient(90deg, @sgf-amber, rgba(230, 184, 106, 0)); box-shadow: 0 0 8px rgba(230, 184, 106, 0.45); }
+    &::after  { background: linear-gradient(90deg, rgba(230, 184, 106, 0.28), rgba(230, 184, 106, 0.02)); }
 }
 
 /* The Double Down copy block uses a cyan accent (distinct from amber draw). */
 .start-game-flow__copy .start-game-flow__section-label {
-    color: #7fd4ff;
-    border-bottom-color: rgba(127, 212, 255, 0.22);
+    color: @sgf-cyan;
+    &::before { background: linear-gradient(90deg, @sgf-cyan, rgba(127, 212, 255, 0)); box-shadow: 0 0 8px rgba(127, 212, 255, 0.55); }
+    &::after  { background: linear-gradient(90deg, rgba(127, 212, 255, 0.3), rgba(127, 212, 255, 0.02)); }
 }
 
-/* ─── Action buttons (premium dark-glass; play=mint, apply=cyan) ─────── */
+/* ─── Action buttons (cyan dark-glass "act now"; strong, but the bright-mint
+       BEGIN remains the single final CTA they never compete with) ───────── */
 
 .start-game-flow__play-btn,
 .start-game-flow__apply-btn {
     border: none;
     cursor: pointer;
-    height: 34px;
-    padding: 0 22px;
+    height: 36px;
+    padding: 0 24px;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 700;
-    letter-spacing: 1.6px;
+    letter-spacing: 1.8px;
     text-transform: uppercase;
-    color: #eafff5;
+    color: #eafaff;
     border-radius: 3px;
     position: relative;
     isolation: isolate;
-    transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease;
-}
+    background: linear-gradient(180deg, rgba(40, 80, 110, 0.55), rgba(16, 34, 50, 0.7));
+    box-shadow: inset 0 0 0 1px rgba(127, 212, 255, 0.5), 0 4px 14px rgba(0, 0, 0, 0.4);
+    transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
 
-.start-game-flow__play-btn {
-    background: linear-gradient(180deg, rgba(70, 200, 150, 0.5), rgba(24, 70, 52, 0.6));
-    box-shadow: inset 0 0 0 1px rgba(120, 230, 180, 0.55);
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1px;
+        border-radius: 2px;
+        background: linear-gradient(180deg, rgba(20, 40, 58, 0.5), rgba(10, 22, 34, 0.72));
+        z-index: -1;
+    }
     &:hover {
         transform: translateY(-1px);
-        box-shadow: inset 0 0 0 1px rgba(120, 230, 180, 0.8), 0 6px 16px rgba(40, 160, 110, 0.35);
+        box-shadow: inset 0 0 0 1px rgba(127, 212, 255, 0.85), 0 8px 20px rgba(60, 150, 210, 0.32), 0 0 18px rgba(120, 200, 255, 0.3);
+        filter: brightness(1.06);
     }
+    &:active { transform: translateY(0); }
 }
 
 /*
@@ -406,26 +625,16 @@
 .start-game-flow__blocked-note {
     max-width: 150px;
     text-align: center;
-    padding: 5px 10px;
-    font-size: 11px;
+    padding: 6px 11px;
+    font-size: 10.5px;
     font-weight: 700;
-    line-height: 1.25;
-    letter-spacing: 0.4px;
+    line-height: 1.3;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
     color: #f0dca8;
-    background: rgba(70, 56, 22, 0.4);
-    border: 1px solid rgba(230, 200, 120, 0.4);
+    background: rgba(70, 56, 22, 0.42);
+    border: 1px solid rgba(230, 200, 120, 0.42);
     border-radius: 3px;
-}
-
-.start-game-flow__apply-btn {
-    color: #eaf6ff;
-    background: linear-gradient(180deg, rgba(80, 170, 230, 0.5), rgba(22, 52, 78, 0.6));
-    box-shadow: inset 0 0 0 1px rgba(120, 200, 240, 0.55);
-    &:hover {
-        transform: translateY(-1px);
-        box-shadow: inset 0 0 0 1px rgba(120, 200, 240, 0.85), 0 6px 16px rgba(60, 140, 210, 0.35);
-    }
 }
 
 /*
@@ -460,19 +669,36 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    padding: 16px 0 4px;
+    gap: 14px;
+    padding: 20px 0 8px;
+}
+
+.start-game-flow__waiting-loader {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.start-game-flow__waiting-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(106, 176, 230, 0.16);
+    border-top-color: rgba(127, 212, 255, 0.85);
+    animation: start-game-flow-spin 1.1s linear infinite;
 }
 
 .start-game-flow__waiting-dots {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 
     span {
-        width: 9px;
-        height: 9px;
+        width: 7px;
+        height: 7px;
         border-radius: 50%;
-        background: #6ab0e6;
+        background: #7fc6ee;
         animation: start-game-flow-bounce 1.4s ease-in-out infinite;
     }
     span:nth-child(2) { animation-delay: 0.18s; }
@@ -483,60 +709,153 @@
     0%, 80%, 100% { transform: scale(0.5); opacity: 0.4; }
     40%           { transform: scale(1); opacity: 1; }
 }
+@keyframes start-game-flow-spin {
+    to { transform: rotate(360deg); }
+}
 
 .start-game-flow__waiting-text {
     margin: 0;
-    font-size: 13px;
+    font-size: 12px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
     color: #9bb5d0;
     text-align: center;
 }
 
-/* ─── Completion footer ──────────────────────────────────────────────── */
+.start-game-flow__waiting-players {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+.start-game-flow__waiting-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px 5px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(106, 176, 230, 0.25);
+    background: rgba(18, 32, 48, 0.65);
+    font-size: 12px;
+    font-weight: 600;
+    color: #dcebfa;
+}
+.start-game-flow__waiting-chip-dot {
+    flex: none;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25), 0 0 8px rgba(0, 0, 0, 0.4);
+}
+.start-game-flow__waiting-chip-name {
+    letter-spacing: 0.4px;
+}
+
+/* ─── Completion footer — the reward / payoff ────────────────────────── */
 
 .start-game-flow__footer {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(106, 176, 230, 0.18);
+    position: relative;
+    margin-top: 26px;
+    padding-top: 24px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-}
+    gap: 13px;
 
-.start-game-flow__done-note {
-    font-size: 13px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: #b8f4d6;
-}
-
-/* The single strongest control — bright mint plate with dark text + slow glow. */
-.start-game-flow__begin-btn {
-    border: none;
-    cursor: pointer;
-    height: 44px;
-    padding: 0 42px;
-    font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 2.4px;
-    text-transform: uppercase;
-    color: #06231a;
-    border-radius: 4px;
-    background: linear-gradient(180deg, #9cf3cf 0%, #5fd6a6 100%);
-    box-shadow: 0 0 0 1px rgba(120, 230, 180, 0.6), 0 0 24px rgba(95, 214, 166, 0.4);
-    animation: start-game-flow-begin-glow 2.6s ease-in-out infinite;
-    transition: filter 150ms ease, transform 150ms ease;
-
-    &:hover {
-        transform: translateY(-1px);
-        filter: brightness(1.08);
+    /* Centre-bright green divider — signals "you've finished the prep". */
+    &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 8%;
+        right: 8%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(108, 240, 172, 0.5), transparent);
     }
 }
 
+.start-game-flow__done-badge {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #06231a;
+    background: linear-gradient(180deg, #9cf3cf, @sgf-green);
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgba(95, 214, 166, 0.14), 0 0 22px rgba(95, 214, 166, 0.5), 0 4px 12px rgba(0, 0, 0, 0.5);
+    animation: start-game-flow-badge-pop 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.start-game-flow__done-note {
+    font-size: 12.5px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #aef0d0;
+    text-shadow: 0 0 12px rgba(95, 214, 166, 0.25);
+}
+
+/* The single strongest control — bright mint plate, dark text, slow under-glow. */
+.start-game-flow__begin-btn {
+    border: none;
+    cursor: pointer;
+    height: 50px;
+    padding: 0 52px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #06231a;
+    border-radius: 5px;
+    position: relative;
+    isolation: isolate;
+    background: linear-gradient(180deg, #a6f5d6 0%, @sgf-green 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        0 0 0 1px rgba(120, 230, 180, 0.55),
+        0 0 30px rgba(95, 214, 166, 0.4),
+        0 10px 24px rgba(0, 0, 0, 0.4);
+    animation: start-game-flow-begin-glow 2.6s ease-in-out infinite;
+    transition: transform 150ms ease, filter 150ms ease;
+
+    /* Top sheen for the "physical button" read. */
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 5px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), transparent 45%);
+        pointer-events: none;
+    }
+    &:hover {
+        transform: translateY(-2px);
+        filter: brightness(1.06);
+    }
+    &:active { transform: translateY(0); }
+}
+.start-game-flow__begin-label {
+    position: relative;
+    z-index: 1;
+}
+
 @keyframes start-game-flow-begin-glow {
-    0%, 100% { box-shadow: 0 0 0 1px rgba(120, 230, 180, 0.6), 0 0 18px rgba(95, 214, 166, 0.3); }
-    50%      { box-shadow: 0 0 0 1px rgba(120, 230, 180, 0.8), 0 0 30px rgba(95, 214, 166, 0.55); }
+    0%, 100% {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.4),
+            0 0 0 1px rgba(120, 230, 180, 0.5),
+            0 0 22px rgba(95, 214, 166, 0.3),
+            0 10px 24px rgba(0, 0, 0, 0.4);
+    }
+    50% {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.45),
+            0 0 0 1px rgba(120, 230, 180, 0.75),
+            0 0 38px rgba(95, 214, 166, 0.55),
+            0 10px 24px rgba(0, 0, 0, 0.4);
+    }
 }
 
 /* ─── Minimized pill (reuses .mandatory-input-modal-pill chrome) ─────── */
@@ -549,8 +868,15 @@
     .start-game-flow__card,
     .start-game-flow__backdrop,
     .start-game-flow__heading-dot,
+    .start-game-flow__chip-dot,
+    .start-game-flow__corp-status-dot,
+    .start-game-flow__played-check,
+    .start-game-flow__done-badge,
     .start-game-flow__waiting-dots span,
-    .start-game-flow__begin-btn {
+    .start-game-flow__waiting-ring,
+    .start-game-flow__begin-btn,
+    .start-game-flow__prelude--playable .start-game-flow__card-thumb,
+    .start-game-flow__corp-item .start-game-flow__card-thumb--ready {
         animation: none;
     }
 }
