@@ -52,17 +52,17 @@
               `val-is-active` swaps. See AnimatedScaleMarker.vue for the contract.
             -->
             <div class="global-numbers-temperature">
-                <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in getValuesForParameter('temperature')" :key="idx">{{ lvl.strValue }}</div>
+                <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in temperatureValues" :key="idx">{{ lvl.strValue }}</div>
                 <animated-scale-marker accent="temperature" :value="temperature" />
             </div>
 
             <div class="global-numbers-oxygen">
-                <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in getValuesForParameter('oxygen')" :key="idx">{{ lvl.strValue }}</div>
+                <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in oxygenValues" :key="idx">{{ lvl.strValue }}</div>
                 <animated-scale-marker accent="oxygen" :value="oxygen_level" />
             </div>
 
             <div class="global-numbers-venus" v-if="expansions.venus">
-                <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in getValuesForParameter('venus')" :key="idx">{{ lvl.strValue }}</div>
+                <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in venusValues" :key="idx">{{ lvl.strValue }}</div>
                 <animated-scale-marker accent="venus" :value="venusScaleLevel" />
             </div>
 
@@ -99,7 +99,7 @@
 
         <div class="board" id="main_board">
             <board-space
-              v-for="curSpace in getAllSpacesOnMars()"
+              v-for="curSpace in spacesOnMars"
               :key="curSpace.id"
               :space="curSpace"
               :aresExtension="expansions.ares"
@@ -545,6 +545,31 @@ export default defineComponent({
     },
   },
   computed: {
+    /**
+     * Sorted, colony-filtered Mars surface cells for the main `<board-space>`
+     * v-for. Cached as a computed (depends only on `this.spaces`) so an
+     * unrelated re-render of `<board>` — e.g. the in-place global-parameter
+     * preview mutation that only bumps `temperature` — does NOT re-allocate
+     * the array + re-diff all ~60 board cells. The board-space children keep
+     * stable prop identities and skip re-render. (perf B11)
+     */
+    spacesOnMars(): Array<SpaceModel> {
+      return this.getAllSpacesOnMars();
+    },
+    /**
+     * Scale-anchor levels per global parameter, cached as computeds so each
+     * only rebuilds when its own parameter changes — moving the temperature
+     * marker no longer rebuilds the oxygen / venus anchor arrays. (perf B11)
+     */
+    temperatureValues(): Array<GlobalParamLevel> {
+      return this.getValuesForParameter('temperature');
+    },
+    oxygenValues(): Array<GlobalParamLevel> {
+      return this.getValuesForParameter('oxygen');
+    },
+    venusValues(): Array<GlobalParamLevel> {
+      return this.getValuesForParameter('venus');
+    },
     /**
      * Mars-surface cells (non-colony) for which a special-cell info entry
      * exists. The marker component itself gates rendering on

@@ -43,6 +43,40 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
 }
 
 /*
+ * perf B4 — freeze the board's continuous CSS animations while a
+ * FULL-VIEWPORT blur backdrop is up.
+ *
+ * A `backdrop-filter: blur()` must re-snapshot + re-blur the ENTIRE
+ * viewport on every frame in which a single pixel beneath it changes.
+ * Under our modals the board keeps changing pixels — the rotating
+ * active-player cube (`rotation 8s infinite`), the blink / viewing-dot
+ * pulses, the board tile-highlight — so the full-screen gaussian blur
+ * was being recomputed at 60fps for as long as the modal stayed open.
+ * That was the dominant cost of "lag when opening a modal".
+ *
+ * Pausing those animations makes the blurred backdrop static → painted
+ * once. The player cannot see the board through the blur anyway, so the
+ * freeze is invisible, and it resumes the instant the modal closes.
+ * The `:not(--minimized):not(--picker-mode)` / `:not(--minimized)`
+ * clauses exclude the states where the board is DELIBERATELY kept live
+ * for inspection (then there is no blocking blur to protect).
+ *
+ * Scoped to `#player-home` (board + panels). The modals are teleported
+ * OUTSIDE it (mandatory / colonies → <body>, card-zoom → top layer), so
+ * their own content is never frozen. CSS `animation-play-state` does not
+ * affect the scale-marker WAAPI animations (created via element.animate),
+ * which is fine — those aren't running while a modal blocks input.
+ */
+body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-modal--minimized):not(.mandatory-input-modal--picker-mode)) #player-home,
+body:has(.colonies-overlay:not(.colonies-overlay--minimized)) #player-home,
+body:has(dialog.card-zoom-dialog[open]) #player-home {
+    &,
+    * {
+        animation-play-state: paused !important;
+    }
+}
+
+/*
  * Когда открыт `.top-bar-dropdown` (Достижения / Награды / Стандартные
  * проекты), все «awaiting» / «committed»-пиллы уезжают по z-index ниже
  * него. Без этого они перекрывают overlay'и: dropdown'ы сидят в

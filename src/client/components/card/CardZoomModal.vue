@@ -321,7 +321,13 @@ export default defineComponent({
     show() {
       this.currentIndex = this.computeStartIndex();
       this.slideDir = '';
-      this.refreshPreload();
+      // Do NOT render the neighbour preloads synchronously on open — that
+      // mounts 2 extra full card trees in the SAME frame as the dialog,
+      // tripling the open cost. Start empty; warm them once the dialog has
+      // painted, in idle time (well before the player can press an arrow).
+      // The slide itself never depends on preload — the target card mounts
+      // fresh via the keyed transition either way. (perf B13)
+      this.preloadNames = [];
       showModal(this.typedRefs.dialog);
       // Sync the parent to the card we actually opened on (the start index may
       // differ from the raw `card` prop, e.g. a list with duplicate names), so
@@ -333,6 +339,20 @@ export default defineComponent({
       // measured against the actual viewport. nextTick ensures the
       // card's content has flowed before we read offsetHeight.
       this.$nextTick(() => this.fitCardToViewport());
+      this.schedulePreloadWarm();
+    },
+    // Warm the neighbour preloads AFTER the open frame has painted, so the
+    // initial fullscreen open only renders the one visible card. Self-guards
+    // on the dialog still being open (it may close before this fires). (perf B13)
+    schedulePreloadWarm() {
+      if (!this.navEnabled) {
+        return;
+      }
+      window.setTimeout(() => {
+        if (this.typedRefs.dialog?.open === true) {
+          this.refreshPreload();
+        }
+      }, 90);
     },
     close() {
       if (this.typedRefs.dialog.open) {

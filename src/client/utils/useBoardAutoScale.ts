@@ -83,8 +83,7 @@ const MAX_SCALE = 4.0;
 // huge top padding just wasted vertical space at 4K. A modest 20px
 // gap keeps the topmost outer cells (Maxwell Base etc., margin-top:
 // -13px) clear of the top button bar with comfortable breathing room.
-function readVerticalReserved(): number {
-  const cs = getComputedStyle(document.documentElement);
+function readVerticalReserved(cs: CSSStyleDeclaration): number {
   const buttonH = parsePx(cs.getPropertyValue('--bottom-bar-button-height')) || 36;
   const topPadding = buttonH + 20;
   // The bottom CENTRE is now free — the bottom bar was split into two
@@ -99,8 +98,7 @@ function readVerticalReserved(): number {
   return topPadding + bottomPadding + 4;
 }
 
-function readHorizontalReserved(): number {
-  const cs = getComputedStyle(document.documentElement);
+function readHorizontalReserved(cs: CSSStyleDeclaration): number {
   // Same calc as `#player-home`'s `padding-left/right`: panel + 20px
   // breather on each side.
   const leftW = parsePx(cs.getPropertyValue('--left-panel-width')) || 160;
@@ -117,13 +115,19 @@ function parsePx(s: string): number {
 let rafHandle = 0;
 let refCount = 0;
 let resizeObserver: ResizeObserver | undefined;
+// Last value written to `--board-scale`. Used to skip redundant writes
+// (see computeAndApply). Reset on teardown so a fresh install recomputes.
+let lastAppliedScale = '';
 
 function computeAndApply(): void {
   rafHandle = 0;
+  // Single getComputedStyle read for BOTH reservation calcs — each used to
+  // call it separately, i.e. two forced style recalcs per pass. (perf B7)
+  const cs = getComputedStyle(document.documentElement);
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const reservedH = readHorizontalReserved();
-  const reservedV = readVerticalReserved();
+  const reservedH = readHorizontalReserved(cs);
+  const reservedV = readVerticalReserved(cs);
   const availableW = vw - reservedH;
   const availableV = vh - reservedV;
   if (availableW <= 0 || availableV <= 0) return;
@@ -134,7 +138,14 @@ function computeAndApply(): void {
 
   // Round to 3 decimals — avoids subpixel reflow churn from float jitter
   // when viewport size changes by sub-pixel fractions (browser DPR).
-  document.documentElement.style.setProperty('--board-scale', scale.toFixed(3));
+  const next = scale.toFixed(3);
+  // Skip the write when the value is unchanged. A no-op setProperty still
+  // dirties documentElement's style and can re-fire the ResizeObserver
+  // below, which would feed itself; guarding the write breaks that
+  // potential observer→write→observer loop. (perf B7)
+  if (next === lastAppliedScale) return;
+  lastAppliedScale = next;
+  document.documentElement.style.setProperty('--board-scale', next);
 }
 
 function schedule(): void {
@@ -179,6 +190,9 @@ function uninstall(): void {
     // fallback (`--board-scale: 1.4` in player_home.less) — safer than
     // leaving a stale runtime-computed value behind.
     document.documentElement.style.removeProperty('--board-scale');
+    // Forget the cached value so the next install writes fresh (the
+    // property was just removed). (perf B7)
+    lastAppliedScale = '';
   }
 }
 
