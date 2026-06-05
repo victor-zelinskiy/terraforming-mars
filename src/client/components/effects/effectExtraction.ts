@@ -208,6 +208,45 @@ export function playerEffectCount(tableau: ReadonlyArray<CardModel>): number {
   return playerEffects(tableau).length;
 }
 
+// One SOURCE (card / corporation) and ALL of its passive effects. The overlay
+// renders one group per source — the source name appears ONCE (no duplication
+// when a card grants several effects) but each effect stays its OWN sub-block.
+export type EffectGroup = {
+  key: string;
+  cardName: CardName;
+  isCorporation: boolean;
+  isDisabled: boolean;
+  effects: Array<{
+    key: string;
+    effectNode: ICardRenderEffect | undefined;
+    text: string | undefined;
+  }>;
+};
+
+/**
+ * The player's effects grouped by SOURCE card, preserving the corp-first,
+ * tableau order of `playerEffects` (a card's effects are consecutive there, so
+ * Map insertion order groups them correctly).
+ */
+export function playerEffectGroups(tableau: ReadonlyArray<CardModel>): Array<EffectGroup> {
+  const groups = new Map<CardName, EffectGroup>();
+  for (const e of playerEffects(tableau)) {
+    let g = groups.get(e.cardName);
+    if (g === undefined) {
+      g = {
+        key: e.cardName,
+        cardName: e.cardName,
+        isCorporation: e.isCorporation,
+        isDisabled: e.isDisabled,
+        effects: [],
+      };
+      groups.set(e.cardName, g);
+    }
+    g.effects.push({key: e.key, effectNode: e.effectNode, text: e.text});
+  }
+  return [...groups.values()];
+}
+
 // Current scope for the effects feature.
 const SCOPE_MODULES: ReadonlySet<GameModule> =
   new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude']);

@@ -19,21 +19,14 @@
         <span class="effects-board__glyph" aria-hidden="true"></span>
         <h2 class="effects-board__title" v-i18n>Effects</h2>
         <span class="effects-board__count">{{ effects.length }}</span>
+        <!-- Read-only player context. Switching seats is done the generic way:
+             clicking a player's panel (top-left) re-points displayedPlayer. -->
+        <span class="effects-board__player" :class="'player_translucent_bg_color_' + displayedPlayer.color">
+          <span class="effects-board__player-dot" :class="'player_bg_color_' + displayedPlayer.color" aria-hidden="true"></span>
+          <span class="effects-board__player-name">{{ displayedPlayer.name }}</span>
+          <span v-if="displayedPlayer.color === viewerColor" class="effects-board__player-you" v-i18n>You</span>
+        </span>
         <button class="effects-board__close" @click="$emit('close')" :title="$t('Close')" data-test="effects-overlay-close">✕</button>
-      </div>
-      <!-- Player switcher — effects are public, so any seat can be inspected. -->
-      <div v-if="players.length > 1" class="effects-board__players">
-        <button v-for="p in players"
-                :key="p.color"
-                type="button"
-                class="effects-board__player"
-                :class="{'effects-board__player--active': p.color === displayedPlayer.color}"
-                @click="$emit('selectPlayer', p.color)"
-                :data-test="'effects-player-' + p.color">
-          <span class="effects-board__player-dot" :class="'player_bg_color_' + p.color" aria-hidden="true"></span>
-          <span class="effects-board__player-name">{{ p.name }}</span>
-          <span v-if="p.color === viewerColor" class="effects-board__player-you" v-i18n>You</span>
-        </button>
       </div>
     </header>
 
@@ -43,9 +36,9 @@
         <span class="effects-board__empty-text" v-i18n>No active effects</span>
       </div>
       <div v-else class="effects-board__grid" ref="grid">
-        <EffectBlock v-for="entry in effects"
-                     :key="entry.key"
-                     :entry="entry"
+        <EffectBlock v-for="g in groups"
+                     :key="g.key"
+                     :group="g"
                      @namehover="onNameHover"
                      @open="openFullscreen" />
       </div>
@@ -70,7 +63,7 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {playerEffects, EffectEntry} from '@/client/components/effects/effectExtraction';
+import {playerEffects, playerEffectGroups, EffectEntry, EffectGroup} from '@/client/components/effects/effectExtraction';
 import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import CardPreviewPopover from '@/client/components/journal/CardPreviewPopover.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -102,16 +95,12 @@ export default defineComponent({
       type: Object as PropType<PublicPlayerModel>,
       required: true,
     },
-    players: {
-      type: Array as PropType<ReadonlyArray<PublicPlayerModel>>,
-      default: () => [],
-    },
     viewerColor: {
       type: String as PropType<Color>,
       required: true,
     },
   },
-  emits: ['close', 'selectPlayer'],
+  emits: ['close'],
   data(): DataModel {
     return {
       hoverName: '' as CardName,
@@ -124,8 +113,13 @@ export default defineComponent({
     };
   },
   computed: {
+    // Flat list — drives the header count (= number of effects).
     effects(): ReadonlyArray<EffectEntry> {
       return playerEffects(this.displayedPlayer.tableau);
+    },
+    // Grouped by source card — one grid block per source, each effect a sub-block.
+    groups(): ReadonlyArray<EffectGroup> {
+      return playerEffectGroups(this.displayedPlayer.tableau);
     },
   },
   watch: {
@@ -172,7 +166,7 @@ export default defineComponent({
     },
     fit(): void {
       const grid = this.$refs.grid as HTMLElement | undefined;
-      const n = this.effects.length;
+      const n = this.groups.length;
       const availW = Math.max(360, Math.min(FIT_MAX_W, window.innerWidth - SIDE_MARGIN));
       if (grid === undefined || n === 0) {
         this.applyLayout(1, Math.min(availW, BLOCK_W + BODY_PAD_X));

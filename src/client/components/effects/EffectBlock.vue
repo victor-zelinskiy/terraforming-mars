@@ -1,16 +1,19 @@
 <template>
   <!--
-    One passive effect = one premium block. Header identifies the SOURCE (card /
-    corporation, colour-accented by type); the body reuses the card's own effect
-    render (graphic + localized "ЭФФЕКТ: …" description) via the existing
-    CardRenderEffectBoxComponent — or a text fallback for edge-case overrides.
-    Hover/focus + click are emitted up so the OVERLAY owns a single source-card
-    popover + fullscreen viewer (cheap — no per-block popover).
+    One SOURCE group = one premium block. The source (card / corporation) is
+    named ONCE in the header (colour-accented by type); EACH passive effect it
+    grants is a separate sub-block underneath (so "this card gave several
+    effects" reads clearly, with no name duplication). Each effect reuses the
+    card's own render (graphic + localized "ЭФФЕКТ: …") via
+    CardRenderEffectBoxComponent — wrapped in a bare `.card-container` so the
+    card-scoped icon CSS (`.card-container .card-resource`, tags, …) applies and
+    the sprite icons actually render. Hover/click are emitted up so the OVERLAY
+    owns a single shared source-card popover + fullscreen viewer.
   -->
   <div class="effect-block"
        :class="{
-         'effect-block--corp': entry.isCorporation,
-         'effect-block--disabled': entry.isDisabled,
+         'effect-block--corp': group.isCorporation,
+         'effect-block--disabled': group.isDisabled,
        }"
        ref="block"
        tabindex="0"
@@ -21,19 +24,22 @@
        @blur="onLeave"
        @click="onClick"
        @keydown.enter="onClick"
-       :data-test="'effect-block-' + entry.key">
+       :data-test="'effect-block-' + group.key">
     <div class="effect-block__head">
       <span class="effect-block__accent" aria-hidden="true"></span>
-      <span class="effect-block__source" v-i18n>{{ entry.cardName }}</span>
+      <span class="effect-block__source" v-i18n>{{ group.cardName }}</span>
       <span class="effect-block__type" aria-hidden="true">
-        <span v-if="entry.isCorporation" v-i18n>Corporation</span>
+        <span v-if="group.isCorporation" v-i18n>Corporation</span>
         <span v-else v-i18n>Card</span>
       </span>
     </div>
-    <div class="effect-block__body">
-      <CardRenderEffectBoxComponent v-if="entry.effectNode !== undefined"
-                                    :effectData="entry.effectNode" />
-      <div v-else class="effect-block__text" v-i18n>{{ entry.text }}</div>
+    <div class="effect-block__effects">
+      <div v-for="eff in group.effects" :key="eff.key" class="effect-block__effect">
+        <div v-if="eff.effectNode !== undefined" class="effect-block__render card-container">
+          <CardRenderEffectBoxComponent :effectData="eff.effectNode" />
+        </div>
+        <div v-else class="effect-block__text" v-i18n>{{ eff.text }}</div>
+      </div>
     </div>
   </div>
 </template>
@@ -41,15 +47,15 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
-import {EffectEntry} from '@/client/components/effects/effectExtraction';
+import {EffectGroup} from '@/client/components/effects/effectExtraction';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 
 export default defineComponent({
   name: 'EffectBlock',
   components: {CardRenderEffectBoxComponent},
   props: {
-    entry: {
-      type: Object as PropType<EffectEntry>,
+    group: {
+      type: Object as PropType<EffectGroup>,
       required: true,
     },
   },
@@ -60,13 +66,13 @@ export default defineComponent({
       if (el === undefined) {
         return;
       }
-      this.$emit('namehover', {name: this.entry.cardName as CardName, rect: el.getBoundingClientRect()});
+      this.$emit('namehover', {name: this.group.cardName as CardName, rect: el.getBoundingClientRect()});
     },
     onLeave(): void {
       this.$emit('namehover', null);
     },
     onClick(): void {
-      this.$emit('open', this.entry.cardName as CardName);
+      this.$emit('open', this.group.cardName as CardName);
     },
   },
 });
