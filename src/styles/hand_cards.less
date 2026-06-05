@@ -1316,8 +1316,12 @@
     letter-spacing: 1.2px;
 
     /* Keep the base label position/z-index, add the inline-flex layout for
-       the count / separator / gain run. */
-    &__label { display: inline-flex; align-items: center; gap: 5px; }
+       the count / separator / gain run. min-height reserves the 21px gain
+       coin's line ALWAYS (even at 0 selected, before the coin renders), so
+       the FIRST selection doesn't grow the button → the sale strip's height
+       stays constant → the body below never resizes → no card re-fit on the
+       first pick (the jiggle/lag the player reported). (perf hand-sale-strip) */
+    &__label { display: inline-flex; align-items: center; gap: 5px; min-height: 21px; }
     &__count { font-variant-numeric: tabular-nums; }
     &__sep { opacity: 0.6; }
     &__gain { display: inline-flex; align-items: center; gap: 1px; }

@@ -651,6 +651,17 @@ export default defineComponent({
     },
     // Coalesce fit() to one run per frame (resize bursts).
     scheduleFit(): void {
+      // Freeze card sizing while the sale / mandatory-select strip is up.
+      // Entering those modes (and the strip's own content) changes the chrome
+      // height above the grid, which shrinks the body — re-running fit() would
+      // re-zoom EVERY card, the resize + lag the player sees on entering sale
+      // mode. We keep the cards at their normal-mode size for the duration of
+      // the mode (they just shift down as a block under the strip, no reflow);
+      // the always-reserved scroll gutter absorbs any minor overflow, and
+      // exiting the mode re-fits. (perf hand-sale-freeze)
+      if (this.saleActive || this.selectActive) {
+        return;
+      }
       if (this.fitScheduled) {
         return;
       }
@@ -664,6 +675,11 @@ export default defineComponent({
     // would resize cards while they're still sliding/fading. One centralized
     // timer (reset on each change), not a per-change hack.
     deferFit(): void {
+      // See scheduleFit — card sizing is frozen while a sale / select strip is
+      // active, so a re-fit never runs in those modes. (perf hand-sale-freeze)
+      if (this.saleActive || this.selectActive) {
+        return;
+      }
       if (this.fitTimer !== undefined) {
         window.clearTimeout(this.fitTimer);
       }
