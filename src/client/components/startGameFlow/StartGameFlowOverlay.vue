@@ -91,7 +91,8 @@
                    class="start-game-flow__prelude"
                    :class="'start-game-flow__prelude--' + entry.status"
                    :data-test="'start-game-flow-prelude-' + entry.status">
-                <div class="start-game-flow__card-thumb">
+                <div class="start-game-flow__card-thumb"
+                     @click.capture.stop="openZoom(entry.name)">
                   <Card :card="{name: entry.name}" />
                   <span v-if="entry.status === 'played'" class="start-game-flow__played-check" aria-hidden="true">✓</span>
                 </div>
@@ -125,7 +126,8 @@
               <div v-for="(name, i) in drawCandidates"
                    :key="'draw-' + name + '-' + i"
                    class="start-game-flow__prelude start-game-flow__prelude--playable">
-                <div class="start-game-flow__card-thumb">
+                <div class="start-game-flow__card-thumb"
+                     @click.capture.stop="openZoom(name)">
                   <Card :card="{name}" />
                 </div>
                 <button class="start-game-flow__play-btn"
@@ -145,7 +147,8 @@
                    class="start-game-flow__prelude"
                    :class="name === rec.chosen ? 'start-game-flow__prelude--played' : 'start-game-flow__prelude--discarded'"
                    :data-test="name === rec.chosen ? 'start-game-flow-draw-played' : 'start-game-flow-draw-discarded'">
-                <div class="start-game-flow__card-thumb">
+                <div class="start-game-flow__card-thumb"
+                     @click.capture.stop="openZoom(name)">
                   <Card :card="{name}" />
                   <span v-if="name === rec.chosen" class="start-game-flow__played-check" aria-hidden="true">✓</span>
                   <span v-else class="start-game-flow__discard-mark" aria-hidden="true">✕</span>
@@ -205,11 +208,38 @@
       <span class="mandatory-input-modal-pill__restore" :title="$t('Restore')">⤢</span>
     </div>
   </Teleport>
+
+  <!--
+    Fullscreen prelude viewer. Single-click on any prelude card opens it here
+    (the card's own built-in zoom is suppressed by @click.capture.stop on the
+    thumb). Playable preludes (a playable starting prelude OR a drew-N-choose
+    candidate) get a РАЗЫГРАТЬ in the #actions slot so the player can play
+    straight from fullscreen; ← / → navigate across the shown preludes.
+  -->
+  <Teleport to="body">
+    <CardZoomModal v-if="zoomCard !== undefined"
+                   ref="zoomModal"
+                   :card="zoomCard"
+                   :cards="zoomNavCards"
+                   @navigate="zoomCard = $event"
+                   @close="zoomCard = undefined">
+      <template #actions>
+        <button v-if="zoomPlayable"
+                type="button"
+                class="card-zoom-actions__btn card-zoom-actions__btn--primary start-game-flow__zoom-play"
+                @click="playZoom"
+                data-test="start-game-flow-zoom-play">
+          <span v-i18n>Play now</span>
+        </button>
+      </template>
+    </CardZoomModal>
+  </Teleport>
 </template>
 
 <script lang="ts">
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, PropType, nextTick} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 import {Color} from '@/common/Color';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -219,6 +249,7 @@ import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {translateText} from '@/client/directives/i18n';
 import {vueRoot} from '@/client/components/vueRoot';
 import Card from '@/client/components/card/Card.vue';
+import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {
   startGameFlowState,
   startGameFlowActive,
@@ -255,11 +286,13 @@ type DataModel = {
   // Signature of the current actionable step; userMinimized resets when it
   // changes so a NEW step always un-minimizes (mirrors MandatoryInputModal).
   lastStepSignature: string;
+  // The prelude currently open in the fullscreen viewer (undefined = closed).
+  zoomCard: CardModel | undefined;
 };
 
 export default defineComponent({
   name: 'StartGameFlowOverlay',
-  components: {Card},
+  components: {Card, CardZoomModal},
   props: {
     playerView: {
       type: Object as PropType<ViewModel | undefined>,
@@ -273,7 +306,7 @@ export default defineComponent({
     },
   },
   data(): DataModel {
-    return {corpActionWasPending: false, userMinimized: false, lastStepSignature: ''};
+    return {corpActionWasPending: false, userMinimized: false, lastStepSignature: '', zoomCard: undefined};
   },
   watch: {
     // Latch activation + derive the minimize state on every view change.
@@ -331,6 +364,39 @@ export default defineComponent({
     resolvedDrawChoices(): ReadonlyArray<DrawChoiceRecord> {
       const view = this.playerViewTyped;
       return view === undefined ? [] : drawChoicesFor(view.id);
+    },
+    // Names the player can PLAY right now (a playable starting prelude OR a live
+    // draw candidate) — gates the РАЗЫГРАТЬ in the fullscreen viewer.
+    playableZoomNames(): ReadonlySet<CardName> {
+      const s = new Set<CardName>();
+      for (const e of this.preludes) {
+        if (e.status === 'playable') {
+          s.add(e.name);
+        }
+      }
+      for (const n of this.drawCandidates) {
+        s.add(n);
+      }
+      return s;
+    },
+    zoomPlayable(): boolean {
+      return this.zoomCard !== undefined && this.playableZoomNames.has(this.zoomCard.name);
+    },
+    // Every prelude card on display, in order — the fullscreen ← / → walks this.
+    zoomNavCards(): ReadonlyArray<CardModel> {
+      const names: Array<CardName> = [];
+      for (const e of this.preludes) {
+        names.push(e.name);
+      }
+      for (const n of this.drawCandidates) {
+        names.push(n);
+      }
+      for (const rec of this.resolvedDrawChoices) {
+        for (const n of rec.candidates) {
+          names.push(n);
+        }
+      }
+      return [...new Set(names)].map((name) => ({name}));
     },
     corpName(): CardName | undefined {
       const view = this.playerViewTyped;
@@ -429,6 +495,32 @@ export default defineComponent({
       }
       recordDrawChoice(view.id, prompt.cards.map((c) => c.name), name);
       this.onsave({type: 'card', cards: [name]});
+    },
+    // Open a prelude in the fullscreen viewer (suppressing the card's own zoom).
+    openZoom(name: CardName): void {
+      this.zoomCard = {name};
+      nextTick(() => {
+        (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
+      });
+    },
+    // Dispatch a play to the right path: a live draw candidate goes through the
+    // draw-choice recorder, a starting prelude through the normal play.
+    playByName(name: CardName): void {
+      if (this.drawCandidates.includes(name)) {
+        this.playDrawPrelude(name);
+      } else {
+        this.playPrelude(name);
+      }
+    },
+    // РАЗЫГРАТЬ from fullscreen — close the viewer, then submit the current card.
+    playZoom(): void {
+      const card = this.zoomCard;
+      if (card === undefined) {
+        return;
+      }
+      (this.$refs.zoomModal as {close?: () => void} | undefined)?.close?.();
+      this.zoomCard = undefined;
+      this.playByName(card.name);
     },
     // Pill click: clear the MANUAL minimize only. If we're auto-minimized for a
     // focused sub-action, `startGameFlowState.minimized` stays true so the pill

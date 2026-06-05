@@ -44,7 +44,7 @@ function stubFetch(): void {
 // Root harness exposing the App-root fields vueRoot(this) reads, so the overlay
 // never sets unknown props on a bare vm (which would trip the warn-as-error
 // handler in getLocalVue).
-function harness(view: any) {
+function harness(view: any, extraStubs: Record<string, any> = {}) {
   const Harness = defineComponent({
     components: {StartGameFlowOverlay},
     data() {
@@ -53,7 +53,7 @@ function harness(view: any) {
     methods: {showAlert(): void { /* noop */ }},
     template: '<StartGameFlowOverlay :player-view="playerView" :waiting-on-players="[]" />',
   });
-  return mount(Harness, {...globalConfig, global: {...globalConfig.global, stubs: {Card: true}}});
+  return mount(Harness, {...globalConfig, global: {...globalConfig.global, stubs: {Card: true, CardZoomModal: true, ...extraStubs}}});
 }
 
 describe('StartGameFlowOverlay', () => {
@@ -132,6 +132,35 @@ describe('StartGameFlowOverlay', () => {
     const text = document.body.querySelector('[data-test="start-game-flow"]')?.textContent ?? '';
     expect(text.toLowerCase()).to.not.include('пас');
     expect(text.toLowerCase()).to.not.include('pass');
+  });
+
+  it('can play a prelude from the fullscreen viewer (playable gate + dispatch)', async () => {
+    markStartFlowActivated('p-blue-id');
+    const w = harness(fakePlayerViewModel({
+      preludeCardsInHand: [{name: PRELUDE_A}] as any,
+      waitingFor: preludePrompt([PRELUDE_A], 'hand'),
+    }));
+    const vm: any = w.findComponent(StartGameFlowOverlay).vm;
+    // The fullscreen РАЗЫГРАТЬ is gated by this set and dispatches via playByName.
+    expect(vm.playableZoomNames.has(PRELUDE_A)).to.eq(true);
+    expect(vm.zoomNavCards.map((c: any) => c.name)).to.include(PRELUDE_A);
+    vm.playByName(PRELUDE_A);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(lastBody?.type).to.eq('card');
+    expect(lastBody?.cards).to.deep.eq([PRELUDE_A]);
+  });
+
+  it('dispatches a fullscreen play of a draw candidate through the draw recorder', async () => {
+    markStartFlowActivated('p-blue-id');
+    const w = harness(fakePlayerViewModel({
+      waitingFor: preludePrompt([PRELUDE_A, PRELUDE_B], 'draw'),
+    }));
+    const vm: any = w.findComponent(StartGameFlowOverlay).vm;
+    expect(vm.playableZoomNames.has(PRELUDE_A)).to.eq(true);
+    vm.playByName(PRELUDE_A);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(lastBody?.cards).to.deep.eq([PRELUDE_A]);
+    expect(startGameFlowState.drawChoices.some((r) => r.chosen === PRELUDE_A)).to.eq(true);
   });
 
   it('renders the drew-N-choose-ONE block and submits the chosen prelude', async () => {
