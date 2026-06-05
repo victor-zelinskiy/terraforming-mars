@@ -10,6 +10,15 @@ import {CardName} from '@/common/cards/CardName';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
 
 describe('LogMessageComponent', () => {
+  beforeEach(() => {
+    PreferencesManager.resetForTest();
+    PreferencesManager.INSTANCE.set('lang', 'en');
+  });
+
+  afterEach(() => {
+    PreferencesManager.resetForTest();
+  });
+
   it('mounts without errors', () => {
     const wrapper = shallowMount(LogMessageComponent, {
       ...globalConfig,
@@ -103,7 +112,7 @@ describe('LogMessageComponent', () => {
         '<span class="log-card background-color-corporation">Celestic</span>',
       );
     } finally {
-      PreferencesManager.resetForTest();
+      PreferencesManager.INSTANCE.set('lang', 'en');
     }
   });
 
@@ -128,7 +137,7 @@ describe('LogMessageComponent', () => {
         '<span class="log-card background-color-corporation">Celestic</span>',
       );
     } finally {
-      PreferencesManager.resetForTest();
+      PreferencesManager.INSTANCE.set('lang', 'en');
     }
   });
 });

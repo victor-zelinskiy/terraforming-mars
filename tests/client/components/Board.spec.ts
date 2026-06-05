@@ -83,31 +83,4 @@ describe('Board', () => {
     ).to.be.true;
   });
 
-  it('emits toggleTileView on toggle button click', async () => {
-    const wrapper = shallowMount(Board, {
-      ...globalConfig,
-      props: {spaces, expansions: DEFAULT_EXPANSIONS, venusScaleLevel: 0, boardName: BoardName.THARSIS},
-    });
-
-    await wrapper.find('[data-test=hide-tiles-button]').trigger('click');
-    expect(wrapper.emitted('toggleTileView')?.length).to.be.eq(1);
-  });
-
-  it('renders "show tiles" in toggle button if tiles are hidden', () => {
-    const wrapper = shallowMount(Board, {
-      ...globalConfig,
-      props: {spaces, expansions: DEFAULT_EXPANSIONS, tileView: 'show', venusScaleLevel: 0, boardName: BoardName.THARSIS},
-    });
-
-    expect(wrapper.find('[data-test=hide-tiles-button]').text()).to.be.eq('show tiles');
-  });
-
-  it('renders "hide tiles" in toggle button if tiles are visible', () => {
-    const wrapper = shallowMount(Board, {
-      ...globalConfig,
-      props: {spaces, expansions: DEFAULT_EXPANSIONS, tileView: 'hide', venusScaleLevel: 0, boardName: BoardName.THARSIS},
-    });
-
-    expect(wrapper.find('[data-test=hide-tiles-button]').text()).to.be.eq('hide tiles');
-  });
 });

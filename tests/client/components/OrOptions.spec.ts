@@ -48,8 +48,9 @@ describe('OrOptions', () => {
         showtitle: true,
       },
     });
-    const buttons = component.findAllComponents({name: 'AppButton'});
-    await buttons[0].trigger('click');
+    const inputs = component.findAll('input');
+    await inputs[0].setValue(true);
+    await component.findComponent({name: 'AppButton'}).trigger('click');
     expect(savedData).to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
   });
   it('playerFactorySaved returns correct original index when options are filtered', async () => {
@@ -134,13 +135,15 @@ describe('OrOptions', () => {
         showtitle: true,
       },
     });
-    // First option is selected by default
     let factories = component.findAllComponents({name: 'player-input-factory'});
+    expect(factories.length).to.eq(0);
+
+    const inputs = component.findAll('input');
+    await inputs[0].setValue(true);
+    factories = component.findAllComponents({name: 'player-input-factory'});
     expect(factories.length).to.eq(1);
     expect(factories[0].props('playerinput').title).to.eq('select a');
 
-    // Click second radio
-    const inputs = component.findAll('input');
     await inputs[1].setValue(true);
 
     factories = component.findAllComponents({name: 'player-input-factory'});
@@ -255,7 +258,7 @@ describe('OrOptions', () => {
     expect(vm.showChildSaveButton({type: 'option'})).to.be.false;
   });
 
-  it('child save button label includes card count', () => {
+  it('child save button label includes card count', async () => {
     const component = mount(OrOptions, {
       ...globalConfig,
       global: {...globalConfig.global, components: {'player-input-factory': PlayerInputFactory}},
@@ -280,6 +283,7 @@ describe('OrOptions', () => {
         showsave: true,
       },
     });
+    await component.find('input').setValue(true);
     expect(component.findComponent({name: 'AppButton'}).text()).to.eq('Sell 0');
   });
 });

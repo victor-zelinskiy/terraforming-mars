@@ -758,8 +758,9 @@
     box-shadow: 0 14px 32px rgba(0, 0, 0, 0.62), inset 0 0 0 1px rgba(214, 64, 64, 0.1);
     color: #f3e8e8;
     text-align: left;
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
+    /* No backdrop-filter here: the background above is ~98.5% opaque, so a
+       blur of what's behind it is physically invisible — it was pure
+       per-hover GPU cost for zero visual benefit. (perf hand-A2) */
 
     /* caret — `--reason-caret` keeps it on the button after a sideways nudge */
     &::after {
@@ -932,8 +933,8 @@
     box-shadow: 0 13px 30px rgba(0, 0, 0, 0.58), inset 0 0 0 1px rgba(106, 176, 230, 0.08);
     color: @hc-text;
     text-align: left;
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
+    /* No backdrop-filter here: background above is ~98.5% opaque → a blur of
+       what's behind it is invisible, so it was pure per-hover GPU cost. (perf hand-A2) */
 
     /* caret — `--reason-caret` keeps it on the footer after a sideways nudge */
     &::after {

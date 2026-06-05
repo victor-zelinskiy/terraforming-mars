@@ -11,19 +11,19 @@ export class PaymentTester {
   }
 
   public async clickMax(type: SpendableResource) {
-    const button = this.wrapper.find(PaymentTester.selector(type) + ' .btn-max');
+    const button = this.wrapper.find(PaymentTester.selector(type) + ' .btn-max, ' + PaymentTester.selector(type) + ' .payment-v2-step--max');
     await button.trigger('click');
     await this.nextTick();
   }
 
   public async clickMinus(type: SpendableResource) {
-    const button = this.wrapper.find(PaymentTester.selector(type) + ' .btn-minus');
+    const button = this.wrapper.find(PaymentTester.selector(type) + ' .btn-minus, ' + PaymentTester.selector(type) + ' .payment-v2-step--minus');
     await button.trigger('click');
     await this.nextTick();
   }
 
   public async clickPlus(type: SpendableResource) {
-    const button = this.wrapper.find(PaymentTester.selector(type) + ' .btn-plus');
+    const button = this.wrapper.find(PaymentTester.selector(type) + ' .btn-plus, ' + PaymentTester.selector(type) + ' .payment-v2-step--plus');
     await button.trigger('click');
     await this.nextTick();
   }
@@ -35,12 +35,16 @@ export class PaymentTester {
   }
 
   public getValue(unit: SpendableResource): number {
-    const found = this.wrapper.find(PaymentTester.selector(unit) + ' input');
-    if (!found.exists()) {
+    const input = this.wrapper.find(PaymentTester.selector(unit) + ' input');
+    if (input.exists()) {
+      const textBox = input.element as HTMLInputElement;
+      return Number.parseInt(textBox?.value);
+    }
+    const value = this.wrapper.find(PaymentTester.selector(unit) + ' .payment-v2-row__count-value');
+    if (!value.exists()) {
       throw new Error('Cannot find text box for ' + unit);
     }
-    const textBox = found.element as HTMLInputElement;
-    return Number.parseInt(textBox?.value);
+    return Number.parseInt(value.text());
   }
 
   public getPayment(): Partial<Payment> {
@@ -65,7 +69,8 @@ export class PaymentTester {
    * Returns true when the text box for `resource` is visible.
    */
   private isAvailable(resource: SpendableResource): boolean {
-    return this.wrapper.find(PaymentTester.selector(resource) + ' input').exists();
+    const selector = PaymentTester.selector(resource);
+    return this.wrapper.find(selector + ' input, ' + selector + ' .payment-v2-row__count-value').exists();
   }
 
   /**

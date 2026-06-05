@@ -64,8 +64,8 @@ export function translateText(englishText: string): string {
 
   englishText = normalizeText(englishText);
 
-  // Don't translate non-word strings
-  if (/^(\W|\d)*$/.test(englishText)) {
+  // Don't translate non-word strings or card-render multiplier glyphs.
+  if (isNonTranslatableText(englishText)) {
     return englishText;
   }
 
@@ -123,6 +123,10 @@ export function translateTextWithParams(englishText: string, params: Array<strin
 
 function normalizeText(text: string): string {
   return text.replace(/[\n\r]/g, '').replace(/[ ]+/g, ' ').trim();
+}
+
+function isNonTranslatableText(text: string): boolean {
+  return /^(\W|\d)*$/.test(text) || /^\d*x$/.test(text);
 }
 
 function translateChildren(node: Node, params: string[] | undefined) {
