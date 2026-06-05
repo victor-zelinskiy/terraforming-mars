@@ -250,7 +250,7 @@ export class SQLite implements IDatabase {
     // Sequence of [game_id, id] pairs.
     const values: Array<GameId | ParticipantId> = entry.participantIds.map((participant) => [entry.gameId, participant]).flat();
 
-    await this.asyncRun('INSERT INTO participants (game_id, participant) VALUES ' + placeholders, values);
+    await this.asyncRun('INSERT OR IGNORE INTO participants (game_id, participant) VALUES ' + placeholders, values);
   }
 
   public async getParticipants(): Promise<Array<GameIdLedger>> {

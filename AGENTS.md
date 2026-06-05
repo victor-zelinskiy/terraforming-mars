@@ -539,6 +539,16 @@ When adding new styles:
 
 ---
 
+## Russian localization conventions
+
+When editing Russian localization, follow the existing Russian terminology used in this project first. Before choosing a Russian term, search `src/locales/ru/` for the same English term, related forms, or the same game concept, and keep wording consistent with existing translations.
+
+If a game term has not been translated anywhere in the project yet, check the official Russian tabletop localization of Terraforming Mars where possible. Surface those cases to the user instead of silently inventing a new term, especially for card names, resource names, tags, milestones, awards, colonies, corporations, expansion-specific mechanics, and log/action text.
+
+Do not translate corporation names or other proper names unless the project already has an explicit exception for that exact name, such as `Beginner Corporation`.
+
+---
+
 ## TypeScript / frontend code expectations
 
 When working in TypeScript/frontend code:

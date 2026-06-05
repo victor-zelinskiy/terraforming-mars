@@ -37,13 +37,17 @@
 
 .card-selection {
     /*
-     * Width-flex layout. NO min-width: let the card grid drive width;
-     * the modal card (above override) caps to viewport. Cards are
-     * laid out via flex with `justify-content: center` so they always
-     * read as a balanced row regardless of available width.
+     * Adaptive width. The JS fit engine (CardSelectionContent.fit) sets
+     * `--cs-content-width` to a count-aware px value so the modal hugs a snug,
+     * centred grid: few cards → narrow + big, many cards → wider balanced grid.
+     * Falls back to 100% (modal max-width cap) before the engine runs / under
+     * JSDOM. Capped to the viewport so it never bursts the screen.
      */
     padding: 14px 18px 16px;
-    width: 100%;
+    width: var(--cs-content-width, 100%);
+    max-width: calc(100vw - 48px);
+    margin-left: auto;
+    margin-right: auto;
     box-sizing: border-box;
     color: #e8f1fb;
     font-family: Prototype, Ubuntu, sans-serif;
@@ -201,14 +205,19 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────
- *  Card grid — 4 cards in a row
+ *  Card grid — adaptive WRAP grid (the JS fit engine sizes + balances it)
  * ────────────────────────────────────────────────────────────────── */
 .card-selection__cards {
     display: flex;
     align-items: flex-start;
+    align-content: center;
     justify-content: center;
-    flex-wrap: nowrap;
-    gap: 18px;
+    /* WRAP (was nowrap): many cards flow into balanced rows instead of one
+     * over-stuffed row. The fit engine sets `--cs-content-width` so the wrap
+     * point lands on the chosen column count, and `--cs-zoom` so the rows fit
+     * the viewport height. */
+    flex-wrap: wrap;
+    gap: 20px 22px;
     /* Top padding leaves vertical room for the "ВЫБРАНО" ribbon
      * (~26 px tall, pinned at top: -20 px of the selected card) plus
      * the static -8 px lift of the selected card, without crashing
@@ -217,7 +226,7 @@
     padding: 22px 4px 10px;
     /* Min-height so the modal doesn't visibly resize when the player
      * switches between sets of cards (e.g. mid-flow re-render). */
-    min-height: 480px;
+    min-height: 420px;
     /* Explicit overflow:visible so the selected card's outer halo
      * (::before pseudo-element with inset:-22 px) isn't clipped by
      * the grid container. */
@@ -549,7 +558,10 @@
      * — independent of card-container margins.
      */
     > .card-container {
-        zoom: 1.0;
+        /* Card size is the continuous `--cs-zoom` the fit engine sets (was a
+         * static 1.0 + a viewport-only media-query ladder). Defaults to 1 before
+         * the engine runs / under JSDOM. */
+        zoom: var(--cs-zoom, 1);
         margin: 0;
     }
 
@@ -982,35 +994,21 @@
  */
 
 /* ──────────────────────────────────────────────────────────────────
- *  Responsive — scale card zoom down for tighter viewports so the
- *  4-card row always fits without horizontal scroll.
- *
- *  Width budget per breakpoint (modal padding 36 px + viewport
- *  margin 48 px = ~84 px chrome):
- *
- *    Viewport ≥ 1400 → card zoom 1.0 (4 × 300 + 3 × 18 = 1254 px)
- *    Viewport 1280   → card zoom 0.9 (4 × 270 + 3 × 14 = 1122 px)
- *    Viewport 1100   → card zoom 0.78 (4 × 234 + 3 × 12 = 972 px)
- *    Viewport 960    → card zoom 0.68 (4 × 204 + 3 × 10 = 846 px)
- *
- *  Below ~900 px viewport the cards get too small to read; we leave
- *  that case to horizontal scroll inside the modal (not ideal, but
- *  no good alternative without dropping to a 2 × 2 grid). The
- *  product spec lists desktop as the target so this is acceptable.
+ *  Responsive — card SIZE is now the JS-driven `--cs-zoom` (count- and
+ *  height-aware, see CardSelectionContent.fit), so these breakpoints only
+ *  tighten the gap / padding / title on smaller viewports; they must NOT set
+ *  `zoom` (that would fight the engine's continuous value).
  * ────────────────────────────────────────────────────────────────── */
 @media (max-width: 1400px) {
-    .card-selection__cards { gap: 14px; min-height: 440px; }
-    .card-selection__card-slot > .card-container { zoom: 0.9; }
+    .card-selection__cards { gap: 16px 16px; min-height: 400px; }
 }
 @media (max-width: 1180px) {
     .card-selection { padding: 12px 14px 14px; }
-    .card-selection__cards { gap: 12px; min-height: 400px; }
-    .card-selection__card-slot > .card-container { zoom: 0.78; }
+    .card-selection__cards { gap: 14px 12px; min-height: 380px; }
     .card-selection__title { font-size: 19px; letter-spacing: 1px; }
 }
 @media (max-width: 1000px) {
-    .card-selection__cards { gap: 10px; min-height: 360px; }
-    .card-selection__card-slot > .card-container { zoom: 0.68; }
+    .card-selection__cards { gap: 12px 10px; min-height: 340px; }
 }
 
 /* ──────────────────────────────────────────────────────────────────

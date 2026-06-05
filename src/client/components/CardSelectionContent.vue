@@ -247,7 +247,8 @@ type DataModel = {
 // further only if the rows would overflow the viewport).
 const FIT_MIN_ZOOM = 0.5;
 const FIT_MAX_ITER = 12;
-const FIT_VIEWPORT_W_MARGIN = 48; // matches the modal's calc(100vw - 48px) cap
+const FIT_VIEWPORT_W_MARGIN = 80; // viewport side margins + modal frame padding
+const FIT_MAX_CONTENT_W = 1560;   // < the 1640 modal max-width cap (stays in box)
 const FIT_VIEWPORT_H_RATIO = 0.92;
 const FIT_MODAL_FRAME_V = 64;     // approx modal frame + outer margins (vertical)
 const FIT_SLOT_MIN_W = 168;       // action button floor — slot never narrower
@@ -422,8 +423,12 @@ export default defineComponent({
       return this.playerView.thisPlayer.megacredits;
     },
     canConfirm(): boolean {
-      if (this.selected.length < this.playerinput.min) return false;
-      if (this.totalCost > this.playerMC) return false;
+      if (this.selected.length < this.playerinput.min) {
+        return false;
+      }
+      if (this.totalCost > this.playerMC) {
+        return false;
+      }
       return true;
     },
     titleText(): string {
@@ -468,9 +473,9 @@ export default defineComponent({
          * the moment the selected list is empty so the player's
          * intent reads accurately on the button.
          */
-        return this.selected.length === 0
-          ? translateText('Skip')
-          : translateText('Buy');
+        return this.selected.length === 0 ?
+          translateText('Skip') :
+          translateText('Buy');
       }
       return translateText('Confirm selection');
     },
@@ -488,8 +493,12 @@ export default defineComponent({
     fullscreenToggleTooltip(): string {
       // Only relevant in buy mode when the player is at max — the
       // button is disabled and we want to explain why on hover.
-      if (!this.isBuyMode || this.zoomCard === undefined) return '';
-      if (this.isSelected(this.zoomCard.name)) return '';
+      if (!this.isBuyMode || this.zoomCard === undefined) {
+        return '';
+      }
+      if (this.isSelected(this.zoomCard.name)) {
+        return '';
+      }
       if (this.isMaxedOut) {
         return translateText('Already selected ${0} of ${1} — deselect a card first')
           .replace('${0}', String(this.selected.length))
@@ -498,7 +507,141 @@ export default defineComponent({
       return '';
     },
   },
+  mounted(): void {
+    nextTick(() => this.fit());
+    // Re-fit once after card art / web fonts settle (they shift card heights).
+    this.fitTimer = window.setTimeout(() => {
+      this.fitTimer = undefined;
+      this.fit();
+    }, 240);
+    const root = this.$refs.root as HTMLElement | undefined;
+    if (root !== undefined && typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => this.scheduleFit());
+      ro.observe(root);
+      this.resizeObserver = markRaw(ro);
+    }
+    // The content width is JS-driven, so a viewport resize won't resize `root`
+    // on its own — listen for it explicitly to recompute the budget.
+    window.addEventListener('resize', this.scheduleFit);
+  },
+  beforeUnmount(): void {
+    if (this.fitTimer !== undefined) {
+      window.clearTimeout(this.fitTimer);
+    }
+    this.resizeObserver?.disconnect();
+    window.removeEventListener('resize', this.scheduleFit);
+  },
   methods: {
+    // ─── Adaptive-fit engine ────────────────────────────────────────────
+    // Starting card zoom by count: few cards big, many cards start smaller.
+    // The height-fit loop only shrinks FURTHER if the rows would overflow.
+    baseZoom(n: number): number {
+      if (n <= 2) {
+        return 1.18;
+      }
+      if (n <= 3) {
+        return 1.12;
+      }
+      if (n <= 5) {
+        return 1.0;
+      }
+      if (n <= 7) {
+        return 0.92;
+      }
+      if (n <= 10) {
+        return 0.82;
+      }
+      return 0.74;
+    },
+    applyZoom(z: number): void {
+      (this.$refs.root as HTMLElement | undefined)?.style.setProperty('--cs-zoom', z.toFixed(3));
+    },
+    applyWidth(w: number): void {
+      (this.$refs.root as HTMLElement | undefined)?.style.setProperty('--cs-content-width', Math.round(w) + 'px');
+    },
+    /*
+     * Size the grid to the card count + viewport. Picks a per-count base zoom,
+     * measures one card's natural width, derives a BALANCED column count that
+     * fits the viewport width (rebalanced so rows are even, not 5+1), sets a
+     * matching content width so few cards stay snug+centred and many cards form
+     * a wider grid, then shrinks zoom only if the rows would overflow the
+     * viewport height (vertical scroll is the genuine last resort). Mirrors the
+     * HandCards/PlayedCards fit engines. No-op under JSDOM (rects are 0).
+     */
+    fit(): void {
+      const root = this.$refs.root as HTMLElement | undefined;
+      const grid = this.$refs.grid as HTMLElement | undefined;
+      if (root === undefined || grid === undefined) {
+        return;
+      }
+      const n = grid.children.length;
+      if (n === 0) {
+        return;
+      }
+
+      // Cap to the modal's content box: never wider than the 1640 modal max-width
+      // minus its frame padding, and never wider than the viewport.
+      const availW = Math.max(320, Math.min(FIT_MAX_CONTENT_W, window.innerWidth - FIT_VIEWPORT_W_MARGIN));
+      const availH = window.innerHeight * FIT_VIEWPORT_H_RATIO;
+      const gridCS = window.getComputedStyle(grid);
+      const gap = parseFloat(gridCS.columnGap) || 18;
+      const rootCS = window.getComputedStyle(root);
+      const padX = (parseFloat(rootCS.paddingLeft) || 0) + (parseFloat(rootCS.paddingRight) || 0);
+
+      // Measure one slot's natural width (at zoom 1) via a probe render.
+      let zoom = this.baseZoom(n);
+      this.applyWidth(availW);
+      this.applyZoom(zoom);
+      void grid.offsetHeight;
+      const probeW = (grid.children[0] as HTMLElement).getBoundingClientRect().width;
+      if (probeW <= 0) {
+        return;
+      } // not laid out (e.g. JSDOM) — keep CSS defaults
+      const naturalW = probeW / zoom;
+
+      for (let i = 0; i < FIT_MAX_ITER; i++) {
+        const slotW = Math.max(naturalW * zoom, FIT_SLOT_MIN_W);
+        // Columns that fit the width, then rebalance so rows are even.
+        let cols = Math.max(1, Math.min(n, Math.floor((availW - padX + gap) / (slotW + gap))));
+        const rows = Math.ceil(n / cols);
+        cols = Math.ceil(n / rows);
+        const contentW = Math.min(availW, Math.ceil(cols * slotW + (cols - 1) * gap + padX));
+        this.applyZoom(zoom);
+        this.applyWidth(contentW);
+        void grid.offsetHeight;
+
+        const gridH = grid.getBoundingClientRect().height;
+        const chromeH = Math.max(0, root.getBoundingClientRect().height - gridH);
+        const availGridH = availH - chromeH - FIT_MODAL_FRAME_V;
+        if (gridH <= availGridH || zoom <= FIT_MIN_ZOOM) {
+          break;
+        }
+        const ratio = Math.min(0.96, Math.sqrt(availGridH / gridH));
+        zoom = Math.max(FIT_MIN_ZOOM, zoom * ratio);
+      }
+    },
+    // rAF-coalesced fit for resize bursts.
+    scheduleFit(): void {
+      if (this.fitScheduled) {
+        return;
+      }
+      this.fitScheduled = true;
+      requestAnimationFrame(() => {
+        this.fitScheduled = false;
+        this.fit();
+      });
+    },
+    // Post-animation fit (filter toggle / new prompt) — wait for the row to
+    // settle before re-measuring so the zoom doesn't pop mid-transition.
+    deferFit(): void {
+      if (this.fitTimer !== undefined) {
+        window.clearTimeout(this.fitTimer);
+      }
+      this.fitTimer = window.setTimeout(() => {
+        this.fitTimer = undefined;
+        this.fit();
+      }, 320);
+    },
     isSelected(name: CardName): boolean {
       return this.selected.includes(name);
     },
@@ -560,7 +703,9 @@ export default defineComponent({
      * `onConfirm` had.
      */
     onBottomConfirm(): void {
-      if (!this.canConfirm) return;
+      if (!this.canConfirm) {
+        return;
+      }
       this.submitNow();
     },
     /*
@@ -646,7 +791,9 @@ export default defineComponent({
       return !this.isSelected(name) && this.isMaxedOut;
     },
     actionTooltip(name: CardName): string {
-      if (!this.actionDisabled(name)) return '';
+      if (!this.actionDisabled(name)) {
+        return '';
+      }
       return translateText('Already selected ${0} of ${1} — deselect a card first')
         .replace('${0}', String(this.selected.length))
         .replace('${1}', String(this.playerinput.max));

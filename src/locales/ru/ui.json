@@ -422,6 +422,8 @@
     "1 corporation out of ${0}": "1 корпорация из ${0}",
     "1 CEO out of ${0}": "1 директор из ${0}",
     "Select a CEO": "Выберите директора",
+    "Select ${0}": "Выберите ${0}",
+    "Select 0": "Выберите 0",
     "Select ${0} card(s)": "Выберите ${0} карт(ы)",
     "Already selected ${0} of ${1} — deselect a card first": "Выбрано ${0} из ${1} — сначала отмените выбор",
     "You will start the game with no project cards in hand. At the start of the game only standard projects will be available to you.": "Вы начнёте партию без проектных карт на руках. В начале партии вам будут доступны только стандартные проекты.",

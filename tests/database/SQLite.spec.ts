@@ -1,3 +1,4 @@
+import {expect} from 'chai';
 import {describeDatabaseSuite} from './databaseSuite';
 import {IGame} from '../../src/server/IGame';
 import {IN_MEMORY_SQLITE_PATH, SQLite} from '../../src/server/database/SQLite';
@@ -51,5 +52,19 @@ describeDatabaseSuite({
     type: 'SQLite',
     path: ':memory:',
     size_bytes: -1,
+  },
+  otherTests: (dbFactory) => {
+    it('storeParticipants ignores repeated entries', async () => {
+      const db = dbFactory();
+      const entry = {
+        gameId: 'game-id-1212' as GameId,
+        participantIds: ['p-player-id', 'spectatorid'],
+      };
+
+      await db.storeParticipants(entry);
+      await db.storeParticipants(entry);
+
+      expect(await db.getParticipants()).deep.eq([entry]);
+    });
   },
 });
