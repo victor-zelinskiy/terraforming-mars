@@ -1203,62 +1203,6 @@
 
 @hc-sale:      #f2c14e; /* amber — patents / money accent */
 
-/* Header toggle to enter / leave sale mode. */
-/* Header mode toggle — NOT a primary CTA. Reads as an on/off switch: calm
-   dark glass when off, an amber-tinted (not solid-filled) state when on. The
-   lit dot is the main on/off signal. */
-.hand-board__sale-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    flex-shrink: 0;
-    padding: 5px 12px;
-    border-radius: 7px;
-    border: 1px solid rgba(242, 193, 78, 0.26);
-    background: rgba(28, 32, 42, 0.55);
-    color: fade(@hc-sale, 82%);
-    font-family: Prototype, Orbitron, sans-serif;
-    font-size: 11px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    font-weight: 700;
-    cursor: pointer;
-    transition: color 150ms, border-color 150ms, background 150ms, box-shadow 150ms;
-
-    &-dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: fade(@hc-sale, 50%);
-        box-shadow: none;
-        transition: background 150ms, box-shadow 150ms;
-    }
-    /* Off → hover: gently brighten. */
-    &:hover {
-        border-color: fade(@hc-sale, 55%);
-        color: @hc-sale;
-        background: rgba(36, 40, 50, 0.6);
-    }
-    &:hover &-dot { background: @hc-sale; }
-
-    /* On (in sale mode): amber-tinted glass + lit dot, but never the loud
-       solid-gold fill of a primary CTA. */
-    &--active {
-        color: @hc-sale;
-        background: rgba(242, 193, 78, 0.13);
-        border-color: fade(@hc-sale, 65%);
-        box-shadow: inset 0 0 0 1px fade(@hc-sale, 18%), 0 0 9px fade(@hc-sale, 16%);
-    }
-    &--active &-dot { background: @hc-sale; box-shadow: 0 0 7px fade(@hc-sale, 70%); }
-    /* On → hover hints "click to exit" with a calm lift in tint, not a jarring
-       colour flip. */
-    &--active:hover {
-        color: #fff1d4;
-        background: rgba(242, 193, 78, 0.19);
-        border-color: @hc-sale;
-        box-shadow: inset 0 0 0 1px fade(@hc-sale, 26%), 0 0 11px fade(@hc-sale, 24%);
-    }
-}
 
 /* Mode strip — premium "you are in Sell patents" banner. */
 .hand-sale-strip {
@@ -1317,10 +1261,11 @@
 
     /* Keep the base label position/z-index, add the inline-flex layout for
        the count / separator / gain run. min-height reserves the 21px gain
-       coin's line ALWAYS (even at 0 selected, before the coin renders), so
-       the FIRST selection doesn't grow the button → the sale strip's height
-       stays constant → the body below never resizes → no card re-fit on the
-       first pick (the jiggle/lag the player reported). (perf hand-sale-strip) */
+       coin's line ALWAYS (even at 0 selected, before the coin renders) so the
+       button — and therefore the in-flow sale strip — keeps a CONSTANT height
+       when the first pick adds the coin. That stops the strip from growing,
+       which would otherwise shrink the body below it and re-fit every card on
+       the first selection (the jiggle the player reported). (perf hand-sale) */
     &__label { display: inline-flex; align-items: center; gap: 5px; min-height: 21px; }
     &__count { font-variant-numeric: tabular-nums; }
     &__sep { opacity: 0.6; }
@@ -1754,7 +1699,6 @@
     .hand-card-play-btn,
     .hand-card-sell-btn,
     .hand-sale-confirm-btn,
-    .hand-board__sale-toggle,
     .hand-tag-chip,
     .hand-card-pop-appear-active,
     .hand-card-pop-move,

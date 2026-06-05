@@ -25,18 +25,12 @@
           <span v-i18n>Can play</span>:&nbsp;{{ playableCount }}
         </span>
       </div>
-      <!-- Sell-patents mode toggle. Visible only when the standard project is
-           offered (or already active); active styling while in sale mode. -->
-      <button
-        v-if="(sellPatentsAvailable || saleActive) && !selectActive"
-        type="button"
-        class="hand-board__sale-toggle"
-        :class="{'hand-board__sale-toggle--active': saleActive}"
-        :aria-pressed="saleActive"
-        @click="toggleSaleMode">
-        <span class="hand-board__sale-toggle-dot" aria-hidden="true"></span>
-        <span class="hand-board__sale-toggle-label" v-i18n>Patent sale</span>
-      </button>
+      <!-- No in-overlay "enter sale mode" toggle: the Sell-patents standard
+           project is entered ONLY from the Standard Projects overlay, which
+           opens THIS overlay already in sale mode. That keeps sale mode and
+           normal mode as two separate openings, so the overlay never switches
+           chrome height mid-open → no card re-fit / shift. Cancelling sale
+           closes the overlay (cancelSale → @close). -->
       <button type="button" class="hand-board__close" :aria-label="$t('Close')" @click="$emit('close')">✕</button>
     </header>
 
@@ -219,7 +213,6 @@ import {translateText, translateMessage, translateTextWithParams} from '@/client
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {
   sellPatentsState,
-  enterSellPatents,
   exitSellPatents,
   toggleSellSelection,
   isSelectedForSale,
@@ -522,22 +515,20 @@ export default defineComponent({
     entrySelectDisabled(name: CardName): boolean {
       return this.selectActive && !isHandSelectable(name);
     },
-    // Header toggle: enter sale mode (only when the action is offered) or
-    // cancel it. Toggling OFF is a cancel — nothing is submitted.
-    toggleSaleMode(): void {
-      if (this.saleActive) {
-        this.cancelSale();
-      } else if (this.sellPatentsAvailable) {
-        enterSellPatents();
-      }
-    },
     cancelSale(): void {
       if (this.saleTimer !== undefined) {
         window.clearTimeout(this.saleTimer);
         this.saleTimer = undefined;
       }
       this.dissolving = [];
+      // Sale mode is its OWN overlay opening (entered only from the Standard
+      // Projects overlay), so cancelling backs all the way out — close the
+      // overlay rather than dropping to normal mode in place. exitSellPatents()
+      // + the @close both fire synchronously, so Vue batches them and the
+      // overlay unmounts directly (it never renders normal mode → no
+      // strip-removal re-fit flash). (perf hand-sale)
       exitSellPatents();
+      this.$emit('close');
     },
     toggleSelect(name: CardName): void {
       if (this.selectActive) {
@@ -641,8 +632,8 @@ export default defineComponent({
       if (document.querySelector('dialog[open]') !== null) {
         return;
       }
-      // In sale mode, Escape backs OUT of sale mode first (no submit), leaving
-      // the overlay open in normal mode. A second Escape then closes it.
+      // In sale mode, Escape cancels the sale (no submit). Sale mode is its own
+      // overlay opening, so cancelSale closes the overlay — same as ✕.
       if (this.saleActive) {
         this.cancelSale();
         return;
@@ -651,17 +642,6 @@ export default defineComponent({
     },
     // Coalesce fit() to one run per frame (resize bursts).
     scheduleFit(): void {
-      // Freeze card sizing while the sale / mandatory-select strip is up.
-      // Entering those modes (and the strip's own content) changes the chrome
-      // height above the grid, which shrinks the body — re-running fit() would
-      // re-zoom EVERY card, the resize + lag the player sees on entering sale
-      // mode. We keep the cards at their normal-mode size for the duration of
-      // the mode (they just shift down as a block under the strip, no reflow);
-      // the always-reserved scroll gutter absorbs any minor overflow, and
-      // exiting the mode re-fits. (perf hand-sale-freeze)
-      if (this.saleActive || this.selectActive) {
-        return;
-      }
       if (this.fitScheduled) {
         return;
       }
@@ -675,11 +655,6 @@ export default defineComponent({
     // would resize cards while they're still sliding/fading. One centralized
     // timer (reset on each change), not a per-change hack.
     deferFit(): void {
-      // See scheduleFit — card sizing is frozen while a sale / select strip is
-      // active, so a re-fit never runs in those modes. (perf hand-sale-freeze)
-      if (this.saleActive || this.selectActive) {
-        return;
-      }
       if (this.fitTimer !== undefined) {
         window.clearTimeout(this.fitTimer);
       }
