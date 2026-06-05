@@ -34,11 +34,26 @@ export type StartGamePromptMeta = {
   preludeMode?: 'hand' | 'draw' | 'copy';
 }
 
+/**
+ * EXPLICIT, translation-proof marker that a top-level prompt is an AWARD-FUNDING
+ * selection — an OrOptions with one SelectOption per fundable award, each titled
+ * with the bare AwardName. The premium client routes it to the modern
+ * AwardsOverlay (in a dedicated funding mode) instead of the generic option
+ * modal, reusing the shared findAwardOptionPath / submitInnerActionResponse
+ * machinery. `free` = the funding costs 0 M€ (e.g. Vitor's start-of-game action),
+ * so the overlay shows "free sponsorship" pricing. Set server-side at the
+ * prompt's construction; serialized centrally in ServerModel.getWaitingFor.
+ */
+export type AwardFundingPromptMeta = {
+  free: boolean;
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
   buttonLabel: string;
   startGamePrompt?: StartGamePromptMeta;
+  awardFundingPrompt?: AwardFundingPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

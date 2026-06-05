@@ -3803,6 +3803,46 @@ each(@players, {
     .awards-overlay-cost-label { color: #8fa8c4; }
 }
 
+/* "Free" cost readout (free-sponsorship mode) — mint, replaces the gold coin. */
+.awards-overlay-cost-free {
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: #8ff0c4;
+    text-shadow: 0 0 8px rgba(120, 230, 180, 0.45);
+}
+
+/* Free-sponsorship mode banner (Vitor start action). A calm mint glass strip
+   that makes the "this costs nothing" context unmistakable. */
+.awards-overlay-free-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 12px;
+    border-radius: 5px;
+    border: 1px solid rgba(120, 230, 180, 0.4);
+    background: linear-gradient(180deg, rgba(24, 60, 46, 0.5), rgba(14, 34, 28, 0.5));
+    box-shadow: inset 0 0 0 1px rgba(120, 230, 180, 0.12), 0 0 18px rgba(95, 214, 166, 0.12);
+}
+.awards-overlay-free-chip {
+    flex: none;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #06231a;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #9cf3cf, #5fd6a6);
+    box-shadow: 0 0 12px rgba(95, 214, 166, 0.4);
+}
+.awards-overlay-free-hint {
+    font-size: 12px;
+    line-height: 1.35;
+    letter-spacing: 0.3px;
+    color: #bfe6d6;
+}
+
 .awards-overlay-close {
     cursor: pointer;
     font-size: 18px;
