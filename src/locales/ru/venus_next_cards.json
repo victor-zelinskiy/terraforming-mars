@@ -28,7 +28,7 @@
     "Action: Add 1 floater to this card.": "Действие: добавьте 1 аэростат на эту карту",
     "Action: Spend 1 floater here to increase your energy production 1 step.": "Действие: Потратьте 1 аэростат отсюда, чтобы увеличить своё производство энергии на 1",
 
-    "Dirigibles": "Дирижабли",
+    "Dirigibles": "Аэростаты",
     "Action: Add 1 floater to ANY card": "Действие: добавьте 1 аэростат на любую карту",
     "Effect: When playing a Venus tag, Floaters here may be used as payment, and are worth 3M€ each.": "Эффект: Разыгрывая метку Венеры, можете убрать 1 или несколько аэростатов с этой карты, чтобы заплатить за нее на 3 M€ меньше за каждый убранный аэростат",
 
@@ -179,5 +179,5 @@
     "max 14% Venus": "ДО 14% Venus",
     "max 10% Venus": "ДО 10% Venus",
     "25 TR": "25 РТ",
-    "Select card to remove 1 floater from": "Выберите карту, чтобы убрать с нее 1 дирижабль"
+    "Select card to remove 1 floater from": "Выберите карту, чтобы убрать с нее 1 аэростат"
 }
