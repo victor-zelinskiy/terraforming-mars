@@ -209,6 +209,7 @@ import {translateText, translateMessage} from '@/client/directives/i18n';
 import {setDraftWaitPending, clearDraftWaitPending} from '@/client/components/draftWaitState';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import {baseZoom, cardSelectionRowPlan, FIT_MAX_CONTENT_W, FIT_MIN_ZOOM} from '@/client/components/cardSelectionFit';
 
 type DataModel = {
   /*
@@ -243,15 +244,13 @@ type DataModel = {
   fitScheduled: boolean;
 };
 
-// Few cards → large; many cards → start smaller (the height-fit loop shrinks
-// further only if the rows would overflow the viewport).
-const FIT_MIN_ZOOM = 0.5;
+// Height/probe-side constants. The row/column/zoom math (FIT_MIN_ZOOM,
+// FIT_MAX_CONTENT_W, FIT_SLOT_MIN_W, FIT_SINGLE_ROW_MAX, baseZoom, the row plan)
+// lives in cardSelectionFit.ts so it can be unit-tested without a DOM.
 const FIT_MAX_ITER = 12;
 const FIT_VIEWPORT_W_MARGIN = 80; // viewport side margins + modal frame padding
-const FIT_MAX_CONTENT_W = 1560;   // < the 1640 modal max-width cap (stays in box)
 const FIT_VIEWPORT_H_RATIO = 0.92;
 const FIT_MODAL_FRAME_V = 64;     // approx modal frame + outer margins (vertical)
-const FIT_SLOT_MIN_W = 168;       // action button floor — slot never narrower
 
 export default defineComponent({
   name: 'CardSelectionContent',
@@ -533,26 +532,6 @@ export default defineComponent({
   },
   methods: {
     // ─── Adaptive-fit engine ────────────────────────────────────────────
-    // Starting card zoom by count: few cards big, many cards start smaller.
-    // The height-fit loop only shrinks FURTHER if the rows would overflow.
-    baseZoom(n: number): number {
-      if (n <= 2) {
-        return 1.18;
-      }
-      if (n <= 3) {
-        return 1.12;
-      }
-      if (n <= 5) {
-        return 1.0;
-      }
-      if (n <= 7) {
-        return 0.92;
-      }
-      if (n <= 10) {
-        return 0.82;
-      }
-      return 0.74;
-    },
     applyZoom(z: number): void {
       (this.$refs.root as HTMLElement | undefined)?.style.setProperty('--cs-zoom', z.toFixed(3));
     },
@@ -560,13 +539,17 @@ export default defineComponent({
       (this.$refs.root as HTMLElement | undefined)?.style.setProperty('--cs-content-width', Math.round(w) + 'px');
     },
     /*
-     * Size the grid to the card count + viewport. Picks a per-count base zoom,
-     * measures one card's natural width, derives a BALANCED column count that
-     * fits the viewport width (rebalanced so rows are even, not 5+1), sets a
-     * matching content width so few cards stay snug+centred and many cards form
-     * a wider grid, then shrinks zoom only if the rows would overflow the
-     * viewport height (vertical scroll is the genuine last resort). Mirrors the
-     * HandCards/PlayedCards fit engines. No-op under JSDOM (rects are 0).
+     * Size the grid to the card count + viewport. Probes one card's natural
+     * width, then delegates the column / zoom / content-width math to the pure
+     * `cardSelectionRowPlan` (so it's unit-testable without a DOM), and finally
+     * shrinks zoom only if the rows would overflow the viewport HEIGHT (vertical
+     * scroll is the genuine last resort). Mirrors HandCards/PlayedCards. No-op
+     * under JSDOM (rects are 0).
+     *
+     * SMALL PICKS (n <= FIT_SINGLE_ROW_MAX, i.e. the 4→3→2→1 between-generation
+     * draft) are pinned to ONE row by the plan: `cols = n`, zoom width-capped
+     * + slack so the browser's flex-wrap never bumps the last card to a 2nd row
+     * (the 2+1 / 3+1 bug the player flagged).
      */
     fit(): void {
       const root = this.$refs.root as HTMLElement | undefined;
@@ -586,30 +569,37 @@ export default defineComponent({
       const gridCS = window.getComputedStyle(grid);
       const gap = parseFloat(gridCS.columnGap) || 18;
       const rootCS = window.getComputedStyle(root);
-      const padX = (parseFloat(rootCS.paddingLeft) || 0) + (parseFloat(rootCS.paddingRight) || 0);
+      // Total horizontal inset between the content width (set on root) and the
+      // space actually available to the slots: root padding + the grid's OWN
+      // left/right padding (`.card-selection__cards` has 4px each side). Missing
+      // the grid padding made the row overflow by ~8px → flex-wrap dropped the
+      // last card to a 2nd row (the 2+1 / 3+1 bug). Count both.
+      const padX =
+        (parseFloat(rootCS.paddingLeft) || 0) + (parseFloat(rootCS.paddingRight) || 0) +
+        (parseFloat(gridCS.paddingLeft) || 0) + (parseFloat(gridCS.paddingRight) || 0);
 
-      // Measure one slot's natural width (at zoom 1) via a probe render.
-      let zoom = this.baseZoom(n);
+      // Probe one slot's natural width (at the base zoom) so the plan can scale
+      // it. Apply the full available width first so the probe row doesn't wrap.
       this.applyWidth(availW);
-      this.applyZoom(zoom);
+      this.applyZoom(baseZoom(n));
       void grid.offsetHeight;
       const probeW = (grid.children[0] as HTMLElement).getBoundingClientRect().width;
       if (probeW <= 0) {
         return;
       } // not laid out (e.g. JSDOM) — keep CSS defaults
-      const naturalW = probeW / zoom;
+      const naturalW = probeW / baseZoom(n);
 
+      // Width-fit plan (one-row guarantee for small picks).
+      let plan = cardSelectionRowPlan({n, naturalW, availW, gap, padX});
+      this.applyZoom(plan.zoom);
+      this.applyWidth(plan.contentW);
+      void grid.offsetHeight;
+
+      // Height-fit: shrink zoom (and re-plan at the smaller scale) only while
+      // the rows overflow the available height. cols stays pinned for small
+      // picks because the re-plan keeps singleRow → cols = n.
+      let zoom = plan.zoom;
       for (let i = 0; i < FIT_MAX_ITER; i++) {
-        const slotW = Math.max(naturalW * zoom, FIT_SLOT_MIN_W);
-        // Columns that fit the width, then rebalance so rows are even.
-        let cols = Math.max(1, Math.min(n, Math.floor((availW - padX + gap) / (slotW + gap))));
-        const rows = Math.ceil(n / cols);
-        cols = Math.ceil(n / rows);
-        const contentW = Math.min(availW, Math.ceil(cols * slotW + (cols - 1) * gap + padX));
-        this.applyZoom(zoom);
-        this.applyWidth(contentW);
-        void grid.offsetHeight;
-
         const gridH = grid.getBoundingClientRect().height;
         const chromeH = Math.max(0, root.getBoundingClientRect().height - gridH);
         const availGridH = availH - chromeH - FIT_MODAL_FRAME_V;
@@ -618,6 +608,10 @@ export default defineComponent({
         }
         const ratio = Math.min(0.96, Math.sqrt(availGridH / gridH));
         zoom = Math.max(FIT_MIN_ZOOM, zoom * ratio);
+        plan = cardSelectionRowPlan({n, naturalW, availW, gap, padX, zoom});
+        this.applyZoom(plan.zoom);
+        this.applyWidth(plan.contentW);
+        void grid.offsetHeight;
       }
     },
     // rAF-coalesced fit for resize bursts.

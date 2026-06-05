@@ -517,8 +517,8 @@ abstract class Builder<T> {
     return this._appendToRow(CardRenderSymbol.colon(size));
   }
 
-  public arrow(size: Size = Size.MEDIUM): this {
-    return this._appendToRow(CardRenderSymbol.arrow(size));
+  public arrow(size: Size = Size.MEDIUM, cancelled = false): this {
+    return this._appendToRow(CardRenderSymbol.arrow(size, cancelled));
   }
 
   public equals(size: Size = Size.MEDIUM): this {

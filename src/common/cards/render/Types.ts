@@ -21,6 +21,8 @@ export interface ICardRenderSymbol extends CardComponent {
   size: Size;
   isIcon?: true;
   isSuperscript?: true;
+  /** When true the symbol is drawn struck-through with a red line (e.g. a crossed-out arrow meaning "optional / not forced"). */
+  cancelled?: true;
   readonly is: 'symbol';
 }
 

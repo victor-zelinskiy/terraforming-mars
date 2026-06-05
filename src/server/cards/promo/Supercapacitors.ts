@@ -3,6 +3,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
+import {Size} from '../../../common/cards/render/Size';
 import {IPlayer} from '../../IPlayer';
 import {SelectAmount} from '../../inputs/SelectAmount';
 import {Card} from '../Card';
@@ -22,7 +23,11 @@ export class Supercapacitors extends Card implements IProjectCard {
       metadata: {
         cardNumber: 'X46',
         renderData: CardRenderer.builder((b) => {
-          b.text('EFFECT: CONVERTING ENERGY TO HEAT DURING PRODUCTION IS OPTIONAL FOR EACH ENERGY RESOURCE.');
+          // Energy -> heat conversion with a crossed-out arrow: during production
+          // you MAY skip converting each energy resource into heat.
+          b.effect('Converting energy to heat during production is optional.', (eb) => {
+            eb.startEffect.energy(1).arrow(Size.MEDIUM, true).heat(1);
+          });
           b.br;
           b.production((pb) => pb.megacredits(1));
         }),
