@@ -1,4 +1,37 @@
 .games-overview-container {
+  .games-overview-bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+  }
+
+  .games-overview-select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+  }
+
+  .games-overview-select {
+    cursor: pointer;
+  }
+
+  .games-overview-clear-btn {
+    border: 1px solid #999;
+    border-radius: 3px;
+    background: #eee;
+    color: #333;
+    padding: 3px 10px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .games-overview-clear-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
   .status-running {
     display: inline-block; /* Element must be block or inline-block for transform to work well */
     transform: scaleX(-1);
@@ -28,6 +61,10 @@
     font-size: 12px;
     font-weight: bold;
     letter-spacing: 0.5px;
+  }
+
+  .games-overview-delete-btn--bulk {
+    padding: 4px 12px;
   }
 
   .games-overview-delete-btn:hover {

@@ -306,15 +306,13 @@
 
     <!--
       Effects overlay — the displayed player's ongoing/passive rules (blue cards
-      + corporations). Open information, so it offers an in-overlay player
-      switcher (re-points the global displayedPlayer via selectedPlayerColor).
+      + corporations). Open info: switch the viewed seat the generic way (click a
+      player's panel top-left → displayedPlayer re-points), like РАЗЫГРАНО.
     -->
     <EffectsOverlay
       v-if="activeOverlay === 'effects'"
       :displayedPlayer="displayedPlayer"
-      :players="playerView.players"
       :viewerColor="thisPlayer.color"
-      @selectPlayer="selectedPlayerColor = $event"
       @close="activeOverlay = null" />
 
     <!--

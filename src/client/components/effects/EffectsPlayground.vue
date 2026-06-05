@@ -10,13 +10,12 @@
       <span class="effects-playground__title">EFFECTS OVERLAY — PLAYGROUND</span>
       <span class="effects-playground__hint">{{ allCount }} in-scope effects (Base / CorpEra / Promo / Venus / Colonies / Prelude)</span>
       <button class="effects-playground__btn" @click="open = !open">{{ open ? 'Close' : 'Open' }} overlay</button>
+      <button class="effects-playground__btn" @click="togglePlayer">Switch player ({{ displayedPlayer.name }})</button>
     </div>
 
     <EffectsOverlay v-if="open"
                     :displayedPlayer="displayedPlayer"
-                    :players="players"
                     :viewerColor="viewerColor"
-                    @selectPlayer="selectedColor = $event"
                     @close="open = false" />
   </div>
 </template>
@@ -62,6 +61,11 @@ export default defineComponent({
   computed: {
     displayedPlayer(): PublicPlayerModel {
       return this.players.find((p) => p.color === this.selectedColor) ?? this.players[0];
+    },
+  },
+  methods: {
+    togglePlayer(): void {
+      this.selectedColor = this.selectedColor === 'red' ? 'blue' : 'red';
     },
   },
 });

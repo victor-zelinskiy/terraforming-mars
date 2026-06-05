@@ -112,43 +112,29 @@
     &:hover { color: #fff; background: rgba(28, 44, 64, 0.9); box-shadow: 0 0 9px rgba(106, 176, 230, 0.3); }
 }
 
-/* Player switcher. */
-.effects-board__players {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
-    margin-top: 11px;
-}
+/* Read-only player context (whose effects these are). Seat switching is the
+   generic click-a-player-panel mechanism, not an in-overlay control. */
 .effects-board__player {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    padding: 5px 12px 5px 9px;
+    margin-left: 4px;
+    padding: 4px 12px 4px 8px;
     border-radius: 999px;
-    border: 1px solid rgba(106, 176, 230, 0.22);
-    background: rgba(16, 26, 40, 0.6);
-    color: #bcd0e6;
+    background: rgba(16, 26, 40, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.2);
+    color: #cfe0f2;
     font-family: Prototype, Ubuntu, sans-serif;
     font-size: 12px;
-    cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-
-    &:hover { border-color: #6ab0e6; color: #eaf3fc; transform: translateY(-1px); }
-}
-.effects-board__player--active {
-    border-color: #7fd4ff;
-    color: #eaf6ff;
-    background: rgba(16, 44, 64, 0.7);
-    box-shadow: 0 0 0 1px rgba(127, 212, 255, 0.4), 0 0 12px rgba(106, 176, 230, 0.3);
 }
 .effects-board__player-dot {
-    width: 12px;
-    height: 12px;
+    width: 11px;
+    height: 11px;
     border-radius: 3px;
     flex-shrink: 0;
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
-.effects-board__player-name { letter-spacing: 0.3px; }
+.effects-board__player-name { letter-spacing: 0.3px; font-weight: 600; }
 .effects-board__player-you {
     font-size: 9px;
     letter-spacing: 0.8px;
@@ -266,43 +252,57 @@
 }
 .effect-block--corp .effect-block__type { color: #c9a86a; }
 
-.effect-block__body {
+/* The source's effects stack vertically; each effect is its OWN sub-block, with
+   a hairline divider between them so a multi-effect card reads as several
+   distinct effects under one name. */
+.effect-block__effects {
     flex: 1;
     display: flex;
     flex-direction: column;
+}
+.effect-block__effect {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
-    gap: 6px;
     padding: 14px 12px 13px;
 
-    /* Reused card effect-box render: centre it + give the description a calm,
-       readable treatment inside the block (it carries the localized text). */
+    & + & {
+        border-top: 1px dashed rgba(106, 176, 230, 0.16);
+    }
+}
+
+/*
+ * THE ICON FIX. The card render icons (`.card-resource`, tags, tiles, …) are
+ * CSS-scoped under `.card-container` (the <Card> root). Rendering an effect node
+ * OUTSIDE that scope shows the text but NOT the sprite icons. So wrap the reused
+ * render in a bare `.card-container` (WITHOUT `.filterDiv`, which carries the
+ * card frame) — the descendant icon CSS then matches and sprites render. Strip
+ * the legacy card margin/width and scale up a touch for legibility.
+ */
+.effect-block__render.card-container {
+    margin: 0;
+    width: auto;
+    zoom: 1.2;
+
     .card-effect-box {
-        width: 100%;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 7px;
+        gap: 6px;
     }
     .card-effect-box-row {
-        display: flex;
-        align-items: center;
         justify-content: center;
         flex-wrap: wrap;
-        gap: 4px;
-        transform: scale(1.12);
-        transform-origin: center top;
-        margin-bottom: 4px;
     }
+    /* The reused effect carries its own localized "ЭФФЕКТ: …" description. */
     .card-description {
-        font-size: 11.5px;
-        line-height: 1.4;
-        color: #c9d8ea;
         text-align: center;
-        letter-spacing: 0.1px;
+        line-height: 1.35;
+        margin-top: 3px;
     }
 }
 .effect-block__text {
+    padding: 14px 12px 13px;
     font-size: 11.5px;
     line-height: 1.4;
     color: #c9d8ea;

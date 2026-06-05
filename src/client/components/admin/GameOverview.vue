@@ -2,6 +2,15 @@
   <tr>
 
   <!-- single item in GamesOverview -->
+  <td>
+    <input
+      type="checkbox"
+      class="games-overview-select"
+      :checked="selectedForBulk"
+      :disabled="deleting || bulkDeleting"
+      :aria-label="'Select game ' + gameName"
+      @change="onSelected">
+  </td>
   <td><span :class="statusClass"></span></td>
   <td><a :href="'game?id='+id" class="game-id">{{gameName}}</a></td>
   <template v-if="game !== undefined">
@@ -16,7 +25,7 @@
     <button
       type="button"
       class="games-overview-delete-btn"
-      :disabled="deleting"
+      :disabled="deleting || bulkDeleting"
       @click="deleteGame">УДАЛИТЬ</button>
   </td>
   </tr>
@@ -53,8 +62,16 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    selectedForBulk: {
+      type: Boolean,
+      default: false,
+    },
+    bulkDeleting: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['deleted'],
+  emits: ['deleted', 'selection-changed'],
   computed: {
     statusClass(): string {
       switch (this.status) {
@@ -81,6 +98,12 @@ export default defineComponent({
     },
   },
   methods: {
+    onSelected(event: Event) {
+      this.$emit('selection-changed', {
+        id: this.id,
+        selected: (event.target as HTMLInputElement).checked,
+      });
+    },
     async deleteGame() {
       if (this.deleting) {
         return;
@@ -90,7 +113,7 @@ export default defineComponent({
       }
       this.deleting = true;
       try {
-        const response = await fetch(`api/game/delete?serverId=${this.serverId}&id=${this.id}`, {method: 'POST'});
+        const response = await fetch(`api/game/delete?serverId=${encodeURIComponent(this.serverId)}&id=${encodeURIComponent(this.id)}`, {method: 'POST'});
         if (!response.ok) {
           alert('Не удалось удалить игру');
           this.deleting = false;

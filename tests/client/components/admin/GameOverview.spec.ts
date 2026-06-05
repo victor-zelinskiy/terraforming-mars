@@ -17,4 +17,20 @@ describe('GameOverview', () => {
     });
     expect(wrapper.exists()).to.be.true;
   });
+
+  it('emits selection changes', async () => {
+    const wrapper = shallowMount(GameOverview, {
+      ...globalConfig,
+      props: {
+        status: 'loading',
+        game: fakeGameModel(),
+        id: 'game-123',
+        serverId: 'server-123',
+      },
+    });
+
+    await wrapper.find('.games-overview-select').setValue(true);
+
+    expect(wrapper.emitted('selection-changed')?.[0]).deep.eq([{id: 'game-123', selected: true}]);
+  });
 });

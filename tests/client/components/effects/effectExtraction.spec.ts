@@ -4,6 +4,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {
   cardHasPassiveEffect,
   playerEffects,
+  playerEffectGroups,
   playerEffectCount,
   allScopeEffectCardNames,
 } from '@/client/components/effects/effectExtraction';
@@ -58,5 +59,19 @@ describe('effectExtraction', () => {
 
   it('enumerates a substantial set of in-scope effect cards for the playground', () => {
     expect(allScopeEffectCardNames().length).to.be.greaterThan(50);
+  });
+
+  it('groups several effects from ONE source into a single group (no name dup)', () => {
+    const groups = playerEffectGroups([model(CardName.CARBON_NANOSYSTEMS)]);
+    expect(groups).to.have.length(1);
+    expect(groups[0].cardName).to.eq(CardName.CARBON_NANOSYSTEMS);
+    expect(groups[0].effects.length).to.eq(2); // two distinct effects, one group
+  });
+
+  it('orders groups corporation-first', () => {
+    const groups = playerEffectGroups([model(CardName.SPACE_STATION), model(CardName.POSEIDON)]);
+    expect(groups).to.have.length(2);
+    expect(groups[0].isCorporation).to.eq(true); // Poseidon group first
+    expect(groups[1].isCorporation).to.eq(false);
   });
 });
