@@ -391,6 +391,32 @@
     }
 }
 
+/*
+ * РАЗЫГРАТЬ inside the fullscreen CardZoomModal — recolours the modal's primary
+ * CTA to the same mint as the in-card play button (mirrors hand-zoom-play, via
+ * the shared @cab-mint token from card_action_buttons.less).
+ */
+.start-game-flow__zoom-play.card-zoom-actions__btn--primary {
+    background: linear-gradient(180deg, fade(@cab-mint, 92%) 0%, darken(@cab-mint, 8%) 100%);
+    color: #04130d;
+    text-shadow: none;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.22),
+        0 0 22px fade(@cab-mint, 48%),
+        0 9px 16px rgba(0, 0, 0, 0.5);
+    &::before { background: linear-gradient(180deg, rgba(22, 46, 40, 0.2) 0%, rgba(12, 28, 25, 0.5) 100%); }
+    &::after {
+        background: radial-gradient(ellipse at center,
+            fade(@cab-mint, 50%) 0%, fade(@cab-mint, 16%) 50%, fade(@cab-mint, 0%) 80%);
+    }
+    &:hover:not(:disabled) {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.3),
+            0 0 34px fade(@cab-mint, 85%),
+            0 13px 24px rgba(0, 0, 0, 0.55);
+    }
+}
+
 /* ─── Waiting-for-others ─────────────────────────────────────────────── */
 
 .start-game-flow__waiting {
