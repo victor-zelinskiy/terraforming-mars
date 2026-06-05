@@ -270,3 +270,40 @@ export function allScopeEffectCardNames(): Array<CardName> {
   }
   return out;
 }
+
+// ─── Dev diagnostics (?effectsPlayground "flagged" tab) ─────────────────────
+
+/** Cards whose passive effect is covered by a TEXT-only override (no graphic). */
+export function textOverrideEffectCards(): Array<CardName> {
+  return (Object.keys(EFFECT_OVERRIDES) as Array<CardName>)
+    .filter((name) => EFFECT_OVERRIDES[name]?.text !== undefined);
+}
+
+/**
+ * In-scope ACTIVE/CORPORATION cards with NO action (`hasAction === false`) and
+ * NO extractable effect graphic and no override — the candidates whose passive
+ * rule (if any) is drawn as bespoke text/symbols and likely needs a hand-written
+ * descriptor (e.g. Protected Habitats, Supercapacitors, Neptunian Power
+ * Consultants). May include the odd vanilla card (e.g. a starter corporation) —
+ * worth a human verdict, which is exactly what the flagged tab is for.
+ */
+export function flaggedEffectCandidates(): Array<CardName> {
+  const out: Array<CardName> = [];
+  for (const name of Object.values(CardName)) {
+    const card = getCard(name);
+    if (card === undefined || !SCOPE_MODULES.has(card.module)) {
+      continue;
+    }
+    if (card.type !== CardType.ACTIVE && card.type !== CardType.CORPORATION) {
+      continue;
+    }
+    if (card.hasAction === true || EFFECT_OVERRIDES[name] !== undefined) {
+      continue;
+    }
+    if (collectEffectNodes(name).length > 0) {
+      continue;
+    }
+    out.push(name);
+  }
+  return out;
+}

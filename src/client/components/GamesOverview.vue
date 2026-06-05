@@ -185,7 +185,8 @@ export default defineComponent({
       return constants;
     },
     serverId(): string {
-      return (new URL(location.href)).searchParams.get('serverId') || '';
+      const href = typeof location === 'undefined' ? window.location.href : location.href;
+      return (new URL(href)).searchParams.get('serverId') || '';
     },
     selectedCount(): number {
       return this.selectedGameIds.length;

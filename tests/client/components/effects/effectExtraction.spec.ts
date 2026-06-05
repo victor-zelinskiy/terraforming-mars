@@ -7,6 +7,8 @@ import {
   playerEffectGroups,
   playerEffectCount,
   allScopeEffectCardNames,
+  textOverrideEffectCards,
+  flaggedEffectCandidates,
 } from '@/client/components/effects/effectExtraction';
 
 function model(name: CardName, isDisabled = false): CardModel {
@@ -73,5 +75,23 @@ describe('effectExtraction', () => {
     expect(groups).to.have.length(2);
     expect(groups[0].isCorporation).to.eq(true); // Poseidon group first
     expect(groups[1].isCorporation).to.eq(false);
+  });
+
+  it('lists text-override cards as a diagnostic (Olympus Conference)', () => {
+    expect(textOverrideEffectCards()).to.include(CardName.OLYMPUS_CONFERENCE);
+  });
+
+  it('flags in-scope passive cards with no effect graphic (needs descriptor)', () => {
+    const flagged = flaggedEffectCandidates();
+    expect(flagged).to.include(CardName.PROTECTED_HABITATS);
+    expect(flagged).to.include(CardName.SUPERCAPACITORS);
+    expect(flagged).to.include(CardName.NEPTUNIAN_POWER_CONSULTANTS);
+    // Must NOT include cards that already render (Space Station), action cards
+    // (Ants), or text-override cards (Olympus Conference).
+    expect(flagged).to.not.include(CardName.SPACE_STATION);
+    expect(flagged).to.not.include(CardName.ANTS);
+    expect(flagged).to.not.include(CardName.OLYMPUS_CONFERENCE);
+    // Stays a small, focused list (not a dump of every card).
+    expect(flagged.length).to.be.lessThan(12);
   });
 });
