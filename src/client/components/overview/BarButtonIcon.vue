@@ -41,6 +41,10 @@
     <template v-else-if="name === 'victory-points'">
       <path d="M12 3.7l2.45 5.5 6 .5-4.55 3.95 1.4 5.85L12 16.85 6.25 19.5l1.4-5.85L3.1 9.7l6-.5z" />
     </template>
+    <template v-else-if="name === 'effects'">
+      <path d="M11 3.6 12.4 9.6 18.4 11 12.4 12.4 11 18.4 9.6 12.4 3.6 11 9.6 9.6z" />
+      <path d="M17.6 14.4 18.3 16.9 20.8 17.6 18.3 18.3 17.6 20.8 16.9 18.3 14.4 17.6 16.9 16.9z" />
+    </template>
     <template v-else-if="name === 'colonies'">
       <circle cx="12" cy="12" r="5.3" />
       <ellipse cx="12" cy="12" rx="9.5" ry="3.4" transform="rotate(-22 12 12)" />
