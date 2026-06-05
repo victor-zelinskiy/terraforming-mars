@@ -39,16 +39,16 @@
         graphic. Click a card to inspect the real card and decide a descriptor.
       </p>
 
-      <section v-if="textRows.length > 0" class="effects-playground__flag-section">
-        <h3 class="effects-playground__flag-head">Covered via text override — no graphic ({{ textRows.length }})</h3>
-        <div v-for="r in textRows"
+      <section v-if="overrideRows.length > 0" class="effects-playground__flag-section">
+        <h3 class="effects-playground__flag-head">Covered via custom override ({{ overrideRows.length }})</h3>
+        <div v-for="r in overrideRows"
              :key="r.name"
              class="flag-row flag-row--ok"
              @click="openCard(r.name)"
-             :data-test="'flag-text-' + r.name">
+             :data-test="'flag-override-' + r.name">
           <span class="flag-row__name" v-i18n>{{ r.name }}</span>
           <span class="flag-row__meta">{{ r.kind }} · {{ r.module }}</span>
-          <span class="flag-row__status flag-row__status--ok">TEXT</span>
+          <span class="flag-row__status flag-row__status--ok">OVERRIDE</span>
         </div>
       </section>
 
@@ -86,7 +86,7 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {
   allScopeEffectCardNames,
-  textOverrideEffectCards,
+  overriddenEffectCards,
   flaggedEffectCandidates,
 } from '@/client/components/effects/effectExtraction';
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
@@ -140,14 +140,14 @@ export default defineComponent({
     displayedPlayer(): PublicPlayerModel {
       return this.players.find((p) => p.color === this.selectedColor) ?? this.players[0];
     },
-    textRows(): ReadonlyArray<FlagRow> {
-      return textOverrideEffectCards().map(rowInfo);
+    overrideRows(): ReadonlyArray<FlagRow> {
+      return overriddenEffectCards().map(rowInfo);
     },
     candidateRows(): ReadonlyArray<FlagRow> {
       return flaggedEffectCandidates().map(rowInfo);
     },
     flaggedCount(): number {
-      return this.textRows.length + this.candidateRows.length;
+      return this.overrideRows.length + this.candidateRows.length;
     },
   },
   methods: {

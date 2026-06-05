@@ -5,6 +5,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {
   ICardRenderEffect,
+  ICardRenderRoot,
   ItemType,
   isICardRenderRoot,
   isICardRenderEffect,
@@ -37,34 +38,39 @@ export type EffectEntry = {
   // its effect is shown dimmed.
   isDisabled: boolean;
   // The effect render node (rendered by CardRenderEffectBoxComponent), OR
-  // undefined for an override that only supplies text.
+  // undefined for an override.
   effectNode: ICardRenderEffect | undefined;
-  // Optional manual text for edge-case cards whose passive effect isn't a clean
-  // render node (the localized i18n key for the effect description).
+  // WHOLE-renderData graphics (rendered by CardRenderData) — used by a
+  // `renderWhole` override for cards whose effect is drawn as raw root rows, not
+  // an `effect()` box (e.g. Olympus Conference).
+  renderRoot: ICardRenderRoot | undefined;
+  // Optional localized description text shown below the graphic (text-only
+  // overrides, or the description for a `renderWhole` card).
   text: string | undefined;
 };
 
 /*
- * EDGE-CASE OVERRIDES. Per the task brief, a handful of cards encode their
- * passive effect as plain text / non-`effect()` graphics, or mix effect+action
- * in a way the generic scan can't cleanly separate. Cover them here:
- *   - `exclude: true`              → never show this card's effects.
- *   - `text: <i18n key>`           → show a TEXT-ONLY block with this description.
+ * EDGE-CASE OVERRIDES. A handful of cards encode their passive effect outside a
+ * clean `effect()` box; cover them here:
+ *   - `exclude: true`     → never show this card's effects.
+ *   - `renderWhole: true` → render the card's ENTIRE renderData root (the raw
+ *                           symbol rows ARE the effect graphic) + its
+ *                           description. For cards whose effect is drawn as
+ *                           top-level rows, not an effect() node.
+ *   - `text: <i18n key>`  → a TEXT-ONLY block with this description (no graphic).
  * The generic renderData scan handles everything else. Populate this as the
- * playground surfaces problem cards.
+ * ?effectsPlayground "flagged" tab surfaces problem cards.
  */
-type EffectOverride = {exclude?: boolean; text?: string};
+type EffectOverride = {exclude?: boolean; renderWhole?: boolean; text?: string};
 const EFFECT_OVERRIDES: Partial<Record<CardName, EffectOverride>> = {
-  // ── Plain-text passive effects (no clean `effect()` render node) ──────────
-  // Olympus Conference's trigger is drawn with raw tags/symbols, not an
-  // effect() box — its (already-localized) card description IS the effect text.
-  [CardName.OLYMPUS_CONFERENCE]: {
-    text: 'When you play a science tag, including this, either add a science resource to this card, or remove a science resource from this card to draw a card.',
-  },
+  // Olympus Conference draws its trigger as RAW root rows (science tag : science
+  // / OR / −science +card), not an effect() box — render the whole renderData so
+  // the real symbols show; the description is pulled from the card automatically.
+  [CardName.OLYMPUS_CONFERENCE]: {renderWhole: true},
   // TODO(effects-playground): these three encode a passive rule as bespoke
-  // renderData text with no `effect()` node AND no usable card description, so
-  // they need a hand-written localized descriptor. Surfaced by the playground;
-  // left here as the documented edge-case backlog (they don't block the system).
+  // renderData text with no `effect()` node AND no usable graphic, so they need
+  // a hand-written localized descriptor. Surfaced by the playground; left as the
+  // documented edge-case backlog (they don't block the system).
   //   PROTECTED_HABITATS          — "Opponents may not remove your plants/animals/microbes."
   //   SUPERCAPACITORS             — heat-as-energy conversion rule.
   //   NEPTUNIAN_POWER_CONSULTANTS — ocean-placed optional resource gain.
@@ -149,10 +155,22 @@ export function cardHasPassiveEffect(cardName: CardName): boolean {
   if (override?.exclude === true) {
     return false;
   }
-  if (override?.text !== undefined) {
+  if (override?.renderWhole === true || override?.text !== undefined) {
     return true;
   }
   return collectEffectNodes(cardName).length > 0;
+}
+
+/** The card's renderData root, if it is a root (for `renderWhole` overrides). */
+function cardRenderRoot(cardName: CardName): ICardRenderRoot | undefined {
+  const rd = getCard(cardName)?.metadata.renderData;
+  return rd !== undefined && isICardRenderRoot(rd) ? rd : undefined;
+}
+
+/** The card's plain-string description, if any (for the text under a graphic). */
+function cardDescriptionText(cardName: CardName): string | undefined {
+  const d = getCard(cardName)?.metadata.description;
+  return typeof d === 'string' ? d : undefined;
 }
 
 /** Build the effect entries (one per distinct effect) for a single card. */
@@ -164,24 +182,30 @@ function cardEffectEntries(card: CardModel): Array<EffectEntry> {
   }
   const isCorporation = getCard(cardName)?.type === CardType.CORPORATION;
   const isDisabled = card.isDisabled === true;
+  const base = {cardName, isCorporation, isDisabled};
 
-  if (override?.text !== undefined) {
+  // Render the card's WHOLE renderData (the raw symbol rows ARE the effect) +
+  // its description.
+  if (override?.renderWhole === true) {
     return [{
-      key: cardName + '#text',
-      cardName,
-      isCorporation,
-      isDisabled,
+      ...base,
+      key: cardName + '#whole',
       effectNode: undefined,
-      text: override.text,
+      renderRoot: cardRenderRoot(cardName),
+      text: override.text ?? cardDescriptionText(cardName),
     }];
   }
 
+  // Text-only fallback.
+  if (override?.text !== undefined) {
+    return [{...base, key: cardName + '#text', effectNode: undefined, renderRoot: undefined, text: override.text}];
+  }
+
   return collectEffectNodes(cardName).map((effectNode, i) => ({
+    ...base,
     key: cardName + '#' + i,
-    cardName,
-    isCorporation,
-    isDisabled,
     effectNode,
+    renderRoot: undefined,
     text: undefined,
   }));
 }
@@ -219,6 +243,7 @@ export type EffectGroup = {
   effects: Array<{
     key: string;
     effectNode: ICardRenderEffect | undefined;
+    renderRoot: ICardRenderRoot | undefined;
     text: string | undefined;
   }>;
 };
@@ -242,7 +267,7 @@ export function playerEffectGroups(tableau: ReadonlyArray<CardModel>): Array<Eff
       };
       groups.set(e.cardName, g);
     }
-    g.effects.push({key: e.key, effectNode: e.effectNode, text: e.text});
+    g.effects.push({key: e.key, effectNode: e.effectNode, renderRoot: e.renderRoot, text: e.text});
   }
   return [...groups.values()];
 }
@@ -273,10 +298,13 @@ export function allScopeEffectCardNames(): Array<CardName> {
 
 // ─── Dev diagnostics (?effectsPlayground "flagged" tab) ─────────────────────
 
-/** Cards whose passive effect is covered by a TEXT-only override (no graphic). */
-export function textOverrideEffectCards(): Array<CardName> {
+/** Cards handled by a custom override (text-only or whole-renderData graphic). */
+export function overriddenEffectCards(): Array<CardName> {
   return (Object.keys(EFFECT_OVERRIDES) as Array<CardName>)
-    .filter((name) => EFFECT_OVERRIDES[name]?.text !== undefined);
+    .filter((name) => {
+      const o = EFFECT_OVERRIDES[name];
+      return o !== undefined && o.exclude !== true;
+    });
 }
 
 /**

@@ -280,6 +280,7 @@
     margin: 0;
     width: auto;
     zoom: 1.2;
+    text-align: center;
 
     .card-effect-box {
         display: flex;
@@ -302,6 +303,33 @@
     .card-text-bold:not(.card-plate) {
         color: #eaf3fc !important;
     }
+    /*
+     * Gold PLATES ("ПАРАМЕТРЫ ВЕНЕРЫ", "СТАНДАРТНЫЕ ПРОЕКТЫ"): the card's
+     * `.card-plate` sets NO colour (it inherits the card's dark text) + a
+     * currentColor `box-shadow`. In the dark overlay it would inherit LIGHT →
+     * white-on-gold (unreadable) + a white shadow that reads as "shifted". Force
+     * DARK text + centre it, so the plate renders exactly as on the card.
+     */
+    .card-plate {
+        color: #1b1b1b !important;
+        text-align: center;
+    }
+    /* `renderWhole` cards (e.g. Olympus Conference) render their whole renderData
+       root — centre the stacked symbol rows. */
+    .card-rows {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+}
+/* Description under a renderWhole graphic (localized card description). */
+.effect-item__desc {
+    margin-top: 8px;
+    font-size: 11.5px;
+    line-height: 1.4;
+    text-align: center;
+    color: #cdddee;
 }
 .effect-item__text {
     padding: 2px 4px;

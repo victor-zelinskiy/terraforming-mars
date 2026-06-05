@@ -7,7 +7,7 @@ import {
   playerEffectGroups,
   playerEffectCount,
   allScopeEffectCardNames,
-  textOverrideEffectCards,
+  overriddenEffectCards,
   flaggedEffectCandidates,
 } from '@/client/components/effects/effectExtraction';
 
@@ -42,12 +42,13 @@ describe('effectExtraction', () => {
     expect(entries[1].isCorporation).to.eq(false); // Space Station (card) second
   });
 
-  it('covers Olympus Conference via the text override (no clean effect node)', () => {
+  it('covers Olympus Conference via renderWhole (real symbol graphic + description)', () => {
     expect(cardHasPassiveEffect(CardName.OLYMPUS_CONFERENCE)).to.eq(true);
     const entries = playerEffects([model(CardName.OLYMPUS_CONFERENCE)]);
     expect(entries).to.have.length(1);
     expect(entries[0].effectNode).to.eq(undefined);
-    expect(entries[0].text).to.not.eq(undefined);
+    expect(entries[0].renderRoot).to.not.eq(undefined); // whole-renderData graphic
+    expect(entries[0].text).to.not.eq(undefined); // localized card description
   });
 
   it('flags a disabled card so it can be dimmed', () => {
@@ -77,8 +78,8 @@ describe('effectExtraction', () => {
     expect(groups[1].isCorporation).to.eq(false);
   });
 
-  it('lists text-override cards as a diagnostic (Olympus Conference)', () => {
-    expect(textOverrideEffectCards()).to.include(CardName.OLYMPUS_CONFERENCE);
+  it('lists override-covered cards as a diagnostic (Olympus Conference)', () => {
+    expect(overriddenEffectCards()).to.include(CardName.OLYMPUS_CONFERENCE);
   });
 
   it('flags in-scope passive cards with no effect graphic (needs descriptor)', () => {
