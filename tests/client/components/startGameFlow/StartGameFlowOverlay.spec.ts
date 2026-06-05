@@ -11,15 +11,20 @@ const PRELUDE_A = CardName.ECOLOGY_EXPERTS;
 const PRELUDE_B = CardName.SUPPLIER;
 const CORP = CardName.THARSIS_REPUBLIC;
 
-function preludePrompt(cards: ReadonlyArray<CardName>): any {
-  return {type: 'card', title: 'Select prelude card to play', buttonLabel: 'Play', cards: cards.map((name) => ({name})), min: 1, max: 1};
+function preludePrompt(cards: ReadonlyArray<CardName>, mode: 'hand' | 'draw' = 'hand'): any {
+  return {
+    type: 'card', title: 'Select prelude card to play', buttonLabel: 'Play',
+    startGamePrompt: {kind: 'preludeSelection', preludeMode: mode},
+    cards: cards.map((name) => ({name})), min: 1, max: 1,
+  };
 }
 function corpPrompt(): any {
   return {
     type: 'or', title: '', buttonLabel: '',
+    startGamePrompt: {kind: 'corporationInitialAction'},
     options: [
       {type: 'option', title: 'Take first action of Tharsis Republic corporation', buttonLabel: ''},
-      {type: 'option', title: 'Pass for this generation', buttonLabel: 'Pass'},
+      {type: 'option', title: 'Pass for this generation', buttonLabel: 'Pass', warnings: ['pass']},
     ],
   };
 }
@@ -127,5 +132,21 @@ describe('StartGameFlowOverlay', () => {
     const text = document.body.querySelector('[data-test="start-game-flow"]')?.textContent ?? '';
     expect(text.toLowerCase()).to.not.include('пас');
     expect(text.toLowerCase()).to.not.include('pass');
+  });
+
+  it('renders the drew-N-choose-ONE block and submits the chosen prelude', async () => {
+    markStartFlowActivated('p-blue-id');
+    harness(fakePlayerViewModel({
+      waitingFor: preludePrompt([PRELUDE_A, PRELUDE_B], 'draw'),
+    }));
+    expect(document.body.querySelector('[data-test="start-game-flow-draw"]')).to.not.eq(null);
+    const playBtn = document.body.querySelector(`[data-test="start-game-flow-draw-play-${PRELUDE_A}"]`);
+    expect(playBtn, 'a play button per drawn candidate').to.not.eq(null);
+    (playBtn as HTMLElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(lastBody?.type).to.eq('card');
+    expect(lastBody?.cards).to.deep.eq([PRELUDE_A]);
+    // The choice was recorded for the РАЗЫГРАНА / СБРОШЕНА display.
+    expect(startGameFlowState.drawChoices.some((r) => r.chosen === PRELUDE_A)).to.eq(true);
   });
 });

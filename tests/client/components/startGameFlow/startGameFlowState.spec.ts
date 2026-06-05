@@ -7,6 +7,8 @@ import {
   markStartFlowActivated,
   markStartFlowCompleted,
   startFlowPreludePrompt,
+  startFlowPreludeDrawPrompt,
+  startFlowAnyPreludePrompt,
   startFlowCorpPrompt,
   corpActionOptionIndex,
   startGameFlowEligible,
@@ -14,17 +16,22 @@ import {
   startGameFlowAllDone,
   startFlowHasFocusedSubAction,
   preludeEntries,
+  recordDrawChoice,
+  drawChoicesFor,
 } from '@/client/components/startGameFlow/startGameFlowState';
 
 const PRELUDE_A = CardName.ECOLOGY_EXPERTS;
 const PRELUDE_B = CardName.SUPPLIER;
 const PRELUDE_C = CardName.UNMI_CONTRACTOR;
 
-function preludePrompt(cards: ReadonlyArray<CardName>): any {
+// Detection is via the explicit server marker (startGamePrompt), never the
+// title — so the helpers set that marker and can use any (even garbage) title.
+function preludePrompt(cards: ReadonlyArray<CardName>, mode: 'hand' | 'draw' = 'hand'): any {
   return {
     type: 'card',
     title: 'Select prelude card to play',
     buttonLabel: 'Play',
+    startGamePrompt: {kind: 'preludeSelection', preludeMode: mode},
     cards: cards.map((name) => ({name})),
     min: 1,
     max: 1,
@@ -36,9 +43,10 @@ function corpPrompt(): any {
     type: 'or',
     title: '',
     buttonLabel: '',
+    startGamePrompt: {kind: 'corporationInitialAction'},
     options: [
       {type: 'option', title: 'Take first action of Tharsis Republic corporation', buttonLabel: ''},
-      {type: 'option', title: 'Pass for this generation', buttonLabel: 'Pass'},
+      {type: 'option', title: 'Pass for this generation', buttonLabel: 'Pass', warnings: ['pass']},
     ],
   };
 }
@@ -46,30 +54,33 @@ function corpPrompt(): any {
 describe('startGameFlowState predicates', () => {
   beforeEach(() => resetStartGameFlow());
 
-  describe('startFlowPreludePrompt', () => {
-    it('matches the prelude prompt when every candidate is in hand', () => {
+  describe('prelude prompts (hand / draw) via the server marker', () => {
+    it('matches the starting-prelude (hand) prompt', () => {
       const view = fakePlayerViewModel({
         preludeCardsInHand: [{name: PRELUDE_A}, {name: PRELUDE_B}] as any,
-        waitingFor: preludePrompt([PRELUDE_A, PRELUDE_B]),
+        waitingFor: preludePrompt([PRELUDE_A, PRELUDE_B], 'hand'),
       });
       expect(startFlowPreludePrompt(view)).to.not.eq(undefined);
+      expect(startFlowPreludeDrawPrompt(view)).to.eq(undefined);
+      expect(startFlowAnyPreludePrompt(view)).to.not.eq(undefined);
     });
 
-    it('does NOT match ValleyTrust (a candidate not in the player hand)', () => {
+    it('routes a drew-N-choose-ONE (draw) prompt to the DRAW predicate, not the hand one', () => {
       const view = fakePlayerViewModel({
-        // Player has these two in hand, but the prompt offers freshly-drawn ones.
-        preludeCardsInHand: [{name: PRELUDE_A}, {name: PRELUDE_B}] as any,
-        waitingFor: preludePrompt([PRELUDE_C, PRELUDE_A]),
+        // Drawn preludes are NOT in hand (New Partner / Valley Trust).
+        waitingFor: preludePrompt([PRELUDE_C, PRELUDE_A], 'draw'),
       });
       expect(startFlowPreludePrompt(view)).to.eq(undefined);
+      expect(startFlowPreludeDrawPrompt(view)).to.not.eq(undefined);
+      expect(startFlowAnyPreludePrompt(view)).to.not.eq(undefined);
     });
 
-    it('does NOT match a non-prelude card prompt', () => {
+    it('does NOT match a card prompt without the start-flow marker', () => {
       const view = fakePlayerViewModel({
         preludeCardsInHand: [{name: PRELUDE_A}] as any,
         waitingFor: {type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard', cards: [{name: PRELUDE_A}]} as any,
       });
-      expect(startFlowPreludePrompt(view)).to.eq(undefined);
+      expect(startFlowAnyPreludePrompt(view)).to.eq(undefined);
     });
   });
 
@@ -80,15 +91,47 @@ describe('startGameFlowState predicates', () => {
       expect(prompt).to.not.eq(undefined);
       const idx = corpActionOptionIndex(prompt);
       expect(idx).to.eq(0);
-      // The Pass option is at index 1 — must never be selected.
+      // The Pass option (carries the 'pass' warning) at index 1 is never picked.
       expect(idx).to.not.eq(1);
     });
 
-    it('does NOT match the regular action menu', () => {
+    // Detection is marker-based, so it works regardless of the title text — even
+    // after i18n mutates the title in place (the original "old modal leaks" bug).
+    it('matches by marker regardless of the (translated) title text', () => {
+      const wf: any = corpPrompt();
+      wf.title = 'Select one option';
+      wf.options[0].title = {message: 'Выполнить начальное действие корпорации «${0}»', data: [{type: 3, value: 'Valley Trust'}]};
+      const view = fakePlayerViewModel({waitingFor: wf, pendingInitialActions: [CardName.VALLEY_TRUST]});
+      expect(startFlowCorpPrompt(view)).to.not.eq(undefined);
+      expect(corpActionOptionIndex(startFlowCorpPrompt(view))).to.eq(0);
+    });
+
+    it('does NOT match the regular action menu (no marker)', () => {
       const view = fakePlayerViewModel({
         waitingFor: {type: 'or', title: 'Take your first action', buttonLabel: '', options: []} as any,
       });
       expect(startFlowCorpPrompt(view)).to.eq(undefined);
+    });
+  });
+
+  describe('draw-choice recording', () => {
+    it('records a resolved draw-choice and excludes others from the grid', () => {
+      recordDrawChoice('p-blue-id', [PRELUDE_A, PRELUDE_B, PRELUDE_C], PRELUDE_A);
+      const recs = drawChoicesFor('p-blue-id');
+      expect(recs.length).to.eq(1);
+      expect(recs[0].chosen).to.eq(PRELUDE_A);
+      expect([...recs[0].candidates]).to.deep.eq([PRELUDE_A, PRELUDE_B, PRELUDE_C]);
+      // The chosen drawn prelude (now in tableau) must NOT show in the starting grid.
+      const view = fakePlayerViewModel({
+        thisPlayer: {tableau: [{name: PRELUDE_A}]} as any,
+      });
+      expect(preludeEntries(view).some((e) => e.name === PRELUDE_A)).to.eq(false);
+    });
+
+    it('completing a player clears their draw-choices (no cross-game leak)', () => {
+      recordDrawChoice('p-blue-id', [PRELUDE_A, PRELUDE_B], PRELUDE_A);
+      markStartFlowCompleted('p-blue-id');
+      expect(drawChoicesFor('p-blue-id').length).to.eq(0);
     });
   });
 

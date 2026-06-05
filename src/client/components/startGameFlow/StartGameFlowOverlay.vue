@@ -27,6 +27,20 @@
         <div class="start-game-flow__corner start-game-flow__corner--bl"></div>
         <div class="start-game-flow__corner start-game-flow__corner--br"></div>
 
+        <!--
+          Manual minimize — same affordance as MandatoryInputModal (↗ СВЕРНУТЬ).
+          Collapses to the shared pill so the player can inspect the board /
+          their resource counters (and the delta-chips from the effects they
+          just applied) before continuing. The pill restores it.
+        -->
+        <button class="start-game-flow__minimize-btn"
+                @click="userMinimized = true"
+                :title="$t('Minimize — look at the board')"
+                data-test="start-game-flow-minimize">
+          <span class="start-game-flow__minimize-glyph">↗</span>
+          <span class="start-game-flow__minimize-label" v-i18n>Minimize</span>
+        </button>
+
         <!-- Header: title + progress chips -->
         <div class="start-game-flow__header">
           <div class="start-game-flow__heading">
@@ -95,6 +109,55 @@
             </div>
           </section>
 
+          <!--
+            Drew-N-choose-ONE prelude block (New Partner prelude / Valley Trust
+            corp action). Separate from the starting-prelude grid. While the
+            prompt is live the player picks one; after the pick the chosen shows
+            РАЗЫГРАНА and the rest СБРОШЕНА (discarded) for maximum clarity.
+          -->
+          <section v-if="drawCandidates.length > 0 || resolvedDrawChoices.length > 0"
+                   class="start-game-flow__draw"
+                   data-test="start-game-flow-draw">
+            <div class="start-game-flow__section-label" v-i18n>Choose one prelude to play</div>
+
+            <!-- Active choice: РАЗЫГРАТЬ on each candidate. -->
+            <div v-if="drawCandidates.length > 0" class="start-game-flow__prelude-grid">
+              <div v-for="(name, i) in drawCandidates"
+                   :key="'draw-' + name + '-' + i"
+                   class="start-game-flow__prelude start-game-flow__prelude--playable">
+                <div class="start-game-flow__card-thumb">
+                  <Card :card="{name}" />
+                </div>
+                <button class="start-game-flow__play-btn"
+                        @click="playDrawPrelude(name)"
+                        :data-test="'start-game-flow-draw-play-' + name">
+                  <span v-i18n>Play now</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Resolved: chosen РАЗЫГРАНА / others СБРОШЕНА. -->
+            <div v-for="(rec, ri) in resolvedDrawChoices"
+                 :key="'rec-' + ri"
+                 class="start-game-flow__prelude-grid">
+              <div v-for="(name, ci) in rec.candidates"
+                   :key="'recc-' + name + '-' + ci"
+                   class="start-game-flow__prelude"
+                   :class="name === rec.chosen ? 'start-game-flow__prelude--played' : 'start-game-flow__prelude--discarded'"
+                   :data-test="name === rec.chosen ? 'start-game-flow-draw-played' : 'start-game-flow-draw-discarded'">
+                <div class="start-game-flow__card-thumb">
+                  <Card :card="{name}" />
+                  <span v-if="name === rec.chosen" class="start-game-flow__played-check" aria-hidden="true">✓</span>
+                  <span v-else class="start-game-flow__discard-mark" aria-hidden="true">✕</span>
+                </div>
+                <div class="start-game-flow__prelude-status"
+                     :class="name === rec.chosen ? 'start-game-flow__prelude-status--played' : 'start-game-flow__prelude-status--discarded'">
+                  <span v-i18n>{{ name === rec.chosen ? 'Played' : 'Discarded' }}</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <!-- Waiting-for-others state -->
           <section v-if="waitingState" class="start-game-flow__waiting" data-test="start-game-flow-waiting">
             <div class="start-game-flow__waiting-dots" aria-hidden="true">
@@ -128,11 +191,18 @@
   <Teleport to="body">
     <div v-if="showPill"
          class="mandatory-input-modal-pill mandatory-input-modal-pill--visible start-game-flow-pill"
+         role="button"
+         tabindex="0"
+         :title="$t('Click to expand the awaiting prompt')"
+         @click="restoreFromPill"
+         @keydown.enter="restoreFromPill"
+         @keydown.space.prevent="restoreFromPill"
          data-test="start-game-flow-pill">
       <span class="mandatory-input-modal-pill__dot"></span>
       <span class="mandatory-input-modal-pill__label" v-i18n>AWAITING DECISION</span>
       <span class="mandatory-input-modal-pill__sep">/</span>
       <span class="mandatory-input-modal-pill__title" v-i18n>Start of the game</span>
+      <span class="mandatory-input-modal-pill__restore" :title="$t('Restore')">⤢</span>
     </div>
   </Teleport>
 </template>
@@ -156,13 +226,17 @@ import {
   startGameFlowAllDone,
   startFlowHasFocusedSubAction,
   startFlowCorpPrompt,
+  startFlowPreludeDrawPrompt,
   corpActionOptionIndex,
   preludeEntries,
   corporationCardName,
   markStartFlowActivated,
   markStartFlowCompleted,
+  recordDrawChoice,
+  drawChoicesFor,
   PreludeEntry,
   PreludeStatus,
+  DrawChoiceRecord,
 } from '@/client/components/startGameFlow/startGameFlowState';
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
@@ -175,6 +249,12 @@ type DataModel = {
   // Latches true once we've seen the corp owe an initial action, so the "done"
   // state can read "effect applied" rather than "no start action".
   corpActionWasPending: boolean;
+  // Player pressed ↗ СВЕРНУТЬ — collapse to the pill (distinct from the
+  // automatic sub-action minimize). Reset when the actionable step changes.
+  userMinimized: boolean;
+  // Signature of the current actionable step; userMinimized resets when it
+  // changes so a NEW step always un-minimizes (mirrors MandatoryInputModal).
+  lastStepSignature: string;
 };
 
 export default defineComponent({
@@ -193,7 +273,7 @@ export default defineComponent({
     },
   },
   data(): DataModel {
-    return {corpActionWasPending: false};
+    return {corpActionWasPending: false, userMinimized: false, lastStepSignature: ''};
   },
   watch: {
     // Latch activation + derive the minimize state on every view change.
@@ -206,10 +286,17 @@ export default defineComponent({
         if (startGameFlowEligible(view)) {
           markStartFlowActivated(view.id);
         }
-        if (view.pendingInitialActions.length > 0 || startFlowCorpPrompt(view) !== undefined) {
+        if ((view.pendingInitialActions ?? []).length > 0 || startFlowCorpPrompt(view) !== undefined) {
           this.corpActionWasPending = true;
         }
         startGameFlowState.minimized = startFlowHasFocusedSubAction(view);
+        // A NEW actionable step un-minimizes the manual collapse so the player
+        // never misses it (same behaviour as MandatoryInputModal).
+        const sig = this.stepSignature(view);
+        if (sig !== this.lastStepSignature) {
+          this.lastStepSignature = sig;
+          this.userMinimized = false;
+        }
       },
     },
   },
@@ -220,11 +307,30 @@ export default defineComponent({
     active(): boolean {
       return startGameFlowActive(this.playerViewTyped);
     },
+    // Collapsed either automatically (a focused sub-action owns the screen) OR
+    // manually (player pressed ↗ СВЕРНУТЬ).
+    collapsed(): boolean {
+      return startGameFlowState.minimized || this.userMinimized;
+    },
     showFull(): boolean {
-      return this.active && this.playerViewTyped !== undefined && !startGameFlowState.minimized;
+      return this.active && this.playerViewTyped !== undefined && !this.collapsed;
     },
     showPill(): boolean {
-      return this.active && this.playerViewTyped !== undefined && startGameFlowState.minimized;
+      return this.active && this.playerViewTyped !== undefined && this.collapsed;
+    },
+    // Candidates of the live drew-N-choose-ONE prompt (empty otherwise).
+    drawCandidates(): ReadonlyArray<CardName> {
+      const view = this.playerViewTyped;
+      if (view === undefined) {
+        return [];
+      }
+      const prompt = startFlowPreludeDrawPrompt(view);
+      return prompt === undefined ? [] : prompt.cards.map((c) => c.name);
+    },
+    // Resolved draw-choices for this player (chosen РАЗЫГРАНА / others СБРОШЕНА).
+    resolvedDrawChoices(): ReadonlyArray<DrawChoiceRecord> {
+      const view = this.playerViewTyped;
+      return view === undefined ? [] : drawChoicesFor(view.id);
     },
     corpName(): CardName | undefined {
       const view = this.playerViewTyped;
@@ -251,7 +357,7 @@ export default defineComponent({
       if (startFlowCorpPrompt(view) !== undefined) {
         return 'ready';
       }
-      if (view.pendingInitialActions.length > 0) {
+      if ((view.pendingInitialActions ?? []).length > 0) {
         return 'pending';
       }
       return 'done';
@@ -308,6 +414,36 @@ export default defineComponent({
     },
     playPrelude(name: CardName): void {
       this.onsave({type: 'card', cards: [name]});
+    },
+    // A drew-N-choose-ONE pick: remember the full candidate set + the choice
+    // (the server discards the rest immediately, so this is our only chance to
+    // capture it for the РАЗЫГРАНА / СБРОШЕНА display), then submit the choice.
+    playDrawPrelude(name: CardName): void {
+      const view = this.playerViewTyped;
+      if (view === undefined) {
+        return;
+      }
+      const prompt = startFlowPreludeDrawPrompt(view);
+      if (prompt === undefined) {
+        return;
+      }
+      recordDrawChoice(view.id, prompt.cards.map((c) => c.name), name);
+      this.onsave({type: 'card', cards: [name]});
+    },
+    // Pill click: clear the MANUAL minimize only. If we're auto-minimized for a
+    // focused sub-action, `startGameFlowState.minimized` stays true so the pill
+    // remains (the sub-action surface still owns the screen).
+    restoreFromPill(): void {
+      this.userMinimized = false;
+    },
+    // Identifies the current actionable step so a NEW step can reset the manual
+    // minimize. Marker-/state-based, never title-based.
+    stepSignature(view: PlayerViewModel): string {
+      const wf = view.waitingFor === undefined ? 'wait' : view.waitingFor.type;
+      const corp = startFlowCorpPrompt(view) !== undefined ? 'c' : '';
+      const draw = startFlowPreludeDrawPrompt(view) !== undefined ? 'd' : '';
+      const done = startGameFlowAllDone(view) ? 'done' : '';
+      return [wf, corp, draw, done].join('|');
     },
     applyCorpEffect(): void {
       const view = this.playerViewTyped;
