@@ -30,13 +30,12 @@
         overlaps the victory-point badge. Rendered ONLY for a genuine RULES
         block (the card can't be played by the game rules) — a soft block (not
         your turn / finish your current action) is not a requirement failure, so
-        it gets no badge. Shown in BOTH normal and sale mode (so it never pops
-        in / out when toggling sale), purely SECONDARY: in sale mode the card
-        stays fully selectable. Hover / focus reveals the shared reason popover
-        (hosted in the action footer below) — that's the text channel. The
-        accessible name carries the meaning for screen readers.
+        it gets no badge. Shown only in sale/mandatory-select mode, where cards
+        are not dimmed and the footer is a selection toggle. In normal play the
+        disabled footer already owns the reason tooltip, so the card badge stays
+        hidden to avoid duplicate affordances.
       -->
-      <button v-if="rulesBlocked && reasons.length > 0"
+      <button v-if="showPlayBlockBadge"
               type="button"
               class="hand-card-item__playblock"
               :aria-label="$t('Cannot play now')"
@@ -106,9 +105,10 @@
       </div>
 
       <!--
-        Rules block: a disabled "НЕДОСТУПНА" footer. Hovering / focusing it ALSO
-        reveals the requirements popover (same as the card badge), so the player
-        can read the WHY from either affordance.
+        Rules block in normal play: a disabled "НЕДОСТУПНА" footer. Hovering /
+        focusing it reveals the requirements popover. In sale/select modes the
+        footer is replaced by a selection toggle and the card badge carries this
+        same playability reason.
       -->
       <div v-else
            class="hand-card-item__disabled"
@@ -123,10 +123,10 @@
       </div>
 
       <!--
-        Reason hover. A RULES block shows the full requirements list (shared
-        popover, triggered from the badge or the footer); a SOFT block shows a
-        single calm one-liner. Both anchor above the action footer and are
-        flipped / nudged by `placeReason` so they stay inside the scroll area.
+        Reason hover. A RULES block shows the full requirements list; a SOFT
+        block shows a single calm one-liner. Both anchor above the action footer
+        and are flipped / nudged by `placeReason` so they stay inside the scroll
+        area.
       -->
       <transition name="hand-reason-fade">
         <HandCardReasonPopover
@@ -177,14 +177,11 @@ import HandCardReasonPopover from '@/client/components/handCards/HandCardReasonP
  * One slot in the hand grid: the card silhouette plus a play affordance
  * beneath it.
  *
- * Playability is shown as a compact icon-only badge on the card corner,
- * present in both normal and sale modes so it never pops in / out when
- * toggling sale. In normal mode an unplayable card is also dimmed and its
- * action footer reads "НЕДОСТУПНА"; in SALE mode the card is NOT dimmed and
- * the footer is the ВЫБРАТЬ / СНЯТЬ ВЫБОР toggle (the card stays sellable).
- * Hovering / focusing EITHER the badge OR the disabled footer reveals the
- * shared reason popover (server-derived reasons), anchored above the footer.
- * Single click on the card opens fullscreen.
+ * In normal mode an unplayable card is dimmed and its action footer reads
+ * "НЕДОСТУПНА"; that footer owns the reason tooltip. In sale / mandatory-select
+ * mode the card is NOT dimmed and the footer is the ВЫБРАТЬ / СНЯТЬ ВЫБОР
+ * toggle, so a compact icon-only badge on the card carries the playability
+ * reason without blocking selection. Single click on the card opens fullscreen.
  */
 export default defineComponent({
   name: 'HandCardItem',
@@ -253,6 +250,12 @@ export default defineComponent({
     },
     reasons(): ReadonlyArray<UnplayableReason> {
       return this.entry.state.reasons;
+    },
+    // Normal play already has a disabled footer with the same tooltip. Keep the
+    // card-level badge only for sale / mandatory-select modes, where the footer
+    // is repurposed as a selection toggle and cards are not dimmed.
+    showPlayBlockBadge(): boolean {
+      return this.saleMode && this.rulesBlocked && this.reasons.length > 0;
     },
     // The single calm one-liner for a soft block ("Not your turn right now" /
     // "Finish your current action first"), translated for the hover tooltip.
