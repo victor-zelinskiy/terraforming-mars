@@ -52,7 +52,8 @@ export default defineComponent({
     },
     game: {
       type: Object as () => SimpleGameModel | undefined,
-      required: true,
+      required: false,
+      default: undefined,
     },
     id: {
       type: String,

@@ -29,16 +29,6 @@ describe('GamesOverview', () => {
   it('mounts without errors', () => {
     const wrapper = shallowMount(GamesOverview, {
       ...globalConfig,
-      global: {
-        ...globalConfig.global,
-        config: {
-          warnHandler: (msg: string, _instance: unknown, trace: string) => {
-            // Temporary diagnostic.
-            // eslint-disable-next-line no-console
-            console.log('VUE WARN', msg, trace);
-          },
-        },
-      },
     });
     expect(wrapper.exists()).to.be.true;
   });
@@ -46,6 +36,9 @@ describe('GamesOverview', () => {
   it('bulk deletes selected games', async () => {
     const calls: Array<string> = [];
     (global as any).fetch = (url: string, options?: {method?: string}) => {
+      if (url.startsWith('api/games')) {
+        return new Promise(() => {});
+      }
       calls.push(`${options?.method ?? 'GET'} ${url}`);
       return Promise.resolve({
         ok: true,
