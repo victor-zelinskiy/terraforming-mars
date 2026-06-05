@@ -126,7 +126,7 @@ function normalizeText(text: string): string {
 }
 
 function isNonTranslatableText(text: string): boolean {
-  return /^(\W|\d)*$/.test(text) || /^\d*x$/.test(text);
+  return /^(\W|\d)*$/.test(text) || /^(?:[-+]?x\d*|\d+x)$/i.test(text);
 }
 
 function translateChildren(node: Node, params: string[] | undefined) {
