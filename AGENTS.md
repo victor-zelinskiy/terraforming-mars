@@ -2,6 +2,127 @@
 
 This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
+## Codex Operating Contract (read first)
+
+This repository may also contain `CLAUDE.md`. Claude is treated as the **primary** agent for broad architecture, visual direction, and large implementation passes. Codex is the **secondary** agent: reviewer, verifier, performance investigator, and focused patch worker.
+
+Before doing any work:
+
+1. Read `CLAUDE.md` if it exists in the repository root.
+2. Read this `AGENTS.md` fully enough to understand the active UI architecture and current migration contracts.
+3. Inspect the current git state (`git status`, then `git diff`) before editing.
+4. Assume uncommitted changes may be intentional work by the user or Claude. Do not overwrite, revert, reformat, or “clean up” unrelated changes.
+
+If `CLAUDE.md` and `AGENTS.md` disagree, treat `AGENTS.md` as the Codex-specific working contract and `CLAUDE.md` as the broader project vision. If the conflict is about UI/UX direction or product taste, prefer the stronger premium/modern direction from `CLAUDE.md` unless the user explicitly says otherwise. If the conflict is about a concrete implementation contract documented here, follow `AGENTS.md`.
+
+### Default role for Codex
+
+Codex should default to one of these modes unless the user explicitly requests a larger implementation:
+
+- **Review mode:** inspect Claude/user changes and report bugs, regressions, architectural risks, missing selectors, missing i18n keys, and performance risks.
+- **Focused patch mode:** make the smallest safe code change that solves the requested issue.
+- **Performance investigation mode:** trace remounts, rerenders, layout thrash, expensive computed values, watchers, and DOM measurement loops before proposing fixes.
+- **Consistency pass mode:** align new UI with existing shared systems (`MandatoryInputModal`, `CardZoomModal`, `card_action_buttons.less`, placement lock, journal, hand/played overlays) instead of inventing parallel patterns.
+
+Avoid acting as a second independent architect unless asked. Do not propose a competing redesign when the task is to validate or harden Claude's design.
+
+### Communication style inside reports
+
+When returning findings, group them by severity:
+
+- **Blocker:** can break turn flow, submit invalid actions, corrupt game state, lose mandatory prompts, or make the UI impossible to complete.
+- **High:** visible regression, broken overlay/modal behavior, missing placement lock, wrong source of truth, major performance issue.
+- **Medium:** inconsistency with premium UI language, missing edge case, missing i18n, minor performance risk.
+- **Low:** cleanup, naming, local simplification, optional polish.
+
+For each finding, include:
+
+1. file/component;
+2. what is wrong;
+3. why it matters in this fork;
+4. minimal fix direction.
+
+Do not dump generic advice. Tie every point to this repository's actual contracts.
+
+### Hard boundaries
+
+- Do not commit, push, create branches, or rewrite git history.
+- Do not run broad formatting over unrelated files.
+- Do not delete legacy components just because a premium replacement exists; many are intentionally kept as fallback/spectator/game-end paths.
+- Do not change server response shapes casually. Client premium UI should usually wrap existing `WaitingFor.onsave()` / `PlayerInputFactory` / action-OR responses byte-identically.
+- Do not replace shared premium UI systems with one-off local controls.
+- Do not introduce native `<select>`, native browser `title` tooltips, plain bootstrap-like buttons, or generic flat panels in newly premiumized surfaces when a custom system already exists.
+- Do not use `pointer-events: none` as a click lock where hover tooltips or capture-phase guards are required.
+
+### Source-of-truth rules
+
+For actions and availability, the server's `playerView.waitingFor` tree is the source of truth.
+
+- Dedicated action buttons must walk the nested `OrOptions` tree and submit through `WaitingFor.onsave()` using the same nested response shape the legacy radio UI would submit.
+- Do not re-derive availability from raw client state when the server already filtered legal actions.
+- Client-side preview flows are allowed only when explicitly documented (for example Standard Projects payment preview, hand-card payment preview, sell patents selection before final submit).
+- For card playability and placement legality, prefer server-provided structured reasons. Do not rebuild approximate logic in the client unless the contract explicitly says the reason is client-only (`turn` / `phase` style exceptions).
+
+### UI architecture priorities
+
+When editing UI, preserve these priorities:
+
+1. **Single-screen no-scroll gameplay** — overlays/panels beat long page scroll.
+2. **Premium Steam-like board focus** — the board should remain dominant and readable.
+3. **Calm Ark Nova-like motion** — short transform/opacity transitions, no flashy movement.
+4. **Shared HUD language** — dark glass, cyan/mint/amber accents, L-corner ticks, Prototype/Orbitron-style typography where already established.
+5. **Stable game flow** — mandatory prompts, placement banners, minimized pills, and action locks must not be bypassable.
+
+If a requested visual change looks “working but cheap”, flag it and suggest a more premium alternative rather than silently accepting the downgrade.
+
+### Performance review checklist
+
+When asked to investigate lag, especially around board actions, tile placement, global parameter movement, hand overlay with 20+ cards, or modal opening:
+
+- Check whether `PlayerHome` remounts are expected (`playerkey` changes on server responses) and whether state that must survive remounts is stored at App/module level (`journalState`, draft/sell/select states, placement lock state).
+- Look for expensive work triggered on every server response: deep watchers, full-list recomputation, card model transformations, repeated sorting/filtering, and layout measurement loops.
+- Verify ResizeObserver / fit engines are rAF-coalesced and do not cause measure-write-measure thrashing.
+- Prefer `transform` / `opacity` animations over layout-affecting properties.
+- Avoid rendering duplicate heavy card trees when a shared `CardZoomModal` / single popover can be reused.
+- Be careful with `<transition-group>` on large card collections; confirm leave/reflow behavior does not animate hundreds of elements unnecessarily.
+- For CSS-heavy cards, avoid adding expensive always-on filters, backdrop blurs, huge shadows, or animated gradients across many repeated elements.
+- When proposing fixes, separate **measurement/profiling findings** from speculative ideas.
+
+### Modal / overlay safety checklist
+
+Before changing any modal, overlay, or action button, verify:
+
+- mandatory server-driven prompts cannot be dismissed by backdrop/outside click;
+- client-driven previews have explicit Cancel only when no server step has been committed yet;
+- minimized mandatory prompts restore with local state intact;
+- placement picker mode still allows board clicks while keeping the prompt recoverable;
+- non-modal overlays yield to the journal when required;
+- placement lock selectors are updated in both LESS and `PLACEMENT_LOCKED_SELECTORS` when adding a new turn-ending action button;
+- Escape/outside-click behavior does not accidentally hide a mandatory decision without leaving a pill.
+
+### Styling and localization rules
+
+- Reuse existing LESS mixins and shared classes before adding new visual systems.
+- Keep CSS selectors specific to the new control; do not broaden locks or styles with generic `.btn`-style selectors.
+- Add Russian i18n keys for new user-facing strings. Do not leave raw English prompt/control text in the premium UI.
+- Prefer visible labels / aria-labels / custom popovers over native titles in premium overlays.
+- Honor `prefers-reduced-motion` for new animations.
+
+### Journal / log completeness note
+
+The journal is not only a visual surface. Future journal work must also verify that important gameplay effects are actually emitted by the server log pipeline. In particular, passive effects from blue cards and other triggered effects should appear in the journal when they fire. If those entries are missing, investigate server-side logging/event emission, not only the journal UI.
+
+### How to patch safely
+
+For implementation tasks:
+
+1. Identify the existing canonical component/pattern.
+2. Make the smallest change that follows that pattern.
+3. Keep legacy fallback paths working unless the user explicitly asks to remove them.
+4. Add/update i18n and placement-lock/style selector lists when relevant.
+5. Run the narrowest useful validation available (`npm run build`, `npm test`, `npm run lint`, `vue-tsc`, or targeted tests) when the repository supports it and the task justifies it.
+6. Report what was changed and what was not verified.
+
 ## Project Goals (vize1215 fork)
 
 This is `vize1215`'s personal fork — a private/self-hosted build of the open-source `terraforming-mars` project. The active UI work is driven by these goals; weigh decisions against them when proposing or making changes:
