@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {Celestic} from '../../../src/server/cards/venusNext/Celestic';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {testGame} from '../../TestGame';
 import {churn} from '../../TestingUtils';
 import {cast} from '@/common/utils/utils';
@@ -11,7 +12,8 @@ describe('Celestic', () => {
     cast(card.play(player), undefined);
     player.playedCards.push(card);
 
-    expect(churn(card.action(player), player)).is.undefined;
+    const selectCard = cast(churn(card.action(player), player), SelectCard);
+    selectCard.cb([card]);
     expect(card.resourceCount).to.eq(1);
 
     player.addResourceTo(card, 4);

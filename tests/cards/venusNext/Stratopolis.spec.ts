@@ -3,7 +3,7 @@ import {Research} from '../../../src/server/cards/base/Research';
 import {AerialMappers} from '../../../src/server/cards/venusNext/AerialMappers';
 import {Stratopolis} from '../../../src/server/cards/venusNext/Stratopolis';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
-import {churn, runAllActions, testGame} from '../../TestingUtils';
+import {churn, testGame} from '../../TestingUtils';
 import {TestPlayer} from '../../TestPlayer';
 import {cast} from '@/common/utils/utils';
 
@@ -30,8 +30,8 @@ describe('Stratopolis', () => {
 
   it('Should act - single target', () => {
     player.playedCards.push(card);
-    card.action(player);
-    runAllActions(player.game);
+    const selectCard = cast(churn(card.action(player), player), SelectCard);
+    selectCard.cb([card]);
     expect(card.resourceCount).to.eq(2);
   });
 

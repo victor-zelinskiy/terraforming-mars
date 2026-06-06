@@ -16,6 +16,7 @@ export class UndergroundHabitat extends Card implements IProjectCard {
 
       behavior: {
         production: {plants: 1},
+        // Out-of-scope expansion (Underworld): keep the legacy instant-apply.
         addResourcesToAnyCard: {count: 1, type: CardResource.ANIMAL, autoSelect: true},
         underworld: {excavate: 1},
       },

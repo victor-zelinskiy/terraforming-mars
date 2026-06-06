@@ -30,9 +30,10 @@ export class Keplertec extends ActiveCorporationCard {
         spend: {titanium: 1},
         addResourcesToAnyCard: {
           count: 1,
-          autoSelect: true,
           mustHaveCard: true,
           type: CardResource.FIGHTER,
+          // Out-of-scope expansion (Underworld): keep the legacy instant-apply.
+          autoSelect: true,
         },
       },
 

@@ -20,7 +20,9 @@ export class StormCraftIncorporated extends ActiveCorporationCard {
       resourceType: CardResource.FLOATER,
 
       action: {
-        addResourcesToAnyCard: {type: CardResource.FLOATER, count: 1, autoSelect: true},
+        // autoSelect:false → the player ALWAYS confirms which card gets the
+        // floater, even when only one is in play; never silent behind the board.
+        addResourcesToAnyCard: {type: CardResource.FLOATER, count: 1, autoSelect: false},
       },
 
       metadata: {

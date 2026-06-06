@@ -43,6 +43,18 @@ describe('AddResourcesToCard', () => {
     expect(ghgProducingBacteria.resourceCount).eq(5);
   });
 
+  it('autoSelect:false asks even with a single card (never applies silently)', () => {
+    player.playedCards.push(ghgProducingBacteria);
+    const selectCard = cast(
+      new AddResourcesToCard(player, CardResource.MICROBE, {count: 5, autoSelect: false}).execute(),
+      SelectCard);
+    // The player must confirm WHERE — nothing is added behind the board.
+    expect(selectCard.cards).has.length(1);
+    expect(ghgProducingBacteria.resourceCount).eq(0);
+    selectCard.cb([ghgProducingBacteria]);
+    expect(ghgProducingBacteria.resourceCount).eq(5);
+  });
+
   it('many microbe cards', () => {
     player.playedCards.push(ghgProducingBacteria, tardigrades, ants);
 

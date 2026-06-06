@@ -817,6 +817,14 @@ export default defineComponent({
      */
     actionLabel(name: CardName): string {
       if (!this.isMultiSelect) {
+        // An "add resource to a card" pick (AddResourcesToCard) reads as a
+        // confirmation to add HERE — surface the add verb the server sent
+        // ("Добавить ресурс(ы)") instead of a generic "ВЫБРАТЬ", so a forced
+        // single-target add doesn't look like an arbitrary selection.
+        const bl = typeof this.playerinput.buttonLabel === 'string' ? this.playerinput.buttonLabel : '';
+        if (bl === 'Add resource' || bl === 'Add resources') {
+          return translateText(bl);
+        }
         return translateText('Select');
       }
       return this.isSelected(name) ? translateText('Unselect') : translateText('Select');

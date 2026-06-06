@@ -17,6 +17,16 @@ export type Options = {
   robotCards?: boolean;
   filter?(card: ICard): boolean;
   log?: boolean;
+  /**
+   * When `false`, NEVER apply silently even if only ONE card matches — always
+   * present the pick so the player explicitly confirms WHERE the resource goes
+   * (rather than it happening behind the board). The "add to ANY card"
+   * behavior (`addResourcesToAnyCard`) passes `false`, because that is a real
+   * board-wide choice. Left `undefined` (or `true`) by bespoke callers that
+   * target a FIXED card (e.g. Ants → itself, via `filter`), which keeps the
+   * instant apply on a single match.
+   */
+  autoSelect?: boolean;
 }
 
 export class AddResourcesToCard extends DeferredAction {
@@ -63,14 +73,24 @@ export class AddResourcesToCard extends DeferredAction {
 
     const qty = this.options.count ?? 1;
 
-    if (cards.length === 1) {
+    // Apply instantly on a single match ONLY when the caller allows it
+    // (default). The "add to ANY card" behavior passes autoSelect:false so the
+    // player ALWAYS confirms WHERE the resource goes — even with one candidate —
+    // instead of it being applied silently behind the board.
+    if (cards.length === 1 && this.options.autoSelect !== false) {
       this.addResource(cards[0], qty);
       return undefined;
     }
 
-    const title = this.options.title ??
-      message('Select card to add ${0} ${1}', (b) => b.number(qty).string(this.resourceType || 'resources'));
+    // A forced single pick (one candidate, but autoSelect disabled) reads as a
+    // CONFIRMATION ("add here"), not a choice ("select a card …"). Plain string
+    // keys (no resource/number token) so the Russian text stays correct —
+    // the resource type + count are clear from the shown card + the button.
+    const single = cards.length === 1;
     const buttonLabel = qty === 1 ? 'Add resource' : 'Add resources';
+    const title: string | Message = this.options.title ?? (single ?
+      (qty === 1 ? 'Add resource to this card' : 'Add resources to this card') :
+      message('Select card to add ${0} ${1}', (b) => b.number(qty).string(this.resourceType || 'resources')));
 
     return new SelectCard(title, buttonLabel, cards)
       .andThen(([card]) => {

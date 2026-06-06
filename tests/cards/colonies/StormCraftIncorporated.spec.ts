@@ -3,6 +3,7 @@ import {StormCraftIncorporated} from '../../../src/server/cards/colonies/StormCr
 import * as constants from '../../../src/common/constants';
 import {testGame} from '../../TestGame';
 import {SelectAmount} from '../../../src/server/inputs/SelectAmount';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {TestPlayer} from '../../TestPlayer';
 import {churn} from '../../TestingUtils';
 import {cast} from '../../../src/common/utils/utils';
@@ -20,7 +21,10 @@ describe('StormCraftIncorporated', () => {
   it('Should play', () => {
     cast(card.play(player), undefined);
 
-    expect(churn(card.action(player), player)).is.undefined;
+    // "Add to ANY card" always asks where — even with one candidate (the corp
+    // itself) — so the player confirms, never silently behind the board.
+    const selectCard = cast(churn(card.action(player), player), SelectCard);
+    selectCard.cb([card]);
 
     expect(card.resourceCount).to.eq(1);
   });
