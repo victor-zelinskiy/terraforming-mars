@@ -28,10 +28,7 @@ describe('PlayerHome', () => {
       el.removeAttribute('data-placement-orig-title');
       el.removeAttribute('title');
     });
-    document.querySelectorAll('[data-action-lock-orig-hint]').forEach((el) => {
-      el.removeAttribute('data-action-lock-orig-hint');
-      el.removeAttribute('data-hint');
-    });
+    document.querySelectorAll('.action-lock-floating-tooltip').forEach((el) => el.remove());
     FakeLocalStorage.deregister(localStorage);
   });
 
@@ -76,12 +73,17 @@ describe('PlayerHome', () => {
 
     expect(document.body.classList.contains('start-game-flow-action-locked')).to.be.true;
     expect(actionButton.getAttribute('title')).to.eq('Finish your current action first');
-    expect(actionButton.getAttribute('data-hint')).to.eq('Finish your current action first');
+    expect(actionButton.hasAttribute('data-hint')).to.be.false;
+
+    actionButton.dispatchEvent(new window.MouseEvent('mouseover', {bubbles: true}));
+    await wrapper.vm.$nextTick();
+    expect((wrapper.vm as any).actionLockTooltipText).to.eq('Finish your current action first');
 
     markStartFlowCompleted(view.id);
     await wrapper.vm.$nextTick();
 
     expect(document.body.classList.contains('start-game-flow-action-locked')).to.be.false;
+    expect((wrapper.vm as any).actionLockTooltipText).to.eq('');
     expect(actionButton.hasAttribute('title')).to.be.false;
     expect(actionButton.hasAttribute('data-hint')).to.be.false;
 

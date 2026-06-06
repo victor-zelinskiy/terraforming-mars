@@ -610,6 +610,14 @@
       is a private/self-hosted 2-player setup, so the spectator endpoint is
       never used and purge-after-N-hours doesn't apply.
     -->
+    <Teleport to="body">
+      <div v-if="actionLockTooltipText !== ''"
+           class="action-lock-floating-tooltip"
+           :style="actionLockTooltipStyle"
+           role="tooltip">
+        {{ actionLockTooltipText }}
+      </div>
+    </Teleport>
     <KeyboardShortcuts v-show="keyboardShortcutOpened" @close="keyboardShortcutOpened = false"></KeyboardShortcuts>
   </div>
 </template>
@@ -818,6 +826,9 @@ type PlayerHomeModel = ToggleableState & {
    */
   placementClickGuard: ((e: MouseEvent) => void) | null;
   placementMouseOverHandler: ((e: MouseEvent) => void) | null;
+  actionLockMouseOutHandler: ((e: MouseEvent) => void) | null;
+  actionLockTooltipText: string;
+  actionLockTooltipStyle: Record<string, string>;
 }
 
 type ToggleableCardType = 'HAND' | 'ACTIVE' | 'AUTOMATED' | 'EVENT';
@@ -858,8 +869,6 @@ const PLACEMENT_LOCKED_SELECTORS = [
 ].join(', ');
 
 const PLACEMENT_ORIG_TITLE_ATTR = 'data-placement-orig-title';
-const ACTION_LOCK_ORIG_HINT_ATTR = 'data-action-lock-orig-hint';
-
 export default defineComponent({
   name: 'player-home',
   mixins: [HomeMixin],
@@ -896,6 +905,9 @@ export default defineComponent({
        */
       placementClickGuard: null as ((e: MouseEvent) => void) | null,
       placementMouseOverHandler: null as ((e: MouseEvent) => void) | null,
+      actionLockMouseOutHandler: null as ((e: MouseEvent) => void) | null,
+      actionLockTooltipText: '',
+      actionLockTooltipStyle: {},
     };
   },
   watch: {
@@ -2566,9 +2578,22 @@ export default defineComponent({
         const locked = target.closest(PLACEMENT_LOCKED_SELECTORS);
         if (locked === null) return;
         this.applyActionLockTooltip(locked, tooltipText);
+        this.showActionLockTooltip(locked, tooltipText);
       };
       document.addEventListener('mouseover', mouseover, true);
       this.placementMouseOverHandler = mouseover;
+
+      const mouseout = (e: MouseEvent) => {
+        const target = e.target as Element | null;
+        if (target === null) return;
+        const locked = target.closest(PLACEMENT_LOCKED_SELECTORS);
+        if (locked === null) return;
+        const related = e.relatedTarget as Element | null;
+        if (related !== null && locked.contains(related)) return;
+        this.hideActionLockTooltip();
+      };
+      document.addEventListener('mouseout', mouseout, true);
+      this.actionLockMouseOutHandler = mouseout;
 
       /* Eager pass — set titles on every match currently in the DOM
        * so the first hover doesn't race with the OS tooltip delay. */
@@ -2582,11 +2607,31 @@ export default defineComponent({
         el.setAttribute(PLACEMENT_ORIG_TITLE_ATTR, orig);
         el.setAttribute('title', tooltipText);
       }
-      if (!el.hasAttribute(ACTION_LOCK_ORIG_HINT_ATTR)) {
-        const orig = el.getAttribute('data-hint') ?? '';
-        el.setAttribute(ACTION_LOCK_ORIG_HINT_ATTR, orig);
-        el.setAttribute('data-hint', tooltipText);
+    },
+    showActionLockTooltip(el: Element, tooltipText: string): void {
+      const rect = el.getBoundingClientRect();
+      const margin = 10;
+      const tooltipWidth = 260;
+      const tooltipHeight = 42;
+
+      let left = rect.right + margin;
+      if (left + tooltipWidth > window.innerWidth - margin) {
+        left = rect.left - margin - tooltipWidth;
       }
+      left = Math.max(margin, Math.min(left, window.innerWidth - tooltipWidth - margin));
+
+      const centeredTop = rect.top + (rect.height / 2) - (tooltipHeight / 2);
+      const top = Math.max(margin, Math.min(centeredTop, window.innerHeight - tooltipHeight - margin));
+
+      this.actionLockTooltipText = tooltipText;
+      this.actionLockTooltipStyle = {
+        left: `${left}px`,
+        top: `${top}px`,
+      };
+    },
+    hideActionLockTooltip(): void {
+      this.actionLockTooltipText = '';
+      this.actionLockTooltipStyle = {};
     },
     syncActionLockGuards(): void {
       if (this.actionUiLocked) {
@@ -2604,6 +2649,11 @@ export default defineComponent({
         document.removeEventListener('mouseover', this.placementMouseOverHandler, true);
         this.placementMouseOverHandler = null;
       }
+      if (this.actionLockMouseOutHandler !== null) {
+        document.removeEventListener('mouseout', this.actionLockMouseOutHandler, true);
+        this.actionLockMouseOutHandler = null;
+      }
+      this.hideActionLockTooltip();
       /* Restore each tagged element's original title — empty string
        * means there wasn't a title attribute originally, in which
        * case we remove ours entirely instead of leaving a blank one. */
@@ -2615,15 +2665,6 @@ export default defineComponent({
           el.setAttribute('title', orig);
         }
         el.removeAttribute(PLACEMENT_ORIG_TITLE_ATTR);
-      });
-      document.querySelectorAll('[' + ACTION_LOCK_ORIG_HINT_ATTR + ']').forEach((el) => {
-        const orig = el.getAttribute(ACTION_LOCK_ORIG_HINT_ATTR) ?? '';
-        if (orig === '') {
-          el.removeAttribute('data-hint');
-        } else {
-          el.setAttribute('data-hint', orig);
-        }
-        el.removeAttribute(ACTION_LOCK_ORIG_HINT_ATTR);
       });
     },
     onConvertPlantsSpacePicked(spaceResponse: {type: 'space'; spaceId: string}): void {
