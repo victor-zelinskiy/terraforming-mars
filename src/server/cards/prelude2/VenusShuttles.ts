@@ -22,6 +22,8 @@ export class VenusShuttles extends Card implements IActionCard {
           count: 2,
           tag: Tag.VENUS,
           type: CardResource.FLOATER,
+          // Out-of-scope expansion (Prelude 2): keep the legacy instant-apply.
+          // The "always confirm where" rule is applied to the in-scope set only.
           autoSelect: true,
         },
       },

@@ -18,8 +18,8 @@ export class MaxwellBase extends ActionCard implements IActionCard {
         addResourcesToAnyCard: {
           tag: Tag.VENUS,
           count: 1,
-          autoSelect: true,
           mustHaveCard: true,
+          autoSelect: false,
         },
       },
 

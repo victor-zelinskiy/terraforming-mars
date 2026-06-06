@@ -53,8 +53,8 @@ describe('MaxwellBase', () => {
 
     player.playedCards.push(card3);
     expect(card.canAct(player)).is.true;
-    card.action(player);
-    runAllActions(game);
+    const action = cast(churn(card.action(player), player), SelectCard);
+    action.cb([card3]);
     expect(card3.resourceCount).to.eq(1);
   });
 
@@ -83,8 +83,8 @@ describe('MaxwellBase', () => {
   it('Works with Applied Science #7530', () => {
     const appliedScience = new AppliedScience();
     player.playedCards.push(appliedScience);
-    card.action(player);
-    runAllActions(game);
+    const action = cast(churn(card.action(player), player), SelectCard);
+    action.cb([appliedScience]);
 
     expect(appliedScience.resourceCount).eq(1);
   });

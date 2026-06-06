@@ -1,6 +1,6 @@
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {expect} from 'chai';
-import {churn, runAllActions, setTemperature} from '../../TestingUtils';
+import {churn, setTemperature} from '../../TestingUtils';
 import {Ants} from '../../../src/server/cards/base/Ants';
 import {Decomposers} from '../../../src/server/cards/base/Decomposers';
 import {SymbioticFungus} from '../../../src/server/cards/base/SymbioticFungus';
@@ -35,8 +35,9 @@ describe('SymbioticFungus', () => {
   it('Should act - single target', () => {
     const ants = new Ants();
     player.playedCards.push(ants);
-    card.action(player);
-    runAllActions(game);
+    // Even a single target is confirmed now (no silent auto-add).
+    const selectCard = cast(churn(card.action(player), player), SelectCard);
+    selectCard.cb([ants]);
     expect(ants.resourceCount).to.eq(1);
   });
 

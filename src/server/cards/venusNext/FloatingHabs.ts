@@ -19,7 +19,7 @@ export class FloatingHabs extends ActionCard implements IActionCard {
 
       action: {
         spend: {megacredits: 2},
-        addResourcesToAnyCard: {type: CardResource.FLOATER, count: 1, autoSelect: true},
+        addResourcesToAnyCard: {type: CardResource.FLOATER, count: 1, autoSelect: false},
       },
 
       requirements: {tag: Tag.SCIENCE, count: 2},

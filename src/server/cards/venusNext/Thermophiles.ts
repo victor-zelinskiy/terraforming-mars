@@ -31,7 +31,7 @@ export class Thermophiles extends ActionCard implements IActionCard {
               count: 1,
               tag: Tag.VENUS,
               type: CardResource.MICROBE,
-              autoSelect: true,
+              autoSelect: false,
             },
           }],
         },

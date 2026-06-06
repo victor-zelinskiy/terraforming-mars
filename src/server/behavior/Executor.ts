@@ -500,6 +500,12 @@ export class Executor implements BehaviorExecutor {
                 restrictedTag: arctac.tag,
                 min: arctac.min,
                 robotCards: arctac.robotCards !== undefined,
+                // Honour the card's `autoSelect`: `false` forces the player to
+                // ALWAYS confirm WHERE the resource goes (even with one
+                // candidate), so an activatable "add to ANY card" action never
+                // resolves silently behind the board. Absent/`true` keeps the
+                // legacy instant-apply-on-single (default).
+                autoSelect: arctac.autoSelect,
               }));
         }
       }

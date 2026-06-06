@@ -216,8 +216,14 @@ export interface AddResource {
   /** When true, include self-replicating robots cards. */
   robotCards?: true,
 
-  /** If true, if only one card matches, apply immediately without asking. */
-  // WARNING: I don't think this is actually used.
+  /**
+   * Controls the single-match shortcut of the resulting `AddResourcesToCard`
+   * (wired through `Executor` → `AddResourcesToCard.autoSelect`).
+   *   - `false` → ALWAYS ask where to add, even with one candidate, so an
+   *     activatable "add to ANY card" action never resolves silently behind the
+   *     board. Set on the activatable in-scope cards (StormCraft, etc.).
+   *   - absent / `true` → legacy instant-apply when only one card matches.
+   */
   autoSelect?: boolean,
 }
 

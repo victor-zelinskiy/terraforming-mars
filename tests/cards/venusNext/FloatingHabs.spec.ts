@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {churn, runAllActions} from '../../TestingUtils';
+import {churn} from '../../TestingUtils';
 import {Research} from '../../../src/server/cards/base/Research';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {FloatingHabs} from '../../../src/server/cards/venusNext/FloatingHabs';
@@ -33,8 +33,9 @@ describe('FloatingHabs', () => {
     player.playedCards.push(card);
     player.megaCredits = 10;
 
-    card.action(player);
-    runAllActions(game);
+    const selectCard = cast(churn(card.action(player), player), SelectCard);
+    selectCard.cb([card]);
+    game.deferredActions.runNext();
     expect(card.resourceCount).to.eq(1);
     expect(player.megaCredits).to.eq(8);
   });
