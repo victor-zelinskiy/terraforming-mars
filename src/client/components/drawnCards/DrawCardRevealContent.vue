@@ -104,15 +104,16 @@ export default defineComponent({
     zoom(): number {
       const n = this.untakenCount;
       if (n <= 3) {
-        // Slightly under-fill the tray height so the hover scale/lift has
-        // vertical room and never clips against the scroll container.
-        return 0.76;
+        return 0.96;
       }
-      if (n <= 5) {
+      if (n <= 4) {
+        return 0.84;
+      }
+      if (n <= 6) {
         return 0.66;
       }
       if (n <= 8) {
-        return 0.54;
+        return 0.56;
       }
       return 0.46;
     },

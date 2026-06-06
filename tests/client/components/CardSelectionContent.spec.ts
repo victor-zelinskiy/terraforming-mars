@@ -60,6 +60,28 @@ describe('CardSelectionContent — availability filter', () => {
     expect(component.find('[data-test="card-selection-Predators"]').exists()).to.eq(true);
   });
 
+  it('applies the hard single-row class (flex nowrap) for 1–4 cards', () => {
+    for (const count of [1, 2, 3, 4]) {
+      const component = factory({
+        type: 'card', title: 'Select a card', min: 0, max: count,
+        cards: Array.from({length: count}, (_, i) => ({name: 'Ants' + i})),
+      });
+      expect(
+        component.find('.card-selection__cards').classes(),
+        `${count} cards must be a single-row layout`,
+      ).to.include('card-selection__cards--single-row');
+    }
+  });
+
+  it('does NOT force a single row for 5+ cards', () => {
+    const component = factory({
+      type: 'card', title: 'Select a card', min: 0, max: 5,
+      cards: Array.from({length: 5}, (_, i) => ({name: 'Ants' + i})),
+    });
+    expect(component.find('.card-selection__cards').classes())
+      .to.not.include('card-selection__cards--single-row');
+  });
+
   it('commits only a selectable card', async () => {
     let saved: SelectCardResponse | undefined;
     const component = factory({
