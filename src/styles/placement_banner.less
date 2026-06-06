@@ -180,7 +180,6 @@ body.start-game-flow-action-locked {
     .hand-card-play-btn,
     .action-activate-btn,
     .wf-action {
-        .premium-tooltip(240px);
         opacity: 0.45;
         filter: saturate(0.55);
         cursor: not-allowed !important;
@@ -684,6 +683,36 @@ body.start-game-flow-action-locked {
 .placement-reason-fade-leave-active { transition: opacity 130ms ease; }
 .placement-reason-fade-enter-from,
 .placement-reason-fade-leave-to { opacity: 0; }
+
+.action-lock-floating-tooltip {
+    position: fixed;
+    z-index: 240;
+    width: max-content;
+    max-width: 260px;
+    padding: 7px 12px;
+    border: 1px solid rgba(106, 176, 230, 0.42);
+    border-radius: 6px;
+    background:
+        linear-gradient(180deg, rgba(18, 28, 42, 0.98), rgba(8, 14, 22, 0.98));
+    box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.62),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+        0 0 24px rgba(106, 176, 230, 0.13);
+    color: #dcecff;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: 0.25px;
+    text-align: center;
+    pointer-events: none;
+    animation: action-lock-tooltip-in 120ms ease both;
+}
+
+@keyframes action-lock-tooltip-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 
 @media (prefers-reduced-motion: reduce) {
     .placement-reason-fade-enter-active,
