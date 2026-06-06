@@ -1,0 +1,182 @@
+/*
+ * Pure client-side layout budget for StartGameFlowOverlay.
+ *
+ * The overlay changes state several times during setup: prelude cards resolve,
+ * Merger can add corporation cards, draw/copy prelude prompts can add another
+ * card row, then waiting and the final CTA appear. This helper centralizes the
+ * reserved window size so new cases can be added without rewriting the Vue
+ * layout or CSS.
+ */
+
+export type StartGameFlowLayoutInput = {
+  preludeCount: number;
+  corporationCount: number;
+  corporationSelectCount: number;
+  drawCandidateCount: number;
+  resolvedDrawCounts: ReadonlyArray<number>;
+  copyCandidateCount: number;
+  waiting: boolean;
+  allDone: boolean;
+  viewportWidth: number;
+  viewportHeight: number;
+};
+
+export type StartGameFlowLayoutBudget = {
+  preludeZoom: number;
+  corporationZoom: number;
+  gridGapX: number;
+  gridGapY: number;
+  windowWidth: number;
+  windowMinHeight: number;
+  bodyMinHeight: number;
+  footerReserveHeight: number;
+};
+
+const CARD_NATURAL_W = 300;
+const CARD_NATURAL_H = 420;
+const CARD_CHROME_H = 58; // status/action area under the card
+const SECTION_LABEL_H = 24;
+const SECTION_GAP_H = 18;
+const HEADER_H = 86;
+const FRAME_V = 78;
+const FOOTER_H = 66;
+const WAITING_H = 142;
+
+function columnsFor(count: number): number {
+  if (count <= 0) return 0;
+  if (count <= 2) return count;
+  if (count <= 4) return count;
+  if (count <= 6) return 3;
+  return 4;
+}
+
+function rowsFor(count: number): number {
+  const cols = columnsFor(count);
+  return cols === 0 ? 0 : Math.ceil(count / cols);
+}
+
+function sectionHeight(count: number, zoom: number, gapY: number): number {
+  const rows = rowsFor(count);
+  if (rows === 0) return 0;
+  const cardColumnH = CARD_NATURAL_H * zoom + CARD_CHROME_H;
+  return SECTION_LABEL_H + rows * cardColumnH + Math.max(0, rows - 1) * gapY;
+}
+
+function sectionWidth(count: number, zoom: number, gapX: number): number {
+  const cols = columnsFor(count);
+  if (cols === 0) return 0;
+  return cols * CARD_NATURAL_W * zoom + Math.max(0, cols - 1) * gapX;
+}
+
+export function startGameFlowLayoutBudget(input: StartGameFlowLayoutInput): StartGameFlowLayoutBudget {
+  const resolvedDrawMax = input.resolvedDrawCounts.reduce((max, count) => Math.max(max, count), 0);
+  let maxCardGrid = Math.max(input.preludeCount, input.corporationCount);
+  let sectionCount = 0;
+
+  if (input.corporationCount > 0) {
+    sectionCount++;
+  }
+  if (input.preludeCount > 0) {
+    sectionCount++;
+  }
+
+  // Merger: the live corp-selection prompt adds a temporary corporation grid.
+  if (input.corporationSelectCount > 0) {
+    maxCardGrid = Math.max(maxCardGrid, input.corporationSelectCount);
+    sectionCount++;
+  }
+
+  // New Partner / Valley Trust: drew-N-choose-one needs space for its own row.
+  if (input.drawCandidateCount > 0) {
+    maxCardGrid = Math.max(maxCardGrid, input.drawCandidateCount);
+    sectionCount++;
+  }
+
+  // Resolved draw choices remain visible as played/discarded cards.
+  if (resolvedDrawMax > 0) {
+    maxCardGrid = Math.max(maxCardGrid, resolvedDrawMax);
+    sectionCount += input.resolvedDrawCounts.length;
+  }
+
+  // Double Down and similar copy-prompt cards: another temporary card row.
+  if (input.copyCandidateCount > 0) {
+    maxCardGrid = Math.max(maxCardGrid, input.copyCandidateCount);
+    sectionCount++;
+  }
+
+  let preludeZoom = 0.64;
+  if (maxCardGrid >= 9) {
+    preludeZoom = 0.46;
+  } else if (maxCardGrid >= 7) {
+    preludeZoom = 0.50;
+  } else if (maxCardGrid >= 5) {
+    preludeZoom = 0.54;
+  } else if (maxCardGrid <= 2) {
+    preludeZoom = 0.68;
+  }
+
+  let corporationZoom = input.corporationCount > 1 ? 0.62 : 0.70;
+  if (sectionCount >= 3) {
+    preludeZoom = Math.max(0.44, preludeZoom - 0.04);
+    corporationZoom = Math.max(0.56, corporationZoom - 0.04);
+  }
+
+  const compactViewport = input.viewportHeight > 0 && input.viewportHeight < 820;
+  if (compactViewport) {
+    preludeZoom = Math.max(0.42, preludeZoom - 0.04);
+    corporationZoom = Math.max(0.52, corporationZoom - 0.04);
+  }
+
+  const gridGapX = maxCardGrid >= 7 ? 16 : 24;
+  const gridGapY = maxCardGrid >= 7 || compactViewport ? 10 : 16;
+
+  const bodySections = [
+    sectionHeight(input.corporationCount, corporationZoom, gridGapY),
+    sectionHeight(input.corporationSelectCount, preludeZoom, gridGapY),
+    sectionHeight(input.preludeCount, preludeZoom, gridGapY),
+    sectionHeight(input.drawCandidateCount, preludeZoom, gridGapY),
+    ...input.resolvedDrawCounts.map((count) => sectionHeight(count, preludeZoom, gridGapY)),
+    sectionHeight(input.copyCandidateCount, preludeZoom, gridGapY),
+  ].filter((height) => height > 0);
+
+  const visibleBodyH =
+    bodySections.reduce((sum, height) => sum + height, 0) +
+    Math.max(0, bodySections.length - 1) * SECTION_GAP_H;
+
+  // Waiting is a likely transient state after a player finishes setup; reserve
+  // it even before it is visible so the card does not shrink/pop.
+  const bodyMinHeight = Math.max(visibleBodyH, WAITING_H);
+
+  const gridWidth = Math.max(
+    sectionWidth(input.corporationCount, corporationZoom, gridGapX),
+    sectionWidth(input.corporationSelectCount, preludeZoom, gridGapX),
+    sectionWidth(input.preludeCount, preludeZoom, gridGapX),
+    sectionWidth(input.drawCandidateCount, preludeZoom, gridGapX),
+    sectionWidth(resolvedDrawMax, preludeZoom, gridGapX),
+    sectionWidth(input.copyCandidateCount, preludeZoom, gridGapX),
+    input.waiting || input.allDone ? 560 : 0,
+  );
+
+  const viewportW = input.viewportWidth || 1280;
+  const viewportH = input.viewportHeight || 860;
+  const windowWidth = Math.min(
+    Math.max(720, Math.ceil(gridWidth + 96)),
+    Math.max(680, viewportW - 72),
+    1240,
+  );
+  const windowMinHeight = Math.min(
+    Math.ceil(FRAME_V + HEADER_H + bodyMinHeight + FOOTER_H),
+    Math.max(560, viewportH - 72),
+  );
+
+  return {
+    preludeZoom,
+    corporationZoom,
+    gridGapX,
+    gridGapY,
+    windowWidth,
+    windowMinHeight,
+    bodyMinHeight: Math.ceil(bodyMinHeight),
+    footerReserveHeight: FOOTER_H,
+  };
+}

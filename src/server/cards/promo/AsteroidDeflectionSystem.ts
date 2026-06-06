@@ -8,6 +8,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {IPlayer} from '../../IPlayer';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
+import * as actionReason from '../actionReasons';
 
 export class AsteroidDeflectionSystem extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -42,6 +43,10 @@ export class AsteroidDeflectionSystem extends Card implements IActionCard, IProj
 
   public canAct(player: IPlayer): boolean {
     return player.game.projectDeck.canDraw(1);
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.deckEmpty();
   }
 
   public action(player: IPlayer) {

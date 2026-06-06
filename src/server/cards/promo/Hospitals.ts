@@ -13,6 +13,7 @@ import {Space} from '../../boards/Space';
 import {SelectCard} from '../../inputs/SelectCard';
 import {all} from '../Options';
 import {Size} from '../../../common/cards/render/Size';
+import * as actionReason from '../actionReasons';
 
 export class Hospitals extends Card implements IProjectCard, IActionCard {
   constructor() {
@@ -55,6 +56,10 @@ export class Hospitals extends Card implements IProjectCard, IActionCard {
     if (Board.isCitySpace(space)) {
       cardowner.addResourceTo(this, {qty: 1, log: true});
     }
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.targetReason('No disease resources to remove');
   }
 
   public action(player: IPlayer) {

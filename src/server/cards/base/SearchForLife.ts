@@ -8,6 +8,7 @@ import {CardResource} from '../../../common/CardResource';
 import {CardName} from '../../../common/cards/CardName';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
+import * as actionReason from '../actionReasons';
 import {searchForLife} from '../render/DynamicVictoryPoints';
 import {max} from '../Options';
 import {TITLES} from '../../inputs/titles';
@@ -46,6 +47,9 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
   }
   public canAct(player: IPlayer): boolean {
     return player.canAfford(1) && player.game.projectDeck.canDraw(1);
+  }
+  public actionUnavailableReason(player: IPlayer) {
+    return player.game.projectDeck.canDraw(1) ? actionReason.needMoreMC(player, 1) : actionReason.deckEmpty();
   }
 
   public action(player: IPlayer) {

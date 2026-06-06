@@ -11,6 +11,7 @@ import {BoardType} from '../../boards/BoardType';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {Space} from '../../boards/Space';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
+import * as actionReason from '../actionReasons';
 export class MarsNomads extends Card implements IActionCard {
   /*
    * A good page about this card: https://boardgamegeek.com/thread/3154812.
@@ -84,6 +85,10 @@ export class MarsNomads extends Card implements IActionCard {
 
   public canAct(player: IPlayer) {
     return this.eliglbleDestinationSpaces(player).length > 0;
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.placementReason('No valid destination space');
   }
 
   public action(player: IPlayer) {

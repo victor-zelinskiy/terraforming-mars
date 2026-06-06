@@ -9,6 +9,7 @@ import {OrOptions} from '../../inputs/OrOptions';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {Payment} from '../../../common/inputs/Payment';
+import * as actionReason from '../actionReasons';
 
 export class TitanAirScrapping extends Card implements IProjectCard {
   constructor() {
@@ -44,6 +45,9 @@ export class TitanAirScrapping extends Card implements IProjectCard {
       return player.canAfford({cost: 0, tr: {tr: 1}});
     }
     return false;
+  }
+  public actionUnavailableReason() {
+    return actionReason.ruleReason('No titanium or floaters to spend');
   }
 
   public action(player: IPlayer) {

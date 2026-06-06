@@ -12,6 +12,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {max} from '../Options';
 import {TITLES} from '../../inputs/titles';
+import * as actionReason from '../actionReasons';
 
 export class RotatorImpacts extends Card implements IActionCard {
   constructor() {
@@ -51,6 +52,9 @@ export class RotatorImpacts extends Card implements IActionCard {
       this.warnings.add('maxvenus');
     }
     return this.canAddResource(player) || this.canSpendResource(player);
+  }
+  public actionUnavailableReason() {
+    return actionReason.ruleReason('No titanium to add or floaters to spend');
   }
 
   public action(player: IPlayer) {

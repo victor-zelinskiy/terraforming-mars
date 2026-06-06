@@ -9,6 +9,7 @@ import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
+import * as actionReason from '../actionReasons';
 
 const ACTION_COST = 12;
 export class WaterImportFromEuropa extends Card implements IActionCard, IProjectCard {
@@ -34,6 +35,9 @@ export class WaterImportFromEuropa extends Card implements IActionCard, IProject
   }
   public canAct(player: IPlayer): boolean {
     return player.canAfford({cost: ACTION_COST, titanium: true, tr: {oceans: 1}});
+  }
+  public actionUnavailableReason() {
+    return actionReason.notEnoughMC();
   }
   public action(player: IPlayer) {
     player.game.defer(new SelectPaymentDeferred(player, ACTION_COST, {canUseTitanium: true, title: TITLES.action}))

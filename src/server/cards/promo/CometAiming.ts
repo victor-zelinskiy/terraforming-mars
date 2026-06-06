@@ -13,6 +13,7 @@ import {LogHelper} from '../../LogHelper';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {Payment} from '../../../common/inputs/Payment';
+import * as actionReason from '../actionReasons';
 
 export class CometAiming extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -50,6 +51,10 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
       return true;
     }
     return false;
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.ruleReason('No titanium or asteroid resource to spend');
   }
 
   public action(player: IPlayer) {

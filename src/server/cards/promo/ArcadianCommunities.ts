@@ -9,6 +9,7 @@ import {digit} from '../Options';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
+import * as actionReason from '../actionReasons';
 
 export class ArcadianCommunities extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
@@ -85,6 +86,10 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
 
   public canAct(player: IPlayer): boolean {
     return this.getAvailableSpacesForMarker(player).length > 0;
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.placementReason('No area to place a community');
   }
 
   public action(player: IPlayer) {

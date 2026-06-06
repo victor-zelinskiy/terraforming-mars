@@ -9,6 +9,7 @@ import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
+import * as actionReason from '../actionReasons';
 
 export const OCEAN_COST = 8;
 export class AquiferPumping extends Card implements IActionCard, IProjectCard {
@@ -35,6 +36,10 @@ export class AquiferPumping extends Card implements IActionCard, IProjectCard {
       this.warnings.add('maxoceans');
     }
     return canAct;
+  }
+  // Co-located with canAct so the reason can't drift when the gate changes.
+  public actionUnavailableReason() {
+    return actionReason.notEnoughMC();
   }
   public action(player: IPlayer) {
     player.game.defer(new SelectPaymentDeferred(player, 8, {canUseSteel: true, title: TITLES.payForCardAction(this.name)}))

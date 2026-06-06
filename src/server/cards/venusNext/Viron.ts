@@ -6,6 +6,7 @@ import {SelectCard} from '../../inputs/SelectCard';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import * as actionReason from '../actionReasons';
 
 export class Viron extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -52,6 +53,9 @@ export class Viron extends CorporationCard implements ICorporationCard {
 
   public canAct(player: IPlayer): boolean {
     return this.getActionCards(player).length > 0 && !player.actionsThisGeneration.has(this.name);
+  }
+  public actionUnavailableReason() {
+    return actionReason.ruleReason('No other action card to copy');
   }
 
   public action(player: IPlayer) {

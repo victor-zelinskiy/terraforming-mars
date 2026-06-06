@@ -6,6 +6,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {IActionCard} from '../ICard';
 import {Units} from '../../../common/Units';
 import {Tag} from '../../../common/cards/Tag';
+import * as actionReason from '../actionReasons';
 
 export class Teslaract extends Card implements IActionCard {
   constructor() {
@@ -34,6 +35,9 @@ export class Teslaract extends Card implements IActionCard {
 
   canAct(player: IPlayer): boolean {
     return player.production.energy > 0;
+  }
+  actionUnavailableReason() {
+    return actionReason.noEnergyProduction();
   }
 
   action(player: IPlayer): undefined {

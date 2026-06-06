@@ -14,6 +14,7 @@ import {LogHelper} from '../../LogHelper';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
+import * as actionReason from '../actionReasons';
 
 export class DirectedImpactors extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -51,6 +52,10 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
     }
 
     return player.canAfford({cost: 0, tr: {temperature: 1}}) && cardHasResources;
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.ruleReason('Cannot pay for an asteroid right now');
   }
 
   public action(player: IPlayer) {

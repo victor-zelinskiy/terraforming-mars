@@ -8,6 +8,7 @@ import {SelectAmount} from '../../inputs/SelectAmount';
 import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
+import * as actionReason from '../actionReasons';
 
 export class PowerInfrastructure extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -29,6 +30,9 @@ export class PowerInfrastructure extends Card implements IActionCard, IProjectCa
   }
   public canAct(player: IPlayer): boolean {
     return player.energy > 0;
+  }
+  public actionUnavailableReason() {
+    return actionReason.notEnoughEnergy();
   }
   public action(player: IPlayer) {
     return new SelectAmount('Select amount of energy to spend', 'Spend energy', 1, player.energy)

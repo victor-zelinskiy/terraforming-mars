@@ -9,6 +9,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {TITLES} from '../../inputs/titles';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import * as actionReason from '../actionReasons';
 
 export class RobinsonIndustries extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
@@ -33,6 +34,9 @@ export class RobinsonIndustries extends CorporationCard implements ICorporationC
   }
   public canAct(player: IPlayer): boolean {
     return player.canAfford(4);
+  }
+  public actionUnavailableReason(player: IPlayer) {
+    return actionReason.needMoreMC(player, 4);
   }
 
   public action(player: IPlayer) {

@@ -15,6 +15,7 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {SelectPayment} from '../../inputs/SelectPayment';
 import {TITLES} from '../../inputs/titles';
 import {message} from '../../logs/MessageBuilder';
+import * as actionReason from '../actionReasons';
 
 export class StJosephOfCupertinoMission extends Card implements IActionCard {
   constructor() {
@@ -43,6 +44,14 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
 
   canAct(player: IPlayer): boolean {
     return this.getEligibleCities(player.game).length > 0 && player.canAfford({cost: 5, steel: true});
+  }
+
+  actionUnavailableReason(player: IPlayer) {
+    // canAct fails if EITHER there's no eligible city OR you can't pay; if you
+    // CAN pay, the blocker is the city, otherwise it's M€.
+    return player.canAfford({cost: 5, steel: true}) ?
+      actionReason.placementReason('No eligible city for this mission') :
+      actionReason.notEnoughMC();
   }
 
   action(player: IPlayer): undefined {
