@@ -11,12 +11,17 @@
 .effects-board-overlay {
     position: fixed;
     z-index: 96;
-    top: 62px;
+    /* Anchor just ABOVE the bottom-bar Effects button and grow UPWARD, so the
+       panel opens right next to the button (short mouse travel) instead of at the
+       top of the screen. The max-height caps it to the area between the bottom and
+       top bars, so a large grid fills the central zone like the hand overlay
+       (bottom edge stays pinned near the button). */
+    bottom: calc(var(--bottom-bar-button-height) + 8px);
     left: 50%;
     transform: translateX(-50%);
     width: var(--effects-overlay-width, 720px);
     max-width: calc(100vw - 96px);
-    max-height: 86vh;
+    max-height: calc(100vh - 2 * var(--bottom-bar-button-height) - 24px);
     display: flex;
     flex-direction: column;
     border-radius: 7px;
@@ -341,6 +346,15 @@
     .card-plus,
     .card-plus--small {
         filter: brightness(0) invert(1);
+    }
+    /*
+     * The trade-discount tile is a WHITE square whose "-1" is plain text that
+     * inherits the overlay's LIGHT base colour → white-on-white (invisible). Pin
+     * its digit DARK so it reads on the white tile (Cryo-Sleep / Rim Freighters).
+     * The M€ coin already pins its own black digit, so only this tile needs it.
+     */
+    .card-resource-trade-discount {
+        color: #161616;
     }
     /* The crossed-arrow strike stays near-white on the dark overlay (the card
        face uses black). This selector carries the extra `.effect-item__render`

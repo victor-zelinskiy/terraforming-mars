@@ -30,6 +30,8 @@
     "Pharmacy Union": "",
     "You start with 54 M€. Draw a Science card.": "Вы начинаете с 54М€. доберите карту с меткой Науки.",
     "Effect: When ANY microbe tag is played, add a disease here and lose 4 M€ or as much as possible. When you play a science tag, remove a disease here and gain 1 TR OR if there are no diseases here, you MAY put this card face down in your EVENTS PILE to gain 3 TR.": "Эффект: Когда разыгрывается любая метка Микроб, добавьте сюда болезнь. Когда вы разыгрываете метку Науки удалите болезнь отсюда и получите 1 РТ ИЛИ если на этой карте нет болезней можете однократно получить 3 РТ",
+    "Effect: When ANY microbe tag is played, add a disease here and lose 4 M€ or as much as possible.": "Эффект: Когда разыгрывается любая метка бактерии, добавьте сюда болезнь и потеряйте 4 M€ или сколько возможно.",
+    "Effect: When you play a science tag, remove a disease here and gain 1 TR OR if there are no diseases here, you MAY put this card face down in your EVENTS PILE to gain 3 TR.": "Эффект: Когда вы разыгрываете метку Науки, удалите отсюда болезнь и получите 1 РТ ИЛИ, если болезней здесь нет, можете положить эту карту рубашкой вверх в стопку событий, чтобы получить 3 РТ.",
     "You start with 54 M€ . When this corporation is revealed, draw a Science card.": "Вы начинаете с 54М€. Когда корпорация входит в игру доберите карту с меткой Науки",
     "Effect: When ANY microbe tag is played, add a disease here and lose 4 M€. When you play a science tag, remove a disease here and gain 1 TR OR if there are no diseases here, you may turn this card face down to gain 3 TR": "Эффект: Когда разыгрывается любая метка Микроб, добавьте сюда болезнь. Когда вы разыгрываете метку Науки удалите болезнь отсюда и получите 1 РТ ИЛИ если на этой карте нет болезней можете однократно получить 3 РТ",
 
@@ -154,6 +156,8 @@
     "Splice": "",
     "You start with 44 M€. As your first action, reveal cards until you have revealed a microbe tag. Take it and discard the rest.": "Вы начинаете с 44 М€. Первым действием доберите карту с меткой бактерии",
     "Effect: when a microbe tag is played, incl. this, THAT PLAYER gains 2 M€, or adds a microbe to THAT card, and you gain 2 M€.": "Каждый игрок разыгрывающий карту с меткой бактерии (вкл. эту) получает 2 M€ или добавляет на ТУ карту бактерию, а вы получаете 2 M€",
+    "Effect: When ANY player (incl. you) plays a microbe tag, THAT PLAYER gains 2 M€ or adds a microbe to THAT card.": "Эффект: Когда ЛЮБОЙ игрок (в т.ч. вы) разыгрывает метку бактерии, ТОТ игрок получает 2 M€ или добавляет бактерию на ТУ карту.",
+    "Effect: You ALSO gain 2 M€ — so your own microbe tag gives you 4 M€ (or 2 M€ and a microbe).": "Эффект: Вы ТАКЖЕ получаете 2 M€ — поэтому за свою метку бактерии вы получаете 4 M€ (или 2 M€ и бактерию).",
 
     "Recyclon": "",
     "You start with 38 M€ and 1 steel production.": "Вы начинаете c 36 М€ и 1 дополнительным уровнем производства стали",

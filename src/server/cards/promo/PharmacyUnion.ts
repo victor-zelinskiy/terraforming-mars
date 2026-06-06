@@ -33,11 +33,13 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
           b.text('(You start with 54 M€. Draw a Science card.)', Size.TINY, false, false);
           b.corpBox('effect', (ce) => {
             ce.vSpace(Size.LARGE);
-            ce.effect(undefined, (eb) => {
+            // Split into two described blocks (one per effect) for readability,
+            // mirroring Carbon Nanosystems — each effect carries its own text.
+            ce.effect('When ANY microbe tag is played, add a disease here and lose 4 M€ or as much as possible.', (eb) => {
               eb.tag(Tag.MICROBE, {all}).startEffect.resource(CardResource.DISEASE).megacredits(-4);
             });
             ce.vSpace();
-            ce.effect('When ANY microbe tag is played, add a disease here and lose 4 M€ or as much as possible. When you play a science tag, remove a disease here and gain 1 TR OR if there are no diseases here, you MAY put this card face down in your EVENTS PILE to gain 3 TR.', (eb) => {
+            ce.effect('When you play a science tag, remove a disease here and gain 1 TR OR if there are no diseases here, you MAY put this card face down in your EVENTS PILE to gain 3 TR.', (eb) => {
               eb.tag(Tag.SCIENCE).startEffect.minus().resource(CardResource.DISEASE);
               eb.tr(1, {size: Size.SMALL}).slash().tr(3, {size: Size.SMALL, digit});
             });
