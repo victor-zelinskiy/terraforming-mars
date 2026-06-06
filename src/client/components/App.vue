@@ -4,6 +4,8 @@
     <ModalInputPlayground v-if="showModalPlayground" />
     <!-- Dev-only effects-overlay visual playground (URL: ?effectsPlayground). -->
     <EffectsPlayground v-if="showEffectsPlayground" />
+    <!-- Dev-only actions-overlay visual playground (URL: ?actionsPlayground). -->
+    <ActionsPlayground v-if="showActionsPlayground" />
     <!--
       Game-screen atmosphere backdrop. Mounted ONLY on in-game screens
       (player-home / spectator-home) — start / create / load / the-end
@@ -135,6 +137,7 @@ import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
 const ModalInputPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "modal-input-playground" */ '@/client/components/modalInputs/ModalInputPlayground.vue'));
 const EffectsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "effects-playground" */ '@/client/components/effects/EffectsPlayground.vue'));
+const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "actions-playground" */ '@/client/components/actions/ActionsPlayground.vue'));
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
@@ -250,6 +253,7 @@ export default defineComponent({
     StartGameFlowOverlay,
     ModalInputPlayground,
     EffectsPlayground,
+    ActionsPlayground,
     JournalPanel,
     DrawCardRevealFlow,
     GameAtmosphere,
@@ -289,6 +293,11 @@ export default defineComponent({
     // `?effectsPlayground`. Never shown in normal play.
     showEffectsPlayground(): boolean {
       return window.location.search.includes('effectsPlayground');
+    },
+    // Dev-only: render the actions-overlay playground when the URL carries
+    // `?actionsPlayground`. Never shown in normal play.
+    showActionsPlayground(): boolean {
+      return window.location.search.includes('actionsPlayground');
     },
   },
   methods: {

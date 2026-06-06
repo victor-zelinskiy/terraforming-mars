@@ -10,6 +10,7 @@ import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import {RemoveResourcesFromCard} from '../../deferredActions/RemoveResourcesFromCard';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 
 export class Ants extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -41,6 +42,17 @@ export class Ants extends Card implements IActionCard, IProjectCard {
       return true;
     }
     return RemoveResourcesFromCard.getAvailableTargetCards(player, CardResource.MICROBE).length > 0;
+  }
+
+  // Structured reason for the Actions overlay when the action is unavailable.
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.game.isSoloMode()) {
+      return undefined;
+    }
+    if (RemoveResourcesFromCard.getAvailableTargetCards(player, CardResource.MICROBE).length === 0) {
+      return {type: 'target', message: 'No card has a microbe to remove'};
+    }
+    return undefined;
   }
 
   public action(player: IPlayer) {

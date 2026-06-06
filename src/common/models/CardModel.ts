@@ -24,6 +24,12 @@ export interface CardModel {
     // the viewer's OWN cards in hand (in their private PlayerViewModel) and
     // only when the card is currently unplayable. See UnplayableReason.
     unplayableReasons?: ReadonlyArray<UnplayableReason>;
+    // Structured reasons this card's activatable ACTION can't be used right now.
+    // Set only for the viewer's OWN tableau (their PublicPlayerModel is the
+    // self-model) and only for an action card whose action is currently
+    // unavailable AND not yet used this generation. Reuses UnplayableReason's
+    // shape. Drives the Actions overlay's "why is this disabled" popover.
+    actionReasons?: ReadonlyArray<UnplayableReason>;
     reserveUnits?: Readonly<Units>; // Written for The Moon, but useful in other contexts.
     bonusResource?: Array<Resource>; // Used with the Mining cards and Robotic Workforce
     cloneTag?: Tag; // Used with Pathfinders

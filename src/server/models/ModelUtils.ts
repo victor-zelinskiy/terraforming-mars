@@ -2,7 +2,7 @@ import {CardModel} from '../../common/models/CardModel';
 import {ColonyModel} from '../../common/models/ColonyModel';
 import {Color} from '../../common/Color';
 import {IGame} from '../IGame';
-import {ICard} from '../cards/ICard';
+import {ICard, isIActionCard} from '../cards/ICard';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {isICloneTagCard} from '../cards/pathfinders/ICloneTagCard';
 import {IPlayer} from '../IPlayer';
@@ -14,6 +14,7 @@ import {asArray} from '../../common/utils/utils';
 import {isIStandardProjectCard} from '../cards/IStandardProjectCard';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {unplayableReasons as computeUnplayableReasons} from './unplayableReasons';
+import {actionUnavailableReasons as computeActionUnavailableReasons} from './actionUnavailableReasons';
 import {Message} from '../../common/logs/Message';
 
 export function cardsToModel(
@@ -28,6 +29,7 @@ export function cardsToModel(
     // candidate can't be picked. Shown by the premium card picker as a badge.
     disabledReasons?: ReadonlyArray<string | Message | undefined>,
     unplayableReasons?: boolean, // If true, attach structured "why unplayable" reasons to each currently-unplayable project card (own hand only).
+    actionReasons?: boolean, // If true, attach structured "why can't I act" reasons to each action card whose action is currently unavailable (own tableau only).
   } = {},
 ): ReadonlyArray<CardModel> {
   return cards.map((card, index) => {
@@ -38,6 +40,21 @@ export function cardsToModel(
       const reasons = computeUnplayableReasons(player, card);
       if (reasons.length > 0) {
         unplayableReasonList = reasons;
+      }
+    }
+
+    // Structured "why can't I activate this action" reasons — only for action
+    // cards whose action is currently unavailable AND not yet used this
+    // generation (a used/disabled card is the "activated" state, not a rules
+    // block, so it carries no reasons).
+    let actionReasonList: ReadonlyArray<UnplayableReason> | undefined;
+    if (options.actionReasons === true &&
+        isIActionCard(card) &&
+        card.isDisabled !== true &&
+        !player.actionsThisGeneration.has(card.name)) {
+      const reasons = computeActionUnavailableReasons(player, card);
+      if (reasons.length > 0) {
+        actionReasonList = reasons;
       }
     }
 
@@ -100,6 +117,9 @@ export function cardsToModel(
     }
     if (unplayableReasonList !== undefined) {
       model.unplayableReasons = unplayableReasonList;
+    }
+    if (actionReasonList !== undefined) {
+      model.actionReasons = actionReasonList;
     }
     return model;
   });

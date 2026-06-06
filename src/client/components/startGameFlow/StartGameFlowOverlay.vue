@@ -17,7 +17,7 @@
     step.
   -->
   <Teleport to="body">
-    <div v-if="showFull" class="start-game-flow" data-test="start-game-flow">
+    <div v-if="showFull" class="start-game-flow" :style="layoutStyle" data-test="start-game-flow">
       <!-- Mandatory: backdrop never dismisses. -->
       <div class="start-game-flow__backdrop"></div>
 
@@ -464,6 +464,47 @@ export default defineComponent({
     },
     showPill(): boolean {
       return this.active && this.playerViewTyped !== undefined && this.collapsed;
+    },
+    layoutStyle(): Record<string, string> {
+      const drawResolvedMax = this.resolvedDrawChoices.reduce((max, rec) => Math.max(max, rec.candidates.length), 0);
+      const maxProjectGrid = Math.max(
+        this.preludes.length,
+        this.corpSelectCandidates.length,
+        this.drawCandidates.length,
+        this.copyCandidates.length,
+        drawResolvedMax,
+      );
+      const visibleSections = [
+        this.corpCards.length,
+        this.corpSelectCandidates.length,
+        this.preludes.length,
+        this.drawCandidates.length + this.resolvedDrawChoices.length,
+        this.copyCandidates.length,
+      ].filter((n) => n > 0).length;
+
+      let preludeZoom = 0.68;
+      if (maxProjectGrid >= 9) {
+        preludeZoom = 0.48;
+      } else if (maxProjectGrid >= 7) {
+        preludeZoom = 0.52;
+      } else if (maxProjectGrid >= 5) {
+        preludeZoom = 0.58;
+      } else if (maxProjectGrid >= 3) {
+        preludeZoom = 0.64;
+      }
+
+      let corpZoom = this.corpCards.length > 1 ? 0.66 : 0.76;
+      if (visibleSections >= 3) {
+        preludeZoom = Math.max(0.46, preludeZoom - 0.04);
+        corpZoom = Math.max(0.58, corpZoom - 0.04);
+      }
+
+      return {
+        '--sgf-prelude-zoom': preludeZoom.toFixed(2),
+        '--sgf-corp-zoom': corpZoom.toFixed(2),
+        '--sgf-grid-gap-x': maxProjectGrid >= 7 ? '18px' : '30px',
+        '--sgf-grid-gap-y': maxProjectGrid >= 7 ? '12px' : '20px',
+      };
     },
     // Candidates of the live drew-N-choose-ONE prompt (empty otherwise).
     drawCandidates(): ReadonlyArray<CardName> {

@@ -116,17 +116,31 @@
           <BarButtonIcon name="cards" /><span class="bar-btn__label" v-i18n>Cards</span>
           <span class="bar-btn__value">{{ displayedCardsInHandCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedCardsInHandCount" metricKey="bar.cards" :scopeKey="displayedPlayer.color" variant="misc" /></span>
         </div>
+        <!--
+          ДЕЙСТВИЯ — dual count: AVAILABLE (can activate right now, server's
+          availableBlueCardActionCount) "/" ALL (every activatable action source
+          the player has, client-derived). The delta chip animates only the ALL
+          total (a freshly-played active card / a corp gaining an action) — the
+          available number fluctuates every turn (used → resets next gen) so a
+          chip on it would be noisy. Ordered right next to ЭФФЕКТЫ: the two are a
+          pair — passive (Effects) + activatable (Actions) abilities.
+        -->
         <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'actions'}" v-on:click="toggleOverlay('actions')">
           <BarButtonIcon name="actions" /><span class="bar-btn__label" v-i18n>Actions</span>
-          <span class="bar-btn__value">{{ availableActionsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="availableActionsCount" metricKey="bar.actions" :scopeKey="displayedPlayer.color" variant="misc" /></span>
-        </div>
-        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" v-on:click="toggleOverlay('played')">
-          <BarButtonIcon name="played" /><span class="bar-btn__label" v-i18n>Played</span>
-          <span class="bar-btn__value">{{ displayedPlayedCardsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedPlayedCardsCount" metricKey="bar.played" :scopeKey="displayedPlayer.color" variant="misc" /></span>
+          <span class="bar-btn__value bar-btn__value--dual">
+            <span class="bar-btn__value-avail" :class="{'bar-btn__value-avail--zero': availableActionsCount === 0}">{{ availableActionsCount }}</span>
+            <span class="bar-btn__value-sep" aria-hidden="true">/</span>
+            <span class="bar-btn__value-total">{{ displayedActionsTotalCount }}</span>
+            <AnimatedMetricValue class="bar-btn__feedback" :value="displayedActionsTotalCount" metricKey="bar.actions" :scopeKey="displayedPlayer.color" variant="misc" />
+          </span>
         </div>
         <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'effects'}" v-on:click="toggleOverlay('effects')">
           <BarButtonIcon name="effects" /><span class="bar-btn__label" v-i18n>Effects</span>
           <span class="bar-btn__value">{{ displayedEffectsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedEffectsCount" metricKey="bar.effects" :scopeKey="displayedPlayer.color" variant="misc" /></span>
+        </div>
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" v-on:click="toggleOverlay('played')">
+          <BarButtonIcon name="played" /><span class="bar-btn__label" v-i18n>Played</span>
+          <span class="bar-btn__value">{{ displayedPlayedCardsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedPlayedCardsCount" metricKey="bar.played" :scopeKey="displayedPlayer.color" variant="misc" /></span>
         </div>
         <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'victoryPoints'}" v-on:click="toggleOverlay('victoryPoints')">
           <BarButtonIcon name="victory-points" /><span class="bar-btn__label" v-i18n>Victory Points</span>
@@ -257,6 +271,7 @@
                          :title="$t('Pass for this generation')"
                          :minimizable="false">
       <PassConfirmContent
+        :availableActions="availableCardActionNames.length"
         @confirm="onPassConfirm"
         @cancel="onPassCancel" />
     </MandatoryInputModal>
@@ -376,22 +391,36 @@
     </Teleport>
 
     <!--
-      Action (blue) cards overlay (viewer). Shows the displayed player's
-      ACTIVE cards with their this-generation activation status (used vs
-      available) via the same Card component the Played overlay uses.
+      Premium "Действия" overlay — the displayed player's activatable actions
+      (blue cards + corporations) as a grid of action buttons with availability
+      + activation filters. Replaces the legacy `bar-overlay--actions` Card list.
+      `availableActionNames` is the authoritative "can act now" set (own seat,
+      from the action SelectCard in waitingFor). Activating emits a card name; we
+      open the confirmation modal before any server round-trip.
     -->
-    <div v-if="activeOverlay === 'actions'" class="bar-overlay bar-overlay--actions">
-      <div class="bar-overlay-close" v-on:click="activeOverlay = null">✕</div>
-      <div class="hiding-card-button-row">
-        <div :class="playedCardsTitleClass">{{ displayedPlayer.name }} — <span v-i18n>Action cards</span> ({{ availableActionsCount }})</div>
-      </div>
-      <div class="bar-overlay--played-cards">
-        <div v-for="card in displayedActionCards" :key="card.name" class="cardbox">
-          <Card :card="card" :actionUsed="isCardActivated(card, displayedPlayer)" :cubeColor="displayedPlayer.color"/>
-        </div>
-        <div v-if="displayedActionCards.length === 0" class="bar-overlay__empty" v-i18n>No action cards</div>
-      </div>
-    </div>
+    <ActionsOverlay
+      v-if="activeOverlay === 'actions'"
+      :displayedPlayer="displayedPlayer"
+      :viewerColor="thisPlayer.color"
+      :availableActionNames="availableCardActionNames"
+      :awaitingInput="playerView.waitingFor !== undefined"
+      @activate="onActivateCardAction($event)"
+      @close="activeOverlay = null" />
+
+    <!--
+      Client-side confirmation gate before an action is performed. Hosts the
+      source card + action summary; Confirm submits the nested action SelectCard
+      response through WaitingFor.onsave, Cancel restores the overlay (no
+      round-trip). Mirrors the Std-project / hand-card payment-preview flow.
+    -->
+    <MandatoryInputModal v-if="pendingCardAction !== undefined"
+                         :title="$t('Activate action')"
+                         :minimizable="false">
+      <CardActionConfirmContent
+        :cardName="pendingCardAction.cardName"
+        @confirm="onCardActionConfirm"
+        @cancel="onCardActionCancel" />
+    </MandatoryInputModal>
 
     <div v-if="game.phase === 'end'">
       <div class="player_home_block">
@@ -616,7 +645,10 @@ import SelectSpace from '@/client/components/SelectSpace.vue';
 import StandardProjectsOverlay from '@/client/components/overview/StandardProjectsOverlay.vue';
 import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverlay.vue';
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
+import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
+import CardActionConfirmContent from '@/client/components/actions/CardActionConfirmContent.vue';
 import {playerEffectCount} from '@/client/components/effects/effectExtraction';
+import {playerActionSourceCount} from '@/client/components/actions/actionExtraction';
 import {totalPlayedCards} from '@/client/components/playedCards/playedCardGroups';
 import HandCardsOverlay from '@/client/components/handCards/HandCardsOverlay.vue';
 import {enterSellPatents, exitSellPatents} from '@/client/components/handCards/sellPatentsState';
@@ -732,6 +764,14 @@ type PendingPlayCard = {
   input: SelectProjectCardToPlayModel;
 };
 
+// Pending "activate a blue-card / corporation action" confirmation. Set when the
+// player presses ВЫПОЛНИТЬ in the Actions overlay; the confirm modal hosts the
+// source card + action summary. Confirm submits the nested action SelectCard
+// response; Cancel restores the overlay (no server round-trip).
+type PendingCardAction = {
+  cardName: CardName;
+};
+
 // Pending Trade-with-Colony state. Set after the player picks a colony in
 // the overlay (trade mode), cleared on Cancel or after submission. Carries
 // the inputs the second-step payment modal needs to render the chooser AND
@@ -755,6 +795,8 @@ type PlayerHomeModel = ToggleableState & {
   pendingStdProjectPayment: PendingStdProjectPayment | undefined;
   // See PendingPlayCard — the in-flight "play a hand card" payment modal.
   pendingPlayCard: PendingPlayCard | undefined;
+  // See PendingCardAction — the in-flight "activate an action" confirmation.
+  pendingCardAction: PendingCardAction | undefined;
   // True while the Pass confirmation modal is open. The pass action is
   // irreversible (no more turns this generation), so we gate it through
   // a client-side confirmation modal before POSTing to the server.
@@ -809,6 +851,8 @@ const PLACEMENT_LOCKED_SELECTORS = [
   '.colony-detail__select-btn',
   // v47: dedicated РАЗЫГРАТЬ buttons under hand cards (premium hand overlay).
   '.hand-card-play-btn',
+  // v48: ВЫПОЛНИТЬ on an activatable action (premium Действия overlay).
+  '.action-activate-btn',
   '.wf-action',
 ].join(', ');
 
@@ -836,6 +880,7 @@ export default defineComponent({
       convertPlantsPickerActive: false,
       pendingStdProjectPayment: undefined,
       pendingPlayCard: undefined,
+      pendingCardAction: undefined,
       passConfirmOpen: false,
       coloniesOverlayOpen: false,
       coloniesOverlayManualOpen: false,
@@ -1147,6 +1192,22 @@ export default defineComponent({
     },
     availableActionsCount(): number {
       return this.displayedPlayer.availableBlueCardActionCount;
+    },
+    // Total activatable-action SOURCES the displayed player has (every action
+    // card / corporation in their tableau, regardless of availability or
+    // this-generation usage). Drives the ДЕЙСТВИЯ button's "all" badge + its
+    // delta chip. Card-based (one per source) so it lines up with the
+    // card-based server availableBlueCardActionCount.
+    displayedActionsTotalCount(): number {
+      return playerActionSourceCount(this.displayedPlayer.tableau);
+    },
+    // The card names the server says are activatable RIGHT NOW (the
+    // 'Perform an action from a played card' SelectCard in waitingFor). Empty
+    // when it's not the viewer's action window. The Actions overlay uses this
+    // as the authoritative "available" gate for the ВЫПОЛНИТЬ button.
+    availableCardActionNames(): ReadonlyArray<CardName> {
+      const found = this.findPerformActionCard(this.playerView.waitingFor);
+      return found === undefined ? [] : found.model.cards.map((c) => c.name);
     },
     // Sorted ACTIVE/PRELUDE cards for the blue-card actions overlay. Cached as
     // a computed (was an inline `sortActiveCards(getCardsByType(...).filter(...))`
@@ -1723,6 +1784,8 @@ export default defineComponent({
     StandardProjectsOverlay,
     PlayedCardsOverlay,
     EffectsOverlay,
+    ActionsOverlay,
+    CardActionConfirmContent,
     HandCardsOverlay,
     OpponentHandOverlay,
     HandCardPaymentContent,
@@ -1815,6 +1878,7 @@ export default defineComponent({
           target.closest('.bar-overlay') ||
           target.closest('.played-board-overlay') ||
           target.closest('.effects-board-overlay') ||
+          target.closest('.actions-board-overlay') ||
           target.closest('.hand-board-overlay') ||
           target.closest('.vp-board-overlay') ||
           target.closest('.legacy-ui-overlay') ||
@@ -2024,6 +2088,67 @@ export default defineComponent({
         }
       }
       return undefined;
+    },
+    // Walks the action tree for the 'Perform an action from a played card'
+    // SelectCard (Player.playActionCard — covers blue-card AND corporation
+    // actions, since corp cards live in the tableau too). Its `cards` list is
+    // the server-filtered set of actions activatable RIGHT NOW (canAct && not
+    // used this gen) — the authoritative "available now" source. Returns the
+    // model + the index path so we can wrap the response back into nested ORs.
+    findPerformActionCard(
+      wf: PlayerInputModel | undefined,
+      pathSoFar: ReadonlyArray<number> = [],
+    ): {path: ReadonlyArray<number>; model: SelectCardModel} | undefined {
+      if (!wf) {
+        return undefined;
+      }
+      if (wf.type === 'card' && inputTitleText(wf.title) === 'Perform an action from a played card') {
+        return {path: pathSoFar, model: wf as SelectCardModel};
+      }
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const found = this.findPerformActionCard(options[i], [...pathSoFar, i]);
+          if (found) {
+            return found;
+          }
+        }
+      }
+      return undefined;
+    },
+    // ВЫПОЛНИТЬ in the Actions overlay → open the confirmation gate. Nothing is
+    // submitted yet; the source card + action summary are shown first.
+    onActivateCardAction(cardName: CardName): void {
+      this.pendingCardAction = {cardName};
+      this.activeOverlay = null; // close the overlay behind the modal
+    },
+    onCardActionConfirm(): void {
+      if (this.pendingCardAction === undefined) {
+        return;
+      }
+      this.submitCardAction(this.pendingCardAction.cardName);
+      this.pendingCardAction = undefined;
+    },
+    onCardActionCancel(): void {
+      this.pendingCardAction = undefined;
+      this.activeOverlay = 'actions'; // restore the overlay (nothing submitted)
+    },
+    // Submit the chosen action: wrap a SelectCard response `{type:'card',
+    // cards:[name]}` in the nested OR path that mirrors what the legacy radio UI
+    // sends when the player picks the action menu → "Perform an action from a
+    // played card" → <card>. Byte-identical; routes through WaitingFor.onsave.
+    submitCardAction(cardName: CardName): void {
+      const action = this.findPerformActionCard(this.playerView.waitingFor);
+      if (!action) {
+        console.warn('Activate action: SelectCard not found in waitingFor tree');
+        return;
+      }
+      let response: unknown = {type: 'card' as const, cards: [cardName]};
+      for (let i = action.path.length - 1; i >= 0; i--) {
+        response = {type: 'or' as const, index: action.path[i], response};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      wfRef?.onsave?.(response);
     },
     // Walks the action tree looking for a SelectOption with the given title
     // (e.g. "Pass for this generation" / "End Turn"). Returns the index PATH

@@ -22,6 +22,7 @@ import {Resource} from '../Resource';
  */
 export type UnplayableReasonType =
   | 'megacredits' // affordability gap, in M€-equivalent (after discounts + Reds)
+  | 'resource' // not enough of a standard resource in stock (renders its icon) — used by action availability
   | 'globalParameter' // oxygen / temperature / Venus / oceans (min or max)
   | 'tr' // terraform-rating requirement
   | 'tag' // tag-count requirement (renders the tag icon)
