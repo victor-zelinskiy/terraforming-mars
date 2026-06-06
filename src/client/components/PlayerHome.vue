@@ -610,14 +610,6 @@
       is a private/self-hosted 2-player setup, so the spectator endpoint is
       never used and purge-after-N-hours doesn't apply.
     -->
-    <Teleport to="body">
-      <div v-if="actionLockTooltipText !== ''"
-           class="action-lock-floating-tooltip"
-           :style="actionLockTooltipStyle"
-           role="tooltip">
-        {{ actionLockTooltipText }}
-      </div>
-    </Teleport>
     <KeyboardShortcuts v-show="keyboardShortcutOpened" @close="keyboardShortcutOpened = false"></KeyboardShortcuts>
   </div>
 </template>
@@ -693,7 +685,6 @@ import HandCardPaymentContent from '@/client/components/handCards/HandCardPaymen
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {placementLockState} from '@/client/components/placementLockState';
-import {startGameFlowActive, startGameFlowAllDone} from '@/client/components/startGameFlow/startGameFlowState';
 import StandardProjectPaymentContent from '@/client/components/payment/StandardProjectPaymentContent.vue';
 import PassConfirmContent from '@/client/components/overview/PassConfirmContent.vue';
 import ColoniesOverlay from '@/client/components/colonies/ColoniesOverlay.vue';
