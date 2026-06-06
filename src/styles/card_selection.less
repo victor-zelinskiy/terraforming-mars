@@ -40,11 +40,19 @@
      * Adaptive width. The JS fit engine (CardSelectionContent.fit) sets
      * `--cs-content-width` to a count-aware px value so the modal hugs a snug,
      * centred grid: few cards → narrow + big, many cards → wider balanced grid.
-     * Falls back to 100% (modal max-width cap) before the engine runs / under
-     * JSDOM. Capped to the viewport so it never bursts the screen.
+     *
+     * FALLBACK is `max-content` (NOT 100%) — this is the layout BEFORE the
+     * engine runs (first paint / reload / under JSDOM). `max-content` makes the
+     * box hug the natural one-row width of the grid (all slots on a single
+     * line), clamped by `max-width` below. 100% was wrong: the modal card is
+     * `width: auto` (sized to its content), so `width: 100%` resolved against an
+     * auto-width parent in a flex-centred wrapper collapsed to a NARROW box and
+     * the grid wrapped (the 3+1 first-paint / reload bug). With `max-content`
+     * the very first frame is already a single row; the engine then only
+     * refines zoom / exact centring. Capped to the viewport so it never bursts.
      */
     padding: 14px 18px 16px;
-    width: var(--cs-content-width, 100%);
+    width: var(--cs-content-width, max-content);
     max-width: calc(100vw - 48px);
     margin-left: auto;
     margin-right: auto;
@@ -231,6 +239,22 @@
      * (::before pseudo-element with inset:-22 px) isn't clipped by
      * the grid container. */
     overflow: visible;
+}
+
+/*
+ * HARD one-row guarantee for small picks (n <= FIT_SINGLE_ROW_MAX = 4 — the
+ * between-generation draft 4→3→2→1 and the 4-card buy after it). `nowrap` makes
+ * a single row a CSS INVARIANT: the cards can NEVER break to a second row
+ * regardless of the JS fit engine's timing (first paint, hard reload) or any
+ * sub-pixel rounding in the computed content width. The fit engine still sizes
+ * `--cs-zoom` / `--cs-content-width` so the row is snug, centred and fits the
+ * viewport — it just can no longer (mis)compute a wrap. Paired with the
+ * `width: max-content` fallback above, a small pick is a correct, centred
+ * single row even before / without JS. The class is toggled by
+ * `CardSelectionContent.singleRowLayout` (visibleCardCount <= FIT_SINGLE_ROW_MAX).
+ */
+.card-selection__cards--single-row {
+    flex-wrap: nowrap;
 }
 
 /*

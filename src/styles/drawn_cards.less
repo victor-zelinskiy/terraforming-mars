@@ -77,8 +77,8 @@ body.draw-reveal-open {
     position: relative;
     pointer-events: auto;
     box-sizing: border-box;
-    max-width: min(92vw, 1040px);
-    max-height: 88vh;
+    max-width: min(96vw, 1360px);
+    max-height: 92vh;
     display: flex;
     flex-direction: column;
     padding: 16px 20px 18px;
@@ -183,7 +183,7 @@ body.draw-reveal-open {
     overflow-x: hidden;
     /* faint glass "table" so cards read as physical cards laid out on it */
     border-radius: 8px;
-    padding: 22px 22px 26px;
+    padding: 30px 32px 36px;
     background:
         radial-gradient(120% 100% at 50% 0%, rgba(106, 176, 230, 0.06), transparent 60%),
         rgba(8, 14, 22, 0.4);
@@ -195,7 +195,7 @@ body.draw-reveal-open {
     flex-wrap: wrap;
     align-items: flex-start;
     justify-content: center;
-    gap: 16px;
+    gap: 28px 32px;
 }
 
 .draw-reveal__slot {
@@ -210,6 +210,10 @@ body.draw-reveal-open {
     > .card-container {
         zoom: var(--draw-card-zoom, 0.8);
         margin: 0;
+    }
+
+    > .card-container.filterDiv:not(.colony-card):not(.card-standard-project):not(.card-unavailable):hover {
+        transform: none;
     }
 
     &:hover,
@@ -240,6 +244,21 @@ body.draw-reveal-open {
 }
 .draw-reveal__slot:hover .draw-reveal__slot-hint,
 .draw-reveal__slot:focus-visible .draw-reveal__slot-hint { opacity: 1; }
+
+@media (max-width: 780px) {
+    .draw-reveal__card {
+        max-width: 96vw;
+        padding: 14px 14px 16px;
+    }
+
+    .draw-reveal__content {
+        --draw-card-zoom: 0.86 !important;
+    }
+
+    .draw-reveal__tray {
+        padding: 18px 12px 22px;
+    }
+}
 
 /* ── Footer (status + primary take) ──────────────────────────────────── */
 

@@ -322,6 +322,34 @@
         align-items: center;
         gap: 4px;
     }
+    /*
+     * Render symbols (the effect-delimiter colon, OR / slash / asterix /
+     * brackets / equals) inherit the card's dark text, so on the dark overlay
+     * they merge into the background and vanish. Force them light. This targets
+     * ONLY symbols (`.card-special`) — NEVER tile-internal numbers: a M€ coin
+     * (`.card-resource-money`) and a "-1" in a white trade-discount tile
+     * (`.card-resource-trade-discount`) set their OWN colour, so they keep their
+     * black digit on the white square (Rim Freighters / Cryo-Sleep stay correct).
+     */
+    .card-special {
+        color: #eaf3fc;
+    }
+    /* Minus / plus are dark PNG sprites (not coloured text) → brighten the sprite
+       so it reads on the dark overlay. */
+    .card-minus,
+    .card-minus--S,
+    .card-plus,
+    .card-plus--small {
+        filter: brightness(0) invert(1);
+    }
+    /* The crossed-arrow strike stays near-white on the dark overlay (the card
+       face uses black). This selector carries the extra `.effect-item__render`
+       class → higher specificity than the cards_v2 default, so it wins. */
+    .card-red-arrow.card-symbol-cancelled::after,
+    .card-red-arrow--small.card-symbol-cancelled::after {
+        border-top-color: #f5f8fc;
+        box-shadow: 0 0 1.5px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.55);
+    }
 }
 /* Description under a renderWhole graphic (localized card description). */
 .effect-item__desc {

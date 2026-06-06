@@ -85,7 +85,9 @@
           Card.vue's slot-less default. Our wrapper invokes the
           shared openFullscreen so the actions slot is wired up.
     -->
-    <div class="card-selection__cards" ref="grid">
+    <div class="card-selection__cards"
+         :class="{'card-selection__cards--single-row': singleRowLayout}"
+         ref="grid">
       <div v-for="card in visibleCards"
            :key="card.name"
            class="card-selection__card-slot"
@@ -209,7 +211,7 @@ import {translateText, translateMessage} from '@/client/directives/i18n';
 import {setDraftWaitPending, clearDraftWaitPending} from '@/client/components/draftWaitState';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
-import {baseZoom, cardSelectionRowPlan, FIT_MAX_CONTENT_W, FIT_MIN_ZOOM} from '@/client/components/cardSelectionFit';
+import {baseZoom, cardSelectionRowPlan, FIT_MAX_CONTENT_W, FIT_MIN_ZOOM, FIT_SINGLE_ROW_MAX} from '@/client/components/cardSelectionFit';
 
 type DataModel = {
   /*
@@ -242,6 +244,9 @@ type DataModel = {
   resizeObserver: ResizeObserver | undefined;
   fitTimer: number | undefined;
   fitScheduled: boolean;
+  // Counts consecutive fit() runs that found no laid-out card (probeW <= 0),
+  // so the retry loop is bounded. Reset to 0 on the first successful measure.
+  fitRetries: number;
 };
 
 // Height/probe-side constants. The row/column/zoom math (FIT_MIN_ZOOM,
@@ -251,6 +256,11 @@ const FIT_MAX_ITER = 12;
 const FIT_VIEWPORT_W_MARGIN = 80; // viewport side margins + modal frame padding
 const FIT_VIEWPORT_H_RATIO = 0.92;
 const FIT_MODAL_FRAME_V = 64;     // approx modal frame + outer margins (vertical)
+// Bounded retries when the first fit() runs before the cards have real
+// dimensions (CSS / fonts still loading right after a page reload). ~30 frames
+// ≈ 0.5s; the CSS `max-content` fallback already shows a correct one-row layout
+// meanwhile, so this only refines zoom / centring once layout settles.
+const FIT_MAX_RETRIES = 30;
 
 export default defineComponent({
   name: 'CardSelectionContent',
@@ -277,6 +287,7 @@ export default defineComponent({
       resizeObserver: undefined,
       fitTimer: undefined,
       fitScheduled: false,
+      fitRetries: 0,
     };
   },
   watch: {
@@ -299,6 +310,12 @@ export default defineComponent({
         this.selected = [];
         this.zoomCard = undefined;
         this.filterMode = 'available';
+        // Drop the previous round's pinned width/zoom IMMEDIATELY so the
+        // intermediate frame (before deferFit re-measures) falls back to the
+        // CSS `max-content` one-row layout instead of squeezing the new cards
+        // into the OLD (e.g. 1-card draft round) narrow width — which flashed a
+        // wrong wrap until the 320ms deferFit kicked in.
+        this.resetFitVars();
         this.deferFit();
       }
     },
@@ -352,6 +369,17 @@ export default defineComponent({
     // Drives the re-fit watcher — the number of cards currently in the grid.
     visibleCardCount(): number {
       return this.visibleCards.length;
+    },
+    /*
+     * Small picks (the between-generation draft is 4→3→2→1, and the 4-card buy
+     * after it) get a HARD one-row guarantee via `flex-wrap: nowrap` on the grid
+     * — a CSS invariant, so the row can never wrap regardless of fit() timing or
+     * sub-pixel rounding. The fit engine still runs to size zoom/width nicely;
+     * it just can no longer (mis)compute a wrap. Mirrors FIT_SINGLE_ROW_MAX in
+     * the row-plan math so the JS sizing and the CSS guarantee agree.
+     */
+    singleRowLayout(): boolean {
+      return this.visibleCardCount > 0 && this.visibleCardCount <= FIT_SINGLE_ROW_MAX;
     },
     filterModes(): ReadonlyArray<{key: 'all' | 'available' | 'unavailable', label: string, count: number}> {
       const available = this.selectableCount;
@@ -513,6 +541,10 @@ export default defineComponent({
       this.fitTimer = undefined;
       this.fit();
     }, 240);
+    // On a hard reload the web fonts may still be loading when we first fit;
+    // re-run once they're ready so the measure isn't taken mid-layout.
+    const fonts = (document as unknown as {fonts?: {ready?: Promise<unknown>}}).fonts;
+    fonts?.ready?.then(() => this.scheduleFit());
     const root = this.$refs.root as HTMLElement | undefined;
     if (root !== undefined && typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(() => this.scheduleFit());
@@ -537,6 +569,15 @@ export default defineComponent({
     },
     applyWidth(w: number): void {
       (this.$refs.root as HTMLElement | undefined)?.style.setProperty('--cs-content-width', Math.round(w) + 'px');
+    },
+    // Clear the engine's inline overrides so the grid falls back to the CSS
+    // `max-content` (one-row) width + `--cs-zoom: 1`. Used when a new prompt
+    // arrives so a stale narrow width from the previous round can't flash a
+    // wrong wrap before the next fit() runs.
+    resetFitVars(): void {
+      const root = this.$refs.root as HTMLElement | undefined;
+      root?.style.removeProperty('--cs-content-width');
+      root?.style.removeProperty('--cs-zoom');
     },
     /*
      * Size the grid to the card count + viewport. Probes one card's natural
@@ -585,8 +626,17 @@ export default defineComponent({
       void grid.offsetHeight;
       const probeW = (grid.children[0] as HTMLElement).getBoundingClientRect().width;
       if (probeW <= 0) {
+        // Cards not laid out yet — JSDOM (rects always 0) or a page reload where
+        // CSS / fonts are still loading. Retry on the next frame (bounded) so
+        // the engine refines as soon as the cards have real dimensions; the CSS
+        // `max-content` fallback shows a correct one-row layout meanwhile.
+        if (this.fitRetries < FIT_MAX_RETRIES) {
+          this.fitRetries++;
+          this.scheduleFit();
+        }
         return;
-      } // not laid out (e.g. JSDOM) — keep CSS defaults
+      }
+      this.fitRetries = 0;
       const naturalW = probeW / baseZoom(n);
 
       // Width-fit plan (one-row guarantee for small picks).

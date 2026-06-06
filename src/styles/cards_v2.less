@@ -1847,11 +1847,12 @@
         left: 50%;
         /* Cross only the arrow itself — must not reach the neighbouring icons. */
         width: 90%;
-        /* Light line: the arrow is red, so a red strike wouldn't read — use a
-           near-white line with a dark edge so it pops on the red arrow. */
-        border-top: 3px solid #f5f8fc;
+        /* On the CARD the strike is BLACK (it crosses the red arrow on the light
+           card face) with a faint light edge so it reads. The effects overlay
+           overrides this to a near-white line for its dark background. */
+        border-top: 3px solid #131313;
         transform: translate(-50%, -50%) rotate(-20deg);
-        box-shadow: 0 0 1.5px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.55);
+        box-shadow: 0 0 1.5px rgba(255, 255, 255, 0.9), 0 0 2px rgba(255, 255, 255, 0.5);
         border-radius: 2px;
         pointer-events: none;
     }
