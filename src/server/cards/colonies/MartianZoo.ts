@@ -9,6 +9,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Resource} from '../../../common/Resource';
 import {all} from '../Options';
 import {ICard} from '../ICard';
+import * as actionReason from '../actionReasons';
 
 export class MartianZoo extends Card implements IProjectCard {
   constructor() {
@@ -48,6 +49,9 @@ export class MartianZoo extends Card implements IProjectCard {
 
   public canAct(): boolean {
     return this.resourceCount > 0;
+  }
+  public actionUnavailableReason() {
+    return actionReason.noResourcesHere();
   }
 
   public action(player: IPlayer) {

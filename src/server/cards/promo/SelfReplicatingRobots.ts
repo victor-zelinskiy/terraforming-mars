@@ -10,6 +10,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {SerializedCard} from '../../SerializedCard';
 import {newProjectCard} from '../../createCard';
+import * as actionReason from '../actionReasons';
 
 export class SelfReplicatingRobots extends Card implements IProjectCard {
   constructor() {
@@ -45,6 +46,10 @@ export class SelfReplicatingRobots extends Card implements IProjectCard {
   public canAct(player: IPlayer): boolean {
     return this.targetCards.length > 0 ||
              player.cardsInHand.some((card) => card.tags.some((tag) => tag === Tag.SPACE || tag === Tag.BUILDING));
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.targetReason('No card to place resources on');
   }
 
   public action(player: IPlayer) {

@@ -6,6 +6,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {IPlayer} from '../../IPlayer';
 import {CardRenderer} from '../render/CardRenderer';
 import {canSpendEnergyForCards, spendEnergyForCards} from './energyForCards';
+import * as actionReason from '../actionReasons';
 
 export class HiTechLab extends Card implements IProjectCard {
   constructor() {
@@ -29,6 +30,10 @@ export class HiTechLab extends Card implements IProjectCard {
 
   public canAct(player: IPlayer): boolean {
     return canSpendEnergyForCards(player);
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.notEnoughEnergy();
   }
 
   public action(player: IPlayer) {

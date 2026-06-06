@@ -11,6 +11,7 @@ import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred
 import {message} from '../../logs/MessageBuilder';
 import {CardResource} from '../../../common/CardResource';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
+import * as actionReason from '../actionReasons';
 
 export class IcyImpactors extends Card implements IActionCard {
   constructor() {
@@ -52,6 +53,10 @@ export class IcyImpactors extends Card implements IActionCard {
       return true;
     }
     return false;
+  }
+
+  actionUnavailableReason() {
+    return actionReason.ruleReason('Cannot pay for an asteroid right now');
   }
 
   action(player: IPlayer) {

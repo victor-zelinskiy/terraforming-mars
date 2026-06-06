@@ -10,6 +10,7 @@ import {OrOptions} from '../../inputs/OrOptions';
 import {SelectAmount} from '../../inputs/SelectAmount';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
+import * as actionReason from '../actionReasons';
 
 export class EnergyMarket extends Card implements IProjectCard {
   constructor() {
@@ -53,6 +54,10 @@ export class EnergyMarket extends Card implements IProjectCard {
     player.stock.add(Resource.MEGACREDITS, 8);
     player.game.log('${0} decreased energy production 1 step to gain 8 M€', (b) => b.player(player));
     return undefined;
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.ruleReason('Need 2 M€ or 1 energy production');
   }
 
   public action(player: IPlayer) {

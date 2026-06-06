@@ -94,12 +94,14 @@
                   <span class="start-game-flow__corp-status-dot"></span>
                   <span v-i18n>{{ corpStatusLabelFor(corp) }}</span>
                 </div>
+                <div v-else class="start-game-flow__corp-status-reserve" aria-hidden="true"></div>
                 <button v-if="corp.status === 'ready'"
                         class="start-game-flow__apply-btn"
                         @click="applyCorpEffect(corp.name)"
                         :data-test="'start-game-flow-apply-' + corp.name">
                   <span v-i18n>Apply effect</span>
                 </button>
+                <div v-else class="start-game-flow__action-reserve" aria-hidden="true"></div>
               </div>
             </div>
           </section>
@@ -172,6 +174,7 @@
                      :data-test="'start-game-flow-blocked-' + entry.name">
                   <span v-i18n>Play another prelude first</span>
                 </div>
+                <div v-else class="start-game-flow__action-reserve" aria-hidden="true"></div>
               </div>
             </div>
           </section>
@@ -223,6 +226,7 @@
                      :class="name === rec.chosen ? 'start-game-flow__prelude-status--played' : 'start-game-flow__prelude-status--discarded'">
                   <span v-i18n>{{ name === rec.chosen ? 'Played' : 'Discarded' }}</span>
                 </div>
+                <div class="start-game-flow__action-reserve" aria-hidden="true"></div>
               </div>
             </div>
           </section>
@@ -285,6 +289,7 @@
             <span class="start-game-flow__begin-label" v-i18n>Begin the game</span>
           </button>
         </div>
+        <div v-else class="start-game-flow__footer-reserve" aria-hidden="true"></div>
       </div>
     </div>
   </Teleport>
@@ -378,6 +383,10 @@ import {
   CorpStatus,
   DrawChoiceRecord,
 } from '@/client/components/startGameFlow/startGameFlowState';
+import {
+  startGameFlowLayoutBudget,
+} from '@/client/components/startGameFlow/startGameFlowLayout';
+import type {StartGameFlowLayoutBudget} from '@/client/components/startGameFlow/startGameFlowLayout';
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
 
@@ -398,6 +407,8 @@ type DataModel = {
   lastStepSignature: string;
   // The prelude currently open in the fullscreen viewer (undefined = closed).
   zoomCard: CardModel | undefined;
+  viewportWidth: number;
+  viewportHeight: number;
 };
 
 export default defineComponent({
@@ -416,7 +427,14 @@ export default defineComponent({
     },
   },
   data(): DataModel {
-    return {corpsThatHadAction: [], userMinimized: false, lastStepSignature: '', zoomCard: undefined};
+    return {
+      corpsThatHadAction: [],
+      userMinimized: false,
+      lastStepSignature: '',
+      zoomCard: undefined,
+      viewportWidth: typeof window === 'undefined' ? 1280 : window.innerWidth,
+      viewportHeight: typeof window === 'undefined' ? 860 : window.innerHeight,
+    };
   },
   watch: {
     // Latch activation + derive the minimize state on every view change.
@@ -466,45 +484,31 @@ export default defineComponent({
       return this.active && this.playerViewTyped !== undefined && this.collapsed;
     },
     layoutStyle(): Record<string, string> {
-      const drawResolvedMax = this.resolvedDrawChoices.reduce((max, rec) => Math.max(max, rec.candidates.length), 0);
-      const maxProjectGrid = Math.max(
-        this.preludes.length,
-        this.corpSelectCandidates.length,
-        this.drawCandidates.length,
-        this.copyCandidates.length,
-        drawResolvedMax,
-      );
-      const visibleSections = [
-        this.corpCards.length,
-        this.corpSelectCandidates.length,
-        this.preludes.length,
-        this.drawCandidates.length + this.resolvedDrawChoices.length,
-        this.copyCandidates.length,
-      ].filter((n) => n > 0).length;
-
-      let preludeZoom = 0.68;
-      if (maxProjectGrid >= 9) {
-        preludeZoom = 0.48;
-      } else if (maxProjectGrid >= 7) {
-        preludeZoom = 0.52;
-      } else if (maxProjectGrid >= 5) {
-        preludeZoom = 0.58;
-      } else if (maxProjectGrid >= 3) {
-        preludeZoom = 0.64;
-      }
-
-      let corpZoom = this.corpCards.length > 1 ? 0.66 : 0.76;
-      if (visibleSections >= 3) {
-        preludeZoom = Math.max(0.46, preludeZoom - 0.04);
-        corpZoom = Math.max(0.58, corpZoom - 0.04);
-      }
-
+      const budget = this.layoutBudget;
       return {
-        '--sgf-prelude-zoom': preludeZoom.toFixed(2),
-        '--sgf-corp-zoom': corpZoom.toFixed(2),
-        '--sgf-grid-gap-x': maxProjectGrid >= 7 ? '18px' : '30px',
-        '--sgf-grid-gap-y': maxProjectGrid >= 7 ? '12px' : '20px',
+        '--sgf-prelude-zoom': budget.preludeZoom.toFixed(2),
+        '--sgf-corp-zoom': budget.corporationZoom.toFixed(2),
+        '--sgf-grid-gap-x': budget.gridGapX + 'px',
+        '--sgf-grid-gap-y': budget.gridGapY + 'px',
+        '--sgf-window-w': budget.windowWidth + 'px',
+        '--sgf-window-min-h': budget.windowMinHeight + 'px',
+        '--sgf-body-min-h': budget.bodyMinHeight + 'px',
+        '--sgf-footer-reserve-h': budget.footerReserveHeight + 'px',
       };
+    },
+    layoutBudget(): StartGameFlowLayoutBudget {
+      return startGameFlowLayoutBudget({
+        preludeCount: this.preludes.length,
+        corporationCount: this.corpCards.length,
+        corporationSelectCount: this.corpSelectCandidates.length,
+        drawCandidateCount: this.drawCandidates.length,
+        resolvedDrawCounts: this.resolvedDrawChoices.map((rec) => rec.candidates.length),
+        copyCandidateCount: this.copyCandidates.length,
+        waiting: this.waitingState,
+        allDone: this.allDone,
+        viewportWidth: this.viewportWidth,
+        viewportHeight: this.viewportHeight,
+      });
     },
     // Candidates of the live drew-N-choose-ONE prompt (empty otherwise).
     drawCandidates(): ReadonlyArray<CardName> {
@@ -659,7 +663,17 @@ export default defineComponent({
       return out;
     },
   },
+  mounted(): void {
+    window.addEventListener('resize', this.onResize);
+  },
+  beforeUnmount(): void {
+    window.removeEventListener('resize', this.onResize);
+  },
   methods: {
+    onResize(): void {
+      this.viewportWidth = window.innerWidth;
+      this.viewportHeight = window.innerHeight;
+    },
     preludeStatusLabel(status: PreludeStatus): string {
       if (status === 'played') {
         return 'Played';

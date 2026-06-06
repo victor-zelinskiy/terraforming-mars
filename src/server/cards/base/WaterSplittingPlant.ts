@@ -5,6 +5,7 @@ import {IProjectCard} from '../IProjectCard';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {IPlayer} from '../../IPlayer';
+import * as actionReason from '../actionReasons';
 
 export class WaterSplittingPlant extends ActionCard implements IProjectCard {
   constructor() {
@@ -36,5 +37,10 @@ export class WaterSplittingPlant extends ActionCard implements IProjectCard {
     // This tests for Reds costs that would ideally be dealt with somewhere
     // between ActionCard and the Executor.
     return player.canAfford({cost: 0, tr: {oxygen: 1}});
+  }
+  // Only reached when the energy spend is fine but the bespokeCanAct Reds tax
+  // for raising oxygen isn't — so the blocker is M€.
+  public actionUnavailableReason() {
+    return actionReason.notEnoughMC();
   }
 }

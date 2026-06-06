@@ -31,10 +31,18 @@ export function actionUnavailableReasons(player: IPlayer, card: ICard & IActionC
   if (behavior !== undefined) {
     collectActionBehaviorReasons(player, card, behavior, reasons);
   }
-  // Bespoke reason the generic behavior checks can't introspect.
-  const bespoke = card.actionUnavailableReason?.(player);
-  if (bespoke !== undefined) {
-    reasons.push(bespoke);
+  // Bespoke reason from the card's own `actionUnavailableReason` hook — consulted
+  // only when the declarative behavior scan surfaced nothing. So a declarative
+  // card blocked by a covered check keeps its specific reason, and a card with a
+  // bespoke `canAct` (or a declarative card blocked by a bespoke gate, e.g. Water
+  // Splitting Plant's Reds tax when energy is fine) gets its hook's reason. The
+  // hook lives in the CARD FILE next to `canAct`, so a `canAct` change (refactor
+  // or upstream merge) lands in the same diff and the two can't drift out of sync.
+  if (reasons.length === 0) {
+    const bespoke = card.actionUnavailableReason?.(player);
+    if (bespoke !== undefined) {
+      reasons.push(bespoke);
+    }
   }
   if (reasons.length === 0) {
     reasons.push({type: 'rule', message: 'Action conditions are not met right now'});

@@ -5,6 +5,8 @@ import {AICentral} from '../../src/server/cards/base/AICentral';
 import {Ants} from '../../src/server/cards/base/Ants';
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
 import {UnitedNationsMarsInitiative} from '../../src/server/cards/corporation/UnitedNationsMarsInitiative';
+import {PowerInfrastructure} from '../../src/server/cards/base/PowerInfrastructure';
+import {Predators} from '../../src/server/cards/base/Predators';
 
 describe('actionUnavailableReasons', () => {
   it('returns no reasons when the action can be taken', () => {
@@ -44,6 +46,21 @@ describe('actionUnavailableReasons', () => {
     const reasons = actionUnavailableReasons(player, new UnitedNationsMarsInitiative());
     const mc = reasons.find((r) => r.type === 'megacredits');
     expect(mc, 'expected a megacredits reason').is.not.undefined;
+  });
+
+  it('co-located hook: Power Infrastructure reports not-enough-energy', () => {
+    const [/* game */, player] = testGame(2);
+    player.energy = 0;
+    const reasons = actionUnavailableReasons(player, new PowerInfrastructure());
+    const energy = reasons.find((r) => r.type === 'resource' && r.resource === 'energy');
+    expect(energy, 'expected an energy reason').is.not.undefined;
+  });
+
+  it('co-located hook: Predators reports no animal to remove', () => {
+    const [/* game */, player] = testGame(2);
+    const reasons = actionUnavailableReasons(player, new Predators());
+    const target = reasons.find((r) => r.message === 'No card has an animal to remove');
+    expect(target, 'expected the no-animal reason').is.not.undefined;
   });
 
   it('never returns an empty-but-unavailable result (honest generic fallback)', () => {

@@ -5,6 +5,7 @@ import {CorporationCard} from '../corporation/CorporationCard';
 import {IPlayer} from '../../IPlayer';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import {canSpendEnergyForCards, spendEnergyForCards} from './energyForCards';
+import * as actionReason from '../actionReasons';
 
 export class TychoMagnetics extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -34,6 +35,10 @@ export class TychoMagnetics extends CorporationCard implements ICorporationCard 
 
   public canAct(player: IPlayer): boolean {
     return canSpendEnergyForCards(player);
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.notEnoughEnergy();
   }
 
   public action(player: IPlayer) {

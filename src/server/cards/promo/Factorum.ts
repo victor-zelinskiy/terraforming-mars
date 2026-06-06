@@ -11,6 +11,7 @@ import {Size} from '../../../common/cards/render/Size';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {TITLES} from '../../inputs/titles';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import * as actionReason from '../actionReasons';
 
 export class Factorum extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
@@ -42,6 +43,10 @@ export class Factorum extends CorporationCard implements ICorporationCard, IActi
 
   public canAct(player: IPlayer): boolean {
     return player.energy === 0 || player.canAfford(3);
+  }
+
+  public actionUnavailableReason(player: IPlayer) {
+    return actionReason.needMoreMC(player, 3);
   }
 
   public action(player: IPlayer) {

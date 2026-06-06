@@ -12,6 +12,7 @@ import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {TITLES} from '../../inputs/titles';
+import * as actionReason from '../actionReasons';
 
 export class ForcedPrecipitation extends Card implements IActionCard {
   constructor() {
@@ -48,6 +49,10 @@ export class ForcedPrecipitation extends Card implements IActionCard {
       return true;
     }
     return false;
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.ruleReason('Need 2 M€ or 2 floaters on this card');
   }
 
   public action(player: IPlayer) {

@@ -13,6 +13,7 @@ import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
+import * as actionReason from '../actionReasons';
 
 export class AsteroidRights extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -48,6 +49,10 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
 
   public canAct(player: IPlayer): boolean {
     return player.canAfford(1) || this.resourceCount > 0;
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.ruleReason('Need 1 M€ or an asteroid resource on this card');
   }
 
   public action(player: IPlayer) {

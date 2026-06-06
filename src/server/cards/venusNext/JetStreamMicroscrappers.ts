@@ -11,6 +11,7 @@ import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {Payment} from '../../../common/inputs/Payment';
+import * as actionReason from '../actionReasons';
 
 export class JetStreamMicroscrappers extends Card implements IActionCard {
   constructor() {
@@ -41,6 +42,10 @@ export class JetStreamMicroscrappers extends Card implements IActionCard {
     const canSpendResource = this.resourceCount > 1 && !venusMaxed;
 
     return player.titanium > 0 || (canSpendResource && player.canAfford({cost: 0, tr: {venus: 1}}));
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.ruleReason('No titanium or floaters to spend');
   }
 
   public action(player: IPlayer) {

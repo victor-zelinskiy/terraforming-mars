@@ -13,6 +13,7 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
 import {message} from '../../logs/MessageBuilder';
+import * as actionReason from '../actionReasons';
 
 export class BioPrintingFacility extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -36,6 +37,10 @@ export class BioPrintingFacility extends Card implements IActionCard, IProjectCa
 
   public canAct(player: IPlayer): boolean {
     return player.energy >= 2;
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.notEnoughEnergy();
   }
 
   public action(player: IPlayer) {

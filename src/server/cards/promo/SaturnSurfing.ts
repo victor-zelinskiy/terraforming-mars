@@ -8,6 +8,7 @@ import {CardResource} from '../../../common/CardResource';
 import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
+import * as actionReason from '../actionReasons';
 
 export class SaturnSurfing extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -39,6 +40,9 @@ export class SaturnSurfing extends Card implements IActionCard, IProjectCard {
 
   public canAct(): boolean {
     return this.resourceCount > 0;
+  }
+  public actionUnavailableReason() {
+    return actionReason.noResourcesHere();
   }
 
   public action(player: IPlayer) {
