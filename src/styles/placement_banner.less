@@ -162,6 +162,32 @@ body.placement-pending {
     }
 }
 
+/*
+ * Start-game flow lock: after all preludes/corporation effects are resolved,
+ * the player may minimize the startup modal, but regular actions stay blocked
+ * until they press "Begin the game". Unlike placement-pending, Pass / Skip turn
+ * remain visible so the disabled affordance and tooltip stay readable.
+ */
+body.start-game-flow-action-locked {
+    .left-panel-card-action-btn,
+    .std-project-use-btn,
+    .milestone-claim-btn,
+    .award-fund-btn,
+    .resource_item_wrapper--convert-heat,
+    .resource_item_wrapper--convert-plants,
+    .colony-tile__select-btn,
+    .colony-detail__select-btn,
+    .hand-card-play-btn,
+    .action-activate-btn,
+    .wf-action {
+        .premium-tooltip(240px);
+        opacity: 0.45;
+        filter: saturate(0.55);
+        cursor: not-allowed !important;
+        transition: opacity 220ms ease, filter 220ms ease;
+    }
+}
+
 /* ──────────────────────────────────────────────────────────────────
  *  Hide legacy SelectSpace header
  * ────────────────────────────────────────────────────────────────── */
