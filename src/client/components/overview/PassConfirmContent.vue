@@ -11,6 +11,20 @@
     <h3 class="pass-confirm__title" v-i18n>Pass for this generation</h3>
     <p class="pass-confirm__body" v-i18n>You will not be able to take any more actions this generation. Are you sure?</p>
 
+    <!--
+      Soft reminder (NOT an error — neutral amber) that the player still has
+      activatable card / corporation actions they haven't used this turn. Only
+      shown when there really are some. Easy to ignore, but prevents an
+      accidental pass while a blue-card action sits unused.
+    -->
+    <div v-if="availableActions > 0" class="pass-confirm__warn" data-test="pass-confirm-warn">
+      <span class="pass-confirm__warn-icon" aria-hidden="true">!</span>
+      <span class="pass-confirm__warn-text">
+        <span v-i18n>You still have unused available actions</span>:
+        <span class="pass-confirm__warn-count">{{ availableActions }}</span>
+      </span>
+    </div>
+
     <div class="pass-confirm__actions">
       <button class="pass-confirm__cancel-btn"
               @click="$emit('cancel')"
@@ -31,6 +45,14 @@ import {defineComponent} from 'vue';
 
 export default defineComponent({
   name: 'PassConfirmContent',
+  props: {
+    // Number of card / corporation actions the player can still activate this
+    // turn. > 0 → a soft reminder is shown before they pass.
+    availableActions: {
+      type: Number,
+      default: 0,
+    },
+  },
   emits: ['confirm', 'cancel'],
 });
 </script>

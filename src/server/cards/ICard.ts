@@ -57,6 +57,16 @@ export interface ICard {
    * `undefined` to defer to the generic fallback.
    */
   unplayableReason?(player: IPlayer): UnplayableReason | undefined;
+  /**
+   * Optional structured reason this card's ACTIVATABLE ACTION can't be used
+   * right now, for action cards whose block lives in bespoke `canAct` /
+   * `bespokeCanAct` logic the generic explainer can't introspect (e.g. United
+   * Nations Mars Initiative: "TR not raised this generation", or Ants: "no card
+   * with the right resource to remove"). Called by
+   * `src/server/models/actionUnavailableReasons.ts` ONLY when the action is
+   * known unavailable. Return `undefined` to defer to the generic fallback.
+   */
+  actionUnavailableReason?(player: IPlayer): UnplayableReason | undefined;
   play(player: IPlayer): PlayerInput | undefined;
   /**
    * Describes the M€ discount `player` could apply to playing `card`.
@@ -178,6 +188,16 @@ export interface ICard {
   readonly warnings: Set<Warning>;
 
   readonly behavior?: Behavior,
+
+  /**
+   * The declarative behavior run when this card's repeatable ACTION is used
+   * (the `action` property on ActionCard / ActiveCorporationCard). Distinct from
+   * the `action(player)` METHOD (IActionCard). Read by
+   * `actionUnavailableReasons.ts` to derive structured "why can't I act" reasons
+   * for declarative action cards. `undefined` for bespoke action cards (whose
+   * logic lives in `action()` / `canAct()` directly).
+   */
+  readonly actionBehavior?: Behavior,
 
   /**
    * Returns the contents of the card's production box.

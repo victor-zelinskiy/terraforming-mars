@@ -372,7 +372,10 @@ export class Server {
       canConvertHeat,
       protectedResources: Server.getResourceProtections(player),
       protectedProduction: Server.getProductionProtections(player),
-      tableau: cardsToModel(player, player.tableau.asArray(), {showResources: true}),
+      // actionReasons only for the viewer's OWN tableau (the self-model): the
+      // Actions overlay needs the "why can't I activate" reasons only for the
+      // player who can actually act; opponents' actions are view-only.
+      tableau: cardsToModel(player, player.tableau.asArray(), {showResources: true, actionReasons: modelIsForThisPlayer}),
       selfReplicatingRobotsCards: Server.getSelfReplicatingRobotsTargetCards(player),
       steel: player.steel,
       steelProduction: player.production.steel,

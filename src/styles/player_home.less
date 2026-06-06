@@ -1704,11 +1704,47 @@ each(@players, {
 }
 
 .pass-confirm__body {
-    margin: 0 0 20px;
+    margin: 0 0 16px;
     font-size: 13px;
     line-height: 1.5;
     color: #d8e3ef;
     text-align: center;
+}
+
+/* Soft reminder (neutral amber, NOT an alarming red) that the player still has
+   activatable actions they haven't used this turn. */
+.pass-confirm__warn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 20px;
+    padding: 9px 13px;
+    border-radius: 8px;
+    border: 1px solid rgba(240, 178, 78, 0.42);
+    background: linear-gradient(180deg, rgba(60, 44, 16, 0.5), rgba(44, 32, 12, 0.5));
+    color: #f3d9a2;
+    font-size: 12px;
+    line-height: 1.4;
+}
+.pass-confirm__warn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(240, 178, 78, 0.92);
+    color: #2a1d06;
+    font-weight: 800;
+    font-size: 12px;
+}
+.pass-confirm__warn-text { letter-spacing: 0.2px; }
+.pass-confirm__warn-count {
+    font-family: Prototype, Orbitron, monospace;
+    font-weight: 700;
+    color: #ffe6ad;
+    font-variant-numeric: tabular-nums;
 }
 
 .pass-confirm__actions {
@@ -2717,6 +2753,31 @@ each(@players, {
         box-shadow: inset 0 0 0 1px rgba(140, 190, 235, 0.20);
         font-variant-numeric: tabular-nums;
     }
+
+    /* ДЕЙСТВИЯ dual count: "<available> / <all>". The available number reads as
+       a live "can act now" signal (mint when > 0, muted when none left), the
+       total stays the calm base colour. */
+    .bar-btn__value--dual {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 1px;
+    }
+    .bar-btn__value-avail {
+        color: #9ef0c8;
+        font-weight: 800;
+        text-shadow: 0 0 7px rgba(120, 230, 180, 0.35);
+    }
+    .bar-btn__value-avail--zero {
+        color: #8aa0b4;
+        font-weight: 700;
+        text-shadow: none;
+    }
+    .bar-btn__value-sep {
+        opacity: 0.45;
+        font-weight: 600;
+        margin: 0 1px;
+    }
+    .bar-btn__value-total { color: #d8ecff; }
 
     /* Expressive, individual hover: a 1px lift + frame brighten + glow,
        and the bottom accent sweeps wider — calm but characterful. */

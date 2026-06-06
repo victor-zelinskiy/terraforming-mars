@@ -861,6 +861,11 @@
     &__row--megacredits &__bar,
     &__row--megacredits &__glyph { background: #f2c14e; box-shadow: 0 0 6px fade(#f2c14e, 55%); }
     &__row--megacredits &__now { color: #f3dca0; background: rgba(242, 193, 78, 0.14); border-color: rgba(242, 193, 78, 0.3); }
+    /* Stock-resource shortfall (action availability: not enough energy/titanium/…)
+       — amber like a cost, since it reads as "you can't pay for this". */
+    &__row--resource &__bar,
+    &__row--resource &__glyph { background: #f0b24e; box-shadow: 0 0 6px fade(#f0b24e, 55%); }
+    &__row--resource &__now { color: #f3dca0; background: rgba(240, 178, 78, 0.14); border-color: rgba(240, 178, 78, 0.3); }
     /* Requirement family (params, TR, counts, tags, production) → cyan, so
        e.g. "oceans" and "floaters" read identically. */
     &__row--globalParameter &__bar,

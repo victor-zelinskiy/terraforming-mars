@@ -7,6 +7,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {TITLES} from '../../inputs/titles';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 export const ACTION_COST = 3;
 export class UnitedNationsMarsInitiative extends CorporationCard implements IActionCard, ICorporationCard {
   constructor() {
@@ -34,6 +35,17 @@ export class UnitedNationsMarsInitiative extends CorporationCard implements IAct
 
   public canAct(player: IPlayer): boolean {
     return player.hasIncreasedTerraformRatingThisGeneration && player.canAfford({cost: ACTION_COST, tr: {tr: 1}});
+  }
+
+  // Structured reason for the Actions overlay when the action is unavailable.
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    if (!player.hasIncreasedTerraformRatingThisGeneration) {
+      return {type: 'rule', message: 'Your terraform rating was not raised this generation'};
+    }
+    if (!player.canAfford({cost: ACTION_COST, tr: {tr: 1}})) {
+      return {type: 'megacredits', message: 'Need ${0} more M€', params: [String(Math.max(1, ACTION_COST - player.spendableMegacredits()))]};
+    }
+    return undefined;
   }
 
   public action(player: IPlayer) {

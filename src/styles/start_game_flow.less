@@ -32,7 +32,7 @@
     align-items: stretch;
     justify-content: stretch;
     overflow: hidden;
-    padding: 14px;
+    padding: 10px;
 }
 
 .start-game-flow__backdrop {
@@ -66,7 +66,7 @@
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
-    padding: 28px 32px 26px;
+    padding: 24px 30px 22px;
     border-radius: 6px;
     /*
      * Depth: a top accent glow + a faint iso-tech grid (two ±60° hairlines) over
@@ -112,8 +112,8 @@
 
 .start-game-flow__minimize-btn {
     position: absolute;
-    top: 16px;
-    right: 18px;
+    top: 12px;
+    right: 14px;
     z-index: 3;
     height: 26px;
     padding: 0 14px 0 16px;
@@ -164,11 +164,11 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 28px;
+    gap: 22px;
     flex-wrap: wrap;
-    margin-bottom: 22px;
+    margin-bottom: 18px;
     padding-right: 170px;
-    padding-bottom: 16px;
+    padding-bottom: 12px;
 
     /* Noble divider — a left-weighted accent line, not a flat hairline. */
     &::after {
@@ -213,7 +213,7 @@
 
 .start-game-flow__title {
     margin: 0;
-    font-size: 27px;
+    font-size: 26px;
     font-weight: 700;
     letter-spacing: 3px;
     text-transform: uppercase;
@@ -225,7 +225,7 @@
 }
 
 .start-game-flow__subtitle {
-    margin: 9px 0 0;
+    margin: 5px 0 0;
     max-width: 460px;
     font-size: 12.5px;
     line-height: 1.5;
@@ -236,7 +236,7 @@
 .start-game-flow__progress {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
     justify-content: flex-end;
     align-content: flex-start;
     padding-top: 4px;
@@ -246,8 +246,8 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 14px 6px 11px;
-    font-size: 11px;
+    padding: 5px 12px 5px 10px;
+    font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.6px;
     text-transform: uppercase;
@@ -301,12 +301,13 @@
 .start-game-flow__body {
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
+    overflow-y: hidden;
     overflow-x: hidden;
     display: flex;
     flex-direction: column;
     gap: 22px;
-    padding-right: 6px;
+    justify-content: safe center;
+    padding-right: 0;
     scrollbar-width: thin;
     scrollbar-color: rgba(106, 176, 230, 0.35) transparent;
 }
@@ -332,7 +333,7 @@
     letter-spacing: 2.5px;
     text-transform: uppercase;
     color: #8fc0e4;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
 
     /* Leading accent tick + a fading rule = a nobler section divider. */
     &::before {
@@ -364,9 +365,16 @@
 
     > .card-container {
         margin: 0;
-        zoom: 0.6;
+        zoom: var(--sgf-prelude-zoom, 0.68);
         position: relative;
         z-index: 0;
+    }
+    > .card-container.card-hover-tall:hover .card-content:not(.global-event-card-content),
+    > .card-container.card-auto-tall .card-content:not(.global-event-card-content) {
+        height: 280px;
+        min-height: 0;
+        overflow-x: hidden;
+        padding-bottom: 0;
     }
     &:hover { transform: translateY(-2px); }
 }
@@ -378,7 +386,7 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 26px;
+    gap: var(--sgf-grid-gap-y, 20px) var(--sgf-grid-gap-x, 30px);
     align-items: flex-start;
 }
 
@@ -388,7 +396,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 
 /* The corp is the hero card — a focus frame + outer glow, and a touch larger
@@ -399,7 +407,7 @@
         0 0 26px rgba(106, 176, 230, 0.16),
         0 10px 26px rgba(0, 0, 0, 0.45);
 
-    > .card-container { zoom: 0.66; }
+    > .card-container { zoom: var(--sgf-corp-zoom, 0.76); }
 }
 /* Effect ready to apply → brighter cyan attention glow (draws the eye to the
    apply button beneath). */
@@ -471,14 +479,14 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 22px;
+    gap: var(--sgf-grid-gap-y, 20px) var(--sgf-grid-gap-x, 30px);
 }
 
 .start-game-flow__prelude {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 11px;
+    gap: 9px;
     transition: opacity 180ms ease;
 
     /* Discarded (a non-chosen drew-N prelude) — de-emphasised; the red ✕ badge
@@ -575,9 +583,9 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    font-size: 10.5px;
+    font-size: 9.5px;
     font-weight: 700;
-    letter-spacing: 1.4px;
+    letter-spacing: 1.1px;
     text-transform: uppercase;
 
     &::before {
@@ -616,12 +624,12 @@
 .start-game-flow__apply-btn {
     border: none;
     cursor: pointer;
-    height: 36px;
-    padding: 0 24px;
+    height: 34px;
+    padding: 0 22px;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: 1.8px;
+    letter-spacing: 1.6px;
     text-transform: uppercase;
     color: #eafaff;
     border-radius: 3px;
@@ -786,12 +794,13 @@
 .start-game-flow__footer {
     position: relative;
     flex-shrink: 0;
-    margin-top: 26px;
-    padding-top: 24px;
+    margin-top: 12px;
+    padding-top: 12px;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 13px;
+    justify-content: center;
+    gap: 16px;
 
     /* Centre-bright green divider — signals "you've finished the prep". */
     &::before {
@@ -806,12 +815,12 @@
 }
 
 .start-game-flow__done-badge {
-    width: 42px;
-    height: 42px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
+    font-size: 17px;
     font-weight: 700;
     color: #06231a;
     background: linear-gradient(180deg, #9cf3cf, @sgf-green);
@@ -821,8 +830,8 @@
 }
 
 .start-game-flow__done-note {
-    font-size: 12.5px;
-    letter-spacing: 2px;
+    font-size: 11px;
+    letter-spacing: 1.5px;
     text-transform: uppercase;
     color: #aef0d0;
     text-shadow: 0 0 12px rgba(95, 214, 166, 0.25);
@@ -832,12 +841,12 @@
 .start-game-flow__begin-btn {
     border: none;
     cursor: pointer;
-    height: 50px;
-    padding: 0 52px;
+    height: 40px;
+    padding: 0 38px;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 17px;
+    font-size: 14px;
     font-weight: 700;
-    letter-spacing: 3px;
+    letter-spacing: 2.4px;
     text-transform: uppercase;
     color: #06231a;
     border-radius: 5px;
@@ -890,6 +899,170 @@
 }
 
 /* ─── Minimized pill (reuses .mandatory-input-modal-pill chrome) ─────── */
+
+@media (max-height: 950px) {
+    .start-game-flow {
+        padding: 8px;
+    }
+
+    .start-game-flow__card {
+        padding: 14px 22px 14px;
+    }
+
+    .start-game-flow__minimize-btn {
+        top: 10px;
+        right: 12px;
+        height: 24px;
+    }
+
+    .start-game-flow__header {
+        gap: 14px;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        padding-right: 150px;
+    }
+
+    .start-game-flow__title {
+        font-size: 21px;
+        letter-spacing: 2.4px;
+    }
+
+    .start-game-flow__subtitle {
+        margin-top: 3px;
+        font-size: 11px;
+        line-height: 1.25;
+    }
+
+    .start-game-flow__chip {
+        padding: 4px 10px 4px 8px;
+        font-size: 9.5px;
+    }
+
+    .start-game-flow__body {
+        gap: 10px;
+    }
+
+    .start-game-flow__section-label {
+        margin-bottom: 6px;
+        font-size: 10px;
+        letter-spacing: 2px;
+    }
+
+    .start-game-flow__card-thumb > .card-container {
+        zoom: min(var(--sgf-prelude-zoom, 0.68), 0.58);
+    }
+
+    .start-game-flow__corp-item .start-game-flow__card-thumb > .card-container {
+        zoom: min(var(--sgf-corp-zoom, 0.76), 0.64);
+    }
+
+    .start-game-flow__corp-grid,
+    .start-game-flow__prelude-grid {
+        gap: 10px 16px;
+    }
+
+    .start-game-flow__prelude,
+    .start-game-flow__corp-item {
+        gap: 6px;
+    }
+
+    .start-game-flow__play-btn,
+    .start-game-flow__apply-btn {
+        height: 28px;
+        padding: 0 15px;
+        font-size: 10px;
+        letter-spacing: 1.2px;
+    }
+
+    .start-game-flow__footer {
+        margin-top: 8px;
+        padding-top: 9px;
+        gap: 12px;
+    }
+
+    .start-game-flow__done-badge {
+        width: 28px;
+        height: 28px;
+        font-size: 15px;
+    }
+
+    .start-game-flow__begin-btn {
+        height: 36px;
+        padding: 0 32px;
+        font-size: 12.5px;
+    }
+}
+
+@media (max-height: 760px) {
+    .start-game-flow__card {
+        padding: 10px 18px 10px;
+    }
+
+    .start-game-flow__subtitle,
+    .start-game-flow__prelude-status,
+    .start-game-flow__corp-status,
+    .start-game-flow__done-note {
+        display: none;
+    }
+
+    .start-game-flow__header {
+        margin-bottom: 8px;
+        padding-bottom: 7px;
+        padding-right: 132px;
+    }
+
+    .start-game-flow__title {
+        font-size: 18px;
+        letter-spacing: 2px;
+    }
+
+    .start-game-flow__progress {
+        gap: 6px;
+    }
+
+    .start-game-flow__chip {
+        padding: 3px 8px;
+        font-size: 9px;
+    }
+
+    .start-game-flow__body {
+        gap: 8px;
+    }
+
+    .start-game-flow__section-label {
+        margin-bottom: 4px;
+    }
+
+    .start-game-flow__card-thumb > .card-container {
+        zoom: min(var(--sgf-prelude-zoom, 0.68), 0.46);
+    }
+
+    .start-game-flow__corp-item .start-game-flow__card-thumb > .card-container {
+        zoom: min(var(--sgf-corp-zoom, 0.76), 0.52);
+    }
+
+    .start-game-flow__corp-grid,
+    .start-game-flow__prelude-grid {
+        gap: 8px 12px;
+    }
+
+    .start-game-flow__play-btn,
+    .start-game-flow__apply-btn {
+        height: 25px;
+        padding: 0 12px;
+        font-size: 9px;
+    }
+
+    .start-game-flow__footer {
+        margin-top: 6px;
+        padding-top: 7px;
+    }
+
+    .start-game-flow__begin-btn {
+        height: 32px;
+        padding: 0 26px;
+    }
+}
 
 .start-game-flow-pill {
     cursor: pointer;

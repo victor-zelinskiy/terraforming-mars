@@ -185,6 +185,12 @@ export abstract class Card implements ICard {
   public get behavior() {
     return this.properties.behavior;
   }
+  // The declarative ACTION behavior (ActionCard / ActiveCorporationCard set
+  // `action` in their static properties). Exposed under a distinct name because
+  // `action` is also the IActionCard METHOD. Used by actionUnavailableReasons.
+  public get actionBehavior() {
+    return this.properties.action;
+  }
   public get cardCost() {
     return this.properties.cardCost;
   }
