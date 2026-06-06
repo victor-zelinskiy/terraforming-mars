@@ -11,6 +11,7 @@
 export type StartGameFlowLayoutInput = {
   preludeCount: number;
   corporationCount: number;
+  mergerReserveActive: boolean;
   corporationSelectCount: number;
   drawCandidateCount: number;
   resolvedDrawCounts: ReadonlyArray<number>;
@@ -29,7 +30,12 @@ export type StartGameFlowLayoutBudget = {
   windowWidth: number;
   windowMinHeight: number;
   bodyMinHeight: number;
-  footerReserveHeight: number;
+  headerStatusWidth: number;
+  headerStatusHeight: number;
+  mainGapX: number;
+  mainGapY: number;
+  corporationColumnWidth: number;
+  preludeColumnWidth: number;
 };
 
 const CARD_NATURAL_W = 300;
@@ -37,10 +43,10 @@ const CARD_NATURAL_H = 420;
 const CARD_CHROME_H = 58; // status/action area under the card
 const SECTION_LABEL_H = 24;
 const SECTION_GAP_H = 18;
-const HEADER_H = 86;
+const HEADER_H = 122;
 const FRAME_V = 78;
-const FOOTER_H = 66;
-const WAITING_H = 142;
+const HEADER_STATUS_W = 330;
+const HEADER_STATUS_H = 58;
 
 function columnsFor(count: number): number {
   if (count <= 0) return 0;
@@ -70,38 +76,32 @@ function sectionWidth(count: number, zoom: number, gapX: number): number {
 
 export function startGameFlowLayoutBudget(input: StartGameFlowLayoutInput): StartGameFlowLayoutBudget {
   const resolvedDrawMax = input.resolvedDrawCounts.reduce((max, count) => Math.max(max, count), 0);
-  let maxCardGrid = Math.max(input.preludeCount, input.corporationCount);
-  let sectionCount = 0;
+  const corporationReserveCount = input.mergerReserveActive ? Math.max(2, input.corporationCount) : input.corporationCount;
+  let maxCardGrid = Math.max(input.preludeCount, corporationReserveCount);
+  let extraSectionCount = 0;
 
-  if (input.corporationCount > 0) {
-    sectionCount++;
-  }
-  if (input.preludeCount > 0) {
-    sectionCount++;
-  }
-
-  // Merger: the live corp-selection prompt adds a temporary corporation grid.
+  // Merger: the live corp-selection prompt adds a temporary bottom grid.
   if (input.corporationSelectCount > 0) {
     maxCardGrid = Math.max(maxCardGrid, input.corporationSelectCount);
-    sectionCount++;
+    extraSectionCount++;
   }
 
-  // New Partner / Valley Trust: drew-N-choose-one needs space for its own row.
+  // New Partner / Valley Trust: drew-N-choose-one needs a bottom row.
   if (input.drawCandidateCount > 0) {
     maxCardGrid = Math.max(maxCardGrid, input.drawCandidateCount);
-    sectionCount++;
+    extraSectionCount++;
   }
 
   // Resolved draw choices remain visible as played/discarded cards.
   if (resolvedDrawMax > 0) {
     maxCardGrid = Math.max(maxCardGrid, resolvedDrawMax);
-    sectionCount += input.resolvedDrawCounts.length;
+    extraSectionCount += input.resolvedDrawCounts.length;
   }
 
-  // Double Down and similar copy-prompt cards: another temporary card row.
+  // Double Down and similar copy-prompt cards: another bottom row.
   if (input.copyCandidateCount > 0) {
     maxCardGrid = Math.max(maxCardGrid, input.copyCandidateCount);
-    sectionCount++;
+    extraSectionCount++;
   }
 
   let preludeZoom = 0.64;
@@ -115,8 +115,8 @@ export function startGameFlowLayoutBudget(input: StartGameFlowLayoutInput): Star
     preludeZoom = 0.68;
   }
 
-  let corporationZoom = input.corporationCount > 1 ? 0.62 : 0.70;
-  if (sectionCount >= 3) {
+  let corporationZoom = corporationReserveCount > 1 ? 0.60 : 0.70;
+  if (extraSectionCount >= 1) {
     preludeZoom = Math.max(0.44, preludeZoom - 0.04);
     corporationZoom = Math.max(0.56, corporationZoom - 0.04);
   }
@@ -129,32 +129,36 @@ export function startGameFlowLayoutBudget(input: StartGameFlowLayoutInput): Star
 
   const gridGapX = maxCardGrid >= 7 ? 16 : 24;
   const gridGapY = maxCardGrid >= 7 || compactViewport ? 10 : 16;
+  const mainGapX = 42;
+  const mainGapY = 18;
 
-  const bodySections = [
-    sectionHeight(input.corporationCount, corporationZoom, gridGapY),
+  const corporationH = sectionHeight(corporationReserveCount, corporationZoom, gridGapY);
+  const preludeH = sectionHeight(input.preludeCount, preludeZoom, gridGapY);
+  const mainRowH = Math.max(corporationH, preludeH);
+  const extraSections = [
     sectionHeight(input.corporationSelectCount, preludeZoom, gridGapY),
-    sectionHeight(input.preludeCount, preludeZoom, gridGapY),
     sectionHeight(input.drawCandidateCount, preludeZoom, gridGapY),
     ...input.resolvedDrawCounts.map((count) => sectionHeight(count, preludeZoom, gridGapY)),
     sectionHeight(input.copyCandidateCount, preludeZoom, gridGapY),
   ].filter((height) => height > 0);
-
-  const visibleBodyH =
-    bodySections.reduce((sum, height) => sum + height, 0) +
-    Math.max(0, bodySections.length - 1) * SECTION_GAP_H;
-
-  // Waiting is a likely transient state after a player finishes setup; reserve
-  // it even before it is visible so the card does not shrink/pop.
-  const bodyMinHeight = Math.max(visibleBodyH, WAITING_H);
+  const extraH =
+    extraSections.reduce((sum, height) => sum + height, 0) +
+    Math.max(0, extraSections.length - 1) * SECTION_GAP_H;
+  const bodyMinHeight = mainRowH + (extraH > 0 ? mainGapY + extraH : 0);
+  const corporationColumnWidth = Math.max(sectionWidth(corporationReserveCount, corporationZoom, gridGapX), 260);
+  const preludeColumnWidth = Math.max(sectionWidth(input.preludeCount, preludeZoom, gridGapX) + 32, 380);
+  const mainRowWidth =
+    (corporationColumnWidth > 0 && preludeColumnWidth > 0) ?
+      corporationColumnWidth + mainGapX + preludeColumnWidth :
+      Math.max(corporationColumnWidth, preludeColumnWidth);
 
   const gridWidth = Math.max(
-    sectionWidth(input.corporationCount, corporationZoom, gridGapX),
+    mainRowWidth,
     sectionWidth(input.corporationSelectCount, preludeZoom, gridGapX),
-    sectionWidth(input.preludeCount, preludeZoom, gridGapX),
     sectionWidth(input.drawCandidateCount, preludeZoom, gridGapX),
     sectionWidth(resolvedDrawMax, preludeZoom, gridGapX),
     sectionWidth(input.copyCandidateCount, preludeZoom, gridGapX),
-    input.waiting || input.allDone ? 560 : 0,
+    input.waiting || input.allDone ? HEADER_STATUS_W : 0,
   );
 
   const viewportW = input.viewportWidth || 1280;
@@ -164,10 +168,11 @@ export function startGameFlowLayoutBudget(input: StartGameFlowLayoutInput): Star
     Math.max(680, viewportW - 72),
     1240,
   );
-  const windowMinHeight = Math.min(
-    Math.ceil(FRAME_V + HEADER_H + bodyMinHeight + FOOTER_H),
+  const naturalWindowH = Math.ceil(FRAME_V + HEADER_H + bodyMinHeight);
+  const windowMinHeight = Math.max(340, Math.min(
+    naturalWindowH,
     Math.max(560, viewportH - 72),
-  );
+  ));
 
   return {
     preludeZoom,
@@ -177,6 +182,11 @@ export function startGameFlowLayoutBudget(input: StartGameFlowLayoutInput): Star
     windowWidth,
     windowMinHeight,
     bodyMinHeight: Math.ceil(bodyMinHeight),
-    footerReserveHeight: FOOTER_H,
+    headerStatusWidth: HEADER_STATUS_W,
+    headerStatusHeight: HEADER_STATUS_H,
+    mainGapX,
+    mainGapY,
+    corporationColumnWidth: Math.ceil(corporationColumnWidth),
+    preludeColumnWidth: Math.ceil(preludeColumnWidth),
   };
 }

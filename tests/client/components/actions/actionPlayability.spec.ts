@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
+import {Resource} from '@/common/Resource';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {computeActionState} from '@/client/components/actions/actionPlayability';
@@ -33,7 +34,7 @@ describe('actionPlayability.computeActionState', () => {
 
   it('rules block when the server attached reasons', () => {
     const s = computeActionState(
-      card(CardName.AI_CENTRAL, [{type: 'resource', message: 'Not enough energy', resource: 'energy'}]),
+      card(CardName.AI_CENTRAL, [{type: 'resource', message: 'Not enough energy', resource: Resource.ENERGY}]),
       {...base});
     expect(s.status).to.eq('rules');
     expect(s.activatable).to.eq(false);

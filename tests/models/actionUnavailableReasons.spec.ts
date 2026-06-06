@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
+import {Resource} from '../../src/common/Resource';
 import {actionUnavailableReasons} from '../../src/server/models/actionUnavailableReasons';
 import {AICentral} from '../../src/server/cards/base/AICentral';
 import {Ants} from '../../src/server/cards/base/Ants';
@@ -52,7 +53,7 @@ describe('actionUnavailableReasons', () => {
     const [/* game */, player] = testGame(2);
     player.energy = 0;
     const reasons = actionUnavailableReasons(player, new PowerInfrastructure());
-    const energy = reasons.find((r) => r.type === 'resource' && r.resource === 'energy');
+    const energy = reasons.find((r) => r.type === 'resource' && r.resource === Resource.ENERGY);
     expect(energy, 'expected an energy reason').is.not.undefined;
   });
 
