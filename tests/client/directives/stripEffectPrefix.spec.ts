@@ -27,6 +27,12 @@ describe('stripEffectPrefix directive', () => {
     expect(strip('(<span>Эффект: когда вы играете.</span>)')).to.eq('(Когда вы играете.)');
   });
 
+  it('strips the label after a leading "(" in a single text node (Neptunian plainText)', () => {
+    // `plainText('(Effect: …)')` is ONE text node beginning with "(Effect: ".
+    expect(strip('(Effect: when any ocean is placed, gain energy.)')).to.eq('(When any ocean is placed, gain energy.)');
+    expect(strip('(Эффект: когда выложен океан, получите энергию.)')).to.eq('(Когда выложен океан, получите энергию.)');
+  });
+
   it('leaves text without the label untouched', () => {
     expect(strip('When you play a card, gain 1 M€.')).to.eq('When you play a card, gain 1 M€.');
   });

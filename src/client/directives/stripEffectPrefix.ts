@@ -19,16 +19,34 @@ import {ObjectDirective} from 'vue';
 // Known localized variants of the DSL's baked-in 'Effect: ' prefix.
 const PREFIXES = ['Effect: ', 'Эффект: '];
 
+// Strip the label from the START of a text node, OR right after a leading "(" —
+// some cards wrap the whole effect text in parentheses (e.g. Neptunian Power
+// Consultants' `plainText('(Effect: …)')`, where "(" + label live in ONE text
+// node), whereas a `CardDescription` keeps "(" in a separate node so its inner
+// text starts with the label directly. Both are handled; the next letter is
+// uppercased and the wrapping "(" preserved.
+function stripPrefix(data: string): string {
+  for (const prefix of PREFIXES) {
+    if (data.startsWith(prefix)) {
+      const rest = data.slice(prefix.length);
+      return rest.charAt(0).toUpperCase() + rest.slice(1);
+    }
+    const wrapped = '(' + prefix;
+    if (data.startsWith(wrapped)) {
+      const rest = data.slice(wrapped.length);
+      return '(' + rest.charAt(0).toUpperCase() + rest.slice(1);
+    }
+  }
+  return data;
+}
+
 function stripNode(node: Node): void {
   for (const child of Array.from(node.childNodes)) {
     if (child.nodeType === Node.TEXT_NODE) {
       const text = child as Text;
-      for (const prefix of PREFIXES) {
-        if (text.data.startsWith(prefix)) {
-          const rest = text.data.slice(prefix.length);
-          text.data = rest.charAt(0).toUpperCase() + rest.slice(1);
-          break;
-        }
+      const stripped = stripPrefix(text.data);
+      if (stripped !== text.data) {
+        text.data = stripped;
       }
     } else {
       stripNode(child);
