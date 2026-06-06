@@ -52,12 +52,15 @@
           </div>
           <div class="start-game-flow__header-side">
             <div class="start-game-flow__progress">
-              <span v-if="preludeTotal > 0" class="start-game-flow__chip" :class="'start-game-flow__chip--' + preludeChipState">
+              <span v-if="preludeTotal > 0"
+                    class="start-game-flow__chip start-game-flow__chip--prelude"
+                    :class="'start-game-flow__chip--' + preludeChipState">
                 <span class="start-game-flow__chip-dot"></span>
                 <span class="start-game-flow__chip-label" v-i18n>Preludes</span>
                 <span class="start-game-flow__chip-value">{{ preludePlayedCount }} / {{ preludeTotal }}</span>
               </span>
-              <span class="start-game-flow__chip" :class="'start-game-flow__chip--' + corpStatus">
+              <span class="start-game-flow__chip start-game-flow__chip--corp"
+                    :class="'start-game-flow__chip--' + corpStatus">
                 <span class="start-game-flow__chip-dot"></span>
                 <span class="start-game-flow__chip-label" v-i18n>Corporation</span>
                 <span class="start-game-flow__chip-value" v-i18n>{{ corpStatusLabel }}</span>
@@ -516,6 +519,7 @@ export default defineComponent({
         '--sgf-main-gap-y': budget.mainGapY + 'px',
         '--sgf-corp-column-w': budget.corporationColumnWidth + 'px',
         '--sgf-prelude-column-w': budget.preludeColumnWidth + 'px',
+        '--sgf-modal-offset-y': budget.modalOffsetY + 'px',
       };
     },
     layoutBudget(): StartGameFlowLayoutBudget {
@@ -523,6 +527,7 @@ export default defineComponent({
         preludeCount: this.preludes.length,
         corporationCount: this.corpCards.length,
         mergerReserveActive: this.mergerReserveActive,
+        extraCardReserveActive: this.extraCardReserveActive,
         corporationSelectCount: this.corpSelectCandidates.length,
         drawCandidateCount: this.drawCandidates.length,
         resolvedDrawCounts: this.resolvedDrawChoices.map((rec) => rec.candidates.length),
@@ -619,6 +624,14 @@ export default defineComponent({
       return this.corpCards.length > 1 ||
         this.corpSelectCandidates.length > 0 ||
         this.preludes.some((entry) => entry.name === CardName.MERGER);
+    },
+    extraCardReserveActive(): boolean {
+      return this.preludes.some((entry) =>
+        entry.name === CardName.MERGER ||
+        entry.name === CardName.NEW_PARTNER ||
+        entry.name === CardName.VALLEY_TRUST ||
+        entry.name === CardName.DOUBLE_DOWN,
+      );
     },
     preludes(): ReadonlyArray<PreludeEntry> {
       const view = this.playerViewTyped;
