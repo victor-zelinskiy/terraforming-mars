@@ -685,6 +685,7 @@ import HandCardPaymentContent from '@/client/components/handCards/HandCardPaymen
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {placementLockState} from '@/client/components/placementLockState';
+import {startGameFlowActive, startGameFlowAllDone} from '@/client/components/startGameFlow/startGameFlowState';
 import StandardProjectPaymentContent from '@/client/components/payment/StandardProjectPaymentContent.vue';
 import PassConfirmContent from '@/client/components/overview/PassConfirmContent.vue';
 import ColoniesOverlay from '@/client/components/colonies/ColoniesOverlay.vue';
@@ -857,6 +858,7 @@ const PLACEMENT_LOCKED_SELECTORS = [
 ].join(', ');
 
 const PLACEMENT_ORIG_TITLE_ATTR = 'data-placement-orig-title';
+const ACTION_LOCK_ORIG_HINT_ATTR = 'data-action-lock-orig-hint';
 
 export default defineComponent({
   name: 'player-home',
@@ -1086,11 +1088,26 @@ export default defineComponent({
       handler(active: boolean) {
         if (active) {
           document.body.classList.add('placement-pending');
-          this.installPlacementGuards();
         } else {
           document.body.classList.remove('placement-pending');
-          this.uninstallPlacementGuards();
         }
+        this.syncActionLockGuards();
+      },
+    },
+    startGameFlowAwaitingBegin: {
+      immediate: true,
+      handler(active: boolean) {
+        if (active) {
+          document.body.classList.add('start-game-flow-action-locked');
+        } else {
+          document.body.classList.remove('start-game-flow-action-locked');
+        }
+      },
+    },
+    actionUiLocked: {
+      immediate: true,
+      handler() {
+        this.syncActionLockGuards();
       },
     },
   },
@@ -1108,6 +1125,7 @@ export default defineComponent({
      */
     this.uninstallPlacementGuards();
     document.body.classList.remove('placement-pending');
+    document.body.classList.remove('start-game-flow-action-locked');
   },
   props: {
     playerView: {
@@ -1636,6 +1654,19 @@ export default defineComponent({
       }
       return false;
     },
+    /*
+     * Start-game flow has resolved every required startup effect, but the
+     * player has not pressed the final "Begin the game" CTA yet. While this is
+     * true the modal may be minimized, but regular game actions must remain
+     * locked so the player cannot Pass / claim / fund / play / trade before
+     * explicitly completing the startup surface.
+     */
+    startGameFlowAwaitingBegin(): boolean {
+      return startGameFlowActive(this.playerView) && startGameFlowAllDone(this.playerView);
+    },
+    actionUiLocked(): boolean {
+      return this.placementPending || this.startGameFlowAwaitingBegin;
+    },
     // The current SelectStandardProjectToPlay model in the action menu, or
     // undefined if the player isn't currently being offered standard
     // projects. Exposed to the overlay so each project's "USE" button can
@@ -2119,6 +2150,7 @@ export default defineComponent({
     // ВЫПОЛНИТЬ in the Actions overlay → open the confirmation gate. Nothing is
     // submitted yet; the source card + action summary are shown first.
     onActivateCardAction(cardName: CardName): void {
+      if (this.startGameFlowAwaitingBegin) return;
       this.pendingCardAction = {cardName};
       this.activeOverlay = null; // close the overlay behind the modal
     },
@@ -2138,6 +2170,7 @@ export default defineComponent({
     // sends when the player picks the action menu → "Perform an action from a
     // played card" → <card>. Byte-identical; routes through WaitingFor.onsave.
     submitCardAction(cardName: CardName): void {
+      if (this.startGameFlowAwaitingBegin) return;
       const action = this.findPerformActionCard(this.playerView.waitingFor);
       if (!action) {
         console.warn('Activate action: SelectCard not found in waitingFor tree');
@@ -2368,6 +2401,7 @@ export default defineComponent({
       found: {options: Array<PlayerInputModel>; path: ReadonlyArray<number>},
       targetTitle: string,
     ): boolean {
+      if (this.startGameFlowAwaitingBegin) return false;
       const innerIdx = found.options.findIndex(
         (o) => o.type === 'option' && inputTitleText((o as SelectOptionModel).title) === targetTitle);
       if (innerIdx === -1) return false;
@@ -2390,6 +2424,7 @@ export default defineComponent({
     // form uses (WaitingFor.onsave → POST /api/player-input). Bypasses the
     // wf-action radio UI but the server can't tell the difference.
     claimMilestone(name: MilestoneName): void {
+      if (this.startGameFlowAwaitingBegin) return;
       const found = this.findMilestoneOptionPath(this.playerView.waitingFor);
       if (!found) return;
       if (this.submitInnerActionResponse(found, name)) {
@@ -2397,6 +2432,7 @@ export default defineComponent({
       }
     },
     fundAward(name: AwardName): void {
+      if (this.startGameFlowAwaitingBegin) return;
       const found = this.findAwardOptionPath(this.playerView.waitingFor);
       if (!found) return;
       if (this.submitInnerActionResponse(found, name)) {
@@ -2413,6 +2449,7 @@ export default defineComponent({
     // successful submission, false if the path is empty or the WaitingFor
     // ref is missing.
     submitActionOptionPath(path: ReadonlyArray<number>): boolean {
+      if (this.startGameFlowAwaitingBegin) return false;
       if (path.length === 0) return false;
       let response: unknown = {type: 'option' as const};
       for (let i = path.length - 1; i >= 0; i--) {
@@ -2452,6 +2489,7 @@ export default defineComponent({
     // temperature step. Builds a nested OR-response that mirrors the depth
     // of the path returned by the recursive finder.
     convertHeat(): void {
+      if (this.startGameFlowAwaitingBegin) return;
       const found = this.findConvertHeatOption(this.playerView.waitingFor);
       if (!found || found.path.length === 0) {
         if (this.thisPlayer.canConvertHeat) {
@@ -2474,6 +2512,7 @@ export default defineComponent({
     // valid greenery space, `onConvertPlantsSpacePicked` wraps the space
     // response in the outer OR-payload and submits.
     toggleConvertPlantsPicker(): void {
+      if (this.startGameFlowAwaitingBegin) return;
       this.convertPlantsPickerActive = !this.convertPlantsPickerActive;
     },
     /*
@@ -2526,10 +2565,7 @@ export default defineComponent({
         if (target === null) return;
         const locked = target.closest(PLACEMENT_LOCKED_SELECTORS);
         if (locked === null) return;
-        if (locked.hasAttribute(PLACEMENT_ORIG_TITLE_ATTR)) return;
-        const orig = locked.getAttribute('title') ?? '';
-        locked.setAttribute(PLACEMENT_ORIG_TITLE_ATTR, orig);
-        locked.setAttribute('title', tooltipText);
+        this.applyActionLockTooltip(locked, tooltipText);
       };
       document.addEventListener('mouseover', mouseover, true);
       this.placementMouseOverHandler = mouseover;
@@ -2537,11 +2573,27 @@ export default defineComponent({
       /* Eager pass — set titles on every match currently in the DOM
        * so the first hover doesn't race with the OS tooltip delay. */
       document.querySelectorAll(PLACEMENT_LOCKED_SELECTORS).forEach((el) => {
-        if (el.hasAttribute(PLACEMENT_ORIG_TITLE_ATTR)) return;
+        this.applyActionLockTooltip(el, tooltipText);
+      });
+    },
+    applyActionLockTooltip(el: Element, tooltipText: string): void {
+      if (!el.hasAttribute(PLACEMENT_ORIG_TITLE_ATTR)) {
         const orig = el.getAttribute('title') ?? '';
         el.setAttribute(PLACEMENT_ORIG_TITLE_ATTR, orig);
         el.setAttribute('title', tooltipText);
-      });
+      }
+      if (!el.hasAttribute(ACTION_LOCK_ORIG_HINT_ATTR)) {
+        const orig = el.getAttribute('data-hint') ?? '';
+        el.setAttribute(ACTION_LOCK_ORIG_HINT_ATTR, orig);
+        el.setAttribute('data-hint', tooltipText);
+      }
+    },
+    syncActionLockGuards(): void {
+      if (this.actionUiLocked) {
+        this.installPlacementGuards();
+      } else {
+        this.uninstallPlacementGuards();
+      }
     },
     uninstallPlacementGuards(): void {
       if (this.placementClickGuard !== null) {
@@ -2564,8 +2616,18 @@ export default defineComponent({
         }
         el.removeAttribute(PLACEMENT_ORIG_TITLE_ATTR);
       });
+      document.querySelectorAll('[' + ACTION_LOCK_ORIG_HINT_ATTR + ']').forEach((el) => {
+        const orig = el.getAttribute(ACTION_LOCK_ORIG_HINT_ATTR) ?? '';
+        if (orig === '') {
+          el.removeAttribute('data-hint');
+        } else {
+          el.setAttribute('data-hint', orig);
+        }
+        el.removeAttribute(ACTION_LOCK_ORIG_HINT_ATTR);
+      });
     },
     onConvertPlantsSpacePicked(spaceResponse: {type: 'space'; spaceId: string}): void {
+      if (this.startGameFlowAwaitingBegin) return;
       const found = this.findConvertPlantsOption(this.playerView.waitingFor);
       if (!found || found.path.length === 0) {
         if (this.thisPlayer.canConvertPlants) {
@@ -2590,6 +2652,7 @@ export default defineComponent({
     // accepts AND owns any of it, open the client-side payment-preview
     // modal so they can dial in the mix before submitting.
     onUseStandardProject(cardName: CardName): void {
+      if (this.startGameFlowAwaitingBegin) return;
       const action = this.standardProjectsAction;
       if (!action) return;
       const card = action.input.cards.find((c) => c.name === cardName);
@@ -2681,6 +2744,7 @@ export default defineComponent({
       return false;
     },
     onStdProjectPaymentConfirm(payment: Payment): void {
+      if (this.startGameFlowAwaitingBegin) return;
       if (this.pendingStdProjectPayment === undefined) return;
       this.submitStandardProjectPayment(this.pendingStdProjectPayment.cardName, payment);
       this.pendingStdProjectPayment = undefined;
@@ -2699,6 +2763,7 @@ export default defineComponent({
     submitStandardProjectPayment(cardName: CardName, payment: Payment): void {
       // Action-menu standard project (non-empty path → nested OR) OR a top-level
       // SelectStandardProjectToPlay (EMPTY path → bare projectCard response).
+      if (this.startGameFlowAwaitingBegin) return;
       const action = this.standardProjectsAction;
       if (!action) {
         console.warn('Standard project: action not found in waitingFor tree');
@@ -2720,6 +2785,7 @@ export default defineComponent({
     // overlay in sale mode and let the player pick cards there. The action is
     // re-validated; nothing is sent until they press ПРОДАТЬ.
     onEnterSellPatents(): void {
+      if (this.startGameFlowAwaitingBegin) return;
       if (!this.sellPatentsActionAvailable) {
         return;
       }
@@ -2736,6 +2802,7 @@ export default defineComponent({
     // overlay already flagged `sellPatentsState.submitting`, so the post-
     // response remount drops sale mode automatically.
     onSellPatents(cards: ReadonlyArray<CardName>): void {
+      if (this.startGameFlowAwaitingBegin) return;
       const action = this.findSellPatentsAction(this.playerView.waitingFor);
       if (!action || action.path.length === 0) {
         // Action vanished (turn ended between select and submit) — abort the
@@ -2810,6 +2877,7 @@ export default defineComponent({
     // payment widget does the rest). No server round-trip yet — the modal
     // builds the payment locally; nothing is committed until Confirm.
     onPlayHandCard(cardName: CardName): void {
+      if (this.startGameFlowAwaitingBegin) return;
       // Generalized: matches the action-menu "Play project card" OR a top-level
       // "play a card from hand" projectCard prompt (empty path).
       const action = this.playProjectCardAction;
@@ -2836,6 +2904,7 @@ export default defineComponent({
       this.activeOverlay = null; // close the hand overlay behind the modal
     },
     onPlayCardConfirm(response: SelectProjectCardToPlayResponse): void {
+      if (this.startGameFlowAwaitingBegin) return;
       if (this.pendingPlayCard === undefined) {
         return;
       }
@@ -2856,6 +2925,7 @@ export default defineComponent({
       // Generalized: action-menu play (non-empty path → wrap in nested OR) OR a
       // top-level "play a card from hand" prompt (EMPTY path → submit the bare
       // projectCard response).
+      if (this.startGameFlowAwaitingBegin) return;
       const action = this.playProjectCardAction;
       if (!action) {
         console.warn('Play card: action not found in waitingFor tree');
@@ -2894,6 +2964,7 @@ export default defineComponent({
     // one-shot top-level SelectColony submission; trade mode needs a
     // second step (pay-trade-fee chooser) before we can submit.
     onColonySelected(colonyName: ColonyName): void {
+      if (this.startGameFlowAwaitingBegin) return;
       if (this.coloniesOverlayMode === 'build') {
         this.submitBuildColony(colonyName);
         return;
@@ -2917,6 +2988,7 @@ export default defineComponent({
     // by findBuildColonyContext is wrapped into OR layers; the innermost
     // payload is the actual `{type: 'colony', colonyName}` response.
     submitBuildColony(colonyName: ColonyName): void {
+      if (this.startGameFlowAwaitingBegin) return;
       const ctx = this.buildColonyContext;
       if (!ctx) return;
       let response: unknown = {type: 'colony' as const, colonyName};
@@ -2930,6 +3002,7 @@ export default defineComponent({
       this.coloniesOverlayManualOpen = false;
     },
     onColonyTradePaymentSelected(paymentIdx: number): void {
+      if (this.startGameFlowAwaitingBegin) return;
       if (this.pendingTradeColony === undefined) return;
       this.submitTradeColony(this.pendingTradeColony.colonyName, paymentIdx);
     },
@@ -2950,6 +3023,7 @@ export default defineComponent({
     // where wrap() applies one OR layer per index in tradePath, innermost
     // first (matching every other findXPath → submit pattern in this file).
     submitTradeColony(colonyName: ColonyName, paymentIdx: number): void {
+      if (this.startGameFlowAwaitingBegin) return;
       const ctx = this.tradeColonyContext;
       if (!ctx) return;
       const andResponse = {
