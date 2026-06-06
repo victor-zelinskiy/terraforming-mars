@@ -37,14 +37,14 @@
            @click="onClick"
            @keydown.enter="onClick"
            :data-test="'effect-item-' + eff.key">
-        <div v-if="eff.effectNode !== undefined" class="effect-item__render card-container" v-i18n>
+        <div v-if="eff.effectNode !== undefined" class="effect-item__render card-container" v-i18n v-strip-effect-prefix>
           <CardRenderEffectBoxComponent :effectData="eff.effectNode" />
         </div>
-        <div v-else-if="eff.renderRoot !== undefined" class="effect-item__render card-container" v-i18n>
+        <div v-else-if="eff.renderRoot !== undefined" class="effect-item__render card-container" v-i18n v-strip-effect-prefix>
           <CardRenderData :renderData="eff.renderRoot" />
           <div v-if="eff.text" class="effect-item__desc">(<span v-i18n>{{ eff.text }}</span>)</div>
         </div>
-        <div v-else class="effect-item__text" v-i18n>{{ eff.text }}</div>
+        <div v-else class="effect-item__text" v-i18n v-strip-effect-prefix>{{ eff.text }}</div>
       </div>
     </div>
   </div>
@@ -56,10 +56,12 @@ import {CardName} from '@/common/cards/CardName';
 import {EffectGroup} from '@/client/components/effects/effectExtraction';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
+import {stripEffectPrefix} from '@/client/directives/stripEffectPrefix';
 
 export default defineComponent({
   name: 'EffectBlock',
   components: {CardRenderEffectBoxComponent, CardRenderData},
+  directives: {stripEffectPrefix},
   props: {
     group: {
       type: Object as PropType<EffectGroup>,

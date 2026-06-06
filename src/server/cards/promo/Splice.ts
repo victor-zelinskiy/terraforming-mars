@@ -33,12 +33,17 @@ export class Splice extends CorporationCard implements ICorporationCard {
           b.megacredits(44).nbsp.cards(1, {secondaryTag: Tag.MICROBE});
           b.corpBox('effect', (ce) => {
             ce.vSpace(Size.LARGE);
-            ce.effect(undefined, (eb) => {
+            // Split into two described blocks (one per effect) for readability,
+            // mirroring Carbon Nanosystems — each effect carries its own text.
+            // The owner's 2 M€ is unconditional per microbe tag of ANY player, so
+            // when the owner plays the tag they are also "THAT PLAYER" → 4 M€ total
+            // (or 2 M€ + a microbe). The texts make that overlap explicit.
+            ce.effect('When ANY player (incl. you) plays a microbe tag, THAT PLAYER gains 2 M€ or adds a microbe to THAT card.', (eb) => {
               eb.tag(Tag.MICROBE, {all}).startEffect;
               eb.megacredits(2, {all}).or().resource(CardResource.MICROBE, {all}).asterix();
             });
             ce.vSpace();
-            ce.effect('when a microbe tag is played, incl. this, THAT PLAYER gains 2 M€, or adds a microbe to THAT card, and you gain 2 M€.', (eb) => {
+            ce.effect('You ALSO gain 2 M€ — so your own microbe tag gives you 4 M€ (or 2 M€ and a microbe).', (eb) => {
               eb.tag(Tag.MICROBE, {all}).startEffect;
               eb.megacredits(2);
             });
