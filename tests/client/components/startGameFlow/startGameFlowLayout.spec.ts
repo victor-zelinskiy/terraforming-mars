@@ -7,6 +7,7 @@ describe('startGameFlowLayoutBudget', () => {
       preludeCount: 2,
       corporationCount: 1,
       mergerReserveActive: false,
+      extraCardReserveActive: false,
       corporationSelectCount: 0,
       drawCandidateCount: 0,
       resolvedDrawCounts: [],
@@ -22,6 +23,7 @@ describe('startGameFlowLayoutBudget', () => {
     expect(budget.headerStatusWidth).to.be.greaterThan(0);
     expect(budget.headerStatusHeight).to.be.greaterThan(0);
     expect(budget.bodyMinHeight).to.be.greaterThan(140);
+    expect(budget.modalOffsetY).to.eq(0);
   });
 
   it('reserves space for Merger corporation candidates', () => {
@@ -29,6 +31,7 @@ describe('startGameFlowLayoutBudget', () => {
       preludeCount: 2,
       corporationCount: 1,
       mergerReserveActive: false,
+      extraCardReserveActive: false,
       corporationSelectCount: 0,
       drawCandidateCount: 0,
       resolvedDrawCounts: [],
@@ -42,6 +45,7 @@ describe('startGameFlowLayoutBudget', () => {
       preludeCount: 2,
       corporationCount: 1,
       mergerReserveActive: true,
+      extraCardReserveActive: true,
       corporationSelectCount: 4,
       drawCandidateCount: 0,
       resolvedDrawCounts: [],
@@ -54,6 +58,45 @@ describe('startGameFlowLayoutBudget', () => {
 
     expect(merger.bodyMinHeight).to.be.greaterThan(base.bodyMinHeight);
     expect(merger.windowWidth).to.be.at.least(base.windowWidth);
+    expect(merger.modalOffsetY).to.be.lessThan(0);
+  });
+
+  it('moves the modal upward when Merger can add a corporation later', () => {
+    const budget = startGameFlowLayoutBudget({
+      preludeCount: 2,
+      corporationCount: 1,
+      mergerReserveActive: true,
+      extraCardReserveActive: true,
+      corporationSelectCount: 0,
+      drawCandidateCount: 0,
+      resolvedDrawCounts: [],
+      copyCandidateCount: 0,
+      waiting: false,
+      allDone: false,
+      viewportWidth: 1440,
+      viewportHeight: 900,
+    });
+
+    expect(budget.modalOffsetY).to.be.lessThan(0);
+  });
+
+  it('moves the modal upward when a prelude can open an extra card block later', () => {
+    const budget = startGameFlowLayoutBudget({
+      preludeCount: 2,
+      corporationCount: 1,
+      mergerReserveActive: false,
+      extraCardReserveActive: true,
+      corporationSelectCount: 0,
+      drawCandidateCount: 0,
+      resolvedDrawCounts: [],
+      copyCandidateCount: 0,
+      waiting: false,
+      allDone: false,
+      viewportWidth: 1440,
+      viewportHeight: 900,
+    });
+
+    expect(budget.modalOffsetY).to.be.lessThan(0);
   });
 
   it('reserves space for drew-N prelude candidates and resolved draw rows', () => {
@@ -61,6 +104,7 @@ describe('startGameFlowLayoutBudget', () => {
       preludeCount: 1,
       corporationCount: 1,
       mergerReserveActive: false,
+      extraCardReserveActive: true,
       corporationSelectCount: 0,
       drawCandidateCount: 3,
       resolvedDrawCounts: [],
@@ -74,6 +118,7 @@ describe('startGameFlowLayoutBudget', () => {
       preludeCount: 1,
       corporationCount: 1,
       mergerReserveActive: false,
+      extraCardReserveActive: true,
       corporationSelectCount: 0,
       drawCandidateCount: 0,
       resolvedDrawCounts: [3],
@@ -87,5 +132,7 @@ describe('startGameFlowLayoutBudget', () => {
     expect(activeDraw.bodyMinHeight).to.be.greaterThan(300);
     expect(resolvedDraw.bodyMinHeight).to.be.greaterThan(300);
     expect(resolvedDraw.windowWidth).to.eq(activeDraw.windowWidth);
+    expect(activeDraw.modalOffsetY).to.be.lessThan(0);
+    expect(resolvedDraw.modalOffsetY).to.be.lessThan(0);
   });
 });

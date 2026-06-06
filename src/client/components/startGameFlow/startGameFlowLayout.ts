@@ -12,6 +12,7 @@ export type StartGameFlowLayoutInput = {
   preludeCount: number;
   corporationCount: number;
   mergerReserveActive: boolean;
+  extraCardReserveActive: boolean;
   corporationSelectCount: number;
   drawCandidateCount: number;
   resolvedDrawCounts: ReadonlyArray<number>;
@@ -36,6 +37,7 @@ export type StartGameFlowLayoutBudget = {
   mainGapY: number;
   corporationColumnWidth: number;
   preludeColumnWidth: number;
+  modalOffsetY: number;
 };
 
 const CARD_NATURAL_W = 300;
@@ -144,6 +146,8 @@ export function startGameFlowLayoutBudget(input: StartGameFlowLayoutInput): Star
   const extraH =
     extraSections.reduce((sum, height) => sum + height, 0) +
     Math.max(0, extraSections.length - 1) * SECTION_GAP_H;
+  const hasExtraCards = extraSections.length > 0;
+  const needsExtraCardReserve = hasExtraCards || input.mergerReserveActive || input.extraCardReserveActive;
   const bodyMinHeight = mainRowH + (extraH > 0 ? mainGapY + extraH : 0);
   const corporationColumnWidth = Math.max(sectionWidth(corporationReserveCount, corporationZoom, gridGapX), 260);
   const preludeColumnWidth = Math.max(sectionWidth(input.preludeCount, preludeZoom, gridGapX) + 32, 380);
@@ -188,5 +192,6 @@ export function startGameFlowLayoutBudget(input: StartGameFlowLayoutInput): Star
     mainGapY,
     corporationColumnWidth: Math.ceil(corporationColumnWidth),
     preludeColumnWidth: Math.ceil(preludeColumnWidth),
+    modalOffsetY: needsExtraCardReserve ? -34 : 0,
   };
 }
