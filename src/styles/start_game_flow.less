@@ -60,8 +60,8 @@
     width: min(var(--sgf-window-w, 960px), calc(100vw - 56px));
     min-width: 0;
     max-width: 1240px;
-    min-height: min(var(--sgf-window-min-h, 680px), calc(100vh - 84px));
-    max-height: calc(100vh - 84px);
+    min-height: min(var(--sgf-window-min-h, 680px), calc(100vh - 96px));
+    max-height: calc(100vh - 96px);
     height: auto;
     display: flex;
     flex-direction: column;
@@ -118,11 +118,11 @@
 
 .start-game-flow__minimize-btn {
     position: absolute;
-    top: 12px;
-    right: 14px;
-    z-index: 3;
-    height: 26px;
-    padding: 0 14px 0 16px;
+    top: -34px;
+    right: 10px;
+    z-index: 4;
+    height: 30px;
+    padding: 0 16px 0 18px;
     border: none;
     color: #e8f1fb;
     cursor: pointer;
@@ -133,13 +133,16 @@
     text-transform: uppercase;
     line-height: 1;
     white-space: nowrap;
-    background: linear-gradient(180deg,
-        rgba(160, 200, 230, 0.7) 0%,
-        rgba(80, 120, 160, 0.22) 50%,
-        rgba(130, 170, 210, 0.55) 100%);
-    clip-path: polygon(8% 0%, 100% 0%, 100% 100%, 0% 100%);
+    background:
+        linear-gradient(180deg, rgba(160, 205, 240, 0.72), rgba(80, 120, 160, 0.18) 56%, rgba(130, 170, 210, 0.5)),
+        linear-gradient(90deg, rgba(127, 212, 255, 0.2), rgba(127, 212, 255, 0));
+    clip-path: polygon(9% 0%, 100% 0%, 96% 100%, 0% 100%);
     isolation: isolate;
-    transition: filter 150ms ease, transform 150ms ease;
+    box-shadow:
+        0 0 0 1px rgba(106, 176, 230, 0.28),
+        0 8px 22px rgba(0, 0, 0, 0.38),
+        0 0 24px rgba(106, 176, 230, 0.12);
+    transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -148,13 +151,19 @@
         content: '';
         position: absolute;
         inset: 1.5px;
-        clip-path: polygon(8% 0%, 100% 0%, 100% 100%, 0% 100%);
-        background: linear-gradient(180deg, rgba(14, 26, 42, 0.95) 0%, rgba(6, 14, 22, 0.95) 100%);
+        clip-path: polygon(9% 0%, 100% 0%, 96% 100%, 0% 100%);
+        background:
+            radial-gradient(100% 100% at 30% 0%, rgba(127, 212, 255, 0.12), rgba(127, 212, 255, 0) 56%),
+            linear-gradient(180deg, rgba(14, 26, 42, 0.98) 0%, rgba(6, 14, 22, 0.98) 100%);
         z-index: -1;
     }
     &:hover {
         filter: brightness(1.12);
-        transform: translateY(-1px);
+        transform: translateY(-2px);
+        box-shadow:
+            0 0 0 1px rgba(127, 212, 255, 0.42),
+            0 10px 26px rgba(0, 0, 0, 0.42),
+            0 0 30px rgba(106, 176, 230, 0.18);
     }
 }
 .start-game-flow__minimize-glyph {
@@ -172,7 +181,6 @@
     align-items: flex-start;
     gap: 22px;
     margin-bottom: 18px;
-    padding-right: 170px;
     padding-bottom: 12px;
 
     /* Noble divider — a left-weighted accent line, not a flat hairline. */
@@ -1113,9 +1121,10 @@
     }
 
     .start-game-flow__minimize-btn {
-        top: 10px;
-        right: 12px;
-        height: 24px;
+        top: -30px;
+        right: 8px;
+        height: 26px;
+        padding: 0 14px 0 16px;
     }
 
     .start-game-flow__header {
@@ -1123,7 +1132,6 @@
         gap: 14px;
         margin-bottom: 10px;
         padding-bottom: 8px;
-        padding-right: 150px;
     }
 
     .start-game-flow__title {
@@ -1222,7 +1230,6 @@
         grid-template-columns: minmax(250px, 1fr) minmax(380px, auto);
         margin-bottom: 8px;
         padding-bottom: 7px;
-        padding-right: 132px;
     }
 
     .start-game-flow__title {
