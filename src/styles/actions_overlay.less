@@ -15,7 +15,7 @@
     bottom: calc(var(--bottom-bar-button-height) + 8px);
     left: 50%;
     transform: translateX(-50%);
-    width: var(--actions-overlay-width, 760px);
+    width: var(--actions-overlay-width, 600px);
     max-width: calc(100vw - 96px);
     max-height: calc(100vh - 2 * var(--bottom-bar-button-height) - 24px);
     display: flex;
@@ -58,16 +58,16 @@
 
 .actions-board__header {
     flex-shrink: 0;
-    padding: 14px 18px 12px;
+    padding: 11px 16px 9px;
     border-bottom: 1px solid rgba(106, 176, 230, 0.18);
     display: flex;
     flex-direction: column;
-    gap: 11px;
+    gap: 8px;
 }
 .actions-board__title-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 .actions-board__glyph {
     width: 9px;
@@ -80,9 +80,9 @@
 }
 .actions-board__title {
     margin: 0;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
-    letter-spacing: 3px;
+    letter-spacing: 2.4px;
     text-transform: uppercase;
     color: #eaf3fc;
     text-shadow: 0 0 12px rgba(106, 176, 230, 0.25);
@@ -91,35 +91,36 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 26px;
-    height: 24px;
-    padding: 0 8px;
-    border-radius: 6px;
+    min-width: 21px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 5px;
     border: 1px solid rgba(106, 176, 230, 0.4);
     background: rgba(8, 14, 22, 0.6);
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 700;
     color: #9ee0ff;
     font-variant-numeric: tabular-nums;
 }
-/* "Available: N" HUD chip — mint + pulse when the player can still act. */
+/* "Can activate: N" HUD chip — slim single line, mint + pulse when > 0. */
 .actions-board__ready {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 4px 11px;
+    gap: 6px;
+    padding: 3px 9px;
     border-radius: 999px;
     border: 1px solid rgba(120, 230, 180, 0.4);
     background: rgba(20, 44, 36, 0.5);
     color: #9ef0c8;
-    font-size: 11px;
+    font-size: 9.5px;
     font-weight: 700;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.4px;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 .actions-board__ready-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: #58d6a6;
     box-shadow: 0 0 8px rgba(88, 214, 166, 0.85);
@@ -153,18 +154,18 @@
 .actions-board__player {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
     margin-left: 2px;
-    padding: 4px 12px 4px 8px;
+    padding: 3px 10px 3px 7px;
     border-radius: 999px;
     background: rgba(16, 26, 40, 0.55);
     box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.2);
     color: #cfe0f2;
-    font-size: 12px;
+    font-size: 10.5px;
 }
 .actions-board__player-dot {
-    width: 11px;
-    height: 11px;
+    width: 10px;
+    height: 10px;
     border-radius: 3px;
     flex-shrink: 0;
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
@@ -177,43 +178,53 @@
     color: #f0d28a;
 }
 
-/* ─── Filters row ─────────────────────────────────────────────────────── */
+/* ─── Filters — one compact control band (tight, premium, doesn't push the
+       action list down even with only 1–2 actions) ──────────────────────── */
 
 .actions-filters {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 14px;
+    gap: 7px 16px;
 }
 .actions-filters__group {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
 }
 .actions-filters__group-label {
-    font-size: 9.5px;
+    font-size: 8.5px;
     font-weight: 700;
-    letter-spacing: 1.2px;
+    letter-spacing: 1px;
     text-transform: uppercase;
     color: #7f9bb8;
 }
 .actions-filters__segment {
     display: inline-flex;
     border: 1px solid rgba(106, 176, 230, 0.22);
-    border-radius: 7px;
+    border-radius: 6px;
     overflow: hidden;
     background: rgba(16, 26, 40, 0.55);
 }
-.actions-filters__divider {
-    width: 1px;
-    height: 22px;
-    background: rgba(106, 176, 230, 0.18);
+/* Compact segment buttons — override the (taller) shared hand-overlay size so
+   the two filter rows stay slim. Scoped to the actions filter band only. */
+.actions-filters .hand-seg-btn {
+    padding: 4px 9px;
+    font-size: 10px;
+    letter-spacing: 0.3px;
+    gap: 5px;
+}
+.actions-filters .hand-seg-btn__count {
+    font-size: 9px;
+    padding: 1px 4px;
 }
 
 /* ─── Body + adaptive grid ───────────────────────────────────────────── */
 
 .actions-board__body {
-    flex: 1;
+    /* Hug the content height — never grow into dead air below the cards. When
+       the collection is taller than the panel cap, this shrinks + scrolls. */
+    flex: 0 1 auto;
     min-height: 0;
     overflow-y: auto;
     padding: 16px 18px 18px;
@@ -225,32 +236,66 @@
 }
 .actions-board__grid {
     display: grid;
-    grid-template-columns: repeat(var(--actions-cols, 1), minmax(0, 1fr));
+    /* Fixed per-card width (JS-driven by the count) + a centred grid, so 1–2
+       cards fill the width as a tidy dashboard instead of one stretched column. */
+    grid-template-columns: repeat(var(--actions-cols, 1), var(--actions-card-w, minmax(0, 1fr)));
+    justify-content: center;
+    align-content: start;
     gap: 16px;
-    align-items: start;
 }
 
+/* Premium empty / near-empty state. */
 .actions-board__empty {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    padding: 48px 0;
+    gap: 9px;
+    max-width: 380px;
+    margin: 0 auto;
+    padding: 40px 24px;
+    text-align: center;
     color: #7f9bb8;
 }
-.actions-board__empty-glyph { font-size: 40px; opacity: 0.5; }
-.actions-board__empty-text { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; }
+.actions-board__empty-glyph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 62px;
+    height: 62px;
+    margin-bottom: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(106, 176, 230, 0.26);
+    background: rgba(16, 26, 40, 0.5);
+    box-shadow: inset 0 0 18px rgba(106, 176, 230, 0.1);
+    color: #8fc0e4;
+    font-size: 28px;
+}
+.actions-board__empty-text {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: #aac3dc;
+}
+.actions-board__empty-sub {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: #7f9bb8;
+}
 
 /* ─── Action block (a button) ────────────────────────────────────────── */
 
 .action-block {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px 13px 13px;
-    border-radius: 11px;
+    gap: 11px;
+    padding: 14px 15px 15px;
+    border-radius: 12px;
     border: 1px solid rgba(106, 176, 230, 0.22);
-    background: linear-gradient(180deg, rgba(20, 30, 44, 0.92), rgba(12, 20, 32, 0.94));
+    background:
+        radial-gradient(120% 60% at 50% -8%, rgba(127, 212, 255, 0.05), transparent 60%),
+        linear-gradient(180deg, rgba(20, 30, 44, 0.92), rgba(12, 20, 32, 0.94));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 /* AVAILABLE — the actionable state reads as "act now": a calm cyan-mint frame. */
@@ -300,7 +345,7 @@
 .action-block__source {
     flex: 1;
     min-width: 0;
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 700;
     letter-spacing: 0.6px;
     text-transform: uppercase;
@@ -358,14 +403,17 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 8px 6px;
-    border-radius: 8px;
-    background: rgba(8, 14, 22, 0.32);
+    justify-content: center;
+    gap: 9px;
+    min-height: 88px;
+    padding: 12px 8px;
+    border-radius: 9px;
+    background: rgba(8, 14, 22, 0.36);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.07);
     cursor: pointer;
     outline: none;
-    transition: background 0.15s ease;
-    &:hover, &:focus-visible { background: rgba(10, 18, 28, 0.5); }
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+    &:hover, &:focus-visible { background: rgba(10, 18, 28, 0.52); box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.14); }
 }
 .action-block__render-wrap {
     display: flex;
@@ -383,7 +431,7 @@
 .action-block__render.card-container {
     margin: 0;
     width: auto;
-    zoom: 1.2;
+    zoom: 1.3;
     text-align: center;
 
     .card-effect-box {
@@ -514,119 +562,234 @@
 }
 
 /* ─── Confirmation modal (CardActionConfirmContent) ──────────────────── */
+/*
+ * Premium confirm step for activating a blue-card / corporation action. The
+ * hierarchy is deliberate: the ACTION panel is the HERO (largest, brightest,
+ * isolated action graphic = "what you're about to do"); the source card is a
+ * compact, recessed SECONDARY preview ("where it comes from", click to zoom);
+ * the CTA sits in a clearly-separated footer. Shares the fork's dark-glass +
+ * cyan / mint language (Effects / Actions overlays, colony-trade modal). The
+ * accent flips to gold for a corporation action via `--corp`.
+ */
 
 .action-confirm {
+    --ac-accent: #6ab0e6;
+    --ac-accent-bright: #7fd4ff;
+    --ac-accent-soft: rgba(106, 176, 230, 0.5);
+    --ac-accent-glow: rgba(106, 176, 230, 0.1);
     color: #e8f1fb;
     font-family: Prototype, Ubuntu, sans-serif;
 }
+.action-confirm--corp {
+    --ac-accent: #e6c87e;
+    --ac-accent-bright: #f0d28a;
+    --ac-accent-soft: rgba(230, 200, 120, 0.5);
+    --ac-accent-glow: rgba(230, 200, 120, 0.1);
+}
+
 .action-confirm__frame {
     position: relative;
-    padding: 18px 20px 18px;
-    min-width: 420px;
-    max-width: min(640px, calc(100vw - 60px));
+    padding: 20px 22px 18px;
+    min-width: 480px;
+    max-width: min(680px, calc(100vw - 60px));
 }
 .action-confirm__corner {
     position: absolute;
     width: 16px;
     height: 16px;
     pointer-events: none;
-    border-color: #6ab0e6;
+    border-color: var(--ac-accent);
     opacity: 0.7;
-    filter: drop-shadow(0 0 5px rgba(106, 176, 230, 0.35));
+    filter: drop-shadow(0 0 5px var(--ac-accent-soft));
     &--tl { top: -5px; left: -5px;     border-top: 2px solid; border-left: 2px solid; }
     &--tr { top: -5px; right: -5px;    border-top: 2px solid; border-right: 2px solid; }
     &--bl { bottom: -5px; left: -5px;  border-bottom: 2px solid; border-left: 2px solid; }
     &--br { bottom: -5px; right: -5px; border-bottom: 2px solid; border-right: 2px solid; }
 }
+
+/* ── Header: kicker eyebrow + gradient-clip title + sci-fi divider ── */
 .action-confirm__header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(106, 176, 230, 0.18);
+    position: relative;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
 }
-.action-confirm__tab {
-    width: 4px;
-    height: 18px;
-    border-radius: 2px;
-    background: linear-gradient(180deg, #7fd4ff, #4ba8d8);
-    box-shadow: 0 0 8px rgba(127, 212, 255, 0.6);
+.action-confirm__header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--ac-accent-soft) 16%, var(--ac-accent-soft) 84%, transparent);
+    opacity: 0.75;
+}
+.action-confirm__kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 8px;
+}
+.action-confirm__kicker-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ac-accent-bright);
+    box-shadow: 0 0 8px var(--ac-accent-soft);
+}
+.action-confirm__kicker-text {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ac-accent);
 }
 .action-confirm__title {
     margin: 0;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 1.6px;
-    text-transform: uppercase;
-    color: #eaf3fc;
-}
-.action-confirm__body {
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
-}
-.action-confirm__card-col,
-.action-confirm__summary-col {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.action-confirm__summary-col { flex: 1; min-width: 0; }
-.action-confirm__col-label {
-    font-size: 9.5px;
+    font-size: 21px;
     font-weight: 700;
     letter-spacing: 1.4px;
     text-transform: uppercase;
+    line-height: 1.12;
+    background: linear-gradient(92deg, #f2f8ff 0%, #cfe7fb 55%, var(--ac-accent-bright) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ── Body: source (secondary) + action (hero), equal height ── */
+.action-confirm__body {
+    display: flex;
+    gap: 20px;
+    align-items: stretch;
+}
+.action-confirm__source-label,
+.action-confirm__action-kicker {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
     color: #7f9bb8;
 }
+
+/* Source preview — compact, recessed, click to zoom. */
+.action-confirm__source {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
 .action-confirm__card {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    border: none;
+    border-radius: 12px;
     cursor: zoom-in;
     outline: none;
-    border-radius: 8px;
-    transition: filter 0.15s ease, transform 0.15s ease;
-    &:hover, &:focus-visible { filter: drop-shadow(0 0 12px rgba(106, 176, 230, 0.4)); transform: translateY(-1px); }
-    /* Zero the legacy asymmetric card margin so the card sits flush in the column. */
-    > .card-container { margin: 0; }
+    background: linear-gradient(180deg, rgba(13, 21, 33, 0.92), rgba(8, 14, 22, 0.94));
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.14), 0 8px 22px rgba(0, 0, 0, 0.42);
+    transition: box-shadow 0.18s ease, transform 0.18s ease;
+
+    /* Compact secondary: scale the card down + zero its legacy margin. */
+    > .card-container { margin: 0; zoom: 0.62; }
+
+    &:hover, &:focus-visible {
+        transform: translateY(-2px);
+        box-shadow: inset 0 0 0 1px var(--ac-accent-soft), 0 12px 26px rgba(0, 0, 0, 0.5), 0 0 18px var(--ac-accent-glow);
+    }
 }
-.action-confirm__summary {
+.action-confirm__zoom {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #cfe0f2;
+    background: rgba(8, 14, 22, 0.82);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.3);
+    transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.action-confirm__card:hover .action-confirm__zoom,
+.action-confirm__card:focus-visible .action-confirm__zoom {
+    color: #fff;
+    background: rgba(20, 34, 52, 0.92);
+    box-shadow: inset 0 0 0 1px var(--ac-accent), 0 0 10px var(--ac-accent-soft);
+}
+
+/* Action hero panel — the brightest, most prominent element. */
+.action-confirm__action {
+    position: relative;
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: 14px 14px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(106, 176, 230, 0.22);
-    background: linear-gradient(180deg, rgba(20, 30, 44, 0.9), rgba(12, 20, 32, 0.92));
+    padding: 16px 18px 18px 22px;
+    border-radius: 13px;
+    border: 1px solid var(--ac-accent-soft);
+    background:
+        radial-gradient(130% 80% at 50% -12%, rgba(127, 212, 255, 0.12), transparent 62%),
+        linear-gradient(180deg, rgba(23, 35, 52, 0.96), rgba(13, 22, 34, 0.97));
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.1),
+        0 16px 38px rgba(0, 0, 0, 0.5),
+        0 0 26px var(--ac-accent-glow);
+    overflow: hidden;
+    animation: action-confirm-hero-in 340ms cubic-bezier(0.22, 1, 0.36, 1) 70ms both;
 }
-.action-confirm__summary-source {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.action-confirm--corp .action-confirm__action {
+    background:
+        radial-gradient(130% 80% at 50% -12%, rgba(240, 210, 138, 0.12), transparent 62%),
+        linear-gradient(180deg, rgba(36, 30, 18, 0.96), rgba(22, 18, 11, 0.97));
 }
-.action-confirm__summary-accent {
+.action-confirm__action::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 16px;
+    bottom: 16px;
     width: 3px;
-    height: 13px;
-    border-radius: 2px;
-    background: #6ab0e6;
-    box-shadow: 0 0 6px rgba(106, 176, 230, 0.5);
-    &--corp { background: #e6c87e; box-shadow: 0 0 6px rgba(230, 200, 120, 0.5); }
+    border-radius: 0 2px 2px 0;
+    background: linear-gradient(180deg, var(--ac-accent-bright), var(--ac-accent));
+    box-shadow: 0 0 10px var(--ac-accent-soft);
 }
-.action-confirm__summary-name {
-    font-size: 11.5px;
-    font-weight: 700;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    color: #eaf3fc;
+.action-confirm__action-kicker {
+    color: var(--ac-accent);
 }
+.action-confirm__action-graphic {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 104px;
+    padding: 6px 4px 2px;
+}
+
 .action-confirm__render-wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
 }
+/*
+ * The action graphic, scaled up (this is the hero). The icon-fix block mirrors
+ * the overlay's (`.card-container` scope makes the sprites render; light text on
+ * the dark glass; gold plates keep their dark text).
+ */
 .action-confirm__render.card-container {
     margin: 0;
     width: auto;
-    zoom: 1.25;
+    zoom: 1.45;
     text-align: center;
 
     .card-effect-box { display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -639,27 +802,47 @@
     .card-minus, .card-minus--S, .card-plus, .card-plus--small { filter: brightness(0) invert(1); }
     .card-resource-trade-discount { color: #161616; }
 }
-.action-confirm__render-desc { margin-top: 6px; font-size: 11.5px; line-height: 1.4; text-align: center; color: #cdddee; }
-.action-confirm__render-text { font-size: 12px; line-height: 1.4; color: #c9d8ea; text-align: center; }
+.action-confirm__render-desc { margin-top: 6px; font-size: 12px; line-height: 1.4; text-align: center; color: #cdddee; }
+.action-confirm__render-text { font-size: 12.5px; line-height: 1.45; color: #d3e0ee; text-align: center; }
+
+/* ── Footer / CTA — clearly separated bottom level ── */
+.action-confirm__footer {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin-top: 18px;
+    padding-top: 15px;
+}
+.action-confirm__footer::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(106, 176, 230, 0.34) 28%, rgba(106, 176, 230, 0.34) 72%, transparent);
+}
 .action-confirm__hint {
-    margin: 4px 0 0;
-    font-size: 11px;
+    margin: 0;
+    font-size: 11.5px;
     line-height: 1.45;
     color: #8fa9c4;
+    max-width: 320px;
 }
 .action-confirm__actions {
     display: flex;
-    justify-content: flex-end;
     gap: 12px;
-    margin-top: 18px;
+    flex-shrink: 0;
 }
 
-/* Confirm / Cancel — cab-* language. */
+/* Confirm / Cancel — cab-* language; confirm is the dominant CTA. */
 .cab-action-confirm-cancel {
     .cab-base();
     .cab-palette-secondary();
     padding: 10px 22px;
-    font-size: 12.5px;
+    font-size: 12px;
     letter-spacing: 1.4px;
 }
 .cab-action-confirm-go {
@@ -668,15 +851,30 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 26px;
-    font-size: 12.5px;
-    letter-spacing: 1.4px;
+    padding: 12px 32px;
+    font-size: 13px;
+    letter-spacing: 1.6px;
 }
 .cab-action-confirm-go__icon { position: relative; z-index: 2; font-size: 9px; }
 
-@media (max-width: 560px) {
+@keyframes action-confirm-hero-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .action-confirm__action { animation: none; }
+    .action-confirm__card { transition: none; }
+}
+
+@media (max-width: 600px) {
     .action-confirm__frame { min-width: 0; }
-    .action-confirm__body { flex-direction: column; align-items: center; }
+    .action-confirm__body { flex-direction: column; align-items: stretch; }
+    .action-confirm__source { align-items: center; }
+    .action-confirm__card { flex: none; }
+    .action-confirm__footer { flex-direction: column-reverse; align-items: stretch; gap: 12px; }
+    .action-confirm__hint { max-width: none; text-align: center; }
+    .action-confirm__actions { justify-content: flex-end; }
 }
 
 /* ─── Dev playground (?actionsPlayground) — reuses the effects look ───── */

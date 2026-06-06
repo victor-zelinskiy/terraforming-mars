@@ -43,10 +43,12 @@
       <div v-if="entries.length === 0" class="actions-board__empty">
         <span class="actions-board__empty-glyph" aria-hidden="true">⌁</span>
         <span class="actions-board__empty-text" v-i18n>No activatable actions</span>
+        <span class="actions-board__empty-sub" v-i18n>This player has no cards or corporation with an action.</span>
       </div>
       <div v-else-if="filtered.length === 0" class="actions-board__empty">
         <span class="actions-board__empty-glyph" aria-hidden="true">⌁</span>
         <span class="actions-board__empty-text" v-i18n>No actions match the filter</span>
+        <span class="actions-board__empty-sub" v-i18n>Adjust the filters above to see other actions.</span>
       </div>
       <div v-else class="actions-board__grid" ref="grid">
         <ActionBlock v-for="e in filtered"
@@ -95,14 +97,17 @@ import ActionsFilters from '@/client/components/actions/ActionsFilters.vue';
 import CardPreviewPopover from '@/client/components/journal/CardPreviewPopover.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 
-const BLOCK_W = 344;          // target block width (px) — wider than effects (footer button)
-const GAP = 16;
-const SIDE_MARGIN = 120;
-const FIT_MAX_W = 1700;
-const BODY_PAD_X = 36;
-const VIEWPORT_H_RATIO = 0.86;
-const EST_ROW_H = 210;        // taller than effects (header + graphic + footer)
-const HOVER_DELAY = 260;
+const CARD_MIN = 290;         // min comfortable action-card width
+const CARD_IDEAL = 324;       // target width per column
+const CARD_MAX = 430;         // cap so a card never sprawls
+const CARD_HERO_MAX = 540;    // a lone action can be a touch wider (hero)
+const GAP = 16;               // grid gap
+const SIDE_MARGIN = 120;      // viewport breathing room (left + right)
+const FIT_MAX_W = 1640;       // hard cap on panel width
+const BODY_PAD_X = 36;        // .actions-board__body horizontal padding
+const MIN_W = 600;            // floor so the (compact) header never wraps
+const MAX_COLS = 4;           // never spread the grid thinner than this
+const HOVER_DELAY = 260;      // ms before the source-card popover appears
 
 type DataModel = {
   filter: ActionFilterState;
@@ -220,36 +225,44 @@ export default defineComponent({
         }
       }
     },
-    // ─── Adaptive fit (mirrors EffectsOverlay) ─────────────────────────────
-    applyLayout(cols: number, width: number): void {
+    // ─── Adaptive fit ──────────────────────────────────────────────────────
+    //
+    // COUNT-AWARE, measurement-free: the column count + card width + overlay
+    // width are derived purely from the visible-action COUNT and the viewport.
+    // The key adaptivity (vs the effects overlay) is that FEW actions FILL THE
+    // WIDTH with columns rather than stacking into one tall lonely column, so a
+    // 1–2-action overlay reads as a compact premium dashboard. The body hugs its
+    // content height (CSS), so there's never dead air below the cards; a large
+    // collection simply scrolls.
+    applyLayout(cols: number, width: number, cardW: number): void {
       const root = this.$refs.root as HTMLElement | undefined;
       const grid = this.$refs.grid as HTMLElement | undefined;
       root?.style.setProperty('--actions-overlay-width', Math.round(width) + 'px');
       grid?.style.setProperty('--actions-cols', String(cols));
+      grid?.style.setProperty('--actions-card-w', Math.round(cardW) + 'px');
     },
     fit(): void {
-      const grid = this.$refs.grid as HTMLElement | undefined;
       const n = this.filtered.length;
-      const availW = Math.max(360, Math.min(FIT_MAX_W, window.innerWidth - SIDE_MARGIN));
-      if (grid === undefined || n === 0) {
-        this.applyLayout(1, Math.min(availW, BLOCK_W + BODY_PAD_X));
+      const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+      const availW = clamp(window.innerWidth - SIDE_MARGIN, MIN_W, FIT_MAX_W);
+      if (n === 0) {
+        this.applyLayout(1, MIN_W, CARD_IDEAL);
         return;
       }
-      const colsMax = Math.max(1, Math.floor((availW - BODY_PAD_X + GAP) / (BLOCK_W + GAP)));
-      const headerH = (this.$refs.header as HTMLElement | undefined)?.offsetHeight ?? 130;
-      const availBodyH = window.innerHeight * VIEWPORT_H_RATIO - headerH - 28;
-      const rowsFit = Math.max(1, Math.floor(availBodyH / EST_ROW_H));
-      let cols = Math.max(1, Math.min(colsMax, Math.ceil(n / rowsFit)));
-      const widthFor = (c: number): number =>
-        Math.min(availW, c * BLOCK_W + (c - 1) * GAP + BODY_PAD_X);
-      for (let i = 0; i < colsMax; i++) {
-        this.applyLayout(cols, widthFor(cols));
-        void grid.offsetHeight;
-        if (grid.scrollHeight <= availBodyH + 10 || cols >= colsMax) {
-          break;
-        }
-        cols++;
-      }
+      // Columns: spread few cards across the width (1 per card up to MAX_COLS,
+      // capped by how many fit at the min card width).
+      const colsByWidth = Math.max(1, Math.floor((availW - BODY_PAD_X + GAP) / (CARD_MIN + GAP)));
+      const cols = clamp(Math.min(n, colsByWidth), 1, MAX_COLS);
+      // Share a COMFORTABLE width budget among the columns (don't let 1–2 cards
+      // sprawl to the whole viewport); the panel floors at MIN_W for the header.
+      const comfortableW = cols * CARD_IDEAL + (cols - 1) * GAP + BODY_PAD_X;
+      const targetW = Math.min(availW, Math.max(MIN_W, comfortableW));
+      const cardW = clamp(
+        (targetW - BODY_PAD_X - (cols - 1) * GAP) / cols,
+        CARD_MIN,
+        cols === 1 ? CARD_HERO_MAX : CARD_MAX);
+      const width = clamp(cols * cardW + (cols - 1) * GAP + BODY_PAD_X, MIN_W, FIT_MAX_W);
+      this.applyLayout(cols, width, cardW);
     },
     scheduleFit(): void {
       if (this.fitScheduled) {

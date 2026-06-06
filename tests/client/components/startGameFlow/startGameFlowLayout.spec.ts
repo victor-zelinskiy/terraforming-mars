@@ -6,6 +6,7 @@ describe('startGameFlowLayoutBudget', () => {
     const budget = startGameFlowLayoutBudget({
       preludeCount: 2,
       corporationCount: 1,
+      mergerReserveActive: false,
       corporationSelectCount: 0,
       drawCandidateCount: 0,
       resolvedDrawCounts: [],
@@ -18,7 +19,8 @@ describe('startGameFlowLayoutBudget', () => {
 
     expect(budget.windowWidth).to.be.lessThan(1241);
     expect(budget.windowWidth).to.be.greaterThan(719);
-    expect(budget.footerReserveHeight).to.be.greaterThan(0);
+    expect(budget.headerStatusWidth).to.be.greaterThan(0);
+    expect(budget.headerStatusHeight).to.be.greaterThan(0);
     expect(budget.bodyMinHeight).to.be.greaterThan(140);
   });
 
@@ -26,6 +28,7 @@ describe('startGameFlowLayoutBudget', () => {
     const base = startGameFlowLayoutBudget({
       preludeCount: 2,
       corporationCount: 1,
+      mergerReserveActive: false,
       corporationSelectCount: 0,
       drawCandidateCount: 0,
       resolvedDrawCounts: [],
@@ -38,6 +41,7 @@ describe('startGameFlowLayoutBudget', () => {
     const merger = startGameFlowLayoutBudget({
       preludeCount: 2,
       corporationCount: 1,
+      mergerReserveActive: true,
       corporationSelectCount: 4,
       drawCandidateCount: 0,
       resolvedDrawCounts: [],
@@ -56,6 +60,7 @@ describe('startGameFlowLayoutBudget', () => {
     const activeDraw = startGameFlowLayoutBudget({
       preludeCount: 1,
       corporationCount: 1,
+      mergerReserveActive: false,
       corporationSelectCount: 0,
       drawCandidateCount: 3,
       resolvedDrawCounts: [],
@@ -68,6 +73,7 @@ describe('startGameFlowLayoutBudget', () => {
     const resolvedDraw = startGameFlowLayoutBudget({
       preludeCount: 1,
       corporationCount: 1,
+      mergerReserveActive: false,
       corporationSelectCount: 0,
       drawCandidateCount: 0,
       resolvedDrawCounts: [3],

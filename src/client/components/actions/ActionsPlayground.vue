@@ -101,6 +101,7 @@ import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import {Resource} from '@/common/Resource';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {
   allScopeActionCardNames,
@@ -117,8 +118,8 @@ type FlagRow = {name: CardName, kind: string, module: string};
 // A varied set of fake "why can't I act" reasons, cycled across the unavailable
 // cards so the popover styling (resource / target / count / rule) is exercised.
 const FAKE_REASONS: ReadonlyArray<ReadonlyArray<UnplayableReason>> = [
-  [{type: 'resource', message: 'Not enough energy', resource: 'energy', current: 0}],
-  [{type: 'target', message: 'No target to reduce production', resource: 'heat'}],
+  [{type: 'resource', message: 'Not enough energy', resource: Resource.ENERGY, current: 0}],
+  [{type: 'target', message: 'No target to reduce production', resource: Resource.HEAT}],
   [{type: 'count', message: 'Not enough resources on this card', current: 0}],
   [{type: 'megacredits', message: 'Need ${0} more M€', params: ['3']}],
   [{type: 'rule', message: 'Action conditions are not met right now'}],

@@ -25,8 +25,6 @@
       </div>
     </div>
 
-    <span class="actions-filters__divider" aria-hidden="true"></span>
-
     <div class="actions-filters__group">
       <span class="actions-filters__group-label" v-i18n>Activation</span>
       <div class="actions-filters__segment" role="tablist">

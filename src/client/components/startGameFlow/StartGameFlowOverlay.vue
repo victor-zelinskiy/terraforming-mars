@@ -50,17 +50,56 @@
             </div>
             <p class="start-game-flow__subtitle" v-i18n>Play your prelude cards and apply your corporation's start effect.</p>
           </div>
-          <div class="start-game-flow__progress">
-            <span v-if="preludeTotal > 0" class="start-game-flow__chip" :class="'start-game-flow__chip--' + preludeChipState">
-              <span class="start-game-flow__chip-dot"></span>
-              <span class="start-game-flow__chip-label" v-i18n>Preludes</span>
-              <span class="start-game-flow__chip-value">{{ preludePlayedCount }} / {{ preludeTotal }}</span>
-            </span>
-            <span class="start-game-flow__chip" :class="'start-game-flow__chip--' + corpStatus">
-              <span class="start-game-flow__chip-dot"></span>
-              <span class="start-game-flow__chip-label" v-i18n>Corporation</span>
-              <span class="start-game-flow__chip-value" v-i18n>{{ corpStatusLabel }}</span>
-            </span>
+          <div class="start-game-flow__header-side">
+            <div class="start-game-flow__progress">
+              <span v-if="preludeTotal > 0" class="start-game-flow__chip" :class="'start-game-flow__chip--' + preludeChipState">
+                <span class="start-game-flow__chip-dot"></span>
+                <span class="start-game-flow__chip-label" v-i18n>Preludes</span>
+                <span class="start-game-flow__chip-value">{{ preludePlayedCount }} / {{ preludeTotal }}</span>
+              </span>
+              <span class="start-game-flow__chip" :class="'start-game-flow__chip--' + corpStatus">
+                <span class="start-game-flow__chip-dot"></span>
+                <span class="start-game-flow__chip-label" v-i18n>Corporation</span>
+                <span class="start-game-flow__chip-value" v-i18n>{{ corpStatusLabel }}</span>
+              </span>
+            </div>
+
+            <div class="start-game-flow__header-status">
+              <div v-if="waitingState"
+                   class="start-game-flow__waiting start-game-flow__waiting--header"
+                   data-test="start-game-flow-waiting">
+                <div class="start-game-flow__waiting-loader" aria-hidden="true">
+                  <span class="start-game-flow__waiting-ring"></span>
+                  <div class="start-game-flow__waiting-dots">
+                    <span></span><span></span><span></span>
+                  </div>
+                </div>
+                <div class="start-game-flow__waiting-copy">
+                  <p class="start-game-flow__waiting-text" v-i18n>Waiting for other players</p>
+                  <div v-if="waitingPlayers.length > 0" class="start-game-flow__waiting-players">
+                    <span v-for="p in waitingPlayers"
+                          :key="p.color"
+                          class="start-game-flow__waiting-chip">
+                      <span class="start-game-flow__waiting-chip-dot"
+                            :class="'player_bg_color_' + p.color"></span>
+                      <span class="start-game-flow__waiting-chip-name">{{ p.name }}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else-if="allDone" class="start-game-flow__footer start-game-flow__footer--header">
+                <div class="start-game-flow__done-badge" aria-hidden="true">✓</div>
+                <div class="start-game-flow__done-note" v-i18n>Initial setup complete.</div>
+                <button class="start-game-flow__begin-btn"
+                        @click="beginGame"
+                        data-test="start-game-flow-begin">
+                  <span class="start-game-flow__begin-label" v-i18n>Begin the game</span>
+                </button>
+              </div>
+
+              <div v-else class="start-game-flow__header-status-reserve" aria-hidden="true"></div>
+            </div>
           </div>
         </div>
 
@@ -71,7 +110,9 @@
             ПРИМЕНИТЬ ЭФФЕКТ button sit UNDER the card (so a second corp has room
             to its right).
           -->
-          <section v-if="corpCards.length > 0" class="start-game-flow__corp">
+          <section v-if="corpCards.length > 0"
+                   class="start-game-flow__corp"
+                   :class="{'start-game-flow__corp--reserve-merger': mergerReserveActive}">
             <div class="start-game-flow__section-label" v-i18n>Corporation</div>
             <div class="start-game-flow__corp-grid">
               <div v-for="corp in corpCards"
@@ -102,6 +143,13 @@
                   <span v-i18n>Apply effect</span>
                 </button>
                 <div v-else class="start-game-flow__action-reserve" aria-hidden="true"></div>
+              </div>
+              <div v-if="mergerReserveActive && corpCards.length < 2"
+                   class="start-game-flow__corp-item start-game-flow__corp-item--reserved"
+                   aria-hidden="true">
+                <div class="start-game-flow__corp-reserved-card"></div>
+                <div class="start-game-flow__corp-status-reserve"></div>
+                <div class="start-game-flow__action-reserve"></div>
               </div>
             </div>
           </section>
@@ -258,38 +306,7 @@
             </div>
           </section>
 
-          <!-- Waiting-for-others state -->
-          <section v-if="waitingState" class="start-game-flow__waiting" data-test="start-game-flow-waiting">
-            <div class="start-game-flow__waiting-loader" aria-hidden="true">
-              <span class="start-game-flow__waiting-ring"></span>
-              <div class="start-game-flow__waiting-dots">
-                <span></span><span></span><span></span>
-              </div>
-            </div>
-            <p class="start-game-flow__waiting-text" v-i18n>Waiting for other players</p>
-            <div v-if="waitingPlayers.length > 0" class="start-game-flow__waiting-players">
-              <span v-for="p in waitingPlayers"
-                    :key="p.color"
-                    class="start-game-flow__waiting-chip">
-                <span class="start-game-flow__waiting-chip-dot"
-                      :class="'player_bg_color_' + p.color"></span>
-                <span class="start-game-flow__waiting-chip-name">{{ p.name }}</span>
-              </span>
-            </div>
-          </section>
         </div>
-
-        <!-- Completion footer — the reward / payoff after setup is finished. -->
-        <div v-if="allDone" class="start-game-flow__footer">
-          <div class="start-game-flow__done-badge" aria-hidden="true">✓</div>
-          <div class="start-game-flow__done-note" v-i18n>Initial setup complete.</div>
-          <button class="start-game-flow__begin-btn"
-                  @click="beginGame"
-                  data-test="start-game-flow-begin">
-            <span class="start-game-flow__begin-label" v-i18n>Begin the game</span>
-          </button>
-        </div>
-        <div v-else class="start-game-flow__footer-reserve" aria-hidden="true"></div>
       </div>
     </div>
   </Teleport>
@@ -493,13 +510,19 @@ export default defineComponent({
         '--sgf-window-w': budget.windowWidth + 'px',
         '--sgf-window-min-h': budget.windowMinHeight + 'px',
         '--sgf-body-min-h': budget.bodyMinHeight + 'px',
-        '--sgf-footer-reserve-h': budget.footerReserveHeight + 'px',
+        '--sgf-header-status-w': budget.headerStatusWidth + 'px',
+        '--sgf-header-status-h': budget.headerStatusHeight + 'px',
+        '--sgf-main-gap-x': budget.mainGapX + 'px',
+        '--sgf-main-gap-y': budget.mainGapY + 'px',
+        '--sgf-corp-column-w': budget.corporationColumnWidth + 'px',
+        '--sgf-prelude-column-w': budget.preludeColumnWidth + 'px',
       };
     },
     layoutBudget(): StartGameFlowLayoutBudget {
       return startGameFlowLayoutBudget({
         preludeCount: this.preludes.length,
         corporationCount: this.corpCards.length,
+        mergerReserveActive: this.mergerReserveActive,
         corporationSelectCount: this.corpSelectCandidates.length,
         drawCandidateCount: this.drawCandidates.length,
         resolvedDrawCounts: this.resolvedDrawChoices.map((rec) => rec.candidates.length),
@@ -591,6 +614,11 @@ export default defineComponent({
       }
       const prompt = startFlowCorpSelectPrompt(view);
       return (prompt?.cards ?? []).map((c) => ({name: c.name, disabled: c.isDisabled === true}));
+    },
+    mergerReserveActive(): boolean {
+      return this.corpCards.length > 1 ||
+        this.corpSelectCandidates.length > 0 ||
+        this.preludes.some((entry) => entry.name === CardName.MERGER);
     },
     preludes(): ReadonlyArray<PreludeEntry> {
       const view = this.playerViewTyped;
