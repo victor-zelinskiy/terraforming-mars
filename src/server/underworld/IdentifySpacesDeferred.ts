@@ -27,8 +27,12 @@ export class IdentifySpacesDeferred extends RunNTimes<Space | UndergroundResourc
       // identify-specific filter (canIdentify) precisely.
       return createMarsSelectSpace(this.player, title, identifiableSpaces, {
         customReasoner: (space) => {
-          if (space.undergroundResources !== undefined) return 'already-identified';
-          if (space.excavator !== undefined) return 'already-excavated';
+          if (space.undergroundResources !== undefined) {
+            return 'already-identified';
+          }
+          if (space.excavator !== undefined) {
+            return 'already-excavated';
+          }
           return undefined; // generic 'occupied' / 'reserved-colony' handle the rest
         },
       })

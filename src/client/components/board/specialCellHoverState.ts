@@ -83,13 +83,17 @@ export function clearActiveSpecialCell(id: string): void {
  */
 export function activateSpecialCellBySpaceId(spaceId: SpaceId): void {
   const m = markersBySpaceId.get(spaceId);
-  if (m === undefined) return;
+  if (m === undefined) {
+    return;
+  }
   setActiveSpecialCell(m.id, m.spaceId, m.el);
 }
 
 export function deactivateSpecialCellBySpaceId(spaceId: SpaceId): void {
   const m = markersBySpaceId.get(spaceId);
-  if (m === undefined) return;
+  if (m === undefined) {
+    return;
+  }
   clearActiveSpecialCell(m.id);
 }
 
@@ -108,11 +112,15 @@ if (typeof document !== 'undefined') {
     // Clear previous cell's highlight.
     if (oldSpaceId !== undefined) {
       const prev = document.querySelector(`[data_space_id="${oldSpaceId}"]`);
-      if (prev !== null) prev.classList.remove('board-space--special-active');
+      if (prev !== null) {
+        prev.classList.remove('board-space--special-active');
+      }
     }
     if (spaceId !== undefined) {
       const next = document.querySelector(`[data_space_id="${spaceId}"]`);
-      if (next !== null) next.classList.add('board-space--special-active');
+      if (next !== null) {
+        next.classList.add('board-space--special-active');
+      }
       document.body.classList.add('special-cell-hover-active');
     } else {
       document.body.classList.remove('special-cell-hover-active');

@@ -65,8 +65,12 @@ export function actionLabelForPlayer(
     // or Turmoil delegate) takes priority over the generic phase-based label.
     // Detection is in ServerModel.detectWaitingForKind — based on the title
     // of the player's current waitingFor.
-    if (player.waitingForKind === 'globalsupport') return 'globalsupport';
-    if (player.waitingForKind === 'delegate') return 'delegate';
+    if (player.waitingForKind === 'globalsupport') {
+      return 'globalsupport';
+    }
+    if (player.waitingForKind === 'delegate') {
+      return 'delegate';
+    }
 
     switch (game.phase) {
     case Phase.INITIALDRAFTING:
@@ -183,7 +187,7 @@ function isPlayerWaiting(
   // Model says waiting. Defer to live signal when available — it can
   // legitimately disagree by saying "not waiting" if another player
   // resolved their simultaneous prompt between model refreshes.
-  return livePlayersWaitingFor !== undefined
-    ? livePlayersWaitingFor.includes(player.color)
-    : true;
+  return livePlayersWaitingFor !== undefined ?
+    livePlayersWaitingFor.includes(player.color) :
+    true;
 }

@@ -38,7 +38,9 @@ export class InducedTremor extends Card implements IProjectCard {
     // Step 1: pick a token to remove. Cells without a token → 'not-identified'.
     player.defer(createMarsSelectSpace(player, 'Select unclaimed resource token to remove', identifiedSpaces, {
       customReasoner: (space) => {
-        if (space.undergroundResources === undefined) return 'not-identified';
+        if (space.undergroundResources === undefined) {
+          return 'not-identified';
+        }
         return undefined;
       },
     }).andThen((space) => {
@@ -48,8 +50,12 @@ export class InducedTremor extends Card implements IProjectCard {
       return createMarsSelectSpace(player, 'Select space to excavate',
         UnderworldExpansion.excavatableSpaces(player), {
           customReasoner: (space2) => {
-            if (space2.excavator !== undefined) return 'already-excavated';
-            if (space2.undergroundResources === undefined) return 'not-identified';
+            if (space2.excavator !== undefined) {
+              return 'already-excavated';
+            }
+            if (space2.undergroundResources === undefined) {
+              return 'not-identified';
+            }
             return undefined;
           },
         })

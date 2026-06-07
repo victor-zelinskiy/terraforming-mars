@@ -60,7 +60,9 @@ const ICON_BY_TITLE: Record<string, string> = {
 };
 
 function titleText(title: string | Message | undefined): string {
-  if (title === undefined) return '';
+  if (title === undefined) {
+    return '';
+  }
   return typeof title === 'string' ? title : title.message;
 }
 
@@ -128,7 +130,9 @@ export default defineComponent({
     },
     pickOption(opt: PlayerInputModel): void {
       const idx = this.options.indexOf(opt);
-      if (idx === -1) return;
+      if (idx === -1) {
+        return;
+      }
       if (opt.type === 'option') {
         // SelectOption — commit instantly. Modal unmounts via WaitingFor's
         // `v-if` when the server response clears the WGT prompt.
@@ -149,7 +153,9 @@ export default defineComponent({
       }
     },
     onSpacePicked(spaceResponse: SelectSpaceResponse): void {
-      if (this.pendingOptionIndex === undefined) return;
+      if (this.pendingOptionIndex === undefined) {
+        return;
+      }
       this.onsave({
         type: 'or',
         index: this.pendingOptionIndex,

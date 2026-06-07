@@ -20,13 +20,13 @@ describe('action-reason coverage', () => {
       }
       for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
         for (const name of Object.keys(group)) {
-          const factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-          if (factory === undefined) {
+          const Factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
+          if (Factory === undefined) {
             continue;
           }
           let card: ICard;
           try {
-            card = new factory();
+            card = new Factory();
           } catch {
             continue;
           }

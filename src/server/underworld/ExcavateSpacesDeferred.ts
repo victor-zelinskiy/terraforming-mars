@@ -39,8 +39,12 @@ export class ExcavateSpacesDeferred extends RunNTimes<void> {
       // slicing a copy because the spaces array is mutated between calls.
       return createMarsSelectSpace(this.player, title, spaces.slice(), {
         customReasoner: (space) => {
-          if (space.undergroundResources === undefined) return 'not-identified';
-          if (space.excavator !== undefined) return 'already-excavated';
+          if (space.undergroundResources === undefined) {
+            return 'not-identified';
+          }
+          if (space.excavator !== undefined) {
+            return 'already-excavated';
+          }
           return undefined;
         },
       })

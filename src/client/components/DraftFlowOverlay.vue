@@ -148,11 +148,19 @@ export default defineComponent({
      */
     waitingOnPlayers(newList: ReadonlyArray<Color>) {
       const view = this.playerViewTyped;
-      if (view === undefined) return;
-      if (view.waitingFor !== undefined) return;
-      if (!newList.includes(view.thisPlayer.color)) return;
+      if (view === undefined) {
+        return;
+      }
+      if (view.waitingFor !== undefined) {
+        return;
+      }
+      if (!newList.includes(view.thisPlayer.color)) {
+        return;
+      }
       const now = Date.now();
-      if (now - this.lastSelfHealAt < 3000) return;
+      if (now - this.lastSelfHealAt < 3000) {
+        return;
+      }
       this.lastSelfHealAt = now;
       vueRoot(this).updatePlayer();
     },
@@ -163,9 +171,13 @@ export default defineComponent({
     },
     cardInput(): SelectCardModel | undefined {
       const view = this.playerViewTyped;
-      if (view === undefined) return undefined;
+      if (view === undefined) {
+        return undefined;
+      }
       const wf = view.waitingFor;
-      if (wf === undefined || wf.type !== 'card') return undefined;
+      if (wf === undefined || wf.type !== 'card') {
+        return undefined;
+      }
       // Hand-card selections (discard / reveal / pick FROM the player's hand)
       // are hosted by the КАРТЫ В РУКЕ overlay (HandCardsOverlay) in its
       // mandatory-select mode — far better for browsing a large hand than this
@@ -220,9 +232,15 @@ export default defineComponent({
      */
     isWaitingState(): boolean {
       const view = this.playerViewTyped;
-      if (view === undefined) return false;
-      if (view.waitingFor !== undefined) return false;
-      if (draftWaitState.pending) return true;
+      if (view === undefined) {
+        return false;
+      }
+      if (view.waitingFor !== undefined) {
+        return false;
+      }
+      if (draftWaitState.pending) {
+        return true;
+      }
       const phase = view.game.phase;
       const inCardPickPhase =
         phase === Phase.RESEARCH ||
@@ -234,7 +252,9 @@ export default defineComponent({
       return this.cardInput !== undefined || this.isWaitingState;
     },
     modalTitle(): string | Message {
-      if (this.cardInput !== undefined) return this.cardInput.title;
+      if (this.cardInput !== undefined) {
+        return this.cardInput.title;
+      }
       return translateText('Waiting for draft cards');
     },
     /*
@@ -266,10 +286,11 @@ export default defineComponent({
      */
     onsave(response: InputResponse): void {
       const view = this.playerViewTyped;
-      if (view === undefined) return;
+      if (view === undefined) {
+        return;
+      }
       const root = vueRoot(this);
       if (root.isServerSideRequestInProgress) {
-        // eslint-disable-next-line no-console
         console.warn('Server request in progress');
         return;
       }
@@ -301,13 +322,13 @@ export default defineComponent({
               'Error processing response',
               'Unexpected response from server. Please try again.',
             );
-            // eslint-disable-next-line no-console
+
             console.error(httpResponse.statusText);
           }
         })
         .catch((e) => {
           root.showAlert('Error sending input', CANNOT_CONTACT_SERVER);
-          // eslint-disable-next-line no-console
+
           console.error(e);
         })
         .finally(() => {

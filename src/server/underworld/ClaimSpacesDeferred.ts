@@ -29,8 +29,12 @@ export class ClaimSpacesDeferred extends RunNTimes<void> {
     // 'not-identified' / 'already-excavated' precisely.
     return createMarsSelectSpace(this.player, title, spaces, {
       customReasoner: (space) => {
-        if (space.undergroundResources === undefined) return 'not-identified';
-        if (space.excavator !== undefined) return 'already-excavated';
+        if (space.undergroundResources === undefined) {
+          return 'not-identified';
+        }
+        if (space.excavator !== undefined) {
+          return 'already-excavated';
+        }
         return undefined;
       },
     })

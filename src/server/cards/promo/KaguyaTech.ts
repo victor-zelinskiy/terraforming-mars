@@ -62,11 +62,17 @@ export class KaguyaTech extends Card implements IProjectCard {
     return createMarsSelectSpace(player, 'Select a greenery to convert to a city.', greeneries, {
       customReasoner: (space) => {
         // Empty cell: not a greenery target → wrong-terrain reads OK.
-        if (space.tile === undefined) return 'wrong-terrain';
+        if (space.tile === undefined) {
+          return 'wrong-terrain';
+        }
         // Has tile but not a greenery, or someone else's greenery.
-        if (!Board.isGreenerySpace(space) || space.player !== player) return 'not-your-greenery';
+        if (!Board.isGreenerySpace(space) || space.player !== player) {
+          return 'not-your-greenery';
+        }
         // Your greenery but bonus unaffordable.
-        if (!player.game.board.canAfford(player, space)) return 'cannot-afford-bonus';
+        if (!player.game.board.canAfford(player, space)) {
+          return 'cannot-afford-bonus';
+        }
         return undefined;
       },
     })

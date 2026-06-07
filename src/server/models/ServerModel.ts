@@ -54,7 +54,9 @@ const DELEGATE_TITLE_PATTERNS = [
 ];
 
 function titleText(title: string | Message | undefined): string {
-  if (title === undefined) return '';
+  if (title === undefined) {
+    return '';
+  }
   return typeof title === 'string' ? title : title.message;
 }
 
@@ -65,7 +67,9 @@ function titleText(title: string | Message | undefined): string {
  * The action menu's title is set in `Player.getActions()`.
  */
 function isInActionSelectionPhase(input: PlayerInput | undefined): boolean {
-  if (!input) return false;
+  if (!input) {
+    return false;
+  }
   const title = titleText(input.title);
   return title === 'Take your first action' || title === 'Take your next action';
 }
@@ -81,10 +85,14 @@ function isInActionSelectionPhase(input: PlayerInput | undefined): boolean {
  * cross-phase title we'd match on).
  */
 function detectWaitingForKind(input: PlayerInput | undefined): 'globalsupport' | 'delegate' | undefined {
-  if (input === undefined) return undefined;
+  if (input === undefined) {
+    return undefined;
+  }
   let result: 'globalsupport' | 'delegate' | undefined;
   const visit = (node: PlayerInput, depth: number): boolean => {
-    if (depth > 3) return false;
+    if (depth > 3) {
+      return false;
+    }
     const title = titleText(node.title);
     if (WGT_TITLE_PATTERNS.some((p) => title.includes(p))) {
       result = 'globalsupport';
@@ -98,7 +106,9 @@ function detectWaitingForKind(input: PlayerInput | undefined): 'globalsupport' |
     const options = (node as unknown as {options?: ReadonlyArray<PlayerInput>}).options;
     if (Array.isArray(options)) {
       for (const child of options) {
-        if (visit(child, depth + 1)) return true;
+        if (visit(child, depth + 1)) {
+          return true;
+        }
       }
     }
     return false;
@@ -244,12 +254,12 @@ export class Server {
       // Per-game threshold + description. Most milestones return their static
       // values; a few (Terraformer) implement getThreshold/getDescription to
       // pick a different number based on expansion state (e.g. Turmoil).
-      const threshold = milestone.getThreshold !== undefined
-        ? milestone.getThreshold(game)
-        : (milestone as unknown as {threshold?: number}).threshold;
-      const description = milestone.getDescription !== undefined
-        ? milestone.getDescription(game)
-        : milestone.description;
+      const threshold = milestone.getThreshold !== undefined ?
+        milestone.getThreshold(game) :
+        (milestone as unknown as {threshold?: number}).threshold;
+      const description = milestone.getDescription !== undefined ?
+        milestone.getDescription(game) :
+        milestone.description;
 
       milestoneModels.push({
         playerName: claimed?.player.name,
@@ -325,9 +335,9 @@ export class Server {
     const inActionSelection = isInActionSelectionPhase(player.getWaitingFor());
     const canConvertPlants = inActionSelection && new ConvertPlants().canAct(player);
     const canConvertHeat = inActionSelection && (
-      PartyHooks.shouldApplyPolicy(player, PartyName.KELVINISTS, 'kp03')
-        ? KELVINISTS_POLICY_3.canAct(player)
-        : new ConvertHeat().canAct(player));
+      PartyHooks.shouldApplyPolicy(player, PartyName.KELVINISTS, 'kp03') ?
+        KELVINISTS_POLICY_3.canAct(player) :
+        new ConvertHeat().canAct(player));
     const model: PublicPlayerModel = {
       actionsTakenThisRound: player.actionsTakenThisRound,
       actionsTakenThisGame: player.actionsTakenThisGame,
@@ -365,9 +375,9 @@ export class Server {
       // base-game 8. Compute server-side so the client never has to guess
       // from prompt titles.
       heatNeededForTemperature:
-        PartyHooks.shouldApplyPolicy(player, PartyName.KELVINISTS, 'kp03')
-          ? KELVINISTS_HEAT_FOR_TEMPERATURE
-          : DEFAULT_HEAT_FOR_TEMPERATURE,
+        PartyHooks.shouldApplyPolicy(player, PartyName.KELVINISTS, 'kp03') ?
+          KELVINISTS_HEAT_FOR_TEMPERATURE :
+          DEFAULT_HEAT_FOR_TEMPERATURE,
       canConvertPlants,
       canConvertHeat,
       protectedResources: Server.getResourceProtections(player),

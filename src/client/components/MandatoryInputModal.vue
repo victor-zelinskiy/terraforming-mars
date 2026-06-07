@@ -248,21 +248,35 @@ export default defineComponent({
   computed: {
     rootClass(): string {
       const classes = ['mandatory-input-modal'];
-      if (this.pickerMode) classes.push('mandatory-input-modal--picker-mode');
-      if (this.minimized) classes.push('mandatory-input-modal--minimized');
-      if (this.entered) classes.push('mandatory-input-modal--entered');
-      if (this.noDealFrozen) classes.push('mandatory-input-modal--no-deal');
+      if (this.pickerMode) {
+        classes.push('mandatory-input-modal--picker-mode');
+      }
+      if (this.minimized) {
+        classes.push('mandatory-input-modal--minimized');
+      }
+      if (this.entered) {
+        classes.push('mandatory-input-modal--entered');
+      }
+      if (this.noDealFrozen) {
+        classes.push('mandatory-input-modal--no-deal');
+      }
       return classes.join(' ');
     },
     pillClass(): string {
       const classes = ['mandatory-input-modal-pill'];
-      if (this.minimized) classes.push('mandatory-input-modal-pill--visible');
+      if (this.minimized) {
+        classes.push('mandatory-input-modal-pill--visible');
+      }
       return classes.join(' ');
     },
     titleText(): string {
       const t = this.title;
-      if (t === undefined || t === '') return '';
-      if (typeof t === 'string') return translateText(t);
+      if (t === undefined || t === '') {
+        return '';
+      }
+      if (typeof t === 'string') {
+        return translateText(t);
+      }
       return translateMessage(t);
     },
   },
@@ -283,7 +297,9 @@ export default defineComponent({
         // Entering picker-mode (board tile selection) implicitly cancels
         // any minimize state — the modal is hidden via picker rules and
         // showing a pill on top would be redundant signaling.
-        if (mode) this.minimized = false;
+        if (mode) {
+          this.minimized = false;
+        }
         /*
          * Raise the modal-picker source of placement-pending in the
          * shared coordinator. PlayerHome's `placementPending` computed

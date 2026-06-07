@@ -98,14 +98,24 @@ export class GagarinMobileBase extends CorporationCard implements ICorporationCa
         spaces,
         {
           customReasoner: (space) => {
-            if (space.tile !== undefined) return undefined; // generic 'occupied'
-            if (space.spaceType === 'colony') return undefined; // generic 'reserved-colony'
-            if (visited.has(space.id)) return 'already-visited';
-            if (!MarsBoard.canAffordPlacementBonuses(player, space)) return 'cannot-afford-bonus';
+            if (space.tile !== undefined) {
+              return undefined;
+            } // generic 'occupied'
+            if (space.spaceType === 'colony') {
+              return undefined;
+            } // generic 'reserved-colony'
+            if (visited.has(space.id)) {
+              return 'already-visited';
+            }
+            if (!MarsBoard.canAffordPlacementBonuses(player, space)) {
+              return 'cannot-afford-bonus';
+            }
             // Empty + non-visited + affordable but not in the nearest-set
             // (BFS): exists only after the first move, when only the
             // closest layer is legal.
-            if (player.game.gagarinBase.length > 0 && !nearestIds.has(space.id)) return 'not-closest';
+            if (player.game.gagarinBase.length > 0 && !nearestIds.has(space.id)) {
+              return 'not-closest';
+            }
             return undefined;
           },
         })

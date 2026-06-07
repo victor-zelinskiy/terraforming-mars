@@ -82,5 +82,4 @@ describe('Board', () => {
       boardSpacesWrappers.every((wrapper) => wrapper.props('tileView') === 'show'),
     ).to.be.true;
   });
-
 });

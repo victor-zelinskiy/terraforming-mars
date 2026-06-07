@@ -179,7 +179,9 @@ export default defineComponent({
     //  • Active + known threshold: "score / threshold".
     //  • Active + unknown threshold (special-case milestones): just the score.
     countLabel(m: ClaimedMilestoneModel): string {
-      if (m.playerName) return '—';
+      if (m.playerName) {
+        return '—';
+      }
       const s = this.myScore(m);
       const score = s ? s.score : 0;
       const t = this.threshold(m);
@@ -193,12 +195,14 @@ export default defineComponent({
     //  • neutral — default cyan (threshold unknown).
     countClass(m: ClaimedMilestoneModel): string {
       if (m.playerName) {
-        return m.color === this.thisPlayerColor
-          ? 'milestone-row-count--mine'
-          : 'milestone-row-count--theirs';
+        return m.color === this.thisPlayerColor ?
+          'milestone-row-count--mine' :
+          'milestone-row-count--theirs';
       }
       const t = this.threshold(m);
-      if (t === undefined) return 'milestone-row-count--neutral';
+      if (t === undefined) {
+        return 'milestone-row-count--neutral';
+      }
       const score = this.myScore(m)?.score ?? 0;
       return score >= t ? 'milestone-row-count--ready' : 'milestone-row-count--blocked';
     },
@@ -219,8 +223,12 @@ export default defineComponent({
     // race is over and we drop the highlight entirely (the funder cube on
     // the row art already shows who took it).
     isCurrentLeader(s: MilestoneScore, m: ClaimedMilestoneModel): boolean {
-      if (m.playerName) return false;
-      if (m.scores.length === 0) return false;
+      if (m.playerName) {
+        return false;
+      }
+      if (m.scores.length === 0) {
+        return false;
+      }
       const top = Math.max(...m.scores.map((x) => x.score));
       return s.score === top && s.score > 0;
     },
@@ -243,7 +251,9 @@ export default defineComponent({
     // RENDERED when this is true (even if the action isn't currently
     // available); the blocker reason below dictates whether it's enabled.
     isConceptuallyClaimable(m: ClaimedMilestoneModel): boolean {
-      if (m.playerName) return false;
+      if (m.playerName) {
+        return false;
+      }
       return this.myScore(m)?.claimable === true;
     },
     // Returns null when the button should be enabled, otherwise the i18n
@@ -251,14 +261,20 @@ export default defineComponent({
     // in `claimableNow`; when it doesn't, we differentiate cost vs. turn so
     // the disabled tooltip gives the user a useful hint.
     claimBlockerReason(m: ClaimedMilestoneModel): string | null {
-      if (this.claimableNow.has(m.name)) return null;
-      if (!this.viewerActing) return 'Not your turn to take any actions';
+      if (this.claimableNow.has(m.name)) {
+        return null;
+      }
+      if (!this.viewerActing) {
+        return 'Not your turn to take any actions';
+      }
       // Player has a prompt but milestone isn't offered: the server filters
       // out un-affordable milestones, so cost is the likely cause when the
       // viewer has fewer M€ than the canonical claim cost. (Variant costs
       // from Van Allen / Staged Protests are still served correctly — only
       // the displayed reason might be slightly off in those rare cases.)
-      if (this.thisPlayerMegacredits < MILESTONE_COST) return 'Not enough M€';
+      if (this.thisPlayerMegacredits < MILESTONE_COST) {
+        return 'Not enough M€';
+      }
       // Viewer IS acting and has the money, but the prompt tree doesn't
       // surface the milestone-claim action right now (mid sub-prompt —
       // SelectColony after Build Colony, payment selection, card draw,
@@ -267,7 +283,9 @@ export default defineComponent({
       return 'Finish your current action first';
     },
     onClaimClick(m: ClaimedMilestoneModel): void {
-      if (this.claimBlockerReason(m) !== null) return;
+      if (this.claimBlockerReason(m) !== null) {
+        return;
+      }
       this.$emit('claim', m.name);
     },
     playerName(color: Color): string {

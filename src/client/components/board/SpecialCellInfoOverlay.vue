@@ -73,25 +73,33 @@ export default defineComponent({
   computed: {
     active(): SpecialCellInfo | undefined {
       const id = specialCellHoverState.activeId;
-      if (id === undefined) return undefined;
+      if (id === undefined) {
+        return undefined;
+      }
       return getSpecialCellInfoById(id);
     },
     markerCenter(): Vec2 {
       const r = this.markerRect;
-      if (r === undefined) return {x: 0, y: 0};
+      if (r === undefined) {
+        return {x: 0, y: 0};
+      }
       return {x: r.left + r.width / 2, y: r.top + r.height / 2};
     },
     placement(): PanelPlacement {
       const a = this.active;
       const r = this.markerRect;
-      if (a === undefined || r === undefined) return 'right';
+      if (a === undefined || r === undefined) {
+        return 'right';
+      }
       return this.resolvePlacement(a.placement, r, this.panelHeight);
     },
     panelPos(): Box {
       const r = this.markerRect;
       const h = this.panelHeight;
       const w = PANEL_WIDTH;
-      if (r === undefined) return {left: 0, top: 0, width: w, height: h};
+      if (r === undefined) {
+        return {left: 0, top: 0, width: w, height: h};
+      }
       let left = 0;
       let top = 0;
       switch (this.placement) {
@@ -188,7 +196,9 @@ export default defineComponent({
   beforeUnmount() {
     window.removeEventListener('scroll', this.scheduleRefresh, true);
     window.removeEventListener('resize', this.onViewportResize);
-    if (this.rafHandle !== 0) cancelAnimationFrame(this.rafHandle);
+    if (this.rafHandle !== 0) {
+      cancelAnimationFrame(this.rafHandle);
+    }
   },
   watch: {
     'active'() {
@@ -202,7 +212,9 @@ export default defineComponent({
       this.scheduleRefresh();
     },
     scheduleRefresh(): void {
-      if (this.rafHandle !== 0) return;
+      if (this.rafHandle !== 0) {
+        return;
+      }
       this.rafHandle = requestAnimationFrame(() => {
         this.rafHandle = 0;
         this.refreshFromState();
@@ -239,10 +251,16 @@ export default defineComponent({
       const opposite: Record<PanelPlacement, PanelPlacement> = {
         right: 'left', left: 'right', top: 'bottom', bottom: 'top',
       };
-      if (fits(pref)) return pref;
-      if (fits(opposite[pref])) return opposite[pref];
+      if (fits(pref)) {
+        return pref;
+      }
+      if (fits(opposite[pref])) {
+        return opposite[pref];
+      }
       for (const p of ['right', 'left', 'bottom', 'top'] as const) {
-        if (fits(p)) return p;
+        if (fits(p)) {
+          return p;
+        }
       }
       return pref;
     },

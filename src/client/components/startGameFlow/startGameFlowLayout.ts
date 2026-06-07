@@ -51,10 +51,18 @@ const HEADER_STATUS_W = 330;
 const HEADER_STATUS_H = 58;
 
 function columnsFor(count: number): number {
-  if (count <= 0) return 0;
-  if (count <= 2) return count;
-  if (count <= 4) return count;
-  if (count <= 6) return 3;
+  if (count <= 0) {
+    return 0;
+  }
+  if (count <= 2) {
+    return count;
+  }
+  if (count <= 4) {
+    return count;
+  }
+  if (count <= 6) {
+    return 3;
+  }
   return 4;
 }
 
@@ -65,14 +73,18 @@ function rowsFor(count: number): number {
 
 function sectionHeight(count: number, zoom: number, gapY: number): number {
   const rows = rowsFor(count);
-  if (rows === 0) return 0;
+  if (rows === 0) {
+    return 0;
+  }
   const cardColumnH = CARD_NATURAL_H * zoom + CARD_CHROME_H;
   return SECTION_LABEL_H + rows * cardColumnH + Math.max(0, rows - 1) * gapY;
 }
 
 function sectionWidth(count: number, zoom: number, gapX: number): number {
   const cols = columnsFor(count);
-  if (cols === 0) return 0;
+  if (cols === 0) {
+    return 0;
+  }
   return cols * CARD_NATURAL_W * zoom + Math.max(0, cols - 1) * gapX;
 }
 

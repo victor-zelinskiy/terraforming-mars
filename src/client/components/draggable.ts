@@ -124,7 +124,9 @@ export function makeDraggable(
    * CSS variables; the host stylesheet composes them into its
    * transform. */
   const flush = () => {
-    if (gesture === null) return;
+    if (gesture === null) {
+      return;
+    }
     gesture.rafScheduled = false;
     element.style.setProperty('--drag-x', `${gesture.liveX}px`);
     element.style.setProperty('--drag-y', `${gesture.liveY}px`);
@@ -138,7 +140,9 @@ export function makeDraggable(
   };
 
   const onPointerDown = (e: PointerEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0) {
+      return;
+    }
     /* Capture the layout snapshot ONCE. `rect.left/top` reflects the
      * current screen position which already includes the existing
      * `position.x/y` offset; subtract to get the un-offset baseline. */
@@ -171,11 +175,15 @@ export function makeDraggable(
   };
 
   const onPointerMove = (e: PointerEvent) => {
-    if (gesture === null || e.pointerId !== gesture.pointerId) return;
+    if (gesture === null || e.pointerId !== gesture.pointerId) {
+      return;
+    }
     const dx = e.clientX - gesture.mouseStartX;
     const dy = e.clientY - gesture.mouseStartY;
     if (!gesture.isDragging) {
-      if (Math.hypot(dx, dy) <= threshold) return;
+      if (Math.hypot(dx, dy) <= threshold) {
+        return;
+      }
       gesture.isDragging = true;
       element.classList.add(DRAGGING_CLASS);
     }
@@ -192,10 +200,18 @@ export function makeDraggable(
     const projTop = gesture.baseTop + nextY;
     const projRight = projLeft + gesture.width;
     const projBottom = projTop + gesture.height;
-    if (projLeft < 0) nextX -= projLeft;
-    if (projRight > vw) nextX -= (projRight - vw);
-    if (projTop < 0) nextY -= projTop;
-    if (projBottom > vh) nextY -= (projBottom - vh);
+    if (projLeft < 0) {
+      nextX -= projLeft;
+    }
+    if (projRight > vw) {
+      nextX -= (projRight - vw);
+    }
+    if (projTop < 0) {
+      nextY -= projTop;
+    }
+    if (projBottom > vh) {
+      nextY -= (projBottom - vh);
+    }
 
     gesture.liveX = nextX;
     gesture.liveY = nextY;
@@ -203,7 +219,9 @@ export function makeDraggable(
   };
 
   const onPointerEnd = (e: PointerEvent) => {
-    if (gesture === null || e.pointerId !== gesture.pointerId) return;
+    if (gesture === null || e.pointerId !== gesture.pointerId) {
+      return;
+    }
     const didDrag = gesture.isDragging;
     const finalX = gesture.liveX;
     const finalY = gesture.liveY;
@@ -245,21 +263,35 @@ export function makeDraggable(
    * collapse to one re-clamp. */
   let resizeRafScheduled = false;
   const onResize = () => {
-    if (resizeRafScheduled) return;
+    if (resizeRafScheduled) {
+      return;
+    }
     resizeRafScheduled = true;
     requestAnimationFrame(() => {
       resizeRafScheduled = false;
-      if (gesture !== null) return; /* mid-drag, leave it alone */
-      if (position.x === 0 && position.y === 0) return;
+      if (gesture !== null) {
+        return;
+      } /* mid-drag, leave it alone */
+      if (position.x === 0 && position.y === 0) {
+        return;
+      }
       const rect = element.getBoundingClientRect();
       let nx = position.x;
       let ny = position.y;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      if (rect.left < 0) nx -= rect.left;
-      if (rect.right > vw) nx -= (rect.right - vw);
-      if (rect.top < 0) ny -= rect.top;
-      if (rect.bottom > vh) ny -= (rect.bottom - vh);
+      if (rect.left < 0) {
+        nx -= rect.left;
+      }
+      if (rect.right > vw) {
+        nx -= (rect.right - vw);
+      }
+      if (rect.top < 0) {
+        ny -= rect.top;
+      }
+      if (rect.bottom > vh) {
+        ny -= (rect.bottom - vh);
+      }
       if (nx !== position.x || ny !== position.y) {
         position.x = nx;
         position.y = ny;

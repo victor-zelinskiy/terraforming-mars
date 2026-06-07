@@ -729,8 +729,12 @@ import {
 // regardless of shape — used for string-matching prompt titles like
 // "Claim a milestone".
 function inputTitleText(title: string | Message | undefined): string | undefined {
-  if (title === undefined) return undefined;
-  if (typeof title === 'string') return title;
+  if (title === undefined) {
+    return undefined;
+  }
+  if (typeof title === 'string') {
+    return title;
+  }
   return title.message;
 }
 import {getPreferences, Preferences, PreferencesManager} from '@/client/utils/PreferencesManager';
@@ -1320,7 +1324,9 @@ export default defineComponent({
     claimableMilestones(): Set<MilestoneName> {
       const set = new Set<MilestoneName>();
       const found = this.findMilestoneOptionPath(this.playerView.waitingFor);
-      if (!found) return set;
+      if (!found) {
+        return set;
+      }
       for (const opt of found.options) {
         const t = inputTitleText(opt.title);
         if (opt.type === 'option' && t !== undefined) {
@@ -1334,7 +1340,9 @@ export default defineComponent({
     fundableAwards(): Set<AwardName> {
       const set = new Set<AwardName>();
       const found = this.findAwardOptionPath(this.playerView.waitingFor);
-      if (!found) return set;
+      if (!found) {
+        return set;
+      }
       for (const opt of found.options) {
         const t = inputTitleText(opt.title);
         if (opt.type === 'option' && t !== undefined) {
@@ -1461,8 +1469,12 @@ export default defineComponent({
       // means the server is BLOCKING on a colony pick (mandatory), so the
       // build prompt always takes precedence over the optional trade
       // action even if the latter is also offered somehow.
-      if (this.buildColonyContext) return 'build';
-      if (this.tradeColonyContext) return 'trade';
+      if (this.buildColonyContext) {
+        return 'build';
+      }
+      if (this.tradeColonyContext) {
+        return 'trade';
+      }
       return 'view';
     },
     // True пока сервер ждёт initial-draft ответа. Используется как
@@ -1538,7 +1550,9 @@ export default defineComponent({
       // у разрешённых сервером — отсутствовали бы вовсе (без записи в
       // `out` overlay падает на дефолтный «Unavailable»).
       for (const c of this.coloniesOverlayColonies) {
-        if (selectableSet.has(c.name)) continue; // skip: tile shows positive tooltip
+        if (selectableSet.has(c.name)) {
+          continue;
+        } // skip: tile shows positive tooltip
         if (!c.isActive) {
           // Inactive-colony tooltips are SPECIFIC. Per the ColoniesHandler
           // activation rule (server/colonies/ColoniesHandler.ts), a colony
@@ -1625,10 +1639,14 @@ export default defineComponent({
       // `canTrade() = tradeableColonies > 0 && freeFleets > 0 && !embargo`.
       const me = this.thisPlayer;
       const noFleets = (me.fleetSize ?? 0) <= (me.tradesThisGeneration ?? 0);
-      if (noFleets) return 'You have no free trade fleets';
+      if (noFleets) {
+        return 'You have no free trade fleets';
+      }
       const anyTradeable = this.game.colonies.some(
         (c) => c.isActive && c.visitor === undefined);
-      if (!anyTradeable) return 'No colonies are open for trade right now';
+      if (!anyTradeable) {
+        return 'No colonies are open for trade right now';
+      }
       // Defensive fallback — covers embargo (which we can't detect on
       // the client) and any edge case where the trade action is filtered
       // out by some server-only rule.
@@ -1913,7 +1931,9 @@ export default defineComponent({
     // (action radio rows, hand cards, etc.) don't dismiss it.
     handleOutsideOverlayClick(e: MouseEvent): void {
       const target = e.target as Element | null;
-      if (!target) return;
+      if (!target) {
+        return;
+      }
       // An open fullscreen card (native <dialog>, e.g. the played-cards
       // board's CardZoomModal) sits OVER the overlay; a click on its
       // backdrop must close the dialog, not the overlay underneath.
@@ -1963,7 +1983,9 @@ export default defineComponent({
       titlePredicate: (title: string | undefined) => boolean,
       pathSoFar: ReadonlyArray<number> = [],
     ): {options: Array<PlayerInputModel>; path: ReadonlyArray<number>} | undefined {
-      if (!wf) return undefined;
+      if (!wf) {
+        return undefined;
+      }
       if (wf.type === 'or' && titlePredicate(inputTitleText(wf.title))) {
         return {options: (wf as OrOptionsModel).options, path: pathSoFar};
       }
@@ -1971,7 +1993,9 @@ export default defineComponent({
         const options = (wf as OrOptionsModel).options;
         for (let i = 0; i < options.length; i++) {
           const found = this.findInnerActionPath(options[i], titlePredicate, [...pathSoFar, i]);
-          if (found) return found;
+          if (found) {
+            return found;
+          }
         }
       }
       return undefined;
@@ -1994,7 +2018,9 @@ export default defineComponent({
       wf: PlayerInputModel | undefined,
       pathSoFar: ReadonlyArray<number> = [],
     ): ReadonlyArray<number> | undefined {
-      if (!wf) return undefined;
+      if (!wf) {
+        return undefined;
+      }
       if (wf.type === 'or' || wf.type === 'and') {
         const options = (wf as OrOptionsModel).options;
         for (let i = 0; i < options.length; i++) {
@@ -2005,7 +2031,9 @@ export default defineComponent({
             return [...pathSoFar, i];
           }
           const deeper = this.findConvertHeatPath(opt, [...pathSoFar, i]);
-          if (deeper) return deeper;
+          if (deeper) {
+            return deeper;
+          }
         }
       }
       return undefined;
@@ -2028,7 +2056,9 @@ export default defineComponent({
       pathSoFar: ReadonlyArray<number> = [],
       allowAnySpace = false,
     ): {path: ReadonlyArray<number>; spacePrompt: PlayerInputModel} | undefined {
-      if (!wf) return undefined;
+      if (!wf) {
+        return undefined;
+      }
       if (wf.type === 'or' || wf.type === 'and') {
         const options = (wf as OrOptionsModel).options;
         for (let i = 0; i < options.length; i++) {
@@ -2043,7 +2073,9 @@ export default defineComponent({
             }
           }
           const deeper = this.findConvertPlantsPathAndPrompt(opt, [...pathSoFar, i], allowAnySpace);
-          if (deeper) return deeper;
+          if (deeper) {
+            return deeper;
+          }
         }
       }
       return undefined;
@@ -2057,7 +2089,9 @@ export default defineComponent({
       // action is available): accept any SelectSpace prompt in the action
       // menu — guards against title text drift.
       const byTitle = this.findConvertPlantsPathAndPrompt(wf);
-      if (byTitle) return byTitle;
+      if (byTitle) {
+        return byTitle;
+      }
       if (this.thisPlayer.canConvertPlants === true) {
         return this.findConvertPlantsPathAndPrompt(wf, [], true);
       }
@@ -2072,7 +2106,9 @@ export default defineComponent({
       wf: PlayerInputModel | undefined,
       pathSoFar: ReadonlyArray<number> = [],
     ): {path: ReadonlyArray<number>; input: SelectProjectCardToPlayModel} | undefined {
-      if (!wf) return undefined;
+      if (!wf) {
+        return undefined;
+      }
       if (wf.type === 'or' || wf.type === 'and') {
         const options = (wf as OrOptionsModel).options;
         for (let i = 0; i < options.length; i++) {
@@ -2081,7 +2117,9 @@ export default defineComponent({
             return {path: [...pathSoFar, i], input: opt as SelectProjectCardToPlayModel};
           }
           const deeper = this.findStandardProjectsAction(opt, [...pathSoFar, i]);
-          if (deeper) return deeper;
+          if (deeper) {
+            return deeper;
+          }
         }
       }
       return undefined;
@@ -2173,7 +2211,9 @@ export default defineComponent({
     // ВЫПОЛНИТЬ in the Actions overlay → open the confirmation gate. Nothing is
     // submitted yet; the source card + action summary are shown first.
     onActivateCardAction(cardName: CardName): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       this.pendingCardAction = {cardName};
       this.activeOverlay = null; // close the overlay behind the modal
     },
@@ -2193,7 +2233,9 @@ export default defineComponent({
     // sends when the player picks the action menu → "Perform an action from a
     // played card" → <card>. Byte-identical; routes through WaitingFor.onsave.
     submitCardAction(cardName: CardName): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const action = this.findPerformActionCard(this.playerView.waitingFor);
       if (!action) {
         console.warn('Activate action: SelectCard not found in waitingFor tree');
@@ -2217,7 +2259,9 @@ export default defineComponent({
       title: string,
       pathSoFar: ReadonlyArray<number> = [],
     ): ReadonlyArray<number> | undefined {
-      if (!wf) return undefined;
+      if (!wf) {
+        return undefined;
+      }
       if (wf.type === 'or' || wf.type === 'and') {
         const options = (wf as OrOptionsModel).options;
         for (let i = 0; i < options.length; i++) {
@@ -2226,7 +2270,9 @@ export default defineComponent({
             return [...pathSoFar, i];
           }
           const deeper = this.findOptionPathByTitle(opt, title, [...pathSoFar, i]);
-          if (deeper) return deeper;
+          if (deeper) {
+            return deeper;
+          }
         }
       }
       return undefined;
@@ -2301,14 +2347,18 @@ export default defineComponent({
       disabledPayments: ReadonlyArray<DisabledOptionModel>;
       colonies: ReadonlyArray<ColonyName>;
     } | undefined {
-      if (!wf) return undefined;
+      if (!wf) {
+        return undefined;
+      }
       if (wf.type === 'and' && inputTitleText(wf.title) === 'Trade with a colony tile') {
         const children = (wf as AndOptionsModel).options;
         // Expected shape from server: [OrOptions("Pay trade fee"), SelectColony]
         const payOr = children.find((c) => c.type === 'or') as OrOptionsModel | undefined;
         const selectColony = children.find((c) => c.type === 'colony') as
           SelectColonyModel | undefined;
-        if (payOr === undefined || selectColony === undefined) return undefined;
+        if (payOr === undefined || selectColony === undefined) {
+          return undefined;
+        }
         const paymentOptions = payOr.options.filter(
           (o) => o.type === 'option') as ReadonlyArray<SelectOptionModel>;
         const disabledPayments = payOr.disabledOptions ?? [];
@@ -2319,7 +2369,9 @@ export default defineComponent({
         const options = (wf as OrOptionsModel).options;
         for (let i = 0; i < options.length; i++) {
           const deeper = this.findTradeColonyContext(options[i], [...pathSoFar, i]);
-          if (deeper) return deeper;
+          if (deeper) {
+            return deeper;
+          }
         }
       }
       return undefined;
@@ -2347,7 +2399,9 @@ export default defineComponent({
       // compute, e.g. TR affordability). Keyed by colony name.
       disabledReasons: Partial<Record<ColonyName, string>>;
     } | undefined {
-      if (!wf) return undefined;
+      if (!wf) {
+        return undefined;
+      }
       if (wf.type === 'colony' && !insideTradeAnd) {
         const select = wf as SelectColonyModel;
         const disabledReasons: Partial<Record<ColonyName, string>> = {};
@@ -2372,7 +2426,9 @@ export default defineComponent({
         for (let i = 0; i < options.length; i++) {
           const deeper = this.findBuildColonyContext(
             options[i], [...pathSoFar, i], insideTradeAnd || tradeAndHere);
-          if (deeper) return deeper;
+          if (deeper) {
+            return deeper;
+          }
         }
       }
       return undefined;
@@ -2382,7 +2438,9 @@ export default defineComponent({
       // `'Fund an award (${0} M€)'` with the current cost baked in.
       const byTitle = this.findInnerActionPath(wf, (t) =>
         t !== undefined && t.toLowerCase().startsWith('fund an award'));
-      if (byTitle) return byTitle;
+      if (byTitle) {
+        return byTitle;
+      }
       // Fallback: structure-based — find an OrOptions whose options are all
       // SelectOptions whose titles are valid award names. Catches cases
       // where the title shape differs from what we expected (server-side
@@ -2395,11 +2453,15 @@ export default defineComponent({
       awardNames: Set<string>,
       pathSoFar: ReadonlyArray<number> = [],
     ): {options: Array<PlayerInputModel>; path: ReadonlyArray<number>} | undefined {
-      if (!wf) return undefined;
+      if (!wf) {
+        return undefined;
+      }
       if (wf.type === 'or') {
         const opts = (wf as OrOptionsModel).options;
         if (opts.length > 0 && opts.every((o) => {
-          if (o.type !== 'option') return false;
+          if (o.type !== 'option') {
+            return false;
+          }
           const t = inputTitleText((o as SelectOptionModel).title);
           return typeof t === 'string' && awardNames.has(t);
         })) {
@@ -2410,7 +2472,9 @@ export default defineComponent({
         const options = (wf as OrOptionsModel).options;
         for (let i = 0; i < options.length; i++) {
           const found = this.findAwardOptionPathByStructure(options[i], awardNames, [...pathSoFar, i]);
-          if (found) return found;
+          if (found) {
+            return found;
+          }
         }
       }
       return undefined;
@@ -2424,10 +2488,14 @@ export default defineComponent({
       found: {options: Array<PlayerInputModel>; path: ReadonlyArray<number>},
       targetTitle: string,
     ): boolean {
-      if (this.startGameFlowActionLocked) return false;
+      if (this.startGameFlowActionLocked) {
+        return false;
+      }
       const innerIdx = found.options.findIndex(
         (o) => o.type === 'option' && inputTitleText((o as SelectOptionModel).title) === targetTitle);
-      if (innerIdx === -1) return false;
+      if (innerIdx === -1) {
+        return false;
+      }
       let response: unknown = {
         type: 'or' as const,
         index: innerIdx,
@@ -2447,17 +2515,25 @@ export default defineComponent({
     // form uses (WaitingFor.onsave → POST /api/player-input). Bypasses the
     // wf-action radio UI but the server can't tell the difference.
     claimMilestone(name: MilestoneName): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const found = this.findMilestoneOptionPath(this.playerView.waitingFor);
-      if (!found) return;
+      if (!found) {
+        return;
+      }
       if (this.submitInnerActionResponse(found, name)) {
         this.activeOverlay = null;
       }
     },
     fundAward(name: AwardName): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const found = this.findAwardOptionPath(this.playerView.waitingFor);
-      if (!found) return;
+      if (!found) {
+        return;
+      }
       if (this.submitInnerActionResponse(found, name)) {
         this.activeOverlay = null;
         // Free-sponsorship flow: exit the mode on submit so no pill flashes
@@ -2472,8 +2548,12 @@ export default defineComponent({
     // successful submission, false if the path is empty or the WaitingFor
     // ref is missing.
     submitActionOptionPath(path: ReadonlyArray<number>): boolean {
-      if (this.startGameFlowActionLocked) return false;
-      if (path.length === 0) return false;
+      if (this.startGameFlowActionLocked) {
+        return false;
+      }
+      if (path.length === 0) {
+        return false;
+      }
       let response: unknown = {type: 'option' as const};
       for (let i = path.length - 1; i >= 0; i--) {
         response = {type: 'or' as const, index: path[i], response};
@@ -2489,23 +2569,35 @@ export default defineComponent({
     // mild commitment, easily recoverable next round). Submits the
     // server-offered "End Turn" SelectOption straight through.
     onEndTurnClick(): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const path = this.findEndTurnPath(this.playerView.waitingFor);
-      if (path === undefined) return;
+      if (path === undefined) {
+        return;
+      }
       this.submitActionOptionPath(path);
     },
     // Pass: irreversible for the rest of the generation. Click opens the
     // client-side confirmation modal; only Confirm fires the network call.
     onPassClick(): void {
-      if (this.startGameFlowActionLocked) return;
-      if (!this.passAvailable) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
+      if (!this.passAvailable) {
+        return;
+      }
       this.passConfirmOpen = true;
     },
     onPassConfirm(): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const path = this.findPassPath(this.playerView.waitingFor);
       this.passConfirmOpen = false;
-      if (path === undefined) return;
+      if (path === undefined) {
+        return;
+      }
       this.submitActionOptionPath(path);
     },
     onPassCancel(): void {
@@ -2515,7 +2607,9 @@ export default defineComponent({
     // temperature step. Builds a nested OR-response that mirrors the depth
     // of the path returned by the recursive finder.
     convertHeat(): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const found = this.findConvertHeatOption(this.playerView.waitingFor);
       if (!found || found.path.length === 0) {
         if (this.thisPlayer.canConvertHeat) {
@@ -2538,7 +2632,9 @@ export default defineComponent({
     // valid greenery space, `onConvertPlantsSpacePicked` wraps the space
     // response in the outer OR-payload and submits.
     toggleConvertPlantsPicker(): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       this.convertPlantsPickerActive = !this.convertPlantsPickerActive;
     },
     /*
@@ -2572,12 +2668,16 @@ export default defineComponent({
      *      delay racing with the mouseover -> setAttribute write).
      */
     installPlacementGuards(): void {
-      if (this.placementClickGuard !== null) return;
+      if (this.placementClickGuard !== null) {
+        return;
+      }
       const tooltipText = translateText('Finish your current action first');
 
       const guard = (e: MouseEvent) => {
         const target = e.target as Element | null;
-        if (target === null) return;
+        if (target === null) {
+          return;
+        }
         if (target.closest(PLACEMENT_LOCKED_SELECTORS) !== null) {
           e.preventDefault();
           e.stopImmediatePropagation();
@@ -2588,9 +2688,13 @@ export default defineComponent({
 
       const mouseover = (e: MouseEvent) => {
         const target = e.target as Element | null;
-        if (target === null) return;
+        if (target === null) {
+          return;
+        }
         const locked = target.closest(PLACEMENT_LOCKED_SELECTORS);
-        if (locked === null) return;
+        if (locked === null) {
+          return;
+        }
         this.applyActionLockTooltip(locked, tooltipText);
         this.showActionLockTooltip(locked, tooltipText);
       };
@@ -2599,11 +2703,17 @@ export default defineComponent({
 
       const mouseout = (e: MouseEvent) => {
         const target = e.target as Element | null;
-        if (target === null) return;
+        if (target === null) {
+          return;
+        }
         const locked = target.closest(PLACEMENT_LOCKED_SELECTORS);
-        if (locked === null) return;
+        if (locked === null) {
+          return;
+        }
         const related = e.relatedTarget as Element | null;
-        if (related !== null && locked.contains(related)) return;
+        if (related !== null && locked.contains(related)) {
+          return;
+        }
         this.hideActionLockTooltip();
       };
       document.addEventListener('mouseout', mouseout, true);
@@ -2689,7 +2799,9 @@ export default defineComponent({
       });
     },
     onConvertPlantsSpacePicked(spaceResponse: {type: 'space'; spaceId: string}): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const found = this.findConvertPlantsOption(this.playerView.waitingFor);
       if (!found || found.path.length === 0) {
         if (this.thisPlayer.canConvertPlants) {
@@ -2714,11 +2826,17 @@ export default defineComponent({
     // accepts AND owns any of it, open the client-side payment-preview
     // modal so they can dial in the mix before submitting.
     onUseStandardProject(cardName: CardName): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const action = this.standardProjectsAction;
-      if (!action) return;
+      if (!action) {
+        return;
+      }
       const card = action.input.cards.find((c) => c.name === cardName);
-      if (card === undefined || card.isDisabled === true) return;
+      if (card === undefined || card.isDisabled === true) {
+        return;
+      }
       const cost = card.calculatedCost ?? 0;
       if (this.standardProjectHasAlternativeResources(card, action.input.paymentOptions ?? {})) {
         // Title is a Message object (NOT a string concatenation) so the
@@ -2760,8 +2878,12 @@ export default defineComponent({
       return hasUsableStandardProjectAlternativeResources(this.thisPlayer, card, opts);
     },
     onStdProjectPaymentConfirm(payment: Payment): void {
-      if (this.startGameFlowActionLocked) return;
-      if (this.pendingStdProjectPayment === undefined) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
+      if (this.pendingStdProjectPayment === undefined) {
+        return;
+      }
       this.submitStandardProjectPayment(this.pendingStdProjectPayment.cardName, payment);
       this.pendingStdProjectPayment = undefined;
     },
@@ -2779,7 +2901,9 @@ export default defineComponent({
     submitStandardProjectPayment(cardName: CardName, payment: Payment): void {
       // Action-menu standard project (non-empty path → nested OR) OR a top-level
       // SelectStandardProjectToPlay (EMPTY path → bare projectCard response).
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const action = this.standardProjectsAction;
       if (!action) {
         console.warn('Standard project: action not found in waitingFor tree');
@@ -2801,7 +2925,9 @@ export default defineComponent({
     // overlay in sale mode and let the player pick cards there. The action is
     // re-validated; nothing is sent until they press ПРОДАТЬ.
     onEnterSellPatents(): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       if (!this.sellPatentsActionAvailable) {
         return;
       }
@@ -2818,7 +2944,9 @@ export default defineComponent({
     // overlay already flagged `sellPatentsState.submitting`, so the post-
     // response remount drops sale mode automatically.
     onSellPatents(cards: ReadonlyArray<CardName>): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const action = this.findSellPatentsAction(this.playerView.waitingFor);
       if (!action || action.path.length === 0) {
         // Action vanished (turn ended between select and submit) — abort the
@@ -2893,7 +3021,9 @@ export default defineComponent({
     // payment widget does the rest). No server round-trip yet — the modal
     // builds the payment locally; nothing is committed until Confirm.
     onPlayHandCard(cardName: CardName): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       // Generalized: matches the action-menu "Play project card" OR a top-level
       // "play a card from hand" projectCard prompt (empty path).
       const action = this.playProjectCardAction;
@@ -2920,7 +3050,9 @@ export default defineComponent({
       this.activeOverlay = null; // close the hand overlay behind the modal
     },
     onPlayCardConfirm(response: SelectProjectCardToPlayResponse): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       if (this.pendingPlayCard === undefined) {
         return;
       }
@@ -2941,7 +3073,9 @@ export default defineComponent({
       // Generalized: action-menu play (non-empty path → wrap in nested OR) OR a
       // top-level "play a card from hand" prompt (EMPTY path → submit the bare
       // projectCard response).
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const action = this.playProjectCardAction;
       if (!action) {
         console.warn('Play card: action not found in waitingFor tree');
@@ -2980,14 +3114,18 @@ export default defineComponent({
     // one-shot top-level SelectColony submission; trade mode needs a
     // second step (pay-trade-fee chooser) before we can submit.
     onColonySelected(colonyName: ColonyName): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       if (this.coloniesOverlayMode === 'build') {
         this.submitBuildColony(colonyName);
         return;
       }
       if (this.coloniesOverlayMode === 'trade') {
         const ctx = this.tradeColonyContext;
-        if (!ctx) return;
+        if (!ctx) {
+          return;
+        }
         // ALWAYS open the premium confirmation/payment modal — never trade
         // instantly, even with a single pay path. The player must explicitly
         // confirm (and see the cost + their resources) before the server
@@ -3004,9 +3142,13 @@ export default defineComponent({
     // by findBuildColonyContext is wrapped into OR layers; the innermost
     // payload is the actual `{type: 'colony', colonyName}` response.
     submitBuildColony(colonyName: ColonyName): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const ctx = this.buildColonyContext;
-      if (!ctx) return;
+      if (!ctx) {
+        return;
+      }
       let response: unknown = {type: 'colony' as const, colonyName};
       for (let i = ctx.path.length - 1; i >= 0; i--) {
         response = {type: 'or' as const, index: ctx.path[i], response};
@@ -3018,8 +3160,12 @@ export default defineComponent({
       this.coloniesOverlayManualOpen = false;
     },
     onColonyTradePaymentSelected(paymentIdx: number): void {
-      if (this.startGameFlowActionLocked) return;
-      if (this.pendingTradeColony === undefined) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
+      if (this.pendingTradeColony === undefined) {
+        return;
+      }
       this.submitTradeColony(this.pendingTradeColony.colonyName, paymentIdx);
     },
     onColonyTradePaymentCancel(): void {
@@ -3039,9 +3185,13 @@ export default defineComponent({
     // where wrap() applies one OR layer per index in tradePath, innermost
     // first (matching every other findXPath → submit pattern in this file).
     submitTradeColony(colonyName: ColonyName, paymentIdx: number): void {
-      if (this.startGameFlowActionLocked) return;
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
       const ctx = this.tradeColonyContext;
-      if (!ctx) return;
+      if (!ctx) {
+        return;
+      }
       const andResponse = {
         type: 'and' as const,
         responses: [

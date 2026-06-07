@@ -113,14 +113,26 @@ export class MarsNomads extends Card implements IActionCard {
         placementType: 'land',
         customReasoner: (space) => {
           // Cells with tiles / reserved / other-owned: let generic say so.
-          if (space.tile !== undefined) return undefined;
-          if (space.id === board.noctisCitySpaceId) return undefined;
-          if (space.player !== undefined && space.player !== player) return undefined;
+          if (space.tile !== undefined) {
+            return undefined;
+          }
+          if (space.id === board.noctisCitySpaceId) {
+            return undefined;
+          }
+          if (space.player !== undefined && space.player !== player) {
+            return undefined;
+          }
           // Non-land terrain → generic 'wrong-terrain'.
-          if (space.spaceType !== 'land') return undefined;
+          if (space.spaceType !== 'land') {
+            return undefined;
+          }
           // Now we know: empty, land, owner-OK. Two card-specific reasons:
-          if (!adjacentIds.has(space.id)) return 'not-adjacent-to-nomads';
-          if (!this.canAffordPlacementBonus(player, space)) return 'cannot-afford-bonus';
+          if (!adjacentIds.has(space.id)) {
+            return 'not-adjacent-to-nomads';
+          }
+          if (!this.canAffordPlacementBonus(player, space)) {
+            return 'cannot-afford-bonus';
+          }
           return undefined;
         },
       })

@@ -65,18 +65,24 @@ export default defineComponent({
   },
   computed: {
     assetName(): string {
-      if (!this.milestone) return '';
+      if (!this.milestone) {
+        return '';
+      }
       return this.milestone.name.toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
     },
     badgeStyle(): Record<string, string> {
-      if (!this.milestone) return {};
+      if (!this.milestone) {
+        return {};
+      }
       return {backgroundImage: `url(assets/ma/${this.assetName}.png)`};
     },
     shortName(): string {
       return this.milestone?.name.replace(/[0-9]+$/, '') ?? '';
     },
     description(): string {
-      if (!this.milestone) return '';
+      if (!this.milestone) {
+        return '';
+      }
       return this.milestone.description ?? getMilestone(this.milestone.name).description;
     },
     tooltipStyle(): Record<string, string> {
