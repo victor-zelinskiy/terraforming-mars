@@ -36,9 +36,9 @@ export class SelectPayment extends BasePlayerInput<Payment> {
       spireScience: player.getSpendable('spireScience'),
       reserveUnits: this.reserveUnits,
 
-      floaters: 0,
-      microbes: 0,
-      graphene: 0,
+      floaters: player.getSpendable('floaters'),
+      microbes: player.getSpendable('microbes'),
+      graphene: player.getSpendable('graphene'),
     };
   }
 

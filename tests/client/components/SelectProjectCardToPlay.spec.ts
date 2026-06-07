@@ -12,6 +12,7 @@ import {Payment} from '@/common/inputs/Payment';
 import {CardModel} from '@/common/models/CardModel';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
 import {SelectProjectCardToPlayResponse} from '@/common/inputs/InputResponse';
+import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '@/common/inputs/Spendable';
 
 describe('SelectProjectCardToPlay', () => {
   let localStorage: FakeLocalStorage;
@@ -798,6 +799,14 @@ describe('SelectProjectCardToPlay', () => {
       spireScience: 0,
       ...playerInputFields,
     };
+    const tableau = [...(thisPlayer.tableau ?? [])] as Array<CardModel>;
+    for (const resource of SPENDABLE_CARD_RESOURCES) {
+      const amount = playerInput[resource as keyof SelectProjectCardToPlayModel];
+      if (typeof amount === 'number' && amount > 0 && !hasSpendableCard(tableau, resource)) {
+        tableau.push({name: CARD_FOR_SPENDABLE_RESOURCE[resource], resources: amount} as CardModel);
+      }
+    }
+    thisPlayer.tableau = tableau;
     if (options !== undefined) {
       playerInput.cards![0].reserveUnits = options.reserveUnits;
       playerInput.cards![0].standardProjectCanPayWith = options.canPayWith;
@@ -816,4 +825,8 @@ describe('SelectProjectCardToPlay', () => {
       },
     });
   };
+
+  function hasSpendableCard(tableau: ReadonlyArray<CardModel>, resource: SpendableCardResource): boolean {
+    return tableau.some((card) => card.name === CARD_FOR_SPENDABLE_RESOURCE[resource]);
+  }
 });

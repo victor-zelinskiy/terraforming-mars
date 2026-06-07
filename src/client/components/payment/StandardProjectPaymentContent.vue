@@ -68,6 +68,7 @@ import {Ledger} from '@/client/components/PaymentLedger';
 import {Units} from '@/common/Units';
 import {sum} from '@/common/utils/utils';
 import PaymentFormV2 from '@/client/components/payment/PaymentFormV2.vue';
+import {STANDARD_PROJECT_PAYMENT_ORDER, paymentOptionsAllowResource} from '@/client/components/payment/paymentModelUtils';
 
 export default defineComponent({
   name: 'StandardProjectPaymentContent',
@@ -92,16 +93,7 @@ export default defineComponent({
   emits: ['confirm', 'cancel'],
   computed: {
     order(): ReadonlyArray<keyof Payment> {
-      return ([
-        'steel',
-        'titanium',
-        'heat',
-        'seeds',
-        'auroraiData',
-        'kuiperAsteroids',
-        'spireScience',
-        'megacredits',
-      ] as const).filter(this.canUse);
+      return STANDARD_PROJECT_PAYMENT_ORDER.filter(this.canUse);
     },
     ledger(): Ledger {
       return this.buildLedger(this.order, this.playerinput.reserveUnits ?? Units.EMPTY);
@@ -112,12 +104,7 @@ export default defineComponent({
   },
   methods: {
     canUse(unit: SpendableResource): boolean {
-      if (unit === 'megacredits') return true;
-      if (unit === 'titanium') {
-        return this.playerinput.paymentOptions.titanium === true ||
-               this.playerinput.paymentOptions.lunaTradeFederationTitanium === true;
-      }
-      return this.playerinput.paymentOptions[unit] === true;
+      return paymentOptionsAllowResource(this.playerinput.paymentOptions, unit);
     },
     // Mirrors PaymentFormV2.canSave() but reads `this.payment` (our local
     // reactive data — updated via the form's @change emitter) so Vue

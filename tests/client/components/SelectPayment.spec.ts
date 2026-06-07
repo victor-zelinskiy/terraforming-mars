@@ -7,6 +7,7 @@ import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {PaymentTester} from './PaymentTester';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
+import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '@/common/inputs/Spendable';
 
 describe('SelectPayment', () => {
   it('Uses heat', async () => {
@@ -96,6 +97,22 @@ describe('SelectPayment', () => {
     const tester = new PaymentTester(wrapper);
     await tester.nextTick();
     tester.expectPayment({auroraiData: 4, megacredits: 2});
+  });
+
+  it('reads spendable card resources from the current tableau', async () => {
+    const wrapper = setupBill(
+      18,
+      {
+        megacredits: 16,
+        tableau: [{name: CardName.KUIPER_COOPERATIVE, resources: 2} as CardModel],
+      },
+      {paymentOptions: {kuiperAsteroids: true}, kuiperAsteroids: 0});
+
+    const tester = new PaymentTester(wrapper);
+    await tester.nextTick();
+
+    tester.expectAvailablePaymentComponents('kuiperAsteroids', 'megacredits');
+    tester.expectPayment({kuiperAsteroids: 2, megacredits: 16});
   });
 
   it('initial values, multiple values', async () => {
@@ -320,6 +337,15 @@ describe('SelectPayment', () => {
       tableau: [],
       ...playerFields};
 
+    const tableau = [...(thisPlayer.tableau ?? [])] as Array<CardModel>;
+    for (const resource of SPENDABLE_CARD_RESOURCES) {
+      const amount = playerInputFields[resource as keyof SelectPaymentModel];
+      if (typeof amount === 'number' && amount > 0 && !hasSpendableCard(tableau, resource)) {
+        tableau.push({name: CARD_FOR_SPENDABLE_RESOURCE[resource], resources: amount} as CardModel);
+      }
+    }
+    thisPlayer.tableau = tableau;
+
     const playerView: Partial<PlayerViewModel> = {
       thisPlayer: thisPlayer as PublicPlayerModel,
       id: 'playerid-foo',
@@ -352,5 +378,9 @@ describe('SelectPayment', () => {
         showtitle: true,
       },
     });
+  }
+
+  function hasSpendableCard(tableau: ReadonlyArray<CardModel>, resource: SpendableCardResource): boolean {
+    return tableau.some((card) => card.name === CARD_FOR_SPENDABLE_RESOURCE[resource]);
   }
 });

@@ -27,6 +27,7 @@ import {SelectPaymentResponse} from '@/common/inputs/InputResponse';
 import PaymentForm from '@/client/components/PaymentForm.vue';
 import {Ledger} from '@/client/components/PaymentLedger';
 import {Units} from '@/common/Units';
+import {GENERIC_PAYMENT_ORDER, paymentOptionsAllowResource} from '@/client/components/payment/paymentModelUtils';
 
 export default defineComponent({
   name: 'SelectPayment',
@@ -53,16 +54,7 @@ export default defineComponent({
   },
   computed: {
     order(): ReadonlyArray<keyof Payment> {
-      return ([
-        'steel',
-        'titanium',
-        'heat',
-        'seeds',
-        'auroraiData',
-        'kuiperAsteroids',
-        'spireScience',
-        'megacredits',
-      ] as const).filter(this.canUse);
+      return GENERIC_PAYMENT_ORDER.filter(this.canUse);
     },
     ledger(): Ledger {
       return this.buildLedger(this.order, this.playerinput.reserveUnits ?? Units.EMPTY);
@@ -76,13 +68,7 @@ export default defineComponent({
   },
   methods: {
     canUse(unit: SpendableResource): boolean {
-      if (unit === 'megacredits') {
-        return true;
-      }
-      if (unit === 'titanium') {
-        return this.playerinput.paymentOptions.titanium === true || this.playerinput.paymentOptions.lunaTradeFederationTitanium === true;
-      }
-      return this.playerinput.paymentOptions[unit] === true;
+      return paymentOptionsAllowResource(this.playerinput.paymentOptions, unit);
     },
     saveData() {
       const paymentForm = this.$refs.paymentForm as {handleSave: () => void} | undefined;

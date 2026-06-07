@@ -2,7 +2,7 @@ import {shallowMount} from '@vue/test-utils';
 import {expect} from 'chai';
 import {globalConfig} from './getLocalVue';
 import PlayerHome from '@/client/components/PlayerHome.vue';
-import {fakePlayerViewModel} from './testHelpers';
+import {fakePlayerViewModel, fakePublicPlayerModel} from './testHelpers';
 import {FakeLocalStorage} from './FakeLocalStorage';
 import raw_settings from '@/genfiles/settings.json';
 import {
@@ -12,6 +12,7 @@ import {
   startFlowHasFocusedSubAction,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {CardName} from '@/common/cards/CardName';
+import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 
 describe('PlayerHome', () => {
   let localStorage: FakeLocalStorage;
@@ -130,6 +131,60 @@ describe('PlayerHome', () => {
     (wrapper.vm as any).onPlayHandCard(CardName.ACQUIRED_COMPANY);
 
     expect((wrapper.vm as any).pendingPlayCard?.cardName).to.eq(CardName.ACQUIRED_COMPANY);
+
+    wrapper.unmount();
+  });
+
+  it('builds standard-project payment previews from current tableau resources', () => {
+    const standardProjectInput: SelectProjectCardToPlayModel = {
+      type: 'projectCard',
+      title: 'Standard projects',
+      buttonLabel: 'Play card',
+      cards: [{
+        name: CardName.AQUIFER_STANDARD_PROJECT,
+        calculatedCost: 18,
+        standardProjectCanPayWith: {kuiperAsteroids: true},
+      }],
+      paymentOptions: {},
+      microbes: 0,
+      floaters: 0,
+      lunaArchivesScience: 0,
+      seeds: 0,
+      graphene: 0,
+      kuiperAsteroids: 0,
+      auroraiData: 0,
+      spireScience: 0,
+    };
+    const thisPlayer = fakePublicPlayerModel({
+      megacredits: 16,
+      tableau: [{name: CardName.KUIPER_COOPERATIVE, resources: 2}],
+    });
+    const view = fakePlayerViewModel({
+      thisPlayer,
+      players: [thisPlayer],
+      waitingFor: standardProjectInput,
+    });
+
+    const wrapper = shallowMount(PlayerHome, {
+      ...globalConfig,
+      parentComponent: {
+        methods: {
+          getVisibilityState: () => true,
+          setVisibilityState: () => {},
+        },
+      } as any,
+      props: {
+        playerView: view,
+        settings: raw_settings,
+      },
+    });
+
+    (wrapper.vm as any).onUseStandardProject(CardName.AQUIFER_STANDARD_PROJECT);
+
+    const pending = (wrapper.vm as any).pendingStdProjectPayment;
+    expect(pending).not.undefined;
+    expect(pending.input.paymentOptions.kuiperAsteroids).eq(true);
+    expect(pending.input.kuiperAsteroids).eq(2);
 
     wrapper.unmount();
   });
