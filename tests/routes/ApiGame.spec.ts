@@ -92,6 +92,7 @@ describe('ApiGame', () => {
           'requiresVenusTrackCompletion': false,
           'showOtherPlayersVP': false,
           'showTimers': true,
+          'testMode': false,
           'shuffleMapOption': false,
           'solarPhaseOption': false,
           'soloTR': false,
