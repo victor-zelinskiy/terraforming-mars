@@ -8,7 +8,7 @@
         role="tooltip"
         aria-hidden="true">
         <div class="journal-card-preview__inner">
-          <Card :card="{name}" />
+          <Card :card="resolvedCard" />
         </div>
       </div>
     </Transition>
@@ -16,8 +16,9 @@
 </template>
 
 <script lang="ts">
-import {defineComponent} from 'vue';
+import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 import Card from '@/client/components/card/Card.vue';
 
 /**
@@ -34,6 +35,10 @@ import Card from '@/client/components/card/Card.vue';
  * board area, where there's room). If the card would clip the left edge
  * we flip to the right; vertically we clamp so a card near the top/bottom
  * of the feed stays fully visible.
+ *
+ * The `card` prop takes priority over `name` — pass a live CardModel to show
+ * current resource counts (used by the Actions/Effects overlays). The journal
+ * and other static-name callers can omit `card` and rely on `name` alone.
  */
 
 // Approximate rendered size of the scaled-down preview card. Used only
@@ -49,7 +54,13 @@ export default defineComponent({
   props: {
     name: {
       type: String as () => CardName,
-      required: true,
+      default: '' as CardName,
+    },
+    // When provided, the live CardModel is rendered (includes current resources).
+    // Falls back to {name} when absent.
+    card: {
+      type: Object as PropType<CardModel>,
+      default: undefined,
     },
     visible: {
       type: Boolean,
@@ -63,6 +74,9 @@ export default defineComponent({
     },
   },
   computed: {
+    resolvedCard(): CardModel {
+      return this.card ?? ({name: this.name} as CardModel);
+    },
     positionStyle(): Record<string, string> {
       const a = this.anchor;
       if (a === undefined) {

@@ -441,6 +441,7 @@
                          :minimizable="false">
       <CardActionConfirmContent
         :cardName="pendingCardAction.cardName"
+        :card="pendingCardAction.card"
         @confirm="onCardActionConfirm"
         @cancel="onCardActionCancel" />
     </MandatoryInputModal>
@@ -815,6 +816,7 @@ type PendingPlayCard = {
 // response; Cancel restores the overlay (no server round-trip).
 type PendingCardAction = {
   cardName: CardName;
+  card: CardModel | undefined;
 };
 
 // Pending Trade-with-Colony state. Set after the player picks a colony in
@@ -2250,7 +2252,8 @@ export default defineComponent({
       if (this.startGameFlowActionLocked) {
         return;
       }
-      this.pendingCardAction = {cardName};
+      const card = this.thisPlayer.tableau.find((c) => c.name === cardName);
+      this.pendingCardAction = {cardName, card};
       this.activeOverlay = null; // close the overlay behind the modal
     },
     onCardActionConfirm(): void {

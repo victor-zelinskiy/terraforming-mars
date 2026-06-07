@@ -13,10 +13,18 @@
     position: fixed;
     z-index: 96;
     bottom: calc(var(--bottom-bar-button-height) + 8px);
-    left: 50%;
-    transform: translateX(-50%);
+    /* Centre within the content zone (between the left panel and the right
+       sidebar), never overlapping either. The formula mirrors the one used by
+       player_home.less for the board and other fixed panels:
+         left = (leftPanelWidth + 100vw - rightSidebarWidth - overlayWidth) / 2
+       clamp() keeps the overlay inside the zone even when it fills it fully. */
+    left: clamp(
+        var(--left-panel-width, 160px),
+        calc((var(--left-panel-width, 160px) + 100vw - var(--right-sidebar-width, 62px) - var(--actions-overlay-width, 600px)) / 2),
+        calc(100vw - var(--right-sidebar-width, 62px) - var(--actions-overlay-width, 600px))
+    );
     width: var(--actions-overlay-width, 600px);
-    max-width: calc(100vw - 96px);
+    max-width: calc(100vw - var(--left-panel-width, 160px) - var(--right-sidebar-width, 62px) - 16px);
     max-height: calc(100vh - 2 * var(--bottom-bar-button-height) - 24px);
     display: flex;
     flex-direction: column;
@@ -35,8 +43,8 @@
 }
 
 @keyframes actions-board-in {
-    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
-    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .actions-board__corner {

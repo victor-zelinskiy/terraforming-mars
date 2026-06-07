@@ -32,6 +32,7 @@
           SOURCE — secondary preview. The card is the CONTEXT ("where the
           action comes from"), deliberately compact + recessed so it never
           competes with the action panel. Click → fullscreen.
+          Renders with live resource counts when a full CardModel is supplied.
         -->
         <aside class="action-confirm__source">
           <span class="action-confirm__source-label" v-i18n>Source</span>
@@ -119,6 +120,13 @@ export default defineComponent({
       type: String as PropType<CardName>,
       required: true,
     },
+    // Full live CardModel from the tableau — when supplied, the source card
+    // preview shows current resource counts (animals/microbes/floaters/etc.).
+    // Falls back to a bare {name} when absent (e.g. playground/tests).
+    card: {
+      type: Object as PropType<CardModel>,
+      default: undefined,
+    },
   },
   emits: ['confirm', 'cancel'],
   data() {
@@ -127,8 +135,9 @@ export default defineComponent({
     };
   },
   computed: {
+    // The live card model used for the source preview and fullscreen viewer.
     cardModel(): CardModel {
-      return {name: this.cardName} as CardModel;
+      return this.card ?? ({name: this.cardName} as CardModel);
     },
     isCorporation(): boolean {
       return getCard(this.cardName)?.type === CardType.CORPORATION;
@@ -138,12 +147,13 @@ export default defineComponent({
     },
     group(): ActionGroup | undefined {
       // Re-derive the action graphic from the static manifest (one group).
-      return playerActionGroups([this.cardModel])[0];
+      // Only `name` matters here — resources don't affect the graphic.
+      return playerActionGroups([{name: this.cardName} as CardModel])[0];
     },
   },
   methods: {
     openFullscreen(): void {
-      this.zoomCard = {name: this.cardName} as CardModel;
+      this.zoomCard = this.cardModel;
       nextTick(() => {
         (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
       });
