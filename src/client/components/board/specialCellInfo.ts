@@ -1,4 +1,5 @@
 import {SpaceId} from '@/common/Types';
+import {BoardName} from '@/common/boards/BoardName';
 import {SpaceName} from '@/common/boards/SpaceName';
 
 /**
@@ -23,6 +24,8 @@ export type PanelPlacement = 'top' | 'bottom' | 'left' | 'right';
 export type SpecialCellInfo = {
   /** Stable id, used as the hover-state active key. */
   id: string;
+  /** Optional board scope. Unset entries are global/off-board special cells. */
+  boardName?: BoardName;
   /** Board space id the marker mounts on. */
   spaceId: SpaceId;
   /** Panel title (RU). Displayed uppercase by the panel CSS — write
@@ -38,6 +41,7 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
   // ── Tharsis surface — Noctis City ──────────────────────────────────
   {
     id: 'noctis_city',
+    boardName: BoardName.THARSIS,
     spaceId: SpaceName.NOCTIS_CITY, // '31'
     title: 'Город Ночи',
     description: 'Здесь можно разместить только Город Ночи. Город Ночи размещается с помощью определённой карты проекта.',
@@ -50,6 +54,7 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
   // on hover regardless of which mountain they pointed at.
   {
     id: 'tharsis_tholus',
+    boardName: BoardName.THARSIS,
     spaceId: '09',
     title: 'Купол Фарсида',
     description: 'Купол Фарсида — гора на поверхности Марса. Это потенциальное место для вулкана, но на него можно разместить любую плитку.',
@@ -57,6 +62,7 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
   },
   {
     id: 'ascraeus_mons',
+    boardName: BoardName.THARSIS,
     spaceId: '14',
     title: 'Гора Аскрийская',
     description: 'Гора Аскрийская — гора на поверхности Марса. Это потенциальное место для вулкана, но на неё можно разместить любую плитку.',
@@ -64,6 +70,7 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
   },
   {
     id: 'pavonis_mons',
+    boardName: BoardName.THARSIS,
     spaceId: '21',
     title: 'Гора Павлина',
     description: 'Гора Павлина — гора на поверхности Марса. Это потенциальное место для вулкана, но на неё можно разместить любую плитку.',
@@ -71,10 +78,44 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
   },
   {
     id: 'arsia_mons',
+    boardName: BoardName.THARSIS,
     spaceId: '29',
     title: 'Гора Арсия',
     description: 'Гора Арсия — гора на поверхности Марса. Это потенциальное место для вулкана, но на неё можно разместить любую плитку.',
     placement: 'right',
+  },
+  // ── Elysium surface — legacy map labels moved to hover markers ─────
+  {
+    id: 'hecatus_tholus',
+    boardName: BoardName.ELYSIUM,
+    spaceId: '08',
+    title: 'Купол Гекаты',
+    description: 'Купол Гекаты — гора на поверхности Марса. Это потенциальное место для вулкана, но на него можно разместить любую плитку.',
+    placement: 'right',
+  },
+  {
+    id: 'elysium_mons',
+    boardName: BoardName.ELYSIUM,
+    spaceId: '14',
+    title: 'Гора Элизий',
+    description: 'Гора Элизий — гора на поверхности Марса. Это потенциальное место для вулкана, но на неё можно разместить любую плитку.',
+    placement: 'right',
+  },
+  {
+    id: 'olympus_mons',
+    boardName: BoardName.ELYSIUM,
+    spaceId: '20',
+    title: 'Гора Олимп',
+    description: 'Гора Олимп — гора на поверхности Марса. Это потенциальное место для вулкана, но на неё можно разместить любую плитку.',
+    placement: 'left',
+  },
+  {
+    id: 'elysium_arsia_mons',
+    boardName: BoardName.ELYSIUM,
+    spaceId: '37',
+    title: 'Гора Арсия',
+    description: 'Гора Арсия — гора на поверхности Марса. Это потенциальное место для вулкана, но на неё можно разместить любую плитку.',
+    placement: 'left',
   },
   // ── Outer (off-Mars) special cells ─────────────────────────────────
   {
@@ -128,10 +169,14 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
   },
 ];
 
-const BY_SPACE_ID: Readonly<Record<string, SpecialCellInfo>> = (() => {
+function spaceKey(spaceId: SpaceId, boardName?: BoardName): string {
+  return `${boardName ?? '*'}:${spaceId}`;
+}
+
+const BY_SPACE_KEY: Readonly<Record<string, SpecialCellInfo>> = (() => {
   const m: Record<string, SpecialCellInfo> = {};
   for (const entry of SPECIAL_CELL_INFO) {
-    m[entry.spaceId] = entry;
+    m[spaceKey(entry.spaceId, entry.boardName)] = entry;
   }
   return m;
 })();
@@ -145,8 +190,11 @@ const BY_ID: Readonly<Record<string, SpecialCellInfo>> = (() => {
 })();
 
 /** Lookup by hex spaceId. Returns undefined for ordinary cells. */
-export function getSpecialCellInfo(spaceId: SpaceId): SpecialCellInfo | undefined {
-  return BY_SPACE_ID[spaceId];
+export function getSpecialCellInfo(spaceId: SpaceId, boardName?: BoardName): SpecialCellInfo | undefined {
+  if (boardName !== undefined) {
+    return BY_SPACE_KEY[spaceKey(spaceId, boardName)] ?? BY_SPACE_KEY[spaceKey(spaceId)];
+  }
+  return BY_SPACE_KEY[spaceKey(spaceId)];
 }
 
 /** Lookup by entry id (used by the overlay to render the active marker). */

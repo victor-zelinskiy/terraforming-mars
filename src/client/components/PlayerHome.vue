@@ -7,7 +7,13 @@
            as premium nameplates. Each keeps its anchor wrapper so its
            dropdown overlay can position absolutely under it. -->
       <div class="top-bar-btn-anchor">
-        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'milestones'}" v-on:click="toggleOverlay('milestones')"><BarButtonIcon name="milestones" /><span class="bar-btn__label" v-i18n>Milestones</span></div>
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'milestones'}" v-on:click="toggleOverlay('milestones')">
+          <BarButtonIcon name="milestones" /><span class="bar-btn__label" v-i18n>Milestones</span>
+          <span class="bar-btn__value">
+            <span class="bar-btn__value-avail" :class="{'bar-btn__value-avail--zero': claimableMilestonesCount === 0}">{{ claimableMilestonesCount }}</span>
+            <AnimatedMetricValue class="bar-btn__feedback" :value="claimableMilestonesCount" metricKey="bar.milestones.claimable" :scopeKey="thisPlayer.color" variant="misc" />
+          </span>
+        </div>
         <!--
           Claimed-milestone badge strip. Hangs below the Milestones button and
           shows up to 3 slots that fill in as players claim milestones. Visible
@@ -1331,6 +1337,12 @@ export default defineComponent({
     },
     claimedMilestonesCount(): number {
       return this.claimedMilestoneSlots.filter((s) => s !== undefined).length;
+    },
+    claimableMilestonesCount(): number {
+      if (this.claimedMilestonesCount >= MAX_MILESTONES) {
+        return 0;
+      }
+      return this.claimableMilestones.size;
     },
     // Set of milestone names the current player can claim THIS instant.
     // Read straight from the `waitingFor` model the server already sends —
