@@ -60,8 +60,8 @@
       </div>
     </div>
 
-    <!-- Shared source-card hover popover. -->
-    <CardPreviewPopover :name="hoverName" :visible="hoverVisible" :anchor="hoverAnchor" />
+    <!-- Shared source-card hover popover — passes live CardModel for resource counts. -->
+    <CardPreviewPopover :name="hoverName" :card="hoverCard" :visible="hoverVisible" :anchor="hoverAnchor" />
 
     <!-- Shared fullscreen source-card viewer. -->
     <Teleport to="body">
@@ -102,7 +102,9 @@ const CARD_IDEAL = 324;       // target width per column
 const CARD_MAX = 430;         // cap so a card never sprawls
 const CARD_HERO_MAX = 540;    // a lone action can be a touch wider (hero)
 const GAP = 16;               // grid gap
-const SIDE_MARGIN = 120;      // viewport breathing room (left + right)
+// Total horizontal space reserved for the left panel + right sidebar + breathing
+// room (matches --left-panel-width:160 + --right-sidebar-width:62 + 16px gutter).
+const SIDE_MARGIN = 238;
 const FIT_MAX_W = 1640;       // hard cap on panel width
 const BODY_PAD_X = 36;        // .actions-board__body horizontal padding
 const MIN_W = 600;            // floor so the (compact) header never wraps
@@ -112,6 +114,7 @@ const HOVER_DELAY = 260;      // ms before the source-card popover appears
 type DataModel = {
   filter: ActionFilterState;
   hoverName: CardName;
+  hoverCard: CardModel | undefined;
   hoverVisible: boolean;
   hoverAnchor: DOMRect | undefined;
   hoverTimer: number | undefined;
@@ -149,6 +152,7 @@ export default defineComponent({
     return {
       filter: {availability: 'all', activation: 'dormant'},
       hoverName: '' as CardName,
+      hoverCard: undefined,
       hoverVisible: false,
       hoverAnchor: undefined,
       hoverTimer: undefined,
@@ -180,6 +184,15 @@ export default defineComponent({
     },
     availableCount(): number {
       return availableActionCount(this.entries);
+    },
+    // Live CardModel lookup by name — used to enrich hover previews with current
+    // resource counts (animals/microbes/floaters/etc. on the card right now).
+    tableauByName(): Map<CardName, CardModel> {
+      const map = new Map<CardName, CardModel>();
+      for (const card of this.displayedPlayer.tableau) {
+        map.set(card.name, card);
+      }
+      return map;
     },
   },
   watch: {
@@ -288,6 +301,7 @@ export default defineComponent({
         return;
       }
       this.hoverName = payload.name;
+      this.hoverCard = this.tableauByName.get(payload.name);
       this.hoverAnchor = payload.rect;
       this.hoverTimer = window.setTimeout(() => {
         this.hoverVisible = true;
@@ -299,10 +313,13 @@ export default defineComponent({
         this.hoverTimer = undefined;
       }
       this.hoverVisible = false;
+      this.hoverCard = undefined;
     },
     openFullscreen(name: CardName): void {
       this.clearHover();
-      this.zoomCard = {name} as CardModel;
+      // Use the live CardModel from the tableau so the fullscreen viewer also
+      // shows current resource counts.
+      this.zoomCard = this.tableauByName.get(name) ?? ({name} as CardModel);
       nextTick(() => {
         (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
       });
