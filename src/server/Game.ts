@@ -422,6 +422,16 @@ export class Game implements IGame, Logger {
         gameOptions.underworldExpansion ||
         gameOptions.moonExpansion) {
         player.dealtCorporationCards.push(...corporationDeck.drawN(game, gameOptions.startingCorporations));
+        // DEV: guarantee Kuiper Cooperative appears for player "Nastya"
+        if (player.name === 'Nastya' && !player.dealtCorporationCards.some((c) => c.name === CardName.KUIPER_COOPERATIVE)) {
+          const kuiperIdx = corporationDeck.drawPile.findIndex((c) => c.name === CardName.KUIPER_COOPERATIVE);
+          if (kuiperIdx !== -1) {
+            const [kuiper] = corporationDeck.drawPile.splice(kuiperIdx, 1);
+            const displaced = player.dealtCorporationCards.pop();
+            if (displaced !== undefined) corporationDeck.discardPile.push(displaced);
+            player.dealtCorporationCards.push(kuiper);
+          }
+        }
         if (gameOptions.initialDraftVariant === false) {
           const projectCardsToDeal = gameOptions.testMode ? constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER : 10;
           player.dealtProjectCards.push(...projectDeck.drawN(game, projectCardsToDeal));
