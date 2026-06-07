@@ -134,6 +134,7 @@ export class ApiCreateGame extends Handler {
             draftVariant: gameReq.draftVariant,
             escapeVelocity: gameReq.escapeVelocity,
             fastModeOption: gameReq.fastModeOption,
+            testMode: gameReq.testMode ?? false,
             includedCards: gameReq.includedCards,
             includeFanMA: gameReq.includeFanMA,
             initialDraftVariant: gameReq.initialDraft,
@@ -186,4 +187,3 @@ export class ApiCreateGame extends Handler {
     });
   }
 }
-

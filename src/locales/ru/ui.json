@@ -717,6 +717,7 @@
     "${0} ${1} ${2} at ${3}": "${0} ${1} ${2} в ${3}",
     "Must select at least ${0} corporations": "Выбрано недостаточно корпораций для начала игры. Нужно хотя бы: ${0}",
     "Show timers": "Показывать таймеры",
+    "Test mode": "Тестовый режим",
     "Multiplayer Options": "Мультиплеер",
     "Cards to exclude from the game": "Карты, которые будут исключены из игры",
     "Start typing the card name to exclude": "Начните набирать название карты на английском языке",

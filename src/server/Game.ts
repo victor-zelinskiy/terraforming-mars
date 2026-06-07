@@ -277,6 +277,10 @@ export class Game implements IGame, Logger {
       };
     }
     const gameOptions = {...DEFAULT_GAME_OPTIONS, ...partialOptions};
+    if (gameOptions.testMode) {
+      gameOptions.startingCorporations = constants.TEST_MODE_CORPORATION_CARDS_DEALT_PER_PLAYER;
+      gameOptions.startingPreludes = constants.TEST_MODE_PRELUDE_CARDS_DEALT_PER_PLAYER;
+    }
 
     if (gameOptions.clonedGamedId !== undefined) {
       throw new Error('Cloning should not come through this execution path.');
@@ -385,7 +389,7 @@ export class Game implements IGame, Logger {
     // Failsafe for exceeding corporation pool
     // (I do not think this is necessary any further given how corporation cards are stored now)
     const minCorpsRequired = players.length * gameOptions.startingCorporations;
-    if (minCorpsRequired > corporationDeck.drawPile.length) {
+    if (!gameOptions.testMode && minCorpsRequired > corporationDeck.drawPile.length) {
       gameOptions.startingCorporations = 2;
     }
 
@@ -419,7 +423,8 @@ export class Game implements IGame, Logger {
         gameOptions.moonExpansion) {
         player.dealtCorporationCards.push(...corporationDeck.drawN(game, gameOptions.startingCorporations));
         if (gameOptions.initialDraftVariant === false) {
-          player.dealtProjectCards.push(...projectDeck.drawN(game, 10));
+          const projectCardsToDeal = gameOptions.testMode ? constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER : 10;
+          player.dealtProjectCards.push(...projectDeck.drawN(game, projectCardsToDeal));
         }
         if (gameOptions.preludeExtension) {
           gameOptions.startingPreludes = Math.max(gameOptions.startingPreludes ?? 0, constants.PRELUDE_CARDS_DEALT_PER_PLAYER);
@@ -680,9 +685,26 @@ export class Game implements IGame, Logger {
         if (somePlayer.pickedCorporationCard === undefined) {
           throw new Error(`pickedCorporationCard is not defined for ${somePlayer.id}`);
         }
+        if (this.gameOptions.testMode) {
+          this.applyTestModeStartingStock(somePlayer);
+        }
         somePlayer.playCorporationCard(somePlayer.pickedCorporationCard);
+        if (this.gameOptions.testMode) {
+          this.applyTestModeStartingStock(somePlayer);
+        }
       }
     }
+  }
+
+  private applyTestModeStartingStock(player: IPlayer): void {
+    player.stock.override({
+      megacredits: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+      steel: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+      titanium: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+      plants: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+      energy: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+      heat: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+    });
   }
 
   private selectInitialCards(player: IPlayer): PlayerInput {

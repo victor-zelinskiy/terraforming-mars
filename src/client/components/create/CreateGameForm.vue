@@ -196,15 +196,20 @@
                         <div class="create-game-page-column">
                             <h4 v-i18n>Options</h4>
 
+                            <input type="checkbox" v-model="testMode" id="testMode-checkbox">
+                            <label for="testMode-checkbox">
+                                <span v-i18n>Test mode</span>
+                            </label>
+
                             <label for="startingCorpNum-checkbox">
-                            <input type="number" class="create-game-corporations-count" value="2" min="1" :max="6" v-model="startingCorporations" id="startingCorpNum-checkbox">
+                            <input type="number" class="create-game-corporations-count" value="2" min="1" :max="testMode ? constants.TEST_MODE_CORPORATION_CARDS_DEALT_PER_PLAYER : 6" v-model="startingCorporations" id="startingCorpNum-checkbox" :disabled="testMode">
                                 <span v-i18n>Starting Corporations</span>
                             </label>
 
                             <template v-if="expansions.prelude">
                               <label for="startingPreludeENum-checkbox">
                               <div class="create-game-expansion-icon expansion-icon-prelude"></div>
-                              <input type="number" class="create-game-corporations-count" value="4" min="4" :max="8" v-model="startingPreludes" id="startingPreludeNum-checkbox">
+                              <input type="number" class="create-game-corporations-count" value="4" min="4" :max="testMode ? constants.TEST_MODE_PRELUDE_CARDS_DEALT_PER_PLAYER : 8" v-model="startingPreludes" id="startingPreludeNum-checkbox" :disabled="testMode">
                                   <span v-i18n>Starting Preludes</span>
                               </label>
                             </template>
@@ -609,6 +614,8 @@ type Refs = {
 
 type FormModel = {
   preludeToggled: boolean;
+  previousStartingCorporations: number | undefined;
+  previousStartingPreludes: number | undefined;
   uploading: boolean;
 };
 
@@ -618,6 +625,8 @@ export default defineComponent({
     return {
       ...defaultCreateGameModel(),
       preludeToggled: false,
+      previousStartingCorporations: undefined,
+      previousStartingPreludes: undefined,
       uploading: false,
     };
   },
@@ -671,6 +680,19 @@ export default defineComponent({
     playersCount(value: number) {
       if (value === 1) {
         this.expansions.corpera = true;
+      }
+    },
+    testMode(value: boolean) {
+      if (value) {
+        this.previousStartingCorporations = this.startingCorporations;
+        this.previousStartingPreludes = this.startingPreludes;
+        this.startingCorporations = constants.TEST_MODE_CORPORATION_CARDS_DEALT_PER_PLAYER;
+        this.startingPreludes = constants.TEST_MODE_PRELUDE_CARDS_DEALT_PER_PLAYER;
+      } else {
+        this.startingCorporations = this.previousStartingCorporations ?? 2;
+        this.startingPreludes = this.previousStartingPreludes ?? constants.PRELUDE_CARDS_DEALT_PER_PLAYER;
+        this.previousStartingCorporations = undefined;
+        this.previousStartingPreludes = undefined;
       }
     },
   },
@@ -978,14 +1000,19 @@ export default defineComponent({
       const fastModeOption = this.fastModeOption;
       const removeNegativeGlobalEventsOption = this.removeNegativeGlobalEventsOption;
       const includeFanMA = this.includeFanMA;
-      const startingCorporations = this.startingCorporations;
+      const testMode = this.testMode;
+      const startingCorporations = testMode ?
+        constants.TEST_MODE_CORPORATION_CARDS_DEALT_PER_PLAYER :
+        this.startingCorporations;
       const soloTR = this.soloTR;
       const randomFirstPlayer = this.randomFirstPlayer;
       const requiresVenusTrackCompletion = this.requiresVenusTrackCompletion;
       const twoCorpsVariant = this.twoCorpsVariant;
       const customCeos = this.customCeos;
       const startingCeos = this.startingCeos;
-      const startingPreludes = this.startingPreludes;
+      const startingPreludes = testMode ?
+        constants.TEST_MODE_PRELUDE_CARDS_DEALT_PER_PLAYER :
+        this.startingPreludes;
       let clonedGamedId: undefined | GameId = undefined;
 
       // Check custom colony count
@@ -1180,6 +1207,7 @@ export default defineComponent({
         undoOption,
         showTimers,
         fastModeOption,
+        testMode,
         removeNegativeGlobalEventsOption,
         includeFanMA,
         modularMA: this.modularMA,
