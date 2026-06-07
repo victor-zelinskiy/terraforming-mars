@@ -516,7 +516,7 @@
     "Randomize board tiles": "Случайные места для тайлов",
     "Go to main page": "На стартовую страницу",
 
-    "Confirm": "Ok",
+    "Confirm": "Подтвердить",
     "Pass": "Пас",
     "Beginner Corporation": "Начинающая корпорация",
     "BEGINNER CORPORATION": "Начинающая корпорация",
@@ -918,6 +918,7 @@
     "Pay for ${0}": "Оплатить ${0}",
     "Cancel": "Отмена",
     "Confirm pass": "Подтвердить",
+    "Converting heat now will spend heat without raising temperature.": "Сейчас тепло будет потрачено без повышения температуры.",
     "You will not be able to take any more actions this generation. Are you sure?": "Вы больше не сможете совершить какие либо действия в этом поколении. Вы уверены ?",
     "Pass — end your participation in this generation. You will not be able to take any more actions until the next generation.": "Спасовать — завершить участие в этом поколении. Вы больше не сможете совершить какие либо действия до следующего поколения.",
     "End turn — skip your second action and pass the turn to the next player. You can still act in this generation on your next turn.": "Пропустить второе действие и передать ход следующему игроку.",
