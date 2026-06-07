@@ -426,20 +426,24 @@ export default defineComponent({
     // the bubbling pair with `relatedTarget` dedupe to ignore intra-cell
     // moves. The shared store no-ops when the spaceId isn't a registered
     // marker (= ordinary cell, or occupied special cell).
-    this.$el.addEventListener('mouseover', this.onHexHoverEnter as EventListener);
-    this.$el.addEventListener('mouseout', this.onHexHoverLeave as EventListener);
+    this.$el.addEventListener('mouseover', this.onHexHoverEnter);
+    this.$el.addEventListener('mouseout', this.onHexHoverLeave);
   },
   beforeUnmount() {
-    this.$el.removeEventListener('mouseover', this.onHexHoverEnter as EventListener);
-    this.$el.removeEventListener('mouseout', this.onHexHoverLeave as EventListener);
+    this.$el.removeEventListener('mouseover', this.onHexHoverEnter);
+    this.$el.removeEventListener('mouseout', this.onHexHoverLeave);
   },
   methods: {
     onHexHoverEnter(e: MouseEvent): void {
       const cell = (e.target as HTMLElement | null)?.closest('[data_space_id]') as HTMLElement | null;
-      if (cell === null) return;
+      if (cell === null) {
+        return;
+      }
       const related = e.relatedTarget as Node | null;
       // Moves from a child of the same cell don't count as "entering" the cell.
-      if (related !== null && cell.contains(related)) return;
+      if (related !== null && cell.contains(related)) {
+        return;
+      }
       // During a tile placement the per-cell reason popover (SelectSpace.vue)
       // owns whole-cell hover, so the hex-wide info path is suppressed
       // ENTIRELY — showing the special-cell info on every cell the cursor
@@ -451,7 +455,9 @@ export default defineComponent({
         return;
       }
       const spaceId = cell.getAttribute('data_space_id') as SpaceId | null;
-      if (spaceId === null) return;
+      if (spaceId === null) {
+        return;
+      }
       activateSpecialCellBySpaceId(spaceId);
     },
     // True while a tile-placement prompt is on the board — SelectSpace marks
@@ -462,12 +468,18 @@ export default defineComponent({
     },
     onHexHoverLeave(e: MouseEvent): void {
       const cell = (e.target as HTMLElement | null)?.closest('[data_space_id]') as HTMLElement | null;
-      if (cell === null) return;
+      if (cell === null) {
+        return;
+      }
       const related = e.relatedTarget as Node | null;
       // Moves to a child of the same cell don't count as "leaving" the cell.
-      if (related !== null && cell.contains(related)) return;
+      if (related !== null && cell.contains(related)) {
+        return;
+      }
       const spaceId = cell.getAttribute('data_space_id') as SpaceId | null;
-      if (spaceId === null) return;
+      if (spaceId === null) {
+        return;
+      }
       deactivateSpecialCellBySpaceId(spaceId);
     },
     getAllSpacesOnMars(): Array<SpaceModel> {

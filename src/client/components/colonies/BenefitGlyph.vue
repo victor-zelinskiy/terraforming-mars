@@ -184,12 +184,18 @@ export default defineComponent({
     // (Io→heat, Ceres→steel, Luna→megacredits, etc.) hit this path.
     resourceClassFromBenefit(): string {
       const r = this.benefit.resource;
-      if (typeof r === 'string') return r.toLowerCase();
-      if (Array.isArray(r) && r.length > 0) return String(r[0]).toLowerCase();
+      if (typeof r === 'string') {
+        return r.toLowerCase();
+      }
+      if (Array.isArray(r) && r.length > 0) {
+        return String(r[0]).toLowerCase();
+      }
       return 'colony-tile__row-reward-icon--abstract';
     },
     cardResourceClass(): string {
-      if (this.cardResource !== undefined) return this.cardResource.toString().toLowerCase();
+      if (this.cardResource !== undefined) {
+        return this.cardResource.toString().toLowerCase();
+      }
       return 'colony-tile__row-reward-icon--abstract';
     },
   },

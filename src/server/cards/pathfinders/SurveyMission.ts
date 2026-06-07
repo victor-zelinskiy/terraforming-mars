@@ -103,13 +103,27 @@ export class SurveyMission extends PreludeCard {
     return createMarsSelectSpace(player, messages[iteration], spaces, {
       placementType: 'land',
       customReasoner: (space) => {
-        if (space.tile !== undefined && space.tile.protectedHazard !== true) return undefined;
-        if (space.player !== undefined) return undefined;
-        if (space.id === player.game.board.noctisCitySpaceId) return undefined;
-        if (space.spaceType === 'colony') return undefined;
-        if (space.spaceType !== 'land') return undefined;
-        if (!MarsBoard.canAffordPlacementBonuses(player, space)) return 'cannot-afford-bonus';
-        if (validIds.has(space.id)) return undefined; // shouldn't happen — it's in legal set
+        if (space.tile !== undefined && space.tile.protectedHazard !== true) {
+          return undefined;
+        }
+        if (space.player !== undefined) {
+          return undefined;
+        }
+        if (space.id === player.game.board.noctisCitySpaceId) {
+          return undefined;
+        }
+        if (space.spaceType === 'colony') {
+          return undefined;
+        }
+        if (space.spaceType !== 'land') {
+          return undefined;
+        }
+        if (!MarsBoard.canAffordPlacementBonuses(player, space)) {
+          return 'cannot-afford-bonus';
+        }
+        if (validIds.has(space.id)) {
+          return undefined;
+        } // shouldn't happen — it's in legal set
         return iteration === 0 ? 'no-triangle-with-this-space' : 'breaks-current-triangle';
       },
     })

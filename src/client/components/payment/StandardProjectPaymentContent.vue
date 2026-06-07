@@ -117,16 +117,24 @@ export default defineComponent({
     // unavoidable for rate > 1 resources. Wasteful 1:1 over-pay is
     // already prevented at the + button via rowMax in PaymentFormV2.
     canConfirm(): boolean {
-      if (this.cost === 0) return true;
+      if (this.cost === 0) {
+        return true;
+      }
       const total = sum(this.order.map((unit) => this.payment[unit] * this.ledger[unit].rate));
-      if (total < this.cost) return false;
+      if (total < this.cost) {
+        return false;
+      }
       for (const unit of this.order) {
-        if (this.payment[unit] > this.ledger[unit].available) return false;
+        if (this.payment[unit] > this.ledger[unit].available) {
+          return false;
+        }
       }
       return true;
     },
     confirm(): void {
-      if (!this.canConfirm()) return;
+      if (!this.canConfirm()) {
+        return;
+      }
       this.$emit('confirm', this.payment);
     },
   },

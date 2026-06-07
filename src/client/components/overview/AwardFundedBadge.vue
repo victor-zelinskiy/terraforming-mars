@@ -90,19 +90,27 @@ export default defineComponent({
   },
   computed: {
     assetName(): string {
-      if (!this.award) return '';
+      if (!this.award) {
+        return '';
+      }
       return this.award.name.toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
     },
     badgeStyle(): Record<string, string> {
-      if (!this.award) return {};
+      if (!this.award) {
+        return {};
+      }
       return {backgroundImage: `url(assets/ma/${this.assetName}.png)`};
     },
     description(): string {
-      if (!this.award) return '';
+      if (!this.award) {
+        return '';
+      }
       return getAward(this.award.name).description;
     },
     sortedScores(): Array<AwardScore> {
-      if (!this.award) return [];
+      if (!this.award) {
+        return [];
+      }
       return [...this.award.scores].sort((x, y) => y.score - x.score);
     },
     tooltipStyle(): Record<string, string> {
@@ -126,7 +134,9 @@ export default defineComponent({
     // top score is non-zero (so we don't paint everyone green at game start
     // when nobody has any qualifying tags / tiles yet).
     isLeader(s: AwardScore, _i: number): boolean {
-      if (this.sortedScores.length === 0) return false;
+      if (this.sortedScores.length === 0) {
+        return false;
+      }
       const top = this.sortedScores[0].score;
       return s.score === top && top > 0;
     },

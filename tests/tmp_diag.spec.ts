@@ -13,13 +13,13 @@ describe('DIAG corp first action serialization', () => {
     player.takeAction();
     runAllActions(game);
     const model = Server.getPlayerModel(player);
-    // eslint-disable-next-line no-console
+
     console.log('WF_TYPE=' + (model.waitingFor && model.waitingFor.type));
-    // eslint-disable-next-line no-console
+
     console.log('WF=' + JSON.stringify(model.waitingFor));
-    // eslint-disable-next-line no-console
+
     console.log('PENDING=' + JSON.stringify(model.pendingInitialActions));
-    // eslint-disable-next-line no-console
+
     console.log('GEN=' + model.game.generation + ' PHASE=' + model.game.phase);
   });
 });

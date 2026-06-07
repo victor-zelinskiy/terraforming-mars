@@ -351,7 +351,9 @@ export default defineComponent({
       const t = this.metadata.trade;
       const pos = Math.min(this.colony.trackPosition, 6);
       const r = Array.isArray(t.resource) ? t.resource[pos] : t.resource;
-      if (typeof r === 'string') return r.toLowerCase();
+      if (typeof r === 'string') {
+        return r.toLowerCase();
+      }
       return '';
     },
     tradeRewardNum(): number {

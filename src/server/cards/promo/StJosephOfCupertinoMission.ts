@@ -70,8 +70,12 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
           {
             customReasoner: (space) => {
               // Operates on city tiles, not empty cells. Two reasons:
-              if (space.tile === undefined || !Board.isCitySpace(space)) return 'not-a-city';
-              if (cathedralIds.has(space.id)) return 'already-has-cathedral';
+              if (space.tile === undefined || !Board.isCitySpace(space)) {
+                return 'not-a-city';
+              }
+              if (cathedralIds.has(space.id)) {
+                return 'already-has-cathedral';
+              }
               return undefined;
             },
           })

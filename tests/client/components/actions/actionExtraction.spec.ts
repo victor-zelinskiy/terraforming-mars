@@ -74,7 +74,6 @@ describe('actionExtraction', () => {
     // an empty list means every in-scope action card renders cleanly (generic
     // scan or override).
     if (flagged.length > 0) {
-      // eslint-disable-next-line no-console
       console.log('Flagged action cards (no clean action node):', flagged.join(', '));
     }
     // The two bespoke-render cards (raw text / raw rows) are covered by an

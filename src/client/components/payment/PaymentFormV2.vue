@@ -144,14 +144,22 @@ export default defineComponent({
     },
     progressClass(): string {
       const total = this.totalSpent();
-      if (total < this.cost) return 'payment-v2__progress--under';
-      if (total > this.cost) return 'payment-v2__progress--over';
+      if (total < this.cost) {
+        return 'payment-v2__progress--under';
+      }
+      if (total > this.cost) {
+        return 'payment-v2__progress--over';
+      }
       return 'payment-v2__progress--exact';
     },
     progressStateLabel(): string {
       const total = this.totalSpent();
-      if (total < this.cost) return 'Underpaying';
-      if (total > this.cost) return 'Overpaying';
+      if (total < this.cost) {
+        return 'Underpaying';
+      }
+      if (total > this.cost) {
+        return 'Overpaying';
+      }
       return 'Ready';
     },
     progressFillStyle(): Record<string, string> {
@@ -216,7 +224,9 @@ export default defineComponent({
       // resource at the same rate.
       let swapBudget = 0;
       for (const other of this.order) {
-        if (other === unit) continue;
+        if (other === unit) {
+          continue;
+        }
         if (this.ledger[other].rate === rate) {
           swapBudget += this.payment[other];
         }
@@ -231,7 +241,9 @@ export default defineComponent({
       return base + Math.min(swapBudget, remainingPool);
     },
     addValue(unit: SpendableResource): void {
-      if (this.payment[unit] >= this.ledger[unit].available) return;
+      if (this.payment[unit] >= this.ledger[unit].available) {
+        return;
+      }
 
       if (this.payment[unit] < this.baseCap(unit)) {
         // Standard path: there's still under-paid headroom in the cost.
@@ -252,9 +264,15 @@ export default defineComponent({
       // partner), for + on heat this finds M€ (heat sits before M€ in
       // the order so M€ is hit as a later candidate).
       for (const other of this.order) {
-        if (other === unit) continue;
-        if (this.ledger[other].rate !== rate) continue;
-        if (this.payment[other] <= 0) continue;
+        if (other === unit) {
+          continue;
+        }
+        if (this.ledger[other].rate !== rate) {
+          continue;
+        }
+        if (this.payment[other] <= 0) {
+          continue;
+        }
         this.payment[other] -= 1;
         this.payment[unit] += 1;
         return;
@@ -312,11 +330,17 @@ export default defineComponent({
     // is prevented earlier in the UI. Confirm only fails when the player
     // hasn't covered the cost yet OR somehow exceeds resource availability.
     canSave(): boolean {
-      if (this.cost === 0) return true;
+      if (this.cost === 0) {
+        return true;
+      }
       const total = this.totalSpent();
-      if (total < this.cost) return false;
+      if (total < this.cost) {
+        return false;
+      }
       for (const unit of this.order) {
-        if (this.payment[unit] > this.ledger[unit].available) return false;
+        if (this.payment[unit] > this.ledger[unit].available) {
+          return false;
+        }
       }
       return true;
     },

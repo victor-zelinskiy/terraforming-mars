@@ -127,9 +127,15 @@ export function clearDraftWaitPending(): void {
  *   skip is ONLY for the in-flight card-pick continuation.
  */
 export function shouldPreserveCardPickModal(newPlayerView: PlayerViewModel | undefined): boolean {
-  if (!draftWaitState.pending) return false;
-  if (newPlayerView === undefined) return false;
-  if (!CARD_PICK_PHASES.has(newPlayerView.game.phase)) return false;
+  if (!draftWaitState.pending) {
+    return false;
+  }
+  if (newPlayerView === undefined) {
+    return false;
+  }
+  if (!CARD_PICK_PHASES.has(newPlayerView.game.phase)) {
+    return false;
+  }
   const next = newPlayerView.waitingFor;
   return next === undefined || next.type === 'card';
 }

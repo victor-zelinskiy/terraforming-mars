@@ -162,14 +162,18 @@ export default defineComponent({
     },
     findActionable(name: CardName) {
       const cards = this.actionableProjects?.cards;
-      if (!cards) return undefined;
+      if (!cards) {
+        return undefined;
+      }
       return cards.find((c) => c.name === name && c.isDisabled !== true);
     },
     canUse(p: StandardProjectModel): boolean {
       return this.findActionable(p.name) !== undefined;
     },
     useTooltip(p: StandardProjectModel): string {
-      if (!this.viewerActing) return 'Not your turn to take any actions';
+      if (!this.viewerActing) {
+        return 'Not your turn to take any actions';
+      }
       // viewerActing && !actionableProjects → the server has the viewer
       // on a non-action prompt right now (mid sub-action, e.g. picking
       // a colony after the Build Colony SP has fired, or picking a card
@@ -178,10 +182,16 @@ export default defineComponent({
       // turn" misleads the player; they ARE acting, just on a different
       // step. Same message AwardsOverlay uses for this case.
       const cards = this.actionableProjects?.cards;
-      if (!cards) return 'Finish your current action first';
+      if (!cards) {
+        return 'Finish your current action first';
+      }
       const entry = cards.find((c) => c.name === p.name);
-      if (entry === undefined) return 'Action is not available right now';
-      if (entry.isDisabled === true) return 'Not enough M€ or no valid placement';
+      if (entry === undefined) {
+        return 'Action is not available right now';
+      }
+      if (entry.isDisabled === true) {
+        return 'Not enough M€ or no valid placement';
+      }
       return 'Use this standard project';
     },
     displayedCost(p: StandardProjectModel): number {
@@ -195,7 +205,9 @@ export default defineComponent({
       };
     },
     onUseClick(p: StandardProjectModel): void {
-      if (!this.canUse(p)) return;
+      if (!this.canUse(p)) {
+        return;
+      }
       this.$emit('use-project', p.name);
     },
     // Sell patents does NOT submit from here — it opens the hand overlay in

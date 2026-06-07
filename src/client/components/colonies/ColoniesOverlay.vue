@@ -314,20 +314,28 @@ export default defineComponent({
   computed: {
     rootClass(): string {
       const classes = ['colonies-overlay'];
-      if (this.minimized) classes.push('colonies-overlay--minimized');
+      if (this.minimized) {
+        classes.push('colonies-overlay--minimized');
+      }
       return classes.join(' ');
     },
     pillClass(): string {
       const classes = ['colonies-overlay-pill'];
-      if (this.minimized) classes.push('colonies-overlay-pill--visible');
+      if (this.minimized) {
+        classes.push('colonies-overlay-pill--visible');
+      }
       return classes.join(' ');
     },
     // Short label shown in the pill so the player knows what's waiting
     // without expanding. Trade mode never minimizes (no minimize button)
     // — only build mode does — so we tune the label for the build flow.
     pillPrompt(): string {
-      if (this.mode === 'build') return 'Pick a colony';
-      if (this.mode === 'trade') return 'Pick a colony';
+      if (this.mode === 'build') {
+        return 'Pick a colony';
+      }
+      if (this.mode === 'trade') {
+        return 'Pick a colony';
+      }
       return 'Colonies';
     },
     selectableSet(): Set<ColonyName> {
@@ -351,7 +359,9 @@ export default defineComponent({
         }
         return 'Select a colony tile for construction.';
       }
-      if (this.mode === 'trade') return 'Select a colony tile for trade.';
+      if (this.mode === 'trade') {
+        return 'Select a colony tile for trade.';
+      }
       return 'Viewing colonies.';
     },
     // Drop players with 0 max fleet — typically those who haven't yet
@@ -372,22 +382,30 @@ export default defineComponent({
     reasonFor(colony: ColonyModel): string {
       // Selectable colonies don't surface a reason — the tooltip shows
       // the positive "select this" message instead.
-      if (this.selectableSet.has(colony.name)) return '';
+      if (this.selectableSet.has(colony.name)) {
+        return '';
+      }
       // Глобальное переопределение (например, initial draft phase) — имеет
       // приоритет над per-colony объяснениями и fallback'ами.
       if (this.forceDisabledReason !== '') {
         return translateText(this.forceDisabledReason);
       }
       const explicit = this.disabledReasons[colony.name];
-      if (explicit) return translateText(explicit);
+      if (explicit) {
+        return translateText(explicit);
+      }
       // Fall-back defaults — derived from the visible colony state so the
       // tooltip stays informative even when the host didn't supply a
       // specific reason. View mode gets a mode-specific generic.
-      if (!colony.isActive) return translateText('Colony is inactive');
+      if (!colony.isActive) {
+        return translateText('Colony is inactive');
+      }
       if (this.mode === 'trade' && colony.visitor !== undefined) {
         return translateText('Another trade fleet is already here');
       }
-      if (this.mode === 'view') return translateText('No colony action available right now');
+      if (this.mode === 'view') {
+        return translateText('No colony action available right now');
+      }
       return translateText('Unavailable for the current action');
     },
     onTileView(name: ColonyName): void {
@@ -397,11 +415,15 @@ export default defineComponent({
       // Defensive — the tile already checks selectable, but bypassing
       // the prop (e.g. tests, future hot-key) shouldn't trigger a
       // server call for a non-pickable colony.
-      if (!this.selectableSet.has(name)) return;
+      if (!this.selectableSet.has(name)) {
+        return;
+      }
       this.$emit('select', name);
     },
     onDetailSelect(name: ColonyName): void {
-      if (!this.selectableSet.has(name)) return;
+      if (!this.selectableSet.has(name)) {
+        return;
+      }
       this.$emit('select', name);
     },
     minimize(): void {
@@ -416,7 +438,9 @@ export default defineComponent({
     // when there's no visitor — the ColonyTile uses that to fall back
     // to the colour-only tooltip.
     visitorNameFor(colony: ColonyModel): string {
-      if (colony.visitor === undefined) return '';
+      if (colony.visitor === undefined) {
+        return '';
+      }
       const p = this.players.find((p) => p.color === colony.visitor);
       return p?.name ?? '';
     },
@@ -425,8 +449,12 @@ export default defineComponent({
       // pointer-events: none, but a stray click finding the handler
       // would otherwise dismiss the prompt that the player intentionally
       // collapsed. Bail explicitly.
-      if (this.minimized) return;
-      if (!this.dismissable) return;
+      if (this.minimized) {
+        return;
+      }
+      if (!this.dismissable) {
+        return;
+      }
       // Detail view first — clicking the backdrop while in detail view
       // returns to the grid, not all the way out. Two clicks = exit.
       if (this.detailColonyName !== undefined) {

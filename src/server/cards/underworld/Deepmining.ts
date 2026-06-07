@@ -78,9 +78,15 @@ export class Deepmining extends Card implements IProjectCard {
     const allTokens: ReadonlyArray<UndergroundResourceToken> = [...this.steelTokens, ...this.titaniumTokens];
     return createMarsSelectSpace(player, this.title, this.getAvailableSpaces(player), {
       customReasoner: (space) => {
-        if (space.undergroundResources === undefined) return 'not-identified';
-        if (space.excavator !== undefined) return 'already-excavated';
-        if (!allTokens.includes(space.undergroundResources)) return 'wrong-bonus-type';
+        if (space.undergroundResources === undefined) {
+          return 'not-identified';
+        }
+        if (space.excavator !== undefined) {
+          return 'already-excavated';
+        }
+        if (!allTokens.includes(space.undergroundResources)) {
+          return 'wrong-bonus-type';
+        }
         return undefined;
       },
     })

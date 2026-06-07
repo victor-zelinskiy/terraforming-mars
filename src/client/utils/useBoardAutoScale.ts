@@ -108,7 +108,9 @@ function readHorizontalReserved(cs: CSSStyleDeclaration): number {
 
 function parsePx(s: string): number {
   const trimmed = s.trim();
-  if (trimmed.endsWith('px')) return parseFloat(trimmed);
+  if (trimmed.endsWith('px')) {
+    return parseFloat(trimmed);
+  }
   return parseFloat(trimmed) || 0;
 }
 
@@ -130,7 +132,9 @@ function computeAndApply(): void {
   const reservedV = readVerticalReserved(cs);
   const availableW = vw - reservedH;
   const availableV = vh - reservedV;
-  if (availableW <= 0 || availableV <= 0) return;
+  if (availableW <= 0 || availableV <= 0) {
+    return;
+  }
 
   const scaleW = availableW / BOARD_NATURAL_WIDTH;
   const scaleV = availableV / BOARD_NATURAL_HEIGHT;
@@ -143,13 +147,17 @@ function computeAndApply(): void {
   // dirties documentElement's style and can re-fire the ResizeObserver
   // below, which would feed itself; guarding the write breaks that
   // potential observer→write→observer loop. (perf B7)
-  if (next === lastAppliedScale) return;
+  if (next === lastAppliedScale) {
+    return;
+  }
   lastAppliedScale = next;
   document.documentElement.style.setProperty('--board-scale', next);
 }
 
 function schedule(): void {
-  if (rafHandle !== 0) return;
+  if (rafHandle !== 0) {
+    return;
+  }
   rafHandle = requestAnimationFrame(computeAndApply);
 }
 

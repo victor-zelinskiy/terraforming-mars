@@ -117,19 +117,29 @@ export default defineComponent({
   },
   methods: {
     registerIfPossible(): void {
-      if (this.info === undefined) return;
+      if (this.info === undefined) {
+        return;
+      }
       const el = this.$refs.root as HTMLElement | undefined;
-      if (el === undefined) return;
+      if (el === undefined) {
+        return;
+      }
       registerSpecialCellMarker({id: this.info.id, spaceId: this.space.id, el});
     },
     onActivate(): void {
-      if (this.info === undefined) return;
+      if (this.info === undefined) {
+        return;
+      }
       const el = this.$refs.root as HTMLElement | undefined;
-      if (el === undefined) return;
+      if (el === undefined) {
+        return;
+      }
       setActiveSpecialCell(this.info.id, this.space.id, el);
     },
     onDeactivate(): void {
-      if (this.info === undefined) return;
+      if (this.info === undefined) {
+        return;
+      }
       clearActiveSpecialCell(this.info.id);
     },
   },

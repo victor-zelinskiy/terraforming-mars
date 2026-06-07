@@ -43,14 +43,18 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
     const customReasoner = (space: Space): PlacementIllegalReason | undefined => {
       // Already-marked cells: distinguish OWN marker (already-marked)
       // from other-player marker (let generic emit 'owned-by-other').
-      if (space.player === player) return 'already-marked';
+      if (space.player === player) {
+        return 'already-marked';
+      }
       // For the adjacency-required action variant, flag cells without
       // any of YOUR neighbouring marker/tile.
       if (requireAdjacency && space.tile === undefined && space.player === undefined &&
           space.spaceType === 'land' &&
           space.id !== board.noctisCitySpaceId) {
         const adjacentToYours = board.getAdjacentSpaces(space).some((adj) => adj.player === player);
-        if (!adjacentToYours) return 'not-adjacent-to-yours';
+        if (!adjacentToYours) {
+          return 'not-adjacent-to-yours';
+        }
       }
       return undefined;
     };
