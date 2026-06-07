@@ -2726,6 +2726,8 @@ each(@players, {
     }
 
     .bar-btn-icon {
+        position: relative;
+        z-index: 1;
         width: 16px;
         height: 16px;
         flex-shrink: 0;
@@ -2735,6 +2737,8 @@ each(@players, {
     }
 
     .bar-btn__label {
+        position: relative;
+        z-index: 1;
         white-space: nowrap;
     }
 
@@ -2742,6 +2746,7 @@ each(@players, {
        and heavier than the label, so the data reads as data. */
     .bar-btn__value {
         position: relative; /* feedback chip anchor */
+        z-index: 1;
         margin-left: 2px;
         padding: 1px 6px 2px;
         font-weight: 700;
@@ -2763,9 +2768,11 @@ each(@players, {
         gap: 1px;
     }
     .bar-btn__value-avail {
-        color: #9ef0c8;
+        color: #72ffb5;
         font-weight: 800;
-        text-shadow: 0 0 7px rgba(120, 230, 180, 0.35);
+        text-shadow:
+            0 0 4px rgba(150, 255, 205, 0.78),
+            0 0 11px rgba(70, 255, 165, 0.52);
     }
     .bar-btn__value-avail--zero {
         color: #8aa0b4;
@@ -2778,6 +2785,40 @@ each(@players, {
         margin: 0 1px;
     }
     .bar-btn__value-total { color: #d8ecff; }
+
+    .bar-btn__available-shimmer {
+        position: absolute;
+        inset: 1.2px;
+        clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 34%, 100% 66%, calc(100% - 9px) 100%, 9px 100%, 0 66%, 0 34%);
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .bar-btn__available-shimmer::before {
+        content: '';
+        position: absolute;
+        top: -32%;
+        left: 0;
+        width: 42%;
+        height: 164%;
+        background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.0) 15%,
+            rgba(215, 255, 235, 0.42) 46%,
+            rgba(255, 255, 255, 0.68) 50%,
+            rgba(215, 255, 235, 0.42) 54%,
+            rgba(255, 255, 255, 0.0) 85%,
+            transparent 100%);
+        transform: skewX(-22deg) translateX(-260%);
+        animation: bar-btn-available-shimmer 3s ease-in-out infinite;
+        mix-blend-mode: screen;
+    }
+
+    &--available-sweep {
+        box-shadow: 0 0 10px rgba(120, 245, 185, 0.10);
+    }
 
     /* Expressive, individual hover: a 1px lift + frame brighten + glow,
        and the bottom accent sweeps wider — calm but characterful. */
@@ -2849,6 +2890,22 @@ each(@players, {
  */
 .bottom-bar-btn:has(.metric-feedback-host--active-positive) { animation: bar-btn-pulse-pos 1680ms ease-out; }
 .bottom-bar-btn:has(.metric-feedback-host--active-negative) { animation: bar-btn-pulse-neg 1680ms ease-out; }
+
+@keyframes bar-btn-available-shimmer {
+    0%, 50% {
+        transform: skewX(-22deg) translateX(-260%);
+    }
+    100% {
+        transform: skewX(-22deg) translateX(360%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bottom-bar-btn--available-sweep .bar-btn__available-shimmer::before {
+        animation: none;
+        transform: skewX(-22deg) translateX(-260%);
+    }
+}
 /*
  * Value-change pulse — punchier than before so the eye is pulled to the
  * delta-chip the moment a counter ticks (e.g. taking drawn cards). A fast
