@@ -38,6 +38,7 @@
       ></game-home>
       <player-home
         v-else-if="screen === 'player-home' && playerView !== undefined"
+        ref="playerHome"
         :player-view="playerView"
         :key="playerkey"
       ></player-home>
@@ -175,6 +176,10 @@ type Screen = 'admin' |
             'spectator-home' |
             'start-screen' |
             'the-end';
+type PlayerHomeOverlayRef = {
+    activeOverlay?: unknown;
+    coloniesOverlayOpen?: boolean;
+}
 export type MainAppData = {
     screen: Screen;
     /**
@@ -357,6 +362,24 @@ export default defineComponent({
              shouldPreserveInitialDraftOverlay(model as PlayerViewModel) ||
              shouldPreserveSaleOverlay());
           /*
+           * Informational overlays (cards, played cards, achievements,
+           * awards, effects, actions, colonies, VP) live inside
+           * <player-home>. A poll-driven update from another player's action
+           * used to bump playerkey and destroy that subtree, resetting
+           * PlayerHome.data().activeOverlay / coloniesOverlayOpen to closed.
+           *
+           * Skip only THIS App.update remount path while an overlay is already
+           * open. The fresh playerView is still swapped reactively, so board,
+           * side panels and the overlay contents update in place. Own action
+           * POST responses still go through WaitingFor.updatePlayerView(), so
+           * the existing "submit from overlay closes the overlay" behavior is
+           * preserved.
+           */
+          const preserveOpenOverlay =
+            path === paths.PLAYER &&
+            app.playerView !== undefined &&
+            this.playerHomeHasOpenOverlay();
+          /*
            * Arm the Board Placement Animation gate if this polling
            * update introduces a new tile vs. the currently displayed
            * spaces — this is the path that fires when ANOTHER player
@@ -385,7 +408,7 @@ export default defineComponent({
           } else if (path === paths.SPECTATOR) {
             app.spectator = model as SpectatorModel;
           }
-          if (!preserveCardPickModal) {
+          if (!preserveCardPickModal && !preserveOpenOverlay) {
             app.playerkey++;
           }
           if (
@@ -425,6 +448,14 @@ export default defineComponent({
     },
     updateSpectator() {
       this.update(paths.SPECTATOR);
+    },
+    playerHomeHasOpenOverlay(): boolean {
+      const playerHome = this.$refs.playerHome as PlayerHomeOverlayRef | undefined;
+      if (playerHome === undefined) {
+        return false;
+      }
+      return (playerHome.activeOverlay !== null && playerHome.activeOverlay !== undefined) ||
+        playerHome.coloniesOverlayOpen === true;
     },
   },
   mounted() {

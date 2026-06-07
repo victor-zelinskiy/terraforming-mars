@@ -2,7 +2,7 @@ import {shallowMount} from '@vue/test-utils';
 import {expect} from 'chai';
 import {globalConfig} from './getLocalVue';
 import PlayerHome from '@/client/components/PlayerHome.vue';
-import {fakePlayerViewModel, fakePublicPlayerModel} from './testHelpers';
+import {fakeGameModel, fakePlayerViewModel, fakePublicPlayerModel} from './testHelpers';
 import {FakeLocalStorage} from './FakeLocalStorage';
 import raw_settings from '@/genfiles/settings.json';
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {CardName} from '@/common/cards/CardName';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {ClaimedMilestoneModel} from '@/common/models/ClaimedMilestoneModel';
 
 describe('PlayerHome', () => {
   let localStorage: FakeLocalStorage;
@@ -185,6 +186,56 @@ describe('PlayerHome', () => {
     expect(pending).not.undefined;
     expect(pending.input.paymentOptions.kuiperAsteroids).eq(true);
     expect(pending.input.kuiperAsteroids).eq(2);
+
+    wrapper.unmount();
+  });
+
+  it('updates an already-open milestones overlay when another player claims a milestone', async () => {
+    const unclaimed: ClaimedMilestoneModel = {
+      name: 'Terraformer',
+      playerName: undefined,
+      color: undefined,
+      scores: [{color: 'blue' as any, score: 20}],
+      threshold: 35,
+    };
+    const claimed: ClaimedMilestoneModel = {
+      ...unclaimed,
+      playerName: 'red',
+      color: 'red' as any,
+    };
+    const view = fakePlayerViewModel({
+      game: fakeGameModel({milestones: [unclaimed]}),
+    });
+    const updatedView = fakePlayerViewModel({
+      game: fakeGameModel({milestones: [claimed]}),
+    });
+
+    const wrapper = shallowMount(PlayerHome, {
+      ...globalConfig,
+      parentComponent: {
+        methods: {
+          getVisibilityState: () => true,
+          setVisibilityState: () => {},
+        },
+      } as any,
+      props: {
+        playerView: view,
+        settings: raw_settings,
+      },
+    });
+    await wrapper.setData({activeOverlay: 'milestones'});
+
+    let overlay = wrapper.findComponent({name: 'MilestonesOverlay'});
+    expect(overlay.exists()).to.be.true;
+    expect((overlay.props('milestones') as Array<ClaimedMilestoneModel>)[0].playerName).eq(undefined);
+
+    await wrapper.setProps({playerView: updatedView});
+    await wrapper.vm.$nextTick();
+
+    overlay = wrapper.findComponent({name: 'MilestonesOverlay'});
+    expect(overlay.exists()).to.be.true;
+    expect((overlay.props('milestones') as Array<ClaimedMilestoneModel>)[0].playerName).eq('red');
+    expect((wrapper.vm as any).activeOverlay).eq('milestones');
 
     wrapper.unmount();
   });
