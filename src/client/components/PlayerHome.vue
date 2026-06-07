@@ -277,6 +277,20 @@
     </MandatoryInputModal>
 
     <!--
+      Convert Heat remains one-click in the normal case. When the server marks
+      the option with `maxtemp`, the action is only a legal stall action and
+      will spend heat without changing the parameter, so we gate it with the
+      same client-side confirmation style as Pass.
+    -->
+    <MandatoryInputModal v-if="convertHeatConfirmOpen"
+                         :title="$t('Convert heat')"
+                         :minimizable="false">
+      <ConvertHeatConfirmContent
+        @confirm="onConvertHeatConfirm"
+        @cancel="onConvertHeatCancel" />
+    </MandatoryInputModal>
+
+    <!--
       Premium journal side-panel. Replaces the legacy `bar-overlay--log`
       that hosted the old `LogPanel`. NOT a board-covering overlay: it's
       a glass/HUD panel pinned to the right gutter that slides the board
@@ -700,6 +714,7 @@ import {
 } from '@/client/components/startGameFlow/startGameFlowState';
 import StandardProjectPaymentContent from '@/client/components/payment/StandardProjectPaymentContent.vue';
 import PassConfirmContent from '@/client/components/overview/PassConfirmContent.vue';
+import ConvertHeatConfirmContent from '@/client/components/overview/ConvertHeatConfirmContent.vue';
 import ColoniesOverlay from '@/client/components/colonies/ColoniesOverlay.vue';
 import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePaymentModal.vue';
 import {ColonyName} from '@/common/colonies/ColonyName';
@@ -822,6 +837,9 @@ type PlayerHomeModel = ToggleableState & {
   // irreversible (no more turns this generation), so we gate it through
   // a client-side confirmation modal before POSTing to the server.
   passConfirmOpen: boolean;
+  // True while Convert Heat is waiting for confirmation because temperature
+  // is already maxed. Normal heat conversion still submits immediately.
+  convertHeatConfirmOpen: boolean;
   // ColoniesOverlay state. `coloniesOverlayOpen` is the gate; mode +
   // pending trade carry the per-flow context. We use distinct state
   // here (NOT activeOverlay) because the colonies overlay can be
@@ -905,6 +923,7 @@ export default defineComponent({
       pendingPlayCard: undefined,
       pendingCardAction: undefined,
       passConfirmOpen: false,
+      convertHeatConfirmOpen: false,
       coloniesOverlayOpen: false,
       coloniesOverlayManualOpen: false,
       pendingTradeColony: undefined,
@@ -1865,6 +1884,7 @@ export default defineComponent({
     PlacementBanner,
     StandardProjectPaymentContent,
     PassConfirmContent,
+    ConvertHeatConfirmContent,
     ColoniesOverlay,
     ColonyTradePaymentModal,
     BarButtonIcon,
@@ -2014,30 +2034,6 @@ export default defineComponent({
     // Returns the full index PATH so we can build the wrapped response.
     // Recursive search handles cases where the action OR is wrapped (e.g.
     // initial-action menus, mid-card prompts that nest the standard menu).
-    findConvertHeatPath(
-      wf: PlayerInputModel | undefined,
-      pathSoFar: ReadonlyArray<number> = [],
-    ): ReadonlyArray<number> | undefined {
-      if (!wf) {
-        return undefined;
-      }
-      if (wf.type === 'or' || wf.type === 'and') {
-        const options = (wf as OrOptionsModel).options;
-        for (let i = 0; i < options.length; i++) {
-          const opt = options[i];
-          const t = inputTitleText(opt.title);
-          if (opt.type === 'option' && typeof t === 'string' &&
-              t.includes('heat into temperature')) {
-            return [...pathSoFar, i];
-          }
-          const deeper = this.findConvertHeatPath(opt, [...pathSoFar, i]);
-          if (deeper) {
-            return deeper;
-          }
-        }
-      }
-      return undefined;
-    },
     // Same idea for Convert Plants — its option in the OR is a SelectSpace
     // (title template "Convert ${0} plants into greenery", with the number
     // in `messageArgs` so the template string itself stays substring-stable).
@@ -2080,9 +2076,29 @@ export default defineComponent({
       }
       return undefined;
     },
-    findConvertHeatOption(wf: PlayerInputModel | undefined): {path: ReadonlyArray<number>} | undefined {
-      const path = this.findConvertHeatPath(wf);
-      return path ? {path} : undefined;
+    findConvertHeatOption(
+      wf: PlayerInputModel | undefined,
+      pathSoFar: ReadonlyArray<number> = [],
+    ): {path: ReadonlyArray<number>; option: SelectOptionModel} | undefined {
+      if (!wf) {
+        return undefined;
+      }
+      if (wf.type === 'or' || wf.type === 'and') {
+        const options = (wf as OrOptionsModel).options;
+        for (let i = 0; i < options.length; i++) {
+          const opt = options[i];
+          const t = inputTitleText(opt.title);
+          if (opt.type === 'option' && typeof t === 'string' &&
+              t.includes('heat into temperature')) {
+            return {path: [...pathSoFar, i], option: opt};
+          }
+          const deeper = this.findConvertHeatOption(opt, [...pathSoFar, i]);
+          if (deeper) {
+            return deeper;
+          }
+        }
+      }
+      return undefined;
     },
     findConvertPlantsOption(wf: PlayerInputModel | undefined): {path: ReadonlyArray<number>; spacePrompt: PlayerInputModel} | undefined {
       // First pass: title match. Second pass (only if the server says the
@@ -2603,6 +2619,15 @@ export default defineComponent({
     onPassCancel(): void {
       this.passConfirmOpen = false;
     },
+    submitConvertHeatPath(path: ReadonlyArray<number>): void {
+      let response: unknown = {type: 'option' as const};
+      // Wrap one OR layer per index in the path, innermost first.
+      for (let i = path.length - 1; i >= 0; i--) {
+        response = {type: 'or' as const, index: path[i], response};
+      }
+      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
+      wfRef?.onsave?.(response);
+    },
     // One-click conversion of 8 heat (or 6 for Kelvinists kp03) into +1
     // temperature step. Builds a nested OR-response that mirrors the depth
     // of the path returned by the recursive finder.
@@ -2617,13 +2642,25 @@ export default defineComponent({
         }
         return;
       }
-      let response: unknown = {type: 'option' as const};
-      // Wrap one OR layer per index in the path, innermost first.
-      for (let i = found.path.length - 1; i >= 0; i--) {
-        response = {type: 'or' as const, index: found.path[i], response};
+      if ((found.option.warnings ?? []).includes('maxtemp')) {
+        this.convertHeatConfirmOpen = true;
+        return;
       }
-      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
-      wfRef?.onsave?.(response);
+      this.submitConvertHeatPath(found.path);
+    },
+    onConvertHeatConfirm(): void {
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
+      const found = this.findConvertHeatOption(this.playerView.waitingFor);
+      this.convertHeatConfirmOpen = false;
+      if (!found || found.path.length === 0) {
+        return;
+      }
+      this.submitConvertHeatPath(found.path);
+    },
+    onConvertHeatCancel(): void {
+      this.convertHeatConfirmOpen = false;
     },
     // Convert Plants needs a SPACE choice — the option in the OR is a
     // SelectSpace, not a SelectOption. Clicking the button toggles a
