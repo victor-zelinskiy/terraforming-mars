@@ -43,6 +43,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import {BoardName} from '@/common/boards/BoardName';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {getSpecialCellInfo, SpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import {
@@ -61,7 +62,7 @@ import {
  * sector" inside the cell.
  *
  * Visibility: marker renders only when
- *   - `getSpecialCellInfo(space.id)` returns an entry, AND
+ *   - `getSpecialCellInfo(space.id, boardName)` returns an entry, AND
  *   - the cell is empty (`space.tileType === undefined`).
  *
  * Two activation paths feed the popup:
@@ -81,10 +82,14 @@ export default defineComponent({
       type: Object as PropType<SpaceModel>,
       required: true,
     },
+    boardName: {
+      type: String as PropType<BoardName>,
+      required: true,
+    },
   },
   computed: {
     info(): SpecialCellInfo | undefined {
-      return getSpecialCellInfo(this.space.id);
+      return getSpecialCellInfo(this.space.id, this.boardName);
     },
     isEmpty(): boolean {
       return this.space.tileType === undefined;

@@ -39,6 +39,7 @@
             v-for="space in outerMarkerSpaces"
             :key="'marker-' + space.id"
             :space="space"
+            :boardName="boardName"
           />
         </div>
 
@@ -114,6 +115,7 @@
               v-for="space in surfaceMarkerSpaces"
               :key="'marker-' + space.id"
               :space="space"
+              :boardName="boardName"
             />
 
             <svg id="board_legend" height="550" width="630" class="board-legend">
@@ -127,36 +129,6 @@
                   <circle :cx="key.line.to[0]" :cy="key.line.to[1]" r="2" class="board-caption board_caption--black"/>
                 </template>
               </g>
-
-              <template v-if="boardName === BoardName.ELYSIUM">
-                  <g id="elysium_mons" transform="translate(110, 190)">
-                      <text class="board-caption">
-                          <tspan dy="15">Elysium</tspan>
-                          <tspan x="8" dy="12">Mons</tspan>
-                      </text>
-                  </g>
-
-                  <g id="hecatus_tholus"  transform="translate(130, 150)">
-                      <text class="board-caption">
-                          <tspan dy="15">Hecatus</tspan>
-                          <tspan x="3" dy="12">Tholus</tspan>
-                      </text>
-                  </g>
-
-                  <g id="arsia_mons" transform="translate(545, 272)">
-                      <text class="board-caption">
-                          <tspan dy="15">Arsia</tspan>
-                          <tspan x="0" dy="12">Mons</tspan>
-                      </text>
-                  </g>
-
-                  <g id="olympus_mons" transform="translate(505, 190)">
-                      <text class="board-caption">
-                          <tspan x="-5" dy="15">Olympus</tspan>
-                          <tspan x="4" dy="12">Mons</tspan>
-                      </text>
-                  </g>
-                </template>
 
                 <template v-if="boardName === BoardName.VASTITAS_BOREALIS_NOVA">
                   <g id="hectates_tholius_vastitas_borealis_novus"  transform="translate(270, 70)">
@@ -590,7 +562,7 @@ export default defineComponent({
      */
     surfaceMarkerSpaces(): Array<SpaceModel> {
       return this.spaces.filter((s) =>
-        s.spaceType !== SpaceType.COLONY && getSpecialCellInfo(s.id) !== undefined);
+        s.spaceType !== SpaceType.COLONY && getSpecialCellInfo(s.id, this.boardName) !== undefined);
     },
     /**
      * Colony / off-Mars cells with a special-cell info entry. These are
@@ -599,7 +571,7 @@ export default defineComponent({
      */
     outerMarkerSpaces(): Array<SpaceModel> {
       return this.spaces.filter((s) =>
-        s.spaceType === SpaceType.COLONY && getSpecialCellInfo(s.id) !== undefined);
+        s.spaceType === SpaceType.COLONY && getSpecialCellInfo(s.id, this.boardName) !== undefined);
     },
     BoardName(): typeof BoardName {
       return BoardName;
