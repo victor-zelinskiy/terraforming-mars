@@ -1095,6 +1095,63 @@ describe('Game', () => {
     expect(player.dealtPreludeCards).has.lengthOf(4);
   });
 
+  it('test mode overrides starting cards and resources', () => {
+    const player = TestPlayer.BLUE.newPlayer();
+    const player2 = TestPlayer.RED.newPlayer();
+    Game.newInstance('gameid', [player, player2], player, 'spectatorid', {
+      testMode: true,
+      preludeExtension: true,
+      venusNextExtension: true,
+      coloniesExtension: true,
+      promoCardsOption: true,
+      communityCardsOption: true,
+    });
+
+    expect(player.dealtCorporationCards).has.lengthOf(constants.TEST_MODE_CORPORATION_CARDS_DEALT_PER_PLAYER);
+    expect(player2.dealtCorporationCards).has.lengthOf(constants.TEST_MODE_CORPORATION_CARDS_DEALT_PER_PLAYER);
+    expect(player.dealtPreludeCards).has.lengthOf(constants.TEST_MODE_PRELUDE_CARDS_DEALT_PER_PLAYER);
+    expect(player2.dealtPreludeCards).has.lengthOf(constants.TEST_MODE_PRELUDE_CARDS_DEALT_PER_PLAYER);
+    expect(player.dealtProjectCards).has.lengthOf(constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER);
+    expect(player2.dealtProjectCards).has.lengthOf(constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER);
+
+    function selectAllInitialCards(player: TestPlayer) {
+      const input = cast(player.getWaitingFor(), SelectInitialCards);
+      input.process({type: 'initialCards', responses: [
+        {type: 'card', cards: [player.dealtCorporationCards[0].name]},
+        {type: 'card', cards: player.dealtPreludeCards.slice(0, 2).map(toName)},
+        {type: 'card', cards: player.dealtProjectCards.map(toName)},
+      ]}, player);
+    }
+
+    selectAllInitialCards(player);
+    selectAllInitialCards(player2);
+
+    for (const testPlayer of [player, player2]) {
+      expect(testPlayer.megaCredits).eq(constants.TEST_MODE_STARTING_RESOURCE_COUNT);
+      expect(testPlayer.steel).eq(constants.TEST_MODE_STARTING_RESOURCE_COUNT);
+      expect(testPlayer.titanium).eq(constants.TEST_MODE_STARTING_RESOURCE_COUNT);
+      expect(testPlayer.plants).eq(constants.TEST_MODE_STARTING_RESOURCE_COUNT);
+      expect(testPlayer.energy).eq(constants.TEST_MODE_STARTING_RESOURCE_COUNT);
+      expect(testPlayer.heat).eq(constants.TEST_MODE_STARTING_RESOURCE_COUNT);
+    }
+  });
+
+  it('test mode starts the initial project draft with 10 cards per iteration', () => {
+    const player = TestPlayer.BLUE.newPlayer();
+    const player2 = TestPlayer.RED.newPlayer();
+    Game.newInstance('gameid', [player, player2], player, 'spectatorid', {
+      testMode: true,
+      initialDraftVariant: true,
+      venusNextExtension: true,
+      coloniesExtension: true,
+      promoCardsOption: true,
+      communityCardsOption: true,
+    });
+
+    expect(player.draftHand).has.lengthOf(constants.TEST_MODE_INITIAL_DRAFT_PROJECT_CARDS_PER_ITERATION);
+    expect(player2.draftHand).has.lengthOf(constants.TEST_MODE_INITIAL_DRAFT_PROJECT_CARDS_PER_ITERATION);
+  });
+
   it('Deal CEOs when starting CEOs is undefined', () => {
     const player = TestPlayer.BLUE.newPlayer();
     Game.newInstance('gameid', [player], player, 'spectatorid', {ceoExtension: true, startingCeos: undefined});

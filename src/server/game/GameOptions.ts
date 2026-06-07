@@ -17,6 +17,7 @@ export type GameOptions = {
   showTimers: boolean;
   fastModeOption: boolean;
   showOtherPlayersVP: boolean;
+  testMode: boolean;
 
   // Extensions -- Deprecated, except when importing JSON
   corporateEra: boolean;
@@ -132,6 +133,7 @@ export const DEFAULT_GAME_OPTIONS: GameOptions = {
   requiresVenusTrackCompletion: false,
   showOtherPlayersVP: false,
   showTimers: true,
+  testMode: false,
   shuffleMapOption: false,
   solarPhaseOption: false,
   soloTR: false,

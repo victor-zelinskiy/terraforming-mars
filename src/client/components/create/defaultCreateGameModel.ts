@@ -84,6 +84,7 @@ export function defaultCreateGameModel(): CreateGameModel {
     twoCorpsVariant: false,
     startingCeos: 3,
     startingPreludes: 4,
+    testMode: false,
     preludeDraftVariant: true,
     ceosDraftVariant: false,
   };

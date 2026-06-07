@@ -81,6 +81,7 @@ describe('ApiCreateGame', () => {
         clonedGamedId: undefined,
         undoOption: false,
         showTimers: false,
+        testMode: false,
         fastModeOption: false,
         showOtherPlayersVP: false,
         aresExtremeVariant: false,

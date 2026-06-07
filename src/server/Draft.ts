@@ -1,5 +1,6 @@
 import {inplaceRemove, copyAndClear as copyAndEmpty, zip} from '../common/utils/utils';
 import {CardName} from '../common/cards/CardName';
+import * as constants from '../common/constants';
 import {IGame} from './IGame';
 import {IPlayer} from './IPlayer';
 import {IProjectCard} from './cards/IProjectCard';
@@ -211,7 +212,10 @@ class InitialDraft extends Draft {
   }
 
   override draw(_player: IPlayer) {
-    return this.game.projectDeck.drawN(this.game, 5, 'bottom');
+    const cardsToDraw = this.game.gameOptions.testMode ?
+      constants.TEST_MODE_INITIAL_DRAFT_PROJECT_CARDS_PER_ITERATION :
+      5;
+    return this.game.projectDeck.drawN(this.game, cardsToDraw, 'bottom');
   }
 
   override cardsToKeep(_player: IPlayer): number {

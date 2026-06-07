@@ -61,6 +61,7 @@ export function fakeGameOptionsModel(overrides?: RecursivePartial<GameOptionsMod
     removeNegativeGlobalEvents: false,
     showOtherPlayersVP: false,
     showTimers: false,
+    testMode: false,
     shuffleMapOption: false,
     solarPhaseOption: false,
     soloTR: false,

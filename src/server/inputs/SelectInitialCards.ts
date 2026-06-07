@@ -1,4 +1,5 @@
 import * as titles from '../../common/inputs/SelectInitialCards';
+import * as constants from '../../common/constants';
 import {ICorporationCard} from '../cards/corporation/ICorporationCard';
 import {IPlayer} from '../IPlayer';
 import {SelectCard} from './SelectCard';
@@ -77,8 +78,9 @@ export class SelectInitialCards extends OptionsInput<undefined> {
         }));
     }
 
+    const maxProjectCards = game.gameOptions.testMode ? constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER : 10;
     this.push('project',
-      new SelectCard(titles.SELECT_PROJECTS_TITLE, undefined, player.dealtProjectCards, {min: 0, max: 10})
+      new SelectCard(titles.SELECT_PROJECTS_TITLE, undefined, player.dealtProjectCards, {min: 0, max: maxProjectCards})
         .andThen((cards) => {
           player.cardsInHand.push(...cards);
           return undefined;
@@ -97,7 +99,10 @@ export class SelectInitialCards extends OptionsInput<undefined> {
     const game = player.game;
     // Check for negative M€
     const cardCost = corporation.cardCost !== undefined ? corporation.cardCost : player.cardCost;
-    if (corporation.name !== CardName.BEGINNER_CORPORATION && player.cardsInHand.length * cardCost > corporation.startingMegaCredits) {
+    const availableMegaCredits = game.gameOptions.testMode ?
+      constants.TEST_MODE_STARTING_RESOURCE_COUNT :
+      corporation.startingMegaCredits;
+    if (corporation.name !== CardName.BEGINNER_CORPORATION && player.cardsInHand.length * cardCost > availableMegaCredits) {
       player.cardsInHand = [];
       player.preludeCardsInHand = [];
       throw new InputError('Too many cards selected');
