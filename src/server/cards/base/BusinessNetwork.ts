@@ -4,7 +4,6 @@ import {CardType} from '../../../common/cards/CardType';
 import {IProjectCard} from '../IProjectCard';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
-import {Size} from '../../../common/cards/render/Size';
 
 export class BusinessNetwork extends ActionCard implements IProjectCard {
   constructor() {
@@ -25,7 +24,7 @@ export class BusinessNetwork extends ActionCard implements IProjectCard {
         cardNumber: '110',
         description: 'Decrease your M€ production 1 step.',
         renderData: CardRenderer.builder((b) => {
-          b.action(undefined, (eb) => eb.empty().startAction.empty()).text('Action: Look at the top card and either buy it or discard it', Size.SMALL, true).br;
+          b.action('Look at the top card and either buy it or discard it', (eb) => eb.empty().startAction.cards(1)).br;
           b.production((pb) => pb.megacredits(-1));
         }),
       },
