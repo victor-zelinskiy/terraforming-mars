@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {describeDatabaseSuite} from './databaseSuite';
 import {IGame} from '../../src/server/IGame';
 import {IN_MEMORY_SQLITE_PATH, SQLite} from '../../src/server/database/SQLite';
-import {GameId} from '../../src/common/Types';
+import {GameId, ParticipantId} from '../../src/common/Types';
 import {RunResult} from 'better-sqlite3';
 import {ITestDatabase, Status} from './ITestDatabase';
 
@@ -58,7 +58,7 @@ describeDatabaseSuite({
       const db = dbFactory();
       const entry = {
         gameId: 'game-id-1212' as GameId,
-        participantIds: ['p-player-id', 'spectatorid'],
+        participantIds: ['p-player-id' as ParticipantId, 'spectatorid' as ParticipantId],
       };
 
       await db.storeParticipants(entry);

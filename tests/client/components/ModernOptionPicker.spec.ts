@@ -2,9 +2,10 @@ import {mount} from '@vue/test-utils';
 import {globalConfig} from './getLocalVue';
 import {expect} from 'chai';
 import ModernOptionPicker from '@/client/components/modalInputs/ModernOptionPicker.vue';
-import {MANDATORY_MODAL_PICKER_SETTER} from '@/client/components/MandatoryInputModal.vue';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
 import {InputResponse} from '@/common/inputs/InputResponse';
+
+const MANDATORY_MODAL_PICKER_SETTER = 'mandatoryModalSetPickerMode';
 
 // Lightweight stub for the globally-registered `<modal-input-host>` so we can
 // assert what nested input is hosted and drive its onsave.
