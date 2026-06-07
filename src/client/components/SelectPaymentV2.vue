@@ -43,6 +43,7 @@ import {SelectPaymentResponse} from '@/common/inputs/InputResponse';
 import {Ledger} from '@/client/components/PaymentLedger';
 import {Units} from '@/common/Units';
 import PaymentFormV2 from '@/client/components/payment/PaymentFormV2.vue';
+import {GENERIC_PAYMENT_ORDER, paymentOptionsAllowResource} from '@/client/components/payment/paymentModelUtils';
 
 export default defineComponent({
   name: 'SelectPaymentV2',
@@ -72,16 +73,7 @@ export default defineComponent({
     // Same display order as V1: alternate resources first, MC last.
     // Filtered by `canUse` so only legal payment kinds are rendered.
     order(): ReadonlyArray<keyof Payment> {
-      return ([
-        'steel',
-        'titanium',
-        'heat',
-        'seeds',
-        'auroraiData',
-        'kuiperAsteroids',
-        'spireScience',
-        'megacredits',
-      ] as const).filter(this.canUse);
+      return GENERIC_PAYMENT_ORDER.filter(this.canUse);
     },
     ledger(): Ledger {
       return this.buildLedger(this.order, this.playerinput.reserveUnits ?? Units.EMPTY);
@@ -94,14 +86,7 @@ export default defineComponent({
   },
   methods: {
     canUse(unit: SpendableResource): boolean {
-      if (unit === 'megacredits') {
-        return true;
-      }
-      if (unit === 'titanium') {
-        return this.playerinput.paymentOptions.titanium === true ||
-               this.playerinput.paymentOptions.lunaTradeFederationTitanium === true;
-      }
-      return this.playerinput.paymentOptions[unit] === true;
+      return paymentOptionsAllowResource(this.playerinput.paymentOptions, unit);
     },
     // Public — called by PlayerInputFactory when the host's submit button
     // is clicked (legacy radio-UI integration path).

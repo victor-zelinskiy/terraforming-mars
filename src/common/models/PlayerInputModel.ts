@@ -177,9 +177,9 @@ export type SelectPaymentModel = BaseInputModel & {
   spireScience: number;
   reserveUnits: Readonly<Units> | undefined; // Built to support the Merchant milestone.
 
-  floaters: 0,
-  microbes: 0,
-  graphene: 0,
+  floaters: number,
+  microbes: number,
+  graphene: number,
 }
 
 export type SelectPlayerModel = BaseInputModel & {

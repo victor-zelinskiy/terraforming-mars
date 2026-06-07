@@ -11,6 +11,7 @@ import {DEFAULT_PAYMENT_VALUES, Payment} from '@/common/inputs/Payment';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {Ledger, newDefaultLedger} from '../components/PaymentLedger';
 import {ALL_RESOURCES} from '@/common/Resource';
+import {getSpendablePaymentAmounts, paymentAvailableHeat} from '@/client/components/payment/paymentModelUtils';
 
 export type DataModel = {
   cost: number,
@@ -88,20 +89,21 @@ export const PaymentWidgetMixin = defineComponent({
     },
     getAvailableUnits(): Record<SpendableResource, number> {
       const thisPlayer = this.playerView.thisPlayer;
+      const spendable = getSpendablePaymentAmounts(thisPlayer);
       const units: Record<SpendableResource, number> = {
-        megacredits: thisPlayer.megacredits,
-        heat: this.available ? this.available.heat : this.availableHeat(),
-        steel: this.available ? this.available.steel : thisPlayer.steel,
-        titanium: this.available ? this.available.titanium : thisPlayer.titanium,
-        plants: this.available ? this.available.plants : thisPlayer.plants,
-        microbes: this.playerinput.microbes,
-        floaters: this.playerinput.floaters,
-        lunaArchivesScience: this.playerinput.type === 'projectCard' ? this.playerinput.lunaArchivesScience : 0,
-        spireScience: this.playerinput.spireScience,
-        seeds: this.playerinput.seeds,
-        auroraiData: this.playerinput.auroraiData,
-        graphene: this.playerinput.graphene,
-        kuiperAsteroids: this.playerinput.kuiperAsteroids,
+        megacredits: spendable.megacredits,
+        heat: this.available ? this.available.heat : spendable.heat,
+        steel: this.available ? this.available.steel : spendable.steel,
+        titanium: this.available ? this.available.titanium : spendable.titanium,
+        plants: this.available ? this.available.plants : spendable.plants,
+        microbes: spendable.microbes,
+        floaters: spendable.floaters,
+        lunaArchivesScience: spendable.lunaArchivesScience,
+        spireScience: spendable.spireScience,
+        seeds: spendable.seeds,
+        auroraiData: spendable.auroraiData,
+        graphene: spendable.graphene,
+        kuiperAsteroids: spendable.kuiperAsteroids,
       };
 
       // Stratospheric Birds requires discarding one floater from any card.
@@ -143,12 +145,7 @@ export const PaymentWidgetMixin = defineComponent({
       return units;
     },
     availableHeat(): number {
-      const thisPlayer = this.playerView.thisPlayer;
-      const stormcraft = thisPlayer.tableau.find((card) => card.name === CardName.STORMCRAFT_INCORPORATED);
-      if (stormcraft?.resources !== undefined) {
-        return thisPlayer.heat + (stormcraft.resources * 2);
-      }
-      return thisPlayer.heat;
+      return paymentAvailableHeat(this.playerView.thisPlayer);
     },
   },
 });

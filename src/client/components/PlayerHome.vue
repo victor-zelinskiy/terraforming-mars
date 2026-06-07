@@ -709,7 +709,6 @@ import {translateText, translateTextWithParams, translateMessage} from '@/client
 import {Payment} from '@/common/inputs/Payment';
 import {SelectProjectCardToPlayResponse} from '@/common/inputs/InputResponse';
 import {CardName} from '@/common/cards/CardName';
-import {Units} from '@/common/Units';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {ClaimedMilestoneModel} from '@/common/models/ClaimedMilestoneModel';
 import {FundedAwardModel} from '@/common/models/FundedAwardModel';
@@ -720,6 +719,11 @@ import {PlayerInputModel, OrOptionsModel, AndOptionsModel, SelectOptionModel, Di
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Message} from '@/common/logs/Message';
 import {vueRoot} from '@/client/components/vueRoot';
+import {
+  buildStandardProjectPaymentModel,
+  hasUsableStandardProjectAlternativeResources,
+  standardProjectPaymentTitle,
+} from '@/client/components/payment/paymentModelUtils';
 
 // PlayerInput titles are `string | Message`. Returns the plain English text
 // regardless of shape — used for string-matching prompt titles like
@@ -2716,9 +2720,7 @@ export default defineComponent({
       const card = action.input.cards.find((c) => c.name === cardName);
       if (card === undefined || card.isDisabled === true) return;
       const cost = card.calculatedCost ?? 0;
-      const paymentOptions = action.input.paymentOptions ?? {};
-
-      if (this.standardProjectHasAlternativeResources(card, paymentOptions)) {
+      if (this.standardProjectHasAlternativeResources(card, action.input.paymentOptions ?? {})) {
         // Title is a Message object (NOT a string concatenation) so the
         // i18n directive translates BOTH the template "Pay for ${0}" AND
         // the typed CARD placeholder lookup ("Power Plant:SP" →
@@ -2726,10 +2728,7 @@ export default defineComponent({
         // raw string produces an untranslated literal like
         // "Pay for Power Plant:SP" which lands in the header without a
         // matching locale key.
-        const title: Message = {
-          message: 'Pay for ${0}',
-          data: [{type: LogMessageDataType.CARD as const, value: cardName}],
-        };
+        const title = standardProjectPaymentTitle(cardName);
         this.pendingStdProjectPayment = {
           cardName,
           // Same Message object on both fields — the modal uses `title`
@@ -2737,25 +2736,7 @@ export default defineComponent({
           // reads `input.title` for the modal header. Sharing the same
           // typed Message keeps translations consistent.
           title: title,
-          input: {
-            type: 'payment',
-            title: title,
-            // "Pay" reads as the action being committed in the modal —
-            // matches the action-step semantics. The Standard Projects
-            // overlay's button reads "Use" (project selection); this is
-            // the payment step, hence "Pay".
-            buttonLabel: 'Pay',
-            amount: cost,
-            paymentOptions: paymentOptions,
-            seeds: 0,
-            auroraiData: 0,
-            kuiperAsteroids: 0,
-            spireScience: 0,
-            reserveUnits: card.reserveUnits ?? Units.EMPTY,
-            floaters: 0,
-            microbes: 0,
-            graphene: 0,
-          },
+          input: buildStandardProjectPaymentModel(this.playerView, action.input, card, title, cost),
         };
         this.activeOverlay = null; // close the standard-projects overlay
         return;
@@ -2776,30 +2757,7 @@ export default defineComponent({
       card: CardModel,
       opts: SelectProjectCardToPlayModel['paymentOptions'],
     ): boolean {
-      const player = this.thisPlayer;
-      // Helion: heat usable as M€ for any standard project.
-      if (player.tableau.some((c) => c.name === CardName.HELION) && player.heat > 0) return true;
-      // Steel — per-card opt-in (City + Prefab, Excavate, Moon Road).
-      if (opts.steel === true && player.steel > 0) return true;
-      // Titanium — per-card opt-in OR Luna Trade Federation.
-      if ((opts.titanium === true || opts.lunaTradeFederationTitanium === true) && player.titanium > 0) return true;
-      // Per-card alt-resource flags from `card.standardProjectCanPayWith`.
-      const canPayWith = card.standardProjectCanPayWith;
-      if (canPayWith?.seeds === true && player.tableau.some((c) => c.name === CardName.SOYLENT_SEEDLING_SYSTEMS)) {
-        const soylent = player.tableau.find((c) => c.name === CardName.SOYLENT_SEEDLING_SYSTEMS);
-        if ((soylent?.resources ?? 0) > 0) return true;
-      }
-      if (canPayWith?.kuiperAsteroids === true && player.tableau.some((c) => c.name === CardName.KUIPER_COOPERATIVE)) {
-        const kuiper = player.tableau.find((c) => c.name === CardName.KUIPER_COOPERATIVE);
-        if ((kuiper?.resources ?? 0) > 0) return true;
-      }
-      // Aurorai data / Spire science — always allowed for standard projects
-      // when the player owns the corp/card.
-      const aurorai = player.tableau.find((c) => c.name === CardName.AURORAI);
-      if (aurorai !== undefined && (aurorai.resources ?? 0) > 0) return true;
-      const spire = player.tableau.find((c) => c.name === CardName.SPIRE);
-      if (spire !== undefined && (spire.resources ?? 0) > 0) return true;
-      return false;
+      return hasUsableStandardProjectAlternativeResources(this.thisPlayer, card, opts);
     },
     onStdProjectPaymentConfirm(payment: Payment): void {
       if (this.startGameFlowActionLocked) return;
