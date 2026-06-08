@@ -742,10 +742,6 @@ export default defineComponent({
              * подтвердивший игрок), идём по стандартному playerkey++ path —
              * overlay снимается мгновенно.
              */
-            if (newPlayerView.game.phase === 'end' && window.location.pathname !== paths.THE_END) {
-              window.location = window.location as any as (string & Location);
-              return;
-            }
             if (isInitialDraftAwaiting(newPlayerView)) {
               // Сервер принял наш ответ, но партия ещё не стартовала
               // (другие игроки не подтвердили выбор). Reactive swap без

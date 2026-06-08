@@ -354,9 +354,6 @@ export default defineComponent({
         root.playerkey++;
         root.screen = 'player-home';
       }
-      if (newPlayerView.game.phase === 'end' && window.location.pathname !== paths.THE_END) {
-        window.location = window.location as any as (string & Location);
-      }
     },
   },
 });
