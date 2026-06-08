@@ -26,7 +26,14 @@ export default defineComponent({
   computed: {
     getClasses(): string {
       const hasMax = this.requirements?.some((req) => req.max);
-      return hasMax ? 'card-requirements card-requirements-max' : 'card-requirements';
+      const base = hasMax ? 'card-requirements card-requirements-max' : 'card-requirements';
+      const n = this.requirements?.length ?? 1;
+      // Density class drives adaptive gap in CSS without JS pixel math.
+      const density = n >= 4 ? 'card-requirements--dense4'
+        : n === 3 ? 'card-requirements--dense3'
+        : n === 2 ? 'card-requirements--dense2'
+        : '';
+      return density ? `${base} ${density}` : base;
     },
     indentRight(): ReadonlyArray<boolean> {
       const indentations = [false];
