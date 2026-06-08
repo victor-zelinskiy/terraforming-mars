@@ -1028,6 +1028,62 @@
             line-height: normal;
         }
 
+        /*
+         * ── Requirement chip layout ──────────────────────────────────────
+         *
+         * One chip = [icon] [≥/≤] [value][suffix], rendered as a tight
+         * inline-flex row. The plate outer container (this rule block) uses
+         * gap to space chips apart; the chip itself uses its own inner gap.
+         *
+         * Adaptive outer gap is added below via .card-requirements--dense*
+         * modifier classes set by CardRequirementsComponent based on count.
+         */
+        .card-item-container {
+            display: inline-flex;
+            flex-flow: row;
+            align-items: center;
+            /* 2 px between icon / operator / value inside one chip. */
+            gap: 2px;
+        }
+
+        /*
+         * Operator + value — unified token, not separate elements.
+         *
+         * ≥1 should read as a single compact label next to the icon,
+         * not as two unrelated characters. Both get the same size, same
+         * weight, same full-white colour and the same text-shadow so they
+         * fuse visually. The operator sits 0.5px tighter to the value
+         * (margin-right: 0) so the pair clusters together.
+         *
+         * top: 1px on the operator corrects the slight baseline drop of
+         * ≥/≤ glyphs so they align with the icon vertical centre.
+         */
+        .card-req-operator {
+            font-family: "Russo One", "Anton", Prototype, Ubuntu, sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+            letter-spacing: 0;
+            margin: 0;
+            margin-right: 1px;
+            position: relative;
+            top: 1px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.80);
+            user-select: none;
+        }
+
+        .card-req-value {
+            font-family: "Russo One", "Anton", Prototype, Ubuntu, sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+            letter-spacing: 0.2px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.80);
+            white-space: nowrap;
+        }
+
         /* v14: icon sizing REVERTED — upstream 30 × 30 default applies.
          * No more shrink overrides. */
     }
@@ -1050,6 +1106,33 @@
         background-repeat: no-repeat !important;
         filter: none !important;
     }
+}
+
+/*
+ * ─── 9a-ii. Adaptive inter-chip gap on the requirement plate ────────────
+ *
+ * The plate outer container already has gap:6px (set above in the main
+ * requirement plate rule). When many chips must fit, CardRequirementsComponent
+ * adds a density modifier class that reduces that gap so the row stays in one
+ * line on a 180-px-wide card.
+ *
+ * Gap ladder (outer gap between chips; inner chip gap is always 2px):
+ *   1 chip  — 6 px  (default, no modifier)
+ *   2 chips — 5 px
+ *   3 chips — 4 px
+ *   4 chips — 3 px
+ *
+ * These values were chosen to keep 4 × [30px icon + op + 2-digit value]
+ * (~4 × 52px ≈ 208px total) fitting within the ~196px plate interior
+ * (card width 180px, padding 12px each side). In practice tag icons are
+ * 30px, operator ~10px, value ~11px → ~51px per chip. Four chips at 3px
+ * gap: 4×51 + 3×3 = 213px → borderline, but tags are the only 4-chip
+ * case and their icons are the smallest variant (--S, 30px).
+ */
+.card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
+    > .card-requirements--dense2 { gap: 5px; }
+    > .card-requirements--dense3 { gap: 4px; }
+    > .card-requirements--dense4 { gap: 3px; }
 }
 
 /*

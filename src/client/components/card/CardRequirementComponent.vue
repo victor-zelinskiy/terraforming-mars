@@ -1,26 +1,34 @@
 <template>
   <div class="card-requirement">
       <div class="card-item-container" :class="nextTo">
-        <template v-if="requirement.max">max&nbsp;</template>
-        <span v-if="!isRepeated">{{amount}}</span>{{suffix}}
+        <!-- REMOVED_PLANTS: binary signal — plants were removed this generation -->
         <template v-if="type === RequirementType.REMOVED_PLANTS">
           <div class="card-special card-minus"></div>
           <div class="card-resource card-resource-plant red-outline"></div>
         </template>
-        <template v-if="type === RequirementType.PRODUCTION">
+        <!-- PRODUCTION: production box + threshold operator + count -->
+        <template v-else-if="type === RequirementType.PRODUCTION">
           <div class="card-production-box card-production-box--req">
             <div class="card-production-box-row">
               <div class="card-production-box-row-item">
                 <div class="card-item-container">
-                  <div v-for="num in repeats" :class="productionClass" :key="num"></div>
+                  <div :class="productionClass"></div>
                 </div>
               </div>
             </div>
           </div>
+          <span class="card-req-operator">{{ operator }}</span>
+          <span class="card-req-value">{{ count }}</span>
         </template>
+        <!-- PARTY: specific party must rule / be allied — CardParty handles the visual, no threshold -->
         <CardParty v-else-if="type === RequirementType.PARTY" :party="party" size="req" />
+        <!-- CHAIRMAN: binary — you must be the chairman, no threshold -->
+        <div v-else-if="type === RequirementType.CHAIRMAN" :class="componentClasses"></div>
+        <!-- Standard countable: [icon] [≥/≤] [value][suffix] -->
         <template v-else>
-            <div v-for="num in repeats" :key="num" :class="componentClasses"></div>
+          <div :class="componentClasses"></div>
+          <span class="card-req-operator">{{ operator }}</span>
+          <span class="card-req-value">{{ amount }}{{ suffix }}</span>
         </template>
       </div>
   </div>
@@ -31,7 +39,6 @@
 import {defineComponent} from 'vue';
 import {CardRequirementDescriptor, requirementType} from '@/common/cards/CardRequirementDescriptor';
 import {RequirementType} from '@/common/cards/RequirementType';
-import {range} from '@/common/utils/utils';
 import CardParty from '@/client/components/card/CardParty.vue';
 import {PartyName} from '@/common/turmoil/PartyName';
 
@@ -56,28 +63,22 @@ export default defineComponent({
       return requirementType(this.requirement);
     },
     count(): number {
+      // TAG requirements without an explicit count mean "at least 1 of this tag".
+      // populateCount() on the server does not fill count for TAG (no numeric synonym),
+      // so count arrives as undefined — default to 1, not 0.
+      if (this.requirement.count === undefined && this.type === RequirementType.TAG) {
+        return 1;
+      }
       return this.requirement.count ?? 0;
     },
-    amount(): string | number {
-      switch (this.type) {
-      case RequirementType.TEMPERATURE:
-      case RequirementType.OXYGEN:
-      case RequirementType.VENUS:
-      case RequirementType.HABITAT_RATE:
-      case RequirementType.MINING_RATE:
-      case RequirementType.LOGISTIC_RATE:
-        return this.count;
-      }
-      if (this.requirement.max) {
-        return this.count;
-      }
-      if (this.count === 0) {
-        return '';
-      }
-      if (this.count !== 1) {
-        return this.count;
-      }
-      return '';
+    // Threshold operator: ≥ for minimums, ≤ for maximums.
+    // Binary types (REMOVED_PLANTS, PARTY, CHAIRMAN) return '' — handled in template separately.
+    operator(): string {
+      return this.requirement.max ? '≤' : '≥';
+    },
+    // Numeric threshold — always the raw count value.
+    amount(): number {
+      return this.count;
     },
     suffix(): string {
       switch (this.type) {
@@ -88,9 +89,6 @@ export default defineComponent({
         return '°C';
       }
       return '';
-    },
-    isAny(): string {
-      return this.requirement.all ? 'red-outline' : '';
     },
     componentClasses(): Array<string> {
       const classes = this.componentClassArray;
@@ -145,6 +143,7 @@ export default defineComponent({
         return ['card-resource', 'card-resource-corruption'];
       case RequirementType.PRODUCTION:
       case RequirementType.REMOVED_PLANTS:
+        // Handled by dedicated template branches, not via classes.
         break;
       }
       return [];
@@ -168,24 +167,6 @@ export default defineComponent({
     },
     RequirementType() {
       return RequirementType;
-    },
-    isRepeated(): boolean {
-      switch (this.type) {
-      case RequirementType.OXYGEN:
-      case RequirementType.TEMPERATURE:
-      case RequirementType.VENUS:
-      case RequirementType.PARTY:
-      case RequirementType.REMOVED_PLANTS:
-      case RequirementType.UNDERGROUND_TOKENS:
-        return false;
-      }
-      return this.count > 0 && this.count < 4;
-    },
-    repeats(): Array<number> {
-      if (!this.isRepeated || this.requirement.count === undefined) {
-        return [1];
-      }
-      return range(this.requirement.count);
     },
     nextTo(): string {
       if (this.requirement.nextTo) {
