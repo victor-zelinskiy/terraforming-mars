@@ -9,7 +9,7 @@
   <!-- Normal entry. -->
   <li v-else
       class="journal-entry"
-      :class="{'journal-entry--fresh': animateIn, 'journal-entry--private': isPrivate}">
+      :class="{'journal-entry--fresh': animateIn, 'journal-entry--private': isPrivate, 'journal-entry--announcement': isAnnouncement}">
     <span class="journal-entry__rail" aria-hidden="true"></span>
     <span class="journal-entry__time" :title="fullWhen">{{ when }}</span>
     <span class="journal-entry__body">
@@ -62,6 +62,9 @@ export default defineComponent({
   computed: {
     isGenerationMarker(): boolean {
       return this.message.type === LogMessageType.NEW_GENERATION;
+    },
+    isAnnouncement(): boolean {
+      return this.message.type === LogMessageType.ANNOUNCEMENT;
     },
     generationNumber(): number {
       return Number(this.message.data[0]?.value ?? 0);

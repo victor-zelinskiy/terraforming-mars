@@ -110,6 +110,7 @@ import {InputResponse} from '@/common/inputs/InputResponse';
 import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {Color} from '@/common/Color';
 import {gameDocumentTitle} from '../utils/documentTitle';
+import {setFaviconStatus, setFaviconTurnFrame} from '@/client/utils/favicon';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import WorldGovernmentModalContent from '@/client/components/WorldGovernmentModalContent.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
@@ -220,6 +221,17 @@ function shouldRouteToModal(input: PlayerInputModel): boolean {
 
 let ui_update_timeout_id: number | undefined;
 let documentTitleTimer: number | undefined;
+let animationFrame = 0;
+
+// The spinning ◑◒◐◓ symbol used to indicate it's your turn.
+const TURN_SEQUENCE = '◑◒◐◓';
+
+// On a desktop browser the favicon is visible in the tab, so we spin it there
+// rather than cluttering the document title. Mobile browsers don't show tab
+// favicons, so they keep animating the title instead.
+function isDesktopBrowser(): boolean {
+  return !/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
 
 type DataModel = {
   playersWaitingFor: Array<Color>
@@ -322,14 +334,18 @@ export default defineComponent({
         return;
       }
 
-      const sequence = '\u25D1\u25D2\u25D0\u25D3';
-      const first = document.title[0];
-      const position = sequence.indexOf(first);
-      let next = sequence[0];
-      if (position !== -1 && position < sequence.length - 1) {
-        next = sequence[position + 1];
+      animationFrame = (animationFrame + 1) % TURN_SEQUENCE.length;
+      const experimental = getPreferences().experimental_ui;
+      // The favicon annotation is an experimental feature.
+      if (experimental) {
+        setFaviconTurnFrame(animationFrame);
       }
-      document.title = next + ' ' + gameDocumentTitle(this.playerView.game);
+      // Existing behavior spins the symbol in the document title. With
+      // experimental UI on a desktop browser we show it only in the tab favicon
+      // instead; otherwise keep animating the title.
+      if (!(experimental && isDesktopBrowser())) {
+        document.title = TURN_SEQUENCE[animationFrame] + ' ' + gameDocumentTitle(this.playerView.game);
+      }
     },
     onsave(out: InputResponse) {
       /*
@@ -662,6 +678,9 @@ export default defineComponent({
   },
   mounted() {
     document.title = gameDocumentTitle(this.playerView.game);
+    if (getPreferences().experimental_ui) {
+      setFaviconStatus(this.waitingfor !== undefined ? 'turn' : 'idle');
+    }
     window.clearInterval(documentTitleTimer);
     // Always poll — even when the viewer is mid-prompt — so other players'
     // status (cube spin, status label) stays in sync across simultaneous-
