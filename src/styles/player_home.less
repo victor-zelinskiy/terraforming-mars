@@ -3894,7 +3894,7 @@ each(@players, {
 .awards-overlay {
     width: 580px;
     max-width: 92vw;
-    max-height: calc(100vh - var(--bottom-bar-button-height) * 2 - 24px);
+    /* No max-height — overlay sizes to its content, never scrolls. */
     padding: 12px 14px 14px;
     display: flex;
     flex-direction: column;
@@ -4006,9 +4006,8 @@ each(@players, {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    overflow-y: auto;
-    padding-right: 4px;
-    margin-right: -4px;
+    /* overflow: visible — list never scrolls, overlay grows to fit all rows. */
+    overflow: visible;
 }
 
 .award-row {

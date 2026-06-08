@@ -35,9 +35,9 @@
         <span class="special-cell-info-overlay__corner special-cell-info-overlay__corner--br" />
         <div class="special-cell-info-overlay__header">
           <span class="special-cell-info-overlay__title-mark" />
-          <span class="special-cell-info-overlay__title">{{ active.title }}</span>
+          <span class="special-cell-info-overlay__title">{{ translatedTitle }}</span>
         </div>
-        <div class="special-cell-info-overlay__body">{{ active.description }}</div>
+        <div class="special-cell-info-overlay__body">{{ translatedDescription }}</div>
       </div>
     </div>
   </teleport>
@@ -47,6 +47,7 @@
 import {defineComponent} from 'vue';
 import {specialCellHoverState} from '@/client/components/board/specialCellHoverState';
 import {getSpecialCellInfoById, SpecialCellInfo, PanelPlacement} from '@/client/components/board/specialCellInfo';
+import {translateText} from '@/client/directives/i18n';
 
 const PANEL_WIDTH = 320;
 /** Initial estimate; refined to the panel's real height after mount. */
@@ -77,6 +78,12 @@ export default defineComponent({
         return undefined;
       }
       return getSpecialCellInfoById(id);
+    },
+    translatedTitle(): string {
+      return this.active ? translateText(this.active.title) : '';
+    },
+    translatedDescription(): string {
+      return this.active ? translateText(this.active.description) : '';
     },
     markerCenter(): Vec2 {
       const r = this.markerRect;
