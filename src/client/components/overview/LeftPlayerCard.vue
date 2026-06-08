@@ -41,6 +41,16 @@
             variant="score" />
         </span>
       </div>
+      <!--
+        Turn-order badge — порядок хода в текущем (или следующем после
+        смены поколения) поколении. Данные берутся из turnIndex (0-based),
+        который LeftPlayerPanel вычисляет как позицию в
+        playerView.players — а тот массив уже в playersInGenerationOrder
+        (сервер обновляет его в startGeneration() перед тем как слать
+        новый playerView). Значит как только поколение завершается и
+        приходит новый ответ — бэйдж уже показывает СЛЕДУЮЩИЙ порядок.
+      -->
+      <span class="left-panel-card-order" :title="$t('Turn order this generation')">#{{ turnIndex + 1 }}</span>
     </div>
     <!--
       Status chip — единая HUD-«капсула» статуса игрока. Внешний вид
