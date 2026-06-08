@@ -1399,7 +1399,8 @@ each(@players, {
 }
 
 .left-panel-card-row--stats {
-    justify-content: space-between;
+    /* gap между ПО и РТ — turn-order badge прижимается вправо через margin-left:auto */
+    gap: 12px;
     font-family: Prototype;
     /*
      * line-height: 1 — стат-строка занимает ровно высоту шрифта
@@ -1428,6 +1429,32 @@ each(@players, {
     color: #fff;
     font-size: 16px;
     line-height: 1;
+}
+
+/*
+ * Turn-order badge — #N chip справа в stats-строке.
+ *
+ * Визуально идентичен initial-draft-rail__order (тот же dark-glass chip
+ * с cyan-окантовкой). `margin-left: auto` отталкивает badge вправо,
+ * оставляя ПО и РТ у левого края с нормальным отступом между ними.
+ *
+ * Данные готовы сразу после смены поколения — сервер обновляет
+ * playersInGenerationOrder в startGeneration() до отправки нового
+ * playerView, поэтому клиент видит порядок СЛЕДУЮЩЕГО поколения
+ * сразу как только текущее заканчивается.
+ */
+.left-panel-card-order {
+    flex-shrink: 0;
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: rgba(170, 200, 225, 0.78);
+    padding: 1px 5px;
+    border: 1px solid rgba(106, 176, 230, 0.22);
+    border-radius: 2px;
+    background: rgba(20, 36, 56, 0.55);
+    align-self: center;
 }
 
 /*
