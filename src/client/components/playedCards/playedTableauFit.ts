@@ -1,66 +1,95 @@
 /*
- * playedTableauFit — PURE layout planner for the played-cards "project band".
+ * playedTableauFit — PURE, area-FILLING layout planner for the played-cards
+ * "project band" (Active / Automated / Events).
  *
- * The overlay's fit engine (`PlayedCardsOverlay.fit`) measures the live DOM to
- * pick a card SCALE, but the COLUMN distribution per project type is a pure
- * function of the card counts + the available width + the chosen card width.
- * Extracting it here keeps that math unit-testable without a DOM (under JSDOM
- * the overlay's `fit()` is a no-op because rects are 0).
+ * The overlay measures the live DOM for the real card height + identity-band
+ * height and feeds them here; this module decides — without a DOM — the card
+ * SCALE, the per-section COLUMN distribution, and the PEEK height so the
+ * tableau **fills the available box** instead of sitting compressed in a
+ * corner. The overlay then does one measured shrink as a safety net.
  *
- * Per project type-section we decide between two layouts:
- *  - 'grid'    — a few cards: full cards in a wrapping row (roomy, no peek).
- *  - 'columns' — many cards: vertical PEEK-STACK columns (the dense tableau
- *                fan). The section gets enough columns to keep ~targetPerColumn
- *                cards per column, capped by what fits the width and floored at
- *                minColumns so it always reads as "columns", never one tall pile.
- *
- * Cards within a 'columns' section are distributed into BALANCED contiguous
- * chunks (oldest-first), so the piles are even (no 6+1 orphan) and time reads
- * top→bottom within each pile (newest at the bottom, shown full).
+ * Strategy (the "intelligent system" behaviour):
+ *  1. Search the total column count `C` that lets the card zoom be as LARGE as
+ *     possible while still fitting BOTH the width and the height. Few cards /
+ *     wide screen → big cards (zoom hits MAX); many cards / short screen →
+ *     compact. This is what makes the layout GROW into empty space instead of
+ *     only ever shrinking.
+ *  2. Allocate those columns to sections by crowdedness, so a heavy group
+ *     (Automated 40) gets more width than a light one (Events 5) — never blind
+ *     equal widths, never a tiny group hogging space.
+ *  3. Pick a PEEK height that fills the leftover vertical space, clamped so a
+ *     peeked card ALWAYS shows its title (no top clipping) and never exceeds a
+ *     full card (then it renders full, no peek). Spacious → fuller cards;
+ *     compact → a slim-but-readable peek.
  */
 
-export type TableauSectionInput = {
+export type ProjectSection = {
   key: string;
   count: number;
 };
 
-export type TableauSectionPlan = {
+export type ProjectSectionPlan = {
   key: string;
-  layout: 'grid' | 'columns';
-  /** Column count (grid: how many full cards fit a row; columns: pile count). */
+  /** Number of vertical peek-stack columns for this section. */
   columns: number;
-  /** Cards per column for 'columns' layout (balanced, sums to count). */
+  /** Cards per column (balanced, contiguous, sums to count). */
   chunks: ReadonlyArray<number>;
-  /** Whether the columns peek-clip (a column tall enough to need compression). */
+};
+
+export type Density = 'compact' | 'balanced' | 'spacious';
+
+export type ProjectBandPlan = {
+  /** Card scale (`--played-card-zoom`). */
+  zoom: number;
+  /**
+   * Natural px each PEEKED card shows from its top (the slot height is
+   * `peekNatural * zoom`). Always >= the title height, so the name never clips.
+   */
+  peekNatural: number;
+  /** false → the cards fit as FULL cards (no clipping at all). */
   peek: boolean;
+  density: Density;
+  sections: ReadonlyArray<ProjectSectionPlan>;
 };
 
-export type TableauPlanOptions = {
-  /** count <= this → full-card wrapping grid (no peek). */
-  expandMax: number;
-  /** Target cards per peek-column (drives how many columns a section gets). */
-  targetPerColumn: number;
-  /** A column taller than this peeks (clips non-bottom cards to a strip). */
-  peekThreshold: number;
-  /** A 'columns' section uses at least this many columns (width permitting). */
-  minColumns: number;
+export type FitConstants = {
+  /** Natural card-container width (cards.less `.card-container { width: 300px }`). */
+  cardNaturalW: number;
+  /** Natural FULL card height (the overlay measures the real value; fallback). */
+  cardNaturalH: number;
+  minZoom: number;
+  maxZoom: number;
+  /** Column gap (px) — MUST match the CSS `.played-group__columns` gap. */
+  gap: number;
+  /** Gap between type-sections (px) — MUST match the CSS section gap. */
+  sectionGap: number;
+  /**
+   * Fraction of a full card a peeked card occupies in the column-count search
+   * (only an estimate to rank column counts — the real peek is computed after).
+   */
+  peekFraction: number;
+  /** A peeked card always shows at least this many natural px (title visible). */
+  minPeekNatural: number;
 };
 
-export const PLAN_DEFAULTS: TableauPlanOptions = {
-  expandMax: 6,
-  // ~8 cards per pile → a typical section (12-20 cards) reads as 2-3 tall
-  // fanned columns (the "2-3 columns per type" tableau feel), while a very
-  // large section still spreads wider (capped by the width) rather than
-  // forcing one giant pile.
-  targetPerColumn: 8,
-  peekThreshold: 3,
-  minColumns: 2,
+export const FIT: FitConstants = {
+  cardNaturalW: 300,
+  cardNaturalH: 415,
+  minZoom: 0.34,
+  maxZoom: 0.86,
+  gap: 16,
+  sectionGap: 28,
+  peekFraction: 0.3,
+  minPeekNatural: 118,
 };
+
+function clamp(lo: number, hi: number, v: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
 
 /**
- * Splits `count` items into `columns` contiguous, balanced chunks (larger
- * chunks first), e.g. balancedChunks(16, 3) -> [6, 5, 5]. `columns` is clamped
- * to [1, count].
+ * Splits `count` into `columns` contiguous, balanced chunks (larger first),
+ * e.g. balancedChunks(16, 3) -> [6, 5, 5]. `columns` clamped to [1, count].
  */
 export function balancedChunks(count: number, columns: number): Array<number> {
   const cols = Math.max(1, Math.min(columns, count));
@@ -73,52 +102,114 @@ export function balancedChunks(count: number, columns: number): Array<number> {
   return chunks;
 }
 
-/** How many card columns of `cardWidth` (+`gap`) fit `availWidth`. */
-export function maxColumnsForWidth(availWidth: number, cardWidth: number, gap: number): number {
-  if (cardWidth <= 0) {
-    return 1;
+/**
+ * Distributes `total` columns across sections by CROWDEDNESS: every section
+ * starts with 1 column, then each extra column goes to whichever section
+ * currently has the most cards-per-column — so heavy groups breathe and small
+ * groups don't hog space. Each section gets `[1, count]` columns; the sum is
+ * `min(total, sum(counts))`.
+ */
+export function allocateColumns(counts: ReadonlyArray<number>, total: number): Array<number> {
+  const n = counts.length;
+  if (n === 0) {
+    return [];
   }
-  return Math.max(1, Math.floor((availWidth + gap) / (cardWidth + gap)));
+  const cols = counts.map(() => 1);
+  const sumCounts = counts.reduce((s, c) => s + c, 0);
+  const budget = Math.max(n, Math.min(total, sumCounts));
+  let used = n;
+  while (used < budget) {
+    let bestI = -1;
+    let bestRatio = -1;
+    for (let i = 0; i < n; i++) {
+      if (cols[i] >= counts[i]) {
+        continue; // never more columns than cards
+      }
+      const ratio = counts[i] / (cols[i] + 1);
+      if (ratio > bestRatio) {
+        bestRatio = ratio;
+        bestI = i;
+      }
+    }
+    if (bestI === -1) {
+      break; // every section is at its card-count cap
+    }
+    cols[bestI]++;
+    used++;
+  }
+  return cols;
 }
 
-export function planTableauSection(
-  section: TableauSectionInput,
+export function planProjectBand(
+  sections: ReadonlyArray<ProjectSection>,
   availWidth: number,
-  cardWidth: number,
-  gap: number,
-  options: Partial<TableauPlanOptions> = {},
-): TableauSectionPlan {
-  const o = {...PLAN_DEFAULTS, ...options};
-  const count = section.count;
-  const maxCols = maxColumnsForWidth(availWidth, cardWidth, gap);
+  availHeight: number,
+  cardNaturalH: number = FIT.cardNaturalH,
+  constants: Partial<FitConstants> = {},
+): ProjectBandPlan {
+  const c = {...FIT, ...constants, cardNaturalH};
+  const live = sections.filter((s) => s.count > 0);
+  const N = live.reduce((s, x) => s + x.count, 0);
 
-  if (count <= 0) {
-    return {key: section.key, layout: 'grid', columns: 1, chunks: [], peek: false};
+  if (N === 0 || availWidth <= 0 || availHeight <= 0) {
+    return {
+      zoom: c.maxZoom,
+      peekNatural: c.cardNaturalH,
+      peek: false,
+      density: 'spacious',
+      sections: live.map((s) => ({key: s.key, columns: 1, chunks: balancedChunks(s.count, 1)})),
+    };
   }
 
-  if (count <= o.expandMax) {
-    // Roomy full-card wrap. `columns` is a display hint (the grid wraps via
-    // CSS); no peek.
-    const columns = Math.max(1, Math.min(count, maxCols));
-    return {key: section.key, layout: 'grid', columns, chunks: [], peek: false};
+  // Width the columns actually get (sections sit side by side with a gap each).
+  const effectiveW = Math.max(c.cardNaturalW * c.minZoom, availWidth - (live.length - 1) * c.sectionGap);
+
+  // 1. Search the column count that maximises the card zoom while fitting both
+  //    dimensions. widthZoom falls with C, heightZoom rises with C — the best
+  //    total column count is where their min is largest.
+  const hardMaxC = Math.min(N, Math.max(1, Math.floor((effectiveW + c.gap) / (c.cardNaturalW * c.minZoom + c.gap))));
+  let bestZoom = -1;
+  let bestC = 1;
+  for (let C = 1; C <= hardMaxC; C++) {
+    const widthZoom = (effectiveW - (C - 1) * c.gap) / (C * c.cardNaturalW);
+    const perCol = Math.ceil(N / C);
+    const heightFactor = (perCol - 1) * c.peekFraction + 1;
+    const heightZoom = availHeight / (c.cardNaturalH * heightFactor);
+    const z = clamp(c.minZoom, c.maxZoom, Math.min(widthZoom, heightZoom));
+    // Prefer a larger zoom; on a tie prefer MORE columns (spreads the width).
+    if (z > bestZoom + 1e-4 || (Math.abs(z - bestZoom) < 1e-4 && C > bestC)) {
+      bestZoom = z;
+      bestC = C;
+    }
   }
+  const zoom = bestZoom;
 
-  // Peek-stack columns. Floor at minColumns, aim for ~targetPerColumn cards per
-  // column, never exceed the width budget or the card count.
-  const desired = Math.ceil(count / o.targetPerColumn);
-  let columns = Math.max(o.minColumns, desired);
-  columns = Math.min(columns, maxCols, count);
-  const chunks = balancedChunks(count, columns);
-  const tallest = chunks.length > 0 ? Math.max(...chunks) : 0;
-  return {key: section.key, layout: 'columns', columns, chunks, peek: tallest > o.peekThreshold};
-}
+  // 2. Allocate the columns to sections by crowdedness.
+  const cols = allocateColumns(live.map((s) => s.count), bestC);
 
-export function planTableau(
-  sections: ReadonlyArray<TableauSectionInput>,
-  availWidth: number,
-  cardWidth: number,
-  gap: number,
-  options: Partial<TableauPlanOptions> = {},
-): Array<TableauSectionPlan> {
-  return sections.map((s) => planTableauSection(s, availWidth, cardWidth, gap, options));
+  // 3. Tallest column (drives the peek-to-fill calc).
+  let perColMax = 1;
+  live.forEach((s, i) => {
+    perColMax = Math.max(perColMax, Math.ceil(s.count / cols[i]));
+  });
+
+  // 4. Peek height that fills the leftover vertical space, clamped so a peeked
+  //    card always shows its title and never exceeds a full card.
+  let peekNatural = c.cardNaturalH;
+  if (perColMax > 1) {
+    peekNatural = (availHeight / zoom - c.cardNaturalH) / (perColMax - 1);
+  }
+  peekNatural = clamp(c.minPeekNatural, c.cardNaturalH, peekNatural);
+  const peek = peekNatural < c.cardNaturalH - 1;
+
+  const density: Density =
+    zoom >= c.maxZoom - 0.02 ? 'spacious' : zoom <= c.minZoom + 0.06 ? 'compact' : 'balanced';
+
+  return {
+    zoom,
+    peekNatural,
+    peek,
+    density,
+    sections: live.map((s, i) => ({key: s.key, columns: cols[i], chunks: balancedChunks(s.count, cols[i])})),
+  };
 }

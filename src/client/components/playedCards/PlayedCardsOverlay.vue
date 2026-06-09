@@ -17,8 +17,7 @@
         <span v-if="hasAnyCards" class="played-board__total">{{ totalCount }}</span>
       </div>
 
-      <!-- View-mode segmented control: КАРТЫ (board) / ТАБЛИЦА (data list).
-           Cards is the immersive default; table is the analytic view. -->
+      <!-- View-mode segmented control: КАРТЫ (board) / ТАБЛИЦА (data list). -->
       <div v-if="hasAnyCards" class="played-board__viewtoggle" role="tablist" :aria-label="$t('View mode')">
         <button type="button" class="played-board__viewbtn"
                 :class="{'played-board__viewbtn--active': viewMode === 'cards'}"
@@ -47,12 +46,12 @@
       @toggle-tag="toggleTag" />
 
     <div ref="body" class="played-board__body"
-         :class="{'played-board__body--table': viewMode === 'table'}"
-         :style="{'--played-card-zoom': cardZoom}">
+         :class="['played-board__body--' + density, {'played-board__body--table': viewMode === 'table'}]"
+         :style="bodyStyle">
       <PlayedCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" />
       <div v-else-if="viewMode === 'cards'" class="played-tableau">
-        <!-- Identity band — corporation / preludes / CEO, the cards that
-             define WHO the player is. Compact wrapping rows, full cards. -->
+        <!-- Identity band — corporation / preludes / CEO. Compact wrapping
+             rows of full cards (a "setup zone", never the dominant area). -->
         <transition-group v-if="identityGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__identity" @after-leave="scheduleFit">
           <PlayedCardsGroup
             v-for="g in identityGroups"
@@ -63,16 +62,17 @@
             @open="openCard" />
         </transition-group>
 
-        <!-- Project band — Active / Automated / Events. The main tableau: each
-             type-section is a grid (few cards) or vertical peek-stack columns
-             (many cards). Sections flex-wrap to fill the width. -->
+        <!-- Project band — Active / Automated / Events. The main area: each
+             type-section is vertical peek-stack columns, widths allocated by
+             card count, scaled to fill the available box. -->
         <transition-group v-if="projectGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__projects" @after-leave="scheduleFit">
           <PlayedCardsGroup
             v-for="g in projectGroups"
             :key="g.key"
             :group="g"
             variant="project"
-            :plan="sectionPlans[g.key]"
+            :plan="sectionPlanMap[g.key]"
+            :peek="peekEnabled"
             :player="displayedPlayer"
             @open="openCard" />
         </transition-group>
@@ -103,7 +103,7 @@ import {
   PlayedTagChip,
   PlayedTypeChip,
 } from '@/client/components/playedCards/playedCardGroups';
-import {planTableau, TableauSectionPlan} from '@/client/components/playedCards/playedTableauFit';
+import {Density, FIT, planProjectBand, ProjectSectionPlan} from '@/client/components/playedCards/playedTableauFit';
 import {playedCardsViewState, PlayedViewMode} from '@/client/components/playedCards/playedCardsViewState';
 import PlayedCardsFilters from '@/client/components/playedCards/PlayedCardsFilters.vue';
 import PlayedCardsGroup from '@/client/components/playedCards/PlayedCardsGroup.vue';
@@ -113,32 +113,30 @@ import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 
 type ViewMode = PlayedViewMode;
 
-// Card scale bounds. The engine scales cards DOWN from the per-count estimate
-// only as far as needed to fit the available height; vertical scroll is the
-// genuine last resort (only when even MIN_ZOOM overflows).
-const MAX_ZOOM = 0.62;
-const MIN_ZOOM = 0.34;
-// Natural card-container width (cards.less `.card-container { width: 300px }`).
-const NAT_W = 300;
-// Gap between project columns / grid cards (keep in sync with the LESS
-// `.played-group__columns` / `__grid` gap — feeds the column-fit math).
-const COL_GAP = 14;
-// Padding inside the scroll body (keep in sync with LESS `padding: 16px 22px`).
-const BODY_PAD_H = 44;
-const BODY_PAD_V = 38;
-// Leave a sliver below the content so sub-pixel rounding never trips the
-// scrollbar when the layout "just fits".
-const FIT_SAFETY = 4;
+// Layout constants — MUST stay in sync with played_cards.less.
+const MIN_ZOOM = FIT.minZoom;
+const COL_GAP = FIT.gap; // .played-group__columns gap
+const SECTION_GAP = FIT.sectionGap; // .played-tableau__projects column-gap
+const BODY_PAD_H = 44; // 22 + 22
+const BODY_PAD_V = 38; // 16 + 22
+const BAND_GAP = 18; // .played-tableau row gap between identity + project bands
+const FIT_SAFETY = 6; // sliver below content so rounding never trips the scrollbar
+const MIN_BAND_H = 220; // floor for the project band height estimate
 
 type DataModel = {
-  // Width of the scroll body (drives the column-fit plan reactively).
-  contentWidth: number;
-  // Card scale used to COMPUTE the column distribution (stable across the
-  // height-shrink loop, so the columns don't re-flow while the zoom settles).
-  planZoom: number;
-  // Visual card scale the height-shrink loop drives down to fit (the CSS
-  // `--played-card-zoom`). Starts == planZoom, only ever <= it.
+  // Visual card scale (`--played-card-zoom`) — the fit engine grows it to fill
+  // the box, then shrinks only if the real render overflows.
   cardZoom: number;
+  // Natural px a peeked card shows (slot height = peekNatural * cardZoom).
+  peekNatural: number;
+  // false → cards render FULL (no peek, no clipping).
+  peekEnabled: boolean;
+  density: Density;
+  // Per-section column/chunk plan (set imperatively by the fit engine).
+  bandSections: ReadonlyArray<ProjectSectionPlan>;
+  // Measured real natural card height (offsetHeight / zoom) — keeps the
+  // area-fill accurate regardless of expansion / fonts.
+  naturalCardH: number;
   zoomCard: CardModel | undefined;
   resizeObserver: ResizeObserver | undefined;
   deferTimer: number | undefined;
@@ -146,22 +144,19 @@ type DataModel = {
 };
 
 /**
- * Premium "played cards board" overlay. Shows the CURRENTLY-VIEWED player's
- * tableau (`displayedPlayer`), grouped by card type, as a board-game-like
- * tableau:
- *  - IDENTITY band (corporation / preludes / CEO): compact wrapping rows of
- *    full cards — never a wasted full-width row, clean at 1-3 corps / 2-5
- *    preludes.
- *  - PROJECT band (Active / Automated / Events): the main area. Each section
- *    is a roomy full-card grid when it holds a few cards, or vertical
- *    PEEK-STACK columns when it holds many — so the tableau reads like fanned
- *    piles and uses the width before ever scrolling.
+ * Premium "played cards board" overlay — a board-game-like tableau of the
+ * CURRENTLY-VIEWED player's cards (`displayedPlayer`), in two bands: a compact
+ * IDENTITY setup zone (corp / preludes / CEO) and the main PROJECT band
+ * (Active / Automated / Events) as vertical peek-stack columns.
  *
- * Adaptive engine: the column distribution per project section is a pure
- * function of the card counts + width (`playedTableauFit`); the card SCALE is
- * then shrunk by a DOM-measuring loop only as far as needed to fit the height.
- * Filters (type groups + tags), the view mode, and the player's choices
- * persist across close/reopen via `playedCardsViewState` (module state).
+ * The layout is an area-FILLING engine: `playedTableauFit.planProjectBand`
+ * searches the column count that lets the cards be as LARGE as possible while
+ * fitting both width and height (so it GROWS into empty space on wide screens,
+ * not just shrinks), allocates column widths by card count (heavy groups
+ * breathe), and picks a peek height that fills the leftover height while always
+ * showing each card's title (no top clipping). A measured shrink is the safety
+ * net; vertical scroll is the genuine last resort. Filters + view mode persist
+ * via `playedCardsViewState`.
  */
 export default defineComponent({
   name: 'PlayedCardsOverlay',
@@ -179,9 +174,12 @@ export default defineComponent({
   emits: ['close'],
   data(): DataModel {
     return {
-      contentWidth: 1200,
-      planZoom: MAX_ZOOM,
-      cardZoom: MAX_ZOOM,
+      cardZoom: 0.55,
+      peekNatural: 200,
+      peekEnabled: true,
+      density: 'balanced',
+      bandSections: [],
+      naturalCardH: FIT.cardNaturalH,
       zoomCard: undefined,
       resizeObserver: undefined,
       deferTimer: undefined,
@@ -191,6 +189,12 @@ export default defineComponent({
   computed: {
     viewMode(): ViewMode {
       return playedCardsViewState.viewMode;
+    },
+    bodyStyle(): Record<string, string> {
+      return {
+        '--played-card-zoom': String(this.cardZoom),
+        '--played-stack-peek-nat': String(this.peekNatural),
+      };
     },
     allGroups(): ReadonlyArray<PlayedGroup> {
       return buildPlayedGroups(this.displayedPlayer.tableau);
@@ -204,8 +208,6 @@ export default defineComponent({
     totalCount(): number {
       return this.nonEmptyGroups.reduce((sum, g) => sum + g.cards.length, 0);
     },
-    // The non-empty groups after BOTH filter dimensions (hidden types + tag
-    // narrowing) — each carries only its still-visible cards, in play order.
     visibleGroups(): ReadonlyArray<PlayedGroup> {
       return filterPlayedGroups(this.nonEmptyGroups, {
         hiddenGroups: playedCardsViewState.hiddenGroups,
@@ -218,21 +220,10 @@ export default defineComponent({
     projectGroups(): ReadonlyArray<PlayedGroup> {
       return this.visibleGroups.filter((g) => !g.identity);
     },
-    // The column/grid plan per project section — a pure function of the
-    // filtered counts + the measured width + the planning zoom. Kept reactive
-    // (not imperatively written) so it re-derives on a filter / resize change.
-    sectionPlans(): Record<string, TableauSectionPlan> {
-      const w = this.contentWidth - BODY_PAD_H;
-      const cardW = NAT_W * this.planZoom;
-      const plans = planTableau(
-        this.projectGroups.map((g) => ({key: g.key, count: g.cards.length})),
-        w,
-        cardW,
-        COL_GAP,
-      );
-      const out: Record<string, TableauSectionPlan> = {};
-      for (const p of plans) {
-        out[p.key] = p;
+    sectionPlanMap(): Record<string, ProjectSectionPlan> {
+      const out: Record<string, ProjectSectionPlan> = {};
+      for (const s of this.bandSections) {
+        out[s.key] = s;
       }
       return out;
     },
@@ -257,8 +248,6 @@ export default defineComponent({
         activeTags: playedCardsViewState.activeTags,
       });
     },
-    // Flat rows for the table view, respecting both filter dimensions. `order`
-    // is the global play order (tableau index, oldest = 1).
     tableRows(): ReadonlyArray<PlayedTableRow> {
       const orderMap = new Map<CardName, number>();
       this.displayedPlayer.tableau.forEach((c, i) => orderMap.set(c.name, i + 1));
@@ -272,20 +261,15 @@ export default defineComponent({
     },
   },
   watch: {
-    // Switching the viewed player swaps the whole board — recompute the fit.
     'displayedPlayer.color'() {
       this.recompute();
     },
-    // The card-board fit is skipped in table view; re-fit when returning.
     viewMode(mode: ViewMode) {
       if (mode === 'cards') {
         this.recompute();
       }
     },
-    // A filter change (hide a type / pick a tag) changes the visible set — a
-    // FULL re-plan (so filtering down to a few cards re-grows them toward
-    // roomy, and the column counts track the new counts). The `@after-leave`
-    // hooks also nudge a re-fit once the leave animation finishes.
+    // A filter change (hide a type / pick a tag) changes the visible set — re-plan.
     visibleGroups() {
       this.recompute();
     },
@@ -303,8 +287,6 @@ export default defineComponent({
         arr.splice(idx, 1);
       }
     },
-    // Single-select tag narrowing (mirrors the hand overlay): pick a tag to
-    // narrow to it, click it again to clear.
     toggleTag(tag: Tag): void {
       playedCardsViewState.activeTags = playedCardsViewState.activeTags.includes(tag) ? [] : [tag];
     },
@@ -320,30 +302,34 @@ export default defineComponent({
         body.scrollTop = 0;
       }
     },
-    applyZoom(z: number): void {
+    setVar(name: string, value: number): void {
       const body = this.$refs.body as HTMLElement | undefined;
-      body?.style.setProperty('--played-card-zoom', String(z));
+      body?.style.setProperty(name, String(value));
     },
-    // Full re-plan + re-fit: reset to the per-count estimate, then shrink to
-    // fit the height. Used on mount / player switch / view-mode return.
+    // Measure the real natural PROJECT card height (offsetHeight / current zoom)
+    // so the area-fill math is accurate (independent of the estimate / fonts).
+    // MUST be a project card — identity cards carry a zoom BUMP, so dividing
+    // their height by `cardZoom` would be wrong. A peeked item is clipped by its
+    // SLOT, not the item, so it still reports its full height.
+    measureNaturalCardH(): void {
+      const body = this.$refs.body as HTMLElement | undefined;
+      const item = body?.querySelector('.played-group--project .played-card-item') as HTMLElement | null;
+      if (item !== null && item !== undefined && this.cardZoom > 0) {
+        const h = item.offsetHeight / this.cardZoom;
+        if (h > 80) {
+          this.naturalCardH = h;
+        }
+      }
+    },
+    // Full re-plan: measure the box + the real card / identity height, run the
+    // area-fill planner, apply, then a measured shrink safety net.
     recompute(): void {
       if (this.viewMode !== 'cards') {
         return;
       }
-      const body = this.$refs.body as HTMLElement | undefined;
-      if (body !== undefined) {
-        this.contentWidth = body.clientWidth;
-      }
-      const projectCount = this.projectGroups.reduce((n, g) => n + g.cards.length, 0);
-      this.planZoom = this.baseZoom(projectCount);
-      this.cardZoom = this.planZoom;
       this.scrollToTop();
-      // The plan + zoom changed → let Vue lay out the new columns, then shrink.
-      this.$nextTick(this.shrinkToFit);
+      this.$nextTick(this.fit);
     },
-    // rAF-coalesced lighter re-fit (resize bursts / filter reflow): re-measure
-    // width + shrink, without resetting the planning zoom (avoids a column
-    // re-flow on every frame).
     scheduleFit(): void {
       if (this.fitScheduled) {
         return;
@@ -351,36 +337,49 @@ export default defineComponent({
       this.fitScheduled = true;
       requestAnimationFrame(() => {
         this.fitScheduled = false;
-        if (this.viewMode !== 'cards') {
-          return;
-        }
-        const body = this.$refs.body as HTMLElement | undefined;
-        if (body !== undefined) {
-          this.contentWidth = body.clientWidth;
-        }
-        // Reset the visual zoom up to the plan zoom before shrinking, so a
-        // filter that REMOVED cards can grow back toward roomy.
-        this.cardZoom = this.planZoom;
-        this.$nextTick(this.shrinkToFit);
+        this.fit();
       });
     },
-    // Per-count starting scale: few cards big & roomy, many cards compact.
-    // Smoothly interpolated so similar counts don't jump scale.
-    baseZoom(projectCount: number): number {
-      if (projectCount <= 8) {
-        return MAX_ZOOM;
+    fit(): void {
+      if (this.viewMode !== 'cards') {
+        return;
       }
-      if (projectCount >= 70) {
-        return 0.40;
+      const body = this.$refs.body as HTMLElement | undefined;
+      if (body === undefined) {
+        return;
       }
-      const t = (projectCount - 8) / (70 - 8);
-      return MAX_ZOOM + t * (0.40 - MAX_ZOOM);
+      const tableau = body.querySelector('.played-tableau') as HTMLElement | null;
+      if (tableau === null) {
+        return;
+      }
+      const availW = body.clientWidth - BODY_PAD_H;
+      const totalAvailH = body.clientHeight - BODY_PAD_V - FIT_SAFETY;
+      if (availW <= 0 || totalAvailH <= 0) {
+        return; // JSDOM / not laid out yet
+      }
+      this.measureNaturalCardH();
+      const identityEl = body.querySelector('.played-tableau__identity') as HTMLElement | null;
+      const identityH = identityEl !== null ? identityEl.offsetHeight : 0;
+      const projAvailH = Math.max(MIN_BAND_H, totalAvailH - identityH - (identityH > 0 ? BAND_GAP : 0));
+
+      const sections = this.projectGroups.map((g) => ({key: g.key, count: g.cards.length}));
+      const plan = planProjectBand(sections, availW, projAvailH, this.naturalCardH, {gap: COL_GAP, sectionGap: SECTION_GAP});
+
+      this.cardZoom = plan.zoom;
+      this.peekNatural = plan.peekNatural;
+      this.peekEnabled = plan.peek;
+      this.density = plan.density;
+      this.bandSections = plan.sections;
+      // Write the vars imperatively too so the verify pass measures synchronously.
+      this.setVar('--played-card-zoom', plan.zoom);
+      this.setVar('--played-stack-peek-nat', plan.peekNatural);
+
+      this.$nextTick(this.verifyShrink);
     },
-    // Shrink the VISUAL card zoom (CSS var only — columns stay fixed) until the
-    // tableau content fits the available height, or we hit MIN_ZOOM (then the
-    // body scrolls, the genuine last resort). Measures the real rendered
-    // height each step; a sqrt step converges in a couple of iterations.
-    shrinkToFit(): void {
+    // Safety net: if the real render still overflows the body height (estimate
+    // error / identity grew with the new zoom), shrink the zoom — the peek
+    // follows it via the CSS var, so the whole band scales down together.
+    verifyShrink(): void {
       if (this.viewMode !== 'cards') {
         return;
       }
@@ -394,17 +393,17 @@ export default defineComponent({
       }
       const availH = body.clientHeight - BODY_PAD_V - FIT_SAFETY;
       if (availH <= 0) {
-        return; // JSDOM / not laid out yet
+        return;
       }
       let z = this.cardZoom;
-      this.applyZoom(z);
+      this.setVar('--played-card-zoom', z);
       void tableau.offsetHeight;
       let contentH = tableau.scrollHeight;
       let iter = 0;
       while (contentH > availH && z > MIN_ZOOM && iter < 8) {
-        const ratio = Math.max(0.6, Math.min(0.96, Math.sqrt(availH / contentH)));
+        const ratio = Math.max(0.7, Math.min(0.97, Math.sqrt(availH / contentH)));
         z = Math.max(MIN_ZOOM, z * ratio);
-        this.applyZoom(z);
+        this.setVar('--played-card-zoom', z);
         void tableau.offsetHeight;
         contentH = tableau.scrollHeight;
         iter++;
@@ -415,7 +414,6 @@ export default defineComponent({
       if (e.key !== 'Escape') {
         return;
       }
-      // Let an open fullscreen card (native <dialog>) take Escape first.
       if (document.querySelector('dialog[open]') !== null) {
         return;
       }
@@ -424,13 +422,10 @@ export default defineComponent({
   },
   mounted(): void {
     this.recompute();
-    // One deferred re-fit catches any late layout shift (web-font / card art
-    // load) that could otherwise leave a hair of overflow → scrollbar.
+    // Deferred re-fit catches late layout shift (web-font / card-art load).
     this.deferTimer = window.setTimeout(() => this.recompute(), 240);
     const body = this.$refs.body as HTMLElement | undefined;
     if (body !== undefined && typeof ResizeObserver !== 'undefined') {
-      // Only re-fit on real body-size changes (viewport / journal toggle),
-      // not on our own zoom writes (those don't change the body's size).
       const ro = new ResizeObserver(() => this.scheduleFit());
       ro.observe(body);
       this.resizeObserver = markRaw(ro);
