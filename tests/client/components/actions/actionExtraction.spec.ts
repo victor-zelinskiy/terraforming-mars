@@ -83,14 +83,19 @@ describe('actionExtraction', () => {
 
   it('covers the bespoke-render edge cases via overrides', () => {
     const overridden = overriddenActionCards();
-    for (const c of [CardName.WEATHER_BALLOONS, CardName.ARCADIAN_COMMUNITIES]) {
-      expect(cardHasAction(c), c).to.eq(true);
-      expect(overridden, c).to.include(c);
-      expect(flaggedActionCandidates(), c).to.not.include(c);
-    }
-    // Weather Balloons renders its whole renderData (the symbol graphic).
-    expect(playerActions([model(CardName.WEATHER_BALLOONS)])[0].renderRoot).to.not.eq(undefined);
-    // Arcadian Communities shows a text descriptor.
+    // Arcadian Communities still needs a text override (action drawn as raw ce.text()).
+    expect(cardHasAction(CardName.ARCADIAN_COMMUNITIES)).to.eq(true);
+    expect(overridden).to.include(CardName.ARCADIAN_COMMUNITIES);
+    expect(flaggedActionCandidates()).to.not.include(CardName.ARCADIAN_COMMUNITIES);
     expect(playerActions([model(CardName.ARCADIAN_COMMUNITIES)])[0].text).to.not.eq(undefined);
+
+    // Weather Balloons now uses proper action() boxes — generic scan picks it up,
+    // no override needed.
+    expect(cardHasAction(CardName.WEATHER_BALLOONS)).to.eq(true);
+    expect(overridden).to.not.include(CardName.WEATHER_BALLOONS);
+    expect(flaggedActionCandidates()).to.not.include(CardName.WEATHER_BALLOONS);
+    const wbActions = playerActions([model(CardName.WEATHER_BALLOONS)]);
+    expect(wbActions.length).to.be.greaterThan(0);
+    expect(wbActions[0].actionNode).to.not.eq(undefined);
   });
 });

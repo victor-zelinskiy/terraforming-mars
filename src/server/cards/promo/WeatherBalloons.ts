@@ -41,11 +41,11 @@ export class WeatherBalloons extends ActionCard implements IProjectCard {
         cardNumber: '033',
         description: 'Draw 1 card.',
         renderData: CardRenderer.builder((b) => {
-          b.arrow(Size.SMALL).resource(CardResource.FLOATER, {size: Size.SMALL});
+          b.action('Add 1 floater here.', (ab) =>
+            ab.empty().startAction.resource(CardResource.FLOATER));
           b.br;
-          b.resource(CardResource.FLOATER, {size: Size.SMALL}).arrow(Size.SMALL).megacredits(1, {size: Size.SMALL}).slash().city({size: Size.SMALL, all}).asterix();
-          b.br;
-          b.plainText('(Action: Add 1 floater here, or spend 1 floater here to gain 1 M€ per city ON MARS.)');
+          b.action('Spend 1 floater here to gain 1 M€ per city on Mars.', (ab) =>
+            ab.or().resource(CardResource.FLOATER).startAction.megacredits(1).slash().city({all}).asterix());
           b.br;
           b.cards(1, {size: Size.SMALL});
         }),
