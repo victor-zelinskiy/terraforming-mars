@@ -1,5 +1,5 @@
 <template>
-  <div id="player-home" :class="[(game.turmoil ? 'with-turmoil': ''), playerTintClass, {'viewing-other': isViewingOther, 'journal-open': journalOpen}]">
+  <div id="player-home" :class="[(game.turmoil ? 'with-turmoil': ''), playerTintClass, {'viewing-other': isViewingOther, 'journal-open': journalOpen, 'overlay-active': activeOverlay !== null}]">
     <div class="top-bar-buttons">
       <!-- Standalone top buttons — NO rail plate. Unlike the bottom rails
            (which extend the left panel / right sidebar), there's no bar up

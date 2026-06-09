@@ -74,6 +74,20 @@
         0 6px 20px rgba(0, 0, 0, 0.5);
 }
 
+/*
+ * Yield to any open bottom-bar overlay. The premium Actions / Effects / Played
+ * / Cards / VP overlays sit at z-index 96 — BELOW the left panel (z-index 100)
+ * by design, so РЕСУРСЫ / МЕТКИ stay visible + interactive while they're open.
+ * But this aux panel protrudes RIGHT out of the left panel INTO the overlay
+ * area, so at z-index 100 it would cover the overlay's left edge. Hide it
+ * whenever a central overlay is active (`#player-home.overlay-active`) — it's a
+ * quick-glance dashboard element and just clutters an open overlay. The journal
+ * (right gutter) doesn't conflict, so it deliberately does NOT hide the panel.
+ */
+#player-home.overlay-active .additional-resources {
+    display: none;
+}
+
 .additional-resources__rows {
     display: flex;
     flex-direction: column;
@@ -381,13 +395,18 @@
 .additional-resource-detail--many   { max-width: min(1460px, calc(100vw - 48px)); --aux-card-zoom: 0.6; --aux-grid-gap: 12px; }
 
 /*
- * Tall viewports (≈ full-HD+): the focused 1–2-card modes use the extra
- * height — the card grows, the modal hugs it. Kept well under the body's
- * available height so these modes still never scroll.
+ * Tall viewports: the focused 1–2-card modes use the extra height — the card
+ * grows, the modal hugs it. GRADUATED + conservative so even the tallest cards
+ * (e.g. Asteroid Hollowing) stay within ~88vh and never clip at the bottom;
+ * the modal body still scrolls as a last resort on very short windows.
  */
 @media (min-height: 950px) {
-    .additional-resource-detail--single { --aux-card-zoom: 1.4; }
-    .additional-resource-detail--double { --aux-card-zoom: 1.15; }
+    .additional-resource-detail--single { --aux-card-zoom: 1.18; }
+    .additional-resource-detail--double { --aux-card-zoom: 1.08; }
+}
+@media (min-height: 1200px) {
+    .additional-resource-detail--single { --aux-card-zoom: 1.32; }
+    .additional-resource-detail--double { --aux-card-zoom: 1.18; }
 }
 
 .additional-resource-detail__tick {
@@ -568,7 +587,7 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 16px 18px 18px;
+    padding: 16px 18px 22px;
     scrollbar-width: thin;
     scrollbar-color: rgba(106, 176, 230, 0.4) transparent;
 
@@ -613,6 +632,11 @@
     /* `zoom` (not transform:scale) so the scaled card changes its LAYOUT box —
        the flex grid + fit-content modal then hug the real rendered size. */
     zoom: var(--aux-card-zoom);
+    /* The card's own bottom chrome (resource counter + VP badge) hangs a few px
+       BELOW the card box (position:absolute, bottom:-4px). Reserve room so it's
+       part of the layout box → never clipped by the body's bottom / scroll edge
+       in single mode where the card is the bottom-most element. */
+    padding-bottom: 7px;
 
     /* Centering UI under a <Card>: zero the legacy asymmetric margin so the
        footer below reads as centred on the card silhouette. */
