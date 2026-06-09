@@ -66,12 +66,6 @@ export type ActionEntry = {
  */
 type ActionOverride = {exclude?: boolean; renderWhole?: boolean; descFromMeta?: boolean; text?: string};
 const ACTION_OVERRIDES: Partial<Record<CardName, ActionOverride>> = {
-  // Weather Balloons draws its repeatable action as RAW root rows (floater
-  // conversions) + a "(Action: …)" plainText, NOT an action() box; its
-  // metadata.description is the on-PLAY draw ("Draw 1 card."), so the generic
-  // text fallback would mislead. Render the WHOLE renderData — the symbol rows
-  // + the in-render action text ARE the action graphic.
-  [CardName.WEATHER_BALLOONS]: {renderWhole: true},
   // Arcadian Communities draws its action as a raw ce.text() inside the corp
   // box (no action() node), and its metadata.description is the FIRST-action
   // text — use a concise descriptor of the repeatable action instead.
