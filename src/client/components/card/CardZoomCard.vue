@@ -40,6 +40,7 @@ import {defineComponent} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCard, getCardOrThrow} from '@/client/cards/ClientCardManifest';
+import {liveCardResources} from '@/client/components/card/liveCardResources';
 import {CardType} from '@/common/cards/CardType';
 import {CardMetadata} from '@/common/cards/CardMetadata';
 import {Tag} from '@/common/cards/Tag';
@@ -131,7 +132,10 @@ export default defineComponent({
       return this.cardOrThrow.resourceType ?? CardResource.RESOURCE_CUBE;
     },
     resourceAmount(): number {
-      return this.card.resources || 0;
+      // For a played card shown by name only (e.g. journal fullscreen), fall
+      // back to the global live count so the counter isn't a stale 0. A card
+      // that carries its own value (incl. a real 0) keeps it.
+      return this.card.resources ?? liveCardResources(this.card.name) ?? 0;
     },
     tags(): Array<Tag> {
       const tags = [...this.cardOrThrow.tags || []];

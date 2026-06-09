@@ -154,6 +154,7 @@ import {journalState} from '@/client/components/journal/journalState';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
 import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
+import {setLiveCardResources} from '@/client/components/card/liveCardResources';
 import GameAtmosphere from '@/client/components/GameAtmosphere.vue';
 import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
@@ -284,6 +285,10 @@ export default defineComponent({
     // load / refresh the server queue is empty (transient) → no modal.
     playerView(view: PlayerViewModel | undefined) {
       reconcileDrawnCards(view?.cardDrawReveals ?? []);
+      // Refresh the global name→live-resource map so card popups / fullscreens
+      // (journal, etc.) render the real resource count, not 0. See
+      // liveCardResources.ts. Fires on EVERY playerView replacement.
+      setLiveCardResources(view);
     },
   },
   computed: {
@@ -419,6 +424,7 @@ export default defineComponent({
             setTranslationContext(app.playerView);
           } else if (path === paths.SPECTATOR) {
             app.spectator = model as SpectatorModel;
+            setLiveCardResources(app.spectator);
           }
           if (!preserveCardPickModal && !preserveOpenOverlay) {
             app.playerkey++;

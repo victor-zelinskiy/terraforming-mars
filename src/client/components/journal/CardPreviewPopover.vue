@@ -20,6 +20,7 @@ import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import Card from '@/client/components/card/Card.vue';
+import {withLiveResources} from '@/client/components/card/liveCardResources';
 
 /**
  * Lightweight hover preview for a card token inside the journal feed.
@@ -75,7 +76,9 @@ export default defineComponent({
   },
   computed: {
     resolvedCard(): CardModel {
-      return this.card ?? ({name: this.name} as CardModel);
+      // Fill the live resource count for played cards shown by name only (the
+      // journal builds {name}); a caller-supplied live card keeps its own value.
+      return withLiveResources(this.card ?? ({name: this.name} as CardModel));
     },
     positionStyle(): Record<string, string> {
       const a = this.anchor;
