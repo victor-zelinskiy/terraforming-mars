@@ -97,6 +97,18 @@ describe('additionalResources', () => {
       });
     });
 
+    it('Vermin: inactive below 10 animals, warning + active at the threshold', () => {
+      expect(specialResourceState(CardName.VERMIN, 5)).to.deep.eq({
+        tone: 'pending', label: 'Vermin inactive', detail: '-1 VP per city for all',
+        threshold: {current: 5, required: 10, reached: false},
+      });
+      expect(specialResourceState(CardName.VERMIN, 10)).to.deep.eq({
+        tone: 'warning', label: 'Vermin active', detail: '-1 VP per city for all',
+        threshold: {current: 10, required: 10, reached: true},
+      });
+      expect(specialResourceState(CardName.VERMIN, 12)?.threshold?.reached).to.eq(true);
+    });
+
     it('returns undefined for cards with no bespoke presenter (generic summary)', () => {
       expect(specialResourceState(CardName.ANTS, 3)).to.eq(undefined);
       expect(specialResourceState(CardName.PREDATORS, 0)).to.eq(undefined);

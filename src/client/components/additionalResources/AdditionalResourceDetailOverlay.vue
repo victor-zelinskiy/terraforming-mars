@@ -83,14 +83,29 @@
                       variant="misc" /></span>
                   </div>
 
-                  <!-- SPECIAL: bespoke premium status marker (e.g. Search for Life). -->
-                  <div v-if="s.special !== undefined"
-                       class="additional-resource-detail__status"
-                       :class="'additional-resource-detail__status--' + s.special.tone">
-                    <span class="additional-resource-detail__status-glyph" aria-hidden="true">{{ s.special.tone === 'success' ? '✓' : '◦' }}</span>
-                    <span class="additional-resource-detail__status-label" v-i18n>{{ s.special.label }}</span>
-                    <span v-if="s.special.vp" class="additional-resource-detail__status-vp">+{{ s.special.vp }} <span v-i18n>VP</span></span>
-                  </div>
+                  <!-- SPECIAL: bespoke premium status marker (Search for Life
+                       "life found" trigger, Vermin infestation threshold, …). -->
+                  <template v-if="s.special !== undefined">
+                    <div class="additional-resource-detail__status"
+                         :class="'additional-resource-detail__status--' + s.special.tone">
+                      <span class="additional-resource-detail__status-head">
+                        <span class="additional-resource-detail__status-glyph" aria-hidden="true">{{ statusGlyph(s.special.tone) }}</span>
+                        <span class="additional-resource-detail__status-label" v-i18n>{{ s.special.label }}</span>
+                        <span v-if="s.special.vp" class="additional-resource-detail__status-vp">+{{ s.special.vp }} <span v-i18n>VP</span></span>
+                      </span>
+                      <span v-if="s.special.detail !== undefined" class="additional-resource-detail__status-detail" v-i18n>{{ s.special.detail }}</span>
+                    </div>
+                    <!-- Activation progress for threshold-driven special cards (Vermin → 10). -->
+                    <div v-if="s.special.threshold !== undefined"
+                         class="additional-resource-detail__progress additional-resource-detail__progress--threshold"
+                         :class="{'additional-resource-detail__progress--reached': s.special.threshold.reached}"
+                         :aria-label="$t('Progress to threshold')">
+                      <span class="additional-resource-detail__progress-track">
+                        <span class="additional-resource-detail__progress-fill" :style="{width: thresholdPct(s.special.threshold) + '%'}"></span>
+                      </span>
+                      <span class="additional-resource-detail__progress-text">{{ s.special.threshold.current }}/{{ s.special.threshold.required }}</span>
+                    </div>
+                  </template>
 
                   <!-- SECONDARY: generic VP scoring shown as a NATURAL threshold rule
                        ("3 [res] = 1 VP", never a decimal) + accrued total + (for
@@ -284,6 +299,23 @@ export default defineComponent({
     },
     cardMetricKey(name: CardName): string {
       return `card-resource.${this.resource}.card.${name}`;
+    },
+    // Glyph for a special-state marker by tone (success ✓ / warning ⚠ / pending ◦).
+    statusGlyph(tone: string): string {
+      if (tone === 'success') {
+        return '✓';
+      }
+      if (tone === 'warning') {
+        return '⚠';
+      }
+      return '◦';
+    },
+    // Activation-bar fill %, clamped to 100 once the threshold is reached/exceeded.
+    thresholdPct(t: {current: number, required: number}): number {
+      if (t.required <= 0) {
+        return 0;
+      }
+      return Math.min(100, Math.round((t.current / t.required) * 100));
     },
     openZoom(name: CardName): void {
       this.zoomCard = this.cardModelFor(name);

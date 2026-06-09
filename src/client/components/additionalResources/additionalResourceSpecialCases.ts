@@ -20,11 +20,19 @@ import {CardName} from '@/common/cards/CardName';
  */
 export interface SpecialResourceState {
   /** Visual tone of the status marker. */
-  readonly tone: 'success' | 'pending';
+  readonly tone: 'success' | 'pending' | 'warning';
   /** i18n key for the status label (e.g. 'Life found'). */
   readonly label: string;
   /** VP this state grants right now; shown on the marker when > 0. */
   readonly vp?: number;
+  /** Optional i18n secondary line describing the effect (e.g. the penalty). */
+  readonly detail?: string;
+  /**
+   * Optional ACTIVATION threshold (a card-specific count that flips an effect
+   * on, distinct from the per-resource VP rate). Drives a progress bar +
+   * "current/required" readout, and `reached` recolours it to the active tone.
+   */
+  readonly threshold?: {readonly current: number; readonly required: number; readonly reached: boolean};
   /**
    * When true the card thumbnail's LEGACY on-card resource counter + VP sprite
    * are hidden in the overlay (the premium marker supersedes them). Used for
@@ -35,6 +43,9 @@ export interface SpecialResourceState {
 }
 
 type Presenter = (amount: number) => SpecialResourceState | undefined;
+
+/** Vermin's infestation threshold (server: `verminInEffect = resourceCount >= 10`). */
+const VERMIN_THRESHOLD = 10;
 
 const REGISTRY: Partial<Record<CardName, Presenter>> = {
   // Search for Life: holds a single science resource; the instant it has one,
@@ -48,10 +59,20 @@ const REGISTRY: Partial<Record<CardName, Presenter>> = {
     replacesCardChrome: true,
   }),
 
-  // NOTE: a thematic threshold card (e.g. "Rats", if/when added to the card
-  // set) would register here too. Threshold cards that ALREADY exist
-  // (Tardigrades / Decomposers / Ants / …) don't need a bespoke entry — the
-  // generic threshold-progress indicator covers them automatically.
+  // Vermin ("Крысы"): a THRESHOLD card, but the threshold flips a global
+  // PENALTY, not a VP rate — once it holds ≥ 10 animals every player loses
+  // 1 VP per city they own. The generic per-resource summary can't express
+  // this, so present a card-specific activation status + progress-to-10 bar
+  // that turns to a warning tone the moment the infestation goes live.
+  [CardName.VERMIN]: (amount) => {
+    const reached = amount >= VERMIN_THRESHOLD;
+    return {
+      tone: reached ? 'warning' : 'pending',
+      label: reached ? 'Vermin active' : 'Vermin inactive',
+      detail: '-1 VP per city for all',
+      threshold: {current: amount, required: VERMIN_THRESHOLD, reached},
+    };
+  },
 };
 
 /** The bespoke status for a card at the given amount, or undefined. */

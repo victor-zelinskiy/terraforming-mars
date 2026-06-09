@@ -750,14 +750,16 @@
     color: rgba(244, 220, 160, 0.7);
 }
 
-/* SPECIAL — bespoke premium status marker (Search for Life "Life found", …).
-   Same chip language as the scoring chips so special + common cards read as
-   one system; tone (success / pending) carries the state. */
+/* SPECIAL — bespoke premium status marker (Search for Life "Life found",
+   Vermin infestation, …). Same chip language as the scoring chips so special +
+   common cards read as one system; tone carries the state. A column, so an
+   optional effect `detail` line can sit under the head row. */
 .additional-resource-detail__status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 11px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    padding: 5px 11px;
     border-radius: 6px;
     font-family: Prototype, Ubuntu, sans-serif;
     font-size: 11px;
@@ -774,6 +776,22 @@
         background: rgba(80, 100, 125, 0.2);
         box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.26);
     }
+    &--warning {
+        color: #ffb59c;
+        background: rgba(150, 60, 45, 0.34);
+        box-shadow: inset 0 0 0 1px rgba(230, 130, 100, 0.5);
+    }
+}
+.additional-resource-detail__status-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.additional-resource-detail__status-detail {
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    opacity: 0.82;
 }
 .additional-resource-detail__status-glyph {
     font-size: 12px;
@@ -827,13 +845,27 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* Search-for-Life-style cards: drop the legacy on-card resource counter + VP
-   sprite (the out-of-place science "alien") in the overlay — the premium
-   status marker in the footer supersedes them. Both are position:absolute, so
-   hiding leaves no gap. Higher specificity than the base `.card-container .…`. */
-.additional-resource-detail__card--special .card-container .card-resources-counter,
-.additional-resource-detail__card--special .card-container .card-points {
-    display: none;
+/* Activation threshold reached (Vermin live) — recolour the bar from
+   "building" amber to an "active penalty" coral/red. Out-specifies the base. */
+.additional-resource-detail__progress--reached .additional-resource-detail__progress-fill {
+    background: linear-gradient(90deg, rgba(230, 130, 100, 0.7), #ff9a82);
+}
+.additional-resource-detail__progress--reached .additional-resource-detail__progress-text {
+    color: #ffb59c;
+}
+
+/* Search-for-Life-style cards: drop the legacy on-card "alien" chrome in the
+   overlay — the premium status marker in the footer supersedes it. Covers the
+   `.little-green-men` martian sprite (CardExtraContent, shown once life is
+   found) AND the on-card resource counter / VP sprite. All are
+   position:absolute, so hiding leaves no gap; selectors out-specify their
+   top-level / `.card-container` bases. */
+.additional-resource-detail__card--special {
+    .little-green-men,
+    .card-container .card-resources-counter,
+    .card-container .card-points {
+        display: none;
+    }
 }
 
 /*
