@@ -1,98 +1,88 @@
 import {expect} from 'chai';
 import {
+  allocateColumns,
   balancedChunks,
-  maxColumnsForWidth,
-  planTableau,
-  planTableauSection,
-  PLAN_DEFAULTS,
+  FIT,
+  planProjectBand,
 } from '@/client/components/playedCards/playedTableauFit';
 
-// Realistic project-card metrics (cards.less `.card-container { width: 300px }`,
-// played overlay COL_GAP = 14, a mid zoom 0.5 → cardW = 150).
-const CARD_W = 150;
-const GAP = 14;
+const NAT_H = 410;
 
 describe('playedTableauFit.balancedChunks', () => {
-  it('splits evenly with larger chunks first', () => {
+  it('splits evenly with larger chunks first and always sums to count', () => {
     expect(balancedChunks(16, 3)).to.deep.equal([6, 5, 5]);
     expect(balancedChunks(9, 3)).to.deep.equal([3, 3, 3]);
-    expect(balancedChunks(10, 4)).to.deep.equal([3, 3, 2, 2]);
-  });
-
-  it('clamps columns to [1, count] and always sums to count', () => {
     expect(balancedChunks(3, 9)).to.deep.equal([1, 1, 1]); // never more columns than cards
-    expect(balancedChunks(5, 1)).to.deep.equal([5]);
-    for (const [n, c] of [[16, 3], [32, 5], [7, 2], [1, 1]] as const) {
-      const chunks = balancedChunks(n, c);
-      expect(chunks.reduce((s, x) => s + x, 0), `${n}/${c}`).to.equal(n);
+    for (const [n, c] of [[40, 5], [24, 3], [15, 2], [1, 1]] as const) {
+      expect(balancedChunks(n, c).reduce((s, x) => s + x, 0), `${n}/${c}`).to.equal(n);
     }
   });
 });
 
-describe('playedTableauFit.maxColumnsForWidth', () => {
-  it('counts how many card+gap columns fit the width', () => {
-    // 6 cards of 150 + 5 gaps of 14 = 970 ≤ 1000; a 7th (1134) overflows.
-    expect(maxColumnsForWidth(1000, CARD_W, GAP)).to.equal(6);
-    expect(maxColumnsForWidth(150, CARD_W, GAP)).to.equal(1);
-    expect(maxColumnsForWidth(10, CARD_W, GAP)).to.equal(1); // never below 1
+describe('playedTableauFit.allocateColumns', () => {
+  it('gives more columns to the heavier (more crowded) groups', () => {
+    // 8 columns over Automated(40) / Active(24) / Events(15).
+    expect(allocateColumns([40, 24, 15], 8)).to.deep.equal([5, 2, 1]);
+  });
+
+  it('never exceeds a section card count and always gives at least 1', () => {
+    expect(allocateColumns([2, 2], 10)).to.deep.equal([2, 2]); // capped at count
+    expect(allocateColumns([5, 1, 1], 3)).to.deep.equal([1, 1, 1]); // 1 each (budget = sections)
   });
 });
 
-describe('playedTableauFit.planTableauSection', () => {
-  it('lays a FEW cards out as a roomy full-card grid (no peek)', () => {
-    const plan = planTableauSection({key: 'event', count: 3}, 1200, CARD_W, GAP);
-    expect(plan.layout).to.equal('grid');
-    expect(plan.peek).to.equal(false);
-    expect(plan.chunks).to.have.length(0);
+describe('playedTableauFit.planProjectBand', () => {
+  const sections = [{key: 'active', count: 24}, {key: 'automated', count: 40}, {key: 'event', count: 15}];
+
+  it('keeps the zoom within bounds and chunks consistent', () => {
+    const plan = planProjectBand(sections, 1900, 700, NAT_H);
+    expect(plan.zoom).to.be.within(FIT.minZoom, FIT.maxZoom);
+    plan.sections.forEach((s) => {
+      expect(s.columns).to.equal(s.chunks.length);
+      const total = s.chunks.reduce((a, b) => a + b, 0);
+      const orig = sections.find((x) => x.key === s.key)!.count;
+      expect(total, s.key).to.equal(orig);
+    });
   });
 
-  it('lays MANY cards out as vertical peek columns', () => {
-    const plan = planTableauSection({key: 'automated', count: 32}, 1400, CARD_W, GAP);
-    expect(plan.layout).to.equal('columns');
-    // chunks sum to the card count and never exceed the width budget.
-    expect(plan.chunks.reduce((s, x) => s + x, 0)).to.equal(32);
-    expect(plan.columns).to.equal(plan.chunks.length);
-    expect(plan.columns).to.be.at.most(maxColumnsForWidth(1400, CARD_W, GAP));
-    expect(plan.columns).to.be.at.least(PLAN_DEFAULTS.minColumns);
-    // 32 cards in a handful of columns → tall columns → peek.
+  it('allocates more columns to the heavier group', () => {
+    const plan = planProjectBand(sections, 1900, 700, NAT_H);
+    const cols = Object.fromEntries(plan.sections.map((s) => [s.key, s.columns]));
+    expect(cols.automated).to.be.at.least(cols.active);
+    expect(cols.active).to.be.at.least(cols.event);
+  });
+
+  it('NEVER clips the title — a peeked card always shows at least the min peek', () => {
+    // A dense, short band forces peeking; the peek must still show the title.
+    const plan = planProjectBand([{key: 'automated', count: 60}], 1400, 400, NAT_H);
     expect(plan.peek).to.equal(true);
+    expect(plan.peekNatural).to.be.at.least(FIT.minPeekNatural);
   });
 
-  it('never plans more columns than fit the width (narrow viewport)', () => {
-    // Width fits only 2 columns; a big section must cap there (taller columns),
-    // never overflow horizontally.
-    const narrow = 2 * CARD_W + GAP + 4;
-    const plan = planTableauSection({key: 'active', count: 30}, narrow, CARD_W, GAP);
-    expect(plan.columns).to.be.at.most(2);
-    expect(plan.chunks.reduce((s, x) => s + x, 0)).to.equal(30);
+  it('GROWS for few cards — big, full cards, no peek (spacious)', () => {
+    const plan = planProjectBand([{key: 'active', count: 3}], 1900, 700, NAT_H);
+    expect(plan.zoom).to.equal(FIT.maxZoom);
+    expect(plan.peek).to.equal(false); // full cards, nothing cut off
+    expect(plan.density).to.equal('spacious');
   });
 
-  it('a medium section uses a couple of balanced columns', () => {
-    const plan = planTableauSection({key: 'active', count: 12}, 1400, CARD_W, GAP);
-    expect(plan.layout).to.equal('columns');
-    // 12 cards / target 6 = 2 columns of 6 (balanced).
-    expect(plan.columns).to.equal(2);
-    expect(plan.chunks).to.deep.equal([6, 6]);
+  it('uses MORE of a wide screen — bigger cards than a narrow one', () => {
+    const narrow = planProjectBand(sections, 1100, 700, NAT_H);
+    const wide = planProjectBand(sections, 2800, 700, NAT_H);
+    expect(wide.zoom).to.be.greaterThan(narrow.zoom);
   });
 
-  it('handles an empty section without throwing', () => {
-    const plan = planTableauSection({key: 'event', count: 0}, 1200, CARD_W, GAP);
-    expect(plan.layout).to.equal('grid');
-    expect(plan.chunks).to.have.length(0);
+  it('uses MORE of a taller band — bigger cards when height allows', () => {
+    const short = planProjectBand([{key: 'automated', count: 40}], 1600, 480, NAT_H);
+    const tall = planProjectBand([{key: 'automated', count: 40}], 1600, 900, NAT_H);
+    // A height-limited band grows the card zoom (not just the peek) with room.
+    expect(tall.zoom).to.be.greaterThan(short.zoom);
+    expect(tall.peekNatural).to.be.at.least(FIT.minPeekNatural); // title always shown
   });
-});
 
-describe('playedTableauFit.planTableau', () => {
-  it('plans each section independently', () => {
-    const plans = planTableau(
-      [{key: 'active', count: 16}, {key: 'automated', count: 32}, {key: 'event', count: 3}],
-      1500,
-      CARD_W,
-      GAP,
-    );
-    expect(plans.map((p) => p.key)).to.deep.equal(['active', 'automated', 'event']);
-    expect(plans[2].layout).to.equal('grid'); // 3 events → grid
-    expect(plans[0].layout).to.equal('columns'); // 16 active → columns
-    expect(plans[1].layout).to.equal('columns'); // 32 automated → columns
+  it('handles an empty band without throwing', () => {
+    const plan = planProjectBand([], 1900, 700, NAT_H);
+    expect(plan.sections).to.have.length(0);
+    expect(plan.zoom).to.be.within(FIT.minZoom, FIT.maxZoom);
   });
 });

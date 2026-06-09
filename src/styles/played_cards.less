@@ -4,14 +4,17 @@
  * ─────────────────────────────────────────────────────────────────────
  *
  *  Replaces the legacy `bar-overlay--played` flat list with a sci-fi /
- *  glass project-board: a glass-HUD frame, premium filter chips, grouped
- *  card sections, and an adaptive layout engine (expanded full cards →
- *  compact grid → vertical stacks). See `src/client/components/playedCards/`.
+ *  glass project-board: a glass-HUD frame, premium type + tag filter chips,
+ *  a compact IDENTITY band (corp / preludes / CEO) and a PROJECT band of
+ *  vertical peek-stack columns. The AREA-FILLING fit engine
+ *  (`playedTableauFit.planProjectBand`) picks the card scale, the per-section
+ *  column count and the peek height so the tableau fills the box — growing on
+ *  wide screens, not just shrinking. See `src/client/components/playedCards/`.
  *
- *  Card scaling is driven entirely by the mode class on the body
- *  (`played-mode--*`) + the per-group accent class, via the legacy-safe
- *  `zoom` on `.card-container` (the same approach the initial-draft summary
- *  uses). Motion is transform/opacity only + prefers-reduced-motion aware.
+ *  Card scaling is driven by `--played-card-zoom` (set by the fit engine on
+ *  the body) + the per-group accent class, via the legacy-safe `zoom` on
+ *  `.card-container`; the peek strip is `--played-stack-peek-nat × zoom`.
+ *  Motion is transform/opacity only + prefers-reduced-motion aware.
  */
 
 @pc-cyan:        #6ab0e6;
@@ -556,12 +559,15 @@
  *     full cards. Each group sizes to its content + flex-wraps, so 1-3 corps /
  *     2-5 preludes sit side by side and never eat a wasted full-width row.
  *   - PROJECT band (active / automated / events): the main area. Each
- *     type-SECTION is either a full-card grid (few cards) or vertical
- *     peek-stack columns (many cards), per the fit engine's plan. Sections
- *     flex-wrap to fill the width BEFORE the body ever scrolls.
+ *     type-SECTION is vertical peek-stack columns; the AREA-FILLING fit engine
+ *     (`playedTableauFit`) picks the card zoom, the per-section column count
+ *     (heavy groups wider), and the peek height so the tableau fills the box —
+ *     GROWING into empty space on wide screens, not just shrinking. Vertical
+ *     scroll is the genuine last resort.
  *
- * Card scale is the `--played-card-zoom` CSS var (set by the fit engine on the
- * body); project cards use it raw, identity cards get a fixed bump. `zoom`
+ * Card scale is the `--played-card-zoom` CSS var + the peek strip is
+ * `--played-stack-peek-nat × zoom` (both set by the fit engine on the body);
+ * project cards use the zoom raw, identity cards get a fixed bump. `zoom`
  * (legacy-safe) scales layout + hitbox together.
  */
 .played-tableau {
@@ -573,13 +579,26 @@
     contain: layout style;
 }
 
-.played-tableau__identity,
+.played-tableau__identity {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 16px 22px;
+}
 .played-tableau__projects {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
-    gap: 22px 26px;
+    /* column-gap MUST equal the planner's SECTION_GAP (28) so the width math
+       never overflows; row-gap is the (rare) wrap spacing. */
+    gap: 24px 28px;
 }
+
+/* Density-adaptive vertical rhythm (the main spaciousness comes from the card
+   zoom + peek; this only tunes the gaps, never the width math). */
+.played-board__body--spacious .played-tableau__projects { row-gap: 32px; }
+.played-board__body--spacious .played-tableau__identity { gap: 20px 26px; }
+.played-board__body--compact .played-tableau__projects { row-gap: 18px; }
 
 /* A faint divider under the identity band so the two bands read as distinct
    areas of the tableau — unless the identity band is the only one present. */
@@ -627,12 +646,10 @@
     }
 }
 
-/* Identity groups + project GRID sections size to their content so they sit
-   side by side; constrained to the band width (`max-width: 100%` above +
-   `min-width: 0`) they SHRINK and wrap their cards on a narrow band rather than
-   overflowing. */
-.played-group--identity,
-.played-group--grid {
+/* Identity groups size to their content so they sit side by side; constrained
+   to the band width (`max-width: 100%` + `min-width: 0`) they SHRINK and wrap
+   their cards on a narrow band rather than overflowing. */
+.played-group--identity {
     flex: 0 1 auto;
 }
 
@@ -644,20 +661,20 @@
     flex: 0 0 auto;
 }
 
-.played-group__idgrid,
-.played-group__grid {
+.played-group__idgrid {
     display: flex;
     flex-wrap: wrap;
     gap: 14px;
     align-items: flex-start;
 }
 
-/* Project peek-stack columns — a nowrap row of vertical piles. */
+/* Project peek-stack columns — a nowrap row of vertical piles. Column gap MUST
+   equal the planner's COL_GAP (16) so the width math never overflows. */
 .played-group__columns {
     display: flex;
     flex-wrap: nowrap;
     align-items: flex-start;
-    gap: 14px;
+    gap: 16px;
 }
 
 /* ── Card item ────────────────────────────────────────────────────── */
@@ -694,7 +711,6 @@
 /* Grid / identity hover lift — cheap transform/filter. Peek-stacks use their
    own slot reveal (below), so the dense 100-card case carries no per-card
    hover shadows at rest. */
-.played-group__grid .played-card-item,
 .played-group__idgrid .played-card-item {
     transition: transform 150ms ease, filter 150ms ease;
 
@@ -730,13 +746,16 @@
 /* ── Vertical peek-stacks ─────────────────────────────────────────── */
 
 .played-stack {
-    /* Peek strip scales with the card so the visible top (name / cost / tags)
-       stays proportional at every zoom. */
-    --played-stack-peek: calc(86px * var(--played-card-zoom, 0.6));
     display: flex;
     flex-direction: column;
     position: relative;
     min-width: 0;
+}
+
+/* Full-card piles (peek off, roomy layouts): a small gap so stacked full cards
+   don't touch — reads as a neat column of complete cards. */
+.played-stack:not(.played-stack--peek) {
+    gap: 10px;
 }
 
 .played-stack__slot {
@@ -744,11 +763,14 @@
     transition: z-index 0s;
 }
 
-/* Peeked piles: clip every card except the last (newest) to the top strip
-   (name / tags / cost stay readable). A non-peek pile (few cards) shows every
-   card in full. Clipping is the BOTTOM of each card, never the top. */
+/* Peeked piles: clip every card except the last (newest) to the peek strip.
+   Strip height = the fit engine's `--played-stack-peek-nat` (natural px, ALWAYS
+   >= the title height so the card NAME never clips) × the card zoom. So the
+   visible top (cost / tags / title) always reads, the cut is the card BOTTOM,
+   and the strip GROWS to fill spare height (fuller cards) on roomy layouts —
+   which is what fixes the "cards look cut off" defect. */
 .played-stack--peek .played-stack__slot:not(.played-stack__slot--last) {
-    height: var(--played-stack-peek);
+    height: calc(var(--played-stack-peek-nat, 200) * var(--played-card-zoom, 0.6) * 1px);
     overflow: hidden;
 }
 
