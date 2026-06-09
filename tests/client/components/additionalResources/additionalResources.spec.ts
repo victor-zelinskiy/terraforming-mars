@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {additionalResourceGroups, additionalResourceGroup, additionalResourceMetricKey} from '@/client/components/additionalResources/additionalResources';
+import {additionalResourceGroups, additionalResourceGroup, additionalResourceMetricKey, resourceScoring, vpPerResource, accumulatedVp} from '@/client/components/additionalResources/additionalResources';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {CardModel} from '@/common/models/CardModel';
@@ -58,5 +58,31 @@ describe('additionalResources', () => {
 
   it('produces a stable, per-resource metric key for the delta system', () => {
     expect(additionalResourceMetricKey(CardResource.ANIMAL)).to.eq('card-resource.Animal.stock');
+  });
+
+  describe('resource VP scoring', () => {
+    it('detects the per/each modifiers, or undefined for non-scoring storage', () => {
+      expect(resourceScoring(CardName.PREDATORS)).to.deep.eq({per: 1, each: 1}); // 1 VP / animal
+      expect(resourceScoring(CardName.ANTS)).to.deep.eq({per: 2, each: 1}); // 1 VP / 2 microbes
+      expect(resourceScoring(CardName.PHYSICS_COMPLEX)).to.deep.eq({per: 1, each: 2}); // 2 VP / science
+      // Stores microbes for an action but scores NO VP from them.
+      expect(resourceScoring(CardName.GHG_PRODUCING_BACTERIA)).to.eq(undefined);
+    });
+
+    it('computes the VP-per-resource display rate', () => {
+      expect(vpPerResource(CardName.PREDATORS)).to.eq(1);
+      expect(vpPerResource(CardName.ANTS)).to.eq(0.5);
+      expect(vpPerResource(CardName.DECOMPOSERS)).to.eq(0.33); // 1/3
+      expect(vpPerResource(CardName.PHYSICS_COMPLEX)).to.eq(2);
+      expect(vpPerResource(CardName.GHG_PRODUCING_BACTERIA)).to.eq(0);
+    });
+
+    it('computes accrued VP via the exact server formula (each, then floor by per)', () => {
+      expect(accumulatedVp(CardName.PREDATORS, 4)).to.eq(4);
+      expect(accumulatedVp(CardName.ANTS, 5)).to.eq(2); // floor(5/2)
+      expect(accumulatedVp(CardName.DECOMPOSERS, 7)).to.eq(2); // floor(7/3)
+      expect(accumulatedVp(CardName.PHYSICS_COMPLEX, 3)).to.eq(6); // 3*2
+      expect(accumulatedVp(CardName.GHG_PRODUCING_BACTERIA, 9)).to.eq(0); // no scoring
+    });
   });
 });

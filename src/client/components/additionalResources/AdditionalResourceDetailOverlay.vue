@@ -45,6 +45,13 @@
               <span class="additional-resource-detail__stat-label" v-i18n>With stock</span>
               <span class="additional-resource-detail__stat-value">{{ nonZeroCount }}</span>
             </span>
+            <template v-if="hasScoring">
+              <span class="additional-resource-detail__stat-sep" aria-hidden="true"></span>
+              <span class="additional-resource-detail__stat additional-resource-detail__stat--vp">
+                <span class="additional-resource-detail__stat-label" v-i18n>VP</span>
+                <span class="additional-resource-detail__stat-value">{{ totalAccumulatedVp }}</span>
+              </span>
+            </template>
           </div>
 
           <div class="additional-resource-detail__body">
@@ -60,21 +67,32 @@
                   <Card :card="cardModelFor(entry.name)" />
                 </div>
                 <div class="additional-resource-detail__card-foot">
-                  <span class="additional-resource-detail__card-amount" :class="{'additional-resource-detail__card-amount--zero': entry.amount === 0}">
-                    <i class="card-resource additional-resource-detail__card-amount-icon" :class="iconClass" aria-hidden="true"></i>
-                    {{ entry.amount }}
-                    <AnimatedMetricValue
+                  <!-- PRIMARY: how many of the selected resource sit on this card. -->
+                  <div class="additional-resource-detail__count" :class="{'additional-resource-detail__count--zero': entry.amount === 0}">
+                    <i class="card-resource additional-resource-detail__count-icon" :class="iconClass" aria-hidden="true"></i>
+                    <span class="additional-resource-detail__count-num">{{ entry.amount }}<AnimatedMetricValue
                       :value="entry.amount"
                       :metricKey="cardMetricKey(entry.name)"
                       :scopeKey="detailScope"
                       :epoch="epoch"
-                      variant="misc" />
-                  </span>
-                  <span class="additional-resource-detail__hints">
-                    <span v-if="entry.isCorporation" class="additional-resource-detail__hint additional-resource-detail__hint--corp" v-i18n>Corporation</span>
-                    <span v-if="scoresFromResource(entry.name)" class="additional-resource-detail__hint additional-resource-detail__hint--vp" v-i18n>VP</span>
-                    <span v-if="hasAction(entry.name)" class="additional-resource-detail__hint additional-resource-detail__hint--action" v-i18n>Action</span>
-                  </span>
+                      variant="misc" /></span>
+                  </div>
+                  <!-- SECONDARY: VP scoring — ONLY when the card actually scores
+                       VP from this resource (rate per resource + accumulated). -->
+                  <div v-if="scoringOf(entry.name) !== undefined" class="additional-resource-detail__score">
+                    <span class="additional-resource-detail__score-rate">
+                      <span class="additional-resource-detail__score-op">1</span>
+                      <i class="card-resource additional-resource-detail__score-icon" :class="iconClass" aria-hidden="true"></i>
+                      <span class="additional-resource-detail__score-op">=</span>
+                      <span class="additional-resource-detail__score-vp">{{ vpPerResource(entry.name) }}</span>
+                      <span class="additional-resource-detail__score-unit" v-i18n>VP</span>
+                    </span>
+                    <span class="additional-resource-detail__score-acc">
+                      <span class="additional-resource-detail__score-acc-label" v-i18n>Accumulated</span>
+                      <span class="additional-resource-detail__score-vp">{{ accumulatedVp(entry.name, entry.amount) }}</span>
+                      <span class="additional-resource-detail__score-unit" v-i18n>VP</span>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -100,11 +118,10 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
-import {getCard} from '@/client/cards/ClientCardManifest';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
-import {additionalResourceGroup, AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
+import {additionalResourceGroup, AdditionalResourceGroup, resourceScoring, vpPerResource as calcVpPerResource, accumulatedVp as calcAccumulatedVp} from '@/client/components/additionalResources/additionalResources';
 import {additionalResourcesState, closeAdditionalResourceDetail} from '@/client/components/additionalResources/additionalResourcesState';
 
 export default defineComponent({
@@ -171,6 +188,16 @@ export default defineComponent({
     nonZeroCount(): number {
       return this.group?.cards.filter((c) => c.amount > 0).length ?? 0;
     },
+    // True when at least one source card scores VP from this resource — gates
+    // the header's aggregate-VP stat (hidden entirely when nothing scores).
+    hasScoring(): boolean {
+      return (this.group?.cards ?? []).some((c) => this.scoringOf(c.name) !== undefined);
+    },
+    // Sum of every card's accrued VP from this resource (each term is the
+    // exact per-card value, so the total is correct even when cards mix rates).
+    totalAccumulatedVp(): number {
+      return (this.group?.cards ?? []).reduce((sum, c) => sum + this.accumulatedVp(c.name, c.amount), 0);
+    },
     // Layout mode = number of source cards. Drives the modal's per-mode
     // max-width cap + card zoom (see additional_resources.less). The modal is
     // width:fit-content, so it hugs the real card row in every mode.
@@ -198,12 +225,17 @@ export default defineComponent({
     cardMetricKey(name: CardName): string {
       return `card-resource.${this.resource}.card.${name}`;
     },
-    scoresFromResource(name: CardName): boolean {
-      const vp = getCard(name)?.victoryPoints;
-      return typeof vp === 'object' && vp !== null && 'resourcesHere' in vp;
+    // Thin template-facing wrappers over the tested resource-scoring helpers
+    // (logic lives in additionalResources.ts). `scoringOf` gates the scoring
+    // block; the other two render the per-resource rate + accrued total.
+    scoringOf(name: CardName): ReturnType<typeof resourceScoring> {
+      return resourceScoring(name);
     },
-    hasAction(name: CardName): boolean {
-      return getCard(name)?.hasAction === true;
+    vpPerResource(name: CardName): number {
+      return calcVpPerResource(name);
+    },
+    accumulatedVp(name: CardName, amount: number): number {
+      return calcAccumulatedVp(name, amount);
     },
     openZoom(name: CardName): void {
       this.zoomCard = this.cardModelFor(name);
