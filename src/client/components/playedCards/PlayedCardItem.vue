@@ -46,8 +46,10 @@ export default defineComponent({
       type: Object as PropType<PublicPlayerModel>,
       required: true,
     },
-    // Identity cards render at their full natural height (stable, no
-    // hover-expand). Project cards stay at the compact fixed height.
+    // Optional pass-through to `<Card autoTall>` (auto-size regardless of
+    // hover). Currently unused by the board — identity AND project cards render
+    // at the canonical fixed height via `lightweight` — but kept as a clean
+    // escape hatch if a future surface wants an auto-tall played card.
     autoTall: {
       type: Boolean,
       default: false,
