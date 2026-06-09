@@ -23,14 +23,14 @@
         <button type="button" class="played-board__viewbtn"
                 :class="{'played-board__viewbtn--active': viewMode === 'cards'}"
                 :aria-pressed="viewMode === 'cards'"
-                @click="viewMode = 'cards'">
+                @click="setViewMode('cards')">
           <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true"><rect x="0.5" y="1.5" width="5" height="9" rx="1"/><rect x="6" y="0.5" width="5" height="10" rx="1"/><rect x="11" y="1.5" width="2.5" height="9" rx="1" opacity="0.6"/></svg>
           <span v-i18n>Cards</span>
         </button>
         <button type="button" class="played-board__viewbtn"
                 :class="{'played-board__viewbtn--active': viewMode === 'table'}"
                 :aria-pressed="viewMode === 'table'"
-                @click="viewMode = 'table'">
+                @click="setViewMode('table')">
           <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true"><rect x="0" y="1" width="3" height="2.4" rx="0.6"/><rect x="4.5" y="1" width="9.5" height="2.4" rx="0.6"/><rect x="0" y="5" width="3" height="2.4" rx="0.6"/><rect x="4.5" y="5" width="9.5" height="2.4" rx="0.6"/><rect x="0" y="9" width="3" height="2.4" rx="0.6"/><rect x="4.5" y="9" width="9.5" height="2.4" rx="0.6"/></svg>
           <span v-i18n>Table</span>
         </button>
@@ -39,22 +39,44 @@
       <button type="button" class="played-board__close" :aria-label="$t('Close')" @click="$emit('close')">✕</button>
     </header>
 
-    <PlayedCardsFilters v-if="hasAnyCards" :chips="chips" @toggle="toggleGroup" />
+    <PlayedCardsFilters
+      v-if="hasAnyCards"
+      :typeChips="typeChips"
+      :tagChips="tagChips"
+      @toggle-type="toggleGroup"
+      @toggle-tag="toggleTag" />
 
     <div ref="body" class="played-board__body"
-         :class="{'played-board__body--stacked': stacked && viewMode === 'cards', 'played-board__body--table': viewMode === 'table'}"
-         :style="{'--played-visible-groups': visibleGroups.length}">
+         :class="{'played-board__body--table': viewMode === 'table'}"
+         :style="{'--played-card-zoom': cardZoom}">
       <PlayedCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" />
-      <transition-group v-else-if="viewMode === 'cards'" name="played-group-fade" tag="div" class="played-board__groups" @after-leave="recompute">
-        <PlayedCardsGroup
-          v-for="g in visibleGroups"
-          :key="g.key"
-          :group="g"
-          :mode="modeFor(g)"
-          :columns="columns"
-          :player="displayedPlayer"
-          @open="openCard" />
-      </transition-group>
+      <div v-else-if="viewMode === 'cards'" class="played-tableau">
+        <!-- Identity band — corporation / preludes / CEO, the cards that
+             define WHO the player is. Compact wrapping rows, full cards. -->
+        <transition-group v-if="identityGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__identity" @after-leave="scheduleFit">
+          <PlayedCardsGroup
+            v-for="g in identityGroups"
+            :key="g.key"
+            :group="g"
+            variant="identity"
+            :player="displayedPlayer"
+            @open="openCard" />
+        </transition-group>
+
+        <!-- Project band — Active / Automated / Events. The main tableau: each
+             type-section is a grid (few cards) or vertical peek-stack columns
+             (many cards). Sections flex-wrap to fill the width. -->
+        <transition-group v-if="projectGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__projects" @after-leave="scheduleFit">
+          <PlayedCardsGroup
+            v-for="g in projectGroups"
+            :key="g.key"
+            :group="g"
+            variant="project"
+            :plan="sectionPlans[g.key]"
+            :player="displayedPlayer"
+            @open="openCard" />
+        </transition-group>
+      </div>
       <PlayedCardsTable v-else :rows="tableRows" :zoomOpen="zoomCard !== undefined" @open="openCard" />
     </div>
 
@@ -65,64 +87,81 @@
 </template>
 
 <script lang="ts">
-import {defineComponent, nextTick, PropType} from 'vue';
+import {defineComponent, markRaw, nextTick, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
+import {Tag} from '@/common/cards/Tag';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {buildPlayedGroups, PlayedGroup, PlayedGroupKey} from '@/client/components/playedCards/playedCardGroups';
-import PlayedCardsFilters, {PlayedFilterChip} from '@/client/components/playedCards/PlayedCardsFilters.vue';
+import {
+  buildPlayedGroups,
+  buildPlayedTagChips,
+  buildPlayedTypeChips,
+  filterPlayedGroups,
+  PlayedGroup,
+  PlayedGroupKey,
+  PlayedTagChip,
+  PlayedTypeChip,
+} from '@/client/components/playedCards/playedCardGroups';
+import {planTableau, TableauSectionPlan} from '@/client/components/playedCards/playedTableauFit';
+import {playedCardsViewState, PlayedViewMode} from '@/client/components/playedCards/playedCardsViewState';
+import PlayedCardsFilters from '@/client/components/playedCards/PlayedCardsFilters.vue';
 import PlayedCardsGroup from '@/client/components/playedCards/PlayedCardsGroup.vue';
 import PlayedCardsTable, {PlayedTableRow} from '@/client/components/playedCards/PlayedCardsTable.vue';
 import PlayedCardsEmptyState from '@/client/components/playedCards/PlayedCardsEmptyState.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 
-type LayoutMode = 'expanded' | 'stacked';
-type ViewMode = 'cards' | 'table';
+type ViewMode = PlayedViewMode;
 
-// Card scale bounds. The engine scales cards DOWN from MAX only as far as
-// needed to fit the available height; only if even MIN doesn't fit does it
-// switch to vertical stacks, and only if those don't fit does it scroll.
-const MAX_ZOOM = 0.6;
+// Card scale bounds. The engine scales cards DOWN from the per-count estimate
+// only as far as needed to fit the available height; vertical scroll is the
+// genuine last resort (only when even MIN_ZOOM overflows).
+const MAX_ZOOM = 0.62;
 const MIN_ZOOM = 0.34;
-// Column-stack card footprint (300px natural × zoom + gap).
-const STACK_GAP = 16;
-// Padding inside the scroll body (keep in sync with the LESS:
-// `padding: 14px 22px 22px`). Horizontal = 22+22, vertical = 14+22.
-const BODY_PAD = 44;
-const BODY_PAD_V = 36;
+// Natural card-container width (cards.less `.card-container { width: 300px }`).
+const NAT_W = 300;
+// Gap between project columns / grid cards (keep in sync with the LESS
+// `.played-group__columns` / `__grid` gap — feeds the column-fit math).
+const COL_GAP = 14;
+// Padding inside the scroll body (keep in sync with LESS `padding: 16px 22px`).
+const BODY_PAD_H = 44;
+const BODY_PAD_V = 38;
 // Leave a sliver below the content so sub-pixel rounding never trips the
 // scrollbar when the layout "just fits".
 const FIT_SAFETY = 4;
 
 type DataModel = {
-  disabledKeys: Array<PlayedGroupKey>;
+  // Width of the scroll body (drives the column-fit plan reactively).
   contentWidth: number;
-  // Continuous project-card zoom chosen by the fit engine (identity cards
-  // get a fixed bump on top, in CSS). Drives `--played-card-zoom`.
+  // Card scale used to COMPUTE the column distribution (stable across the
+  // height-shrink loop, so the columns don't re-flow while the zoom settles).
+  planZoom: number;
+  // Visual card scale the height-shrink loop drives down to fit (the CSS
+  // `--played-card-zoom`). Starts == planZoom, only ever <= it.
   cardZoom: number;
-  // True once grid mode can't fit even at MIN_ZOOM → vertical stacks.
-  stacked: boolean;
   zoomCard: CardModel | undefined;
   resizeObserver: ResizeObserver | undefined;
   deferTimer: number | undefined;
-  // 'cards' = immersive board (default), 'table' = analytic data list.
-  // Persists across filter changes; filters apply to both.
-  viewMode: ViewMode;
+  fitScheduled: boolean;
 };
 
 /**
- * Premium "played cards board" overlay. Shows the CURRENTLY-VIEWED
- * player's tableau (`displayedPlayer` — follows the player-view switch),
- * grouped by card type, with premium filter chips.
+ * Premium "played cards board" overlay. Shows the CURRENTLY-VIEWED player's
+ * tableau (`displayedPlayer`), grouped by card type, as a board-game-like
+ * tableau:
+ *  - IDENTITY band (corporation / preludes / CEO): compact wrapping rows of
+ *    full cards — never a wasted full-width row, clean at 1-3 corps / 2-5
+ *    preludes.
+ *  - PROJECT band (Active / Automated / Events): the main area. Each section
+ *    is a roomy full-card grid when it holds a few cards, or vertical
+ *    PEEK-STACK columns when it holds many — so the tableau reads like fanned
+ *    piles and uses the width before ever scrolling.
  *
- * HEIGHT-AWARE adaptive engine (`fit`): the board fills the available
- * area. Cards start at MAX_ZOOM and are scaled down (measuring real
- * content height each step) only as far as needed to fit the visible
- * height; if MIN_ZOOM still overflows, project groups collapse into
- * vertical stacks; only if THOSE overflow (very large collections) does
- * the body scroll. So a few / medium cards never scroll — they just sit
- * large and roomy. Single click on any card opens the fullscreen viewer.
+ * Adaptive engine: the column distribution per project section is a pure
+ * function of the card counts + width (`playedTableauFit`); the card SCALE is
+ * then shrunk by a DOM-measuring loop only as far as needed to fit the height.
+ * Filters (type groups + tags), the view mode, and the player's choices
+ * persist across close/reopen via `playedCardsViewState` (module state).
  */
 export default defineComponent({
   name: 'PlayedCardsOverlay',
@@ -140,17 +179,19 @@ export default defineComponent({
   emits: ['close'],
   data(): DataModel {
     return {
-      disabledKeys: [],
       contentWidth: 1200,
+      planZoom: MAX_ZOOM,
       cardZoom: MAX_ZOOM,
-      stacked: false,
       zoomCard: undefined,
       resizeObserver: undefined,
       deferTimer: undefined,
-      viewMode: 'cards',
+      fitScheduled: false,
     };
   },
   computed: {
+    viewMode(): ViewMode {
+      return playedCardsViewState.viewMode;
+    },
     allGroups(): ReadonlyArray<PlayedGroup> {
       return buildPlayedGroups(this.displayedPlayer.tableau);
     },
@@ -163,13 +204,37 @@ export default defineComponent({
     totalCount(): number {
       return this.nonEmptyGroups.reduce((sum, g) => sum + g.cards.length, 0);
     },
+    // The non-empty groups after BOTH filter dimensions (hidden types + tag
+    // narrowing) — each carries only its still-visible cards, in play order.
     visibleGroups(): ReadonlyArray<PlayedGroup> {
-      return this.nonEmptyGroups.filter((g) => !this.disabledKeys.includes(g.key));
+      return filterPlayedGroups(this.nonEmptyGroups, {
+        hiddenGroups: playedCardsViewState.hiddenGroups,
+        activeTags: playedCardsViewState.activeTags,
+      });
     },
-    columns(): number {
-      const w = this.contentWidth - BODY_PAD;
-      const colW = 300 * this.cardZoom + STACK_GAP;
-      return Math.max(2, Math.floor(w / colW));
+    identityGroups(): ReadonlyArray<PlayedGroup> {
+      return this.visibleGroups.filter((g) => g.identity);
+    },
+    projectGroups(): ReadonlyArray<PlayedGroup> {
+      return this.visibleGroups.filter((g) => !g.identity);
+    },
+    // The column/grid plan per project section — a pure function of the
+    // filtered counts + the measured width + the planning zoom. Kept reactive
+    // (not imperatively written) so it re-derives on a filter / resize change.
+    sectionPlans(): Record<string, TableauSectionPlan> {
+      const w = this.contentWidth - BODY_PAD_H;
+      const cardW = NAT_W * this.planZoom;
+      const plans = planTableau(
+        this.projectGroups.map((g) => ({key: g.key, count: g.cards.length})),
+        w,
+        cardW,
+        COL_GAP,
+      );
+      const out: Record<string, TableauSectionPlan> = {};
+      for (const p of plans) {
+        out[p.key] = p;
+      }
+      return out;
     },
     emptyReason(): 'none' | 'filtered' | undefined {
       if (!this.hasAnyCards) {
@@ -180,18 +245,20 @@ export default defineComponent({
       }
       return undefined;
     },
-    chips(): ReadonlyArray<PlayedFilterChip> {
-      return this.nonEmptyGroups.map((g) => ({
-        key: g.key,
-        label: g.label,
-        accent: g.accent,
-        count: g.cards.length,
-        enabled: !this.disabledKeys.includes(g.key),
-      }));
+    typeChips(): ReadonlyArray<PlayedTypeChip> {
+      return buildPlayedTypeChips(this.nonEmptyGroups, {
+        hiddenGroups: playedCardsViewState.hiddenGroups,
+        activeTags: playedCardsViewState.activeTags,
+      });
     },
-    // Flat rows for the table view, respecting the same filters. `order`
-    // is the global play order (tableau index, oldest = 1). The table
-    // sorts by it by default.
+    tagChips(): ReadonlyArray<PlayedTagChip> {
+      return buildPlayedTagChips(this.nonEmptyGroups, {
+        hiddenGroups: playedCardsViewState.hiddenGroups,
+        activeTags: playedCardsViewState.activeTags,
+      });
+    },
+    // Flat rows for the table view, respecting both filter dimensions. `order`
+    // is the global play order (tableau index, oldest = 1).
     tableRows(): ReadonlyArray<PlayedTableRow> {
       const orderMap = new Map<CardName, number>();
       this.displayedPlayer.tableau.forEach((c, i) => orderMap.set(c.name, i + 1));
@@ -205,32 +272,41 @@ export default defineComponent({
     },
   },
   watch: {
-    // Switching the viewed player swaps the whole board — recompute the fit
-    // for the new tableau.
+    // Switching the viewed player swaps the whole board — recompute the fit.
     'displayedPlayer.color'() {
       this.recompute();
     },
-    // The card-board fit is skipped while in table view; re-fit when
-    // returning to cards.
+    // The card-board fit is skipped in table view; re-fit when returning.
     viewMode(mode: ViewMode) {
       if (mode === 'cards') {
         this.recompute();
       }
     },
+    // A filter change (hide a type / pick a tag) changes the visible set — a
+    // FULL re-plan (so filtering down to a few cards re-grows them toward
+    // roomy, and the column counts track the new counts). The `@after-leave`
+    // hooks also nudge a re-fit once the leave animation finishes.
+    visibleGroups() {
+      this.recompute();
+    },
   },
   methods: {
-    modeFor(group: PlayedGroup): LayoutMode {
-      // Identity cards (corp / preludes / CEO) are always shown full.
-      return group.identity ? 'expanded' : (this.stacked ? 'stacked' : 'expanded');
+    setViewMode(mode: ViewMode): void {
+      playedCardsViewState.viewMode = mode;
     },
     toggleGroup(key: PlayedGroupKey): void {
-      const idx = this.disabledKeys.indexOf(key);
+      const arr = playedCardsViewState.hiddenGroups;
+      const idx = arr.indexOf(key);
       if (idx === -1) {
-        this.disabledKeys.push(key);
+        arr.push(key);
       } else {
-        this.disabledKeys.splice(idx, 1);
+        arr.splice(idx, 1);
       }
-      this.recompute();
+    },
+    // Single-select tag narrowing (mirrors the hand overlay): pick a tag to
+    // narrow to it, click it again to clear.
+    toggleTag(tag: Tag): void {
+      playedCardsViewState.activeTags = playedCardsViewState.activeTags.includes(tag) ? [] : [tag];
     },
     openCard(card: CardModel): void {
       this.zoomCard = card;
@@ -244,21 +320,67 @@ export default defineComponent({
         body.scrollTop = 0;
       }
     },
-    // Re-run the fit after any change to the visible set / size. Resets to
-    // the roomiest state first, then fits.
-    recompute(): void {
-      this.stacked = false;
-      this.cardZoom = MAX_ZOOM;
-      this.scrollToTop();
-      this.$nextTick(this.fit);
-    },
     applyZoom(z: number): void {
       const body = this.$refs.body as HTMLElement | undefined;
       body?.style.setProperty('--played-card-zoom', String(z));
     },
-    fit(): void {
-      // The height-fit engine only governs the card-board; the table view
-      // has its own scroll.
+    // Full re-plan + re-fit: reset to the per-count estimate, then shrink to
+    // fit the height. Used on mount / player switch / view-mode return.
+    recompute(): void {
+      if (this.viewMode !== 'cards') {
+        return;
+      }
+      const body = this.$refs.body as HTMLElement | undefined;
+      if (body !== undefined) {
+        this.contentWidth = body.clientWidth;
+      }
+      const projectCount = this.projectGroups.reduce((n, g) => n + g.cards.length, 0);
+      this.planZoom = this.baseZoom(projectCount);
+      this.cardZoom = this.planZoom;
+      this.scrollToTop();
+      // The plan + zoom changed → let Vue lay out the new columns, then shrink.
+      this.$nextTick(this.shrinkToFit);
+    },
+    // rAF-coalesced lighter re-fit (resize bursts / filter reflow): re-measure
+    // width + shrink, without resetting the planning zoom (avoids a column
+    // re-flow on every frame).
+    scheduleFit(): void {
+      if (this.fitScheduled) {
+        return;
+      }
+      this.fitScheduled = true;
+      requestAnimationFrame(() => {
+        this.fitScheduled = false;
+        if (this.viewMode !== 'cards') {
+          return;
+        }
+        const body = this.$refs.body as HTMLElement | undefined;
+        if (body !== undefined) {
+          this.contentWidth = body.clientWidth;
+        }
+        // Reset the visual zoom up to the plan zoom before shrinking, so a
+        // filter that REMOVED cards can grow back toward roomy.
+        this.cardZoom = this.planZoom;
+        this.$nextTick(this.shrinkToFit);
+      });
+    },
+    // Per-count starting scale: few cards big & roomy, many cards compact.
+    // Smoothly interpolated so similar counts don't jump scale.
+    baseZoom(projectCount: number): number {
+      if (projectCount <= 8) {
+        return MAX_ZOOM;
+      }
+      if (projectCount >= 70) {
+        return 0.40;
+      }
+      const t = (projectCount - 8) / (70 - 8);
+      return MAX_ZOOM + t * (0.40 - MAX_ZOOM);
+    },
+    // Shrink the VISUAL card zoom (CSS var only — columns stay fixed) until the
+    // tableau content fits the available height, or we hit MIN_ZOOM (then the
+    // body scrolls, the genuine last resort). Measures the real rendered
+    // height each step; a sqrt step converges in a couple of iterations.
+    shrinkToFit(): void {
       if (this.viewMode !== 'cards') {
         return;
       }
@@ -266,53 +388,28 @@ export default defineComponent({
       if (body === undefined) {
         return;
       }
-      const groups = body.querySelector('.played-board__groups') as HTMLElement | null;
-      if (groups === null) {
+      const tableau = body.querySelector('.played-tableau') as HTMLElement | null;
+      if (tableau === null) {
         return;
       }
-      this.contentWidth = body.clientWidth;
-      // `clientHeight` includes the body's vertical padding; the groups
-      // content must fit inside the padding box.
       const availH = body.clientHeight - BODY_PAD_V - FIT_SAFETY;
-
-      // 1) Grid mode: shrink the card zoom (measuring real content height)
-      //    until it fits the available height, or we hit MIN_ZOOM.
-      let z = MAX_ZOOM;
+      if (availH <= 0) {
+        return; // JSDOM / not laid out yet
+      }
+      let z = this.cardZoom;
       this.applyZoom(z);
-      void groups.offsetHeight;
-      let contentH = groups.scrollHeight;
+      void tableau.offsetHeight;
+      let contentH = tableau.scrollHeight;
       let iter = 0;
-      while (contentH > availH && z > MIN_ZOOM && iter < 10) {
-        // Grid height scales roughly with zoom² (smaller cards → more per
-        // row → fewer rows), so a sqrt step converges quickly; clamp the
-        // step so we never overshoot below MIN.
-        const ratio = Math.max(0.6, Math.min(0.95, Math.sqrt(availH / contentH)));
+      while (contentH > availH && z > MIN_ZOOM && iter < 8) {
+        const ratio = Math.max(0.6, Math.min(0.96, Math.sqrt(availH / contentH)));
         z = Math.max(MIN_ZOOM, z * ratio);
         this.applyZoom(z);
-        void groups.offsetHeight;
-        contentH = groups.scrollHeight;
+        void tableau.offsetHeight;
+        contentH = tableau.scrollHeight;
         iter++;
       }
-      if (contentH <= availH) {
-        this.stacked = false;
-        this.cardZoom = z;
-        return;
-      }
-
-      // 2) Still overflows at MIN_ZOOM → vertical stacks (much shorter).
-      //    Re-measure after the stacked DOM renders; if it STILL overflows
-      //    (very large collection) the body's `overflow-y: auto` scrolls —
-      //    the intended last-resort fallback.
-      this.cardZoom = MIN_ZOOM;
-      this.stacked = true;
-      this.applyZoom(MIN_ZOOM);
-      this.$nextTick(() => {
-        const b = this.$refs.body as HTMLElement | undefined;
-        if (b !== undefined) {
-          this.contentWidth = b.clientWidth;
-          this.applyZoom(MIN_ZOOM);
-        }
-      });
+      this.cardZoom = z;
     },
     onKeydown(e: KeyboardEvent): void {
       if (e.key !== 'Escape') {
@@ -327,15 +424,16 @@ export default defineComponent({
   },
   mounted(): void {
     this.recompute();
-    // One deferred re-fit catches any late layout shift (web-font / card
-    // art load) that could otherwise leave a hair of overflow → scrollbar.
-    this.deferTimer = window.setTimeout(() => this.recompute(), 220);
+    // One deferred re-fit catches any late layout shift (web-font / card art
+    // load) that could otherwise leave a hair of overflow → scrollbar.
+    this.deferTimer = window.setTimeout(() => this.recompute(), 240);
     const body = this.$refs.body as HTMLElement | undefined;
     if (body !== undefined && typeof ResizeObserver !== 'undefined') {
       // Only re-fit on real body-size changes (viewport / journal toggle),
       // not on our own zoom writes (those don't change the body's size).
-      this.resizeObserver = new ResizeObserver(() => this.recompute());
-      this.resizeObserver.observe(body);
+      const ro = new ResizeObserver(() => this.scheduleFit());
+      ro.observe(body);
+      this.resizeObserver = markRaw(ro);
     }
     window.addEventListener('keydown', this.onKeydown);
   },

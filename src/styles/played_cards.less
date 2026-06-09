@@ -203,9 +203,25 @@
     flex-shrink: 0;
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
+    align-items: center;
+    gap: 8px 10px;
     padding: 9px 14px 10px 16px;
     border-bottom: 1px solid rgba(106, 176, 230, 0.1);
+}
+
+.played-filters__types,
+.played-filters__tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+}
+
+.played-filters__divider {
+    width: 1px;
+    align-self: stretch;
+    min-height: 18px;
+    background: linear-gradient(180deg, transparent, rgba(106, 176, 230, 0.28), transparent);
 }
 
 .played-filter-chip {
@@ -252,6 +268,58 @@
     }
 }
 
+/* Tag chips (positive narrowing) — visual twin of the hand overlay's tag
+   chips, so the two surfaces read as one filter system. */
+.played-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px 3px 5px;
+    border: 1px solid rgba(106, 176, 230, 0.2);
+    border-radius: 999px;
+    background: rgba(18, 28, 42, 0.55);
+    cursor: pointer;
+    transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 120ms ease;
+    .premium-tooltip(180px);
+
+    &__icon.card-tag {
+        width: 19px;
+        height: 19px;
+        margin: 0;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__count {
+        font-family: Prototype, Orbitron, monospace;
+        font-size: 10.5px;
+        color: @pc-text-muted;
+        font-variant-numeric: tabular-nums;
+    }
+
+    &:hover {
+        border-color: rgba(106, 176, 230, 0.5);
+        transform: translateY(-1px);
+    }
+    &--active {
+        border-color: @pc-cyan;
+        background: rgba(106, 176, 230, 0.18);
+        box-shadow: 0 0 0 1px fade(@pc-cyan, 45%), 0 0 10px fade(@pc-cyan, 30%);
+    }
+    &--active &__count { color: @pc-text; }
+
+    /* Faceted count 0 and not selected — dimmed (selected tags stay bright +
+       clickable so they can always be cleared). */
+    &--muted {
+        opacity: 0.34;
+        filter: saturate(0.25);
+        border-color: rgba(106, 176, 230, 0.1);
+        cursor: default;
+        &:hover { transform: none; border-color: rgba(106, 176, 230, 0.1); }
+    }
+}
+
 // Per-accent chip dot + active rim.
 .played-accent(@key, @color) {
     .played-filter-chip--@{key} {
@@ -282,7 +350,7 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 14px 22px 22px;
+    padding: 16px 22px 22px;
 
     scrollbar-width: thin;
     scrollbar-color: rgba(106, 176, 230, 0.38) transparent;
@@ -481,42 +549,50 @@
 .played-table__dash { color: rgba(150, 170, 195, 0.4); }
 
 /*
- * Group packing.
+ * Tableau layout.
  *
- * DEFAULT (grid) layout = CSS multi-column "masonry": group blocks
- * (`break-inside: avoid`) flow into as many columns as the width allows,
- * so SMALL groups (corporation 1, preludes 2-3, a lone event…) sit side
- * by side and fill the horizontal space instead of each eating a full
- * row. Column width scales with the card zoom so it always fits ~2 cards.
- * The height-fit engine still scales cards so the tallest column fits.
+ * The board is two BANDS inside the scroll body:
+ *   - IDENTITY band (corporation / preludes / CEO): compact wrapping rows of
+ *     full cards. Each group sizes to its content + flex-wraps, so 1-3 corps /
+ *     2-5 preludes sit side by side and never eat a wasted full-width row.
+ *   - PROJECT band (active / automated / events): the main area. Each
+ *     type-SECTION is either a full-card grid (few cards) or vertical
+ *     peek-stack columns (many cards), per the fit engine's plan. Sections
+ *     flex-wrap to fill the width BEFORE the body ever scrolls.
  *
- * STACKED layout (very dense, set via `--stacked`) switches to full-width
- * groups in a vertical flex column, each rendering peek-stacks — there the
- * cards already fill the width, so multicolumn isn't needed.
+ * Card scale is the `--played-card-zoom` CSS var (set by the fit engine on the
+ * body); project cards use it raw, identity cards get a fixed bump. `zoom`
+ * (legacy-safe) scales layout + hitbox together.
  */
-.played-board__groups {
-    position: relative;
-    /* Column COUNT tracks the number of visible groups (capped by what
-       fits the width via column-width), so the groups spread evenly
-       across the full width instead of leaving empty columns on the right
-       of a wide board. column-width is the narrow-screen fallback. */
-    column-count: var(--played-visible-groups, 3);
-    column-width: calc(300px * var(--played-card-zoom, 0.6) * 2 + 40px);
-    column-gap: 24px;
-}
-
-.played-board__body--stacked .played-board__groups {
-    column-width: auto;
-    column-count: auto;
+.played-tableau {
     display: flex;
     flex-direction: column;
+    gap: 18px;
+    /* Isolate the band subtree so the fit engine's repeated zoom writes don't
+       reflow anything outside it. */
+    contain: layout style;
+}
+
+.played-tableau__identity,
+.played-tableau__projects {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 22px 26px;
+}
+
+/* A faint divider under the identity band so the two bands read as distinct
+   areas of the tableau — unless the identity band is the only one present. */
+.played-tableau__identity:not(:last-child) {
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.1);
 }
 
 /* ── Group ────────────────────────────────────────────────────────── */
 
 .played-group {
-    break-inside: avoid;
-    margin-bottom: 20px;
+    min-width: 0;
+    max-width: 100%;
 
     &__header {
         display: flex;
@@ -536,6 +612,7 @@
         letter-spacing: 1.4px;
         text-transform: uppercase;
         color: @pc-text;
+        white-space: nowrap;
     }
     &__count {
         font-family: Prototype, Orbitron, monospace;
@@ -545,21 +622,42 @@
     &__rule {
         flex: 1;
         height: 1px;
+        min-width: 16px;
         background: linear-gradient(90deg, rgba(106, 176, 230, 0.22), transparent);
     }
+}
 
-    &__grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        align-items: flex-start;
-    }
-    &__stacks {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: flex-start;
-        gap: 16px;
-    }
+/* Identity groups + project GRID sections size to their content so they sit
+   side by side; constrained to the band width (`max-width: 100%` above +
+   `min-width: 0`) they SHRINK and wrap their cards on a narrow band rather than
+   overflowing. */
+.played-group--identity,
+.played-group--grid {
+    flex: 0 1 auto;
+}
+
+/* Peek-column sections are RIGID: the planner already caps their column count
+   to the band width, so they never need to shrink — and shrinking would
+   squash the nowrap column row. Keep them at content width so flex-wrap moves
+   the WHOLE section to a new line when two sections can't share one. */
+.played-group--columns {
+    flex: 0 0 auto;
+}
+
+.played-group__idgrid,
+.played-group__grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+/* Project peek-stack columns — a nowrap row of vertical piles. */
+.played-group__columns {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 14px;
 }
 
 /* ── Card item ────────────────────────────────────────────────────── */
@@ -570,42 +668,34 @@
     /* Neutralise the legacy asymmetric card margin so the scaled card
        hugs its slot (see CLAUDE "Centering UI under a <Card>"). */
     > .card-container { margin: 0; }
+    /* Perf: isolate each card's layout so the fit engine's repeated zoom
+       measures don't reflow sibling cards. `layout style` only — NOT `paint`
+       (paint containment would clip card badges that sit at the card edge,
+       reintroducing the very top-clipping this rework fixes). Scoped to this
+       overlay; cards elsewhere are unaffected. */
+    contain: layout style;
 }
 
-/* Card scale — driven by the height-fit engine via `--played-card-zoom`
-   on the body (`zoom` scales layout + hitbox). Project groups use the raw
-   value; identity cards get a fixed bump (corporation largest — it IS the
-   player's identity). Fallback = MAX so the first paint is the roomy
-   state before the engine measures. */
-.played-group:not(.played-group--identity) .played-card-item > .card-container {
+/* Card scale — driven by the fit engine via `--played-card-zoom` on the body
+   (`zoom` scales layout + hitbox). Project cards use the raw value; identity
+   cards get a fixed bump (corporation largest — it IS the player's identity).
+   Fallback = a roomy default so the first paint looks right before measuring. */
+.played-group--project .played-card-item > .card-container {
     zoom: var(--played-card-zoom, 0.6);
 }
 .played-group--corporation .played-card-item > .card-container {
     zoom: calc(var(--played-card-zoom, 0.6) + 0.12);
-}
-
-/* Keep corporation bodies stable in this scaled overlay: no upward body offset,
-   no auto-tall expansion on hover; fullscreen remains the full inspection path. */
-.played-board-overlay .played-group--corporation .card-content.card-content-corporation,
-.played-board-overlay .played-group--corporation .card-container.card-hover-tall:hover .card-content.card-content-corporation,
-.played-board-overlay .played-group--corporation .card-container.card-auto-tall .card-content.card-content-corporation {
-    top: 0;
-    height: 350px !important;
-    min-height: 0;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(106, 176, 230, 0.4) transparent;
 }
 .played-group--prelude .played-card-item > .card-container,
 .played-group--ceo .played-card-item > .card-container {
     zoom: calc(var(--played-card-zoom, 0.6) + 0.05);
 }
 
-/* Grid hover lift — cheap transform/filter. Stacks use their own slot
-   reveal (below), so the dense 100-card case carries no per-card hover
-   shadows. */
-.played-group__grid .played-card-item {
+/* Grid / identity hover lift — cheap transform/filter. Peek-stacks use their
+   own slot reveal (below), so the dense 100-card case carries no per-card
+   hover shadows at rest. */
+.played-group__grid .played-card-item,
+.played-group__idgrid .played-card-item {
     transition: transform 150ms ease, filter 150ms ease;
 
     &:hover {
@@ -616,48 +706,59 @@
 }
 
 /* Corporation cards have a separate title/logo layer in the shared card
-   renderer. In this scaled overlay, vertical hover lift can make the body
-   read as moving independently from the corporation name, so keep the slot
-   stationary and use shadow/glow for feedback instead. */
-.played-board-overlay .played-group--corporation .played-group__grid .played-card-item:hover {
+   renderer. A vertical hover lift can read as the body moving independently
+   from the logo, so use shadow/glow for corp feedback instead of a translate. */
+.played-board-overlay .played-group--corporation .played-card-item:hover {
     transform: none;
     filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.62));
 }
 
-/* The played-card slot owns hover lift. Disable Card.vue's inner hover
+/* The played-card slot owns hover feedback. Disable Card.vue's inner hover
    translate here so title/logo chrome and body never animate independently. */
 .played-board-overlay .played-card-item > .card-container.filterDiv:not(.colony-card):not(.card-standard-project):not(.card-unavailable):hover {
     transform: none;
 }
 
-/* ── Vertical stacks (dense mode) ─────────────────────────────────── */
+/* Lightweight cards (the dense played board): the GRAPHIC is unchanged; this
+   only trims the resting cost a touch. The real perf win is `contain` above +
+   no hover-expand (the `card--lightweight` class also skips `card-hover-tall`
+   in Card.vue, so a crowded tableau never reflows on hover). */
+.played-card-item > .card-container.card--lightweight {
+    will-change: auto;
+}
+
+/* ── Vertical peek-stacks ─────────────────────────────────────────── */
 
 .played-stack {
-    --played-stack-peek: 64px;
+    /* Peek strip scales with the card so the visible top (name / cost / tags)
+       stays proportional at every zoom. */
+    --played-stack-peek: calc(86px * var(--played-card-zoom, 0.6));
     display: flex;
     flex-direction: column;
     position: relative;
+    min-width: 0;
 }
 
 .played-stack__slot {
     position: relative;
     transition: z-index 0s;
+}
 
-    /* Peeked cards: clip to the top strip (name / tags / cost stay
-       readable). The last card in a column shows in full. */
-    &:not(.played-stack__slot--last) {
-        height: var(--played-stack-peek);
-        overflow: hidden;
-    }
+/* Peeked piles: clip every card except the last (newest) to the top strip
+   (name / tags / cost stay readable). A non-peek pile (few cards) shows every
+   card in full. Clipping is the BOTTOM of each card, never the top. */
+.played-stack--peek .played-stack__slot:not(.played-stack__slot--last) {
+    height: var(--played-stack-peek);
+    overflow: hidden;
+}
 
-    /* Hover reveals the full card over its neighbours. */
-    &:hover {
-        overflow: visible;
-        z-index: 20;
-    }
-    &:hover .played-card-item {
-        filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.6));
-    }
+/* Hover reveals the full card over its neighbours. */
+.played-stack--peek .played-stack__slot:not(.played-stack__slot--last):hover {
+    overflow: visible;
+    z-index: 20;
+}
+.played-stack--peek .played-stack__slot:hover .played-card-item {
+    filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.6));
 }
 
 /* ── Empty state ──────────────────────────────────────────────────── */

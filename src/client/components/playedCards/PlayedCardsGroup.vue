@@ -1,5 +1,6 @@
 <template>
-  <section class="played-group" :class="['played-group--' + group.accent, {'played-group--identity': group.identity}]">
+  <section class="played-group"
+           :class="['played-group--' + group.accent, 'played-group--' + variant, layoutClass, {'played-group--identity': group.identity}]">
     <header class="played-group__header">
       <span class="played-group__accent" aria-hidden="true"></span>
       <span class="played-group__label" v-i18n>{{ group.label }}</span>
@@ -7,22 +8,38 @@
       <span class="played-group__rule" aria-hidden="true"></span>
     </header>
 
-    <!-- Dense: vertical stacks (columns). -->
-    <div v-if="mode === 'stacked'" class="played-group__stacks">
-      <PlayedCardsStack
-        v-for="(column, i) in columnChunks"
-        :key="i"
-        :cards="column"
-        :player="player"
-        @open="$emit('open', $event)" />
-    </div>
-
-    <!-- Expanded / compact: full cards in a wrapping grid. -->
-    <div v-else class="played-group__grid">
+    <!-- Identity (corporation / preludes / CEO): compact wrapping row of full
+         cards. `lightweight` keeps them at the canonical fixed render (no
+         hover-expand jump / logo shift) — corps look exactly as they do in the
+         hand / fullscreen, just scaled. -->
+    <div v-if="variant === 'identity'" class="played-group__idgrid">
       <PlayedCardItem
         v-for="card in group.cards"
         :key="card.name"
         :card="card"
+        :player="player"
+        :lightweight="true"
+        @open="$emit('open', $event)" />
+    </div>
+
+    <!-- Project section, FEW cards: roomy full-card wrapping grid. -->
+    <div v-else-if="effectivePlan.layout === 'grid'" class="played-group__grid">
+      <PlayedCardItem
+        v-for="card in group.cards"
+        :key="card.name"
+        :card="card"
+        :player="player"
+        :lightweight="true"
+        @open="$emit('open', $event)" />
+    </div>
+
+    <!-- Project section, MANY cards: vertical peek-stack columns. -->
+    <div v-else class="played-group__columns">
+      <PlayedCardsStack
+        v-for="(column, i) in columnSlices"
+        :key="i"
+        :cards="column"
+        :peek="effectivePlan.peek"
         :player="player"
         @open="$emit('open', $event)" />
     </div>
@@ -34,15 +51,22 @@ import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {PlayedGroup} from '@/client/components/playedCards/playedCardGroups';
+import {planTableauSection, TableauSectionPlan} from '@/client/components/playedCards/playedTableauFit';
 import PlayedCardItem from '@/client/components/playedCards/PlayedCardItem.vue';
 import PlayedCardsStack from '@/client/components/playedCards/PlayedCardsStack.vue';
 
 /**
- * One card group: a compact premium header (accent + label + count) and
- * the cards in the layout mode chosen by the overlay's engine —
- * full-card wrapping grid (expanded / compact) or vertical stacks
- * (stacked). For stacked mode the overlay passes how many columns fit the
- * width; we chunk the cards evenly across them.
+ * One card group on the tableau board.
+ *  - `identity` variant (corp / preludes / CEO): a compact wrapping row of
+ *    full cards.
+ *  - `project` variant (active / automated / events): laid out per the
+ *    overlay's `plan` — a full-card grid (few cards) or vertical peek-stack
+ *    columns (many cards). The cards are split into the plan's balanced,
+ *    contiguous chunks (oldest-first; each column reads top→bottom with the
+ *    newest card at the bottom, shown full).
+ *
+ * A fallback plan is derived locally so the first paint (before the overlay's
+ * fit engine measures) is already sensible.
  */
 export default defineComponent({
   name: 'PlayedCardsGroup',
@@ -52,13 +76,14 @@ export default defineComponent({
       type: Object as PropType<PlayedGroup>,
       required: true,
     },
-    mode: {
-      type: String as () => 'expanded' | 'compact' | 'stacked',
+    variant: {
+      type: String as () => 'identity' | 'project',
       required: true,
     },
-    columns: {
-      type: Number,
-      default: 1,
+    // Project sections only — the overlay's column/grid plan for this section.
+    plan: {
+      type: Object as PropType<TableauSectionPlan | undefined>,
+      default: undefined,
     },
     player: {
       type: Object as PropType<PublicPlayerModel>,
@@ -67,24 +92,35 @@ export default defineComponent({
   },
   emits: ['open'],
   computed: {
-    // Stacks read newest-first (top of each column = most recently
-    // played), so reverse the canonical oldest→newest group order. The
-    // grid keeps the canonical order (oldest first).
-    stackCards(): ReadonlyArray<CardModel> {
-      return this.group.cards.slice().reverse();
+    // A layout modifier so the stylesheet can flex grid/identity sections
+    // (shrink + wrap their cards) but keep peek-column sections rigid (wrap the
+    // whole section to a new line rather than squashing the nowrap columns).
+    layoutClass(): string {
+      return this.variant === 'project' ? 'played-group--' + this.effectivePlan.layout : '';
     },
-    // Evenly distribute the (newest-first) cards across the available
-    // columns, sequentially so each column is a contiguous, balanced pile
-    // with the newest cards on top.
-    columnChunks(): ReadonlyArray<ReadonlyArray<CardModel>> {
-      const cols = Math.max(1, this.columns);
-      const per = Math.ceil(this.stackCards.length / cols);
-      if (per <= 0) {
-        return [];
+    effectivePlan(): TableauSectionPlan {
+      if (this.plan !== undefined) {
+        return this.plan;
+      }
+      // Pre-measure fallback: a generous reference width so the first paint
+      // looks right; the overlay re-plans against the real width on mount.
+      return planTableauSection({key: this.group.key, count: this.group.cards.length}, 1400, 300 * 0.6, 14);
+    },
+    // Split the (oldest-first) cards into the plan's contiguous balanced
+    // chunks — one chunk per peek-stack column.
+    columnSlices(): ReadonlyArray<ReadonlyArray<CardModel>> {
+      const chunks = this.effectivePlan.chunks;
+      if (chunks.length === 0) {
+        return [this.group.cards];
       }
       const out: Array<ReadonlyArray<CardModel>> = [];
-      for (let i = 0; i < this.stackCards.length; i += per) {
-        out.push(this.stackCards.slice(i, i + per));
+      let i = 0;
+      for (const len of chunks) {
+        out.push(this.group.cards.slice(i, i + len));
+        i += len;
+      }
+      if (i < this.group.cards.length) {
+        out.push(this.group.cards.slice(i));
       }
       return out;
     },

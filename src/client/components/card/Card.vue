@@ -117,6 +117,20 @@ export default defineComponent({
       required: false,
       default: false,
     },
+    /*
+     * Lightweight render mode for DENSE, many-card surfaces (the played-cards
+     * board). The card GRAPHIC is unchanged — this only drops cost: it skips
+     * the hover-expand (`card-hover-tall`) behaviour and tags the card with
+     * `card--lightweight` so the stylesheet can pare back the most expensive
+     * non-essential effects (heavy shadows, hover filters) for this surface.
+     * Off by default, so every other card surface (hand, draft, fullscreen,
+     * selection modals) is byte-for-byte unchanged.
+     */
+    lightweight: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   data() {
     const cardName = this.card.name;
@@ -179,9 +193,15 @@ export default defineComponent({
       if (this.isStandardProject) {
         classes.push('card-standard-project');
       }
+      if (this.lightweight) {
+        classes.push('card--lightweight');
+      }
       if (this.autoTall) {
         classes.push('card-auto-tall');
-      } else if (getPreferences().experimental_ui) {
+      } else if (getPreferences().experimental_ui && !this.lightweight) {
+        // Lightweight surfaces (the dense played board) keep a fixed card
+        // height — no hover-expand, so a crowded tableau never reflows on
+        // hover and the peek-stack geometry stays stable.
         classes.push('card-hover-tall');
       }
       const learnerModeOff = !getPreferences().learner_mode;
