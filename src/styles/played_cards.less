@@ -353,6 +353,8 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    /* Containing block for the absolutely-positioned loading shimmer. */
+    position: relative;
     padding: 16px 22px 22px;
 
     scrollbar-width: thin;
@@ -584,17 +586,27 @@
     /* Isolate the subtree so the fit engine's repeated zoom writes don't
        reflow anything outside it. */
     contain: layout style;
+    /* Hidden (layout kept, so the fit engine can still MEASURE) until the fit
+       has settled — then revealed, so the cards never visibly jump on open. */
+    opacity: 0;
+    transition: opacity 280ms ease;
+}
+.played-tableau--ready {
+    opacity: 1;
 }
 
 /* Identity = a compact LEFT RAIL: corporation / preludes / CEO stacked
-   vertically. A setup zone, never the dominant area (capped at 40% width). */
+   vertically, plus any tucked-in small project sections. The width is capped to
+   ~2 cards (scaled by the card zoom) so the rail stays a narrow setup column —
+   a tucked section (e.g. Events) WRAPS into that narrow width rather than
+   spreading wide and stealing the main band's space. Also hard-capped at 40%. */
 .played-tableau__identity {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     align-content: flex-start;
     gap: 16px;
-    max-width: 40%;
+    max-width: min(40%, calc(690px * var(--played-card-zoom, 0.6)));
 }
 
 /* A faint divider on the rail's right edge so the two zones read as distinct
@@ -662,10 +674,10 @@
     }
 }
 
-/* Identity groups size to their content so they sit side by side; constrained
-   to the band width (`max-width: 100%` + `min-width: 0`) they SHRINK and wrap
-   their cards on a narrow band rather than overflowing. */
-.played-group--identity {
+/* Identity groups + tucked small sections (compact) size to their content; in
+   the vertical rail they stack and wrap their cards within the rail width. */
+.played-group--identity,
+.played-group--compact {
     flex: 0 1 auto;
 }
 
@@ -826,6 +838,47 @@
     }
 }
 
+/* ── Loading shimmer (big tableaus, while the fit settles) ────────────── */
+
+.played-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    pointer-events: none;
+    color: @pc-text-muted;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 12px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+
+    &__ring {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: 2px solid rgba(106, 176, 230, 0.18);
+        border-top-color: @pc-cyan;
+        animation: played-loading-spin 720ms linear infinite;
+        box-shadow: 0 0 14px rgba(106, 176, 230, 0.25);
+    }
+    &__label {
+        text-shadow: 0 0 10px rgba(106, 176, 230, 0.3);
+        animation: played-loading-pulse 1.4s ease-in-out infinite;
+    }
+}
+
+@keyframes played-loading-spin { to { transform: rotate(360deg); } }
+@keyframes played-loading-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+.played-loading-fade-enter-active,
+.played-loading-fade-leave-active { transition: opacity 220ms ease; }
+.played-loading-fade-enter-from,
+.played-loading-fade-leave-to { opacity: 0; }
+
 /* ── Animations ───────────────────────────────────────────────────── */
 
 @keyframes played-board-in {
@@ -848,6 +901,9 @@
     .played-card-item,
     .played-filter-chip,
     .played-board__close { transition: none; }
+    .played-tableau { transition: opacity 120ms ease; }
+    .played-loading__ring { animation-duration: 1.4s; }
+    .played-loading__label { animation: none; }
     .played-group-fade-enter-active,
     .played-group-fade-leave-active,
     .played-group-fade-move { transition: opacity 120ms ease; }

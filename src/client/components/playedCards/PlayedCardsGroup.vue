@@ -8,11 +8,10 @@
       <span class="played-group__rule" aria-hidden="true"></span>
     </header>
 
-    <!-- Identity (corporation / preludes / CEO): compact wrapping row of full
-         cards. `lightweight` keeps them at the canonical fixed render (no
-         hover-expand jump / logo shift) — corps look exactly as in the hand /
-         fullscreen, just scaled. -->
-    <div v-if="variant === 'identity'" class="played-group__idgrid">
+    <!-- Identity (corp / preludes / CEO) AND small project sections tucked into
+         the left rail (`compact`): a wrapping row of FULL cards. `lightweight`
+         keeps them at the canonical fixed render (no hover-expand / logo shift). -->
+    <div v-if="variant !== 'project'" class="played-group__idgrid">
       <PlayedCardItem
         v-for="card in group.cards"
         :key="card.name"
@@ -22,7 +21,7 @@
         @open="$emit('open', $event)" />
     </div>
 
-    <!-- Project section: vertical peek-stack columns. Column count + balanced
+    <!-- Main project section: vertical columns. Column count + balanced
          contiguous chunks (oldest-first) come from the overlay's fit plan;
          `peek` (band-level) decides whether non-bottom cards clip to the peek
          strip or every card shows full. -->
@@ -65,8 +64,11 @@ export default defineComponent({
       type: Object as PropType<PlayedGroup>,
       required: true,
     },
+    // 'identity' = corp/preludes/ceo rail block; 'compact' = a small project
+    // section tucked into the rail (renders like identity); 'project' = a main
+    // band section (vertical peek/full columns per `plan`).
     variant: {
-      type: String as () => 'identity' | 'project',
+      type: String as () => 'identity' | 'compact' | 'project',
       required: true,
     },
     // Project sections only — the overlay's column/chunk plan for this section.
