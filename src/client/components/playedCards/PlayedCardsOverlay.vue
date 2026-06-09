@@ -136,11 +136,17 @@ const MIN_BAND_W = 360; // floor for the project band width estimate
 const NAT_H_MIN = 330;
 const NAT_H_MAX = 470;
 // Show the "arranging" shimmer (instead of a blank then a card jump) only when
-// the tableau is big enough that the fit settle is perceptible.
+// the (VISIBLE / filtered) tableau is big enough that the fit settle is
+// perceptible.
 const SHIMMER_THRESHOLD = 50;
 // Once the shimmer is shown it stays up at least this long, so it never flashes
 // (a sub-frame appear/disappear reads as a glitch).
-const SHIMMER_MIN_MS = 500;
+const SHIMMER_MIN_MS = 300;
+// A filter change whose visible board (before OR after) has at least this many
+// cards re-hides + reveals-when-settled rather than animating in place — a big
+// re-plan (zoom/column change) reflowing dozens of cards reads as a jump,
+// whereas a small change animates cleanly via the transition-group.
+const JUMP_THRESHOLD = 16;
 
 type DataModel = {
   // Visual card scale (`--played-card-zoom`) — the fit engine grows it to fill
@@ -168,6 +174,9 @@ type DataModel = {
   fitSettled: boolean;
   shimmerMinDone: boolean;
   shimmerTimer: number | undefined;
+  // Visible (filtered) card count at the last filter change — lets a filter
+  // toggle decide whether the reflow is big enough to hide-and-reveal.
+  lastVisibleCount: number;
 };
 
 /**
@@ -215,6 +224,7 @@ export default defineComponent({
       fitSettled: false,
       shimmerMinDone: true,
       shimmerTimer: undefined,
+      lastVisibleCount: 0,
     };
   },
   computed: {
@@ -238,6 +248,11 @@ export default defineComponent({
     },
     totalCount(): number {
       return this.nonEmptyGroups.reduce((sum, g) => sum + g.cards.length, 0);
+    },
+    // VISIBLE (filtered) card count — drives the shimmer + anti-jump decisions,
+    // so opening WITH filters applied (fewer cards) skips the shimmer.
+    visibleCardCount(): number {
+      return this.visibleGroups.reduce((sum, g) => sum + g.cards.length, 0);
     },
     visibleGroups(): ReadonlyArray<PlayedGroup> {
       return filterPlayedGroups(this.nonEmptyGroups, {
@@ -270,10 +285,10 @@ export default defineComponent({
       }
       return undefined;
     },
-    // The "arranging cards" shimmer: only for big tableaus, only while the fit
-    // settles (the layout isn't `ready` yet), in card view.
+    // The "arranging cards" shimmer: only for a big VISIBLE board, only while
+    // the fit settles (not `ready` yet), in card view.
     showShimmer(): boolean {
-      return this.viewMode === 'cards' && !this.ready && this.totalCount >= SHIMMER_THRESHOLD;
+      return this.viewMode === 'cards' && !this.ready && this.visibleCardCount >= SHIMMER_THRESHOLD;
     },
     typeChips(): ReadonlyArray<PlayedTypeChip> {
       return buildPlayedTypeChips(this.nonEmptyGroups, {
@@ -312,10 +327,18 @@ export default defineComponent({
         this.recompute();
       }
     },
-    // A filter change (hide a type / pick a tag) changes the visible set —
-    // re-plan, but DON'T re-hide: the filtered cards animate in place (a
-    // re-hide would flicker the whole board on every chip click).
+    // A filter change (hide a type / pick a tag) changes the visible set. If
+    // the board is BIG either before or after (e.g. relaxing a filter brings
+    // back dozens of cards), the full re-plan would reflow everything at once —
+    // a jump — so hide-and-reveal-when-settled instead. A SMALL change animates
+    // cleanly in place via the transition-group (no re-hide flicker).
     visibleGroups() {
+      // `lastVisibleCount` holds the count from the PREVIOUS settled layout
+      // (recompute keeps it current); compare it to the new count.
+      const jumpy = Math.max(this.visibleCardCount, this.lastVisibleCount) >= JUMP_THRESHOLD;
+      if (jumpy) {
+        this.beginRevealCycle();
+      }
       this.recompute();
     },
   },
@@ -368,36 +391,27 @@ export default defineComponent({
         }
       }
     },
-    // Full re-plan. An immediate fit + a deferred settle re-fit: the deferred
-    // pass re-measures the identity-rail width at the SETTLED zoom (the first
-    // pass measures it at the stale/previous zoom — e.g. right after a player
-    // switch), so the project width is corrected and the layout can't get stuck
-    // small. While NOT yet `ready` (the initial open) the tableau is hidden;
-    // we reveal it only AFTER the deferred pass settles, so the cards never
-    // visibly jump into place.
+    // Full re-plan. `fit()` is now SELF-CORRECTING (it re-measures the rail at
+    // the settled zoom and re-plans once if needed) and flips `fitSettled` when
+    // done — so the reveal happens FAST (a couple of frames), not after a fixed
+    // 220ms wait. A separate non-gating deferred re-fit catches late web-font /
+    // card-art layout shifts after the reveal.
     recompute(): void {
       if (this.viewMode !== 'cards') {
         return;
       }
+      this.lastVisibleCount = this.visibleCardCount;
       this.scrollToTop();
-      this.$nextTick(this.fit);
+      this.$nextTick(() => this.fit());
       if (this.deferTimer !== undefined) {
         window.clearTimeout(this.deferTimer);
       }
-      this.deferTimer = window.setTimeout(() => {
-        this.fit();
-        // The layout has settled (fit → verifyShrink run on the next ticks).
-        // `maybeReveal` flips `ready` once the shimmer-minimum has also elapsed.
-        this.$nextTick(() => this.$nextTick(() => {
-          this.fitSettled = true;
-          this.maybeReveal();
-        }));
-      }, 220);
+      this.deferTimer = window.setTimeout(() => this.fit(), 280);
     },
-    // Arms a fresh reveal cycle: hide the tableau, and — if the tableau is big
-    // enough to show the shimmer — hold it for at least SHIMMER_MIN_MS so it
-    // never flashes. Called on open + player/view switch (NOT on filter
-    // changes, which animate in place and must not re-hide).
+    // Arms a fresh reveal cycle: hide the tableau, and — only if the VISIBLE
+    // board is big enough to show the shimmer — hold it for at least
+    // SHIMMER_MIN_MS so it never flashes. Called on open + player/view switch +
+    // a big filter reflow.
     beginRevealCycle(): void {
       this.ready = false;
       this.fitSettled = false;
@@ -405,7 +419,7 @@ export default defineComponent({
         window.clearTimeout(this.shimmerTimer);
         this.shimmerTimer = undefined;
       }
-      if (this.totalCount >= SHIMMER_THRESHOLD) {
+      if (this.visibleCardCount >= SHIMMER_THRESHOLD) {
         this.shimmerMinDone = false;
         this.shimmerTimer = window.setTimeout(() => {
           this.shimmerTimer = undefined;
@@ -431,7 +445,7 @@ export default defineComponent({
         this.fit();
       });
     },
-    fit(): void {
+    fit(pass = 0): void {
       if (this.viewMode !== 'cards') {
         return;
       }
@@ -451,14 +465,11 @@ export default defineComponent({
       this.measureNaturalCardH();
       // The identity rail is a LEFT column; the project band takes the rest of
       // the WIDTH at the FULL height. Measuring the rail WIDTH (not the band
-      // height) means the project height never depends on the identity render,
-      // which is what fixes the wrong-recompute-on-player-switch bug.
+      // height) means the project height never depends on the identity render.
       const railEl = body.querySelector('.played-tableau__identity') as HTMLElement | null;
       const railW = railEl !== null ? railEl.offsetWidth : 0;
       const availW = Math.max(MIN_BAND_W, totalAvailW - railW - (railW > 0 ? RAIL_GAP : 0));
 
-      // Plan only the MAIN band sections (the small ones tucked into the rail
-      // render as plain full-card blocks and don't need the column engine).
       const sections = this.mainProjectGroups.map((g) => ({key: g.key, count: g.cards.length}));
       const plan = planProjectBand(sections, availW, availH, this.naturalCardH, {gap: COL_GAP, sectionGap: SECTION_GAP});
 
@@ -471,7 +482,19 @@ export default defineComponent({
       this.setVar('--played-card-zoom', plan.zoom);
       this.setVar('--played-stack-peek-nat', plan.peekNatural);
 
-      this.$nextTick(this.verifyShrink);
+      this.$nextTick(() => {
+        // The rail re-rendered at the NEW zoom — if its width shifted enough
+        // (the first pass measured it at the stale/previous zoom, e.g. on open
+        // or a player switch), re-plan ONCE with the corrected available width.
+        const railW2 = railEl !== null ? railEl.offsetWidth : 0;
+        if (pass < 1 && railEl !== null && Math.abs(railW2 - railW) > 24) {
+          this.fit(1);
+          return;
+        }
+        this.verifyShrink();
+        this.fitSettled = true;
+        this.maybeReveal();
+      });
     },
     // Safety net: if the real render still overflows the body height (estimate
     // error / identity grew with the new zoom), shrink the zoom — the peek
