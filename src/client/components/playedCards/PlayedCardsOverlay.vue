@@ -49,25 +49,26 @@
          :class="['played-board__body--' + density, {'played-board__body--table': viewMode === 'table'}]"
          :style="bodyStyle">
       <PlayedCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" />
-      <div v-else-if="viewMode === 'cards'" class="played-tableau">
-        <!-- Identity band — corporation / preludes / CEO. Compact wrapping
-             rows of full cards (a "setup zone", never the dominant area). -->
-        <transition-group v-if="identityGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__identity" @after-leave="scheduleFit">
+      <div v-else-if="viewMode === 'cards'" class="played-tableau" :class="{'played-tableau--ready': ready}">
+        <!-- Identity RAIL (LEFT) — corporation / preludes / CEO, plus small
+             project sections (e.g. Events) TUCKED in under them so the big
+             sections get the whole right side. Compact full-card blocks. -->
+        <transition-group v-if="railGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__identity" @after-leave="scheduleFit">
           <PlayedCardsGroup
-            v-for="g in identityGroups"
+            v-for="g in railGroups"
             :key="g.key"
             :group="g"
-            variant="identity"
+            :variant="g.identity ? 'identity' : 'compact'"
             :player="displayedPlayer"
             @open="openCard" />
         </transition-group>
 
-        <!-- Project band — Active / Automated / Events. The main area: each
-             type-section is vertical peek-stack columns, widths allocated by
-             card count, scaled to fill the available box. -->
-        <transition-group v-if="projectGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__projects" @after-leave="scheduleFit">
+        <!-- Main project band (RIGHT) — the big sections as vertical columns,
+             widths allocated by card count, scaled to FILL the box (full cards
+             when they fit, peek only when there are too many). -->
+        <transition-group v-if="mainProjectGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__projects" @after-leave="scheduleFit">
           <PlayedCardsGroup
-            v-for="g in projectGroups"
+            v-for="g in mainProjectGroups"
             :key="g.key"
             :group="g"
             variant="project"
@@ -78,6 +79,15 @@
         </transition-group>
       </div>
       <PlayedCardsTable v-else :rows="tableRows" :zoomOpen="zoomCard !== undefined" @open="openCard" />
+
+      <!-- Loading shimmer — only for big tableaus (50+), shown while the fit
+           engine settles so the cards don't visibly jump into place on open. -->
+      <transition name="played-loading-fade">
+        <div v-if="showShimmer" class="played-loading" aria-hidden="true">
+          <span class="played-loading__ring"></span>
+          <span class="played-loading__label" v-i18n>Arranging cards</span>
+        </div>
+      </transition>
     </div>
 
     <Teleport to="body">
@@ -126,6 +136,12 @@ const MIN_BAND_W = 360; // floor for the project band width estimate
 // (mid-transition / hover) must never tank the layout (the Bug-3 root cause).
 const NAT_H_MIN = 330;
 const NAT_H_MAX = 470;
+// A project section with at most this many cards can be TUCKED into the left
+// rail (under identity), freeing the right band's width for the big sections.
+const TUCK_MAX_COUNT = 8;
+// Show the "arranging" shimmer (instead of a blank then a card jump) only when
+// the tableau is big enough that the fit settle is perceptible.
+const SHIMMER_THRESHOLD = 50;
 
 type DataModel = {
   // Visual card scale (`--played-card-zoom`) — the fit engine grows it to fill
@@ -145,6 +161,10 @@ type DataModel = {
   resizeObserver: ResizeObserver | undefined;
   deferTimer: number | undefined;
   fitScheduled: boolean;
+  // The tableau is hidden (opacity 0, layout kept for measuring) until the
+  // first fit settles, then revealed — so the cards never visibly jump into
+  // place when the overlay opens.
+  ready: boolean;
 };
 
 /**
@@ -188,6 +208,7 @@ export default defineComponent({
       resizeObserver: undefined,
       deferTimer: undefined,
       fitScheduled: false,
+      ready: false,
     };
   },
   computed: {
@@ -224,6 +245,34 @@ export default defineComponent({
     projectGroups(): ReadonlyArray<PlayedGroup> {
       return this.visibleGroups.filter((g) => !g.identity);
     },
+    // Small project sections that get TUCKED into the left rail under identity
+    // (the player wanted the empty space below corp/preludes used). Sections
+    // with <= TUCK_MAX_COUNT cards qualify; we always keep at least one project
+    // section in the main band so the right side never empties out.
+    railProjectGroups(): ReadonlyArray<PlayedGroup> {
+      const projects = this.projectGroups;
+      if (projects.length <= 1) {
+        return [];
+      }
+      const ascending = [...projects].sort((a, b) => a.cards.length - b.cards.length);
+      const small = ascending.filter((g) => g.cards.length <= TUCK_MAX_COUNT);
+      // Never tuck EVERY project section — keep the largest of the small ones in
+      // the main band if all sections are small.
+      if (small.length >= projects.length) {
+        small.pop();
+      }
+      return small;
+    },
+    // The big project sections that fill the main (right) band.
+    mainProjectGroups(): ReadonlyArray<PlayedGroup> {
+      const railKeys = new Set(this.railProjectGroups.map((g) => g.key));
+      return this.projectGroups.filter((g) => !railKeys.has(g.key));
+    },
+    // Everything in the left rail, in order: identity first, then the tucked
+    // small sections.
+    railGroups(): ReadonlyArray<PlayedGroup> {
+      return [...this.identityGroups, ...this.railProjectGroups];
+    },
     sectionPlanMap(): Record<string, ProjectSectionPlan> {
       const out: Record<string, ProjectSectionPlan> = {};
       for (const s of this.bandSections) {
@@ -239,6 +288,11 @@ export default defineComponent({
         return 'filtered';
       }
       return undefined;
+    },
+    // The "arranging cards" shimmer: only for big tableaus, only while the fit
+    // settles (the layout isn't `ready` yet), in card view.
+    showShimmer(): boolean {
+      return this.viewMode === 'cards' && !this.ready && this.totalCount >= SHIMMER_THRESHOLD;
     },
     typeChips(): ReadonlyArray<PlayedTypeChip> {
       return buildPlayedTypeChips(this.nonEmptyGroups, {
@@ -265,15 +319,21 @@ export default defineComponent({
     },
   },
   watch: {
+    // Switching the viewed player swaps the whole tableau — re-hide until the
+    // new layout settles so the cards don't visibly re-arrange.
     'displayedPlayer.color'() {
+      this.ready = false;
       this.recompute();
     },
     viewMode(mode: ViewMode) {
       if (mode === 'cards') {
+        this.ready = false;
         this.recompute();
       }
     },
-    // A filter change (hide a type / pick a tag) changes the visible set — re-plan.
+    // A filter change (hide a type / pick a tag) changes the visible set —
+    // re-plan, but DON'T re-hide: the filtered cards animate in place (a
+    // re-hide would flicker the whole board on every chip click).
     visibleGroups() {
       this.recompute();
     },
@@ -327,11 +387,13 @@ export default defineComponent({
         }
       }
     },
-    // Full re-plan. A `nextTick` fit + a deferred settle re-fit: the deferred
+    // Full re-plan. An immediate fit + a deferred settle re-fit: the deferred
     // pass re-measures the identity-rail width at the SETTLED zoom (the first
     // pass measures it at the stale/previous zoom — e.g. right after a player
-    // switch), so the project band's width is corrected and the layout can't get
-    // stuck small (Bug 3).
+    // switch), so the project width is corrected and the layout can't get stuck
+    // small. While NOT yet `ready` (the initial open) the tableau is hidden;
+    // we reveal it only AFTER the deferred pass settles, so the cards never
+    // visibly jump into place.
     recompute(): void {
       if (this.viewMode !== 'cards') {
         return;
@@ -341,7 +403,15 @@ export default defineComponent({
       if (this.deferTimer !== undefined) {
         window.clearTimeout(this.deferTimer);
       }
-      this.deferTimer = window.setTimeout(() => this.fit(), 220);
+      this.deferTimer = window.setTimeout(() => {
+        this.fit();
+        // Reveal once this settle pass has finished (fit → verifyShrink run on
+        // the next ticks). Stays revealed afterwards — later filter reflows
+        // animate in place and must not re-hide.
+        this.$nextTick(() => this.$nextTick(() => {
+          this.ready = true;
+        }));
+      }, 220);
     },
     scheduleFit(): void {
       if (this.fitScheduled) {
@@ -379,7 +449,9 @@ export default defineComponent({
       const railW = railEl !== null ? railEl.offsetWidth : 0;
       const availW = Math.max(MIN_BAND_W, totalAvailW - railW - (railW > 0 ? RAIL_GAP : 0));
 
-      const sections = this.projectGroups.map((g) => ({key: g.key, count: g.cards.length}));
+      // Plan only the MAIN band sections (the small ones tucked into the rail
+      // render as plain full-card blocks and don't need the column engine).
+      const sections = this.mainProjectGroups.map((g) => ({key: g.key, count: g.cards.length}));
       const plan = planProjectBand(sections, availW, availH, this.naturalCardH, {gap: COL_GAP, sectionGap: SECTION_GAP});
 
       this.cardZoom = plan.zoom;

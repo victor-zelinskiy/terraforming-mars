@@ -66,18 +66,25 @@ describe('playedTableauFit.planProjectBand', () => {
     expect(plan.density).to.equal('spacious');
   });
 
+  it('PREFERS full cards when a roomy area can show them all', () => {
+    // 54 cards in a big area → every card shown FULL (no peek), filling width.
+    const plan = planProjectBand([{key: 'active', count: 24}, {key: 'automated', count: 30}], 2600, 1500, NAT_H);
+    expect(plan.peek).to.equal(false);
+    expect(plan.zoom).to.be.within(FIT.fullMinZoom, FIT.maxZoom);
+  });
+
   it('uses MORE of a wide screen — bigger cards than a narrow one', () => {
     const narrow = planProjectBand(sections, 1100, 700, NAT_H);
     const wide = planProjectBand(sections, 2800, 700, NAT_H);
     expect(wide.zoom).to.be.greaterThan(narrow.zoom);
   });
 
-  it('uses MORE of a taller band — bigger cards when height allows', () => {
+  it('shows cards MORE FULLY when the band is taller', () => {
     const short = planProjectBand([{key: 'automated', count: 40}], 1600, 480, NAT_H);
-    const tall = planProjectBand([{key: 'automated', count: 40}], 1600, 900, NAT_H);
-    // A height-limited band grows the card zoom (not just the peek) with room.
-    expect(tall.zoom).to.be.greaterThan(short.zoom);
-    expect(tall.peekNatural).to.be.at.least(FIT.minPeekNatural); // title always shown
+    const tall = planProjectBand([{key: 'automated', count: 40}], 1600, 1100, NAT_H);
+    // More vertical room → fuller cards (a bigger peek strip, or full cards).
+    expect(tall.peekNatural).to.be.greaterThan(short.peekNatural);
+    expect(short.peekNatural).to.be.at.least(FIT.minPeekNatural); // title always shown
   });
 
   it('handles an empty band without throwing', () => {

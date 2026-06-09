@@ -70,6 +70,15 @@ export type FitConstants = {
   peekFraction: number;
   /** A peeked card always shows at least this many natural px (title visible). */
   minPeekNatural: number;
+  /**
+   * Below this zoom, FULL cards would be too small → fall back to peek-stacks
+   * (which fit the same cards at a larger zoom by overlapping them). Above it,
+   * the layout prefers showing every card in FULL (the player wanted fuller
+   * cards spread across the width, not tall compressed piles).
+   */
+  fullMinZoom: number;
+  /** Gap between FULL cards stacked in a pile (matches the CSS non-peek gap). */
+  fullCardGap: number;
 };
 
 export const FIT: FitConstants = {
@@ -81,6 +90,8 @@ export const FIT: FitConstants = {
   sectionGap: 28,
   peekFraction: 0.3,
   minPeekNatural: 118,
+  fullMinZoom: 0.4,
+  fullCardGap: 16,
 };
 
 function clamp(lo: number, hi: number, v: number): number {
@@ -140,6 +151,43 @@ export function allocateColumns(counts: ReadonlyArray<number>, total: number): A
   return cols;
 }
 
+/**
+ * Searches the total column count that maximises the card zoom while fitting
+ * both width and height. `mode` 'full' stacks FULL cards (gap between them);
+ * 'peek' overlaps them to the peek strip. Returns {zoom, C}. widthZoom falls
+ * with C, heightZoom rises with C → the best C is where their min is largest;
+ * on a tie, MORE columns (spreads the width, fuller piles).
+ */
+function searchColumns(
+  N: number,
+  effectiveW: number,
+  availHeight: number,
+  c: FitConstants,
+  mode: 'full' | 'peek',
+): {zoom: number; C: number} {
+  const hardMaxC = Math.min(N, Math.max(1, Math.floor((effectiveW + c.gap) / (c.cardNaturalW * c.minZoom + c.gap))));
+  let bestZoom = -1;
+  let bestC = 1;
+  for (let C = 1; C <= hardMaxC; C++) {
+    const widthZoom = (effectiveW - (C - 1) * c.gap) / (C * c.cardNaturalW);
+    const perCol = Math.ceil(N / C);
+    let heightZoom: number;
+    if (mode === 'full') {
+      // perCol full cards stacked with a gap between each.
+      heightZoom = (availHeight - (perCol - 1) * c.fullCardGap) / (perCol * c.cardNaturalH);
+    } else {
+      const heightFactor = (perCol - 1) * c.peekFraction + 1;
+      heightZoom = availHeight / (c.cardNaturalH * heightFactor);
+    }
+    const z = clamp(c.minZoom, c.maxZoom, Math.min(widthZoom, heightZoom));
+    if (z > bestZoom + 1e-4 || (Math.abs(z - bestZoom) < 1e-4 && C > bestC)) {
+      bestZoom = z;
+      bestC = C;
+    }
+  }
+  return {zoom: bestZoom, C: bestC};
+}
+
 export function planProjectBand(
   sections: ReadonlyArray<ProjectSection>,
   availWidth: number,
@@ -164,43 +212,45 @@ export function planProjectBand(
   // Width the columns actually get (sections sit side by side with a gap each).
   const effectiveW = Math.max(c.cardNaturalW * c.minZoom, availWidth - (live.length - 1) * c.sectionGap);
 
-  // 1. Search the column count that maximises the card zoom while fitting both
-  //    dimensions. widthZoom falls with C, heightZoom rises with C — the best
-  //    total column count is where their min is largest.
-  const hardMaxC = Math.min(N, Math.max(1, Math.floor((effectiveW + c.gap) / (c.cardNaturalW * c.minZoom + c.gap))));
-  let bestZoom = -1;
-  let bestC = 1;
-  for (let C = 1; C <= hardMaxC; C++) {
-    const widthZoom = (effectiveW - (C - 1) * c.gap) / (C * c.cardNaturalW);
-    const perCol = Math.ceil(N / C);
-    const heightFactor = (perCol - 1) * c.peekFraction + 1;
-    const heightZoom = availHeight / (c.cardNaturalH * heightFactor);
-    const z = clamp(c.minZoom, c.maxZoom, Math.min(widthZoom, heightZoom));
-    // Prefer a larger zoom; on a tie prefer MORE columns (spreads the width).
-    if (z > bestZoom + 1e-4 || (Math.abs(z - bestZoom) < 1e-4 && C > bestC)) {
-      bestZoom = z;
-      bestC = C;
-    }
+  // 1. PREFER FULL CARDS. Find the column count that shows every card in FULL
+  //    (no peek) at the largest zoom that fits the box. If that zoom is decent
+  //    (>= fullMinZoom) we use it — the player wanted fuller cards spread across
+  //    the width, not tall compressed piles. Only when there are too many cards
+  //    for full cards to stay readable do we fall back to PEEK (which fits the
+  //    same cards at a bigger zoom by overlapping them).
+  const full = searchColumns(N, effectiveW, availHeight, c, 'full');
+  let zoom: number;
+  let bestC: number;
+  let peek: boolean;
+  if (full.zoom >= c.fullMinZoom) {
+    zoom = full.zoom;
+    bestC = full.C;
+    peek = false;
+  } else {
+    const pk = searchColumns(N, effectiveW, availHeight, c, 'peek');
+    zoom = pk.zoom;
+    bestC = pk.C;
+    peek = true;
   }
-  const zoom = bestZoom;
 
   // 2. Allocate the columns to sections by crowdedness.
   const cols = allocateColumns(live.map((s) => s.count), bestC);
 
-  // 3. Tallest column (drives the peek-to-fill calc).
-  let perColMax = 1;
-  live.forEach((s, i) => {
-    perColMax = Math.max(perColMax, Math.ceil(s.count / cols[i]));
-  });
-
-  // 4. Peek height that fills the leftover vertical space, clamped so a peeked
-  //    card always shows its title and never exceeds a full card.
+  // 3. Peek height: full cards show whole (peekNatural = cardNaturalH); peeked
+  //    piles get a strip that fills the leftover height, clamped so the title
+  //    always shows and never exceeds a full card.
   let peekNatural = c.cardNaturalH;
-  if (perColMax > 1) {
-    peekNatural = (availHeight / zoom - c.cardNaturalH) / (perColMax - 1);
+  if (peek) {
+    let perColMax = 1;
+    live.forEach((s, i) => {
+      perColMax = Math.max(perColMax, Math.ceil(s.count / cols[i]));
+    });
+    if (perColMax > 1) {
+      peekNatural = (availHeight / zoom - c.cardNaturalH) / (perColMax - 1);
+    }
+    peekNatural = clamp(c.minPeekNatural, c.cardNaturalH, peekNatural);
+    peek = peekNatural < c.cardNaturalH - 1;
   }
-  peekNatural = clamp(c.minPeekNatural, c.cardNaturalH, peekNatural);
-  const peek = peekNatural < c.cardNaturalH - 1;
 
   const density: Density =
     zoom >= c.maxZoom - 0.02 ? 'spacious' : zoom <= c.minZoom + 0.06 ? 'compact' : 'balanced';
