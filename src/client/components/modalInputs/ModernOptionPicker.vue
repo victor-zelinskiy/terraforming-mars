@@ -21,7 +21,8 @@
     Submission is byte-identical to OrOptions.vue:
       {type: 'or', index: <ORIGINAL index>, response: <nested InputResponse>}
   -->
-  <div class="modal-input modal-input--options">
+  <div class="modal-input modal-input--options"
+       :class="{'modal-input--wide-nested': expandedIsWide}">
     <header class="modal-input__header">
       <div class="modal-input__header-tab"></div>
       <h3 class="modal-input__title">{{ titleText }}</h3>
@@ -148,7 +149,13 @@
         <span class="modal-input__back-glyph">‹</span>
         <span v-i18n>Back to options</span>
       </button>
-      <div class="modal-input__nested-label">{{ optionTitle(displayedOptions[expandedIdx]) }}</div>
+      <!--
+        The nested-label echoes the expanded option's own title. Premium
+        components that render their OWN header (CardSelectionContent shows the
+        SelectCard title) would duplicate it, so hide the label for those
+        (`expandedIsWide`). Compact inputs without a header keep it for context.
+      -->
+      <div v-if="!expandedIsWide" class="modal-input__nested-label">{{ optionTitle(displayedOptions[expandedIdx]) }}</div>
       <modal-input-host :playerView="playerView"
                         :playerinput="displayedOptions[expandedIdx]"
                         :onsave="nestedSave" />
@@ -296,6 +303,16 @@ export default defineComponent({
     // The neutral "do nothing / don't remove" fallback(s), rendered separately.
     skipEntries(): ReadonlyArray<{opt: PlayerInputModel, i: number}> {
       return this.optionEntries.filter((e) => this.isSkipOption(e.opt));
+    },
+    // True when the expanded wizard step hosts a "wide" premium input that
+    // renders its own header + sizes itself to the viewport (currently the card
+    // grid). Drives two things: drop the redundant nested-label, and let the
+    // host `.modal-input` shed its 720px max-width cap so the grid isn't squeezed.
+    expandedIsWide(): boolean {
+      if (this.expandedIdx === -1) {
+        return false;
+      }
+      return this.displayedOptions[this.expandedIdx]?.type === 'card';
     },
   },
   methods: {

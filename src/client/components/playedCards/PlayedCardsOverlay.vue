@@ -140,13 +140,10 @@ const NAT_H_MAX = 470;
 // perceptible.
 const SHIMMER_THRESHOLD = 50;
 // Once the shimmer is shown it stays up at least this long, so it never flashes
-// (a sub-frame appear/disappear reads as a glitch).
+// (a sub-frame appear/disappear reads as a glitch). A FILTER toggle always
+// shows it for this long (the cards otherwise visibly jump as the layout
+// re-plans), regardless of card count.
 const SHIMMER_MIN_MS = 300;
-// A filter change whose visible board (before OR after) has at least this many
-// cards re-hides + reveals-when-settled rather than animating in place — a big
-// re-plan (zoom/column change) reflowing dozens of cards reads as a jump,
-// whereas a small change animates cleanly via the transition-group.
-const JUMP_THRESHOLD = 16;
 
 type DataModel = {
   // Visual card scale (`--played-card-zoom`) — the fit engine grows it to fill
@@ -174,9 +171,10 @@ type DataModel = {
   fitSettled: boolean;
   shimmerMinDone: boolean;
   shimmerTimer: number | undefined;
-  // Visible (filtered) card count at the last filter change — lets a filter
-  // toggle decide whether the reflow is big enough to hide-and-reveal.
-  lastVisibleCount: number;
+  // Force the shimmer for this reveal cycle regardless of card count — set on a
+  // FILTER toggle, so even a small filtered board shows the 300ms loading
+  // instead of the cards visibly jumping as the layout re-plans.
+  forceShimmer: boolean;
 };
 
 /**
@@ -224,7 +222,7 @@ export default defineComponent({
       fitSettled: false,
       shimmerMinDone: true,
       shimmerTimer: undefined,
-      lastVisibleCount: 0,
+      forceShimmer: false,
     };
   },
   computed: {
@@ -285,10 +283,11 @@ export default defineComponent({
       }
       return undefined;
     },
-    // The "arranging cards" shimmer: only for a big VISIBLE board, only while
-    // the fit settles (not `ready` yet), in card view.
+    // The "arranging cards" shimmer: while the fit settles (not `ready`), in
+    // card view, for a big VISIBLE board OR any filter toggle (`forceShimmer`).
     showShimmer(): boolean {
-      return this.viewMode === 'cards' && !this.ready && this.visibleCardCount >= SHIMMER_THRESHOLD;
+      return this.viewMode === 'cards' && !this.ready &&
+        (this.forceShimmer || this.visibleCardCount >= SHIMMER_THRESHOLD);
     },
     typeChips(): ReadonlyArray<PlayedTypeChip> {
       return buildPlayedTypeChips(this.nonEmptyGroups, {
@@ -327,18 +326,12 @@ export default defineComponent({
         this.recompute();
       }
     },
-    // A filter change (hide a type / pick a tag) changes the visible set. If
-    // the board is BIG either before or after (e.g. relaxing a filter brings
-    // back dozens of cards), the full re-plan would reflow everything at once —
-    // a jump — so hide-and-reveal-when-settled instead. A SMALL change animates
-    // cleanly in place via the transition-group (no re-hide flicker).
+    // A filter change (hide a type / pick a tag) re-plans the whole board, which
+    // otherwise reflows the cards visibly (a jump). ALWAYS hide + show the
+    // 300ms shimmer, then reveal the settled layout — so a filter toggle reads
+    // as a clean "arranging" beat, never a scramble.
     visibleGroups() {
-      // `lastVisibleCount` holds the count from the PREVIOUS settled layout
-      // (recompute keeps it current); compare it to the new count.
-      const jumpy = Math.max(this.visibleCardCount, this.lastVisibleCount) >= JUMP_THRESHOLD;
-      if (jumpy) {
-        this.beginRevealCycle();
-      }
+      this.beginRevealCycle(true);
       this.recompute();
     },
   },
@@ -400,7 +393,6 @@ export default defineComponent({
       if (this.viewMode !== 'cards') {
         return;
       }
-      this.lastVisibleCount = this.visibleCardCount;
       this.scrollToTop();
       this.$nextTick(() => this.fit());
       if (this.deferTimer !== undefined) {
@@ -408,18 +400,20 @@ export default defineComponent({
       }
       this.deferTimer = window.setTimeout(() => this.fit(), 280);
     },
-    // Arms a fresh reveal cycle: hide the tableau, and — only if the VISIBLE
-    // board is big enough to show the shimmer — hold it for at least
-    // SHIMMER_MIN_MS so it never flashes. Called on open + player/view switch +
-    // a big filter reflow.
-    beginRevealCycle(): void {
+    // Arms a fresh reveal cycle: hide the tableau, then hold the shimmer at
+    // least SHIMMER_MIN_MS so it never flashes — whenever `force` is set (a
+    // FILTER toggle, so the cards never visibly jump) OR the VISIBLE board is
+    // big enough to warrant it. Called on open + player/view switch + every
+    // filter toggle.
+    beginRevealCycle(force = false): void {
       this.ready = false;
       this.fitSettled = false;
+      this.forceShimmer = force;
       if (this.shimmerTimer !== undefined) {
         window.clearTimeout(this.shimmerTimer);
         this.shimmerTimer = undefined;
       }
-      if (this.visibleCardCount >= SHIMMER_THRESHOLD) {
+      if (force || this.visibleCardCount >= SHIMMER_THRESHOLD) {
         this.shimmerMinDone = false;
         this.shimmerTimer = window.setTimeout(() => {
           this.shimmerTimer = undefined;

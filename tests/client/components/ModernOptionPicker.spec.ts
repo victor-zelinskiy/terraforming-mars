@@ -114,6 +114,40 @@ describe('ModernOptionPicker', () => {
     expect(component.find('[data-test="modern-option-confirm"]').exists()).to.eq(false);
   });
 
+  it('expands a nested SelectCard option, hosts it via modal-input-host, hides the redundant nested-label, and wraps its response in the OR', async () => {
+    PreferencesManager.INSTANCE.set('learner_mode', false);
+    let saved: InputResponse | undefined;
+    const component = factory(
+      {
+        type: 'or',
+        title: 'AstroDrill action',
+        options: [
+          {type: 'option', title: 'Gain a standard resource', buttonLabel: 'Gain'},
+          // showOnlyInLearnerMode:false mirrors the real SelectCardModel (the
+          // server sets it false whenever `enabled` is undefined), so the card
+          // option is shown outside learner mode — the same as in-game.
+          {type: 'card', title: 'Select card to add 1 asteroid', buttonLabel: 'Add asteroid',
+            min: 1, max: 1, showOnlyInLearnerMode: false, cards: [{name: 'Comet Aiming'}]},
+        ],
+      },
+      (out) => {
+        saved = out;
+      },
+    );
+    // Click the nested 'card' option (displayed index 1, original index 1).
+    await component.findAll('[data-test^="modern-option-"]')[1].trigger('click');
+    const host = component.findComponent(ModalInputHostStub);
+    expect(host.exists()).to.be.true;
+    expect(host.props('playerinput').type).to.eq('card');
+    // The card grid renders its OWN title, so the wizard's nested-label (which
+    // would duplicate it) is suppressed, and the host sheds its width cap.
+    expect(component.find('.modal-input__nested-label').exists()).to.eq(false);
+    expect(component.find('.modal-input--wide-nested').exists()).to.eq(true);
+    // Driving the card grid's save wraps the bare {type:'card'} in the outer OR.
+    host.props('onsave')({type: 'card', cards: ['Comet Aiming']});
+    expect(saved).to.deep.eq({type: 'or', index: 1, response: {type: 'card', cards: ['Comet Aiming']}});
+  });
+
   it('arms board picker-mode for a SelectSpace option', async () => {
     PreferencesManager.INSTANCE.set('learner_mode', false);
     const calls: Array<[boolean, unknown]> = [];

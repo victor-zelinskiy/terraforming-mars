@@ -95,3 +95,47 @@ describe('CardSelectionContent — availability filter', () => {
     expect(saved).to.deep.eq({type: 'card', cards: ['Ants']});
   });
 });
+
+describe('CardSelectionContent — single-select action label', () => {
+  // A nested action-card pick (add asteroid / discard / remove resource) surfaces
+  // the server's verb on the per-card button — the SAME verb the legacy SelectCard
+  // submit button showed — instead of a generic "Select".
+  for (const buttonLabel of ['Add asteroid', 'Add microbes', 'Discard', 'Remove resource(s)']) {
+    it(`surfaces the server verb "${buttonLabel}" on the per-card button`, () => {
+      const component = factory({
+        type: 'card', title: 'Pick a card', buttonLabel, min: 1, max: 1,
+        cards: [{name: 'Ants'}],
+      });
+      expect(component.find('[data-test="card-selection-action"]').text()).to.eq(buttonLabel);
+    });
+  }
+
+  // A meaningless / generic buttonLabel ('Save' is the SelectCard default,
+  // 'Select' is already generic) falls back to "Select" so a plain card pick
+  // (Robotic Workforce copy) reads consistently.
+  for (const buttonLabel of ['Save', 'Select', 'Ok', '']) {
+    it(`falls back to "Select" for the generic buttonLabel "${buttonLabel}"`, () => {
+      const component = factory({
+        type: 'card', title: 'Pick a card', buttonLabel, min: 1, max: 1,
+        cards: [{name: 'Ants'}],
+      });
+      expect(component.find('[data-test="card-selection-action"]').text()).to.eq('Select');
+    });
+  }
+
+  // A draft pick (buttonLabel 'Keep' during DRAFTING) keeps the generic
+  // "Select" rather than surfacing the verb — draft is a distinct polished flow
+  // where label consistency wins over the per-action verb.
+  it('keeps "Select" for a draft-phase pick even with a meaningful buttonLabel', () => {
+    const component = mount(CardSelectionContent, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {Card: CardStub, CardZoomModal: true}},
+      props: {
+        playerView: {game: {phase: 'drafting'}, thisPlayer: {cardCost: 3, megacredits: 30}} as any,
+        playerinput: {type: 'card', title: 'Choose a card', buttonLabel: 'Keep', min: 1, max: 1, cards: [{name: 'Ants'}]},
+        onsave: () => {},
+      },
+    });
+    expect(component.find('[data-test="card-selection-action"]').text()).to.eq('Select');
+  });
+});

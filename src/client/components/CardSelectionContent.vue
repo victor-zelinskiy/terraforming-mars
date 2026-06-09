@@ -262,6 +262,26 @@ const FIT_MODAL_FRAME_V = 64;     // approx modal frame + outer margins (vertica
 // meanwhile, so this only refines zoom / centring once layout settles.
 const FIT_MAX_RETRIES = 30;
 
+/*
+ * Server buttonLabels that carry NO useful per-card meaning, so a forced
+ * single-select (min === max === 1) falls back to the generic "ВЫБРАТЬ". Any
+ * OTHER buttonLabel is a meaningful action VERB the server chose ("Добавить
+ * астероид", "Сбросить", "Удалить ресурс(ы)", "Показать", …) and is surfaced as
+ * the per-card button — the SAME verb the legacy SelectCard submit button showed
+ * (and the same translation path), just on the premium grid. So the nested
+ * action-card picks this fork moved off the legacy button read identically.
+ * 'Save' is the SelectCard constructor default (meaningless here); 'Select' is
+ * already generic. Draft picks (buttonLabel 'Keep') are kept on the generic
+ * "ВЫБРАТЬ" via the isDraftPhase guard in actionLabel (not by listing 'Keep'
+ * here), since draft is a distinct, polished flow where label consistency wins.
+ */
+const GENERIC_SINGLE_SELECT_LABELS: ReadonlySet<string> = new Set([
+  '',
+  'Save',
+  'Select',
+  'Ok',
+]);
+
 export default defineComponent({
   name: 'CardSelectionContent',
   components: {Card, CardZoomModal},
@@ -817,12 +837,12 @@ export default defineComponent({
      */
     actionLabel(name: CardName): string {
       if (!this.isMultiSelect) {
-        // An "add resource to a card" pick (AddResourcesToCard) reads as a
-        // confirmation to add HERE — surface the add verb the server sent
-        // ("Добавить ресурс(ы)") instead of a generic "ВЫБРАТЬ", so a forced
-        // single-target add doesn't look like an arbitrary selection.
+        // A forced single-target pick (add / remove a resource here, discard,
+        // reveal) reads as a CONFIRMATION of the action — surface the verb the
+        // server sent ("Добавить ресурс(ы)", "Сбросить", …) instead of a generic
+        // "ВЫБРАТЬ", so it doesn't look like an arbitrary selection.
         const bl = typeof this.playerinput.buttonLabel === 'string' ? this.playerinput.buttonLabel : '';
-        if (bl === 'Add resource' || bl === 'Add resources') {
+        if (!this.isDraftPhase && !GENERIC_SINGLE_SELECT_LABELS.has(bl)) {
           return translateText(bl);
         }
         return translateText('Select');

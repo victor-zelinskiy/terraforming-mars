@@ -41,10 +41,22 @@ import ModernAmountSelector from '@/client/components/modalInputs/ModernAmountSe
 import ModernResourcePicker from '@/client/components/modalInputs/ModernResourcePicker.vue';
 import ModernResourcesPicker from '@/client/components/modalInputs/ModernResourcesPicker.vue';
 import ModernProductionToLose from '@/client/components/modalInputs/ModernProductionToLose.vue';
+import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
 
 // Modern, premium-styled components for modal-hosted sub-prompts. Types absent
 // here fall back to the legacy PlayerInputFactory (still visible, inside the
 // modal). Extend this map as each premium input is built.
+//
+// `'card'` → CardSelectionContent is the premium card-selection grid (the SAME
+// component DraftFlowOverlay uses for top-level SelectCard). It is reached here
+// when a card option is NESTED inside a modal-hosted OrOptions/AndOptions and
+// ModernOptionPicker expands it into a wizard step via `<modal-input-host>`
+// (e.g. AstroDrill "add an asteroid to a card", ImportedHydrogen "add 3 microbes
+// to a card", Mars University "discard a card to draw"). Without it those nested
+// picks fell back to the legacy SelectCard.vue radio/checkbox list with a purple
+// "Добавить …"/"Сбросить" button — the legacy card-choice UI this fork is
+// replacing. CardSelectionContent submits the byte-identical {type:'card',cards}
+// response, which ModernOptionPicker's nestedSave wraps into the outer OR.
 const PREMIUM_COMPONENTS: Partial<Record<PlayerInputModel['type'], Component>> = {
   'or': ModernOptionPicker,
   'option': ModernConfirm,
@@ -53,6 +65,7 @@ const PREMIUM_COMPONENTS: Partial<Record<PlayerInputModel['type'], Component>> =
   'resource': ModernResourcePicker,
   'resources': ModernResourcesPicker,
   'productionToLose': ModernProductionToLose,
+  'card': CardSelectionContent,
 };
 
 export default defineComponent({
@@ -66,6 +79,7 @@ export default defineComponent({
     ModernResourcePicker,
     ModernResourcesPicker,
     ModernProductionToLose,
+    CardSelectionContent,
   },
   props: {
     playerView: {
