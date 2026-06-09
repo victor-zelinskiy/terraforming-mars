@@ -57,42 +57,66 @@
           <div class="additional-resource-detail__body">
             <div class="additional-resource-detail__grid">
               <div
-                v-for="entry in group.cards"
-                :key="entry.name"
+                v-for="s in summaries"
+                :key="s.entry.name"
                 class="additional-resource-detail__card"
-                :class="{'additional-resource-detail__card--zero': entry.amount === 0}"
+                :class="{
+                  'additional-resource-detail__card--zero': s.entry.amount === 0,
+                  'additional-resource-detail__card--special': s.special !== undefined && s.special.replacesCardChrome === true,
+                }"
                 data-test="additional-resource-detail-card"
-                @click.capture.stop="openZoom(entry.name)">
+                @click.capture.stop="openZoom(s.entry.name)">
                 <div class="additional-resource-detail__card-visual">
-                  <Card :card="cardModelFor(entry.name)" />
+                  <Card :card="s.card" />
                 </div>
+                <!-- One cohesive info plate per card: PRIMARY count, then EITHER
+                     a bespoke special-state marker OR the generic VP scoring. -->
                 <div class="additional-resource-detail__card-foot">
                   <!-- PRIMARY: how many of the selected resource sit on this card. -->
-                  <div class="additional-resource-detail__count" :class="{'additional-resource-detail__count--zero': entry.amount === 0}">
+                  <div class="additional-resource-detail__count" :class="{'additional-resource-detail__count--zero': s.entry.amount === 0}">
                     <i class="card-resource additional-resource-detail__count-icon" :class="iconClass" aria-hidden="true"></i>
-                    <span class="additional-resource-detail__count-num">{{ entry.amount }}<AnimatedMetricValue
-                      :value="entry.amount"
-                      :metricKey="cardMetricKey(entry.name)"
+                    <span class="additional-resource-detail__count-num">{{ s.entry.amount }}<AnimatedMetricValue
+                      :value="s.entry.amount"
+                      :metricKey="cardMetricKey(s.entry.name)"
                       :scopeKey="detailScope"
                       :epoch="epoch"
                       variant="misc" /></span>
                   </div>
-                  <!-- SECONDARY: VP scoring — ONLY when the card actually scores
-                       VP from this resource (rate per resource + accumulated). -->
-                  <div v-if="scoringOf(entry.name) !== undefined" class="additional-resource-detail__score">
-                    <span class="additional-resource-detail__score-rate">
-                      <span class="additional-resource-detail__score-op">1</span>
-                      <i class="card-resource additional-resource-detail__score-icon" :class="iconClass" aria-hidden="true"></i>
-                      <span class="additional-resource-detail__score-op">=</span>
-                      <span class="additional-resource-detail__score-vp">{{ vpPerResource(entry.name) }}</span>
-                      <span class="additional-resource-detail__score-unit" v-i18n>VP</span>
-                    </span>
-                    <span class="additional-resource-detail__score-acc">
-                      <span class="additional-resource-detail__score-acc-label" v-i18n>Accumulated</span>
-                      <span class="additional-resource-detail__score-vp">{{ accumulatedVp(entry.name, entry.amount) }}</span>
-                      <span class="additional-resource-detail__score-unit" v-i18n>VP</span>
-                    </span>
+
+                  <!-- SPECIAL: bespoke premium status marker (e.g. Search for Life). -->
+                  <div v-if="s.special !== undefined"
+                       class="additional-resource-detail__status"
+                       :class="'additional-resource-detail__status--' + s.special.tone">
+                    <span class="additional-resource-detail__status-glyph" aria-hidden="true">{{ s.special.tone === 'success' ? '✓' : '◦' }}</span>
+                    <span class="additional-resource-detail__status-label" v-i18n>{{ s.special.label }}</span>
+                    <span v-if="s.special.vp" class="additional-resource-detail__status-vp">+{{ s.special.vp }} <span v-i18n>VP</span></span>
                   </div>
+
+                  <!-- SECONDARY: generic VP scoring shown as a NATURAL threshold rule
+                       ("3 [res] = 1 VP", never a decimal) + accrued total + (for
+                       threshold cards) progress toward the next VP. -->
+                  <template v-else-if="s.scoring !== undefined">
+                    <div class="additional-resource-detail__score">
+                      <span class="additional-resource-detail__score-rate">
+                        <span class="additional-resource-detail__score-amt">{{ s.scoring.per }}</span>
+                        <i class="card-resource additional-resource-detail__score-icon" :class="iconClass" aria-hidden="true"></i>
+                        <span class="additional-resource-detail__score-op">=</span>
+                        <span class="additional-resource-detail__score-vp">{{ s.scoring.each }}</span>
+                        <span class="additional-resource-detail__score-unit" v-i18n>VP</span>
+                      </span>
+                      <span class="additional-resource-detail__score-acc">
+                        <span class="additional-resource-detail__score-acc-label" v-i18n>Accumulated</span>
+                        <span class="additional-resource-detail__score-vp">{{ s.scoring.accumulated }}</span>
+                        <span class="additional-resource-detail__score-unit" v-i18n>VP</span>
+                      </span>
+                    </div>
+                    <div v-if="s.progress !== undefined" class="additional-resource-detail__progress" :aria-label="$t('Progress to next VP')">
+                      <span class="additional-resource-detail__progress-track">
+                        <span class="additional-resource-detail__progress-fill" :style="{width: s.progress.pct + '%'}"></span>
+                      </span>
+                      <span class="additional-resource-detail__progress-text">{{ s.progress.filled }}/{{ s.progress.per }}</span>
+                    </div>
+                  </template>
                 </div>
               </div>
             </div>
@@ -121,8 +145,23 @@ import {cardResourceCSS} from '@/client/components/common/cardResources';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
-import {additionalResourceGroup, AdditionalResourceGroup, resourceScoring, vpPerResource as calcVpPerResource, accumulatedVp as calcAccumulatedVp} from '@/client/components/additionalResources/additionalResources';
+import {additionalResourceGroup, AdditionalResourceGroup, AdditionalResourceCardEntry, resourceScoring, accumulatedVp as calcAccumulatedVp} from '@/client/components/additionalResources/additionalResources';
+import {specialResourceState, SpecialResourceState} from '@/client/components/additionalResources/additionalResourceSpecialCases';
 import {additionalResourcesState, closeAdditionalResourceDetail} from '@/client/components/additionalResources/additionalResourcesState';
+
+/**
+ * Per-card info-plate descriptor, precomputed in `summaries` so the template
+ * stays declarative + vue-tsc narrows cleanly. Exactly ONE of `special` /
+ * `scoring` drives the secondary line; `progress` rides alongside `scoring`
+ * for threshold cards (per > 1).
+ */
+interface CardResourceLine {
+  readonly entry: AdditionalResourceCardEntry;
+  readonly card: CardModel;
+  readonly special?: SpecialResourceState;
+  readonly scoring?: {readonly per: number; readonly each: number; readonly accumulated: number};
+  readonly progress?: {readonly filled: number; readonly per: number; readonly pct: number};
+}
 
 export default defineComponent({
   name: 'AdditionalResourceDetailOverlay',
@@ -188,15 +227,36 @@ export default defineComponent({
     nonZeroCount(): number {
       return this.group?.cards.filter((c) => c.amount > 0).length ?? 0;
     },
-    // True when at least one source card scores VP from this resource — gates
+    // True when this resource yields VP anywhere — via generic scoring OR a
+    // special-case status (e.g. Search for Life's "life found" 3 VP). Gates
     // the header's aggregate-VP stat (hidden entirely when nothing scores).
     hasScoring(): boolean {
-      return (this.group?.cards ?? []).some((c) => this.scoringOf(c.name) !== undefined);
+      return this.summaries.some((s) => s.scoring !== undefined || (s.special?.vp ?? 0) > 0);
     },
-    // Sum of every card's accrued VP from this resource (each term is the
-    // exact per-card value, so the total is correct even when cards mix rates).
+    // Total VP this resource currently yields across all cards: each card's
+    // exact accrued scoring VP, or its special-case VP — correct even when
+    // cards mix threshold rates or special triggers.
     totalAccumulatedVp(): number {
-      return (this.group?.cards ?? []).reduce((sum, c) => sum + this.accumulatedVp(c.name, c.amount), 0);
+      return this.summaries.reduce((sum, s) => sum + (s.scoring?.accumulated ?? s.special?.vp ?? 0), 0);
+    },
+    // Precomputed per-card info-plate descriptors. Bespoke special cards
+    // (registry) win the secondary line; otherwise the generic VP scoring +
+    // (for threshold cards) progress toward the next VP.
+    summaries(): ReadonlyArray<CardResourceLine> {
+      return (this.group?.cards ?? []).map((entry): CardResourceLine => {
+        const special = specialResourceState(entry.name, entry.amount);
+        const s = special === undefined ? resourceScoring(entry.name) : undefined;
+        let scoring: CardResourceLine['scoring'];
+        let progress: CardResourceLine['progress'];
+        if (s !== undefined) {
+          scoring = {per: s.per, each: s.each, accumulated: calcAccumulatedVp(entry.name, entry.amount)};
+          if (s.per > 1) {
+            const filled = entry.amount % s.per;
+            progress = {filled, per: s.per, pct: Math.round((filled / s.per) * 100)};
+          }
+        }
+        return {entry, card: this.cardModelFor(entry.name), special, scoring, progress};
+      });
     },
     // Layout mode = number of source cards. Drives the modal's per-mode
     // max-width cap + card zoom (see additional_resources.less). The modal is
@@ -224,18 +284,6 @@ export default defineComponent({
     },
     cardMetricKey(name: CardName): string {
       return `card-resource.${this.resource}.card.${name}`;
-    },
-    // Thin template-facing wrappers over the tested resource-scoring helpers
-    // (logic lives in additionalResources.ts). `scoringOf` gates the scoring
-    // block; the other two render the per-resource rate + accrued total.
-    scoringOf(name: CardName): ReturnType<typeof resourceScoring> {
-      return resourceScoring(name);
-    },
-    vpPerResource(name: CardName): number {
-      return calcVpPerResource(name);
-    },
-    accumulatedVp(name: CardName, amount: number): number {
-      return calcAccumulatedVp(name, amount);
     },
     openZoom(name: CardName): void {
       this.zoomCard = this.cardModelFor(name);

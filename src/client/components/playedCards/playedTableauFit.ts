@@ -85,7 +85,11 @@ export const FIT: FitConstants = {
   cardNaturalW: 300,
   cardNaturalH: 415,
   minZoom: 0.34,
-  maxZoom: 0.86,
+  // Up to the card's NATURAL size — so a few cards on a big / 4K screen GROW to
+  // fill the space (the cards were capped too small before, leaving the right
+  // and bottom empty). Never above 1.0 (would upscale the raster art = blur);
+  // the identity bumps are kept small in CSS so corp/preludes stay <= 1.0.
+  maxZoom: 0.95,
   gap: 16,
   sectionGap: 28,
   peekFraction: 0.3,

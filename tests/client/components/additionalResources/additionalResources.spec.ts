@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {additionalResourceGroups, additionalResourceGroup, additionalResourceMetricKey, resourceScoring, vpPerResource, accumulatedVp} from '@/client/components/additionalResources/additionalResources';
+import {specialResourceState} from '@/client/components/additionalResources/additionalResourceSpecialCases';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {CardModel} from '@/common/models/CardModel';
@@ -83,6 +84,22 @@ describe('additionalResources', () => {
       expect(accumulatedVp(CardName.DECOMPOSERS, 7)).to.eq(2); // floor(7/3)
       expect(accumulatedVp(CardName.PHYSICS_COMPLEX, 3)).to.eq(6); // 3*2
       expect(accumulatedVp(CardName.GHG_PRODUCING_BACTERIA, 9)).to.eq(0); // no scoring
+    });
+  });
+
+  describe('special-case presenters', () => {
+    it('Search for Life: pending with no resource, success (3 VP) once it has one', () => {
+      expect(specialResourceState(CardName.SEARCH_FOR_LIFE, 0)).to.deep.eq({
+        tone: 'pending', label: 'Searching for life', vp: 0, replacesCardChrome: true,
+      });
+      expect(specialResourceState(CardName.SEARCH_FOR_LIFE, 1)).to.deep.eq({
+        tone: 'success', label: 'Life found', vp: 3, replacesCardChrome: true,
+      });
+    });
+
+    it('returns undefined for cards with no bespoke presenter (generic summary)', () => {
+      expect(specialResourceState(CardName.ANTS, 3)).to.eq(undefined);
+      expect(specialResourceState(CardName.PREDATORS, 0)).to.eq(undefined);
     });
   });
 });

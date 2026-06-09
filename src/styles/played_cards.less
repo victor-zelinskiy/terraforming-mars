@@ -722,18 +722,21 @@
 }
 
 /* Card scale — driven by the fit engine via `--played-card-zoom` on the body
-   (`zoom` scales layout + hitbox). Project cards use the raw value; identity
-   cards get a fixed bump (corporation largest — it IS the player's identity).
-   Fallback = a roomy default so the first paint looks right before measuring. */
-.played-group--project .played-card-item > .card-container {
+   (`zoom` scales layout + hitbox). The BASE rule covers EVERY played card
+   (project columns, identity, AND tucked compact sections — the latter is why
+   it's keyed on `.played-card-item`, not `.played-group--project`; that bug
+   rendered the tucked Events at natural size). Identity cards get a SMALL bump
+   (corporation largest); the bumps are kept small so corp/preludes stay <= 1.0
+   even at the max base zoom (0.95) and never upscale the raster art. */
+.played-card-item > .card-container {
     zoom: var(--played-card-zoom, 0.6);
 }
 .played-group--corporation .played-card-item > .card-container {
-    zoom: calc(var(--played-card-zoom, 0.6) + 0.12);
+    zoom: calc(var(--played-card-zoom, 0.6) + 0.05);
 }
 .played-group--prelude .played-card-item > .card-container,
 .played-group--ceo .played-card-item > .card-container {
-    zoom: calc(var(--played-card-zoom, 0.6) + 0.05);
+    zoom: calc(var(--played-card-zoom, 0.6) + 0.03);
 }
 
 /* Grid / identity hover lift — cheap transform/filter. Peek-stacks use their
@@ -806,6 +809,15 @@
     height: calc(var(--played-stack-peek-nat, 200) * var(--played-card-zoom, 0.6) * 1px);
     overflow: visible;
     clip-path: inset(-16px -16px 0 -16px);
+}
+
+/* Tucked compact sections (in the rail) are ALWAYS a slim peek pile, with a
+   FIXED peek strip independent of the main band's `--played-stack-peek-nat` —
+   so a tucked Events section reads as a compact stack under identity, never a
+   tall grid of full cards (even when the main band is showing full cards). */
+.played-group__columns--compact { gap: 12px; }
+.played-group--compact .played-stack--peek .played-stack__slot:not(.played-stack__slot--last) {
+    height: calc(132px * var(--played-card-zoom, 0.6) * 1px);
 }
 
 /* Hover reveals the full card over its neighbours. */
