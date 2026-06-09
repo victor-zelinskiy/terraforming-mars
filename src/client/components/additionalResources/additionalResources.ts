@@ -102,3 +102,41 @@ export function additionalResourceGroup(
 export function additionalResourceMetricKey(resource: CardResource): string {
   return `card-resource.${resource}.stock`;
 }
+
+/**
+ * Resource-based victory-point scoring for a card.
+ *
+ * Every `resourcesHere` VP rule in the manifest is a PURE resource scorer
+ * (verified across all cards — only the `per` / `each` modifiers ever appear,
+ * never mixed with tag/cities/oceans/etc.), so detection is simply the
+ * presence of `resourcesHere`. Semantics mirror the server `Counter.count`:
+ *   sum = resources;  if (each) sum *= each;  if (per) sum = floor(sum / per)
+ * → `each` = "VP per resource", `per` = "resources per VP". Returns undefined
+ * for cards that merely STORE the resource without scoring from it.
+ */
+export interface ResourceScoring {
+  /** Resources needed per 1 VP (server `per`, default 1). */
+  readonly per: number;
+  /** VP per resource before the `per` divisor (server `each`, default 1). */
+  readonly each: number;
+}
+
+export function resourceScoring(name: CardName): ResourceScoring | undefined {
+  const vp = getCard(name)?.victoryPoints;
+  if (typeof vp !== 'object' || vp.resourcesHere === undefined) {
+    return undefined;
+  }
+  return {per: vp.per ?? 1, each: vp.each ?? 1};
+}
+
+/** VP yielded by ONE resource (display-only linear rate: e.g. 1, 0.5, 2). */
+export function vpPerResource(name: CardName): number {
+  const s = resourceScoring(name);
+  return s === undefined ? 0 : Number((s.each / s.per).toFixed(2));
+}
+
+/** Exact VP accrued on the card from `amount` resources (server formula). */
+export function accumulatedVp(name: CardName, amount: number): number {
+  const s = resourceScoring(name);
+  return s === undefined ? 0 : Math.floor((amount * s.each) / s.per);
+}
