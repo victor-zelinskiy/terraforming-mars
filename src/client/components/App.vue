@@ -77,6 +77,16 @@
       <DrawCardRevealFlow
         v-if="screen === 'player-home' && playerView !== undefined && hasDrawReveal"
         :player-view="playerView" />
+      <!--
+        Detailed "additional resource" summary overlay. App-level (like the
+        journal) so the `:key="playerkey"` remount can't tear it down while
+        open. Driven entirely by module-level additionalResourcesState, which
+        the ДОП. РЕСУРСЫ side panel writes when a row is clicked; the overlay
+        re-resolves the live player by colour so it tracks resource changes.
+      -->
+      <AdditionalResourceDetailOverlay
+        v-if="screen === 'player-home' && playerView !== undefined"
+        :player-view="playerView" />
       <spectator-home
         v-else-if="screen === 'spectator-home' && spectator !== undefined"
         :spectator="spectator"
@@ -143,6 +153,7 @@ import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
 import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
+import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
 import GameAtmosphere from '@/client/components/GameAtmosphere.vue';
 import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
@@ -261,6 +272,7 @@ export default defineComponent({
     ActionsPlayground,
     JournalPanel,
     DrawCardRevealFlow,
+    AdditionalResourceDetailOverlay,
     GameAtmosphere,
   },
   watch: {
