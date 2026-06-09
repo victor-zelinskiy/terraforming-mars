@@ -632,9 +632,18 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     margin-top: 9px;
-    max-width: 100%;
+    /* One cohesive plate: a faint backing + hairline separates the summary
+       from the dark overlay bg and unifies count + scoring into a single
+       block (instead of loose floating badges). width:100% makes every
+       footer in a mode the same width as its card → uniform across the grid. */
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 9px;
+    background: rgba(10, 17, 28, 0.5);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.1);
 }
 
 /* PRIMARY — the single most prominent element under the card: how many of the
@@ -706,6 +715,14 @@
     color: @aux-text-muted;
     font-weight: 600;
 }
+/* The threshold count ("3" in "3 [res] = 1 ПО") — readable, not muted. */
+.additional-resource-detail__score-amt {
+    font-family: "Russo One", Prototype, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: #f4dca0;
+    font-variant-numeric: tabular-nums;
+}
 .additional-resource-detail__score-icon {
     width: 14px;
     height: 14px;
@@ -733,6 +750,92 @@
     color: rgba(244, 220, 160, 0.7);
 }
 
+/* SPECIAL — bespoke premium status marker (Search for Life "Life found", …).
+   Same chip language as the scoring chips so special + common cards read as
+   one system; tone (success / pending) carries the state. */
+.additional-resource-detail__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border-radius: 6px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+
+    &--success {
+        color: #8ff0c8;
+        background: rgba(36, 110, 84, 0.34);
+        box-shadow: inset 0 0 0 1px rgba(95, 227, 170, 0.45);
+    }
+    &--pending {
+        color: @aux-text-muted;
+        background: rgba(80, 100, 125, 0.2);
+        box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.26);
+    }
+}
+.additional-resource-detail__status-glyph {
+    font-size: 12px;
+    line-height: 1;
+    text-shadow: 0 0 6px currentColor;
+}
+.additional-resource-detail__status-vp {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    margin-left: 2px;
+    padding-left: 7px;
+    border-left: 1px solid rgba(255, 255, 255, 0.18);
+    font-family: "Russo One", Prototype, sans-serif;
+    font-weight: 700;
+    color: #ffe08a;
+    font-variant-numeric: tabular-nums;
+
+    span { font-size: 8.5px; font-weight: 400; letter-spacing: 0.6px; color: rgba(255, 224, 138, 0.75); }
+}
+
+/* Threshold progress — how close the card is to its NEXT VP (per > 1 cards).
+   The thematic "X / N" indicator the spec's Rats example called for, applied
+   generically to every real threshold card (Tardigrades, Decomposers, …). */
+.additional-resource-detail__progress {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+}
+.additional-resource-detail__progress-track {
+    flex: 1 1 auto;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(120, 95, 30, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(240, 200, 120, 0.22);
+    overflow: hidden;
+}
+.additional-resource-detail__progress-fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, rgba(240, 200, 120, 0.65), #ffe08a);
+    transition: width 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.additional-resource-detail__progress-text {
+    flex-shrink: 0;
+    font-family: "Russo One", Prototype, sans-serif;
+    font-size: 10px;
+    color: rgba(244, 220, 160, 0.85);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Search-for-Life-style cards: drop the legacy on-card resource counter + VP
+   sprite (the out-of-place science "alien") in the overlay — the premium
+   status marker in the footer supersedes them. Both are position:absolute, so
+   hiding leaves no gap. Higher specificity than the base `.card-container .…`. */
+.additional-resource-detail__card--special .card-container .card-resources-counter,
+.additional-resource-detail__card--special .card-container .card-points {
+    display: none;
+}
+
 /*
  * Single-card mode = a true "focused card view": the card and its stats sit
  * SIDE BY SIDE (card left, an enlarged amount + vertical badge column right),
@@ -748,9 +851,12 @@
         cursor: pointer;
     }
     .additional-resource-detail__card-foot {
+        /* Beside the card → hug content (not the 100% under-card width). */
+        width: auto;
         align-items: flex-start;
         gap: 12px;
         margin-top: 0;
+        padding: 12px 14px;
     }
     .additional-resource-detail__count {
         padding: 6px 16px 6px 12px;
@@ -775,6 +881,13 @@
     }
     .additional-resource-detail__score-vp {
         font-size: 15px;
+    }
+    .additional-resource-detail__status {
+        font-size: 12px;
+        padding: 6px 12px;
+    }
+    .additional-resource-detail__progress {
+        min-width: 150px;
     }
 }
 
