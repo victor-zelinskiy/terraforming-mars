@@ -119,9 +119,13 @@ const COL_GAP = FIT.gap; // .played-group__columns gap
 const SECTION_GAP = FIT.sectionGap; // .played-tableau__projects column-gap
 const BODY_PAD_H = 44; // 22 + 22
 const BODY_PAD_V = 38; // 16 + 22
-const BAND_GAP = 18; // .played-tableau row gap between identity + project bands
+const RAIL_GAP = 24; // .played-tableau gap between the identity rail + project band
 const FIT_SAFETY = 6; // sliver below content so rounding never trips the scrollbar
-const MIN_BAND_H = 220; // floor for the project band height estimate
+const MIN_BAND_W = 360; // floor for the project band width estimate
+// Sanity bounds for the measured natural card height — a stray measurement
+// (mid-transition / hover) must never tank the layout (the Bug-3 root cause).
+const NAT_H_MIN = 330;
+const NAT_H_MAX = 470;
 
 type DataModel = {
   // Visual card scale (`--played-card-zoom`) — the fit engine grows it to fill
@@ -310,25 +314,34 @@ export default defineComponent({
     // so the area-fill math is accurate (independent of the estimate / fonts).
     // MUST be a project card — identity cards carry a zoom BUMP, so dividing
     // their height by `cardZoom` would be wrong. A peeked item is clipped by its
-    // SLOT, not the item, so it still reports its full height.
+    // SLOT, not the item, so it still reports its full height. CLAMPED to a sane
+    // range so a stray measurement (mid-transition / hover-expand) can never
+    // corrupt the cache and shrink every later layout (the Bug-3 root cause).
     measureNaturalCardH(): void {
       const body = this.$refs.body as HTMLElement | undefined;
       const item = body?.querySelector('.played-group--project .played-card-item') as HTMLElement | null;
       if (item !== null && item !== undefined && this.cardZoom > 0) {
         const h = item.offsetHeight / this.cardZoom;
         if (h > 80) {
-          this.naturalCardH = h;
+          this.naturalCardH = Math.max(NAT_H_MIN, Math.min(NAT_H_MAX, h));
         }
       }
     },
-    // Full re-plan: measure the box + the real card / identity height, run the
-    // area-fill planner, apply, then a measured shrink safety net.
+    // Full re-plan. A `nextTick` fit + a deferred settle re-fit: the deferred
+    // pass re-measures the identity-rail width at the SETTLED zoom (the first
+    // pass measures it at the stale/previous zoom — e.g. right after a player
+    // switch), so the project band's width is corrected and the layout can't get
+    // stuck small (Bug 3).
     recompute(): void {
       if (this.viewMode !== 'cards') {
         return;
       }
       this.scrollToTop();
       this.$nextTick(this.fit);
+      if (this.deferTimer !== undefined) {
+        window.clearTimeout(this.deferTimer);
+      }
+      this.deferTimer = window.setTimeout(() => this.fit(), 220);
     },
     scheduleFit(): void {
       if (this.fitScheduled) {
@@ -352,18 +365,22 @@ export default defineComponent({
       if (tableau === null) {
         return;
       }
-      const availW = body.clientWidth - BODY_PAD_H;
-      const totalAvailH = body.clientHeight - BODY_PAD_V - FIT_SAFETY;
-      if (availW <= 0 || totalAvailH <= 0) {
+      const totalAvailW = body.clientWidth - BODY_PAD_H;
+      const availH = body.clientHeight - BODY_PAD_V - FIT_SAFETY;
+      if (totalAvailW <= 0 || availH <= 0) {
         return; // JSDOM / not laid out yet
       }
       this.measureNaturalCardH();
-      const identityEl = body.querySelector('.played-tableau__identity') as HTMLElement | null;
-      const identityH = identityEl !== null ? identityEl.offsetHeight : 0;
-      const projAvailH = Math.max(MIN_BAND_H, totalAvailH - identityH - (identityH > 0 ? BAND_GAP : 0));
+      // The identity rail is a LEFT column; the project band takes the rest of
+      // the WIDTH at the FULL height. Measuring the rail WIDTH (not the band
+      // height) means the project height never depends on the identity render,
+      // which is what fixes the wrong-recompute-on-player-switch bug.
+      const railEl = body.querySelector('.played-tableau__identity') as HTMLElement | null;
+      const railW = railEl !== null ? railEl.offsetWidth : 0;
+      const availW = Math.max(MIN_BAND_W, totalAvailW - railW - (railW > 0 ? RAIL_GAP : 0));
 
       const sections = this.projectGroups.map((g) => ({key: g.key, count: g.cards.length}));
-      const plan = planProjectBand(sections, availW, projAvailH, this.naturalCardH, {gap: COL_GAP, sectionGap: SECTION_GAP});
+      const plan = planProjectBand(sections, availW, availH, this.naturalCardH, {gap: COL_GAP, sectionGap: SECTION_GAP});
 
       this.cardZoom = plan.zoom;
       this.peekNatural = plan.peekNatural;
@@ -421,9 +438,9 @@ export default defineComponent({
     },
   },
   mounted(): void {
+    // recompute() runs an immediate fit + a deferred settle re-fit (which also
+    // catches late layout shift from web-font / card-art load).
     this.recompute();
-    // Deferred re-fit catches late layout shift (web-font / card-art load).
-    this.deferTimer = window.setTimeout(() => this.recompute(), 240);
     const body = this.$refs.body as HTMLElement | undefined;
     if (body !== undefined && typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(() => this.scheduleFit());
