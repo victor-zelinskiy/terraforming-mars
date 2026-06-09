@@ -34,6 +34,28 @@
     }
 }
 
+/* A wizard step hosting the premium card grid (CardSelectionContent — e.g. a
+ * nested "add a resource to a card" / "discard a card" SelectCard expanded by
+ * ModernOptionPicker). The grid sizes ITSELF to the card count + viewport via
+ * its own `--cs-content-width` (capped to the viewport), so the host
+ * `.modal-input`'s 420–720px clamp would needlessly squeeze it (cramped cards /
+ * premature vertical scroll). Shed the clamp so the grid gets the room it
+ * computed; the grid stays self-centred (margin: auto) and self-capped. Placed
+ * AFTER the base `.mandatory-input-modal__card > .modal-input` rule so the
+ * equal-specificity override wins by source order. */
+.mandatory-input-modal__card > .modal-input--wide-nested,
+.modal-input-playground__stage > .modal-input--wide-nested {
+    min-width: 0;
+    max-width: none;
+}
+
+/* Deliberately NO `width: 100%` on the nested wrapper: the card grid carries a
+ * DEFINITE width (`--cs-content-width`, viewport-derived) and self-centres
+ * (margin:auto + the flex column), so every ancestor shrink-to-fits to it and
+ * the modal card hugs the grid (sized by the `:has(.card-selection)` rule).
+ * Forcing the wrapper to 100% of the auto-width `.modal-input` would re-create
+ * the collapse-to-narrow bug documented in CardSelectionContent. */
+
 .modal-input {
     color: #d6e2f2;
     font-family: Prototype, Ubuntu, sans-serif;

@@ -10,7 +10,12 @@
 
 .effects-board-overlay {
     position: fixed;
-    z-index: 96;
+    /* z-index 110 — above the left panel (z-index 100) so it paints OVER the
+       ДОП. РЕСУРСЫ aux panel that protrudes right out of the left panel into
+       this overlay's area (matches the Played / Cards / VP overlays). Geometric
+       separation (left ≥ --left-panel-width) keeps the core left-panel content
+       at x < 160 uncovered + interactive. See additional_resources.less. */
+    z-index: 110;
     /* Anchor just ABOVE the bottom-bar Effects button and grow UPWARD, so the
        panel opens right next to the button (short mouse travel) instead of at the
        top of the screen. The max-height caps it to the area between the bottom and

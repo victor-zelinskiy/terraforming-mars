@@ -75,18 +75,23 @@
 }
 
 /*
- * Yield to any open bottom-bar overlay. The premium Actions / Effects / Played
- * / Cards / VP overlays sit at z-index 96 — BELOW the left panel (z-index 100)
- * by design, so РЕСУРСЫ / МЕТКИ stay visible + interactive while they're open.
- * But this aux panel protrudes RIGHT out of the left panel INTO the overlay
- * area, so at z-index 100 it would cover the overlay's left edge. Hide it
- * whenever a central overlay is active (`#player-home.overlay-active`) — it's a
- * quick-glance dashboard element and just clutters an open overlay. The journal
- * (right gutter) doesn't conflict, so it deliberately does NOT hide the panel.
+ * Layer UNDER any open bottom-bar overlay instead of hiding. The aux panel
+ * lives in the left-panel stacking context (z-index 100: above the board, but
+ * BELOW the bottom-bar overlays at z-index 110 and the top-bar dropdowns at
+ * 120). It protrudes RIGHT out of the left panel into the overlay area, so when
+ * an overlay is wide enough to overlap the panel the overlay paints cleanly
+ * OVER it; a narrower / top-centred overlay that doesn't reach the panel simply
+ * leaves it visible. We deliberately DON'T `display:none` it anymore — the old
+ * blanket hide wrongly removed the panel even when the open overlay didn't
+ * cover it (an overlay isn't always wide enough to span the panel's column).
+ *
+ * For this to hold uniformly the Actions / Effects overlays were raised from
+ * z-index 96 to 110 (matching the Played / Cards / VP overlays) so EVERY
+ * overlay now sits above this panel. РЕСУРСЫ / МЕТКИ stay uncovered +
+ * interactive via geometric separation — every overlay is clamped to
+ * `left ≥ --left-panel-width`, so none of them ever reach x < 160 where the
+ * core left-panel content lives. The journal (right gutter) doesn't conflict.
  */
-#player-home.overlay-active .additional-resources {
-    display: none;
-}
 
 .additional-resources__rows {
     display: flex;

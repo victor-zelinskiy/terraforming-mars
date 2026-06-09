@@ -11,7 +11,12 @@
 
 .actions-board-overlay {
     position: fixed;
-    z-index: 96;
+    /* z-index 110 — above the left panel (z-index 100) so it paints OVER the
+       ДОП. РЕСУРСЫ aux panel that protrudes right out of the left panel into
+       this overlay's area (matches the Played / Cards / VP overlays). Geometric
+       separation (left ≥ --left-panel-width) keeps the core left-panel content
+       at x < 160 uncovered + interactive. See additional_resources.less. */
+    z-index: 110;
     bottom: calc(var(--bottom-bar-button-height) + 8px);
     /* Centre within the content zone (between the left panel and the right
        sidebar), never overlapping either. The formula mirrors the one used by
