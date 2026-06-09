@@ -1,0 +1,755 @@
+/*
+ * ДОП. РЕСУРСЫ — auxiliary "additional / card resources" side module.
+ *
+ * Three layers of one information hierarchy:
+ *   1. `.additional-resources`            — the attached side panel (rows)
+ *   2. `.additional-resources-tooltip`    — premium hover summary (full list)
+ *   3. `.additional-resource-detail*`     — full click-through overlay
+ *
+ * Visual language mirrors `.left-panel-section` / journal / played-cards:
+ * dark glass, cyan hairline rim, L-corner ticks, Prototype HUD type.
+ *
+ * ALIGNMENT CONTRACT (see player_home.less): the panel reuses
+ * `.left-panel-section` + `.left-panel-section__label`, is an ABSOLUTE child
+ * of the РЕСУРСЫ section (position:relative), and consumes the SHARED
+ * `--lp-res-*` vars for icon size / row height / gap / count font. That keeps
+ * the ДОП. РЕСУРСЫ header level with РЕСУРСЫ and the rows on the same rhythm
+ * at every responsive breakpoint — no magic pixel offsets.
+ */
+
+@aux-cyan: #6ab0e6;
+@aux-navy-rim: #2c4a6a;
+@aux-cyan-hairline: rgba(106, 176, 230, 0.1);
+@aux-text-primary: #e8f1fb;
+@aux-text-muted: rgba(170, 195, 220, 0.78);
+@aux-glass-bg: rgba(10, 16, 26, 0.96);
+
+/* ─────────────────────────── 1. Side panel ─────────────────────────── */
+
+.additional-resources {
+    /*
+     * Anchored to the РЕСУРСЫ section's frame. top:-1px lines the aux frame
+     * top edge up with the section's top edge (the containing block is the
+     * section's padding box, 1px inside its border); left clears the
+     * section's right border with a small spacing gap. Because the panel is
+     * an absolute CHILD of the section it tracks it on any resize / when the
+     * player-card stack above changes height — the anchor is the real DOM
+     * block, not a hardcoded viewport offset.
+     */
+    position: absolute;
+    top: -1px;
+    left: calc(100% + 10px);
+    /*
+     * Minimal compact width: a card-resource icon + the SAME icon→number gap
+     * as a standard РЕСУРСЫ row (6px flex gap) + a right-aligned slot that
+     * fits a 3-digit number — nothing more. With box-sizing:border-box the
+     * 94px resolves (−2px border −8px section padding) to an 84px content
+     * box → row content 76px → count column 38px, identical to the standard
+     * stock column. So the icon-to-number relationship reads exactly like the
+     * main resource panel, just without the wasted width / production column.
+     */
+    box-sizing: border-box;
+    width: 94px;
+    margin: 0;
+    /*
+     * Sits cleanly to the RIGHT of the resource section with nothing to
+     * collide with: the convert-plants / convert-heat affordance is now the
+     * resource ICON itself (`.resource_item_wrapper--with-convert`), and its
+     * cue chrome — shimmer (on the icon), arrow (`left:-24px`, to the LEFT)
+     * and cost badge (icon's bottom-right corner, well inside the panel) —
+     * never extends past the panel's right edge. (The legacy right-extending
+     * convert pill that once lived here was removed.) The whole .left-panel
+     * is z-index 100, so this composes above the board.
+     */
+    z-index: 5;
+    /* Slightly stronger glass than the in-flow sections so the floating
+       module reads as deliberately attached, not a stray panel. */
+    background:
+        linear-gradient(180deg,
+            rgba(24, 35, 52, 0.9) 0%,
+            rgba(13, 21, 33, 0.86) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        inset 0 0 0 1px @aux-cyan-hairline,
+        0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+.additional-resources__rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lp-res-row-gap);
+}
+
+.additional-resources__row {
+    position: relative;
+    /* Mirror the standard `.resource_item_stock` flex (icon + 6px gap +
+       right-aligned count) so the icon→number spacing matches РЕСУРСЫ. */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--lp-res-row-h);
+    /*
+     * Vertical padding stays 0 so the row height ALWAYS resolves to
+     * --lp-res-row-h (the icon, ≤ row height at every breakpoint, is centred
+     * via align-items:center). Any vertical padding here could push the row
+     * past min-height at the tightest breakpoints (icon 22 + pad would exceed
+     * the 24px row), de-syncing aux rows from the РЕСУРСЫ rows.
+     */
+    padding: 0 4px;
+    box-sizing: border-box;
+    border-radius: 3px;
+    cursor: pointer;
+    outline: none;
+    transition: background 0.14s ease, box-shadow 0.14s ease;
+
+    &:hover,
+    &--active,
+    &:focus-visible {
+        background: rgba(106, 176, 230, 0.12);
+        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.3);
+    }
+
+    /* Zero-count rows: calmer (the type is unlocked but empty) — NOT
+       disabled, they remain hoverable / clickable. */
+    &--zero {
+        .additional-resources__icon { opacity: 0.5; }
+        .additional-resources__count { color: @aux-text-muted; }
+    }
+}
+
+.additional-resources__icon {
+    display: block;
+    flex-shrink: 0;
+    width: var(--lp-res-icon);
+    height: var(--lp-res-icon);
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.65));
+}
+
+.additional-resources__count {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: "Russo One", Prototype, Ubuntu, sans-serif;
+    font-size: var(--lp-res-count-font);
+    font-weight: 700;
+    line-height: 1;
+    color: @aux-text-primary;
+    text-align: right;
+    padding-right: 2px;
+    letter-spacing: 0.4px;
+    font-variant-numeric: tabular-nums;
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.8),
+        0 0 6px rgba(106, 176, 230, 0.18);
+}
+
+/*
+ * Header "ДОП. РЕСУРСЫ" wraps to TWO lines in the narrow panel (it breaks at
+ * the space → "ДОП." / "РЕСУРСЫ"), which is what lets the panel be this
+ * compact. Margins / padding / tracking are tightened so the longest line
+ * ("РЕСУРСЫ") fits the ~84px content box; font-size still inherits the
+ * responsive base. Scoped under `.additional-resources` (0-2-0) to beat the
+ * base `.left-panel-section__label` (0-1-0) at every breakpoint. There is NO
+ * "ЗАПАС" column header — in a single-column stock panel it's self-evident.
+ */
+.additional-resources .additional-resources__label {
+    margin: 2px 3px 5px;
+    padding: 3px 4px;
+    line-height: 1.18;
+    letter-spacing: 1.2px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* Row reveal / reflow — premium, calm. */
+.aux-res-row-enter-active {
+    transition: opacity 0.34s ease, transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.aux-res-row-enter-from {
+    opacity: 0;
+    transform: translateX(-10px) scale(0.96);
+}
+.aux-res-row-leave-active {
+    transition: opacity 0.2s ease;
+    position: absolute;
+    width: calc(100% - 8px);
+}
+.aux-res-row-leave-to {
+    opacity: 0;
+}
+.aux-res-row-move {
+    transition: transform 0.28s ease;
+}
+
+/* ─────────────────────────── 2. Hover tooltip ─────────────────────────── */
+
+.additional-resources-tooltip {
+    position: fixed;
+    width: 236px;
+    z-index: 150;
+    padding: 9px 10px 8px;
+    border-radius: 7px;
+    background: @aux-glass-bg;
+    box-shadow:
+        0 10px 32px rgba(0, 0, 0, 0.6),
+        inset 0 0 0 1px rgba(106, 176, 230, 0.4);
+    font-family: Prototype, Ubuntu, sans-serif;
+    color: @aux-text-primary;
+    pointer-events: none;
+}
+
+.additional-resources-tooltip__head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding-bottom: 6px;
+    margin-bottom: 5px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.22);
+}
+
+.additional-resources-tooltip__icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+
+.additional-resources-tooltip__name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.additional-resources-tooltip__total {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.additional-resources-tooltip__total-label {
+    font-size: 8px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: @aux-text-muted;
+}
+.additional-resources-tooltip__total-value {
+    font-family: "Russo One", Prototype, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: #5fe3c8;
+    text-shadow: 0 0 8px rgba(95, 227, 200, 0.35);
+}
+
+.additional-resources-tooltip__list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    /* Full list — premium internal scroll for very long card sets; NEVER
+       truncated. */
+    max-height: 232px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.4) transparent;
+
+    &::-webkit-scrollbar { width: 6px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+        background: rgba(106, 176, 230, 0.32);
+        border-radius: 3px;
+    }
+}
+
+.additional-resources-tooltip__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 3px 4px;
+    border-radius: 3px;
+    font-size: 12px;
+
+    &:nth-child(even) {
+        background: rgba(255, 255, 255, 0.025);
+    }
+
+    &--zero {
+        color: @aux-text-muted;
+        .additional-resources-tooltip__item-amount { opacity: 0.6; }
+    }
+}
+.additional-resources-tooltip__item-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.additional-resources-tooltip__item-amount {
+    flex-shrink: 0;
+    font-family: "Russo One", Prototype, sans-serif;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: @aux-text-primary;
+}
+
+.additional-resources-tooltip__hint {
+    margin-top: 6px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(106, 176, 230, 0.16);
+    font-size: 9.5px;
+    letter-spacing: 0.4px;
+    color: @aux-text-muted;
+    text-align: center;
+}
+
+.aux-res-tooltip-enter-active,
+.aux-res-tooltip-leave-active {
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.aux-res-tooltip-enter-from,
+.aux-res-tooltip-leave-to {
+    opacity: 0;
+    transform: translateY(3px);
+}
+
+/* ─────────────────────────── 3. Detail overlay ─────────────────────────── */
+
+.additional-resource-detail-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 240;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(4, 8, 14, 0.62);
+    backdrop-filter: blur(2px);
+}
+
+/*
+ * Adaptive modal. The number of source cards picks ONE of four layout modes
+ * (`--single` / `--double` / `--grid` / `--many`, set by the component). Each
+ * mode tunes only two things: the per-card `zoom` (CSS `zoom` scales the
+ * card's LAYOUT box — unlike transform:scale — so the grid + modal measure
+ * the scaled card) and the modal's `max-width` cap. The modal is
+ * `width: fit-content`, so it ALWAYS hugs the real card row (no dead space
+ * around 1–2 cards) and only wraps + scrolls once a row would exceed the cap
+ * or the viewport. Result: single → snug focused card; double → two large
+ * cards; 3–4 → a wider single row; 5+ → a bounded wrapping grid that scrolls
+ * inside the body while the header stays pinned.
+ */
+.additional-resource-detail {
+    --aux-card-zoom: 1.05;
+    --aux-grid-gap: 16px;
+
+    position: relative;
+    flex: 0 0 auto;
+    width: fit-content;
+    max-width: calc(100vw - 48px);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 8px;
+    background:
+        linear-gradient(180deg,
+            rgba(20, 30, 46, 0.98) 0%,
+            rgba(11, 18, 29, 0.98) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        inset 0 0 0 1px rgba(106, 176, 230, 0.18),
+        0 24px 70px rgba(0, 0, 0, 0.7);
+    overflow: hidden;
+    font-family: Prototype, Ubuntu, sans-serif;
+    color: @aux-text-primary;
+}
+
+.additional-resource-detail--single { max-width: min(600px, calc(100vw - 48px)); --aux-card-zoom: 1.05; }
+.additional-resource-detail--double { max-width: min(940px, calc(100vw - 48px)); --aux-card-zoom: 1; }
+.additional-resource-detail--grid   { max-width: min(1240px, calc(100vw - 48px)); --aux-card-zoom: 0.78; --aux-grid-gap: 14px; }
+.additional-resource-detail--many   { max-width: min(1460px, calc(100vw - 48px)); --aux-card-zoom: 0.6; --aux-grid-gap: 12px; }
+
+/*
+ * Tall viewports (≈ full-HD+): the focused 1–2-card modes use the extra
+ * height — the card grows, the modal hugs it. Kept well under the body's
+ * available height so these modes still never scroll.
+ */
+@media (min-height: 950px) {
+    .additional-resource-detail--single { --aux-card-zoom: 1.4; }
+    .additional-resource-detail--double { --aux-card-zoom: 1.15; }
+}
+
+.additional-resource-detail__tick {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+    z-index: 2;
+
+    &--tl {
+        top: -1px;
+        left: -1px;
+        border-top: 1px solid @aux-cyan;
+        border-left: 1px solid @aux-cyan;
+    }
+    &--br {
+        bottom: -1px;
+        right: -1px;
+        border-bottom: 1px solid @aux-cyan;
+        border-right: 1px solid @aux-cyan;
+    }
+}
+
+/* ── Header (compact premium, fixed height) ── */
+.additional-resource-detail__header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 13px 9px 15px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.2);
+    background: linear-gradient(90deg, rgba(106, 176, 230, 0.09), transparent);
+}
+
+.additional-resource-detail__icon {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+}
+
+.additional-resource-detail__title {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 240px;
+}
+.additional-resource-detail__name {
+    font-family: "Russo One", Prototype, sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.additional-resource-detail__subtitle {
+    margin-top: 2px;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    color: @aux-text-muted;
+    white-space: nowrap;
+}
+
+/* Total — strong but not shouting: a slim cyan-tinted readout chip, label
+   then value, pushed to the right edge of the header. */
+.additional-resource-detail__total {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 3px 11px;
+    border-radius: 6px;
+    background: rgba(95, 227, 200, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(95, 227, 200, 0.22);
+}
+.additional-resource-detail__total-label {
+    font-size: 8.5px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: @aux-text-muted;
+}
+.additional-resource-detail__total-value {
+    position: relative;
+    font-family: "Russo One", Prototype, sans-serif;
+    font-size: 23px;
+    font-weight: 700;
+    line-height: 1;
+    color: #5fe3c8;
+    text-shadow: 0 0 10px rgba(95, 227, 200, 0.35);
+}
+
+.additional-resource-detail__player {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 4px 9px;
+    border-radius: 13px;
+    background: rgba(8, 14, 22, 0.6);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.22);
+    font-size: 11.5px;
+    font-weight: 600;
+}
+.additional-resource-detail__player-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+
+.additional-resource-detail__close {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(8, 14, 22, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.24);
+    color: @aux-text-muted;
+    font-size: 13px;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+        color: #fff;
+        background: rgba(150, 50, 38, 0.5);
+        box-shadow: inset 0 0 0 1px rgba(230, 130, 100, 0.5);
+    }
+}
+
+/* ── Mini summary band (under the header, also pinned) ── */
+.additional-resource-detail__summary {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 6px 16px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.12);
+    background: rgba(8, 14, 22, 0.4);
+}
+.additional-resource-detail__stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+.additional-resource-detail__stat-label {
+    font-size: 9px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: @aux-text-muted;
+}
+.additional-resource-detail__stat-value {
+    font-family: "Russo One", Prototype, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: @aux-text-primary;
+    font-variant-numeric: tabular-nums;
+}
+.additional-resource-detail__stat-sep {
+    width: 1px;
+    height: 11px;
+    background: rgba(106, 176, 230, 0.3);
+}
+
+.additional-resource-detail__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px 18px 18px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.4) transparent;
+
+    &::-webkit-scrollbar { width: 8px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+        background: rgba(106, 176, 230, 0.32);
+        border-radius: 4px;
+    }
+}
+
+.additional-resource-detail__grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: var(--aux-grid-gap);
+}
+
+.additional-resource-detail__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 6px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0 0 1px rgba(106, 176, 230, 0.4), 0 8px 22px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Zero-resource source cards are still shown (the card is relevant) but
+       calmer. */
+    &--zero {
+        opacity: 0.78;
+    }
+}
+
+.additional-resource-detail__card-visual {
+    /* `zoom` (not transform:scale) so the scaled card changes its LAYOUT box —
+       the flex grid + fit-content modal then hug the real rendered size. */
+    zoom: var(--aux-card-zoom);
+
+    /* Centering UI under a <Card>: zero the legacy asymmetric margin so the
+       footer below reads as centred on the card silhouette. */
+    > .card-container {
+        margin: 0;
+    }
+}
+
+.additional-resource-detail__card-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    max-width: 100%;
+}
+
+.additional-resource-detail__card-amount {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: "Russo One", Prototype, sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: @aux-text-primary;
+    font-variant-numeric: tabular-nums;
+
+    &--zero {
+        color: @aux-text-muted;
+    }
+}
+.additional-resource-detail__card-amount-icon {
+    width: 18px;
+    height: 18px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.additional-resource-detail__hints {
+    display: inline-flex;
+    gap: 4px;
+}
+.additional-resource-detail__hint {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+
+    &--vp {
+        color: #ffe08a;
+        background: rgba(120, 95, 30, 0.4);
+        box-shadow: inset 0 0 0 1px rgba(240, 200, 120, 0.45);
+    }
+    &--action {
+        color: #9fd0ff;
+        background: rgba(40, 80, 120, 0.45);
+        box-shadow: inset 0 0 0 1px rgba(120, 180, 235, 0.45);
+    }
+    &--corp {
+        color: #d6c8ff;
+        background: rgba(70, 55, 120, 0.45);
+        box-shadow: inset 0 0 0 1px rgba(170, 150, 235, 0.45);
+    }
+}
+
+/*
+ * Single-card mode = a true "focused card view": the card and its stats sit
+ * SIDE BY SIDE (card left, an enlarged amount + vertical badge column right),
+ * so the header-width modal is filled meaningfully instead of leaving big
+ * side margins around one centred card. The amount reads big; badges stack.
+ */
+.additional-resource-detail--single {
+    .additional-resource-detail__card {
+        flex-direction: row;
+        align-items: center;
+        gap: 22px;
+        padding: 8px 16px 8px 8px;
+        cursor: pointer;
+    }
+    .additional-resource-detail__card-foot {
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 11px;
+        margin-top: 0;
+    }
+    .additional-resource-detail__card-amount {
+        font-size: 27px;
+        gap: 6px;
+    }
+    .additional-resource-detail__card-amount-icon {
+        width: 26px;
+        height: 26px;
+    }
+    .additional-resource-detail__hints {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    .additional-resource-detail__hint {
+        font-size: 9.5px;
+        padding: 3px 8px;
+    }
+}
+
+.aux-detail-enter-active,
+.aux-detail-leave-active {
+    transition: opacity 0.2s ease;
+    .additional-resource-detail {
+        transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
+    }
+}
+.aux-detail-enter-from,
+.aux-detail-leave-to {
+    opacity: 0;
+    .additional-resource-detail {
+        transform: translateY(14px) scale(0.98);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .aux-res-row-enter-active,
+    .aux-res-row-leave-active,
+    .aux-res-row-move,
+    .aux-res-tooltip-enter-active,
+    .aux-res-tooltip-leave-active,
+    .aux-detail-enter-active,
+    .aux-detail-leave-active {
+        transition-duration: 0.01ms !important;
+    }
+    .aux-res-row-enter-from,
+    .aux-res-tooltip-enter-from,
+    .aux-res-tooltip-leave-to,
+    .aux-detail-enter-from,
+    .aux-detail-leave-to {
+        transform: none !important;
+    }
+}

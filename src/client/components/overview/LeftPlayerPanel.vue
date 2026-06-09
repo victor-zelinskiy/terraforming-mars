@@ -36,7 +36,7 @@
       doesn't shift the label. Section corner ticks still flank the
       whole frame.
     -->
-    <div class="left-panel-section">
+    <div class="left-panel-section left-panel-section--resources">
       <div class="left-panel-section__label" v-i18n>Resources</div>
       <!--
         Resource column headers — tiny shared captions above the
@@ -65,6 +65,16 @@
         @convert-heat="$emit('convertHeat')"
         @convert-plants="$emit('convertPlants')"
         v-trim-whitespace />
+      <!--
+        "ДОП. РЕСУРСЫ" auxiliary side-module. Mounted INSIDE the resources
+        section (which is position:relative) so it anchors to the real
+        РЕСУРСЫ block and stays aligned across resize / player-count changes
+        without magic offsets. Self-hides until the displayed player has
+        unlocked a card resource. See AdditionalResourcesPanel.vue.
+      -->
+      <AdditionalResourcesPanel
+        :player="displayedPlayer"
+        :epoch="playerView.runId" />
     </div>
 
     <!-- `:conciseTagsViewDefaultValue="false"` shows every tag in the game
@@ -101,6 +111,7 @@ import PlayerResources from '@/client/components/overview/PlayerResources.vue';
 import PlayerAlliedParty from '@/client/components/overview/PlayerAlliedParty.vue';
 import PlayerTags from '@/client/components/overview/PlayerTags.vue';
 import LeftPlayerCard from '@/client/components/overview/LeftPlayerCard.vue';
+import AdditionalResourcesPanel from '@/client/components/additionalResources/AdditionalResourcesPanel.vue';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
 import {ActionLabel} from './ActionLabel';
 import {Color} from '@/common/Color';
@@ -172,6 +183,7 @@ export default defineComponent({
     PlayerAlliedParty,
     PlayerTags,
     LeftPlayerCard,
+    AdditionalResourcesPanel,
   },
   computed: {
     // The viewer's own player (if any) is pulled to the top of the list so it

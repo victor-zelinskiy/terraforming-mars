@@ -1225,6 +1225,21 @@ each(@players, {
     color: #e6e6e6;
     font-family: Prototype, Ubuntu, sans-serif;
     box-sizing: border-box;
+
+    /*
+     * Shared resource-row metrics — the SINGLE source of truth for the
+     * standard РЕСУРСЫ rows (`.resource_item*`) AND the attached ДОП. РЕСУРСЫ
+     * side module (`.additional-resources*`). Both consume these vars, so the
+     * two panels stay pixel-aligned (icon size, row height, inter-row gap,
+     * count font) at EVERY responsive breakpoint without magic offsets. The
+     * per-`max-height` media queries below override these vars (not the
+     * individual properties), keeping the two panels in lock-step as the
+     * sidebar compresses on shorter viewports.
+     */
+    --lp-res-icon: 32px;
+    --lp-res-row-h: 40px;
+    --lp-res-row-gap: 2px;
+    --lp-res-count-font: 21px;
 }
 
 /*
@@ -2075,7 +2090,7 @@ each(@players, {
     .resource_items_cont {
         display: flex;
         flex-direction: column;
-        gap: 2px;
+        gap: var(--lp-res-row-gap);
         margin: 0;
         padding: 0;
         filter: none;
@@ -2089,7 +2104,7 @@ each(@players, {
             column-gap: 8px;
             width: 100%;
             min-width: 0;
-            min-height: 40px;
+            min-height: var(--lp-res-row-h);
             padding: 2px 4px;
             background: transparent;
             border: none;
@@ -2130,8 +2145,8 @@ each(@players, {
         .resource_icon {
             display: block;
             flex-shrink: 0;
-            width: 32px;
-            height: 32px;
+            width: var(--lp-res-icon);
+            height: var(--lp-res-icon);
         }
 
         /*
@@ -2145,7 +2160,7 @@ each(@players, {
             min-width: 0;
             margin: 0;
             font-family: "Russo One", Prototype, Ubuntu, sans-serif;
-            font-size: 21px;
+            font-size: var(--lp-res-count-font);
             font-weight: 700;
             line-height: 1;
             color: @hud-text-primary;
@@ -4638,7 +4653,7 @@ each(@players, {
 }
 
 /*
- * USE button — parallelogram chrome matching .convert-action-btn /
+ * USE button — parallelogram chrome matching .bottom-bar-btn /
  * .payment-v2__confirm-btn. Cost chip is laid into the button on the
  * right side via flex; megacredit icon caps it. Disabled state grays
  * out and disables hover effects.
@@ -4798,16 +4813,13 @@ each(@players, {
         margin: 1px 12px 4px;
     }
     .left-panel {
+        /* Resource-row metrics for this breakpoint — override the shared
+           vars so РЕСУРСЫ + ДОП. РЕСУРСЫ shrink together. */
+        --lp-res-icon: 28px;
+        --lp-res-row-h: 33px;
+        --lp-res-count-font: 19px;
         .resource_items_cont .resource_item {
-            min-height: 33px;
             padding: 1px 4px;
-        }
-        .resource_items_cont .resource_icon {
-            width: 28px;
-            height: 28px;
-        }
-        .resource_items_cont .resource_item_stock_count {
-            font-size: 19px;
         }
         .left-panel-section__col-headers {
             padding: 2px 4px 3px;
@@ -4862,19 +4874,12 @@ each(@players, {
         letter-spacing: 1.6px;
     }
     .left-panel {
-        .resource_items_cont {
-            gap: 1px;
-        }
+        --lp-res-icon: 26px;
+        --lp-res-row-h: 30px;
+        --lp-res-row-gap: 1px;
+        --lp-res-count-font: 18px;
         .resource_items_cont .resource_item {
-            min-height: 30px;
             padding: 0 4px;
-        }
-        .resource_items_cont .resource_icon {
-            width: 26px;
-            height: 26px;
-        }
-        .resource_items_cont .resource_item_stock_count {
-            font-size: 18px;
         }
         .left-panel-section__col-headers {
             padding: 2px 4px 2px;
@@ -4924,19 +4929,12 @@ each(@players, {
         letter-spacing: 1.2px;
     }
     .left-panel {
-        .resource_items_cont {
-            gap: 0;
-        }
+        --lp-res-icon: 22px;
+        --lp-res-row-h: 24px;
+        --lp-res-row-gap: 0px;
+        --lp-res-count-font: 16px;
         .resource_items_cont .resource_item {
-            min-height: 24px;
             padding: 0 4px;
-        }
-        .resource_items_cont .resource_icon {
-            width: 22px;
-            height: 22px;
-        }
-        .resource_items_cont .resource_item_stock_count {
-            font-size: 16px;
         }
         .left-panel-section__col-headers {
             padding: 1px 4px 1px;
@@ -4983,19 +4981,12 @@ each(@players, {
         letter-spacing: 1px;
     }
     .left-panel {
-        .resource_items_cont {
-            gap: 0;
-        }
+        --lp-res-icon: 20px;
+        --lp-res-row-h: 22px;
+        --lp-res-row-gap: 0px;
+        --lp-res-count-font: 15px;
         .resource_items_cont .resource_item {
-            min-height: 22px;
             padding: 0 3px;
-        }
-        .resource_items_cont .resource_icon {
-            width: 20px;
-            height: 20px;
-        }
-        .resource_items_cont .resource_item_stock_count {
-            font-size: 15px;
         }
         .left-panel-section__col-headers {
             padding: 0 3px 1px;
