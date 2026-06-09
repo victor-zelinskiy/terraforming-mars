@@ -196,7 +196,6 @@ import {
   buildTagChips,
   buildTypeChips,
   countPlayable,
-  DEFAULT_HAND_FILTER,
   filterHandEntries,
   HandCardEntry,
   HandFilterState,
@@ -208,6 +207,7 @@ import {
   sortHandEntries,
 } from '@/client/components/handCards/handCardModel';
 import {HandCardBlock} from '@/client/components/handCards/cardPlayability';
+import {handFilterState} from '@/client/components/handCards/handFilterState';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
@@ -261,7 +261,6 @@ const HAND_ZOOM_MIN = 0.5; // compact floor before scroll kicks in
 const SALE_DISSOLVE_MS = 490;
 
 type DataModel = {
-  filter: HandFilterState;
   zoomCard: CardModel | undefined;
   // ResizeObserver on the scroll body (markRaw — must not be made reactive).
   resizeObserver: ResizeObserver | undefined;
@@ -322,7 +321,6 @@ export default defineComponent({
   emits: ['play', 'close', 'sell', 'hand-select'],
   data(): DataModel {
     return {
-      filter: {...DEFAULT_HAND_FILTER},
       zoomCard: undefined,
       reflowDelay: false,
       resizeObserver: undefined,
@@ -333,6 +331,13 @@ export default defineComponent({
     };
   },
   computed: {
+    // Filter state lives in module scope (`handFilterState`) so the player's
+    // availability / type / tag / sort choices survive the overlay's v-if
+    // close AND PlayerHome's playerkey remount on every server response. The
+    // setter methods mutate the fields of this same reactive object.
+    filter(): HandFilterState {
+      return handFilterState;
+    },
     entries(): ReadonlyArray<HandCardEntry> {
       return buildHandEntries(this.cards, this.playActionAvailable, this.playableCardNames, this.awaitingInput);
     },
