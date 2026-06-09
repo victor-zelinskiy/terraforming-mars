@@ -570,42 +570,56 @@
  * project cards use the zoom raw, identity cards get a fixed bump. `zoom`
  * (legacy-safe) scales layout + hitbox together.
  */
+/* The tableau is a horizontal split: a compact IDENTITY rail on the LEFT and
+   the PROJECT band filling the rest of the width at FULL height. This uses the
+   top-right space (projects start beside the identity, not below it) AND makes
+   the project height independent of the identity render (so switching the
+   viewed player can't miscompute the project scale). */
 .played-tableau {
     display: flex;
-    flex-direction: column;
-    gap: 18px;
-    /* Isolate the band subtree so the fit engine's repeated zoom writes don't
+    flex-direction: row;
+    align-items: stretch;
+    gap: 24px;
+    min-height: 100%;
+    /* Isolate the subtree so the fit engine's repeated zoom writes don't
        reflow anything outside it. */
     contain: layout style;
 }
 
+/* Identity = a compact LEFT RAIL: corporation / preludes / CEO stacked
+   vertically. A setup zone, never the dominant area (capped at 40% width). */
 .played-tableau__identity {
+    flex: 0 0 auto;
     display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 16px 22px;
+    flex-direction: column;
+    align-content: flex-start;
+    gap: 16px;
+    max-width: 40%;
 }
+
+/* A faint divider on the rail's right edge so the two zones read as distinct
+   (the rail stretches full height, so the line spans the whole tableau). */
+.played-tableau__identity:not(:last-child) {
+    padding-right: 22px;
+    border-right: 1px solid rgba(106, 176, 230, 0.1);
+}
+
 .played-tableau__projects {
+    flex: 1 1 0;
+    min-width: 0;
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
+    align-content: flex-start;
     /* column-gap MUST equal the planner's SECTION_GAP (28) so the width math
        never overflows; row-gap is the (rare) wrap spacing. */
     gap: 24px 28px;
 }
 
 /* Density-adaptive vertical rhythm (the main spaciousness comes from the card
-   zoom + peek; this only tunes the gaps, never the width math). */
+   zoom + peek; this only tunes the wrap gap, never the width math). */
 .played-board__body--spacious .played-tableau__projects { row-gap: 32px; }
-.played-board__body--spacious .played-tableau__identity { gap: 20px 26px; }
 .played-board__body--compact .played-tableau__projects { row-gap: 18px; }
-
-/* A faint divider under the identity band so the two bands read as distinct
-   areas of the tableau — unless the identity band is the only one present. */
-.played-tableau__identity:not(:last-child) {
-    padding-bottom: 16px;
-    border-bottom: 1px solid rgba(106, 176, 230, 0.1);
-}
 
 /* ── Group ────────────────────────────────────────────────────────── */
 
@@ -617,7 +631,9 @@
         display: flex;
         align-items: center;
         gap: 9px;
-        margin-bottom: 9px;
+        /* Room for the first peeked card's top decorations (cost badge at
+           top:-10px + frame glow) revealed by the bottom-only clip below. */
+        margin-bottom: 13px;
     }
     &__accent {
         width: 5px;
@@ -752,10 +768,10 @@
     min-width: 0;
 }
 
-/* Full-card piles (peek off, roomy layouts): a small gap so stacked full cards
-   don't touch — reads as a neat column of complete cards. */
+/* Full-card piles (peek off, roomy layouts): a gap so the cost badge (top:-10px)
+   of each card clears the card above — a neat column of complete cards. */
 .played-stack:not(.played-stack--peek) {
-    gap: 10px;
+    gap: 16px;
 }
 
 .played-stack__slot {
@@ -763,20 +779,27 @@
     transition: z-index 0s;
 }
 
-/* Peeked piles: clip every card except the last (newest) to the peek strip.
+/* Peeked piles: clip each card (except the last / newest) to the peek strip.
    Strip height = the fit engine's `--played-stack-peek-nat` (natural px, ALWAYS
-   >= the title height so the card NAME never clips) × the card zoom. So the
-   visible top (cost / tags / title) always reads, the cut is the card BOTTOM,
-   and the strip GROWS to fill spare height (fuller cards) on roomy layouts —
-   which is what fixes the "cards look cut off" defect. */
+   >= the title height so the card NAME never clips) × the card zoom, so the
+   visible top (cost / tags / title) always reads and the strip GROWS to fill
+   spare height (fuller cards) on roomy layouts.
+
+   The clip is `clip-path` (bottom only), NOT `overflow: hidden`: the card's
+   cost badge sits at `top:-10px` and the frame carries an outer glow — both
+   poke ABOVE the card box, and `overflow: hidden` was clipping them (the "top
+   of the card is cut off" defect). Negative top/side insets leave room for
+   that chrome; the positive bottom inset (0) does the actual peek cut. */
 .played-stack--peek .played-stack__slot:not(.played-stack__slot--last) {
     height: calc(var(--played-stack-peek-nat, 200) * var(--played-card-zoom, 0.6) * 1px);
-    overflow: hidden;
+    overflow: visible;
+    clip-path: inset(-16px -16px 0 -16px);
 }
 
 /* Hover reveals the full card over its neighbours. */
 .played-stack--peek .played-stack__slot:not(.played-stack__slot--last):hover {
     overflow: visible;
+    clip-path: none;
     z-index: 20;
 }
 .played-stack--peek .played-stack__slot:hover .played-card-item {
