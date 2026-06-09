@@ -50,22 +50,21 @@
          :style="bodyStyle">
       <PlayedCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" />
       <div v-else-if="viewMode === 'cards'" class="played-tableau" :class="{'played-tableau--ready': ready}">
-        <!-- Identity RAIL (LEFT) — corporation / preludes / CEO, plus small
-             project sections (e.g. Events) TUCKED in under them so the big
-             sections get the whole right side. Compact full-card blocks. -->
+        <!-- Identity RAIL (LEFT) — a compact setup zone for corporation /
+             preludes / CEO ONLY. Project sections all go to the main band. -->
         <transition-group v-if="railGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__identity" @after-leave="scheduleFit">
           <PlayedCardsGroup
             v-for="g in railGroups"
             :key="g.key"
             :group="g"
-            :variant="g.identity ? 'identity' : 'compact'"
+            variant="identity"
             :player="displayedPlayer"
             @open="openCard" />
         </transition-group>
 
-        <!-- Main project band (RIGHT) — the big sections as vertical columns,
-             widths allocated by card count, scaled to FILL the box (full cards
-             when they fit, peek only when there are too many). -->
+        <!-- Main project band (RIGHT) — Active / Automated / Events as vertical
+             columns, widths allocated by card count, scaled to FILL the box
+             (full cards when they fit, peek only when there are too many). -->
         <transition-group v-if="mainProjectGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__projects" @after-leave="scheduleFit">
           <PlayedCardsGroup
             v-for="g in mainProjectGroups"
@@ -136,12 +135,12 @@ const MIN_BAND_W = 360; // floor for the project band width estimate
 // (mid-transition / hover) must never tank the layout (the Bug-3 root cause).
 const NAT_H_MIN = 330;
 const NAT_H_MAX = 470;
-// A project section with at most this many cards can be TUCKED into the left
-// rail (under identity), freeing the right band's width for the big sections.
-const TUCK_MAX_COUNT = 8;
 // Show the "arranging" shimmer (instead of a blank then a card jump) only when
 // the tableau is big enough that the fit settle is perceptible.
 const SHIMMER_THRESHOLD = 50;
+// Once the shimmer is shown it stays up at least this long, so it never flashes
+// (a sub-frame appear/disappear reads as a glitch).
+const SHIMMER_MIN_MS = 500;
 
 type DataModel = {
   // Visual card scale (`--played-card-zoom`) — the fit engine grows it to fill
@@ -163,8 +162,12 @@ type DataModel = {
   fitScheduled: boolean;
   // The tableau is hidden (opacity 0, layout kept for measuring) until the
   // first fit settles, then revealed — so the cards never visibly jump into
-  // place when the overlay opens.
+  // place when the overlay opens. `ready` flips true only once BOTH the fit has
+  // settled AND (if the shimmer was shown) it has been up at least SHIMMER_MIN_MS.
   ready: boolean;
+  fitSettled: boolean;
+  shimmerMinDone: boolean;
+  shimmerTimer: number | undefined;
 };
 
 /**
@@ -209,6 +212,9 @@ export default defineComponent({
       deferTimer: undefined,
       fitScheduled: false,
       ready: false,
+      fitSettled: false,
+      shimmerMinDone: true,
+      shimmerTimer: undefined,
     };
   },
   computed: {
@@ -239,39 +245,14 @@ export default defineComponent({
         activeTags: playedCardsViewState.activeTags,
       });
     },
-    identityGroups(): ReadonlyArray<PlayedGroup> {
+    // The left rail is RESERVED for identity only (corp / preludes / CEO) — a
+    // compact setup zone. Project sections (incl. Events) ALL go to the main
+    // band, where they share the same column layout as Active / Automated.
+    railGroups(): ReadonlyArray<PlayedGroup> {
       return this.visibleGroups.filter((g) => g.identity);
     },
-    projectGroups(): ReadonlyArray<PlayedGroup> {
-      return this.visibleGroups.filter((g) => !g.identity);
-    },
-    // Small project sections that get TUCKED into the left rail under identity
-    // (the player wanted the empty space below corp/preludes used). Sections
-    // with <= TUCK_MAX_COUNT cards qualify; we always keep at least one project
-    // section in the main band so the right side never empties out.
-    railProjectGroups(): ReadonlyArray<PlayedGroup> {
-      const projects = this.projectGroups;
-      if (projects.length <= 1) {
-        return [];
-      }
-      const ascending = [...projects].sort((a, b) => a.cards.length - b.cards.length);
-      const small = ascending.filter((g) => g.cards.length <= TUCK_MAX_COUNT);
-      // Never tuck EVERY project section — keep the largest of the small ones in
-      // the main band if all sections are small.
-      if (small.length >= projects.length) {
-        small.pop();
-      }
-      return small;
-    },
-    // The big project sections that fill the main (right) band.
     mainProjectGroups(): ReadonlyArray<PlayedGroup> {
-      const railKeys = new Set(this.railProjectGroups.map((g) => g.key));
-      return this.projectGroups.filter((g) => !railKeys.has(g.key));
-    },
-    // Everything in the left rail, in order: identity first, then the tucked
-    // small sections.
-    railGroups(): ReadonlyArray<PlayedGroup> {
-      return [...this.identityGroups, ...this.railProjectGroups];
+      return this.visibleGroups.filter((g) => !g.identity);
     },
     sectionPlanMap(): Record<string, ProjectSectionPlan> {
       const out: Record<string, ProjectSectionPlan> = {};
@@ -322,12 +303,12 @@ export default defineComponent({
     // Switching the viewed player swaps the whole tableau — re-hide until the
     // new layout settles so the cards don't visibly re-arrange.
     'displayedPlayer.color'() {
-      this.ready = false;
+      this.beginRevealCycle();
       this.recompute();
     },
     viewMode(mode: ViewMode) {
       if (mode === 'cards') {
-        this.ready = false;
+        this.beginRevealCycle();
         this.recompute();
       }
     },
@@ -405,13 +386,40 @@ export default defineComponent({
       }
       this.deferTimer = window.setTimeout(() => {
         this.fit();
-        // Reveal once this settle pass has finished (fit → verifyShrink run on
-        // the next ticks). Stays revealed afterwards — later filter reflows
-        // animate in place and must not re-hide.
+        // The layout has settled (fit → verifyShrink run on the next ticks).
+        // `maybeReveal` flips `ready` once the shimmer-minimum has also elapsed.
         this.$nextTick(() => this.$nextTick(() => {
-          this.ready = true;
+          this.fitSettled = true;
+          this.maybeReveal();
         }));
       }, 220);
+    },
+    // Arms a fresh reveal cycle: hide the tableau, and — if the tableau is big
+    // enough to show the shimmer — hold it for at least SHIMMER_MIN_MS so it
+    // never flashes. Called on open + player/view switch (NOT on filter
+    // changes, which animate in place and must not re-hide).
+    beginRevealCycle(): void {
+      this.ready = false;
+      this.fitSettled = false;
+      if (this.shimmerTimer !== undefined) {
+        window.clearTimeout(this.shimmerTimer);
+        this.shimmerTimer = undefined;
+      }
+      if (this.totalCount >= SHIMMER_THRESHOLD) {
+        this.shimmerMinDone = false;
+        this.shimmerTimer = window.setTimeout(() => {
+          this.shimmerTimer = undefined;
+          this.shimmerMinDone = true;
+          this.maybeReveal();
+        }, SHIMMER_MIN_MS);
+      } else {
+        this.shimmerMinDone = true;
+      }
+    },
+    maybeReveal(): void {
+      if (this.fitSettled && this.shimmerMinDone) {
+        this.ready = true;
+      }
     },
     scheduleFit(): void {
       if (this.fitScheduled) {
@@ -510,8 +518,9 @@ export default defineComponent({
     },
   },
   mounted(): void {
-    // recompute() runs an immediate fit + a deferred settle re-fit (which also
-    // catches late layout shift from web-font / card-art load).
+    // Hidden until the layout settles (+ the shimmer-minimum for big tableaus);
+    // recompute() runs an immediate fit + a deferred settle re-fit.
+    this.beginRevealCycle();
     this.recompute();
     const body = this.$refs.body as HTMLElement | undefined;
     if (body !== undefined && typeof ResizeObserver !== 'undefined') {
@@ -527,6 +536,9 @@ export default defineComponent({
     }
     if (this.deferTimer !== undefined) {
       window.clearTimeout(this.deferTimer);
+    }
+    if (this.shimmerTimer !== undefined) {
+      window.clearTimeout(this.shimmerTimer);
     }
     window.removeEventListener('keydown', this.onKeydown);
   },

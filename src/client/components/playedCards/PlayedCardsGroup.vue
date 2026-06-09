@@ -20,19 +20,6 @@
         @open="$emit('open', $event)" />
     </div>
 
-    <!-- Tucked small section in the rail (`compact`): a compact peek-STACK
-         (always peeked, so 6 Events read as a slim pile under identity, not a
-         tall grid of full cards). 1-2 columns depending on count. -->
-    <div v-else-if="variant === 'compact'" class="played-group__columns played-group__columns--compact">
-      <PlayedCardsStack
-        v-for="(column, i) in compactColumnSlices"
-        :key="i"
-        :cards="column"
-        :peek="true"
-        :player="player"
-        @open="$emit('open', $event)" />
-    </div>
-
     <!-- Main project section: vertical columns. Column count + balanced
          contiguous chunks (oldest-first) come from the overlay's fit plan;
          `peek` (band-level) decides whether non-bottom cards clip to the peek
@@ -76,11 +63,10 @@ export default defineComponent({
       type: Object as PropType<PlayedGroup>,
       required: true,
     },
-    // 'identity' = corp/preludes/ceo rail block; 'compact' = a small project
-    // section tucked into the rail (renders like identity); 'project' = a main
-    // band section (vertical peek/full columns per `plan`).
+    // 'identity' = corp/preludes/ceo rail block (full-card row); 'project' = a
+    // main-band section (vertical peek/full columns per `plan`).
     variant: {
-      type: String as () => 'identity' | 'compact' | 'project',
+      type: String as () => 'identity' | 'project',
       required: true,
     },
     // Project sections only — the overlay's column/chunk plan for this section.
@@ -113,13 +99,6 @@ export default defineComponent({
     // chunk per peek-stack column.
     columnSlices(): ReadonlyArray<ReadonlyArray<CardModel>> {
       return this.sliceInto(this.chunks);
-    },
-    // A tucked compact section gets 1 column (or 2 when it has many cards) of a
-    // peek-stack — narrow enough to sit in the rail under identity.
-    compactColumnSlices(): ReadonlyArray<ReadonlyArray<CardModel>> {
-      const n = this.group.cards.length;
-      const cols = n > 7 ? 2 : 1;
-      return this.sliceInto(balancedChunks(n, cols));
     },
   },
   methods: {

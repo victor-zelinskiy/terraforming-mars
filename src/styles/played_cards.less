@@ -674,10 +674,9 @@
     }
 }
 
-/* Identity groups + tucked small sections (compact) size to their content; in
-   the vertical rail they stack and wrap their cards within the rail width. */
-.played-group--identity,
-.played-group--compact {
+/* Identity groups size to their content; in the vertical rail they stack and
+   wrap their cards within the rail width. */
+.played-group--identity {
     flex: 0 1 auto;
 }
 
@@ -809,15 +808,6 @@
     height: calc(var(--played-stack-peek-nat, 200) * var(--played-card-zoom, 0.6) * 1px);
     overflow: visible;
     clip-path: inset(-16px -16px 0 -16px);
-}
-
-/* Tucked compact sections (in the rail) are ALWAYS a slim peek pile, with a
-   FIXED peek strip independent of the main band's `--played-stack-peek-nat` —
-   so a tucked Events section reads as a compact stack under identity, never a
-   tall grid of full cards (even when the main band is showing full cards). */
-.played-group__columns--compact { gap: 12px; }
-.played-group--compact .played-stack--peek .played-stack__slot:not(.played-stack__slot--last) {
-    height: calc(132px * var(--played-card-zoom, 0.6) * 1px);
 }
 
 /* Hover reveals the full card over its neighbours. */
