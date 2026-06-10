@@ -215,7 +215,7 @@
 
 import {defineComponent} from 'vue';
 import * as constants from '@/common/constants';
-import {setDocumentTitle} from '@/client/utils/documentTitle';
+import {gameDocumentTitle} from '@/client/utils/documentTitle';
 import {setFaviconStatus} from '@/client/utils/favicon';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {paths} from '@/common/app/paths';
@@ -397,7 +397,7 @@ export default defineComponent({
     VictoryPointChart,
   },
   mounted() {
-    setDocumentTitle('🏁 | ' + this.game.name);
+    document.title = '🏁 | ' + gameDocumentTitle(this.game);
     if (getPreferences().experimental_ui) {
       setFaviconStatus('ended');
     }

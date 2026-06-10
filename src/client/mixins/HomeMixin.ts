@@ -5,7 +5,7 @@ import {defineComponent} from 'vue';
 import {GameModel} from '@/common/models/GameModel';
 import {KeyboardNavigation} from '@/client/components/KeyboardNavigation';
 import {nextTileView, TileView} from '@/client/components/board/TileView';
-import {setDocumentTitle} from '@/client/utils/documentTitle';
+import {gameDocumentTitle} from '@/client/utils/documentTitle';
 
 type DataModel = {
   tileView: TileView;
@@ -70,7 +70,7 @@ export const HomeMixin = defineComponent({
     },
   },
   mounted() {
-    setDocumentTitle(this.game.name);
+    document.title = gameDocumentTitle(this.game);
     window.addEventListener('keydown', this.navigatePage);
     const targets = this.$el.getElementsByClassName('hotkey-target');
     for (let i = 0; i < targets.length; i++) {

@@ -42,7 +42,7 @@ import GameSetupDetail from '@/client/components/GameSetupDetail.vue';
 import {ParticipantId} from '@/common/Types';
 import {Color} from '@/common/Color';
 import {playerSymbol} from '@/client/utils/playerSymbol';
-import {setDocumentTitle} from '../utils/documentTitle';
+import {gameDocumentTitle} from '../utils/documentTitle';
 
 // taken from https://stackoverflow.com/a/46215202/83336
 // The solution to copying to the clipboard in this case is
@@ -128,7 +128,7 @@ export default defineComponent({
   mounted() {
     // Reset the copied player id after 3 seconds to hide the "copied" message
     setInterval(this.setCopiedIdToDefault, 3000);
-    setDocumentTitle(this.game.name);
+    document.title = gameDocumentTitle(this.game);
   },
 });
 
