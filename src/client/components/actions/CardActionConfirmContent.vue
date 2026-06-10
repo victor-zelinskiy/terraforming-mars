@@ -1,16 +1,12 @@
 <template>
   <!--
-    Premium confirmation gate before an activatable action is submitted. Hosted
-    inside MandatoryInputModal (dark backdrop + sci-fi frame). Client-side only —
-    nothing is sent until ВЫПОЛНИТЬ.
-
-    Visual hierarchy (the point of the layout): the ACTION panel is the HERO —
-    the isolated, scaled-up action graphic = "what you're about to do"; the
-    source card is a compact, recessed SECONDARY preview = "where it comes from"
-    (click → fullscreen); the CTA sits in a separated footer. The card art is
-    NOT repeated as the action graphic, so the two read as distinct roles rather
-    than duplication. Mirrors the StandardProject / HandCard payment-preview
-    flow (emit up; the host submits + can cancel without a server round-trip).
+    Premium ACTION PLANNING gate before an activatable action is submitted. Hosted
+    inside MandatoryInputModal. On open it fetches a READ-ONLY preview
+    (/api/action-preview) of the action's branches, each with its COSTS and GAINS
+    as icon chips (current → resulting) + the interactive choices it needs. The
+    player makes EVERY choice HERE; the final ВЫПОЛНИТЬ submits everything in ONE
+    batch request (no follow-up modal spam). Client-side only until ВЫПОЛНИТЬ;
+    Cancel restores the overlay with no round-trip.
   -->
   <div class="action-confirm" :class="{'action-confirm--corp': isCorporation}">
     <div class="action-confirm__frame">
@@ -28,12 +24,6 @@
       </header>
 
       <div class="action-confirm__body">
-        <!--
-          SOURCE — secondary preview. The card is the CONTEXT ("where the
-          action comes from"), deliberately compact + recessed so it never
-          competes with the action panel. Click → fullscreen.
-          Renders with live resource counts when a full CardModel is supplied.
-        -->
         <aside class="action-confirm__source">
           <span class="action-confirm__source-label" v-i18n>Source</span>
           <button type="button"
@@ -46,32 +36,146 @@
           </button>
         </aside>
 
-        <!--
-          ACTION — the HERO panel. This is the one thing the player is about to
-          do; it's the largest, brightest, most readable element of the modal
-          (the isolated action graphic, NOT a repeat of the card).
-        -->
         <section class="action-confirm__action">
-          <span class="action-confirm__action-kicker" v-i18n>You are about to</span>
-          <div class="action-confirm__action-graphic">
-            <template v-if="group !== undefined">
-              <div v-for="node in group.nodes" :key="node.key" class="action-confirm__render-wrap">
-                <div v-if="node.actionNode !== undefined" class="action-confirm__render card-container" v-i18n v-strip-action-prefix>
-                  <CardRenderEffectBoxComponent :effectData="node.actionNode" />
-                </div>
-                <div v-else-if="node.renderRoot !== undefined" class="action-confirm__render card-container" v-i18n v-strip-action-prefix>
-                  <CardRenderData :renderData="node.renderRoot" />
-                  <div v-if="node.text" class="action-confirm__render-desc"><span v-i18n>{{ node.text }}</span></div>
-                </div>
-                <div v-else class="action-confirm__render-text" v-i18n v-strip-action-prefix>{{ node.text }}</div>
-              </div>
-            </template>
+          <!-- Preview loading skeleton. -->
+          <div v-if="loading" class="action-confirm__loading">
+            <span class="action-confirm__loading-dot" aria-hidden="true"></span>
+            <span class="action-confirm__loading-dot" aria-hidden="true"></span>
+            <span class="action-confirm__loading-dot" aria-hidden="true"></span>
           </div>
+
+          <template v-else-if="preview !== undefined">
+            <!-- FALLBACK branch picker — only when the modal was NOT opened for a
+                 specific branch (the overlay normally splits branches into their
+                 own buttons and passes the chosen one). Shows EVERY branch with
+                 its reason + context chips. -->
+            <div v-if="showBranchList" class="action-confirm__branches">
+              <span class="action-confirm__branches-label" v-i18n>Choose an option</span>
+              <button v-for="(bv, p) in branchViews"
+                      :key="branchKey(bv.branch) + '#' + p"
+                      type="button"
+                      class="action-confirm__branch"
+                      :class="{
+                        'action-confirm__branch--selected': selected === bv.branch,
+                        'action-confirm__branch--disabled': !bv.branch.available,
+                      }"
+                      :disabled="!bv.branch.available"
+                      :data-test="'action-branch-' + p"
+                      @click="selectBranch(bv.branch)">
+                <span v-if="bv.branch.available" class="action-confirm__branch-tick" aria-hidden="true"></span>
+                <span class="action-confirm__branch-main">
+                  <div v-if="bv.node !== undefined" class="action-confirm__render action-confirm__render--branch card-container" v-i18n v-strip-action-prefix>
+                    <CardRenderEffectBoxComponent v-if="bv.node.actionNode !== undefined" :effectData="bv.node.actionNode" />
+                    <CardRenderData v-else-if="bv.node.renderRoot !== undefined" :renderData="bv.node.renderRoot" />
+                    <span v-else-if="bv.node.text">{{ bv.node.text }}</span>
+                  </div>
+                  <span v-else-if="text(bv.branch.title)" class="action-confirm__branch-title" v-i18n>{{ text(bv.branch.title) }}</span>
+                  <span v-if="bv.branch.effects.length > 0" class="action-confirm__chips">
+                    <ActionEffectChip v-for="(e, i) in bv.branch.effects" :key="i" :effect="e" />
+                  </span>
+                  <span v-if="!bv.branch.available && bv.branch.unavailableReason !== undefined" class="action-confirm__branch-reason" v-i18n>{{ text(bv.branch.unavailableReason) }}</span>
+                </span>
+              </button>
+            </div>
+
+            <!-- SELECTED BRANCH: clear labelled sections — the rule (ДЕЙСТВИЕ), the
+                 impact (РЕЗУЛЬТАТ), and the scoring context (ПРОГРЕСС ПО). Works for
+                 a single-action card AND a branch chosen from the overlay. -->
+            <div v-else-if="selected !== undefined" class="action-confirm__summary">
+              <span class="action-confirm__summary-label" v-i18n>You are about to</span>
+
+              <div class="action-confirm__section" v-if="summaryNodes.length > 0">
+                <span class="action-confirm__section-label" v-i18n>Action</span>
+                <div class="action-confirm__graphic">
+                  <div v-for="node in summaryNodes" :key="node.key" class="action-confirm__render-wrap">
+                    <div v-if="node.actionNode !== undefined" class="action-confirm__render card-container" v-i18n v-strip-action-prefix>
+                      <CardRenderEffectBoxComponent :effectData="node.actionNode" />
+                    </div>
+                    <div v-else-if="node.renderRoot !== undefined" class="action-confirm__render card-container" v-i18n v-strip-action-prefix>
+                      <CardRenderData :renderData="node.renderRoot" />
+                      <div v-if="node.text" class="action-confirm__render-desc"><span v-i18n>{{ node.text }}</span></div>
+                    </div>
+                    <div v-else class="action-confirm__render-text" v-i18n v-strip-action-prefix>{{ node.text }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="action-confirm__section" v-if="selected.effects.length > 0">
+                <span class="action-confirm__section-label" v-i18n>Result</span>
+                <div class="action-confirm__chips action-confirm__chips--summary">
+                  <ActionEffectChip v-for="(e, i) in selected.effects" :key="i" :effect="e" />
+                </div>
+              </div>
+
+              <div class="action-confirm__section" v-if="vpProgress !== undefined">
+                <ActionVpProgress :cardName="cardName"
+                                  :resourceIcon="vpProgress.icon"
+                                  :before="vpProgress.before"
+                                  :after="vpProgress.after" />
+              </div>
+
+              <div v-if="!selected.available && selected.unavailableReason !== undefined" class="action-confirm__none" v-i18n>{{ text(selected.unavailableReason) }}</div>
+            </div>
+
+            <!-- The branch's OWN input (its OrOptions option is a SelectAmount /
+                 SelectCard directly) — its response nests into the branch pick. -->
+            <div v-if="selected !== undefined && selected.optionInput !== undefined" class="action-confirm__steps">
+              <div class="action-confirm__step action-confirm__step--input"
+                   :class="{'action-confirm__step--answered': capturedOption !== undefined}">
+                <ModernPlayerPicker v-if="selected.optionInput.type === 'player'"
+                                    :controlled="true"
+                                    :playerView="playerView"
+                                    :playerinput="selected.optionInput"
+                                    :onsave="noop"
+                                    @select="captureOption" />
+                <ActionTargetCard v-else-if="selected.optionInput.type === 'card'"
+                                  :playerView="playerView"
+                                  :input="selected.optionInput"
+                                  :selectedName="capturedOptionCardName"
+                                  @change="captureOption" />
+                <ModalInputHost v-else :playerView="playerView" :playerinput="selected.optionInput" :onsave="captureOption" />
+              </div>
+            </div>
+
+            <!-- Interactive choices for the selected branch. -->
+            <div v-if="selected !== undefined && selected.steps.length > 0" class="action-confirm__steps">
+              <template v-for="(step, i) in selected.steps" :key="i">
+                <div v-if="step.kind === 'boardPlacement'" class="action-confirm__step action-confirm__step--placement">
+                  <span class="action-confirm__step-glyph" aria-hidden="true">◎</span>
+                  <span class="action-confirm__step-text" v-i18n>You will place a tile on the board after confirming.</span>
+                </div>
+                <div v-else class="action-confirm__step action-confirm__step--input"
+                     :class="{'action-confirm__step--answered': captured[i] !== undefined}">
+                  <!-- Premium, OWNER-AWARE target pickers in controlled mode: the
+                       pick is captured here and committed by the single ВЫПОЛНИТЬ
+                       (no per-step submit). Other input types fall back to the
+                       capturing ModalInputHost. -->
+                  <ModernPlayerPicker v-if="step.input.type === 'player'"
+                                      :controlled="true"
+                                      :playerView="playerView"
+                                      :playerinput="step.input"
+                                      :onsave="noop"
+                                      @select="captureStep(i)($event)" />
+                  <ActionTargetCard v-else-if="step.input.type === 'card'"
+                                    :playerView="playerView"
+                                    :input="step.input"
+                                    :selectedName="capturedCardName(i)"
+                                    @change="captureStep(i)($event)" />
+                  <ModalInputHost v-else :playerView="playerView" :playerinput="step.input" :onsave="captureStep(i)" />
+                </div>
+              </template>
+            </div>
+
+            <!-- Nothing to show — no branch list and no selected branch. -->
+            <div v-if="!showBranchList && selected === undefined" class="action-confirm__none" v-i18n>This action can't be taken right now.</div>
+          </template>
+
+          <!-- Preview failed to load (network) — never leave the panel blank. -->
+          <div v-else class="action-confirm__none" v-i18n>This action can't be taken right now.</div>
         </section>
       </div>
 
       <footer class="action-confirm__footer">
-        <p class="action-confirm__hint" v-i18n>After confirming, the action is performed; follow-up choices appear next.</p>
         <div class="action-confirm__actions">
           <button class="action-confirm__cancel cab-action-confirm-cancel"
                   @click="$emit('cancel')"
@@ -79,7 +183,8 @@
             <span class="cab-action-confirm-cancel__label" v-i18n>Cancel</span>
           </button>
           <button class="action-confirm__confirm cab-action-confirm-go"
-                  @click="$emit('confirm')"
+                  :disabled="!canConfirm"
+                  @click="confirm"
                   data-test="action-confirm-confirm">
             <span class="cab-action-confirm-go__glow" aria-hidden="true"></span>
             <span class="cab-action-confirm-go__icon" aria-hidden="true">▶</span>
@@ -103,28 +208,56 @@ import {defineComponent, PropType, nextTick} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {CardModel} from '@/common/models/CardModel';
+import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {Message} from '@/common/logs/Message';
+import {InputResponse} from '@/common/inputs/InputResponse';
+import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
+import {paths} from '@/common/app/paths';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
+import {ActionGroup, playerActionGroups, actionNodeDescription} from '@/client/components/actions/actionExtraction';
+import {assignBranchNodes} from '@/client/components/actions/actionBranchNodes';
 import Card from '@/client/components/card/Card.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
+import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPicker.vue';
+import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
+import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
+import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
+
+type ConfirmPayload = {branchIndex: number, optionResponse: InputResponse | undefined, stepResponses: ReadonlyArray<InputResponse>};
+type GroupNode = ActionGroup['nodes'][number];
 
 export default defineComponent({
   name: 'CardActionConfirmContent',
-  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal},
+  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, ModalInputHost, ModernPlayerPicker, ActionEffectChip, ActionTargetCard, ActionVpProgress},
   directives: {stripActionPrefix},
   props: {
     cardName: {
       type: String as PropType<CardName>,
       required: true,
     },
-    // Full live CardModel from the tableau — when supplied, the source card
-    // preview shows current resource counts (animals/microbes/floaters/etc.).
-    // Falls back to a bare {name} when absent (e.g. playground/tests).
     card: {
       type: Object as PropType<CardModel>,
+      default: undefined,
+    },
+    // The viewer's player model — needed to fetch the preview (id) and to host
+    // the embedded input steps (ModalInputHost requires it).
+    playerView: {
+      type: Object as PropType<PlayerViewModel>,
+      required: true,
+    },
+    // When the overlay split a multi-branch action into per-branch buttons, the
+    // chosen branch's POSITION (ordinal in the preview) is passed here so the
+    // modal opens straight on that branch (no in-modal picker). Position — NOT
+    // the runtime index — because the runtime index is ambiguous (an unavailable
+    // branch and an auto-resolved lone branch both have index -1). `undefined` →
+    // the modal falls back to its own picker (dynamic cards / pre-load click).
+    branchPosition: {
+      type: Number,
       default: undefined,
     },
   },
@@ -132,10 +265,15 @@ export default defineComponent({
   data() {
     return {
       zoomCard: undefined as CardModel | undefined,
+      preview: undefined as ActionPreview | undefined,
+      loading: true,
+      selected: undefined as ActionPreviewBranch | undefined,
+      captured: {} as Record<number, InputResponse>,
+      // The response to the branch's own OrOptions input (optionInput), if any.
+      capturedOption: undefined as InputResponse | undefined,
     };
   },
   computed: {
-    // The live card model used for the source preview and fullscreen viewer.
     cardModel(): CardModel {
       return this.card ?? ({name: this.cardName} as CardModel);
     },
@@ -145,13 +283,171 @@ export default defineComponent({
     headerTitle(): string {
       return this.isCorporation ? 'Activate corporation action' : 'Activate card action';
     },
+    // The card's printed action graphic (the ACTION IDENTITY / rule) — always
+    // shown so the player sees the rule, not just the impact numbers.
     group(): ActionGroup | undefined {
-      // Re-derive the action graphic from the static manifest (one group).
-      // Only `name` matters here — resources don't affect the graphic.
       return playerActionGroups([{name: this.cardName} as CardModel])[0];
     },
+    branches(): ReadonlyArray<ActionPreviewBranch> {
+      return this.preview?.branches ?? [];
+    },
+    // Show the in-modal picker ONLY as a fallback: the modal wasn't opened for a
+    // specific branch AND nothing is selected yet AND there's a real choice.
+    showBranchList(): boolean {
+      return this.branchPosition === undefined && this.selected === undefined && this.branches.length > 1;
+    },
+    // The render node(s) shown in the SELECTED-branch summary: the branch's own
+    // matched node when there is one (multi-branch), else the whole card action
+    // graphic (single-action / no match).
+    summaryNodes(): ReadonlyArray<GroupNode> {
+      const node = this.selectedNode;
+      if (node !== undefined) {
+        return [node];
+      }
+      return this.group?.nodes ?? [];
+    },
+    selectedNode(): GroupNode | undefined {
+      const branch = this.selected;
+      if (branch === undefined) {
+        return undefined;
+      }
+      const view = this.branchViews.find((bv) => bv.branch === branch);
+      return view?.node;
+    },
+    // VP-progress context for the SELECTED branch: present only when the action
+    // changes THIS card's resource AND that resource scores VP by a threshold
+    // (per > 1, e.g. Tardigrades 1 VP / 4 microbes). Derived entirely client-side
+    // from the manifest — the effect already carries before→after.
+    vpProgress(): {icon: string, before: number, after: number} | undefined {
+      const branch = this.selected;
+      if (branch === undefined) {
+        return undefined;
+      }
+      const scoring = resourceScoring(this.cardName);
+      if (scoring === undefined || scoring.per <= 1) {
+        return undefined;
+      }
+      const eff = branch.effects.find((e) => e.note === 'on this card' && e.current !== undefined && e.resulting !== undefined);
+      if (eff === undefined || eff.current === undefined || eff.resulting === undefined) {
+        return undefined;
+      }
+      return {icon: eff.icon, before: eff.current, after: eff.resulting};
+    },
+    availableBranches(): ReadonlyArray<ActionPreviewBranch> {
+      return this.branches.filter((b) => b.available);
+    },
+    hasAnyAvailable(): boolean {
+      return this.availableBranches.length > 0;
+    },
+    // Each branch paired with the printed render node that draws it (matched by
+    // title so the graphic is right even when render order ≠ behavior order).
+    branchViews(): ReadonlyArray<{branch: ActionPreviewBranch, node: GroupNode | undefined}> {
+      const nodes = this.group?.nodes ?? [];
+      const indices = assignBranchNodes(
+        this.branches.map((b) => this.text(b.title)),
+        nodes.map((n) => actionNodeDescription(n)),
+      );
+      return this.branches.map((branch, p) => ({branch, node: this.nodeAt(indices[p])}));
+    },
+    canConfirm(): boolean {
+      const branch = this.selected;
+      if (this.loading || branch === undefined || !branch.available) {
+        return false;
+      }
+      // The branch's own OrOptions input (optionInput) must be answered too.
+      if (branch.optionInput !== undefined && this.capturedOption === undefined) {
+        return false;
+      }
+      return branch.steps.every((step, i) => step.kind !== 'input' || this.captured[i] !== undefined);
+    },
+    capturedOptionCardName(): CardName | undefined {
+      const r = this.capturedOption;
+      return (r !== undefined && r.type === 'card') ? r.cards[0] : undefined;
+    },
+  },
+  mounted(): void {
+    this.fetchPreview();
   },
   methods: {
+    text(m: string | Message): string {
+      return typeof m === 'string' ? m : m.message;
+    },
+    branchKey(b: ActionPreviewBranch): string {
+      return this.text(b.title);
+    },
+    nodeAt(idx: number | undefined): GroupNode | undefined {
+      if (idx === undefined || idx < 0) {
+        return undefined;
+      }
+      return this.group?.nodes[idx];
+    },
+    async fetchPreview(): Promise<void> {
+      this.loading = true;
+      try {
+        const url = paths.API_ACTION_PREVIEW +
+          '?id=' + encodeURIComponent(this.playerView.id) +
+          '&card=' + encodeURIComponent(this.cardName);
+        const response = await fetch(url);
+        if (response.ok) {
+          this.preview = await response.json() as ActionPreview;
+          // Pre-select the branch the overlay chose (by POSITION) — unambiguous
+          // even when several branches share runtime index -1.
+          if (this.branchPosition !== undefined) {
+            this.selected = this.preview.branches[this.branchPosition];
+          }
+          // Else auto-select when there's exactly ONE executable branch (a single-
+          // action card, or a multi-branch card where only one branch is
+          // affordable). When 2+ are executable the fallback picker shows; when
+          // none, nothing is selected.
+          if (this.selected === undefined && this.availableBranches.length === 1) {
+            this.selected = this.availableBranches[0];
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch action preview', err);
+      } finally {
+        this.loading = false;
+      }
+    },
+    selectBranch(b: ActionPreviewBranch): void {
+      this.selected = b;
+      this.captured = {}; // steps are branch-specific — reset captured responses.
+      this.capturedOption = undefined;
+    },
+    captureStep(i: number): (out: InputResponse) => void {
+      return (out: InputResponse) => {
+        this.captured[i] = out;
+      };
+    },
+    captureOption(out: InputResponse): void {
+      this.capturedOption = out;
+    },
+    noop(): void {
+      // ModernPlayerPicker requires an onsave prop; in controlled mode it never
+      // calls it (the pick is emitted via @select instead).
+    },
+    // The card name captured for a card-target step, for the picker's highlight.
+    capturedCardName(i: number): CardName | undefined {
+      const r = this.captured[i];
+      if (r !== undefined && r.type === 'card') {
+        return r.cards[0];
+      }
+      return undefined;
+    },
+    confirm(): void {
+      const branch = this.selected;
+      if (branch === undefined || !this.canConfirm) {
+        return;
+      }
+      const stepResponses: Array<InputResponse> = [];
+      branch.steps.forEach((step, i) => {
+        if (step.kind === 'input' && this.captured[i] !== undefined) {
+          stepResponses.push(this.captured[i]);
+        }
+      });
+      const payload: ConfirmPayload = {branchIndex: branch.index, optionResponse: this.capturedOption, stepResponses};
+      this.$emit('confirm', payload);
+    },
     openFullscreen(): void {
       this.zoomCard = this.cardModel;
       nextTick(() => {
@@ -161,3 +457,147 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped lang="less">
+.action-confirm__loading {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 28px 0;
+  .action-confirm__loading-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(120, 220, 255, 0.85);
+    animation: action-confirm-pulse 1s ease-in-out infinite;
+    &:nth-child(2) { animation-delay: 0.15s; }
+    &:nth-child(3) { animation-delay: 0.3s; }
+  }
+}
+@keyframes action-confirm-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.action-confirm__summary-label,
+.action-confirm__branches-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(150, 200, 230, 0.7);
+  margin-bottom: 10px;
+}
+
+// Labelled sections (Action / Result / VP progress) for a simple action — keep
+// the panel premium and "filled" without turning a simple action into a wizard.
+.action-confirm__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  .action-confirm__summary-label { margin-bottom: 0; }
+}
+.action-confirm__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.action-confirm__section-label {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(150, 200, 230, 0.58);
+}
+
+.action-confirm__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  &--summary { margin-top: 2px; }
+}
+
+.action-confirm__branches {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.action-confirm__branch {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 14px;
+  text-align: left;
+  border-radius: 10px;
+  border: 1px solid rgba(120, 200, 255, 0.22);
+  background: rgba(20, 40, 60, 0.5);
+  color: #d8ecf7;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  &:hover { border-color: rgba(120, 220, 255, 0.6); background: rgba(28, 56, 80, 0.65); }
+  &--selected {
+    border-color: rgba(120, 230, 255, 0.95);
+    background: rgba(30, 70, 100, 0.7);
+    box-shadow: 0 0 0 1px rgba(120, 230, 255, 0.5), 0 0 18px rgba(80, 200, 255, 0.22);
+  }
+  &--disabled {
+    cursor: default;
+    opacity: 0.5;
+    filter: saturate(0.5);
+    border-style: dashed;
+    &:hover { border-color: rgba(120, 200, 255, 0.22); background: rgba(20, 40, 60, 0.5); }
+  }
+}
+.action-confirm__branch-tick {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(120, 200, 255, 0.5);
+  transition: border-color 0.15s ease, background 0.15s ease;
+  .action-confirm__branch--selected & {
+    border-color: rgba(120, 230, 255, 1);
+    background: radial-gradient(circle, rgba(120, 230, 255, 1) 38%, transparent 42%);
+  }
+}
+.action-confirm__branch-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.action-confirm__branch-title { font-size: 13px; line-height: 1.3; color: #e3f2fb; }
+.action-confirm__branch-reason { font-size: 11.5px; color: rgba(255, 184, 130, 0.9); }
+
+.action-confirm__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.action-confirm__step {
+  border-radius: 9px;
+  border: 1px solid rgba(120, 200, 255, 0.18);
+  background: rgba(16, 32, 48, 0.5);
+  padding: 11px 13px;
+  &--placement {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12.5px;
+    color: #cfe6f3;
+  }
+  &--answered { border-color: rgba(120, 230, 180, 0.5); }
+}
+.action-confirm__step-glyph { color: rgba(255, 200, 120, 0.9); }
+
+.action-confirm__none {
+  margin: 8px 0;
+  padding: 14px;
+  text-align: center;
+  border-radius: 9px;
+  border: 1px dashed rgba(255, 160, 120, 0.4);
+  color: rgba(255, 184, 140, 0.9);
+  font-size: 13px;
+}
+</style>

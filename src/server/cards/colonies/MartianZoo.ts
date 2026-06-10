@@ -10,6 +10,7 @@ import {Resource} from '../../../common/Resource';
 import {all} from '../Options';
 import {ICard} from '../ICard';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class MartianZoo extends Card implements IProjectCard {
   constructor() {
@@ -52,6 +53,12 @@ export class MartianZoo extends Card implements IProjectCard {
   }
   public actionUnavailableReason() {
     return actionReason.noResourcesHere();
+  }
+  // Gain 1 M€ per animal stored here.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.stockGain(player, Resource.MEGACREDITS, this.resourceCount),
+    ]);
   }
 
   public action(player: IPlayer) {

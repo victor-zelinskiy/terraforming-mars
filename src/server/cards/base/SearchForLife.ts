@@ -9,6 +9,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
+import {Resource} from '../../../common/Resource';
 import {searchForLife} from '../render/DynamicVictoryPoints';
 import {max} from '../Options';
 import {TITLES} from '../../inputs/titles';
@@ -50,6 +52,13 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
   }
   public actionUnavailableReason(player: IPlayer) {
     return player.game.projectDeck.canDraw(1) ? actionReason.needMoreMC(player, 1) : actionReason.deckEmpty();
+  }
+  // Spend 1 M€, reveal the top card; a science resource is gained ONLY if it has
+  // a microbe tag — un-mirrorable, so only the cost is shown (no science gain chip).
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.stockCost(player, Resource.MEGACREDITS, 1),
+    ]);
   }
 
   public action(player: IPlayer) {

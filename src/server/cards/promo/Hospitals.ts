@@ -14,6 +14,7 @@ import {SelectCard} from '../../inputs/SelectCard';
 import {all} from '../Options';
 import {Size} from '../../../common/cards/render/Size';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class Hospitals extends Card implements IProjectCard, IActionCard {
   constructor() {
@@ -60,6 +61,14 @@ export class Hospitals extends Card implements IProjectCard, IActionCard {
 
   public actionUnavailableReason() {
     return actionReason.targetReason('No disease resources to remove');
+  }
+
+  // Which card the disease is removed from (SelectCard) rides the follow-up
+  // routing; the gain is 1 M€ per city in play.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.stockGain(player, Resource.MEGACREDITS, player.game.board.getCities().length),
+    ]);
   }
 
   public action(player: IPlayer) {

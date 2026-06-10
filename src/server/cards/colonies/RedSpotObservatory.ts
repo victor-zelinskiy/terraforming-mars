@@ -8,6 +8,8 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
+import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class RedSpotObservatory extends Card implements IProjectCard {
   constructor() {
@@ -44,6 +46,23 @@ export class RedSpotObservatory extends Card implements IProjectCard {
 
   public canAct(): boolean {
     return true;
+  }
+
+  // Branch order MUST match action(): spend-to-draw first, add second.
+  public actionPreview(_player: IPlayer) {
+    return actionPreviews.orBranches(this, [
+      {
+        available: this.resourceCount >= 1,
+        title: 'Remove 1 floater on this card to draw a card',
+        effects: [actionPreviews.cardCost(this, 1), actionPreviews.drawGain(1)],
+        unavailableReason: actionReason.noResourcesHere(),
+      },
+      {
+        available: true,
+        title: 'Add 1 floater on this card',
+        effects: [actionPreviews.cardGain(this, 1)],
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

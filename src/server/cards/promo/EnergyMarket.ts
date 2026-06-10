@@ -11,6 +11,7 @@ import {SelectAmount} from '../../inputs/SelectAmount';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class EnergyMarket extends Card implements IProjectCard {
   constructor() {
@@ -58,6 +59,27 @@ export class EnergyMarket extends Card implements IProjectCard {
 
   public actionUnavailableReason() {
     return actionReason.ruleReason('Need 2 M€ or 1 energy production');
+  }
+
+  // Branch order MUST match action(): spend-M€-for-energy pushed first,
+  // decrease-energy-production-for-M€ second.
+  public actionPreview(player: IPlayer) {
+    const availableMC = player.spendableMegacredits();
+    return actionPreviews.orBranches(this, [
+      {
+        // The payment for 2X M€ rides the follow-up routing after the amount pick.
+        available: availableMC >= 2,
+        title: 'Spend 2X M€ to gain X energy',
+        steps: [actionPreviews.amountStep('Select amount of energy to gain', 'Gain energy', 1, Math.floor(availableMC / 2), {icon: 'energy'})],
+        unavailableReason: actionReason.needMoreMC(player, 2),
+      },
+      {
+        available: player.production.energy >= 1,
+        title: 'Decrease energy production 1 step to gain 8 M€',
+        effects: [actionPreviews.productionChange(player, Resource.ENERGY, -1), actionPreviews.stockGain(player, Resource.MEGACREDITS, 8)],
+        unavailableReason: actionReason.noEnergyProduction(),
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

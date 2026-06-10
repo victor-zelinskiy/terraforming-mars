@@ -20,6 +20,7 @@ import {ApiProfile} from '../routes/ApiProfile';
 import {ApiSpectator} from '../routes/ApiSpectator';
 import {ApiStats} from '../routes/ApiStats';
 import {ApiWaitingFor} from '../routes/ApiWaitingFor';
+import {ActionPreview} from '../routes/ActionPreview';
 import {AcknowledgeDraw} from '../routes/AcknowledgeDraw';
 import {Autopass} from '../routes/Autopass';
 import {DiscordAuth} from '../routes/DiscordAuth';
@@ -30,6 +31,7 @@ import {Load} from '../routes/Load';
 import {LoadGame} from '../routes/LoadGame';
 import {Login} from '../routes/Login';
 import {PlayerInput} from '../routes/PlayerInput';
+import {PlayerInputBatch} from '../routes/PlayerInputBatch';
 import {Reset} from '../routes/Reset';
 import {ServeApp} from '../routes/ServeApp';
 import {ServeAsset} from '../routes/ServeAsset';
@@ -81,6 +83,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_STATS, ApiStats.INSTANCE],
     [paths.API_SPECTATOR, ApiSpectator.INSTANCE],
     [paths.API_WAITING_FOR, ApiWaitingFor.INSTANCE],
+    [paths.API_ACTION_PREVIEW, ActionPreview.INSTANCE],
     [paths.AUTOPASS, Autopass.INSTANCE],
     [paths.CARDS, ServeApp.INSTANCE],
     ['favicon.ico', ServeAsset.INSTANCE],
@@ -99,6 +102,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.NEW_GAME, ServeApp.INSTANCE],
     [paths.PLAYER, ServeApp.INSTANCE],
     [paths.PLAYER_INPUT, PlayerInput.INSTANCE],
+    [paths.PLAYER_INPUT_BATCH, PlayerInputBatch.INSTANCE],
     [paths.ACKNOWLEDGE_DRAW, AcknowledgeDraw.INSTANCE],
     [paths.API_PROFILE, ApiProfile.INSTANCE],
     [paths.RESET, Reset.INSTANCE],

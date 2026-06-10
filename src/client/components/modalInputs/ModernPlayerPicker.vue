@@ -85,7 +85,7 @@
       </button>
     </div>
 
-    <div v-if="selectedColor !== undefined" class="modal-input__actions">
+    <div v-if="selectedColor !== undefined && !controlled" class="modal-input__actions">
       <button type="button" class="modal-input__primary-btn" @click="confirm" data-test="modern-player-confirm">
         {{ confirmLabel }}
       </button>
@@ -149,7 +149,17 @@ export default defineComponent({
       type: Function as unknown as () => (out: SelectPlayerResponse) => void,
       required: true,
     },
+    // CONTROLLED (embedded) mode: when hosted inside the action confirmation
+    // modal, the pick is collected by the parent (which owns the single final
+    // submit), not committed here. In this mode picking a target EMITS `select`
+    // with the response and the inline confirm CTA is hidden. Default false keeps
+    // the standalone behaviour (own CTA → onsave) for the legacy follow-up flow.
+    controlled: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['select'],
   data(): DataModel {
     return {selectedColor: undefined};
   },
@@ -280,6 +290,9 @@ export default defineComponent({
         return;
       }
       this.selectedColor = target.color;
+      if (this.controlled) {
+        this.$emit('select', {type: 'player', player: target.color});
+      }
     },
     confirm(): void {
       if (this.selectedColor === undefined) {

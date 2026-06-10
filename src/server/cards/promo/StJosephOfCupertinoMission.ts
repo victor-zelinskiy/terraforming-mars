@@ -16,6 +16,7 @@ import {SelectPayment} from '../../inputs/SelectPayment';
 import {TITLES} from '../../inputs/titles';
 import {message} from '../../logs/MessageBuilder';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class StJosephOfCupertinoMission extends Card implements IActionCard {
   constructor() {
@@ -52,6 +53,12 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
     return player.canAfford({cost: 5, steel: true}) ?
       actionReason.placementReason('No eligible city for this mission') :
       actionReason.notEnoughMC();
+  }
+
+  // The payment (steel may be used) + the cathedral's city placement ride the
+  // follow-up routing after submit — no pre-collectable step or fixed effect.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player);
   }
 
   action(player: IPlayer): undefined {

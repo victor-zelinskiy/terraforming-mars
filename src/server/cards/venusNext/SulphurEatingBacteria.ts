@@ -9,6 +9,7 @@ import {SelectAmount} from '../../inputs/SelectAmount';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
+import * as actionPreviews from '../actionPreviews';
 
 export class SulphurEatingBacteria extends Card implements IActionCard {
   constructor() {
@@ -38,6 +39,25 @@ export class SulphurEatingBacteria extends Card implements IActionCard {
   public canAct(): boolean {
     return true;
   }
+
+  // Branch order MUST match action(): add-microbe pushed first, spend-microbes second.
+  public actionPreview(_player: IPlayer) {
+    return actionPreviews.orBranches(this, [
+      {
+        available: true,
+        title: 'Add 1 microbe to this card',
+        effects: [actionPreviews.cardGain(this, 1)],
+      },
+      {
+        // The OrOptions option IS a SelectAmount → the amount nests into the
+        // branch pick (optionInput), not a separate step.
+        available: this.resourceCount > 0,
+        title: 'Remove any number of microbes to gain 3 M€ per microbe removed',
+        optionInput: actionPreviews.amountInput('Remove any number of microbes to gain 3 M€ per microbe removed', 'Remove microbes', 1, this.resourceCount, {icon: 'megacredits'}),
+      },
+    ]);
+  }
+
   public action(player: IPlayer) {
     const opts = [];
 

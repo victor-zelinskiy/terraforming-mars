@@ -13,6 +13,7 @@ import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {max} from '../Options';
 import {message} from '../../logs/MessageBuilder';
+import * as actionPreviews from '../actionPreviews';
 
 export class ExtremeColdFungus extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -40,6 +41,24 @@ export class ExtremeColdFungus extends Card implements IActionCard, IProjectCard
   }
   public canAct(): boolean {
     return true;
+  }
+  // Branch order MUST match action(): add-2-microbes (only when a microbe card
+  // exists) pushed first, gain-1-plant second. The microbe target set is bespoke
+  // (cards already holding microbes), so the picker step is omitted (effect only).
+  public actionPreview(player: IPlayer) {
+    const hasMicrobeCard = player.getResourceCards(CardResource.MICROBE).length > 0;
+    return actionPreviews.orBranches(this, [
+      {
+        available: hasMicrobeCard,
+        title: 'Add 2 microbes to another card',
+        effects: [actionPreviews.cardResourceGain(CardResource.MICROBE, 2)],
+      },
+      {
+        available: true,
+        title: 'Gain 1 plant',
+        effects: [actionPreviews.stockGain(player, Resource.PLANTS, 1)],
+      },
+    ]);
   }
   public action(player: IPlayer) {
     const otherMicrobeCards = player.getResourceCards(CardResource.MICROBE);

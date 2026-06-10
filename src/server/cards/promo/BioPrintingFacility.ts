@@ -14,6 +14,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
 import {message} from '../../logs/MessageBuilder';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class BioPrintingFacility extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -41,6 +42,26 @@ export class BioPrintingFacility extends Card implements IActionCard, IProjectCa
 
   public actionUnavailableReason() {
     return actionReason.notEnoughEnergy();
+  }
+
+  // Branch order MUST match action(): add-animal (only when an animal card
+  // exists) pushed first, gain-plants second. 2 energy is always spent.
+  public actionPreview(player: IPlayer) {
+    const hasAnimalCard = player.getResourceCards(CardResource.ANIMAL).length > 0;
+    return actionPreviews.orBranches(this, [
+      {
+        // The animal target card (SelectCard) rides the follow-up routing.
+        available: hasAnimalCard,
+        title: 'Add 1 animal to another card',
+        effects: [actionPreviews.stockCost(player, Resource.ENERGY, 2), actionPreviews.cardResourceGain(CardResource.ANIMAL, 1)],
+        unavailableReason: actionReason.targetReason('No card to add an animal to'),
+      },
+      {
+        available: true,
+        title: 'Gain 2 plants',
+        effects: [actionPreviews.stockCost(player, Resource.ENERGY, 2), actionPreviews.stockGain(player, Resource.PLANTS, 2)],
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

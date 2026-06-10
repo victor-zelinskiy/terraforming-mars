@@ -9,6 +9,7 @@ import {IPlayer} from '../../IPlayer';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class AsteroidDeflectionSystem extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -47,6 +48,12 @@ export class AsteroidDeflectionSystem extends Card implements IActionCard, IProj
 
   public actionUnavailableReason() {
     return actionReason.deckEmpty();
+  }
+
+  // The outcome (whether a space-tagged card is revealed → +1 asteroid here) is
+  // random, so no effect/step is promised — the action just runs on confirm.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player);
   }
 
   public action(player: IPlayer) {

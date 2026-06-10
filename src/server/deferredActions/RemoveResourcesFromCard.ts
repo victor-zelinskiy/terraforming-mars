@@ -4,6 +4,7 @@ import {OrOptions} from '../inputs/OrOptions';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectOption} from '../inputs/SelectOption';
 import {ICard} from '../cards/ICard';
+import {SelectCardModel} from '../../common/models/PlayerInputModel';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {Message} from '../../common/logs/Message';
@@ -102,6 +103,35 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     return new OrOptions(
       selectCard,
       new SelectOption('Do not remove').withMetadata(skip()));
+  }
+
+  /**
+   * READ-ONLY: the `SelectCardModel` the live path WOULD present (the target
+   * picker), or `undefined` when no choice is offered (solo auto-resolve, no
+   * target, or a single auto-selected target). Used by the action-preview
+   * builder to host the picker INSIDE the confirmation modal — no mutation.
+   * Only the MANDATORY case is modelled (the non-mandatory "Do not remove"
+   * OrOptions wrapper is left to the caller); all in-scope action cards that
+   * remove a card resource (Predators, Ants, …) are mandatory.
+   */
+  public previewSelectCard(): SelectCardModel | undefined {
+    if (this.source !== 'self' && this.player.game.isSoloMode()) {
+      return undefined;
+    }
+    const cards = RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source);
+    if (cards.length === 0) {
+      return undefined;
+    }
+    if (this.mandatory && cards.length === 1 && this.autoselect === true) {
+      return undefined;
+    }
+    const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards);
+    return new SelectCard(
+      this.title,
+      'Remove resource(s)',
+      cards,
+      {showOwner: this.source !== 'self', disabled: disabledCards.length > 0 ? disabledCards : undefined})
+      .toModel(this.player);
   }
 
   private attack(card: ICard) {

@@ -425,6 +425,7 @@
       v-if="activeOverlay === 'actions'"
       :displayedPlayer="displayedPlayer"
       :viewerColor="thisPlayer.color"
+      :viewerId="playerView.id"
       :availableActionNames="availableCardActionNames"
       :awaitingInput="playerView.waitingFor !== undefined"
       @activate="onActivateCardAction($event)"
@@ -442,6 +443,8 @@
       <CardActionConfirmContent
         :cardName="pendingCardAction.cardName"
         :card="pendingCardAction.card"
+        :branchPosition="pendingCardAction.branchPosition"
+        :playerView="playerView"
         @confirm="onCardActionConfirm"
         @cancel="onCardActionCancel" />
     </MandatoryInputModal>
@@ -817,6 +820,9 @@ type PendingPlayCard = {
 type PendingCardAction = {
   cardName: CardName;
   card: CardModel | undefined;
+  // The POSITION of the branch the overlay chose when it split a multi-branch
+  // action into per-branch buttons. `undefined` → the modal runs its own picker.
+  branchPosition: number | undefined;
 };
 
 // Pending Trade-with-Colony state. Set after the player picks a colony in
@@ -2247,31 +2253,42 @@ export default defineComponent({
       return undefined;
     },
     // ВЫПОЛНИТЬ in the Actions overlay → open the confirmation gate. Nothing is
-    // submitted yet; the source card + action summary are shown first.
-    onActivateCardAction(cardName: CardName): void {
+    // submitted yet; the source card + action summary are shown first. The
+    // overlay passes the chosen branch (when it split a multi-branch action),
+    // so the modal opens straight on that branch.
+    onActivateCardAction(payload: {cardName: CardName, branchPosition?: number}): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
-      const card = this.thisPlayer.tableau.find((c) => c.name === cardName);
-      this.pendingCardAction = {cardName, card};
+      const card = this.thisPlayer.tableau.find((c) => c.name === payload.cardName);
+      this.pendingCardAction = {cardName: payload.cardName, card, branchPosition: payload.branchPosition};
       this.activeOverlay = null; // close the overlay behind the modal
     },
-    onCardActionConfirm(): void {
+    onCardActionConfirm(payload: {branchIndex: number, optionResponse?: unknown, stepResponses: ReadonlyArray<unknown>}): void {
       if (this.pendingCardAction === undefined) {
         return;
       }
-      this.submitCardAction(this.pendingCardAction.cardName);
+      this.submitCardActionBatch(this.pendingCardAction.cardName, payload.branchIndex, payload.optionResponse, payload.stepResponses);
       this.pendingCardAction = undefined;
     },
     onCardActionCancel(): void {
       this.pendingCardAction = undefined;
       this.activeOverlay = 'actions'; // restore the overlay (nothing submitted)
     },
-    // Submit the chosen action: wrap a SelectCard response `{type:'card',
-    // cards:[name]}` in the nested OR path that mirrors what the legacy radio UI
-    // sends when the player picks the action menu → "Perform an action from a
-    // played card" → <card>. Byte-identical; routes through WaitingFor.onsave.
-    submitCardAction(cardName: CardName): void {
+    // The action-preview rework's SINGLE FINAL SUBMIT: assemble the ordered
+    // response array the action needs and POST it in one batch request, so the
+    // player sees no follow-up modal spam.
+    //   [0] pick the action card (wrapped in the action-menu OR path — the same
+    //       nested-OR wrapping the legacy radio UI sends for "Perform an action
+    //       from a played card" → <card>; byte-identical),
+    //   [1] pick the OR branch (omitted when branchIndex < 0 — a single-action
+    //       card or an autoSelect-collapsed lone branch). When the branch's
+    //       OrOptions option is a DIRECT input (SelectAmount/SelectCard), the
+    //       option's response is NESTED here (`optionResponse`); otherwise the
+    //       option is a SelectOption → `{type:'option'}`.
+    //   [2..] each branch step's response (target/card/amount/…) that arrives as
+    //       a SEPARATE follow-up prompt, collected in the confirmation modal.
+    submitCardActionBatch(cardName: CardName, branchIndex: number, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
@@ -2280,12 +2297,26 @@ export default defineComponent({
         console.warn('Activate action: SelectCard not found in waitingFor tree');
         return;
       }
-      let response: unknown = {type: 'card' as const, cards: [cardName]};
+      let pick: unknown = {type: 'card' as const, cards: [cardName]};
       for (let i = action.path.length - 1; i >= 0; i--) {
-        response = {type: 'or' as const, index: action.path[i], response};
+        pick = {type: 'or' as const, index: action.path[i], response: pick};
       }
-      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
-      wfRef?.onsave?.(response);
+      const responses: Array<unknown> = [pick];
+      if (branchIndex >= 0) {
+        const branchResponse = optionResponse ?? {type: 'option' as const};
+        responses.push({type: 'or' as const, index: branchIndex, response: branchResponse});
+      } else if (optionResponse !== undefined) {
+        // The lone available branch auto-resolved WITHOUT an OrOptions wrapper —
+        // the action returned its DIRECT input (a bare SelectCard / SelectAmount,
+        // e.g. AsteroidRights "add asteroid" with no spend branch available).
+        // Submit that input's response at the top level (no branch pick).
+        responses.push(optionResponse);
+      }
+      for (const r of stepResponses) {
+        responses.push(r);
+      }
+      const wfRef = this.$refs.waitingFor as {onsaveBatch?: (out: ReadonlyArray<unknown>) => void} | undefined;
+      wfRef?.onsaveBatch?.(responses);
     },
     // Walks the action tree looking for a SelectOption with the given title
     // (e.g. "Pass for this generation" / "End Turn"). Returns the index PATH

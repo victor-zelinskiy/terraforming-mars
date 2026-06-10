@@ -7,6 +7,7 @@ import {IPlayer} from '../../IPlayer';
 import {CardRenderer} from '../render/CardRenderer';
 import {canSpendEnergyForCards, spendEnergyForCards} from './energyForCards';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class HiTechLab extends Card implements IProjectCard {
   constructor() {
@@ -34,6 +35,15 @@ export class HiTechLab extends Card implements IProjectCard {
 
   public actionUnavailableReason() {
     return actionReason.notEnoughEnergy();
+  }
+
+  public actionPreview(player: IPlayer) {
+    const max = Math.min(player.energy, player.game.projectDeck.size());
+    return actionPreviews.singleBranch(this, player, [
+      actionPreviews.amountStep('Select amount of energy to spend', 'OK', 1, max, {icon: 'energy', maxByDefault: false}),
+    ], [
+      actionPreviews.drawGain(1),
+    ]);
   }
 
   public action(player: IPlayer) {

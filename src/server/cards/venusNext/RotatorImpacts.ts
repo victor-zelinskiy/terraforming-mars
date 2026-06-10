@@ -12,7 +12,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {max} from '../Options';
 import {TITLES} from '../../inputs/titles';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class RotatorImpacts extends Card implements IActionCard {
   constructor() {
@@ -55,6 +57,24 @@ export class RotatorImpacts extends Card implements IActionCard {
   }
   public actionUnavailableReason() {
     return actionReason.ruleReason('No titanium to add or floaters to spend');
+  }
+
+  // Branch order MUST match action(): spend-asteroid pushed first, add-asteroid second.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.orBranches(this, [
+      {
+        available: this.canSpendResource(player),
+        title: 'Remove 1 asteroid to raise Venus 1 step',
+        effects: [actionPreviews.cardCost(this, 1), actionPreviews.globalGain(player, 'venus', 1)],
+        unavailableReason: actionReason.ruleReason('No asteroid here, or you can\'t afford the Reds tax'),
+      },
+      {
+        available: this.canAddResource(player),
+        title: 'Pay 6 M€ to add 1 asteroid to this card',
+        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 6), actionPreviews.cardGain(this, 1)],
+        unavailableReason: actionReason.needMoreMC(player, 6),
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

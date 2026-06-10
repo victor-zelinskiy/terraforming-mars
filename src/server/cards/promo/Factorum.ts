@@ -12,6 +12,7 @@ import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred
 import {TITLES} from '../../inputs/titles';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class Factorum extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
@@ -47,6 +48,26 @@ export class Factorum extends CorporationCard implements ICorporationCard, IActi
 
   public actionUnavailableReason(player: IPlayer) {
     return actionReason.needMoreMC(player, 3);
+  }
+
+  // Branch order MUST match action(): increase-energy-production (only with no
+  // energy resources) pushed first, draw-a-building-card second.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.orBranches(this, [
+      {
+        available: player.energy === 0,
+        title: 'Increase your energy production 1 step',
+        effects: [actionPreviews.productionChange(player, Resource.ENERGY, 1)],
+        unavailableReason: actionReason.ruleReason('Only available when you have no energy'),
+      },
+      {
+        // The payment for 3 M€ rides the follow-up routing after submit.
+        available: player.canAfford(3),
+        title: 'Spend 3 M€ to draw a building card',
+        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 3), actionPreviews.drawGain(1)],
+        unavailableReason: actionReason.needMoreMC(player, 3),
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

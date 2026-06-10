@@ -11,6 +11,7 @@ import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
+import * as actionPreviews from '../actionPreviews';
 
 export class JupiterFloatingStation extends Card implements IProjectCard {
   constructor() {
@@ -46,6 +47,23 @@ export class JupiterFloatingStation extends Card implements IProjectCard {
 
   public canAct(): boolean {
     return true;
+  }
+
+  // Branch order MUST match action(): add-floater first, gain-M€ second.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.orBranches(this, [
+      {
+        available: true,
+        title: 'Add 1 floater to a Jovian card',
+        effects: [actionPreviews.cardResourceGain(CardResource.FLOATER, 1)],
+        steps: [actionPreviews.addToCardStep(player, CardResource.FLOATER, {restrictedTag: Tag.JOVIAN})],
+      },
+      {
+        available: true,
+        title: 'Gain 1 M€ per floater here (max 4)',
+        effects: [actionPreviews.stockGain(player, Resource.MEGACREDITS, Math.min(this.resourceCount, 4))],
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

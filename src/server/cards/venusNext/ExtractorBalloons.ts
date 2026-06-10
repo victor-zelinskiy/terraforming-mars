@@ -11,6 +11,8 @@ import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {Card} from '../Card';
+import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class ExtractorBalloons extends Card implements IActionCard {
   constructor() {
@@ -60,6 +62,26 @@ export class ExtractorBalloons extends Card implements IActionCard {
   public canAct(): boolean {
     return true;
   }
+
+  // Branch order MUST match action(): spend-floaters pushed first, add second.
+  public actionPreview(player: IPlayer) {
+    const venusMaxed = player.game.getVenusScaleLevel() === MAX_VENUS_SCALE;
+    const canSpend = this.resourceCount >= 2 && !venusMaxed && player.canAfford({cost: 0, tr: {venus: 1}});
+    return actionPreviews.orBranches(this, [
+      {
+        available: canSpend,
+        title: 'Remove 2 floaters to raise Venus scale 1 step',
+        effects: [actionPreviews.cardCost(this, 2), actionPreviews.globalGain(player, 'venus', 1)],
+        unavailableReason: actionReason.ruleReason('Not enough floaters, Venus is maxed, or you can\'t afford the Reds tax'),
+      },
+      {
+        available: true,
+        title: 'Add 1 floater to this card',
+        effects: [actionPreviews.cardGain(this, 1)],
+      },
+    ]);
+  }
+
   public action(player: IPlayer) {
     const venusMaxed = player.game.getVenusScaleLevel() === MAX_VENUS_SCALE;
     const canAffordReds = player.canAfford({cost: 0, tr: {venus: 1}});

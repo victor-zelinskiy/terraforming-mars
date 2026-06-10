@@ -11,6 +11,7 @@ import {RemoveResourcesFromCard} from '../../deferredActions/RemoveResourcesFrom
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class Predators extends Card implements IProjectCard, IActionCard {
   constructor() {
@@ -45,6 +46,9 @@ export class Predators extends Card implements IProjectCard, IActionCard {
   }
   public actionUnavailableReason() {
     return actionReason.targetReason('No card has an animal to remove');
+  }
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.removeAddCardResource(player, this, CardResource.ANIMAL);
   }
 
   public action(player: IPlayer) {

@@ -20,6 +20,7 @@ import {JSONValue} from '../../common/Types';
 import {IStandardProjectCard} from './IStandardProjectCard';
 import {Warning} from '../../common/cards/Warning';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
+import {ActionPreview} from '../../common/models/ActionPreviewModel';
 import {Resource} from '../../common/Resource';
 import {Units} from '../../common/Units';
 import {SerializedCard} from '../SerializedCard';
@@ -67,6 +68,17 @@ export interface ICard {
    * known unavailable. Return `undefined` to defer to the generic fallback.
    */
   actionUnavailableReason?(player: IPlayer): UnplayableReason | undefined;
+  /**
+   * Optional READ-ONLY preview of this card's ACTIVATABLE ACTION — the branches
+   * and per-branch choice steps the player will make — so the confirmation modal
+   * can collect every choice BEFORE the final submit (instead of follow-up modals
+   * after confirming). Lives in the card file next to `action()`/`canAct()` (the
+   * analog of `actionUnavailableReason`), so bespoke action logic and its preview
+   * can't drift on an upstream merge. DECLARATIVE action cards don't need it —
+   * `src/server/models/actionPreview.ts` auto-derives them from `actionBehavior`.
+   * MUST NOT mutate game state. Builders live in `src/server/cards/actionPreviews.ts`.
+   */
+  actionPreview?(player: IPlayer): ActionPreview;
   play(player: IPlayer): PlayerInput | undefined;
   /**
    * Describes the M€ discount `player` could apply to playing `card`.

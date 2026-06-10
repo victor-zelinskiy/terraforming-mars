@@ -9,6 +9,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class PowerInfrastructure extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -33,6 +34,13 @@ export class PowerInfrastructure extends Card implements IActionCard, IProjectCa
   }
   public actionUnavailableReason() {
     return actionReason.notEnoughEnergy();
+  }
+  // Choose X energy to spend (1..energy); gain X M€. The amount is the only
+  // choice — the energy→M€ conversion is 1:1, shown via the stepper.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [
+      actionPreviews.amountStep('Select amount of energy to spend', 'Spend energy', 1, player.energy, {icon: Resource.ENERGY}),
+    ]);
   }
   public action(player: IPlayer) {
     return new SelectAmount('Select amount of energy to spend', 'Spend energy', 1, player.energy)

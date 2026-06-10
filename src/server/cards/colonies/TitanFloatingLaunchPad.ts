@@ -14,6 +14,8 @@ import {Card} from '../Card';
 import {IColonyTrader} from '../../colonies/IColonyTrader';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {message} from '../../logs/MessageBuilder';
+import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class TitanFloatingLaunchPad extends Card implements IProjectCard {
   constructor() {
@@ -50,6 +52,26 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
 
   public canAct(): boolean {
     return true;
+  }
+
+  // Branch order MUST match action(): trade-for-free first, add-floater second.
+  public actionPreview(player: IPlayer) {
+    const canTrade = this.resourceCount > 0 && player.colonies.canTrade();
+    return actionPreviews.orBranches(this, [
+      {
+        // The colony picker (SelectColony) appears on the board after submit.
+        available: canTrade,
+        title: 'Remove 1 floater on this card to trade for free',
+        effects: [actionPreviews.cardCost(this, 1)],
+        unavailableReason: actionReason.ruleReason('No floaters here, or no colony available to trade with'),
+      },
+      {
+        available: true,
+        title: 'Add 1 floater to a Jovian card',
+        effects: [actionPreviews.cardResourceGain(CardResource.FLOATER, 1)],
+        steps: [actionPreviews.addToCardStep(player, CardResource.FLOATER, {restrictedTag: Tag.JOVIAN})],
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

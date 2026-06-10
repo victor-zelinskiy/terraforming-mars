@@ -12,7 +12,9 @@ import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {TITLES} from '../../inputs/titles';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class ForcedPrecipitation extends Card implements IActionCard {
   constructor() {
@@ -53,6 +55,24 @@ export class ForcedPrecipitation extends Card implements IActionCard {
 
   public actionUnavailableReason() {
     return actionReason.ruleReason('Need 2 M€ or 2 floaters on this card');
+  }
+
+  // Branch order MUST match action(): spend-floaters pushed first, add-floater second.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.orBranches(this, [
+      {
+        available: this.resourceCount > 1 && player.canAfford({cost: 0, tr: {venus: 1}}),
+        title: 'Remove 2 floaters to raise Venus 1 step',
+        effects: [actionPreviews.cardCost(this, 2), actionPreviews.globalGain(player, 'venus', 1)],
+        unavailableReason: actionReason.ruleReason('Not enough floaters here, or you can\'t afford the Reds tax'),
+      },
+      {
+        available: player.canAfford(2),
+        title: 'Pay 2 M€ to add 1 floater to this card',
+        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 2), actionPreviews.cardGain(this, 1)],
+        unavailableReason: actionReason.needMoreMC(player, 2),
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

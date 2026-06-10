@@ -11,6 +11,7 @@ import {Size} from '../../../common/cards/render/Size';
 import {SerializedCard} from '../../SerializedCard';
 import {newProjectCard} from '../../createCard';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class SelfReplicatingRobots extends Card implements IProjectCard {
   constructor() {
@@ -50,6 +51,12 @@ export class SelfReplicatingRobots extends Card implements IProjectCard {
 
   public actionUnavailableReason() {
     return actionReason.targetReason('No card to place resources on');
+  }
+
+  // Resists a static description (place a card from hand here + 2 resources, OR
+  // double a hosted card's resources) — the follow-up routing handles the choice.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.dynamic(this, player);
   }
 
   public action(player: IPlayer) {

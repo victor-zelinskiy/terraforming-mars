@@ -86,6 +86,19 @@ function descriptionString(node: ICardRenderEffect): string | undefined {
 }
 
 /**
+ * The (English source) description of an action group node — its action-render
+ * node's description string, or its text override. Used to MATCH a preview
+ * branch to the render node that draws it (the branch graphic in the confirm
+ * modal), since the render-node order can differ from the behavior order.
+ */
+export function actionNodeDescription(node: {actionNode?: ICardRenderEffect | undefined; text?: string | undefined}): string {
+  if (node.actionNode !== undefined) {
+    return descriptionString(node.actionNode) ?? '';
+  }
+  return node.text ?? '';
+}
+
+/**
  * Whether an `is:'effect'` node is an ACTIVE action (vs a passive `effect()`,
  * which the DSL renders with the same node type). Primary signal = the
  * description prefix the DSL bakes in; fallback = the delimiter symbol.

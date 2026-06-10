@@ -14,7 +14,9 @@ import {LogHelper} from '../../LogHelper';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class DirectedImpactors extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -56,6 +58,27 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
 
   public actionUnavailableReason() {
     return actionReason.ruleReason('Cannot pay for an asteroid right now');
+  }
+
+  // Branch order MUST match action(): remove-asteroid (raise temperature)
+  // pushed first, pay-to-add-asteroid second.
+  public actionPreview(player: IPlayer) {
+    const temperatureIsMaxed = player.game.getTemperature() === MAX_TEMPERATURE;
+    return actionPreviews.orBranches(this, [
+      {
+        available: this.resourceCount > 0 && !temperatureIsMaxed && player.canAfford({cost: 0, tr: {temperature: 1}}),
+        title: 'Remove 1 asteroid to raise temperature 1 step',
+        effects: [actionPreviews.cardCost(this, 1), actionPreviews.globalGain(player, 'temperature', 1)],
+        unavailableReason: actionReason.ruleReason('No asteroid here, temperature is maxed, or you can\'t afford the Reds tax'),
+      },
+      {
+        // The payment (titanium may be used) + asteroid target ride the follow-up routing.
+        available: player.canAfford({cost: 6, titanium: true}),
+        title: 'Pay 6 M€ to add 1 asteroid to a card',
+        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 6), actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
+        unavailableReason: actionReason.needMoreMC(player, 6),
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

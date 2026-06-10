@@ -8,6 +8,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardResource} from '../../../common/CardResource';
 import {SelectCard} from '../../inputs/SelectCard';
 import {CardRenderer} from '../render/CardRenderer';
+import * as actionPreviews from '../actionPreviews';
 
 export class MoholeLake extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -39,6 +40,11 @@ export class MoholeLake extends Card implements IActionCard, IProjectCard {
 
   public canAct(): boolean {
     return true;
+  }
+
+  // The microbe-or-animal target card (SelectCard) rides the follow-up routing.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player);
   }
 
   public action(player: IPlayer) {
