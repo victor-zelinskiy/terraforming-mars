@@ -24,9 +24,16 @@ export class SelfReplicatingRobots extends Card implements IProjectCard {
       metadata: {
         cardNumber: '210',
         renderData: CardRenderer.builder((b) => {
-          b.action('Reveal and place a SPACE OR BUILDING card here from hand, and place 2 resources on it, OR double the resources on a card here.', (eb) => {
+          // TWO separate action rows (one per branch) so the premium per-branch
+          // UI (ActionsOverlay split + confirmation modal) maps each choice to
+          // its OWN graphic instead of painting the whole combined "link OR ×2"
+          // box on a single branch. Titles match the preview branch titles so the
+          // node↔branch matcher (assignBranchNodes) pairs them cleanly.
+          b.action('Reveal and place a building or space card from hand here, and place 2 resources on it.', (eb) => {
             eb.empty().startAction.selfReplicatingRobots();
-            eb.nbsp.or().nbsp.arrow().multiplierWhite().text('x2');
+          }).br;
+          b.action('Double the resources on a card here.', (eb) => {
+            eb.empty().startAction.multiplierWhite().text('x2');
           }).br;
           b.text('Effect: Card here may be played as if from hand with its cost reduced by the number of resources on it.', Size.TINY, true);
         }),

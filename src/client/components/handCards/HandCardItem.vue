@@ -46,6 +46,19 @@
               @blur="onReasonLeave">
         <span class="hand-card-item__playblock-icon" aria-hidden="true">⊘</span>
       </button>
+
+      <!--
+        Self-replicating Robots host marker. This card lives ON the SRR card,
+        not literally in hand; the game still lets the player play it with its
+        cost reduced by the resources on it (the discounted cost is already
+        shown on the card face). An absolute pill (no layout shift) flags the
+        host + the discount; the full explanation rides a premium tooltip.
+      -->
+      <div v-if="isRobotCard" class="hand-card-item__robot" :data-hint="robotHint">
+        <span class="hand-card-item__robot-mark" aria-hidden="true"></span>
+        <span class="hand-card-item__robot-label" v-i18n>Robots</span>
+        <span v-if="robotDiscount > 0" class="hand-card-item__robot-discount">−{{ robotDiscount }}</span>
+      </div>
     </div>
 
     <div class="hand-card-item__action">
@@ -174,7 +187,7 @@ import Card from '@/client/components/card/Card.vue';
 import {HandCardEntry} from '@/client/components/handCards/handCardModel';
 import {HandCardBlock} from '@/client/components/handCards/cardPlayability';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import HandCardReasonPopover from '@/client/components/handCards/HandCardReasonPopover.vue';
 
 /**
@@ -276,6 +289,22 @@ export default defineComponent({
     },
     label(): string {
       return this.entry.name.split(':')[0];
+    },
+    // A card hosted on Self-replicating Robots — playable from the hand overlay
+    // with a cost discount equal to the resources on it.
+    isRobotCard(): boolean {
+      return this.entry.card.isSelfReplicatingRobotsCard === true;
+    },
+    // The SRR cost discount = the resource count stored on the hosted card.
+    robotDiscount(): number {
+      return this.entry.card.resources ?? 0;
+    },
+    // Premium-tooltip text for the host pill (full name + the discount).
+    robotHint(): string {
+      if (this.robotDiscount > 0) {
+        return translateTextWithParams('Hosted on Self-replicating Robots, cost reduced by ${0} M€', [String(this.robotDiscount)]);
+      }
+      return translateText('Hosted on Self-replicating Robots');
     },
     reasonStyle(): Record<string, string> {
       return {

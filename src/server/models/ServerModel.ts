@@ -221,16 +221,20 @@ export class Server {
     };
   }
 
-  public static getSelfReplicatingRobotsTargetCards(player: IPlayer): Array<CardModel> {
-    return player.getSelfReplicatingRobotsTargetCards().map((targetCard) => {
-      const model: CardModel = {
-        resources: targetCard.resourceCount,
-        name: targetCard.name,
-        calculatedCost: player.getCardCost(targetCard),
-        isSelfReplicatingRobotsCard: true,
-      };
-      return model;
-    });
+  // The cards currently hosted on Self-replicating Robots. Built through the
+  // shared `cardsToModel` so they carry the SAME data a normal hand card does:
+  // `isSelfReplicatingRobotsCard` + the resource count (set by cardsToModel for
+  // hosted cards), the DISCOUNTED `calculatedCost` (getCardCost applies the SRR
+  // discount), and — only for the viewer's OWN model — structured
+  // `unplayableReasons`. The reasons let the КАРТЫ В РУКЕ overlay show a hosted
+  // card that can't be afforded/played right now as a proper rules block (with
+  // the deficit/requirement popover) instead of a misleading "not your turn".
+  public static getSelfReplicatingRobotsTargetCards(player: IPlayer, modelIsForThisPlayer: boolean): Array<CardModel> {
+    return [...cardsToModel(player, player.getSelfReplicatingRobotsTargetCards(), {
+      showResources: true,
+      showCalculatedCost: true,
+      unplayableReasons: modelIsForThisPlayer,
+    })];
   }
 
   public static getMilestones(game: IGame): Array<ClaimedMilestoneModel> {
@@ -386,7 +390,7 @@ export class Server {
       // Actions overlay needs the "why can't I activate" reasons only for the
       // player who can actually act; opponents' actions are view-only.
       tableau: cardsToModel(player, player.tableau.asArray(), {showResources: true, actionReasons: modelIsForThisPlayer}),
-      selfReplicatingRobotsCards: Server.getSelfReplicatingRobotsTargetCards(player),
+      selfReplicatingRobotsCards: Server.getSelfReplicatingRobotsTargetCards(player, modelIsForThisPlayer),
       steel: player.steel,
       steelProduction: player.production.steel,
       steelValue: player.getSteelValue(),

@@ -368,7 +368,7 @@
     <HandCardsOverlay
       v-if="activeOverlay === 'cards' && displayedPlayer.color === thisPlayer.color"
       :player="thisPlayer"
-      :cards="stagedCardsInHand"
+      :cards="handOverlayCards"
       :playableCardNames="playableProjectCardNames"
       :playActionAvailable="playProjectCardActionAvailable"
       :awaitingInput="playerView.waitingFor !== undefined"
@@ -698,6 +698,7 @@ import {
   enterClientHandSelect,
   resolveClientHandSelect,
   cancelClientHandSelect,
+  isClientHandPickActive,
 } from '@/client/components/handCards/handSelectState';
 import {deliverActionPick} from '@/client/components/handCards/handActionPick';
 import {
@@ -1253,6 +1254,22 @@ export default defineComponent({
         result.push(card);
       }
       return result;
+    },
+    // The card list the КАРТЫ В РУКЕ overlay renders: the real hand PLUS the
+    // cards hosted on Self-replicating Robots. Hosted cards are not literally
+    // "in hand", but the game lets the player play them from there (the server's
+    // getPlayableCards() includes them, with the SRR cost discount), so they
+    // MUST be playable from the same overlay — otherwise there's no way to play
+    // them in the modern UI. They carry `isSelfReplicatingRobotsCard` so the
+    // overlay marks them; their discounted `calculatedCost` + `unplayableReasons`
+    // come from the server. Kept OUT of `cardsInHandCount` so the hand-count
+    // badge stays the true hand size.
+    handOverlayCards(): ReadonlyArray<CardModel> {
+      const hosted = this.thisPlayer.selfReplicatingRobotsCards;
+      if (hosted.length === 0) {
+        return this.stagedCardsInHand;
+      }
+      return this.stagedCardsInHand.concat(hosted);
     },
     cardsInHandCount(): number {
       const playerView = this.playerView;
@@ -1965,7 +1982,11 @@ export default defineComponent({
     // currently active to its shared pill (no-op when none is active). Shared by
     // every "close the hosting overlay while the prompt is still pending" path.
     minimizeMandatoryHandPrompts(): void {
-      if (handSelectState.active) {
+      // A CLIENT-driven pick (SRR / Mars University) is NEVER minimized: its
+      // initiating modal is suppressed behind it, so a pill would hide BOTH and
+      // strand the player (the pill can't restore the suppressed modal). It stays
+      // a focused overlay — completed via ВЫБРАТЬ or abandoned via ✕ (cancel).
+      if (handSelectState.active && !handSelectState.clientPick) {
         handSelectState.minimized = true;
       }
       if (handPlayState.active) {
@@ -2035,6 +2056,14 @@ export default defineComponent({
           target.closest('.bar-rail') ||
           target.closest('.left-panel') ||
           target.closest('.hand-select-pill')) {
+        return;
+      }
+      // A CLIENT-driven card pick (SRR / Mars University) is a focused sub-step
+      // of an action — an outside click must NOT dismiss it (its initiating modal
+      // is suppressed behind it). Keep the overlay open; the player completes it
+      // or abandons it via the ✕ (which cancels). Without this the overlay would
+      // minimize to a dead-end pill.
+      if (isClientHandPickActive()) {
         return;
       }
       // A mandatory prompt (hand select / hand play / standard project) can't be
