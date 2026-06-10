@@ -118,7 +118,14 @@
     text-shadow:
         0 1px 0 rgba(8, 14, 22, 0.6),
         0 0 14px rgba(106, 176, 230, 0.3);
-    white-space: nowrap;
+    /* WRAP a long title (e.g. "Select card to link with Self-Replicating Robots")
+     * instead of letting `nowrap` overflow the modal's right edge. The header's
+     * centred `auto` grid column sizes to this capped width, so the title wraps
+     * to 2 lines and the modal stays inside the viewport. */
+    max-width: min(760px, calc(100vw - 96px));
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+    line-height: 1.18;
 }
 
 /*

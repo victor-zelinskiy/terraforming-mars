@@ -1,5 +1,6 @@
 import {IPlayer} from '../IPlayer';
 import {ICard, IActionCard} from './ICard';
+import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
 import {CardType} from '../../common/cards/CardType';
 import {Resource} from '../../common/Resource';
@@ -170,9 +171,21 @@ export function cardInput(
   title: string | Message,
   label: string,
   cards: ReadonlyArray<ICard>,
-  opts?: {showOwner?: boolean},
+  opts?: {
+    showOwner?: boolean,
+    /** Display mode (e.g. `SELF_REPLICATING_ROBOTS` to show the discounted cost). */
+    played?: boolean | CardName.SELF_REPLICATING_ROBOTS,
+    /** Relevant-but-unselectable candidates shown greyed with a reason — the
+     *  premium picker's Available/Unavailable filter (e.g. Self-Replicating
+     *  Robots hand cards WITHOUT a building/space tag). */
+    disabled?: ReadonlyArray<{card: ICard, reason: string | Message}>,
+  },
 ): PlayerInputModel {
-  return new SelectCard(title, label, cards, {showOwner: opts?.showOwner}).toModel(player);
+  return new SelectCard(title, label, cards, {
+    showOwner: opts?.showOwner,
+    played: opts?.played,
+    disabled: opts?.disabled,
+  }).toModel(player);
 }
 
 /** One declared branch of a bespoke `or` action. */

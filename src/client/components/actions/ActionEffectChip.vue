@@ -30,6 +30,14 @@
       <span v-else class="action-effect-chip__amount">{{ sign }}{{ effect.amount }}{{ unit }}</span>
     </span>
 
+    <!-- Variable-amount BASIS — "why is it this much": the live count of the
+         counted entity (e.g. Cities on Mars: 3). Reads as a quiet sub-tag. -->
+    <span v-if="effect.basis !== undefined" class="action-effect-chip__basis">
+      <span class="action-effect-chip__basis-label" v-i18n>{{ effect.basis.label }}</span>
+      <span class="action-effect-chip__basis-sep" aria-hidden="true">:</span>
+      <span class="action-effect-chip__basis-count">{{ effect.basis.count }}</span>
+    </span>
+
     <span v-if="noEffect" class="action-effect-chip__note" v-i18n>no effect</span>
     <span v-else-if="effect.note" class="action-effect-chip__note" v-i18n>{{ effect.note }}</span>
   </span>
@@ -178,5 +186,25 @@ export default defineComponent({
   letter-spacing: 0.02em;
   text-transform: lowercase;
   color: rgba(180, 210, 230, 0.6);
+}
+
+/* Variable-amount basis ("Cities on Mars: 3") — a quiet pill inside the chip,
+   set off by a hairline so it reads as the reason for the amount. */
+.action-effect-chip__basis {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 7px;
+  margin-left: 1px;
+  border-left: 1px solid var(--chip-rim);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(200, 224, 240, 0.66);
+}
+.action-effect-chip__basis-label { letter-spacing: 0.01em; }
+.action-effect-chip__basis-sep { margin: 0 1px; opacity: 0.6; }
+.action-effect-chip__basis-count {
+  font-weight: 700;
+  color: var(--chip-accent);
 }
 </style>

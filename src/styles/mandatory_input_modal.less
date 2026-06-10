@@ -137,6 +137,17 @@ body.initial-draft-active .mandatory-input-modal {
 }
 
 /*
+ * Suppressed: the modal hands off to a higher-priority surface (the КАРТЫ В РУКЕ
+ * overlay for a "pick a card from hand" step) and hides itself WITHOUT
+ * unmounting — `display: none` keeps the hosted content (selected branch,
+ * captured inputs) alive so it re-appears with the picked card. Both teleported
+ * fragments (modal + pill) hide.
+ */
+.mandatory-input-modal--suppressed {
+    display: none;
+}
+
+/*
  * Picker mode: a hosted prompt has switched to board-tile selection (e.g.
  * the player clicked "Add an ocean" in the WGT modal). The modal fully
  * hides itself so the planet is the focus — the choice is final at the

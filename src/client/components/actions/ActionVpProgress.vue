@@ -9,15 +9,20 @@
   -->
   <div v-if="applicable" class="action-vp">
     <span class="action-vp__label" v-i18n>VP progress</span>
-    <div class="action-vp__head">
-      <span class="action-vp__icon" :class="iconClass" aria-hidden="true"></span>
-      <span class="action-vp__threshold">
-        <span class="action-vp__cur">{{ filledBefore }}/{{ per }}</span>
-        <span class="action-vp__arrow" aria-hidden="true">→</span>
-        <span class="action-vp__res">{{ filledAfter }}/{{ per }}</span>
-      </span>
-    </div>
-    <VpProgressBar :filled="filledAfter" :per="per" :reached="crossed" />
+    <!-- Threshold scorers (1 VP per N>1 resources) show progress toward the next
+         VP; per-resource multipliers (e.g. 2 VP each) skip the bar — every
+         resource is already a VP, so the VP delta line below carries it. -->
+    <template v-if="threshold">
+      <div class="action-vp__head">
+        <span class="action-vp__icon" :class="iconClass" aria-hidden="true"></span>
+        <span class="action-vp__threshold">
+          <span class="action-vp__cur">{{ filledBefore }}/{{ per }}</span>
+          <span class="action-vp__arrow" aria-hidden="true">→</span>
+          <span class="action-vp__res">{{ filledAfter }}/{{ per }}</span>
+        </span>
+      </div>
+      <VpProgressBar :filled="filledAfter" :per="per" :reached="crossed" />
+    </template>
     <div class="action-vp__vp" :class="{'action-vp__vp--up': crossed}">
       <span class="action-vp__vp-label" v-i18n>VP from card</span>
       <span class="action-vp__vp-cur">{{ beforeVp }}</span>
@@ -62,6 +67,9 @@ export default defineComponent({
     },
     applicable(): boolean {
       return this.view.applicable;
+    },
+    threshold(): boolean {
+      return this.view.threshold;
     },
     per(): number {
       return this.view.per;

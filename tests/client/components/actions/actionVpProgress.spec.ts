@@ -35,9 +35,20 @@ describe('vpProgressView', () => {
   it('Ants (1 VP / 2 microbes): per is 2, 1 → 2 earns a VP and fills the bar', () => {
     const v = vpProgressView(CardName.ANTS, 1, 2);
     expect(v.applicable).is.true;
+    expect(v.threshold).is.true; // a threshold scorer → show the bar
     expect(v.per).eq(2);
     expect(v.crossed).is.true;
     expect(v.filledAfter).eq(2);
     expect(v.afterVp).eq(1);
+  });
+
+  it('Physics Complex (2 VP / science): a per-resource MULTIPLIER, not a threshold', () => {
+    const v = vpProgressView(CardName.PHYSICS_COMPLEX, 1, 2);
+    expect(v.applicable).is.true; // still shows the VP context...
+    expect(v.threshold).is.false; // ...but NOT the threshold bar (per = 1)
+    expect(v.per).eq(1);
+    expect(v.beforeVp).eq(2); // 1 science × 2 VP
+    expect(v.afterVp).eq(4); // 2 science × 2 VP
+    expect(v.crossed).is.true;
   });
 });

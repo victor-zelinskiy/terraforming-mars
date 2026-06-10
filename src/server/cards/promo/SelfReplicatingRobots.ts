@@ -53,10 +53,44 @@ export class SelfReplicatingRobots extends Card implements IProjectCard {
     return actionReason.targetReason('No card to place resources on');
   }
 
-  // Resists a static description (place a card from hand here + 2 resources, OR
-  // double a hosted card's resources) — the follow-up routing handles the choice.
+  private isLinkable(card: IProjectCard): boolean {
+    return card.tags.some((tag) => tag === Tag.SPACE || tag === Tag.BUILDING);
+  }
+
+  // Two clear branches in the SAME order action() pushes them (double first when
+  // there ARE hosted cards, then link). The "double" branch previews a hosted
+  // card's resources X → 2X; the "link" branch hosts a hand-card picker that
+  // shows EVERY hand card with the non-eligible ones greyed + a reason (the
+  // premium picker's Available/Unavailable filter), so the player sees exactly
+  // which cards qualify and why the rest don't.
   public actionPreview(player: IPlayer) {
-    return actionPreviews.dynamic(this, player);
+    const eligible = player.cardsInHand.filter((card) => this.isLinkable(card));
+    const ineligible = player.cardsInHand.filter((card) => !this.isLinkable(card));
+    const hosted = this.targetCards;
+
+    return actionPreviews.orBranches(this, [
+      {
+        available: hosted.length > 0,
+        title: 'Double the resources on a card here',
+        unavailableReason: actionReason.targetReason('No card here to double'),
+        // X → 2X for a single hosted card; with several, the picker shows each.
+        effects: hosted.length === 1 ? [actionPreviews.cardGain(hosted[0], hosted[0].resourceCount)] : [],
+        optionInput: hosted.length > 0 ?
+          actionPreviews.cardInput(player, 'Select card to double robots resource', 'Double resource', hosted, {played: CardName.SELF_REPLICATING_ROBOTS}) :
+          undefined,
+      },
+      {
+        available: eligible.length > 0,
+        title: 'Reveal a building or space card from hand, place it here with 2 resources',
+        unavailableReason: actionReason.targetReason('No building or space card in hand'),
+        optionInput: eligible.length > 0 ?
+          actionPreviews.cardInput(player, 'Select card to link with Self-replicating Robots', 'Link card', eligible, {
+            played: CardName.SELF_REPLICATING_ROBOTS,
+            disabled: ineligible.map((card) => ({card, reason: 'No building or space tag'})),
+          }) :
+          undefined,
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

@@ -36,7 +36,8 @@
       modal for the same input. See CLAUDE.md "Mandatory-input modal pattern".
     -->
     <MandatoryInputModal v-if="useModalForCurrentInput"
-                         :title="modalPillTitle">
+                         :title="modalPillTitle"
+                         :suppressed="clientHandPickActive">
       <!--
         World Government Terraforming is hosted via a dedicated button-grid
         component instead of generic OrOptions radios — see CLAUDE.md
@@ -120,6 +121,7 @@ import {clearIfPhaseLeftCardPick, clearDraftWaitPending, shouldPreserveCardPickM
 import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
 import {shouldPreserveSaleOverlay} from '@/client/components/handCards/sellPatentsState';
 import {handPlayPrompt} from '@/client/components/handCards/handPlayState';
+import {isClientHandPickActive} from '@/client/components/handCards/handSelectState';
 import {standardProjectPlayPrompt} from '@/client/components/handCards/standardProjectPlayState';
 import {startFlowCorpPrompt, startGameFlowActive} from '@/client/components/startGameFlow/startGameFlowState';
 import {freeAwardFundingPrompt} from '@/client/components/awards/awardFundingState';
@@ -716,6 +718,12 @@ export default defineComponent({
     },
     playerColorClass(): typeof playerColorClass {
       return playerColorClass;
+    },
+    // A nested "pick a card from hand" SelectCard (Mars University discard) handed
+    // off to the КАРТЫ В РУКЕ overlay — suppress this modal (keep it mounted,
+    // hidden) so the overlay below its z-index is interactable, then re-show.
+    clientHandPickActive(): boolean {
+      return isClientHandPickActive();
     },
     useModalForCurrentInput(): boolean {
       /*

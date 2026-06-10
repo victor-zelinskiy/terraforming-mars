@@ -232,6 +232,17 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    /*
+     * Temporarily HIDE the whole modal (backdrop + card) WITHOUT unmounting it,
+     * so the hosted content keeps its state. Used when a client-driven sub-pick
+     * hands off to a higher-z surface — the card-action confirm modal suppresses
+     * itself while the КАРТЫ В РУКЕ overlay (z 110, below the modal's 12000) is
+     * shown for a "pick a card from hand" step, then re-shows with the result.
+     */
+    suppressed: {
+      type: Boolean,
+      default: false,
+    },
   },
   data(): DataModel {
     return {
@@ -259,6 +270,9 @@ export default defineComponent({
       }
       if (this.noDealFrozen) {
         classes.push('mandatory-input-modal--no-deal');
+      }
+      if (this.suppressed) {
+        classes.push('mandatory-input-modal--suppressed');
       }
       return classes.join(' ');
     },

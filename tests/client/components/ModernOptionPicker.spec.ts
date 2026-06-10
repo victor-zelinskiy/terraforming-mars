@@ -4,6 +4,7 @@ import {expect} from 'chai';
 import ModernOptionPicker from '@/client/components/modalInputs/ModernOptionPicker.vue';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
 import {InputResponse} from '@/common/inputs/InputResponse';
+import {handSelectState, resolveClientHandSelect, exitHandSelect} from '@/client/components/handCards/handSelectState';
 
 const MANDATORY_MODAL_PICKER_SETTER = 'mandatoryModalSetPickerMode';
 
@@ -15,7 +16,7 @@ const ModalInputHostStub = {
   template: '<div class="modal-input-host-stub"></div>',
 };
 
-function factory(playerinput: any, onsave: (out: InputResponse) => void, pickerSetter?: any) {
+function factory(playerinput: any, onsave: (out: InputResponse) => void, pickerSetter?: any, playerView: any = {}) {
   return mount(ModernOptionPicker, {
     ...globalConfig,
     global: {
@@ -24,7 +25,7 @@ function factory(playerinput: any, onsave: (out: InputResponse) => void, pickerS
       stubs: {SelectSpace: true},
       provide: pickerSetter ? {[MANDATORY_MODAL_PICKER_SETTER]: pickerSetter} : {},
     },
-    props: {playerView: {}, playerinput, onsave},
+    props: {playerView, playerinput, onsave},
   });
 }
 
@@ -146,6 +147,41 @@ describe('ModernOptionPicker', () => {
     // Driving the card grid's save wraps the bare {type:'card'} in the outer OR.
     host.props('onsave')({type: 'card', cards: ['Comet Aiming']});
     expect(saved).to.deep.eq({type: 'or', index: 1, response: {type: 'card', cards: ['Comet Aiming']}});
+  });
+
+  it('routes a nested "pick from hand" SelectCard to the КАРТЫ В РУКЕ overlay (client pick), not an inline wizard', async () => {
+    PreferencesManager.INSTANCE.set('learner_mode', false);
+    exitHandSelect();
+    let saved: InputResponse | undefined;
+    const component = factory(
+      {
+        type: 'or',
+        title: 'Discard a card to draw',
+        options: [
+          // Mars University: the discard candidates are all in hand.
+          {type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard',
+            showOnlyInLearnerMode: false, cards: [{name: 'Ants'}, {name: 'Predators'}]},
+          {type: 'option', title: 'Do nothing', buttonLabel: ''},
+        ],
+      },
+      (out) => {
+        saved = out;
+      },
+      undefined,
+      {cardsInHand: [{name: 'Ants'}, {name: 'Predators'}, {name: 'Tardigrades'}]},
+    );
+    // Click the discard SelectCard option (displayed index 0).
+    await component.findAll('[data-test^="modern-option-"]')[0].trigger('click');
+    // It did NOT expand an inline wizard...
+    expect(component.findComponent(ModalInputHostStub).exists()).is.false;
+    // ...it handed off to the client-driven hand pick instead.
+    expect(handSelectState.active).is.true;
+    expect(handSelectState.clientPick).is.true;
+    // Resolving the overlay pick wraps the card in the OR and calls onsave.
+    handSelectState.selected = ['Predators'];
+    resolveClientHandSelect();
+    expect(saved).to.deep.eq({type: 'or', index: 0, response: {type: 'card', cards: ['Predators']}});
+    exitHandSelect();
   });
 
   it('arms board picker-mode for a SelectSpace option', async () => {

@@ -191,6 +191,8 @@ import {MANDATORY_MODAL_PICKER_SETTER} from '@/client/components/MandatoryInputM
 import SelectSpace from '@/client/components/SelectSpace.vue';
 import WarningsComponent from '@/client/components/WarningsComponent.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {SelectCardModel} from '@/common/models/PlayerInputModel';
+import {enterClientHandSelect} from '@/client/components/handCards/handSelectState';
 
 type PickerModeSetter = (mode: boolean, title?: string | Message) => void;
 
@@ -455,8 +457,43 @@ export default defineComponent({
         this.setPickerMode(true, opt.title);
         return;
       }
+      // A nested "pick a card FROM HAND" SelectCard (Mars University "discard a
+      // card to draw") goes to the roomy КАРТЫ В РУКЕ overlay — NOT a cramped
+      // in-wizard grid. The picked card resolves back through `onsave` wrapped in
+      // this OR. Other card picks (add-resource targets = PLAYED cards) expand
+      // inline as before.
+      if (opt.type === 'card' && this.isHandCardOption(opt as SelectCardModel)) {
+        this.startHandPick(opt as SelectCardModel, orig);
+        return;
+      }
       // Complex nested input — expand a wizard step.
       this.expandedIdx = displayedIdx;
+    },
+    // True when every candidate of a SelectCard (selectable + disabled) is in the
+    // viewer's hand → it's a "pick from hand" prompt.
+    isHandCardOption(opt: SelectCardModel): boolean {
+      const hand = new Set((this.playerView.cardsInHand ?? []).map((c) => c.name));
+      const all = [...opt.cards, ...(opt.disabledCards ?? [])];
+      return all.length > 0 && all.every((c) => hand.has(c.name));
+    },
+    // Hand off a hand-card pick to the КАРТЫ В РУКЕ overlay (client-pick mode).
+    // PlayerHome opens the overlay + suppresses this modal; the picked card
+    // resolves back here as the OR-wrapped response.
+    startHandPick(opt: SelectCardModel, originalIndex: number): void {
+      const reasons: Record<string, string> = {};
+      for (const c of opt.disabledCards ?? []) {
+        const r = c.disabledReason;
+        reasons[c.name] = r === undefined ? '' : (typeof r === 'string' ? translateText(r) : translateMessage(r));
+      }
+      enterClientHandSelect({
+        title: opt.title,
+        buttonLabel: opt.buttonLabel,
+        selectable: opt.cards.map((c) => c.name),
+        reasons,
+        onResolve: (cards) => {
+          this.onsave({type: 'or', index: originalIndex, response: {type: 'card', cards: [...cards]}});
+        },
+      });
     },
     confirmSelectedOption(): void {
       if (!this.confirmableSelection) {

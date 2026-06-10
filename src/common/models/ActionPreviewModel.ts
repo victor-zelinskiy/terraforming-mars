@@ -60,6 +60,14 @@ export type ActionEffect = {
   unit?: string;
   /** Optional i18n note under the value (e.g. `'on this card'`, `'to a card'`). */
   note?: string;
+  /**
+   * For a VARIABLE amount computed from game state ("1 M€ per city on Mars"),
+   * the live BASIS of that computation — so the player sees WHY the amount is
+   * what it is (e.g. `{count: 3, label: 'Cities on Mars'}` → "+3 M€ · Cities on
+   * Mars: 3"). `label` is an English i18n key; `count` is the current count of
+   * the counted entity. Omitted for plain fixed amounts.
+   */
+  basis?: {count: number, label: string};
 };
 
 export type ActionPreviewBranch = {

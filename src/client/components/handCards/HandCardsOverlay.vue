@@ -132,6 +132,7 @@
           :saleMode="saleActive || selectActive"
           :selected="isSelected(entry.name)"
           :selectDisabled="entrySelectDisabled(entry.name)"
+          :selectReason="entrySelectReason(entry.name)"
           :dissolving="dissolving.includes(entry.name)"
           @open="openCard"
           @play="$emit('play', $event)"
@@ -224,6 +225,7 @@ import {
   toggleHandSelectSelection,
   isSelectedForHandSelect,
   isHandSelectable,
+  handSelectReason,
 } from '@/client/components/handCards/handSelectState';
 import HandCardItem from '@/client/components/handCards/HandCardItem.vue';
 import HandCardsFilters from '@/client/components/handCards/HandCardsFilters.vue';
@@ -519,6 +521,15 @@ export default defineComponent({
     // with a microbe tag"). Sale mode has no subset, so this is never true.
     entrySelectDisabled(name: CardName): boolean {
       return this.selectActive && !isHandSelectable(name);
+    },
+    // The premium-tooltip reason a non-selectable card can't be picked. Only a
+    // CLIENT-driven pick carries per-card reasons (Self-Replicating Robots: "No
+    // building or space tag"); a server SelectCard has none → '' (generic note).
+    entrySelectReason(name: CardName): string {
+      if (!this.entrySelectDisabled(name)) {
+        return '';
+      }
+      return handSelectState.clientPick ? handSelectReason(name) : '';
     },
     cancelSale(): void {
       if (this.saleTimer !== undefined) {
