@@ -8,6 +8,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Phase} from '../../../common/Phase';
 import {ICard} from '../ICard';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class Decomposers extends Card implements IProjectCard {
   constructor() {
@@ -45,11 +47,27 @@ export class Decomposers extends Card implements IProjectCard {
       player.addResourceTo(this, {qty: 1, log: true});
     }
   }
+  // The 2-microbe bonus only triggers when Decomposers is played during the
+  // preludes phase immediately after Ecology Experts. Shared by `bespokePlay` and
+  // the on-play preview so the chip can't drift from what's applied (0 in normal
+  // hand play → no chip; 2 in the prelude path → a "+2 microbe" chip).
+  private ecologyExpertsBonus(player: IPlayer): number {
+    return (player.game.phase === Phase.PRELUDES && player.playedCards.last()?.name === CardName.ECOLOGY_EXPERTS) ? 2 : 0;
+  }
+
   public override bespokePlay(player: IPlayer) {
-    // Get two extra microbes from EcoExperts if played during prelude while having just played EcoExperts
-    if (player.game.phase === Phase.PRELUDES && player.playedCards.last()?.name === CardName.ECOLOGY_EXPERTS) {
-      player.addResourceTo(this, {qty: 2, log: true});
+    const bonus = this.ecologyExpertsBonus(player);
+    if (bonus > 0) {
+      player.addResourceTo(this, {qty: bonus, log: true});
     }
     return undefined;
+  }
+
+  // The on-play preview: the conditional Ecology-Experts bonus is computable at
+  // play time — show the "+N microbe on this card" chip when it applies, nothing
+  // otherwise. No choice, so no steps.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const bonus = this.ecologyExpertsBonus(player);
+    return actionPreviews.playPreview(this, player, bonus > 0 ? [actionPreviews.cardGain(this, bonus)] : []);
   }
 }

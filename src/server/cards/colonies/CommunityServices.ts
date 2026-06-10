@@ -5,6 +5,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
 import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class CommunityServices extends Card implements IProjectCard {
   constructor() {
@@ -26,8 +28,22 @@ export class CommunityServices extends Card implements IProjectCard {
     });
   }
 
+  // Shared by `bespokePlay` and the on-play preview (1 M€ prod per no-tag card,
+  // incl. this) so the previewed gain can't drift from what's applied.
+  private megacreditProductionGain(player: IPlayer): number {
+    return player.tags.numberOfCardsWithNoTags() + 1;
+  }
+
   public override bespokePlay(player: IPlayer) {
-    player.production.add(Resource.MEGACREDITS, player.tags.numberOfCardsWithNoTags() + 1, {log: true});
+    player.production.add(Resource.MEGACREDITS, this.megacreditProductionGain(player), {log: true});
     return undefined;
+  }
+
+  // The on-play preview: a FIXED, computable M€ production raise — show it as a
+  // `current → resulting` chip in the play modal. No choice, so no steps.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.playPreview(this, player, [
+      actionPreviews.productionChange(player, Resource.MEGACREDITS, this.megacreditProductionGain(player)),
+    ]);
   }
 }

@@ -10,6 +10,8 @@ import {message} from '../../logs/MessageBuilder';
 import {LoseProduction} from '../../deferredActions/LoseProduction';
 import {Resource} from '../../../common/Resource';
 import {MarsBoard} from '../../boards/MarsBoard';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class NoctisCity extends Card implements IProjectCard {
   constructor() {
@@ -67,5 +69,15 @@ export class NoctisCity extends Card implements IProjectCard {
       });
     }
     return undefined;
+  }
+
+  // The on-play preview: `playPreview` auto-includes the declarative +3 M€
+  // production chip; we add the bespoke −1 energy production (`bespokePlay`'s
+  // `LoseProduction` / direct add, not in `behavior`) so the modal shows the full
+  // production swing. The city placement itself rides the post-batch PlacementBanner.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.playPreview(this, player, [
+      actionPreviews.productionChange(player, Resource.ENERGY, -1),
+    ]);
   }
 }

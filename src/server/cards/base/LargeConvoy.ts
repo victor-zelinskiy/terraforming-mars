@@ -14,6 +14,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {digit} from '../Options';
 import {message} from '../../logs/MessageBuilder';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class LargeConvoy extends Card implements IProjectCard {
   constructor() {
@@ -77,5 +79,15 @@ export class LargeConvoy extends Card implements IProjectCard {
     }
 
     return new OrOptions(...availableActions);
+  }
+
+  // On-play preview: `playPreview` auto-includes the declarative chips (draw 2 +
+  // the ocean). When you hold NO animal card the play auto-gains 5 plants — a
+  // FIXED result that lives in `bespokePlay`, NOT in `behavior` — so show it. When
+  // you DO hold one, the "5 plants / 4 animals" pick rides the follow-up OrOptions.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const hasTargets = player.getResourceCards(CardResource.ANIMAL).length > 0;
+    const extra = hasTargets ? [] : [actionPreviews.stockGain(player, Resource.PLANTS, 5)];
+    return actionPreviews.playPreview(this, player, extra);
   }
 }

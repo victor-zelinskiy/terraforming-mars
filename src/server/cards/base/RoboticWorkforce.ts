@@ -6,6 +6,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {IPlayer} from '../../IPlayer';
 import {Priority} from '../../deferredActions/Priority';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class RoboticWorkforce extends RoboticWorkforceBase {
   constructor() {
@@ -39,5 +41,17 @@ export class RoboticWorkforce extends RoboticWorkforceBase {
       Priority.ROBOTIC_WORKFORCE,
     );
     return undefined;
+  }
+
+  // The on-play preview: the SAME card picker `bespokePlay` defers — the player
+  // chooses WHICH building card's production to copy, as premium card tiles in the
+  // play modal, instead of a follow-up prompt. (`selectBuildingCard` builds a
+  // `SelectCard(title, 'Copy', cards)`, so the response lines up byte-for-byte.)
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const cards = this.getPlayableBuildingCards(player);
+    const step = cards.length > 0 ?
+      actionPreviews.selectCardStep(player, 'Select builder card to copy', 'Copy', cards) :
+      undefined;
+    return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

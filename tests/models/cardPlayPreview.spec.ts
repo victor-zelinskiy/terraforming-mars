@@ -21,6 +21,27 @@ import {CrashSiteCleanup} from '../../src/server/cards/promo/CrashSiteCleanup';
 import {Sabotage} from '../../src/server/cards/base/Sabotage';
 import {EnergyTapping} from '../../src/server/cards/base/EnergyTapping';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
+import {ProjectInspection} from '../../src/server/cards/promo/ProjectInspection';
+import {RoboticWorkforce} from '../../src/server/cards/base/RoboticWorkforce';
+import {Viron} from '../../src/server/cards/venusNext/Viron';
+import {Mine} from '../../src/server/cards/base/Mine';
+import {DirectedHeatUsage} from '../../src/server/cards/promo/DirectedHeatUsage';
+import {actionPreview} from '../../src/server/models/actionPreview';
+import {InterplanetaryTrade} from '../../src/server/cards/promo/InterplanetaryTrade';
+import {TerraformingGanymede} from '../../src/server/cards/base/TerraformingGanymede';
+import {MediaArchives} from '../../src/server/cards/base/MediaArchives';
+import {IoSulphurResearch} from '../../src/server/cards/venusNext/IoSulphurResearch';
+import {CommunityServices} from '../../src/server/cards/colonies/CommunityServices';
+import {Decomposers} from '../../src/server/cards/base/Decomposers';
+import {EcologyExperts} from '../../src/server/cards/prelude/EcologyExperts';
+import {Tag} from '../../src/common/cards/Tag';
+import {Phase} from '../../src/common/Phase';
+import {NitrogenRichAsteroid} from '../../src/server/cards/base/NitrogenRichAsteroid';
+import {Potatoes} from '../../src/server/cards/promo/Potatoes';
+import {NoctisCity} from '../../src/server/cards/base/NoctisCity';
+import {HermeticOrderOfMars} from '../../src/server/cards/promo/HermeticOrderofMars';
+import {EcologyResearch} from '../../src/server/cards/colonies/EcologyResearch';
+import {Birds} from '../../src/server/cards/base/Birds';
 
 describe('cardPlayPreview', () => {
   it('VenusSoils (declarative): venus + plant-production gain chips + a microbe target step', () => {
@@ -229,6 +250,47 @@ describe('cardPlayPreview', () => {
       expect(previewOptionCount).eq(live.options.length);
     });
 
+    it('ProjectInspection: a card picker over the actions already used this generation', () => {
+      const [/* game */, player] = testGame(2);
+      const used = new DirectedHeatUsage();
+      player.playedCards.push(used);
+      player.heat = 6; // so the heat→M€/plants action canAct
+      player.actionsThisGeneration.add(used.name);
+
+      const preview = new ProjectInspection().cardPlayPreview(player);
+      const step = preview.branches[0].steps[0];
+      expect(step.kind).eq('input');
+      expect(step.kind === 'input' && step.input.type).eq('card');
+      const names = step.kind === 'input' ? (step.input as SelectCardModel).cards.map((c) => c.name) : [];
+      expect(names).to.include(used.name);
+    });
+
+    it('Viron (corporation action): the action preview is a card picker over the used actions', () => {
+      const [/* game */, player] = testGame(2);
+      const used = new DirectedHeatUsage();
+      player.playedCards.push(used);
+      player.heat = 6;
+      player.actionsThisGeneration.add(used.name);
+
+      const preview = actionPreview(player, new Viron());
+      const step = preview.branches[0].steps[0];
+      expect(step.kind).eq('input');
+      expect(step.kind === 'input' && step.input.type).eq('card');
+    });
+
+    it('RoboticWorkforce: a card picker over your building cards to copy', () => {
+      const [/* game */, player] = testGame(2);
+      const mine = new Mine();
+      player.playedCards.push(mine);
+
+      const preview = new RoboticWorkforce().cardPlayPreview(player);
+      const step = preview.branches[0].steps[0];
+      expect(step.kind).eq('input');
+      expect(step.kind === 'input' && step.input.type).eq('card');
+      const names = step.kind === 'input' ? (step.input as SelectCardModel).cards.map((c) => c.name) : [];
+      expect(names).to.include(mine.name);
+    });
+
     it('EnergyTapping: a "+1 your energy production" chip + a DecreaseAnyProduction step', () => {
       // 3 players so the decrease offers a CHOICE (a single non-self target is
       // auto-attacked with no step).
@@ -245,6 +307,168 @@ describe('cardPlayPreview', () => {
       const step = branch.steps[0];
       expect(step.kind).eq('input');
       expect(step.kind === 'input' && step.input.type).eq('player');
+    });
+  });
+
+  // FIXED-result hooks: cards with NO on-play choice but a COMPUTABLE result. The
+  // refined rule — "показывать изменение заранее" — is that a no-choice card must
+  // STILL surface its result chip, never ride a bare dynamic fallback. Each shows
+  // a `current → resulting` chip computed read-only, no steps.
+  describe('fixed computable result (no choice, result chip only)', () => {
+    it('InterplanetaryTrade: a M€ production chip = 1 per distinct tag in play', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new InterplanetaryTrade();
+      const expected = player.tags.distinctCount('default', Tag.SPACE);
+      expect(expected).is.greaterThan(0); // the card's own SPACE tag is always counted
+
+      const branch = card.cardPlayPreview(player).branches[0];
+      expect(branch.steps).has.length(0);
+      const chip = branch.effects.find((e) => e.icon === Resource.MEGACREDITS && e.note === 'production');
+      expect(chip, 'expected a M€ production chip').is.not.undefined;
+      expect(chip?.direction).eq('gain');
+      expect(chip?.amount).eq(expected);
+      expect(chip?.current).eq(player.production.get(Resource.MEGACREDITS));
+      expect(chip?.resulting).eq(player.production.get(Resource.MEGACREDITS) + expected);
+    });
+
+    it('TerraformingGanymede: a TR chip = 1 per Jovian tag', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new TerraformingGanymede();
+      const expected = card.computeTr(player).tr;
+
+      const branch = card.cardPlayPreview(player).branches[0];
+      expect(branch.steps).has.length(0);
+      const chip = branch.effects.find((e) => e.icon === 'tr');
+      expect(chip, 'expected a TR chip').is.not.undefined;
+      expect(chip?.direction).eq('gain');
+      expect(chip?.amount).eq(expected);
+      expect(chip?.resulting).eq(player.terraformRating + expected);
+    });
+
+    it('MediaArchives: a M€ gain chip = total events ever played', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new MediaArchives();
+
+      const branch = card.cardPlayPreview(player).branches[0];
+      expect(branch.steps).has.length(0);
+      const chip = branch.effects.find((e) => e.icon === Resource.MEGACREDITS && e.note !== 'production');
+      expect(chip, 'expected a M€ stock gain chip').is.not.undefined;
+      expect(chip?.direction).eq('gain');
+      expect(chip?.current).eq(player.megaCredits);
+    });
+
+    it('IoSulphurResearch: a draw chip (1 card, or 3 with ≥3 Venus tags)', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new IoSulphurResearch();
+
+      const branch = card.cardPlayPreview(player).branches[0];
+      expect(branch.steps).has.length(0);
+      const chip = branch.effects.find((e) => e.note === 'draw');
+      expect(chip, 'expected a draw chip').is.not.undefined;
+      expect(chip?.amount).eq(1); // no Venus tags in a fresh game
+    });
+
+    it('CommunityServices: a M€ production chip = 1 per no-tag card (incl. this)', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new CommunityServices();
+      const expected = player.tags.numberOfCardsWithNoTags() + 1;
+
+      const branch = card.cardPlayPreview(player).branches[0];
+      const chip = branch.effects.find((e) => e.icon === Resource.MEGACREDITS && e.note === 'production');
+      expect(chip?.amount).eq(expected);
+      expect(chip?.amount).is.greaterThan(0);
+    });
+
+    it('Decomposers: no chip in normal hand play; +2 microbe chip in the Ecology Experts prelude path', () => {
+      const [game, player] = testGame(2);
+      const card = new Decomposers();
+
+      // Normal play (not preludes) → the conditional bonus is 0 → no chip.
+      expect(card.cardPlayPreview(player).branches[0].effects).has.length(0);
+
+      // Preludes phase, Ecology Experts just played → +2 microbes to this card.
+      game.phase = Phase.PRELUDES;
+      player.playedCards.push(new EcologyExperts());
+      const branch = card.cardPlayPreview(player).branches[0];
+      const chip = branch.effects.find((e) => e.note === 'on this card');
+      expect(chip, 'expected a +2 microbe chip').is.not.undefined;
+      expect(chip?.direction).eq('gain');
+      expect(chip?.amount).eq(2);
+    });
+
+    it('READ-ONLY: a fixed-result hook never mutates production / TR / state', () => {
+      const [/* game */, player] = testGame(2);
+      const before = {
+        mcProd: player.production.get(Resource.MEGACREDITS),
+        tr: player.terraformRating,
+      };
+      new InterplanetaryTrade().cardPlayPreview(player);
+      new TerraformingGanymede().cardPlayPreview(player);
+      new CommunityServices().cardPlayPreview(player);
+      expect(player.production.get(Resource.MEGACREDITS)).eq(before.mcProd);
+      expect(player.terraformRating).eq(before.tr);
+    });
+  });
+
+  // behavior+bespoke HIDDEN result: cards that ARE declarative (a `behavior`), but
+  // whose `bespokePlay` adds a FIXED, computable result NOT in that behavior. The
+  // hook shows BOTH the behavior chips AND the bespoke extra — the modal never
+  // shows only half the on-play effect. Guarded structurally by
+  // `cardPlayPreviewCoverage.spec.ts`'s second test.
+  describe('behavior + bespoke hidden result (both halves shown)', () => {
+    it('NitrogenRichAsteroid: behavior temperature + TR chips PLUS the bespoke +1/+4 plant production', () => {
+      const [/* game */, player] = testGame(2);
+      const branch = new NitrogenRichAsteroid().cardPlayPreview(player).branches[0];
+      // Declarative half (auto-included by playPreview).
+      expect(branch.effects.some((e) => e.icon === 'temperature'), 'temperature chip').is.true;
+      expect(branch.effects.some((e) => e.icon === 'tr'), 'TR chip').is.true;
+      // Bespoke half (the part that was previously hidden).
+      const plantProd = branch.effects.find((e) => e.icon === Resource.PLANTS && e.note === 'production');
+      expect(plantProd, 'plant production chip').is.not.undefined;
+      expect(plantProd?.amount).eq(1); // <3 plant tags in a fresh game
+    });
+
+    it('Potatoes: behavior +2 M€ production PLUS the bespoke −2 plant cost', () => {
+      const [/* game */, player] = testGame(2);
+      const branch = new Potatoes().cardPlayPreview(player).branches[0];
+      expect(branch.effects.some((e) => e.icon === Resource.MEGACREDITS && e.note === 'production'), 'M€ production chip').is.true;
+      const plantCost = branch.effects.find((e) => e.icon === Resource.PLANTS && e.direction === 'cost');
+      expect(plantCost, 'plant cost chip').is.not.undefined;
+      expect(plantCost?.amount).eq(2);
+    });
+
+    it('NoctisCity: behavior +3 M€ production PLUS the bespoke −1 energy production', () => {
+      const [/* game */, player] = testGame(2);
+      const branch = new NoctisCity().cardPlayPreview(player).branches[0];
+      const energy = branch.effects.find((e) => e.icon === Resource.ENERGY && e.note === 'production');
+      expect(energy, 'energy production chip').is.not.undefined;
+      expect(energy?.direction).eq('cost');
+      expect(energy?.amount).eq(1);
+    });
+
+    it('HermeticOrderOfMars: behavior +2 M€ production PLUS the bespoke board-derived M€ gain', () => {
+      const [/* game */, player] = testGame(2);
+      const branch = new HermeticOrderOfMars().cardPlayPreview(player).branches[0];
+      expect(branch.effects.some((e) => e.icon === Resource.MEGACREDITS && e.note === 'production'), 'M€ production chip').is.true;
+      // The board-derived M€ stock gain chip is present (0 with no tiles on the board).
+      expect(branch.effects.some((e) => e.icon === Resource.MEGACREDITS && e.note !== 'production'), 'M€ stock gain chip').is.true;
+    });
+
+    it('EcologyResearch: bespoke animal + microbe "to a card" chips with their pickers, in defer order', () => {
+      const [/* game */, player] = testGame(2);
+      // One animal card + two microbe cards → the microbe picker is a real choice;
+      // the single animal card auto-resolves (no step).
+      player.playedCards.push(new Birds(), new Tardigrades(), new NitriteReducingBacteria());
+      const branch = new EcologyResearch().cardPlayPreview(player).branches[0];
+      // Both bespoke gain chips.
+      const animalChip = branch.effects.find((e) => e.note === 'to a card' && e.amount === 1);
+      const microbeChip = branch.effects.find((e) => e.note === 'to a card' && e.amount === 2);
+      expect(animalChip, 'animal gain chip').is.not.undefined;
+      expect(microbeChip, 'microbe gain chip').is.not.undefined;
+      // The microbe pick is the only step (animal auto-resolves to its single card).
+      const inputs = branch.steps.filter((s) => s.kind === 'input');
+      expect(inputs).has.length(1);
+      expect(inputs[0].kind === 'input' && inputs[0].input.type).eq('card');
     });
   });
 });

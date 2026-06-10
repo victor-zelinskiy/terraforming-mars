@@ -8,6 +8,8 @@ import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {sum} from '../../../common/utils/utils';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class MediaArchives extends Card implements IProjectCard {
   constructor() {
@@ -27,9 +29,22 @@ export class MediaArchives extends Card implements IProjectCard {
     });
   }
 
+  // Shared by `bespokePlay` and the on-play preview (1 M€ per event ever played by
+  // any player) so the previewed gain can't drift from what's applied.
+  private megacreditGain(player: IPlayer): number {
+    return sum(player.game.players.map((p) => p.getPlayedEventsCount()));
+  }
+
   public override bespokePlay(player: IPlayer) {
-    const allPlayedEvents = sum(player.game.players.map((player) => player.getPlayedEventsCount()));
-    player.stock.add(Resource.MEGACREDITS, allPlayedEvents, {log: true});
+    player.stock.add(Resource.MEGACREDITS, this.megacreditGain(player), {log: true});
     return undefined;
+  }
+
+  // The on-play preview: a FIXED, computable M€ gain — show it as a chip in the
+  // play modal. No choice, so no steps.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.playPreview(this, player, [
+      actionPreviews.stockGain(player, Resource.MEGACREDITS, this.megacreditGain(player)),
+    ]);
   }
 }
