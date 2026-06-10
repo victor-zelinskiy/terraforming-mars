@@ -194,6 +194,7 @@
                   <ActionTargetCard v-else-if="step.input.type === 'card'"
                                     :playerView="playerView"
                                     :input="step.input"
+                                    :amount="step.amount"
                                     :selectedName="capturedCardName(i)"
                                     @change="captureStep(i)($event)" />
                   <!-- Payment (e.g. "pay 12 M€, titanium usable") dialed IN the

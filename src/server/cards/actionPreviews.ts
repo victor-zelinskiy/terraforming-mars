@@ -199,9 +199,11 @@ export function selectCardStep(
   title: string | Message,
   label: string,
   cards: ReadonlyArray<ICard>,
-  opts?: {showOwner?: boolean, disabled?: ReadonlyArray<{card: ICard, reason: string | Message}>},
+  opts?: {showOwner?: boolean, disabled?: ReadonlyArray<{card: ICard, reason: string | Message}>, amount?: number},
 ): ActionPreviewStep {
-  return {kind: 'input', input: cardInput(player, title, label, cards, opts)};
+  // `amount` (the resource count added to the chosen card) drives the picker's
+  // per-candidate "N → N+amount" impact preview.
+  return {kind: 'input', input: cardInput(player, title, label, cards, opts), amount: opts?.amount};
 }
 
 /** A single-target `SelectPlayer` as a STEP (the modal hosts the premium
@@ -384,9 +386,10 @@ export function orOptionsStep(player: IPlayer, orOptions: OrOptions): ActionPrev
 
 /** Wrap a pre-built input model (e.g. a deferred action's read-only
  *  `previewSelect*` output) as a step, or `undefined` when there's no model
- *  (the live path auto-resolves / offers no choice → no step). */
-export function inputStep(model: PlayerInputModel | undefined): ActionPreviewStep | undefined {
-  return model !== undefined ? {kind: 'input', input: model} : undefined;
+ *  (the live path auto-resolves / offers no choice → no step). `amount` is the
+ *  signed resource delta for a target step's `current → resulting` preview. */
+export function inputStep(model: PlayerInputModel | undefined, amount?: number): ActionPreviewStep | undefined {
+  return model !== undefined ? {kind: 'input', input: model, amount} : undefined;
 }
 
 /**

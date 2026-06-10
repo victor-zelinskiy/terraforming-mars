@@ -71,7 +71,7 @@ export class FreyjaBiodomes extends Card implements IProjectCard {
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.getResCards(player);
     const step = cards.length > 1 ?
-      actionPreviews.selectCardStep(player, 'Select card to add 2 resources', 'Add resources', cards) :
+      actionPreviews.selectCardStep(player, 'Select card to add 2 resources', 'Add resources', cards, {amount: 2}) :
       undefined;
     return actionPreviews.playPreview(this, player, [], [step]);
   }

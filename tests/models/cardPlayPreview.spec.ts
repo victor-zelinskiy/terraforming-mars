@@ -56,6 +56,9 @@ describe('cardPlayPreview', () => {
     expect(step.kind).eq('input');
     if (step.kind === 'input') {
       expect(step.input.type).eq('card');
+      // The signed delta (+2 microbes) drives the picker's per-card "N → N+2"
+      // impact preview.
+      expect(step.amount).eq(2);
       const model = step.input as SelectCardModel;
       const names = model.cards.map((c) => c.name);
       expect(names).to.include.members([new Tardigrades().name, new NitriteReducingBacteria().name]);
