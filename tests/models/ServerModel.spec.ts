@@ -10,6 +10,9 @@ import {Server} from '../../src/server/models/ServerModel';
 import {GlobalParameter} from '../../src/common/GlobalParameter';
 import {Phase} from '../../src/common/Phase';
 import {TharsisRepublic} from '../../src/server/cards/corporation/TharsisRepublic';
+import {SelfReplicatingRobots} from '../../src/server/cards/promo/SelfReplicatingRobots';
+import {CardName} from '../../src/common/cards/CardName';
+import {newProjectCard} from '../../src/server/createCard';
 
 describe('ServerModel', () => {
   let player: TestPlayer;
@@ -138,5 +141,38 @@ describe('ServerModel', () => {
     createTestGame(false);
     const spectator = Server.getSpectatorModel(game);
     expect((spectator as any).pendingInitialActions).eq(undefined);
+  });
+
+  it('serializes Self-replicating Robots hosted cards: flag + discounted cost + reasons', () => {
+    [game, player, player2] = testGame(2);
+    const srr = new SelfReplicatingRobots();
+    player.playedCards.push(srr);
+    const hosted = newProjectCard(CardName.LUNAR_BEAM)!;
+    hosted.resourceCount = 2;
+    srr.targetCards.push(hosted);
+
+    // Affordable: plenty of M€, no reasons; discount baked into calculatedCost.
+    player.megaCredits = 30;
+    const ownModel = Server.getPlayerModel(player);
+    const hostedModels = ownModel.thisPlayer.selfReplicatingRobotsCards;
+    expect(hostedModels).has.length(1);
+    expect(hostedModels[0].name).eq(CardName.LUNAR_BEAM);
+    expect(hostedModels[0].isSelfReplicatingRobotsCard).is.true;
+    expect(hostedModels[0].resources).eq(2);
+    // getCardCost applies the SRR discount (= the resources on the card).
+    expect(hostedModels[0].calculatedCost).eq(player.getCardCost(hosted));
+    expect(hostedModels[0].unplayableReasons ?? []).has.length(0);
+
+    // Unaffordable: the OWN model carries structured unplayable reasons so the
+    // hand overlay shows a proper rules block, not a misleading "not your turn".
+    player.megaCredits = 0;
+    const brokeModel = Server.getPlayerModel(player);
+    expect((brokeModel.thisPlayer.selfReplicatingRobotsCards[0].unplayableReasons ?? []).length).greaterThan(0);
+
+    // The OPPONENT's view of the same hosted card never carries reasons.
+    const opponentView = Server.getPlayerModel(player2);
+    const fromOpponent = opponentView.players.find((p) => p.color === player.color)!.selfReplicatingRobotsCards;
+    expect(fromOpponent).has.length(1);
+    expect(fromOpponent[0].unplayableReasons).is.undefined;
   });
 });

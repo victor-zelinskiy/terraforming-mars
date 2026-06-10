@@ -340,8 +340,20 @@ export default defineComponent({
     filter(): HandFilterState {
       return handFilterState;
     },
+    // The cards actually rendered. In normal play this is everything the host
+    // passes (the real hand PLUS cards hosted on Self-replicating Robots). In
+    // sale (Sell patents) and mandatory/client SELECT modes the server's
+    // candidate set is the literal hand only — you can't sell a hosted card, and
+    // a "discard / link a card from hand" prompt never targets one — so hosted
+    // cards are dropped there (showing them un-actionable would only confuse).
+    displayCards(): ReadonlyArray<CardModel> {
+      if (this.saleActive || this.selectActive) {
+        return this.cards.filter((c) => c.isSelfReplicatingRobotsCard !== true);
+      }
+      return this.cards;
+    },
     entries(): ReadonlyArray<HandCardEntry> {
-      return buildHandEntries(this.cards, this.playActionAvailable, this.playableCardNames, this.awaitingInput);
+      return buildHandEntries(this.displayCards, this.playActionAvailable, this.playableCardNames, this.awaitingInput);
     },
     sorted(): ReadonlyArray<HandCardEntry> {
       return sortHandEntries(filterHandEntries(this.entries, this.filter), this.filter.sort, this.filter.sortDir);

@@ -243,6 +243,18 @@ export default defineComponent({
         return [];
       }
       const nodes = this.group.nodes;
+      // Per-branch graphics only when the render SPLITS CLEANLY (≥ one node per
+      // branch). When a card draws ALL branches in ONE combined node (Self-
+      // Replicating Robots: "→ link · OR · → ×2"), handing that node to a single
+      // branch paints the WHOLE action on it (misleading) — fall back to each
+      // branch's own title text instead. Mirrors CardActionConfirmContent.
+      if (nodes.length < branches.length) {
+        return branches.map((branch, i): BranchView => ({
+          key: this.cardName + '#br' + i,
+          node: undefined,
+          branch,
+        }));
+      }
       const indices = assignBranchNodes(
         branches.map((b) => this.branchTitle(b)),
         nodes.map((n) => actionNodeDescription(n)),

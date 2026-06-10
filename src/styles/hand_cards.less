@@ -721,6 +721,76 @@
     color: @hc-warn;
 }
 
+/* ── Self-replicating Robots host pill ─────────────────────────────────
+   Flags a card hosted ON Self-replicating Robots (playable from this overlay
+   with a cost discount = the resources on it). Absolutely positioned at the
+   card's top edge so it never shifts the adaptive grid. Inlines its own
+   premium tooltip ::after — the shared .premium-tooltip() mixin forces
+   `position: relative`, which would break this absolute pill. */
+@hc-robot: #57c8d6; /* distinct teal-cyan "hosted" accent (≠ mint / orange / chrome) */
+
+.hand-card-item__robot {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 7;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid fade(@hc-robot, 70%);
+    background: linear-gradient(180deg, rgba(14, 38, 44, 0.96), rgba(8, 24, 30, 0.98));
+    box-shadow: 0 3px 11px rgba(0, 0, 0, 0.5), inset 0 0 0 1px fade(@hc-robot, 12%), 0 0 9px fade(@hc-robot, 20%);
+    color: @hc-robot;
+    font-family: Prototype, Orbitron, Ubuntu, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: help;
+
+    &[data-hint]:not([data-hint=""]):hover::after {
+        content: attr(data-hint);
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: normal;
+        width: max-content;
+        max-width: 220px;
+        padding: 7px 11px;
+        border-radius: 6px;
+        background: rgba(8, 14, 22, 0.97);
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55), inset 0 0 0 1px fade(@hc-robot, 40%);
+        color: #d6e8fb;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 12px;
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: 0.2px;
+        line-height: 1.4;
+        z-index: 30;
+        pointer-events: none;
+    }
+}
+.hand-card-item__robot-mark {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    background: @hc-robot;
+    box-shadow: 0 0 6px fade(@hc-robot, 70%);
+}
+.hand-card-item__robot-discount {
+    padding-left: 5px;
+    border-left: 1px solid fade(@hc-robot, 38%);
+    color: @hc-ready; /* the discount reads as a gain → mint */
+    font-variant-numeric: tabular-nums;
+}
+
 /* Both the disabled "НЕДОСТУПНА" footer (rules block) and the calm "waiting"
    footer (soft block) are reason-popover triggers (hover / focus). Keep their
    layout identical to the play button slot. */
