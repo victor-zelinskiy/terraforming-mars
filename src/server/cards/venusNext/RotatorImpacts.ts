@@ -61,6 +61,10 @@ export class RotatorImpacts extends Card implements IActionCard {
 
   // Branch order MUST match action(): spend-asteroid pushed first, add-asteroid second.
   public actionPreview(player: IPlayer) {
+    // The add-asteroid branch pays 6 M€ (titanium usable). When titanium is
+    // usable the payment is dialed INSIDE the confirm modal as a step (no
+    // separate SelectPayment follow-up); otherwise a flat M€ cost chip.
+    const payAdd = actionPreviews.paymentStep(player, 6, {canUseTitanium: true, title: TITLES.payForCardAction(this.name)});
     return actionPreviews.orBranches(this, [
       {
         available: this.canSpendResource(player),
@@ -71,7 +75,10 @@ export class RotatorImpacts extends Card implements IActionCard {
       {
         available: this.canAddResource(player),
         title: 'Pay 6 M€ to add 1 asteroid to this card',
-        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 6), actionPreviews.cardGain(this, 1)],
+        effects: payAdd !== undefined ?
+          [actionPreviews.cardGain(this, 1)] :
+          [actionPreviews.stockCost(player, Resource.MEGACREDITS, 6), actionPreviews.cardGain(this, 1)],
+        steps: payAdd !== undefined ? [payAdd] : [],
         unavailableReason: actionReason.needMoreMC(player, 6),
       },
     ]);

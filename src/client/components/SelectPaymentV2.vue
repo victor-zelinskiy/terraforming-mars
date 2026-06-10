@@ -24,9 +24,9 @@
         :cost="cost"
         :order="order"
         :ledger="ledger"
-        :showsave="showsave"
+        :showsave="controlled ? false : showsave"
         :buttonLabel="playerinput.buttonLabel"
-        @change="(p) => payment = p"
+        @change="onPaymentChange"
         @save="doSave" />
     </div>
   </div>
@@ -68,7 +68,21 @@ export default defineComponent({
     showtitle: {
       type: Boolean,
     },
+    /*
+     * CONTROLLED mode (mirrors ModernPlayerPicker's `controlled`): the widget
+     * never self-submits via `onsave`/a Confirm button — instead it emits the
+     * live payment as a ready-to-batch `{type:'payment', payment}` response on
+     * `@change` (PaymentFormV2 fires `change` immediately on mount with the
+     * default payment, so the host has a valid response right away). Used inside
+     * the card-action confirmation modal so the payment is dialed in there and
+     * committed by the single ВЫПОЛНИТЬ — not as a separate follow-up modal.
+     */
+    controlled: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['change'],
   computed: {
     // Same display order as V1: alternate resources first, MC last.
     // Filtered by `canUse` so only legal payment kinds are rendered.
@@ -103,6 +117,38 @@ export default defineComponent({
     canSave(): boolean {
       const paymentForm = this.$refs.paymentForm as {canSave: () => boolean} | undefined;
       return paymentForm?.canSave() ?? false;
+    },
+    onPaymentChange(p: Payment): void {
+      this.payment = p;
+      // In controlled mode re-emit the live payment as a ready-to-batch response
+      // so the host (the action confirm modal) captures it without a Confirm
+      // click. Emit `undefined` while the mix doesn't cover the cost, so the host
+      // treats the step as UNANSWERED and keeps its CTA disabled (the player can't
+      // submit an under-payment). Validity is computed HERE from cost/ledger (not
+      // via the child form's ref) because the FIRST change fires during the
+      // child's setup — before `$refs.paymentForm` is populated — so a ref-based
+      // check would wrongly report the valid default payment as insufficient and
+      // leave the CTA disabled on open. In normal mode the host's onsave/Save
+      // button path commits instead.
+      if (this.controlled) {
+        this.$emit('change', this.paymentCoversCost(p) ? {type: 'payment', payment: p} : undefined);
+      }
+    },
+    // Self-contained validity check (mirrors PaymentFormV2.canSave): the mix
+    // covers the cost AND no row exceeds what's available. Ref-free so it's
+    // correct on the very first change emitted during mount.
+    paymentCoversCost(p: Payment): boolean {
+      if (this.cost <= 0) {
+        return true;
+      }
+      let total = 0;
+      for (const unit of this.order) {
+        if (p[unit] > this.ledger[unit].available) {
+          return false;
+        }
+        total += p[unit] * this.ledger[unit].rate;
+      }
+      return total >= this.cost;
     },
     doSave(): void {
       this.onsave({type: 'payment', payment: this.payment});

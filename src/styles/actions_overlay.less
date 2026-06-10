@@ -688,7 +688,20 @@
     position: relative;
     padding: 20px 22px 18px;
     min-width: 480px;
-    max-width: min(680px, calc(100vw - 60px));
+    /* Wider than a plain confirm: the body is a two-column plan (source card +
+     * planning panel), and the planning panel hosts the payment widget — which
+     * needs comfortable room for the resource rows + stepper. The row layout is
+     * responsive (it wraps before clipping), so this is breathing room, not a
+     * hard dependency. */
+    max-width: min(800px, calc(100vw - 60px));
+}
+
+/* The MandatoryInputModal card hugs its content (width: auto, capped at 760px).
+ * An action-confirm plan is wider than that cap, so let the card grow to fit it
+ * — same `:has()` mechanism the card-selection grid uses. Without this the 760px
+ * card cap would re-clamp the wider frame and squeeze the payment panel. */
+.mandatory-input-modal__card:has(.action-confirm) {
+    max-width: min(860px, calc(100vw - 48px));
 }
 .action-confirm__corner {
     position: absolute;
