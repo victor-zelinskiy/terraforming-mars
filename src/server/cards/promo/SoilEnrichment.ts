@@ -9,6 +9,8 @@ import {IPlayer} from '../../IPlayer';
 import {CardResource} from '../../../common/CardResource';
 import {SelectCard} from '../../inputs/SelectCard';
 import {Resource} from '../../../common/Resource';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class SoilEnrichment extends Card implements IProjectCard {
   constructor() {
@@ -51,5 +53,19 @@ export class SoilEnrichment extends Card implements IProjectCard {
     }
 
     return input;
+  }
+
+  // The on-play preview: SoilEnrichment overrides `play()` directly (not
+  // `behavior`/`bespokePlay`), so the modal needs an explicit hook. Show the fixed
+  // +5 plants result AND the "which card to take a microbe from" target picker —
+  // the SAME `SelectCard` `play()` builds, so the pre-collected pick lines up with
+  // the live follow-up. A single eligible card auto-resolves in `play()` (no
+  // prompt) → no step, exactly like the live path.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const cards = this.eligibleCards(player);
+    const step = cards.length > 1 ?
+      actionPreviews.selectCardStep(player, 'Select card to remove 1 microbe from', 'Select', cards, {amount: -1}) :
+      undefined;
+    return actionPreviews.playPreview(this, player, [actionPreviews.stockGain(player, Resource.PLANTS, 5)], [step]);
   }
 }

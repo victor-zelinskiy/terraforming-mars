@@ -12,6 +12,8 @@ import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
 import {message} from '../../logs/MessageBuilder';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class LocalHeatTrapping extends Card implements IProjectCard {
   constructor() {
@@ -65,8 +67,10 @@ export class LocalHeatTrapping extends Card implements IProjectCard {
     return availableHeat >= 5;
   }
 
-  // By overriding play, the heat is not deducted automatically.
-  public override play(player: IPlayer) {
+  // The post-heat choice (gain 4 plants OR add 2 animals to a card). SIDE-EFFECT
+  // FREE to BUILD (the mutations live in the `andThen` callbacks), so it's shared
+  // by `play()` and the read-only `cardPlayPreview` without drifting.
+  private buildOptions(player: IPlayer): OrOptions {
     const availableActions = new OrOptions();
 
     const animalCards: Array<ICard> = player.getResourceCards(CardResource.ANIMAL);
@@ -94,6 +98,12 @@ export class LocalHeatTrapping extends Card implements IProjectCard {
             return undefined;
           }));
     }
+    return availableActions;
+  }
+
+  // By overriding play, the heat is not deducted automatically.
+  public override play(player: IPlayer) {
+    const availableActions = this.buildOptions(player);
 
     return player.spendHeat(5, () => {
       if (availableActions.options.length === 1) {
@@ -101,5 +111,21 @@ export class LocalHeatTrapping extends Card implements IProjectCard {
       }
       return availableActions;
     });
+  }
+
+  // The on-play preview: LocalHeatTrapping overrides `play()` directly, so the
+  // modal needs an explicit hook. Always shows the −5 heat the effect spends; then
+  // either the fixed +4 plants (when there's no animal card → the choice auto-
+  // resolves) or the SAME "gain 4 plants / add 2 animals" OrOptions `play()` builds,
+  // hosted as a step so the player picks IN the modal. (With Stormcraft floaters as
+  // heat the live path inserts a heat-source prompt first; the batch's graceful
+  // fallback then lets the OrOptions ride the follow-up — a rare, safe degrade.)
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const options = this.buildOptions(player);
+    const heatCost = actionPreviews.stockCost(player, Resource.HEAT, 5);
+    if (options.options.length === 1) {
+      return actionPreviews.playPreview(this, player, [heatCost, actionPreviews.stockGain(player, Resource.PLANTS, 4)]);
+    }
+    return actionPreviews.playPreview(this, player, [heatCost], [actionPreviews.orOptionsStep(player, options)]);
   }
 }

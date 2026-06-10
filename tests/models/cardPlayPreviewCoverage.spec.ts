@@ -105,6 +105,17 @@ function overridesBespokePlay(card: ICard): boolean {
   return (card as {bespokePlay?: unknown}).bespokePlay !== Card.prototype.bespokePlay;
 }
 
+// A card "customizes its play" if it overrides EITHER `bespokePlay` (the common
+// path) OR `play()` directly (the older pattern — e.g. SoilEnrichment,
+// LocalHeatTrapping — which bypasses the behavior/bespokePlay split entirely). The
+// modal's preview can hide an on-play choice/result for BOTH, so the coverage gate
+// must consider both — checking only `bespokePlay` once let SoilEnrichment's
+// "spend a microbe from which card?" picker slip through to a bare dynamic modal.
+function customizesPlay(card: ICard): boolean {
+  return overridesBespokePlay(card) ||
+    (card as {play?: unknown}).play !== Card.prototype.play;
+}
+
 function hasBehavior(card: ICard): boolean {
   return (card as {behavior?: unknown}).behavior !== undefined;
 }
@@ -135,10 +146,10 @@ function forEachInScopeProjectCard(cb: (card: ICard, module: GameModule) => void
 }
 
 describe('card-play-preview coverage', () => {
-  it('every in-scope project card with a bespoke on-play effect is hooked, declarative, or an explicit dynamic fallback', () => {
+  it('every in-scope project card that customizes its play (bespokePlay OR play()) is hooked, declarative, or an explicit dynamic fallback', () => {
     const gaps: Array<string> = [];
     forEachInScopeProjectCard((card, module) => {
-      if (!overridesBespokePlay(card)) {
+      if (!customizesPlay(card)) {
         return;
       }
       const accepted = card.name in ACCEPTED_DYNAMIC;
@@ -146,7 +157,7 @@ describe('card-play-preview coverage', () => {
         gaps.push(`${card.name} [${module}]`);
       }
     });
-    expect(gaps, `bespoke-play cards needing a cardPlayPreview hook, a behavior, or an ACCEPTED_DYNAMIC entry:\n  ${gaps.join('\n  ')}`).to.have.length(0);
+    expect(gaps, `cards customizing play that need a cardPlayPreview hook, a behavior, or an ACCEPTED_DYNAMIC entry:\n  ${gaps.join('\n  ')}`).to.have.length(0);
   });
 
   it('no behavior+bespokePlay card silently HIDES a fixed on-play result (each has a hook or an audited "no hidden result" entry)', () => {
