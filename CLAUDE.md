@@ -13,6 +13,52 @@ This is `vize1215`'s personal fork — a private/self-hosted build of the open-s
 
 When a change has trade-offs between these goals and any other consideration (closeness to upstream, code volume, edge cases), favor the goals above unless the user says otherwise.
 
+# ═══════════════════════════════════════════════════════════════════
+# >>> EXPANSION ADAPTATION CHECKLIST — READ FIRST when widening scope <<<
+# ═══════════════════════════════════════════════════════════════════
+
+**When the user says "adapt / cover expansion X" (Turmoil, Ares, Moon, Pathfinders, CEOs, Star Wars, Underworld, Prelude2, Community, Delta, …), THIS is the master to-do.** Every premium subsystem this fork built is **scoped** — it deliberately covers only a set of modules today, guarded by tests that ENUMERATE exactly which cards need attention. Adapting an expansion = widening that scope module-by-module and clearing what the guard tests print. Do them in this order; **the guard tests are your worklist — run them right after step 1 and they tell you every card to touch.**
+
+**Current scope (everything below already covers these):** `base`, `corpera` (Corporate Era), `promo`, `venus` (VenusNext), `colonies`, `prelude` (Prelude1).
+**Not yet in scope (the frontier) — EXACT `GameModule` keys:** `prelude2`, `turmoil`, `community`, `ares`, `moon`, `pathfinders`, `ceo`, `starwars`, `underworld`, `deltaProject`. ⚠️ The module KEY ≠ the source DIR for two: key `ceo` ↔ dir `src/server/cards/ceos`; key `deltaProject` ↔ dir `src/server/cards/delta`. Use the KEY in the SCOPE sets, the DIR for file paths. (Full list: `src/common/cards/GameModule.ts`.)
+
+### Step 0 — the load-bearing rule for ALL of the below
+**Every per-card hook is CO-LOCATED in the card file** (next to `canPlay`/`canAct`/`bespokePlay`), pulling wording from a thin stable builder module. This is deliberate: a fork that merges upstream — when upstream changes a card, the hook is in the SAME diff/conflict, so it can't silently drift. **Never** centralize these into a fork-only table upstream never touches (it would merge clean and rot). Builders: `src/server/cards/actionPreviews.ts` (previews), `src/server/cards/actionReasons.ts` (action reasons), `src/server/inputs/optionMetadata.ts` (modal metadata). All hooks/previews are READ-ONLY (never mutate game state).
+
+### Step 1 — widen every SCOPE constant (do this FIRST, then run the guards)
+Add the new `GameModule` key to the `SCOPE`/in-scope set in EACH guard spec, then run them — each FAILS with a self-documenting list of the exact cards to cover:
+- `tests/models/cardPlayPreviewCoverage.spec.ts` → `SCOPE` (play-from-hand previews)
+- `tests/models/actionReasonCoverage.spec.ts` → in-scope set (blue-card action unavailable-reasons)
+- (grep `new Set<GameModule>` across `tests/` — keep all SCOPE sets in sync.)
+
+### The subsystems — what each needs per new card, and which guard enforces it
+
+| Subsystem (what the player sees) | Per-card work for the new expansion | Builder / override | Guard test (your worklist) |
+| --- | --- | --- | --- |
+| **Play-card modal preview** (`КАРТЫ В РУКЕ` → РАЗЫГРАТЬ) — result chips + pre-collected on-play choices | Declarative `behavior` cards: **auto-covered, nothing to do.** A card that customizes play (`bespokePlay` OR overrides `play()`) needs a co-located **`ICard.cardPlayPreview?(player)`** hook (show the computable result + host the choice) **OR** an explicit `ACCEPTED_DYNAMIC` / `BEHAVIOR_BESPOKE_NO_HIDDEN_RESULT` entry with a reason. **Rule: a FIXED computable result MUST be shown even with no choice; only board/colony placement, multi-select, or compose-during-build legitimately ride the post-batch follow-up.** | `actionPreviews.ts` (`playPreview`/`selectCardStep`/`orOptionsStep`/`inputStep`/`stockGain`/`productionChange`/`trGain`/`drawGain`/…) | `cardPlayPreviewCoverage.spec.ts` (2 tests: `customizesPlay` = bespokePlay **or** `play()` override; + behavior+bespoke hidden-result). FAILS = exact card list. |
+| **Action-confirm modal preview** (`ДЕЙСТВИЯ` → ВЫПОЛНИТЬ) — same, for activatable blue-card / corp actions | Declarative actions auto-covered. Bespoke action → co-located **`ICard.actionPreview?(player)`** hook (`singleBranch`/`orBranches`/`dynamic`). | `actionPreviews.ts` | (covered indirectly by the action overlays + manual `?actionsPlayground` audit) |
+| **Actions overlay — "why can't I activate"** premium reason popover | A card with a **bespoke `canAct`** that can be unavailable → co-located **`ICard.actionUnavailableReason?(player)`** one-liner from `actionReasons.ts` (`notEnoughEnergy()`/`needMoreMC(player,cost)`/`ruleReason(msg)`/…). Declarative action cards derive reasons automatically. | `src/server/cards/actionReasons.ts` | `actionReasonCoverage.spec.ts` — FAILS until every can-be-unavailable action card has a declarative reason or a hook. |
+| **Hand overlay — "why can't I play"** premium reason popover | The server (`models/unplayableReasons.ts`) auto-derives from requirements / affordability / board+target checks. Only a **bespoke `canPlay`** block the generic checks can't introspect needs a co-located **`ICard.unplayableReason?(player)`** hook (e.g. RoboticWorkforceBase "no building card to copy"). | (reuses `player.canPlay` + requirement compile) | — (add the hook when a bespoke-`canPlay` card reads as a misleading generic "rule" block) |
+| **Effects overlay** (`ЭФФЕКТЫ`) — passive/ongoing effect graphics | Clean `effect()` render nodes → **auto-extracted, nothing to do.** A card that draws its passive rule as bespoke root rows / plain text → an `EFFECT_OVERRIDES` entry (`renderWhole`/`text`/`descFromMeta`/`exclude`). | `effects/effectExtraction.ts` `EFFECT_OVERRIDES` | `?effectsPlayground` **"Flagged / needs work"** tab auto-lists candidates; `tests/.../effectExtraction.spec.ts`. |
+| **Actions overlay** (`ДЕЙСТВИЯ`) — activatable action graphics | Clean `action()` node → auto-extracted. Bespoke-render action → `ACTION_OVERRIDES` (`renderWhole`/`text`). | `actions/actionExtraction.ts` `ACTION_OVERRIDES` | `?actionsPlayground` **"Flagged"** tab; `tests/.../actionExtraction.spec.ts`. |
+| **Modal-input rich metadata** (attack/steal/global-param/SelectPlayer/SelectAmount/card-resource prompts) + **shown-disabled targets with reasons** | Attach `.withMetadata(...)` / `SelectPlayer`/`SelectAmount` options / `setDisabledOptions` / `disabledColonies` per the dedicated table below. **Scope note:** ONLY play-time prompts (`bespokePlay`/`behavior`/triggered) are enriched — repeatable `action()` + production-phase prompts are intentionally NOT. | `src/server/inputs/optionMetadata.ts` factories | the **"Metadata contract — CHECKLIST"** table further down + `?modalPlayground`. |
+| **Localization** | Card-prompt titles → `src/locales/ru/play_prompts.json`; UI strings → `ru/ui.json`; action-graphic text bakes an `'Action: '`/`'Effect: '` prefix → add the prefixed key (stripped client-side). **`grep` the EXACT key across ALL `src/locales/<lang>/*.json` first — `make_static_json` throws on a duplicate.** Reuse CANONICAL terms (TR→**РТ**, VP→**ПО**); never coin a new abbreviation. | — | `npm run make:json` (throws on dupes). |
+| **Card render — requirements** | New cards' requirement boxes follow the unified `[icon] ≥/≤ [value][suffix]` format (no MAX-text, no repeated icons). | — | visual / existing render tests. |
+| **Start-of-game flow** (corp first action / prelude selection) | The `startGamePrompt` marker is set GENERICALLY in `Player.ts` / `selectPreludeToPlay` — a new corp/prelude is covered automatically. Only a genuinely NEW prompt SHAPE needs a new `startGamePrompt.kind` + predicate (NEVER detect by translatable title text). | — | `StartGamePromptMarker.spec.ts`. |
+| **Placement "why not here"** per-cell popover | The server already derives `PlacementIllegalReason` per off-limits cell; a new reason = add the enum value + label and it flows through unchanged. | `MarsBoard.computeIllegalReasons` + `board/placementReason.ts` | — |
+
+### The expansion-specific gotchas to expect
+- **Turmoil**: send-delegate has no dedicated action button yet (rides `wf-action`) — add its selector to BOTH `PLACEMENT_LOCKED_SELECTORS` (PlayerHome) and `placement_banner.less` when you build it. Party-action payments are `SelectPaymentDeferred` (already modal-routed).
+- **Moon**: `ICard.reserveUnits` / moon-rate requirements — the requirement explainer + placement deficit already map moon rates; verify new moon spaces in `unplayableReasons` board checks.
+- **Pathfinders / Underworld / Star Wars**: new `CardResource` types — `iconClassFor` (`optionIcons.ts`) derives `card-resource-<key>` by lowercasing+hyphenating, correct for every in-scope resource; verify a genuinely new resource icon class exists, else add it. New underground-token / corruption requirements already have requirement-reason branches.
+- **CEOs**: one-per-game CEO action has no dedicated button yet (migration list item). Asimov-style free-award funding is OUT of the AwardsOverlay free-mode scope (awards not in `game.awards`) — stays on the generic modal until addressed.
+- **AndOptions-nested SelectCard** (FocusedOrganization [prelude2], AeronGenomics [underworld]) still renders via legacy `AndOptions.vue` — a known narrow gap; a premium `ModernAndOptions` was deliberately deferred.
+
+### The done-criteria (all green = the expansion is adapted)
+`npm run build:server` + `npm run lint:client` + `npm run make:json` (no dupes) + the coverage specs (`cardPlayPreviewCoverage`, `actionReasonCoverage`, `actionUnavailableReasons`, `effectExtraction`, `actionExtraction`) + the affected card specs. Eyeball `?modalPlayground` / `?effectsPlayground` / `?actionsPlayground` for the new module's flagged cards.
+
+# ═══════════════════════════════════════════════════════════════════
+
 ## Action UI Rework (in progress)
 
 This fork is migrating the per-action UI away from upstream's generic `wf-action` + `btn-submit` radio-button form and toward **dedicated styled buttons** on each game element (milestones first, awards / standard projects / convert-plants / colonies to follow). The radio UI still exists and works — once every action type is migrated it will be hidden, not removed.
