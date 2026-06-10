@@ -1002,6 +1002,20 @@ export default defineComponent({
       if (oldVal === 'cards' && newVal !== 'cards') {
         exitSellPatents();
       }
+      // SAFETY NET against a stranded client-pick. A client-driven "pick a card
+      // from hand" (SRR "link a card", Mars University "discard") lives ONLY while
+      // the КАРТЫ В РУКЕ overlay is the active surface — its initiating modal is
+      // SUPPRESSED (hidden) behind it. The MOMENT that overlay stops being active
+      // for ANY reason (✕, the bottom-bar КАРТЫ toggle, switching to another
+      // overlay, the Pass flow, a direct close), the pick MUST be cancelled and the
+      // suppressed modal restored — otherwise the modal stays hidden forever (stuck
+      // in pick mode). Catching it on the activeOverlay change covers EVERY close
+      // path in one place. Idempotent + exempt from the resolve path
+      // (`resolveClientHandSelect` clears `clientPick` BEFORE it nulls activeOverlay,
+      // so `isClientHandPickActive()` is already false here on a resolve).
+      if (newVal !== 'cards' && isClientHandPickActive()) {
+        cancelClientHandSelect();
+      }
     },
     /*
      * Server-driven mandatory "select cards from your hand" prompt. When the
@@ -1193,6 +1207,17 @@ export default defineComponent({
   mounted() {
     this.syncStartGameActionLockBody();
     this.syncActionLockGuards();
+    // A client-driven hand pick (SRR / Mars University) is purely client-side and
+    // resolves back to its in-memory initiating modal. That modal is component
+    // data (gone on a `playerkey` remount), while the pick state is module-level.
+    // So if we MOUNTED with a pick still flagged active, a server round-trip
+    // happened mid-pick (e.g. the player hit Pass while the overlay was open and
+    // the confirm modal suppressed) → the initiating modal is gone and the pick
+    // can never resolve. Cancel it so the player isn't left with a stale,
+    // unresolvable pick mode (overlay auto-reopening with nowhere to deliver to).
+    if (isClientHandPickActive()) {
+      cancelClientHandSelect();
+    }
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleOutsideOverlayClick);

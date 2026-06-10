@@ -37,8 +37,19 @@ body.mandatory-input-modal-open {
  * and #player-home becomes interactive again. Both modifier states
  * also visually hide the modal so the player isn't confused about
  * what's blocking what.
+ *
+ * `--suppressed` MUST be excluded too: a confirm modal that hands off
+ * to the КАРТЫ В РУКЕ overlay for a "pick a card from hand" step
+ * (Self-Replicating Robots "link a card", Mars University "discard")
+ * sets `--suppressed` (display:none) and opens that overlay INSIDE
+ * #player-home. Without the exclusion the (still-mounted, hidden)
+ * modal kept matching `:has()`, so #player-home stayed
+ * pointer-events:none AND animation-frozen — which paused the
+ * overlay's entrance animation at opacity:0 ⇒ the overlay was
+ * INVISIBLE + dead. Excluding `--suppressed` lets the overlay show
+ * and be interactable.
  */
-body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-modal--minimized):not(.mandatory-input-modal--picker-mode)) #player-home {
+body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-modal--minimized):not(.mandatory-input-modal--picker-mode):not(.mandatory-input-modal--suppressed)) #player-home {
     pointer-events: none;
 }
 
@@ -67,7 +78,7 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
  * affect the scale-marker WAAPI animations (created via element.animate),
  * which is fine — those aren't running while a modal blocks input.
  */
-body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-modal--minimized):not(.mandatory-input-modal--picker-mode)) #player-home,
+body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-modal--minimized):not(.mandatory-input-modal--picker-mode):not(.mandatory-input-modal--suppressed)) #player-home,
 body:has(.colonies-overlay:not(.colonies-overlay--minimized)) #player-home,
 body:has(dialog.card-zoom-dialog[open]) #player-home {
     &,
