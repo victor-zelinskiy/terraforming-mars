@@ -50,8 +50,15 @@ export class Vermin extends ActionCard implements IProjectCard, IActionCard {
             eb.city({all}).startEffect.resource(CardResource.ANIMAL);
           });
           b.br;
-          b.action('Add 1 animal here or 1 microbe to ANOTHER card.', (eb) => {
-            eb.empty().startAction.resource(CardResource.ANIMAL).or().resource(CardResource.MICROBE).asterix();
+          // TWO action rows (one per `or` branch) so each choice maps to its OWN
+          // icon graphic in the ActionsOverlay / confirm modal instead of falling
+          // back to title text (the combined "→ animal OR microbe" was one node
+          // for two branches). Titles match the `or` behavior titles.
+          b.action('Add one animal here', (eb) => {
+            eb.empty().startAction.resource(CardResource.ANIMAL);
+          }).br;
+          b.action('Add 1 microbe to ANY card', (eb) => {
+            eb.empty().startAction.resource(CardResource.MICROBE).asterix();
           });
         }),
         victoryPoints: vermin(),
