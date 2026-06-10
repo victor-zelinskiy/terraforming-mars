@@ -405,7 +405,14 @@ export default defineComponent({
       let n = 0;
       const b = this.selected;
       if (b !== undefined) {
-        n += countCards(b.optionInput as {type: string} | undefined);
+        // The branch's own optionInput counts ONLY when it renders as inline tiles
+        // (ActionTargetCard). A pick FROM HAND routes to the КАРТЫ В РУКЕ overlay
+        // behind a single "Pick a card from hand" CTA — it shows NO tiles here, so
+        // it must NOT widen the modal (the Self-Replicating Robots case).
+        if (b.optionInput !== undefined && !this.isHandCardInput(b.optionInput)) {
+          n += countCards(b.optionInput as {type: string});
+        }
+        // Steps with a 'card' input always render inline tiles.
         for (const step of b.steps) {
           if (step.kind === 'input') {
             n += countCards(step.input as {type: string});
