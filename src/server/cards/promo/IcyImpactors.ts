@@ -11,7 +11,9 @@ import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred
 import {message} from '../../logs/MessageBuilder';
 import {CardResource} from '../../../common/CardResource';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class IcyImpactors extends Card implements IActionCard {
   constructor() {
@@ -57,6 +59,26 @@ export class IcyImpactors extends Card implements IActionCard {
 
   actionUnavailableReason() {
     return actionReason.ruleReason('Cannot pay for an asteroid right now');
+  }
+
+  // Branch order MUST match action(): place-ocean pushed first, buy-asteroids second.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.orBranches(this, [
+      {
+        // The first player places the ocean on the board after submit (no step).
+        available: this.canAffordToPlaceOcean(player),
+        title: 'Spend 1 asteroid here to place an ocean (first player chooses where to place it)',
+        effects: [actionPreviews.cardCost(this, 1)],
+        unavailableReason: actionReason.ruleReason('No asteroid here, or you can\'t afford the ocean'),
+      },
+      {
+        // The payment (titanium may be used) rides the follow-up routing.
+        available: this.canAffordToBuyAsteroids(player),
+        title: 'Spend 10 M€ to add 2 asteroids here',
+        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 10), actionPreviews.cardGain(this, 2)],
+        unavailableReason: actionReason.needMoreMC(player, 10),
+      },
+    ]);
   }
 
   action(player: IPlayer) {

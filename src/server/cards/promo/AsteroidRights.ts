@@ -14,6 +14,7 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class AsteroidRights extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -53,6 +54,40 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
 
   public actionUnavailableReason() {
     return actionReason.ruleReason('Need 1 M€ or an asteroid resource on this card');
+  }
+
+  // Branch order MUST match action(): gain-titanium, increase-M€-prod (both
+  // gated on having an asteroid here), then add-asteroid (gated on M€).
+  public actionPreview(player: IPlayer) {
+    const hasAsteroids = this.resourceCount > 0;
+    const asteroidCards = player.getResourceCards(CardResource.ASTEROID);
+    // With several asteroid-holding cards, action() builds a SelectCard for the
+    // target DIRECTLY (a bare return, or as the OrOptions option) — pre-collect it
+    // as the branch's optionInput. A single candidate auto-adds to this card.
+    const pickTarget = asteroidCards.length > 1;
+    return actionPreviews.orBranches(this, [
+      {
+        available: hasAsteroids,
+        title: 'Remove 1 asteroid on this card to gain 2 titanium',
+        effects: [actionPreviews.cardCost(this, 1), actionPreviews.stockGain(player, Resource.TITANIUM, 2)],
+        unavailableReason: actionReason.noResourcesHere(),
+      },
+      {
+        available: hasAsteroids,
+        title: 'Remove 1 asteroid on this card to increase M€ production 1 step',
+        effects: [actionPreviews.cardCost(this, 1), actionPreviews.productionChange(player, Resource.MEGACREDITS, 1)],
+        unavailableReason: actionReason.noResourcesHere(),
+      },
+      {
+        // Target card pre-collected via optionInput (when several candidates);
+        // the M€ payment rides the follow-up SelectPaymentDeferred after submit.
+        available: player.canAfford(1),
+        title: 'Add 1 asteroid to this card',
+        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 1), actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
+        optionInput: pickTarget ? actionPreviews.cardInput(player, 'Select card to add 1 asteroid', 'Add asteroid', asteroidCards) : undefined,
+        unavailableReason: actionReason.needMoreMC(player, 1),
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

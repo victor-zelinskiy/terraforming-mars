@@ -9,6 +9,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class SaturnSurfing extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -43,6 +44,13 @@ export class SaturnSurfing extends Card implements IActionCard, IProjectCard {
   }
   public actionUnavailableReason() {
     return actionReason.noResourcesHere();
+  }
+
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.cardCost(this, 1),
+      actionPreviews.stockGain(player, Resource.MEGACREDITS, Math.min(5, this.resourceCount)),
+    ]);
   }
 
   public action(player: IPlayer) {

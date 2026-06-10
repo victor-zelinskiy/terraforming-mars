@@ -364,6 +364,24 @@ export default defineComponent({
         },
         wgtSubmit);
     },
+    /**
+     * Submit an ORDERED ARRAY of responses in one request (the action-preview
+     * rework's "single final submit"). The server replays them in order against
+     * each successive `waitingFor`; see `routes/PlayerInputBatch.ts`. The
+     * response is a normal PlayerViewModel, so the same hold/animation + update
+     * path as `onsave` applies; a leftover `waitingFor` (board placement /
+     * divergence) renders through the existing routing.
+     */
+    onsaveBatch(responses: ReadonlyArray<InputResponse>) {
+      this.fetchPlayerInput(
+        paths.PLAYER_INPUT_BATCH + '?id=' + this.playerView.id,
+        {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({runId: this.playerView.runId, responses}),
+        },
+        false);
+    },
     reset() {
       this.fetchPlayerInput(
         paths.RESET + '?id=' + this.playerView.id,

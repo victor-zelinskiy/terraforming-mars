@@ -11,6 +11,7 @@ import {RemoveResourcesFromCard} from '../../deferredActions/RemoveResourcesFrom
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as actionPreviews from '../actionPreviews';
 
 export class Ants extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -53,6 +54,10 @@ export class Ants extends Card implements IActionCard, IProjectCard {
       return {type: 'target', message: 'No card has a microbe to remove'};
     }
     return undefined;
+  }
+
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.removeAddCardResource(player, this, CardResource.MICROBE);
   }
 
   public action(player: IPlayer) {

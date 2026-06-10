@@ -7,6 +7,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class Viron extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -56,6 +57,11 @@ export class Viron extends CorporationCard implements ICorporationCard {
   }
   public actionUnavailableReason() {
     return actionReason.ruleReason('No other action card to copy');
+  }
+
+  // Copies another already-used blue-card action — can't be statically previewed.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.dynamic(this, player);
   }
 
   public action(player: IPlayer) {

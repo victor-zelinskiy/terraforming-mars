@@ -9,7 +9,9 @@ import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 const ACTION_COST = 12;
 export class WaterImportFromEuropa extends Card implements IActionCard, IProjectCard {
@@ -38,6 +40,13 @@ export class WaterImportFromEuropa extends Card implements IActionCard, IProject
   }
   public actionUnavailableReason() {
     return actionReason.notEnoughMC();
+  }
+  // Pay 12 M€ (titanium usable) then place an ocean — the board placement is an
+  // after-submit SelectSpace, so no step here, only the M€ cost.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.stockCost(player, Resource.MEGACREDITS, ACTION_COST),
+    ]);
   }
   public action(player: IPlayer) {
     player.game.defer(new SelectPaymentDeferred(player, ACTION_COST, {canUseTitanium: true, title: TITLES.action}))

@@ -8,6 +8,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {TITLES} from '../../inputs/titles';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {Resource} from '../../../common/Resource';
+import * as actionPreviews from '../actionPreviews';
 export const ACTION_COST = 3;
 export class UnitedNationsMarsInitiative extends CorporationCard implements IActionCard, ICorporationCard {
   constructor() {
@@ -46,6 +48,13 @@ export class UnitedNationsMarsInitiative extends CorporationCard implements IAct
       return {type: 'megacredits', message: 'Need ${0} more M€', params: [String(Math.max(1, ACTION_COST - player.spendableMegacredits()))]};
     }
     return undefined;
+  }
+  // Pay 3 M€ to raise your TR 1 step more (only if TR was raised this generation).
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.stockCost(player, Resource.MEGACREDITS, ACTION_COST),
+      actionPreviews.trGain(player, 1),
+    ]);
   }
 
   public action(player: IPlayer) {

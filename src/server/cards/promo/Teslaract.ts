@@ -6,7 +6,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {IActionCard} from '../ICard';
 import {Units} from '../../../common/Units';
 import {Tag} from '../../../common/cards/Tag';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class Teslaract extends Card implements IActionCard {
   constructor() {
@@ -38,6 +40,13 @@ export class Teslaract extends Card implements IActionCard {
   }
   actionUnavailableReason() {
     return actionReason.noEnergyProduction();
+  }
+
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.productionChange(player, Resource.ENERGY, -1),
+      actionPreviews.productionChange(player, Resource.PLANTS, 1),
+    ]);
   }
 
   action(player: IPlayer): undefined {

@@ -9,7 +9,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {TITLES} from '../../inputs/titles';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class RobinsonIndustries extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
@@ -37,6 +39,34 @@ export class RobinsonIndustries extends CorporationCard implements ICorporationC
   }
   public actionUnavailableReason(player: IPlayer) {
     return actionReason.needMoreMC(player, 4);
+  }
+  // One branch per tied-lowest production (spend 4 M€ → +1 of it). Mirrors
+  // action()'s push order: ALL_RESOURCES order, only the resources tied at the
+  // running minimum. canAct gates the whole action, so all branches share it.
+  public actionPreview(player: IPlayer) {
+    const available = this.canAct(player);
+    let minimum = player.production.megacredits;
+    let lowest: Array<Resource> = [];
+    ALL_RESOURCES.forEach((resource) => {
+      if (player.production[resource] < minimum) {
+        lowest = [];
+        minimum = player.production[resource];
+      }
+      if (player.production[resource] === minimum) {
+        lowest.push(resource);
+      }
+    });
+    return actionPreviews.orBranches(this, lowest.map((resource) => ({
+      available,
+      title: 'Increase ' + resource + ' production 1 step',
+      effects: [
+        actionPreviews.stockCost(player, Resource.MEGACREDITS, 4),
+        actionPreviews.productionChange(player, resource, 1),
+      ],
+      unavailableReason: actionReason.needMoreMC(player, 4),
+      // action() returns the OrOptions directly (never reduce()d), so even a lone
+      // tied-lowest production is presented at index 0 — don't auto-resolve.
+    })), {autoResolveSingle: false});
   }
 
   public action(player: IPlayer) {

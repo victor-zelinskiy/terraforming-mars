@@ -7,6 +7,7 @@ import {CardResource} from '../../../common/CardResource';
 import {IActionCard} from '../ICard';
 import {Size} from '../../../common/cards/render/Size';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import * as actionPreviews from '../actionPreviews';
 
 export class KuiperCooperative extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
@@ -34,6 +35,12 @@ export class KuiperCooperative extends CorporationCard implements ICorporationCa
         }),
       },
     });
+  }
+
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.cardGain(this, player.tags.count(Tag.SPACE)),
+    ]);
   }
 
   public action(player: IPlayer) {

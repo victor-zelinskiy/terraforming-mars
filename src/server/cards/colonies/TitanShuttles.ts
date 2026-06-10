@@ -10,6 +10,7 @@ import {SelectAmount} from '../../inputs/SelectAmount';
 import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
+import * as actionPreviews from '../actionPreviews';
 
 export class TitanShuttles extends Card implements IProjectCard {
   constructor() {
@@ -39,6 +40,25 @@ export class TitanShuttles extends Card implements IProjectCard {
 
   public canAct(): boolean {
     return true;
+  }
+
+  // Branch order MUST match action(): add-to-Jovian first, spend-for-titanium second.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.orBranches(this, [
+      {
+        available: true,
+        title: 'Add 2 floaters to a Jovian card',
+        effects: [actionPreviews.cardResourceGain(CardResource.FLOATER, 2)],
+        steps: [actionPreviews.addToCardStep(player, CardResource.FLOATER, {count: 2, restrictedTag: Tag.JOVIAN})],
+      },
+      {
+        // The OrOptions option IS a SelectAmount, so the amount nests into the
+        // branch pick (optionInput), not a separate step.
+        available: this.resourceCount > 0,
+        title: 'Remove X floaters on this card to gain X titanium',
+        optionInput: actionPreviews.amountInput('Remove X floaters on this card to gain X titanium', 'Remove floaters', 1, this.resourceCount, {icon: 'titanium'}),
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

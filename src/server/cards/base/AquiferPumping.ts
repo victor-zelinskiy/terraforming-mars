@@ -9,7 +9,9 @@ import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {TITLES} from '../../inputs/titles';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export const OCEAN_COST = 8;
 export class AquiferPumping extends Card implements IActionCard, IProjectCard {
@@ -40,6 +42,13 @@ export class AquiferPumping extends Card implements IActionCard, IProjectCard {
   // Co-located with canAct so the reason can't drift when the gate changes.
   public actionUnavailableReason() {
     return actionReason.notEnoughMC();
+  }
+  // Spend 8 M€ (steel usable) then place an ocean — the board placement is an
+  // after-submit SelectSpace, so no step here, only the M€ cost.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.stockCost(player, Resource.MEGACREDITS, OCEAN_COST),
+    ]);
   }
   public action(player: IPlayer) {
     player.game.defer(new SelectPaymentDeferred(player, 8, {canUseSteel: true, title: TITLES.payForCardAction(this.name)}))

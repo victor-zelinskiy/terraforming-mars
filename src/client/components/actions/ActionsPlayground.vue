@@ -40,6 +40,8 @@
                            :minimizable="false">
         <CardActionConfirmContent
           :cardName="pendingCardName"
+          :playerView="mockPlayerView"
+          :branchPosition="pendingBranchPosition"
           @confirm="pendingCardName = undefined; open = true"
           @cancel="pendingCardName = undefined; open = true" />
       </MandatoryInputModal>
@@ -99,7 +101,7 @@ import {CardType} from '@/common/cards/CardType';
 import {MODULE_NAMES} from '@/common/cards/GameModule';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
-import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {PublicPlayerModel, PlayerViewModel} from '@/common/models/PlayerModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {Resource} from '@/common/Resource';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -173,6 +175,7 @@ type DataModel = {
   viewerColor: Color;
   zoomCard: CardModel | undefined;
   pendingCardName: CardName | undefined;
+  pendingBranchPosition: number | undefined;
 };
 
 export default defineComponent({
@@ -196,6 +199,7 @@ export default defineComponent({
       viewerColor: 'red',
       zoomCard: undefined,
       pendingCardName: undefined,
+      pendingBranchPosition: undefined,
     };
   },
   computed: {
@@ -211,14 +215,21 @@ export default defineComponent({
     flaggedCount(): number {
       return this.overrideRows.length + this.candidateRows.length;
     },
+    // Minimal mock so the confirmation modal mounts in the playground. There is
+    // no server here, so its preview fetch fails gracefully (the modal shows the
+    // empty state) — the playground's real value is the OVERLAY layout/filters.
+    mockPlayerView(): PlayerViewModel {
+      return {id: 'playground', players: this.players, thisPlayer: this.displayedPlayer} as unknown as PlayerViewModel;
+    },
   },
   methods: {
     togglePlayer(): void {
       this.selectedColor = this.selectedColor === 'red' ? 'blue' : 'red';
     },
-    onActivate(name: CardName): void {
+    onActivate(payload: {cardName: CardName, branchPosition?: number}): void {
       this.open = false;
-      this.pendingCardName = name;
+      this.pendingCardName = payload.cardName;
+      this.pendingBranchPosition = payload.branchPosition;
     },
     openCard(name: CardName): void {
       this.zoomCard = {name} as CardModel;

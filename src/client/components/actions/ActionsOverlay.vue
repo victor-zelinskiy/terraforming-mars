@@ -54,6 +54,8 @@
         <ActionBlock v-for="e in filtered"
                      :key="e.cardName"
                      :entry="e"
+                     :preview="previews[e.cardName]"
+                     :card="tableauByName.get(e.cardName)"
                      @namehover="onNameHover"
                      @open="openFullscreen"
                      @activate="$emit('activate', $event)" />
@@ -79,6 +81,8 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {ActionPreview} from '@/common/models/ActionPreviewModel';
+import {paths} from '@/common/app/paths';
 import {
   ActionEntry,
   ActionFilterState,
@@ -121,6 +125,9 @@ type DataModel = {
   zoomCard: CardModel | undefined;
   resizeObserver: ResizeObserver | undefined;
   fitScheduled: boolean;
+  // Read-only action previews fetched per visible action card (own seat only) —
+  // drives the per-branch split + availability in each ActionBlock.
+  previews: Record<string, ActionPreview>;
 };
 
 export default defineComponent({
@@ -134,6 +141,11 @@ export default defineComponent({
     viewerColor: {
       type: String as PropType<Color>,
       required: true,
+    },
+    // The viewer's PlayerId — used to fetch the read-only action preview per card.
+    viewerId: {
+      type: String,
+      default: '',
     },
     // Card names in the server's 'Perform an action from a played card'
     // SelectCard — the authoritative "available right now" set (own seat only).
@@ -159,6 +171,7 @@ export default defineComponent({
       zoomCard: undefined,
       resizeObserver: undefined,
       fitScheduled: false,
+      previews: {},
     };
   },
   computed: {
@@ -198,6 +211,8 @@ export default defineComponent({
   watch: {
     'displayedPlayer.color'(): void {
       this.clearHover();
+      this.previews = {};
+      this.fetchPreviews();
       nextTick(() => this.fit());
     },
     filtered(): void {
@@ -205,6 +220,7 @@ export default defineComponent({
     },
   },
   mounted(): void {
+    this.fetchPreviews();
     nextTick(() => this.fit());
     window.setTimeout(() => this.fit(), 220);
     const root = this.$refs.root as HTMLElement | undefined;
@@ -228,6 +244,30 @@ export default defineComponent({
     },
     setActivation(value: ActivationFilter): void {
       this.filter = {...this.filter, activation: value};
+    },
+    // Fetch the read-only action preview for each of the viewer's OWN action
+    // cards so ActionBlock can split multi-branch actions into per-branch buttons
+    // with their own availability + context. Opponent views never activate, so
+    // they skip the fetch. Fired per overlay open / player switch.
+    fetchPreviews(): void {
+      if (!this.isViewerSeat || this.viewerId === '') {
+        this.previews = {};
+        return;
+      }
+      for (const e of this.entries) {
+        const name = e.cardName;
+        const url = paths.API_ACTION_PREVIEW +
+          '?id=' + encodeURIComponent(this.viewerId) +
+          '&card=' + encodeURIComponent(name);
+        fetch(url)
+          .then((r) => (r.ok ? r.json() : undefined))
+          .then((p) => {
+            if (p !== undefined) {
+              this.previews = {...this.previews, [name]: p as ActionPreview};
+            }
+          })
+          .catch(() => { /* preview is best-effort; ActionBlock falls back to the single block */ });
+      }
     },
     onKeydown(e: KeyboardEvent): void {
       if (e.key === 'Escape') {

@@ -1,5 +1,6 @@
 import {IPlayer} from '../IPlayer';
 import {SelectCard} from '../inputs/SelectCard';
+import {SelectCardModel} from '../../common/models/PlayerInputModel';
 import {CardResource} from '../../common/CardResource';
 import {ICard} from '../cards/ICard';
 import {Tag} from '../../common/cards/Tag';
@@ -82,21 +83,46 @@ export class AddResourcesToCard extends DeferredAction {
       return undefined;
     }
 
-    // A forced single pick (one candidate, but autoSelect disabled) reads as a
-    // CONFIRMATION ("add here"), not a choice ("select a card …"). Plain string
-    // keys (no resource/number token) so the Russian text stays correct —
-    // the resource type + count are clear from the shown card + the button.
+    return this.buildSelectCard(cards)
+      .andThen(([card]) => {
+        this.addResource(card, qty);
+        return undefined;
+      });
+  }
+
+  /**
+   * Build the `SelectCard` the live path presents (shared with the read-only
+   * preview so the two never drift). A forced single pick (one candidate, but
+   * autoSelect disabled) reads as a CONFIRMATION ("add here"), not a choice
+   * ("select a card …"). Plain string keys (no resource/number token) so the
+   * Russian text stays correct — the resource type + count are clear from the
+   * shown card + the button.
+   */
+  private buildSelectCard(cards: ReadonlyArray<ICard>): SelectCard<ICard> {
+    const qty = this.options.count ?? 1;
     const single = cards.length === 1;
     const buttonLabel = qty === 1 ? 'Add resource' : 'Add resources';
     const title: string | Message = this.options.title ?? (single ?
       (qty === 1 ? 'Add resource to this card' : 'Add resources to this card') :
       message('Select card to add ${0} ${1}', (b) => b.number(qty).string(this.resourceType || 'resources')));
+    return new SelectCard(title, buttonLabel, cards);
+  }
 
-    return new SelectCard(title, buttonLabel, cards)
-      .andThen(([card]) => {
-        this.addResource(card, qty);
-        return undefined;
-      });
+  /**
+   * READ-ONLY: the `SelectCardModel` the live path WOULD present, or `undefined`
+   * when the resource auto-applies (single candidate + autoSelect not false) or
+   * there are no candidate cards. Used by the action-preview builder to host the
+   * card-target picker INSIDE the confirmation modal — no mutation.
+   */
+  public previewSelectCard(): SelectCardModel | undefined {
+    const cards = this.getCards();
+    if (cards.length === 0) {
+      return undefined;
+    }
+    if (cards.length === 1 && this.options.autoSelect !== false) {
+      return undefined;
+    }
+    return this.buildSelectCard(cards).toModel(this.player);
   }
 
   private addResource(card: ICard, qty: number) {

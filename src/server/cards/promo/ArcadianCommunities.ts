@@ -10,6 +10,7 @@ import {ICorporationCard} from '../corporation/ICorporationCard';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class ArcadianCommunities extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
@@ -94,6 +95,12 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
 
   public actionUnavailableReason() {
     return actionReason.placementReason('No area to place a community');
+  }
+
+  // Placing the community marker is a board-space selection resolved on the
+  // board after submit — no pre-collectable step or fixed effect.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player);
   }
 
   public action(player: IPlayer) {

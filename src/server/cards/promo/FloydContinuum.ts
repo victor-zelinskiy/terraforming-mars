@@ -8,6 +8,7 @@ import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
 import {Resource} from '../../../common/Resource';
 import {IActionCard} from '../ICard';
+import * as actionPreviews from '../actionPreviews';
 
 // Note: Floyd Continuum comes from the Dutch international open.
 // https://boardgamegeek.com/thread/3120204/dutch-open-terraformingmars-international-4th-tour
@@ -33,6 +34,26 @@ export class FloydContinuum extends Card implements IProjectCard, IActionCard {
 
   public canAct() {
     return true;
+  }
+
+  public actionPreview(player: IPlayer) {
+    const game = player.game;
+    let count = 0;
+    if (game.getTemperature() === constants.MAX_TEMPERATURE) {
+      count++;
+    }
+    if (game.getOxygenLevel() === constants.MAX_OXYGEN_LEVEL) {
+      count++;
+    }
+    if (!game.canAddOcean()) {
+      count++;
+    }
+    if (game.getVenusScaleLevel() === constants.MAX_VENUS_SCALE) {
+      count++;
+    }
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.stockGain(player, Resource.MEGACREDITS, 3 * count),
+    ]);
   }
 
   public action(player: IPlayer) {

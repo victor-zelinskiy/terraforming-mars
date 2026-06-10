@@ -56,8 +56,13 @@ const PLACEMENT: UnplayableReason = {type: 'placement', message: 'No space avail
  * Mirror the action-relevant checks from `Executor.canExecute`, emitting a
  * structured reason per failing check instead of a short-circuit `false`. We do
  * NOT short-circuit — every blocker is surfaced (deduped + capped by the caller).
+ *
+ * Exported so the READ-ONLY action-preview builder (`actionPreview.ts`) can reuse
+ * it as its per-(sub-)behavior executability gate: a behavior is executable iff
+ * this collects zero reasons — the exact read-only mirror of the `Executor.execute`
+ * `or`-branch filter, WITHOUT the `card.warnings.add` side effects `canExecute` has.
  */
-function collectActionBehaviorReasons(
+export function collectActionBehaviorReasons(
   player: IPlayer,
   card: ICard,
   behavior: Behavior,

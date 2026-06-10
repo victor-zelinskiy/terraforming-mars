@@ -9,7 +9,9 @@ import {OrOptions} from '../../inputs/OrOptions';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {Payment} from '../../../common/inputs/Payment';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class TitanAirScrapping extends Card implements IProjectCard {
   constructor() {
@@ -48,6 +50,24 @@ export class TitanAirScrapping extends Card implements IProjectCard {
   }
   public actionUnavailableReason() {
     return actionReason.ruleReason('No titanium or floaters to spend');
+  }
+
+  // Branch order MUST match action(): spend-floaters pushed first, add-floaters second.
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.orBranches(this, [
+      {
+        available: this.resourceCount >= 2 && player.canAfford({cost: 0, tr: {tr: 1}}),
+        title: 'Remove 2 floaters on this card to increase your TR 1 step',
+        effects: [actionPreviews.cardCost(this, 2), actionPreviews.trGain(player, 1)],
+        unavailableReason: actionReason.ruleReason('Not enough floaters here (need 2)'),
+      },
+      {
+        available: player.titanium > 0,
+        title: 'Spend 1 titanium to add 2 floaters on this card',
+        effects: [actionPreviews.stockCost(player, Resource.TITANIUM, 1), actionPreviews.cardGain(this, 2)],
+        unavailableReason: actionReason.notEnoughTitanium(),
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

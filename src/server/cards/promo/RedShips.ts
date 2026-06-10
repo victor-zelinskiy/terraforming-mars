@@ -7,6 +7,7 @@ import {all} from '../Options';
 import {Resource} from '../../../common/Resource';
 import {Board, isSpecialTileSpace} from '../../boards/Board';
 import {IActionCard} from '../ICard';
+import * as actionPreviews from '../actionPreviews';
 
 export class RedShips extends Card implements IActionCard {
   constructor() {
@@ -30,6 +31,18 @@ export class RedShips extends Card implements IActionCard {
 
   canAct(): boolean {
     return true;
+  }
+
+  public actionPreview(player: IPlayer) {
+    const board = player.game.board;
+    const candidates = board.spaces.filter((space) => {
+      return Board.isCitySpace(space) || isSpecialTileSpace(space);
+    });
+    const included = candidates.filter(
+      (space) => board.getAdjacentSpaces(space).some((adj) => Board.isOceanSpace(adj)));
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.stockGain(player, Resource.MEGACREDITS, included.length),
+    ]);
   }
 
   action(player: IPlayer): undefined {

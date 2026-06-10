@@ -13,6 +13,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {digit} from '../Options';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class Astrodrill extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
@@ -49,6 +51,37 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
 
   public canAct(): boolean {
     return true;
+  }
+
+  // Branch order MUST match action(): remove-asteroid (when one is here) pushed
+  // first, add-asteroid second, gain-standard-resource third. action() always
+  // returns an OrOptions (add + gain are always offered), so disable auto-resolve.
+  public actionPreview(player: IPlayer) {
+    const asteroidCards = player.getResourceCards(CardResource.ASTEROID);
+    // Several asteroid-holding cards → action() builds a SelectCard for the
+    // target directly; pre-collect it. A single candidate auto-adds to this card.
+    const pickTarget = asteroidCards.length > 1;
+    return actionPreviews.orBranches(this, [
+      {
+        available: this.resourceCount > 0,
+        title: 'Remove 1 asteroid on this card to gain 3 titanium',
+        effects: [actionPreviews.cardCost(this, 1), actionPreviews.stockGain(player, Resource.TITANIUM, 3)],
+        unavailableReason: actionReason.noResourcesHere(),
+      },
+      {
+        // Target card pre-collected via optionInput (when several candidates).
+        available: true,
+        title: 'Add 1 asteroid to this card',
+        effects: [actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
+        optionInput: pickTarget ? actionPreviews.cardInput(player, 'Select card to add 1 asteroid', 'Add asteroid', asteroidCards) : undefined,
+      },
+      {
+        // Picking WHICH standard resource is a nested OrOptions that rides the
+        // follow-up routing after submit.
+        available: true,
+        title: 'Gain a standard resource',
+      },
+    ], {autoResolveSingle: false});
   }
 
   public action(player: IPlayer) {

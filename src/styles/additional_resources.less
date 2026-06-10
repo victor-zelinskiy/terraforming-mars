@@ -845,43 +845,17 @@
 /* Threshold progress — how close the card is to its NEXT VP (per > 1 cards).
    The thematic "X / N" indicator the spec's Rats example called for, applied
    generically to every real threshold card (Tardigrades, Decomposers, …). */
-.additional-resource-detail__progress {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    width: 100%;
-}
-.additional-resource-detail__progress-track {
-    flex: 1 1 auto;
-    height: 5px;
-    border-radius: 3px;
-    background: rgba(120, 95, 30, 0.28);
-    box-shadow: inset 0 0 0 1px rgba(240, 200, 120, 0.22);
-    overflow: hidden;
-}
-.additional-resource-detail__progress-fill {
-    display: block;
-    height: 100%;
-    border-radius: 3px;
-    background: linear-gradient(90deg, rgba(240, 200, 120, 0.65), #ffe08a);
-    transition: width 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.additional-resource-detail__progress-text {
-    flex-shrink: 0;
-    font-family: "Russo One", Prototype, sans-serif;
-    font-size: 10px;
-    color: rgba(244, 220, 160, 0.85);
-    font-variant-numeric: tabular-nums;
-}
+/* Built from the shared mixins in `vp_progress.less` (single source of truth —
+   keeps this bar identical to the action confirmation modal's VpProgressBar). */
+.additional-resource-detail__progress { .vp-progress-row-style(); }
+.additional-resource-detail__progress-track { .vp-progress-track-style(); }
+.additional-resource-detail__progress-fill { .vp-progress-fill-style(); }
+.additional-resource-detail__progress-text { .vp-progress-text-style(); }
 
 /* Activation threshold reached (Vermin live) — recolour the bar from
    "building" amber to an "active penalty" coral/red. Out-specifies the base. */
-.additional-resource-detail__progress--reached .additional-resource-detail__progress-fill {
-    background: linear-gradient(90deg, rgba(230, 130, 100, 0.7), #ff9a82);
-}
-.additional-resource-detail__progress--reached .additional-resource-detail__progress-text {
-    color: #ffb59c;
-}
+.additional-resource-detail__progress--reached .additional-resource-detail__progress-fill { .vp-progress-fill-reached-style(); }
+.additional-resource-detail__progress--reached .additional-resource-detail__progress-text { .vp-progress-text-reached-style(); }
 
 /* Search-for-Life-style cards: drop the legacy on-card "alien" chrome in the
    overlay — the premium status marker in the footer supersedes it. Covers the

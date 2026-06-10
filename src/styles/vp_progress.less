@@ -1,0 +1,52 @@
+/*
+ * Shared VP / threshold PROGRESS BAR — the single source of truth for the amber
+ * "X / N toward the next VP" bar. Both the additional-resource detail overlay
+ * (`.additional-resource-detail__progress*`) and the action confirmation modal's
+ * "ПРОГРЕСС ПО" block (the `.vp-progress*` classes / `VpProgressBar.vue`) build
+ * from these mixins, so the two surfaces can NEVER visually diverge. Extracted
+ * from `additional_resources.less` (the original home of this bar).
+ */
+
+.vp-progress-row-style() {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+}
+.vp-progress-track-style() {
+    flex: 1 1 auto;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(120, 95, 30, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(240, 200, 120, 0.22);
+    overflow: hidden;
+}
+.vp-progress-fill-style() {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, rgba(240, 200, 120, 0.65), #ffe08a);
+    transition: width 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.vp-progress-text-style() {
+    flex-shrink: 0;
+    font-family: "Russo One", Prototype, sans-serif;
+    font-size: 10px;
+    color: rgba(244, 220, 160, 0.85);
+    font-variant-numeric: tabular-nums;
+}
+/* Threshold reached — recolour from "building" amber to a brighter gold/coral. */
+.vp-progress-fill-reached-style() {
+    background: linear-gradient(90deg, rgba(230, 130, 100, 0.7), #ff9a82);
+}
+.vp-progress-text-reached-style() {
+    color: #ffb59c;
+}
+
+/* Canonical classes for the shared `VpProgressBar.vue` component. */
+.vp-progress { .vp-progress-row-style(); }
+.vp-progress__track { .vp-progress-track-style(); }
+.vp-progress__fill { .vp-progress-fill-style(); }
+.vp-progress__text { .vp-progress-text-style(); }
+.vp-progress--reached .vp-progress__fill { .vp-progress-fill-reached-style(); }
+.vp-progress--reached .vp-progress__text { .vp-progress-text-reached-style(); }

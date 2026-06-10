@@ -11,7 +11,9 @@ import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {Payment} from '../../../common/inputs/Payment';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class JetStreamMicroscrappers extends Card implements IActionCard {
   constructor() {
@@ -46,6 +48,25 @@ export class JetStreamMicroscrappers extends Card implements IActionCard {
 
   public actionUnavailableReason() {
     return actionReason.ruleReason('No titanium or floaters to spend');
+  }
+
+  // Branch order MUST match action(): spend-floaters pushed first, add-floaters second.
+  public actionPreview(player: IPlayer) {
+    const venusMaxed = player.game.getVenusScaleLevel() === MAX_VENUS_SCALE;
+    return actionPreviews.orBranches(this, [
+      {
+        available: this.resourceCount > 1 && !venusMaxed && player.canAfford({cost: 0, tr: {venus: 1}}),
+        title: 'Remove 2 floaters to raise Venus 1 step',
+        effects: [actionPreviews.cardCost(this, 2), actionPreviews.globalGain(player, 'venus', 1)],
+        unavailableReason: actionReason.ruleReason('Not enough floaters, Venus is maxed, or you can\'t afford the Reds tax'),
+      },
+      {
+        available: player.titanium > 0,
+        title: 'Spend one titanium to add 2 floaters to this card',
+        effects: [actionPreviews.stockCost(player, Resource.TITANIUM, 1), actionPreviews.cardGain(this, 2)],
+        unavailableReason: actionReason.notEnoughTitanium(),
+      },
+    ]);
   }
 
   public action(player: IPlayer) {

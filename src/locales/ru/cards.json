@@ -109,7 +109,7 @@
     "Place a city tile. Decrease your energy production 2 steps and increase your steel production 2 steps.": "Постройте город. Снизьте своё производство энергии на 2 и повысьте своё производство стали на 2.",
 
     "Regolith Eaters": "Поедатели реголита",
-    "Action: Remove 2 microbes from this card to raise oxygen level 1 step.": "Действие: положите жетон бактерий на эту карту или сбросьте 2 жетона бактерий с этой карты, чтобы повысить уровень кислорода на 1.",
+    "Action: Remove 2 microbes from this card to raise oxygen level 1 step.": "Действие: сбросьте 2 жетона бактерий с этой карты, чтобы повысить уровень кислорода на 1.",
 
     "GHG Producing Bacteria": "Бактерии, выделяющие парниковые газы",
     "Action: Remove 2 microbes to raise temperature 1 step.": "Действие: Сбросьте 2 жетона бактерий с этой карты, чтобы повысить температуру на 1.",
@@ -503,7 +503,7 @@
     "Effect: After you pay for a standard project, except selling patents, you gain 3 M€.": "Эффект: после того как вы оплатите стандартный проект, кроме «продажи патентов», получите 3 M€.",
 
     "Nitrite Reducing Bacteria": "Бактерия, перерабатывающая нитриты",
-    "(Action: Remove 3 microbes to increase your TR 1 step.)": "(Действие: положите жетон бактерий на эту карту или сбросьте 3 жетона бактерий, чтобы повысить свой рейтинг на 1.)",
+    "(Action: Remove 3 microbes to increase your TR 1 step.)": "(Действие: сбросьте 3 жетона бактерий с этой карты, чтобы повысить свой РТ на 1.)",
     "Action: Remove 3 microbes to increase your TR 1 step.": "Действие: удалите 3 микроба с этой карты, чтобы повысить свой РТ на 1.",
     "Add 3 microbes to this card.": "Положите 3 жетона бактерий на эту карту.",
 
