@@ -10,6 +10,7 @@ import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} fro
 import {PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
 import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
+import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
 import {SelectAmount} from '../inputs/SelectAmount';
 import {SelectCard} from '../inputs/SelectCard';
 
@@ -101,6 +102,32 @@ export function cardResourceGain(resource: CardResource, amount: number): Action
 export function addToCardStep(player: IPlayer, resource: CardResource | undefined, opts: AddResourceOptions = {}): ActionPreviewStep | undefined {
   const model = new AddResourcesToCard(player, resource, opts).previewSelectCard();
   return model !== undefined ? {kind: 'input', input: model} : undefined;
+}
+
+/**
+ * A PAYMENT step, mirroring a `SelectPaymentDeferred` the action defers (e.g.
+ * "pay 12 M€, titanium usable" for Water Import From Europa). Returns the
+ * `SelectPayment` model so the confirm modal hosts the SAME premium payment
+ * widget the live follow-up would, and the chosen payment is collected into the
+ * single batch submit. Returns `undefined` when the live path would NOT prompt —
+ * the player can only pay in M€ (`SelectPaymentDeferred` auto-pays) or amount ≤ 0
+ * — so NO step is shown (the caller falls back to a flat `stockCost` effect chip,
+ * exactly matching the live behaviour). Drift-free: it asks the SAME deferred
+ * (`previewPaymentModel`) that `execute` uses.
+ */
+export function paymentStep(player: IPlayer, amount: number, options?: SelectPaymentOptions): ActionPreviewStep | undefined {
+  const model = new SelectPaymentDeferred(player, amount, options).previewPaymentModel();
+  return model !== undefined ? {kind: 'input', input: model} : undefined;
+}
+
+/**
+ * An honest "you will place a tile on the board after confirming" note (the
+ * board placement is inherently interactive and can't be pre-chosen in the
+ * modal — the leftover `SelectSpace` hands off to `PlacementBanner` after the
+ * batch submit). `placementType` is informational (e.g. `'ocean'`, `'city'`).
+ */
+export function boardPlacementStep(placementType: string): ActionPreviewStep {
+  return {kind: 'boardPlacement', placementType};
 }
 
 /** A "choose an amount" step (e.g. spend X floaters) — hosts the modern stepper. */

@@ -41,10 +41,18 @@ export class WaterImportFromEuropa extends Card implements IActionCard, IProject
   public actionUnavailableReason() {
     return actionReason.notEnoughMC();
   }
-  // Pay 12 M€ (titanium usable) then place an ocean — the board placement is an
-  // after-submit SelectSpace, so no step here, only the M€ cost.
+  // Pay 12 M€ (titanium usable) then place an ocean. When titanium is usable the
+  // payment is an INTERACTIVE step (the player dials M€/titanium INSIDE the
+  // confirm modal — no separate SelectPayment follow-up); otherwise it's a flat
+  // M€ cost chip. The ocean placement is an after-submit SelectSpace shown as a
+  // board-placement note.
   public actionPreview(player: IPlayer) {
-    return actionPreviews.singleBranch(this, player, [], [
+    const pay = actionPreviews.paymentStep(player, ACTION_COST, {canUseTitanium: true, title: TITLES.action});
+    const place = actionPreviews.boardPlacementStep('ocean');
+    if (pay !== undefined) {
+      return actionPreviews.singleBranch(this, player, [pay, place]);
+    }
+    return actionPreviews.singleBranch(this, player, [place], [
       actionPreviews.stockCost(player, Resource.MEGACREDITS, ACTION_COST),
     ]);
   }

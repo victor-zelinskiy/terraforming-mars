@@ -114,24 +114,26 @@
 .payment-v2__rows {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 9px;
 }
 
+/* TWO-ZONE premium row: identity + stepper (main), planning facts (meta). The
+ * main zone wraps when the container is genuinely too narrow, so the −/+/МАКС.
+ * cluster never clips — no fixed table columns. */
 .payment-v2-row {
-    display: grid;
-    grid-template-columns: minmax(120px, 1.4fr) auto minmax(80px, 0.9fr);
-    align-items: center;
-    gap: 14px;
-    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 11px 13px 10px;
     border: 1px solid #28415e;
-    border-radius: 3px;
-    background: rgba(16, 24, 36, 0.6);
+    border-radius: 7px;
+    background: linear-gradient(180deg, rgba(18, 28, 42, 0.66) 0%, rgba(13, 21, 33, 0.66) 100%);
     transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 
     &--active {
-        border-color: rgba(106, 176, 230, 0.55);
-        background: rgba(24, 38, 56, 0.72);
-        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.18);
+        border-color: rgba(106, 176, 230, 0.6);
+        background: linear-gradient(180deg, rgba(26, 42, 62, 0.8) 0%, rgba(18, 30, 46, 0.8) 100%);
+        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.2), 0 0 14px rgba(60, 130, 190, 0.12);
     }
 
     &--reserved {
@@ -139,56 +141,77 @@
     }
 }
 
+.payment-v2-row__main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+}
+
 .payment-v2-row__head {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 11px;
     min-width: 0;
+    flex: 1 1 auto;
 }
 
 .payment-v2-row__icon {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     flex-shrink: 0;
     background-size: contain;
     background-repeat: no-repeat;
 }
 
-.payment-v2-row__meta {
+/* Name + conversion-rate chip on one baseline. */
+.payment-v2-row__id {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    gap: 9px;
     min-width: 0;
+    flex-wrap: wrap;
 }
 
 .payment-v2-row__label {
-    font-size: 13px;
-    letter-spacing: 0.5px;
-    color: #d6e2f2;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    color: #e3edf8;
     text-transform: uppercase;
     line-height: 1.1;
 }
 
-/* Multiplier hint for non-1× resources (steel ×2, titanium ×3, seed ×5).
- * Renders below the label so the row stays single-line at narrow widths. */
+/* Multiplier chip for non-1× resources (steel ×2, titanium ×3, seed ×5). */
 .payment-v2-row__rate {
-    margin-top: 2px;
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border: 1px solid rgba(255, 210, 120, 0.5);
+    border-radius: 999px;
+    background: rgba(255, 200, 90, 0.12);
+    color: #ffd687;
     font-size: 11px;
-    color: #9bb5d0;
-    letter-spacing: 1px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
 }
 
-/* ===== Stepper cluster (−/+/MAX + count) ===== */
+/* ===== Stepper cluster (−, count, +, МАКС.) ===== */
 
 .payment-v2-row__stepper {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-left: auto;
 }
 
 .payment-v2-step {
-    height: 28px;
-    min-width: 30px;
-    padding: 0 8px;
+    height: 32px;
+    min-width: 34px;
+    padding: 0 9px;
     border: 1px solid rgba(106, 176, 230, 0.45);
     background: linear-gradient(180deg,
         rgba(40, 65, 95, 0.85) 0%,
@@ -200,12 +223,13 @@
     line-height: 1;
     letter-spacing: 0.5px;
     cursor: pointer;
-    border-radius: 2px;
+    border-radius: 4px;
     transition: border-color 0.12s ease, background 0.12s ease, filter 0.12s ease;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     user-select: none;
+    white-space: nowrap;
 
     &:hover:not(:disabled) {
         border-color: #6ab0e6;
@@ -216,96 +240,217 @@
     }
     &:disabled {
         cursor: not-allowed;
-        opacity: 0.4;
+        opacity: 0.38;
     }
 
     &__glyph {
-        font-size: 18px;
+        font-size: 19px;
         line-height: 1;
         font-weight: 600;
     }
 
+    /* МАКС. — text button, never clipped: room for the label + breathing space. */
     &--max {
+        min-width: 56px;
+        padding: 0 13px;
         font-size: 11px;
         letter-spacing: 1.5px;
-        padding: 0 10px;
     }
 }
 
 /* Large number readout for the current dialed value of this resource. */
-.payment-v2-row__count {
-    min-width: 48px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 0 4px;
-    line-height: 1;
-}
-
 .payment-v2-row__count-value {
-    font-size: 22px;
+    min-width: 30px;
+    padding: 0 2px;
+    text-align: center;
+    font-size: 23px;
     font-weight: 700;
     color: #fff;
+    line-height: 1;
     font-variant-numeric: tabular-nums;
 }
 
-/* Secondary line — "= 6" M€ contribution for non-1× resources. */
-.payment-v2-row__count-contrib {
-    margin-top: 2px;
-    font-size: 10px;
-    color: #ffd87a;
-    letter-spacing: 0.5px;
-}
+/* ===== Meta line — planning facts (stock current → after, contribution) ===== */
 
-/* ===== Right-side pool indicator ===== */
-
-.payment-v2-row__pool {
-    text-align: right;
+.payment-v2-row__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(106, 176, 230, 0.12);
     font-variant-numeric: tabular-nums;
 }
 
-.payment-v2-row__pool-line {
+.payment-v2-row__fact {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+}
+
+.payment-v2-row__fact-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #7f9bb8;
+}
+
+/* current → after */
+.payment-v2-row__stock-cur {
     font-size: 14px;
-    color: #b8c4d0;
-    letter-spacing: 0.5px;
+    font-weight: 600;
+    color: #c2d2e2;
 }
 
-.payment-v2-row__pool-num {
-    color: #fff;
+.payment-v2-row__stock-arrow {
+    font-size: 12px;
+    color: #6a8aa8;
+    transform: translateY(-1px);
+}
+
+.payment-v2-row__stock-after {
+    font-size: 14px;
     font-weight: 700;
+    color: #c2d2e2;
+
+    /* When this resource is actually being spent, highlight the resulting
+     * (post-payment) stock so the player sees what they'll have left. */
+    &--spent {
+        color: #7fd4ff;
+        text-shadow: 0 0 7px rgba(106, 176, 230, 0.35);
+    }
 }
 
-.payment-v2-row__pool-sep {
-    margin: 0 3px;
-    color: #6a7b8e;
+/* contribution toward the cost */
+.payment-v2-row__contrib-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffd87a;
 }
 
-.payment-v2-row__pool-den {
-    color: #9bb5d0;
+.payment-v2-row__contrib-coin {
+    width: 15px;
+    height: 15px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    transform: translateY(2px);
 }
 
-.payment-v2-row__pool-reserved {
-    margin-top: 2px;
+/* A row contributing nothing yet reads quieter — it's not part of the bill. */
+.payment-v2-row__contrib--zero {
+    .payment-v2-row__contrib-value { color: #708296; }
+    .payment-v2-row__contrib-coin { opacity: 0.5; }
+}
+
+.payment-v2-row__reserved {
+    margin-left: auto;
     font-size: 9px;
     letter-spacing: 1px;
     color: #ffc878;
     text-transform: uppercase;
 }
 
-/* ===== Progress bar ===== */
+/* ===== Payment summary (paid / cost + status + completion bar) ===== */
 
-.payment-v2__progress {
+.payment-v2__summary {
     margin-top: 14px;
-    padding-top: 12px;
+    padding-top: 13px;
     border-top: 1px solid rgba(106, 176, 230, 0.18);
+}
+
+.payment-v2__summary-top {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-bottom: 9px;
+    font-variant-numeric: tabular-nums;
+}
+
+.payment-v2__summary-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: #7f9bb8;
+}
+
+.payment-v2__summary-amount {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+}
+
+.payment-v2__summary-paid {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+
+.payment-v2__summary-sep {
+    color: #5d7088;
+}
+
+.payment-v2__summary-cost {
+    font-size: 15px;
+    color: #9bb5d0;
+}
+
+.payment-v2__summary-coin {
+    align-self: center;
+    width: 16px;
+    height: 16px;
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+
+/* Status pill — ГОТОВО (mint) when covered, else "НЕ ХВАТАЕТ N" (amber). */
+.payment-v2__summary-status {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+
+    &--ready {
+        color: #8fe8c0;
+        border: 1px solid rgba(120, 220, 170, 0.5);
+        background: rgba(80, 200, 150, 0.12);
+        box-shadow: 0 0 10px rgba(120, 220, 170, 0.18);
+    }
+    &--short {
+        color: #ffc878;
+        border: 1px solid rgba(255, 200, 90, 0.5);
+        background: rgba(255, 190, 80, 0.1);
+    }
+}
+
+.payment-v2__summary-status-value {
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.payment-v2__summary-status-coin {
+    width: 14px;
+    height: 14px;
+    background-size: contain;
+    background-repeat: no-repeat;
 }
 
 .payment-v2__progress-rail {
     position: relative;
-    height: 14px;
+    height: 12px;
     border: 1px solid rgba(106, 176, 230, 0.35);
-    border-radius: 2px;
+    border-radius: 999px;
     background:
         repeating-linear-gradient(45deg,
             rgba(10, 18, 30, 0.55) 0,
@@ -323,57 +468,18 @@
     box-shadow: 0 0 8px rgba(106, 176, 230, 0.45);
 }
 
-/* Colour states. Under = warm red, exact = mint glow, over = amber alert. */
-.payment-v2__progress--under {
-    .payment-v2__progress-fill {
-        background: linear-gradient(180deg, rgba(220, 90, 90, 0.85) 0%, rgba(140, 40, 40, 0.85) 100%);
-        box-shadow: 0 0 8px rgba(220, 90, 90, 0.45);
-    }
-    .payment-v2__progress-state { color: #e88a8a; }
+/* Bar colour by completion. Under = warm red, exact = mint glow, over = amber. */
+.payment-v2__progress--under .payment-v2__progress-fill {
+    background: linear-gradient(180deg, rgba(220, 90, 90, 0.85) 0%, rgba(140, 40, 40, 0.85) 100%);
+    box-shadow: 0 0 8px rgba(220, 90, 90, 0.45);
 }
-.payment-v2__progress--exact {
-    .payment-v2__progress-fill {
-        background: linear-gradient(180deg, rgba(120, 220, 170, 0.9) 0%, rgba(60, 160, 120, 0.9) 100%);
-        box-shadow: 0 0 10px rgba(120, 220, 170, 0.55);
-    }
-    .payment-v2__progress-state { color: #8fe8c0; }
+.payment-v2__progress--exact .payment-v2__progress-fill {
+    background: linear-gradient(180deg, rgba(120, 220, 170, 0.9) 0%, rgba(60, 160, 120, 0.9) 100%);
+    box-shadow: 0 0 10px rgba(120, 220, 170, 0.55);
 }
-.payment-v2__progress--over {
-    .payment-v2__progress-fill {
-        background: linear-gradient(180deg, rgba(255, 195, 90, 0.9) 0%, rgba(190, 130, 30, 0.9) 100%);
-        box-shadow: 0 0 10px rgba(255, 195, 90, 0.5);
-    }
-    .payment-v2__progress-state { color: #ffc878; }
-}
-
-.payment-v2__progress-readout {
-    margin-top: 6px;
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-    font-variant-numeric: tabular-nums;
-}
-
-.payment-v2__progress-paid {
-    font-size: 18px;
-    font-weight: 700;
-    color: #fff;
-}
-
-.payment-v2__progress-sep {
-    color: #6a7b8e;
-}
-
-.payment-v2__progress-cost {
-    font-size: 14px;
-    color: #9bb5d0;
-}
-
-.payment-v2__progress-state {
-    margin-left: auto;
-    font-size: 11px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
+.payment-v2__progress--over .payment-v2__progress-fill {
+    background: linear-gradient(180deg, rgba(255, 195, 90, 0.9) 0%, rgba(190, 130, 30, 0.9) 100%);
+    box-shadow: 0 0 10px rgba(255, 195, 90, 0.5);
 }
 
 /* ===== Warning banner ===== */

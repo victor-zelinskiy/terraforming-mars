@@ -15,8 +15,11 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {SelectPayment} from '../../inputs/SelectPayment';
 import {TITLES} from '../../inputs/titles';
 import {message} from '../../logs/MessageBuilder';
+import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+
+const ACTION_COST = 5;
 
 export class StJosephOfCupertinoMission extends Card implements IActionCard {
   constructor() {
@@ -55,10 +58,19 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
       actionReason.notEnoughMC();
   }
 
-  // The payment (steel may be used) + the cathedral's city placement ride the
-  // follow-up routing after submit — no pre-collectable step or fixed effect.
+  // Pay 5 M€ (steel usable) then place a Cathedral in a city. When steel is
+  // usable the payment is dialed INSIDE the confirm modal (no separate
+  // SelectPayment follow-up); otherwise a flat M€ cost chip. The city placement
+  // is an after-submit SelectSpace shown as a board-placement note.
   public actionPreview(player: IPlayer) {
-    return actionPreviews.singleBranch(this, player);
+    const pay = actionPreviews.paymentStep(player, ACTION_COST, {canUseSteel: true, title: TITLES.payForCardAction(this.name)});
+    const place = actionPreviews.boardPlacementStep('city');
+    if (pay !== undefined) {
+      return actionPreviews.singleBranch(this, player, [pay, place]);
+    }
+    return actionPreviews.singleBranch(this, player, [place], [
+      actionPreviews.stockCost(player, Resource.MEGACREDITS, ACTION_COST),
+    ]);
   }
 
   action(player: IPlayer): undefined {

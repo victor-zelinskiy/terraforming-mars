@@ -43,10 +43,17 @@ export class AquiferPumping extends Card implements IActionCard, IProjectCard {
   public actionUnavailableReason() {
     return actionReason.notEnoughMC();
   }
-  // Spend 8 M€ (steel usable) then place an ocean — the board placement is an
-  // after-submit SelectSpace, so no step here, only the M€ cost.
+  // Spend 8 M€ (steel usable) then place an ocean. When steel is usable the
+  // payment is an INTERACTIVE step dialed INSIDE the confirm modal (no separate
+  // SelectPayment follow-up); otherwise a flat M€ cost chip. The ocean placement
+  // is an after-submit SelectSpace shown as a board-placement note.
   public actionPreview(player: IPlayer) {
-    return actionPreviews.singleBranch(this, player, [], [
+    const pay = actionPreviews.paymentStep(player, OCEAN_COST, {canUseSteel: true, title: TITLES.payForCardAction(this.name)});
+    const place = actionPreviews.boardPlacementStep('ocean');
+    if (pay !== undefined) {
+      return actionPreviews.singleBranch(this, player, [pay, place]);
+    }
+    return actionPreviews.singleBranch(this, player, [place], [
       actionPreviews.stockCost(player, Resource.MEGACREDITS, OCEAN_COST),
     ]);
   }

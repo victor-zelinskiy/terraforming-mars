@@ -142,10 +142,13 @@
               <template v-for="(step, i) in selected.steps" :key="i">
                 <div v-if="step.kind === 'boardPlacement'" class="action-confirm__step action-confirm__step--placement">
                   <span class="action-confirm__step-glyph" aria-hidden="true">◎</span>
-                  <span class="action-confirm__step-text" v-i18n>You will place a tile on the board after confirming.</span>
+                  <span class="action-confirm__step-text" v-i18n>{{ placementHint(step) }}</span>
                 </div>
                 <div v-else class="action-confirm__step action-confirm__step--input"
-                     :class="{'action-confirm__step--answered': captured[i] !== undefined}">
+                     :class="{
+                       'action-confirm__step--answered': captured[i] !== undefined,
+                       'action-confirm__step--bare': step.input.type === 'payment',
+                     }">
                   <!-- Premium, OWNER-AWARE target pickers in controlled mode: the
                        pick is captured here and committed by the single ВЫПОЛНИТЬ
                        (no per-step submit). Other input types fall back to the
@@ -161,6 +164,18 @@
                                     :input="step.input"
                                     :selectedName="capturedCardName(i)"
                                     @change="captureStep(i)($event)" />
+                  <!-- Payment (e.g. "pay 12 M€, titanium usable") dialed IN the
+                       modal via the controlled payment widget — captured live,
+                       committed by the single ВЫПОЛНИТЬ. No separate SelectPayment
+                       follow-up modal. -->
+                  <SelectPaymentV2 v-else-if="step.input.type === 'payment'"
+                                   :controlled="true"
+                                   :playerView="playerView"
+                                   :playerinput="step.input"
+                                   :onsave="noop"
+                                   :showsave="false"
+                                   :showtitle="false"
+                                   @change="captureStep(i)($event)" />
                   <ModalInputHost v-else :playerView="playerView" :playerinput="step.input" :onsave="captureStep(i)" />
                 </div>
               </template>
@@ -222,6 +237,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPicker.vue';
+import SelectPaymentV2 from '@/client/components/SelectPaymentV2.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
@@ -233,7 +249,7 @@ type GroupNode = ActionGroup['nodes'][number];
 
 export default defineComponent({
   name: 'CardActionConfirmContent',
-  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, ModalInputHost, ModernPlayerPicker, ActionEffectChip, ActionTargetCard, ActionVpProgress},
+  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, ModalInputHost, ModernPlayerPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress},
   directives: {stripActionPrefix},
   props: {
     cardName: {
@@ -371,6 +387,19 @@ export default defineComponent({
   methods: {
     text(m: string | Message): string {
       return typeof m === 'string' ? m : m.message;
+    },
+    // A specific, premium "what happens next" line for a board-placement step,
+    // keyed by the tile type the preview reported (ocean / city / greenery), so
+    // the player knows exactly what they'll place after confirming. Falls back to
+    // the generic note for any other tile. Returned as an English i18n key — the
+    // `v-i18n` on the host span translates it.
+    placementHint(step: {kind: string, placementType?: string}): string {
+      switch (step.placementType) {
+      case 'ocean': return 'After confirming, choose where to place the ocean tile on the board.';
+      case 'city': return 'After confirming, choose where to place the city tile on the board.';
+      case 'greenery': return 'After confirming, choose where to place the greenery tile on the board.';
+      default: return 'You will place a tile on the board after confirming.';
+      }
     },
     branchKey(b: ActionPreviewBranch): string {
       return this.text(b.title);
@@ -588,6 +617,13 @@ export default defineComponent({
     color: #cfe6f3;
   }
   &--answered { border-color: rgba(120, 230, 180, 0.5); }
+  /* The payment widget carries its OWN premium frame (border + L-corners), so
+   * the hosting step sheds its chrome to avoid a heavy double border. */
+  &--bare {
+    border: none;
+    background: none;
+    padding: 0;
+  }
 }
 .action-confirm__step-glyph { color: rgba(255, 200, 120, 0.9); }
 

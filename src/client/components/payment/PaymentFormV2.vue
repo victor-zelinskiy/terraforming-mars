@@ -16,18 +16,34 @@
         @max="maxValue(unit)" />
     </div>
 
-    <!-- Progress bar reads totalSpent() each render. The visible fill is
-         capped at the cost rail so over-pay doesn't push past — colour
-         state (under / exact / over) carries that signal instead. -->
-    <div class="payment-v2__progress" :class="progressClass">
+    <!--
+      Payment summary — the at-a-glance "is this enough?" panel: amount paid /
+      cost with a coin, the readiness status (ГОТОВО when covered, else how much
+      is still missing), and a completion bar. The bar reads totalSpent() each
+      render; the fill is capped at the cost rail so over-pay doesn't push past —
+      colour state (under / exact / over) carries that signal instead.
+    -->
+    <div class="payment-v2__summary" :class="progressClass">
+      <div class="payment-v2__summary-top">
+        <span class="payment-v2__summary-label" v-i18n>Paid</span>
+        <span class="payment-v2__summary-amount">
+          <span class="payment-v2__summary-paid">{{ totalSpent() }}</span>
+          <span class="payment-v2__summary-sep">/</span>
+          <span class="payment-v2__summary-cost">{{ cost }}</span>
+          <i class="resource_icon resource_icon--megacredits payment-v2__summary-coin"></i>
+        </span>
+        <span class="payment-v2__summary-status"
+              :class="isPaid ? 'payment-v2__summary-status--ready' : 'payment-v2__summary-status--short'">
+          <template v-if="isPaid"><span v-i18n>Ready</span></template>
+          <template v-else>
+            <span class="payment-v2__summary-status-label" v-i18n>Short</span>
+            <span class="payment-v2__summary-status-value">{{ remaining }}</span>
+            <i class="resource_icon resource_icon--megacredits payment-v2__summary-status-coin"></i>
+          </template>
+        </span>
+      </div>
       <div class="payment-v2__progress-rail">
         <div class="payment-v2__progress-fill" :style="progressFillStyle"></div>
-      </div>
-      <div class="payment-v2__progress-readout">
-        <span class="payment-v2__progress-paid">{{ totalSpent() }}</span>
-        <span class="payment-v2__progress-sep">/</span>
-        <span class="payment-v2__progress-cost">{{ cost }}</span>
-        <span class="payment-v2__progress-state" v-i18n>{{ progressStateLabel }}</span>
       </div>
     </div>
 
@@ -152,15 +168,14 @@ export default defineComponent({
       }
       return 'payment-v2__progress--exact';
     },
-    progressStateLabel(): string {
-      const total = this.totalSpent();
-      if (total < this.cost) {
-        return 'Underpaying';
-      }
-      if (total > this.cost) {
-        return 'Overpaying';
-      }
-      return 'Ready';
+    // The cost is covered (exact OR unavoidable rate>1 over-pay both count as
+    // "enough") → the summary shows ГОТОВО and the host CTA may enable.
+    isPaid(): boolean {
+      return this.totalSpent() >= this.cost;
+    },
+    // How much M€-equivalent is still missing when under-paying (0 when covered).
+    remaining(): number {
+      return Math.max(0, this.cost - this.totalSpent());
     },
     progressFillStyle(): Record<string, string> {
       const total = this.totalSpent();
