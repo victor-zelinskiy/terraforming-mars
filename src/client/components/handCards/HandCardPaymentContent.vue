@@ -24,20 +24,42 @@
         <h3 class="play-confirm__title" v-i18n>{{ cardTitle }}</h3>
       </header>
 
+      <!-- RESULT — a SHORT premium summary AT THE TOP of WHAT playing this card
+           does (the on-play effect chips, current → resulting). The detailed,
+           target-dependent impact reads on each target option below. -->
+      <div v-if="!loading && selected !== undefined && selected.effects.length > 0" class="play-confirm__result">
+        <span class="play-confirm__section-label" v-i18n>Result</span>
+        <div class="play-confirm__chips play-confirm__chips--summary">
+          <ActionEffectChip v-for="(e, i) in selected.effects" :key="i" :effect="e" />
+        </div>
+        <ActionVpProgress v-if="vpProgress !== undefined"
+                          class="play-confirm__vp"
+                          :cardName="cardName"
+                          :resourceIcon="vpProgress.icon"
+                          :before="vpProgress.before"
+                          :after="vpProgress.after" />
+      </div>
+
       <div class="play-confirm__body">
-        <aside class="play-confirm__source">
-          <span class="play-confirm__source-label" v-i18n>Card</span>
-          <button type="button"
-                  class="play-confirm__card"
-                  :aria-label="$t('Open fullscreen')"
-                  @click.capture.stop="openFullscreen"
-                  @keydown.enter="openFullscreen">
-            <Card :card="cardModel" />
-            <span class="play-confirm__zoom" aria-hidden="true">⤢</span>
-          </button>
+        <!-- LEFT: the card we're about to play (the source anchor), compact so it
+             reads as part of the layout, with a separate fullscreen control. -->
+        <aside class="play-confirm__left">
+          <div class="play-confirm__source">
+            <span class="play-confirm__section-label" v-i18n>Card</span>
+            <button type="button"
+                    class="play-confirm__card"
+                    :aria-label="$t('Open fullscreen')"
+                    @click.capture.stop="openFullscreen"
+                    @keydown.enter="openFullscreen">
+              <Card :card="cardModel" />
+              <span class="play-confirm__zoom" aria-hidden="true">⤢</span>
+            </button>
+          </div>
         </aside>
 
-        <section class="play-confirm__main">
+        <!-- RIGHT: the PLANNING area — every decision the player makes before the
+             single submit (the on-play `or` branch, target pickers, payment). -->
+        <section class="play-confirm__right">
           <!-- Preview loading skeleton. -->
           <div v-if="loading" class="play-confirm__loading">
             <span class="play-confirm__loading-dot" aria-hidden="true"></span>
@@ -71,22 +93,6 @@
               </button>
             </div>
 
-            <!-- RESULT — the on-play effect chips (what changes + resulting value). -->
-            <div v-if="selected !== undefined && selected.effects.length > 0" class="play-confirm__section">
-              <span class="play-confirm__section-label" v-i18n>Result</span>
-              <div class="play-confirm__chips play-confirm__chips--summary">
-                <ActionEffectChip v-for="(e, i) in selected.effects" :key="i" :effect="e" />
-              </div>
-            </div>
-
-            <!-- VP-progress context (e.g. a card whose resource scores VP). -->
-            <div v-if="vpProgress !== undefined" class="play-confirm__section">
-              <ActionVpProgress :cardName="cardName"
-                                :resourceIcon="vpProgress.icon"
-                                :before="vpProgress.before"
-                                :after="vpProgress.after" />
-            </div>
-
             <!-- CHOICES — the interactive target/parameter pickers for the play. -->
             <div v-if="selected !== undefined && selected.steps.length > 0" class="play-confirm__steps">
               <span class="play-confirm__section-label" v-i18n>Choose targets</span>
@@ -106,6 +112,7 @@
                   <ActionTargetCard v-else-if="step.input.type === 'card'"
                                     :playerView="playerView"
                                     :input="step.input"
+                                    :amount="step.amount"
                                     :selectedName="capturedCardName(i)"
                                     @change="captureStep(i)($event)" />
                   <ModalInputHost v-else :playerView="playerView" :playerinput="step.input" :onsave="captureStep(i)" />
@@ -134,6 +141,13 @@
       </div>
 
       <footer class="play-confirm__footer">
+        <!-- Readiness — a clear "is everything chosen + paid?" line so the player
+             reads the gate before committing. Mint + tick when ready to submit. -->
+        <span v-if="!loading" class="play-confirm__readiness"
+              :class="{'play-confirm__readiness--ready': readiness.ready}">
+          <span class="play-confirm__readiness-dot" aria-hidden="true"></span>
+          <span v-i18n>{{ readiness.label }}</span>
+        </span>
         <div class="play-confirm__actions">
           <button class="play-confirm__cancel cab-action-confirm-cancel"
                   @click="$emit('cancel')"
@@ -263,6 +277,23 @@ export default defineComponent({
         return false;
       }
       return branch.steps.every((step, i) => step.kind !== 'input' || this.captured[i] !== undefined);
+    },
+    // A short, honest "what's left before I can play this" line for the footer
+    // readiness zone: name the FIRST missing decision (a target, then payment),
+    // else confirm everything's set. English keys translated by the `v-i18n` host.
+    readiness(): {ready: boolean, label: string} {
+      const branch = this.selected;
+      if (branch === undefined) {
+        return {ready: false, label: 'Choose an option'};
+      }
+      const targetMissing = !branch.steps.every((step, i) => step.kind !== 'input' || this.captured[i] !== undefined);
+      if (targetMissing) {
+        return {ready: false, label: 'Choose a target'};
+      }
+      if (!this.paymentValid) {
+        return {ready: false, label: 'Complete the payment'};
+      }
+      return {ready: true, label: 'Ready to play'};
     },
   },
   mounted(): void {
@@ -416,16 +447,25 @@ export default defineComponent({
 
 .play-confirm__body {
   display: flex;
-  gap: 18px;
+  gap: 20px;
   align-items: flex-start;
+  // A comfortable working width so the two-column layout (card + outcome |
+  // planning) never feels cramped; the modal still hugs (its max-width caps it).
+  width: 660px;
+  max-width: 100%;
+}
+// LEFT — the card we're playing + WHAT IT DOES (a compact "spec" panel).
+.play-confirm__left {
+  flex: 0 0 196px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 .play-confirm__source {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex: 0 0 auto;
 }
-.play-confirm__source-label,
 .play-confirm__section-label {
   font-size: 10.5px;
   letter-spacing: 0.14em;
@@ -434,26 +474,48 @@ export default defineComponent({
 }
 .play-confirm__card {
   position: relative;
+  align-self: flex-start;
   border: none;
   background: none;
   padding: 0;
   cursor: zoom-in;
-  // Zero the legacy asymmetric card margin so the card reads centred.
-  > :deep(.card-container) { margin: 0; }
+  // Compact the card so it reads as PART of the layout, not an oversized object
+  // bursting the modal. Zero the legacy asymmetric margin (centred render).
+  > :deep(.card-container) { margin: 0; zoom: 0.62; }
 }
+// Fullscreen affordance — a glass chip in the card corner (separate from any
+// other click), revealed on hover.
 .play-confirm__zoom {
   position: absolute;
-  top: 6px;
-  right: 36px;
-  font-size: 15px;
-  color: rgba(220, 240, 255, 0.85);
+  top: 5px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid rgba(120, 200, 255, 0.4);
+  background: rgba(8, 18, 28, 0.82);
+  font-size: 13px;
+  color: rgba(220, 240, 255, 0.9);
   opacity: 0;
   transition: opacity 0.15s ease;
   pointer-events: none;
 }
 .play-confirm__card:hover .play-confirm__zoom { opacity: 1; }
 
-.play-confirm__main {
+// The on-play result as a vertical spec sheet under the card — each chip spans
+// the column so the player reads exactly what the card does at a glance.
+.play-confirm__result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.play-confirm__vp { margin-top: 2px; }
+
+// RIGHT — the planning area (the decisions): branch / targets / payment.
+.play-confirm__right {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
@@ -469,7 +531,13 @@ export default defineComponent({
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  &--summary { margin-top: 2px; }
+  &--summary { margin-top: 1px; }
+}
+
+// Narrow viewports: stack the two columns so nothing is cramped.
+@media (max-width: 580px) {
+  .play-confirm__body { flex-direction: column; width: auto; }
+  .play-confirm__left { flex: 0 0 auto; }
 }
 
 .play-confirm__branches {
@@ -568,7 +636,32 @@ export default defineComponent({
 
 .play-confirm__footer {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.play-confirm__readiness {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: rgba(190, 214, 234, 0.78);
+  transition: color 0.2s ease;
+}
+.play-confirm__readiness-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(150, 180, 205, 0.5);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.play-confirm__readiness--ready {
+  color: #8ff0c4;
+  .play-confirm__readiness-dot {
+    background: #58d6a6;
+    box-shadow: 0 0 9px rgba(88, 214, 166, 0.7);
+  }
 }
 .play-confirm__actions {
   display: flex;

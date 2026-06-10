@@ -74,7 +74,7 @@ export class VenusianPlants extends Card implements IProjectCard {
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.getResCards(player);
     const step = cards.length > 1 ?
-      actionPreviews.selectCardStep(player, 'Select card to add 1 resource', 'Add resource', cards) :
+      actionPreviews.selectCardStep(player, 'Select card to add 1 resource', 'Add resource', cards, {amount: 1}) :
       undefined;
     return actionPreviews.playPreview(this, player, [], [step]);
   }

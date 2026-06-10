@@ -285,15 +285,17 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // Add a resource to ANY card → a card-target picker (when a choice is offered).
   if (behavior.addResourcesToAnyCard !== undefined && !Array.isArray(behavior.addResourcesToAnyCard)) {
     const a = behavior.addResourcesToAnyCard;
+    const count = ctx.count(a.count);
     const model = new AddResourcesToCard(player, a.type, {
-      count: ctx.count(a.count),
+      count,
       restrictedTag: a.tag,
       min: a.min,
       robotCards: a.robotCards !== undefined,
       autoSelect: a.autoSelect,
     }).previewSelectCard();
     if (model !== undefined) {
-      steps.push({kind: 'input', input: model});
+      // The signed delta lets the picker show "N → N+count" per candidate card.
+      steps.push({kind: 'input', input: model, amount: count});
     }
   }
 

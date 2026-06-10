@@ -62,7 +62,7 @@ export class AirScrappingExpedition extends Card implements IProjectCard {
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.floaterCards(player);
     const step = cards.length > 1 ?
-      actionPreviews.selectCardStep(player, 'Select card to add 3 floaters', 'Add floaters', cards) :
+      actionPreviews.selectCardStep(player, 'Select card to add 3 floaters', 'Add floaters', cards, {amount: 3}) :
       undefined;
     return actionPreviews.playPreview(this, player, [actionPreviews.cardResourceGain(CardResource.FLOATER, 3)], [step]);
   }

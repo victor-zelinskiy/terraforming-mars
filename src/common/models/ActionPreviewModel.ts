@@ -118,5 +118,16 @@ export type ActionPreviewBranch = {
  *                      `PlacementBanner`. Shown as an honest note.
  */
 export type ActionPreviewStep =
-  | {kind: 'input', input: PlayerInputModel}
+  | {
+    kind: 'input',
+    input: PlayerInputModel,
+    /**
+     * For a card-/player-TARGET step that ADDS (or removes) a resource, the signed
+     * delta applied to the chosen target — so the picker can show a `current →
+     * resulting` impact per candidate (e.g. "+2 microbe" → "2 → 4" on each card).
+     * Positive = add, negative = remove. Omitted when there's no single per-target
+     * delta to preview (the candidate then shows just its current count).
+     */
+    amount?: number,
+  }
   | {kind: 'boardPlacement', placementType: string};
