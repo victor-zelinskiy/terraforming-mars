@@ -140,6 +140,38 @@ function cardResourceIcon(resource: CardResource): string {
 }
 
 /**
+ * For a VARIABLE amount counted from game state (e.g. "1 M€ per city on Mars"),
+ * the live BASIS — how many of the counted entity exist right now — so the chip
+ * can explain the amount ("+3 M€ · Cities on Mars: 3") instead of a bare number
+ * the player can't account for. `raw` is the behavior's countable; a plain number
+ * (a fixed amount) has no basis. Read-only (counts board / tableau state).
+ */
+function countableBasis(ctx: Counter, raw: unknown): {count: number, label: string} | undefined {
+  if (raw === null || typeof raw !== 'object') {
+    return undefined;
+  }
+  const r = raw as {cities?: {where?: string}, oceans?: unknown, greeneries?: unknown, colonies?: unknown, each?: number, per?: number};
+  let label: string | undefined;
+  if (r.cities !== undefined) {
+    label = r.cities.where === 'offmars' ? 'Cities off Mars' : r.cities.where === 'onmars' ? 'Cities on Mars' : 'Cities';
+  } else if (r.oceans !== undefined) {
+    label = 'Oceans';
+  } else if (r.greeneries !== undefined) {
+    label = 'Greeneries';
+  } else if (r.colonies !== undefined) {
+    label = 'Colonies';
+  }
+  if (label === undefined) {
+    return undefined;
+  }
+  // The count of the counted entity itself (drop the each/per rate multiplier),
+  // so "1 M€ per city" shows the CITY count, not the M€ amount (they're equal at
+  // rate 1, but distinct when the per-unit rate isn't 1).
+  const count = ctx.count({...r, each: undefined, per: undefined} as Parameters<Counter['count']>[0]);
+  return {count, label};
+}
+
+/**
  * The branch's costs + gains as display chips. NEVER mutates — reads current
  * pools and computes the resulting value with the same step sizes / caps the
  * live game uses (oxygen +1, temperature/venus +2 per step).
@@ -190,7 +222,7 @@ function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behavior): A
         continue;
       }
       const cur = player.stock.get(s.resource);
-      out.push({direction: n >= 0 ? 'gain' : 'cost', icon: s.resource, amount: Math.abs(n), current: cur, resulting: Math.max(0, cur + n)});
+      out.push({direction: n >= 0 ? 'gain' : 'cost', icon: s.resource, amount: Math.abs(n), current: cur, resulting: Math.max(0, cur + n), basis: countableBasis(ctx, raw)});
     }
   }
   if (behavior.production !== undefined) {
@@ -204,13 +236,13 @@ function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behavior): A
         continue;
       }
       const cur = player.production.get(s.resource);
-      out.push({direction: n >= 0 ? 'gain' : 'cost', icon: s.resource, amount: Math.abs(n), current: cur, resulting: cur + n, note: 'production'});
+      out.push({direction: n >= 0 ? 'gain' : 'cost', icon: s.resource, amount: Math.abs(n), current: cur, resulting: cur + n, note: 'production', basis: countableBasis(ctx, raw)});
     }
   }
   if (behavior.tr !== undefined) {
     const n = ctx.count(behavior.tr);
     if (n !== 0) {
-      out.push({direction: n >= 0 ? 'gain' : 'cost', icon: 'tr', amount: Math.abs(n), current: player.terraformRating, resulting: player.terraformRating + n});
+      out.push({direction: n >= 0 ? 'gain' : 'cost', icon: 'tr', amount: Math.abs(n), current: player.terraformRating, resulting: player.terraformRating + n, basis: countableBasis(ctx, behavior.tr)});
     }
   }
   if (behavior.drawCard !== undefined) {

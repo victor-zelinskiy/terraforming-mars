@@ -99,6 +99,14 @@
                   </div>
                 </div>
               </div>
+              <!-- No clean per-branch graphic (a combined-node card like
+                   Self-Replicating Robots): show the chosen branch's own title so
+                   the player reads exactly which option they're taking, not the
+                   whole combined action. -->
+              <div class="action-confirm__section" v-else-if="selectedTitle !== ''">
+                <span class="action-confirm__section-label" v-i18n>Action</span>
+                <div class="action-confirm__action-text" v-i18n>{{ selectedTitle }}</div>
+              </div>
 
               <div class="action-confirm__section" v-if="selected.effects.length > 0">
                 <span class="action-confirm__section-label" v-i18n>Result</span>
@@ -121,13 +129,37 @@
                  SelectCard directly) — its response nests into the branch pick. -->
             <div v-if="selected !== undefined && selected.optionInput !== undefined" class="action-confirm__steps">
               <div class="action-confirm__step action-confirm__step--input"
-                   :class="{'action-confirm__step--answered': capturedOption !== undefined}">
+                   :class="{
+                     'action-confirm__step--answered': capturedOption !== undefined,
+                     'action-confirm__step--bare': isHandCardInput(selected.optionInput),
+                   }">
                 <ModernPlayerPicker v-if="selected.optionInput.type === 'player'"
                                     :controlled="true"
                                     :playerView="playerView"
                                     :playerinput="selected.optionInput"
                                     :onsave="noop"
                                     @select="captureOption" />
+                <!-- A pick FROM HAND goes to the КАРТЫ В РУКЕ overlay (roomy
+                     premium surface), NOT the cramped in-modal tile grid. Show
+                     the chosen card here once picked + a "ВЫБРАТЬ КАРТУ" CTA. -->
+                <div v-else-if="isHandCardInput(selected.optionInput)" class="action-confirm__handpick">
+                  <div v-if="optionChosenCard !== undefined" class="action-confirm__handpick-chosen">
+                    <button type="button"
+                            class="action-confirm__handpick-card"
+                            :aria-label="$t('Open fullscreen')"
+                            @click.capture.stop="openChosenFullscreen">
+                      <Card :card="optionChosenCard" />
+                    </button>
+                    <button type="button" class="action-confirm__handpick-change" @click="requestOptionPick" data-test="action-pick-change">
+                      <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
+                      <span v-i18n>Choose another card</span>
+                    </button>
+                  </div>
+                  <button v-else type="button" class="action-confirm__handpick-btn" @click="requestOptionPick" data-test="action-pick-card">
+                    <span class="action-confirm__handpick-btn-glyph" aria-hidden="true">▤</span>
+                    <span class="action-confirm__handpick-btn-label" v-i18n>Pick a card from hand</span>
+                  </button>
+                </div>
                 <ActionTargetCard v-else-if="selected.optionInput.type === 'card'"
                                   :playerView="playerView"
                                   :input="selected.optionInput"
@@ -243,6 +275,18 @@ import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
 import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
+import {SelectCardModel} from '@/common/models/PlayerInputModel';
+import {handActionPickResult} from '@/client/components/handCards/handActionPick';
+import {translateText, translateMessage} from '@/client/directives/i18n';
+
+// The request the confirm modal emits to PlayerHome to host the КАРТЫ В РУКЕ
+// overlay for a "pick a card from hand" step (Self-Replicating Robots link).
+export type HandPickRequest = {
+  title: string | Message;
+  buttonLabel: string;
+  selectable: ReadonlyArray<CardName>;
+  reasons: Record<string, string>;
+};
 
 type ConfirmPayload = {branchIndex: number, optionResponse: InputResponse | undefined, stepResponses: ReadonlyArray<InputResponse>};
 type GroupNode = ActionGroup['nodes'][number];
@@ -277,10 +321,13 @@ export default defineComponent({
       default: undefined,
     },
   },
-  emits: ['confirm', 'cancel'],
+  emits: ['confirm', 'cancel', 'pick-card'],
   data() {
     return {
       zoomCard: undefined as CardModel | undefined,
+      // True between emitting `pick-card` and the result arriving via the bridge,
+      // so a stale epoch bump can't capture into the wrong slot.
+      awaitingPick: false,
       preview: undefined as ActionPreview | undefined,
       loading: true,
       selected: undefined as ActionPreviewBranch | undefined,
@@ -313,14 +360,19 @@ export default defineComponent({
       return this.branchPosition === undefined && this.selected === undefined && this.branches.length > 1;
     },
     // The render node(s) shown in the SELECTED-branch summary: the branch's own
-    // matched node when there is one (multi-branch), else the whole card action
-    // graphic (single-action / no match).
+    // matched node (single-action card, or a cleanly-split multi-branch). When
+    // there's no clean match (a combined-node card like Self-Replicating Robots)
+    // there's NO graphic — the branch title is shown instead (selectedTitle), so
+    // we never paint the whole combined action on a single branch.
     summaryNodes(): ReadonlyArray<GroupNode> {
       const node = this.selectedNode;
-      if (node !== undefined) {
-        return [node];
-      }
-      return this.group?.nodes ?? [];
+      return node !== undefined ? [node] : [];
+    },
+    // The selected branch's own title text — shown in the summary when there's no
+    // per-branch graphic (combined-node cards), so the player still reads exactly
+    // which option they're taking. Empty for a single-action card (no title).
+    selectedTitle(): string {
+      return this.selected !== undefined ? this.text(this.selected.title) : '';
     },
     selectedNode(): GroupNode | undefined {
       const branch = this.selected;
@@ -330,17 +382,22 @@ export default defineComponent({
       const view = this.branchViews.find((bv) => bv.branch === branch);
       return view?.node;
     },
-    // VP-progress context for the SELECTED branch: present only when the action
-    // changes THIS card's resource AND that resource scores VP by a threshold
-    // (per > 1, e.g. Tardigrades 1 VP / 4 microbes). Derived entirely client-side
-    // from the manifest — the effect already carries before→after.
+    // VP-progress context for the SELECTED branch: present when the action
+    // changes THIS card's resource AND that resource scores VP — both thresholds
+    // (Tardigrades: 1 VP / 4 microbes) and per-resource multipliers (Physics
+    // Complex: 2 VP / science). Derived entirely client-side from the manifest —
+    // the effect already carries before→after; ActionVpProgress adapts the
+    // display (bar for thresholds, plain VP delta for multipliers).
     vpProgress(): {icon: string, before: number, after: number} | undefined {
       const branch = this.selected;
       if (branch === undefined) {
         return undefined;
       }
+      // Any card that scores VP from this resource (threshold OR per-resource
+      // multiplier like Physics Complex's 2 VP each) shows the VP context; the
+      // ActionVpProgress component adapts the display (bar only for thresholds).
       const scoring = resourceScoring(this.cardName);
-      if (scoring === undefined || scoring.per <= 1) {
+      if (scoring === undefined) {
         return undefined;
       }
       const eff = branch.effects.find((e) => e.note === 'on this card' && e.current !== undefined && e.resulting !== undefined);
@@ -359,6 +416,15 @@ export default defineComponent({
     // title so the graphic is right even when render order ≠ behavior order).
     branchViews(): ReadonlyArray<{branch: ActionPreviewBranch, node: GroupNode | undefined}> {
       const nodes = this.group?.nodes ?? [];
+      // Per-branch graphics only when the render SPLITS CLEANLY (≥ one node per
+      // branch). When a card draws ALL its branches in ONE combined node — e.g.
+      // Self-Replicating Robots' "→ link · OR · → ×2" graphic — handing that node
+      // to a single branch would paint the WHOLE action on it (the other branch's
+      // part included), which misleads. In that case fall back to each branch's
+      // own title text (no graphic), so the two choices read distinctly.
+      if (nodes.length < this.branches.length) {
+        return this.branches.map((branch) => ({branch, node: undefined}));
+      }
       const indices = assignBranchNodes(
         this.branches.map((b) => this.text(b.title)),
         nodes.map((n) => actionNodeDescription(n)),
@@ -380,6 +446,34 @@ export default defineComponent({
       const r = this.capturedOption;
       return (r !== undefined && r.type === 'card') ? r.cards[0] : undefined;
     },
+    // Bridged result epoch from the КАРТЫ В РУКЕ overlay pick (see the watcher).
+    pickEpoch(): number {
+      return handActionPickResult.epoch;
+    },
+    // The chosen card's full model (for rendering it in the modal after the pick).
+    optionChosenCard(): CardModel | undefined {
+      const input = this.selected?.optionInput;
+      const name = this.capturedOptionCardName;
+      if (input === undefined || input.type !== 'card' || name === undefined) {
+        return undefined;
+      }
+      return (input as SelectCardModel).cards.find((c) => c.name === name);
+    },
+  },
+  watch: {
+    // A card picked in the КАРТЫ В РУКЕ overlay was delivered back via the bridge.
+    // Capture it as this branch's optionInput response (only while we're the one
+    // who requested it — `awaitingPick` guards against a stale bump).
+    pickEpoch(): void {
+      if (!this.awaitingPick) {
+        return;
+      }
+      this.awaitingPick = false;
+      const card = handActionPickResult.card;
+      if (card !== undefined) {
+        this.captureOption({type: 'card', cards: [card]});
+      }
+    },
   },
   mounted(): void {
     this.fetchPreview();
@@ -387,6 +481,39 @@ export default defineComponent({
   methods: {
     text(m: string | Message): string {
       return typeof m === 'string' ? m : m.message;
+    },
+    // True when a 'card' input is a pick FROM HAND (every candidate — selectable
+    // or disabled — is in the player's hand). Those route to the КАРТЫ В РУКЕ
+    // overlay (a roomy premium surface), NOT the cramped in-modal tile picker.
+    isHandCardInput(input: {type: string, cards?: ReadonlyArray<CardModel>, disabledCards?: ReadonlyArray<CardModel>} | undefined): boolean {
+      if (input === undefined || input.type !== 'card') {
+        return false;
+      }
+      const hand = new Set((this.playerView.cardsInHand ?? []).map((c) => c.name));
+      const all = [...(input.cards ?? []), ...(input.disabledCards ?? [])];
+      return all.length > 0 && all.every((c) => hand.has(c.name));
+    },
+    // Emit the request to host the hand overlay for the selected branch's card
+    // pick. PlayerHome opens the overlay in client-pick mode and suppresses this
+    // modal; the picked card returns through the bridge (the `pickEpoch` watcher).
+    requestOptionPick(): void {
+      const input = this.selected?.optionInput as SelectCardModel | undefined;
+      if (input === undefined || input.type !== 'card') {
+        return;
+      }
+      const reasons: Record<string, string> = {};
+      for (const c of input.disabledCards ?? []) {
+        const r = c.disabledReason;
+        reasons[c.name] = r === undefined ? '' : (typeof r === 'string' ? translateText(r) : translateMessage(r));
+      }
+      this.awaitingPick = true;
+      const request: HandPickRequest = {
+        title: input.title,
+        buttonLabel: input.buttonLabel,
+        selectable: input.cards.map((c) => c.name),
+        reasons,
+      };
+      this.$emit('pick-card', request);
     },
     // A specific, premium "what happens next" line for a board-placement step,
     // keyed by the tile type the preview reported (ocean / city / greenery), so
@@ -483,6 +610,18 @@ export default defineComponent({
         (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
       });
     },
+    // Fullscreen the card the player picked from hand (for a closer look before
+    // the final confirm).
+    openChosenFullscreen(): void {
+      const card = this.optionChosenCard;
+      if (card === undefined) {
+        return;
+      }
+      this.zoomCard = card;
+      nextTick(() => {
+        (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
+      });
+    },
   },
 });
 </script>
@@ -536,6 +675,12 @@ export default defineComponent({
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: rgba(150, 200, 230, 0.58);
+}
+/* Branch title shown when a combined-node card has no per-branch graphic. */
+.action-confirm__action-text {
+  font-size: 14px;
+  line-height: 1.4;
+  color: #dceaf6;
 }
 
 .action-confirm__chips {
@@ -626,6 +771,69 @@ export default defineComponent({
   }
 }
 .action-confirm__step-glyph { color: rgba(255, 200, 120, 0.9); }
+
+/* Hand-card pick affordance — a "choose a card" CTA that opens the КАРТЫ В РУКЕ
+   overlay, then the chosen card rendered + a "change" link. */
+.action-confirm__handpick {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.action-confirm__handpick-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 9px;
+  border: 1px solid rgba(120, 220, 255, 0.5);
+  background: linear-gradient(180deg, rgba(30, 60, 88, 0.7), rgba(20, 40, 62, 0.7));
+  color: #dcf0ff;
+  font-family: Prototype, Ubuntu, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+  &:hover {
+    border-color: #7fd4ff;
+    box-shadow: 0 0 16px rgba(80, 200, 255, 0.25);
+    transform: translateY(-1px);
+  }
+}
+.action-confirm__handpick-btn-glyph { font-size: 17px; line-height: 1; }
+.action-confirm__handpick-chosen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 11px;
+}
+.action-confirm__handpick-card {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: zoom-in;
+  // Zero the legacy asymmetric card margin so the card reads centred.
+  > :deep(.card-container) { margin: 0; }
+}
+.action-confirm__handpick-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 15px;
+  border-radius: 7px;
+  border: 1px solid rgba(120, 200, 255, 0.32);
+  background: rgba(18, 34, 50, 0.6);
+  color: #bcd6ee;
+  font-family: Prototype, Ubuntu, sans-serif;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+  &:hover { border-color: #7fd4ff; color: #eaf6ff; }
+}
+.action-confirm__handpick-change-glyph { font-size: 13px; }
 
 .action-confirm__none {
   margin: 8px 0;

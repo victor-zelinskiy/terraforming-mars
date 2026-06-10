@@ -11,12 +11,15 @@ import {TitanAirScrapping} from '../../src/server/cards/colonies/TitanAirScrappi
 import {TitanShuttles} from '../../src/server/cards/colonies/TitanShuttles';
 import {AsteroidRights} from '../../src/server/cards/promo/AsteroidRights';
 import {CometAiming} from '../../src/server/cards/promo/CometAiming';
+import {WeatherBalloons} from '../../src/server/cards/promo/WeatherBalloons';
+import {SelfReplicatingRobots} from '../../src/server/cards/promo/SelfReplicatingRobots';
+import {PhysicsComplex} from '../../src/server/cards/base/PhysicsComplex';
 import {DecreaseAnyProduction} from '../../src/server/deferredActions/DecreaseAnyProduction';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {CardName} from '../../src/common/cards/CardName';
 import {cast} from '../../src/common/utils/utils';
-import {churn, runAllActions} from '../TestingUtils';
+import {addCity, churn, runAllActions} from '../TestingUtils';
 
 describe('actionPreview', () => {
   it('declarative multi-branch (Regolith Eaters): two branches, both available with resources', () => {
@@ -328,6 +331,80 @@ describe('actionPreview', () => {
       selectCard.process({type: 'card', cards: [CardName.COMET_AIMING]}, player);
       runAllActions(game);
       expect(second.resourceCount).eq(1);
+    });
+  });
+
+  describe('variable-amount basis', () => {
+    it('WeatherBalloons: the "M€ per city" branch shows the live Cities-on-Mars count as the gain basis', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new WeatherBalloons();
+      card.resourceCount = 1; // a floater to spend
+      addCity(player); // two cities on Mars
+      addCity(player);
+
+      const preview = actionPreview(player, card);
+      // behaviors[0] = spend 1 floater → 1 M€ per city on Mars.
+      const spend = preview.branches[0];
+      const mc = spend.effects.find((e) => e.icon === 'megacredits' && e.direction === 'gain');
+      expect(mc, 'expected an M€ gain effect').is.not.undefined;
+      expect(mc?.amount).eq(2); // 1 M€ × 2 cities
+      expect(mc?.basis, 'the gain should carry a basis').is.not.undefined;
+      expect(mc?.basis?.label).eq('Cities on Mars');
+      expect(mc?.basis?.count).eq(2);
+    });
+  });
+
+  describe('SelfReplicatingRobots', () => {
+    it('previews TWO branches: double (hosted X→2X) + link (eligible hand cards, non-eligible greyed with a reason)', () => {
+      const [/* game */, player] = testGame(2);
+      const srr = new SelfReplicatingRobots();
+      player.playedCards.push(srr);
+      // A hosted card with 3 resources → "double" branch (3 → 6).
+      const hosted = new Tardigrades();
+      hosted.resourceCount = 3;
+      srr.targetCards.push(hosted);
+      // Hand: one BUILDING card (eligible) + one science-only card (ineligible).
+      const eligible = new PhysicsComplex(); // has a building tag
+      const ineligible = new WeatherBalloons(); // science only
+      player.cardsInHand = [eligible, ineligible];
+
+      const preview = actionPreview(player, srr);
+      expect(preview.branches).has.length(2);
+      const [dbl, link] = preview.branches;
+
+      // Double branch: available, previews the hosted card's resources doubling.
+      expect(dbl.available).is.true;
+      expect(dbl.index).eq(0);
+      const dblEff = dbl.effects.find((e) => e.current === 3);
+      expect(dblEff, 'double should preview 3 → 6').is.not.undefined;
+      expect(dblEff?.resulting).eq(6);
+
+      // Link branch: available, hosts a card picker with the eligible card
+      // selectable and the ineligible one greyed (with a reason).
+      expect(link.available).is.true;
+      expect(link.index).eq(1);
+      expect(link.optionInput?.type).eq('card');
+      const input = link.optionInput as {cards: Array<unknown>, disabledCards?: Array<{name: string}>};
+      expect(input.cards).has.length(1); // only the eligible (building) card is selectable
+      expect(input.disabledCards, 'the non-eligible card is shown greyed').has.length(1);
+      expect(input.disabledCards?.[0].name).eq(CardName.WEATHER_BALLOONS);
+    });
+
+    it('with no hosted cards, "double" is unavailable with a reason and "link" auto-resolves', () => {
+      const [/* game */, player] = testGame(2);
+      const srr = new SelfReplicatingRobots();
+      player.playedCards.push(srr);
+      player.cardsInHand = [new PhysicsComplex()]; // one eligible card, no hosted
+
+      const preview = actionPreview(player, srr);
+      const [dbl, link] = preview.branches;
+      expect(dbl.available).is.false;
+      expect(dbl.unavailableReason).is.not.undefined;
+      // Only "link" is available → the OrOptions reduces to its bare SelectCard
+      // (index -1), but the target is still pre-collected via optionInput.
+      expect(link.available).is.true;
+      expect(link.index).eq(-1);
+      expect(link.optionInput?.type).eq('card');
     });
   });
 });

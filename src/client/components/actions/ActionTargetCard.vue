@@ -18,7 +18,11 @@
       <div class="action-target-card__owner">
         <span class="action-target-card__owner-dot" :class="'player_bg_color_' + group.color" aria-hidden="true"></span>
         <span class="action-target-card__owner-name">{{ group.name }}</span>
-        <span v-if="group.self" class="action-target-card__owner-warn">
+        <!-- The "your card" warning only matters when there's an OPPONENT to
+             target instead (picking your own would be the mistake). When every
+             candidate is your own (e.g. Self-Replicating Robots picking from your
+             hand / hosted cards) there's no alternative owner, so no warning. -->
+        <span v-if="group.self && groups.length > 1" class="action-target-card__owner-warn">
           <span aria-hidden="true">⚠</span><span v-i18n>your card</span>
         </span>
       </div>
@@ -156,7 +160,11 @@ export default defineComponent({
           return {name: player.name, color: player.color};
         }
       }
-      return undefined;
+      // Not on anyone's tableau → it's the VIEWER's own card not in play yet: a
+      // hand card or an SRR-hosted card. Attribute it to the viewer (so it reads
+      // "<you>", not a misleading "Neutral" group).
+      const me = this.playerView.thisPlayer;
+      return me !== undefined ? {name: me.name, color: me.color} : undefined;
     },
     select(tile: Tile): void {
       if (tile.disabled) {

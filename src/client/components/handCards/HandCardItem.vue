@@ -157,7 +157,11 @@
           :style="reasonStyle"
           role="tooltip">
           <span class="hand-soft-reason__dot" aria-hidden="true"></span>
-          <span class="hand-soft-reason__text" v-i18n>This card doesn't match the current selection</span>
+          <!-- A client-driven pick supplies the EXACT reason this card can't be
+               chosen (e.g. "No building or space tag"); a server SelectCard has
+               no per-card reason, so fall back to the generic eligibility note. -->
+          <span v-if="selectReason !== ''" class="hand-soft-reason__text">{{ selectReason }}</span>
+          <span v-else class="hand-soft-reason__text" v-i18n>This card doesn't match the current selection</span>
         </div>
       </transition>
     </div>
@@ -207,6 +211,13 @@ export default defineComponent({
     selectDisabled: {
       type: Boolean,
       default: false,
+    },
+    // The EXACT premium-tooltip reason a select-disabled card can't be picked
+    // (client-driven pick only — e.g. "No building or space tag"). '' → the
+    // generic eligibility note is shown instead.
+    selectReason: {
+      type: String,
+      default: '',
     },
     // True while this sold card plays its exit (dissolve) animation, just
     // before the sale is submitted and it leaves the hand.

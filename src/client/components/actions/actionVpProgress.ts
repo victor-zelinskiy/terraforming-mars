@@ -15,7 +15,12 @@ import {resourceScoring, accumulatedVp} from '@/client/components/additionalReso
  *  - `crossed` — the action earns at least one VP.
  */
 export type VpProgressView = {
+  // The card scores VP from this resource → show the VP context at all.
   applicable: boolean;
+  // The scoring is a THRESHOLD (1 VP per N>1 resources) → show the progress bar
+  // toward the next VP. When false (a per-resource multiplier like Physics
+  // Complex's 2 VP each), the bar is meaningless and only the VP delta is shown.
+  threshold: boolean;
   per: number;
   filledBefore: number;
   filledAfter: number;
@@ -36,7 +41,10 @@ export function vpProgressView(cardName: CardName, before: number, after: number
   const crossed = afterVp > beforeVp;
   const afterMod = mod(after, per);
   return {
-    applicable: scoring !== undefined && per > 1,
+    // Applicable for ANY resource VP scorer — both thresholds (Tardigrades:
+    // 1 VP / 4 microbes) and multipliers (Physics Complex: 2 VP / science).
+    applicable: scoring !== undefined,
+    threshold: scoring !== undefined && per > 1,
     per,
     filledBefore: mod(before, per),
     filledAfter: (crossed && afterMod === 0) ? per : afterMod,

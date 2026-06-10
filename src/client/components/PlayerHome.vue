@@ -439,14 +439,16 @@
     -->
     <MandatoryInputModal v-if="pendingCardAction !== undefined"
                          :title="$t('Activate action')"
-                         :minimizable="false">
+                         :minimizable="false"
+                         :suppressed="actionCardPickActive">
       <CardActionConfirmContent
         :cardName="pendingCardAction.cardName"
         :card="pendingCardAction.card"
         :branchPosition="pendingCardAction.branchPosition"
         :playerView="playerView"
         @confirm="onCardActionConfirm"
-        @cancel="onCardActionCancel" />
+        @cancel="onCardActionCancel"
+        @pick-card="onActionPickCard" />
     </MandatoryInputModal>
 
     <div v-if="game.phase === 'end'">
@@ -693,7 +695,11 @@ import {
   handSelectSignature,
   enterHandSelect,
   exitHandSelect,
+  enterClientHandSelect,
+  resolveClientHandSelect,
+  cancelClientHandSelect,
 } from '@/client/components/handCards/handSelectState';
+import {deliverActionPick} from '@/client/components/handCards/handActionPick';
 import {
   handPlayState,
   handPlayPrompt,
@@ -1005,11 +1011,25 @@ export default defineComponent({
      * overlay unless the player has minimized it to a pill to inspect the
      * board. When the prompt resolves, drop the mode.
      */
+    // A CLIENT-driven hand pick became active (the action-confirm modal's SRR
+    // "link a card", or a nested Mars University "discard a card" in a modal
+    // OrOptions). Whatever surface initiated it can't open the overlay itself, so
+    // open the КАРТЫ В РУКЕ overlay here (own seat) — the initiating modal
+    // suppresses itself while it's up.
+    actionCardPickActive(active: boolean): void {
+      if (active) {
+        this.selectedPlayerColor = undefined;
+        this.activeOverlay = 'cards';
+      }
+    },
     handCardSelectionInput: {
       immediate: true,
       handler(input: SelectCardModel | undefined): void {
         if (input === undefined) {
-          if (handSelectState.active) {
+          // A CLIENT-driven pick (Self-Replicating Robots "link a card") has no
+          // server prompt backing it — leave it alone; only a SERVER-prompt
+          // select mode is cleared when its prompt disappears.
+          if (handSelectState.active && !handSelectState.clientPick) {
             exitHandSelect();
           }
           return;
@@ -1849,6 +1869,12 @@ export default defineComponent({
     freeFundingActive(): boolean {
       return awardFundingState.active;
     },
+    // True while the card-action confirm modal has handed off to the КАРТЫ В РУКЕ
+    // overlay for a "pick a card from hand" step — the modal SUPPRESSES itself
+    // (stays mounted, hidden) so the overlay below its z-index is interactable.
+    actionCardPickActive(): boolean {
+      return handSelectState.active && handSelectState.clientPick;
+    },
     // Unified mandatory pill. Select-from-hand, play-from-hand and play-a-
     // standard-project are mutually exclusive (the top-level waitingFor is one
     // prompt), so one pill serves all three minimized states; restore re-opens
@@ -2274,6 +2300,26 @@ export default defineComponent({
     onCardActionCancel(): void {
       this.pendingCardAction = undefined;
       this.activeOverlay = 'actions'; // restore the overlay (nothing submitted)
+    },
+    // The confirm modal asked the player to pick a card FROM HAND (a hand-card
+    // optionInput — Self-Replicating Robots "link a card"). Open the КАРТЫ В РУКЕ
+    // overlay in client-pick mode (eligible cards selectable, the rest disabled
+    // with a premium-tooltip reason); the confirm modal SUPPRESSES itself while
+    // the overlay is up, then re-appears with the picked card (via the bridge).
+    onActionPickCard(req: {title: string | Message, buttonLabel: string, selectable: ReadonlyArray<CardName>, reasons: Record<string, string>}): void {
+      this.selectedPlayerColor = undefined; // ensure own seat — the overlay only mounts there
+      enterClientHandSelect({
+        title: req.title,
+        buttonLabel: req.buttonLabel,
+        selectable: req.selectable,
+        reasons: req.reasons,
+        onResolve: (cards) => {
+          if (cards.length > 0) {
+            deliverActionPick(cards[0]);
+          }
+        },
+      });
+      this.activeOverlay = 'cards';
     },
     // The action-preview rework's SINGLE FINAL SUBMIT: assemble the ordered
     // response array the action needs and POST it in one batch request, so the
@@ -3060,6 +3106,14 @@ export default defineComponent({
     // resolves the prompt and the post-response remount drops the mode via the
     // handCardSelectionInput watcher.
     onHandSelect(cards: ReadonlyArray<CardName>): void {
+      // CLIENT-driven pick (the card-action confirm modal asked for a card from
+      // hand): resolve it back to that flow (no server POST) and close the
+      // overlay so the suppressed confirm modal re-appears with the picked card.
+      if (handSelectState.clientPick) {
+        resolveClientHandSelect();
+        this.activeOverlay = null;
+        return;
+      }
       const input = handCardSelectionPrompt(this.playerView);
       if (input === undefined) {
         exitHandSelect();
@@ -3072,6 +3126,14 @@ export default defineComponent({
     // hand-select prompt is pending, "close" MINIMIZES to a pill (the prompt
     // can't be dismissed) instead of dropping the overlay.
     onHandOverlayClose(): void {
+      // A CLIENT-driven pick (Self-Replicating Robots) can be ABANDONED: closing
+      // cancels it and re-shows the (suppressed) confirm modal so the player can
+      // pick a different branch — nothing was submitted.
+      if (handSelectState.clientPick) {
+        cancelClientHandSelect();
+        this.activeOverlay = null;
+        return;
+      }
       this.minimizeMandatoryHandPrompts();
       this.activeOverlay = null;
     },
