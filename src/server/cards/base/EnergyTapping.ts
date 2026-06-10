@@ -9,6 +9,8 @@ import {DecreaseAnyProduction} from '../../deferredActions/DecreaseAnyProduction
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {GainProduction} from '../../deferredActions/GainProduction';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class EnergyTapping extends Card implements IProjectCard {
   constructor() {
@@ -42,5 +44,14 @@ export class EnergyTapping extends Card implements IProjectCard {
       player.game.defer(decreaseAnyProduction).andThen(() => player.game.defer(gainProduction));
     }
     return undefined;
+  }
+
+  // The on-play preview: a "+1 your energy production" chip + the SAME target
+  // picker the decrease defers, so the player chooses WHOSE energy production to
+  // reduce inside the play modal (when a choice is offered).
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const step = actionPreviews.inputStep(
+      new DecreaseAnyProduction(player, Resource.ENERGY, {count: 1, stealing: true}).previewSelectPlayer());
+    return actionPreviews.playPreview(this, player, [actionPreviews.productionChange(player, Resource.ENERGY, 1)], [step]);
   }
 }

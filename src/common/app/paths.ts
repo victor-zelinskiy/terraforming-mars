@@ -16,6 +16,7 @@ export const paths = {
   API_STATS: 'api/stats',
   API_WAITING_FOR: 'api/waitingfor',
   API_ACTION_PREVIEW: 'api/action-preview',
+  API_CARD_PLAY_PREVIEW: 'api/card-play-preview',
   AUTH_DISCORD_CALLBACK: 'auth/discord/callback',
   AUTOPASS: 'autopass',
   CARDS: 'cards',

@@ -11,6 +11,8 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {all} from '../Options';
 import {IProjectCard} from '../IProjectCard';
 import {skip} from '../../inputs/optionMetadata';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class CometForVenus extends Card implements IProjectCard {
   constructor() {
@@ -35,29 +37,40 @@ export class CometForVenus extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
+    return this.buildOptions(player);
+  }
+
+  // The on-play preview: the declarative venus chip + the SAME M€-steal OrOptions
+  // `bespokePlay` builds (rich target picker + skip), hosted as a step so the
+  // player chooses the victim inside the play modal. Built read-only.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const options = this.buildOptions(player);
+    const step = options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined;
+    return actionPreviews.playPreview(this, player, [], [step]);
+  }
+
+  // Side-effect-free construction shared by `bespokePlay` + the preview (the
+  // attack only runs in the SelectPlayer `andThen`).
+  private buildOptions(player: IPlayer): OrOptions | undefined {
     const venusTagPlayers = player.opponents.filter((opponent) => opponent.tags.count(Tag.VENUS, 'raw') > 0);
 
     if (player.game.isSoloMode()|| venusTagPlayers.length === 0) {
       return undefined;
     }
 
-    if (venusTagPlayers.length > 0) {
-      const noVenusTag = player.opponents
-        .filter((opponent) => opponent.tags.count(Tag.VENUS, 'raw') === 0)
-        .map((opponent) => ({player: opponent, reason: 'No Venus tag' as const}));
-      return new OrOptions(
-        new SelectPlayer(
-          Array.from(venusTagPlayers),
-          'Select player to remove up to 4 M€ from',
-          'Remove M€',
-          {icon: 'megacredits', amount: 4, scope: 'stock', disabled: noVenusTag})
-          .andThen((target) => {
-            target.attack(player, Resource.MEGACREDITS, 4, {log: true});
-            return undefined;
-          }),
-        new SelectOption('Do not remove M€').withMetadata(skip()));
-    }
-
-    return undefined;
+    const noVenusTag = player.opponents
+      .filter((opponent) => opponent.tags.count(Tag.VENUS, 'raw') === 0)
+      .map((opponent) => ({player: opponent, reason: 'No Venus tag' as const}));
+    return new OrOptions(
+      new SelectPlayer(
+        Array.from(venusTagPlayers),
+        'Select player to remove up to 4 M€ from',
+        'Remove M€',
+        {icon: 'megacredits', amount: 4, scope: 'stock', disabled: noVenusTag})
+        .andThen((target) => {
+          target.attack(player, Resource.MEGACREDITS, 4, {log: true});
+          return undefined;
+        }),
+      new SelectOption('Do not remove M€').withMetadata(skip()));
   }
 }

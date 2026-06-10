@@ -8,6 +8,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {IProjectCard} from '../IProjectCard';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class FreyjaBiodomes extends Card implements IProjectCard {
   constructor() {
@@ -61,5 +63,16 @@ export class FreyjaBiodomes extends Card implements IProjectCard {
       player.addResourceTo(cards[0], {qty: 2, log: true});
     }
     return undefined;
+  }
+
+  // The declarative production chips + (when several Venus cards exist) the SAME
+  // target picker `bespokePlay` builds, so the 2 resources' destination is chosen
+  // inside the play modal.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const cards = this.getResCards(player);
+    const step = cards.length > 1 ?
+      actionPreviews.selectCardStep(player, 'Select card to add 2 resources', 'Add resources', cards) :
+      undefined;
+    return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

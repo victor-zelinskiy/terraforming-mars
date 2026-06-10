@@ -10,6 +10,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {any} from '../render/DynamicVictoryPoints';
 import {all} from '../Options';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class LawSuit extends Card implements IProjectCard {
   constructor() {
@@ -58,6 +60,16 @@ export class LawSuit extends Card implements IProjectCard {
         return undefined;
       });
   }
+  // The on-play preview: the SAME owner-aware target picker `bespokePlay` builds,
+  // so the player chooses WHOM to sue (steal 3 M€ from) inside the play modal.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const targets = this.targets(player);
+    const step = targets.length > 0 ?
+      actionPreviews.selectPlayerStep(targets, 'Select player to sue (steal 3 M€ from)', 'Steal M€', {icon: 'megacredits', amount: 3}) :
+      undefined;
+    return actionPreviews.playPreview(this, player, [], [step]);
+  }
+
   public override getVictoryPoints() {
     return -1;
   }

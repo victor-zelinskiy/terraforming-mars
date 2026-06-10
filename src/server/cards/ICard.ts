@@ -79,6 +79,18 @@ export interface ICard {
    * MUST NOT mutate game state. Builders live in `src/server/cards/actionPreviews.ts`.
    */
   actionPreview?(player: IPlayer): ActionPreview;
+  /**
+   * Optional READ-ONLY preview of PLAYING this card — its ON-PLAY effects and the
+   * per-choice steps the player will make — so the "РАЗЫГРАТЬ КАРТУ" modal can
+   * show the impact AND collect every target/parameter choice BEFORE the final
+   * batch submit (instead of follow-up modals after the card is played). The
+   * analog of `actionPreview` but for `bespokePlay`; lives in the card file next
+   * to `bespokePlay()` so the two can't drift on an upstream merge. DECLARATIVE
+   * cards don't need it — `src/server/models/cardPlayPreview.ts` auto-derives them
+   * from `behavior`. MUST NOT mutate game state. Builders live in
+   * `src/server/cards/actionPreviews.ts`.
+   */
+  cardPlayPreview?(player: IPlayer): ActionPreview;
   play(player: IPlayer): PlayerInput | undefined;
   /**
    * Describes the M€ discount `player` could apply to playing `card`.

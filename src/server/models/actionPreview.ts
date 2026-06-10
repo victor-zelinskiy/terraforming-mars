@@ -57,8 +57,10 @@ export function actionPreview(player: IPlayer, card: ICard & IActionCard): Actio
   };
 }
 
-/** A behavior is executable iff it collects zero blocking reasons (read-only). */
-function subAvailability(player: IPlayer, card: ICard, behavior: Behavior): {available: boolean, reason?: UnplayableReason} {
+/** A behavior is executable iff it collects zero blocking reasons (read-only).
+ *  Exported so the card-PLAY preview can gate `behavior.or` sub-branches the
+ *  same way (shared with the action preview — never drifts). */
+export function subAvailability(player: IPlayer, card: ICard, behavior: Behavior): {available: boolean, reason?: UnplayableReason} {
   const reasons: Array<UnplayableReason> = [];
   collectActionBehaviorReasons(player, card, behavior, reasons);
   return {available: reasons.length === 0, reason: reasons[0]};
@@ -176,7 +178,7 @@ function countableBasis(ctx: Counter, raw: unknown): {count: number, label: stri
  * pools and computes the resulting value with the same step sizes / caps the
  * live game uses (oxygen +1, temperature/venus +2 per step).
  */
-function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behavior): Array<ActionEffect> {
+export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behavior): Array<ActionEffect> {
   const out: Array<ActionEffect> = [];
   const ctx = new Counter(player, card);
   const game = player.game;
@@ -264,18 +266,21 @@ function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behavior): A
  * less-common pickers are added as their card groups are migrated — until then
  * they produce no step and the leftover prompt rides the graceful fallback.
  */
-function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavior): ReadonlyArray<ActionPreviewStep> {
+export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavior): ReadonlyArray<ActionPreviewStep> {
   const steps: Array<ActionPreviewStep> = [];
   const ctx = new Counter(player, card);
 
-  // Decrease ANY player's production → a target picker (when a choice is offered).
-  if (behavior.decreaseAnyProduction !== undefined) {
-    const dap = behavior.decreaseAnyProduction;
-    const model = new DecreaseAnyProduction(player, dap.type, {count: dap.count}).previewSelectPlayer();
-    if (model !== undefined) {
-      steps.push({kind: 'input', input: model});
-    }
-  }
+  // ORDER IS LOAD-BEARING: each `input` step's captured response is replayed
+  // POSITIONALLY against the live follow-up prompts (the batch endpoint applies
+  // them in sequence). So the steps MUST be emitted in the SAME order
+  // `Executor.execute` DEFERS them (the deferred queue drains FIFO within a
+  // priority). Executor defer order for these keys:
+  //   addResourcesToAnyCard → decreaseAnyProduction → removeAnyPlants →
+  //   colonies.buildColony → ocean → city → greenery → tile.
+  // (removeAnyPlants is an OrOptions with no clean controlled capture yet, so it
+  // is NOT pre-collected — it rides the post-batch follow-up routing; it sits
+  // between the two below in defer order, which is harmless since no step is
+  // emitted for it.)
 
   // Add a resource to ANY card → a card-target picker (when a choice is offered).
   if (behavior.addResourcesToAnyCard !== undefined && !Array.isArray(behavior.addResourcesToAnyCard)) {
@@ -292,8 +297,24 @@ function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavior): Rea
     }
   }
 
-  // Board tile placement → inherently interactive; collected on the board after
-  // submit via PlacementBanner (the modal shows an honest note).
+  // Decrease ANY player's production → a target picker (when a choice is offered).
+  if (behavior.decreaseAnyProduction !== undefined) {
+    const dap = behavior.decreaseAnyProduction;
+    const model = new DecreaseAnyProduction(player, dap.type, {count: dap.count}).previewSelectPlayer();
+    if (model !== undefined) {
+      steps.push({kind: 'input', input: model});
+    }
+  }
+
+  // Board / colony placement → inherently interactive; collected AFTER submit
+  // (PlacementBanner for tiles, ColoniesOverlay for a colony). The modal shows an
+  // honest note. Emitted last, matching the executor defer order.
+  if (behavior.colonies?.buildColony !== undefined) {
+    steps.push({kind: 'boardPlacement', placementType: 'colony'});
+  }
+  if (behavior.ocean !== undefined) {
+    steps.push({kind: 'boardPlacement', placementType: 'ocean'});
+  }
   if (behavior.city !== undefined && behavior.city.space === undefined) {
     steps.push({kind: 'boardPlacement', placementType: behavior.city.on ?? 'city'});
   }

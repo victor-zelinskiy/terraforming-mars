@@ -9,11 +9,14 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} from '../../common/models/ActionPreviewModel';
 import {PlayerInputModel} from '../../common/models/PlayerInputModel';
+import {effectsForBehavior} from '../models/actionPreview';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
 import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
 import {SelectAmount} from '../inputs/SelectAmount';
 import {SelectCard} from '../inputs/SelectCard';
+import {SelectPlayer} from '../inputs/SelectPlayer';
+import {OrOptions} from '../inputs/OrOptions';
 
 /** Icon key for a card resource (lowercase, spaces→hyphens — `iconClassFor`). */
 function cardResourceIcon(resource: CardResource): string {
@@ -188,6 +191,31 @@ export function cardInput(
   }).toModel(player);
 }
 
+/** A `SelectCard` target picker as a STEP (the modal hosts it + captures the
+ *  `{type:'card', cards}` response into the batch). Mirror the exact title /
+ *  label / candidate set the card's `bespokePlay()` builds. */
+export function selectCardStep(
+  player: IPlayer,
+  title: string | Message,
+  label: string,
+  cards: ReadonlyArray<ICard>,
+  opts?: {showOwner?: boolean, disabled?: ReadonlyArray<{card: ICard, reason: string | Message}>},
+): ActionPreviewStep {
+  return {kind: 'input', input: cardInput(player, title, label, cards, opts)};
+}
+
+/** A single-target `SelectPlayer` as a STEP (the modal hosts the premium
+ *  owner-aware picker + captures `{type:'player', player}`). Mirror the exact
+ *  candidate set / icon / scope the card's `bespokePlay()` builds. */
+export function selectPlayerStep(
+  players: ReadonlyArray<IPlayer>,
+  title: string | Message,
+  buttonLabel: string,
+  options?: {icon?: string, amount?: number, scope?: 'stock' | 'production', disabled?: ReadonlyArray<{player: IPlayer, reason: string | Message}>},
+): ActionPreviewStep {
+  return {kind: 'input', input: new SelectPlayer(players, title, buttonLabel, options).toModel()};
+}
+
 /** One declared branch of a bespoke `or` action. */
 export type BranchSpec = {
   available: boolean;
@@ -262,6 +290,33 @@ export function singleBranch(
 }
 
 /**
+ * A single-branch PLAY preview (the on-play behavior is ONE branch, no pick) for
+ * a bespoke `bespokePlay` card's `cardPlayPreview` hook. AUTO-includes the card's
+ * declarative `behavior` effect chips (so the hook only declares the BESPOKE
+ * extras on top — the venus/temperature/production the behavior already raises),
+ * then the explicit `extraEffects` and `steps`. `available` is always true — the
+ * route only previews cards already in `getPlayableCards()`. A `undefined` step
+ * (an auto-resolved / no-candidate choice) is dropped, exactly like the live play.
+ */
+export function playPreview(
+  card: ICard,
+  player: IPlayer,
+  extraEffects: ReadonlyArray<ActionEffect> = [],
+  steps: ReadonlyArray<ActionPreviewStep | undefined> = [],
+): ActionPreview {
+  const behaviorEffects = card.behavior !== undefined ? effectsForBehavior(player, card, card.behavior) : [];
+  const branch: ActionPreviewBranch = {
+    index: -1,
+    title: '',
+    available: true,
+    renderKeys: [],
+    effects: [...behaviorEffects, ...extraEffects],
+    steps: definedSteps(steps),
+  };
+  return {...base(card), kind: 'bespoke', branches: [branch]};
+}
+
+/**
  * The escape hatch for actions that resist a static description (Viron copies
  * another player's used action; SelfReplicatingRobots, etc.): a single
  * confirm-only branch with NO steps. The action's own prompts ride the existing
@@ -282,7 +337,7 @@ export function dynamic(card: ActionCard, player: IPlayer): ActionPreview {
  * (disabled, with their reason + chips) but never submitted (index `-1`).
  */
 export function orBranches(
-  card: ActionCard,
+  card: ICard,
   specs: ReadonlyArray<BranchSpec>,
   options?: {autoResolveSingle?: boolean},
 ): ActionPreview {
@@ -307,6 +362,31 @@ export function orBranches(
     };
   });
   return {...base(card), kind: 'bespoke', branches};
+}
+
+/**
+ * Host a read-only-built top-level `OrOptions` (an on-play CHOICE the card's
+ * `bespokePlay` builds — e.g. an attack's "remove X from player A / Y from
+ * player B / skip", or a "raise temperature OR venus" pick) as a STEP. The modal
+ * renders it with the SAME premium `ModernOptionPicker` the live follow-up uses
+ * (rich player-target cards, current→resulting previews, disabled targets, the
+ * skip option, and nested player/card picks), and the chosen `{type:'or', index,
+ * response}` is collected into the batch — byte-identical to the live OrOptions.
+ *
+ * The card MUST build the OrOptions via a SIDE-EFFECT-FREE method (the per-option
+ * mutations live in `andThen`), shared with `bespokePlay`, so the preview and the
+ * live prompt can't drift. Handles every OrOptions shape (flat SelectOptions AND
+ * options that nest a SelectPlayer/SelectCard), unlike a flat branch mapping.
+ */
+export function orOptionsStep(player: IPlayer, orOptions: OrOptions): ActionPreviewStep {
+  return {kind: 'input', input: orOptions.toModel(player)};
+}
+
+/** Wrap a pre-built input model (e.g. a deferred action's read-only
+ *  `previewSelect*` output) as a step, or `undefined` when there's no model
+ *  (the live path auto-resolves / offers no choice → no step). */
+export function inputStep(model: PlayerInputModel | undefined): ActionPreviewStep | undefined {
+  return model !== undefined ? {kind: 'input', input: model} : undefined;
 }
 
 /**

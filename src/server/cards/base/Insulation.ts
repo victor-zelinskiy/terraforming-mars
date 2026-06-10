@@ -6,6 +6,8 @@ import {SelectAmount} from '../../inputs/SelectAmount';
 import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class Insulation extends Card implements IProjectCard {
   constructor() {
@@ -37,5 +39,12 @@ export class Insulation extends Card implements IProjectCard {
         player.production.add(Resource.MEGACREDITS, amount, {log: true});
         return undefined;
       });
+  }
+
+  // The on-play preview: the SAME amount stepper `bespokePlay` builds, so the
+  // player dials how much heat production → M€ production inside the play modal.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const step = actionPreviews.amountStep('Select amount of heat production to decrease', 'Decrease', 1, player.production.heat, {icon: 'heat'});
+    return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

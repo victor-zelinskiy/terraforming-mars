@@ -1,10 +1,18 @@
 <template>
 <div class="payments_cont">
   <div v-if="showtitle === true">{{ $t(playerinput.title) }}</div>
-  <label v-for="availableCard in cards" class="payments_cards" :key="availableCard.name">
-    <input v-if="!availableCard.isDisabled" class="hidden" type="radio" v-model="cardName" :value="availableCard.name" />
-    <Card class="cardbox" :card="availableCard" />
-  </label>
+  <!--
+    `hideCards` lets a premium host (the card-play preview modal) render the
+    source card itself elsewhere and reuse ONLY this widget's payment rules +
+    PaymentFormV2 (the single constrained card is already auto-selected via the
+    `cardName` default). The legacy radio flow leaves it false and shows the list.
+  -->
+  <template v-if="hideCards !== true">
+    <label v-for="availableCard in cards" class="payments_cards" :key="availableCard.name">
+      <input v-if="!availableCard.isDisabled" class="hidden" type="radio" v-model="cardName" :value="availableCard.name" />
+      <Card class="cardbox" :card="availableCard" />
+    </label>
+  </template>
   <template v-if="card !== undefined && card.additionalProjectCosts">
     <div v-if="card.additionalProjectCosts.aeronGenomicsResources" class="card-warning"
       v-i18n="[$t(card.name), card.additionalProjectCosts.aeronGenomicsResources, 'animals', $t(CardName.AERON_GENOMICS)]"
@@ -30,7 +38,7 @@
     :ledger="ledger"
     :showsave="showsave"
     :buttonLabel="playerinput.buttonLabel"
-    @change="(p) => payment = p"
+    @change="onPaymentChange"
     @save="doSave" />
 </div>
 </template>
@@ -75,7 +83,15 @@ export default defineComponent({
     showtitle: {
       type: Boolean,
     },
+    // Premium host (card-play preview modal) only: hide the card radio list so
+    // the host renders the source card itself + owns the submit (via `saveData`),
+    // and re-emit payment validity through `@change` so the host can gate its CTA.
+    hideCards: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['change'],
   computed: {
     order(): ReadonlyArray<SpendableResource> {
       return ([
@@ -253,6 +269,36 @@ export default defineComponent({
         return titaniumValue;
       }
       return titaniumValue - 1;
+    },
+    // PaymentFormV2 emits its dialed payment on every change. Mirror it onto our
+    // local `payment` AND re-emit whether that payment COVERS the cost up to a
+    // premium host (the card-play preview modal) so it can enable/disable its
+    // single confirm CTA without owning the payment rules. Validity is computed
+    // from OUR reactive `cost`/`order`/`ledger` (defensively, with `?? 0`) rather
+    // than the child's `canSave()` — the child ref is in flux while a card switch
+    // remounts PaymentFormV2 (`:key="cardName"`), and reading it there threw.
+    // The legacy radio flow ignores `@change`.
+    onPaymentChange(p: typeof this.payment): void {
+      this.payment = p;
+      this.$emit('change', this.paymentCoversCost(p));
+    },
+    paymentCoversCost(p: typeof this.payment): boolean {
+      if (this.cost === 0) {
+        return true;
+      }
+      let total = 0;
+      for (const unit of this.order) {
+        const amount = p[unit] ?? 0;
+        const entry = this.ledger[unit];
+        if (entry === undefined) {
+          continue;
+        }
+        if (amount > entry.available) {
+          return false;
+        }
+        total += amount * entry.rate;
+      }
+      return total >= this.cost;
     },
     saveData() {
       if (this.card === undefined) {
