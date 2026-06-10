@@ -363,6 +363,8 @@
     "Convert 8 heat into temperature": "Потратить 8 ресурсов тепла, чтобы повысить температуру на 1",
     "Convert ${0} plants into greenery": "Превратить ${0} ресурсов растений в 1 жетон озеленения",
     "Spend 1 plant to gain 7 M€.": "Потратьте 1 растение, чтобы получить 7 M€.",
+    "Action: Spend 1 plant to gain 7 M€.": "Действие: Потратьте 1 растение, чтобы получить 7 M€.",
+    "Action: Spend 1 steel to gain 7 M€.": "Действие: Потратьте 1 сталь, чтобы получить 7 M€.",
     "Spend 1 steel to gain 7 M€.": "Потратьте 1 сталь, чтобы получить 7 M€.",
     "Select amount of heat production to decrease": "Выберите количество производства тепла, на которое хотите уменьшить",
     "Decrease": "Уменьшить",

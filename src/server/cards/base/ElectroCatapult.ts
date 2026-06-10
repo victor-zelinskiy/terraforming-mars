@@ -44,8 +44,15 @@ export class ElectroCatapult extends ActionCard implements IProjectCard {
           align: 'left',
         },
         renderData: CardRenderer.builder((b) => {
-          b.action('Spend 1 plant or 1 steel to gain 7 M€.', (eb) => {
-            eb.plants(1).slash().steel(1).startAction.megacredits(7);
+          // TWO action rows (one per `or` branch) so each choice maps to its OWN
+          // icon graphic in the ActionsOverlay / confirm modal instead of falling
+          // back to title text (the combined "plant / steel → 7 M€" was one node
+          // for two branches). Titles match the `or` behavior titles.
+          b.action('Spend 1 plant to gain 7 M€.', (eb) => {
+            eb.plants(1).startAction.megacredits(7);
+          }).br;
+          b.action('Spend 1 steel to gain 7 M€.', (eb) => {
+            eb.steel(1).startAction.megacredits(7);
           }).br;
           b.production((pb) => pb.minus().energy(1));
         }),

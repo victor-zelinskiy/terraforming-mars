@@ -40,9 +40,9 @@
               class="hand-card-item__playblock"
               :aria-label="$t('Cannot play now')"
               @click.stop
-              @mouseenter="onReasonEnter"
+              @mouseenter="onReasonEnter('play')"
               @mouseleave="onReasonLeave"
-              @focus="onReasonEnter"
+              @focus="onReasonEnter('play')"
               @blur="onReasonLeave">
         <span class="hand-card-item__playblock-icon" aria-hidden="true">⊘</span>
       </button>
@@ -82,9 +82,9 @@
               :aria-pressed="selected"
               :aria-disabled="selectDisabled"
               @click.stop="onSellClick"
-              @mouseenter="selectDisabled && onReasonEnter()"
+              @mouseenter="selectDisabled && onReasonEnter('select')"
               @mouseleave="selectDisabled && onReasonLeave()"
-              @focus="selectDisabled && onReasonEnter()"
+              @focus="selectDisabled && onReasonEnter('select')"
               @blur="selectDisabled && onReasonLeave()">
         <span class="hand-card-sell-btn__glow" aria-hidden="true"></span>
         <span class="hand-card-sell-btn__label" v-i18n>{{ selected ? 'Deselect' : 'Select' }}</span>
@@ -108,9 +108,9 @@
       <div v-else-if="softBlocked"
            class="hand-card-item__softblock"
            tabindex="0"
-           @mouseenter="onReasonEnter"
+           @mouseenter="onReasonEnter('play')"
            @mouseleave="onReasonLeave"
-           @focus="onReasonEnter"
+           @focus="onReasonEnter('play')"
            @blur="onReasonLeave">
         <button type="button" class="hand-card-play-btn hand-card-play-btn--waiting" disabled>
           <span class="hand-card-play-btn__label" v-i18n>Play now</span>
@@ -126,9 +126,9 @@
       <div v-else
            class="hand-card-item__disabled"
            tabindex="0"
-           @mouseenter="onReasonEnter"
+           @mouseenter="onReasonEnter('play')"
            @mouseleave="onReasonLeave"
-           @focus="onReasonEnter"
+           @focus="onReasonEnter('play')"
            @blur="onReasonLeave">
         <button type="button" class="hand-card-play-btn hand-card-play-btn--disabled" disabled>
           <span class="hand-card-play-btn__label" v-i18n>Unavailable</span>
@@ -142,14 +142,22 @@
         area.
       -->
       <transition name="hand-reason-fade">
+        <!--
+          PLAY-reason popovers (requirements list / soft one-liner) belong ONLY
+          to a PLAY trigger — the disabled / soft footer in normal mode, or the
+          ⊘ play-block badge (the play-availability icon on the card itself). They
+          must NEVER fire from the SELECT button: in a pick / select context the
+          button answers "can I CHOOSE this", not "can I play it" — its reason is
+          the select-eligibility one below. Gated on `reasonSource === 'play'`.
+        -->
         <HandCardReasonPopover
-          v-if="showReason && rulesBlocked && reasons.length > 0"
+          v-if="showReason && reasonSource === 'play' && rulesBlocked && reasons.length > 0"
           :reasons="reasons"
           heading="Cannot play now"
           :class="{'hand-reason--below': reasonBelow}"
           :style="reasonStyle" />
         <div
-          v-else-if="showReason && softBlocked && softText !== ''"
+          v-else-if="showReason && reasonSource === 'play' && softBlocked && softText !== ''"
           class="hand-soft-reason"
           :class="{'hand-soft-reason--below': reasonBelow}"
           :style="reasonStyle"
@@ -164,7 +172,7 @@
           prompt title shown in the overlay's select strip.
         -->
         <div
-          v-else-if="showReason && selectDisabled"
+          v-else-if="showReason && reasonSource === 'select' && selectDisabled"
           class="hand-soft-reason"
           :class="{'hand-soft-reason--below': reasonBelow}"
           :style="reasonStyle"
@@ -243,6 +251,12 @@ export default defineComponent({
   data() {
     return {
       showReason: false,
+      // Which affordance opened the reason popover: 'play' (the disabled/soft
+      // footer or the ⊘ play-block badge → requirements / soft reason) vs
+      // 'select' (the pick button → select-eligibility reason). Keeps the SELECT
+      // button from ever surfacing a play-availability reason — in a pick context
+      // the button is about selectability only.
+      reasonSource: 'play' as 'play' | 'select',
       // Flip the popover below the footer when there isn't room above.
       reasonBelow: false,
       // Horizontal nudge (px) so the popover stays inside the scroll area.
@@ -324,7 +338,8 @@ export default defineComponent({
       }
       this.$emit('toggle-select', this.entry.name);
     },
-    onReasonEnter(): void {
+    onReasonEnter(source: 'play' | 'select' = 'play'): void {
+      this.reasonSource = source;
       this.showReason = true;
       this.$nextTick(() => this.placeReason());
     },

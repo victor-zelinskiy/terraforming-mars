@@ -48,6 +48,8 @@
     "${0} gained 0 M€ from ${1} action.": "${0} НЕ получил M€ с действия на ${1}",
     "Directed Heat Usage": "Управление теплом",
     "Action: Spend 3 heat to gain either 4 M€ or 2 plants.": "Действие: Потратьте 3 единицы тепла, чтобы получить 4 M€ или 2 растения",
+    "Action: Spend 3 heat to gain 4 M€": "Действие: Потратьте 3 единицы тепла, чтобы получить 4 M€",
+    "Action: Spend 3 heat to gain 2 plants": "Действие: Потратьте 3 единицы тепла, чтобы получить 2 растения",
     "Solar Logistics": "Солнечная логистика",
     "Spend 3 heat to gain 4 M€": "Потратьте 3 единицы тепла, чтобы получить 4 M€",
     "Spend 3 heat to gain 2 plants": "Потратьте 3 единицы тепла, чтобы получить 2 растения",
