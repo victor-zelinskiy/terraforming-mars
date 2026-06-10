@@ -8,6 +8,8 @@ import {ICard} from '../ICard';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class VenusianPlants extends Card implements IProjectCard {
   constructor() {
@@ -64,5 +66,16 @@ export class VenusianPlants extends Card implements IProjectCard {
     let resourceCards = player.getResourceCards(CardResource.MICROBE);
     resourceCards = resourceCards.concat(player.getResourceCards(CardResource.ANIMAL));
     return resourceCards.filter((card) => card.tags.includes(Tag.VENUS));
+  }
+
+  // The on-play preview: the declarative venus chip + (when there's a real
+  // choice) the SAME SelectCard target picker `bespokePlay` builds, so the
+  // player picks WHERE the resource goes inside the play modal.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const cards = this.getResCards(player);
+    const step = cards.length > 1 ?
+      actionPreviews.selectCardStep(player, 'Select card to add 1 resource', 'Add resource', cards) :
+      undefined;
+    return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

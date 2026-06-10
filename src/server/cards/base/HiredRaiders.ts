@@ -11,6 +11,8 @@ import {Size} from '../../../common/cards/render/Size';
 import {all} from '../Options';
 import {message} from '../../logs/MessageBuilder';
 import {disabledPlayerTarget, stealResourceFromPlayer, skip} from '../../inputs/optionMetadata';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class HiredRaiders extends Card implements IProjectCard {
   constructor() {
@@ -32,6 +34,19 @@ export class HiredRaiders extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
+    return this.buildOptions(player);
+  }
+
+  // The on-play preview: the SAME steal OrOptions `bespokePlay` builds, hosted as
+  // a step so the player picks WHAT to steal from WHOM inside the play modal.
+  // Built read-only (the steals run only in each option's `andThen`).
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const options = this.buildOptions(player);
+    const step = options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined;
+    return actionPreviews.playPreview(this, player, [], [step]);
+  }
+
+  private buildOptions(player: IPlayer): OrOptions | undefined {
     if (player.game.isSoloMode()) {
       return new OrOptions(
         new SelectOption('Steal 2 steel', 'Steal steel').andThen(() => {

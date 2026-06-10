@@ -11,6 +11,8 @@ import {Size} from '../../../common/cards/render/Size';
 import {all, digit} from '../Options';
 import {message} from '../../logs/MessageBuilder';
 import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../../inputs/optionMetadata';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class Sabotage extends Card implements IProjectCard {
   constructor() {
@@ -36,6 +38,22 @@ export class Sabotage extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
+    return this.buildOptions(player);
+  }
+
+  // The on-play preview: the SAME OrOptions `bespokePlay` builds, hosted as a
+  // step so the player picks WHICH resource to remove from WHICH opponent inside
+  // the play modal (rich target cards + disabled opponents). Built read-only (the
+  // attacks live in `andThen`).
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const options = this.buildOptions(player);
+    const step = options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined;
+    return actionPreviews.playPreview(this, player, [], [step]);
+  }
+
+  // Side-effect-free construction shared by `bespokePlay` + the preview (the
+  // resource removals only run when an option's `andThen` fires).
+  private buildOptions(player: IPlayer): OrOptions | undefined {
     const availableActions = new OrOptions();
 
     if (player.game.isSoloMode() && player.playedCards.has(CardName.MONS_INSURANCE)) {

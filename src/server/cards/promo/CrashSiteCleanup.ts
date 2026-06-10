@@ -7,6 +7,8 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 import {Resource, StandardResource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class CrashSiteCleanup extends Card implements IProjectCard {
   constructor() {
@@ -45,6 +47,16 @@ export class CrashSiteCleanup extends Card implements IProjectCard {
       });
 
     return new OrOptions(gainTitanium, gain2Steel);
+  }
+
+  // The on-play preview: the two-way OrOptions `bespokePlay` builds, shown as
+  // branches with their gain chips so the player picks titanium vs steel inside
+  // the play modal. Always two options (never auto-resolves).
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.orBranches(this, [
+      {available: true, title: 'Gain 1 titanium', effects: [actionPreviews.stockGain(player, Resource.TITANIUM, 1)]},
+      {available: true, title: 'Gain 2 steel', effects: [actionPreviews.stockGain(player, Resource.STEEL, 2)]},
+    ]);
   }
 
   public static resourceHook(player: IPlayer, resource: Resource | StandardResource, amount: number, from: IPlayer) {

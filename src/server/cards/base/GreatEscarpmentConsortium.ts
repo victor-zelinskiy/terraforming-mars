@@ -8,6 +8,8 @@ import {DecreaseAnyProduction} from '../../deferredActions/DecreaseAnyProduction
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {GainProduction} from '../../deferredActions/GainProduction';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class GreatEscarpmentConsortium extends Card implements IProjectCard {
   constructor() {
@@ -35,5 +37,13 @@ export class GreatEscarpmentConsortium extends Card implements IProjectCard {
       new DecreaseAnyProduction(player, Resource.STEEL, {count: 1, stealing: true}));
     player.game.defer(new GainProduction(player, Resource.STEEL, {count: 1, log: true}));
     return undefined;
+  }
+
+  // A "+1 your steel production" chip + the SAME target picker the decrease
+  // defers, so the player chooses WHOSE steel production to reduce in the modal.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const step = actionPreviews.inputStep(
+      new DecreaseAnyProduction(player, Resource.STEEL, {count: 1, stealing: true}).previewSelectPlayer());
+    return actionPreviews.playPreview(this, player, [actionPreviews.productionChange(player, Resource.STEEL, 1)], [step]);
   }
 }

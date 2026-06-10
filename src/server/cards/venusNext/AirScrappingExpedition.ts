@@ -7,6 +7,9 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {IProjectCard} from '../IProjectCard';
+import {ICard} from '../ICard';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class AirScrappingExpedition extends Card implements IProjectCard {
   constructor() {
@@ -30,9 +33,13 @@ export class AirScrappingExpedition extends Card implements IProjectCard {
     });
   }
 
+  private floaterCards(player: IPlayer): ReadonlyArray<ICard> {
+    return player.getResourceCards(CardResource.FLOATER)
+      .filter((card) => card.tags.some((cardTag) => cardTag === Tag.VENUS));
+  }
+
   public override bespokePlay(player: IPlayer) {
-    let floaterCards = player.getResourceCards(CardResource.FLOATER);
-    floaterCards = floaterCards.filter((card) => card.tags.some((cardTag) => cardTag === Tag.VENUS));
+    const floaterCards = this.floaterCards(player);
     if (floaterCards.length === 0) {
       return undefined;
     }
@@ -47,5 +54,16 @@ export class AirScrappingExpedition extends Card implements IProjectCard {
         player.addResourceTo(card, {qty: 3, log: true});
         return undefined;
       });
+  }
+
+  // The declarative venus chip + (when several Venus floater cards exist) the
+  // SAME target picker `bespokePlay` builds, so the 3 floaters' destination is
+  // chosen inside the play modal.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const cards = this.floaterCards(player);
+    const step = cards.length > 1 ?
+      actionPreviews.selectCardStep(player, 'Select card to add 3 floaters', 'Add floaters', cards) :
+      undefined;
+    return actionPreviews.playPreview(this, player, [actionPreviews.cardResourceGain(CardResource.FLOATER, 3)], [step]);
   }
 }

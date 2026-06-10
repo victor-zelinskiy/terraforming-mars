@@ -266,6 +266,7 @@
       <HandCardPaymentContent
         :playerView="playerView"
         :input="pendingPlayCard.input"
+        :cardName="pendingPlayCard.cardName"
         @confirm="onPlayCardConfirm($event)"
         @cancel="onPlayCardCancel" />
     </MandatoryInputModal>
@@ -723,7 +724,7 @@ import {
   exitAwardFunding,
 } from '@/client/components/awards/awardFundingState';
 import OpponentHandOverlay from '@/client/components/handCards/OpponentHandOverlay.vue';
-import HandCardPaymentContent from '@/client/components/handCards/HandCardPaymentContent.vue';
+import HandCardPaymentContent, {PlayCardPayload} from '@/client/components/handCards/HandCardPaymentContent.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {placementLockState} from '@/client/components/placementLockState';
@@ -742,7 +743,6 @@ import {CardResource} from '@/common/CardResource';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {translateText, translateTextWithParams, translateMessage} from '@/client/directives/i18n';
 import {Payment} from '@/common/inputs/Payment';
-import {SelectProjectCardToPlayResponse} from '@/common/inputs/InputResponse';
 import {CardName} from '@/common/cards/CardName';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {ClaimedMilestoneModel} from '@/common/models/ClaimedMilestoneModel';
@@ -3231,14 +3231,14 @@ export default defineComponent({
       };
       this.activeOverlay = null; // close the hand overlay behind the modal
     },
-    onPlayCardConfirm(response: SelectProjectCardToPlayResponse): void {
+    onPlayCardConfirm(payload: PlayCardPayload): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
       if (this.pendingPlayCard === undefined) {
         return;
       }
-      this.submitPlayCard(response);
+      this.submitPlayCardBatch(payload);
       this.pendingPlayCard = undefined;
     },
     onPlayCardCancel(): void {
@@ -3247,14 +3247,21 @@ export default defineComponent({
       // (or close it themselves) — nothing was submitted.
       this.activeOverlay = 'cards';
     },
-    // Wraps the chosen card + payment (a SelectProjectCardToPlayResponse,
-    // emitted verbatim by the reused payment widget) into the nested OR
-    // response that mirrors what the legacy radio UI submits, and routes
-    // it through WaitingFor.onsave. Same shape as submitStandardProjectPayment.
-    submitPlayCard(response: SelectProjectCardToPlayResponse): void {
-      // Generalized: action-menu play (non-empty path → wrap in nested OR) OR a
-      // top-level "play a card from hand" prompt (EMPTY path → submit the bare
-      // projectCard response).
+    // The play modal's SINGLE BATCH SUBMIT: assemble the ordered response array
+    // (play pick + on-play branch + pre-collected step responses) and POST it in
+    // ONE request, so the on-play target choices the player already made in the
+    // modal are applied without follow-up modal spam. Mirrors submitCardActionBatch
+    // (the action analog), but response[0] is the PLAY pick (projectCard+payment).
+    //   [0] play the card (projectCard+payment), wrapped in the action-menu OR
+    //       path — EMPTY path (a top-level "play from hand" prompt) → bare
+    //       response, byte-identical to the legacy radio UI / old submitPlayCard.
+    //   [1] optional on-play `behavior.or` branch pick (rare; the live path defers
+    //       an OrOptions after play). Omitted when branchIndex < 0.
+    //   [2..] each pre-collected step response (target/card/amount), in the SAME
+    //       order the server defers the follow-up prompts (see stepsForBehavior).
+    // A later-step failure is handled by the batch endpoint's graceful fallback
+    // (it leaves the leftover prompt for PlacementBanner / the modal routing).
+    submitPlayCardBatch(payload: PlayCardPayload): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
@@ -3263,12 +3270,21 @@ export default defineComponent({
         console.warn('Play card: action not found in waitingFor tree');
         return;
       }
-      let out: unknown = response;
+      let play: unknown = payload.playResponse;
       for (let i = action.path.length - 1; i >= 0; i--) {
-        out = {type: 'or' as const, index: action.path[i], response: out};
+        play = {type: 'or' as const, index: action.path[i], response: play};
       }
-      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
-      wfRef?.onsave?.(out);
+      const responses: Array<unknown> = [play];
+      if (payload.branchIndex >= 0) {
+        responses.push({type: 'or' as const, index: payload.branchIndex, response: payload.optionResponse ?? {type: 'option' as const}});
+      } else if (payload.optionResponse !== undefined) {
+        responses.push(payload.optionResponse);
+      }
+      for (const r of payload.stepResponses) {
+        responses.push(r);
+      }
+      const wfRef = this.$refs.waitingFor as {onsaveBatch?: (out: ReadonlyArray<unknown>) => void} | undefined;
+      wfRef?.onsaveBatch?.(responses);
     },
     getFleetsCountRange(player: PublicPlayerModel): Array<number> {
       const fleetsRange = [];

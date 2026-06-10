@@ -21,6 +21,7 @@ import {ApiSpectator} from '../routes/ApiSpectator';
 import {ApiStats} from '../routes/ApiStats';
 import {ApiWaitingFor} from '../routes/ApiWaitingFor';
 import {ActionPreview} from '../routes/ActionPreview';
+import {CardPlayPreview} from '../routes/CardPlayPreview';
 import {AcknowledgeDraw} from '../routes/AcknowledgeDraw';
 import {Autopass} from '../routes/Autopass';
 import {DiscordAuth} from '../routes/DiscordAuth';
@@ -84,6 +85,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_SPECTATOR, ApiSpectator.INSTANCE],
     [paths.API_WAITING_FOR, ApiWaitingFor.INSTANCE],
     [paths.API_ACTION_PREVIEW, ActionPreview.INSTANCE],
+    [paths.API_CARD_PLAY_PREVIEW, CardPlayPreview.INSTANCE],
     [paths.AUTOPASS, Autopass.INSTANCE],
     [paths.CARDS, ServeApp.INSTANCE],
     ['favicon.ico', ServeAsset.INSTANCE],
