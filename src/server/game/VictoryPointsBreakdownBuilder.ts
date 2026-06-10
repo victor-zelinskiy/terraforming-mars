@@ -1,5 +1,5 @@
 import {Tag} from '../../common/cards/Tag';
-import {VictoryPointsBreakdown} from '../../common/game/VictoryPointsBreakdown';
+import {CardVictoryPointsKind, TerraformRatingBreakdown, VictoryPointsBreakdown} from '../../common/game/VictoryPointsBreakdown';
 
 export type VictoryPoints = 'terraformRating' | 'milestones' | 'awards' | 'greenery' | 'city' | 'escapeVelocity' | 'moon habitat' | 'moon mine' | 'moon road' | 'planetary tracks' | 'victoryPoints';
 
@@ -10,6 +10,7 @@ type Mutable<T> = {
 export class VictoryPointsBreakdownBuilder {
   private readonly points: Mutable<VictoryPointsBreakdown> = {
     terraformRating: 0,
+    terraformRatingBreakdown: {base: 0, temperature: 0, oxygen: 0, oceans: 0, venus: 0, cards: 0},
     milestones: 0,
     awards: 0,
     greenery: 0,
@@ -48,7 +49,14 @@ export class VictoryPointsBreakdownBuilder {
     this.points.total += this.points.victoryPoints;
   }
 
-  public setVictoryPoints(key: VictoryPoints, points: number, message?: string, messageArgs?: Array<string>) {
+  // Records the attribution of terraform-rating VP by the reason the rating
+  // rose. Display-only — it does NOT feed `updateTotal` (the TR total is
+  // already added through `setVictoryPoints('terraformRating', …)`).
+  public setTerraformRatingBreakdown(breakdown: TerraformRatingBreakdown) {
+    this.points.terraformRatingBreakdown = breakdown;
+  }
+
+  public setVictoryPoints(key: VictoryPoints, points: number, message?: string, messageArgs?: Array<string>, kind?: CardVictoryPointsKind) {
     if (points < 0) {
       this.points.negativeVP += points;
     }
@@ -80,7 +88,7 @@ export class VictoryPointsBreakdownBuilder {
     case 'victoryPoints':
       this.points.victoryPoints += points;
       if (message !== undefined) {
-        this.points.detailsCards.push({cardName: message, victoryPoint: points});
+        this.points.detailsCards.push({cardName: message, victoryPoint: points, kind: kind ?? (points < 0 ? 'penalty' : 'fixed')});
       }
       break;
     case 'moon habitat':

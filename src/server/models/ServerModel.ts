@@ -404,6 +404,7 @@ export class Server {
       underworldData: player.underworldData,
       victoryPointsBreakdown: {
         terraformRating: 0,
+        terraformRatingBreakdown: {base: 0, temperature: 0, oxygen: 0, oceans: 0, venus: 0, cards: 0},
         milestones: 0,
         awards: 0,
         greenery: 0,

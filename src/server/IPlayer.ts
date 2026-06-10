@@ -92,6 +92,9 @@ export interface IPlayer {
 
   // Terraforming Rating
   hasIncreasedTerraformRatingThisGeneration: boolean;
+  // TR gained directly from cards / effects (not from global parameters).
+  // Used for the end-of-game victory-point breakdown by reason.
+  terraformRatingFromCards: number;
 
   // Resources
   megaCredits: number;
@@ -213,7 +216,7 @@ export interface IPlayer {
   getSteelValue(): number;
   increaseSteelValue(): void;
   decreaseSteelValue(): void;
-  increaseTerraformRating(steps?: number, opts?: {log?: boolean, from?: From}): void;
+  increaseTerraformRating(steps?: number, opts?: {log?: boolean, from?: From, global?: boolean}): void;
   decreaseTerraformRating(steps?: number, opts?: {log?: boolean}): void;
   setTerraformRating(value: number): void;
 

@@ -110,6 +110,10 @@ export class Player implements IPlayer {
   // Terraforming Rating
   public terraformRating: number = 20;
   public hasIncreasedTerraformRatingThisGeneration: boolean = false;
+  // TR gained directly from cards / effects (i.e. not from raising a global
+  // parameter, whose contribution is tracked in `globalParameterSteps`). Used
+  // only for the end-of-game victory-point breakdown by reason.
+  public terraformRatingFromCards: number = 0;
 
 
   // Resource values
@@ -325,7 +329,7 @@ export class Player implements IPlayer {
     }
   }
 
-  public increaseTerraformRating(steps: number = 1, opts: {log?: boolean, from?: From} = {}) {
+  public increaseTerraformRating(steps: number = 1, opts: {log?: boolean, from?: From, global?: boolean} = {}) {
     if (this.preservationProgram === true && this.game.phase === Phase.ACTION) {
       steps--;
       this.game.log('${0} for ${1} is blocking 1 TR', (b) => b.cardName(CardName.PRESERVATION_PROGRAM).player(this));
@@ -337,6 +341,11 @@ export class Player implements IPlayer {
     const raiseRating = () => {
       this.terraformRating += steps;
       this.hasIncreasedTerraformRatingThisGeneration = true;
+      // `global` increases are already attributed via `globalParameterSteps`;
+      // everything else is direct card / effect TR (for the score breakdown).
+      if (opts.global !== true) {
+        this.terraformRatingFromCards += steps;
+      }
 
       if (opts.log === true) {
         if (opts.from !== undefined) {
@@ -1813,6 +1822,7 @@ export class Player implements IPlayer {
       // Terraforming Rating
       terraformRating: this.terraformRating,
       hasIncreasedTerraformRatingThisGeneration: this.hasIncreasedTerraformRatingThisGeneration,
+      terraformRatingFromCards: this.terraformRatingFromCards,
       // Resources
       megaCredits: this.megaCredits,
       megaCreditProduction: this.production.megacredits,
@@ -1946,6 +1956,7 @@ export class Player implements IPlayer {
     player.steel = d.steel;
     player.steelValue = d.steelValue;
     player.terraformRating = d.terraformRating;
+    player.terraformRatingFromCards = d.terraformRatingFromCards ?? 0;
     player.titanium = d.titanium;
     player.titaniumValue = d.titaniumValue;
     player.totalDelegatesPlaced = d.totalDelegatesPlaced;

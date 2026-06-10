@@ -157,6 +157,7 @@ export function fakePublicPlayerModel(overrides?: RecursivePartial<PublicPlayerM
     underworldData: {corruption: 0, excavations: [], tokens: []},
     victoryPointsBreakdown: {
       terraformRating: 20,
+      terraformRatingBreakdown: {base: 20, temperature: 0, oxygen: 0, oceans: 0, venus: 0, cards: 0},
       milestones: 0,
       awards: 0,
       greenery: 0,

@@ -1,5 +1,7 @@
 import {Phase} from '../../common/Phase';
+import {GlobalParameter} from '../../common/GlobalParameter';
 import {IPlayer} from '../IPlayer';
+import {ICard} from '../cards/ICard';
 import {Board} from '../boards/Board';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {PathfindersExpansion} from '../pathfinders/PathfindersExpansion';
@@ -9,6 +11,32 @@ import {VictoryPointsBreakdownBuilder} from './VictoryPointsBreakdownBuilder';
 import {FundedAward} from '../awards/FundedAward';
 import {AwardScorer} from '../awards/AwardScorer';
 import {CardName} from '../../common/cards/CardName';
+import {CardVictoryPointsKind} from '../../common/game/VictoryPointsBreakdown';
+
+// Classify how a played card earns its victory points, for the "from cards"
+// breakdown families. A net-negative result is always a penalty regardless of
+// the declaration.
+function classifyCardVictoryPoints(card: ICard, vp: number): CardVictoryPointsKind {
+  if (vp < 0) {
+    return 'penalty';
+  }
+  const decl = card.victoryPoints;
+  if (typeof decl === 'number') {
+    return 'fixed';
+  }
+  if (decl === 'special') {
+    // Bespoke getVictoryPoints. A card that stores its own resource and scores
+    // off it (SearchForLife, Fish, Predators, Penguins, …) is a resource
+    // accumulator; anything else special depends on board / tableau state.
+    return card.resourceType !== undefined ? 'resource' : 'conditional';
+  }
+  if (typeof decl === 'object') {
+    // CountableVictoryPoints: `resourcesHere` → resource accumulator; a tag /
+    // city / ocean / colony / moon / nextToThis count → conditional.
+    return decl.resourcesHere !== undefined ? 'resource' : 'conditional';
+  }
+  return 'fixed';
+}
 
 export function calculateVictoryPoints(player: IPlayer) {
   const builder = new VictoryPointsBreakdownBuilder();
@@ -19,7 +47,7 @@ export function calculateVictoryPoints(player: IPlayer) {
   for (const playedCard of player.tableau) {
     if (playedCard.victoryPoints !== undefined) {
       const vp = playedCard.getVictoryPoints(player);
-      builder.setVictoryPoints('victoryPoints', vp, playedCard.name);
+      builder.setVictoryPoints('victoryPoints', vp, playedCard.name, undefined, classifyCardVictoryPoints(playedCard, vp));
       if (vp < 0) {
         negativeVP += vp;
       }
@@ -30,12 +58,31 @@ export function calculateVictoryPoints(player: IPlayer) {
   // Apply the Vermin penalty to other players. Vermin owner is penalized by the card itself.
   if (player.game.verminInEffect && playerOwnsVermin === false) {
     const cities = player.game.board.getCities(player).length;
-    builder.setVictoryPoints('victoryPoints', cities * -1, CardName.VERMIN);
+    builder.setVictoryPoints('victoryPoints', cities * -1, CardName.VERMIN, undefined, 'penalty');
     negativeVP -= cities;
   }
 
   // Victory points from TR
   builder.setVictoryPoints('terraformRating', player.terraformRating);
+  // Attribution of TR by reason. Parameter steps each grant 1 TR (`from`-less
+  // global increases tracked in `globalParameterSteps`); direct card / effect
+  // TR is tracked in `terraformRatingFromCards`. `base` is the reconciling
+  // remainder (the starting rating + any untracked drift) so the parts sum to
+  // the displayed terraform rating exactly.
+  const gp = player.globalParameterSteps;
+  const trTemperature = gp[GlobalParameter.TEMPERATURE];
+  const trOxygen = gp[GlobalParameter.OXYGEN];
+  const trOceans = gp[GlobalParameter.OCEANS];
+  const trVenus = gp[GlobalParameter.VENUS];
+  const trCards = player.terraformRatingFromCards;
+  builder.setTerraformRatingBreakdown({
+    base: player.terraformRating - trTemperature - trOxygen - trOceans - trVenus - trCards,
+    temperature: trTemperature,
+    oxygen: trOxygen,
+    oceans: trOceans,
+    venus: trVenus,
+    cards: trCards,
+  });
 
   // Victory points from awards
   giveAwards(player, builder);
@@ -70,13 +117,13 @@ export function calculateVictoryPoints(player: IPlayer) {
 
   Turmoil.ifTurmoil(player.game, (turmoil) => {
     if (includeTurmoilVP) {
-      builder.setVictoryPoints('victoryPoints', turmoil.getVictoryPoints(player), 'Turmoil Points');
+      builder.setVictoryPoints('victoryPoints', turmoil.getVictoryPoints(player), 'Turmoil Points', undefined, 'conditional');
     }
   });
 
   const coloniesVP = player.colonies.getVictoryPoints();
   if (coloniesVP > 0) {
-    builder.setVictoryPoints('victoryPoints', coloniesVP, 'Colony VP');
+    builder.setVictoryPoints('victoryPoints', coloniesVP, 'Colony VP', undefined, 'conditional');
   }
   MoonExpansion.calculateVictoryPoints(player, builder);
   PathfindersExpansion.calculateVictoryPoints(player, builder);
@@ -85,7 +132,7 @@ export function calculateVictoryPoints(player: IPlayer) {
   // Underworld Score Bribing
   if (player.game.gameOptions.underworldExpansion === true) {
     const bribe = Math.min(Math.abs(negativeVP), player.underworldData.corruption);
-    builder.setVictoryPoints('victoryPoints', bribe, 'Underworld Corruption Bribe');
+    builder.setVictoryPoints('victoryPoints', bribe, 'Underworld Corruption Bribe', undefined, 'conditional');
   }
 
   // Escape velocity VP penalty

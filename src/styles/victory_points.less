@@ -3,21 +3,22 @@
  *  victory_points.less — premium "victory points score report" overlay
  * ─────────────────────────────────────────────────────────────────────
  *
- *  Replaces the legacy `.bar-overlay--victory-points` tile-grid + dashed
- *  table with a self-contained glass / HUD score report, sharing the exact
- *  visual language of the Journal (journal.less) and Played-cards
- *  (played_cards.less) overlays: dark glass frame, hairline cyan rim,
- *  L-corner ticks, sci-fi titles, calm transform/opacity motion.
+ *  Self-contained glass / HUD score report, sharing the visual language of
+ *  the Journal (journal.less) and Played-cards (played_cards.less) overlays.
  *
- *  Three reading levels (CLAUDE goal "premium endgame dashboard"):
- *    1. hero      — the grand total (large, soft glow) + composition bar.
- *    2. breakdown — one accent-coded row per VP source, values aligned.
- *    3. sources   — card chips (reusing the journal card chip's hover
- *                   preview + zoom) + milestone / award / track rows.
+ *  Reading levels:
+ *    1. hero    — the grand total (large, soft glow).
+ *    2. scales  — the breakdown BARS (TR / cards / cities+greenery /
+ *                 milestones+awards + expansion bars). All share one
+ *                 px-per-VP scale so their lengths are directly comparable;
+ *                 each bar splits into colour SEGMENTS.
+ *    3. detail  — per-bar legend+detail cards (which double as the colour
+ *                 legend) + the multi-column "from cards" list.
  *
- *  Scoring + data are UNCHANGED; this file is purely presentational.
- *  Motion respects prefers-reduced-motion. See
- *  `src/client/components/overview/VictoryPointsOverlay.vue`.
+ *  Scoring + data live on the server; this file is presentational. Motion
+ *  respects prefers-reduced-motion. See
+ *  `src/client/components/overview/VictoryPointsOverlay.vue` +
+ *  `victoryPointsModel.ts`.
  */
 
 @vp-cyan:        #6ab0e6;
@@ -30,16 +31,25 @@
 @vp-chip-bg:     rgba(16, 25, 38, 0.78);
 @vp-chip-rim:    rgba(120, 160, 200, 0.28);
 
-// Per-category accent colours (echo the resource / tile colour families).
-@vp-acc-tr:         #6ab0e6; /* cyan   — terraform rating */
-@vp-acc-milestones: #ffcc64; /* gold   — milestones */
-@vp-acc-awards:     #f0a850; /* amber  — awards */
-@vp-acc-greenery:   #6fc46f; /* green  — greenery */
-@vp-acc-city:       #d8b074; /* tan    — cities */
-@vp-acc-cards:      #6172d6; /* royal blue — cards (kept clearly distinct from the cyan TR accent) */
-@vp-acc-moon:       #b9c4d0; /* silver — Moon */
-@vp-acc-tracks:     #c5a8e0; /* purple — planetary tracks */
-@vp-acc-penalty:    #d96a6a; /* red    — escape velocity / penalty */
+// ── Segment / category accent palette (each legend colour distinct) ──
+@acc-tr-base:            #8aa0b8;
+@acc-temperature:        #e8743b;
+@acc-oxygen:             #6fc46f;
+@acc-oceans:             #4f9be0;
+@acc-venus:              #d98ad0;
+@acc-tr-cards:           #6ab0e6;
+@acc-cards-resource:     #43c4a0;
+@acc-cards-conditional:  #c5a8e0;
+@acc-cards-fixed:        #6172d6;
+@acc-penalty:            #d96a6a;
+@acc-city:               #d8b074;
+@acc-greenery:           #7fc46f;
+@acc-milestones:         #ffcc64;
+@acc-awards:             #f0a850;
+@acc-moon:               #b9c4d0;
+@acc-moon-mine:          #cbb68f;
+@acc-moon-road:          #9fb3c8;
+@acc-tracks:             #a98ad0;
 
 /* ── Overlay frame (mirrors .played-board-overlay) ────────────────── */
 
@@ -118,7 +128,6 @@
     text-shadow: 0 0 10px rgba(106, 176, 230, 0.3);
 }
 
-/* "ПРОСМОТР" tag — only shown when viewing another player's report. */
 .vp-board__viewing {
     flex-shrink: 0;
     font-family: Prototype, Ubuntu, sans-serif;
@@ -132,7 +141,6 @@
     white-space: nowrap;
 }
 
-/* Player chip — colour-coded so it's obvious whose report this is. */
 .vp-board__player {
     display: inline-flex;
     align-items: center;
@@ -183,7 +191,6 @@
     overflow-x: hidden;
     padding: 18px 22px 22px;
 
-    /* Modern thin custom scrollbar — Firefox + WebKit. */
     scrollbar-width: thin;
     scrollbar-color: rgba(106, 176, 230, 0.38) transparent;
 
@@ -230,7 +237,6 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
-    min-height: 100%;
 }
 
 /* ── Hero band ────────────────────────────────────────────────────── */
@@ -238,9 +244,8 @@
 .vp-hero {
     position: relative;
     display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 18px 24px;
+    align-items: center;
+    padding: 16px 24px;
     border-radius: 9px;
     background:
         radial-gradient(120% 160% at 0% 0%, rgba(106, 176, 230, 0.12), transparent 60%),
@@ -255,7 +260,6 @@
     flex-wrap: wrap;
     gap: 12px;
 }
-/* Label forced to its own line above the figure. */
 .vp-hero__label {
     order: -1;
     width: 100%;
@@ -267,7 +271,7 @@
 }
 .vp-hero__value {
     font-family: Prototype, Orbitron, sans-serif;
-    font-size: 56px;
+    font-size: 54px;
     font-weight: 700;
     line-height: 0.95;
     color: #eaf4ff;
@@ -285,49 +289,117 @@
     letter-spacing: 2px;
     color: @vp-cyan;
     align-self: flex-end;
-    margin-bottom: 9px;
+    margin-bottom: 8px;
 }
 
-.vp-hero__composition { width: 100%; }
-.vp-hero__bar {
+/* ── Scales: the breakdown bars (shared scale) ────────────────────── */
+
+.vp-scales {
     display: flex;
-    gap: 2px;
-    width: 100%;
-    height: 9px;
-    border-radius: 999px;
-    overflow: hidden;
-    background: rgba(0, 0, 0, 0.35);
-    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.12);
-}
-.vp-hero__seg {
-    flex-basis: 0;
-    flex-shrink: 1;
-    min-width: 3px;
-    /* flex-grow set inline ∝ the category value. */
+    flex-direction: column;
+    gap: 11px;
+    padding: 14px 16px;
+    border-radius: 9px;
+    background: rgba(16, 25, 38, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
 }
 
-/* ── Columns: breakdown (left) + sources (right) ──────────────────── */
+.vp-scale {
+    animation: vp-row-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 
-.vp-columns {
-    display: grid;
-    grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.25fr);
-    gap: 16px;
-    align-items: start;
-
-    /* Single column when there are no detail sources to show. */
-    &--solo {
-        grid-template-columns: minmax(280px, 560px);
-        justify-content: center;
+    &--zero {
+        opacity: 0.5;
     }
 }
 
-/* Stack on narrow viewports (the overlay shrinks with the board area). */
-@media (max-width: 1000px) {
-    .vp-columns { grid-template-columns: 1fr; }
+.vp-scale__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 5px;
+}
+.vp-scale__name {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: @vp-text-dim;
+}
+.vp-scale__value {
+    margin-left: auto;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    color: #d7e8f5;
+}
+
+.vp-scale__bar {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    height: 15px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.1);
+}
+
+.vp-scale__seg {
+    flex: 0 0 auto;
+    min-width: 2px;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.28);
+    transition: filter 130ms ease, opacity 130ms ease, transform 130ms ease;
+    cursor: default;
+
+    &--active {
+        filter: brightness(1.22);
+        transform: scaleY(1.12);
+        z-index: 1;
+    }
+    &--dim {
+        opacity: 0.38;
+    }
+    /* Penalty: a red striped deduction sitting after the positive fill. */
+    &--penalty {
+        margin-left: 4px;
+        border-radius: 0 4px 4px 0;
+        background:
+            repeating-linear-gradient(135deg,
+                fade(@acc-penalty, 88%) 0, fade(@acc-penalty, 88%) 5px,
+                fade(@acc-penalty, 55%) 5px, fade(@acc-penalty, 55%) 10px) !important;
+        box-shadow: inset 0 0 0 1px fade(@acc-penalty, 60%);
+    }
+}
+
+/* ── Detail grid ──────────────────────────────────────────────────── */
+
+.vp-detail-grid {
+    display: grid;
+    grid-template-columns: minmax(250px, 0.82fr) minmax(330px, 1.5fr);
+    gap: 16px;
+    align-items: start;
+}
+@media (max-width: 1040px) {
+    .vp-detail-grid { grid-template-columns: 1fr; }
+}
+
+.vp-detail-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.vp-detail-card {
+    padding: 12px 14px 13px;
+    border-radius: 8px;
+    background: rgba(16, 25, 38, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
 }
 
 .vp-section-title {
-    margin: 0 0 9px;
+    margin: 0 0 10px;
     font-family: Prototype, Orbitron, sans-serif;
     font-size: 12px;
     letter-spacing: 2px;
@@ -337,113 +409,66 @@
     border-bottom: 1px solid rgba(106, 176, 230, 0.16);
 }
 
-/* ── Breakdown (category rows) ────────────────────────────────────── */
+/* ── Legend rows (also the per-bar detail + colour key) ───────────── */
 
-.vp-breakdown {
-    padding: 12px 14px 14px;
-    border-radius: 8px;
-    background: rgba(16, 25, 38, 0.4);
-    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
-}
-.vp-breakdown__list {
+.vp-legend {
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
 }
-
-.vp-cat {
-    display: grid;
-    grid-template-columns: 28px 1fr auto;
+.vp-legend__row {
+    display: flex;
     align-items: center;
-    gap: 11px;
-    padding: 7px 11px 7px 9px;
-    border-radius: 6px;
-    box-shadow: inset 3px 0 0 rgba(106, 176, 230, 0.35);
-    background: rgba(255, 255, 255, 0.012);
-    transition: background 130ms ease;
-    animation: vp-row-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    gap: 9px;
+    padding: 4px 7px;
+    border-radius: 5px;
+    transition: background 120ms ease, opacity 120ms ease;
 
-    &:hover { background: rgba(106, 176, 230, 0.06); }
-
-    /* Zero-value rows recede so the meaningful sources read first. */
-    &--zero {
-        opacity: 0.42;
-        box-shadow: inset 3px 0 0 rgba(120, 150, 180, 0.22);
-    }
+    &--active { background: rgba(106, 176, 230, 0.1); }
+    &--dim { opacity: 0.4; }
 }
-
-.vp-cat__icon {
-    width: 28px;
-    height: 28px;
+.vp-legend__dot {
+    width: 10px;
+    height: 10px;
     flex-shrink: 0;
-    background-size: 21px;
-    background-repeat: no-repeat;
-    background-position: center;
-    display: grid;
-    place-items: center;
-    border-radius: 6px;
-    font-family: Prototype, Orbitron, sans-serif;
-    font-weight: 700;
-    font-size: 14px;
-    color: @vp-text;
-    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.18);
+    border-radius: 3px;
 }
-/* Image-backed icons reuse the existing tile / resource art. */
-.vp-icon-tr     { background-image: url(./assets/resources/tr.png); }
-.vp-icon-forest { background-image: url(./assets/tiles/greenery_no_O2.png); }
-.vp-icon-city   { background-image: url(./assets/tiles/city.png); }
-.vp-icon-cards  { background-image: url(./assets/resources/card.png); }
-.vp-icon-moon   { background-image: url(./assets/tags/moon.png); }
-
-.vp-cat__name {
+.vp-legend__label {
     min-width: 0;
-    font-size: 13px;
+    flex: 1;
+    font-size: 12.5px;
     color: @vp-text-dim;
-    line-height: 1.25;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-
-.vp-cat__value {
-    min-width: 46px;
+.vp-legend__value {
+    flex-shrink: 0;
+    min-width: 40px;
     text-align: right;
     font-family: Prototype, Orbitron, sans-serif;
     font-weight: 700;
-    font-size: 16px;
+    font-size: 14px;
     font-variant-numeric: tabular-nums;
     color: #d7e8f5;
 }
 
-/* ── Sources (cards + milestones / awards / tracks) ───────────────── */
+/* ── Milestones / awards / tracks rows (with hover tooltip) ───────── */
 
-.vp-sources {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-.vp-source {
-    padding: 12px 14px 14px;
-    border-radius: 8px;
-    background: rgba(16, 25, 38, 0.4);
-    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.08);
-}
-.vp-source__list {
+.vp-ma-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
 }
-
-.vp-source-row {
+.vp-ma-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 4px 6px;
-    border-radius: 6px;
-    animation: vp-row-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    padding: 3px 6px;
+    border-radius: 5px;
 
     &--hoverable {
         cursor: help;
@@ -451,16 +476,10 @@
         &:hover { background: rgba(106, 176, 230, 0.07); }
     }
 }
-.vp-source-row__main {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    overflow: hidden;
-}
-.vp-source-row__vp {
+.vp-ma-row__vp {
     flex-shrink: 0;
-    min-width: 44px;
+    min-width: 40px;
+    margin-left: auto;
     text-align: right;
     font-family: Prototype, Orbitron, sans-serif;
     font-weight: 700;
@@ -469,8 +488,116 @@
     color: #d7e8f5;
 }
 
-/* Non-card / milestone / award / track source chip (mirrors the journal
-   card chip's pill look so the whole sources list reads as one family). */
+/* ── From-cards: grouped, multi-column ────────────────────────────── */
+
+.vp-card-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.vp-card-group {
+    border-radius: 7px;
+    padding: 8px 9px 9px;
+    background: rgba(255, 255, 255, 0.014);
+    box-shadow: inset 2px 0 0 rgba(120, 150, 180, 0.3);
+    transition: opacity 130ms ease, background 130ms ease;
+
+    &--penalty { box-shadow: inset 2px 0 0 fade(@acc-penalty, 70%); background: rgba(217, 106, 106, 0.05); }
+    &--resource { box-shadow: inset 2px 0 0 fade(@acc-cards-resource, 70%); }
+    &--conditional { box-shadow: inset 2px 0 0 fade(@acc-cards-conditional, 70%); }
+    &--fixed { box-shadow: inset 2px 0 0 fade(@acc-cards-fixed, 70%); }
+
+    /* Cross-highlight with the matching "cards" bar segment. */
+    &--active { background: rgba(106, 176, 230, 0.08); }
+    &--faded { opacity: 0.42; }
+}
+.vp-card-group__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.1);
+}
+.vp-card-group__label {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: @vp-text-dim;
+}
+.vp-card-group__count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(106, 176, 230, 0.14);
+    color: @vp-text-muted;
+    font-size: 10px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.vp-card-group__total {
+    margin-left: auto;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    color: #d7e8f5;
+}
+.vp-card-group__rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+    gap: 3px 12px;
+}
+
+.vp-card-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    min-width: 0;
+    transition: background 120ms ease;
+
+    &:hover { background: rgba(106, 176, 230, 0.06); }
+
+    /* A big conditional scorer — calls out a "+5 per X" so it doesn't read
+       like an ordinary +1. */
+    &--emphasized {
+        background: rgba(197, 168, 224, 0.08);
+        box-shadow: inset 0 0 0 1px rgba(197, 168, 224, 0.28);
+    }
+}
+.vp-card-row__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+.vp-card-row__vp {
+    flex-shrink: 0;
+    min-width: 34px;
+    text-align: right;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-weight: 700;
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+    color: #d7e8f5;
+}
+
+.vp-cards-empty {
+    padding: 18px 8px;
+    text-align: center;
+    font-size: 13px;
+    color: @vp-text-muted;
+}
+
+/* ── Source chips (milestone / award / track / system) ────────────── */
+
 .vp-source-chip {
     display: inline-flex;
     align-items: center;
@@ -499,48 +626,47 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.vp-source-chip--milestone .vp-source-chip__dot { background: @vp-acc-milestones; box-shadow: 0 0 5px fade(@vp-acc-milestones, 55%); }
-.vp-source-chip--award     .vp-source-chip__dot { background: @vp-acc-awards;     box-shadow: 0 0 5px fade(@vp-acc-awards, 55%); }
-.vp-source-chip--track     .vp-source-chip__dot { background: @vp-acc-tracks;     box-shadow: 0 0 5px fade(@vp-acc-tracks, 55%); }
-.vp-source-chip--system    .vp-source-chip__dot { background: @vp-acc-cards;      box-shadow: 0 0 5px fade(@vp-acc-cards, 55%); }
+.vp-source-chip--milestone .vp-source-chip__dot { background: @acc-milestones; box-shadow: 0 0 5px fade(@acc-milestones, 55%); }
+.vp-source-chip--award     .vp-source-chip__dot { background: @acc-awards;     box-shadow: 0 0 5px fade(@acc-awards, 55%); }
+.vp-source-chip--track     .vp-source-chip__dot { background: @acc-tracks;     box-shadow: 0 0 5px fade(@acc-tracks, 55%); }
+.vp-source-chip--system    .vp-source-chip__dot { background: @acc-cards-fixed; box-shadow: 0 0 5px fade(@acc-cards-fixed, 55%); }
 
-/* ── Sign-aware value colours (calm — positives glow soft cyan/white) ── */
+/* ── Sign-aware value colours ─────────────────────────────────────── */
 
 .vp-value--positive { color: #d7e8f5; }
-.vp-cat__value.vp-value--positive,
-.vp-source-row__vp.vp-value--positive { text-shadow: 0 0 9px rgba(106, 176, 230, 0.28); }
 .vp-value--negative { color: #ff8a7a; text-shadow: 0 0 8px rgba(255, 100, 80, 0.32); }
 .vp-value--zero { color: rgba(170, 195, 220, 0.45); text-shadow: none; }
 
-/* ── Per-category accent (icon ring/glyph + left bar + composition seg) ── */
+/* ── Per-accent colour application (bar segment fill + legend dot) ── */
 
 .vp-accent(@key, @color) {
-    .vp-hero__seg.vp-accent--@{key} {
-        background: linear-gradient(180deg, @color, fade(@color, 50%));
-        box-shadow: 0 0 6px fade(@color, 45%);
+    .vp-scale__seg.vp-accent--@{key} {
+        background: linear-gradient(180deg, lighten(@color, 7%), @color);
     }
-    .vp-cat.vp-accent--@{key}:not(.vp-cat--zero) {
-        box-shadow: inset 3px 0 0 fade(@color, 72%);
-        .vp-cat__icon { color: @color; box-shadow: inset 0 0 0 1px fade(@color, 42%); }
+    .vp-legend__dot.vp-accent--@{key},
+    .vp-card-group__head .vp-accent--@{key} {
+        background: @color;
+        box-shadow: 0 0 6px fade(@color, 50%);
     }
 }
-.vp-accent(tr, @vp-acc-tr);
-.vp-accent(milestones, @vp-acc-milestones);
-.vp-accent(awards, @vp-acc-awards);
-.vp-accent(greenery, @vp-acc-greenery);
-.vp-accent(city, @vp-acc-city);
-.vp-accent(cards, @vp-acc-cards);
-.vp-accent(moon, @vp-acc-moon);
-.vp-accent(tracks, @vp-acc-tracks);
-.vp-accent(penalty, @vp-acc-penalty);
-
-/* Penalty categories: glyph chip gets a red tint instead of an image. */
-.vp-icon-ma,
-.vp-icon-track,
-.vp-icon-ev,
-.vp-icon-penalty {
-    background-color: rgba(255, 255, 255, 0.035);
-}
+.vp-accent(tr-base, @acc-tr-base);
+.vp-accent(temperature, @acc-temperature);
+.vp-accent(oxygen, @acc-oxygen);
+.vp-accent(oceans, @acc-oceans);
+.vp-accent(venus, @acc-venus);
+.vp-accent(tr-cards, @acc-tr-cards);
+.vp-accent(cards-resource, @acc-cards-resource);
+.vp-accent(cards-conditional, @acc-cards-conditional);
+.vp-accent(cards-fixed, @acc-cards-fixed);
+.vp-accent(penalty, @acc-penalty);
+.vp-accent(city, @acc-city);
+.vp-accent(greenery, @acc-greenery);
+.vp-accent(milestones, @acc-milestones);
+.vp-accent(awards, @acc-awards);
+.vp-accent(moon, @acc-moon);
+.vp-accent(moon-mine, @acc-moon-mine);
+.vp-accent(moon-road, @acc-moon-road);
+.vp-accent(tracks, @acc-tracks);
 
 /* ── Motion ───────────────────────────────────────────────────────── */
 
@@ -555,7 +681,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .vp-board-overlay { animation: none; }
-    .vp-cat,
-    .vp-source-row { animation: none; }
+    .vp-scale { animation: none; }
     .vp-board__close { transition: none; }
+    .vp-scale__seg { transition: none; }
 }
