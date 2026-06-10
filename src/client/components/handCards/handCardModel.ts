@@ -131,10 +131,20 @@ export function buildHandEntries(
 // (not your turn / finish your current action) is NOT a rule failure, so it
 // counts as playable here — it must never land in the "unavailable" bucket.
 // This keeps All = Playable + Unplayable, so the faceted segment math holds.
-function passAvailability(e: HandCardEntry, availability: AvailabilityFilter): boolean {
+//
+// `selectable` re-points the availability dimension for a SELECT / PICK context
+// (the КАРТЫ В РУКЕ overlay in sale / mandatory-select / client-pick mode): there
+// "available" means the card can be CHOSEN right now (it's in the prompt's
+// candidate set), NOT "can be played". So the Available / Unavailable chips
+// describe the current pick, not playability. Pass it whenever the overlay is in
+// a select mode; omit it for normal play.
+function isEntryAvailable(e: HandCardEntry, selectable: ReadonlySet<CardName> | undefined): boolean {
+  return selectable !== undefined ? selectable.has(e.name) : e.state.block !== 'rules';
+}
+function passAvailability(e: HandCardEntry, availability: AvailabilityFilter, selectable?: ReadonlySet<CardName>): boolean {
   switch (availability) {
-  case 'playable': return e.state.block !== 'rules';
-  case 'unplayable': return e.state.block === 'rules';
+  case 'playable': return isEntryAvailable(e, selectable);
+  case 'unplayable': return !isEntryAvailable(e, selectable);
   default: return true;
   }
 }
@@ -152,11 +162,12 @@ function passTags(e: HandCardEntry, activeTags: ReadonlySet<Tag>): boolean {
 export function filterHandEntries(
   entries: ReadonlyArray<HandCardEntry>,
   filter: HandFilterState,
+  selectable?: ReadonlySet<CardName>,
 ): ReadonlyArray<HandCardEntry> {
   const activeTypes = new Set(filter.activeTypes);
   const activeTags = new Set(filter.activeTags);
   return entries.filter((e) =>
-    passAvailability(e, filter.availability) &&
+    passAvailability(e, filter.availability, selectable) &&
     passTypes(e, activeTypes) &&
     passTags(e, activeTags));
 }
@@ -229,15 +240,17 @@ export const AVAILABILITY_DEFS: ReadonlyArray<{value: AvailabilityFilter; label:
 export function buildAvailabilityChips(
   entries: ReadonlyArray<HandCardEntry>,
   filter: HandFilterState,
+  selectable?: ReadonlySet<CardName>,
 ): ReadonlyArray<AvailabilityChip> {
   const activeTypes = new Set(filter.activeTypes);
   const activeTags = new Set(filter.activeTags);
   const base = entries.filter((e) => passTypes(e, activeTypes) && passTags(e, activeTags));
-  // Only a RULES block counts as unavailable; a soft (turn/phase) block is
-  // playable-by-rules, so it sits on the "playable" side of the segment.
+  // In a SELECT context "available" = selectable-in-this-pick; in normal play it
+  // = playable-by-rules (a soft turn/phase block still counts as playable, so it
+  // sits on the "available" side of the segment).
   let unplayable = 0;
   for (const e of base) {
-    if (e.state.block === 'rules') {
+    if (!isEntryAvailable(e, selectable)) {
       unplayable++;
     }
   }
@@ -280,10 +293,11 @@ export type HandTypeChip = {
 export function buildTypeChips(
   entries: ReadonlyArray<HandCardEntry>,
   filter: HandFilterState,
+  selectable?: ReadonlySet<CardName>,
 ): ReadonlyArray<HandTypeChip> {
   const active = new Set(filter.activeTypes);
   const activeTags = new Set(filter.activeTags);
-  const base = entries.filter((e) => passAvailability(e, filter.availability) && passTags(e, activeTags));
+  const base = entries.filter((e) => passAvailability(e, filter.availability, selectable) && passTags(e, activeTags));
   return HAND_TYPE_DEFS
     .filter((def) => entries.some((e) => e.typeKey === def.key))
     .map((def) => {
@@ -328,10 +342,11 @@ const FILTERABLE_TAGS: ReadonlyArray<Tag> = [
 export function buildTagChips(
   entries: ReadonlyArray<HandCardEntry>,
   filter: HandFilterState,
+  selectable?: ReadonlySet<CardName>,
 ): ReadonlyArray<HandTagChip> {
   const active = new Set(filter.activeTags);
   const activeTypes = new Set(filter.activeTypes);
-  const base = entries.filter((e) => passAvailability(e, filter.availability) && passTypes(e, activeTypes));
+  const base = entries.filter((e) => passAvailability(e, filter.availability, selectable) && passTypes(e, activeTypes));
   const globalCounts = new Map<Tag, number>();
   for (const e of entries) {
     for (const tag of e.tags) {

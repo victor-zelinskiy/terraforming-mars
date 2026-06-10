@@ -3,6 +3,7 @@ import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
+import {handFilterState} from '@/client/components/handCards/handFilterState';
 
 /**
  * Module-level reactive state for the MANDATORY "select cards from your hand"
@@ -121,6 +122,15 @@ export function enterHandSelect(input: SelectCardModel): void {
   handSelectState.selectable = input.cards.map((c) => c.name);
   handSelectState.selected = [];
   handSelectState.signature = handSelectSignature(input);
+  defaultFilterToAvailable();
+}
+
+// On entering a SELECT/PICK mode, snap the availability filter to "Available" so
+// the player immediately sees the cards selectable in THIS context (the chips are
+// re-pointed to selectability while a select mode is active — see handCardModel
+// `isEntryAvailable`). Set once on enter; the player can re-filter freely after.
+function defaultFilterToAvailable(): void {
+  handFilterState.availability = 'playable';
 }
 
 export function exitHandSelect(): void {
@@ -165,6 +175,7 @@ export function enterClientHandSelect(opts: {
   handSelectState.reasons = {...opts.reasons};
   handSelectState.selected = [];
   handSelectState.signature = '';
+  defaultFilterToAvailable();
 }
 
 /** Commit the current client pick — fires `onResolve` with the picked names. */

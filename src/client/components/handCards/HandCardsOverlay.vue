@@ -355,17 +355,24 @@ export default defineComponent({
     entries(): ReadonlyArray<HandCardEntry> {
       return buildHandEntries(this.displayCards, this.playActionAvailable, this.playableCardNames, this.awaitingInput);
     },
+    // In a SELECT context (sale / mandatory-select / client-pick) the availability
+    // dimension means "selectable IN THIS PICK", not "playable" — so the
+    // ДОСТУПНЫЕ / НЕДОСТУПНЫЕ chips describe what the player can choose right now.
+    // `undefined` in normal play → the filters fall back to playability.
+    selectableSet(): ReadonlySet<CardName> | undefined {
+      return this.selectActive ? new Set(handSelectState.selectable) : undefined;
+    },
     sorted(): ReadonlyArray<HandCardEntry> {
-      return sortHandEntries(filterHandEntries(this.entries, this.filter), this.filter.sort, this.filter.sortDir);
+      return sortHandEntries(filterHandEntries(this.entries, this.filter, this.selectableSet), this.filter.sort, this.filter.sortDir);
     },
     availabilityChips(): ReadonlyArray<AvailabilityChip> {
-      return buildAvailabilityChips(this.entries, this.filter);
+      return buildAvailabilityChips(this.entries, this.filter, this.selectableSet);
     },
     typeChips(): ReadonlyArray<HandTypeChip> {
-      return buildTypeChips(this.entries, this.filter);
+      return buildTypeChips(this.entries, this.filter, this.selectableSet);
     },
     tagChips(): ReadonlyArray<HandTagChip> {
-      return buildTagChips(this.entries, this.filter);
+      return buildTagChips(this.entries, this.filter, this.selectableSet);
     },
     totalCount(): number {
       return this.entries.length;
