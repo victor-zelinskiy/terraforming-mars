@@ -5,6 +5,9 @@ import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
+import {Resource} from '../../../common/Resource';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class Moss extends Card implements IProjectCard {
   constructor() {
@@ -38,6 +41,15 @@ export class Moss extends Card implements IProjectCard {
   public override bespokePlay(player: IPlayer) {
     player.plants--;
     return undefined;
+  }
+
+  // The on-play preview: `playPreview` auto-includes the declarative +1 plant
+  // production chip; we add the bespoke 1-plant COST (`bespokePlay`'s
+  // `player.plants--`, not in `behavior`) so the modal shows the full trade.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.playPreview(this, player, [
+      actionPreviews.stockCost(player, Resource.PLANTS, 1),
+    ]);
   }
 }
 

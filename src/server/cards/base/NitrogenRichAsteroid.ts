@@ -7,6 +7,8 @@ import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class NitrogenRichAsteroid extends Card implements IProjectCard {
   constructor() {
@@ -35,12 +37,24 @@ export class NitrogenRichAsteroid extends Card implements IProjectCard {
     });
   }
 
+  // The plant production raise (1, or 4 with ≥3 plant tags) lives in bespokePlay,
+  // NOT in `behavior` (which only carries the temperature + TR). Shared with the
+  // preview so the chip can't drift from what's applied.
+  private plantProductionGain(player: IPlayer): number {
+    return player.tags.count(Tag.PLANT) < 3 ? 1 : 4;
+  }
+
   public override bespokePlay(player: IPlayer) {
-    if (player.tags.count(Tag.PLANT) < 3) {
-      player.production.add(Resource.PLANTS, 1, {log: true});
-    } else {
-      player.production.add(Resource.PLANTS, 4, {log: true});
-    }
+    player.production.add(Resource.PLANTS, this.plantProductionGain(player), {log: true});
     return undefined;
+  }
+
+  // The on-play preview: `playPreview` auto-includes the declarative chips
+  // (temperature + TR), and we add the bespoke plant-production raise so the modal
+  // shows the FULL on-play result, not just the part the behavior DSL covers.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.playPreview(this, player, [
+      actionPreviews.productionChange(player, Resource.PLANTS, this.plantProductionGain(player)),
+    ]);
   }
 }

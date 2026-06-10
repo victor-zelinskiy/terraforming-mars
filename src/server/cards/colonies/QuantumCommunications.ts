@@ -8,6 +8,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {Size} from '../../../common/cards/render/Size';
 import {all} from '../Options';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class QuantumCommunications extends Card implements IProjectCard {
   constructor() {
@@ -30,12 +32,26 @@ export class QuantumCommunications extends Card implements IProjectCard {
     });
   }
 
-  public override bespokePlay(player: IPlayer) {
+  // Shared by `bespokePlay` and the on-play preview (1 M€ prod per colony in play)
+  // so the previewed gain can't drift from what's applied.
+  private megacreditProductionGain(player: IPlayer): number {
     let coloniesCount = 0;
     player.game.colonies.forEach((colony) => {
       coloniesCount += colony.colonies.length;
     });
-    player.production.add(Resource.MEGACREDITS, coloniesCount, {log: true});
+    return coloniesCount;
+  }
+
+  public override bespokePlay(player: IPlayer) {
+    player.production.add(Resource.MEGACREDITS, this.megacreditProductionGain(player), {log: true});
     return undefined;
+  }
+
+  // The on-play preview: a FIXED, computable M€ production raise (1 per colony in
+  // play) — show it as a `current → resulting` chip in the play modal. No choice.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.playPreview(this, player, [
+      actionPreviews.productionChange(player, Resource.MEGACREDITS, this.megacreditProductionGain(player)),
+    ]);
   }
 }

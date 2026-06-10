@@ -7,6 +7,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {RemoveResourcesFromCard} from '../../deferredActions/RemoveResourcesFromCard';
 import {CardRenderer} from '../render/CardRenderer';
 import {ActionCard} from '../ActionCard';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class StratosphericBirds extends ActionCard implements IActionCard {
   constructor() {
@@ -60,5 +62,15 @@ export class StratosphericBirds extends ActionCard implements IActionCard {
   public override bespokePlay(player: IPlayer) {
     player.game.defer(new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false}));
     return undefined;
+  }
+
+  // The on-play preview: the SAME "spend 1 floater from a card" picker bespokePlay
+  // defers — the player chooses WHICH of their floater cards to take 1 from, as
+  // premium card tiles in the play modal (when more than one holds floaters; a
+  // single holder auto-resolves with no step, exactly like the live cost).
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const step = actionPreviews.inputStep(
+      new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false}).previewSelectCard());
+    return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

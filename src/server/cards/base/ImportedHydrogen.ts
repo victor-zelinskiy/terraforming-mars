@@ -13,6 +13,8 @@ import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
 import {message} from '../../logs/MessageBuilder';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class ImportedHydrogen extends Card implements IProjectCard {
   constructor() {
@@ -89,5 +91,17 @@ export class ImportedHydrogen extends Card implements IProjectCard {
     }
 
     return new OrOptions(...availableActions);
+  }
+
+  // On-play preview: when you hold NO microbe/animal card the play auto-gains 3
+  // plants — a FIXED result that lives in `bespokePlay`, NOT in `behavior` (which
+  // only carries the ocean), so it MUST be shown. When you DO hold a target card,
+  // the "3 microbes / 2 animals / 3 plants" pick rides the rich follow-up OrOptions.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const hasTargets =
+      player.getResourceCards(CardResource.MICROBE).length > 0 ||
+      player.getResourceCards(CardResource.ANIMAL).length > 0;
+    const extra = hasTargets ? [] : [actionPreviews.stockGain(player, Resource.PLANTS, 3)];
+    return actionPreviews.playPreview(this, player, extra);
   }
 }

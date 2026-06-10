@@ -5,6 +5,8 @@ import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class TerraformingGanymede extends Card implements IProjectCard {
   constructor() {
@@ -30,9 +32,15 @@ export class TerraformingGanymede extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    const steps = 1 + player.tags.count(Tag.JOVIAN);
-    player.increaseTerraformRating(steps, {log: true});
-
+    player.increaseTerraformRating(this.computeTr(player).tr, {log: true});
     return undefined;
+  }
+
+  // The on-play preview: a FIXED, computable TR raise (1 per Jovian tag, incl. this)
+  // — show it as a chip in the play modal. No choice, so no steps.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.playPreview(this, player, [
+      actionPreviews.trGain(player, this.computeTr(player).tr),
+    ]);
   }
 }

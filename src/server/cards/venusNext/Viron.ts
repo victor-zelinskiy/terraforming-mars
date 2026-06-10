@@ -8,6 +8,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 
 export class Viron extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -59,9 +60,16 @@ export class Viron extends CorporationCard implements ICorporationCard {
     return actionReason.ruleReason('No other action card to copy');
   }
 
-  // Copies another already-used blue-card action — can't be statically previewed.
-  public actionPreview(player: IPlayer) {
-    return actionPreviews.dynamic(this, player);
+  // The action preview: the SAME card picker `action()` builds — the player
+  // chooses WHICH already-used blue-card action to perform again, as premium card
+  // tiles in the confirmation modal, instead of a follow-up prompt. (The re-run
+  // action's own prompts arrive after the batch, on their normal surfaces.)
+  public actionPreview(player: IPlayer): ActionPreview {
+    const cards = this.getActionCards(player);
+    const steps = cards.length > 0 ?
+      [actionPreviews.selectCardStep(player, 'Perform again an action from a played card', 'Take action', cards)] :
+      [];
+    return actionPreviews.singleBranch(this, player, steps);
   }
 
   public action(player: IPlayer) {

@@ -7,6 +7,8 @@ import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from '../ICard';
 import {SelectCard} from '../../inputs/SelectCard';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class ProjectInspection extends Card implements IProjectCard {
   constructor() {
@@ -47,6 +49,18 @@ export class ProjectInspection extends Card implements IProjectCard {
 
   public override bespokeCanPlay(player: IPlayer): boolean {
     return this.getActionCards(player).length > 0;
+  }
+
+  // The on-play preview: the SAME card picker `bespokePlay` builds — the player
+  // chooses WHICH already-used action to perform again, as premium card tiles in
+  // the play modal, instead of a follow-up prompt. (The re-run action's own
+  // prompts arrive after the batch, on their normal surfaces.)
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const cards = this.getActionCards(player);
+    const step = cards.length > 0 ?
+      actionPreviews.selectCardStep(player, 'Perform an action from a played card again', 'Take action', cards) :
+      undefined;
+    return actionPreviews.playPreview(this, player, [], [step]);
   }
 
   public override bespokePlay(player: IPlayer) {

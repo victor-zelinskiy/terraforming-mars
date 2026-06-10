@@ -8,6 +8,8 @@ import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import {Size} from '../../../common/cards/render/Size';
 import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
+import {ActionPreview, ActionPreviewStep, ActionEffect} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class EcologyResearch extends Card implements IProjectCard {
   constructor() {
@@ -45,5 +47,26 @@ export class EcologyResearch extends Card implements IProjectCard {
     }
 
     return undefined;
+  }
+
+  // The on-play preview: `playPreview` auto-includes the declarative plant
+  // production chip (1 per colony). The bespoke "add 1 animal to a card" + "add 2
+  // microbes to a card" additions (NOT in `behavior`) are shown as their own
+  // gain chips + target pickers — in the SAME order bespokePlay defers them
+  // (animal then microbe) so the pre-collected picks line up with the live queue.
+  // A picker that the live path would auto-resolve (a single candidate) yields no
+  // step; a resource with no candidate card adds neither chip nor step.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const extra: Array<ActionEffect> = [];
+    const steps: Array<ActionPreviewStep | undefined> = [];
+    if (player.getResourceCards(CardResource.ANIMAL).length > 0) {
+      extra.push(actionPreviews.cardResourceGain(CardResource.ANIMAL, 1));
+      steps.push(actionPreviews.addToCardStep(player, CardResource.ANIMAL, {count: 1}));
+    }
+    if (player.getResourceCards(CardResource.MICROBE).length > 0) {
+      extra.push(actionPreviews.cardResourceGain(CardResource.MICROBE, 2));
+      steps.push(actionPreviews.addToCardStep(player, CardResource.MICROBE, {count: 2}));
+    }
+    return actionPreviews.playPreview(this, player, extra, steps);
   }
 }
