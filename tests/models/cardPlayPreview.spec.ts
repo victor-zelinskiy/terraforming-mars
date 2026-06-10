@@ -42,6 +42,8 @@ import {NoctisCity} from '../../src/server/cards/base/NoctisCity';
 import {HermeticOrderOfMars} from '../../src/server/cards/promo/HermeticOrderofMars';
 import {EcologyResearch} from '../../src/server/cards/colonies/EcologyResearch';
 import {Birds} from '../../src/server/cards/base/Birds';
+import {SoilEnrichment} from '../../src/server/cards/promo/SoilEnrichment';
+import {LocalHeatTrapping} from '../../src/server/cards/base/LocalHeatTrapping';
 
 describe('cardPlayPreview', () => {
   it('VenusSoils (declarative): venus + plant-production gain chips + a microbe target step', () => {
@@ -469,6 +471,59 @@ describe('cardPlayPreview', () => {
       const inputs = branch.steps.filter((s) => s.kind === 'input');
       expect(inputs).has.length(1);
       expect(inputs[0].kind === 'input' && inputs[0].input.type).eq('card');
+    });
+  });
+
+  // Cards that override `play()` DIRECTLY (not `behavior`/`bespokePlay`) — the
+  // older pattern that bypasses the split, so the preview reaches them only via
+  // their hook. The coverage guard's `customizesPlay` check catches this class so
+  // a new one can't slip through to a bare dynamic modal.
+  describe('play() override hooks', () => {
+    it('SoilEnrichment: a +5 plants chip + the "which card to take a microbe from" picker', () => {
+      const [/* game */, player] = testGame(2);
+      const t1 = new Tardigrades();
+      const t2 = new NitriteReducingBacteria();
+      t1.resourceCount = 2;
+      t2.resourceCount = 1;
+      player.playedCards.push(t1, t2);
+
+      const branch = new SoilEnrichment().cardPlayPreview(player).branches[0];
+      expect(branch.effects.find((e) => e.icon === Resource.PLANTS)?.amount).eq(5);
+      const inputs = branch.steps.filter((s) => s.kind === 'input');
+      expect(inputs).has.length(1);
+      expect(inputs[0].kind === 'input' && inputs[0].input.type).eq('card');
+      const names = (inputs[0].kind === 'input' ? (inputs[0].input as SelectCardModel).cards : []).map((c) => c.name);
+      expect(names).to.have.members([t1.name, t2.name]);
+    });
+
+    it('SoilEnrichment: a single eligible card auto-resolves → no step', () => {
+      const [/* game */, player] = testGame(2);
+      const t1 = new Tardigrades();
+      t1.resourceCount = 1;
+      player.playedCards.push(t1);
+      const branch = new SoilEnrichment().cardPlayPreview(player).branches[0];
+      expect(branch.steps.filter((s) => s.kind === 'input')).has.length(0);
+      expect(branch.effects.some((e) => e.icon === Resource.PLANTS)).is.true;
+    });
+
+    it('LocalHeatTrapping: −5 heat + +4 plants when there are no animal cards (the choice auto-resolves)', () => {
+      const [/* game */, player] = testGame(2);
+      player.heat = 5;
+      const branch = new LocalHeatTrapping().cardPlayPreview(player).branches[0];
+      const heat = branch.effects.find((e) => e.icon === Resource.HEAT && e.direction === 'cost');
+      expect(heat?.amount).eq(5);
+      expect(branch.effects.find((e) => e.icon === Resource.PLANTS)?.amount).eq(4);
+      expect(branch.steps.filter((s) => s.kind === 'input')).has.length(0);
+    });
+
+    it('LocalHeatTrapping: with an animal card → −5 heat + a plants/animals OrOptions step', () => {
+      const [/* game */, player] = testGame(2);
+      player.heat = 5;
+      player.playedCards.push(new Birds());
+      const branch = new LocalHeatTrapping().cardPlayPreview(player).branches[0];
+      expect(branch.effects.some((e) => e.icon === Resource.HEAT && e.direction === 'cost')).is.true;
+      const step = branch.steps.find((s) => s.kind === 'input');
+      expect(step !== undefined && step.kind === 'input' && step.input.type).eq('or');
     });
   });
 });
