@@ -8,7 +8,7 @@
     batch request (no follow-up modal spam). Client-side only until ВЫПОЛНИТЬ;
     Cancel restores the overlay with no round-trip.
   -->
-  <div class="action-confirm" :class="{'action-confirm--corp': isCorporation}">
+  <div class="action-confirm" :class="[{'action-confirm--corp': isCorporation}, widthClass]">
     <div class="action-confirm__frame">
       <div class="action-confirm__corner action-confirm__corner--tl" aria-hidden="true"></div>
       <div class="action-confirm__corner action-confirm__corner--tr" aria-hidden="true"></div>
@@ -23,7 +23,10 @@
         <h3 class="action-confirm__title" v-i18n>{{ headerTitle }}</h3>
       </header>
 
-      <div class="action-confirm__body">
+      <!-- TOP ROW: compact source preview (left) + the effect / result hero
+           panel (right). Fixed height — never grows with the choice count, so the
+           choices block below owns all the flexible vertical space. -->
+      <div class="action-confirm__top">
         <aside class="action-confirm__source">
           <span class="action-confirm__source-label" v-i18n>Source</span>
           <button type="button"
@@ -45,43 +48,10 @@
           </div>
 
           <template v-else-if="preview !== undefined">
-            <!-- FALLBACK branch picker — only when the modal was NOT opened for a
-                 specific branch (the overlay normally splits branches into their
-                 own buttons and passes the chosen one). Shows EVERY branch with
-                 its reason + context chips. -->
-            <div v-if="showBranchList" class="action-confirm__branches">
-              <span class="action-confirm__branches-label" v-i18n>Choose an option</span>
-              <button v-for="(bv, p) in branchViews"
-                      :key="branchKey(bv.branch) + '#' + p"
-                      type="button"
-                      class="action-confirm__branch"
-                      :class="{
-                        'action-confirm__branch--selected': selected === bv.branch,
-                        'action-confirm__branch--disabled': !bv.branch.available,
-                      }"
-                      :disabled="!bv.branch.available"
-                      :data-test="'action-branch-' + p"
-                      @click="selectBranch(bv.branch)">
-                <span v-if="bv.branch.available" class="action-confirm__branch-tick" aria-hidden="true"></span>
-                <span class="action-confirm__branch-main">
-                  <div v-if="bv.node !== undefined" class="action-confirm__render action-confirm__render--branch card-container" v-i18n v-strip-action-prefix>
-                    <CardRenderEffectBoxComponent v-if="bv.node.actionNode !== undefined" :effectData="bv.node.actionNode" />
-                    <CardRenderData v-else-if="bv.node.renderRoot !== undefined" :renderData="bv.node.renderRoot" />
-                    <span v-else-if="bv.node.text">{{ bv.node.text }}</span>
-                  </div>
-                  <span v-else-if="text(bv.branch.title)" class="action-confirm__branch-title" v-i18n>{{ text(bv.branch.title) }}</span>
-                  <span v-if="bv.branch.effects.length > 0" class="action-confirm__chips">
-                    <ActionEffectChip v-for="(e, i) in bv.branch.effects" :key="i" :effect="e" />
-                  </span>
-                  <span v-if="!bv.branch.available && bv.branch.unavailableReason !== undefined" class="action-confirm__branch-reason" v-i18n>{{ text(bv.branch.unavailableReason) }}</span>
-                </span>
-              </button>
-            </div>
-
             <!-- SELECTED BRANCH: clear labelled sections — the rule (ДЕЙСТВИЕ), the
                  impact (РЕЗУЛЬТАТ), and the scoring context (ПРОГРЕСС ПО). Works for
                  a single-action card AND a branch chosen from the overlay. -->
-            <div v-else-if="selected !== undefined" class="action-confirm__summary">
+            <div v-if="selected !== undefined" class="action-confirm__summary">
               <span class="action-confirm__summary-label" v-i18n>You are about to</span>
 
               <div class="action-confirm__section" v-if="summaryNodes.length > 0">
@@ -125,102 +95,150 @@
               <div v-if="!selected.available && selected.unavailableReason !== undefined" class="action-confirm__none" v-i18n>{{ text(selected.unavailableReason) }}</div>
             </div>
 
-            <!-- The branch's OWN input (its OrOptions option is a SelectAmount /
-                 SelectCard directly) — its response nests into the branch pick. -->
-            <div v-if="selected !== undefined && selected.optionInput !== undefined" class="action-confirm__steps">
-              <div class="action-confirm__step action-confirm__step--input"
-                   :class="{
-                     'action-confirm__step--answered': capturedOption !== undefined,
-                     'action-confirm__step--bare': isHandCardInput(selected.optionInput),
-                   }">
-                <ModernPlayerPicker v-if="selected.optionInput.type === 'player'"
-                                    :controlled="true"
-                                    :playerView="playerView"
-                                    :playerinput="selected.optionInput"
-                                    :onsave="noop"
-                                    @select="captureOption" />
-                <!-- A pick FROM HAND goes to the КАРТЫ В РУКЕ overlay (roomy
-                     premium surface), NOT the cramped in-modal tile grid. Show
-                     the chosen card here once picked + a "ВЫБРАТЬ КАРТУ" CTA. -->
-                <div v-else-if="isHandCardInput(selected.optionInput)" class="action-confirm__handpick">
-                  <div v-if="optionChosenCard !== undefined" class="action-confirm__handpick-chosen">
-                    <button type="button"
-                            class="action-confirm__handpick-card"
-                            :aria-label="$t('Open fullscreen')"
-                            @click.capture.stop="openChosenFullscreen">
-                      <Card :card="optionChosenCard" />
-                    </button>
-                    <button type="button" class="action-confirm__handpick-change" @click="requestOptionPick" data-test="action-pick-change">
-                      <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
-                      <span v-i18n>Choose another card</span>
-                    </button>
-                  </div>
-                  <button v-else type="button" class="action-confirm__handpick-btn" @click="requestOptionPick" data-test="action-pick-card">
-                    <span class="action-confirm__handpick-btn-glyph" aria-hidden="true">▤</span>
-                    <span class="action-confirm__handpick-btn-label" v-i18n>Pick a card from hand</span>
-                  </button>
-                </div>
-                <ActionTargetCard v-else-if="selected.optionInput.type === 'card'"
-                                  :playerView="playerView"
-                                  :input="selected.optionInput"
-                                  :selectedName="capturedOptionCardName"
-                                  @change="captureOption" />
-                <ModalInputHost v-else :playerView="playerView" :playerinput="selected.optionInput" :onsave="captureOption" />
-              </div>
+            <!-- Picking among several branches: a short intro here; the branch
+                 picker itself lives in the wide choices block below. -->
+            <div v-else-if="showBranchList" class="action-confirm__summary action-confirm__summary--intro">
+              <span class="action-confirm__summary-label" v-i18n>You are about to</span>
+              <p class="action-confirm__intro-hint" v-i18n>Choose one of the options below.</p>
             </div>
 
-            <!-- Interactive choices for the selected branch. -->
-            <div v-if="selected !== undefined && selected.steps.length > 0" class="action-confirm__steps">
-              <template v-for="(step, i) in selected.steps" :key="i">
-                <div v-if="step.kind === 'boardPlacement'" class="action-confirm__step action-confirm__step--placement">
-                  <span class="action-confirm__step-glyph" aria-hidden="true">◎</span>
-                  <span class="action-confirm__step-text" v-i18n>{{ placementHint(step) }}</span>
-                </div>
-                <div v-else class="action-confirm__step action-confirm__step--input"
-                     :class="{
-                       'action-confirm__step--answered': captured[i] !== undefined,
-                       'action-confirm__step--bare': step.input.type === 'payment',
-                     }">
-                  <!-- Premium, OWNER-AWARE target pickers in controlled mode: the
-                       pick is captured here and committed by the single ВЫПОЛНИТЬ
-                       (no per-step submit). Other input types fall back to the
-                       capturing ModalInputHost. -->
-                  <ModernPlayerPicker v-if="step.input.type === 'player'"
-                                      :controlled="true"
-                                      :playerView="playerView"
-                                      :playerinput="step.input"
-                                      :onsave="noop"
-                                      @select="captureStep(i)($event)" />
-                  <ActionTargetCard v-else-if="step.input.type === 'card'"
-                                    :playerView="playerView"
-                                    :input="step.input"
-                                    :amount="step.amount"
-                                    :selectedName="capturedCardName(i)"
-                                    @change="captureStep(i)($event)" />
-                  <!-- Payment (e.g. "pay 12 M€, titanium usable") dialed IN the
-                       modal via the controlled payment widget — captured live,
-                       committed by the single ВЫПОЛНИТЬ. No separate SelectPayment
-                       follow-up modal. -->
-                  <SelectPaymentV2 v-else-if="step.input.type === 'payment'"
-                                   :controlled="true"
-                                   :playerView="playerView"
-                                   :playerinput="step.input"
-                                   :onsave="noop"
-                                   :showsave="false"
-                                   :showtitle="false"
-                                   @change="captureStep(i)($event)" />
-                  <ModalInputHost v-else :playerView="playerView" :playerinput="step.input" :onsave="captureStep(i)" />
-                </div>
-              </template>
-            </div>
-
-            <!-- Nothing to show — no branch list and no selected branch. -->
-            <div v-if="!showBranchList && selected === undefined" class="action-confirm__none" v-i18n>This action can't be taken right now.</div>
+            <!-- Preview loaded but nothing actionable. -->
+            <div v-else class="action-confirm__none" v-i18n>This action can't be taken right now.</div>
           </template>
 
           <!-- Preview failed to load (network) — never leave the panel blank. -->
           <div v-else class="action-confirm__none" v-i18n>This action can't be taken right now.</div>
         </section>
+      </div>
+
+      <!-- CHOICES: the large, adaptive, full-width decision area. It owns the
+           flexible vertical space and is the ONLY part that scrolls (last resort),
+           so the footer CTA always stays anchored. The modal widens (widthClass)
+           so candidates spread horizontally before this block ever scrolls. -->
+      <div v-if="!loading && preview !== undefined && hasChoices" class="action-confirm__choices">
+        <!-- FALLBACK branch picker — only when the modal was NOT opened for a
+             specific branch (the overlay normally splits branches into their own
+             buttons and passes the chosen one). Shows EVERY branch with its reason
+             + context chips. -->
+        <div v-if="showBranchList" class="action-confirm__branches">
+          <span class="action-confirm__branches-label" v-i18n>Choose an option</span>
+          <div class="action-confirm__branches-grid">
+            <button v-for="(bv, p) in branchViews"
+                    :key="branchKey(bv.branch) + '#' + p"
+                    type="button"
+                    class="action-confirm__branch"
+                    :class="{
+                      'action-confirm__branch--selected': selected === bv.branch,
+                      'action-confirm__branch--disabled': !bv.branch.available,
+                    }"
+                    :disabled="!bv.branch.available"
+                    :data-test="'action-branch-' + p"
+                    @click="selectBranch(bv.branch)">
+              <span v-if="bv.branch.available" class="action-confirm__branch-tick" aria-hidden="true"></span>
+              <span class="action-confirm__branch-main">
+                <div v-if="bv.node !== undefined" class="action-confirm__render action-confirm__render--branch card-container" v-i18n v-strip-action-prefix>
+                  <CardRenderEffectBoxComponent v-if="bv.node.actionNode !== undefined" :effectData="bv.node.actionNode" />
+                  <CardRenderData v-else-if="bv.node.renderRoot !== undefined" :renderData="bv.node.renderRoot" />
+                  <span v-else-if="bv.node.text">{{ bv.node.text }}</span>
+                </div>
+                <span v-else-if="text(bv.branch.title)" class="action-confirm__branch-title" v-i18n>{{ text(bv.branch.title) }}</span>
+                <span v-if="bv.branch.effects.length > 0" class="action-confirm__chips">
+                  <ActionEffectChip v-for="(e, i) in bv.branch.effects" :key="i" :effect="e" />
+                </span>
+                <span v-if="!bv.branch.available && bv.branch.unavailableReason !== undefined" class="action-confirm__branch-reason" v-i18n>{{ text(bv.branch.unavailableReason) }}</span>
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <!-- The branch's OWN input (its OrOptions option is a SelectAmount /
+             SelectCard directly) — its response nests into the branch pick. -->
+        <div v-if="selected !== undefined && selected.optionInput !== undefined" class="action-confirm__steps">
+          <div class="action-confirm__step action-confirm__step--input"
+               :class="{
+                 'action-confirm__step--answered': capturedOption !== undefined,
+                 'action-confirm__step--bare': isHandCardInput(selected.optionInput),
+               }">
+            <ModernPlayerPicker v-if="selected.optionInput.type === 'player'"
+                                :controlled="true"
+                                :playerView="playerView"
+                                :playerinput="selected.optionInput"
+                                :onsave="noop"
+                                @select="captureOption" />
+            <!-- A pick FROM HAND goes to the КАРТЫ В РУКЕ overlay (roomy
+                 premium surface), NOT the cramped in-modal tile grid. Show
+                 the chosen card here once picked + a "ВЫБРАТЬ КАРТУ" CTA. -->
+            <div v-else-if="isHandCardInput(selected.optionInput)" class="action-confirm__handpick">
+              <div v-if="optionChosenCard !== undefined" class="action-confirm__handpick-chosen">
+                <button type="button"
+                        class="action-confirm__handpick-card"
+                        :aria-label="$t('Open fullscreen')"
+                        @click.capture.stop="openChosenFullscreen">
+                  <Card :card="optionChosenCard" />
+                </button>
+                <button type="button" class="action-confirm__handpick-change" @click="requestOptionPick" data-test="action-pick-change">
+                  <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
+                  <span v-i18n>Choose another card</span>
+                </button>
+              </div>
+              <button v-else type="button" class="action-confirm__handpick-btn" @click="requestOptionPick" data-test="action-pick-card">
+                <span class="action-confirm__handpick-btn-glyph" aria-hidden="true">▤</span>
+                <span class="action-confirm__handpick-btn-label" v-i18n>Pick a card from hand</span>
+              </button>
+            </div>
+            <ActionTargetCard v-else-if="selected.optionInput.type === 'card'"
+                              :playerView="playerView"
+                              :input="selected.optionInput"
+                              :selectedName="capturedOptionCardName"
+                              @change="captureOption" />
+            <ModalInputHost v-else :playerView="playerView" :playerinput="selected.optionInput" :onsave="captureOption" />
+          </div>
+        </div>
+
+        <!-- Interactive choices for the selected branch. -->
+        <div v-if="selected !== undefined && selected.steps.length > 0" class="action-confirm__steps">
+          <template v-for="(step, i) in selected.steps" :key="i">
+            <div v-if="step.kind === 'boardPlacement'" class="action-confirm__step action-confirm__step--placement">
+              <span class="action-confirm__step-glyph" aria-hidden="true">◎</span>
+              <span class="action-confirm__step-text" v-i18n>{{ placementHint(step) }}</span>
+            </div>
+            <div v-else class="action-confirm__step action-confirm__step--input"
+                 :class="{
+                   'action-confirm__step--answered': captured[i] !== undefined,
+                   'action-confirm__step--bare': step.input.type === 'payment',
+                 }">
+              <!-- Premium, OWNER-AWARE target pickers in controlled mode: the
+                   pick is captured here and committed by the single ВЫПОЛНИТЬ
+                   (no per-step submit). Other input types fall back to the
+                   capturing ModalInputHost. -->
+              <ModernPlayerPicker v-if="step.input.type === 'player'"
+                                  :controlled="true"
+                                  :playerView="playerView"
+                                  :playerinput="step.input"
+                                  :onsave="noop"
+                                  @select="captureStep(i)($event)" />
+              <ActionTargetCard v-else-if="step.input.type === 'card'"
+                                :playerView="playerView"
+                                :input="step.input"
+                                :amount="step.amount"
+                                :selectedName="capturedCardName(i)"
+                                @change="captureStep(i)($event)" />
+              <!-- Payment (e.g. "pay 12 M€, titanium usable") dialed IN the
+                   modal via the controlled payment widget — captured live,
+                   committed by the single ВЫПОЛНИТЬ. No separate SelectPayment
+                   follow-up modal. -->
+              <SelectPaymentV2 v-else-if="step.input.type === 'payment'"
+                               :controlled="true"
+                               :playerView="playerView"
+                               :playerinput="step.input"
+                               :onsave="noop"
+                               :showsave="false"
+                               :showtitle="false"
+                               @change="captureStep(i)($event)" />
+              <ModalInputHost v-else :playerView="playerView" :playerinput="step.input" :onsave="captureStep(i)" />
+            </div>
+          </template>
+        </div>
       </div>
 
       <footer class="action-confirm__footer">
@@ -359,6 +377,67 @@ export default defineComponent({
     // specific branch AND nothing is selected yet AND there's a real choice.
     showBranchList(): boolean {
       return this.branchPosition === undefined && this.selected === undefined && this.branches.length > 1;
+    },
+    // Whether the wide choices block has anything to host (a branch picker, the
+    // branch's own input, or any steps). When false the modal is just the top row
+    // (source + summary) + footer — a compact confirm with no decision area.
+    hasChoices(): boolean {
+      if (this.showBranchList) {
+        return true;
+      }
+      const b = this.selected;
+      if (b === undefined) {
+        return false;
+      }
+      return b.optionInput !== undefined || b.steps.length > 0;
+    },
+    // The number of selectable CARD tiles the choices block will render. Drives the
+    // width bucket (widthClass) so the modal expands horizontally — spreading the
+    // candidates across more columns — BEFORE the choices block has to scroll.
+    // (Player / payment / amount inputs are compact and never need extra width.)
+    choiceTileCount(): number {
+      const countCards = (input: {type: string, cards?: ReadonlyArray<unknown>, disabledCards?: ReadonlyArray<unknown>} | undefined): number => {
+        if (input === undefined || input.type !== 'card') {
+          return 0;
+        }
+        return (input.cards?.length ?? 0) + (input.disabledCards?.length ?? 0);
+      };
+      let n = 0;
+      const b = this.selected;
+      if (b !== undefined) {
+        n += countCards(b.optionInput as {type: string} | undefined);
+        for (const step of b.steps) {
+          if (step.kind === 'input') {
+            n += countCards(step.input as {type: string});
+          }
+        }
+      }
+      // The branch picker also benefits from a little extra room when there are
+      // several branches to lay side by side.
+      if (this.showBranchList) {
+        n = Math.max(n, this.branches.length);
+      }
+      return n;
+    },
+    // Discrete width buckets (CSS sets the matching `--ac-width`). Expanding the
+    // modal sideways uses free screen space first; vertical scroll is the last
+    // resort. Capped in CSS at the viewport width.
+    widthClass(): string {
+      // Thresholds match how many ~165px tiles fit one row: up to 3 fit the
+      // compact 600px default; 4–5 → ~900px; 6–7 → ~1180px; 8+ → ~1380px (then
+      // the choices block wraps to a second row within that width, scrolling only
+      // when even that overflows the viewport height).
+      const n = this.choiceTileCount;
+      if (n >= 8) {
+        return 'action-confirm--wide-xl';
+      }
+      if (n >= 6) {
+        return 'action-confirm--wide-l';
+      }
+      if (n >= 4) {
+        return 'action-confirm--wide-m';
+      }
+      return '';
     },
     // The render node(s) shown in the SELECTED-branch summary: the branch's own
     // matched node (single-action card, or a cleanly-split multi-branch). When
@@ -684,6 +763,15 @@ export default defineComponent({
   color: #dceaf6;
 }
 
+/* Intro line in the hero panel while the player is still choosing among branches
+ * (the picker lives in the wide choices block below). */
+.action-confirm__intro-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #acc4dc;
+}
+
 .action-confirm__chips {
   display: flex;
   flex-wrap: wrap;
@@ -700,6 +788,10 @@ export default defineComponent({
   display: flex;
   align-items: flex-start;
   gap: 11px;
+  /* Flex within the wrap-grid: comfortable min, sit side by side when the modal
+   * is wide, wrap when there are many. */
+  flex: 1 1 300px;
+  max-width: 460px;
   padding: 12px 14px;
   text-align: left;
   border-radius: 10px;
@@ -748,7 +840,8 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 14px;
+  /* No margin-top: steps live inside the `.action-confirm__choices` flex column,
+   * which spaces its children with its own gap. */
 }
 .action-confirm__step {
   border-radius: 9px;

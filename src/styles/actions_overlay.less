@@ -674,6 +674,10 @@
     --ac-accent-bright: #7fd4ff;
     --ac-accent-soft: rgba(106, 176, 230, 0.5);
     --ac-accent-glow: rgba(106, 176, 230, 0.1);
+    /* Default (compact) modal width. The width buckets below bump this up as the
+     * choice count grows, so the modal spreads sideways into free screen space
+     * before the choices block ever has to scroll. */
+    --ac-width: 600px;
     color: #e8f1fb;
     font-family: Prototype, Ubuntu, sans-serif;
 }
@@ -684,24 +688,34 @@
     --ac-accent-glow: rgba(230, 200, 120, 0.1);
 }
 
+/* Width buckets — keyed off the number of selectable card tiles (widthClass).
+ * Sideways growth first (CLAUDE goal: fill available screen space when needed);
+ * each is capped at the viewport so it never overflows. */
+.action-confirm--wide-m  { --ac-width: 900px; }
+.action-confirm--wide-l  { --ac-width: min(1180px, calc(100vw - 48px)); }
+.action-confirm--wide-xl { --ac-width: min(1380px, calc(100vw - 48px)); }
+
 .action-confirm__frame {
     position: relative;
+    display: flex;
+    flex-direction: column;
     padding: 20px 22px 18px;
-    min-width: 480px;
-    /* Wider than a plain confirm: the body is a two-column plan (source card +
-     * planning panel), and the planning panel hosts the payment widget — which
-     * needs comfortable room for the resource rows + stepper. The row layout is
-     * responsive (it wraps before clipping), so this is breathing room, not a
-     * hard dependency. */
-    max-width: min(800px, calc(100vw - 60px));
+    /* Width FOLLOWS the choice count (widthClass → `--ac-width`): a compact
+     * confirm stays narrow; a many-target pick widens to spread candidates across
+     * columns. Capped at the viewport. */
+    width: var(--ac-width, 600px);
+    max-width: calc(100vw - 48px);
+    /* Cap the height to the viewport so the header + top row + footer stay put and
+     * ONLY the choices block scrolls (the genuine last resort). */
+    max-height: calc(100vh - 48px);
 }
 
-/* The MandatoryInputModal card hugs its content (width: auto, capped at 760px).
- * An action-confirm plan is wider than that cap, so let the card grow to fit it
- * — same `:has()` mechanism the card-selection grid uses. Without this the 760px
- * card cap would re-clamp the wider frame and squeeze the payment panel. */
+/* The MandatoryInputModal card hugs its content (width: auto). The frame drives
+ * its own width via `--ac-width`; let the hugging card grow to the widest bucket
+ * — same `:has()` mechanism the card-selection grid uses. Without this the card's
+ * default cap would re-clamp the wider frame. */
 .mandatory-input-modal__card:has(.action-confirm) {
-    max-width: min(860px, calc(100vw - 48px));
+    max-width: min(1400px, calc(100vw - 48px));
 }
 .action-confirm__corner {
     position: absolute;
@@ -720,6 +734,7 @@
 /* ── Header: kicker eyebrow + gradient-clip title + sci-fi divider ── */
 .action-confirm__header {
     position: relative;
+    flex-shrink: 0;
     margin-bottom: 18px;
     padding-bottom: 14px;
 }
@@ -767,11 +782,48 @@
     -webkit-text-fill-color: transparent;
 }
 
-/* ── Body: source (secondary) + action (hero), equal height ── */
-.action-confirm__body {
+/* ── Top row: compact source (secondary) + effect/result (hero) ──
+ * Capped + left-aligned so the source stays in the top-LEFT corner and the pair
+ * reads tidy even when the frame widens for many choices below. `flex: 0 0 auto`
+ * — this row never grows; the choices block owns the flexible vertical space. */
+.action-confirm__top {
     display: flex;
-    gap: 20px;
-    align-items: stretch;
+    gap: 18px;
+    align-items: flex-start;
+    flex: 0 0 auto;
+    max-width: 880px;
+}
+
+/* ── Choices: the large, adaptive, full-width decision area ──
+ * The ONLY flexible + scrollable region. The header / top row / footer stay
+ * fixed; this block absorbs the height and scrolls (thin premium scrollbar) only
+ * when even the widest bucket can't fit the candidates vertically. */
+.action-confirm__choices {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    margin-top: 18px;
+    padding-right: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 200, 255, 0.4) transparent;
+    &::-webkit-scrollbar { width: 8px; }
+    &::-webkit-scrollbar-thumb { background: rgba(120, 200, 255, 0.3); border-radius: 4px; }
+    &::-webkit-scrollbar-thumb:hover { background: rgba(120, 200, 255, 0.5); }
+    &::-webkit-scrollbar-track { background: transparent; }
+    /* Inside the choices flow, each step group is spaced by the column gap — drop
+     * the legacy stand-alone margin so the spacing stays even. */
+    .action-confirm__steps { margin-top: 0; }
+}
+
+/* The branch picker spreads its options across a responsive wrap-grid (sideways
+ * first), so 2–3 branches sit side by side and more wrap. */
+.action-confirm__branches-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 .action-confirm__source-label,
 .action-confirm__action-kicker {
@@ -791,7 +843,8 @@
 }
 .action-confirm__card {
     position: relative;
-    flex: 1;
+    /* Compact: natural card size in the top-left corner — never stretched to the
+     * hero panel's height (the old `flex: 1` made the source column tall + empty). */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -915,9 +968,10 @@
 .action-confirm__render-desc { margin-top: 6px; font-size: 12px; line-height: 1.4; text-align: center; color: #cdddee; }
 .action-confirm__render-text { font-size: 12.5px; line-height: 1.45; color: #d3e0ee; text-align: center; }
 
-/* ── Footer / CTA — clearly separated bottom level ── */
+/* ── Footer / CTA — clearly separated bottom level, always anchored ── */
 .action-confirm__footer {
     position: relative;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -978,10 +1032,8 @@
 }
 
 @media (max-width: 600px) {
-    .action-confirm__frame { min-width: 0; }
-    .action-confirm__body { flex-direction: column; align-items: stretch; }
+    .action-confirm__top { flex-direction: column; align-items: stretch; }
     .action-confirm__source { align-items: center; }
-    .action-confirm__card { flex: none; }
     .action-confirm__footer { flex-direction: column-reverse; align-items: stretch; gap: 12px; }
     .action-confirm__hint { max-width: none; text-align: center; }
     .action-confirm__actions { justify-content: flex-end; }

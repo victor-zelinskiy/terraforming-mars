@@ -302,6 +302,7 @@ export default defineComponent({
 .action-target-card__tiles {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 11px;
 }
 
