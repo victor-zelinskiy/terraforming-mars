@@ -72,7 +72,11 @@ export class ExtractorBalloons extends Card implements IActionCard {
         available: canSpend,
         title: 'Remove 2 floaters to raise Venus scale 1 step',
         effects: [actionPreviews.cardCost(this, 2), actionPreviews.globalGain(player, 'venus', 1)],
-        unavailableReason: actionReason.ruleReason('Not enough floaters, Venus is maxed, or you can\'t afford the Reds tax'),
+        unavailableReason: this.resourceCount < 2 ?
+          actionReason.ruleReason('Not enough floaters') :
+          venusMaxed ?
+            actionReason.ruleReason('Venus is already maxed') :
+            actionReason.ruleReason('Can\'t afford the Reds tax'),
       },
       {
         available: true,

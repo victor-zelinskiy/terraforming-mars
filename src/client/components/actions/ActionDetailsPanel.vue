@@ -15,6 +15,9 @@
     </div>
 
     <template v-else>
+      <!-- The content SCROLLS, the CTA below stays PINNED — so a verbose action's
+           panel never grows the overlay (the size is fixed by the master). -->
+      <div class="action-detail__scroll">
       <header class="action-detail__head">
         <span class="action-detail__type" v-i18n>{{ isCorporation ? 'Corporation' : 'Card' }}</span>
         <h3 class="action-detail__name" v-i18n>{{ cardName }}</h3>
@@ -80,6 +83,7 @@
           <Card :key="cardName" :card="cardModel" />
         </button>
       </div>
+      </div><!-- /.action-detail__scroll -->
 
       <!-- The CTA row HOSTS the premium tooltip (`data-hint`) — a DISABLED button
            never fires `:hover`, so the wrapper carries the "why you can't act"

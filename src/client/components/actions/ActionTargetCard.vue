@@ -17,15 +17,15 @@
     <div v-for="group in groups"
          :key="group.color"
          class="action-target-card__group"
-         :class="{'action-target-card__group--self': group.self}">
-      <div class="action-target-card__owner">
+         :class="{'action-target-card__group--self': group.self, 'action-target-card__group--flat': !showOwners}">
+      <!-- The owner header (player dot + name + "your card" warning) is ONLY shown
+           when the targets actually span DIFFERENT players. When the card can only
+           ever target the viewer's OWN cards (a single owner), the per-player
+           wrapper is pure noise — drop it (and reclaim the space). -->
+      <div v-if="showOwners" class="action-target-card__owner">
         <span class="action-target-card__owner-dot" :class="'player_bg_color_' + group.color" aria-hidden="true"></span>
         <span class="action-target-card__owner-name">{{ group.name }}</span>
-        <!-- The "your card" warning only matters when there's an OPPONENT to
-             target instead (picking your own would be the mistake). When every
-             candidate is your own (e.g. add a resource to your own Venus card)
-             there's no alternative owner, so no warning. -->
-        <span v-if="group.self && groups.length > 1" class="action-target-card__owner-warn">
+        <span v-if="group.self" class="action-target-card__owner-warn">
           <span aria-hidden="true">⚠</span><span v-i18n>your card</span>
         </span>
       </div>
@@ -37,7 +37,7 @@
              :class="{
                'action-target-card__tile--selected': selectedName === c.name,
                'action-target-card__tile--disabled': c.disabled,
-               'action-target-card__tile--self': group.self,
+               'action-target-card__tile--self': group.self && showOwners,
              }"
              role="button"
              :tabindex="c.disabled ? -1 : 0"
@@ -166,6 +166,12 @@ export default defineComponent({
       const t = this.input.title;
       return typeof t === 'string' ? t : '';
     },
+    // Only show the per-owner grouping when the targets span MORE THAN ONE player.
+    // A single-owner pick (self-only — the common "add to your own card" case) is
+    // rendered flat, without the redundant player-name wrapper.
+    showOwners(): boolean {
+      return this.groups.length > 1;
+    },
     groups(): ReadonlyArray<Group> {
       const tiles: Array<Tile> = [
         ...this.input.cards.map((c) => this.buildTile(c, false)),
@@ -265,6 +271,13 @@ export default defineComponent({
   &--self {
     border-color: rgba(255, 196, 120, 0.34);
     background: rgba(40, 30, 14, 0.32);
+  }
+  // Self-only / single-owner pick: no per-player wrapper — the tiles sit flat
+  // (more room, no redundant owner chrome).
+  &--flat {
+    border: none;
+    background: none;
+    padding: 0;
   }
 }
 .action-target-card__owner {
