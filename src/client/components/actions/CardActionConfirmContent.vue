@@ -23,9 +23,9 @@
         <h3 class="action-confirm__title" v-i18n>{{ headerTitle }}</h3>
       </header>
 
-      <!-- MAIN: a single vertical flow — "Вы собираетесь выполнить" → the mini
-           action graphic + source identity → the immediate result → "После
-           подтверждения". The choices block (payment / targets / branch picker)
+      <!-- MAIN: "Вы собираетесь выполнить" → the action SUMMARY block (graphic +
+           its outcome: result / VP / "После подтверждения", framed as ONE unit) →
+           the compact ИСТОЧНИК card. The choices block (payment / targets / picker)
            follows below and owns the flexible scroll space. -->
       <div class="action-confirm__main">
         <!-- Preview loading skeleton. -->
@@ -38,60 +38,63 @@
         <template v-else-if="preview !== undefined">
           <span v-if="selected !== undefined || showBranchList" class="action-confirm__summary-label" v-i18n>You are about to</span>
 
-          <!-- The action identity: the SAME compact renderer the overlay rows use,
-               plus the source name + a ⤢ to the full card. The graphic sits BETWEEN
-               "Вы собираетесь выполнить" and "После подтверждения". -->
-          <div v-if="miniNode !== undefined || miniTitle !== ''" class="action-confirm__act">
-            <div class="action-confirm__mini">
+          <!-- The action SUMMARY block — the hero unit. The compact graphic (the
+               SAME renderer the overlay rows use) sits on top; its OUTCOME (result /
+               VP / «После подтверждения») is integrated BELOW a divider INSIDE the
+               same frame, so the consequence reads as part of the action. Hovering
+               the graphic floats the full action text (`__explain`). -->
+          <div v-if="miniNode !== undefined || miniTitle !== ''" class="action-confirm__act-block">
+            <div class="action-confirm__mini"
+                 @mouseenter="onActHover"
+                 @mouseleave="onActLeave"
+                 @focusin="onActHover"
+                 @focusout="onActLeave"
+                 tabindex="0">
               <CompactActionCard :node="miniNode"
                                  :title="miniTitle"
                                  status="available"
-                                 :interactive="false"
-                                 @hover="onMiniHover" />
+                                 :interactive="false" />
+              <span class="action-confirm__mini-info" aria-hidden="true">i</span>
             </div>
-            <div class="action-confirm__mini-meta">
-              <span class="action-confirm__mini-name" v-i18n>{{ cardName }}</span>
-              <button type="button"
-                      class="action-confirm__mini-zoom"
-                      :aria-label="$t('Open fullscreen')"
-                      @click="openFullscreen"
-                      data-test="action-confirm-zoom">
-                <span class="action-confirm__mini-zoom-glyph" aria-hidden="true">⤢</span>
-                <span v-i18n>Open fullscreen</span>
-              </button>
+
+            <!-- REVEAL / deck-check slot — the revealed card later appears EXACTLY
+                 here (the App-level result overlay mirrors this layout). -->
+            <ActionRevealSlot v-if="selected !== undefined && selected.reveal !== undefined"
+                              state="empty"
+                              :reveal="selected.reveal" />
+
+            <div v-if="selected !== undefined && summaryHasContent" class="action-confirm__act-outcome">
+              <!-- RESULT: the cost/gain breakdown ("Будет списано" / "Вы получите"). -->
+              <ActionResultsPreview v-if="selected.effects.length > 0" :effects="selected.effects" />
+              <div class="action-confirm__section" v-if="vpProgress !== undefined">
+                <ActionVpProgress :cardName="cardName"
+                                  :resourceIcon="vpProgress.icon"
+                                  :before="vpProgress.before"
+                                  :after="vpProgress.after" />
+              </div>
+              <!-- "После подтверждения" — the follow-up the modal can't pre-collect. -->
+              <ActionNextStepNotice :steps="selected.steps" variant="after-confirm" />
             </div>
+            <p v-else-if="selected !== undefined && selected.available && selected.reveal === undefined"
+               class="action-confirm__act-confirm-hint" v-i18n>Confirm to perform this action.</p>
           </div>
 
-          <!-- REVEAL / deck-check slot — the revealed card later appears EXACTLY
-               here (the App-level result overlay mirrors this layout). -->
-          <ActionRevealSlot v-if="selected !== undefined && selected.reveal !== undefined"
-                            state="empty"
-                            :reveal="selected.reveal" />
-
-          <template v-if="selected !== undefined">
-            <!-- RESULT: the cost/gain breakdown ("Будет списано" / "Вы получите"). -->
-            <ActionResultsPreview v-if="selected.effects.length > 0" :effects="selected.effects" />
-
-            <div class="action-confirm__section" v-if="vpProgress !== undefined">
-              <ActionVpProgress :cardName="cardName"
-                                :resourceIcon="vpProgress.icon"
-                                :before="vpProgress.before"
-                                :after="vpProgress.after" />
-            </div>
-
-            <!-- "После подтверждения" — the follow-up the modal can't pre-collect
-                 (tile placement / colony / a special board move). -->
-            <ActionNextStepNotice :steps="selected.steps" variant="after-confirm" />
-
-            <p v-if="!summaryHasContent && selected.available && selected.reveal === undefined" class="action-confirm__intro-hint" v-i18n>Confirm to perform this action.</p>
-            <div v-if="!selected.available && selected.unavailableReason !== undefined" class="action-confirm__none" v-i18n>{{ text(selected.unavailableReason) }}</div>
-          </template>
-
+          <div v-if="selected !== undefined && !selected.available && selected.unavailableReason !== undefined" class="action-confirm__none" v-i18n>{{ text(selected.unavailableReason) }}</div>
           <!-- Picking among several branches: the picker lives in the choices block. -->
           <p v-else-if="showBranchList" class="action-confirm__intro-hint" v-i18n>Choose one of the options below.</p>
+          <div v-else-if="selected === undefined && !showBranchList" class="action-confirm__none" v-i18n>This action can't be taken right now.</div>
 
-          <!-- Preview loaded but nothing actionable. -->
-          <div v-else class="action-confirm__none" v-i18n>This action can't be taken right now.</div>
+          <!-- ИСТОЧНИК — the compact source card (click → fullscreen, like everywhere). -->
+          <div v-if="cardName !== undefined" class="action-confirm__source-block">
+            <span class="action-confirm__source-blk-label" v-i18n>Source</span>
+            <button type="button"
+                    class="action-confirm__source-card"
+                    :aria-label="$t('Open fullscreen')"
+                    @click="openFullscreen"
+                    data-test="action-confirm-source">
+              <Card :key="cardName" :card="cardModel" />
+            </button>
+          </div>
         </template>
 
         <!-- Preview failed to load (network) — never leave the panel blank. -->
@@ -245,9 +248,21 @@
       </footer>
     </div>
 
-    <!-- Quick full-card preview when hovering the mini action card (the "see the
-         real card" affordance short of fullscreen — mirrors the overlay's hover). -->
-    <CardPreviewPopover :name="cardName" :card="cardModel" :visible="miniHoverVisible" :anchor="miniHoverAnchor" />
+    <!-- Hovering the mini action graphic floats the FULL action block — the action
+         graphic at a readable scale + its description text (NOT the card, NOT extra
+         service chrome) — so the player can understand the action without zooming. -->
+    <Teleport to="body">
+      <transition name="action-explain-fade">
+        <div v-if="actHoverVisible && actDescription !== ''" class="action-confirm__explain" :style="explainStyle">
+          <div v-if="miniNode !== undefined && (miniNode.actionNode !== undefined || miniNode.renderRoot !== undefined)"
+               class="action-confirm__explain-graphic card-container" v-i18n v-strip-action-prefix>
+            <CardRenderEffectBoxComponent v-if="miniNode.actionNode !== undefined" :effectData="miniNode.actionNode" />
+            <CardRenderData v-else-if="miniNode.renderRoot !== undefined" :renderData="miniNode.renderRoot" />
+          </div>
+          <p class="action-confirm__explain-text" v-i18n v-strip-action-prefix>{{ actDescription }}</p>
+        </div>
+      </transition>
+    </Teleport>
 
     <Teleport to="body">
       <CardZoomModal v-if="zoomCard !== undefined"
@@ -276,7 +291,6 @@ import Card from '@/client/components/card/Card.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
-import CardPreviewPopover from '@/client/components/journal/CardPreviewPopover.vue';
 import CompactActionCard from '@/client/components/actions/CompactActionCard.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPicker.vue';
@@ -307,7 +321,7 @@ type GroupNode = ActionGroup['nodes'][number];
 
 export default defineComponent({
   name: 'CardActionConfirmContent',
-  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, CardPreviewPopover, CompactActionCard, ModalInputHost, ModernPlayerPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot, ActionResultsPreview, ActionNextStepNotice},
+  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, CompactActionCard, ModalInputHost, ModernPlayerPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot, ActionResultsPreview, ActionNextStepNotice},
   directives: {stripActionPrefix},
   props: {
     cardName: {
@@ -348,9 +362,9 @@ export default defineComponent({
       captured: {} as Record<number, InputResponse>,
       // The response to the branch's own OrOptions input (optionInput), if any.
       capturedOption: undefined as InputResponse | undefined,
-      // Mini-card hover preview (the full source card floats while hovering).
-      miniHoverVisible: false,
-      miniHoverAnchor: undefined as DOMRect | undefined,
+      // Hovering the action graphic floats the full action block (graphic + text).
+      actHoverVisible: false,
+      actHoverAnchor: undefined as DOMRect | undefined,
     };
   },
   computed: {
@@ -476,6 +490,27 @@ export default defineComponent({
     // combined-node branch). Empty while picking (the node carries the identity).
     miniTitle(): string {
       return this.selected !== undefined ? this.selectedTitle : '';
+    },
+    // The action's full description text (for the hover-explain popover) — the
+    // selected node's description, else the selected branch's title.
+    actDescription(): string {
+      if (this.miniNode !== undefined) {
+        const d = actionNodeDescription(this.miniNode);
+        if (d !== '') {
+          return d;
+        }
+      }
+      return this.miniTitle;
+    },
+    // Fixed-position the explain popover ABOVE the hovered action graphic, centred
+    // and clamped horizontally so it never spills off-screen.
+    explainStyle(): Record<string, string> {
+      const r = this.actHoverAnchor;
+      if (r === undefined) {
+        return {};
+      }
+      const cx = Math.max(170, Math.min(window.innerWidth - 170, r.left + r.width / 2));
+      return {left: Math.round(cx) + 'px', top: Math.round(r.top - 12) + 'px'};
     },
     // The selected branch's own title text — shown in the summary when there's no
     // per-branch graphic (combined-node cards), so the player still reads exactly
@@ -722,18 +757,21 @@ export default defineComponent({
       const payload: ConfirmPayload = {branchIndex: branch.index, optionResponse: this.capturedOption, stepResponses, reveal: branch.reveal};
       this.$emit('confirm', payload);
     },
-    // Hover over the mini action card → float the full source card (suppressed
-    // while the fullscreen viewer is open so the two don't fight).
-    onMiniHover(rect: DOMRect | null): void {
-      if (rect === null || this.zoomCard !== undefined) {
-        this.miniHoverVisible = false;
+    // Hover/focus the action graphic → float the full action block (graphic + text).
+    // Suppressed while the fullscreen card viewer is open so the two don't fight.
+    onActHover(e: MouseEvent | FocusEvent): void {
+      if (this.zoomCard !== undefined) {
         return;
       }
-      this.miniHoverAnchor = rect;
-      this.miniHoverVisible = true;
+      const el = e.currentTarget as HTMLElement | null;
+      this.actHoverAnchor = el !== null ? el.getBoundingClientRect() : undefined;
+      this.actHoverVisible = true;
+    },
+    onActLeave(): void {
+      this.actHoverVisible = false;
     },
     openFullscreen(): void {
-      this.miniHoverVisible = false;
+      this.actHoverVisible = false;
       this.zoomCard = this.cardModel;
       nextTick(() => {
         (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
@@ -785,68 +823,159 @@ export default defineComponent({
   flex-direction: column;
   gap: 12px;
 }
-/* The action identity block — the compact graphic + source name + ⤢, centred. */
-.action-confirm__act {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
 // NOTE: the summary / section LABEL styles (`__summary`, `__summary-label`,
 // `__section`, `__section-label`) live in the GLOBAL actions_overlay.less, NOT
 // here — the App-level RevealResultOverlay reuses the same markup, and scoped
 // styles wouldn't reach it (its labels rendered unstyled/huge otherwise).
 
-/* MINI action card — the compact source identity (replaces the big full Card).
- * A recessed framed tile hosting the global `.compact-action` graphic, with a
- * name + fullscreen control row beneath it. */
+/* ACTION SUMMARY block — the hero unit: the compact graphic on top, its OUTCOME
+ * (result / VP / "После подтверждения") integrated below an inner divider, framed
+ * as ONE element so the consequence reads as part of the action. */
+.action-confirm__act-block {
+  display: flex;
+  flex-direction: column;
+  border-radius: 13px;
+  border: 1px solid rgba(106, 176, 230, 0.26);
+  background:
+    radial-gradient(130% 70% at 50% -10%, rgba(127, 212, 255, 0.08), transparent 60%),
+    linear-gradient(180deg, rgba(20, 31, 46, 0.95), rgba(11, 18, 29, 0.96));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 30px rgba(0, 0, 0, 0.46);
+  overflow: hidden;
+}
+.action-confirm--corp .action-confirm__act-block {
+  border-color: rgba(230, 200, 120, 0.3);
+  background:
+    radial-gradient(130% 70% at 50% -10%, rgba(240, 210, 138, 0.08), transparent 60%),
+    linear-gradient(180deg, rgba(33, 28, 17, 0.95), rgba(20, 16, 10, 0.96));
+}
+/* The graphic tile — hover/focus reveals the full action text (`__explain`). */
 .action-confirm__mini {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 96px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(13, 21, 33, 0.92), rgba(8, 14, 22, 0.94));
-  box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.14), 0 8px 22px rgba(0, 0, 0, 0.42);
-  cursor: default;
+  min-height: 92px;
+  padding: 16px 16px 14px;
+  cursor: help;
+  outline: none;
+  transition: background 0.15s ease;
+  &:hover, &:focus-visible { background: rgba(106, 176, 230, 0.05); }
 }
-.action-confirm--corp .action-confirm__mini {
-  box-shadow: inset 0 0 0 1px rgba(230, 200, 120, 0.2), 0 8px 22px rgba(0, 0, 0, 0.42);
+/* Small "i" affordance hinting the graphic is hover-explainable. */
+.action-confirm__mini-info {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Prototype, "Russo One", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ecbe6;
+  background: rgba(12, 22, 34, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.35);
+  opacity: 0.7;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  .action-confirm__mini:hover &,
+  .action-confirm__mini:focus-visible & { opacity: 1; color: #d6f1ff; }
 }
-.action-confirm__mini-meta {
+/* The integrated outcome (result / VP / next-step) — a divider separates it from
+ * the graphic so they read as one action unit, not two stacked blocks. */
+.action-confirm__act-outcome {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px 15px 14px;
+  border-top: 1px solid rgba(106, 176, 230, 0.16);
+  background: rgba(8, 14, 22, 0.34);
+}
+.action-confirm--corp .action-confirm__act-outcome { border-top-color: rgba(230, 200, 120, 0.2); }
+.action-confirm__act-confirm-hint {
+  margin: 0;
+  padding: 11px 15px 13px;
+  border-top: 1px solid rgba(106, 176, 230, 0.16);
+  font-size: 12.5px;
+  color: #9fb6cc;
+  text-align: center;
+}
+
+/* ИСТОЧНИК — the compact source card (click → fullscreen). */
+.action-confirm__source-block {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  text-align: center;
+  gap: 7px;
 }
-.action-confirm__mini-name {
-  font-family: Prototype, "Russo One", sans-serif;
-  font-size: 12px;
+.action-confirm__source-blk-label {
+  align-self: flex-start;
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 0.4px;
-  color: #eaf3fc;
-}
-.action-confirm__mini-zoom {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 11px;
-  border-radius: 7px;
-  border: 1px solid rgba(106, 176, 230, 0.3);
-  background: rgba(12, 22, 34, 0.7);
-  color: #9ecbe6;
-  font-family: Prototype, Ubuntu, sans-serif;
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
+  letter-spacing: 1.6px;
   text-transform: uppercase;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-  &:hover { border-color: #7fd4ff; background: rgba(18, 32, 48, 0.85); color: #d6f1ff; }
+  color: #7f9bb8;
 }
-.action-confirm__mini-zoom-glyph { font-size: 13px; line-height: 1; }
+.action-confirm__source-card {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: zoom-in;
+  border-radius: 10px;
+  transition: filter 0.15s ease, transform 0.15s ease;
+  // Zero the legacy asymmetric card margin + scale down so the card reads centred.
+  > :deep(.card-container) { margin: 0; zoom: 0.6; }
+  &:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  &:focus-visible { outline: 2px solid rgba(127, 212, 255, 0.7); outline-offset: 2px; }
+}
+
+/* Hover-explain popover — the full action graphic + its description text. */
+.action-confirm__explain {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  z-index: 4000;
+  width: max-content;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(106, 176, 230, 0.42);
+  background: linear-gradient(180deg, rgba(16, 25, 38, 0.98), rgba(9, 15, 24, 0.99));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6), 0 0 22px rgba(80, 160, 230, 0.14);
+  pointer-events: none;
+}
+.action-confirm__explain-graphic.card-container {
+  margin: 0;
+  width: auto;
+  zoom: 1.25;
+  text-align: center;
+  :deep(.card-effect-box) { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  :deep(.card-effect-box-row) { justify-content: center; flex-wrap: wrap; }
+  :deep(.card-description) { display: none; }
+  :deep(.card-text-normal:not(.card-plate)), :deep(.card-text-bold:not(.card-plate)) { color: #eaf3fc !important; }
+  :deep(.card-plate) { color: #1b1b1b !important; text-align: center; }
+  :deep(.card-special) { color: #eaf3fc; }
+  :deep(.card-minus), :deep(.card-minus--S), :deep(.card-plus), :deep(.card-plus--small) { filter: brightness(0) invert(1); }
+}
+.action-confirm__explain-text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: center;
+  color: #d3e2f2;
+}
+.action-explain-fade-enter-active, .action-explain-fade-leave-active {
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.action-explain-fade-enter-from, .action-explain-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, calc(-100% + 6px));
+}
 
 /* Intro line in the hero panel while the player is still choosing among branches
  * (the picker lives in the wide choices block below). */

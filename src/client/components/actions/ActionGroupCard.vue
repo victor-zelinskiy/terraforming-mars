@@ -45,6 +45,7 @@
         <span v-if="i > 0" class="action-group__or" aria-hidden="true" v-i18n>OR</span>
         <CompactActionCard :node="node"
                            :status="state.status"
+                           :reason="reasonText"
                            :selected="selectedKey === rowKey(i)"
                            :focusable="selectedKey === rowKey(i)"
                            :data-test="'action-row-' + cardName + '-' + i"
@@ -65,6 +66,7 @@ import {ActionState} from '@/client/components/actions/actionPlayability';
 import {actionRowKey} from '@/client/components/actions/actionsOverlayState';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import CompactActionCard from '@/client/components/actions/CompactActionCard.vue';
 
 export default defineComponent({
@@ -131,6 +133,25 @@ export default defineComponent({
       case 'soft': return 'Not now';
       default: return '';
       }
+    },
+    // The "why can't I act" text shown as a premium tooltip on the (still-visible)
+    // unavailable rows — the rules reasons, else the soft/activated reason. Empty
+    // for an available action (no tooltip). Same reason source the details panel
+    // surfaces, so the grid and the panel never disagree.
+    reasonText(): string {
+      const s = this.state;
+      if (s.status === 'available') {
+        return '';
+      }
+      const parts: Array<string> = [];
+      if (s.reasons.length > 0) {
+        for (const r of s.reasons) {
+          parts.push(translateTextWithParams(r.message, [...(r.params ?? [])]));
+        }
+      } else if (s.softReason !== undefined) {
+        parts.push(translateTextWithParams(s.softReason.message, [...(s.softReason.params ?? [])]));
+      }
+      return parts.join(' · ');
     },
   },
   methods: {
