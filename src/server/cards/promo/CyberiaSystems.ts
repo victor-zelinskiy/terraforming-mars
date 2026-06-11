@@ -7,6 +7,8 @@ import {Size} from '../../../common/cards/render/Size';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../ICard';
 import {Priority} from '../../deferredActions/Priority';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class CyberiaSystems extends RoboticWorkforceBase {
   constructor() {
@@ -58,5 +60,18 @@ export class CyberiaSystems extends RoboticWorkforceBase {
 
     player.defer(selectFirstCard, Priority.ROBOTIC_WORKFORCE);
     return undefined;
+  }
+
+  // PRE-COLLECT both copy targets IN the play modal (no deferred picks after
+  // confirm). Two card-target steps over the playable building cards — the second
+  // de-dupes against the first (can't copy the same card twice). The titles/labels
+  // mirror `bespokePlay`'s SelectCards so the batch replays byte-for-byte. The
+  // player sees BOTH cards (their production boxes) before committing.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const buildingCards = this.getPlayableBuildingCards(player);
+    return actionPreviews.playPreview(this, player, [], [
+      actionPreviews.selectCardStep(player, 'Select first builder card to copy', 'Copy', buildingCards),
+      actionPreviews.selectCardStep(player, 'Select second card to copy', 'Copy', buildingCards, {dedupeFromSteps: [0]}),
+    ]);
   }
 }

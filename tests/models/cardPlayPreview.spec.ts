@@ -88,12 +88,19 @@ describe('cardPlayPreview', () => {
     }
   });
 
-  it('VenusSoils (declarative): no microbe card to target → no step (auto-resolves)', () => {
+  it('VenusSoils (declarative): no microbe card to target → a WARNING step (no silent loss)', () => {
     const [/* game */, player] = testGame(2);
     const preview = cardPlayPreview(player, new VenusSoils());
-    expect(preview.branches[0].steps).has.length(0);
-    // The effect chips still describe the on-play impact.
+    // With NO eligible microbe card the resource would be silently lost — the
+    // preview now emits a warning note (and suppresses the fake "+microbe" chip).
+    const steps = preview.branches[0].steps;
+    expect(steps).has.length(1);
+    expect(steps[0].kind).eq('note');
+    expect((steps[0] as {noteKind?: string}).noteKind).eq('warning');
+    // The Venus parameter chip still describes the on-play impact.
     expect(preview.branches[0].effects.some((e) => e.icon === 'venus')).is.true;
+    // The microbe-to-a-card gain chip is SUPPRESSED (no card can hold it).
+    expect(preview.branches[0].effects.some((e) => e.note === 'to a card')).is.false;
   });
 
   it('READ-ONLY: building a play preview never mutates player / card / game state', () => {

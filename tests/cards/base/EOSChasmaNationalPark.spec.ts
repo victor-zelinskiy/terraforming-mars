@@ -60,7 +60,10 @@ describe('EosChasmaNationalPark', () => {
     expect(card.canPlay(player)).is.true;
     player.playCard(card);
     runAllActions(game);
-    cast(player.popWaitingFor(), undefined);
+    // autoSelect:false now ALWAYS asks WHERE the animal goes — even with a single
+    // candidate — so the player sees/chooses the target in the play modal.
+    const action = cast(player.popWaitingFor(), SelectCard);
+    action.cb([birds]);
 
     expect(birds.resourceCount).to.eq(1);
     expect(player.plants).to.eq(3);

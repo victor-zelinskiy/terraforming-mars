@@ -143,6 +143,20 @@ function cardResourceIcon(resource: CardResource): string {
   return String(resource).toLowerCase().replace(/\s+/g, '-');
 }
 
+/** The eligible target cards for an `addResourcesToAnyCard` behavior. EMPTY means
+ *  the resource would be SILENTLY LOST — no card can hold it — so the preview warns
+ *  instead of showing a fake "+N" gain (read-only; mirrors the live filter). */
+function addAnyCardCandidates(player: IPlayer, a: NonNullable<Behavior['addResourcesToAnyCard']> & object): ReadonlyArray<ICard> {
+  if (Array.isArray(a)) {
+    return [];
+  }
+  return new AddResourcesToCard(player, a.type, {
+    restrictedTag: a.tag,
+    min: a.min,
+    robotCards: a.robotCards !== undefined,
+  }).getCards();
+}
+
 /**
  * For a VARIABLE amount counted from game state (e.g. "1 M€ per city on Mars"),
  * the live BASIS — how many of the counted entity exist right now — so the chip
@@ -205,7 +219,12 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
   }
   if (behavior.addResourcesToAnyCard !== undefined && !Array.isArray(behavior.addResourcesToAnyCard)) {
     const a = behavior.addResourcesToAnyCard;
-    out.push({direction: 'gain', icon: a.type !== undefined ? cardResourceIcon(a.type) : 'resources', amount: ctx.count(a.count), note: 'to a card'});
+    // Only show the "+N to a card" gain when a card can actually HOLD it — with no
+    // eligible card the effect is skipped (the warning step says so), and a gain chip
+    // would be a lie (the silent-loss bug this closes).
+    if (addAnyCardCandidates(player, a).length > 0) {
+      out.push({direction: 'gain', icon: a.type !== undefined ? cardResourceIcon(a.type) : 'resources', amount: ctx.count(a.count), note: 'to a card'});
+    }
   }
   for (const g of GLOBAL) {
     const steps = behavior.global?.[g.key];
@@ -284,20 +303,25 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // between the two below in defer order, which is harmless since no step is
   // emitted for it.)
 
-  // Add a resource to ANY card → a card-target picker (when a choice is offered).
+  // Add a resource to ANY card → a card-target picker (when a choice is offered),
+  // OR a WARNING when no card can hold it (the resource would be silently lost).
   if (behavior.addResourcesToAnyCard !== undefined && !Array.isArray(behavior.addResourcesToAnyCard)) {
     const a = behavior.addResourcesToAnyCard;
     const count = ctx.count(a.count);
-    const model = new AddResourcesToCard(player, a.type, {
-      count,
-      restrictedTag: a.tag,
-      min: a.min,
-      robotCards: a.robotCards !== undefined,
-      autoSelect: a.autoSelect,
-    }).previewSelectCard();
-    if (model !== undefined) {
-      // The signed delta lets the picker show "N → N+count" per candidate card.
-      steps.push({kind: 'input', input: model, amount: count});
+    if (addAnyCardCandidates(player, a).length === 0) {
+      steps.push({kind: 'note', noteKind: 'warning', text: 'No eligible card — this resource is not added.'});
+    } else {
+      const model = new AddResourcesToCard(player, a.type, {
+        count,
+        restrictedTag: a.tag,
+        min: a.min,
+        robotCards: a.robotCards !== undefined,
+        autoSelect: a.autoSelect,
+      }).previewSelectCard();
+      if (model !== undefined) {
+        // The signed delta lets the picker show "N → N+count" per candidate card.
+        steps.push({kind: 'input', input: model, amount: count});
+      }
     }
   }
 

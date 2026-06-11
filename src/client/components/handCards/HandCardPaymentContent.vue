@@ -95,9 +95,15 @@
 
             <!-- CHOICES — the interactive target/parameter pickers for the play. -->
             <div v-if="selected !== undefined && selected.steps.length > 0" class="play-confirm__steps">
-              <span class="play-confirm__section-label" v-i18n>Choose targets</span>
+              <span v-if="hasInteractiveStep" class="play-confirm__section-label" v-i18n>Choose targets</span>
               <template v-for="(step, i) in selected.steps" :key="i">
-                <div v-if="step.kind === 'boardPlacement' || step.kind === 'note'" class="play-confirm__step play-confirm__step--placement">
+                <!-- WARNING — an effect with no valid target is SKIPPED; say so up
+                     front (orange) so the player is never surprised by a lost effect. -->
+                <div v-if="step.kind === 'note' && step.noteKind === 'warning'" class="play-confirm__warn">
+                  <span class="play-confirm__warn-glyph" aria-hidden="true">⚠</span>
+                  <span class="play-confirm__warn-text" v-i18n>{{ placementHint(step) }}</span>
+                </div>
+                <div v-else-if="step.kind === 'boardPlacement' || step.kind === 'note'" class="play-confirm__step play-confirm__step--placement">
                   <span class="play-confirm__step-glyph" aria-hidden="true">◎</span>
                   <span class="play-confirm__step-text" v-i18n>{{ placementHint(step) }}</span>
                 </div>
@@ -111,7 +117,7 @@
                                       @select="captureStep(i)($event)" />
                   <ActionTargetCard v-else-if="step.input.type === 'card'"
                                     :playerView="playerView"
-                                    :input="step.input"
+                                    :input="stepCardInput(step)"
                                     :amount="step.amount"
                                     :selectedName="capturedCardName(i)"
                                     @change="captureStep(i)($event)" />
@@ -182,8 +188,8 @@ import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Message} from '@/common/logs/Message';
 import {InputResponse, SelectProjectCardToPlayResponse} from '@/common/inputs/InputResponse';
-import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
-import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
+import {SelectProjectCardToPlayModel, SelectCardModel} from '@/common/models/PlayerInputModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -278,6 +284,11 @@ export default defineComponent({
       }
       return branch.steps.every((step, i) => step.kind !== 'input' || this.captured[i] !== undefined);
     },
+    // Whether any step is an interactive picker (drives the "Choose targets" label;
+    // a warning-only step set shows no label).
+    hasInteractiveStep(): boolean {
+      return this.selected?.steps.some((s) => s.kind === 'input') ?? false;
+    },
     // A short, honest "what's left before I can play this" line for the footer
     // readiness zone: name the FIRST missing decision (a target, then payment),
     // else confirm everything's set. English keys translated by the `v-i18n` host.
@@ -303,7 +314,12 @@ export default defineComponent({
     text(m: string | Message): string {
       return typeof m === 'string' ? m : m.message;
     },
-    placementHint(step: {kind: string, placementType?: string}): string {
+    placementHint(step: {kind: string, placementType?: string, text?: string | Message}): string {
+      // A note with explicit text (the warning, or a card-specific note) overrides
+      // the canned placement copy.
+      if (step.text !== undefined) {
+        return this.text(step.text);
+      }
       switch (step.placementType) {
       case 'ocean': return 'After confirming, choose where to place the ocean tile on the board.';
       case 'city': return 'After confirming, choose where to place the city tile on the board.';
@@ -347,6 +363,18 @@ export default defineComponent({
     captureStep(i: number): (out: InputResponse) => void {
       return (out: InputResponse) => {
         this.captured[i] = out;
+        // Keep cross-step NO-DUPLICATE picks consistent: if a LATER card step
+        // de-dupes against THIS one and had already picked the same card, clear it
+        // (it's no longer a valid candidate). The player re-picks a different card.
+        const name = (out.type === 'card') ? out.cards[0] : undefined;
+        if (name !== undefined && this.selected !== undefined) {
+          this.selected.steps.forEach((step, k) => {
+            const dedupe = (step as {dedupeFromSteps?: ReadonlyArray<number>}).dedupeFromSteps;
+            if (k > i && dedupe?.includes(i) && this.capturedCardName(k) === name) {
+              delete this.captured[k];
+            }
+          });
+        }
       };
     },
     noop(): void {
@@ -355,6 +383,24 @@ export default defineComponent({
     capturedCardName(i: number): CardName | undefined {
       const r = this.captured[i];
       return (r !== undefined && r.type === 'card') ? r.cards[0] : undefined;
+    },
+    // A card step's candidate list with any cards chosen in its `dedupeFromSteps`
+    // removed — so the same card can't be picked twice across linked target slots
+    // (e.g. Cyberia Systems copies TWO DIFFERENT building cards).
+    stepCardInput(step: ActionPreviewStep): SelectCardModel {
+      const input = (step as {input: SelectCardModel}).input;
+      const dedupe = (step as {dedupeFromSteps?: ReadonlyArray<number>}).dedupeFromSteps;
+      if (dedupe === undefined || dedupe.length === 0) {
+        return input;
+      }
+      const excluded = new Set<CardName>();
+      for (const j of dedupe) {
+        const name = this.capturedCardName(j);
+        if (name !== undefined) {
+          excluded.add(name);
+        }
+      }
+      return excluded.size === 0 ? input : {...input, cards: input.cards.filter((c) => !excluded.has(c.name))};
     },
     // SelectProjectCardToPlay's onsave — fired by saveData() when the payment is
     // valid. Captures the {type:'projectCard', card, payment} response.
@@ -606,6 +652,29 @@ export default defineComponent({
   &--answered { border-color: rgba(120, 230, 180, 0.5); }
 }
 .play-confirm__step-glyph { color: rgba(255, 200, 120, 0.9); }
+
+// WARNING — an effect that will be SKIPPED for lack of a valid target. Orange, so
+// the player is never surprised by a silently-lost effect.
+.play-confirm__warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 13px;
+  border-radius: 9px;
+  background: rgba(224, 150, 70, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(224, 150, 70, 0.4);
+}
+.play-confirm__warn-glyph {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: #f0b86a;
+  line-height: 1.3;
+}
+.play-confirm__warn-text {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #f4d3a6;
+}
 
 // The payment widget carries its own rows + summary; give the section a calm
 // surface so it reads as a distinct "dial your cost" zone.
