@@ -18,6 +18,7 @@
        :data-hint="reason"
        :data-test="dataTest"
        @click="onClick"
+       @dblclick="onDblClick"
        @keydown.enter.prevent="onClick"
        @keydown.space.prevent="onClick"
        @mouseenter="onEnter"
@@ -103,7 +104,7 @@ export default defineComponent({
       default: undefined,
     },
   },
-  emits: ['select', 'hover'],
+  emits: ['select', 'hover', 'activate'],
   computed: {
     fallbackText(): string {
       return this.node?.text ?? this.title;
@@ -118,6 +119,13 @@ export default defineComponent({
     onClick(): void {
       if (this.interactive) {
         this.$emit('select');
+      }
+    },
+    // Double-click = quick-activate (the host gates on availability — an
+    // unavailable action just stays selected with its reason shown).
+    onDblClick(): void {
+      if (this.interactive) {
+        this.$emit('activate');
       }
     },
     onEnter(e: MouseEvent | FocusEvent): void {

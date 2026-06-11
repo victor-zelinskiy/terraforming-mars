@@ -257,15 +257,14 @@
     min-height: 0;
 }
 .actions-board__master {
-    display: grid;
-    /* A fixed compact column count (JS-driven 1–3 by viewport width). */
-    grid-template-columns: repeat(var(--actions-master-cols, 3), minmax(0, 1fr));
-    align-content: start;
-    /* CRITICAL: size each group card to its OWN content height — a 1-action card
-       must NOT stretch to a 2-action card's height in the same row (the default
-       `align-items: stretch` left a tall empty space under single-action cards). */
-    align-items: start;
-    gap: 14px;
+    /* SMART PACKING via CSS multi-column (NOT a uniform grid). A grid forces every
+       row to the tallest card in it, so a 1-action card stranded in a row with a
+       2-action card kept a tall EMPTY gap below it — wasting space + forcing scroll.
+       Multi-column packs each column independently (`column-fill: balance` evens
+       the heights), so a 1-action card takes exactly one compact row's height and a
+       2-action card two — deterministic column-major order, no chaotic masonry. */
+    column-count: var(--actions-master-cols, 3);
+    column-gap: 14px;
     min-width: 0;
 }
 .actions-board__detail {
@@ -346,16 +345,24 @@
         linear-gradient(180deg, rgba(20, 30, 44, 0.9), rgba(12, 20, 32, 0.93));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    /* Multi-column item: never split a card across columns; vertical rhythm comes
+       from the per-item margin (multi-column has no `gap`). */
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    margin-bottom: 14px;
 }
 /* AVAILABLE — the actionable state reads as "act now": a calm cyan-mint frame. */
 .action-group--available {
     border-color: rgba(88, 214, 166, 0.4);
     box-shadow: 0 0 0 1px rgba(88, 214, 166, 0.1), 0 6px 18px rgba(0, 0, 0, 0.36);
 }
-.action-group--rules { opacity: 0.88; border-color: rgba(208, 154, 100, 0.24); }
-.action-group--soft { opacity: 0.94; }
-.action-group--activated { opacity: 0.8; border-color: rgba(106, 176, 230, 0.28); }
-.action-group--disabled-card { opacity: 0.58; filter: grayscale(0.45); }
+/* UNAVAILABLE states read clearly DIFFERENT from "act now" — desaturated + dimmed
+   + a status-coloured rim, so the player sees availability at a glance in the grid
+   (not only after opening the details). Still readable + selectable for details. */
+.action-group--rules { opacity: 0.8; filter: grayscale(0.45) saturate(0.7); border-color: rgba(208, 154, 100, 0.4); }
+.action-group--soft { opacity: 0.85; filter: grayscale(0.3) saturate(0.8); border-color: rgba(106, 176, 230, 0.32); }
+.action-group--activated { opacity: 0.66; filter: grayscale(0.55) saturate(0.65); border-color: rgba(106, 176, 230, 0.3); }
+.action-group--disabled-card { opacity: 0.55; filter: grayscale(0.55); }
 .action-group--corp.action-group--available {
     border-color: rgba(230, 200, 120, 0.48);
     box-shadow: 0 0 0 1px rgba(230, 200, 120, 0.14), 0 6px 18px rgba(0, 0, 0, 0.36);
@@ -528,10 +535,10 @@
     cursor: zoom-in;
     border-radius: 10px;
     transition: filter 0.15s ease, transform 0.15s ease;
-    /* Zero the legacy asymmetric card margin + scale down so the card reads centred
-       and compact inside the narrow detail column. */
-    > .card-container { margin: 0; zoom: 0.62; }
-    &:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    /* SECONDARY: the source card supports, it doesn't dominate — kept SMALL (the
+       description is the hero; click the card if you want a closer look). */
+    > .card-container { margin: 0; zoom: 0.46; }
+    &:hover { filter: brightness(1.08); transform: translateY(-1px); }
     &:focus-visible { outline: 2px solid rgba(127, 212, 255, 0.7); outline-offset: 2px; }
 }
 .action-detail--empty {
@@ -620,34 +627,55 @@
     color: #6f8aa6;
     letter-spacing: 0.3px;
 }
-/* Status / constraints block (non-available action). */
+/* Status / constraints ALERT (non-available action) — a prominent notice with a
+   glyph + heading + the exact reason, so the disabled CTA is never the only signal. */
 .action-detail__status {
     display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 8px 11px;
-    border-radius: 9px;
-    font-size: 11.5px;
-    line-height: 1.4;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 13px;
+    border-radius: 10px;
 }
-.action-detail__status-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
+.action-detail__status-icon {
     flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 700;
+}
+.action-detail__status-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+.action-detail__status-head {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+.action-detail__status-text {
+    font-size: 13px;
+    line-height: 1.42;
+    color: #e7eef6;
 }
 .action-detail__status--rules {
-    color: #f3c49a;
-    background: rgba(208, 154, 100, 0.12);
-    box-shadow: inset 0 0 0 1px rgba(208, 154, 100, 0.22);
-    .action-detail__status-dot { background: #d09a64; box-shadow: 0 0 6px rgba(208, 154, 100, 0.6); }
+    background: rgba(208, 154, 100, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(208, 154, 100, 0.34);
+    .action-detail__status-icon { color: #1a1206; background: #e8b878; box-shadow: 0 0 10px rgba(232, 184, 120, 0.5); }
+    .action-detail__status-head { color: #f3c49a; }
 }
 .action-detail__status--soft,
 .action-detail__status--activated {
-    color: #9fb6cc;
-    background: rgba(106, 176, 230, 0.1);
-    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.18);
-    .action-detail__status-dot { background: #6ab0e6; box-shadow: 0 0 6px rgba(106, 176, 230, 0.5); }
+    background: rgba(106, 176, 230, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.3);
+    .action-detail__status-icon { color: #04121e; background: #7fc3ee; box-shadow: 0 0 10px rgba(106, 176, 230, 0.45); }
+    .action-detail__status-head { color: #9ecbe6; }
 }
 .action-detail__section {
     display: flex;
@@ -655,18 +683,23 @@
     gap: 7px;
 }
 .action-detail__label {
-    font-size: 8.5px;
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 1.4px;
+    letter-spacing: 1.5px;
     text-transform: uppercase;
-    color: #6f8aa6;
+    color: #7392b0;
 }
+/* The action DESCRIPTION dominates the panel — it's the key "understand the
+   action" block, so it's the largest, brightest body text here. */
 .action-detail__desc {
     margin: 0;
-    font-size: 12px;
-    line-height: 1.5;
-    color: #cdddee;
+    font-size: 14.5px;
+    line-height: 1.55;
+    font-weight: 500;
+    color: #eaf4fe;
 }
+/* The description section gets a touch more breathing room so it reads as the hero. */
+.action-detail__section:has(.action-detail__desc) { gap: 5px; }
 /* Preview skeleton (while the cost/result fetch is in flight). */
 .action-detail__skeleton {
     display: flex;
