@@ -7,7 +7,7 @@ import {Resource} from '../../common/Resource';
 import {Message} from '../../common/logs/Message';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor} from '../../common/models/ActionPreviewModel';
 import {PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {effectsForBehavior} from '../models/actionPreview';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
@@ -132,6 +132,18 @@ export function paymentStep(player: IPlayer, amount: number, options?: SelectPay
  */
 export function boardPlacementStep(placementType: string): ActionPreviewStep {
   return {kind: 'boardPlacement', placementType};
+}
+
+/**
+ * A generic "what happens next" CONTEXT note for a follow-up the modal can't
+ * pre-collect and that isn't a standard tile placement — a colony pick, a special
+ * board move (move the nomads), etc. `noteKind` picks the premium copy
+ * (`colony`/`board`/`generic`); pass `text` (an i18n key/Message) to override it
+ * with a card-specific line. So the player is NEVER left guessing what confirming
+ * will require.
+ */
+export function noteStep(noteKind: 'colony' | 'board' | 'generic', text?: string | Message): ActionPreviewStep {
+  return {kind: 'note', noteKind, text};
 }
 
 /** A "choose an amount" step (e.g. spend X floaters) — hosts the modern stepper. */
@@ -272,13 +284,15 @@ function base(card: ICard) {
 /**
  * A single confirm-only branch with the given steps. `available` defaults to the
  * card's own `canAct`. Use for a bespoke action that presents at most one linear
- * choice after activation.
+ * choice after activation. `opts.reveal` marks a REVEAL / deck-check action so the
+ * modal shows the premium reveal slot (SearchForLife / AsteroidDeflectionSystem).
  */
 export function singleBranch(
   card: ActionCard,
   player: IPlayer,
   steps: ReadonlyArray<ActionPreviewStep> = [],
   effects: ReadonlyArray<ActionEffect> = [],
+  opts: {reveal?: ActionRevealDescriptor} = {},
 ): ActionPreview {
   const branch: ActionPreviewBranch = {
     index: -1,
@@ -287,6 +301,7 @@ export function singleBranch(
     renderKeys: [],
     effects,
     steps,
+    reveal: opts.reveal,
   };
   return {...base(card), kind: 'bespoke', branches: [branch]};
 }

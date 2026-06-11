@@ -10,6 +10,8 @@ import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import * as actionReveals from '../actionReveals';
+import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {Resource} from '../../../common/Resource';
 import {searchForLife} from '../render/DynamicVictoryPoints';
 import {max} from '../Options';
@@ -53,12 +55,21 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
   public actionUnavailableReason(player: IPlayer) {
     return player.game.projectDeck.canDraw(1) ? actionReason.needMoreMC(player, 1) : actionReason.deckEmpty();
   }
+  // The science gain on a match (the reward chip), used both in the reveal
+  // descriptor (the POTENTIAL reward, shown before confirming) and when recording
+  // the actual result. `science` is the card-resource icon key.
+  private revealReward(): ActionEffect {
+    return actionReveals.cardResourceReward('science', 1);
+  }
+
   // Spend 1 M€, reveal the top card; a science resource is gained ONLY if it has
-  // a microbe tag — un-mirrorable, so only the cost is shown (no science gain chip).
+  // a microbe tag. The outcome is random, so it rides the premium reveal slot
+  // (check: microbe tag → reward: science here) instead of a fixed gain chip.
   public actionPreview(player: IPlayer) {
-    return actionPreviews.singleBranch(this, player, [], [
-      actionPreviews.stockCost(player, Resource.MEGACREDITS, 1),
-    ]);
+    return actionPreviews.singleBranch(this, player,
+      [],
+      [actionPreviews.stockCost(player, Resource.MEGACREDITS, 1)],
+      {reveal: {deck: 'project', check: {tag: Tag.MICROBE, label: 'Microbe tag'}, reward: this.revealReward()}});
   }
 
   public action(player: IPlayer) {
@@ -66,11 +77,14 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
       .andThen(() => {
         const card = player.game.projectDeck.drawOrThrow(player.game);
         player.game.log('${0} revealed and discarded ${1}', (b) => b.player(player).card(card, {tags: true}));
-        if (card.tags.includes(Tag.MICROBE)) {
+        const found = card.tags.includes(Tag.MICROBE);
+        if (found) {
           player.addResourceTo(this, 1);
           player.game.log('${0} found life!', (b) => b.player(player));
         }
-
+        // Record the reveal result (revealed card + whether life was found) for
+        // the premium reveal-result overlay — BEFORE the card is discarded.
+        actionReveals.recordReveal(player, this.name, card, found, this.revealReward());
         player.game.projectDeck.discard(card);
       });
 

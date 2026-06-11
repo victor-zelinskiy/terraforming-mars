@@ -116,6 +116,13 @@
            so the footer CTA always stays anchored. The modal widens (widthClass)
            so candidates spread horizontally before this block ever scrolls. -->
       <div v-if="!loading && preview !== undefined && hasChoices" class="action-confirm__choices">
+        <!-- REVEAL / deck-check action: the premium reveal slot in its EMPTY state
+             (what's checked + the reward on a match). After confirming, the result
+             arrives in the App-level RevealResultOverlay (same chrome). -->
+        <ActionRevealSlot v-if="selected !== undefined && selected.reveal !== undefined"
+                          state="empty"
+                          :reveal="selected.reveal" />
+
         <!-- FALLBACK branch picker — only when the modal was NOT opened for a
              specific branch (the overlay normally splits branches into their own
              buttons and passes the chosen one). Shows EVERY branch with its reason
@@ -198,9 +205,12 @@
         <!-- Interactive choices for the selected branch. -->
         <div v-if="selected !== undefined && selected.steps.length > 0" class="action-confirm__steps">
           <template v-for="(step, i) in selected.steps" :key="i">
-            <div v-if="step.kind === 'boardPlacement'" class="action-confirm__step action-confirm__step--placement">
+            <!-- A "what happens next" context note (tile placement / colony / a
+                 special board move) — the modal can't pre-collect it, so it tells
+                 the player exactly what confirming will require. -->
+            <div v-if="step.kind === 'boardPlacement' || step.kind === 'note'" class="action-confirm__step action-confirm__step--placement">
               <span class="action-confirm__step-glyph" aria-hidden="true">◎</span>
-              <span class="action-confirm__step-text" v-i18n>{{ placementHint(step) }}</span>
+              <span class="action-confirm__step-text" v-i18n>{{ noteText(step) }}</span>
             </div>
             <div v-else class="action-confirm__step action-confirm__step--input"
                  :class="{
@@ -277,7 +287,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Message} from '@/common/logs/Message';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionRevealDescriptor} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ActionGroup, playerActionGroups, actionNodeDescription} from '@/client/components/actions/actionExtraction';
@@ -292,6 +302,7 @@ import SelectPaymentV2 from '@/client/components/SelectPaymentV2.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
+import ActionRevealSlot from '@/client/components/actions/ActionRevealSlot.vue';
 import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
@@ -307,12 +318,12 @@ export type HandPickRequest = {
   reasons: Record<string, string>;
 };
 
-type ConfirmPayload = {branchIndex: number, optionResponse: InputResponse | undefined, stepResponses: ReadonlyArray<InputResponse>};
+type ConfirmPayload = {branchIndex: number, optionResponse: InputResponse | undefined, stepResponses: ReadonlyArray<InputResponse>, reveal?: ActionRevealDescriptor};
 type GroupNode = ActionGroup['nodes'][number];
 
 export default defineComponent({
   name: 'CardActionConfirmContent',
-  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, ModalInputHost, ModernPlayerPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress},
+  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, ModalInputHost, ModernPlayerPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot},
   directives: {stripActionPrefix},
   props: {
     cardName: {
@@ -389,7 +400,7 @@ export default defineComponent({
       if (b === undefined) {
         return false;
       }
-      return b.optionInput !== undefined || b.steps.length > 0;
+      return b.optionInput !== undefined || b.steps.length > 0 || b.reveal !== undefined;
     },
     // The number of selectable CARD tiles the choices block will render. Drives the
     // width bucket (widthClass) so the modal expands horizontally — spreading the
@@ -602,12 +613,22 @@ export default defineComponent({
       };
       this.$emit('pick-card', request);
     },
-    // A specific, premium "what happens next" line for a board-placement step,
-    // keyed by the tile type the preview reported (ocean / city / greenery), so
-    // the player knows exactly what they'll place after confirming. Falls back to
-    // the generic note for any other tile. Returned as an English i18n key — the
-    // `v-i18n` on the host span translates it.
-    placementHint(step: {kind: string, placementType?: string}): string {
+    // A specific, premium "what happens next" line for a context note — either a
+    // board-tile placement (keyed by tile type) or a generic `note` step (colony /
+    // special board move / generic), so the player knows EXACTLY what confirming
+    // will require. A `note` with an explicit `text` overrides the canned copy.
+    // Returned as an English i18n key — the `v-i18n` on the host span translates it.
+    noteText(step: {kind: string, placementType?: string, noteKind?: string, text?: string | Message}): string {
+      if (step.kind === 'note') {
+        if (step.text !== undefined) {
+          return this.text(step.text);
+        }
+        switch (step.noteKind) {
+        case 'colony': return 'After confirming, choose a colony.';
+        case 'board': return 'After confirming, choose a location on the board.';
+        default: return 'After confirming, you will make one more choice.';
+        }
+      }
       switch (step.placementType) {
       case 'ocean': return 'After confirming, choose where to place the ocean tile on the board.';
       case 'city': return 'After confirming, choose where to place the city tile on the board.';
@@ -688,7 +709,7 @@ export default defineComponent({
           stepResponses.push(this.captured[i]);
         }
       });
-      const payload: ConfirmPayload = {branchIndex: branch.index, optionResponse: this.capturedOption, stepResponses};
+      const payload: ConfirmPayload = {branchIndex: branch.index, optionResponse: this.capturedOption, stepResponses, reveal: branch.reveal};
       this.$emit('confirm', payload);
     },
     openFullscreen(): void {

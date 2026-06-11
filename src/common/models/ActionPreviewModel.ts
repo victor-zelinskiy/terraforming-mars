@@ -1,5 +1,6 @@
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
+import {Tag} from '../cards/Tag';
 import {Message} from '../logs/Message';
 import {PlayerInputModel} from './PlayerInputModel';
 
@@ -70,6 +71,26 @@ export type ActionEffect = {
   basis?: {count: number, label: string};
 };
 
+/**
+ * Describes a REVEAL / DECK-CHECK action: it reveals the top card of a deck and
+ * checks a CONDITION on it; on a match the player gets `reward`, otherwise nothing.
+ * The outcome is random, so it can't be shown as a fixed `effect` chip — instead
+ * the confirm modal renders a dedicated "reveal slot": before confirming it shows
+ * WHAT will be checked + the reward on a match; after confirming the live result
+ * (the revealed card + a success/fail marker) arrives via `PlayerViewModel.lastReveal`.
+ * Declared by the card's co-located `actionPreview` hook. SearchForLife (microbe
+ * tag → science resource) and AsteroidDeflectionSystem (space tag → asteroid) are
+ * the in-scope cases — both check a TAG.
+ */
+export type ActionRevealDescriptor = {
+  /** Which deck the top card is revealed from (only the project deck today). */
+  deck: 'project';
+  /** The condition checked on the revealed card. A tag check, with a label. */
+  check: {tag?: Tag, label: string | Message};
+  /** What the player gains on a match — reuses the chip type (e.g. science +1 here). */
+  reward: ActionEffect;
+};
+
 export type ActionPreviewBranch = {
   /**
    * The RUNTIME index of this branch in the `OrOptions` the server builds when
@@ -103,6 +124,9 @@ export type ActionPreviewBranch = {
   /** Ordered INTERACTIVE choices that arrive as SEPARATE prompts AFTER the branch
    *  pick (a SelectOption's deferred follow-ups), collected in the confirm modal. */
   steps: ReadonlyArray<ActionPreviewStep>;
+  /** Present when this action REVEALS a deck card to check a condition — the modal
+   *  shows the premium reveal slot instead of (or alongside) a fixed result chip. */
+  reveal?: ActionRevealDescriptor;
 };
 
 /**
@@ -116,6 +140,10 @@ export type ActionPreviewBranch = {
  *                      be pre-chosen in the modal; the client submits everything
  *                      up to it, then the leftover `SelectSpace` hands off to
  *                      `PlacementBanner`. Shown as an honest note.
+ *  - `note`          — a generic "what happens next" context line for a follow-up
+ *                      the modal can't pre-collect and that isn't a standard tile
+ *                      placement (a colony pick, a special board move, etc.). The
+ *                      `noteKind` selects the premium copy; `text` overrides it.
  */
 export type ActionPreviewStep =
   | {
@@ -130,4 +158,5 @@ export type ActionPreviewStep =
      */
     amount?: number,
   }
-  | {kind: 'boardPlacement', placementType: string};
+  | {kind: 'boardPlacement', placementType: string}
+  | {kind: 'note', noteKind: 'colony' | 'board' | 'generic', text?: string | Message};

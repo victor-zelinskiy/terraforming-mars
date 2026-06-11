@@ -69,6 +69,7 @@ import {ChooseCards} from './deferredActions/ChooseCards';
 import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
 import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
+import {RevealResultModel} from '../common/models/RevealResultModel';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
 import {Counter} from './behavior/Counter';
 import {TRSource} from '../common/cards/TRSource';
@@ -143,6 +144,9 @@ export class Player implements IPlayer {
   // Transient "you drew cards" reveal queue — NOT serialized (see serialize()).
   public cardDrawReveals: Array<CardDrawReveal> = [];
   private nextCardDrawRevealId = 1;
+  // Transient result of the most recent reveal/deck-check action (self-only,
+  // cleared at the start of the next input). See IPlayer.lastReveal.
+  public lastReveal: RevealResultModel | undefined = undefined;
   public playedCards: PlayedCards = new PlayedCards();
   public draftedCards: Array<IProjectCard> = [];
   public draftHand: Array<IProjectCard> = [];
@@ -1756,6 +1760,10 @@ export class Player implements IPlayer {
     if (this.waitingFor === undefined || this.waitingForCb === undefined) {
       throw new Error('Not waiting for anything');
     }
+    // A new input ends the visibility of the previous reveal result. The action
+    // being processed now (if it's a reveal) sets a fresh one via recordReveal,
+    // which survives because it runs AFTER this point.
+    this.lastReveal = undefined;
     const waitingFor = this.waitingFor;
     const waitingForCb = this.waitingForCb;
     this.waitingFor = undefined;

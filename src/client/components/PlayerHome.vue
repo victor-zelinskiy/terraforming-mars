@@ -685,6 +685,8 @@ import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverl
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import CardActionConfirmContent from '@/client/components/actions/CardActionConfirmContent.vue';
+import {beginReveal} from '@/client/components/actions/revealResultState';
+import {ActionRevealDescriptor} from '@/common/models/ActionPreviewModel';
 import {playerEffectCount} from '@/client/components/effects/effectExtraction';
 import {playerActionSourceCount} from '@/client/components/actions/actionExtraction';
 import {totalPlayedCards} from '@/client/components/playedCards/playedCardGroups';
@@ -2344,11 +2346,18 @@ export default defineComponent({
       this.pendingCardAction = {cardName: payload.cardName, card, branchPosition: payload.branchPosition};
       this.activeOverlay = null; // close the overlay behind the modal
     },
-    onCardActionConfirm(payload: {branchIndex: number, optionResponse?: unknown, stepResponses: ReadonlyArray<unknown>}): void {
+    onCardActionConfirm(payload: {branchIndex: number, optionResponse?: unknown, stepResponses: ReadonlyArray<unknown>, reveal?: ActionRevealDescriptor}): void {
       if (this.pendingCardAction === undefined) {
         return;
       }
-      this.submitCardActionBatch(this.pendingCardAction.cardName, payload.branchIndex, payload.optionResponse, payload.stepResponses);
+      const cardName = this.pendingCardAction.cardName;
+      // A REVEAL / deck-check action: arm the App-level reveal-result overlay
+      // BEFORE the confirm modal closes, so it bridges the server round-trip
+      // (pending → result) and reads as a continuation of the same modal.
+      if (payload.reveal !== undefined) {
+        beginReveal(cardName, payload.reveal);
+      }
+      this.submitCardActionBatch(cardName, payload.branchIndex, payload.optionResponse, payload.stepResponses);
       this.pendingCardAction = undefined;
     },
     onCardActionCancel(): void {

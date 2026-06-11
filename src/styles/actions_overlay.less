@@ -1039,6 +1039,215 @@
     .action-confirm__actions { justify-content: flex-end; }
 }
 
+/* ─── Reveal / deck-check: the slot (empty / pending / result) ──────────
+ * A premium "reveal area" that reads as a natural part of the confirm modal:
+ * a card-shaped slot, the condition being checked above it, the outcome below.
+ * Calm success/fail markers — never giant, never acid. */
+.action-reveal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+/* The condition + reward on a match: "ИЩЕМ ⟨tag⟩ → ⟨reward⟩". */
+.action-reveal__check {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: rgba(10, 22, 34, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.2);
+}
+.action-reveal__check-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: #7f9bb8;
+}
+.action-reveal__check-tag.card-tag {
+    margin: 0;
+    transform: scale(0.92);
+}
+.action-reveal__check-arrow { color: rgba(150, 200, 230, 0.6); font-size: 14px; }
+
+/* The card slot — a fixed card-shaped frame the reveal lands in. */
+.action-reveal__slot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 200px;
+    min-height: 268px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px dashed rgba(106, 176, 230, 0.34);
+    background:
+        radial-gradient(120% 80% at 50% 0%, rgba(127, 212, 255, 0.08), transparent 64%),
+        linear-gradient(180deg, rgba(16, 28, 42, 0.7), rgba(10, 18, 28, 0.78));
+    box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.4), 0 0 18px var(--ac-accent-glow);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    &--met {
+        border-style: solid;
+        border-color: rgba(88, 214, 166, 0.7);
+        box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.4), 0 0 22px rgba(88, 214, 166, 0.25);
+    }
+    &--miss {
+        border-style: solid;
+        border-color: rgba(224, 122, 122, 0.5);
+        box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.42);
+    }
+}
+/* Two subtle L-corner ticks so the empty slot still reads as a premium frame. */
+.action-reveal__slot-corner {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+    border-color: var(--ac-accent-soft);
+    opacity: 0.7;
+    &--tl { top: 7px; left: 7px; border-top: 2px solid; border-left: 2px solid; }
+    &--br { bottom: 7px; right: 7px; border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+/* EMPTY placeholder. */
+.action-reveal__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+    color: #8aa6c2;
+}
+.action-reveal__placeholder-glyph {
+    font-size: 30px;
+    line-height: 1;
+    color: var(--ac-accent);
+    opacity: 0.8;
+    filter: drop-shadow(0 0 8px var(--ac-accent-glow));
+    animation: action-reveal-float 2.4s ease-in-out infinite;
+}
+.action-reveal__placeholder-text {
+    font-size: 11.5px;
+    line-height: 1.4;
+    max-width: 150px;
+    letter-spacing: 0.02em;
+}
+
+/* PENDING bridge. */
+.action-reveal__pending {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    color: #aecbe6;
+}
+.action-reveal__pending-ring {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid rgba(106, 176, 230, 0.25);
+    border-top-color: var(--ac-accent-bright);
+    animation: action-reveal-spin 0.9s linear infinite;
+}
+.action-reveal__pending-text {
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* RESULT — the revealed card + a corner marker. */
+.action-reveal__card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: action-reveal-pop 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    > :deep(.card-container) { margin: 0; zoom: 0.6; }
+}
+.action-reveal__marker {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-size: 15px;
+    font-weight: 700;
+    color: #06120c;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    &--met { background: linear-gradient(180deg, #6fe6b4, #34b98a); box-shadow: 0 0 12px rgba(88, 214, 166, 0.5); }
+    &--miss { background: linear-gradient(180deg, #e89a9a, #c96f6f); color: #2a0e0e; }
+}
+
+/* OUTCOME line below the slot. */
+.action-reveal__outcome {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    &--met { background: rgba(34, 70, 56, 0.4); box-shadow: inset 0 0 0 1px rgba(88, 214, 166, 0.34); }
+    &--miss { background: rgba(46, 30, 30, 0.4); box-shadow: inset 0 0 0 1px rgba(224, 122, 122, 0.28); }
+}
+.action-reveal__outcome-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    .action-reveal__outcome--met & { color: #8fe6c2; }
+    .action-reveal__outcome--miss & { color: #e6a9a9; }
+}
+.action-reveal__outcome-glyph { color: #9bb0c6; font-size: 14px; }
+
+@keyframes action-reveal-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes action-reveal-spin { to { transform: rotate(360deg); } }
+@keyframes action-reveal-pop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .action-reveal__placeholder-glyph,
+    .action-reveal__pending-ring,
+    .action-reveal__card { animation: none; }
+}
+
+/* ─── Reveal-result overlay (App-level, reuses the .action-confirm frame) ─── */
+.reveal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.reveal-overlay__backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(8, 14, 22, 0.55) 0%, rgba(2, 4, 8, 0.85) 100%);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    animation: action-confirm-hero-in 180ms ease-out;
+}
+.reveal-overlay__card {
+    position: relative;
+    z-index: 1;
+    animation: action-confirm-hero-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    .action-confirm__frame { width: var(--ac-width, 600px); max-width: calc(100vw - 48px); }
+}
+.reveal-overlay__action { align-items: center; justify-content: center; }
+
+/* The overlay's source card is informational only — no zoom affordance. */
+.action-confirm__card--static {
+    cursor: default;
+    &:hover, &:focus-visible { transform: none; box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.14), 0 8px 22px rgba(0, 0, 0, 0.42); }
+}
+
 /* ─── Dev playground (?actionsPlayground) — reuses the effects look ───── */
 .actions-playground {
     position: fixed;
