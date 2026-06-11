@@ -37,6 +37,12 @@
             <Card :card="cardModel" />
             <span class="action-confirm__zoom" aria-hidden="true">⤢</span>
           </button>
+          <!-- REVEAL / deck-check: the slot sits UNDER the source (this column has
+               the vertical room), so the revealed card later appears EXACTLY here
+               (the App-level result overlay mirrors this layout). -->
+          <ActionRevealSlot v-if="!loading && selected !== undefined && selected.reveal !== undefined"
+                            state="empty"
+                            :reveal="selected.reveal" />
         </aside>
 
         <section class="action-confirm__action">
@@ -116,13 +122,6 @@
            so the footer CTA always stays anchored. The modal widens (widthClass)
            so candidates spread horizontally before this block ever scrolls. -->
       <div v-if="!loading && preview !== undefined && hasChoices" class="action-confirm__choices">
-        <!-- REVEAL / deck-check action: the premium reveal slot in its EMPTY state
-             (what's checked + the reward on a match). After confirming, the result
-             arrives in the App-level RevealResultOverlay (same chrome). -->
-        <ActionRevealSlot v-if="selected !== undefined && selected.reveal !== undefined"
-                          state="empty"
-                          :reveal="selected.reveal" />
-
         <!-- FALLBACK branch picker — only when the modal was NOT opened for a
              specific branch (the overlay normally splits branches into their own
              buttons and passes the chosen one). Shows EVERY branch with its reason
@@ -400,7 +399,9 @@ export default defineComponent({
       if (b === undefined) {
         return false;
       }
-      return b.optionInput !== undefined || b.steps.length > 0 || b.reveal !== undefined;
+      // A reveal slot is NOT a choice — it lives under the source, not in the
+      // choices block (so a reveal-only action shows no empty choices area).
+      return b.optionInput !== undefined || b.steps.length > 0;
     },
     // The number of selectable CARD tiles the choices block will render. Drives the
     // width bucket (widthClass) so the modal expands horizontally — spreading the
