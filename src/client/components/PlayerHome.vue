@@ -1236,6 +1236,14 @@ export default defineComponent({
     if (isClientHandPickActive()) {
       cancelClientHandSelect();
     }
+    // SAME safety net for the РАЗЫГРАНО board pick: if we MOUNTED with a played
+    // pick still flagged active, a server round-trip happened mid-pick → its
+    // initiating modal (component data: pendingPlayCard / pendingCardAction) is
+    // gone, so the pick can never deliver. Cancel it so the player isn't left with
+    // a stale board pick mode (overlay re-opening with nowhere to deliver to).
+    if (playedCardsPickState.active) {
+      cancelPlayedCardsPick();
+    }
     // Re-arm the actions overlay across the playerkey remount (its selection +
     // filters + preview cache persisted in module state). Only when it was left
     // open and nothing else (a server-driven / mandatory overlay) claimed the slot.
@@ -2132,6 +2140,16 @@ export default defineComponent({
       if (isClientHandPickActive()) {
         return;
       }
+      // SAME for the РАЗЫГРАНО board pick (a >3-candidate card-target choice hosted
+      // on the played board): its initiating play / action-confirm modal is
+      // SUPPRESSED behind it, so an outside click must NOT dismiss it — that would
+      // strand the suppressed modal and the pick (the КАРТЫ pick above already has
+      // this exemption; the played pick was missing it, which let a stray click
+      // close the board and flash the modal back). Abandon it via the board's
+      // ОТМЕНА / ✕ instead.
+      if (playedCardsPickState.active) {
+        return;
+      }
       // A mandatory prompt (hand select / hand play / standard project) can't be
       // dismissed by clicking away — minimize it to its pill instead of
       // dropping the overlay.
@@ -2401,6 +2419,14 @@ export default defineComponent({
       }
       this.submitCardActionBatch(cardName, payload.branchIndex, payload.optionResponse, payload.stepResponses);
       this.pendingCardAction = undefined;
+      // After CONFIRMING, the player should land back on the board to SEE the
+      // action's effect (the delta-chips animating on resources / parameters), NOT
+      // be bounced back into the ДЕЙСТВИЯ overlay. Clear its persisted open-flag so
+      // the post-submit playerkey remount's mounted() re-arm doesn't re-open it.
+      // (Cancel keeps the flag — onCardActionCancel restores the overlay.) A REVEAL
+      // action still shows its drawn card via the App-level RevealResultOverlay,
+      // which is armed above and independent of this overlay.
+      actionsOverlayState.open = false;
     },
     onCardActionCancel(): void {
       this.pendingCardAction = undefined;

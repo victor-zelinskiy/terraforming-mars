@@ -219,6 +219,28 @@
                                   :playerinput="step.input"
                                   :onsave="noop"
                                   @select="captureStep(i)($event)" />
+              <!-- A card-target STEP from your OWN board with MORE THAN 3 candidates
+                   routes to the РАЗЫГРАНО board (pick the real card) instead of the
+                   cramped inline tile grid (e.g. Floater Technology, 5 floater cards).
+                   ≤3 stays inline below. -->
+              <div v-else-if="step.input.type === 'card' && isPlayedOverlayStep(step)" class="action-confirm__handpick">
+                <div v-if="chosenStepCard(step, i) !== undefined" class="action-confirm__handpick-chosen">
+                  <button type="button"
+                          class="action-confirm__handpick-card"
+                          :aria-label="$t('Open fullscreen')"
+                          @click.capture.stop="openStepFullscreen(step, i)">
+                    <Card :card="chosenStepCard(step, i)!" />
+                  </button>
+                  <button type="button" class="action-confirm__handpick-change" @click="requestPlayedPickStep(i, step)" :data-test="'action-step-pick-change-' + i">
+                    <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
+                    <span v-i18n>Choose another card</span>
+                  </button>
+                </div>
+                <button v-else type="button" class="action-confirm__handpick-btn" @click="requestPlayedPickStep(i, step)" :data-test="'action-step-pick-' + i">
+                  <span class="action-confirm__handpick-btn-glyph" aria-hidden="true">▦</span>
+                  <span class="action-confirm__handpick-btn-label" v-i18n>Choose a card on your board</span>
+                </button>
+              </div>
               <ActionTargetCard v-else-if="step.input.type === 'card'"
                                 :playerView="playerView"
                                 :input="step.input"
@@ -283,7 +305,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Message} from '@/common/logs/Message';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {ActionPreview, ActionPreviewBranch, ActionRevealDescriptor} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionRevealDescriptor} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ActionGroup, playerActionGroups, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
@@ -360,8 +382,13 @@ export default defineComponent({
       // True between emitting `pick-card` and the result arriving via the bridge,
       // so a stale epoch bump can't capture into the wrong slot.
       awaitingPick: false,
-      // Same guard for the РАЗЫГРАНО-board pick (a >3-candidate own-card target).
+      // Same guard for the РАЗЫГРАНО-board pick of the branch's OWN optionInput.
       awaitingPlayedPick: false,
+      // The branch STEP index awaiting a РАЗЫГРАНО-board pick (a >3-candidate own-
+      // card target step, e.g. Floater Technology's "add a floater to a card" with
+      // 5 candidates), so the delivered card captures into the RIGHT step slot.
+      // undefined = not awaiting a step pick.
+      awaitingPlayedPickStep: undefined as number | undefined,
       preview: undefined as ActionPreview | undefined,
       loading: true,
       selected: undefined as ActionPreviewBranch | undefined,
@@ -438,15 +465,17 @@ export default defineComponent({
       const b = this.selected;
       if (b !== undefined) {
         // The branch's own optionInput counts ONLY when it renders as inline tiles
-        // (ActionTargetCard). A pick FROM HAND routes to the КАРТЫ В РУКЕ overlay
-        // behind a single "Pick a card from hand" CTA — it shows NO tiles here, so
-        // it must NOT widen the modal (the Self-Replicating Robots case).
-        if (b.optionInput !== undefined && !this.isHandCardInput(b.optionInput)) {
+        // (ActionTargetCard). A pick FROM HAND routes to the КАРТЫ В РУКЕ overlay,
+        // and a >3-candidate own-board pick routes to the РАЗЫГРАНО board — both
+        // behind a single CTA showing NO tiles here, so neither must widen the modal.
+        if (b.optionInput !== undefined && !this.isHandCardInput(b.optionInput) && !this.isPlayedOverlayInput(b.optionInput)) {
           n += countCards(b.optionInput as {type: string});
         }
-        // Steps with a 'card' input always render inline tiles.
+        // Steps with a 'card' input render inline tiles UNLESS they route to the
+        // РАЗЫГРАНО board (>3 own-tableau candidates) — those show a single CTA, so
+        // they don't widen the modal either.
         for (const step of b.steps) {
-          if (step.kind === 'input') {
+          if (step.kind === 'input' && !this.isPlayedOverlayStep(step)) {
             n += countCards(step.input as {type: string});
           }
         }
@@ -638,13 +667,23 @@ export default defineComponent({
         this.captureOption({type: 'card', cards: [card]});
       }
     },
-    // A card picked on the РАЗЫГРАНО board was delivered back via the bridge.
+    // A card picked on the РАЗЫГРАНО board was delivered back via the bridge —
+    // route it to whichever pick we requested: a branch STEP (the wide steps block)
+    // takes precedence over the branch's own optionInput.
     playedPickEpoch(): void {
+      const card = playedCardActionPickResult.card;
+      if (this.awaitingPlayedPickStep !== undefined) {
+        const i = this.awaitingPlayedPickStep;
+        this.awaitingPlayedPickStep = undefined;
+        if (card !== undefined) {
+          this.captureStep(i)({type: 'card', cards: [card]});
+        }
+        return;
+      }
       if (!this.awaitingPlayedPick) {
         return;
       }
       this.awaitingPlayedPick = false;
-      const card = playedCardActionPickResult.card;
       if (card !== undefined) {
         this.captureOption({type: 'card', cards: [card]});
       }
@@ -715,6 +754,59 @@ export default defineComponent({
       }
       this.awaitingPlayedPick = true;
       this.$emit('pick-played-card', {title: input.title, selectable: input.cards.map((c) => c.name)});
+    },
+    // True when a STEP's 'card' input is a pick from your OWN tableau with MORE
+    // THAN 3 candidates — too many for the cramped inline tile grid, so route it to
+    // the РАЗЫГРАНО board. Mirrors `isPlayedOverlayInput` (which handles the branch's
+    // optionInput) for the wide steps block.
+    isPlayedOverlayStep(step: ActionPreviewStep): boolean {
+      if (step.kind !== 'input' || step.input.type !== 'card') {
+        return false;
+      }
+      const cards = (step.input as SelectCardModel).cards ?? [];
+      if (cards.length <= PLAYED_PICK_OVERLAY_THRESHOLD) {
+        return false;
+      }
+      const tableau = new Set((this.playerView.thisPlayer.tableau ?? []).map((c) => c.name));
+      return cards.every((c) => tableau.has(c.name));
+    },
+    // Hand off a card-target STEP's pick to the РАЗЫГРАНО board (PlayerHome opens it
+    // in pick mode + suppresses this modal; the picked card returns via the
+    // `playedPickEpoch` watcher, captured into THIS step's slot). `reasonMode`
+    // 'generic' for a non-resource pick (no `amount`), so the board doesn't show a
+    // misleading resource reason.
+    requestPlayedPickStep(i: number, step: ActionPreviewStep): void {
+      if (step.kind !== 'input' || step.input.type !== 'card') {
+        return;
+      }
+      const input = step.input as SelectCardModel;
+      this.awaitingPlayedPickStep = i;
+      this.$emit('pick-played-card', {
+        title: input.title,
+        selectable: input.cards.map((c) => c.name),
+        reasonMode: (step as {amount?: number}).amount !== undefined ? 'resource' : 'generic',
+      });
+    },
+    // The chosen card model for a played-overlay STEP (for the in-modal chip).
+    chosenStepCard(step: ActionPreviewStep, i: number): CardModel | undefined {
+      if (step.kind !== 'input' || step.input.type !== 'card') {
+        return undefined;
+      }
+      const name = this.capturedCardName(i);
+      if (name === undefined) {
+        return undefined;
+      }
+      return (step.input as SelectCardModel).cards.find((c) => c.name === name);
+    },
+    openStepFullscreen(step: ActionPreviewStep, i: number): void {
+      const card = this.chosenStepCard(step, i);
+      if (card === undefined) {
+        return;
+      }
+      this.zoomCard = card;
+      nextTick(() => {
+        (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
+      });
     },
     branchKey(b: ActionPreviewBranch): string {
       return this.text(b.title);

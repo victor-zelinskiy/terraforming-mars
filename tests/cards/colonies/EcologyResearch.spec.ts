@@ -39,12 +39,14 @@ describe('EcologyResearch', () => {
 
     card.play(player);
     expect(game.deferredActions).has.lengthOf(2);
-    const input = game.deferredActions.peek()!.execute();
+    // autoSelect:false — each add still asks where, even with a single candidate
+    // (animal deferred first, then microbe — matching bespokePlay order).
+    const animalSelect = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
     game.deferredActions.pop();
-    expect(input).is.undefined;
-    const input2 = game.deferredActions.peek()!.execute();
+    animalSelect.cb([fish]);
+    const microbeSelect = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
     game.deferredActions.pop();
-    expect(input2).is.undefined;
+    microbeSelect.cb([tardigrades]);
 
     expect(tardigrades.resourceCount).to.eq(2);
     expect(fish.resourceCount).to.eq(1);

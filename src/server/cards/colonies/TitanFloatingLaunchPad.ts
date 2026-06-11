@@ -92,7 +92,9 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
         return undefined;
       }),
       new SelectOption('Add 1 floater to a Jovian card', 'Add floater').andThen(() => {
-        player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {restrictedTag: Tag.JOVIAN, title: 'Add 1 floater to a Jovian card'}));
+        // autoSelect:false — ALWAYS ask which Jovian card (even one candidate) so the
+        // player sees the target; the confirm modal pre-collects the pick.
+        player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {restrictedTag: Tag.JOVIAN, title: 'Add 1 floater to a Jovian card', autoSelect: false}));
         return undefined;
       }),
     );

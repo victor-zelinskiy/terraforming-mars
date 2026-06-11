@@ -160,7 +160,25 @@ export default defineComponent({
       zoomCard: undefined as CardModel | undefined,
     };
   },
+  mounted(): void {
+    this.$nextTick(() => this.maybeAutoSelectSingle());
+  },
+  watch: {
+    // When the candidate set collapses to a SINGLE selectable card (e.g. Titan
+    // Shuttles with only one Jovian card), pre-select it. The no-autoselect
+    // principle still SHOWS the target with its current count + impact line — it
+    // just doesn't make the player click "ВЫБРАТЬ" when there's no real choice.
+    selectableNames(): void {
+      this.maybeAutoSelectSingle();
+    },
+  },
   computed: {
+    // A stable signature of the selectable candidate names, so the watcher fires
+    // when the candidate SET changes (e.g. the modal swaps to a new step's input)
+    // — not on every unrelated re-render.
+    selectableNames(): string {
+      return this.input.cards.map((c) => c.name).join(',');
+    },
     promptText(): string {
       const t = this.input.title;
       return typeof t === 'string' ? t : '';
@@ -228,6 +246,19 @@ export default defineComponent({
       // "<you>", not a misleading "Neutral" group).
       const me = this.playerView.thisPlayer;
       return me !== undefined ? {name: me.name, color: me.color} : undefined;
+    },
+    // Pre-select the lone candidate (when there's exactly ONE selectable card and
+    // nothing chosen yet) so a single-target pick reads as "already chosen, here's
+    // where it goes" rather than forcing a redundant click.
+    maybeAutoSelectSingle(): void {
+      if (this.selectedName !== undefined) {
+        return;
+      }
+      const cards = this.input.cards;
+      if (cards.length === 1) {
+        const response: SelectCardResponse = {type: 'card', cards: [cards[0].name]};
+        this.$emit('change', response);
+      }
     },
     select(tile: Tile): void {
       if (tile.disabled) {

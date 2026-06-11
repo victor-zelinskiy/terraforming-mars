@@ -465,8 +465,9 @@ describe('cardPlayPreview', () => {
 
     it('EcologyResearch: bespoke animal + microbe "to a card" chips with their pickers, in defer order', () => {
       const [/* game */, player] = testGame(2);
-      // One animal card + two microbe cards → the microbe picker is a real choice;
-      // the single animal card auto-resolves (no step).
+      // One animal card + two microbe cards. autoSelect:false (the no-autoselect
+      // principle) → BOTH the animal and microbe picks are ALWAYS shown so the
+      // player sees where each resource goes — even the single-candidate animal.
       player.playedCards.push(new Birds(), new Tardigrades(), new NitriteReducingBacteria());
       const branch = new EcologyResearch().cardPlayPreview(player).branches[0];
       // Both bespoke gain chips.
@@ -474,10 +475,11 @@ describe('cardPlayPreview', () => {
       const microbeChip = branch.effects.find((e) => e.note === 'to a card' && e.amount === 2);
       expect(animalChip, 'animal gain chip').is.not.undefined;
       expect(microbeChip, 'microbe gain chip').is.not.undefined;
-      // The microbe pick is the only step (animal auto-resolves to its single card).
+      // Two card pickers in defer order: animal (the lone Birds) then microbe.
       const inputs = branch.steps.filter((s) => s.kind === 'input');
-      expect(inputs).has.length(1);
+      expect(inputs).has.length(2);
       expect(inputs[0].kind === 'input' && inputs[0].input.type).eq('card');
+      expect(inputs[1].kind === 'input' && inputs[1].input.type).eq('card');
     });
   });
 

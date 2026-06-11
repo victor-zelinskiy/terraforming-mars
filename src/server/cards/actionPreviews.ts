@@ -99,12 +99,16 @@ export function cardResourceGain(resource: CardResource, amount: number): Action
 
 /**
  * "Add N `resource` to a card" target picker, mirroring what `action()` defers
- * (`new AddResourcesToCard(player, resource, opts)`). Returns `undefined` when
- * the live path would auto-apply (a single candidate, default autoSelect) or
- * there's no candidate — i.e. no step is shown, exactly like the live action.
+ * (`new AddResourcesToCard(player, resource, opts)`). Every caller is an "add to
+ * ANY [tagged] card" choice (Jovian/animal/microbe), so per the fork's
+ * no-autoselect principle it ALWAYS shows the picker — EVEN for a single candidate
+ * (so the player always SEES which card receives the resource + its current count),
+ * unless the caller explicitly opts back into auto-apply. Returns `undefined` only
+ * when there's NO eligible card. The live `action()` MUST mirror this with
+ * `autoSelect: false`, else the pre-collected pick has no live prompt to consume.
  */
 export function addToCardStep(player: IPlayer, resource: CardResource | undefined, opts: AddResourceOptions = {}): ActionPreviewStep | undefined {
-  const model = new AddResourcesToCard(player, resource, opts).previewSelectCard();
+  const model = new AddResourcesToCard(player, resource, {...opts, autoSelect: opts.autoSelect ?? false}).previewSelectCard();
   return model !== undefined ? {kind: 'input', input: model} : undefined;
 }
 

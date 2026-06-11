@@ -69,8 +69,10 @@ export class JupiterFloatingStation extends Card implements IProjectCard {
   public action(player: IPlayer) {
     return new OrOptions(
       new SelectOption('Add 1 floater to a Jovian card', 'Add floater').andThen(() => {
+        // autoSelect:false — ALWAYS ask which Jovian card (even one candidate) so the
+        // player sees the target; the confirm modal pre-collects the pick.
         player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {
-          restrictedTag: Tag.JOVIAN, title: 'Add 1 floater to a Jovian card',
+          restrictedTag: Tag.JOVIAN, title: 'Add 1 floater to a Jovian card', autoSelect: false,
         }));
         return undefined;
       }),
