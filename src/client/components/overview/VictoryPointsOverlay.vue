@@ -120,8 +120,9 @@
                 <div v-for="d in breakdown.detailsMilestones"
                      :key="'m-' + d.message + (d.messageArgs ? d.messageArgs.join() : '')"
                      class="vp-ma-row vp-ma-row--hoverable"
-                     v-on:mouseenter="onRowEnter($event, milestoneTooltipFor(d))"
-                     v-on:mouseleave="onRowLeave">
+                     :class="maRowClass('mca.milestones')"
+                     v-on:mouseenter="onMaRowEnter($event, milestoneTooltipFor(d), 'mca.milestones')"
+                     v-on:mouseleave="onMaRowLeave">
                   <span class="vp-source-chip vp-source-chip--milestone">
                     <span class="vp-source-chip__dot" aria-hidden="true"></span>
                     <span class="vp-source-chip__label">{{ translateMilestoneDetails(d) }}</span>
@@ -131,15 +132,18 @@
                 <div v-for="d in breakdown.detailsAwards"
                      :key="'a-' + d.message + (d.messageArgs ? d.messageArgs.join() : '')"
                      class="vp-ma-row vp-ma-row--hoverable"
-                     v-on:mouseenter="onRowEnter($event, awardTooltipFor(d))"
-                     v-on:mouseleave="onRowLeave">
+                     :class="maRowClass('mca.awards')"
+                     v-on:mouseenter="onMaRowEnter($event, awardTooltipFor(d), 'mca.awards')"
+                     v-on:mouseleave="onMaRowLeave">
                   <span class="vp-source-chip vp-source-chip--award">
                     <span class="vp-source-chip__dot" aria-hidden="true"></span>
                     <span class="vp-source-chip__label">{{ translateAwardDetails(d) }}</span>
                   </span>
                   <span class="vp-ma-row__vp" :class="vpSignClass(d.victoryPoint)">{{ formatVp(d.victoryPoint) }}</span>
                 </div>
-                <div v-for="d in breakdown.detailsPlanetaryTracks" :key="'t-' + d.tag" class="vp-ma-row">
+                <div v-for="d in breakdown.detailsPlanetaryTracks" :key="'t-' + d.tag"
+                     class="vp-ma-row" :class="maRowClass('tracks.all')"
+                     v-on:mouseenter="hoverKey = 'tracks.all'" v-on:mouseleave="hoverKey = null">
                   <span class="vp-source-chip vp-source-chip--track">
                     <span class="vp-source-chip__dot" aria-hidden="true"></span>
                     <span class="vp-source-chip__label">{{ planetaryTrackText(d.tag) }}</span>
@@ -347,14 +351,31 @@ export default defineComponent({
       };
     },
     // Cross-link the "from cards" groups with their bar segment (key
-    // `cards.<kind>`): hovering either side highlights the pair, dims the rest.
+    // `cards.<kind>`): hovering ANY source highlights the matching pair and
+    // dims everything else uniformly across the whole report.
     cardGroupClass(kind: string): Record<string, boolean> {
       const key = 'cards.' + kind;
-      const cardsHover = this.hoverKey !== null && this.hoverKey.startsWith('cards.');
       return {
         'vp-card-group--active': this.hoverKey === key,
-        'vp-card-group--faded': cardsHover && this.hoverKey !== key,
+        'vp-card-group--faded': this.hoverKey !== null && this.hoverKey !== key,
       };
+    },
+    // Milestone / award / track rows share the dim+active system. They map to
+    // their bar segment's family key (`mca.milestones` / `mca.awards` /
+    // `tracks.all`) so the matching bar segment lights up too.
+    maRowClass(key: string): Record<string, boolean> {
+      return {
+        'vp-ma-row--active': this.hoverKey === key,
+        'vp-ma-row--dim': this.hoverKey !== null && this.hoverKey !== key,
+      };
+    },
+    onMaRowEnter(e: MouseEvent, tooltip: TooltipContent | null, key: string): void {
+      this.hoverKey = key;
+      this.onRowEnter(e, tooltip);
+    },
+    onMaRowLeave(): void {
+      this.hoverKey = null;
+      this.onRowLeave();
     },
     formatVp(n: number): string {
       if (n > 0) {

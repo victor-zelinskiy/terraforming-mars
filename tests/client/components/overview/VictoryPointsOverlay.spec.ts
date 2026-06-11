@@ -99,6 +99,27 @@ describe('VictoryPointsOverlay', () => {
     expect(wrapper2.find('.vp-hidden').exists()).is.true;
   });
 
+  it('dims every non-matching source uniformly while one is hovered', async () => {
+    const wrapper = mountOverlay(fullBreakdown({
+      milestones: 5,
+      awards: 5,
+      total: 59,
+      detailsMilestones: [{message: 'Claimed ${0} milestone', messageArgs: ['Builder'], victoryPoint: 5}],
+      detailsAwards: [{message: '${0} place for ${1} award (funded by ${2})', messageArgs: ['1st', 'Banker', 'red'], victoryPoint: 5}],
+    }));
+    await wrapper.setData({hoverKey: 'mca.awards'});
+
+    // Card groups (a different family) all dim, none active.
+    expect(wrapper.find('.vp-card-group--faded').exists()).is.true;
+    expect(wrapper.find('.vp-card-group--active').exists()).is.false;
+    // The TR legend rows dim too.
+    expect(wrapper.find('.vp-legend__row--dim').exists()).is.true;
+    // The matching award row lights up; the milestone row dims.
+    const maRows = wrapper.findAll('.vp-ma-row');
+    expect(maRows.some((r) => r.classes().includes('vp-ma-row--active'))).is.true;
+    expect(maRows.some((r) => r.classes().includes('vp-ma-row--dim'))).is.true;
+  });
+
   it('shows an empty state when no card VP', () => {
     const wrapper = mountOverlay(fullBreakdown({detailsCards: [], victoryPoints: 0, negativeVP: 0, total: 45}));
     expect(wrapper.find('.vp-cards-empty').exists()).is.true;
