@@ -23,98 +23,79 @@
         <h3 class="action-confirm__title" v-i18n>{{ headerTitle }}</h3>
       </header>
 
-      <!-- TOP ROW: compact source preview (left) + the effect / result hero
-           panel (right). Fixed height — never grows with the choice count, so the
-           choices block below owns all the flexible vertical space. -->
-      <div class="action-confirm__top">
-        <aside class="action-confirm__source">
-          <span class="action-confirm__source-label" v-i18n>Action</span>
-          <!-- MINI action card — the COMPACT action graphic (replacing the big
-               full Card), so the result / payment / choices below get the freed
-               space. Hover shows the full source card; ⤢ opens it fullscreen. The
-               same CompactActionCard the overlay grid uses (static here). -->
-          <div class="action-confirm__mini">
-            <CompactActionCard :node="miniNode"
-                               :title="miniTitle"
-                               status="available"
-                               :interactive="false"
-                               @hover="onMiniHover" />
+      <!-- MAIN: a single vertical flow — "Вы собираетесь выполнить" → the mini
+           action graphic + source identity → the immediate result → "После
+           подтверждения". The choices block (payment / targets / branch picker)
+           follows below and owns the flexible scroll space. -->
+      <div class="action-confirm__main">
+        <!-- Preview loading skeleton. -->
+        <div v-if="loading" class="action-confirm__loading">
+          <span class="action-confirm__loading-dot" aria-hidden="true"></span>
+          <span class="action-confirm__loading-dot" aria-hidden="true"></span>
+          <span class="action-confirm__loading-dot" aria-hidden="true"></span>
+        </div>
+
+        <template v-else-if="preview !== undefined">
+          <span v-if="selected !== undefined || showBranchList" class="action-confirm__summary-label" v-i18n>You are about to</span>
+
+          <!-- The action identity: the SAME compact renderer the overlay rows use,
+               plus the source name + a ⤢ to the full card. The graphic sits BETWEEN
+               "Вы собираетесь выполнить" and "После подтверждения". -->
+          <div v-if="miniNode !== undefined || miniTitle !== ''" class="action-confirm__act">
+            <div class="action-confirm__mini">
+              <CompactActionCard :node="miniNode"
+                                 :title="miniTitle"
+                                 status="available"
+                                 :interactive="false"
+                                 @hover="onMiniHover" />
+            </div>
+            <div class="action-confirm__mini-meta">
+              <span class="action-confirm__mini-name" v-i18n>{{ cardName }}</span>
+              <button type="button"
+                      class="action-confirm__mini-zoom"
+                      :aria-label="$t('Open fullscreen')"
+                      @click="openFullscreen"
+                      data-test="action-confirm-zoom">
+                <span class="action-confirm__mini-zoom-glyph" aria-hidden="true">⤢</span>
+                <span v-i18n>Open fullscreen</span>
+              </button>
+            </div>
           </div>
-          <div class="action-confirm__mini-meta">
-            <span class="action-confirm__mini-name" v-i18n>{{ cardName }}</span>
-            <button type="button"
-                    class="action-confirm__mini-zoom"
-                    :aria-label="$t('Open fullscreen')"
-                    @click="openFullscreen"
-                    data-test="action-confirm-zoom">
-              <span class="action-confirm__mini-zoom-glyph" aria-hidden="true">⤢</span>
-              <span v-i18n>Open fullscreen</span>
-            </button>
-          </div>
-          <!-- REVEAL / deck-check: the slot sits UNDER the source (this column has
-               the vertical room), so the revealed card later appears EXACTLY here
-               (the App-level result overlay mirrors this layout). -->
-          <ActionRevealSlot v-if="!loading && selected !== undefined && selected.reveal !== undefined"
+
+          <!-- REVEAL / deck-check slot — the revealed card later appears EXACTLY
+               here (the App-level result overlay mirrors this layout). -->
+          <ActionRevealSlot v-if="selected !== undefined && selected.reveal !== undefined"
                             state="empty"
                             :reveal="selected.reveal" />
-        </aside>
 
-        <section class="action-confirm__action">
-          <!-- Preview loading skeleton. -->
-          <div v-if="loading" class="action-confirm__loading">
-            <span class="action-confirm__loading-dot" aria-hidden="true"></span>
-            <span class="action-confirm__loading-dot" aria-hidden="true"></span>
-            <span class="action-confirm__loading-dot" aria-hidden="true"></span>
-          </div>
+          <template v-if="selected !== undefined">
+            <!-- RESULT: the cost/gain breakdown ("Будет списано" / "Вы получите"). -->
+            <ActionResultsPreview v-if="selected.effects.length > 0" :effects="selected.effects" />
 
-          <template v-else-if="preview !== undefined">
-            <!-- SELECTED BRANCH: clear labelled sections — the rule (ДЕЙСТВИЕ), the
-                 impact (РЕЗУЛЬТАТ), and the scoring context (ПРОГРЕСС ПО). Works for
-                 a single-action card AND a branch chosen from the overlay. -->
-            <div v-if="selected !== undefined" class="action-confirm__summary">
-              <!-- The consequences column: result / next / VP. The action GRAPHIC
-                   itself now lives in the left mini-card, so this is purely the
-                   "what happens" side (no duplicate graphic). When there's nothing
-                   computable to show, a short confirm lead-in stands in so the
-                   panel is never an empty box. -->
-              <template v-if="summaryHasContent">
-                <span class="action-confirm__summary-label" v-i18n>You are about to</span>
-
-                <!-- RESULT: the cost/gain breakdown ("Будет списано" / "Вы получите"). -->
-                <ActionResultsPreview v-if="selected.effects.length > 0" :effects="selected.effects" />
-
-                <!-- "After confirming" context notes (tile placement / colony / a
-                     special board move). Shown HERE in the always-visible summary so
-                     they're never buried below a tall payment widget in the choices
-                     block — the player always sees what confirming will require. -->
-                <ActionNextStepNotice :steps="selected.steps" variant="after-confirm" />
-
-                <div class="action-confirm__section" v-if="vpProgress !== undefined">
-                  <ActionVpProgress :cardName="cardName"
-                                    :resourceIcon="vpProgress.icon"
-                                    :before="vpProgress.before"
-                                    :after="vpProgress.after" />
-                </div>
-              </template>
-              <p v-else-if="selected.available" class="action-confirm__intro-hint" v-i18n>Confirm to perform this action.</p>
-
-              <div v-if="!selected.available && selected.unavailableReason !== undefined" class="action-confirm__none" v-i18n>{{ text(selected.unavailableReason) }}</div>
+            <div class="action-confirm__section" v-if="vpProgress !== undefined">
+              <ActionVpProgress :cardName="cardName"
+                                :resourceIcon="vpProgress.icon"
+                                :before="vpProgress.before"
+                                :after="vpProgress.after" />
             </div>
 
-            <!-- Picking among several branches: a short intro here; the branch
-                 picker itself lives in the wide choices block below. -->
-            <div v-else-if="showBranchList" class="action-confirm__summary action-confirm__summary--intro">
-              <span class="action-confirm__summary-label" v-i18n>You are about to</span>
-              <p class="action-confirm__intro-hint" v-i18n>Choose one of the options below.</p>
-            </div>
+            <!-- "После подтверждения" — the follow-up the modal can't pre-collect
+                 (tile placement / colony / a special board move). -->
+            <ActionNextStepNotice :steps="selected.steps" variant="after-confirm" />
 
-            <!-- Preview loaded but nothing actionable. -->
-            <div v-else class="action-confirm__none" v-i18n>This action can't be taken right now.</div>
+            <p v-if="!summaryHasContent && selected.available && selected.reveal === undefined" class="action-confirm__intro-hint" v-i18n>Confirm to perform this action.</p>
+            <div v-if="!selected.available && selected.unavailableReason !== undefined" class="action-confirm__none" v-i18n>{{ text(selected.unavailableReason) }}</div>
           </template>
 
-          <!-- Preview failed to load (network) — never leave the panel blank. -->
+          <!-- Picking among several branches: the picker lives in the choices block. -->
+          <p v-else-if="showBranchList" class="action-confirm__intro-hint" v-i18n>Choose one of the options below.</p>
+
+          <!-- Preview loaded but nothing actionable. -->
           <div v-else class="action-confirm__none" v-i18n>This action can't be taken right now.</div>
-        </section>
+        </template>
+
+        <!-- Preview failed to load (network) — never leave the panel blank. -->
+        <div v-else class="action-confirm__none" v-i18n>This action can't be taken right now.</div>
       </div>
 
       <!-- CHOICES: the large, adaptive, full-width decision area. It owns the
@@ -290,6 +271,7 @@ import {paths} from '@/common/app/paths';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ActionGroup, playerActionGroups, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
 import {assignBranchNodes} from '@/client/components/actions/actionBranchNodes';
+import {branchPositionForNode} from '@/client/components/actions/actionBranchView';
 import Card from '@/client/components/card/Card.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
@@ -342,15 +324,15 @@ export default defineComponent({
       type: Object as PropType<PlayerViewModel>,
       required: true,
     },
-    // When the overlay split a multi-branch action into per-branch buttons, the
-    // chosen branch's POSITION (ordinal in the preview) is passed here so the
-    // modal opens straight on that branch (no in-modal picker). Position — NOT
-    // the runtime index — because the runtime index is ambiguous (an unavailable
-    // branch and an auto-resolved lone branch both have index -1). `undefined` →
-    // the modal falls back to its own picker (dynamic cards / pre-load click).
-    branchPosition: {
+    // The selected RENDER NODE ordinal (the row the player focused in the overlay).
+    // The modal resolves the matching preview BRANCH from this + its own preview via
+    // the same token-overlap matching the details panel uses — so a multi-action
+    // card never opens on the wrong branch (render order ≠ behavior order). For a
+    // combined-node card (Self-Replicating Robots) the resolve returns undefined and
+    // the modal falls back to its in-modal branch picker.
+    nodeIndex: {
       type: Number,
-      default: undefined,
+      default: 0,
     },
   },
   emits: ['confirm', 'cancel', 'pick-card'],
@@ -389,10 +371,18 @@ export default defineComponent({
     branches(): ReadonlyArray<ActionPreviewBranch> {
       return this.preview?.branches ?? [];
     },
-    // Show the in-modal picker ONLY as a fallback: the modal wasn't opened for a
-    // specific branch AND nothing is selected yet AND there's a real choice.
+    // The preview branch position the selected NODE maps to (token-overlap match,
+    // NOT positional) — undefined for a combined-node card → the picker fallback.
+    resolvedBranchPosition(): number | undefined {
+      if (this.group === undefined || this.branches.length === 0) {
+        return undefined;
+      }
+      return branchPositionForNode(this.group, this.branches, this.nodeIndex);
+    },
+    // Show the in-modal picker ONLY as a fallback: the node didn't resolve to one
+    // branch AND nothing is selected yet AND there's a real choice.
     showBranchList(): boolean {
-      return this.branchPosition === undefined && this.selected === undefined && this.branches.length > 1;
+      return this.resolvedBranchPosition === undefined && this.selected === undefined && this.branches.length > 1;
     },
     // Whether the wide choices block has anything to host (a branch picker, the
     // branch's own input, or any steps). When false the modal is just the top row
@@ -673,10 +663,11 @@ export default defineComponent({
         const response = await fetch(url);
         if (response.ok) {
           this.preview = await response.json() as ActionPreview;
-          // Pre-select the branch the overlay chose (by POSITION) — unambiguous
-          // even when several branches share runtime index -1.
-          if (this.branchPosition !== undefined) {
-            this.selected = this.preview.branches[this.branchPosition];
+          // Pre-select the branch the focused NODE maps to (token-overlap match,
+          // not positional) — so a multi-action card opens on the RIGHT branch.
+          const p = this.resolvedBranchPosition;
+          if (p !== undefined) {
+            this.selected = this.preview.branches[p];
           }
           // Else auto-select when there's exactly ONE executable branch (a single-
           // action card, or a multi-branch card where only one branch is
@@ -783,6 +774,23 @@ export default defineComponent({
 @keyframes action-confirm-pulse {
   0%, 100% { opacity: 0.25; transform: scale(0.8); }
   50% { opacity: 1; transform: scale(1); }
+}
+
+/* MAIN — the single vertical flow above the choices/footer: heading → mini action
+ * graphic + identity → result → "После подтверждения". Fixed (doesn't scroll); the
+ * choices block below owns the flexible scroll space. */
+.action-confirm__main {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* The action identity block — the compact graphic + source name + ⤢, centred. */
+.action-confirm__act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 // NOTE: the summary / section LABEL styles (`__summary`, `__summary-label`,

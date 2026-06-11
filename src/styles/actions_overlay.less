@@ -261,6 +261,10 @@
     /* A fixed compact column count (JS-driven 1–3 by viewport width). */
     grid-template-columns: repeat(var(--actions-master-cols, 3), minmax(0, 1fr));
     align-content: start;
+    /* CRITICAL: size each group card to its OWN content height — a 1-action card
+       must NOT stretch to a 2-action card's height in the same row (the default
+       `align-items: stretch` left a tall empty space under single-action cards). */
+    align-items: start;
     gap: 14px;
     min-width: 0;
 }
@@ -356,15 +360,34 @@
     border-color: rgba(230, 200, 120, 0.48);
     box-shadow: 0 0 0 1px rgba(230, 200, 120, 0.14), 0 6px 18px rgba(0, 0, 0, 0.36);
 }
-/* SELECTED — the group holding the focused row gets a strong cyan rim + glow so
-   the master/detail link is unmistakable. */
+/* SELECTED — the group merely CONTAINS the focused row, so it gets only a SUBTLE
+   brighter rim. The clear "this is selected" signal lives on the ROW itself
+   (.compact-action--selected), never on the whole card — so a 2-action card never
+   reads as if BOTH actions are chosen. */
 .action-group--selected {
-    border-color: #7fd4ff;
-    box-shadow: 0 0 0 1px rgba(127, 212, 255, 0.5), 0 8px 22px rgba(0, 0, 0, 0.46), 0 0 20px rgba(127, 212, 255, 0.2);
+    border-color: rgba(127, 212, 255, 0.55);
 }
 .action-group--corp.action-group--selected {
-    border-color: #f0d68a;
-    box-shadow: 0 0 0 1px rgba(240, 214, 138, 0.5), 0 8px 22px rgba(0, 0, 0, 0.46), 0 0 20px rgba(240, 214, 138, 0.2);
+    border-color: rgba(240, 214, 138, 0.55);
+}
+
+/* "ИЛИ" alternation divider between the rows of a multi-action (`or`) card. The
+   per-row graphics are clean (leading OR stripped); this slim badge conveys that
+   the player picks ONE of the two. */
+.action-group__or {
+    align-self: center;
+    margin: -1px auto;
+    padding: 1px 9px;
+    border-radius: 999px;
+    background: rgba(106, 176, 230, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.22);
+    color: #9ec4e6;
+    font-family: Prototype, "Russo One", sans-serif;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    line-height: 1.4;
+    text-transform: uppercase;
 }
 
 .action-group__head {
@@ -485,6 +508,31 @@
         radial-gradient(130% 50% at 50% -6%, rgba(127, 212, 255, 0.06), transparent 62%),
         linear-gradient(180deg, rgba(18, 28, 42, 0.95), rgba(10, 17, 28, 0.97));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 30px rgba(0, 0, 0, 0.4);
+    /* The embedded source card can make a long action's panel exceed the viewport
+       — keep it within the sticky column and scroll its OWN content (premium thin
+       bar) so the CTA stays reachable. */
+    max-height: calc(100vh - 190px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.35) transparent;
+    &::-webkit-scrollbar { width: 8px; }
+    &::-webkit-scrollbar-thumb { background: rgba(106, 176, 230, 0.3); border-radius: 4px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+}
+/* Embedded source-card preview — compact, click to fullscreen. */
+.action-detail__source-card {
+    align-self: center;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: zoom-in;
+    border-radius: 10px;
+    transition: filter 0.15s ease, transform 0.15s ease;
+    /* Zero the legacy asymmetric card margin + scale down so the card reads centred
+       and compact inside the narrow detail column. */
+    > .card-container { margin: 0; zoom: 0.62; }
+    &:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    &:focus-visible { outline: 2px solid rgba(127, 212, 255, 0.7); outline-offset: 2px; }
 }
 .action-detail--empty {
     align-items: center;

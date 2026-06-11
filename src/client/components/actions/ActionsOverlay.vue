@@ -57,13 +57,11 @@
                            :entry="e"
                            :card="tableauByName.get(e.cardName)"
                            :selectedKey="selectedKey"
-                           @select="onSelect"
-                           @namehover="onNameHover" />
+                           @select="onSelect" />
         </div>
         <ActionDetailsPanel class="actions-board__detail"
                             :entry="selectedEntry"
                             :nodeIndex="selectedNodeIndex"
-                            :branchPosition="selectedBranchPosition"
                             :preview="selectedPreview"
                             :card="selectedCardModel"
                             :loadingPreview="previewLoading"
@@ -71,9 +69,6 @@
                             @open="openFullscreen" />
       </div>
     </div>
-
-    <!-- Shared source-card hover popover — passes live CardModel for resource counts. -->
-    <CardPreviewPopover :name="hoverName" :card="hoverCard" :visible="hoverVisible" :anchor="hoverAnchor" />
 
     <!-- Shared fullscreen source-card viewer. -->
     <Teleport to="body">
@@ -116,7 +111,6 @@ import {
 import ActionGroupCard from '@/client/components/actions/ActionGroupCard.vue';
 import ActionDetailsPanel from '@/client/components/actions/ActionDetailsPanel.vue';
 import ActionsFilters from '@/client/components/actions/ActionsFilters.vue';
-import CardPreviewPopover from '@/client/components/journal/CardPreviewPopover.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 
 // Master grid sizing — a fixed compact 3-column grid + a static detail column.
@@ -130,14 +124,8 @@ const FIT_MAX_W = 1680;       // hard cap on overlay width
 const BODY_PAD_X = 36;
 const MIN_W = 640;            // floor so the header never wraps
 const MAX_COLS = 3;           // the master is at most 3 columns
-const HOVER_DELAY = 260;
 
 type DataModel = {
-  hoverName: CardName;
-  hoverCard: CardModel | undefined;
-  hoverVisible: boolean;
-  hoverAnchor: DOMRect | undefined;
-  hoverTimer: number | undefined;
   zoomCard: CardModel | undefined;
   resizeObserver: ResizeObserver | undefined;
   fitScheduled: boolean;
@@ -149,7 +137,7 @@ type DataModel = {
 
 export default defineComponent({
   name: 'ActionsOverlay',
-  components: {ActionGroupCard, ActionDetailsPanel, ActionsFilters, CardPreviewPopover, CardZoomModal},
+  components: {ActionGroupCard, ActionDetailsPanel, ActionsFilters, CardZoomModal},
   props: {
     displayedPlayer: {
       type: Object as PropType<PublicPlayerModel>,
@@ -175,11 +163,6 @@ export default defineComponent({
   emits: ['close', 'activate'],
   data(): DataModel {
     return {
-      hoverName: '' as CardName,
-      hoverCard: undefined,
-      hoverVisible: false,
-      hoverAnchor: undefined,
-      hoverTimer: undefined,
       zoomCard: undefined,
       resizeObserver: undefined,
       fitScheduled: false,
@@ -244,13 +227,6 @@ export default defineComponent({
     selectedEntry(): ActionEntry | undefined {
       return this.filtered.find((e) => e.cardName === this.selectedCardName);
     },
-    selectedBranchPosition(): number | undefined {
-      const e = this.selectedEntry;
-      if (e === undefined) {
-        return undefined;
-      }
-      return e.group.nodes.length > 1 ? this.selectedNodeIndex : undefined;
-    },
     selectedPreview(): ActionPreview | undefined {
       return this.selectedCardName !== undefined ? actionsOverlayState.previewCache[this.selectedCardName] : undefined;
     },
@@ -268,7 +244,6 @@ export default defineComponent({
   },
   watch: {
     'displayedPlayer.color'(): void {
-      this.clearHover();
       resetActionsOverlay();
       nextTick(() => {
         this.ensureSelection();
@@ -295,7 +270,6 @@ export default defineComponent({
     window.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount(): void {
-    this.clearHover();
     this.resizeObserver?.disconnect();
     window.removeEventListener('resize', this.scheduleFit);
     window.removeEventListener('keydown', this.onKeydown);
@@ -394,7 +368,7 @@ export default defineComponent({
       if (e === undefined || e.state.status !== 'available') {
         return;
       }
-      this.$emit('activate', {cardName: e.cardName, branchPosition: this.selectedBranchPosition});
+      this.$emit('activate', {cardName: e.cardName, nodeIndex: this.selectedNodeIndex});
     },
     // ─── Adaptive fit: a fixed compact master grid + a static detail column ───
     fit(): void {
@@ -426,36 +400,10 @@ export default defineComponent({
         this.fit();
       });
     },
-    // ─── Source-card hover + fullscreen ───
-    onNameHover(payload: {name: CardName, rect: DOMRect} | null): void {
-      if (this.hoverTimer !== undefined) {
-        window.clearTimeout(this.hoverTimer);
-        this.hoverTimer = undefined;
-      }
-      if (payload === null) {
-        this.hoverVisible = false;
-        return;
-      }
-      if (this.zoomCard !== undefined) {
-        return;
-      }
-      this.hoverName = payload.name;
-      this.hoverCard = this.tableauByName.get(payload.name);
-      this.hoverAnchor = payload.rect;
-      this.hoverTimer = window.setTimeout(() => {
-        this.hoverVisible = true;
-      }, HOVER_DELAY);
-    },
-    clearHover(): void {
-      if (this.hoverTimer !== undefined) {
-        window.clearTimeout(this.hoverTimer);
-        this.hoverTimer = undefined;
-      }
-      this.hoverVisible = false;
-      this.hoverCard = undefined;
-    },
+    // Fullscreen the SELECTED source card (opened from the details panel's ⤢). The
+    // overlay grid no longer shows a hover popover — the source preview now lives
+    // INSIDE the details panel, so it can't cover the action rows.
     openFullscreen(name: CardName): void {
-      this.clearHover();
       this.zoomCard = this.tableauByName.get(name) ?? ({name} as CardModel);
       nextTick(() => {
         (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();

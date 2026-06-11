@@ -41,6 +41,46 @@ function strippedBranchNode(node: GroupNode | undefined): GroupNode | undefined 
   return {...node, actionNode: branchActionNode(node.actionNode)};
 }
 
+/** Public: strip a leading OR connector from a render node (no-op for the first
+ *  branch / a non-`or` action). Used to draw clean per-row graphics — the "ИЛИ"
+ *  alternation is conveyed by a deliberate divider, not a stray symbol in the row. */
+export function stripNodeOr(node: GroupNode): GroupNode {
+  return strippedBranchNode(node) ?? node;
+}
+
+/**
+ * The PREVIEW BRANCH POSITION that corresponds to a selected RENDER NODE. The
+ * overlay rows are render nodes (manifest order); the preview's branches are in
+ * the server's behavior order — the two can differ (Regolith Eaters / Atmo
+ * Collectors print "add" first but the server lists "spend" first). A naive
+ * positional map (node i → branch i) therefore SWAPS the cost/result between a
+ * card's two actions. This resolves node → branch via the SAME token-overlap
+ * matching the confirm modal uses, then INVERTS it (which branch claimed this
+ * node). Returns `undefined` for a combined-node card (1 node draws all branches,
+ * e.g. Self-Replicating Robots) so the surface falls back to a branch picker.
+ */
+export function branchPositionForNode(
+  group: ActionGroup,
+  branches: ReadonlyArray<ActionPreviewBranch>,
+  nodeIndex: number,
+): number | undefined {
+  if (branches.length === 0) {
+    return undefined;
+  }
+  if (branches.length === 1) {
+    return 0; // a single-action card — the lone branch, regardless of node order.
+  }
+  if (group.nodes.length < branches.length) {
+    return undefined; // combined node — no single branch maps to it.
+  }
+  const indices = assignBranchNodes(
+    branches.map((b) => branchTitleText(b)),
+    group.nodes.map((n) => actionNodeDescription(n)),
+  );
+  const p = indices.indexOf(nodeIndex);
+  return p >= 0 ? p : undefined;
+}
+
 /**
  * Pair each preview branch with the render node that draws it. When the render
  * SPLITS CLEANLY (≥ one node per branch) each branch gets its own graphic (matched

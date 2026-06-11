@@ -38,15 +38,18 @@
     </div>
 
     <div class="action-group__rows">
-      <CompactActionCard v-for="(node, i) in group.nodes"
-                         :key="node.key"
-                         :node="node"
-                         :status="state.status"
-                         :selected="selectedKey === rowKey(i)"
-                         :focusable="selectedKey === rowKey(i)"
-                         :data-test="'action-row-' + cardName + '-' + i"
-                         @select="select(i)"
-                         @hover="onHover" />
+      <template v-for="(node, i) in displayNodes" :key="node.key">
+        <!-- A multi-row group is always an `or` action (a card has ONE action that
+             branches): a slim deliberate "ИЛИ" divider conveys the alternation, so
+             the per-row graphic stays clean (the leading OR is stripped, #4). -->
+        <span v-if="i > 0" class="action-group__or" aria-hidden="true" v-i18n>OR</span>
+        <CompactActionCard :node="node"
+                           :status="state.status"
+                           :selected="selectedKey === rowKey(i)"
+                           :focusable="selectedKey === rowKey(i)"
+                           :data-test="'action-row-' + cardName + '-' + i"
+                           @select="select(i)" />
+      </template>
     </div>
   </div>
 </template>
@@ -57,6 +60,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
+import {stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {ActionState} from '@/client/components/actions/actionPlayability';
 import {actionRowKey} from '@/client/components/actions/actionsOverlayState';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -82,10 +86,15 @@ export default defineComponent({
       default: undefined,
     },
   },
-  emits: ['select', 'namehover'],
+  emits: ['select'],
   computed: {
     group(): ActionGroup {
       return this.entry.group;
+    },
+    // Render nodes with any leading OR connector stripped, so each compact row
+    // shows a CLEAN graphic — the alternation is conveyed by the "ИЛИ" divider.
+    displayNodes(): ReadonlyArray<ActionGroup['nodes'][number]> {
+      return this.group.nodes.map((n) => stripNodeOr(n));
     },
     cardName(): CardName {
       return this.entry.cardName;
@@ -128,17 +137,10 @@ export default defineComponent({
     rowKey(i: number): string {
       return actionRowKey(this.cardName, i);
     },
-    // The branch POSITION (ordinal) the confirm modal pre-selects. A multi-node
-    // card maps node i → branch i; a single node leaves it undefined (the modal
-    // auto-selects the lone branch, or picks among a combined node's branches).
-    branchPositionForNode(i: number): number | undefined {
-      return this.group.nodes.length > 1 ? i : undefined;
-    },
+    // Selecting a row only FOCUSES the action (node-based) — the details panel
+    // resolves the matching preview branch from the node; nothing executes here.
     select(i: number): void {
-      this.$emit('select', {cardName: this.cardName, nodeIndex: i, branchPosition: this.branchPositionForNode(i)});
-    },
-    onHover(rect: DOMRect | null): void {
-      this.$emit('namehover', rect === null ? null : {name: this.cardName, rect});
+      this.$emit('select', {cardName: this.cardName, nodeIndex: i});
     },
   },
 });
