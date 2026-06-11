@@ -15,7 +15,7 @@ export class SymbioticFungus extends ActionCard implements IProjectCard {
       cost: 4,
 
       action: {
-        addResourcesToAnyCard: {type: CardResource.MICROBE, count: 1, autoSelect: false},
+        addResourcesToAnyCard: {type: CardResource.MICROBE, count: 1},
         // return new SelectCard('Select card to add microbe', 'Add microbe', availableCards, ([card]) => {
       },
 

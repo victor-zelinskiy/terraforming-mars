@@ -47,6 +47,8 @@ describe('AerialMappers', () => {
   it('Should act - single target', () => {
     card.action(player);
     runAllActions(game);
+    const action = cast(player.popWaitingFor(), SelectCard<ICard>);
+    action.cb([card]);
     expect(card.resourceCount).to.eq(1);
 
     card.action(player);

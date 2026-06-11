@@ -19,7 +19,6 @@ export class MaxwellBase extends ActionCard implements IActionCard {
           tag: Tag.VENUS,
           count: 1,
           mustHaveCard: true,
-          autoSelect: false,
         },
       },
 

@@ -2,6 +2,9 @@ import {expect} from 'chai';
 import {churn} from '../../TestingUtils';
 import {TestPlayer} from '../../TestPlayer';
 import {LunarObservationPost} from '../../../src/server/cards/moon/LunarObservationPost';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {ICard} from '../../../src/server/cards/ICard';
+import {cast} from '../../../src/common/utils/utils';
 import {testGame} from '../../TestGame';
 
 describe('LunarObservationPost', () => {
@@ -37,7 +40,8 @@ describe('LunarObservationPost', () => {
 
     expect(card.resourceCount).eq(0);
 
-    expect(churn(card.action(player), player)).is.undefined;
+    const selectCard = cast(churn(card.action(player), player), SelectCard<ICard>);
+    selectCard.cb([card]);
 
     expect(card.resourceCount).eq(1);
 

@@ -115,6 +115,27 @@
                                       :playerinput="step.input"
                                       :onsave="noop"
                                       @select="captureStep(i)($event)" />
+                  <!-- A target pick from your OWN board with MORE THAN 3 candidates
+                       routes to the РАЗЫГРАНО board (pick the real card) instead of
+                       the cramped tile grid. ≤3 stays inline below. -->
+                  <div v-else-if="step.input.type === 'card' && isPlayedOverlayStep(step)" class="play-confirm__handpick">
+                    <div v-if="chosenStepCard(step, i) !== undefined" class="play-confirm__handpick-chosen">
+                      <button type="button"
+                              class="play-confirm__handpick-card"
+                              :aria-label="$t('Open fullscreen')"
+                              @click.capture.stop="openStepFullscreen(step, i)">
+                        <Card :card="chosenStepCard(step, i)!" />
+                      </button>
+                      <button type="button" class="play-confirm__handpick-change" @click="requestPlayedPick(i, step)">
+                        <span class="play-confirm__handpick-glyph" aria-hidden="true">⟲</span>
+                        <span v-i18n>Choose another card</span>
+                      </button>
+                    </div>
+                    <button v-else type="button" class="play-confirm__handpick-btn" @click="requestPlayedPick(i, step)">
+                      <span class="play-confirm__handpick-glyph" aria-hidden="true">▦</span>
+                      <span v-i18n>Choose a card on your board</span>
+                    </button>
+                  </div>
                   <ActionTargetCard v-else-if="step.input.type === 'card'"
                                     :playerView="playerView"
                                     :input="stepCardInput(step)"
@@ -193,6 +214,8 @@ import {ActionPreview, ActionPreviewBranch, ActionPreviewStep} from '@/common/mo
 import {paths} from '@/common/app/paths';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import {playedCardActionPickResult} from '@/client/components/playedCards/playedCardActionPick';
+import {PLAYED_PICK_OVERLAY_THRESHOLD} from '@/client/components/playedCards/playedCardsPickState';
 import SelectProjectCardToPlay from '@/client/components/SelectProjectCardToPlay.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPicker.vue';
@@ -234,7 +257,7 @@ export default defineComponent({
       required: true,
     },
   },
-  emits: ['confirm', 'cancel'],
+  emits: ['confirm', 'cancel', 'pick-played-card'],
   data() {
     return {
       zoomCard: undefined as CardModel | undefined,
@@ -242,6 +265,9 @@ export default defineComponent({
       loading: true,
       selected: undefined as ActionPreviewBranch | undefined,
       captured: {} as Record<number, InputResponse>,
+      // The step index awaiting a РАЗЫГРАНО-board pick (multi-step modal), so the
+      // delivered card captures into the RIGHT slot. undefined = not awaiting.
+      awaitingPlayedPickStep: undefined as number | undefined,
       // The play response captured from the embedded widget on confirm.
       capturedPlay: undefined as SelectProjectCardToPlayResponse | undefined,
       // Whether the dialed payment currently covers the cost (from the widget).
@@ -305,6 +331,25 @@ export default defineComponent({
         return {ready: false, label: 'Complete the payment'};
       }
       return {ready: true, label: 'Ready to play'};
+    },
+    // Bridged result epoch from the РАЗЫГРАНО board pick (see the watcher).
+    playedPickEpoch(): number {
+      return playedCardActionPickResult.epoch;
+    },
+  },
+  watch: {
+    // A card picked on the РАЗЫГРАНО board was delivered back via the bridge —
+    // capture it into the awaiting step's slot (only while we requested it).
+    playedPickEpoch(): void {
+      const i = this.awaitingPlayedPickStep;
+      if (i === undefined) {
+        return;
+      }
+      this.awaitingPlayedPickStep = undefined;
+      const card = playedCardActionPickResult.card;
+      if (card !== undefined) {
+        this.captureStep(i)({type: 'card', cards: [card]});
+      }
     },
   },
   mounted(): void {
@@ -401,6 +446,44 @@ export default defineComponent({
         }
       }
       return excluded.size === 0 ? input : {...input, cards: input.cards.filter((c) => !excluded.has(c.name))};
+    },
+    // True when a card step's candidates are all from the player's OWN tableau and
+    // there are MORE THAN 3 — route it to the РАЗЫГРАНО board instead of the
+    // cramped in-modal tile grid. ≤3 stays inline (ActionTargetCard).
+    isPlayedOverlayStep(step: ActionPreviewStep): boolean {
+      const input = this.stepCardInput(step);
+      const cards = input.cards ?? [];
+      if (cards.length <= PLAYED_PICK_OVERLAY_THRESHOLD) {
+        return false;
+      }
+      const tableau = new Set((this.playerView.thisPlayer.tableau ?? []).map((c) => c.name));
+      return cards.every((c) => tableau.has(c.name));
+    },
+    // The chosen card model for a played-overlay step (for the in-modal chip).
+    chosenStepCard(step: ActionPreviewStep, i: number): CardModel | undefined {
+      const name = this.capturedCardName(i);
+      if (name === undefined) {
+        return undefined;
+      }
+      return this.stepCardInput(step).cards.find((c) => c.name === name);
+    },
+    // Hand off step `i`'s target pick to the РАЗЫГРАНО board (PlayerHome opens it
+    // in pick mode + suppresses this modal; the picked card returns via the
+    // `playedPickEpoch` watcher, captured into THIS step's slot).
+    requestPlayedPick(i: number, step: ActionPreviewStep): void {
+      const input = this.stepCardInput(step);
+      this.awaitingPlayedPickStep = i;
+      this.$emit('pick-played-card', {title: input.title, selectable: input.cards.map((c) => c.name)});
+    },
+    openStepFullscreen(step: ActionPreviewStep, i: number): void {
+      const card = this.chosenStepCard(step, i);
+      if (card === undefined) {
+        return;
+      }
+      this.zoomCard = card;
+      nextTick(() => {
+        (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
+      });
     },
     // SelectProjectCardToPlay's onsave — fired by saveData() when the payment is
     // valid. Captures the {type:'projectCard', card, payment} response.
@@ -655,6 +738,57 @@ export default defineComponent({
 
 // WARNING — an effect that will be SKIPPED for lack of a valid target. Orange, so
 // the player is never surprised by a silently-lost effect.
+/* >3-candidate own-card target → "pick on the РАЗЫГРАНО board" affordance
+   (the inline tile grid is too cramped). Mirrors the action-confirm handpick. */
+.play-confirm__handpick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.play-confirm__handpick-btn,
+.play-confirm__handpick-change {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(64, 224, 255, 0.4);
+  background: linear-gradient(180deg, rgba(26, 48, 58, 0.7), rgba(16, 30, 38, 0.7));
+  color: #d7eef5;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.play-confirm__handpick-btn:hover,
+.play-confirm__handpick-change:hover {
+  background: linear-gradient(180deg, rgba(34, 62, 74, 0.82), rgba(20, 38, 48, 0.82));
+  border-color: rgba(70, 230, 255, 0.65);
+  transform: translateY(-1px);
+}
+.play-confirm__handpick-glyph {
+  font-size: 14px;
+  color: #6fe6ff;
+}
+.play-confirm__handpick-chosen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.play-confirm__handpick-card {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  > .card-container { margin: 0; zoom: 0.6; }
+}
+.play-confirm__handpick-change {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
 .play-confirm__warn {
   display: flex;
   align-items: flex-start;

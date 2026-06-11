@@ -331,10 +331,11 @@ describe('Executor', () => {
       livestock: 0,
     });
 
-    // One animal card. Auto-populated.
+    // One animal card. Player is asked to choose.
     executor.execute({addResourcesToAnyCard: {count: 2, type: CardResource.ANIMAL}}, player, fake);
     runAllActions(game);
-    cast(player.popWaitingFor(), undefined);
+    const animalSelectCard = cast(player.popWaitingFor(), SelectCard);
+    animalSelectCard.cb([livestock]);
 
     expect(resourceCount()).deep.eq({
       tardigrades: 0,
@@ -373,6 +374,9 @@ describe('Executor', () => {
     // Count microbe tags, add that many resources to livestock. What a crazy idea. :D
     executor.execute({addResourcesToAnyCard: {count: {tag: Tag.MICROBE}, type: CardResource.ANIMAL}}, player, fake);
     runAllActions(game);
+
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([livestock]);
 
     expect(livestock.resourceCount).eq(3);
   });

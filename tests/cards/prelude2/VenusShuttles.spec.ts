@@ -30,6 +30,9 @@ describe('VenusShuttles', () => {
     card.play(player);
     runAllActions(game);
 
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([celestic]);
+
     expect(celestic.resourceCount).to.eq(2);
   });
 

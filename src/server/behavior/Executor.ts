@@ -500,12 +500,13 @@ export class Executor implements BehaviorExecutor {
                 restrictedTag: arctac.tag,
                 min: arctac.min,
                 robotCards: arctac.robotCards !== undefined,
-                // Honour the card's `autoSelect`: `false` forces the player to
-                // ALWAYS confirm WHERE the resource goes (even with one
-                // candidate), so an activatable "add to ANY card" action never
-                // resolves silently behind the board. Absent/`true` keeps the
-                // legacy instant-apply-on-single (default).
-                autoSelect: arctac.autoSelect,
+                // ALWAYS ask WHERE the resource goes — even with one candidate —
+                // so "add to ANY card" never resolves silently behind the board.
+                // The premium play / action-confirm modal pre-collects this pick
+                // (its preview emits the same SelectCard), and the legacy path
+                // shows it live. (The instant-apply-on-single shortcut was
+                // removed fork-wide; see Behavior.AddResourcesToAnyCard.)
+                autoSelect: false,
               }));
         }
       }

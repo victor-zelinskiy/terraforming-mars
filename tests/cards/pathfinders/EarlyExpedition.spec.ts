@@ -6,6 +6,7 @@ import {TestPlayer} from '../../TestPlayer';
 import {Units} from '../../../src/common/Units';
 import {runAllActions, setTemperature, testGame} from '../../TestingUtils';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {cast} from '../../../src/common/utils/utils';
 
 describe('EarlyExpedition', () => {
@@ -56,6 +57,9 @@ describe('EarlyExpedition', () => {
     selectSpace.cb(selectSpace.spaces[0]);
 
     runAllActions(game);
+
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([lunarObservationPost]);
 
     expect(lunarObservationPost.resourceCount).eq(1);
   });

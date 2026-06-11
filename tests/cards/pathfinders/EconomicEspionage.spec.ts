@@ -3,6 +3,8 @@ import {EconomicEspionage} from '../../../src/server/cards/pathfinders/EconomicE
 import {testGame} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
 import {runAllActions} from '../../TestingUtils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {cast} from '../../../src/common/utils/utils';
 
 describe('EconomicEspionage', () => {
   let card: EconomicEspionage;
@@ -30,6 +32,8 @@ describe('EconomicEspionage', () => {
     card.action(player);
     runAllActions(player.game);
     expect(player.megaCredits).eq(0);
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([card]);
     expect(card.resourceCount).eq(1);
   });
 

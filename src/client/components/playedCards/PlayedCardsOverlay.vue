@@ -18,7 +18,7 @@
       </div>
 
       <!-- View-mode segmented control: КАРТЫ (board) / ТАБЛИЦА (data list). -->
-      <div v-if="hasAnyCards" class="played-board__viewtoggle" role="tablist" :aria-label="$t('View mode')">
+      <div v-if="hasAnyCards && !pickActive" class="played-board__viewtoggle" role="tablist" :aria-label="$t('View mode')">
         <button type="button" class="played-board__viewbtn"
                 :class="{'played-board__viewbtn--active': viewMode === 'cards'}"
                 :aria-pressed="viewMode === 'cards'"
@@ -38,8 +38,21 @@
       <button type="button" class="played-board__close" :aria-label="$t('Close')" @click="$emit('close')">✕</button>
     </header>
 
+    <!-- PICK MODE strip — replaces the filters while the board hosts a card-target
+         choice for a modal. Names what's being chosen + a cancel that backs out. -->
+    <div v-if="pickActive" class="played-board__pickstrip">
+      <span class="played-board__pickstrip-dot" aria-hidden="true"></span>
+      <span class="played-board__pickstrip-label">
+        <span class="played-board__pickstrip-kicker" v-i18n>Choose a card on your board</span>
+        <span class="played-board__pickstrip-title" v-i18n>{{ pickTitleText }}</span>
+      </span>
+      <button type="button" class="played-board__pickstrip-cancel" @click="$emit('close')">
+        <span v-i18n>Cancel</span>
+      </button>
+    </div>
+
     <PlayedCardsFilters
-      v-if="hasAnyCards"
+      v-if="hasAnyCards && !pickActive"
       :typeChips="typeChips"
       :tagChips="tagChips"
       @toggle-type="toggleGroup"
@@ -49,7 +62,8 @@
          :class="['played-board__body--' + density, {'played-board__body--table': viewMode === 'table'}]"
          :style="bodyStyle">
       <PlayedCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" />
-      <div v-else-if="viewMode === 'cards'" class="played-tableau" :class="{'played-tableau--ready': ready}">
+      <div v-else-if="effectiveViewMode === 'cards'" class="played-tableau"
+           :class="{'played-tableau--ready': ready, 'played-tableau--picking': pickActive}">
         <!-- Identity RAIL (LEFT) — a compact setup zone for corporation /
              preludes / CEO ONLY. Project sections all go to the main band. -->
         <transition-group v-if="railGroups.length > 0" name="played-group-fade" tag="div" class="played-tableau__identity" @after-leave="scheduleFit">
@@ -59,7 +73,10 @@
             :group="g"
             variant="identity"
             :player="displayedPlayer"
-            @open="openCard" />
+            :pickMode="pickActive"
+            :selectable="pickSelectableSet"
+            @open="openCard"
+            @pick="onPickCard" />
         </transition-group>
 
         <!-- Main project band (RIGHT) — Active / Automated / Events as vertical
@@ -72,9 +89,12 @@
             :group="g"
             variant="project"
             :plan="sectionPlanMap[g.key]"
-            :peek="peekEnabled"
+            :peek="pickActive ? false : peekEnabled"
             :player="displayedPlayer"
-            @open="openCard" />
+            :pickMode="pickActive"
+            :selectable="pickSelectableSet"
+            @open="openCard"
+            @pick="onPickCard" />
         </transition-group>
       </div>
       <PlayedCardsTable v-else :rows="tableRows" :zoomOpen="zoomCard !== undefined" @open="openCard" />
@@ -114,6 +134,8 @@ import {
 } from '@/client/components/playedCards/playedCardGroups';
 import {Density, FIT, planProjectBand, ProjectSectionPlan} from '@/client/components/playedCards/playedTableauFit';
 import {playedCardsViewState, PlayedViewMode} from '@/client/components/playedCards/playedCardsViewState';
+import {playedCardsPickState, resolvePlayedCardsPick} from '@/client/components/playedCards/playedCardsPickState';
+import {Message} from '@/common/logs/Message';
 import PlayedCardsFilters from '@/client/components/playedCards/PlayedCardsFilters.vue';
 import PlayedCardsGroup from '@/client/components/playedCards/PlayedCardsGroup.vue';
 import PlayedCardsTable, {PlayedTableRow} from '@/client/components/playedCards/PlayedCardsTable.vue';
@@ -228,6 +250,26 @@ export default defineComponent({
   computed: {
     viewMode(): ViewMode {
       return playedCardsViewState.viewMode;
+    },
+    // PICK MODE — the board is hosting a >3-candidate card-target choice for the
+    // play / action-confirm modal. The filters / view-toggle hide, a cyan strip
+    // shows, candidates highlight + the rest dim, and a click resolves the pick.
+    pickActive(): boolean {
+      return playedCardsPickState.active;
+    },
+    pickTitle(): string | Message {
+      return playedCardsPickState.title;
+    },
+    pickTitleText(): string {
+      const t = this.pickTitle;
+      return typeof t === 'string' ? t : t.message;
+    },
+    pickSelectableSet(): ReadonlySet<CardName> {
+      return new Set(playedCardsPickState.selectable);
+    },
+    // Force the card tableau while picking (the table view can't host a pick).
+    effectiveViewMode(): ViewMode {
+      return this.pickActive ? 'cards' : this.viewMode;
     },
     bodyStyle(): Record<string, string> {
       return {
@@ -356,6 +398,13 @@ export default defineComponent({
       nextTick(() => {
         (this.$refs as {zoomModal?: {show: () => void}}).zoomModal?.show();
       });
+    },
+    // PICK MODE — a candidate card was clicked: resolve the pick (delivers the
+    // card back to the initiating modal via the bridge) and close the overlay so
+    // the suppressed modal re-appears with the chosen card.
+    onPickCard(card: CardModel): void {
+      resolvePlayedCardsPick(card.name);
+      this.$emit('close');
     },
     scrollToTop(): void {
       const body = this.$refs.body as HTMLElement | undefined;

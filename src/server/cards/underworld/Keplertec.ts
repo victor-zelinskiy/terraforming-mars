@@ -32,8 +32,6 @@ export class Keplertec extends ActiveCorporationCard {
           count: 1,
           mustHaveCard: true,
           type: CardResource.FIGHTER,
-          // Out-of-scope expansion (Underworld): keep the legacy instant-apply.
-          autoSelect: true,
         },
       },
 

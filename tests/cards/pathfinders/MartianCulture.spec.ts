@@ -3,6 +3,8 @@ import {MartianCulture} from '../../../src/server/cards/pathfinders/MartianCultu
 import {testGame} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
 import {runAllActions} from '../../TestingUtils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {cast} from '../../../src/common/utils/utils';
 
 describe('MartianCulture', () => {
   let card: MartianCulture;
@@ -35,6 +37,8 @@ describe('MartianCulture', () => {
   it('action', () => {
     card.action(player);
     runAllActions(player.game);
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([card]);
     expect(card.resourceCount).eq(1);
   });
 

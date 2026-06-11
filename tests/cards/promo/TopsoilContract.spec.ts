@@ -7,6 +7,8 @@ import {AerobrakedAmmoniaAsteroid} from '../../../src/server/cards/base/Aerobrak
 import {TestPlayer} from '../../TestPlayer';
 import {runAllActions} from '../../TestingUtils';
 import {testGame} from '../../TestGame';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {cast} from '../../../src/common/utils/utils';
 
 describe('TopsoilContract', () => {
   let card: TopsoilContract;
@@ -38,6 +40,9 @@ describe('TopsoilContract', () => {
 
     const aerobrakedAmmoniaAsteroid = new AerobrakedAmmoniaAsteroid();
     aerobrakedAmmoniaAsteroid.play(player);
+    runAllActions(game);
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([tardigrades]);
     runAllActions(game);
     expect(tardigrades.resourceCount).to.eq(3);
     expect(player.megaCredits).to.eq(3);

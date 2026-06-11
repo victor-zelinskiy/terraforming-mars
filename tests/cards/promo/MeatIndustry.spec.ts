@@ -4,7 +4,9 @@ import {EosChasmaNationalPark} from '../../../src/server/cards/base/EOSChasmaNat
 import {Fish} from '../../../src/server/cards/base/Fish';
 import {Predators} from '../../../src/server/cards/base/Predators';
 import {MeatIndustry} from '../../../src/server/cards/promo/MeatIndustry';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {runAllActions} from '../../TestingUtils';
+import {cast} from '../../../src/common/utils/utils';
 
 describe('MeatIndustry', () => {
   it('Gives 2 M€ whenever player gains an animal', () => {
@@ -22,6 +24,9 @@ describe('MeatIndustry', () => {
 
     const eosChasmaNationalPark = new EosChasmaNationalPark();
     eosChasmaNationalPark.play(player);
+    runAllActions(game);
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([fish]);
     runAllActions(game);
     expect(fish.resourceCount).to.eq(2);
     expect(player.megaCredits).to.eq(4);

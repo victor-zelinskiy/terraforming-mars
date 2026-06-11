@@ -23,7 +23,8 @@ describe('Dirigibles', () => {
 
   it('Should act - single target', () => {
     expect(player.getSpendable('floaters')).to.eq(0);
-    expect(churn(card.action(player), player)).is.undefined;
+    const selectCard = cast(churn(card.action(player), player), SelectCard);
+    selectCard.cb([card]);
     expect(player.getCardsWithResources()).has.lengthOf(1);
     expect(player.getSpendable('floaters')).to.eq(1);
     expect(card.resourceCount).to.eq(1);

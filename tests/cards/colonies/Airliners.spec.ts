@@ -6,6 +6,7 @@ import {SearchForLife} from '../../../src/server/cards/base/SearchForLife';
 import {IGame} from '../../../src/server/IGame';
 import {TestPlayer} from '../../TestPlayer';
 import {runAllActions} from '../../TestingUtils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {cast} from '../../../src/common/utils/utils';
 
 describe('Airliners', () => {
@@ -57,6 +58,8 @@ describe('Airliners', () => {
     runAllActions(game);
 
     cast(action, undefined);
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([jovianLanterns]);
     expect(player.production.megacredits).eq(2);
     expect(jovianLanterns.resourceCount).eq(2);
   });

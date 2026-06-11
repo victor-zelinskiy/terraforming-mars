@@ -56,7 +56,8 @@ describe('Atmoscoop', () => {
     selectOption.cb(undefined);
 
     runAllActions(game);
-    cast(player.popWaitingFor(), undefined);
+    const selectCard = cast(player.popWaitingFor(), SelectCard<ICard>);
+    selectCard.cb([dirigibles]);
 
     expect(game.getVenusScaleLevel()).to.eq(4);
     expect(dirigibles.resourceCount).to.eq(2);
@@ -88,7 +89,8 @@ describe('Atmoscoop', () => {
 
     cast(card.play(player), undefined);
     runAllActions(game);
-    cast(player.popWaitingFor(), undefined);
+    const selectCard = cast(player.popWaitingFor(), SelectCard<ICard>);
+    selectCard.cb([dirigibles]);
 
     expect(game.getVenusScaleLevel()).to.eq(4);
     expect(dirigibles.resourceCount).to.eq(2);
@@ -102,7 +104,8 @@ describe('Atmoscoop', () => {
     cast(card.play(player), undefined);
     runAllActions(game);
 
-    cast(player.popWaitingFor(), undefined);
+    const selectCard = cast(player.popWaitingFor(), SelectCard<ICard>);
+    selectCard.cb([dirigibles]);
     expect(dirigibles.resourceCount).to.eq(2);
   });
 

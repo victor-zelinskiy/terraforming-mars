@@ -32,7 +32,8 @@ describe('NitrogenFromTitan', () => {
     player.playedCards.push(jovianLanterns);
 
     card.play(player);
-    player.game.deferredActions.runNext();
+    const selectCard = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
+    selectCard.cb([jovianLanterns]);
     expect(jovianLanterns.resourceCount).to.eq(2);
   });
 
