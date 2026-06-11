@@ -16,14 +16,20 @@ import {Message} from '@/common/logs/Message';
  * re-appears with the chosen card. Module scope so it survives the `playerkey`
  * remount, like the other overlay states.
  */
+export type PlayedPickAvailability = 'all' | 'available' | 'unavailable';
+
 type PlayedCardsPickState = {
   active: boolean;
   // The selectable card names — only these highlight + accept a click; every
-  // other played card is shown for context but dimmed + non-interactive.
+  // other played card is shown for context but dimmed + reasoned.
   selectable: Array<CardName>;
   title: string | Message;
   // Bumped per distinct prompt so a watcher can tell a fresh pick from a re-enter.
   signature: string;
+  // Pick-mode-only availability filter (ВСЕ / ДОСТУПНЫЕ / НЕДОСТУПНЫЕ), mirroring
+  // the КАРТЫ В РУКЕ overlay. Reset to 'available' on every fresh pick; lives in
+  // module state so a playerkey remount mid-pick doesn't reset it.
+  availability: PlayedPickAvailability;
 };
 
 // A card-target pick with MORE THAN this many own-tableau candidates routes to
@@ -36,7 +42,12 @@ export const playedCardsPickState = reactive<PlayedCardsPickState>({
   selectable: [],
   title: '',
   signature: '',
+  availability: 'available',
 });
+
+export function setPlayedPickAvailability(value: PlayedPickAvailability): void {
+  playedCardsPickState.availability = value;
+}
 
 // The resolve callback is held OUTSIDE the reactive object (a function isn't
 // reactive data). Set by `enterPlayedCardsPick`, fired by `resolvePlayedCardsPick`,
@@ -52,6 +63,7 @@ export function enterPlayedCardsPick(opts: {
   playedCardsPickState.title = opts.title;
   playedCardsPickState.selectable = [...opts.selectable];
   playedCardsPickState.signature = [...opts.selectable].sort().join(',');
+  playedCardsPickState.availability = 'available';
   resolveCb = opts.onResolve;
 }
 
@@ -72,6 +84,7 @@ export function exitPlayedCardsPick(): void {
   playedCardsPickState.selectable = [];
   playedCardsPickState.title = '';
   playedCardsPickState.signature = '';
+  playedCardsPickState.availability = 'available';
   resolveCb = undefined;
 }
 

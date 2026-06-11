@@ -19,6 +19,7 @@
         :lightweight="true"
         :pickMode="pickMode"
         :selectable="selectable"
+        :reasons="reasons"
         @open="$emit('open', $event)"
         @pick="$emit('pick', $event)" />
     </div>
@@ -36,6 +37,7 @@
         :player="player"
         :pickMode="pickMode"
         :selectable="selectable"
+        :reasons="reasons"
         @open="$emit('open', $event)"
         @pick="$emit('pick', $event)" />
     </div>
@@ -98,6 +100,11 @@ export default defineComponent({
     selectable: {
       type: Object as PropType<ReadonlySet<CardName>>,
       default: () => new Set<CardName>(),
+    },
+    // Per-card unavailability reason (English i18n key) for non-candidate cards.
+    reasons: {
+      type: Object as PropType<Record<string, string>>,
+      default: () => ({}),
     },
   },
   emits: ['open', 'pick'],
