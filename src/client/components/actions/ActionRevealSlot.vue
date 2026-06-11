@@ -16,6 +16,25 @@
       <ActionEffectChip :effect="reveal.reward" />
     </div>
 
+    <!-- VP clarity (pre-confirm): a successful reveal either GAINS VP, or — when
+         the card already scores its max (Search For Life already holds a science)
+         — an amber warning that a repeat adds NO more VP. So the player never
+         wonders why a second find didn't move their score. -->
+    <div v-if="state !== 'result' && revealVp !== undefined"
+         class="action-reveal__vp"
+         :class="revealVpGain ? 'action-reveal__vp--gain' : 'action-reveal__vp--warn'">
+      <template v-if="revealVpGain">
+        <span class="action-reveal__vp-star" aria-hidden="true">★</span>
+        <span class="action-reveal__vp-delta">+{{ revealVpDelta }}</span>
+        <span class="action-reveal__vp-unit" v-i18n>VP</span>
+        <span class="action-reveal__vp-suffix" v-i18n>on a successful reveal</span>
+      </template>
+      <template v-else>
+        <span class="action-reveal__vp-glyph" aria-hidden="true">⚠</span>
+        <span v-i18n>Victory points are already maxed — a repeat won't add any.</span>
+      </template>
+    </div>
+
     <!-- The card slot. Empty placeholder / pending pulse / the revealed card. -->
     <div class="action-reveal__slot"
          :class="{
@@ -58,6 +77,21 @@
         <span class="action-reveal__outcome-label" v-i18n>Condition not met</span>
       </template>
     </div>
+
+    <!-- VP clarity (result): the score either went up (+N VP — the first science
+         unlocking 3), or, on a match that didn't move it (already maxed), a calm
+         "victory points unchanged" so the player understands the find was real but
+         worth no extra points. Only when the condition was met. -->
+    <div v-if="state === 'result' && result !== undefined && result.conditionMet && resultVp !== undefined"
+         class="action-reveal__vp"
+         :class="resultVpGain ? 'action-reveal__vp--gain' : 'action-reveal__vp--neutral'">
+      <template v-if="resultVpGain">
+        <span class="action-reveal__vp-star" aria-hidden="true">★</span>
+        <span class="action-reveal__vp-delta">+{{ resultVpDelta }}</span>
+        <span class="action-reveal__vp-unit" v-i18n>VP</span>
+      </template>
+      <span v-else v-i18n>Victory points unchanged</span>
+    </div>
   </div>
 </template>
 
@@ -87,6 +121,28 @@ export default defineComponent({
     result: {
       type: Object as PropType<RevealResultModel>,
       default: undefined,
+    },
+  },
+  computed: {
+    // Pre-confirm VP context (now → after a successful reveal).
+    revealVp(): {from: number, to: number} | undefined {
+      return this.reveal?.vp;
+    },
+    revealVpGain(): boolean {
+      return this.revealVp !== undefined && this.revealVp.to > this.revealVp.from;
+    },
+    revealVpDelta(): number {
+      return this.revealVp === undefined ? 0 : this.revealVp.to - this.revealVp.from;
+    },
+    // Post-reveal VP context (before → after the actual reveal).
+    resultVp(): {from: number, to: number} | undefined {
+      return this.result?.vp;
+    },
+    resultVpGain(): boolean {
+      return this.resultVp !== undefined && this.resultVp.to > this.resultVp.from;
+    },
+    resultVpDelta(): number {
+      return this.resultVp === undefined ? 0 : this.resultVp.to - this.resultVp.from;
     },
   },
 });

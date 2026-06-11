@@ -24,12 +24,14 @@ export function recordReveal(
   revealed: ICard,
   conditionMet: boolean,
   reward: ActionEffect,
+  vp?: {from: number, to: number},
 ): void {
   player.lastReveal = {
     action,
     revealed: cardsToModel(player, [revealed])[0],
     conditionMet,
     reward: conditionMet ? reward : undefined,
+    vp,
   };
 }
 

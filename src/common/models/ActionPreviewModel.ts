@@ -89,6 +89,15 @@ export type ActionRevealDescriptor = {
   check: {tag?: Tag, label: string | Message};
   /** What the player gains on a match — reuses the chip type (e.g. science +1 here). */
   reward: ActionEffect;
+  /**
+   * The VP the SOURCE card scores NOW → after a successful match (`from` → `to`).
+   * Drives a clarity note so the player never has to wonder why a match did or
+   * didn't move their score: `to > from` → "you'll gain +N VP"; `to === from` →
+   * an amber "you already have these VP — finding more won't add any". Search For
+   * Life (binary 3 VP once it holds a science) is the case that needs the warning;
+   * Asteroid Deflection (1 VP per asteroid) always gains. Omit for VP-less cards.
+   */
+  vp?: {from: number, to: number};
 };
 
 export type ActionPreviewBranch = {

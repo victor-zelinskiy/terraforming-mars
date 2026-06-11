@@ -756,35 +756,11 @@ export default defineComponent({
   50% { opacity: 1; transform: scale(1); }
 }
 
-.action-confirm__summary-label,
-.action-confirm__branches-label {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(150, 200, 230, 0.7);
-  margin-bottom: 10px;
-}
+// NOTE: the summary / section LABEL styles (`__summary`, `__summary-label`,
+// `__section`, `__section-label`) live in the GLOBAL actions_overlay.less, NOT
+// here — the App-level RevealResultOverlay reuses the same markup, and scoped
+// styles wouldn't reach it (its labels rendered unstyled/huge otherwise).
 
-// Labelled sections (Action / Result / VP progress) for a simple action — keep
-// the panel premium and "filled" without turning a simple action into a wizard.
-.action-confirm__summary {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  .action-confirm__summary-label { margin-bottom: 0; }
-}
-.action-confirm__section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.action-confirm__section-label {
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(150, 200, 230, 0.58);
-}
 /* Branch title shown when a combined-node card has no per-branch graphic. */
 .action-confirm__action-text {
   font-size: 14px;
