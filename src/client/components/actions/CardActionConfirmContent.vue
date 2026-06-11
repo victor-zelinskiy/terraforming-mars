@@ -229,14 +229,18 @@
                   data-test="action-confirm-cancel">
             <span class="cab-action-confirm-cancel__label" v-i18n>Cancel</span>
           </button>
-          <button class="action-confirm__confirm cab-action-confirm-go"
-                  :disabled="!canConfirm"
-                  @click="confirm"
-                  data-test="action-confirm-confirm">
-            <span class="cab-action-confirm-go__glow" aria-hidden="true"></span>
-            <span class="cab-action-confirm-go__icon" aria-hidden="true">▶</span>
-            <span class="cab-action-confirm-go__label" v-i18n>Confirm action</span>
-          </button>
+          <!-- The wrapper hosts the premium tooltip (a disabled button can't hover),
+               so a disabled Confirm always explains WHAT's still missing. -->
+          <span class="action-confirm__confirm-wrap" :data-hint="confirmDisabledReason">
+            <button class="action-confirm__confirm cab-action-confirm-go"
+                    :disabled="!canConfirm"
+                    @click="confirm"
+                    data-test="action-confirm-confirm">
+              <span class="cab-action-confirm-go__glow" aria-hidden="true"></span>
+              <span class="cab-action-confirm-go__icon" aria-hidden="true">▶</span>
+              <span class="cab-action-confirm-go__label" v-i18n>Confirm action</span>
+            </button>
+          </span>
         </div>
       </footer>
     </div>
@@ -282,7 +286,7 @@ import {resourceScoring} from '@/client/components/additionalResources/additiona
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {handActionPickResult} from '@/client/components/handCards/handActionPick';
-import {translateText, translateMessage} from '@/client/directives/i18n';
+import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
 
 // The request the confirm modal emits to PlayerHome to host the КАРТЫ В РУКЕ
 // overlay for a "pick a card from hand" step (Self-Replicating Robots link).
@@ -549,6 +553,29 @@ export default defineComponent({
         return false;
       }
       return branch.steps.every((step, i) => step.kind !== 'input' || this.captured[i] !== undefined);
+    },
+    // The "why is Confirm disabled" reason for its premium tooltip — a branch that
+    // turned out unavailable, else what choice/payment is still missing. Empty when
+    // ready (no tooltip). Honours the project rule: every disabled button explains
+    // itself.
+    confirmDisabledReason(): string {
+      if (this.canConfirm || this.loading) {
+        return '';
+      }
+      const branch = this.selected;
+      if (branch === undefined || branch.available === false) {
+        const r = branch?.unavailableReason;
+        if (r === undefined) {
+          return translateText('Cannot activate');
+        }
+        const msg = typeof r === 'string' ? r : r.message;
+        return translateTextWithParams(msg, [...(branch?.unavailableReasonParams ?? [])]);
+      }
+      if (branch.optionInput !== undefined && this.capturedOption === undefined) {
+        return translateText('Make a selection first');
+      }
+      const paymentMissing = branch.steps.some((s, i) => s.kind === 'input' && s.input.type === 'payment' && this.captured[i] === undefined);
+      return translateText(paymentMissing ? 'Complete the payment first' : 'Make a selection first');
     },
     capturedOptionCardName(): CardName | undefined {
       const r = this.capturedOption;

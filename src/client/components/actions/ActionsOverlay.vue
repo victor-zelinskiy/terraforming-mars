@@ -56,6 +56,7 @@
                            :key="e.cardName"
                            :entry="e"
                            :card="tableauByName.get(e.cardName)"
+                           :preview="previewFor(e.cardName)"
                            :selectedKey="selectedKey"
                            @select="onSelect"
                            @activate="$emit('activate', $event)" />
@@ -253,12 +254,14 @@ export default defineComponent({
     },
     filtered(): void {
       this.ensureSelection();
+      this.prefetchBranchPreviews();
       nextTick(() => this.scheduleFit());
     },
   },
   mounted(): void {
     actionsOverlayState.open = true;
     this.ensureSelection();
+    this.prefetchBranchPreviews();
     nextTick(() => this.fit());
     window.setTimeout(() => this.fit(), 220);
     const root = this.$refs.root as HTMLElement | undefined;
@@ -303,14 +306,17 @@ export default defineComponent({
       setActionSelection(actionRowKey(payload.cardName, payload.nodeIndex));
       this.fetchPreviewFor(payload.cardName);
     },
-    // Lazily fetch the read-only action preview for the SELECTED card (own seat
-    // only), into the shared cache. The panel renders manifest content immediately
-    // and refines when this resolves.
-    fetchPreviewFor(cardName: CardName): void {
+    // Lazily fetch the read-only action preview for a card (own seat only), into
+    // the shared cache. `silent` suppresses the details skeleton — used by the
+    // background prefetch so it doesn't flicker the panel. The panel renders
+    // manifest content immediately and refines when this resolves.
+    fetchPreviewFor(cardName: CardName, silent = false): void {
       if (!this.isViewerSeat || this.viewerId === '' || actionsOverlayState.previewCache[cardName] !== undefined) {
         return;
       }
-      this.previewLoading = true;
+      if (!silent) {
+        this.previewLoading = true;
+      }
       const url = paths.API_ACTION_PREVIEW +
         '?id=' + encodeURIComponent(this.viewerId) +
         '&card=' + encodeURIComponent(cardName);
@@ -323,8 +329,25 @@ export default defineComponent({
         })
         .catch(() => { /* best-effort: the modal re-fetches its own preview anyway */ })
         .finally(() => {
-          this.previewLoading = false;
+          if (!silent) {
+            this.previewLoading = false;
+          }
         });
+    },
+    // Background-prefetch the previews of MULTI-action available cards, so the grid
+    // can mark a single UNAVAILABLE branch (the other may be playable — e.g. Rotator
+    // Impacts). Only multi-node cards need it (a single-action card's row availability
+    // IS the card-level state); silent so the details panel doesn't flicker.
+    prefetchBranchPreviews(): void {
+      for (const e of this.entries) {
+        if (e.group.nodes.length > 1 && e.state.status === 'available') {
+          this.fetchPreviewFor(e.cardName, true);
+        }
+      }
+    },
+    // The cached preview for a card (drives the grid's per-branch row availability).
+    previewFor(cardName: CardName): ActionPreview | undefined {
+      return actionsOverlayState.previewCache[cardName];
     },
     onKeydown(e: KeyboardEvent): void {
       if (e.key === 'Escape') {

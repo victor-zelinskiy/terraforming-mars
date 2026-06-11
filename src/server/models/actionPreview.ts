@@ -89,6 +89,7 @@ function deriveDeclarativeBranches(player: IPlayer, card: ICard & IActionCard, b
         title: sub.title,
         available: a.available,
         unavailableReason: a.reason?.message,
+        unavailableReasonParams: a.reason?.params,
         renderKeys: [String(i)],
         // Effects are computed for EVERY branch — an unavailable branch shows its
         // costs/gains too (the chip frames an unaffordable cost as "have / need"),
@@ -109,6 +110,7 @@ function deriveDeclarativeBranches(player: IPlayer, card: ICard & IActionCard, b
     title: '',
     available,
     unavailableReason: reason?.message,
+    unavailableReasonParams: reason?.params,
     renderKeys: [],
     effects: effectsForBehavior(player, card, behavior),
     steps: available ? stepsForBehavior(player, card, behavior) : [],

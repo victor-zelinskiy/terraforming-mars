@@ -111,8 +111,11 @@ export type ActionPreviewBranch = {
   index: number;
   title: string | Message;
   available: boolean;
-  /** Why this branch can't be used right now (when `available === false`). */
+  /** Why this branch can't be used right now (when `available === false`) — an
+   *  English i18n template; `unavailableReasonParams` fills its `${0}`… slots. */
   unavailableReason?: string | Message;
+  /** Params for `unavailableReason`'s template (e.g. the M€ deficit). */
+  unavailableReasonParams?: ReadonlyArray<string>;
   /**
    * Keys identifying which of the card's action render nodes belong to THIS
    * branch (matched by ordinal to the client's extracted action nodes), so the

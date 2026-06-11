@@ -751,6 +751,7 @@
 }
 /* The context-aware CTA row. */
 .action-detail__cta-row {
+    .premium-tooltip(260px); // hosts the disabled-CTA "why" reason (data-hint)
     display: flex;
     margin-top: 2px;
 }
@@ -1121,6 +1122,12 @@
     display: flex;
     gap: 12px;
     flex-shrink: 0;
+}
+/* Wrapper hosting the disabled-Confirm premium tooltip (a disabled button can't
+   :hover, so the reason lives on this wrapper). */
+.action-confirm__confirm-wrap {
+    .premium-tooltip(240px);
+    display: inline-flex;
 }
 
 /* Confirm / Cancel — cab-* language; confirm is the dominant CTA. */
@@ -1502,8 +1509,21 @@
         background: linear-gradient(180deg, rgba(28, 60, 88, 0.7), rgba(20, 44, 66, 0.7));
         box-shadow: 0 0 0 1px rgba(120, 230, 255, 0.55), 0 0 16px rgba(80, 200, 255, 0.22);
     }
-    &--rules, &--soft, &--activated { opacity: 0.6; filter: saturate(0.7); }
-    &--rules.compact-action--selected,
+    &--soft, &--activated { opacity: 0.6; filter: saturate(0.7); }
+    /* An UNAVAILABLE branch row (a multi-action card's blocked option) reads as a
+       clear RED-rimmed, desaturated, dimmed row — distinct from its playable
+       sibling, never just a normal row with a disabled CTA. */
+    &--rules {
+        opacity: 0.66;
+        filter: grayscale(0.4) saturate(0.6);
+        border-color: rgba(224, 96, 72, 0.5);
+        background: linear-gradient(180deg, rgba(48, 24, 22, 0.5), rgba(34, 18, 18, 0.5));
+    }
+    &--rules.compact-action--selected {
+        opacity: 0.96;
+        border-color: rgba(238, 106, 82, 0.85);
+        box-shadow: 0 0 0 1px rgba(238, 106, 82, 0.5), 0 0 14px rgba(224, 96, 72, 0.25);
+    }
     &--soft.compact-action--selected,
     &--activated.compact-action--selected { opacity: 0.9; }
 }
