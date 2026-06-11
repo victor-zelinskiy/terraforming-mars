@@ -46,7 +46,7 @@
         <span class="played-board__pickstrip-dot" aria-hidden="true"></span>
         <span class="played-board__pickstrip-label">
           <span class="played-board__pickstrip-kicker" v-i18n>Choose a card on your board</span>
-          <span class="played-board__pickstrip-title" v-i18n>{{ pickTitleText }}</span>
+          <span class="played-board__pickstrip-title">{{ pickTitleText }}</span>
         </span>
         <button type="button" class="played-board__pickstrip-cancel" @click="$emit('close')">
           <span v-i18n>Cancel</span>
@@ -138,7 +138,26 @@
     </div>
 
     <Teleport to="body">
-      <CardZoomModal v-if="zoomCard" ref="zoomModal" :card="zoomCard" @close="zoomCard = undefined" />
+      <!-- In pick mode the fullscreen viewer becomes a bounded browser of the
+           candidates (← / →) and hosts a Select action for the current card (a
+           candidate) — so the player can inspect a card fully and select it right
+           there, the fork's "select from fullscreen" rule. Outside pick mode it
+           stays the classic single-card preview (grouping intact). -->
+      <CardZoomModal v-if="zoomCard"
+                     ref="zoomModal"
+                     :card="zoomCard"
+                     :cards="pickActive ? pickNavCards : undefined"
+                     @navigate="zoomCard = $event"
+                     @close="zoomCard = undefined">
+        <template v-if="pickActive" #actions>
+          <button v-if="zoomCard !== undefined && pickSelectableSet.has(zoomCard.name)"
+                  type="button"
+                  class="card-zoom-actions__btn card-zoom-actions__btn--primary played-zoom-pick"
+                  @click="pickFromZoom">
+            <span v-i18n>Select</span>
+          </button>
+        </template>
+      </CardZoomModal>
     </Teleport>
   </div>
 </template>
@@ -167,6 +186,7 @@ import {playedPickUnavailableReason, PICK_REASON_GENERIC, PICK_REASON_ALREADY_PI
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {CardResource} from '@/common/CardResource';
 import {Message} from '@/common/logs/Message';
+import {translateText, translateMessage} from '@/client/directives/i18n';
 import PlayedCardsFilters from '@/client/components/playedCards/PlayedCardsFilters.vue';
 import PlayedCardsGroup from '@/client/components/playedCards/PlayedCardsGroup.vue';
 import PlayedCardsTable, {PlayedTableRow} from '@/client/components/playedCards/PlayedCardsTable.vue';
@@ -292,11 +312,26 @@ export default defineComponent({
       return playedCardsPickState.title;
     },
     pickTitleText(): string {
+      // Translate AND substitute the Message data tokens (`${0} ${1}`) — e.g.
+      // "Select card to add ${0} ${1}" → "Выберите карту, чтобы добавить 2 аэростата".
+      // (A bare `t.message` left the raw placeholders showing.)
       const t = this.pickTitle;
-      return typeof t === 'string' ? t : t.message;
+      return typeof t === 'string' ? translateText(t) : translateMessage(t);
     },
     pickSelectableSet(): ReadonlySet<CardName> {
       return new Set(playedCardsPickState.selectable);
+    },
+    // The cards the fullscreen viewer can page through in pick mode — the visible
+    // (filtered) tableau, in display order. Lets the player browse + select any
+    // candidate from fullscreen.
+    pickNavCards(): ReadonlyArray<CardModel> {
+      const out: Array<CardModel> = [];
+      for (const g of this.visibleGroups) {
+        for (const c of g.cards) {
+          out.push(c);
+        }
+      }
+      return out;
     },
     pickAvailability(): PlayedPickAvailability {
       return playedCardsPickState.availability;
@@ -507,6 +542,16 @@ export default defineComponent({
     onPickCard(card: CardModel): void {
       resolvePlayedCardsPick(card.name);
       this.$emit('close');
+    },
+    // Select the currently-zoomed candidate from the fullscreen viewer: close the
+    // viewer, then resolve the pick (same path as the in-grid Select button).
+    pickFromZoom(): void {
+      const card = this.zoomCard;
+      if (card === undefined || !this.pickSelectableSet.has(card.name)) {
+        return;
+      }
+      this.zoomCard = undefined;
+      this.onPickCard(card);
     },
     setPickAvailability(value: PlayedPickAvailability): void {
       setPlayedPickAvailability(value);

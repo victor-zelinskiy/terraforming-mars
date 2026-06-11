@@ -70,8 +70,8 @@ export class CyberiaSystems extends RoboticWorkforceBase {
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const buildingCards = this.getPlayableBuildingCards(player);
     return actionPreviews.playPreview(this, player, [], [
-      actionPreviews.selectCardStep(player, 'Select first builder card to copy', 'Copy', buildingCards),
-      actionPreviews.selectCardStep(player, 'Select second card to copy', 'Copy', buildingCards, {dedupeFromSteps: [0]}),
+      actionPreviews.selectCardStep(player, 'Select first builder card to copy', 'Copy', buildingCards, {copyProductionBox: true}),
+      actionPreviews.selectCardStep(player, 'Select second card to copy', 'Copy', buildingCards, {dedupeFromSteps: [0], copyProductionBox: true}),
     ]);
   }
 }

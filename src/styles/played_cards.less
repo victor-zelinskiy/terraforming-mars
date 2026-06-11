@@ -715,9 +715,12 @@
 .played-card-item {
     cursor: pointer;
     outline: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     /* Neutralise the legacy asymmetric card margin so the scaled card
        hugs its slot (see CLAUDE "Centering UI under a <Card>"). */
-    > .card-container { margin: 0; }
+    .card-container { margin: 0; }
     /* Perf: isolate each card's layout so the fit engine's repeated zoom
        measures don't reflow sibling cards. `layout style` only — NOT `paint`
        (paint containment would clip card badges that sit at the card edge,
@@ -733,14 +736,14 @@
    rendered the tucked Events at natural size). Identity cards get a SMALL bump
    (corporation largest); the bumps are kept small so corp/preludes stay <= 1.0
    even at the max base zoom (0.95) and never upscale the raster art. */
-.played-card-item > .card-container {
+.played-card-item .card-container {
     zoom: var(--played-card-zoom, 0.6);
 }
-.played-group--corporation .played-card-item > .card-container {
+.played-group--corporation .played-card-item .card-container {
     zoom: calc(var(--played-card-zoom, 0.6) + 0.05);
 }
-.played-group--prelude .played-card-item > .card-container,
-.played-group--ceo .played-card-item > .card-container {
+.played-group--prelude .played-card-item .card-container,
+.played-group--ceo .played-card-item .card-container {
     zoom: calc(var(--played-card-zoom, 0.6) + 0.03);
 }
 
@@ -767,7 +770,7 @@
 
 /* The played-card slot owns hover feedback. Disable Card.vue's inner hover
    translate here so title/logo chrome and body never animate independently. */
-.played-board-overlay .played-card-item > .card-container.filterDiv:not(.colony-card):not(.card-standard-project):not(.card-unavailable):hover {
+.played-board-overlay .played-card-item .card-container.filterDiv:not(.colony-card):not(.card-standard-project):not(.card-unavailable):hover {
     transform: none;
 }
 
@@ -775,7 +778,7 @@
    only trims the resting cost a touch. The real perf win is `contain` above +
    no hover-expand (the `card--lightweight` class also skips `card-hover-tall`
    in Card.vue, so a crowded tableau never reflows on hover). */
-.played-card-item > .card-container.card--lightweight {
+.played-card-item .card-container.card--lightweight {
     will-change: auto;
 }
 
@@ -1031,31 +1034,59 @@
     opacity: 0.78;
     filter: grayscale(0.55) brightness(0.7);
 }
-/* "Why not" reason on a disabled chip — max clarity for the player. */
+/* The card silhouette wrapper — the click target that opens fullscreen (the
+   button below is a separate sibling so it never also zooms). */
+.played-card-item__card {
+    cursor: zoom-in;
+    outline: none;
+}
+/* PICK MODE — the SELECT button / reason chip lives UNDER the card (mirrors the
+   КАРТЫ В РУКЕ overlay). Scaled by the same card zoom so it stays proportional to
+   the card it belongs to (no double-zoom: it's a sibling of the zoomed card). */
+.played-card-item__action {
+    zoom: var(--played-card-zoom, 0.6);
+    margin-top: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 1px;
+}
+/* The dedicated SELECT button — clicking it resolves the pick immediately (no
+   extra confirm) and returns to the modal. Cyan CTA from the shared cab system. */
+.cab-played-pick {
+    .cab-base();
+    .cab-palette-cta-cyan();
+    min-width: 168px;
+    padding: 11px 26px;
+    font-size: 14px;
+}
+/* Fullscreen #actions Select (pick mode) — cyan CTA recoloured onto the modal's
+   primary chassis, matching the in-grid Select button + the pick theme. */
+.played-zoom-pick.card-zoom-actions__btn--primary {
+    background: linear-gradient(180deg, fade(@cab-cyan, 92%) 0%, darken(@cab-cyan, 8%) 100%);
+    color: #04161d;
+}
+/* "Why not" reason on a disabled chip — max clarity for the player. Now in flow
+   under the card (in the action slot), not floating over the card art. */
 .played-card-item__reason {
     .premium-tooltip(240px);
-    position: absolute;
-    left: 50%;
-    bottom: 9px;
-    transform: translateX(-50%);
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    max-width: 92%;
-    padding: 4px 11px;
+    gap: 6px;
+    max-width: 100%;
+    padding: 7px 15px;
     border-radius: 999px;
     background: linear-gradient(180deg, rgba(46, 54, 60, 0.96), rgba(30, 36, 42, 0.96));
     box-shadow: inset 0 0 0 1px rgba(150, 170, 180, 0.35);
     color: #d6dee2;
-    font-size: 10.5px;
+    font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.03em;
     text-transform: uppercase;
-    z-index: 3;
 }
 .played-card-item__reason-glyph {
     flex: 0 0 auto;
-    font-size: 10px;
+    font-size: 12px;
     color: #e08a7a;
 }
 .played-card-item__reason-text {
@@ -1066,42 +1097,18 @@
 .played-card-item--pickable {
     position: relative;
 }
-.played-card-item--pickable > .card-container {
+.played-card-item--pickable .card-container {
     outline: 2px solid rgba(70, 230, 255, 0.85);
     outline-offset: 1px;
     border-radius: 6px;
     box-shadow: 0 0 18px -2px rgba(70, 230, 255, 0.55);
     transition: outline-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
-.played-card-item--pickable:hover > .card-container,
-.played-card-item--pickable:focus-visible > .card-container {
+.played-card-item--pickable .played-card-item__card:hover .card-container,
+.played-card-item--pickable .played-card-item__card:focus-visible .card-container {
     outline-color: #7af2ff;
     box-shadow: 0 0 26px 0 rgba(70, 230, 255, 0.72);
     transform: translateY(-3px);
-}
-.played-card-item__pick {
-    position: absolute;
-    left: 50%;
-    bottom: 9px;
-    transform: translateX(-50%);
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 13px;
-    border-radius: 999px;
-    background: linear-gradient(180deg, rgba(70, 230, 255, 0.97), rgba(40, 190, 220, 0.97));
-    color: #06222b;
-    font-size: 11.5px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    box-shadow: 0 4px 12px -4px rgba(70, 230, 255, 0.8);
-    pointer-events: none;
-    z-index: 3;
-}
-.played-card-item__pick-tick {
-    font-size: 12px;
-    line-height: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

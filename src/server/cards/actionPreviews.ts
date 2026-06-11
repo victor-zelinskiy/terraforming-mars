@@ -215,12 +215,14 @@ export function selectCardStep(
   title: string | Message,
   label: string,
   cards: ReadonlyArray<ICard>,
-  opts?: {showOwner?: boolean, disabled?: ReadonlyArray<{card: ICard, reason: string | Message}>, amount?: number, dedupeFromSteps?: ReadonlyArray<number>},
+  opts?: {showOwner?: boolean, disabled?: ReadonlyArray<{card: ICard, reason: string | Message}>, amount?: number, dedupeFromSteps?: ReadonlyArray<number>, copyProductionBox?: boolean},
 ): ActionPreviewStep {
   // `amount` (the resource count added to the chosen card) drives the picker's
   // per-candidate "N → N+amount" impact preview. `dedupeFromSteps` removes cards
   // already chosen in those earlier steps (no-duplicate across linked picks).
-  return {kind: 'input', input: cardInput(player, title, label, cards, opts), amount: opts?.amount, dedupeFromSteps: opts?.dedupeFromSteps};
+  // `copyProductionBox` flags a copy-the-production step (Cyberia / RoboticWorkforce)
+  // so the modal folds the chosen card's production into the displayed RESULT.
+  return {kind: 'input', input: cardInput(player, title, label, cards, opts), amount: opts?.amount, dedupeFromSteps: opts?.dedupeFromSteps, copyProductionBox: opts?.copyProductionBox};
 }
 
 /** A single-target `SelectPlayer` as a STEP (the modal hosts the premium
