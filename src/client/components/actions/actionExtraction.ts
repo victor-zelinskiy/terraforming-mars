@@ -6,6 +6,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {
   ICardRenderEffect,
   ICardRenderRoot,
+  ICardRenderSymbol,
   ItemType,
   isICardRenderRoot,
   isICardRenderEffect,
@@ -14,6 +15,7 @@ import {
   isICardRenderSymbol,
 } from '@/common/cards/render/Types';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
+import {Size} from '@/common/cards/render/Size';
 
 /*
  * Client-side extraction of a card's ACTIVATABLE ACTION graphics, for the
@@ -96,6 +98,33 @@ export function actionNodeDescription(node: {actionNode?: ICardRenderEffect | un
     return descriptionString(node.actionNode) ?? '';
   }
   return node.text ?? '';
+}
+
+/**
+ * A copy of an action render node with a LEADING `or()` connector symbol stripped
+ * from its cause row. The DSL draws an `or` action as STACKED boxes whose 2nd+ box
+ * opens with an OR symbol so the FULL card reads "do box 1 OR box 2" (e.g. Weather
+ * Balloons / Icy Impactors / Rotator Impacts: "ИЛИ <floater> → …"). When the
+ * Actions overlay / confirm modal SPLIT those boxes into their OWN per-branch
+ * blocks (each with its own ВЫПОЛНИТЬ), that leading OR is orphaned — a stray
+ * "ИЛИ" atop a lone branch. Strip it so each branch reads as a standalone action.
+ * Never mutates the shared manifest node (returns a shallow copy); a no-op when
+ * the node doesn't open with OR (the first branch, or any non-`or` action).
+ */
+export function branchActionNode(node: ICardRenderEffect): ICardRenderEffect {
+  const cause = node.rows[0];
+  const first = cause?.[0];
+  if (first === undefined || !isICardRenderSymbol(first) || first.type !== CardRenderSymbolType.OR) {
+    return node;
+  }
+  const trimmed = cause.slice(1);
+  // An emptied cause makes the box renderer drop the delimiter (the action arrow),
+  // so keep an EMPTY placeholder — mirrors how the DSL uses `empty()` for a
+  // cause-less action ("→ effect").
+  const newCause: Array<ItemType> = trimmed.length > 0 ?
+    trimmed :
+    [{is: 'symbol', type: CardRenderSymbolType.EMPTY, size: Size.MEDIUM} as ICardRenderSymbol];
+  return {...node, rows: [newCause, node.rows[1], node.rows[2]]};
 }
 
 /**

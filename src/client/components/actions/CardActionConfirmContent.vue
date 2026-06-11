@@ -91,6 +91,18 @@
                 </div>
               </div>
 
+              <!-- "What happens next" context notes (tile placement / colony / a
+                   special board move). Shown HERE in the always-visible summary so
+                   they're never buried below a tall payment widget in the choices
+                   block — the player always sees what confirming will require. -->
+              <div class="action-confirm__section" v-if="noteSteps.length > 0">
+                <span class="action-confirm__section-label" v-i18n>Next</span>
+                <div v-for="(note, i) in noteSteps" :key="i" class="action-confirm__step action-confirm__step--placement">
+                  <span class="action-confirm__step-glyph" aria-hidden="true">◎</span>
+                  <span class="action-confirm__step-text" v-i18n>{{ noteText(note) }}</span>
+                </div>
+              </div>
+
               <div class="action-confirm__section" v-if="vpProgress !== undefined">
                 <ActionVpProgress :cardName="cardName"
                                   :resourceIcon="vpProgress.icon"
@@ -201,17 +213,12 @@
           </div>
         </div>
 
-        <!-- Interactive choices for the selected branch. -->
-        <div v-if="selected !== undefined && selected.steps.length > 0" class="action-confirm__steps">
+        <!-- Interactive choices for the selected branch (the context "what happens
+             next" notes live in the always-visible summary panel above — they must
+             NOT be buried below a tall payment widget here). -->
+        <div v-if="selected !== undefined && hasInputSteps" class="action-confirm__steps">
           <template v-for="(step, i) in selected.steps" :key="i">
-            <!-- A "what happens next" context note (tile placement / colony / a
-                 special board move) — the modal can't pre-collect it, so it tells
-                 the player exactly what confirming will require. -->
-            <div v-if="step.kind === 'boardPlacement' || step.kind === 'note'" class="action-confirm__step action-confirm__step--placement">
-              <span class="action-confirm__step-glyph" aria-hidden="true">◎</span>
-              <span class="action-confirm__step-text" v-i18n>{{ noteText(step) }}</span>
-            </div>
-            <div v-else class="action-confirm__step action-confirm__step--input"
+            <div v-if="step.kind === 'input'" class="action-confirm__step action-confirm__step--input"
                  :class="{
                    'action-confirm__step--answered': captured[i] !== undefined,
                    'action-confirm__step--bare': step.input.type === 'payment',
@@ -289,7 +296,7 @@ import {InputResponse} from '@/common/inputs/InputResponse';
 import {ActionPreview, ActionPreviewBranch, ActionRevealDescriptor} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {ActionGroup, playerActionGroups, actionNodeDescription} from '@/client/components/actions/actionExtraction';
+import {ActionGroup, playerActionGroups, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
 import {assignBranchNodes} from '@/client/components/actions/actionBranchNodes';
 import Card from '@/client/components/card/Card.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
@@ -399,9 +406,21 @@ export default defineComponent({
       if (b === undefined) {
         return false;
       }
-      // A reveal slot is NOT a choice — it lives under the source, not in the
-      // choices block (so a reveal-only action shows no empty choices area).
-      return b.optionInput !== undefined || b.steps.length > 0;
+      // Only INTERACTIVE inputs make a choices block — a reveal slot lives under the
+      // source, and context notes live in the summary, so neither leaves an empty
+      // choices area (e.g. MarsNomads, whose only "step" is a board-move note).
+      return b.optionInput !== undefined || this.hasInputSteps;
+    },
+    // The branch's interactive input steps (payment / target pickers) — what the
+    // choices block hosts. Excludes context notes (boardPlacement / note), which
+    // are surfaced in the always-visible summary panel instead.
+    hasInputSteps(): boolean {
+      return this.selected?.steps.some((s) => s.kind === 'input') ?? false;
+    },
+    // The branch's "what happens next" context notes (board placement / colony / a
+    // special move) — rendered in the summary so they're never scrolled away.
+    noteSteps(): ReadonlyArray<{kind: string, placementType?: string, noteKind?: string, text?: string | Message}> {
+      return (this.selected?.steps ?? []).filter((s) => s.kind === 'boardPlacement' || s.kind === 'note') as ReadonlyArray<{kind: string}>;
     },
     // The number of selectable CARD tiles the choices block will render. Drives the
     // width bucket (widthClass) so the modal expands horizontally — spreading the
@@ -528,7 +547,7 @@ export default defineComponent({
         this.branches.map((b) => this.text(b.title)),
         nodes.map((n) => actionNodeDescription(n)),
       );
-      return this.branches.map((branch, p) => ({branch, node: this.nodeAt(indices[p])}));
+      return this.branches.map((branch, p) => ({branch, node: this.branchNode(indices[p])}));
     },
     canConfirm(): boolean {
       const branch = this.selected;
@@ -645,6 +664,15 @@ export default defineComponent({
         return undefined;
       }
       return this.group?.nodes[idx];
+    },
+    // The branch's render node, shown on its OWN in the branch picker / summary —
+    // strip a leading OR connector so the alternatives' "ИЛИ" join doesn't orphan.
+    branchNode(idx: number | undefined): GroupNode | undefined {
+      const node = this.nodeAt(idx);
+      if (node === undefined || node.actionNode === undefined) {
+        return node;
+      }
+      return {...node, actionNode: branchActionNode(node.actionNode)};
     },
     async fetchPreview(): Promise<void> {
       this.loading = true;

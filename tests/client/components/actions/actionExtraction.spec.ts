@@ -9,7 +9,15 @@ import {
   allScopeActionCardNames,
   overriddenActionCards,
   flaggedActionCandidates,
+  branchActionNode,
 } from '@/client/components/actions/actionExtraction';
+import {ICardRenderEffect, isICardRenderSymbol} from '@/common/cards/render/Types';
+import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
+
+function opensWithOr(node: ICardRenderEffect): boolean {
+  const first = node.rows[0]?.[0];
+  return first !== undefined && isICardRenderSymbol(first) && first.type === CardRenderSymbolType.OR;
+}
 
 function model(name: CardName, isDisabled = false): CardModel {
   return {name, isDisabled} as CardModel;
@@ -97,5 +105,33 @@ describe('actionExtraction', () => {
     const wbActions = playerActions([model(CardName.WEATHER_BALLOONS)]);
     expect(wbActions.length).to.be.greaterThan(0);
     expect(wbActions[0].actionNode).to.not.eq(undefined);
+  });
+
+  it('strips the leading OR connector from a split `or`-action branch (Weather Balloons)', () => {
+    // Weather Balloons draws its second action box opening with `or()` so the FULL
+    // card reads "box1 OR box2". The overlay/confirm modal split the boxes into
+    // their own per-branch blocks, where that leading OR is orphaned.
+    const nodes = playerActionGroups([model(CardName.WEATHER_BALLOONS)])[0].nodes;
+    const withOr = nodes.find((n) => n.actionNode !== undefined && opensWithOr(n.actionNode));
+    expect(withOr, 'expected an action node opening with OR').to.not.eq(undefined);
+    const original = withOr!.actionNode as ICardRenderEffect;
+
+    const stripped = branchActionNode(original);
+    // The leading OR is gone; the rest of the cause (the spent floater) remains.
+    expect(opensWithOr(stripped)).to.eq(false);
+    expect(stripped.rows[0].length).to.eq(original.rows[0].length - 1);
+    // Delimiter (the action arrow) + effect rows are untouched.
+    expect(stripped.rows[1]).to.eq(original.rows[1]);
+    expect(stripped.rows[2]).to.eq(original.rows[2]);
+    // The shared manifest node is NOT mutated.
+    expect(opensWithOr(original)).to.eq(true);
+  });
+
+  it('returns an action node WITHOUT a leading OR unchanged (identity)', () => {
+    const nodes = playerActionGroups([model(CardName.WEATHER_BALLOONS)])[0].nodes;
+    const noOr = nodes.find((n) => n.actionNode !== undefined && !opensWithOr(n.actionNode));
+    expect(noOr, 'expected an action node without a leading OR').to.not.eq(undefined);
+    const original = noOr!.actionNode as ICardRenderEffect;
+    expect(branchActionNode(original)).to.eq(original);
   });
 });

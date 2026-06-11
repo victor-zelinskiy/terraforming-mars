@@ -166,7 +166,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {Message} from '@/common/logs/Message';
 import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
-import {ActionGroup, actionNodeDescription} from '@/client/components/actions/actionExtraction';
+import {ActionGroup, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
 import {ActionState} from '@/client/components/actions/actionPlayability';
 import {assignBranchNodes} from '@/client/components/actions/actionBranchNodes';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -261,7 +261,7 @@ export default defineComponent({
       );
       return branches.map((branch, i): BranchView => ({
         key: this.cardName + '#br' + i,
-        node: this.nodeAt(indices[i]),
+        node: this.branchNode(indices[i]),
         branch,
       }));
     },
@@ -319,6 +319,15 @@ export default defineComponent({
         return undefined;
       }
       return this.group.nodes[idx];
+    },
+    // The branch's render node, shown in its OWN block — strip a leading OR
+    // connector so the alternatives' "ИЛИ" join doesn't orphan atop a lone branch.
+    branchNode(idx: number | undefined): GroupNode | undefined {
+      const node = this.nodeAt(idx);
+      if (node === undefined || node.actionNode === undefined) {
+        return node;
+      }
+      return {...node, actionNode: branchActionNode(node.actionNode)};
     },
     branchTitle(b: ActionPreviewBranch): string {
       return typeof b.title === 'string' ? b.title : (b.title as Message).message;
