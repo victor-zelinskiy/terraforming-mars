@@ -181,4 +181,8 @@ export type ActionPreviewStep =
   /** A `warning` note flags an effect that WILL BE SKIPPED for lack of a valid
    *  target (e.g. "add an animal" with no animal card) — shown as an orange block
    *  so the player is never surprised by a silently-lost effect. */
-  | {kind: 'note', noteKind: 'colony' | 'board' | 'generic' | 'warning', text?: string | Message};
+  | {kind: 'note', noteKind: 'colony' | 'board' | 'generic' | 'warning', text?: string | Message,
+    /** For a `warning` about a card-resource that can't be placed (no eligible
+     *  card): the resource icon key (a `CardResource` value) so the modal names
+     *  WHICH resource is lost via its icon, not an ambiguous "this resource". */
+    resource?: string};

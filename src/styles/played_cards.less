@@ -594,6 +594,12 @@
 .played-tableau--ready {
     opacity: 1;
 }
+/* PICK MODE: show the cards IMMEDIATELY — the anti-jump reveal (wait for the fit
+   to settle) is for the calm view; while picking, the player must SEE the
+   candidates at once, so never hide them behind the `ready` gate. */
+.played-tableau--picking {
+    opacity: 1;
+}
 
 /* Identity = a compact LEFT RAIL: corporation / preludes / CEO stacked
    vertically, plus any tucked-in small project sections. The width is capped to

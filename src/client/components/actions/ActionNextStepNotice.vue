@@ -13,6 +13,7 @@
          so the player is never surprised by a silently-lost effect. -->
     <div v-for="(w, i) in warnings" :key="'w' + i" class="action-next__warn">
       <span class="action-next__warn-glyph" aria-hidden="true">⚠</span>
+      <span v-if="warnResourceClass(w) !== ''" class="action-next__warn-res" :class="warnResourceClass(w)" aria-hidden="true"></span>
       <span class="action-next__warn-text" v-i18n>{{ text(w.text ?? '') }}</span>
     </div>
     <div v-if="notes.length > 0" class="action-next" :class="'action-next--' + variant">
@@ -29,8 +30,9 @@
 import {defineComponent, PropType} from 'vue';
 import {Message} from '@/common/logs/Message';
 import {ActionPreviewStep} from '@/common/models/ActionPreviewModel';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 
-type NoteStep = {kind: string, placementType?: string, noteKind?: string, text?: string | Message};
+type NoteStep = {kind: string, placementType?: string, noteKind?: string, text?: string | Message, resource?: string};
 
 export default defineComponent({
   name: 'ActionNextStepNotice',
@@ -60,6 +62,10 @@ export default defineComponent({
   methods: {
     text(m: string | Message): string {
       return typeof m === 'string' ? m : m.message;
+    },
+    // The lost card-resource's icon class, so the warning names WHICH resource.
+    warnResourceClass(w: NoteStep): string {
+      return w.resource !== undefined && w.resource !== '' ? iconClassFor(w.resource) : '';
     },
     // Canned copy per step kind + variant. A `note` with an explicit `text`
     // (card-specific, e.g. "After confirming, choose an adjacent space…") overrides
