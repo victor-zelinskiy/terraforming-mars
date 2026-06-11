@@ -32,6 +32,9 @@ describe('ImportedNutrients', () => {
     card.play(player);
     runAllActions(game);
 
+    const action = cast(player.popWaitingFor(), SelectCard);
+    action.cb([ants]);
+
     expect(player.plants).to.eq(4);
     expect(ants.resourceCount).to.eq(4);
   });

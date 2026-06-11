@@ -33,6 +33,9 @@ describe('CorroderSuits', () => {
     card.play(player);
     runAllActions(game);
 
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([aerialMappers]);
+
     expect(aerialMappers.resourceCount).to.eq(1);
     expect(player.production.megacredits).to.eq(2);
   });
@@ -60,6 +63,9 @@ describe('CorroderSuits', () => {
 
     card.play(player);
     runAllActions(game);
+
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([floaterUrbanism]);
 
     expect(floaterUrbanism.resourceCount).to.eq(1);
     expect(player.production.megacredits).to.eq(2);

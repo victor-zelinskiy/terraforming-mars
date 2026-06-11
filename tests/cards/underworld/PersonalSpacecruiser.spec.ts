@@ -3,6 +3,7 @@ import {PersonalSpacecruiser} from '../../../src/server/cards/underworld/Persona
 import {testGame} from '../../TestGame';
 import {runAllActions} from '../../TestingUtils';
 import {SecurityFleet} from '../../../src/server/cards/base/SecurityFleet';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {cast} from '../../../src/common/utils/utils';
 
 describe('PersonalSpacecruiser', () => {
@@ -14,6 +15,9 @@ describe('PersonalSpacecruiser', () => {
 
     cast(card.play(player), undefined);
     runAllActions(game);
+
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([securityFleet]);
 
     expect(securityFleet.resourceCount).eq(1);
     expect(player.underworldData.corruption).to.eq(1);

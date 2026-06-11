@@ -21,7 +21,6 @@ export class Celestic extends ActiveCorporationCard {
         addResourcesToAnyCard: {
           type: CardResource.FLOATER,
           count: 1,
-          autoSelect: false,
         },
       },
 

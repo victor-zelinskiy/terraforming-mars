@@ -54,9 +54,8 @@ describe('UrbanDecomposers', () => {
 
     card.play(player);
     expect(game.deferredActions).has.lengthOf(1);
-    const input = game.deferredActions.peek()!.execute();
-    game.deferredActions.pop();
-    expect(input).is.undefined;
+    const selectCard = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
+    selectCard.cb([decomposers]);
     expect(decomposers.resourceCount).to.eq(2);
     expect(player.production.plants).to.eq(1);
   });

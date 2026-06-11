@@ -9,6 +9,8 @@ import {TileType} from '../../../src/common/TileType';
 import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {ICard} from '../../../src/server/cards/ICard';
 import {runAllActions} from '../../TestingUtils';
 import {cast} from '../../../src/common/utils/utils';
 
@@ -55,7 +57,8 @@ describe('BiofertilizerFacility', () => {
     expect(citySpace.tile!.tileType).to.eq(TileType.BIOFERTILIZER_FACILITY);
     expect(citySpace.adjacency).to.deep.eq({bonus: [SpaceBonus.PLANT, SpaceBonus.MICROBE]});
 
-    game.deferredActions.peek()!.execute();
+    const selectCard = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
+    selectCard.cb([microbeHost]);
 
     expect(microbeHost.resourceCount).is.eq(2);
   });

@@ -89,7 +89,10 @@ describe('CommunicationCenter', () => {
     player.playCard(ceosFavoriteProject);
 
     runAllActions(game);
-    cast(player.popWaitingFor(), undefined);
+    // CEO's Favorite Project adds a resource to a card the player now picks
+    // explicitly (single candidate = card); drain the resulting draw cascade.
+    cast(player.popWaitingFor(), SelectCard).cb([card]);
+    runAllActions(game);
 
     expect(player.cardsInHand).has.length(1);
     expect(card.resourceCount).eq(1);
@@ -113,7 +116,10 @@ describe('CommunicationCenter', () => {
     player.playCard(dataLeak);
 
     runAllActions(game);
-    cast(player.popWaitingFor(), undefined);
+    // Data Leak adds data to a card the player now picks explicitly (single
+    // candidate = card); drain the resulting draw cascade.
+    cast(player.popWaitingFor(), SelectCard).cb([card]);
+    runAllActions(game);
 
     expect(player.cardsInHand).has.length(2);
     expect(card.resourceCount).eq(2);

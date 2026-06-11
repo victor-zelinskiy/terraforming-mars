@@ -79,7 +79,8 @@ describe('CEOsFavoriteProject', () => {
     birds.resourceCount = 1;
     cast(card.play(player), undefined);
     runAllActions(player.game);
-    cast(player.popWaitingFor(), undefined);
+    const action = cast(player.popWaitingFor(), SelectCard<ICard>);
+    action.cb([birds]);
     expect(srr.targetCards[0].resourceCount).to.eq(2);
   });
 

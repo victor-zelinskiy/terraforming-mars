@@ -42,6 +42,21 @@ describe('Crashlanding', () => {
     animalCard = fakeCard({name: 'C' as CardName, resourceType: CardResource.ANIMAL});
   });
 
+  // Crashlanding's data/resource gains and its adjacency data bonus all flow through
+  // deferred AddResourcesToCard, which now ALWAYS asks where the resource goes (even
+  // with a single candidate). runAllActions surfaces ONE pick at a time, so drain
+  // every pending pick onto `target`.
+  function drainPicks(target: IProjectCard) {
+    for (;;) {
+      runAllActions(game);
+      const wf = player.popWaitingFor();
+      if (wf === undefined) {
+        break;
+      }
+      cast(wf, SelectCard).cb([target]);
+    }
+  }
+
   it('canPlay', () => {
     const ids: Array<SpaceId> = ['26', '27', '35', '36', '37'];
     for (const space of game.board.getAvailableSpacesOnLand(player)) {
@@ -87,18 +102,21 @@ describe('Crashlanding', () => {
     const selectSpace = cast(card.play(player), SelectSpace);
     const orOptions = cast(selectSpace.cb(space), OrOptions);
     orOptions.options[0].cb();
-    runAllActions(game);
+    // The behavior's "add 1 data / add 1 resource to a card" now ALWAYS asks where
+    // (single candidate = dataCard); drain both picks.
+    drainPicks(dataCard);
 
     player.megaCredits = 0;
     expect(dataCard.resourceCount).eq(2);
     addGreenery(player, '35');
     expect(player.stock.asUnits()).deep.eq(Units.of({megacredits: 1, titanium: 1, steel: 0}));
-    runAllActions(game);
+    // The adjacency 1-data bonus also asks where (single candidate).
+    drainPicks(dataCard);
     expect(dataCard.resourceCount).eq(3);
 
     addGreenery(player, '37');
     expect(player.stock.asUnits()).deep.eq(Units.of({megacredits: 2, titanium: 1, steel: 1}));
-    runAllActions(game);
+    drainPicks(dataCard);
     expect(dataCard.resourceCount).eq(4);
   });
 
@@ -109,18 +127,19 @@ describe('Crashlanding', () => {
     const selectSpace = cast(card.play(player), SelectSpace);
     const orOptions = cast(selectSpace.cb(space), OrOptions);
     orOptions.options[1].cb();
-    runAllActions(game);
+    // The behavior's "add 1 data / add 1 resource to a card" now ALWAYS asks where.
+    drainPicks(dataCard);
 
     player.megaCredits = 0;
     expect(dataCard.resourceCount).eq(2);
     addGreenery(player, '35');
     expect(player.stock.asUnits()).deep.eq(Units.of({megacredits: 1, titanium: 0, steel: 1}));
-    runAllActions(game);
+    drainPicks(dataCard);
     expect(dataCard.resourceCount).eq(3);
 
     addGreenery(player, '37');
     expect(player.stock.asUnits()).deep.eq(Units.of({megacredits: 2, titanium: 1, steel: 1}));
-    runAllActions(game);
+    drainPicks(dataCard);
     expect(dataCard.resourceCount).eq(4);
   });
 
@@ -135,7 +154,9 @@ describe('Crashlanding', () => {
     const selectSpace = cast(card.play(player), SelectSpace);
     const orOptions = cast(selectSpace.cb(space), OrOptions);
     orOptions.options[1].cb();
-    runAllActions(game);
+    // The placement adjacency 1-data bonus + the behavior's 2 card-resources all now
+    // ask where (single candidate = dataCard); drain every pick.
+    drainPicks(dataCard);
 
     expect(dataCard.resourceCount).eq(3);
     expect(player.stock.asUnits()).deep.eq(Units.of({megacredits: 0, titanium: 0, steel: 1}));
@@ -146,7 +167,11 @@ describe('Crashlanding', () => {
 
     card.play(player);
     runAllActions(game);
+    // DATA target — single candidate (dataCard) now asks before the any-resource pick.
+    cast(player.popWaitingFor(), SelectCard).cb([dataCard]);
     expect(dataCard.resourceCount).eq(1);
+    // The 2nd gain (any resource) surfaces on the next runAllActions.
+    runAllActions(game);
     const selectCard = cast(player.popWaitingFor(), SelectCard);
     expect(selectCard.cards).to.have.members([dataCard, animalCard, microbeCard]);
     selectCard.cb([animalCard]);

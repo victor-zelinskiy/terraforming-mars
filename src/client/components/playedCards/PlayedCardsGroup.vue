@@ -17,7 +17,10 @@
         :card="card"
         :player="player"
         :lightweight="true"
-        @open="$emit('open', $event)" />
+        :pickMode="pickMode"
+        :selectable="selectable"
+        @open="$emit('open', $event)"
+        @pick="$emit('pick', $event)" />
     </div>
 
     <!-- Main project section: vertical columns. Column count + balanced
@@ -31,7 +34,10 @@
         :cards="column"
         :peek="peek"
         :player="player"
-        @open="$emit('open', $event)" />
+        :pickMode="pickMode"
+        :selectable="selectable"
+        @open="$emit('open', $event)"
+        @pick="$emit('pick', $event)" />
     </div>
   </section>
 </template>
@@ -39,6 +45,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
+import {CardName} from '@/common/cards/CardName';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {PlayedGroup} from '@/client/components/playedCards/playedCardGroups';
 import {balancedChunks, ProjectSectionPlan} from '@/client/components/playedCards/playedTableauFit';
@@ -84,8 +91,16 @@ export default defineComponent({
       type: Object as PropType<PublicPlayerModel>,
       required: true,
     },
+    pickMode: {
+      type: Boolean,
+      default: false,
+    },
+    selectable: {
+      type: Object as PropType<ReadonlySet<CardName>>,
+      default: () => new Set<CardName>(),
+    },
   },
-  emits: ['open'],
+  emits: ['open', 'pick'],
   computed: {
     chunks(): ReadonlyArray<number> {
       if (this.plan !== undefined && this.plan.chunks.length > 0) {

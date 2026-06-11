@@ -36,8 +36,8 @@ describe('FloaterTechnology', () => {
 
     card.action(player);
     expect(game.deferredActions).has.lengthOf(1);
-    const input = game.deferredActions.peek()!.execute();
-    expect(input).is.undefined;
+    const selectCard = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
+    selectCard.cb([dirigibles]);
     expect(dirigibles.resourceCount).to.eq(1);
   });
 

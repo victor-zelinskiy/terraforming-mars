@@ -4,6 +4,7 @@ import {testGame} from '../../TestGame';
 import {runAllActions} from '../../TestingUtils';
 import {assertIsExcavationAction} from '../../underworld/underworldAssertions';
 import {JupiterFloatingStation} from '../../../src/server/cards/colonies/JupiterFloatingStation';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {cast} from '../../../src/common/utils/utils';
 
 describe('SoilExport', () => {
@@ -19,6 +20,9 @@ describe('SoilExport', () => {
     assertIsExcavationAction(player, player.popWaitingFor());
 
     runAllActions(game);
+
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([jupiterFloatingStation]);
 
     expect(jupiterFloatingStation.resourceCount).eq(3);
   });

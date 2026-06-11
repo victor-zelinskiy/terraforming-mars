@@ -169,6 +169,27 @@
                 <span class="action-confirm__handpick-btn-label" v-i18n>Pick a card from hand</span>
               </button>
             </div>
+            <!-- A pick from your OWN board with MORE THAN 3 candidates goes to the
+                 РАЗЫГРАНО board (pick the real card) instead of the cramped tile
+                 grid. Show the chosen card here once picked + a CTA. -->
+            <div v-else-if="isPlayedOverlayInput(selected.optionInput)" class="action-confirm__handpick">
+              <div v-if="optionChosenCard !== undefined" class="action-confirm__handpick-chosen">
+                <button type="button"
+                        class="action-confirm__handpick-card"
+                        :aria-label="$t('Open fullscreen')"
+                        @click.capture.stop="openChosenFullscreen">
+                  <Card :card="optionChosenCard" />
+                </button>
+                <button type="button" class="action-confirm__handpick-change" @click="requestPlayedPick" data-test="action-pick-played-change">
+                  <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
+                  <span v-i18n>Choose another card</span>
+                </button>
+              </div>
+              <button v-else type="button" class="action-confirm__handpick-btn" @click="requestPlayedPick" data-test="action-pick-played-card">
+                <span class="action-confirm__handpick-btn-glyph" aria-hidden="true">▦</span>
+                <span class="action-confirm__handpick-btn-label" v-i18n>Choose a card on your board</span>
+              </button>
+            </div>
             <ActionTargetCard v-else-if="selected.optionInput.type === 'card'"
                               :playerView="playerView"
                               :input="selected.optionInput"
@@ -286,6 +307,8 @@ import {resourceScoring} from '@/client/components/additionalResources/additiona
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {handActionPickResult} from '@/client/components/handCards/handActionPick';
+import {playedCardActionPickResult} from '@/client/components/playedCards/playedCardActionPick';
+import {PLAYED_PICK_OVERLAY_THRESHOLD} from '@/client/components/playedCards/playedCardsPickState';
 import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
 
 // The request the confirm modal emits to PlayerHome to host the КАРТЫ В РУКЕ
@@ -330,13 +353,15 @@ export default defineComponent({
       default: 0,
     },
   },
-  emits: ['confirm', 'cancel', 'pick-card'],
+  emits: ['confirm', 'cancel', 'pick-card', 'pick-played-card'],
   data() {
     return {
       zoomCard: undefined as CardModel | undefined,
       // True between emitting `pick-card` and the result arriving via the bridge,
       // so a stale epoch bump can't capture into the wrong slot.
       awaitingPick: false,
+      // Same guard for the РАЗЫГРАНО-board pick (a >3-candidate own-card target).
+      awaitingPlayedPick: false,
       preview: undefined as ActionPreview | undefined,
       loading: true,
       selected: undefined as ActionPreviewBranch | undefined,
@@ -585,6 +610,10 @@ export default defineComponent({
     pickEpoch(): number {
       return handActionPickResult.epoch;
     },
+    // Bridged result epoch from the РАЗЫГРАНО board pick (see the watcher).
+    playedPickEpoch(): number {
+      return playedCardActionPickResult.epoch;
+    },
     // The chosen card's full model (for rendering it in the modal after the pick).
     optionChosenCard(): CardModel | undefined {
       const input = this.selected?.optionInput;
@@ -605,6 +634,17 @@ export default defineComponent({
       }
       this.awaitingPick = false;
       const card = handActionPickResult.card;
+      if (card !== undefined) {
+        this.captureOption({type: 'card', cards: [card]});
+      }
+    },
+    // A card picked on the РАЗЫГРАНО board was delivered back via the bridge.
+    playedPickEpoch(): void {
+      if (!this.awaitingPlayedPick) {
+        return;
+      }
+      this.awaitingPlayedPick = false;
+      const card = playedCardActionPickResult.card;
       if (card !== undefined) {
         this.captureOption({type: 'card', cards: [card]});
       }
@@ -649,6 +689,32 @@ export default defineComponent({
         reasons,
       };
       this.$emit('pick-card', request);
+    },
+    // True when a 'card' input is a pick from your OWN tableau with MORE THAN 3
+    // candidates — too many for the cramped in-modal tile grid, so route it to
+    // the РАЗЫГРАНО board (pick the real card). ≤3 (or multi-owner / hand) stays
+    // on the inline ActionTargetCard.
+    isPlayedOverlayInput(input: {type: string, cards?: ReadonlyArray<CardModel>} | undefined): boolean {
+      if (input === undefined || input.type !== 'card') {
+        return false;
+      }
+      const cards = input.cards ?? [];
+      if (cards.length <= PLAYED_PICK_OVERLAY_THRESHOLD) {
+        return false;
+      }
+      const tableau = new Set((this.playerView.thisPlayer.tableau ?? []).map((c) => c.name));
+      return cards.every((c) => tableau.has(c.name));
+    },
+    // Hand off the selected branch's card pick to the РАЗЫГРАНО board (PlayerHome
+    // opens it in pick mode + suppresses this modal; the picked card returns via
+    // the `playedPickEpoch` watcher).
+    requestPlayedPick(): void {
+      const input = this.selected?.optionInput as SelectCardModel | undefined;
+      if (input === undefined || input.type !== 'card') {
+        return;
+      }
+      this.awaitingPlayedPick = true;
+      this.$emit('pick-played-card', {title: input.title, selectable: input.cards.map((c) => c.name)});
     },
     branchKey(b: ActionPreviewBranch): string {
       return this.text(b.title);

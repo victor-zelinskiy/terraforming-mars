@@ -5,6 +5,8 @@ import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
 import {Tag} from '../../../src/common/cards/Tag';
 import {runAllActions} from '../../TestingUtils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {cast} from '../../../src/common/utils/utils';
 
 describe('BioSol', () => {
   let card: BioSol;
@@ -28,6 +30,8 @@ describe('BioSol', () => {
   it('action', () => {
     card.action(player);
     runAllActions(game);
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([card]);
     expect(card.resourceCount).to.eq(1);
   });
 

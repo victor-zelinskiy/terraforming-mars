@@ -33,6 +33,8 @@ describe('Extremophiles', () => {
     player.playedCards.push(card);
     card.action(player);
     runAllActions(game);
+    const action = cast(player.popWaitingFor(), SelectCard);
+    action.cb([card]);
     expect(card.resourceCount).to.eq(1);
   });
 

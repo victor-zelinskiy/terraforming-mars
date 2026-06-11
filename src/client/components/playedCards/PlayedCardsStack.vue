@@ -5,7 +5,9 @@
       :key="card.name"
       class="played-stack__slot"
       :class="{'played-stack__slot--last': i === cards.length - 1}">
-      <PlayedCardItem :card="card" :player="player" :lightweight="true" @open="$emit('open', $event)" />
+      <PlayedCardItem :card="card" :player="player" :lightweight="true"
+                      :pickMode="pickMode" :selectable="selectable"
+                      @open="$emit('open', $event)" @pick="$emit('pick', $event)" />
     </div>
   </div>
 </template>
@@ -13,6 +15,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
+import {CardName} from '@/common/cards/CardName';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import PlayedCardItem from '@/client/components/playedCards/PlayedCardItem.vue';
 
@@ -43,7 +46,15 @@ export default defineComponent({
       type: Object as PropType<PublicPlayerModel>,
       required: true,
     },
+    pickMode: {
+      type: Boolean,
+      default: false,
+    },
+    selectable: {
+      type: Object as PropType<ReadonlySet<CardName>>,
+      default: () => new Set<CardName>(),
+    },
   },
-  emits: ['open'],
+  emits: ['open', 'pick'],
 });
 </script>

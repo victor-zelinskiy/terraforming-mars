@@ -5,6 +5,7 @@ import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
 import {runAllActions, setVenusScaleLevel} from '../../TestingUtils';
 import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {cast} from '../../../src/common/utils/utils';
 
 describe('CloudCity', () => {
@@ -35,6 +36,9 @@ describe('CloudCity', () => {
     cast(card.play(player), undefined);
 
     runAllActions(game);
+
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([jovianLanterns]);
 
     expect(game.getVenusScaleLevel()).eq(6);
     expect(jovianLanterns.resourceCount).eq(2);

@@ -38,6 +38,9 @@ describe('AerobrakedAmmoniaAsteroid', () => {
     card.play(player);
     runAllActions(game);
 
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([selectedCard]);
+
     expect(player.production.heat).to.eq(3);
     expect(player.production.plants).to.eq(1);
     expect(selectedCard.resourceCount).to.eq(2);

@@ -6,6 +6,8 @@ import {Units} from '../../../src/common/Units';
 import {Penguins} from '../../../src/server/cards/promo/Penguins';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
 import {runAllActions, testGame} from '../../TestingUtils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {cast} from '../../../src/common/utils/utils';
 
 describe('DesignedOrganisms', () => {
   let card: DesignedOrganisms;
@@ -32,6 +34,12 @@ describe('DesignedOrganisms', () => {
 
     card.play(player);
     runAllActions(game);
+
+    const selectMicrobes = cast(player.popWaitingFor(), SelectCard);
+    selectMicrobes.cb([tardigrades]);
+    runAllActions(game);
+    const selectAnimals = cast(player.popWaitingFor(), SelectCard);
+    selectAnimals.cb([penguins]);
 
     expect(player.plants).eq(3);
     expect(player.production.asUnits()).eql(Units.of({plants: 2}));

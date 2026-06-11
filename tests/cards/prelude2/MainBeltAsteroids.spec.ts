@@ -52,7 +52,8 @@ describe('MainBeltAsteroids', () => {
     expect(card.canAct(player)).is.true;
     expect(card.action(player)).is.undefined;
 
-    runNextAction(game);
+    // Adding an asteroid to a card now always asks where (single candidate = card).
+    cast(runNextAction(game), SelectCard).cb([card]);
 
     expect(game.deferredActions).has.lengthOf(0);
     expect(card.resourceCount).to.eq(1);
@@ -82,7 +83,9 @@ describe('MainBeltAsteroids', () => {
 
     expect(ceosFavoriteProject.canPlay(player));
     player.playCard(ceosFavoriteProject);
-    runNextAction(game);
+    // CEO's Favorite Project doubles the asteroid on a card the player now picks
+    // explicitly (single candidate = card).
+    cast(runNextAction(game), SelectCard).cb([card]);
 
     expect(player.megaCredits).to.eq(0);
     expect(card.resourceCount).to.eq(2);

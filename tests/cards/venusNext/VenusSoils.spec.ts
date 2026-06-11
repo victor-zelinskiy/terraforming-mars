@@ -25,7 +25,8 @@ describe('VenusSoils', () => {
     player.playedCards.push(card2);
     cast(card.play(player), undefined);
     runAllActions(game);
-    cast(player.popWaitingFor(), undefined);
+    const action = cast(player.popWaitingFor(), SelectCard<ICard>);
+    action.cb([card2]);
 
     expect(card2.resourceCount).to.eq(2);
     expect(player.production.plants).to.eq(1);

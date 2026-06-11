@@ -262,13 +262,15 @@
       WaitingFor.onsave; Cancel restores the hand overlay (no round-trip).
     -->
     <MandatoryInputModal v-if="pendingPlayCard !== undefined"
-                         :title="pendingPlayCard.title">
+                         :title="pendingPlayCard.title"
+                         :suppressed="playedPickActive">
       <HandCardPaymentContent
         :playerView="playerView"
         :input="pendingPlayCard.input"
         :cardName="pendingPlayCard.cardName"
         @confirm="onPlayCardConfirm($event)"
-        @cancel="onPlayCardCancel" />
+        @cancel="onPlayCardCancel"
+        @pick-played-card="onPlayedCardActionPick" />
     </MandatoryInputModal>
 
     <!--
@@ -441,7 +443,7 @@
     <MandatoryInputModal v-if="pendingCardAction !== undefined"
                          :title="$t('Activate action')"
                          :minimizable="false"
-                         :suppressed="actionCardPickActive">
+                         :suppressed="actionCardPickActive || playedPickActive">
       <CardActionConfirmContent
         :cardName="pendingCardAction.cardName"
         :card="pendingCardAction.card"
@@ -449,7 +451,8 @@
         :playerView="playerView"
         @confirm="onCardActionConfirm"
         @cancel="onCardActionCancel"
-        @pick-card="onActionPickCard" />
+        @pick-card="onActionPickCard"
+        @pick-played-card="onPlayedCardActionPick" />
     </MandatoryInputModal>
 
     <div v-if="game.phase === 'end'">
@@ -705,6 +708,8 @@ import {
   isClientHandPickActive,
 } from '@/client/components/handCards/handSelectState';
 import {deliverActionPick} from '@/client/components/handCards/handActionPick';
+import {playedCardsPickState, enterPlayedCardsPick, cancelPlayedCardsPick} from '@/client/components/playedCards/playedCardsPickState';
+import {deliverPlayedCardActionPick} from '@/client/components/playedCards/playedCardActionPick';
 import {
   handPlayState,
   handPlayPrompt,
@@ -1020,6 +1025,14 @@ export default defineComponent({
       // so `isClientHandPickActive()` is already false here on a resolve).
       if (newVal !== 'cards' && isClientHandPickActive()) {
         cancelClientHandSelect();
+      }
+      // SAME safety net for the РАЗЫГРАНО pick (a >3-candidate card-target choice
+      // hosted on the played board): leaving the 'played' overlay for ANY reason
+      // while the pick is still active cancels it + restores the suppressed modal.
+      // The resolve path sets `active=false` BEFORE nulling activeOverlay, so this
+      // only fires on an ABANDONED pick.
+      if (newVal !== 'played' && playedCardsPickState.active) {
+        cancelPlayedCardsPick();
       }
     },
     /*
@@ -1928,6 +1941,12 @@ export default defineComponent({
     actionCardPickActive(): boolean {
       return handSelectState.active && handSelectState.clientPick;
     },
+    // True while a play / action-confirm modal has handed off to the РАЗЫГРАНО
+    // board for a >3-candidate card-target pick — the modal SUPPRESSES itself
+    // (stays mounted, hidden) so the board below it is interactable.
+    playedPickActive(): boolean {
+      return playedCardsPickState.active;
+    },
     // Unified mandatory pill. Select-from-hand, play-from-hand and play-a-
     // standard-project are mutually exclusive (the top-level waitingFor is one
     // prompt), so one pill serves all three minimized states; restore re-opens
@@ -2406,6 +2425,21 @@ export default defineComponent({
         },
       });
       this.activeOverlay = 'cards';
+    },
+    // The play / action-confirm modal asked the player to pick a PLAYED card as a
+    // target, and there are MORE THAN 3 candidates — too many for the cramped
+    // in-modal tile grid. Open the РАЗЫГРАНО board in pick mode (candidates
+    // highlighted, the rest dimmed); the modal SUPPRESSES itself while the board
+    // is up, then re-appears with the picked card (via the bridge). Cancelling
+    // (closing the board) restores the modal with no selection.
+    onPlayedCardActionPick(req: {title: string | Message, selectable: ReadonlyArray<CardName>}): void {
+      this.selectedPlayerColor = undefined; // own seat — the board pick targets your tableau
+      enterPlayedCardsPick({
+        title: req.title,
+        selectable: req.selectable,
+        onResolve: (card) => deliverPlayedCardActionPick(card),
+      });
+      this.activeOverlay = 'played';
     },
     // The action-preview rework's SINGLE FINAL SUBMIT: assemble the ordered
     // response array the action needs and POST it in one batch request, so the

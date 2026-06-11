@@ -7,6 +7,8 @@ import {runAllActions} from '../../TestingUtils';
 import {Penguins} from '../../../src/server/cards/promo/Penguins';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
 import {OlympusConference} from '../../../src/server/cards/base/OlympusConference';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {cast} from '../../../src/common/utils/utils';
 import {testGame} from '../../TestGame';
 
 describe('SpaceDebrisCleaningOperation', () => {
@@ -44,6 +46,10 @@ describe('SpaceDebrisCleaningOperation', () => {
 
     player.cardsInHand = [];
     card.play(player);
+    runAllActions(game);
+
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([lunarObservationPost]);
     runAllActions(game);
 
     expect(player.titanium).eq(3);

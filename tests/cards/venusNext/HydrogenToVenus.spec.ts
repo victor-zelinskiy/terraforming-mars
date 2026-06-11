@@ -48,6 +48,8 @@ describe('HydrogenToVenus', () => {
 
     cast(card.play(player), undefined);
     runAllActions(game);
+    const action = cast(player.popWaitingFor(), SelectCard<ICard>);
+    action.cb([venusCard1]);
     expect(venusCard1.resourceCount).to.eq(2);
     expect(game.getVenusScaleLevel()).to.eq(2);
   });
@@ -57,7 +59,8 @@ describe('HydrogenToVenus', () => {
 
     cast(card.play(player), undefined);
     runAllActions(game);
-    cast(player.popWaitingFor(), undefined);
+    const action = cast(player.popWaitingFor(), SelectCard<ICard>);
+    action.cb([venusCard1]);
     expect(venusCard1.resourceCount).to.eq(1);
     expect(game.getVenusScaleLevel()).to.eq(2);
   });

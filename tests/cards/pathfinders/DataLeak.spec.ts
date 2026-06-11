@@ -4,6 +4,8 @@ import {IGame} from '../../../src/server/IGame';
 import {TestPlayer} from '../../TestPlayer';
 import {LunarObservationPost} from '../../../src/server/cards/moon/LunarObservationPost';
 import {runAllActions, testGame} from '../../TestingUtils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {cast} from '../../../src/common/utils/utils';
 
 describe('DataLeak', () => {
   let card: DataLeak;
@@ -21,6 +23,9 @@ describe('DataLeak', () => {
 
     card.play(player);
     runAllActions(game);
+
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([lunarObservationPost]);
 
     expect(lunarObservationPost.resourceCount).eq(5);
   });

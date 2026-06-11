@@ -7,6 +7,7 @@ import {LunarObservationPost} from '../../../src/server/cards/moon/LunarObservat
 import {maxOutOceans, runAllActions} from '../../TestingUtils';
 import {TileType} from '../../../src/common/TileType';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {testGame} from '../../TestGame';
 import {cast} from '../../../src/common/utils/utils';
 
@@ -43,6 +44,8 @@ describe('MartianNatureWonders', () => {
     expect(player.steel).eq(2);
     expect(player.megaCredits).eq(0);
     expect(game.board.getAvailableSpacesOnLand(player).map((s) => s.id)).not.contains(space.id);
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([dataCard]);
     expect(dataCard.resourceCount).eq(2);
   });
 });

@@ -44,6 +44,9 @@ describe('BactoviralResearch', () => {
 
     runAllActions(game);
 
+    const action = cast(player.popWaitingFor(), SelectCard<ICard>);
+    action.cb([microbeCard]);
+
     expect(microbeCard.resourceCount).to.eq(2);
     expect(player.cardsInHand).has.length(1);
   });

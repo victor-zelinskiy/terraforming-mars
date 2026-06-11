@@ -28,7 +28,6 @@ export class Stratopolis extends ActionCard {
           count: 2,
           tag: Tag.VENUS,
           type: CardResource.FLOATER,
-          autoSelect: false,
         },
       },
 

@@ -11,7 +11,8 @@ import {OceanCity} from '../../../src/server/cards/ares/OceanCity';
 import {SelectProjectCardToPlay} from '../../../src/server/inputs/SelectProjectCardToPlay';
 import {Payment} from '../../../src/common/inputs/Payment';
 import {Resource} from '../../../src/common/Resource';
-import {range} from '../../../src/common/utils/utils';
+import {range, cast} from '../../../src/common/utils/utils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 
 describe('ThinkTank', () => {
   let thinkTank: ThinkTank;
@@ -36,6 +37,9 @@ describe('ThinkTank', () => {
     thinkTank.action(player);
 
     runAllActions(game);
+
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([thinkTank]);
 
     expect(player.megaCredits).eq(0);
     expect(thinkTank.resourceCount).eq(1);

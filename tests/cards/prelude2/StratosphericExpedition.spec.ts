@@ -7,6 +7,7 @@ import {Tag} from '../../../src/common/cards/Tag';
 import {IGame} from '../../../src/server/IGame';
 import {TestPlayer} from '../../TestPlayer';
 import {runAllActions} from '../../TestingUtils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {cast} from '../../../src/common/utils/utils';
 
 describe('StratosphericExpedition', () => {
@@ -28,6 +29,9 @@ describe('StratosphericExpedition', () => {
     runAllActions(game);
 
     cast(action, undefined);
+
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([jovianLanterns]);
 
     expect(player.cardsInHand).has.lengthOf(2);
     expect(jovianLanterns.resourceCount).eq(2);

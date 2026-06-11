@@ -25,10 +25,9 @@ export class Crashlanding extends Card implements IProjectCard {
       tilesBuilt: [TileType.CRASHLANDING],
 
       behavior: {
-        // Out-of-scope expansion (Pathfinders): keep the legacy instant-apply.
         addResourcesToAnyCard: [
-          {type: CardResource.DATA, count: 1, autoSelect: true},
-          {type: undefined, count: 1, autoSelect: true},
+          {type: CardResource.DATA, count: 1},
+          {type: undefined, count: 1},
         ],
       },
 

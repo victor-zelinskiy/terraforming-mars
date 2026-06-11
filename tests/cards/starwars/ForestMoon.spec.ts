@@ -5,6 +5,7 @@ import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
 import {addGreenery, runAllActions} from '../../TestingUtils';
 import {SelectPlayer} from '../../../src/server/inputs/SelectPlayer';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {Fish} from '../../../src/server/cards/base/Fish';
 import {cast} from '../../../src/common/utils/utils';
 
@@ -62,7 +63,8 @@ describe('ForestMoon', () => {
     cast(card.play(player), undefined);
 
     runAllActions(game);
-    expect(player.popWaitingFor()).is.undefined;
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([fish]);
     runAllActions(game);
 
     expect(player3.production.energy).eq(0);

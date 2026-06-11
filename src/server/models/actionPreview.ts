@@ -316,7 +316,10 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
         restrictedTag: a.tag,
         min: a.min,
         robotCards: a.robotCards !== undefined,
-        autoSelect: a.autoSelect,
+        // ALWAYS pre-collect the target pick in the modal — even for one
+        // candidate — so the player ALWAYS sees WHERE the resource goes (matches
+        // the live `Executor` defer; no silent single-apply).
+        autoSelect: false,
       }).previewSelectCard();
       if (model !== undefined) {
         // The signed delta lets the picker show "N → N+count" per candidate card.

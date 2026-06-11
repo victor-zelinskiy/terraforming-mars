@@ -216,15 +216,14 @@ export interface AddResource {
   /** When true, include self-replicating robots cards. */
   robotCards?: true,
 
-  /**
-   * Controls the single-match shortcut of the resulting `AddResourcesToCard`
-   * (wired through `Executor` → `AddResourcesToCard.autoSelect`).
-   *   - `false` → ALWAYS ask where to add, even with one candidate, so an
-   *     activatable "add to ANY card" action never resolves silently behind the
-   *     board. Set on the activatable in-scope cards (StormCraft, etc.).
-   *   - absent / `true` → legacy instant-apply when only one card matches.
-   */
-  autoSelect?: boolean,
+  // NOTE: there is deliberately NO `autoSelect` here. "Add to ANY card" ALWAYS
+  // asks the player WHERE the resource goes — even with a single candidate — so
+  // the choice is never resolved silently behind the board (the legacy
+  // instant-apply-on-single shortcut was removed fork-wide). `Executor` defers
+  // `AddResourcesToCard` with `autoSelect: false`, and the premium preview
+  // pre-collects the pick inside the play / action-confirm modal. The remaining
+  // `AddResourcesToCard.Options.autoSelect` knob is for bespoke FIXED-target
+  // callers only (e.g. Ants → itself, via `filter`).
 }
 
 export interface DecreaseAnyProduction {
