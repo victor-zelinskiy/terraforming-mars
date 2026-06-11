@@ -62,6 +62,14 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
     return actionReveals.cardResourceReward('science', 1);
   }
 
+  // The VP this card scores for a given number of science resources: a BINARY 3 VP
+  // once it holds at least one (not 1-per). This is why a SECOND find adds no VP —
+  // surfaced as the reveal's clarity note (gain the first time, amber "no more VP"
+  // when it already has one).
+  private vpFor(resources: number): number {
+    return resources > 0 ? 3 : 0;
+  }
+
   // Spend 1 M€, reveal the top card; a science resource is gained ONLY if it has
   // a microbe tag. The outcome is random, so it rides the premium reveal slot
   // (check: microbe tag → reward: science here) instead of a fixed gain chip.
@@ -69,12 +77,20 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
     return actionPreviews.singleBranch(this, player,
       [],
       [actionPreviews.stockCost(player, Resource.MEGACREDITS, 1)],
-      {reveal: {deck: 'project', check: {tag: Tag.MICROBE, label: 'Microbe tag'}, reward: this.revealReward()}});
+      {reveal: {
+        deck: 'project',
+        check: {tag: Tag.MICROBE, label: 'Microbe tag'},
+        reward: this.revealReward(),
+        // VP now → VP after a successful find. `from === to` (already holds a
+        // science) → the amber "no more VP" warning before confirming.
+        vp: {from: this.vpFor(this.resourceCount), to: this.vpFor(this.resourceCount + 1)},
+      }});
   }
 
   public action(player: IPlayer) {
     player.game.defer(new SelectPaymentDeferred(player, 1, {title: TITLES.payForCardAction(this.name)}))
       .andThen(() => {
+        const vpBefore = this.vpFor(this.resourceCount);
         const card = player.game.projectDeck.drawOrThrow(player.game);
         player.game.log('${0} revealed and discarded ${1}', (b) => b.player(player).card(card, {tags: true}));
         const found = card.tags.includes(Tag.MICROBE);
@@ -82,9 +98,10 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
           player.addResourceTo(this, 1);
           player.game.log('${0} found life!', (b) => b.player(player));
         }
-        // Record the reveal result (revealed card + whether life was found) for
-        // the premium reveal-result overlay — BEFORE the card is discarded.
-        actionReveals.recordReveal(player, this.name, card, found, this.revealReward());
+        // Record the reveal result (revealed card + whether life was found + the
+        // VP swing) for the premium reveal-result overlay — BEFORE discarding.
+        actionReveals.recordReveal(player, this.name, card, found, this.revealReward(),
+          {from: vpBefore, to: this.vpFor(this.resourceCount)});
         player.game.projectDeck.discard(card);
       });
 

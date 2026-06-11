@@ -23,4 +23,11 @@ export type RevealResultModel = {
   conditionMet: boolean;
   /** What the player gained on a match (e.g. science +1 on this card). Absent on a miss. */
   reward?: ActionEffect;
+  /**
+   * The source card's VP BEFORE → AFTER this reveal (`from` → `to`). Lets the result
+   * say exactly what happened to the score: `to > from` → "+N VP" (e.g. the first
+   * science on Search For Life unlocking 3); `to === from` (with a match) → a
+   * neutral "victory points unchanged" (already maxed). Omit for VP-less cards.
+   */
+  vp?: {from: number, to: number};
 };

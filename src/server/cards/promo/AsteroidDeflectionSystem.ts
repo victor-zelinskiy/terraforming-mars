@@ -65,18 +65,26 @@ export class AsteroidDeflectionSystem extends Card implements IActionCard, IProj
     return actionPreviews.singleBranch(this, player,
       [],
       [],
-      {reveal: {deck: 'project', check: {tag: Tag.SPACE, label: 'Space tag'}, reward: this.revealReward()}});
+      {reveal: {
+        deck: 'project',
+        check: {tag: Tag.SPACE, label: 'Space tag'},
+        reward: this.revealReward(),
+        // 1 VP per asteroid → a match ALWAYS adds 1 VP (never maxed, no warning).
+        vp: {from: this.resourceCount, to: this.resourceCount + 1},
+      }});
   }
 
   public action(player: IPlayer) {
+    const vpBefore = this.resourceCount;
     const card = player.game.projectDeck.drawOrThrow(player.game);
     player.game.log('${0} revealed and discarded ${1}', (b) => b.player(player).card(card, {tags: true}));
     const matched = card.tags.includes(Tag.SPACE);
     if (matched) {
       player.addResourceTo(this, {qty: 1, log: true});
     }
-    // Record the reveal result for the premium overlay — BEFORE discarding.
-    actionReveals.recordReveal(player, this.name, card, matched, this.revealReward());
+    // Record the reveal result + the VP swing for the premium overlay — BEFORE discarding.
+    actionReveals.recordReveal(player, this.name, card, matched, this.revealReward(),
+      {from: vpBefore, to: this.resourceCount});
     player.game.projectDeck.discard(card);
     return undefined;
   }

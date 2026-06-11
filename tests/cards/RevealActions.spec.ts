@@ -31,6 +31,25 @@ describe('Reveal / deck-check actions', () => {
       expect(player.lastReveal?.conditionMet).is.true;
       expect(player.lastReveal?.reward?.icon).eq('science');
       expect(card.resourceCount).eq(1);
+      // First find: VP goes 0 → 3 (the binary 3-VP threshold is unlocked).
+      expect(player.lastReveal?.vp).to.deep.equal({from: 0, to: 3});
+    });
+
+    it('a SECOND find adds NO VP — records vp from === to (already maxed)', () => {
+      const card = new SearchForLife();
+      const [game, player] = testGame(2);
+      player.playedCards.push(card);
+      player.megaCredits = 1;
+      card.resourceCount = 1; // already holds a science → already scores 3 VP
+      game.projectDeck.drawPile.push(fakeCard({tags: [Tag.MICROBE]}));
+
+      card.action(player);
+      runAllActions(game);
+
+      expect(player.lastReveal?.conditionMet).is.true;
+      expect(card.resourceCount).eq(2);
+      // Still 3 VP — the find was real but earned no extra points.
+      expect(player.lastReveal?.vp).to.deep.equal({from: 3, to: 3});
     });
 
     it('records condition NOT met (no reward) when the microbe tag is absent', () => {
@@ -48,7 +67,7 @@ describe('Reveal / deck-check actions', () => {
       expect(card.resourceCount).eq(0);
     });
 
-    it('actionPreview carries the reveal descriptor (microbe tag → science reward)', () => {
+    it('actionPreview carries the reveal descriptor (microbe tag → science reward) + the VP context', () => {
       const card = new SearchForLife();
       const [/* game */, player] = testGame(2);
       player.megaCredits = 1;
@@ -56,6 +75,12 @@ describe('Reveal / deck-check actions', () => {
       expect(branch.reveal, 'reveal descriptor').is.not.undefined;
       expect(branch.reveal?.check.tag).eq(Tag.MICROBE);
       expect(branch.reveal?.reward.icon).eq('science');
+      // No science yet → a find unlocks +3 VP (to > from).
+      expect(branch.reveal?.vp).to.deep.equal({from: 0, to: 3});
+
+      // Already holds a science → maxed: a find adds NO VP (to === from → amber warning).
+      card.resourceCount = 1;
+      expect(card.actionPreview(player).branches[0].reveal?.vp).to.deep.equal({from: 3, to: 3});
     });
   });
 
@@ -75,6 +100,8 @@ describe('Reveal / deck-check actions', () => {
       expect(player.lastReveal?.conditionMet).is.true;
       expect(player.lastReveal?.reward?.icon).eq('asteroid');
       expect(card.resourceCount).eq(1);
+      // 1 VP per asteroid → a match always adds 1 VP (never maxed).
+      expect(player.lastReveal?.vp).to.deep.equal({from: 0, to: 1});
     });
 
     it('records condition NOT met when the space tag is absent', () => {
