@@ -44,8 +44,8 @@
              the per-row graphic stays clean (the leading OR is stripped, #4). -->
         <span v-if="i > 0" class="action-group__or" aria-hidden="true" v-i18n>OR</span>
         <CompactActionCard :node="node"
-                           :status="state.status"
-                           :reason="reasonText"
+                           :status="rowStatus(i)"
+                           :reason="rowReason(i)"
                            :selected="selectedKey === rowKey(i)"
                            :focusable="selectedKey === rowKey(i)"
                            :data-test="'action-row-' + cardName + '-' + i"
@@ -60,14 +60,15 @@
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
+import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
-import {stripNodeOr} from '@/client/components/actions/actionBranchView';
-import {ActionState} from '@/client/components/actions/actionPlayability';
+import {stripNodeOr, branchPositionForNode} from '@/client/components/actions/actionBranchView';
+import {ActionState, ActionStatus} from '@/client/components/actions/actionPlayability';
 import {actionRowKey} from '@/client/components/actions/actionsOverlayState';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import CompactActionCard from '@/client/components/actions/CompactActionCard.vue';
 
 export default defineComponent({
@@ -81,6 +82,13 @@ export default defineComponent({
     // The live tableau CardModel — for the stored-resource count chip.
     card: {
       type: Object as PropType<CardModel>,
+      default: undefined,
+    },
+    // The card's lazily-prefetched action preview — carries PER-BRANCH availability
+    // so a multi-action card can mark a single unavailable branch (the other may be
+    // playable, e.g. Rotator Impacts). Undefined → fall back to card-level state.
+    preview: {
+      type: Object as PropType<ActionPreview>,
       default: undefined,
     },
     // The overlay's selected row key (`cardName#nodeIndex`).
@@ -159,16 +167,52 @@ export default defineComponent({
     rowKey(i: number): string {
       return actionRowKey(this.cardName, i);
     },
+    // The preview branch a given render-node row maps to (only for a multi-node
+    // card with a loaded preview) — the source of PER-ROW availability.
+    rowBranch(i: number): ActionPreviewBranch | undefined {
+      const preview = this.preview;
+      if (preview === undefined || this.group.nodes.length <= 1) {
+        return undefined;
+      }
+      const p = branchPositionForNode(this.group, preview.branches, i);
+      return p !== undefined ? preview.branches[p] : undefined;
+    },
+    // PER-ROW status: a card-level block applies to every row; otherwise a SINGLE
+    // branch can be 'rules' (unavailable) while its sibling stays 'available'.
+    rowStatus(i: number): ActionStatus {
+      if (this.state.status !== 'available') {
+        return this.state.status;
+      }
+      const b = this.rowBranch(i);
+      return (b !== undefined && b.available === false) ? 'rules' : 'available';
+    },
+    // PER-ROW reason for the premium tooltip — card-level reason, else the branch's
+    // own "why not", else empty (an available row shows no tooltip).
+    rowReason(i: number): string {
+      if (this.state.status !== 'available') {
+        return this.reasonText;
+      }
+      const b = this.rowBranch(i);
+      if (b === undefined || b.available !== false) {
+        return '';
+      }
+      const r = b.unavailableReason;
+      if (r === undefined) {
+        return translateText('Cannot activate');
+      }
+      const msg = typeof r === 'string' ? r : r.message;
+      return translateTextWithParams(msg, [...(b.unavailableReasonParams ?? [])]);
+    },
     // Selecting a row only FOCUSES the action (node-based) — the details panel
     // resolves the matching preview branch from the node; nothing executes here.
     select(i: number): void {
       this.$emit('select', {cardName: this.cardName, nodeIndex: i});
     },
-    // Double-click quick-activate — ONLY for an AVAILABLE action. An unavailable
-    // action stays selected (its reason is already in the details panel + tooltip),
-    // so a double-click can't open a modal the player can't act on.
+    // Double-click quick-activate — ONLY for an AVAILABLE row (per-branch, so the
+    // unavailable branch of a multi-action card can't open a modal either). An
+    // unavailable action stays selected with its reason in the details + tooltip.
     activateRow(i: number): void {
-      if (this.state.status !== 'available') {
+      if (this.rowStatus(i) !== 'available') {
         return;
       }
       this.$emit('activate', {cardName: this.cardName, nodeIndex: i});

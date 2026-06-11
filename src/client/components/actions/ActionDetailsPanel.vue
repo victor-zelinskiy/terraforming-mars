@@ -31,8 +31,10 @@
 
       <!-- Status / constraints when the action can't be taken right now — a clear,
            prominent ALERT (glyph + heading + the exact reason), not just a faint
-           line, so the player never has to guess why the CTA is disabled. -->
-      <div v-if="isUnavailable" class="action-detail__status" :class="statusClass" role="alert">
+           line, so the player never has to guess why the CTA is disabled. Covers
+           BOTH a card-level block AND a SINGLE unavailable branch of a multi-action
+           card (the other branch may be playable — e.g. Rotator Impacts). -->
+      <div v-if="showStatus" class="action-detail__status" :class="statusClass" role="alert">
         <span class="action-detail__status-icon" aria-hidden="true">{{ statusGlyph }}</span>
         <div class="action-detail__status-body">
           <span class="action-detail__status-head" v-i18n>{{ statusHead }}</span>
@@ -79,7 +81,10 @@
         </button>
       </div>
 
-      <div class="action-detail__cta-row">
+      <!-- The CTA row HOSTS the premium tooltip (`data-hint`) — a DISABLED button
+           never fires `:hover`, so the wrapper carries the "why you can't act"
+           reason, shown on hover even while the button inside is disabled. -->
+      <div class="action-detail__cta-row" :data-hint="ctaDisabledReason">
         <button type="button"
                 class="action-detail__cta cab-action-confirm-go"
                 :disabled="!ctaEnabled"
@@ -161,15 +166,30 @@ export default defineComponent({
     state(): ActionState | undefined {
       return this.entry?.state;
     },
-    // The action can't be taken right now (drives the constraints block).
+    // The whole card-level action can't be taken (not your turn / used / rules).
     isUnavailable(): boolean {
       return this.state !== undefined && this.state.status !== 'available';
     },
+    // A SINGLE branch of an otherwise-available multi-action card is unavailable —
+    // the card is in the server's available list (≥1 branch playable) but the
+    // SELECTED branch isn't (e.g. Rotator Impacts: "spend an asteroid" with 0 on
+    // the card). The preview carries the per-branch `available` + reason.
+    branchUnavailable(): boolean {
+      return !this.isUnavailable && this.selectedBranch?.available === false;
+    },
+    showStatus(): boolean {
+      return this.isUnavailable || this.branchUnavailable;
+    },
+    // The status driving the alert's colour/glyph: the card-level status, or a hard
+    // RED 'rules' block for a branch-level unavailability.
+    alertStatus(): string {
+      return this.isUnavailable ? (this.state?.status ?? 'rules') : 'rules';
+    },
     statusClass(): string {
-      return this.state !== undefined ? 'action-detail__status--' + this.state.status : '';
+      return 'action-detail__status--' + this.alertStatus;
     },
     statusGlyph(): string {
-      switch (this.state?.status) {
+      switch (this.alertStatus) {
       case 'activated': return '✓';  // already used this generation
       case 'soft': return '⏳';      // timing — not your turn / mid sub-action
       default: return '✕';           // rules — a hard block
@@ -177,11 +197,29 @@ export default defineComponent({
     },
     // The alert heading (the KIND of unavailability), above the exact reason.
     statusHead(): string {
-      switch (this.state?.status) {
+      switch (this.alertStatus) {
       case 'activated': return 'Already activated';
       case 'soft': return 'Not available now';
       default: return 'Action unavailable';
       }
+    },
+    // The selected branch's own "why not" text (with params filled), for a
+    // branch-level block — always populated (server reason, else a generic line).
+    branchReasonText(): string {
+      const b = this.selectedBranch;
+      if (b === undefined || b.available !== false) {
+        return '';
+      }
+      const r = b.unavailableReason;
+      if (r === undefined) {
+        return translateText('Cannot activate');
+      }
+      const msg = typeof r === 'string' ? r : r.message;
+      return translateTextWithParams(msg, [...(b.unavailableReasonParams ?? [])]);
+    },
+    // The reason hosted on the disabled-CTA premium tooltip (empty when actionable).
+    ctaDisabledReason(): string {
+      return this.ctaEnabled ? '' : this.statusText;
     },
     node(): GroupNode | undefined {
       return this.group?.nodes[this.nodeIndex];
@@ -237,9 +275,13 @@ export default defineComponent({
       return this.resourceType !== undefined ? iconClassFor(this.resourceType) : '';
     },
     // The EXACT "why can't I act" reason — ALWAYS populated for an unavailable
-    // action (covers every case): the server's structured rules reasons (all of
-    // them, joined), else the soft/activated reason, else an honest generic line.
+    // action (covers every case): a branch-level block uses the branch's own
+    // reason; else the card-level rules reasons (joined), soft/activated reason,
+    // else an honest generic line.
     statusText(): string {
+      if (this.branchUnavailable) {
+        return this.branchReasonText;
+      }
       const s = this.state;
       if (s === undefined) {
         return '';
