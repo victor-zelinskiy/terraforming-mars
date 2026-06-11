@@ -28,15 +28,29 @@
            choices block below owns all the flexible vertical space. -->
       <div class="action-confirm__top">
         <aside class="action-confirm__source">
-          <span class="action-confirm__source-label" v-i18n>Source</span>
-          <button type="button"
-                  class="action-confirm__card"
-                  :aria-label="$t('Open fullscreen')"
-                  @click.capture.stop="openFullscreen"
-                  @keydown.enter="openFullscreen">
-            <Card :card="cardModel" />
-            <span class="action-confirm__zoom" aria-hidden="true">⤢</span>
-          </button>
+          <span class="action-confirm__source-label" v-i18n>Action</span>
+          <!-- MINI action card — the COMPACT action graphic (replacing the big
+               full Card), so the result / payment / choices below get the freed
+               space. Hover shows the full source card; ⤢ opens it fullscreen. The
+               same CompactActionCard the overlay grid uses (static here). -->
+          <div class="action-confirm__mini">
+            <CompactActionCard :node="miniNode"
+                               :title="miniTitle"
+                               status="available"
+                               :interactive="false"
+                               @hover="onMiniHover" />
+          </div>
+          <div class="action-confirm__mini-meta">
+            <span class="action-confirm__mini-name" v-i18n>{{ cardName }}</span>
+            <button type="button"
+                    class="action-confirm__mini-zoom"
+                    :aria-label="$t('Open fullscreen')"
+                    @click="openFullscreen"
+                    data-test="action-confirm-zoom">
+              <span class="action-confirm__mini-zoom-glyph" aria-hidden="true">⤢</span>
+              <span v-i18n>Open fullscreen</span>
+            </button>
+          </div>
           <!-- REVEAL / deck-check: the slot sits UNDER the source (this column has
                the vertical room), so the revealed card later appears EXACTLY here
                (the App-level result overlay mirrors this layout). -->
@@ -58,57 +72,31 @@
                  impact (РЕЗУЛЬТАТ), and the scoring context (ПРОГРЕСС ПО). Works for
                  a single-action card AND a branch chosen from the overlay. -->
             <div v-if="selected !== undefined" class="action-confirm__summary">
-              <span class="action-confirm__summary-label" v-i18n>You are about to</span>
+              <!-- The consequences column: result / next / VP. The action GRAPHIC
+                   itself now lives in the left mini-card, so this is purely the
+                   "what happens" side (no duplicate graphic). When there's nothing
+                   computable to show, a short confirm lead-in stands in so the
+                   panel is never an empty box. -->
+              <template v-if="summaryHasContent">
+                <span class="action-confirm__summary-label" v-i18n>You are about to</span>
 
-              <div class="action-confirm__section" v-if="summaryNodes.length > 0">
-                <span class="action-confirm__section-label" v-i18n>Action</span>
-                <div class="action-confirm__graphic">
-                  <div v-for="node in summaryNodes" :key="node.key" class="action-confirm__render-wrap">
-                    <div v-if="node.actionNode !== undefined" class="action-confirm__render card-container" v-i18n v-strip-action-prefix>
-                      <CardRenderEffectBoxComponent :effectData="node.actionNode" />
-                    </div>
-                    <div v-else-if="node.renderRoot !== undefined" class="action-confirm__render card-container" v-i18n v-strip-action-prefix>
-                      <CardRenderData :renderData="node.renderRoot" />
-                      <div v-if="node.text" class="action-confirm__render-desc"><span v-i18n>{{ node.text }}</span></div>
-                    </div>
-                    <div v-else class="action-confirm__render-text" v-i18n v-strip-action-prefix>{{ node.text }}</div>
-                  </div>
+                <!-- RESULT: the cost/gain breakdown ("Будет списано" / "Вы получите"). -->
+                <ActionResultsPreview v-if="selected.effects.length > 0" :effects="selected.effects" />
+
+                <!-- "After confirming" context notes (tile placement / colony / a
+                     special board move). Shown HERE in the always-visible summary so
+                     they're never buried below a tall payment widget in the choices
+                     block — the player always sees what confirming will require. -->
+                <ActionNextStepNotice :steps="selected.steps" variant="after-confirm" />
+
+                <div class="action-confirm__section" v-if="vpProgress !== undefined">
+                  <ActionVpProgress :cardName="cardName"
+                                    :resourceIcon="vpProgress.icon"
+                                    :before="vpProgress.before"
+                                    :after="vpProgress.after" />
                 </div>
-              </div>
-              <!-- No clean per-branch graphic (a combined-node card like
-                   Self-Replicating Robots): show the chosen branch's own title so
-                   the player reads exactly which option they're taking, not the
-                   whole combined action. -->
-              <div class="action-confirm__section" v-else-if="selectedTitle !== ''">
-                <span class="action-confirm__section-label" v-i18n>Action</span>
-                <div class="action-confirm__action-text" v-i18n>{{ selectedTitle }}</div>
-              </div>
-
-              <div class="action-confirm__section" v-if="selected.effects.length > 0">
-                <span class="action-confirm__section-label" v-i18n>Result</span>
-                <div class="action-confirm__chips action-confirm__chips--summary">
-                  <ActionEffectChip v-for="(e, i) in selected.effects" :key="i" :effect="e" />
-                </div>
-              </div>
-
-              <!-- "What happens next" context notes (tile placement / colony / a
-                   special board move). Shown HERE in the always-visible summary so
-                   they're never buried below a tall payment widget in the choices
-                   block — the player always sees what confirming will require. -->
-              <div class="action-confirm__section" v-if="noteSteps.length > 0">
-                <span class="action-confirm__section-label" v-i18n>Next</span>
-                <div v-for="(note, i) in noteSteps" :key="i" class="action-confirm__step action-confirm__step--placement">
-                  <span class="action-confirm__step-glyph" aria-hidden="true">◎</span>
-                  <span class="action-confirm__step-text" v-i18n>{{ noteText(note) }}</span>
-                </div>
-              </div>
-
-              <div class="action-confirm__section" v-if="vpProgress !== undefined">
-                <ActionVpProgress :cardName="cardName"
-                                  :resourceIcon="vpProgress.icon"
-                                  :before="vpProgress.before"
-                                  :after="vpProgress.after" />
-              </div>
+              </template>
+              <p v-else-if="selected.available" class="action-confirm__intro-hint" v-i18n>Confirm to perform this action.</p>
 
               <div v-if="!selected.available && selected.unavailableReason !== undefined" class="action-confirm__none" v-i18n>{{ text(selected.unavailableReason) }}</div>
             </div>
@@ -270,11 +258,15 @@
                   data-test="action-confirm-confirm">
             <span class="cab-action-confirm-go__glow" aria-hidden="true"></span>
             <span class="cab-action-confirm-go__icon" aria-hidden="true">▶</span>
-            <span class="cab-action-confirm-go__label" v-i18n>Perform action</span>
+            <span class="cab-action-confirm-go__label" v-i18n>Confirm action</span>
           </button>
         </div>
       </footer>
     </div>
+
+    <!-- Quick full-card preview when hovering the mini action card (the "see the
+         real card" affordance short of fullscreen — mirrors the overlay's hover). -->
+    <CardPreviewPopover :name="cardName" :card="cardModel" :visible="miniHoverVisible" :anchor="miniHoverAnchor" />
 
     <Teleport to="body">
       <CardZoomModal v-if="zoomCard !== undefined"
@@ -302,6 +294,8 @@ import Card from '@/client/components/card/Card.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import CardPreviewPopover from '@/client/components/journal/CardPreviewPopover.vue';
+import CompactActionCard from '@/client/components/actions/CompactActionCard.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPicker.vue';
 import SelectPaymentV2 from '@/client/components/SelectPaymentV2.vue';
@@ -309,6 +303,8 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
 import ActionRevealSlot from '@/client/components/actions/ActionRevealSlot.vue';
+import ActionResultsPreview from '@/client/components/actions/ActionResultsPreview.vue';
+import ActionNextStepNotice from '@/client/components/actions/ActionNextStepNotice.vue';
 import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
@@ -329,7 +325,7 @@ type GroupNode = ActionGroup['nodes'][number];
 
 export default defineComponent({
   name: 'CardActionConfirmContent',
-  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, ModalInputHost, ModernPlayerPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot},
+  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, CardPreviewPopover, CompactActionCard, ModalInputHost, ModernPlayerPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot, ActionResultsPreview, ActionNextStepNotice},
   directives: {stripActionPrefix},
   props: {
     cardName: {
@@ -370,6 +366,9 @@ export default defineComponent({
       captured: {} as Record<number, InputResponse>,
       // The response to the branch's own OrOptions input (optionInput), if any.
       capturedOption: undefined as InputResponse | undefined,
+      // Mini-card hover preview (the full source card floats while hovering).
+      miniHoverVisible: false,
+      miniHoverAnchor: undefined as DOMRect | undefined,
     };
   },
   computed: {
@@ -416,11 +415,6 @@ export default defineComponent({
     // are surfaced in the always-visible summary panel instead.
     hasInputSteps(): boolean {
       return this.selected?.steps.some((s) => s.kind === 'input') ?? false;
-    },
-    // The branch's "what happens next" context notes (board placement / colony / a
-    // special move) — rendered in the summary so they're never scrolled away.
-    noteSteps(): ReadonlyArray<{kind: string, placementType?: string, noteKind?: string, text?: string | Message}> {
-      return (this.selected?.steps ?? []).filter((s) => s.kind === 'boardPlacement' || s.kind === 'note') as ReadonlyArray<{kind: string}>;
     },
     // The number of selectable CARD tiles the choices block will render. Drives the
     // width bucket (widthClass) so the modal expands horizontally — spreading the
@@ -477,14 +471,21 @@ export default defineComponent({
       }
       return '';
     },
-    // The render node(s) shown in the SELECTED-branch summary: the branch's own
-    // matched node (single-action card, or a cleanly-split multi-branch). When
-    // there's no clean match (a combined-node card like Self-Replicating Robots)
-    // there's NO graphic — the branch title is shown instead (selectedTitle), so
-    // we never paint the whole combined action on a single branch.
-    summaryNodes(): ReadonlyArray<GroupNode> {
-      const node = this.selectedNode;
-      return node !== undefined ? [node] : [];
+    // The render node shown in the left MINI action card. For a selected branch:
+    // its own matched node (single-action card / cleanly-split multi-branch); a
+    // combined-node card (Self-Replicating Robots) has no per-branch node → the
+    // mini-card shows `miniTitle` instead. While still PICKING among branches
+    // (no selection), show the action's own combined graphic as a neutral identity.
+    miniNode(): GroupNode | undefined {
+      if (this.selected !== undefined) {
+        return this.selectedNode;
+      }
+      return this.group?.nodes[0];
+    },
+    // Fallback text for the mini-card when there's no per-branch graphic (a
+    // combined-node branch). Empty while picking (the node carries the identity).
+    miniTitle(): string {
+      return this.selected !== undefined ? this.selectedTitle : '';
     },
     // The selected branch's own title text — shown in the summary when there's no
     // per-branch graphic (combined-node cards), so the player still reads exactly
@@ -523,6 +524,18 @@ export default defineComponent({
         return undefined;
       }
       return {icon: eff.icon, before: eff.current, after: eff.resulting};
+    },
+    // Whether the SELECTED branch surfaces any context note (placement / colony /
+    // board move) — mirrors ActionNextStepNotice's own filter so the summary knows
+    // if that block will render.
+    hasContextNotes(): boolean {
+      return this.selected?.steps.some((s) => s.kind === 'boardPlacement' || s.kind === 'note') ?? false;
+    },
+    // Whether the consequences column has anything to show (result chips / VP /
+    // context note). When false the action is fully described by the left mini-card
+    // graphic alone, so we show a short confirm lead-in instead of an empty panel.
+    summaryHasContent(): boolean {
+      return (this.selected?.effects.length ?? 0) > 0 || this.vpProgress !== undefined || this.hasContextNotes;
     },
     availableBranches(): ReadonlyArray<ActionPreviewBranch> {
       return this.branches.filter((b) => b.available);
@@ -633,29 +646,6 @@ export default defineComponent({
       };
       this.$emit('pick-card', request);
     },
-    // A specific, premium "what happens next" line for a context note — either a
-    // board-tile placement (keyed by tile type) or a generic `note` step (colony /
-    // special board move / generic), so the player knows EXACTLY what confirming
-    // will require. A `note` with an explicit `text` overrides the canned copy.
-    // Returned as an English i18n key — the `v-i18n` on the host span translates it.
-    noteText(step: {kind: string, placementType?: string, noteKind?: string, text?: string | Message}): string {
-      if (step.kind === 'note') {
-        if (step.text !== undefined) {
-          return this.text(step.text);
-        }
-        switch (step.noteKind) {
-        case 'colony': return 'After confirming, choose a colony.';
-        case 'board': return 'After confirming, choose a location on the board.';
-        default: return 'After confirming, you will make one more choice.';
-        }
-      }
-      switch (step.placementType) {
-      case 'ocean': return 'After confirming, choose where to place the ocean tile on the board.';
-      case 'city': return 'After confirming, choose where to place the city tile on the board.';
-      case 'greenery': return 'After confirming, choose where to place the greenery tile on the board.';
-      default: return 'You will place a tile on the board after confirming.';
-      }
-    },
     branchKey(b: ActionPreviewBranch): string {
       return this.text(b.title);
     },
@@ -741,7 +731,18 @@ export default defineComponent({
       const payload: ConfirmPayload = {branchIndex: branch.index, optionResponse: this.capturedOption, stepResponses, reveal: branch.reveal};
       this.$emit('confirm', payload);
     },
+    // Hover over the mini action card → float the full source card (suppressed
+    // while the fullscreen viewer is open so the two don't fight).
+    onMiniHover(rect: DOMRect | null): void {
+      if (rect === null || this.zoomCard !== undefined) {
+        this.miniHoverVisible = false;
+        return;
+      }
+      this.miniHoverAnchor = rect;
+      this.miniHoverVisible = true;
+    },
     openFullscreen(): void {
+      this.miniHoverVisible = false;
       this.zoomCard = this.cardModel;
       nextTick(() => {
         (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
@@ -789,12 +790,55 @@ export default defineComponent({
 // here — the App-level RevealResultOverlay reuses the same markup, and scoped
 // styles wouldn't reach it (its labels rendered unstyled/huge otherwise).
 
-/* Branch title shown when a combined-node card has no per-branch graphic. */
-.action-confirm__action-text {
-  font-size: 14px;
-  line-height: 1.4;
-  color: #dceaf6;
+/* MINI action card — the compact source identity (replaces the big full Card).
+ * A recessed framed tile hosting the global `.compact-action` graphic, with a
+ * name + fullscreen control row beneath it. */
+.action-confirm__mini {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(13, 21, 33, 0.92), rgba(8, 14, 22, 0.94));
+  box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.14), 0 8px 22px rgba(0, 0, 0, 0.42);
+  cursor: default;
 }
+.action-confirm--corp .action-confirm__mini {
+  box-shadow: inset 0 0 0 1px rgba(230, 200, 120, 0.2), 0 8px 22px rgba(0, 0, 0, 0.42);
+}
+.action-confirm__mini-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.action-confirm__mini-name {
+  font-family: Prototype, "Russo One", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: #eaf3fc;
+}
+.action-confirm__mini-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 7px;
+  border: 1px solid rgba(106, 176, 230, 0.3);
+  background: rgba(12, 22, 34, 0.7);
+  color: #9ecbe6;
+  font-family: Prototype, Ubuntu, sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  &:hover { border-color: #7fd4ff; background: rgba(18, 32, 48, 0.85); color: #d6f1ff; }
+}
+.action-confirm__mini-zoom-glyph { font-size: 13px; line-height: 1; }
 
 /* Intro line in the hero panel while the player is still choosing among branches
  * (the picker lives in the wide choices block below). */

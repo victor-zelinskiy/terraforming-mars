@@ -110,6 +110,7 @@ import {
   overriddenActionCards,
   flaggedActionCandidates,
 } from '@/client/components/actions/actionExtraction';
+import {actionsOverlayState, resetActionsOverlay} from '@/client/components/actions/actionsOverlayState';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import CardActionConfirmContent from '@/client/components/actions/CardActionConfirmContent.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
@@ -221,6 +222,16 @@ export default defineComponent({
     mockPlayerView(): PlayerViewModel {
       return {id: 'playground', players: this.players, thisPlayer: this.displayedPlayer} as unknown as PlayerViewModel;
     },
+  },
+  // The overlay's selection / preview cache lives in module state (it survives the
+  // game's playerkey remount). In the playground there's no remount, so reset it on
+  // entry/exit to avoid a stale selection leaking between QA sessions.
+  mounted(): void {
+    resetActionsOverlay();
+  },
+  beforeUnmount(): void {
+    resetActionsOverlay();
+    actionsOverlayState.open = false;
   },
   methods: {
     togglePlayer(): void {

@@ -1,13 +1,13 @@
 <template>
   <!--
-    Premium "Действия" overlay — the displayed player's ACTIVATABLE actions
-    (blue cards + corporations) as a grid of action BUTTONS. The sibling of the
-    Effects overlay (passive abilities): same dark-glass HUD frame, adaptive JS
-    fit engine, hover source-card preview + fullscreen. But the blocks are
-    interactive — each is a button that opens a confirmation modal before the
-    action is submitted. Shows ALL actions (available / unavailable-with-reason /
-    activated-this-generation) behind two faceted filters; nothing is silently
-    hidden.
+    Premium "Действия" action control center — a MASTER-DETAIL surface. LEFT: a
+    compact 3-column grid of action GROUP cards (one slim header + N selectable
+    compact rows per source; the stored-resource count stays at the header). RIGHT:
+    a static details panel for the SELECTED action (full text + cost/result + what-
+    happens-next + a context-aware CTA). Selecting a row never executes — only the
+    panel's CTA opens the confirmation modal. Shows ALL actions behind two faceted
+    filters; nothing is silently hidden. State (selection, filters, the lazy preview
+    cache) lives in `actionsOverlayState` so it survives the playerkey remount.
   -->
   <div class="actions-board-overlay" ref="root" data-test="actions-overlay">
     <div class="actions-board__corner actions-board__corner--tl" aria-hidden="true"></div>
@@ -50,15 +50,25 @@
         <span class="actions-board__empty-text" v-i18n>No actions match the filter</span>
         <span class="actions-board__empty-sub" v-i18n>Adjust the filters above to see other actions.</span>
       </div>
-      <div v-else class="actions-board__grid" ref="grid">
-        <ActionBlock v-for="e in filtered"
-                     :key="e.cardName"
-                     :entry="e"
-                     :preview="previews[e.cardName]"
-                     :card="tableauByName.get(e.cardName)"
-                     @namehover="onNameHover"
-                     @open="openFullscreen"
-                     @activate="$emit('activate', $event)" />
+      <div v-else class="actions-board__split">
+        <div class="actions-board__master" ref="grid">
+          <ActionGroupCard v-for="e in filtered"
+                           :key="e.cardName"
+                           :entry="e"
+                           :card="tableauByName.get(e.cardName)"
+                           :selectedKey="selectedKey"
+                           @select="onSelect"
+                           @namehover="onNameHover" />
+        </div>
+        <ActionDetailsPanel class="actions-board__detail"
+                            :entry="selectedEntry"
+                            :nodeIndex="selectedNodeIndex"
+                            :branchPosition="selectedBranchPosition"
+                            :preview="selectedPreview"
+                            :card="selectedCardModel"
+                            :loadingPreview="previewLoading"
+                            @activate="$emit('activate', $event)"
+                            @open="openFullscreen" />
       </div>
     </div>
 
@@ -96,27 +106,33 @@ import {
   buildActivationChips,
   availableActionCount,
 } from '@/client/components/actions/actionModel';
-import ActionBlock from '@/client/components/actions/ActionBlock.vue';
+import {
+  actionsOverlayState,
+  actionRowKey,
+  setActionSelection,
+  setActionPreview,
+  resetActionsOverlay,
+} from '@/client/components/actions/actionsOverlayState';
+import ActionGroupCard from '@/client/components/actions/ActionGroupCard.vue';
+import ActionDetailsPanel from '@/client/components/actions/ActionDetailsPanel.vue';
 import ActionsFilters from '@/client/components/actions/ActionsFilters.vue';
 import CardPreviewPopover from '@/client/components/journal/CardPreviewPopover.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 
-const CARD_MIN = 290;         // min comfortable action-card width
-const CARD_IDEAL = 324;       // target width per column
-const CARD_MAX = 430;         // cap so a card never sprawls
-const CARD_HERO_MAX = 540;    // a lone action can be a touch wider (hero)
-const GAP = 16;               // grid gap
-// Total horizontal space reserved for the left panel + right sidebar + breathing
-// room (matches --left-panel-width:160 + --right-sidebar-width:62 + 16px gutter).
-const SIDE_MARGIN = 238;
-const FIT_MAX_W = 1640;       // hard cap on panel width
-const BODY_PAD_X = 36;        // .actions-board__body horizontal padding
-const MIN_W = 600;            // floor so the (compact) header never wraps
-const MAX_COLS = 4;           // never spread the grid thinner than this
-const HOVER_DELAY = 260;      // ms before the source-card popover appears
+// Master grid sizing — a fixed compact 3-column grid + a static detail column.
+const MASTER_COL_MIN = 240;   // min comfortable width of a master column
+const MASTER_COL_MAX = 320;   // cap so a column never sprawls
+const DETAIL_W = 380;         // the static details panel width
+const GAP = 16;
+const SPLIT_GAP = 18;         // gap between master + detail
+const SIDE_MARGIN = 238;      // left panel + right sidebar + gutter
+const FIT_MAX_W = 1680;       // hard cap on overlay width
+const BODY_PAD_X = 36;
+const MIN_W = 640;            // floor so the header never wraps
+const MAX_COLS = 3;           // the master is at most 3 columns
+const HOVER_DELAY = 260;
 
 type DataModel = {
-  filter: ActionFilterState;
   hoverName: CardName;
   hoverCard: CardModel | undefined;
   hoverVisible: boolean;
@@ -125,14 +141,15 @@ type DataModel = {
   zoomCard: CardModel | undefined;
   resizeObserver: ResizeObserver | undefined;
   fitScheduled: boolean;
-  // Read-only action previews fetched per visible action card (own seat only) —
-  // drives the per-branch split + availability in each ActionBlock.
-  previews: Record<string, ActionPreview>;
+  // Whether the SELECTED card's preview fetch is in flight (drives the panel skeleton).
+  previewLoading: boolean;
+  // The current master column count (for keyboard up/down).
+  cols: number;
 };
 
 export default defineComponent({
   name: 'ActionsOverlay',
-  components: {ActionBlock, ActionsFilters, CardPreviewPopover, CardZoomModal},
+  components: {ActionGroupCard, ActionDetailsPanel, ActionsFilters, CardPreviewPopover, CardZoomModal},
   props: {
     displayedPlayer: {
       type: Object as PropType<PublicPlayerModel>,
@@ -142,18 +159,14 @@ export default defineComponent({
       type: String as PropType<Color>,
       required: true,
     },
-    // The viewer's PlayerId — used to fetch the read-only action preview per card.
     viewerId: {
       type: String,
       default: '',
     },
-    // Card names in the server's 'Perform an action from a played card'
-    // SelectCard — the authoritative "available right now" set (own seat only).
     availableActionNames: {
       type: Array as PropType<ReadonlyArray<CardName>>,
       default: () => [],
     },
-    // The server is waiting on some input (mid sub-action) — soft-reason text.
     awaitingInput: {
       type: Boolean,
       default: false,
@@ -162,7 +175,6 @@ export default defineComponent({
   emits: ['close', 'activate'],
   data(): DataModel {
     return {
-      filter: {availability: 'all', activation: 'dormant'},
       hoverName: '' as CardName,
       hoverCard: undefined,
       hoverVisible: false,
@@ -171,12 +183,16 @@ export default defineComponent({
       zoomCard: undefined,
       resizeObserver: undefined,
       fitScheduled: false,
-      previews: {},
+      previewLoading: false,
+      cols: MAX_COLS,
     };
   },
   computed: {
     isViewerSeat(): boolean {
       return this.displayedPlayer.color === this.viewerColor;
+    },
+    filter(): ActionFilterState {
+      return {availability: actionsOverlayState.availability, activation: actionsOverlayState.activation};
     },
     entries(): ReadonlyArray<ActionEntry> {
       return buildActionEntries(this.displayedPlayer, {
@@ -198,8 +214,6 @@ export default defineComponent({
     availableCount(): number {
       return availableActionCount(this.entries);
     },
-    // Live CardModel lookup by name — used to enrich hover previews with current
-    // resource counts (animals/microbes/floaters/etc. on the card right now).
     tableauByName(): Map<CardName, CardModel> {
       const map = new Map<CardName, CardModel>();
       for (const card of this.displayedPlayer.tableau) {
@@ -207,20 +221,68 @@ export default defineComponent({
       }
       return map;
     },
+    // ─── Selection (from module state, survives the remount) ───
+    selectedKey(): string | undefined {
+      return actionsOverlayState.selectedKey;
+    },
+    selectedCardName(): CardName | undefined {
+      const key = this.selectedKey;
+      if (key === undefined) {
+        return undefined;
+      }
+      const i = key.lastIndexOf('#');
+      return (i >= 0 ? key.slice(0, i) : key) as CardName;
+    },
+    selectedNodeIndex(): number {
+      const key = this.selectedKey;
+      if (key === undefined) {
+        return 0;
+      }
+      const i = key.lastIndexOf('#');
+      return i >= 0 ? (parseInt(key.slice(i + 1), 10) || 0) : 0;
+    },
+    selectedEntry(): ActionEntry | undefined {
+      return this.filtered.find((e) => e.cardName === this.selectedCardName);
+    },
+    selectedBranchPosition(): number | undefined {
+      const e = this.selectedEntry;
+      if (e === undefined) {
+        return undefined;
+      }
+      return e.group.nodes.length > 1 ? this.selectedNodeIndex : undefined;
+    },
+    selectedPreview(): ActionPreview | undefined {
+      return this.selectedCardName !== undefined ? actionsOverlayState.previewCache[this.selectedCardName] : undefined;
+    },
+    selectedCardModel(): CardModel | undefined {
+      return this.selectedCardName !== undefined ? this.tableauByName.get(this.selectedCardName) : undefined;
+    },
+    // Flat master order of selectable rows (for keyboard nav).
+    flatRows(): ReadonlyArray<string> {
+      const rows: Array<string> = [];
+      for (const e of this.filtered) {
+        e.group.nodes.forEach((_n, i) => rows.push(actionRowKey(e.cardName, i)));
+      }
+      return rows;
+    },
   },
   watch: {
     'displayedPlayer.color'(): void {
       this.clearHover();
-      this.previews = {};
-      this.fetchPreviews();
-      nextTick(() => this.fit());
+      resetActionsOverlay();
+      nextTick(() => {
+        this.ensureSelection();
+        this.fit();
+      });
     },
     filtered(): void {
+      this.ensureSelection();
       nextTick(() => this.scheduleFit());
     },
   },
   mounted(): void {
-    this.fetchPreviews();
+    actionsOverlayState.open = true;
+    this.ensureSelection();
     nextTick(() => this.fit());
     window.setTimeout(() => this.fit(), 220);
     const root = this.$refs.root as HTMLElement | undefined;
@@ -240,34 +302,54 @@ export default defineComponent({
   },
   methods: {
     setAvailability(value: AvailabilityFilter): void {
-      this.filter = {...this.filter, availability: value};
+      actionsOverlayState.availability = value;
     },
     setActivation(value: ActivationFilter): void {
-      this.filter = {...this.filter, activation: value};
+      actionsOverlayState.activation = value;
     },
-    // Fetch the read-only action preview for each of the viewer's OWN action
-    // cards so ActionBlock can split multi-branch actions into per-branch buttons
-    // with their own availability + context. Opponent views never activate, so
-    // they skip the fetch. Fired per overlay open / player switch.
-    fetchPreviews(): void {
-      if (!this.isViewerSeat || this.viewerId === '') {
-        this.previews = {};
+    // Keep a valid selection: re-fetch the preview for the still-valid selection,
+    // else auto-select the first AVAILABLE action (else the first), so the details
+    // panel always has something to show.
+    ensureSelection(): void {
+      const current = this.selectedEntry;
+      if (current !== undefined) {
+        this.fetchPreviewFor(current.cardName);
         return;
       }
-      for (const e of this.entries) {
-        const name = e.cardName;
-        const url = paths.API_ACTION_PREVIEW +
-          '?id=' + encodeURIComponent(this.viewerId) +
-          '&card=' + encodeURIComponent(name);
-        fetch(url)
-          .then((r) => (r.ok ? r.json() : undefined))
-          .then((p) => {
-            if (p !== undefined) {
-              this.previews = {...this.previews, [name]: p as ActionPreview};
-            }
-          })
-          .catch(() => { /* preview is best-effort; ActionBlock falls back to the single block */ });
+      const first = this.filtered.find((e) => e.state.status === 'available') ?? this.filtered[0];
+      if (first !== undefined) {
+        setActionSelection(actionRowKey(first.cardName, 0));
+        this.fetchPreviewFor(first.cardName);
+      } else {
+        setActionSelection(undefined);
       }
+    },
+    onSelect(payload: {cardName: CardName, nodeIndex: number}): void {
+      setActionSelection(actionRowKey(payload.cardName, payload.nodeIndex));
+      this.fetchPreviewFor(payload.cardName);
+    },
+    // Lazily fetch the read-only action preview for the SELECTED card (own seat
+    // only), into the shared cache. The panel renders manifest content immediately
+    // and refines when this resolves.
+    fetchPreviewFor(cardName: CardName): void {
+      if (!this.isViewerSeat || this.viewerId === '' || actionsOverlayState.previewCache[cardName] !== undefined) {
+        return;
+      }
+      this.previewLoading = true;
+      const url = paths.API_ACTION_PREVIEW +
+        '?id=' + encodeURIComponent(this.viewerId) +
+        '&card=' + encodeURIComponent(cardName);
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : undefined))
+        .then((p) => {
+          if (p !== undefined) {
+            setActionPreview(cardName, p as ActionPreview);
+          }
+        })
+        .catch(() => { /* best-effort: the modal re-fetches its own preview anyway */ })
+        .finally(() => {
+          this.previewLoading = false;
+        });
     },
     onKeydown(e: KeyboardEvent): void {
       if (e.key === 'Escape') {
@@ -276,46 +358,63 @@ export default defineComponent({
         } else {
           this.$emit('close');
         }
-      }
-    },
-    // ─── Adaptive fit ──────────────────────────────────────────────────────
-    //
-    // COUNT-AWARE, measurement-free: the column count + card width + overlay
-    // width are derived purely from the visible-action COUNT and the viewport.
-    // The key adaptivity (vs the effects overlay) is that FEW actions FILL THE
-    // WIDTH with columns rather than stacking into one tall lonely column, so a
-    // 1–2-action overlay reads as a compact premium dashboard. The body hugs its
-    // content height (CSS), so there's never dead air below the cards; a large
-    // collection simply scrolls.
-    applyLayout(cols: number, width: number, cardW: number): void {
-      const root = this.$refs.root as HTMLElement | undefined;
-      const grid = this.$refs.grid as HTMLElement | undefined;
-      root?.style.setProperty('--actions-overlay-width', Math.round(width) + 'px');
-      grid?.style.setProperty('--actions-cols', String(cols));
-      grid?.style.setProperty('--actions-card-w', Math.round(cardW) + 'px');
-    },
-    fit(): void {
-      const n = this.filtered.length;
-      const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-      const availW = clamp(window.innerWidth - SIDE_MARGIN, MIN_W, FIT_MAX_W);
-      if (n === 0) {
-        this.applyLayout(1, MIN_W, CARD_IDEAL);
         return;
       }
-      // Columns: spread few cards across the width (1 per card up to MAX_COLS,
-      // capped by how many fit at the min card width).
-      const colsByWidth = Math.max(1, Math.floor((availW - BODY_PAD_X + GAP) / (CARD_MIN + GAP)));
+      const rows = this.flatRows;
+      if (rows.length === 0) {
+        return;
+      }
+      const cur = this.selectedKey === undefined ? -1 : rows.indexOf(this.selectedKey);
+      let next = cur;
+      switch (e.key) {
+      case 'ArrowRight': next = cur + 1; break;
+      case 'ArrowLeft': next = cur - 1; break;
+      case 'ArrowDown': next = cur + this.cols; break;
+      case 'ArrowUp': next = cur - this.cols; break;
+      case 'Home': next = 0; break;
+      case 'End': next = rows.length - 1; break;
+      case 'Enter': case ' ':
+        this.activateSelected();
+        e.preventDefault();
+        return;
+      default: return;
+      }
+      next = Math.max(0, Math.min(rows.length - 1, next));
+      if (next !== cur && rows[next] !== undefined) {
+        const key = rows[next];
+        const i = key.lastIndexOf('#');
+        const card = (i >= 0 ? key.slice(0, i) : key) as CardName;
+        setActionSelection(key);
+        this.fetchPreviewFor(card);
+        e.preventDefault();
+      }
+    },
+    activateSelected(): void {
+      const e = this.selectedEntry;
+      if (e === undefined || e.state.status !== 'available') {
+        return;
+      }
+      this.$emit('activate', {cardName: e.cardName, branchPosition: this.selectedBranchPosition});
+    },
+    // ─── Adaptive fit: a fixed compact master grid + a static detail column ───
+    fit(): void {
+      const root = this.$refs.root as HTMLElement | undefined;
+      const grid = this.$refs.grid as HTMLElement | undefined;
+      const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+      const availW = clamp(window.innerWidth - SIDE_MARGIN, MIN_W, FIT_MAX_W);
+      const n = this.filtered.length;
+      // The width left for the master after the detail column + gaps + padding.
+      const masterAvail = availW - BODY_PAD_X - DETAIL_W - SPLIT_GAP;
+      const colsByWidth = Math.max(1, Math.floor((masterAvail + GAP) / (MASTER_COL_MIN + GAP)));
       const cols = clamp(Math.min(n, colsByWidth), 1, MAX_COLS);
-      // Share a COMFORTABLE width budget among the columns (don't let 1–2 cards
-      // sprawl to the whole viewport); the panel floors at MIN_W for the header.
-      const comfortableW = cols * CARD_IDEAL + (cols - 1) * GAP + BODY_PAD_X;
-      const targetW = Math.min(availW, Math.max(MIN_W, comfortableW));
-      const cardW = clamp(
-        (targetW - BODY_PAD_X - (cols - 1) * GAP) / cols,
-        CARD_MIN,
-        cols === 1 ? CARD_HERO_MAX : CARD_MAX);
-      const width = clamp(cols * cardW + (cols - 1) * GAP + BODY_PAD_X, MIN_W, FIT_MAX_W);
-      this.applyLayout(cols, width, cardW);
+      // A comfortable master width (don't let 1–2 groups sprawl).
+      const comfortable = cols * MASTER_COL_MAX + (cols - 1) * GAP;
+      const masterW = Math.min(masterAvail, comfortable);
+      const overlayW = clamp(masterW + DETAIL_W + SPLIT_GAP + BODY_PAD_X, MIN_W, FIT_MAX_W);
+      this.cols = cols;
+      root?.style.setProperty('--actions-overlay-width', Math.round(overlayW) + 'px');
+      grid?.style.setProperty('--actions-master-cols', String(cols));
+      root?.style.setProperty('--detail-width', DETAIL_W + 'px');
     },
     scheduleFit(): void {
       if (this.fitScheduled) {
@@ -327,7 +426,7 @@ export default defineComponent({
         this.fit();
       });
     },
-    // ─── Source-card hover + fullscreen ────────────────────────────────────
+    // ─── Source-card hover + fullscreen ───
     onNameHover(payload: {name: CardName, rect: DOMRect} | null): void {
       if (this.hoverTimer !== undefined) {
         window.clearTimeout(this.hoverTimer);
@@ -357,8 +456,6 @@ export default defineComponent({
     },
     openFullscreen(name: CardName): void {
       this.clearHover();
-      // Use the live CardModel from the tableau so the fullscreen viewer also
-      // shows current resource counts.
       this.zoomCard = this.tableauByName.get(name) ?? ({name} as CardModel);
       nextTick(() => {
         (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
