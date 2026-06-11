@@ -3,13 +3,14 @@
     App-level REVEAL-RESULT overlay. Mounted next to DraftFlowOverlay /
     StartGameFlowOverlay so it survives App.vue's `playerkey` remount — the very
     server response that carries the reveal result also remounts <player-home>, so
-    the result can't live inside it. Reuses the `.action-confirm` frame so it reads
-    as a seamless continuation of the action-confirm modal: same chrome, the reveal
-    slot now filled, the CTA flipped to «ОК».
+    the result can't live inside it. It MIRRORS the action-confirm modal's layout
+    EXACTLY (same frame, same width, the source card + reveal slot in the LEFT
+    column, the action graphic on the right) so the revealed card appears in the
+    SAME spot the empty slot occupied — a seamless continuation, not a new modal.
 
     Shown only while `revealResultState.active` (set on confirm). It bridges the
-    server round-trip: `pending` slot immediately, then the `result` once
-    `thisPlayer.lastReveal` (matching the action) arrives.
+    server round-trip: the slot is `pending` immediately, then `result` once
+    `lastReveal` (matching the action) arrives.
   -->
   <Teleport to="body">
     <div v-if="revealResultState.active" class="reveal-overlay">
@@ -37,10 +38,23 @@
                 <div class="action-confirm__card action-confirm__card--static">
                   <Card :card="sourceCard" />
                 </div>
+                <ActionRevealSlot :state="slotState" :reveal="revealResultState.descriptor" :result="result" />
               </aside>
 
-              <section class="action-confirm__action reveal-overlay__action">
-                <ActionRevealSlot :state="slotState" :reveal="revealResultState.descriptor" :result="result" />
+              <section class="action-confirm__action">
+                <div class="action-confirm__summary">
+                  <span class="action-confirm__summary-label" v-i18n>You are about to</span>
+                  <div class="action-confirm__section" v-if="actionNode !== undefined">
+                    <span class="action-confirm__section-label" v-i18n>Action</span>
+                    <div class="action-confirm__graphic">
+                      <div class="action-confirm__render card-container" v-i18n v-strip-action-prefix>
+                        <CardRenderEffectBoxComponent v-if="actionNode.actionNode !== undefined" :effectData="actionNode.actionNode" />
+                        <CardRenderData v-else-if="actionNode.renderRoot !== undefined" :renderData="actionNode.renderRoot" />
+                        <span v-else-if="actionNode.text">{{ actionNode.text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </section>
             </div>
 
@@ -68,12 +82,19 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
+import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
+import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import Card from '@/client/components/card/Card.vue';
+import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
+import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ActionRevealSlot from '@/client/components/actions/ActionRevealSlot.vue';
+
+type GroupNode = ActionGroup['nodes'][number];
 
 export default defineComponent({
   name: 'RevealResultOverlay',
-  components: {Card, ActionRevealSlot},
+  components: {Card, CardRenderEffectBoxComponent, CardRenderData, ActionRevealSlot},
+  directives: {stripActionPrefix},
   props: {
     playerView: {
       type: Object as PropType<PlayerViewModel>,
@@ -98,6 +119,15 @@ export default defineComponent({
     },
     sourceCard(): CardModel | undefined {
       return revealResultState.cardName === undefined ? undefined : ({name: revealResultState.cardName} as CardModel);
+    },
+    // The source card's printed action graphic — derived from the manifest the
+    // SAME way the confirm modal does, so the right column matches it pixel-for-pixel.
+    actionNode(): GroupNode | undefined {
+      if (revealResultState.cardName === undefined) {
+        return undefined;
+      }
+      const group = playerActionGroups([{name: revealResultState.cardName} as CardModel])[0];
+      return group?.nodes[0];
     },
     kicker(): string {
       return this.result === undefined ? 'Action confirmation' : 'Action result';
