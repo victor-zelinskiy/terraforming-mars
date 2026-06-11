@@ -2359,7 +2359,10 @@ export default defineComponent({
     // overlay passes the chosen branch (when it split a multi-branch action),
     // so the modal opens straight on that branch.
     onActivateCardAction(payload: {cardName: CardName, nodeIndex?: number}): void {
-      if (this.startGameFlowActionLocked) {
+      // Block both the details CTA AND the overlay double-click quick-activate while
+      // a tile placement is pending or the start-game flow is locked — the double-
+      // click is a separate path the placement-lock CSS/selector guard can't catch.
+      if (this.startGameFlowActionLocked || this.placementPending) {
         return;
       }
       const card = this.thisPlayer.tableau.find((c) => c.name === payload.cardName);

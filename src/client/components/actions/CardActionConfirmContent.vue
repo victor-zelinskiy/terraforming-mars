@@ -45,8 +45,10 @@
                       type="button"
                       class="action-confirm__src-card"
                       :aria-label="$t('Open fullscreen')"
-                      @click="openFullscreen"
+                      @click.capture.stop="openFullscreen"
                       data-test="action-confirm-source">
+                <!-- @click.capture.stop suppresses Card.vue's OWN click→zoom so a
+                     single click opens ONE viewer, not two (the double-open bug). -->
                 <Card :key="cardName" :card="cardModel" />
               </button>
             </aside>
@@ -942,7 +944,6 @@ export default defineComponent({
     padding: 0;
   }
 }
-.action-confirm__step-glyph { color: rgba(255, 200, 120, 0.9); }
 
 /* Hand-card pick affordance — a "choose a card" CTA that opens the КАРТЫ В РУКЕ
    overlay, then the chosen card rendered + a "change" link. */

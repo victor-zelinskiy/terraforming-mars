@@ -265,6 +265,7 @@
        2-action card two — deterministic column-major order, no chaotic masonry. */
     column-count: var(--actions-master-cols, 3);
     column-gap: 14px;
+    column-fill: balance;
     min-width: 0;
 }
 .actions-board__detail {
@@ -359,10 +360,17 @@
 /* UNAVAILABLE states read clearly DIFFERENT from "act now" — desaturated + dimmed
    + a status-coloured rim, so the player sees availability at a glance in the grid
    (not only after opening the details). Still readable + selectable for details. */
-.action-group--rules { opacity: 0.8; filter: grayscale(0.45) saturate(0.7); border-color: rgba(208, 154, 100, 0.4); }
-.action-group--soft { opacity: 0.85; filter: grayscale(0.3) saturate(0.8); border-color: rgba(106, 176, 230, 0.32); }
-.action-group--activated { opacity: 0.66; filter: grayscale(0.55) saturate(0.65); border-color: rgba(106, 176, 230, 0.3); }
-.action-group--disabled-card { opacity: 0.55; filter: grayscale(0.55); }
+/* RULES (can't afford / conditions) — the strongest "blocked" read: a red rim +
+   desaturated body, clearly different from an actionable mint card. */
+.action-group--rules {
+    opacity: 0.82;
+    filter: grayscale(0.5) saturate(0.6);
+    border-color: rgba(224, 96, 72, 0.5);
+    box-shadow: inset 0 0 0 1px rgba(224, 96, 72, 0.14), 0 4px 14px rgba(0, 0, 0, 0.34);
+}
+.action-group--soft { opacity: 0.85; filter: grayscale(0.32) saturate(0.78); border-color: rgba(224, 178, 96, 0.38); }
+.action-group--activated { opacity: 0.64; filter: grayscale(0.58) saturate(0.6); border-color: rgba(106, 176, 230, 0.3); }
+.action-group--disabled-card { opacity: 0.52; filter: grayscale(0.6); }
 .action-group--corp.action-group--available {
     border-color: rgba(230, 200, 120, 0.48);
     box-shadow: 0 0 0 1px rgba(230, 200, 120, 0.14), 0 6px 18px rgba(0, 0, 0, 0.36);
@@ -462,39 +470,52 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* Status pill (header) — non-available states only. */
+/* Status pill (header) — non-available states only. The CLEAR at-a-glance signal
+   that an action can't be taken right now (the dim alone isn't enough on dark
+   cards): a bold coloured chip with a status glyph. */
 .action-group__status {
     display: inline-flex;
     align-items: center;
     gap: 5px;
     flex-shrink: 0;
-    padding: 2px 7px;
+    padding: 3px 8px 3px 7px;
     border-radius: 999px;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.7px;
     text-transform: uppercase;
 }
 .action-group__status-dot {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
 }
 .action-group__status--activated {
-    color: #9ecbe6;
-    background: rgba(106, 176, 230, 0.16);
+    color: #aed3ee;
+    background: rgba(106, 176, 230, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.4);
     .action-group__status-dot { background: #6ab0e6; box-shadow: 0 0 6px rgba(106, 176, 230, 0.6); }
 }
+/* RULES = a true block (can't afford / conditions) → RED, the strongest signal. */
 .action-group__status--rules {
-    color: #f0c49a;
-    background: rgba(208, 154, 100, 0.16);
-    .action-group__status-dot { background: #d09a64; box-shadow: 0 0 6px rgba(208, 154, 100, 0.6); }
+    color: #ffb3a0;
+    background: rgba(224, 96, 72, 0.22);
+    box-shadow: inset 0 0 0 1px rgba(224, 96, 72, 0.5);
+    .action-group__status-dot { background: #ee6a52; box-shadow: 0 0 7px rgba(238, 106, 82, 0.7); }
 }
 .action-group__status--soft {
-    color: #9fb6cc;
-    background: rgba(106, 176, 230, 0.1);
-    .action-group__status-dot { background: #8aa0b4; }
+    color: #f0d29a;
+    background: rgba(224, 178, 96, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(224, 178, 96, 0.4);
+    .action-group__status-dot { background: #e6b060; box-shadow: 0 0 6px rgba(230, 176, 96, 0.6); }
 }
+
+/* The left accent bar re-colours to the state, reinforcing availability at a glance
+   (mint = act now, red = blocked, amber = not now, blue = used). */
+.action-group--available .action-group__accent { background: #58d6a6; box-shadow: 0 0 6px rgba(88, 214, 166, 0.6); }
+.action-group--rules .action-group__accent { background: #ee6a52; box-shadow: 0 0 7px rgba(238, 106, 82, 0.7); }
+.action-group--soft .action-group__accent { background: #e6b060; box-shadow: 0 0 6px rgba(230, 176, 96, 0.6); }
+.action-group--activated .action-group__accent { background: #6ab0e6; box-shadow: 0 0 6px rgba(106, 176, 230, 0.5); }
 
 /* The compact action rows. */
 .action-group__rows {
@@ -664,13 +685,23 @@
     line-height: 1.42;
     color: #e7eef6;
 }
+/* RULES = a hard block (can't afford / conditions / no target) → a clear RED alert
+   with the EXACT reason, so the player never has to guess why they can't act. */
 .action-detail__status--rules {
-    background: rgba(208, 154, 100, 0.14);
-    box-shadow: inset 0 0 0 1px rgba(208, 154, 100, 0.34);
-    .action-detail__status-icon { color: #1a1206; background: #e8b878; box-shadow: 0 0 10px rgba(232, 184, 120, 0.5); }
+    background: rgba(224, 96, 72, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(224, 96, 72, 0.5);
+    .action-detail__status-icon { color: #2a0d08; background: #ef7159; box-shadow: 0 0 12px rgba(238, 106, 82, 0.6); }
+    .action-detail__status-head { color: #ff9b85; }
+    .action-detail__status-text { color: #ffe1d9; }
+}
+/* SOFT = a timing block (not your turn / mid sub-action) → amber, not red. */
+.action-detail__status--soft {
+    background: rgba(224, 178, 96, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(224, 178, 96, 0.42);
+    .action-detail__status-icon { color: #1c1304; background: #e8b878; box-shadow: 0 0 10px rgba(232, 184, 120, 0.5); }
     .action-detail__status-head { color: #f3c49a; }
 }
-.action-detail__status--soft,
+/* ACTIVATED = already used this generation → informational blue. */
 .action-detail__status--activated {
     background: rgba(106, 176, 230, 0.12);
     box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.3);
