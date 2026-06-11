@@ -94,8 +94,11 @@ export class MarsNomads extends Card implements IActionCard {
 
   // Moving the nomads is a board-space selection (+ varying placement bonus)
   // resolved on the board after submit — no pre-collectable step or fixed effect.
+  // A context note tells the player they'll pick a space, so the modal isn't mute.
   public actionPreview(player: IPlayer) {
-    return actionPreviews.singleBranch(this, player);
+    return actionPreviews.singleBranch(this, player, [
+      actionPreviews.noteStep('board', 'After confirming, choose an adjacent space to move the nomads to.'),
+    ]);
   }
 
   public action(player: IPlayer) {

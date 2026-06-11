@@ -59,10 +59,12 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
     const canTrade = this.resourceCount > 0 && player.colonies.canTrade();
     return actionPreviews.orBranches(this, [
       {
-        // The colony picker (SelectColony) appears on the board after submit.
+        // The colony picker (SelectColony) appears after submit — a context note
+        // tells the player they'll choose which colony to trade with.
         available: canTrade,
         title: 'Remove 1 floater on this card to trade for free',
         effects: [actionPreviews.cardCost(this, 1)],
+        steps: [actionPreviews.noteStep('colony', 'After confirming, choose a colony to trade with.')],
         unavailableReason: actionReason.ruleReason('No floaters here, or no colony available to trade with'),
       },
       {

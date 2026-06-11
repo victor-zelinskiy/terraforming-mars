@@ -97,7 +97,7 @@
             <div v-if="selected !== undefined && selected.steps.length > 0" class="play-confirm__steps">
               <span class="play-confirm__section-label" v-i18n>Choose targets</span>
               <template v-for="(step, i) in selected.steps" :key="i">
-                <div v-if="step.kind === 'boardPlacement'" class="play-confirm__step play-confirm__step--placement">
+                <div v-if="step.kind === 'boardPlacement' || step.kind === 'note'" class="play-confirm__step play-confirm__step--placement">
                   <span class="play-confirm__step-glyph" aria-hidden="true">◎</span>
                   <span class="play-confirm__step-text" v-i18n>{{ placementHint(step) }}</span>
                 </div>

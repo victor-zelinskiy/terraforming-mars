@@ -98,9 +98,12 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
   }
 
   // Placing the community marker is a board-space selection resolved on the
-  // board after submit — no pre-collectable step or fixed effect.
+  // board after submit — no pre-collectable step or fixed effect. A context note
+  // tells the player they'll pick a space, so the modal isn't mute.
   public actionPreview(player: IPlayer) {
-    return actionPreviews.singleBranch(this, player);
+    return actionPreviews.singleBranch(this, player, [
+      actionPreviews.noteStep('board', 'After confirming, choose where to place the community.'),
+    ]);
   }
 
   public action(player: IPlayer) {

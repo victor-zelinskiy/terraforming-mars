@@ -206,6 +206,10 @@ export class Server {
         // Same options as cardsInHand so reveal cards render identically.
         cards: cardsToModel(player, r.cards, {showCalculatedCost: true, unplayableReasons: true}),
       })),
+      // Self-only (this whole model IS the requesting player's view) + transient:
+      // the result of the player's most recent reveal/deck-check action, for the
+      // premium reveal-result overlay. Already a serialized RevealResultModel.
+      lastReveal: player.lastReveal,
     };
     return rv;
   }

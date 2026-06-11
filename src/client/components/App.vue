@@ -78,6 +78,15 @@
         v-if="screen === 'player-home' && playerView !== undefined && hasDrawReveal"
         :player-view="playerView" />
       <!--
+        Premium REVEAL-RESULT overlay for deck-check actions (SearchForLife /
+        AsteroidDeflectionSystem). App-level (like DraftFlowOverlay) so it survives
+        the playerkey remount that the reveal-action response triggers — the result
+        can't live inside <player-home>. Self-gates via revealResultState.active.
+      -->
+      <RevealResultOverlay
+        v-if="screen === 'player-home' && playerView !== undefined"
+        :player-view="playerView" />
+      <!--
         Detailed "additional resource" summary overlay. App-level (like the
         journal) so the `:key="playerkey"` remount can't tear it down while
         open. Driven entirely by module-level additionalResourcesState, which
@@ -146,6 +155,7 @@ const SpectatorHome = defineAsyncComponent(() => import(/* webpackChunkName: "sp
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
+import RevealResultOverlay from '@/client/components/actions/RevealResultOverlay.vue';
 const ModalInputPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "modal-input-playground" */ '@/client/components/modalInputs/ModalInputPlayground.vue'));
 const EffectsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "effects-playground" */ '@/client/components/effects/EffectsPlayground.vue'));
 const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "actions-playground" */ '@/client/components/actions/ActionsPlayground.vue'));
@@ -268,6 +278,7 @@ export default defineComponent({
     'login-home': LoginHome,
     DraftFlowOverlay,
     StartGameFlowOverlay,
+    RevealResultOverlay,
     ModalInputPlayground,
     EffectsPlayground,
     ActionsPlayground,

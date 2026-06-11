@@ -14,6 +14,7 @@ import {UnderworldPlayerData} from '../underworld/UnderworldPlayerData';
 import {GlobalParameter} from '../GlobalParameter';
 import {DeltaProjectPlayerModel} from './DeltaProjectPlayerModel';
 import {CardDrawRevealModel} from './CardDrawRevealModel';
+import {RevealResultModel} from './RevealResultModel';
 
 export interface ViewModel {
   game: GameModel;
@@ -143,4 +144,9 @@ export interface PlayerViewModel extends ViewModel {
   // awaiting the player's "take" acknowledgement in the reveal modal. Empty in
   // the common case. See CardDrawRevealModel.
   cardDrawReveals: ReadonlyArray<CardDrawRevealModel>;
+  // The result of the player's most recent REVEAL / DECK-CHECK action (SearchFor-
+  // Life / AsteroidDeflectionSystem) — the revealed card + whether the condition
+  // fired + the reward. Self-only, transient (cleared on the next action). Drives
+  // the premium reveal-result overlay. Absent in the common case. See RevealResultModel.
+  lastReveal?: RevealResultModel;
 }

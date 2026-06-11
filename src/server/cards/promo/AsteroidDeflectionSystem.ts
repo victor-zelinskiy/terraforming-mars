@@ -10,6 +10,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import * as actionReveals from '../actionReveals';
+import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 
 export class AsteroidDeflectionSystem extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -50,18 +52,31 @@ export class AsteroidDeflectionSystem extends Card implements IActionCard, IProj
     return actionReason.deckEmpty();
   }
 
+  // The asteroid gain on a match (the reward chip), used both in the reveal
+  // descriptor and when recording the result. `asteroid` is the card-resource icon key.
+  private revealReward(): ActionEffect {
+    return actionReveals.cardResourceReward('asteroid', 1);
+  }
+
   // The outcome (whether a space-tagged card is revealed → +1 asteroid here) is
-  // random, so no effect/step is promised — the action just runs on confirm.
+  // random, so it rides the premium reveal slot (check: space tag → reward:
+  // asteroid here) instead of a fixed gain chip.
   public actionPreview(player: IPlayer) {
-    return actionPreviews.singleBranch(this, player);
+    return actionPreviews.singleBranch(this, player,
+      [],
+      [],
+      {reveal: {deck: 'project', check: {tag: Tag.SPACE, label: 'Space tag'}, reward: this.revealReward()}});
   }
 
   public action(player: IPlayer) {
     const card = player.game.projectDeck.drawOrThrow(player.game);
     player.game.log('${0} revealed and discarded ${1}', (b) => b.player(player).card(card, {tags: true}));
-    if (card.tags.includes(Tag.SPACE)) {
+    const matched = card.tags.includes(Tag.SPACE);
+    if (matched) {
       player.addResourceTo(this, {qty: 1, log: true});
     }
+    // Record the reveal result for the premium overlay — BEFORE discarding.
+    actionReveals.recordReveal(player, this.name, card, matched, this.revealReward());
     player.game.projectDeck.discard(card);
     return undefined;
   }
