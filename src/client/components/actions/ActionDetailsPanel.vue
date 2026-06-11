@@ -62,7 +62,12 @@
                 class="action-detail__source-card"
                 :aria-label="$t('Open fullscreen')"
                 @click="$emit('open', cardName)">
-          <Card :card="cardModel" />
+          <!-- :key is LOAD-BEARING: Card.vue resolves its render data ONCE in
+               data() from the initial card name, so a keyless reused <Card> shows
+               the FIRST card it ever rendered (e.g. it stuck on "Метеозонды" when
+               switching to "Поедатели реголита"). Keying on the name forces a fresh
+               mount per selected card. -->
+          <Card :key="cardName" :card="cardModel" />
         </button>
       </div>
 

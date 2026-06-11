@@ -15,6 +15,7 @@
        :tabindex="interactive && focusable ? 0 : -1"
        :role="interactive ? 'button' : undefined"
        :aria-pressed="interactive ? selected : undefined"
+       :data-hint="reason"
        :data-test="dataTest"
        @click="onClick"
        @keydown.enter.prevent="onClick"
@@ -64,6 +65,13 @@ export default defineComponent({
     },
     // Fallback text when there is no node (e.g. a Self-Replicating Robots branch).
     title: {
+      type: String,
+      default: '',
+    },
+    // The "why can't I act" reason for an UNAVAILABLE action — shown as a premium
+    // tooltip on hover (empty for an available action → no tooltip). Mirrors the
+    // hand overlay's «Разыграть» unavailable-reason affordance.
+    reason: {
       type: String,
       default: '',
     },
