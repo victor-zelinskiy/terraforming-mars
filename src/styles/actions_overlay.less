@@ -248,15 +248,24 @@
     &::-webkit-scrollbar-track { background: transparent; }
 }
 /* ─── Master-detail split: compact action grid (LEFT) + static detail (RIGHT) ─── */
+/* The split is a FLEX row whose height is driven by the MASTER + a min-height —
+   NEVER by the detail. The detail is ABSOLUTE inside a relative cell, so its
+   variable content height can't grow the row → the overlay size is STABLE across
+   detail selections (no premium-breaking jump when you pick a different action). */
 .actions-board__split {
-    display: grid;
-    /* The master takes the freed space; the detail is a fixed static column. */
-    grid-template-columns: minmax(0, 1fr) var(--detail-width, 380px);
+    display: flex;
     gap: 18px;
-    align-items: start;
-    min-height: 0;
+    align-items: stretch;
+    /* Sized for the WORST-CASE detail at the current action set, so even a few-card
+       master leaves the detail room — and it never changes per selection. */
+    min-height: 440px;
 }
 .actions-board__master {
+    flex: 1 1 0;
+    /* Stay at the cards' natural (content) height — DON'T stretch to the split's
+       min-height, so the multi-column balance isn't given a tall definite height to
+       spread cards into. The detail cell stretches instead. */
+    align-self: flex-start;
     /* SMART PACKING via CSS multi-column (NOT a uniform grid). A grid forces every
        row to the tallest card in it, so a 1-action card stranded in a row with a
        2-action card kept a tall EMPTY gap below it — wasting space + forcing scroll.
@@ -268,18 +277,32 @@
     column-fill: balance;
     min-width: 0;
 }
-.actions-board__detail {
-    /* Sticky so the understanding panel stays in view while the master scrolls. */
-    position: sticky;
-    top: 0;
-    align-self: start;
+/* The detail's cell: a relative box the absolute panel fills. It contributes NO
+   in-flow height, so the row height = the master (or the min-height floor). */
+.actions-board__detail-cell {
+    flex: 0 0 var(--detail-width, 380px);
+    position: relative;
     min-width: 0;
 }
+.actions-board__detail {
+    position: absolute;
+    inset: 0;
+    min-width: 0;
+    /* Fills the cell; its OWN content scrolls (CTA stays pinned) — so a verbose
+       action never enlarges the overlay. */
+    display: flex;
+    flex-direction: column;
+}
 /* On a narrow viewport the JS fit drops to 1 master column; stack the detail
-   under the master so neither gets squeezed. */
+   under the master (back in normal flow, no absolute) so neither gets squeezed. */
 @media (max-width: 1080px) {
     .actions-board__split {
-        grid-template-columns: minmax(0, 1fr);
+        flex-direction: column;
+        min-height: 0;
+    }
+    .actions-board__detail-cell {
+        flex: 1 1 auto;
+        position: static;
     }
     .actions-board__detail {
         position: static;
@@ -363,10 +386,10 @@
 /* RULES (can't afford / conditions) — the strongest "blocked" read: a red rim +
    desaturated body, clearly different from an actionable mint card. */
 .action-group--rules {
-    opacity: 0.82;
-    filter: grayscale(0.5) saturate(0.6);
-    border-color: rgba(224, 96, 72, 0.5);
-    box-shadow: inset 0 0 0 1px rgba(224, 96, 72, 0.14), 0 4px 14px rgba(0, 0, 0, 0.34);
+    opacity: 0.84;
+    filter: grayscale(0.5) saturate(0.62);
+    border-color: rgba(198, 104, 92, 0.46);
+    box-shadow: inset 0 0 0 1px rgba(198, 104, 92, 0.12), 0 4px 14px rgba(0, 0, 0, 0.32);
 }
 .action-group--soft { opacity: 0.85; filter: grayscale(0.32) saturate(0.78); border-color: rgba(224, 178, 96, 0.38); }
 .action-group--activated { opacity: 0.64; filter: grayscale(0.58) saturate(0.6); border-color: rgba(106, 176, 230, 0.3); }
@@ -498,10 +521,10 @@
 }
 /* RULES = a true block (can't afford / conditions) → RED, the strongest signal. */
 .action-group__status--rules {
-    color: #ffb3a0;
-    background: rgba(224, 96, 72, 0.22);
-    box-shadow: inset 0 0 0 1px rgba(224, 96, 72, 0.5);
-    .action-group__status-dot { background: #ee6a52; box-shadow: 0 0 7px rgba(238, 106, 82, 0.7); }
+    color: #e8b3a8;
+    background: rgba(198, 104, 92, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(198, 104, 92, 0.46);
+    .action-group__status-dot { background: #cf8174; box-shadow: 0 0 6px rgba(198, 104, 92, 0.6); }
 }
 .action-group__status--soft {
     color: #f0d29a;
@@ -513,7 +536,7 @@
 /* The left accent bar re-colours to the state, reinforcing availability at a glance
    (mint = act now, red = blocked, amber = not now, blue = used). */
 .action-group--available .action-group__accent { background: #58d6a6; box-shadow: 0 0 6px rgba(88, 214, 166, 0.6); }
-.action-group--rules .action-group__accent { background: #ee6a52; box-shadow: 0 0 7px rgba(238, 106, 82, 0.7); }
+.action-group--rules .action-group__accent { background: #cf8174; box-shadow: 0 0 6px rgba(198, 104, 92, 0.6); }
 .action-group--soft .action-group__accent { background: #e6b060; box-shadow: 0 0 6px rgba(230, 176, 96, 0.6); }
 .action-group--activated .action-group__accent { background: #6ab0e6; box-shadow: 0 0 6px rgba(106, 176, 230, 0.5); }
 
@@ -528,19 +551,24 @@
 .action-detail {
     display: flex;
     flex-direction: column;
-    gap: 13px;
-    padding: 16px 16px 17px;
     border-radius: 13px;
     border: 1px solid rgba(106, 176, 230, 0.24);
     background:
         radial-gradient(130% 50% at 50% -6%, rgba(127, 212, 255, 0.06), transparent 62%),
         linear-gradient(180deg, rgba(18, 28, 42, 0.95), rgba(10, 17, 28, 0.97));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 30px rgba(0, 0, 0, 0.4);
-    /* The embedded source card can make a long action's panel exceed the viewport
-       — keep it within the sticky column and scroll its OWN content (premium thin
-       bar) so the CTA stays reachable. */
-    max-height: calc(100vh - 190px);
+    overflow: hidden; /* clip to the rounded frame; the inner __scroll handles scroll */
+}
+/* The scrollable content area — the CTA below stays pinned, so a verbose action's
+   content scrolls HERE rather than enlarging the (size-stable) overlay. */
+.action-detail__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    padding: 16px 16px 14px;
     scrollbar-width: thin;
     scrollbar-color: rgba(106, 176, 230, 0.35) transparent;
     &::-webkit-scrollbar { width: 8px; }
@@ -686,13 +714,13 @@
     color: #e7eef6;
 }
 /* RULES = a hard block (can't afford / conditions / no target) → a clear RED alert
-   with the EXACT reason, so the player never has to guess why they can't act. */
+   with the EXACT reason. Softened red (the earlier tone was over-saturated). */
 .action-detail__status--rules {
-    background: rgba(224, 96, 72, 0.16);
-    box-shadow: inset 0 0 0 1px rgba(224, 96, 72, 0.5);
-    .action-detail__status-icon { color: #2a0d08; background: #ef7159; box-shadow: 0 0 12px rgba(238, 106, 82, 0.6); }
-    .action-detail__status-head { color: #ff9b85; }
-    .action-detail__status-text { color: #ffe1d9; }
+    background: rgba(198, 104, 92, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(198, 104, 92, 0.4);
+    .action-detail__status-icon { color: #2a1310; background: #cf8174; box-shadow: 0 0 9px rgba(198, 104, 92, 0.4); }
+    .action-detail__status-head { color: #e0a99e; }
+    .action-detail__status-text { color: #ecd3cd; }
 }
 /* SOFT = a timing block (not your turn / mid sub-action) → amber, not red. */
 .action-detail__status--soft {
@@ -753,7 +781,10 @@
 .action-detail__cta-row {
     .premium-tooltip(260px); // hosts the disabled-CTA "why" reason (data-hint)
     display: flex;
-    margin-top: 2px;
+    flex-shrink: 0; /* pinned below the scroll area */
+    padding: 11px 16px 15px;
+    border-top: 1px solid rgba(106, 176, 230, 0.12);
+    background: rgba(8, 14, 22, 0.3);
 }
 .action-detail__cta {
     width: 100%;
@@ -1509,23 +1540,32 @@
         background: linear-gradient(180deg, rgba(28, 60, 88, 0.7), rgba(20, 44, 66, 0.7));
         box-shadow: 0 0 0 1px rgba(120, 230, 255, 0.55), 0 0 16px rgba(80, 200, 255, 0.22);
     }
-    &--soft, &--activated { opacity: 0.6; filter: saturate(0.7); }
+    /* CRITICAL: the dim/desaturate goes on the GRAPHIC CONTENT (`__render`/`__text`),
+       NEVER on the root — `opacity`/`filter` on the root would ALSO dim the row's
+       `::after` premium tooltip (it's a pseudo of the root), making the hint look
+       transparent. The frame (border/bg) + tooltip stay full-opacity on the root. */
+    &--soft > .compact-action__render, &--soft > .compact-action__text,
+    &--activated > .compact-action__render, &--activated > .compact-action__text {
+        opacity: 0.58;
+        filter: saturate(0.7);
+    }
     /* An UNAVAILABLE branch row (a multi-action card's blocked option) reads as a
-       clear RED-rimmed, desaturated, dimmed row — distinct from its playable
-       sibling, never just a normal row with a disabled CTA. */
+       clear RED-rimmed row — distinct from its playable sibling, never just a normal
+       row with a disabled CTA. Softened red (was over-saturated). */
     &--rules {
-        opacity: 0.66;
-        filter: grayscale(0.4) saturate(0.6);
-        border-color: rgba(224, 96, 72, 0.5);
-        background: linear-gradient(180deg, rgba(48, 24, 22, 0.5), rgba(34, 18, 18, 0.5));
+        border-color: rgba(198, 104, 92, 0.5);
+        background: linear-gradient(180deg, rgba(38, 23, 22, 0.42), rgba(28, 18, 17, 0.42));
+        > .compact-action__render, > .compact-action__text { opacity: 0.6; filter: grayscale(0.35) saturate(0.7); }
     }
     &--rules.compact-action--selected {
-        opacity: 0.96;
-        border-color: rgba(238, 106, 82, 0.85);
-        box-shadow: 0 0 0 1px rgba(238, 106, 82, 0.5), 0 0 14px rgba(224, 96, 72, 0.25);
+        border-color: rgba(212, 122, 108, 0.8);
+        box-shadow: 0 0 0 1px rgba(198, 104, 92, 0.42), 0 0 12px rgba(198, 104, 92, 0.2);
+        > .compact-action__render, > .compact-action__text { opacity: 0.9; }
     }
-    &--soft.compact-action--selected,
-    &--activated.compact-action--selected { opacity: 0.9; }
+    &--soft.compact-action--selected > .compact-action__render,
+    &--soft.compact-action--selected > .compact-action__text,
+    &--activated.compact-action--selected > .compact-action__render,
+    &--activated.compact-action--selected > .compact-action__text { opacity: 0.88; }
 }
 /* Shared sprite/text icon-fix (compact twin of .action-block__render) — scaled
  * down, description hidden so the grid row stays a single compact line of icons. */

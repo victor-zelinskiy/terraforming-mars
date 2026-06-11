@@ -65,7 +65,9 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
         title: 'Remove 1 floater on this card to trade for free',
         effects: [actionPreviews.cardCost(this, 1)],
         steps: [actionPreviews.noteStep('colony', 'After confirming, choose a colony to trade with.')],
-        unavailableReason: actionReason.ruleReason('No floaters here, or no colony available to trade with'),
+        unavailableReason: this.resourceCount === 0 ?
+          actionReason.ruleReason('No floaters on this card') :
+          actionReason.ruleReason('No colony available to trade with'),
       },
       {
         available: true,

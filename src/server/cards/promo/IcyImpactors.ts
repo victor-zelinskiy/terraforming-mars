@@ -69,7 +69,9 @@ export class IcyImpactors extends Card implements IActionCard {
         available: this.canAffordToPlaceOcean(player),
         title: 'Spend 1 asteroid here to place an ocean (first player chooses where to place it)',
         effects: [actionPreviews.cardCost(this, 1)],
-        unavailableReason: actionReason.ruleReason('No asteroid here, or you can\'t afford the ocean'),
+        unavailableReason: this.resourceCount === 0 ?
+          actionReason.ruleReason('No asteroid on this card') :
+          actionReason.ruleReason('Can\'t afford to place the ocean'),
       },
       {
         // The payment (titanium may be used) rides the follow-up routing.

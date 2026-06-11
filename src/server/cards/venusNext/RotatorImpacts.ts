@@ -55,8 +55,11 @@ export class RotatorImpacts extends Card implements IActionCard {
     }
     return this.canAddResource(player) || this.canSpendResource(player);
   }
-  public actionUnavailableReason() {
-    return actionReason.ruleReason('No titanium to add or floaters to spend');
+  public actionUnavailableReason(player: IPlayer) {
+    // `canAct` is false ⇒ the ADD branch is unaffordable (else canAct would be
+    // true), and the spend branch is moot without a resource — so the concrete
+    // blocker is the M€ to add an asteroid (NO "or"-combined reason).
+    return actionReason.needMoreMC(player, 6);
   }
 
   // Branch order MUST match action(): spend-asteroid pushed first, add-asteroid second.
@@ -70,7 +73,10 @@ export class RotatorImpacts extends Card implements IActionCard {
         available: this.canSpendResource(player),
         title: 'Remove 1 asteroid to raise Venus 1 step',
         effects: [actionPreviews.cardCost(this, 1), actionPreviews.globalGain(player, 'venus', 1)],
-        unavailableReason: actionReason.ruleReason('No asteroid here, or you can\'t afford the Reds tax'),
+        // SPLIT the combined reason into the SPECIFIC blocker — no "or" guessing.
+        unavailableReason: this.resourceCount === 0 ?
+          actionReason.ruleReason('No asteroid on this card') :
+          actionReason.ruleReason('Can\'t afford the Reds tax'),
       },
       {
         available: this.canAddResource(player),

@@ -61,14 +61,20 @@
                            @select="onSelect"
                            @activate="$emit('activate', $event)" />
         </div>
-        <ActionDetailsPanel class="actions-board__detail"
-                            :entry="selectedEntry"
-                            :nodeIndex="selectedNodeIndex"
-                            :preview="selectedPreview"
-                            :card="selectedCardModel"
-                            :loadingPreview="previewLoading"
-                            @activate="$emit('activate', $event)"
-                            @open="openFullscreen" />
+        <!-- The detail lives in a RELATIVE cell + is ABSOLUTE inside it, so its
+             (variable) content height NEVER drives the split's row height — the
+             overlay size is fixed by the master + a min-height, NOT by which action
+             is selected (no jump when switching details). -->
+        <div class="actions-board__detail-cell">
+          <ActionDetailsPanel class="actions-board__detail"
+                              :entry="selectedEntry"
+                              :nodeIndex="selectedNodeIndex"
+                              :preview="selectedPreview"
+                              :card="selectedCardModel"
+                              :loadingPreview="previewLoading"
+                              @activate="$emit('activate', $event)"
+                              @open="openFullscreen" />
+        </div>
       </div>
     </div>
 

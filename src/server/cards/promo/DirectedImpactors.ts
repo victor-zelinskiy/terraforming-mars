@@ -69,7 +69,11 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
         available: this.resourceCount > 0 && !temperatureIsMaxed && player.canAfford({cost: 0, tr: {temperature: 1}}),
         title: 'Remove 1 asteroid to raise temperature 1 step',
         effects: [actionPreviews.cardCost(this, 1), actionPreviews.globalGain(player, 'temperature', 1)],
-        unavailableReason: actionReason.ruleReason('No asteroid here, temperature is maxed, or you can\'t afford the Reds tax'),
+        unavailableReason: this.resourceCount === 0 ?
+          actionReason.ruleReason('No asteroid on this card') :
+          temperatureIsMaxed ?
+            actionReason.ruleReason('Temperature is already maxed') :
+            actionReason.ruleReason('Can\'t afford the Reds tax'),
       },
       {
         // The payment (titanium may be used) + asteroid target ride the follow-up routing.

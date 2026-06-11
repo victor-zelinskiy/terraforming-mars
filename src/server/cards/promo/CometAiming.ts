@@ -72,7 +72,9 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
         available: this.resourceCount > 0 && this.canAffordOcean(player),
         title: 'Remove an asteroid resource to place an ocean',
         effects: [actionPreviews.cardCost(this, 1)],
-        unavailableReason: actionReason.ruleReason('No asteroid here, or you can\'t afford the ocean'),
+        unavailableReason: this.resourceCount === 0 ?
+          actionReason.ruleReason('No asteroid on this card') :
+          actionReason.ruleReason('Can\'t afford to place the ocean'),
       },
       {
         // Titanium is paid immediately in the action; only the target card needs
