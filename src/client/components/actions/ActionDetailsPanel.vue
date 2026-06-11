@@ -29,10 +29,15 @@
         </span>
       </header>
 
-      <!-- Status / constraints when the action can't be taken right now. -->
-      <div v-if="isUnavailable" class="action-detail__status" :class="statusClass">
-        <span class="action-detail__status-dot" aria-hidden="true"></span>
-        <span class="action-detail__status-text">{{ statusText }}</span>
+      <!-- Status / constraints when the action can't be taken right now — a clear,
+           prominent ALERT (glyph + heading + the exact reason), not just a faint
+           line, so the player never has to guess why the CTA is disabled. -->
+      <div v-if="isUnavailable" class="action-detail__status" :class="statusClass" role="alert">
+        <span class="action-detail__status-icon" aria-hidden="true">{{ statusGlyph }}</span>
+        <div class="action-detail__status-body">
+          <span class="action-detail__status-head" v-i18n>{{ statusHead }}</span>
+          <span class="action-detail__status-text">{{ statusText }}</span>
+        </div>
       </div>
 
       <!-- Full ACTION text (translated + "Action:"-prefix stripped). -->
@@ -159,6 +164,17 @@ export default defineComponent({
     },
     statusClass(): string {
       return this.state !== undefined ? 'action-detail__status--' + this.state.status : '';
+    },
+    statusGlyph(): string {
+      return this.state?.status === 'activated' ? '✓' : '⚠';
+    },
+    // The alert heading (the KIND of unavailability), above the exact reason.
+    statusHead(): string {
+      switch (this.state?.status) {
+      case 'activated': return 'Already activated';
+      case 'soft': return 'Not available now';
+      default: return 'Action unavailable';
+      }
     },
     node(): GroupNode | undefined {
       return this.group?.nodes[this.nodeIndex];

@@ -57,7 +57,8 @@
                            :entry="e"
                            :card="tableauByName.get(e.cardName)"
                            :selectedKey="selectedKey"
-                           @select="onSelect" />
+                           @select="onSelect"
+                           @activate="$emit('activate', $event)" />
         </div>
         <ActionDetailsPanel class="actions-board__detail"
                             :entry="selectedEntry"
@@ -339,12 +340,16 @@ export default defineComponent({
         return;
       }
       const cur = this.selectedKey === undefined ? -1 : rows.indexOf(this.selectedKey);
+      // The master is column-major (CSS multi-column packs the DOM order top→bottom
+      // down each column), so Down/Up step ±1 (the next item IS visually below) and
+      // Left/Right jump ~one column's worth of rows.
+      const perCol = Math.max(1, Math.ceil(rows.length / Math.max(1, this.cols)));
       let next = cur;
       switch (e.key) {
-      case 'ArrowRight': next = cur + 1; break;
-      case 'ArrowLeft': next = cur - 1; break;
-      case 'ArrowDown': next = cur + this.cols; break;
-      case 'ArrowUp': next = cur - this.cols; break;
+      case 'ArrowDown': next = cur + 1; break;
+      case 'ArrowUp': next = cur - 1; break;
+      case 'ArrowRight': next = cur + perCol; break;
+      case 'ArrowLeft': next = cur - perCol; break;
       case 'Home': next = 0; break;
       case 'End': next = rows.length - 1; break;
       case 'Enter': case ' ':

@@ -49,7 +49,8 @@
                            :selected="selectedKey === rowKey(i)"
                            :focusable="selectedKey === rowKey(i)"
                            :data-test="'action-row-' + cardName + '-' + i"
-                           @select="select(i)" />
+                           @select="select(i)"
+                           @activate="activateRow(i)" />
       </template>
     </div>
   </div>
@@ -88,7 +89,7 @@ export default defineComponent({
       default: undefined,
     },
   },
-  emits: ['select'],
+  emits: ['select', 'activate'],
   computed: {
     group(): ActionGroup {
       return this.entry.group;
@@ -162,6 +163,15 @@ export default defineComponent({
     // resolves the matching preview branch from the node; nothing executes here.
     select(i: number): void {
       this.$emit('select', {cardName: this.cardName, nodeIndex: i});
+    },
+    // Double-click quick-activate — ONLY for an AVAILABLE action. An unavailable
+    // action stays selected (its reason is already in the details panel + tooltip),
+    // so a double-click can't open a modal the player can't act on.
+    activateRow(i: number): void {
+      if (this.state.status !== 'available') {
+        return;
+      }
+      this.$emit('activate', {cardName: this.cardName, nodeIndex: i});
     },
   },
 });
