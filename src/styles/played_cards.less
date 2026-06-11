@@ -903,14 +903,62 @@
    + the rest dim, so the player picks the REAL card on their tableau. ───────── */
 .played-board__pickstrip {
     display: flex;
-    align-items: center;
-    gap: 14px;
+    flex-direction: column;
+    gap: 10px;
     margin: 0 22px 8px;
     padding: 10px 16px;
     border: 1px solid rgba(64, 224, 255, 0.42);
     border-radius: 8px;
     background: linear-gradient(180deg, rgba(28, 52, 64, 0.62), rgba(16, 30, 38, 0.6));
     box-shadow: inset 0 0 0 1px rgba(64, 224, 255, 0.1), 0 6px 18px -10px rgba(64, 224, 255, 0.45);
+}
+.played-board__pickstrip-top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+/* 3-way availability filter (ВСЕ / ДОСТУПНЫЕ / НЕДОСТУПНЫЕ) — pick-mode only. */
+.played-board__pickfilter {
+    display: flex;
+    gap: 6px;
+}
+.played-board__pickfilter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border-radius: 7px;
+    border: 1px solid rgba(96, 130, 145, 0.34);
+    background: rgba(16, 26, 32, 0.62);
+    color: #b6cdd6;
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.played-board__pickfilter-btn:hover {
+    border-color: rgba(64, 224, 255, 0.45);
+    color: #eaf7fb;
+}
+.played-board__pickfilter-btn--active {
+    border-color: rgba(70, 230, 255, 0.7);
+    background: linear-gradient(180deg, rgba(40, 70, 84, 0.85), rgba(24, 44, 54, 0.85));
+    color: #eaf7fb;
+    box-shadow: inset 0 0 0 1px rgba(70, 230, 255, 0.22);
+}
+.played-board__pickfilter-count {
+    min-width: 18px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(8, 16, 20, 0.55);
+    color: #9fc3cf;
+    font-size: 10.5px;
+    text-align: center;
+}
+.played-board__pickfilter-btn--active .played-board__pickfilter-count {
+    background: rgba(70, 230, 255, 0.2);
+    color: #d7f4fb;
 }
 .played-board__pickstrip-dot {
     flex: 0 0 auto;
@@ -965,11 +1013,49 @@
     50% { opacity: 0.4; }
 }
 
-/* Candidate cards stand out; the rest dim + go inert. */
+/* Candidate cards stand out; the rest dim (but stay hoverable so the reason
+   tooltip works — the click is a no-op for non-candidates via the JS guard). */
 .played-tableau--picking .played-card-item--pick-disabled {
+    position: relative;
     filter: grayscale(0.85) brightness(0.6);
-    opacity: 0.5;
-    pointer-events: none;
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.played-tableau--picking .played-card-item--pick-disabled:hover {
+    opacity: 0.78;
+    filter: grayscale(0.55) brightness(0.7);
+}
+/* "Why not" reason on a disabled chip — max clarity for the player. */
+.played-card-item__reason {
+    .premium-tooltip(240px);
+    position: absolute;
+    left: 50%;
+    bottom: 9px;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 92%;
+    padding: 4px 11px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(46, 54, 60, 0.96), rgba(30, 36, 42, 0.96));
+    box-shadow: inset 0 0 0 1px rgba(150, 170, 180, 0.35);
+    color: #d6dee2;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    z-index: 3;
+}
+.played-card-item__reason-glyph {
+    flex: 0 0 auto;
+    font-size: 10px;
+    color: #e08a7a;
+}
+.played-card-item__reason-text {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 .played-card-item--pickable {
     position: relative;

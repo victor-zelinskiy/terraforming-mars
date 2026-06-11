@@ -6,7 +6,7 @@
       class="played-stack__slot"
       :class="{'played-stack__slot--last': i === cards.length - 1}">
       <PlayedCardItem :card="card" :player="player" :lightweight="true"
-                      :pickMode="pickMode" :selectable="selectable"
+                      :pickMode="pickMode" :selectable="selectable" :reasons="reasons"
                       @open="$emit('open', $event)" @pick="$emit('pick', $event)" />
     </div>
   </div>
@@ -53,6 +53,10 @@ export default defineComponent({
     selectable: {
       type: Object as PropType<ReadonlySet<CardName>>,
       default: () => new Set<CardName>(),
+    },
+    reasons: {
+      type: Object as PropType<Record<string, string>>,
+      default: () => ({}),
     },
   },
   emits: ['open', 'pick'],

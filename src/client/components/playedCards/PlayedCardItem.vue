@@ -18,6 +18,12 @@
       <span class="played-card-item__pick-tick">✓</span>
       <span class="played-card-item__pick-label" v-i18n>Choose</span>
     </div>
+    <!-- PICK MODE — a non-candidate carries a clear "why not" reason on a disabled
+         chip (max clarity), with a premium tooltip for the full text. -->
+    <div v-else-if="pickMode && reason !== ''" class="played-card-item__reason" :data-hint="$t(reason)">
+      <span class="played-card-item__reason-glyph" aria-hidden="true">✕</span>
+      <span class="played-card-item__reason-text" v-i18n>{{ reason }}</span>
+    </div>
   </div>
 </template>
 
@@ -86,6 +92,11 @@ export default defineComponent({
       type: Object as PropType<ReadonlySet<CardName>>,
       default: () => new Set<CardName>(),
     },
+    // Per-card unavailability reason (English i18n key) for non-candidates.
+    reasons: {
+      type: Object as PropType<Record<string, string>>,
+      default: () => ({}),
+    },
   },
   emits: ['open', 'pick'],
   computed: {
@@ -94,6 +105,9 @@ export default defineComponent({
     },
     isCandidate(): boolean {
       return this.selectable.has(this.card.name);
+    },
+    reason(): string {
+      return this.reasons[this.card.name] ?? '';
     },
   },
   methods: {

@@ -39,16 +39,42 @@
     </header>
 
     <!-- PICK MODE strip — replaces the filters while the board hosts a card-target
-         choice for a modal. Names what's being chosen + a cancel that backs out. -->
+         choice for a modal. Names what's being chosen, a 3-way availability filter
+         (default ДОСТУПНЫЕ), and a cancel that backs out. -->
     <div v-if="pickActive" class="played-board__pickstrip">
-      <span class="played-board__pickstrip-dot" aria-hidden="true"></span>
-      <span class="played-board__pickstrip-label">
-        <span class="played-board__pickstrip-kicker" v-i18n>Choose a card on your board</span>
-        <span class="played-board__pickstrip-title" v-i18n>{{ pickTitleText }}</span>
-      </span>
-      <button type="button" class="played-board__pickstrip-cancel" @click="$emit('close')">
-        <span v-i18n>Cancel</span>
-      </button>
+      <div class="played-board__pickstrip-top">
+        <span class="played-board__pickstrip-dot" aria-hidden="true"></span>
+        <span class="played-board__pickstrip-label">
+          <span class="played-board__pickstrip-kicker" v-i18n>Choose a card on your board</span>
+          <span class="played-board__pickstrip-title" v-i18n>{{ pickTitleText }}</span>
+        </span>
+        <button type="button" class="played-board__pickstrip-cancel" @click="$emit('close')">
+          <span v-i18n>Cancel</span>
+        </button>
+      </div>
+      <div class="played-board__pickfilter" role="tablist" :aria-label="$t('Availability')">
+        <button type="button" class="played-board__pickfilter-btn"
+                :class="{'played-board__pickfilter-btn--active': pickAvailability === 'available'}"
+                :aria-pressed="pickAvailability === 'available'"
+                @click="setPickAvailability('available')">
+          <span v-i18n>Available cards</span>
+          <span class="played-board__pickfilter-count">{{ pickAvailableCount }}</span>
+        </button>
+        <button type="button" class="played-board__pickfilter-btn"
+                :class="{'played-board__pickfilter-btn--active': pickAvailability === 'unavailable'}"
+                :aria-pressed="pickAvailability === 'unavailable'"
+                @click="setPickAvailability('unavailable')">
+          <span v-i18n>Unavailable cards</span>
+          <span class="played-board__pickfilter-count">{{ pickUnavailableCount }}</span>
+        </button>
+        <button type="button" class="played-board__pickfilter-btn"
+                :class="{'played-board__pickfilter-btn--active': pickAvailability === 'all'}"
+                :aria-pressed="pickAvailability === 'all'"
+                @click="setPickAvailability('all')">
+          <span v-i18n>All</span>
+          <span class="played-board__pickfilter-count">{{ totalCount }}</span>
+        </button>
+      </div>
     </div>
 
     <PlayedCardsFilters
@@ -75,6 +101,7 @@
             :player="displayedPlayer"
             :pickMode="pickActive"
             :selectable="pickSelectableSet"
+            :reasons="pickReasons"
             @open="openCard"
             @pick="onPickCard" />
         </transition-group>
@@ -93,6 +120,7 @@
             :player="displayedPlayer"
             :pickMode="pickActive"
             :selectable="pickSelectableSet"
+            :reasons="pickReasons"
             @open="openCard"
             @pick="onPickCard" />
         </transition-group>
@@ -134,7 +162,10 @@ import {
 } from '@/client/components/playedCards/playedCardGroups';
 import {Density, FIT, planProjectBand, ProjectSectionPlan} from '@/client/components/playedCards/playedTableauFit';
 import {playedCardsViewState, PlayedViewMode} from '@/client/components/playedCards/playedCardsViewState';
-import {playedCardsPickState, resolvePlayedCardsPick} from '@/client/components/playedCards/playedCardsPickState';
+import {playedCardsPickState, resolvePlayedCardsPick, setPlayedPickAvailability, PlayedPickAvailability} from '@/client/components/playedCards/playedCardsPickState';
+import {playedPickUnavailableReason} from '@/client/components/playedCards/playedCardsPickReason';
+import {getCard} from '@/client/cards/ClientCardManifest';
+import {CardResource} from '@/common/CardResource';
 import {Message} from '@/common/logs/Message';
 import PlayedCardsFilters from '@/client/components/playedCards/PlayedCardsFilters.vue';
 import PlayedCardsGroup from '@/client/components/playedCards/PlayedCardsGroup.vue';
@@ -267,6 +298,64 @@ export default defineComponent({
     pickSelectableSet(): ReadonlySet<CardName> {
       return new Set(playedCardsPickState.selectable);
     },
+    pickAvailability(): PlayedPickAvailability {
+      return playedCardsPickState.availability;
+    },
+    // Counts for the pick-mode availability filter chips (over the WHOLE tableau).
+    pickAvailableCount(): number {
+      let n = 0;
+      for (const g of this.nonEmptyGroups) {
+        for (const c of g.cards) {
+          if (this.pickSelectableSet.has(c.name)) {
+            n++;
+          }
+        }
+      }
+      return n;
+    },
+    pickUnavailableCount(): number {
+      return this.totalCount - this.pickAvailableCount;
+    },
+    // The resource type(s) the pick adds — inferred from the candidates (they all
+    // hold it). Drives the per-card "why not" reason for non-candidates.
+    pickTargetTypes(): ReadonlySet<CardResource | undefined> {
+      const out = new Set<CardResource | undefined>();
+      for (const name of playedCardsPickState.selectable) {
+        out.add(getCard(name)?.resourceType);
+      }
+      return out;
+    },
+    // Per-card unavailability reason (English i18n key) for every NON-candidate
+    // played card, so the overlay can label them clearly in pick mode.
+    pickReasons(): Record<string, string> {
+      if (!this.pickActive) {
+        return {};
+      }
+      const out: Record<string, string> = {};
+      for (const g of this.nonEmptyGroups) {
+        for (const c of g.cards) {
+          if (!this.pickSelectableSet.has(c.name)) {
+            out[c.name] = playedPickUnavailableReason(getCard(c.name)?.resourceType, this.pickTargetTypes);
+          }
+        }
+      }
+      return out;
+    },
+    // Pick-mode availability filter applied to the WHOLE tableau (the hand-style
+    // type/tag filters are hidden while picking). 'available' → candidates only;
+    // 'unavailable' → the rest (with reasons); 'all' → everything.
+    pickFilteredGroups(): ReadonlyArray<PlayedGroup> {
+      const avail = this.pickAvailability;
+      if (avail === 'all') {
+        return this.nonEmptyGroups;
+      }
+      return this.nonEmptyGroups
+        .map((g) => ({...g, cards: g.cards.filter((c) => {
+          const sel = this.pickSelectableSet.has(c.name);
+          return avail === 'available' ? sel : !sel;
+        })}))
+        .filter((g) => g.cards.length > 0);
+    },
     // Force the card tableau while picking (the table view can't host a pick).
     effectiveViewMode(): ViewMode {
       return this.pickActive ? 'cards' : this.viewMode;
@@ -295,6 +384,11 @@ export default defineComponent({
       return this.visibleGroups.reduce((sum, g) => sum + g.cards.length, 0);
     },
     visibleGroups(): ReadonlyArray<PlayedGroup> {
+      // In pick mode the hand-style type/tag filters are hidden; the availability
+      // filter (ВСЕ / ДОСТУПНЫЕ / НЕДОСТУПНЫЕ) drives what shows instead.
+      if (this.pickActive) {
+        return this.pickFilteredGroups;
+      }
       return filterPlayedGroups(this.nonEmptyGroups, {
         hiddenGroups: playedCardsViewState.hiddenGroups,
         activeTags: playedCardsViewState.activeTags,
@@ -405,6 +499,9 @@ export default defineComponent({
     onPickCard(card: CardModel): void {
       resolvePlayedCardsPick(card.name);
       this.$emit('close');
+    },
+    setPickAvailability(value: PlayedPickAvailability): void {
+      setPlayedPickAvailability(value);
     },
     scrollToTop(): void {
       const body = this.$refs.body as HTMLElement | undefined;
