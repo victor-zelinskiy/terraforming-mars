@@ -33,11 +33,13 @@ describe('TitanShuttles', () => {
     expect(card.getVictoryPoints(player)).to.eq(1);
   });
 
-  it('Auto add floaters if only 1 option and 1 target available', () => {
+  it('Always asks where to add floaters, even with a single target', () => {
+    // autoSelect:false — the player must always see/confirm WHERE the floaters go,
+    // even when this card is the only Jovian floater card available.
     card.action(player);
     expect(game.deferredActions).has.lengthOf(1);
-    const input = game.deferredActions.peek()!.execute();
-    expect(input).is.undefined;
+    const selectCard = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
+    selectCard.cb([card]);
     expect(card.resourceCount).to.eq(2);
   });
 

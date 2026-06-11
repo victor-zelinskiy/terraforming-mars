@@ -63,13 +63,15 @@ export class TitanShuttles extends Card implements IProjectCard {
 
   public action(player: IPlayer) {
     if (this.resourceCount === 0) {
-      player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {count: 2, restrictedTag: Tag.JOVIAN, title: 'Add 2 floaters to a Jovian card'}));
+      // autoSelect:false — ALWAYS ask which Jovian card (even with one candidate) so
+      // the player sees where the floaters land; the modal pre-collects the pick.
+      player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {count: 2, restrictedTag: Tag.JOVIAN, title: 'Add 2 floaters to a Jovian card', autoSelect: false}));
       return undefined;
     }
 
     return new OrOptions(
       new SelectOption('Add 2 floaters to a Jovian card', 'Add floaters').andThen(() => {
-        player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {count: 2, restrictedTag: Tag.JOVIAN}));
+        player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {count: 2, restrictedTag: Tag.JOVIAN, autoSelect: false}));
         return undefined;
       }),
       new SelectAmount(

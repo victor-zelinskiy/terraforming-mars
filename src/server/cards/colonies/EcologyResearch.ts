@@ -36,14 +36,17 @@ export class EcologyResearch extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
+    // autoSelect:false — ALWAYS ask which card receives the resource (even with a
+    // single candidate) so the player sees where the animal / microbes land; the
+    // play modal pre-collects both picks in order (animal then microbe).
     const animalCards = player.getResourceCards(CardResource.ANIMAL);
     if (animalCards.length) {
-      player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {count: 1}));
+      player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {count: 1, autoSelect: false}));
     }
 
     const microbeCards = player.getResourceCards(CardResource.MICROBE);
     if (microbeCards.length) {
-      player.game.defer(new AddResourcesToCard(player, CardResource.MICROBE, {count: 2}));
+      player.game.defer(new AddResourcesToCard(player, CardResource.MICROBE, {count: 2, autoSelect: false}));
     }
 
     return undefined;

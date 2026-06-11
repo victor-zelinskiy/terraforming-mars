@@ -11,7 +11,6 @@ import {SelectColony} from '../../../src/server/inputs/SelectColony';
 import {TestPlayer} from '../../TestPlayer';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {testGame} from '../../TestGame';
-import {runAllActions} from '../../TestingUtils';
 import {Message} from '../../../src/common/logs/Message';
 import {cast} from '../../../src/common/utils/utils';
 
@@ -36,20 +35,21 @@ describe('TitanFloatingLaunchPad', () => {
     player.playedCards.push(card);
     game.colonies = []; // A way to fake out that no colonies are available.
 
-    // No resource and no other card to add to
+    // No resource and no other card to add to. autoSelect:false — the player is still
+    // asked where (this card is the only Jovian floater target).
     card.action(player);
     expect(game.deferredActions).has.lengthOf(1);
-    const input = game.deferredActions.peek()!.execute();
+    const selectCard = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
     game.deferredActions.pop();
-    expect(input).is.undefined;
+    selectCard.cb([card]);
     expect(card.resourceCount).to.eq(1);
 
     // No open colonies and no other card to add to
     card.action(player);
     expect(game.deferredActions).has.lengthOf(1);
-    const input2 = game.deferredActions.peek()!.execute();
+    const selectCard2 = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
     game.deferredActions.pop();
-    expect(input2).is.undefined;
+    selectCard2.cb([card]);
     expect(card.resourceCount).to.eq(2);
   });
 
@@ -100,8 +100,13 @@ describe('TitanFloatingLaunchPad', () => {
     player.playedCards.push(card);
     player.addResourceTo(card, 7);
 
+    // Embargo blocks the trade branch, so the action falls back to add-floater.
     cast(card.action(player), undefined);
-    runAllActions(game);
+    expect(game.deferredActions).has.lengthOf(1);
+    // autoSelect:false → asked where (this card is the only Jovian floater target).
+    const selectCard = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
+    game.deferredActions.pop();
+    selectCard.cb([card]);
 
     expect(game.deferredActions).has.lengthOf(0);
     expect(card.resourceCount).to.eq(8);
