@@ -469,12 +469,15 @@
     gap: 10px;
     padding: 3px 6px;
     border-radius: 5px;
+    transition: background 120ms ease, opacity 120ms ease;
 
     &--hoverable {
         cursor: help;
-        transition: background 120ms ease;
         &:hover { background: rgba(106, 176, 230, 0.07); }
     }
+    /* Cross-highlight with the matching bar segment / dim everything else. */
+    &--active { background: rgba(106, 176, 230, 0.1); }
+    &--dim { opacity: 0.4; }
 }
 .vp-ma-row__vp {
     flex-shrink: 0;
@@ -577,6 +580,19 @@
     display: flex;
     align-items: center;
     overflow: hidden;
+
+    /* Keep a long card name inside its grid cell: the journal chip shrinks
+       and ellipsizes its label instead of overflowing into the next column. */
+    .journal-chip {
+        max-width: 100%;
+        min-width: 0;
+    }
+    .journal-chip__label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 }
 .vp-card-row__vp {
     flex-shrink: 0;
