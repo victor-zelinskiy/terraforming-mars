@@ -1,0 +1,57 @@
+import {reactive} from 'vue';
+import {CardName} from '@/common/cards/CardName';
+import {ActionPreview} from '@/common/models/ActionPreviewModel';
+import {AvailabilityFilter, ActivationFilter} from '@/client/components/actions/actionModel';
+
+/**
+ * Module-level state for the master-detail ДЕЙСТВИЯ overlay. Lives at module scope
+ * — like `playedCardsViewState` / `journalState` / `handSelectState` — so it
+ * SURVIVES App.vue's `playerkey` remount of <player-home> on every server response.
+ * Without it, the overlay's SELECTION (which action the details panel shows) + the
+ * lazily-fetched per-card preview cache would reset on every poll while the overlay
+ * is open. Cleared on player switch (`resetActionsOverlay`).
+ *
+ * `selectedKey` identifies the selected action ROW as `cardName + '#' + nodeIndex`
+ * (a card with an `or` action draws several rows / nodes); the overlay maps it to a
+ * `branchPosition` for the confirm modal.
+ */
+export const actionsOverlayState = reactive<{
+  /** True while the overlay is open — drives the remount re-arm in PlayerHome. */
+  open: boolean;
+  /** The selected action row (`cardName#nodeIndex`), or undefined (auto-select). */
+  selectedKey: string | undefined;
+  /** Faceted filters — persisted here so they survive the remount. */
+  availability: AvailabilityFilter;
+  activation: ActivationFilter;
+  /** Per-card read-only action preview, fetched lazily for the SELECTED card. */
+  previewCache: Record<string, ActionPreview>;
+}>({
+  open: false,
+  selectedKey: undefined,
+  availability: 'all',
+  activation: 'dormant',
+  previewCache: {},
+});
+
+/** The selection key for a given card + node ordinal. */
+export function actionRowKey(cardName: CardName, nodeIndex: number): string {
+  return cardName + '#' + nodeIndex;
+}
+
+export function setActionSelection(key: string | undefined): void {
+  actionsOverlayState.selectedKey = key;
+}
+
+export function getActionPreview(cardName: CardName): ActionPreview | undefined {
+  return actionsOverlayState.previewCache[cardName];
+}
+
+export function setActionPreview(cardName: CardName, preview: ActionPreview): void {
+  actionsOverlayState.previewCache = {...actionsOverlayState.previewCache, [cardName]: preview};
+}
+
+/** Drop selection + preview cache (on player switch); keep the filters. */
+export function resetActionsOverlay(): void {
+  actionsOverlayState.selectedKey = undefined;
+  actionsOverlayState.previewCache = {};
+}

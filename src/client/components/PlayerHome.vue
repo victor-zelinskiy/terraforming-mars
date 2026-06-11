@@ -430,7 +430,7 @@
       :availableActionNames="availableCardActionNames"
       :awaitingInput="playerView.waitingFor !== undefined"
       @activate="onActivateCardAction($event)"
-      @close="activeOverlay = null" />
+      @close="closeActionsOverlay" />
 
     <!--
       Client-side confirmation gate before an action is performed. Hosts the
@@ -684,6 +684,7 @@ import StandardProjectsOverlay from '@/client/components/overview/StandardProjec
 import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverlay.vue';
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
+import {actionsOverlayState} from '@/client/components/actions/actionsOverlayState';
 import CardActionConfirmContent from '@/client/components/actions/CardActionConfirmContent.vue';
 import {beginReveal} from '@/client/components/actions/revealResultState';
 import {ActionRevealDescriptor} from '@/common/models/ActionPreviewModel';
@@ -919,8 +920,9 @@ const PLACEMENT_LOCKED_SELECTORS = [
   '.colony-detail__select-btn',
   // v47: dedicated РАЗЫГРАТЬ buttons under hand cards (premium hand overlay).
   '.hand-card-play-btn',
-  // v48: ВЫПОЛНИТЬ on an activatable action (premium Действия overlay).
-  '.action-activate-btn',
+  // v48: the details-panel CTA that opens the activate confirmation (premium
+  // Действия overlay master-detail rework).
+  '.action-detail__cta',
   '.wf-action',
 ].join(', ');
 
@@ -1219,6 +1221,12 @@ export default defineComponent({
     // unresolvable pick mode (overlay auto-reopening with nowhere to deliver to).
     if (isClientHandPickActive()) {
       cancelClientHandSelect();
+    }
+    // Re-arm the actions overlay across the playerkey remount (its selection +
+    // filters + preview cache persisted in module state). Only when it was left
+    // open and nothing else (a server-driven / mandatory overlay) claimed the slot.
+    if (actionsOverlayState.open && this.activeOverlay === null) {
+      this.activeOverlay = 'actions';
     }
   },
   beforeUnmount() {
@@ -2004,6 +2012,17 @@ export default defineComponent({
         this.minimizeMandatoryHandPrompts();
       }
       this.activeOverlay = this.activeOverlay === id ? null : id;
+      // Keep the actions overlay's persisted open-flag in sync with the live
+      // activeOverlay — set UNCONDITIONALLY (not just when id === 'actions') so
+      // navigating AWAY from actions to another overlay also clears the flag;
+      // otherwise the remount re-arm would yank the player back to actions.
+      actionsOverlayState.open = this.activeOverlay === 'actions';
+    },
+    // The actions overlay ✕ — also clears its persisted open-flag (so a server
+    // poll doesn't re-arm it after an explicit close).
+    closeActionsOverlay(): void {
+      this.activeOverlay = null;
+      actionsOverlayState.open = false;
     },
     // Minimize whichever mandatory hand/standard-project/award prompt is
     // currently active to its shared pill (no-op when none is active). Shared by

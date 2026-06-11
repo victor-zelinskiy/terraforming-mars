@@ -1,12 +1,12 @@
 /*
- * actions_overlay.less — the premium "Действия" overlay (ActionsOverlay.vue +
- * ActionBlock.vue + ActionsFilters.vue). The interactive sibling of the Effects
- * overlay: same dark-glass HUD frame + JS-driven adaptive grid
- * (`--actions-overlay-width`, `--actions-cols`), but each block READS AS A
- * BUTTON — the action graphic + a prominent ВЫПОЛНИТЬ control. Reuses the hand
- * overlay's segmented filter chips (`.hand-seg-btn`) and reason popovers
- * (`.hand-reason` / `.hand-soft-reason`), and the cab-* button language for the
- * activate control.
+ * actions_overlay.less — the premium "Действия" overlay. A MASTER-DETAIL surface:
+ * a compact left grid of action GROUP cards (ActionGroupCard.vue → slim header +
+ * CompactActionCard.vue rows) + a static right details panel (ActionDetailsPanel.vue)
+ * with a context-aware CTA that opens the confirmation modal. The interactive
+ * sibling of the Effects overlay: same dark-glass HUD frame + JS-driven adaptive
+ * sizing (`--actions-overlay-width`, `--actions-master-cols`, `--detail-width`).
+ * Reuses the hand overlay's segmented filter chips (`.hand-seg-btn`) and reason
+ * popovers (`.hand-reason` / `.hand-soft-reason`), and the cab-* button language.
  */
 
 .actions-board-overlay {
@@ -247,14 +247,39 @@
     &::-webkit-scrollbar-thumb { background: rgba(106, 176, 230, 0.3); border-radius: 5px; }
     &::-webkit-scrollbar-track { background: transparent; }
 }
-.actions-board__grid {
+/* ─── Master-detail split: compact action grid (LEFT) + static detail (RIGHT) ─── */
+.actions-board__split {
     display: grid;
-    /* Fixed per-card width (JS-driven by the count) + a centred grid, so 1–2
-       cards fill the width as a tidy dashboard instead of one stretched column. */
-    grid-template-columns: repeat(var(--actions-cols, 1), var(--actions-card-w, minmax(0, 1fr)));
-    justify-content: center;
+    /* The master takes the freed space; the detail is a fixed static column. */
+    grid-template-columns: minmax(0, 1fr) var(--detail-width, 380px);
+    gap: 18px;
+    align-items: start;
+    min-height: 0;
+}
+.actions-board__master {
+    display: grid;
+    /* A fixed compact column count (JS-driven 1–3 by viewport width). */
+    grid-template-columns: repeat(var(--actions-master-cols, 3), minmax(0, 1fr));
     align-content: start;
-    gap: 16px;
+    gap: 14px;
+    min-width: 0;
+}
+.actions-board__detail {
+    /* Sticky so the understanding panel stays in view while the master scrolls. */
+    position: sticky;
+    top: 0;
+    align-self: start;
+    min-width: 0;
+}
+/* On a narrow viewport the JS fit drops to 1 master column; stack the detail
+   under the master so neither gets squeezed. */
+@media (max-width: 1080px) {
+    .actions-board__split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .actions-board__detail {
+        position: static;
+    }
 }
 
 /* Premium empty / near-empty state. */
@@ -296,366 +321,342 @@
     color: #7f9bb8;
 }
 
-/* ─── Action block (a button) ────────────────────────────────────────── */
-
-.action-block {
+/* ─── Action GROUP card (master grid) ────────────────────────────────── */
+/*
+ * One activatable SOURCE in the compact left grid: a SLIM header (name + type
+ * chip + stored-resource badge + group status) then one selectable compact row
+ * per render node. A 2-action card is exactly the slim header + two compact
+ * rows tall — no per-row ВЫПОЛНИТЬ, no big repeated header. Selecting a row only
+ * focuses it (the details panel + its CTA take over); the resource badge stays
+ * at the header so the count is always visible.
+ */
+.action-group {
     display: flex;
     flex-direction: column;
-    gap: 11px;
-    padding: 14px 15px 15px;
-    border-radius: 12px;
-    border: 1px solid rgba(106, 176, 230, 0.22);
+    gap: 7px;
+    padding: 9px 10px 10px;
+    border-radius: 11px;
+    border: 1px solid rgba(106, 176, 230, 0.2);
     background:
-        radial-gradient(120% 60% at 50% -8%, rgba(127, 212, 255, 0.05), transparent 60%),
-        linear-gradient(180deg, rgba(20, 30, 44, 0.92), rgba(12, 20, 32, 0.94));
+        radial-gradient(120% 60% at 50% -8%, rgba(127, 212, 255, 0.045), transparent 60%),
+        linear-gradient(180deg, rgba(20, 30, 44, 0.9), rgba(12, 20, 32, 0.93));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 /* AVAILABLE — the actionable state reads as "act now": a calm cyan-mint frame. */
-.action-block--available {
-    border-color: rgba(88, 214, 166, 0.42);
-    box-shadow: 0 0 0 1px rgba(88, 214, 166, 0.12), 0 8px 22px rgba(0, 0, 0, 0.4);
-    &:hover { border-color: #58d6a6; box-shadow: 0 0 0 1px rgba(88, 214, 166, 0.3), 0 10px 26px rgba(0, 0, 0, 0.46), 0 0 18px rgba(88, 214, 166, 0.22); transform: translateY(-2px); }
+.action-group--available {
+    border-color: rgba(88, 214, 166, 0.4);
+    box-shadow: 0 0 0 1px rgba(88, 214, 166, 0.1), 0 6px 18px rgba(0, 0, 0, 0.36);
 }
-.action-block--rules {
-    opacity: 0.86;
-    border-color: rgba(208, 154, 100, 0.24);
+.action-group--rules { opacity: 0.88; border-color: rgba(208, 154, 100, 0.24); }
+.action-group--soft { opacity: 0.94; }
+.action-group--activated { opacity: 0.8; border-color: rgba(106, 176, 230, 0.28); }
+.action-group--disabled-card { opacity: 0.58; filter: grayscale(0.45); }
+.action-group--corp.action-group--available {
+    border-color: rgba(230, 200, 120, 0.48);
+    box-shadow: 0 0 0 1px rgba(230, 200, 120, 0.14), 0 6px 18px rgba(0, 0, 0, 0.36);
 }
-.action-block--soft {
-    opacity: 0.92;
+/* SELECTED — the group holding the focused row gets a strong cyan rim + glow so
+   the master/detail link is unmistakable. */
+.action-group--selected {
+    border-color: #7fd4ff;
+    box-shadow: 0 0 0 1px rgba(127, 212, 255, 0.5), 0 8px 22px rgba(0, 0, 0, 0.46), 0 0 20px rgba(127, 212, 255, 0.2);
 }
-.action-block--activated {
-    opacity: 0.78;
-    border-color: rgba(106, 176, 230, 0.3);
-}
-.action-block--disabled-card {
-    opacity: 0.55;
-    filter: grayscale(0.5);
-}
-.action-block--corp.action-block--available {
-    border-color: rgba(230, 200, 120, 0.5);
-    box-shadow: 0 0 0 1px rgba(230, 200, 120, 0.16), 0 8px 22px rgba(0, 0, 0, 0.4);
-    &:hover { border-color: #e6c87e; box-shadow: 0 0 0 1px rgba(230, 200, 120, 0.32), 0 10px 26px rgba(0, 0, 0, 0.46), 0 0 18px rgba(230, 200, 120, 0.24); }
+.action-group--corp.action-group--selected {
+    border-color: #f0d68a;
+    box-shadow: 0 0 0 1px rgba(240, 214, 138, 0.5), 0 8px 22px rgba(0, 0, 0, 0.46), 0 0 20px rgba(240, 214, 138, 0.2);
 }
 
-.action-block__head {
+.action-group__head {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
 }
-.action-block__accent {
+.action-group__accent {
     width: 3px;
-    height: 14px;
+    height: 13px;
     border-radius: 2px;
     flex-shrink: 0;
     background: #6ab0e6;
     box-shadow: 0 0 6px rgba(106, 176, 230, 0.5);
 }
-.action-block--corp .action-block__accent {
+.action-group--corp .action-group__accent {
     background: #e6c87e;
     box-shadow: 0 0 6px rgba(230, 200, 120, 0.5);
 }
-.action-block__source {
+.action-group__name {
     flex: 1;
     min-width: 0;
-    font-size: 12.5px;
+    font-size: 11.5px;
     font-weight: 700;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
     color: #eaf3fc;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.action-block__type {
+.action-group__type {
     flex-shrink: 0;
-    font-size: 8.5px;
+    font-size: 8px;
     font-weight: 700;
-    letter-spacing: 1.2px;
+    letter-spacing: 1.1px;
     text-transform: uppercase;
     color: #7f9bb8;
 }
-.action-block--corp .action-block__type { color: #c9a86a; }
+.action-group--corp .action-group__type { color: #c9a86a; }
 
-/* Status pill (header) — for non-available states only. */
-.action-block__status {
+/* Stored-resource count badge — header-level, never hover-only. */
+.action-group__res {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 3px;
     flex-shrink: 0;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 8.5px;
-    font-weight: 700;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-}
-.action-block__status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-}
-.action-block__status--activated {
-    color: #9ecbe6;
-    background: rgba(106, 176, 230, 0.16);
-    .action-block__status-dot { background: #6ab0e6; box-shadow: 0 0 6px rgba(106, 176, 230, 0.6); }
-}
-.action-block__status--rules {
-    color: #f0c49a;
-    background: rgba(208, 154, 100, 0.16);
-    .action-block__status-dot { background: #d09a64; box-shadow: 0 0 6px rgba(208, 154, 100, 0.6); }
-}
-.action-block__status--soft {
-    color: #9fb6cc;
-    background: rgba(106, 176, 230, 0.1);
-    .action-block__status-dot { background: #8aa0b4; }
-}
-
-/* Body: the action graphic(s). Clickable (fullscreen) + hover preview host. */
-.action-block__body {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
-    min-height: 88px;
-    padding: 12px 8px;
-    border-radius: 9px;
-    background: rgba(8, 14, 22, 0.36);
-    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.07);
-    cursor: pointer;
-    outline: none;
-    transition: background 0.15s ease, box-shadow 0.15s ease;
-    &:hover, &:focus-visible { background: rgba(10, 18, 28, 0.52); box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.14); }
-}
-.action-block__render-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-/*
- * THE ICON FIX (mirrors effects_overlay.less): the card render icons are
- * CSS-scoped under `.card-container`. Wrapping the reused action render in a
- * bare `.card-container` makes the sprites render; `v-i18n` localizes plate
- * text. Strip the legacy margin/width, scale up, force light text on the dark
- * overlay (gold plates keep their dark text).
- */
-.action-block__render.card-container {
-    margin: 0;
-    width: auto;
-    zoom: 1.3;
-    text-align: center;
-
-    .card-effect-box {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 6px;
-    }
-    .card-effect-box-row {
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-    .card-description {
-        text-align: center;
-        line-height: 1.35;
-        margin-top: 3px;
-        color: #cdddee !important;
-    }
-    .card-text-normal:not(.card-plate),
-    .card-text-bold:not(.card-plate) {
-        color: #eaf3fc !important;
-    }
-    .card-plate {
-        color: #1b1b1b !important;
-        text-align: center;
-    }
-    .card-rows {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
-    }
-    .card-special {
-        color: #eaf3fc;
-    }
-    .card-minus,
-    .card-minus--S,
-    .card-plus,
-    .card-plus--small {
-        filter: brightness(0) invert(1);
-    }
-    .card-resource-trade-discount {
-        color: #161616;
-    }
-    .card-red-arrow.card-symbol-cancelled::after,
-    .card-red-arrow--small.card-symbol-cancelled::after {
-        border-top-color: #f5f8fc;
-        box-shadow: 0 0 1.5px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.55);
-    }
-}
-.action-block__render-desc {
-    margin-top: 6px;
-    font-size: 11.5px;
-    line-height: 1.4;
-    text-align: center;
-    color: #cdddee;
-}
-.action-block__render-text {
-    padding: 2px 4px;
-    font-size: 11.5px;
-    line-height: 1.4;
-    color: #c9d8ea;
-    text-align: center;
-}
-
-/* Footer: the activate control. */
-.action-block__footer {
-    display: flex;
-    flex-direction: column;
-}
-.action-block__disabled-wrap {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Stored-resource count chip in the header (microbes / animals / floaters / …). */
-.action-block__res-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: 8px;
-    padding: 2px 8px 2px 5px;
+    padding: 1px 7px 1px 4px;
     border-radius: 999px;
     background: rgba(20, 54, 44, 0.5);
     border: 1px solid rgba(110, 235, 180, 0.35);
 }
-.action-block__res-icon {
-    width: 17px;
-    height: 17px;
+.action-group__res-icon {
+    width: 15px;
+    height: 15px;
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
 }
-.action-block__res-count {
+.action-group__res-count {
     font-family: "Russo One", Prototype, sans-serif;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     color: #8ff0c4;
     font-variant-numeric: tabular-nums;
 }
 
-/* MULTI-BRANCH split: each branch is its own bordered sub-block (graphic + chips
-   + its own ВЫПОЛНИТЬ / disabled reason). */
-.action-block__branches {
-    display: flex;
-    flex-direction: column;
-}
-.action-block__branch {
-    display: flex;
-    flex-direction: column;
-    padding: 14px 0;
-    /* A clear, premium divider between the two actions of one card — a cyan
-       hairline with a soft glow, not a faint line. */
-    & + & {
-        margin-top: 4px;
-        border-top: 1px solid rgba(120, 200, 255, 0.32);
-        box-shadow: 0 -1px 0 rgba(120, 200, 255, 0.08);
-    }
-    &--off { opacity: 0.78; }
-}
-.action-block__branch-body {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    outline: none;
-}
-.action-block__branch-title {
-    font-size: 12.5px;
-    color: #d8ecf7;
-    text-align: center;
-}
-.action-block__chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-}
-.action-block__branch-foot {
-    margin-top: 9px;
-}
-.action-block__branch-reason {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    justify-content: center;
-    padding: 6px 8px;
-    font-size: 11.5px;
-    color: rgba(255, 184, 130, 0.92);
-}
-.action-block__branch-reason-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: rgba(255, 184, 130, 0.85);
-    flex-shrink: 0;
-}
-
-/* ВЫПОЛНИТЬ control — cab-* language. */
-.action-activate-btn {
-    .cab-base();
+/* Status pill (header) — non-available states only. */
+.action-group__status {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 7px;
-    width: 100%;
-    padding: 9px 16px;
-    font-size: 12.5px;
-    letter-spacing: 1.4px;
+    gap: 5px;
+    flex-shrink: 0;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
 }
-.action-activate-btn__icon {
-    position: relative;
-    z-index: 2;
-    font-size: 9px;
+.action-group__status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
 }
-.action-activate-btn--ready { .cab-palette-cta-mint(); }
-.action-activate-btn--soft { .cab-palette-secondary(); }
-/* Disabled rules / activated variants — dark glass + role-coloured rim. The
-   cab-base :disabled dim makes them read as off. */
-.action-activate-btn--rules {
-    color: #f0c49a;
-    background: linear-gradient(180deg, rgba(208, 154, 100, 0.3) 0%, rgba(208, 154, 100, 0.15) 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 3px 9px rgba(0, 0, 0, 0.45);
-    &::before { background: linear-gradient(180deg, rgba(40, 28, 16, 0.92) 0%, rgba(26, 18, 10, 0.95) 100%); }
-}
-.action-activate-btn--activated {
+.action-group__status--activated {
     color: #9ecbe6;
-    background: linear-gradient(180deg, rgba(106, 176, 230, 0.3) 0%, rgba(106, 176, 230, 0.15) 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 3px 9px rgba(0, 0, 0, 0.45);
-    &::before { background: linear-gradient(180deg, rgba(20, 32, 48, 0.92) 0%, rgba(12, 22, 36, 0.95) 100%); }
+    background: rgba(106, 176, 230, 0.16);
+    .action-group__status-dot { background: #6ab0e6; box-shadow: 0 0 6px rgba(106, 176, 230, 0.6); }
+}
+.action-group__status--rules {
+    color: #f0c49a;
+    background: rgba(208, 154, 100, 0.16);
+    .action-group__status-dot { background: #d09a64; box-shadow: 0 0 6px rgba(208, 154, 100, 0.6); }
+}
+.action-group__status--soft {
+    color: #9fb6cc;
+    background: rgba(106, 176, 230, 0.1);
+    .action-group__status-dot { background: #8aa0b4; }
 }
 
-/* Reason popover fade (reuses .hand-reason / .hand-soft-reason chrome). */
-.action-reason-fade-enter-active, .action-reason-fade-leave-active {
-    transition: opacity 140ms ease, transform 140ms ease;
+/* The compact action rows. */
+.action-group__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
-.action-reason-fade-enter-from, .action-reason-fade-leave-to {
-    opacity: 0;
-    transform: translateX(-50%) translateY(4px);
+
+/* ─── Details panel (right) ──────────────────────────────────────────── */
+.action-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    padding: 16px 16px 17px;
+    border-radius: 13px;
+    border: 1px solid rgba(106, 176, 230, 0.24);
+    background:
+        radial-gradient(130% 50% at 50% -6%, rgba(127, 212, 255, 0.06), transparent 62%),
+        linear-gradient(180deg, rgba(18, 28, 42, 0.95), rgba(10, 17, 28, 0.97));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.action-detail--empty {
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+}
+.action-detail__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: #6f8aa6;
+}
+.action-detail__placeholder-glyph {
+    font-size: 30px;
+    opacity: 0.6;
+}
+.action-detail__placeholder-text {
+    font-size: 12px;
+    letter-spacing: 0.4px;
+}
+.action-detail__head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        "type zoom"
+        "name zoom"
+        "res  zoom";
+    align-items: center;
+    gap: 2px 8px;
+}
+.action-detail__type {
+    grid-area: type;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+    color: #7f9bb8;
+}
+.action-detail__name {
+    grid-area: name;
+    margin: 0;
+    font-family: Prototype, "Russo One", sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: #eaf3fc;
+}
+.action-detail__zoom {
+    grid-area: zoom;
+    align-self: start;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid rgba(106, 176, 230, 0.3);
+    background: rgba(12, 22, 34, 0.7);
+    color: #9ecbe6;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    &:hover { border-color: #7fd4ff; background: rgba(18, 32, 48, 0.85); color: #d6f1ff; }
+}
+.action-detail__res {
+    grid-area: res;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+    font-size: 10.5px;
+    color: #8ff0c4;
+}
+.action-detail__res-icon {
+    width: 16px;
+    height: 16px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+.action-detail__res-count {
+    font-family: "Russo One", Prototype, sans-serif;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.action-detail__res-label {
+    color: #6f8aa6;
+    letter-spacing: 0.3px;
+}
+/* Status / constraints block (non-available action). */
+.action-detail__status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 11px;
+    border-radius: 9px;
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+.action-detail__status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.action-detail__status--rules {
+    color: #f3c49a;
+    background: rgba(208, 154, 100, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(208, 154, 100, 0.22);
+    .action-detail__status-dot { background: #d09a64; box-shadow: 0 0 6px rgba(208, 154, 100, 0.6); }
+}
+.action-detail__status--soft,
+.action-detail__status--activated {
+    color: #9fb6cc;
+    background: rgba(106, 176, 230, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.18);
+    .action-detail__status-dot { background: #6ab0e6; box-shadow: 0 0 6px rgba(106, 176, 230, 0.5); }
+}
+.action-detail__section {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.action-detail__label {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: #6f8aa6;
+}
+.action-detail__desc {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #cdddee;
+}
+/* Preview skeleton (while the cost/result fetch is in flight). */
+.action-detail__skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.action-detail__skeleton-bar {
+    height: 13px;
+    border-radius: 5px;
+    background: linear-gradient(90deg, rgba(106, 176, 230, 0.08) 0%, rgba(106, 176, 230, 0.18) 50%, rgba(106, 176, 230, 0.08) 100%);
+    background-size: 200% 100%;
+    animation: action-detail-shimmer 1.3s ease-in-out infinite;
+    &--short { width: 60%; }
+}
+@keyframes action-detail-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+/* The context-aware CTA row. */
+.action-detail__cta-row {
+    display: flex;
+    margin-top: 2px;
+}
+.action-detail__cta {
+    width: 100%;
+    padding: 11px 18px;
+    font-size: 12.5px;
+    letter-spacing: 1.2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
     .actions-board-overlay,
-    .action-block,
+    .action-group,
+    .action-detail__skeleton-bar,
     .actions-board__ready-dot {
         animation: none;
         transition: none;
     }
-    .action-block:hover { transform: none; }
 }
 
 /* ─── Confirmation modal (CardActionConfirmContent) ──────────────────── */
@@ -855,8 +856,7 @@
     flex-wrap: wrap;
     gap: 10px;
 }
-.action-confirm__source-label,
-.action-confirm__action-kicker {
+.action-confirm__source-label {
     font-size: 9.5px;
     font-weight: 700;
     letter-spacing: 1.6px;
@@ -955,29 +955,11 @@
     background: linear-gradient(180deg, var(--ac-accent-bright), var(--ac-accent));
     box-shadow: 0 0 10px var(--ac-accent-soft);
 }
-.action-confirm__action-kicker {
-    color: var(--ac-accent);
-}
-.action-confirm__action-graphic {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    min-height: 104px;
-    padding: 6px 4px 2px;
-}
-
-.action-confirm__render-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
 /*
- * The action graphic, scaled up (this is the hero). The icon-fix block mirrors
- * the overlay's (`.card-container` scope makes the sprites render; light text on
- * the dark glass; gold plates keep their dark text).
+ * The action graphic, scaled up (used by the branch picker + the App-level
+ * RevealResultOverlay). The icon-fix block mirrors the overlay's (`.card-container`
+ * scope makes the sprites render; light text on the dark glass; gold plates keep
+ * their dark text).
  */
 .action-confirm__render.card-container {
     margin: 0;
@@ -995,8 +977,6 @@
     .card-minus, .card-minus--S, .card-plus, .card-plus--small { filter: brightness(0) invert(1); }
     .card-resource-trade-discount { color: #161616; }
 }
-.action-confirm__render-desc { margin-top: 6px; font-size: 12px; line-height: 1.4; text-align: center; color: #cdddee; }
-.action-confirm__render-text { font-size: 12.5px; line-height: 1.45; color: #d3e0ee; text-align: center; }
 
 /* ── Footer / CTA — clearly separated bottom level, always anchored ── */
 .action-confirm__footer {
@@ -1331,6 +1311,127 @@
 .action-confirm__card--static {
     cursor: default;
     &:hover, &:focus-visible { transform: none; box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.14), 0 8px 22px rgba(0, 0, 0, 0.42); }
+}
+
+/* ─── ActionResultsPreview — cost/gain breakdown («Будет списано» / «Вы получите») ─── */
+.action-results {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.action-results__group {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.action-results__label {
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    .action-results__group--cost & { color: rgba(244, 200, 130, 0.72); }
+    .action-results__group--gain & { color: rgba(140, 230, 190, 0.78); }
+}
+.action-results__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+/* ─── ActionNextStepNotice — "Далее" / "После подтверждения" context line ─── */
+.action-next {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.action-next__label {
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(150, 200, 230, 0.58);
+}
+.action-next__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 13px;
+    border-radius: 9px;
+    border: 1px solid rgba(120, 200, 255, 0.18);
+    background: rgba(16, 32, 48, 0.5);
+    font-size: 12.5px;
+    line-height: 1.35;
+    color: #cfe6f3;
+}
+.action-next__glyph { color: rgba(255, 200, 120, 0.9); flex-shrink: 0; }
+
+/* ─── CompactActionCard — the compact action graphic (grid rows + modal mini-card) ─── */
+.compact-action {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 64px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(120, 200, 255, 0.18);
+    background: linear-gradient(180deg, rgba(20, 38, 56, 0.5), rgba(14, 26, 40, 0.5));
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, transform 0.12s ease;
+    &--static { cursor: default; }
+    &:not(.compact-action--static):hover {
+        border-color: rgba(120, 220, 255, 0.5);
+        background: linear-gradient(180deg, rgba(26, 50, 72, 0.6), rgba(18, 34, 52, 0.6));
+        transform: translateY(-1px);
+    }
+    &:focus-visible { box-shadow: 0 0 0 2px rgba(106, 176, 230, 0.7); }
+    &--selected {
+        border-color: rgba(120, 230, 255, 0.95);
+        background: linear-gradient(180deg, rgba(28, 60, 88, 0.7), rgba(20, 44, 66, 0.7));
+        box-shadow: 0 0 0 1px rgba(120, 230, 255, 0.55), 0 0 16px rgba(80, 200, 255, 0.22);
+    }
+    &--rules, &--soft, &--activated { opacity: 0.6; filter: saturate(0.7); }
+    &--rules.compact-action--selected,
+    &--soft.compact-action--selected,
+    &--activated.compact-action--selected { opacity: 0.9; }
+}
+/* Shared sprite/text icon-fix (compact twin of .action-block__render) — scaled
+ * down, description hidden so the grid row stays a single compact line of icons. */
+.compact-action__render.card-container {
+    margin: 0;
+    width: auto;
+    zoom: 1.05;
+    text-align: center;
+    .card-effect-box { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .card-effect-box-row { justify-content: center; flex-wrap: wrap; }
+    .card-rows { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .card-description { display: none; }
+    .card-text-normal:not(.card-plate), .card-text-bold:not(.card-plate) { color: #eaf3fc !important; }
+    .card-plate { color: #1b1b1b !important; text-align: center; }
+    .card-special { color: #eaf3fc; }
+    .card-minus, .card-minus--S, .card-plus, .card-plus--small { filter: brightness(0) invert(1); }
+    .card-resource-trade-discount { color: #161616; }
+    .card-red-arrow.card-symbol-cancelled::after,
+    .card-red-arrow--small.card-symbol-cancelled::after { border-top-color: #f5f8fc; box-shadow: 0 0 1.5px rgba(0, 0, 0, 0.95); }
+}
+.compact-action__text {
+    font-size: 12px;
+    line-height: 1.4;
+    color: #d3e0ee;
+    text-align: center;
+}
+.compact-action__badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+}
+.compact-action__badge-dot {
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    .compact-action__badge--rules & { background: #f2b15a; box-shadow: 0 0 6px rgba(242, 177, 90, 0.6); }
+    .compact-action__badge--soft & { background: #6ab0e6; }
+    .compact-action__badge--activated & { background: #7f97b0; }
 }
 
 /* ─── Dev playground (?actionsPlayground) — reuses the effects look ───── */
