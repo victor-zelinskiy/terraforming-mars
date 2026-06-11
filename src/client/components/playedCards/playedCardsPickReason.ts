@@ -15,6 +15,10 @@ import {CardResource} from '@/common/CardResource';
 export const PICK_REASON_NO_RESOURCE = 'This card cannot hold resources';
 export const PICK_REASON_WRONG_RESOURCE = 'This card holds a different resource';
 export const PICK_REASON_CONDITION = 'This card does not meet the requirement';
+// Non-resource picks (e.g. Cyberia copies production of building cards): a
+// resource reason would mislead, so a plain "not eligible" / "already chosen".
+export const PICK_REASON_GENERIC = 'This card cannot be chosen here';
+export const PICK_REASON_ALREADY_PICKED = 'This card is already chosen';
 
 export function playedPickUnavailableReason(
   cardResourceType: CardResource | undefined,

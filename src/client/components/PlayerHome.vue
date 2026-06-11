@@ -2432,11 +2432,13 @@ export default defineComponent({
     // highlighted, the rest dimmed); the modal SUPPRESSES itself while the board
     // is up, then re-appears with the picked card (via the bridge). Cancelling
     // (closing the board) restores the modal with no selection.
-    onPlayedCardActionPick(req: {title: string | Message, selectable: ReadonlyArray<CardName>}): void {
+    onPlayedCardActionPick(req: {title: string | Message, selectable: ReadonlyArray<CardName>, reasonMode?: 'resource' | 'generic', alreadyPicked?: ReadonlyArray<CardName>}): void {
       this.selectedPlayerColor = undefined; // own seat — the board pick targets your tableau
       enterPlayedCardsPick({
         title: req.title,
         selectable: req.selectable,
+        reasonMode: req.reasonMode,
+        alreadyPicked: req.alreadyPicked,
         onResolve: (card) => deliverPlayedCardActionPick(card),
       });
       this.activeOverlay = 'played';

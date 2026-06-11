@@ -17,6 +17,11 @@ import {Message} from '@/common/logs/Message';
  * remount, like the other overlay states.
  */
 export type PlayedPickAvailability = 'all' | 'available' | 'unavailable';
+// How the overlay explains a NON-selectable card: 'resource' → derive from the
+// card's resource type vs the candidates' (an "add a resource to a card" pick);
+// 'generic' → a non-resource pick (e.g. copy production), where a resource reason
+// would mislead, so a plain "not eligible here" is shown instead.
+export type PlayedPickReasonMode = 'resource' | 'generic';
 
 type PlayedCardsPickState = {
   active: boolean;
@@ -30,6 +35,10 @@ type PlayedCardsPickState = {
   // the КАРТЫ В РУКЕ overlay. Reset to 'available' on every fresh pick; lives in
   // module state so a playerkey remount mid-pick doesn't reset it.
   availability: PlayedPickAvailability;
+  reasonMode: PlayedPickReasonMode;
+  // Cards already chosen in a LINKED earlier step (multi-card pick, e.g. Cyberia
+  // copies TWO cards) — labelled "уже выбрана" instead of a generic reason.
+  alreadyPicked: Array<CardName>;
 };
 
 // A card-target pick with MORE THAN this many own-tableau candidates routes to
@@ -43,6 +52,8 @@ export const playedCardsPickState = reactive<PlayedCardsPickState>({
   title: '',
   signature: '',
   availability: 'available',
+  reasonMode: 'resource',
+  alreadyPicked: [],
 });
 
 export function setPlayedPickAvailability(value: PlayedPickAvailability): void {
@@ -58,12 +69,16 @@ export function enterPlayedCardsPick(opts: {
   title: string | Message,
   selectable: ReadonlyArray<CardName>,
   onResolve: (card: CardName) => void,
+  reasonMode?: PlayedPickReasonMode,
+  alreadyPicked?: ReadonlyArray<CardName>,
 }): void {
   playedCardsPickState.active = true;
   playedCardsPickState.title = opts.title;
   playedCardsPickState.selectable = [...opts.selectable];
   playedCardsPickState.signature = [...opts.selectable].sort().join(',');
   playedCardsPickState.availability = 'available';
+  playedCardsPickState.reasonMode = opts.reasonMode ?? 'resource';
+  playedCardsPickState.alreadyPicked = [...(opts.alreadyPicked ?? [])];
   resolveCb = opts.onResolve;
 }
 
@@ -85,6 +100,8 @@ export function exitPlayedCardsPick(): void {
   playedCardsPickState.title = '';
   playedCardsPickState.signature = '';
   playedCardsPickState.availability = 'available';
+  playedCardsPickState.reasonMode = 'resource';
+  playedCardsPickState.alreadyPicked = [];
   resolveCb = undefined;
 }
 
