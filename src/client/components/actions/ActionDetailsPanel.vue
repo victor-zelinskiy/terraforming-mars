@@ -66,12 +66,15 @@
         <button type="button"
                 class="action-detail__source-card"
                 :aria-label="$t('Open fullscreen')"
-                @click="$emit('open', cardName)">
-          <!-- :key is LOAD-BEARING: Card.vue resolves its render data ONCE in
+                @click.capture.stop="$emit('open', cardName)">
+          <!-- @click.capture.stop SUPPRESSES Card.vue's OWN built-in click→zoom —
+               without it, ONE click opened TWO fullscreen viewers (ours + the
+               card's), needing two closes. Capture-phase + stopPropagation
+               intercepts the click before it reaches the inner <Card>.
+               :key is LOAD-BEARING: Card.vue resolves its render data ONCE in
                data() from the initial card name, so a keyless reused <Card> shows
-               the FIRST card it ever rendered (e.g. it stuck on "Метеозонды" when
-               switching to "Поедатели реголита"). Keying on the name forces a fresh
-               mount per selected card. -->
+               the FIRST card it ever rendered (it stuck on "Метеозонды" when
+               switching to "Поедатели реголита"). Keying forces a fresh mount. -->
           <Card :key="cardName" :card="cardModel" />
         </button>
       </div>
@@ -166,7 +169,11 @@ export default defineComponent({
       return this.state !== undefined ? 'action-detail__status--' + this.state.status : '';
     },
     statusGlyph(): string {
-      return this.state?.status === 'activated' ? '✓' : '⚠';
+      switch (this.state?.status) {
+      case 'activated': return '✓';  // already used this generation
+      case 'soft': return '⏳';      // timing — not your turn / mid sub-action
+      default: return '✕';           // rules — a hard block
+      }
     },
     // The alert heading (the KIND of unavailability), above the exact reason.
     statusHead(): string {
@@ -229,15 +236,18 @@ export default defineComponent({
     resIconClass(): string {
       return this.resourceType !== undefined ? iconClassFor(this.resourceType) : '';
     },
-    // The "why can't I act" line for a non-available action.
+    // The EXACT "why can't I act" reason — ALWAYS populated for an unavailable
+    // action (covers every case): the server's structured rules reasons (all of
+    // them, joined), else the soft/activated reason, else an honest generic line.
     statusText(): string {
       const s = this.state;
       if (s === undefined) {
         return '';
       }
       if (s.status === 'rules' && s.reasons.length > 0) {
-        const r = s.reasons[0];
-        return translateTextWithParams(r.message, [...(r.params ?? [])]);
+        return s.reasons
+          .map((r) => translateTextWithParams(r.message, [...(r.params ?? [])]))
+          .join(' · ');
       }
       if (s.softReason !== undefined) {
         return translateTextWithParams(s.softReason.message, [...(s.softReason.params ?? [])]);
