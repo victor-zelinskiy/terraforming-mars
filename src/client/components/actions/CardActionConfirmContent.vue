@@ -153,11 +153,18 @@
                  the chosen card here once picked + a "ВЫБРАТЬ КАРТУ" CTA. -->
             <div v-else-if="isHandCardInput(selected.optionInput)" class="action-confirm__handpick">
               <div v-if="optionChosenCard !== undefined" class="action-confirm__handpick-chosen">
+                <span class="action-confirm__handpick-badge" aria-hidden="true">
+                  <span class="action-confirm__handpick-badge-tick">✓</span>
+                  <span v-i18n>Selected</span>
+                </span>
                 <button type="button"
                         class="action-confirm__handpick-card"
                         :aria-label="$t('Open fullscreen')"
                         @click.capture.stop="openChosenFullscreen">
-                  <Card :card="optionChosenCard" />
+                  <!-- :key — Card.vue resolves its render ONCE in data() from the
+                       initial name, so a keyless reused <Card> would show the FIRST
+                       card after a re-pick. -->
+                  <Card :key="optionChosenCard.name" :card="optionChosenCard" />
                 </button>
                 <button type="button" class="action-confirm__handpick-change" @click="requestOptionPick" data-test="action-pick-change">
                   <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
@@ -225,11 +232,17 @@
                    ≤3 stays inline below. -->
               <div v-else-if="step.input.type === 'card' && isPlayedOverlayStep(step)" class="action-confirm__handpick">
                 <div v-if="chosenStepCard(step, i) !== undefined" class="action-confirm__handpick-chosen">
+                  <span class="action-confirm__handpick-badge" aria-hidden="true">
+                    <span class="action-confirm__handpick-badge-tick">✓</span>
+                    <span v-i18n>Selected</span>
+                  </span>
                   <button type="button"
                           class="action-confirm__handpick-card"
                           :aria-label="$t('Open fullscreen')"
                           @click.capture.stop="openStepFullscreen(step, i)">
-                    <Card :card="chosenStepCard(step, i)!" />
+                    <!-- :key — re-pointing a keyless <Card> would show the stale
+                         first card (Card.vue resolves render once in data()). -->
+                    <Card :key="capturedCardName(i)" :card="chosenStepCard(step, i)!" />
                   </button>
                   <button type="button" class="action-confirm__handpick-change" @click="requestPlayedPickStep(i, step)" :data-test="'action-step-pick-change-' + i">
                     <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
@@ -1161,19 +1174,53 @@ export default defineComponent({
   }
 }
 .action-confirm__handpick-btn-glyph { font-size: 17px; line-height: 1; }
+// Premium compact "chosen card" chip — a framed, cyan-accented panel with a
+// ВЫБРАНА badge, a SCALED-DOWN card (so it never bursts the choices area), and
+// the change button. Centred + self-sizing so a single chosen card reads as a
+// neat confirmation, not an oversized object.
 .action-confirm__handpick-chosen {
+  align-self: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
+  padding: 12px 16px 14px;
+  border-radius: 13px;
+  border: 1px solid rgba(120, 220, 255, 0.4);
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(120, 220, 255, 0.1), transparent 65%),
+    linear-gradient(180deg, rgba(20, 40, 58, 0.6), rgba(14, 28, 42, 0.6));
+  box-shadow: 0 0 0 1px rgba(120, 230, 255, 0.18), 0 10px 26px rgba(0, 0, 0, 0.4);
+}
+.action-confirm__handpick-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(70, 230, 255, 0.22), rgba(40, 190, 220, 0.16));
+  box-shadow: inset 0 0 0 1px rgba(120, 230, 255, 0.5);
+  color: #bff0ff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.action-confirm__handpick-badge-tick {
+  font-size: 11px;
+  line-height: 1;
+  color: #7af2ff;
 }
 .action-confirm__handpick-card {
   border: none;
   background: none;
   padding: 0;
   cursor: zoom-in;
-  // Zero the legacy asymmetric card margin so the card reads centred.
-  > :deep(.card-container) { margin: 0; }
+  border-radius: 8px;
+  transition: filter 0.15s ease, transform 0.15s ease;
+  &:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  // Zero the legacy asymmetric card margin + scale down so the chip is compact.
+  > :deep(.card-container) { margin: 0; zoom: 0.5; }
 }
 .action-confirm__handpick-change {
   display: inline-flex;

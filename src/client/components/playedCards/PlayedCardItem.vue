@@ -4,25 +4,37 @@
     :class="{
       'played-card-item--pickable': pickMode && isCandidate,
       'played-card-item--pick-disabled': pickMode && !isCandidate,
-    }"
-    tabindex="0"
-    role="button"
-    :aria-label="$t(label)"
-    @click.capture.stop="onClick"
-    @keydown.enter.prevent="onClick"
-    @keydown.space.prevent="onClick">
-    <Card :card="card" :autoTall="autoTall" :lightweight="lightweight" />
-    <!-- PICK MODE — a calm cyan "ВЫБРАТЬ" affordance on a candidate; the whole
-         card is clickable, this just makes the action legible on the board. -->
-    <div v-if="pickMode && isCandidate" class="played-card-item__pick" aria-hidden="true">
-      <span class="played-card-item__pick-tick">✓</span>
-      <span class="played-card-item__pick-label" v-i18n>Choose</span>
+    }">
+    <!-- The CARD silhouette. A single click ALWAYS opens the fullscreen viewer
+         (the fork's universal "click a card → fullscreen" rule — including in pick
+         mode, where selecting is the dedicated button below). `@click.capture.stop`
+         suppresses Card.vue's own (preference-gated) click so a tap always zooms. -->
+    <div class="played-card-item__card"
+         tabindex="0"
+         role="button"
+         :aria-label="$t(label)"
+         @click.capture.stop="$emit('open', card)"
+         @keydown.enter.prevent="$emit('open', card)"
+         @keydown.space.prevent="$emit('open', card)">
+      <Card :card="card" :autoTall="autoTall" :lightweight="lightweight" />
     </div>
-    <!-- PICK MODE — a non-candidate carries a clear "why not" reason on a disabled
-         chip (max clarity), with a premium tooltip for the full text. -->
-    <div v-else-if="pickMode && reason !== ''" class="played-card-item__reason" :data-hint="$t(reason)">
-      <span class="played-card-item__reason-glyph" aria-hidden="true">✕</span>
-      <span class="played-card-item__reason-text" v-i18n>{{ reason }}</span>
+
+    <!-- PICK MODE — a dedicated SELECT button UNDER the card (no extra confirm:
+         a click resolves the pick and returns to the modal). Mirrors the КАРТЫ В
+         РУКЕ overlay's button-under-card pattern. A non-candidate shows a clear
+         "why not" reason chip instead. -->
+    <div v-if="pickMode" class="played-card-item__action">
+      <button v-if="isCandidate"
+              type="button"
+              class="played-card-pick-btn cab-played-pick"
+              @click.stop="$emit('pick', card)">
+        <span class="cab-played-pick__glow" aria-hidden="true"></span>
+        <span class="cab-played-pick__label" v-i18n>Select</span>
+      </button>
+      <div v-else-if="reason !== ''" class="played-card-item__reason" :data-hint="$t(reason)">
+        <span class="played-card-item__reason-glyph" aria-hidden="true">✕</span>
+        <span class="played-card-item__reason-text" v-i18n>{{ reason }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -36,22 +48,18 @@ import Card from '@/client/components/card/Card.vue';
 
 /**
  * One played card on the board. Renders the shared `<Card>` (scaled by the
- * `--played-card-zoom` CSS variable set on the body), and on single click
- * opens the modern fullscreen viewer — `@click.capture.stop` suppresses
- * Card.vue's own (preference-gated) click so a single tap always zooms. The
- * overlay owns the shared `CardZoomModal`; we just emit `open`.
+ * `--played-card-zoom` CSS variable set on the body). A single click ALWAYS opens
+ * the modern fullscreen viewer — `@click.capture.stop` suppresses Card.vue's own
+ * (preference-gated) click so a single tap always zooms; the overlay owns the
+ * shared `CardZoomModal` and we just emit `open`.
  *
  * PICK MODE (`pickMode`): the board is hosting a card-target choice for the
- * play / action-confirm modal (a >3-candidate "add a resource to a card" pick).
- * A candidate (`isCandidate`) gets a cyan ring + "ВЫБРАТЬ" tag and a click emits
- * `pick` (NOT `open` — picking is the point); a non-candidate is dimmed and
- * inert. So the player chooses the REAL card on their tableau instead of from a
- * cramped in-modal grid.
- *
- * This is otherwise a VIEW surface: it deliberately does NOT pass `actionUsed`,
- * so an active card whose action was already used this generation is NOT dimmed
- * here. The dedicated Actions overlay is where action availability / used state
- * lives; the played board is for reading the tableau.
+ * play / action-confirm modal. The card itself STILL opens fullscreen on click
+ * (fork rule); a DEDICATED button UNDER the card (`Select`) resolves the pick
+ * with no extra confirmation step (emits `pick`). A non-candidate is dimmed +
+ * inert and shows a "why not" reason chip in place of the button. So the player
+ * can inspect any card fullscreen and select via the explicit button (or from the
+ * fullscreen viewer's own Select action).
  *
  * `lightweight` passes through to `<Card>` to drop the heavy hover-expand /
  * inner-zoom machinery for this dense, many-card surface (purely a cost
@@ -87,7 +95,7 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    // The selectable card names in pick mode (only these accept a click).
+    // The selectable card names in pick mode (only these get a Select button).
     selectable: {
       type: Object as PropType<ReadonlySet<CardName>>,
       default: () => new Set<CardName>(),
@@ -108,18 +116,6 @@ export default defineComponent({
     },
     reason(): string {
       return this.reasons[this.card.name] ?? '';
-    },
-  },
-  methods: {
-    onClick(): void {
-      if (this.pickMode) {
-        // A dimmed non-candidate is inert; a candidate resolves the pick.
-        if (this.isCandidate) {
-          this.$emit('pick', this.card);
-        }
-        return;
-      }
-      this.$emit('open', this.card);
     },
   },
 });

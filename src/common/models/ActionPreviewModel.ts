@@ -176,6 +176,14 @@ export type ActionPreviewStep =
      * candidate list by the cards captured in those steps.
      */
     dedupeFromSteps?: ReadonlyArray<number>,
+    /**
+     * This card-target step COPIES the chosen card's PRODUCTION BOX into the
+     * player's production (the RoboticWorkforce / Cyberia Systems mechanic). The
+     * modal reads the chosen card's `productionBox` (client manifest) and folds it
+     * into the displayed RESULT so the player sees EXACTLY what the selection
+     * copies (clarity) — updating live as they pick different cards.
+     */
+    copyProductionBox?: boolean,
   }
   | {kind: 'boardPlacement', placementType: string}
   /** A `warning` note flags an effect that WILL BE SKIPPED for lack of a valid

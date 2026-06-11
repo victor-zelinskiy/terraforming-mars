@@ -27,10 +27,10 @@
       <!-- RESULT — a SHORT premium summary AT THE TOP of WHAT playing this card
            does (the on-play effect chips, current → resulting). The detailed,
            target-dependent impact reads on each target option below. -->
-      <div v-if="!loading && selected !== undefined && selected.effects.length > 0" class="play-confirm__result">
+      <div v-if="!loading && selected !== undefined && resultEffects.length > 0" class="play-confirm__result">
         <span class="play-confirm__section-label" v-i18n>Result</span>
         <div class="play-confirm__chips play-confirm__chips--summary">
-          <ActionEffectChip v-for="(e, i) in selected.effects" :key="i" :effect="e" />
+          <ActionEffectChip v-for="(e, i) in resultEffects" :key="i" :effect="e" />
         </div>
         <ActionVpProgress v-if="vpProgress !== undefined"
                           class="play-confirm__vp"
@@ -134,11 +134,17 @@
                   <div v-else-if="step.input.type === 'card' && isPlayedOverlayStep(step)" class="play-confirm__handpick">
                     <span v-if="stepPromptText(step) !== ''" class="play-confirm__handpick-prompt" v-i18n>{{ stepPromptText(step) }}</span>
                     <div v-if="chosenStepCard(step, i) !== undefined" class="play-confirm__handpick-chosen">
+                      <span class="play-confirm__handpick-badge" aria-hidden="true">
+                        <span class="play-confirm__handpick-badge-tick">✓</span>
+                        <span v-i18n>Selected</span>
+                      </span>
                       <button type="button"
                               class="play-confirm__handpick-card"
                               :aria-label="$t('Open fullscreen')"
                               @click.capture.stop="openStepFullscreen(step, i)">
-                        <Card :card="chosenStepCard(step, i)!" />
+                        <!-- :key — a keyless reused <Card> shows the stale first
+                             card after a re-pick (Card.vue resolves render once). -->
+                        <Card :key="capturedCardName(i)" :card="chosenStepCard(step, i)!" />
                       </button>
                       <button type="button" class="play-confirm__handpick-change" @click="requestPlayedPick(i, step)">
                         <span class="play-confirm__handpick-glyph" aria-hidden="true">⟲</span>
@@ -224,8 +230,9 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Message} from '@/common/logs/Message';
 import {InputResponse, SelectProjectCardToPlayResponse} from '@/common/inputs/InputResponse';
 import {SelectProjectCardToPlayModel, SelectCardModel} from '@/common/models/PlayerInputModel';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {playedCardActionPickResult} from '@/client/components/playedCards/playedCardActionPick';
@@ -247,6 +254,11 @@ export type PlayCardPayload = {
   optionResponse: InputResponse | undefined;
   stepResponses: ReadonlyArray<InputResponse>;
 };
+
+// The six standard production resources, used to fold a copied card's production
+// box into the displayed RESULT (the Cyberia / Robotic Workforce mechanic).
+const STANDARD_RESOURCES = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'] as const;
+const STANDARD_RESOURCE_SET = new Set<string>(STANDARD_RESOURCES);
 
 /**
  * Payment + on-play-preview modal content for playing a hand card. Hosted inside
@@ -300,6 +312,75 @@ export default defineComponent({
     },
     branches(): ReadonlyArray<ActionPreviewBranch> {
       return this.preview?.branches ?? [];
+    },
+    // The RESULT chips shown at the top — the branch's base effects, PLUS the
+    // production COPIED from any answered "copy production box" step (Cyberia
+    // Systems / Robotic Workforce). So the result reflects EXACTLY what the chosen
+    // cards copy and UPDATES LIVE as the player picks (the clarity rule). When no
+    // copy step is answered it's just the base effects (no behaviour change).
+    resultEffects(): ReadonlyArray<ActionEffect> {
+      const branch = this.selected;
+      if (branch === undefined) {
+        return [];
+      }
+      // Sum the production boxes of the chosen copy-targets (client manifest).
+      const copied: Record<string, number> = {};
+      let hasCopy = false;
+      branch.steps.forEach((step, i) => {
+        if (step.kind !== 'input' || (step as {copyProductionBox?: boolean}).copyProductionBox !== true) {
+          return;
+        }
+        const name = this.capturedCardName(i);
+        if (name === undefined) {
+          return;
+        }
+        const box = getCard(name)?.productionBox;
+        if (box === undefined) {
+          return;
+        }
+        hasCopy = true;
+        for (const res of STANDARD_RESOURCES) {
+          const v = (box as Record<string, number>)[res] ?? 0;
+          if (v !== 0) {
+            copied[res] = (copied[res] ?? 0) + v;
+          }
+        }
+      });
+      if (!hasCopy) {
+        return branch.effects;
+      }
+      // Fold base production effects + the copied deltas into ONE chip per resource
+      // (current → resulting); non-production base effects pass through unchanged.
+      const totals: Record<string, number> = {...copied};
+      const currentByRes: Record<string, number> = {};
+      const passthrough: Array<ActionEffect> = [];
+      for (const e of branch.effects) {
+        if (e.note === 'production' && STANDARD_RESOURCE_SET.has(e.icon)) {
+          totals[e.icon] = (totals[e.icon] ?? 0) + (e.direction === 'gain' ? e.amount : -e.amount);
+          if (e.current !== undefined) {
+            currentByRes[e.icon] = e.current;
+          }
+        } else {
+          passthrough.push(e);
+        }
+      }
+      const prodChips: Array<ActionEffect> = [];
+      for (const res of STANDARD_RESOURCES) {
+        const delta = totals[res] ?? 0;
+        if (delta === 0) {
+          continue;
+        }
+        const current = currentByRes[res] ?? this.playerProduction(res);
+        prodChips.push({
+          direction: delta >= 0 ? 'gain' : 'cost',
+          icon: res,
+          amount: Math.abs(delta),
+          current,
+          resulting: current + delta,
+          note: 'production',
+        });
+      }
+      return [...prodChips, ...passthrough];
     },
     // A real choice only when the on-play behavior is an `or` with 2+ branches.
     showBranchList(): boolean {
@@ -398,6 +479,21 @@ export default defineComponent({
   methods: {
     text(m: string | Message): string {
       return typeof m === 'string' ? m : m.message;
+    },
+    // The viewer's CURRENT production for a standard resource — the `current` base
+    // for a copied-production chip on a resource the base effects don't already
+    // cover (e.g. the copied card raises M€ production but Cyberia's own box is steel).
+    playerProduction(res: string): number {
+      const p = this.playerView.thisPlayer;
+      switch (res) {
+      case 'megacredits': return p.megacreditProduction;
+      case 'steel': return p.steelProduction;
+      case 'titanium': return p.titaniumProduction;
+      case 'plants': return p.plantProduction;
+      case 'energy': return p.energyProduction;
+      case 'heat': return p.heatProduction;
+      default: return 0;
+      }
     },
     placementHint(step: {kind: string, placementType?: string, text?: string | Message}): string {
       // A note with explicit text (the warning, or a card-specific note) overrides
@@ -876,18 +972,47 @@ export default defineComponent({
   font-size: 14px;
   color: #6fe6ff;
 }
+// Premium compact "chosen card" chip (mirrors the action-confirm modal): framed,
+// cyan-accented, with a ВЫБРАНА badge + a scaled-down card so it stays compact in
+// the multi-card side-by-side layout.
 .play-confirm__handpick-chosen {
+  align-self: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 9px;
+  padding: 11px 14px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 220, 255, 0.4);
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(120, 220, 255, 0.1), transparent 65%),
+    linear-gradient(180deg, rgba(20, 40, 58, 0.6), rgba(14, 28, 42, 0.6));
+  box-shadow: 0 0 0 1px rgba(120, 230, 255, 0.18), 0 10px 24px rgba(0, 0, 0, 0.4);
 }
+.play-confirm__handpick-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(70, 230, 255, 0.22), rgba(40, 190, 220, 0.16));
+  box-shadow: inset 0 0 0 1px rgba(120, 230, 255, 0.5);
+  color: #bff0ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.play-confirm__handpick-badge-tick { font-size: 11px; line-height: 1; color: #7af2ff; }
 .play-confirm__handpick-card {
   border: none;
   background: none;
   padding: 0;
-  cursor: pointer;
-  > .card-container { margin: 0; zoom: 0.6; }
+  cursor: zoom-in;
+  border-radius: 8px;
+  transition: filter 0.15s ease, transform 0.15s ease;
+  &:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  > .card-container { margin: 0; zoom: 0.5; }
 }
 .play-confirm__handpick-change {
   padding: 6px 14px;
