@@ -163,7 +163,7 @@ import {
 import {Density, FIT, planProjectBand, ProjectSectionPlan} from '@/client/components/playedCards/playedTableauFit';
 import {playedCardsViewState, PlayedViewMode} from '@/client/components/playedCards/playedCardsViewState';
 import {playedCardsPickState, resolvePlayedCardsPick, setPlayedPickAvailability, PlayedPickAvailability} from '@/client/components/playedCards/playedCardsPickState';
-import {playedPickUnavailableReason} from '@/client/components/playedCards/playedCardsPickReason';
+import {playedPickUnavailableReason, PICK_REASON_GENERIC, PICK_REASON_ALREADY_PICKED} from '@/client/components/playedCards/playedCardsPickReason';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {CardResource} from '@/common/CardResource';
 import {Message} from '@/common/logs/Message';
@@ -331,12 +331,20 @@ export default defineComponent({
       if (!this.pickActive) {
         return {};
       }
+      const alreadyPicked = new Set(playedCardsPickState.alreadyPicked);
+      const generic = playedCardsPickState.reasonMode === 'generic';
       const out: Record<string, string> = {};
       for (const g of this.nonEmptyGroups) {
         for (const c of g.cards) {
-          if (!this.pickSelectableSet.has(c.name)) {
-            out[c.name] = playedPickUnavailableReason(getCard(c.name)?.resourceType, this.pickTargetTypes);
+          if (this.pickSelectableSet.has(c.name)) {
+            continue;
           }
+          // A card chosen in a LINKED earlier step (multi-card pick) reads as
+          // "already chosen"; a non-resource pick gets a plain "not eligible"
+          // (a resource reason would mislead); else derive from resource type.
+          out[c.name] = alreadyPicked.has(c.name) ? PICK_REASON_ALREADY_PICKED :
+            generic ? PICK_REASON_GENERIC :
+              playedPickUnavailableReason(getCard(c.name)?.resourceType, this.pickTargetTypes);
         }
       }
       return out;

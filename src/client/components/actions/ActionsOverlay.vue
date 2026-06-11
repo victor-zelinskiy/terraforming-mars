@@ -393,9 +393,12 @@ export default defineComponent({
     // min-height to it (capped to the viewport), so the overlay opens at a size where
     // no detail scrolls — pre-computed, never grown per selection.
     measureDetailHeight(): void {
-      const measure = this.$refs.measure as HTMLElement | undefined;
-      const root = this.$refs.root as HTMLElement | undefined;
-      if (measure === undefined || root === undefined) {
+      // Both refs can be null (not just undefined) — the measurer host is behind
+      // `v-if="filtered.length > 0"`, so a rAF scheduled before the filter emptied
+      // fires after Vue nulls the ref. `!ref` catches null AND undefined.
+      const measure = this.$refs.measure as HTMLElement | null | undefined;
+      const root = this.$refs.root as HTMLElement | null | undefined;
+      if (!measure || !root) {
         return;
       }
       let maxH = 0;

@@ -93,9 +93,21 @@
               </button>
             </div>
 
-            <!-- CHOICES — the interactive target/parameter pickers for the play. -->
-            <div v-if="selected !== undefined && selected.steps.length > 0" class="play-confirm__steps">
+            <!-- CHOICES — the interactive target/parameter pickers for the play.
+                 A multi-card pick (Cyberia) lays its card zones side by side. -->
+            <div v-if="selected !== undefined && selected.steps.length > 0"
+                 class="play-confirm__steps"
+                 :class="{'play-confirm__steps--cards-row': multiCardPick}">
               <span v-if="hasInteractiveStep" class="play-confirm__section-label" v-i18n>Choose targets</span>
+              <!-- Multi-card pick not yet complete → an explicit reminder (the confirm
+                   is also gated) so the player doesn't think one card is enough. -->
+              <div v-if="showCardPickWarning" class="play-confirm__warn play-confirm__warn--cards">
+                <span class="play-confirm__warn-glyph" aria-hidden="true">⚠</span>
+                <span class="play-confirm__warn-text">
+                  <span v-i18n>Choose all the cards</span>
+                  <span class="play-confirm__warn-count">{{ cardPicksDone }} / {{ cardPicksTotal }}</span>
+                </span>
+              </div>
               <template v-for="(step, i) in selected.steps" :key="i">
                 <!-- WARNING — an effect with no valid target is SKIPPED; say so up
                      front (orange) so the player is never surprised by a lost effect. -->
@@ -119,6 +131,7 @@
                        routes to the РАЗЫГРАНО board (pick the real card) instead of
                        the cramped tile grid. ≤3 stays inline below. -->
                   <div v-else-if="step.input.type === 'card' && isPlayedOverlayStep(step)" class="play-confirm__handpick">
+                    <span v-if="stepPromptText(step) !== ''" class="play-confirm__handpick-prompt" v-i18n>{{ stepPromptText(step) }}</span>
                     <div v-if="chosenStepCard(step, i) !== undefined" class="play-confirm__handpick-chosen">
                       <button type="button"
                               class="play-confirm__handpick-card"
@@ -332,6 +345,31 @@ export default defineComponent({
       }
       return {ready: true, label: 'Ready to play'};
     },
+    // The selected branch's CARD-target step indexes (a multi-card pick like
+    // Cyberia has 2+ — they all route to the board, laid out horizontally).
+    cardTargetStepIndexes(): ReadonlyArray<number> {
+      const out: Array<number> = [];
+      (this.selected?.steps ?? []).forEach((s, i) => {
+        if (s.kind === 'input' && s.input.type === 'card') {
+          out.push(i);
+        }
+      });
+      return out;
+    },
+    multiCardPick(): boolean {
+      return this.cardTargetStepIndexes.length >= 2;
+    },
+    cardPicksTotal(): number {
+      return this.cardTargetStepIndexes.length;
+    },
+    cardPicksDone(): number {
+      return this.cardTargetStepIndexes.filter((i) => this.captured[i] !== undefined).length;
+    },
+    // A multi-card pick with not-yet-all chosen → an explicit warning so the player
+    // doesn't think one card is enough (the confirm is also gated).
+    showCardPickWarning(): boolean {
+      return this.multiCardPick && this.cardPicksDone < this.cardPicksTotal;
+    },
     // Bridged result epoch from the РАЗЫГРАНО board pick (see the watcher).
     playedPickEpoch(): number {
       return playedCardActionPickResult.epoch;
@@ -448,16 +486,21 @@ export default defineComponent({
       return excluded.size === 0 ? input : {...input, cards: input.cards.filter((c) => !excluded.has(c.name))};
     },
     // True when a card step's candidates are all from the player's OWN tableau and
-    // there are MORE THAN 3 — route it to the РАЗЫГРАНО board instead of the
-    // cramped in-modal tile grid. ≤3 stays inline (ActionTargetCard).
+    // EITHER there are MORE THAN 3 (a tile grid gets cramped) OR this branch has
+    // MULTIPLE card-target steps (Cyberia copies TWO cards — two inline grids don't
+    // fit) → route it to the РАЗЫГРАНО board. A single ≤3-candidate pick stays
+    // inline (ActionTargetCard).
     isPlayedOverlayStep(step: ActionPreviewStep): boolean {
       const input = this.stepCardInput(step);
       const cards = input.cards ?? [];
-      if (cards.length <= PLAYED_PICK_OVERLAY_THRESHOLD) {
+      if (cards.length === 0) {
         return false;
       }
       const tableau = new Set((this.playerView.thisPlayer.tableau ?? []).map((c) => c.name));
-      return cards.every((c) => tableau.has(c.name));
+      if (!cards.every((c) => tableau.has(c.name))) {
+        return false;
+      }
+      return cards.length > PLAYED_PICK_OVERLAY_THRESHOLD || this.multiCardPick;
     },
     // The chosen card model for a played-overlay step (for the in-modal chip).
     chosenStepCard(step: ActionPreviewStep, i: number): CardModel | undefined {
@@ -467,13 +510,30 @@ export default defineComponent({
       }
       return this.stepCardInput(step).cards.find((c) => c.name === name);
     },
+    // The card-target step's prompt (e.g. "Select first builder card to copy") —
+    // shown above the board-pick affordance so each zone is clearly labelled.
+    stepPromptText(step: ActionPreviewStep): string {
+      return this.text(this.stepCardInput(step).title);
+    },
     // Hand off step `i`'s target pick to the РАЗЫГРАНО board (PlayerHome opens it
     // in pick mode + suppresses this modal; the picked card returns via the
-    // `playedPickEpoch` watcher, captured into THIS step's slot).
+    // `playedPickEpoch` watcher, captured into THIS step's slot). `reasonMode`
+    // 'generic' for a non-resource pick (no `amount` → copy production), so the
+    // board doesn't show a misleading resource reason; `alreadyPicked` are the
+    // cards chosen in this step's linked earlier picks (labelled "already chosen").
     requestPlayedPick(i: number, step: ActionPreviewStep): void {
       const input = this.stepCardInput(step);
+      const dedupe = (step as {dedupeFromSteps?: ReadonlyArray<number>}).dedupeFromSteps ?? [];
+      const alreadyPicked = dedupe
+        .map((j) => this.capturedCardName(j))
+        .filter((n): n is CardName => n !== undefined);
       this.awaitingPlayedPickStep = i;
-      this.$emit('pick-played-card', {title: input.title, selectable: input.cards.map((c) => c.name)});
+      this.$emit('pick-played-card', {
+        title: input.title,
+        selectable: input.cards.map((c) => c.name),
+        reasonMode: (step as {amount?: number}).amount !== undefined ? 'resource' : 'generic',
+        alreadyPicked,
+      });
     },
     openStepFullscreen(step: ActionPreviewStep, i: number): void {
       const card = this.chosenStepCard(step, i);
@@ -738,12 +798,48 @@ export default defineComponent({
 
 // WARNING — an effect that will be SKIPPED for lack of a valid target. Orange, so
 // the player is never surprised by a silently-lost effect.
+/* A multi-card pick (Cyberia) lays its card zones SIDE BY SIDE instead of
+   stacked — two inline grids didn't fit vertically. */
+.play-confirm__steps--cards-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 14px;
+}
+.play-confirm__steps--cards-row > .play-confirm__section-label,
+.play-confirm__steps--cards-row > .play-confirm__warn,
+.play-confirm__steps--cards-row > .play-confirm__step--placement {
+  flex: 0 0 100%;
+}
+.play-confirm__steps--cards-row > .play-confirm__step--input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 /* >3-candidate own-card target → "pick on the РАЗЫГРАНО board" affordance
    (the inline tile grid is too cramped). Mirrors the action-confirm handpick. */
 .play-confirm__handpick {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.play-confirm__handpick-prompt {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: rgba(150, 226, 245, 0.9);
+  text-align: center;
+}
+.play-confirm__warn--cards {
+  align-items: center;
+}
+.play-confirm__warn-count {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(224, 150, 70, 0.22);
+  color: #f0b86a;
+  font-weight: 700;
+  font-size: 11.5px;
 }
 .play-confirm__handpick-btn,
 .play-confirm__handpick-change {
