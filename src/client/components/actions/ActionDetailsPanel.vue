@@ -53,6 +53,19 @@
       <!-- What happens next (board placement / colony / target / payment …). -->
       <ActionNextStepNotice v-if="selectedBranch !== undefined" :steps="selectedBranch.steps" variant="next" />
 
+      <!-- Source card — a compact reference of WHERE this action comes from (the ⤢
+           in the header opens it fullscreen). Lives here, in the panel, so it can
+           never cover the action rows the way the old grid hover popover did. -->
+      <div v-if="cardName !== undefined" class="action-detail__section action-detail__source">
+        <span class="action-detail__label" v-i18n>Source</span>
+        <button type="button"
+                class="action-detail__source-card"
+                :aria-label="$t('Open fullscreen')"
+                @click="$emit('open', cardName)">
+          <Card :card="cardModel" />
+        </button>
+      </div>
+
       <div class="action-detail__cta-row">
         <button type="button"
                 class="action-detail__cta cab-action-confirm-go"
@@ -75,11 +88,13 @@ import {CardModel} from '@/common/models/CardModel';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, actionNodeDescription} from '@/client/components/actions/actionExtraction';
+import {branchPositionForNode} from '@/client/components/actions/actionBranchView';
 import {ActionState} from '@/client/components/actions/actionPlayability';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import Card from '@/client/components/card/Card.vue';
 import ActionResultsPreview from '@/client/components/actions/ActionResultsPreview.vue';
 import ActionNextStepNotice from '@/client/components/actions/ActionNextStepNotice.vue';
 
@@ -87,22 +102,18 @@ type GroupNode = ActionGroup['nodes'][number];
 
 export default defineComponent({
   name: 'ActionDetailsPanel',
-  components: {ActionResultsPreview, ActionNextStepNotice},
+  components: {Card, ActionResultsPreview, ActionNextStepNotice},
   directives: {stripActionPrefix},
   props: {
     entry: {
       type: Object as PropType<ActionEntry>,
       default: undefined,
     },
-    // The selected node ordinal (the row within the group).
+    // The selected node ordinal (the row within the group) — the canonical
+    // selection. The matching preview branch is resolved from this + the preview.
     nodeIndex: {
       type: Number,
       default: 0,
-    },
-    // The branch POSITION passed to the confirm modal on activate.
-    branchPosition: {
-      type: Number,
-      default: undefined,
     },
     // The lazily-fetched action preview (branches + effects + steps).
     preview: {
@@ -122,6 +133,11 @@ export default defineComponent({
   computed: {
     cardName(): CardName | undefined {
       return this.entry?.cardName;
+    },
+    // Live tableau model when available (carries the resource count), else a bare
+    // {name} so the embedded source-card preview still renders.
+    cardModel(): CardModel {
+      return this.card ?? ({name: this.cardName} as CardModel);
     },
     isCorporation(): boolean {
       return this.entry?.isCorporation ?? false;
@@ -157,15 +173,19 @@ export default defineComponent({
       }
       return '';
     },
-    // The preview branch this row maps to (by branchPosition; else the lone
-    // available / first branch for a single or combined-node action).
+    // The preview branch the SELECTED render node maps to — resolved via the SAME
+    // token-overlap matching the confirm modal uses (NOT a positional index), so a
+    // card's two actions never show each other's cost/result. Falls back to the
+    // lone available / first branch for a single or combined-node action.
     selectedBranch(): ActionPreviewBranch | undefined {
       const branches = this.preview?.branches;
-      if (branches === undefined || branches.length === 0) {
+      const group = this.group;
+      if (branches === undefined || branches.length === 0 || group === undefined) {
         return undefined;
       }
-      if (this.branchPosition !== undefined && branches[this.branchPosition] !== undefined) {
-        return branches[this.branchPosition];
+      const p = branchPositionForNode(group, branches, this.nodeIndex);
+      if (p !== undefined && branches[p] !== undefined) {
+        return branches[p];
       }
       return branches.find((b) => b.available) ?? branches[0];
     },
@@ -245,7 +265,7 @@ export default defineComponent({
       if (this.cardName === undefined || !this.ctaEnabled) {
         return;
       }
-      this.$emit('activate', {cardName: this.cardName, branchPosition: this.branchPosition});
+      this.$emit('activate', {cardName: this.cardName, nodeIndex: this.nodeIndex});
     },
   },
 });

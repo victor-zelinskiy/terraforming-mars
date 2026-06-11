@@ -445,7 +445,7 @@
       <CardActionConfirmContent
         :cardName="pendingCardAction.cardName"
         :card="pendingCardAction.card"
-        :branchPosition="pendingCardAction.branchPosition"
+        :nodeIndex="pendingCardAction.nodeIndex"
         :playerView="playerView"
         @confirm="onCardActionConfirm"
         @cancel="onCardActionCancel"
@@ -830,9 +830,10 @@ type PendingPlayCard = {
 type PendingCardAction = {
   cardName: CardName;
   card: CardModel | undefined;
-  // The POSITION of the branch the overlay chose when it split a multi-branch
-  // action into per-branch buttons. `undefined` → the modal runs its own picker.
-  branchPosition: number | undefined;
+  // The selected RENDER NODE ordinal (the row the player focused). The modal
+  // resolves the matching preview branch from this + its own preview (so a
+  // multi-action card never opens on the wrong branch).
+  nodeIndex: number;
 };
 
 // Pending Trade-with-Colony state. Set after the player picks a colony in
@@ -2357,12 +2358,12 @@ export default defineComponent({
     // submitted yet; the source card + action summary are shown first. The
     // overlay passes the chosen branch (when it split a multi-branch action),
     // so the modal opens straight on that branch.
-    onActivateCardAction(payload: {cardName: CardName, branchPosition?: number}): void {
+    onActivateCardAction(payload: {cardName: CardName, nodeIndex?: number}): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
       const card = this.thisPlayer.tableau.find((c) => c.name === payload.cardName);
-      this.pendingCardAction = {cardName: payload.cardName, card, branchPosition: payload.branchPosition};
+      this.pendingCardAction = {cardName: payload.cardName, card, nodeIndex: payload.nodeIndex ?? 0};
       this.activeOverlay = null; // close the overlay behind the modal
     },
     onCardActionConfirm(payload: {branchIndex: number, optionResponse?: unknown, stepResponses: ReadonlyArray<unknown>, reveal?: ActionRevealDescriptor}): void {
