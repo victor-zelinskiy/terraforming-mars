@@ -309,7 +309,10 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
     const a = behavior.addResourcesToAnyCard;
     const count = ctx.count(a.count);
     if (addAnyCardCandidates(player, a).length === 0) {
-      steps.push({kind: 'note', noteKind: 'warning', text: 'No eligible card — this resource is not added.'});
+      // Name WHICH resource is lost via its icon (a.type) — never an ambiguous
+      // "this resource" (the gain chip is suppressed, so this warning is the only
+      // mention of it). `a.type` undefined = any-resource → no icon, generic text.
+      steps.push({kind: 'note', noteKind: 'warning', text: 'No eligible card — this resource is not added.', resource: a.type});
     } else {
       const model = new AddResourcesToCard(player, a.type, {
         count,

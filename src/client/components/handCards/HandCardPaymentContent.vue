@@ -113,6 +113,7 @@
                      front (orange) so the player is never surprised by a lost effect. -->
                 <div v-if="step.kind === 'note' && step.noteKind === 'warning'" class="play-confirm__warn">
                   <span class="play-confirm__warn-glyph" aria-hidden="true">⚠</span>
+                  <span v-if="warnResourceClass(step) !== ''" class="play-confirm__warn-res" :class="warnResourceClass(step)" aria-hidden="true"></span>
                   <span class="play-confirm__warn-text" v-i18n>{{ placementHint(step) }}</span>
                 </div>
                 <div v-else-if="step.kind === 'boardPlacement' || step.kind === 'note'" class="play-confirm__step play-confirm__step--placement">
@@ -229,6 +230,7 @@ import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {playedCardActionPickResult} from '@/client/components/playedCards/playedCardActionPick';
 import {PLAYED_PICK_OVERLAY_THRESHOLD} from '@/client/components/playedCards/playedCardsPickState';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import SelectProjectCardToPlay from '@/client/components/SelectProjectCardToPlay.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPicker.vue';
@@ -410,6 +412,12 @@ export default defineComponent({
       case 'colony': return 'After confirming, choose a colony to build on.';
       default: return 'You will place a tile on the board after confirming.';
       }
+    },
+    // The card-resource icon class for a no-target warning, so the player sees
+    // WHICH resource is lost (not an ambiguous "this resource"). '' = no icon.
+    warnResourceClass(step: ActionPreviewStep): string {
+      const res = (step as {resource?: string}).resource;
+      return res !== undefined && res !== '' ? iconClassFor(res) : '';
     },
     async fetchPreview(): Promise<void> {
       this.loading = true;
@@ -802,6 +810,7 @@ export default defineComponent({
    stacked — two inline grids didn't fit vertically. */
 .play-confirm__steps--cards-row {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   align-items: stretch;
   gap: 14px;
@@ -899,6 +908,16 @@ export default defineComponent({
   font-size: 14px;
   color: #f0b86a;
   line-height: 1.3;
+}
+/* The lost card-resource's icon (global `.card-resource-<key>` sprite), so the
+   player sees WHICH resource won't be added. */
+.play-confirm__warn-res {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
 }
 .play-confirm__warn-text {
   font-size: 12.5px;
