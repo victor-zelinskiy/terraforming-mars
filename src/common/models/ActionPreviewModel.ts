@@ -169,6 +169,16 @@ export type ActionPreviewStep =
      * delta to preview (the candidate then shows just its current count).
      */
     amount?: number,
+    /**
+     * Indices of EARLIER card-target steps whose chosen card must be EXCLUDED from
+     * this step's candidates (no-duplicate across linked picks — e.g. Cyberia
+     * Systems copies TWO DIFFERENT building cards). The client filters this step's
+     * candidate list by the cards captured in those steps.
+     */
+    dedupeFromSteps?: ReadonlyArray<number>,
   }
   | {kind: 'boardPlacement', placementType: string}
-  | {kind: 'note', noteKind: 'colony' | 'board' | 'generic', text?: string | Message};
+  /** A `warning` note flags an effect that WILL BE SKIPPED for lack of a valid
+   *  target (e.g. "add an animal" with no animal card) — shown as an orange block
+   *  so the player is never surprised by a silently-lost effect. */
+  | {kind: 'note', noteKind: 'colony' | 'board' | 'generic' | 'warning', text?: string | Message};

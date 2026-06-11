@@ -91,7 +91,8 @@ const ACCEPTED_DYNAMIC: Partial<Record<CardName, 'automatic' | 'follow-up'>> = {
  */
 const BEHAVIOR_BESPOKE_NO_HIDDEN_RESULT: Partial<Record<CardName, string>> = {
   'Atmoscoop': 'temp-vs-Venus is a player CHOICE → rich follow-up OrOptions (globalParameter metadata); floaters in behavior',
-  'Cyberia Systems': 'copy 2 building cards = two sequential picks → follow-up; +1 steel production in behavior',
+  // 'Cyberia Systems' now has a cardPlayPreview hook (both copy targets pre-collected
+  // as two card-target steps with cross-step de-dup) — no longer a follow-up.
   'Established Methods': 'use a standard project → follow-up; +30 M€ in behavior',
   'Great Dam:promo': 'tile placement → PlacementBanner; +2 energy production in behavior',
   'Hackers': 'M€-production steal is a player-target attack → follow-up; −1 energy / +2 M€ production in behavior',

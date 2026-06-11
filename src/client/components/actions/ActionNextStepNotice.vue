@@ -8,11 +8,19 @@
     confirming will require. Extracted from CardActionConfirmContent so both
     surfaces share one source of copy.
   -->
-  <div v-if="notes.length > 0" class="action-next" :class="'action-next--' + variant">
-    <span class="action-next__label" v-i18n>{{ variant === 'next' ? 'Next' : 'After confirming' }}</span>
-    <div v-for="(note, i) in notes" :key="i" class="action-next__item">
-      <span class="action-next__glyph" aria-hidden="true">◎</span>
-      <span class="action-next__text" v-i18n>{{ noteText(note) }}</span>
+  <div v-if="notes.length > 0 || warnings.length > 0">
+    <!-- WARNING — an effect that will be SKIPPED for lack of a valid target. Orange,
+         so the player is never surprised by a silently-lost effect. -->
+    <div v-for="(w, i) in warnings" :key="'w' + i" class="action-next__warn">
+      <span class="action-next__warn-glyph" aria-hidden="true">⚠</span>
+      <span class="action-next__warn-text" v-i18n>{{ text(w.text ?? '') }}</span>
+    </div>
+    <div v-if="notes.length > 0" class="action-next" :class="'action-next--' + variant">
+      <span class="action-next__label" v-i18n>{{ variant === 'next' ? 'Next' : 'After confirming' }}</span>
+      <div v-for="(note, i) in notes" :key="i" class="action-next__item">
+        <span class="action-next__glyph" aria-hidden="true">◎</span>
+        <span class="action-next__text" v-i18n>{{ noteText(note) }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -40,8 +48,13 @@ export default defineComponent({
     },
   },
   computed: {
+    // Context notes (placement / colony / board move) — the "what happens next" list.
     notes(): ReadonlyArray<NoteStep> {
-      return (this.steps ?? []).filter((s) => s.kind === 'boardPlacement' || s.kind === 'note') as ReadonlyArray<NoteStep>;
+      return (this.steps ?? []).filter((s) => (s.kind === 'boardPlacement' || s.kind === 'note') && (s as NoteStep).noteKind !== 'warning') as ReadonlyArray<NoteStep>;
+    },
+    // Skipped-effect warnings — rendered as a distinct orange block, above the notes.
+    warnings(): ReadonlyArray<NoteStep> {
+      return (this.steps ?? []).filter((s) => s.kind === 'note' && (s as NoteStep).noteKind === 'warning') as ReadonlyArray<NoteStep>;
     },
   },
   methods: {

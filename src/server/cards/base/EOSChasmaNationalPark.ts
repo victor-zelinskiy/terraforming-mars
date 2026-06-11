@@ -18,7 +18,9 @@ export class EosChasmaNationalPark extends Card implements IProjectCard {
       behavior: {
         production: {megacredits: 2},
         stock: {plants: 3},
-        addResourcesToAnyCard: {count: 1, type: CardResource.ANIMAL},
+        // autoSelect:false so the animal-target is ALWAYS chosen in the play modal
+        // (even with a single candidate) — never resolved silently after confirm.
+        addResourcesToAnyCard: {count: 1, type: CardResource.ANIMAL, autoSelect: false},
       },
 
       requirements: {temperature: -12},
