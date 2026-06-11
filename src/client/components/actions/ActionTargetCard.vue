@@ -39,25 +39,18 @@
                'action-target-card__tile--disabled': c.disabled,
                'action-target-card__tile--self': group.self && showOwners,
              }"
-             role="button"
-             :tabindex="c.disabled ? -1 : 0"
-             :aria-pressed="selectedName === c.name"
-             :aria-disabled="c.disabled"
-             :data-test="'action-target-' + c.name"
-             @click="select(c)"
-             @keydown.enter.prevent="select(c)"
-             @keydown.space.prevent="select(c)">
-          <!-- Fullscreen the card — a SEPARATE control so it never competes with
-               selecting. `@click.stop` keeps the tile click (select) from firing. -->
-          <button type="button"
-                  class="action-target-card__zoom"
-                  :aria-label="$t('Open fullscreen')"
-                  @click.stop="openZoom(c)"
-                  @keydown.enter.stop="openZoom(c)">⤢</button>
-
-          <!-- The card preview. Its OWN click-to-zoom is suppressed (capture+stop)
-               so a tap on the card selects the tile instead of zooming. -->
-          <span class="action-target-card__thumb" @click.capture.stop="select(c)">
+             :data-test="'action-target-' + c.name">
+          <!-- Clicking the CARD opens it FULLSCREEN (the fork's universal "click a
+               card → fullscreen" convention — no separate ⤢ button). Selecting is a
+               DEDICATED button below. `@click.capture.stop` suppresses Card.vue's
+               OWN built-in zoom so there's exactly ONE viewer. -->
+          <span class="action-target-card__thumb"
+                role="button"
+                :aria-label="$t('Open fullscreen')"
+                tabindex="0"
+                @click.capture.stop="openZoom(c)"
+                @keydown.enter.prevent="openZoom(c)"
+                @keydown.space.prevent="openZoom(c)">
             <Card :card="c.model" />
           </span>
 
@@ -74,14 +67,20 @@
             <span v-else class="action-target-card__impact-to">{{ c.count }}</span>
           </span>
 
-          <!-- Selectable affordance: a calm "ВЫБРАТЬ" at rest, a bright "ВЫБРАНО"
-               ribbon with a tick when chosen. Disabled shows the reason instead. -->
+          <!-- Selecting is the DEDICATED button (the card itself zooms). Disabled
+               shows the reason instead. -->
           <span v-if="c.disabled" class="action-target-card__reason">{{ c.reason }}</span>
-          <span v-else class="action-target-card__pick"
-                :class="{'action-target-card__pick--on': selectedName === c.name}">
+          <button v-else
+                  type="button"
+                  class="action-target-card__pick"
+                  :class="{'action-target-card__pick--on': selectedName === c.name}"
+                  :aria-pressed="selectedName === c.name"
+                  @click="select(c)"
+                  @keydown.enter.prevent="select(c)"
+                  @keydown.space.prevent="select(c)">
             <span v-if="selectedName === c.name" class="action-target-card__pick-tick" aria-hidden="true">✓</span>
             <span v-i18n>{{ selectedName === c.name ? 'Selected' : 'Select' }}</span>
-          </span>
+          </button>
         </div>
       </div>
     </div>
@@ -367,33 +366,14 @@ export default defineComponent({
   }
 }
 
-// Fullscreen control — a small glass chip in the top-right corner, clearly NOT
-// the select surface. Brightens on hover.
-.action-target-card__zoom {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  z-index: 3;
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  border: 1px solid rgba(120, 200, 255, 0.4);
-  background: rgba(8, 18, 28, 0.82);
-  color: #bcdcf2;
-  font-size: 13px;
-  line-height: 1;
-  cursor: zoom-in;
-  opacity: 0;
-  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
-  .action-target-card__tile:hover &,
-  .action-target-card__tile:focus-within & { opacity: 1; }
-  &:hover { border-color: @atc-cyan; color: #eaf6ff; background: rgba(16, 34, 50, 0.92); }
-}
-
 .action-target-card__thumb {
+  // The card click opens fullscreen (form convention) — cue it with zoom-in.
+  cursor: zoom-in;
+  outline: none;
+  border-radius: 8px;
+  transition: filter 0.15s ease;
+  &:hover { filter: brightness(1.06); }
+  &:focus-visible { box-shadow: 0 0 0 2px fade(@atc-cyan, 70%); }
   // Compact the legacy card render to a thumbnail; zero the asymmetric margin
   // (see CLAUDE.md "Centering UI under a Card") so the tile reads centred.
   > :deep(.card-container) {
@@ -436,21 +416,27 @@ export default defineComponent({
 .action-target-card__pick {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  padding: 3px 12px;
+  padding: 5px 16px;
   border-radius: 999px;
+  font-family: Prototype, Ubuntu, sans-serif;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(190, 216, 236, 0.85);
-  border: 1px solid rgba(120, 200, 255, 0.3);
-  background: rgba(16, 34, 50, 0.55);
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-  .action-target-card__tile:hover & {
+  color: rgba(190, 216, 236, 0.9);
+  border: 1px solid rgba(120, 200, 255, 0.36);
+  background: rgba(16, 34, 50, 0.6);
+  cursor: pointer;
+  outline: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  &:hover {
     color: #eaf6ff;
-    border-color: rgba(120, 220, 255, 0.55);
+    border-color: rgba(120, 220, 255, 0.6);
+    transform: translateY(-1px);
   }
+  &:focus-visible { box-shadow: 0 0 0 2px fade(@atc-cyan, 70%); }
   &--on {
     color: #06241a;
     background: linear-gradient(180deg, @atc-mint, #34b98a);

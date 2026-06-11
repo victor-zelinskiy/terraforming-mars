@@ -256,9 +256,22 @@
     display: flex;
     gap: 18px;
     align-items: stretch;
-    /* Sized for the WORST-CASE detail at the current action set, so even a few-card
-       master leaves the detail room — and it never changes per selection. */
-    min-height: 440px;
+    /* Sized (JS-measured) for the TALLEST detail at the current action set, so NO
+       detail scrolls and it never changes per selection. Falls back to 440px before
+       the measure runs. */
+    min-height: var(--actions-detail-min-h, 440px);
+}
+/* Hidden height-probe — card-less detail panels measured to find the tallest. Kept
+   in the DOM with LAYOUT (visibility:hidden, NOT display:none which yields no
+   height) but absolutely positioned + invisible so it neither shows nor scrolls. */
+.actions-board__measure {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--detail-width, 380px);
+    visibility: hidden;
+    pointer-events: none;
+    z-index: -1;
 }
 .actions-board__master {
     flex: 1 1 0;
@@ -574,6 +587,14 @@
     &::-webkit-scrollbar { width: 8px; }
     &::-webkit-scrollbar-thumb { background: rgba(106, 176, 230, 0.3); border-radius: 4px; }
     &::-webkit-scrollbar-track { background: transparent; }
+}
+/* Height-probe spacer standing in for the source card. Sized to the TALLER cards
+   (corp cards run higher than project cards) so the measured height never falls
+   short → no detail ever scrolls. */
+.action-detail__source-spacer {
+    align-self: center;
+    width: 165px;
+    height: 188px;
 }
 /* Embedded source-card preview — compact, click to fullscreen. */
 .action-detail__source-card {
@@ -1337,21 +1358,26 @@
     > .card-container { margin: 0; zoom: 0.55; }
 }
 .action-reveal__marker {
+    /* CENTRED over the card (was a top-right corner badge that collided with the
+       card's tags). `pointer-events: none` so it NEVER blocks the card's
+       click-to-fullscreen underneath it. */
     position: absolute;
-    top: -10px;
-    right: -10px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 58px;
+    height: 58px;
     border-radius: 50%;
-    font-size: 15px;
+    font-size: 30px;
     font-weight: 700;
     color: #06120c;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    &--met { background: linear-gradient(180deg, #6fe6b4, #34b98a); box-shadow: 0 0 12px rgba(88, 214, 166, 0.5); }
-    &--miss { background: linear-gradient(180deg, #e89a9a, #c96f6f); color: #2a0e0e; }
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 0 4px rgba(6, 12, 8, 0.45);
+    &--met { background: linear-gradient(180deg, #6fe6b4, #34b98a); box-shadow: 0 0 22px rgba(88, 214, 166, 0.65), 0 0 0 4px rgba(6, 18, 12, 0.5); }
+    &--miss { background: linear-gradient(180deg, #e89a9a, #c96f6f); color: #2a0e0e; box-shadow: 0 0 22px rgba(201, 111, 111, 0.55), 0 0 0 4px rgba(24, 8, 8, 0.5); }
 }
 
 /* OUTCOME line below the slot. */

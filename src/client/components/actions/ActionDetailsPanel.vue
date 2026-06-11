@@ -68,7 +68,12 @@
            never cover the action rows the way the old grid hover popover did. -->
       <div v-if="cardName !== undefined" class="action-detail__section action-detail__source">
         <span class="action-detail__label" v-i18n>Source</span>
-        <button type="button"
+        <!-- In MEASURING mode (the hidden height probe) the heavy <Card> is replaced
+             by a fixed-height spacer so the measure pass stays cheap — the probe only
+             needs the panel's HEIGHT, not the real card render. -->
+        <div v-if="measuring" class="action-detail__source-spacer" aria-hidden="true"></div>
+        <button v-else
+                type="button"
                 class="action-detail__source-card"
                 :aria-label="$t('Open fullscreen')"
                 @click.capture.stop="$emit('open', cardName)">
@@ -147,6 +152,12 @@ export default defineComponent({
       default: undefined,
     },
     loadingPreview: {
+      type: Boolean,
+      default: false,
+    },
+    // Hidden height-probe mode: render a card SPACER instead of the heavy <Card>,
+    // so the overlay can measure the tallest detail cheaply (drives the stable size).
+    measuring: {
       type: Boolean,
       default: false,
     },

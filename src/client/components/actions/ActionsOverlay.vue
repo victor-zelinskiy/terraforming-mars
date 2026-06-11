@@ -76,6 +76,19 @@
                               @open="openFullscreen" />
         </div>
       </div>
+
+      <!-- HIDDEN height-probe: one lightweight (card-less) details panel per action
+           ROW, measured to find the TALLEST detail so the overlay opens at a size
+           where NO detail scrolls (the size is pre-computed, not grown per click). -->
+      <div v-if="filtered.length > 0" class="actions-board__measure" ref="measure" aria-hidden="true">
+        <ActionDetailsPanel v-for="m in measureItems"
+                            :key="m.key"
+                            :measuring="true"
+                            :entry="m.entry"
+                            :nodeIndex="m.nodeIndex"
+                            :preview="previewFor(m.entry.cardName)"
+                            :loadingPreview="false" />
+      </div>
     </div>
 
     <!-- Shared fullscreen source-card viewer. -->
@@ -137,6 +150,7 @@ type DataModel = {
   zoomCard: CardModel | undefined;
   resizeObserver: ResizeObserver | undefined;
   fitScheduled: boolean;
+  measureScheduled: boolean;
   // Whether the SELECTED card's preview fetch is in flight (drives the panel skeleton).
   previewLoading: boolean;
   // The current master column count (for keyboard up/down).
@@ -174,6 +188,7 @@ export default defineComponent({
       zoomCard: undefined,
       resizeObserver: undefined,
       fitScheduled: false,
+      measureScheduled: false,
       previewLoading: false,
       cols: MAX_COLS,
     };
@@ -249,26 +264,50 @@ export default defineComponent({
       }
       return rows;
     },
+    // One probe per action ROW (different nodes → different reasons/results → height)
+    // for the hidden height measurer.
+    measureItems(): ReadonlyArray<{key: string, entry: ActionEntry, nodeIndex: number}> {
+      const items: Array<{key: string, entry: ActionEntry, nodeIndex: number}> = [];
+      for (const e of this.filtered) {
+        e.group.nodes.forEach((_n, i) => items.push({key: actionRowKey(e.cardName, i), entry: e, nodeIndex: i}));
+      }
+      return items;
+    },
+    // Re-measure the detail height whenever a new preview lands (results add height).
+    previewCount(): number {
+      return Object.keys(actionsOverlayState.previewCache).length;
+    },
   },
   watch: {
     'displayedPlayer.color'(): void {
       resetActionsOverlay();
+      this.prefetchBranchPreviews();
       nextTick(() => {
         this.ensureSelection();
         this.fit();
+        this.scheduleMeasure();
       });
     },
     filtered(): void {
       this.ensureSelection();
       this.prefetchBranchPreviews();
-      nextTick(() => this.scheduleFit());
+      nextTick(() => {
+        this.scheduleFit();
+        this.scheduleMeasure();
+      });
+    },
+    previewCount(): void {
+      this.scheduleMeasure();
     },
   },
   mounted(): void {
     actionsOverlayState.open = true;
     this.ensureSelection();
     this.prefetchBranchPreviews();
-    nextTick(() => this.fit());
+    nextTick(() => {
+      this.fit();
+      this.scheduleMeasure();
+    });
     window.setTimeout(() => this.fit(), 220);
     const root = this.$refs.root as HTMLElement | undefined;
     if (root !== undefined && typeof ResizeObserver !== 'undefined') {
@@ -340,16 +379,46 @@ export default defineComponent({
           }
         });
     },
-    // Background-prefetch the previews of MULTI-action available cards, so the grid
-    // can mark a single UNAVAILABLE branch (the other may be playable — e.g. Rotator
-    // Impacts). Only multi-node cards need it (a single-action card's row availability
-    // IS the card-level state); silent so the details panel doesn't flicker.
+    // Background-prefetch ALL available cards' previews (silent): multi-node cards
+    // need it to mark a single UNAVAILABLE branch (Rotator Impacts), and ALL of them
+    // feed the height measurer (results add height) so the overlay opens pre-sized.
     prefetchBranchPreviews(): void {
       for (const e of this.entries) {
-        if (e.group.nodes.length > 1 && e.state.status === 'available') {
+        if (e.state.status === 'available') {
           this.fetchPreviewFor(e.cardName, true);
         }
       }
+    },
+    // Measure the TALLEST detail (the hidden card-less probes) and set the split
+    // min-height to it (capped to the viewport), so the overlay opens at a size where
+    // no detail scrolls — pre-computed, never grown per selection.
+    measureDetailHeight(): void {
+      const measure = this.$refs.measure as HTMLElement | undefined;
+      const root = this.$refs.root as HTMLElement | undefined;
+      if (measure === undefined || root === undefined) {
+        return;
+      }
+      let maxH = 0;
+      for (const child of Array.from(measure.children)) {
+        maxH = Math.max(maxH, (child as HTMLElement).offsetHeight);
+      }
+      if (maxH <= 0) {
+        return;
+      }
+      // Cap to the viewport (then that one tall detail scrolls — unavoidable on a
+      // short screen); floor so it never collapses.
+      const cap = Math.max(360, Math.floor(window.innerHeight * 0.82) - 150);
+      root.style.setProperty('--actions-detail-min-h', Math.min(maxH, cap) + 'px');
+    },
+    scheduleMeasure(): void {
+      if (this.measureScheduled) {
+        return;
+      }
+      this.measureScheduled = true;
+      requestAnimationFrame(() => {
+        this.measureScheduled = false;
+        this.measureDetailHeight();
+      });
     },
     // The cached preview for a card (drives the grid's per-branch row availability).
     previewFor(cardName: CardName): ActionPreview | undefined {
@@ -423,6 +492,8 @@ export default defineComponent({
       root?.style.setProperty('--actions-overlay-width', Math.round(overlayW) + 'px');
       grid?.style.setProperty('--actions-master-cols', String(cols));
       root?.style.setProperty('--detail-width', DETAIL_W + 'px');
+      // The viewport may have changed → the detail-height cap with it.
+      this.scheduleMeasure();
     },
     scheduleFit(): void {
       if (this.fitScheduled) {
