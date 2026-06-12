@@ -34,6 +34,11 @@ describe('TitanShuttles', () => {
   });
 
   it('Always asks where to add floaters, even with a single target', () => {
+    const preview = card.actionPreview(player);
+    expect(preview.branches[0].available).is.true;
+    expect(preview.branches[1].available).is.false;
+    expect(preview.branches[1].unavailableReason).eq('Not enough resources on this card');
+
     // autoSelect:false — the player must always see/confirm WHERE the floaters go,
     // even when this card is the only Jovian floater card available.
     card.action(player);
@@ -59,6 +64,10 @@ describe('TitanShuttles', () => {
     const card2 = new TitanFloatingLaunchPad();
     player.playedCards.push(card2);
     player.addResourceTo(card, 7);
+
+    const preview = card.actionPreview(player);
+    expect(preview.branches[0].available).is.true;
+    expect(preview.branches[1].available).is.true;
 
     const orOptions = cast(card.action(player), OrOptions);
     expect(orOptions.options).has.lengthOf(2);

@@ -11,6 +11,7 @@ import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import * as actionPreviews from '../actionPreviews';
+import * as actionReason from '../actionReasons';
 
 export class TitanShuttles extends Card implements IProjectCard {
   constructor() {
@@ -56,6 +57,7 @@ export class TitanShuttles extends Card implements IProjectCard {
         // branch pick (optionInput), not a separate step.
         available: this.resourceCount > 0,
         title: 'Remove X floaters on this card to gain X titanium',
+        unavailableReason: actionReason.noResourcesHere(),
         optionInput: actionPreviews.amountInput('Remove X floaters on this card to gain X titanium', 'Remove floaters', 1, this.resourceCount, {icon: 'titanium'}),
       },
     ]);

@@ -14,6 +14,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {max} from '../Options';
 import {message} from '../../logs/MessageBuilder';
 import * as actionPreviews from '../actionPreviews';
+import * as actionReason from '../actionReasons';
 
 export class ExtremeColdFungus extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -51,6 +52,7 @@ export class ExtremeColdFungus extends Card implements IActionCard, IProjectCard
       {
         available: hasMicrobeCard,
         title: 'Add 2 microbes to another card',
+        unavailableReason: actionReason.targetReason('No card to add microbes to'),
         effects: [actionPreviews.cardResourceGain(CardResource.MICROBE, 2)],
       },
       {
