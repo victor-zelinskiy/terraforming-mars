@@ -1018,96 +1018,12 @@ export default defineComponent({
   50% { opacity: 1; transform: scale(1); }
 }
 
-/* MAIN — the single vertical flow above the choices/footer: heading → mini action
- * graphic + identity → result → "После подтверждения". Fixed (doesn't scroll); the
- * choices block below owns the flexible scroll space. */
-.action-confirm__main {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-// NOTE: the summary / section LABEL styles (`__summary`, `__summary-label`,
-// `__section`, `__section-label`) live in the GLOBAL actions_overlay.less, NOT
-// here — the App-level RevealResultOverlay reuses the same markup, and scoped
-// styles wouldn't reach it (its labels rendered unstyled/huge otherwise).
-
-/* ── Composed 2-column top: source (left) + action summary (right) ── */
-.action-confirm__top2 {
-  display: flex;
-  align-items: stretch;
-  gap: 16px;
-}
-/* LEFT: the source card — compact + stable, supporting (not dominating). */
-.action-confirm__src {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.action-confirm__src-label {
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 1.6px;
-  text-transform: uppercase;
-  color: #7f9bb8;
-}
-.action-confirm__src-card {
-  border: none;
-  background: none;
-  padding: 0;
-  cursor: zoom-in;
-  border-radius: 10px;
-  transition: filter 0.15s ease, transform 0.15s ease;
-  // Zero the legacy asymmetric card margin + scale down (the action summary leads).
-  > :deep(.card-container) { margin: 0; zoom: 0.52; }
-  &:hover { filter: brightness(1.07); transform: translateY(-1px); }
-  &:focus-visible { outline: 2px solid rgba(127, 212, 255, 0.7); outline-offset: 2px; }
-}
-/* RIGHT: the action summary panel — graphic + full description + result/VP/next. */
-.action-confirm__act-panel {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-  padding: 14px 16px 15px;
-  border-radius: 13px;
-  border: 1px solid rgba(106, 176, 230, 0.26);
-  background:
-    radial-gradient(130% 60% at 50% -10%, rgba(127, 212, 255, 0.08), transparent 60%),
-    linear-gradient(180deg, rgba(20, 31, 46, 0.95), rgba(11, 18, 29, 0.96));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 30px rgba(0, 0, 0, 0.44);
-}
-.action-confirm--corp .action-confirm__act-panel {
-  border-color: rgba(230, 200, 120, 0.3);
-  background:
-    radial-gradient(130% 60% at 50% -10%, rgba(240, 210, 138, 0.08), transparent 60%),
-    linear-gradient(180deg, rgba(33, 28, 17, 0.95), rgba(20, 16, 10, 0.96));
-}
-/* The graphic tile inside the action panel. */
-.action-confirm__act-graphic {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 78px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(8, 14, 22, 0.4);
-  box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.1);
-}
-/* The full action description — the modal's "understand the action" text, so it
-   never feels empty / dependent on a hover. */
-.action-confirm__act-desc {
-  margin: 0;
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: #e3eef9;
-}
-@media (max-width: 580px) {
-  .action-confirm__top2 { flex-direction: column; }
-  .action-confirm__src { flex-direction: row; align-items: center; gap: 12px; }
-}
+/* MAIN + the composed 2-column top (`__main` / `__top2` / `__src` / `__src-card` /
+ * `__act-panel` / `__act-graphic` / `__act-desc`, + their 580px media query) live in
+ * the GLOBAL actions_overlay.less — the App-level RevealResultOverlay reuses this
+ * EXACT markup and scoped styles wouldn't reach it (the reveal result rendered in a
+ * different layout / spot otherwise). Same reason the summary / section LABEL styles
+ * are global. */
 
 /* Intro line in the hero panel while the player is still choosing among branches
  * (the picker lives in the wide choices block below). */

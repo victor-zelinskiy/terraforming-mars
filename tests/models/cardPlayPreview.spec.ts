@@ -58,6 +58,7 @@ import {ProductiveOutpost} from '../../src/server/cards/colonies/ProductiveOutpo
 import {Luna} from '../../src/server/colonies/Luna';
 import {Ceres} from '../../src/server/colonies/Ceres';
 import {Titan} from '../../src/server/colonies/Titan';
+import {ImportedNitrogen} from '../../src/server/cards/base/ImportedNitrogen';
 
 describe('cardPlayPreview', () => {
   it('VenusSoils (declarative): venus + plant-production gain chips + a microbe target step', () => {
@@ -838,6 +839,73 @@ describe('cardPlayPreview', () => {
       const branch = new ProductiveOutpost().cardPlayPreview(player).branches[0];
       expect(branch.effects.some((e) => e.icon === 'floater'), 'the floater chip is suppressed').is.false;
       expect(branch.steps.some((s) => s.kind === 'note' && s.noteKind === 'warning'), 'a warning note').is.true;
+    });
+  });
+
+  // REGRESSION: a declarative card whose `addResourcesToAnyCard` is an ARRAY (add X
+  // to a card AND Y to another) had BOTH the chips and the pickers silently dropped
+  // by the `!Array.isArray` guard in the preview walkers.
+  describe('array addResourcesToAnyCard (Imported Nitrogen bug)', () => {
+    it('ImportedNitrogen: chips + pickers for BOTH the microbe and the animal addition', () => {
+      const [/* game */, player] = testGame(2);
+      player.playedCards.push(new Tardigrades(), new Birds()); // a microbe + an animal card
+
+      // Declarative card → the generic module-level preview (no co-located hook).
+      const branch = cardPlayPreview(player, new ImportedNitrogen()).branches[0];
+      // The declarative plants + TR.
+      expect(branch.effects.some((e) => e.icon === Resource.PLANTS), 'plants chip').is.true;
+      expect(branch.effects.some((e) => e.icon === 'tr'), 'TR chip').is.true;
+      // BOTH "to a card" gain chips (the array additions).
+      expect(branch.effects.find((e) => e.note === 'to a card' && e.amount === 3), 'microbe chip').is.not.undefined;
+      expect(branch.effects.find((e) => e.note === 'to a card' && e.amount === 2), 'animal chip').is.not.undefined;
+      // BOTH target pickers, in array order (microbe +3, then animal +2), each
+      // carrying its resource icon key so the modal names WHICH resource it adds.
+      const inputs = branch.steps.filter((s) => s.kind === 'input');
+      expect(inputs).has.length(2);
+      expect(inputs[0].kind === 'input' && inputs[0].amount).eq(3);
+      expect(inputs[0].kind === 'input' && inputs[0].cardResource).eq('microbe');
+      expect(inputs[1].kind === 'input' && inputs[1].amount).eq(2);
+      expect(inputs[1].kind === 'input' && inputs[1].cardResource).eq('animal');
+    });
+
+    it('ImportedNitrogen: PLAYABLE with NO target cards (rules: resources are lost) — both warn, no pick required', () => {
+      const [/* game */, player] = testGame(2);
+      player.megaCredits = 30; // afford the 23 cost; NO microbe/animal cards in play
+      // The rules let you play it even with nowhere to put the resources (they're
+      // simply lost) — `canPlay` must NOT require a target card.
+      expect(new ImportedNitrogen().canPlay(player), 'playable with no target cards').is.true;
+      const branch = cardPlayPreview(player, new ImportedNitrogen()).branches[0];
+      // No pickers (nothing to add to) → confirm is NOT gated on a pick; both
+      // additions surface as a "no eligible card" warning (honest, not silent).
+      expect(branch.steps.filter((s) => s.kind === 'input')).has.length(0);
+      expect(branch.steps.filter((s) => s.kind === 'note' && s.noteKind === 'warning')).has.length(2);
+    });
+
+    it('ImportedNitrogen: an addition with NO eligible card warns (no silent loss)', () => {
+      const [/* game */, player] = testGame(2);
+      player.playedCards.push(new Tardigrades()); // a microbe card but NO animal card
+
+      const branch = cardPlayPreview(player, new ImportedNitrogen()).branches[0];
+      expect(branch.effects.find((e) => e.note === 'to a card' && e.amount === 3), 'microbe chip').is.not.undefined;
+      expect(branch.effects.some((e) => e.note === 'to a card' && e.amount === 2), 'no animal chip').is.false;
+      expect(branch.steps.some((s) => s.kind === 'note' && s.noteKind === 'warning'), 'an animal warning').is.true;
+    });
+
+    it('ImportedNitrogen: the array picks replay against the live deferred prompts IN ORDER', () => {
+      const [game, player] = testGame(2);
+      const microbeCard = new Tardigrades();
+      const animalCard = new Birds();
+      player.playedCards.push(microbeCard, animalCard);
+
+      player.playCard(new ImportedNitrogen());
+      runAllActions(game); // applies plants + TR, defers the two AddResourcesToCard
+      // Microbe first (array order), then animal — matching the preview step order.
+      cast(player.popWaitingFor(), SelectCard).process({type: 'card', cards: [microbeCard.name]}, player);
+      runAllActions(game);
+      expect(microbeCard.resourceCount).eq(3);
+      cast(player.popWaitingFor(), SelectCard).process({type: 'card', cards: [animalCard.name]}, player);
+      runAllActions(game);
+      expect(animalCard.resourceCount).eq(2);
     });
   });
 });

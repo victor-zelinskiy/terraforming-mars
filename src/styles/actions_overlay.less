@@ -990,6 +990,94 @@
     max-width: 880px;
 }
 
+/* ── Composed 2-column top (`__top2`): source card (LEFT) + action summary (RIGHT).
+ * GLOBAL (moved out of CardActionConfirmContent's scoped style) so the App-level
+ * RevealResultOverlay reuses the EXACT layout — the revealed card lands in the SAME
+ * spot the confirm modal's empty reveal slot occupied (a seamless continuation, not
+ * a different layout). Both components render this identical markup. ── */
+.action-confirm__main {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.action-confirm__top2 {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+}
+.action-confirm__src {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.action-confirm__src-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #7f9bb8;
+}
+.action-confirm__src-card {
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: zoom-in;
+    border-radius: 10px;
+    transition: filter 0.15s ease, transform 0.15s ease;
+    /* Zero the legacy asymmetric card margin + scale down (the action summary leads). */
+    > .card-container { margin: 0; zoom: 0.52; }
+    &:hover { filter: brightness(1.07); transform: translateY(-1px); }
+    &:focus-visible { outline: 2px solid rgba(127, 212, 255, 0.7); outline-offset: 2px; }
+}
+/* The reveal overlay's source card is a STATIC display (no fullscreen) — drop the
+ * interactive cursor/hover so it doesn't promise a click it can't honour. */
+.action-confirm__src-card--static {
+    cursor: default;
+    &:hover { filter: none; transform: none; }
+}
+.action-confirm__act-panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    padding: 14px 16px 15px;
+    border-radius: 13px;
+    border: 1px solid rgba(106, 176, 230, 0.26);
+    background:
+        radial-gradient(130% 60% at 50% -10%, rgba(127, 212, 255, 0.08), transparent 60%),
+        linear-gradient(180deg, rgba(20, 31, 46, 0.95), rgba(11, 18, 29, 0.96));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 30px rgba(0, 0, 0, 0.44);
+}
+.action-confirm--corp .action-confirm__act-panel {
+    border-color: rgba(230, 200, 120, 0.3);
+    background:
+        radial-gradient(130% 60% at 50% -10%, rgba(240, 210, 138, 0.08), transparent 60%),
+        linear-gradient(180deg, rgba(33, 28, 17, 0.95), rgba(20, 16, 10, 0.96));
+}
+.action-confirm__act-graphic {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 78px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(8, 14, 22, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.1);
+}
+.action-confirm__act-desc {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #e3eef9;
+}
+@media (max-width: 580px) {
+    .action-confirm__top2 { flex-direction: column; }
+    .action-confirm__src { flex-direction: row; align-items: center; gap: 12px; }
+}
+
 /* ── Choices: the large, adaptive, full-width decision area ──
  * The ONLY flexible + scrollable region. The header / top row / footer stay
  * fixed; this block absorbs the height and scrolls (thin premium scrollbar) only
@@ -1357,27 +1445,23 @@
      * card full-size). Scaled to sit comfortably inside the slot. */
     > .card-container { margin: 0; zoom: 0.55; }
 }
-.action-reveal__marker {
-    /* CENTRED over the card (was a top-right corner badge that collided with the
-       card's tags). `pointer-events: none` so it NEVER blocks the card's
-       click-to-fullscreen underneath it. */
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
+/* The success/fail BADGE leads the outcome line (NOT an overlay over the card art).
+   A solid, opaque, ringed disc so it reads as a clear status pip, never a
+   see-through marker bleeding the card's icons through it. */
+.action-reveal__outcome-badge {
+    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 58px;
-    height: 58px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    font-size: 30px;
+    font-size: 13px;
     font-weight: 700;
+    line-height: 1;
     color: #06120c;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 0 4px rgba(6, 12, 8, 0.45);
-    &--met { background: linear-gradient(180deg, #6fe6b4, #34b98a); box-shadow: 0 0 22px rgba(88, 214, 166, 0.65), 0 0 0 4px rgba(6, 18, 12, 0.5); }
-    &--miss { background: linear-gradient(180deg, #e89a9a, #c96f6f); color: #2a0e0e; box-shadow: 0 0 22px rgba(201, 111, 111, 0.55), 0 0 0 4px rgba(24, 8, 8, 0.5); }
+    &--met { background: #58d6a6; box-shadow: 0 0 0 2px rgba(88, 214, 166, 0.3); }
+    &--miss { background: #e08a8a; color: #2a0e0e; box-shadow: 0 0 0 2px rgba(224, 122, 122, 0.3); }
 }
 
 /* OUTCOME line below the slot. */
@@ -1399,7 +1483,6 @@
     .action-reveal__outcome--met & { color: #8fe6c2; }
     .action-reveal__outcome--miss & { color: #e6a9a9; }
 }
-.action-reveal__outcome-glyph { color: #9bb0c6; font-size: 14px; }
 
 /* VP clarity line — gold "+N VP" gain, amber "maxed, no more VP" warning, grey
  * "unchanged" neutral. Wraps in the narrow source column. */
