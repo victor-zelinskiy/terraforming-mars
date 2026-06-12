@@ -232,7 +232,6 @@ import {InputResponse, SelectProjectCardToPlayResponse} from '@/common/inputs/In
 import {SelectProjectCardToPlayModel, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
-import {getCard} from '@/client/cards/ClientCardManifest';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {playedCardActionPickResult} from '@/client/components/playedCards/playedCardActionPick';
@@ -323,24 +322,30 @@ export default defineComponent({
       if (branch === undefined) {
         return [];
       }
-      // Sum the production boxes of the chosen copy-targets (client manifest).
+      // Sum the production the chosen copy-targets copy — read from the
+      // server-computed per-candidate map on the step (authoritative for ALL
+      // copyable cards, not just full-Units declarative ones).
       const copied: Record<string, number> = {};
       let hasCopy = false;
       branch.steps.forEach((step, i) => {
-        if (step.kind !== 'input' || (step as {copyProductionBox?: boolean}).copyProductionBox !== true) {
+        if (step.kind !== 'input') {
+          return;
+        }
+        const boxes = (step as {copyProductionBox?: Record<string, Record<string, number>>}).copyProductionBox;
+        if (boxes === undefined) {
           return;
         }
         const name = this.capturedCardName(i);
         if (name === undefined) {
           return;
         }
-        const box = getCard(name)?.productionBox;
+        const box = boxes[name];
         if (box === undefined) {
           return;
         }
         hasCopy = true;
         for (const res of STANDARD_RESOURCES) {
-          const v = (box as Record<string, number>)[res] ?? 0;
+          const v = box[res] ?? 0;
           if (v !== 0) {
             copied[res] = (copied[res] ?? 0) + v;
           }
@@ -590,10 +595,11 @@ export default defineComponent({
       return excluded.size === 0 ? input : {...input, cards: input.cards.filter((c) => !excluded.has(c.name))};
     },
     // True when a card step's candidates are all from the player's OWN tableau and
-    // EITHER there are MORE THAN 3 (a tile grid gets cramped) OR this branch has
-    // MULTIPLE card-target steps (Cyberia copies TWO cards — two inline grids don't
-    // fit) → route it to the РАЗЫГРАНО board. A single ≤3-candidate pick stays
-    // inline (ActionTargetCard).
+    // there are MORE THAN 3 (an inline tile grid gets cramped) → route it to the
+    // РАЗЫГРАНО board. EACH step decides independently by its OWN candidate count
+    // — a multi-card pick (Cyberia) is NOT force-routed: a step with ≤3 candidates
+    // stays inline (ActionTargetCard) even alongside another card step. Same
+    // generic threshold as the action-confirm modal.
     isPlayedOverlayStep(step: ActionPreviewStep): boolean {
       const input = this.stepCardInput(step);
       const cards = input.cards ?? [];
@@ -604,7 +610,7 @@ export default defineComponent({
       if (!cards.every((c) => tableau.has(c.name))) {
         return false;
       }
-      return cards.length > PLAYED_PICK_OVERLAY_THRESHOLD || this.multiCardPick;
+      return cards.length > PLAYED_PICK_OVERLAY_THRESHOLD;
     },
     // The chosen card model for a played-overlay step (for the in-modal chip).
     chosenStepCard(step: ActionPreviewStep, i: number): CardModel | undefined {

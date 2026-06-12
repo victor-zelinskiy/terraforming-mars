@@ -9,7 +9,8 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor} from '../../common/models/ActionPreviewModel';
 import {PlayerInputModel} from '../../common/models/PlayerInputModel';
-import {effectsForBehavior} from '../models/actionPreview';
+import {effectsForBehavior, copiedProductionUnits} from '../models/actionPreview';
+import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
 import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
@@ -220,9 +221,20 @@ export function selectCardStep(
   // `amount` (the resource count added to the chosen card) drives the picker's
   // per-candidate "N → N+amount" impact preview. `dedupeFromSteps` removes cards
   // already chosen in those earlier steps (no-duplicate across linked picks).
-  // `copyProductionBox` flags a copy-the-production step (Cyberia / RoboticWorkforce)
-  // so the modal folds the chosen card's production into the displayed RESULT.
-  return {kind: 'input', input: cardInput(player, title, label, cards, opts), amount: opts?.amount, dedupeFromSteps: opts?.dedupeFromSteps, copyProductionBox: opts?.copyProductionBox};
+  // `copyProductionBox` flags a copy-the-production step (Cyberia / RoboticWorkforce):
+  // we precompute, per candidate, the production it would copy (AUTHORITATIVELY,
+  // server-side) so the modal can fold the chosen card's production into the RESULT.
+  let copyProductionBox: Partial<Record<CardName, Units>> | undefined;
+  if (opts?.copyProductionBox === true) {
+    copyProductionBox = {};
+    for (const c of cards) {
+      const units = copiedProductionUnits(player, c);
+      if (units !== undefined) {
+        copyProductionBox[c.name] = units;
+      }
+    }
+  }
+  return {kind: 'input', input: cardInput(player, title, label, cards, opts), amount: opts?.amount, dedupeFromSteps: opts?.dedupeFromSteps, copyProductionBox};
 }
 
 /** A single-target `SelectPlayer` as a STEP (the modal hosts the premium

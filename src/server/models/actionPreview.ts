@@ -280,6 +280,41 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
 }
 
 /**
+ * The PLAYER production a copy-production card (Robotic Workforce / Cyberia
+ * Systems) would copy from `card`, computed READ-ONLY + authoritatively (mirrors
+ * the copy order in `RoboticWorkforceBase.selectBuildingCard`):
+ *   1. a bespoke `produce()` MUTATES state → can't preview → `undefined` (no chip);
+ *   2. `productionBox(player)` — a read-only Units query (MiningCard, SolarFarm, …);
+ *   3. `behavior.production` — the per-resource delta, computed via the Counter
+ *      (so a "per X" production resolves to the live number).
+ * `decreaseAnyProduction` (also copied) targets an OPPONENT's production, so it
+ * doesn't change the PLAYER's own production and is intentionally NOT in this delta.
+ * The client folds this into the displayed RESULT so the player sees EXACTLY what
+ * the chosen card copies — for ANY copyable card, not just full-Units declarative ones.
+ */
+export function copiedProductionUnits(player: IPlayer, card: ICard): Units | undefined {
+  if (card.produce !== undefined) {
+    return undefined;
+  }
+  if (card.productionBox !== undefined) {
+    return card.productionBox(player);
+  }
+  const production = card.behavior?.production;
+  if (production === undefined) {
+    return undefined;
+  }
+  const ctx = new Counter(player, card);
+  const units: Units = {megacredits: 0, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0};
+  for (const key of ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'] as const) {
+    const raw = (production as Record<string, unknown>)[key];
+    if (raw !== undefined) {
+      units[key] = ctx.count(raw as Parameters<Counter['count']>[0]);
+    }
+  }
+  return units;
+}
+
+/**
  * The ordered choice steps a (sub-)behavior needs, built by constructing the
  * SAME input the live path constructs (read-only) and serializing it. A behavior
  * key that resolves automatically (addResources to self, global, tr, drawCard)
