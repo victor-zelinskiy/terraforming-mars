@@ -719,7 +719,7 @@ import {
   cancelClientHandSelect,
   isClientHandPickActive,
 } from '@/client/components/handCards/handSelectState';
-import {deliverActionPick} from '@/client/components/handCards/handActionPick';
+import {deliverActionPick, deliverActionPickMulti} from '@/client/components/handCards/handActionPick';
 import {playedCardsPickState, enterPlayedCardsPick, cancelPlayedCardsPick} from '@/client/components/playedCards/playedCardsPickState';
 import {deliverPlayedCardActionPick} from '@/client/components/playedCards/playedCardActionPick';
 import {
@@ -2454,15 +2454,23 @@ export default defineComponent({
     // overlay in client-pick mode (eligible cards selectable, the rest disabled
     // with a premium-tooltip reason); the confirm modal SUPPRESSES itself while
     // the overlay is up, then re-appears with the picked card (via the bridge).
-    onActionPickCard(req: {title: string | Message, buttonLabel: string, selectable: ReadonlyArray<CardName>, reasons: Record<string, string>}): void {
+    onActionPickCard(req: {title: string | Message, buttonLabel: string, selectable: ReadonlyArray<CardName>, reasons: Record<string, string>, multi?: boolean, min?: number, max?: number, selected?: ReadonlyArray<CardName>}): void {
       this.selectedPlayerColor = undefined; // ensure own seat — the overlay only mounts there
+      // A MULTI-select pick (Public Plans "reveal any number") delivers the WHOLE
+      // set back (even empty); a single pick delivers one card.
+      const multi = req.multi === true;
       enterClientHandSelect({
         title: req.title,
         buttonLabel: req.buttonLabel,
         selectable: req.selectable,
         reasons: req.reasons,
+        min: req.min,
+        max: req.max,
+        selected: req.selected,
         onResolve: (cards) => {
-          if (cards.length > 0) {
+          if (multi) {
+            deliverActionPickMulti(cards);
+          } else if (cards.length > 0) {
             deliverActionPick(cards[0]);
           }
         },

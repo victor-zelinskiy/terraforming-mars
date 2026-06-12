@@ -99,6 +99,10 @@
                  class="play-confirm__steps"
                  :class="{'play-confirm__steps--cards-row': multiCardPick}">
               <span v-if="hasInteractiveStep" class="play-confirm__section-label" v-i18n>Choose targets</span>
+              <!-- Merged slots (Astra): the slots are SLOTS of one "up to N" pick, so
+                   the later ones are optional — say so (the "all N" warning below is
+                   suppressed for this case). -->
+              <span v-if="mergeOptionalHint !== ''" class="play-confirm__steps-note" v-i18n>{{ mergeOptionalHint }}</span>
               <!-- Multi-card pick not yet complete → an explicit reminder (the confirm
                    is also gated) so the player doesn't think one card is enough. -->
               <div v-if="showCardPickWarning" class="play-confirm__warn play-confirm__warn--cards">
@@ -120,9 +124,33 @@
                   <span class="play-confirm__step-glyph" aria-hidden="true">◎</span>
                   <span class="play-confirm__step-text" v-i18n>{{ placementHint(step) }}</span>
                 </div>
+                <!-- A TWO-TAB removal choice (Virus): animals OR plants, each tab
+                     listing its valid targets with a current→resulting impact. -->
+                <div v-else-if="step.kind === 'tabbedTargets'" class="play-confirm__step play-confirm__step--input"
+                     :class="{'play-confirm__step--answered': captured[i] !== undefined}">
+                  <TabbedRemovalPicker :model="step"
+                                       :playerView="playerView"
+                                       :selected="captured[i]"
+                                       @select="captureStep(i)($event)" />
+                </div>
                 <div v-else class="play-confirm__step play-confirm__step--input"
                      :class="{'play-confirm__step--answered': captured[i] !== undefined}">
-                  <ModernPlayerPicker v-if="step.input.type === 'player'"
+                  <!-- A MULTI-select card pick (Public Plans "reveal any number"):
+                       host the КАРТЫ В РУКЕ overlay's multi-select mode and show a
+                       COUNT summary (the pick can be large), NOT the card list. -->
+                  <div v-if="isMultiSelectStep(step)" class="play-confirm__multipick">
+                    <span v-if="stepPromptText(step) !== ''" class="play-confirm__handpick-prompt" v-i18n>{{ stepPromptText(step) }}</span>
+                    <div v-if="captured[i] !== undefined" class="play-confirm__multipick-summary">
+                      <span class="play-confirm__multipick-label" v-i18n>{{ multiSelectLabel(step) }}</span>
+                      <span class="play-confirm__multipick-count">{{ multiSelectCount(i) }}</span>
+                    </div>
+                    <button type="button" class="play-confirm__handpick-btn" @click="requestMultiHandPick(i, step)">
+                      <span class="play-confirm__handpick-glyph" aria-hidden="true">▤</span>
+                      <span v-if="captured[i] === undefined" v-i18n>Pick cards from hand</span>
+                      <span v-else v-i18n>Change selection</span>
+                    </button>
+                  </div>
+                  <ModernPlayerPicker v-else-if="step.input.type === 'player'"
                                       :controlled="true"
                                       :playerView="playerView"
                                       :playerinput="step.input"
@@ -245,6 +273,33 @@
                      :card="zoomCard"
                      @close="zoomCard = undefined" />
     </Teleport>
+
+    <!-- Empty-pick confirm: the player submitted a "return up to N" pick (Astra)
+         with NOTHING selected. Valid by the rules, but confirm it's intentional. -->
+    <Teleport to="body">
+      <div v-if="showEmptyWarning" class="play-empty-warn" @click.self="cancelEmpty">
+        <div class="play-empty-warn__card" role="alertdialog" aria-modal="true">
+          <span class="play-empty-warn__glyph" aria-hidden="true">⚠</span>
+          <h4 class="play-empty-warn__title" v-i18n>Nothing selected</h4>
+          <p class="play-empty-warn__text" v-i18n>{{ emptyWarningText }}</p>
+          <div class="play-empty-warn__actions">
+            <button type="button"
+                    class="play-empty-warn__cancel cab-action-confirm-cancel"
+                    @click="cancelEmpty"
+                    data-test="play-empty-warn-cancel">
+              <span class="cab-action-confirm-cancel__label" v-i18n>Cancel</span>
+            </button>
+            <button type="button"
+                    class="play-empty-warn__go cab-action-confirm-go"
+                    @click="confirmEmpty"
+                    data-test="play-empty-warn-go">
+              <span class="cab-action-confirm-go__glow" aria-hidden="true"></span>
+              <span class="cab-action-confirm-go__label" v-i18n>Play anyway</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -271,6 +326,7 @@ import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPick
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
+import TabbedRemovalPicker from '@/client/components/handCards/TabbedRemovalPicker.vue';
 import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
 
 // The batch payload emitted on confirm: the play pick (projectCard + payment) +
@@ -287,6 +343,13 @@ export type PlayCardPayload = {
 const STANDARD_RESOURCES = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'] as const;
 const STANDARD_RESOURCE_SET = new Set<string>(STANDARD_RESOURCES);
 
+// A step that requires a captured response before the play can be confirmed (an
+// interactive input or the tabbed-targets removal choice). boardPlacement / note
+// steps are informational and don't need a response.
+function stepNeedsResponse(step: ActionPreviewStep): boolean {
+  return step.kind === 'input' || step.kind === 'tabbedTargets';
+}
+
 /**
  * Payment + on-play-preview modal content for playing a hand card. Hosted inside
  * `MandatoryInputModal` by PlayerHome (`pendingPlayCard`). It never POSTs
@@ -296,7 +359,7 @@ const STANDARD_RESOURCE_SET = new Set<string>(STANDARD_RESOURCES);
  */
 export default defineComponent({
   name: 'HandCardPaymentContent',
-  components: {Card, CardZoomModal, SelectProjectCardToPlay, ModalInputHost, ModernPlayerPicker, ActionEffectChip, ActionTargetCard, ActionVpProgress},
+  components: {Card, CardZoomModal, SelectProjectCardToPlay, ModalInputHost, ModernPlayerPicker, ActionEffectChip, ActionTargetCard, ActionVpProgress, TabbedRemovalPicker},
   props: {
     playerView: {
       type: Object as PropType<PlayerViewModel>,
@@ -329,6 +392,9 @@ export default defineComponent({
       capturedPlay: undefined as SelectProjectCardToPlayResponse | undefined,
       // Whether the dialed payment currently covers the cost (from the widget).
       paymentValid: false,
+      // A confirm popup shown when the player submits a merged "up to N" pick (Astra)
+      // with NOTHING selected — valid by the rules, but worth a conscious confirm.
+      showEmptyWarning: false,
     };
   },
   computed: {
@@ -383,7 +449,7 @@ export default defineComponent({
         }
       });
       if (!hasCopy) {
-        return branch.effects;
+        return [...branch.effects, ...this.synthResultChips(branch)];
       }
       // Fold base production effects + the copied deltas into ONE chip per resource
       // (current → resulting); non-production base effects pass through unchanged.
@@ -416,7 +482,7 @@ export default defineComponent({
           note: 'production',
         });
       }
-      return [...prodChips, ...passthrough];
+      return [...prodChips, ...passthrough, ...this.synthResultChips(branch)];
     },
     // A real choice only when the on-play behavior is an `or` with 2+ branches.
     showBranchList(): boolean {
@@ -440,12 +506,12 @@ export default defineComponent({
       if (this.loading || branch === undefined || !branch.available || !this.paymentValid) {
         return false;
       }
-      return branch.steps.every((step, i) => step.kind !== 'input' || this.captured[i] !== undefined);
+      return this.stepsSatisfied(branch);
     },
     // Whether any step is an interactive picker (drives the "Choose targets" label;
     // a warning-only step set shows no label).
     hasInteractiveStep(): boolean {
-      return this.selected?.steps.some((s) => s.kind === 'input') ?? false;
+      return this.selected?.steps.some((s) => stepNeedsResponse(s)) ?? false;
     },
     // A short, honest "what's left before I can play this" line for the footer
     // readiness zone: name the FIRST missing decision (a target, then payment),
@@ -455,8 +521,7 @@ export default defineComponent({
       if (branch === undefined) {
         return {ready: false, label: 'Choose an option'};
       }
-      const targetMissing = !branch.steps.every((step, i) => step.kind !== 'input' || this.captured[i] !== undefined);
-      if (targetMissing) {
+      if (!this.stepsSatisfied(branch)) {
         return {ready: false, label: 'Choose a target'};
       }
       if (!this.paymentValid) {
@@ -493,9 +558,39 @@ export default defineComponent({
       return this.cardTargetStepIndexes.filter((i) => this.captured[i] !== undefined).length;
     },
     // A multi-card pick with not-yet-all chosen → an explicit warning so the player
-    // doesn't think one card is enough (the confirm is also gated).
+    // doesn't think one card is enough (the confirm is also gated). For a MERGED-slot
+    // branch (Astra "up to N") the later slots are optional, so the warning fires
+    // only below the `min` (0 for Astra → never).
     showCardPickWarning(): boolean {
-      return this.multiCardPick && this.cardPicksDone < this.cardPicksTotal;
+      if (!this.multiCardPick) {
+        return false;
+      }
+      // A MERGED-slot pick (Astra) is "up to N", not "all N" — the optional-slot
+      // hint + the gated CTA communicate it; the "Choose all the cards" warning
+      // would be misleading, so suppress it here.
+      if (this.mergeCardSteps !== undefined) {
+        return false;
+      }
+      return this.cardPicksDone < this.cardPicksTotal;
+    },
+    // The selected branch's merge-slots descriptor (Astra) — when set, the card
+    // steps are SLOTS of one "up to N" SelectCard, merged into one response.
+    mergeCardSteps(): {min: number, emptyWarning?: string | Message} | undefined {
+      return this.selected?.mergeCardSteps;
+    },
+    // Hint that a merged pick is OPTIONAL (Astra "up to N", min 0 → the player may
+    // return one, two, or none). '' = no hint.
+    mergeOptionalHint(): string {
+      if (this.mergeCardSteps === undefined) {
+        return '';
+      }
+      return 'Returning events is optional.';
+    },
+    // The confirm-popup body for an empty merged submit (card-supplied text, or a
+    // generic fallback).
+    emptyWarningText(): string {
+      const w = this.mergeCardSteps?.emptyWarning;
+      return w !== undefined ? this.text(w) : 'Nothing is selected.';
     },
     // Bridged result epoch from the РАЗЫГРАНО board pick (see the watcher).
     playedPickEpoch(): number {
@@ -515,6 +610,13 @@ export default defineComponent({
         return;
       }
       this.awaitingHandPickStep = undefined;
+      const step = this.selected?.steps[i];
+      // A MULTI-select step (Public Plans) captures the WHOLE picked set — even
+      // empty (= "reveal 0 cards", which is valid for an "up to N" pick).
+      if (step?.kind === 'input' && step.multiSelect !== undefined) {
+        this.captureStep(i)({type: 'card', cards: [...handActionPickResult.cards]});
+        return;
+      }
       const card = handActionPickResult.card;
       if (card !== undefined) {
         this.captureStep(i)({type: 'card', cards: [card]});
@@ -555,6 +657,57 @@ export default defineComponent({
       case 'heat': return p.heatProduction;
       default: return 0;
       }
+    },
+    // The viewer's current STOCK of a standard resource — the `current` base for a
+    // synthesized gain chip (Public Plans +N M€). Stock fields are unprefixed.
+    playerStock(res: string): number {
+      const p = this.playerView.thisPlayer;
+      switch (res) {
+      case 'megacredits': return p.megacredits;
+      case 'steel': return p.steel;
+      case 'titanium': return p.titanium;
+      case 'plants': return p.plants;
+      case 'energy': return p.energy;
+      case 'heat': return p.heat;
+      default: return 0;
+      }
+    },
+    // Whether every required step is answered for THIS branch. For a MERGED-slot
+    // branch (Astra "up to N") the card slots are optional down to `min`; every
+    // OTHER input step is still mandatory.
+    stepsSatisfied(branch: ActionPreviewBranch): boolean {
+      const merge = branch.mergeCardSteps;
+      if (merge !== undefined) {
+        const cardOk = this.cardPicksDone >= merge.min;
+        const othersOk = branch.steps.every((step, i) =>
+          !stepNeedsResponse(step) || (step.kind === 'input' && step.input.type === 'card') || this.captured[i] !== undefined);
+        return cardOk && othersOk;
+      }
+      return branch.steps.every((step, i) => !stepNeedsResponse(step) || this.captured[i] !== undefined);
+    },
+    // Extra RESULT chips computed CLIENT-side from the answered choices (so the
+    // player sees the outcome update LIVE before the single submit):
+    //   - a MERGED-slot pick (Astra) → "+N ▭ to hand" (cards returned to hand);
+    //   - a MULTI-select reveal (Public Plans) → "+N M€" (revealGain per card).
+    synthResultChips(branch: ActionPreviewBranch): ReadonlyArray<ActionEffect> {
+      const chips: Array<ActionEffect> = [];
+      if (branch.mergeCardSteps !== undefined && this.cardPicksDone > 0) {
+        chips.push({direction: 'gain', icon: 'cards', amount: this.cardPicksDone, note: 'to hand'});
+      }
+      branch.steps.forEach((step, i) => {
+        if (step.kind !== 'input' || step.multiSelect?.revealGain === undefined) {
+          return;
+        }
+        const count = this.multiSelectCount(i);
+        if (count <= 0) {
+          return;
+        }
+        const rg = step.multiSelect.revealGain;
+        const gain = count * rg.amount;
+        const cur = this.playerStock(rg.resource);
+        chips.push({direction: 'gain', icon: rg.resource, amount: gain, current: cur, resulting: cur + gain});
+      });
+      return chips;
     },
     placementHint(step: {kind: string, placementType?: string, text?: string | Message}): string {
       // A note with explicit text (the warning, or a card-specific note) overrides
@@ -724,6 +877,48 @@ export default defineComponent({
         reasons,
       });
     },
+    // A MULTI-select card pick (Public Plans): rendered as a count summary, hosted
+    // by the КАРТЫ В РУКЕ overlay's multi-select mode. `step.multiSelect !== undefined`.
+    isMultiSelectStep(step: ActionPreviewStep): boolean {
+      return step.kind === 'input' && step.multiSelect !== undefined;
+    },
+    // How many cards the player has chosen so far for a multi-select step.
+    multiSelectCount(i: number): number {
+      const r = this.captured[i];
+      return (r !== undefined && r.type === 'card') ? r.cards.length : 0;
+    },
+    // The i18n label for the count chip (e.g. "Cards to reveal").
+    multiSelectLabel(step: ActionPreviewStep): string {
+      if (step.kind !== 'input' || step.multiSelect === undefined) {
+        return '';
+      }
+      return this.text(step.multiSelect.countLabel);
+    },
+    // Hand off a MULTI-select card step to the КАРТЫ В РУКЕ overlay's multi-select
+    // mode (PlayerHome opens it + suppresses this modal; the whole picked set returns
+    // via the `handPickEpoch` watcher). Re-opening keeps the prior picks (Change
+    // selection). `min`/`max` bound the selection; the response is one card array.
+    requestMultiHandPick(i: number, step: ActionPreviewStep): void {
+      if (step.kind !== 'input' || step.input.type !== 'card') {
+        return;
+      }
+      const input = step.input as SelectCardModel;
+      const prior = this.captured[i];
+      const selected = (prior !== undefined && prior.type === 'card') ? prior.cards : [];
+      this.awaitingHandPickStep = i;
+      this.$emit('pick-card', {
+        title: input.title,
+        buttonLabel: input.buttonLabel,
+        selectable: input.cards.map((c) => c.name),
+        reasons: {},
+        // `multi` (not max > 1) marks the multi-select path so an "up to 1" pick
+        // over a single-card hand still delivers the WHOLE set (incl. empty).
+        multi: true,
+        min: input.min,
+        max: input.max,
+        selected,
+      });
+    },
     openStepFullscreen(step: ActionPreviewStep, i: number): void {
       const card = this.chosenStepCard(step, i);
       if (card === undefined) {
@@ -744,6 +939,33 @@ export default defineComponent({
       if (branch === undefined || !this.canConfirm) {
         return;
       }
+      // A merged "up to N" pick (Astra) submitted with NOTHING selected → confirm
+      // the player really wants to play without returning anything (rules allow it).
+      if (this.needsEmptyWarning(branch)) {
+        this.showEmptyWarning = true;
+        return;
+      }
+      this.emitConfirm(branch);
+    },
+    // The empty-pick warning applies only to a mergeable pick whose min is 0 (so 0
+    // is reachable at confirm) and the player picked nothing.
+    needsEmptyWarning(branch: ActionPreviewBranch): boolean {
+      return branch.mergeCardSteps !== undefined &&
+        branch.mergeCardSteps.min === 0 &&
+        this.cardPicksDone === 0;
+    },
+    // The popup's "play anyway" — proceed with the (empty) submit.
+    confirmEmpty(): void {
+      this.showEmptyWarning = false;
+      const branch = this.selected;
+      if (branch !== undefined && this.canConfirm) {
+        this.emitConfirm(branch);
+      }
+    },
+    cancelEmpty(): void {
+      this.showEmptyWarning = false;
+    },
+    emitConfirm(branch: ActionPreviewBranch): void {
       // Pull the play response out of the embedded widget (validates internally;
       // only sets capturedPlay when the payment covers the cost).
       this.capturedPlay = undefined;
@@ -752,11 +974,28 @@ export default defineComponent({
         return;
       }
       const stepResponses: Array<InputResponse> = [];
-      branch.steps.forEach((step, i) => {
-        if (step.kind === 'input' && this.captured[i] !== undefined) {
-          stepResponses.push(this.captured[i]);
-        }
-      });
+      if (branch.mergeCardSteps !== undefined) {
+        // MERGED SLOTS (Astra): the live play is ONE SelectCard (min..max), so the
+        // slot picks collapse into ONE {type:'card', cards:[...]} response (in slot
+        // order, empty slots skipped). The cross-step de-dup guarantees no card is
+        // listed twice. By contract a merge branch contains ONLY card steps.
+        const cards: Array<CardName> = [];
+        branch.steps.forEach((step, i) => {
+          if (step.kind === 'input' && step.input.type === 'card') {
+            const name = this.capturedCardName(i);
+            if (name !== undefined) {
+              cards.push(name);
+            }
+          }
+        });
+        stepResponses.push({type: 'card', cards});
+      } else {
+        branch.steps.forEach((step, i) => {
+          if (stepNeedsResponse(step) && this.captured[i] !== undefined) {
+            stepResponses.push(this.captured[i]);
+          }
+        });
+      }
       const payload: PlayCardPayload = {
         playResponse: this.capturedPlay,
         branchIndex: branch.index,
@@ -997,6 +1236,7 @@ export default defineComponent({
   gap: 14px;
 }
 .play-confirm__steps--cards-row > .play-confirm__section-label,
+.play-confirm__steps--cards-row > .play-confirm__steps-note,
 .play-confirm__steps--cards-row > .play-confirm__warn,
 .play-confirm__steps--cards-row > .play-confirm__step--placement {
   flex: 0 0 100%;
@@ -1104,6 +1344,51 @@ export default defineComponent({
   font-size: 12px;
 }
 
+// MULTI-select card pick (Public Plans): a centred count summary + a pick button.
+// No card list — the pick can be large; the count + the РЕЗУЛЬТАТ chip say enough.
+.play-confirm__multipick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+}
+.play-confirm__multipick-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(120, 220, 255, 0.4);
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(120, 220, 255, 0.12), transparent 70%),
+    linear-gradient(180deg, rgba(20, 40, 58, 0.6), rgba(14, 28, 42, 0.6));
+}
+.play-confirm__multipick-label {
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(170, 214, 235, 0.85);
+}
+.play-confirm__multipick-count {
+  min-width: 26px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: rgba(70, 230, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(120, 230, 255, 0.5);
+  color: #bff0ff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  text-align: center;
+}
+
+// A calm "the later slot is optional" note for a merged pick (Astra).
+.play-confirm__steps-note {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: rgba(150, 200, 230, 0.7);
+}
+
 .play-confirm__warn {
   display: flex;
   align-items: flex-start;
@@ -1194,5 +1479,56 @@ export default defineComponent({
 .play-confirm__actions {
   display: flex;
   gap: 12px;
+}
+
+// Empty-pick confirm popup — over the play modal (wrapper z-index 12000).
+.play-empty-warn {
+  position: fixed;
+  inset: 0;
+  z-index: 12100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 10, 16, 0.62);
+  backdrop-filter: blur(2px);
+}
+.play-empty-warn__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(440px, calc(100vw - 48px));
+  padding: 24px 26px 22px;
+  text-align: center;
+  border-radius: 14px;
+  border: 1px solid rgba(224, 170, 90, 0.45);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(224, 170, 90, 0.14), transparent 70%),
+    linear-gradient(180deg, rgba(20, 30, 42, 0.96), rgba(12, 20, 30, 0.96));
+  box-shadow: 0 0 0 1px rgba(224, 170, 90, 0.25), 0 22px 60px rgba(0, 0, 0, 0.6);
+}
+.play-empty-warn__glyph {
+  font-size: 28px;
+  color: #f0b86a;
+  line-height: 1;
+}
+.play-empty-warn__title {
+  margin: 0;
+  font-family: Prototype, Orbitron, Ubuntu, sans-serif;
+  font-size: 17px;
+  letter-spacing: 0.03em;
+  color: #f6e6cf;
+}
+.play-empty-warn__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(228, 224, 214, 0.85);
+}
+.play-empty-warn__actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
 }
 </style>

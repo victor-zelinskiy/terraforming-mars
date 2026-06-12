@@ -11,9 +11,9 @@
           'action-effect-chip--insufficient': shortfall,
           'action-effect-chip--noeffect': noEffect,
         }]">
-    <span v-if="iconMode === 'sprite'" class="action-effect-chip__icon" :class="iconClass" aria-hidden="true"></span>
-    <span v-else-if="iconMode === 'tr'" class="action-effect-chip__badge" aria-hidden="true"><span v-i18n>TR</span></span>
-    <span v-else class="action-effect-chip__badge action-effect-chip__badge--cards" aria-hidden="true">▭</span>
+    <!-- The icon is ALWAYS a real sprite (including `tr` → tr.png and `cards` →
+         card.png, via iconClassFor) — never a drawn glyph, so it matches the game art. -->
+    <span class="action-effect-chip__icon" :class="iconClass" aria-hidden="true"></span>
 
     <span class="action-effect-chip__value">
       <!-- Unaffordable cost → "have / need" so the shortfall is explicit. -->
@@ -57,15 +57,6 @@ export default defineComponent({
     },
   },
   computed: {
-    iconMode(): 'sprite' | 'tr' | 'cards' {
-      if (this.effect.icon === 'tr') {
-        return 'tr';
-      }
-      if (this.effect.icon === 'cards') {
-        return 'cards';
-      }
-      return 'sprite';
-    },
     iconClass(): string {
       return iconClassFor(this.effect.icon);
     },
@@ -148,23 +139,6 @@ export default defineComponent({
   /* Normalise the three sprite families to a single box (mirrors
      .modal-input__option-icon) so resource / param / card-resource icons align. */
   transform: scale(1);
-}
-
-.action-effect-chip__badge {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 22px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 5px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #0a1a26;
-  background: linear-gradient(180deg, #d6f0ff, #98c8e6);
-  &--cards { font-size: 13px; background: linear-gradient(180deg, #cfe0ff, #9fb6e6); }
 }
 
 .action-effect-chip__value {

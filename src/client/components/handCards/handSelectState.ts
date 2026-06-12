@@ -159,6 +159,9 @@ export function enterClientHandSelect(opts: {
   reasons: Record<string, string>,
   min?: number,
   max?: number,
+  /** Pre-selected cards (a MULTI-select "Change selection" re-open keeps the prior
+   *  picks instead of resetting to empty). Filtered to the selectable set. */
+  selected?: ReadonlyArray<CardName>,
   onResolve: (cards: ReadonlyArray<CardName>) => void,
   onCancel?: () => void,
 }): void {
@@ -173,7 +176,8 @@ export function enterClientHandSelect(opts: {
   handSelectState.buttonLabel = opts.buttonLabel;
   handSelectState.selectable = [...opts.selectable];
   handSelectState.reasons = {...opts.reasons};
-  handSelectState.selected = [];
+  const selectableSet = new Set(opts.selectable);
+  handSelectState.selected = (opts.selected ?? []).filter((n) => selectableSet.has(n));
   handSelectState.signature = '';
   defaultFilterToAvailable();
 }

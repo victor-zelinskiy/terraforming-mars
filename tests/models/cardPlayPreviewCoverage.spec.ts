@@ -64,11 +64,17 @@ const ACCEPTED_DYNAMIC: Partial<Record<CardName, 'automatic' | 'follow-up'>> = {
   'Pioneer Settlement': 'follow-up', // build a colony → ColoniesOverlay
   'Market Manipulation': 'follow-up', // two sequential SelectColony track picks → ColoniesOverlay
   'Flooding': 'follow-up', // ocean placement (PlacementBanner) + a M€-removal OrOptions
-  'Virus': 'follow-up', // animals/plants removal OrOptions; bespokePlay mutates during build (unsafe to pre-collect)
-  'Astra Mechanica': 'follow-up', // return up to 2 events to hand (multi-select) → CardSelectionContent
-  'Public Plans': 'follow-up', // reveal up to N hand cards (multi-select) → КАРТЫ В РУКЕ overlay
-  'Air Raid': 'follow-up', // steal a resource → rich ModernOptionPicker OrOptions
-  'Sponsored Academies': 'follow-up', // discard 1 / draw 3 → CardSelectionContent
+  // 'Virus' now has a cardPlayPreview hook — a TWO-TAB (animals / plants) removal
+  // picker, the OR indices introspected from the shared buildRemovalOptions.
+  // 'Astra Mechanica' now has a cardPlayPreview hook — two card-target SLOTS over
+  // the played events (board pick), MERGED into ONE response (mergeCardSteps, min 0
+  // → the 2nd slot is optional). No longer a follow-up.
+  // 'Public Plans' now has a cardPlayPreview hook — a MULTI-select hand pick hosted
+  // in the КАРТЫ В РУКЕ overlay (count summary + live +N M€). No longer a follow-up.
+  // 'Air Raid' now has a cardPlayPreview hook — the steal OrOptions (per-target
+  // loss) + the floater spend are pre-collected; +5 M€ / −1 floater result chips.
+  // 'Sponsored Academies' now has a cardPlayPreview hook — the discard-1 hand pick
+  // pre-collected; −1 card / +3 cards result chips.
   'Mars Nomads': 'follow-up', // place the nomad marker on a land space → PlacementBanner
   'Productive Outpost': 'follow-up', // gain each of your colonies' bonuses — a VARIABLE multi-resource bundle that can itself prompt (no single chip); the bonuses arrive as follow-ups
 };
@@ -90,12 +96,14 @@ const ACCEPTED_DYNAMIC: Partial<Record<CardName, 'automatic' | 'follow-up'>> = {
  * merge) can't silently regress.
  */
 const BEHAVIOR_BESPOKE_NO_HIDDEN_RESULT: Partial<Record<CardName, string>> = {
-  'Atmoscoop': 'temp-vs-Venus is a player CHOICE → rich follow-up OrOptions (globalParameter metadata); floaters in behavior',
+  // 'Atmoscoop' now has a cardPlayPreview hook (temp/Venus choice pre-collected as
+  // an OrOptions step + the floater target pick) — no longer a follow-up.
   // 'Cyberia Systems' now has a cardPlayPreview hook (both copy targets pre-collected
   // as two card-target steps with cross-step de-dup) — no longer a follow-up.
   'Established Methods': 'use a standard project → follow-up; +30 M€ in behavior',
   'Great Dam:promo': 'tile placement → PlacementBanner; +2 energy production in behavior',
-  'Hackers': 'M€-production steal is a player-target attack → follow-up; −1 energy / +2 M€ production in behavior',
+  // 'Hackers' now has a cardPlayPreview hook (the M€-production steal target picker
+  // pre-collected) — no longer a follow-up; behavior shows −1 energy / +2 M€ prod.
   'Urbanized Area': 'city placement → PlacementBanner; +2 M€ production in behavior',
   'Kaguya Tech': 'convert a greenery to a city = a board placement choice → PlacementBanner; +2 M€ production + draw in behavior',
   'Martian Lumber Corp': 'sets the canUsePlantsAsMegacredits ABILITY flag (no immediate result, like Helion); +1 plant production in behavior',

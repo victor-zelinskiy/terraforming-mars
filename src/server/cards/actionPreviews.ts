@@ -95,6 +95,10 @@ export function drawGain(amount: number): ActionEffect {
 export function cardResourceGain(resource: CardResource, amount: number): ActionEffect {
   return {direction: 'gain', icon: cardResourceIcon(resource), amount, note: 'to a card'};
 }
+/** Spend N of a card resource taken from a chosen card (e.g. Air Raid's −1 floater). */
+export function cardResourceCost(resource: CardResource, amount: number): ActionEffect {
+  return {direction: 'cost', icon: cardResourceIcon(resource), amount};
+}
 
 // ── Interactive step builders (the choices a branch needs after activation) ──
 
@@ -199,12 +203,21 @@ export function cardInput(
      *  premium picker's Available/Unavailable filter (e.g. Self-Replicating
      *  Robots hand cards WITHOUT a building/space tag). */
     disabled?: ReadonlyArray<{card: ICard, reason: string | Message}>,
+    /** Selection bounds — mirror the card's live `SelectCard` (default 1/1). A
+     *  `max > 1` marks a MULTI-select pick (e.g. Public Plans "reveal any number"). */
+    min?: number,
+    max?: number,
+    /** Offer a "Select all / Deselect all" toggle (multi-select prompts). */
+    showSelectAll?: boolean,
   },
 ): PlayerInputModel {
   return new SelectCard(title, label, cards, {
     showOwner: opts?.showOwner,
     played: opts?.played,
     disabled: opts?.disabled,
+    min: opts?.min,
+    max: opts?.max,
+    showSelectAll: opts?.showSelectAll,
   }).toModel(player);
 }
 
@@ -216,7 +229,19 @@ export function selectCardStep(
   title: string | Message,
   label: string,
   cards: ReadonlyArray<ICard>,
-  opts?: {showOwner?: boolean, disabled?: ReadonlyArray<{card: ICard, reason: string | Message}>, amount?: number, dedupeFromSteps?: ReadonlyArray<number>, copyProductionBox?: boolean},
+  opts?: {
+    showOwner?: boolean,
+    disabled?: ReadonlyArray<{card: ICard, reason: string | Message}>,
+    amount?: number,
+    dedupeFromSteps?: ReadonlyArray<number>,
+    copyProductionBox?: boolean,
+    /** Selection bounds (default 1/1). `max > 1` + `multiSelect` → a multi-select
+     *  pick hosted in the КАРТЫ В РУКЕ overlay's multi mode (Public Plans). */
+    min?: number,
+    max?: number,
+    showSelectAll?: boolean,
+    multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}},
+  },
 ): ActionPreviewStep {
   // `amount` (the resource count added to the chosen card) drives the picker's
   // per-candidate "N → N+amount" impact preview. `dedupeFromSteps` removes cards
@@ -234,7 +259,20 @@ export function selectCardStep(
       }
     }
   }
-  return {kind: 'input', input: cardInput(player, title, label, cards, opts), amount: opts?.amount, dedupeFromSteps: opts?.dedupeFromSteps, copyProductionBox};
+  return {
+    kind: 'input',
+    input: cardInput(player, title, label, cards, {
+      showOwner: opts?.showOwner,
+      disabled: opts?.disabled,
+      min: opts?.min,
+      max: opts?.max,
+      showSelectAll: opts?.showSelectAll,
+    }),
+    amount: opts?.amount,
+    dedupeFromSteps: opts?.dedupeFromSteps,
+    copyProductionBox,
+    multiSelect: opts?.multiSelect,
+  };
 }
 
 /** A single-target `SelectPlayer` as a STEP (the modal hosts the premium
@@ -339,6 +377,7 @@ export function playPreview(
   player: IPlayer,
   extraEffects: ReadonlyArray<ActionEffect> = [],
   steps: ReadonlyArray<ActionPreviewStep | undefined> = [],
+  opts: {mergeCardSteps?: {min: number, emptyWarning?: string | Message}} = {},
 ): ActionPreview {
   const behaviorEffects = card.behavior !== undefined ? effectsForBehavior(player, card, card.behavior) : [];
   const branch: ActionPreviewBranch = {
@@ -348,6 +387,7 @@ export function playPreview(
     renderKeys: [],
     effects: [...behaviorEffects, ...extraEffects],
     steps: definedSteps(steps),
+    mergeCardSteps: opts.mergeCardSteps,
   };
   return {...base(card), kind: 'bespoke', branches: [branch]};
 }

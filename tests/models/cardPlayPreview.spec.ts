@@ -44,6 +44,16 @@ import {EcologyResearch} from '../../src/server/cards/colonies/EcologyResearch';
 import {Birds} from '../../src/server/cards/base/Birds';
 import {SoilEnrichment} from '../../src/server/cards/promo/SoilEnrichment';
 import {LocalHeatTrapping} from '../../src/server/cards/base/LocalHeatTrapping';
+import {AstraMechanica} from '../../src/server/cards/promo/AstraMechanica';
+import {PublicPlans} from '../../src/server/cards/promo/PublicPlans';
+import {Hackers} from '../../src/server/cards/base/Hackers';
+import {AirRaid} from '../../src/server/cards/colonies/AirRaid';
+import {Atmoscoop} from '../../src/server/cards/venusNext/Atmoscoop';
+import {SponsoredAcademies} from '../../src/server/cards/venusNext/SponsoredAcademies';
+import {StormCraftIncorporated} from '../../src/server/cards/colonies/StormCraftIncorporated';
+import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
+import {StealResources} from '../../src/server/deferredActions/StealResources';
+import {Virus} from '../../src/server/cards/base/Virus';
 
 describe('cardPlayPreview', () => {
   it('VenusSoils (declarative): venus + plant-production gain chips + a microbe target step', () => {
@@ -533,6 +543,261 @@ describe('cardPlayPreview', () => {
       expect(branch.effects.some((e) => e.icon === Resource.HEAT && e.direction === 'cost')).is.true;
       const step = branch.steps.find((s) => s.kind === 'input');
       expect(step !== undefined && step.kind === 'input' && step.input.type).eq('or');
+    });
+  });
+
+  // Multi-card on-play picks pre-collected in the modal. Astra "returns UP TO 2"
+  // (two SLOTS merged into one response, the 2nd optional); Public Plans "reveals
+  // ANY NUMBER" (one multi-select pick shown as a count + a live +N M€ chip).
+  describe('multi-card on-play picks', () => {
+    it('AstraMechanica: two card SLOTS over the played events, merged (2nd slot optional)', () => {
+      const [/* game */, player] = testGame(2);
+      const e1 = new Sabotage();
+      const e2 = new Asteroid(); // both are EVENT cards with no special tile
+      player.playedCards.push(e1, e2);
+
+      const branch = new AstraMechanica().cardPlayPreview(player).branches[0];
+      // Two card-target SLOTS over the same event set; the 2nd de-dupes the 1st.
+      const inputs = branch.steps.filter((s) => s.kind === 'input');
+      expect(inputs).has.length(2);
+      expect(inputs[0].kind === 'input' && inputs[0].input.type).eq('card');
+      expect(inputs[1].kind === 'input' && inputs[1].input.type).eq('card');
+      const names = (inputs[0].kind === 'input' ? (inputs[0].input as SelectCardModel).cards : []).map((c) => c.name);
+      expect(names).to.have.members([e1.name, e2.name]);
+      expect(inputs[1].kind === 'input' && (inputs[1] as {dedupeFromSteps?: ReadonlyArray<number>}).dedupeFromSteps)
+        .to.deep.equal([0]);
+      // Merge marker: the slots collapse to ONE response; min 0 (rules allow
+      // returning nothing) + an emptyWarning for the confirm popup on an empty submit.
+      expect(branch.mergeCardSteps?.min).eq(0);
+      expect(branch.mergeCardSteps?.emptyWarning, 'an empty-submit warning is supplied').is.not.undefined;
+    });
+
+    it('AstraMechanica: only ONE slot when a single event is in play', () => {
+      const [/* game */, player] = testGame(2);
+      player.playedCards.push(new Sabotage()); // the only event
+      const branch = new AstraMechanica().cardPlayPreview(player).branches[0];
+      expect(branch.steps.filter((s) => s.kind === 'input')).has.length(1);
+      expect(branch.mergeCardSteps?.min).eq(0);
+    });
+
+    it('AstraMechanica: the merged single-card response replays against the live SelectCard (return just 1)', () => {
+      const [game, player] = testGame(2);
+      const e1 = new Sabotage();
+      const e2 = new Asteroid(); // both are EVENT cards with no special tile
+      player.playedCards.push(e1, e2);
+      const card = new AstraMechanica();
+
+      // The live play is ONE SelectCard over the events (the modal MERGES its slot
+      // picks into this single response).
+      const select = cast(card.bespokePlay(player), SelectCard);
+      expect(select.cards.map((c) => c.name)).to.have.members([e1.name, e2.name]);
+
+      // The player filled only ONE slot → the merged response returns just e1.
+      select.process({type: 'card', cards: [e1.name]}, player);
+      runAllActions(game);
+      expect(player.cardsInHand.map((c) => c.name)).to.include(e1.name);
+      expect(player.playedCards.get(e1.name)).is.undefined; // returned to hand
+      expect(player.playedCards.get(e2.name)).is.not.undefined; // the other stays played
+    });
+
+    it('PublicPlans: a MULTI-select step over the OTHER hand cards (excludes itself; count + 1 M€ each)', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new PublicPlans();
+      const a = new Sabotage();
+      const b = new MediaArchives();
+      player.cardsInHand.push(card, a, b);
+
+      const branch = card.cardPlayPreview(player).branches[0];
+      const inputs = branch.steps.filter((s) => s.kind === 'input');
+      expect(inputs).has.length(1);
+      const step = inputs[0];
+      expect(step.kind === 'input' && step.input.type).eq('card');
+      if (step.kind === 'input') {
+        const model = step.input as SelectCardModel;
+        const names = model.cards.map((c) => c.name);
+        // The card being played is EXCLUDED (the live reveal runs after it leaves
+        // hand); the OTHER hand cards are the candidates.
+        expect(names).to.have.members([a.name, b.name]);
+        expect(names).to.not.include(card.name);
+        expect(model.min).eq(0);
+        expect(model.max).eq(2); // reveal ANY NUMBER of the other 2
+        expect(step.multiSelect?.countLabel).eq('Cards to reveal');
+        expect(step.multiSelect?.revealGain).to.deep.equal({resource: Resource.MEGACREDITS, amount: 1});
+      }
+    });
+
+    it('PublicPlans: the multi-select response replays against the live reveal SelectCard (+1 M€ each)', () => {
+      const [game, player] = testGame(2);
+      const a = new Sabotage();
+      const b = new MediaArchives();
+      player.cardsInHand.push(a, b);
+      const mcBefore = player.megaCredits;
+
+      const select = cast(new PublicPlans().bespokePlay(player), SelectCard);
+      select.process({type: 'card', cards: [a.name, b.name]}, player);
+      runAllActions(game);
+      expect(player.megaCredits).eq(mcBefore + 2);
+    });
+
+    it('READ-ONLY: the Astra / Public Plans hooks never mutate hand / played state', () => {
+      const [/* game */, player] = testGame(2);
+      const e1 = new Sabotage();
+      const e2 = new MediaArchives();
+      player.playedCards.push(e1, e2);
+      player.cardsInHand.push(new Mine());
+      const before = {hand: player.cardsInHand.length, mc: player.megaCredits};
+      new AstraMechanica().cardPlayPreview(player);
+      new PublicPlans().cardPlayPreview(player);
+      expect(player.cardsInHand.length).eq(before.hand);
+      expect(player.megaCredits).eq(before.mc);
+      // The events stay played (the preview never returns them to hand).
+      expect(player.playedCards.get(e1.name)).is.not.undefined;
+      expect(player.playedCards.get(e2.name)).is.not.undefined;
+    });
+  });
+
+  // Player-target attacks + steals + multi-step on-play picks pre-collected.
+  describe('attack / steal / draw on-play picks', () => {
+    it('Hackers: −1 energy / +2 M€ production chips + a DecreaseAnyProduction (M€) step', () => {
+      const [/* game */, player] = testGame(3); // 3 players → the decrease offers a choice
+      const branch = new Hackers().cardPlayPreview(player).branches[0];
+      const energy = branch.effects.find((e) => e.icon === Resource.ENERGY && e.note === 'production');
+      expect(energy?.direction).eq('cost');
+      expect(energy?.amount).eq(1);
+      const mc = branch.effects.find((e) => e.icon === Resource.MEGACREDITS && e.note === 'production');
+      expect(mc?.direction).eq('gain');
+      expect(mc?.amount).eq(2);
+      const step = branch.steps[0];
+      expect(step.kind).eq('input');
+      expect(step.kind === 'input' && step.input.type).eq('player');
+    });
+
+    it('AirRaid: +5 M€ / −1 floater chips + a steal OrOptions + the floater-card pick', () => {
+      const [/* game */, player, player2] = testGame(3);
+      const stormcraft = new StormCraftIncorporated();
+      const dirigibles = new Dirigibles();
+      player.playedCards.push(stormcraft, dirigibles);
+      player.addResourceTo(stormcraft); // a floater
+      player.addResourceTo(dirigibles); // a 2nd floater card → the floater pick is offered
+      player2.megaCredits = 8; // a valid steal target (≥5)
+
+      const branch = new AirRaid().cardPlayPreview(player).branches[0];
+      // The PLAYER nets exactly +5 M€ (a mandatory steal needs the full amount).
+      const mcGain = branch.effects.find((e) => e.icon === Resource.MEGACREDITS && e.direction === 'gain');
+      expect(mcGain?.amount).eq(5);
+      expect(mcGain?.current).eq(player.megaCredits);
+      expect(mcGain?.resulting).eq(player.megaCredits + 5);
+      // −1 floater cost.
+      expect(branch.effects.some((e) => e.icon === 'floater' && e.direction === 'cost')).is.true;
+      // The steal OrOptions step (per-target loss via metadata) + the floater pick.
+      expect(branch.steps.some((s) => s.kind === 'input' && s.input.type === 'or'), 'a steal OrOptions step').is.true;
+      expect(branch.steps.some((s) => s.kind === 'input' && s.input.type === 'card'), 'a floater-card pick step').is.true;
+    });
+
+    it('AirRaid: an opponent with fewer than 5 M€ is a DISABLED steal target ("Not enough to steal")', () => {
+      const [/* game */, player, player2, player3] = testGame(4);
+      player2.megaCredits = 8; // a valid target
+      player3.megaCredits = 3; // some, but < 5 → disabled with a specific reason
+
+      const orOptions = new StealResources(player, Resource.MEGACREDITS, 5, undefined, true).previewOptions();
+      expect(orOptions, 'a steal OrOptions is built').is.not.undefined;
+      const model = orOptions!.toModel(player);
+      // player2 is a selectable steal option; the under-5 opponent is a disabled
+      // target whose reason distinguishes "not enough" from "nothing".
+      const reasons = (model.disabledOptions ?? []).map((d) => d.reason);
+      expect(reasons).to.include('Not enough to steal');
+    });
+
+    it('Atmoscoop: a temperature/Venus OrOptions step BEFORE the +2 floater pick (defer order)', () => {
+      const [/* game */, player] = testGame(2);
+      player.playedCards.push(new Dirigibles()); // a floater-holding card → the +2 floater pick is offered
+
+      const branch = new Atmoscoop().cardPlayPreview(player).branches[0];
+      // The +2 floater "to a card" gain chip (from behavior).
+      expect(branch.effects.some((e) => e.note === 'to a card' && e.amount === 2)).is.true;
+      // Both global parameters open in a fresh game → a temp/Venus OrOptions step.
+      const orIdx = branch.steps.findIndex((s) => s.kind === 'input' && s.input.type === 'or');
+      const cardIdx = branch.steps.findIndex((s) => s.kind === 'input' && s.input.type === 'card');
+      expect(orIdx, 'a temp/Venus OrOptions step').is.greaterThan(-1);
+      expect(cardIdx, 'a floater pick step').is.greaterThan(-1);
+      // The parameter choice defers (DEFAULT) before the floater add (GAIN_*).
+      expect(orIdx).is.lessThan(cardIdx);
+    });
+
+    it('SponsoredAcademies: −1 card / +3 cards chips + a discard hand pick (excludes itself)', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new SponsoredAcademies();
+      const a = new Sabotage();
+      const b = new MediaArchives();
+      player.cardsInHand.push(card, a, b); // 3 in hand → after self-exclusion, 2 → a real discard pick
+
+      const branch = card.cardPlayPreview(player).branches[0];
+      expect(branch.effects.some((e) => e.icon === 'cards' && e.direction === 'cost' && e.amount === 1), 'discard chip').is.true;
+      expect(branch.effects.some((e) => e.icon === 'cards' && e.direction === 'gain' && e.amount === 3), 'draw chip').is.true;
+      const step = branch.steps[0];
+      expect(step.kind === 'input' && step.input.type).eq('card');
+      if (step.kind === 'input') {
+        const names = (step.input as SelectCardModel).cards.map((c) => c.name);
+        expect(names).to.have.members([a.name, b.name]);
+        expect(names).to.not.include(card.name);
+      }
+    });
+
+    it('SponsoredAcademies: with one other card left the discard auto-resolves (no step)', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new SponsoredAcademies();
+      player.cardsInHand.push(card, new Sabotage()); // after self-exclusion, 1 → live auto-discards
+      const branch = card.cardPlayPreview(player).branches[0];
+      expect(branch.steps.filter((s) => s.kind === 'input')).has.length(0);
+      expect(branch.effects.some((e) => e.icon === 'cards' && e.direction === 'gain'), 'draw chip still shows').is.true;
+    });
+
+    it('Virus: a tabbed remove-animals (card pick) / remove-plants (player targets) step with correct OR indices', () => {
+      const [/* game */, player, player2] = testGame(2);
+      // player2 plays Virus; player (its opponent) has an animal card + plants.
+      const birds = new Birds();
+      player.playedCards.push(birds);
+      player.addResourceTo(birds); // 1 animal → the card is a valid animal target
+      player.plants = 8;
+
+      const branch = new Virus().cardPlayPreview(player2).branches[0];
+      const step = branch.steps[0];
+      expect(step.kind).eq('tabbedTargets');
+      if (step.kind === 'tabbedTargets') {
+        // Animals tab — the animal card, hosted at OR index 0 (the SelectCard option).
+        expect(step.animal, 'an animals tab').is.not.undefined;
+        expect(step.animal?.branchIndex).eq(0);
+        expect(step.animal?.amount).eq(2);
+        const animalNames = (step.animal!.input as SelectCardModel).cards.map((c) => c.name);
+        expect(animalNames).to.include(birds.name);
+        // Plants tab — the opponent at OR index 1, impact 8 → 3 (remove 5).
+        expect(step.plant, 'a plants tab').is.not.undefined;
+        expect(step.plant?.amount).eq(5);
+        const t = step.plant!.targets.find((x) => x.color === player.color);
+        expect(t, 'the opponent is a plant target').is.not.undefined;
+        expect(t?.optionIndex).eq(1);
+        expect(t?.current).eq(8);
+        expect(t?.resulting).eq(3);
+      }
+    });
+
+    it('Virus: the pre-collected plant pick replays against the live OrOptions', () => {
+      const [game, player, player2] = testGame(2);
+      const birds = new Birds();
+      player.playedCards.push(birds);
+      player.addResourceTo(birds);
+      player.plants = 8;
+
+      // The preview says: pick the opponent's plants → {type:'or', index:1, response:{type:'option'}}.
+      const step = new Virus().cardPlayPreview(player2).branches[0].steps[0];
+      const optionIndex = step.kind === 'tabbedTargets' ?
+        step.plant!.targets.find((x) => x.color === player.color)!.optionIndex : -1;
+
+      // The LIVE play produces the SAME OrOptions; the index resolves the plant removal.
+      const orOptions = cast(new Virus().bespokePlay(player2), OrOptions);
+      orOptions.options[optionIndex].process({type: 'option'}, player2);
+      runAllActions(game);
+      expect(player.plants).eq(3); // 8 − 5
     });
   });
 });
