@@ -595,11 +595,12 @@ export default defineComponent({
       return excluded.size === 0 ? input : {...input, cards: input.cards.filter((c) => !excluded.has(c.name))};
     },
     // True when a card step's candidates are all from the player's OWN tableau and
-    // there are MORE THAN 3 (an inline tile grid gets cramped) → route it to the
-    // РАЗЫГРАНО board. EACH step decides independently by its OWN candidate count
-    // — a multi-card pick (Cyberia) is NOT force-routed: a step with ≤3 candidates
-    // stays inline (ActionTargetCard) even alongside another card step. Same
-    // generic threshold as the action-confirm modal.
+    // EITHER there are MORE THAN 3 (an inline tile grid gets cramped) OR this card
+    // selects MORE THAN ONE card (`multiCardPick` — Cyberia copies TWO cards) → route
+    // it to the РАЗЫГРАНО board. A MULTI-card pick is ALWAYS force-routed: two inline
+    // tile grids side by side simply don't fit the modal (they collapse to cramped
+    // vertical columns). Only a SINGLE-card pick uses the bare >3 threshold (≤3 stays
+    // inline as a centred ROW of tiles, never columns).
     isPlayedOverlayStep(step: ActionPreviewStep): boolean {
       const input = this.stepCardInput(step);
       const cards = input.cards ?? [];
@@ -610,7 +611,7 @@ export default defineComponent({
       if (!cards.every((c) => tableau.has(c.name))) {
         return false;
       }
-      return cards.length > PLAYED_PICK_OVERLAY_THRESHOLD;
+      return cards.length > PLAYED_PICK_OVERLAY_THRESHOLD || this.multiCardPick;
     },
     // The chosen card model for a played-overlay step (for the in-modal chip).
     chosenStepCard(step: ActionPreviewStep, i: number): CardModel | undefined {
