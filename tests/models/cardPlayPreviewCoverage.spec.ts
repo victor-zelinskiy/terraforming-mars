@@ -76,7 +76,8 @@ const ACCEPTED_DYNAMIC: Partial<Record<CardName, 'automatic' | 'follow-up'>> = {
   // 'Sponsored Academies' now has a cardPlayPreview hook — the discard-1 hand pick
   // pre-collected; −1 card / +3 cards result chips.
   'Mars Nomads': 'follow-up', // place the nomad marker on a land space → PlacementBanner
-  'Productive Outpost': 'follow-up', // gain each of your colonies' bonuses — a VARIABLE multi-resource bundle that can itself prompt (no single chip); the bonuses arrive as follow-ups
+  // 'Productive Outpost' now has a cardPlayPreview hook — it aggregates every owned
+  // colony's FIXED metadata.colony bonus into result chips; interactive bonuses note.
 };
 
 /**

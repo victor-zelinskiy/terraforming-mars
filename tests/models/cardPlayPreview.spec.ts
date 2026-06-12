@@ -54,6 +54,10 @@ import {StormCraftIncorporated} from '../../src/server/cards/colonies/StormCraft
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
 import {StealResources} from '../../src/server/deferredActions/StealResources';
 import {Virus} from '../../src/server/cards/base/Virus';
+import {ProductiveOutpost} from '../../src/server/cards/colonies/ProductiveOutpost';
+import {Luna} from '../../src/server/colonies/Luna';
+import {Ceres} from '../../src/server/colonies/Ceres';
+import {Titan} from '../../src/server/colonies/Titan';
 
 describe('cardPlayPreview', () => {
   it('VenusSoils (declarative): venus + plant-production gain chips + a microbe target step', () => {
@@ -798,6 +802,42 @@ describe('cardPlayPreview', () => {
       orOptions.options[optionIndex].process({type: 'option'}, player2);
       runAllActions(game);
       expect(player.plants).eq(3); // 8 − 5
+    });
+
+    it('ProductiveOutpost: aggregates every owned colony FIXED bonus into result chips', () => {
+      const [game, player] = testGame(2);
+      const luna = new Luna(); // GAIN_RESOURCES 2 M€
+      const ceres = new Ceres(); // GAIN_RESOURCES 2 steel
+      const titan = new Titan(); // ADD_RESOURCES_TO_CARD: +1 floater to a card
+      luna.colonies.push(player.id, player.id); // TWO colonies on Luna → 4 M€
+      ceres.colonies.push(player.id);
+      titan.colonies.push(player.id);
+      game.colonies.push(luna, ceres, titan);
+      player.playedCards.push(new Dirigibles()); // a floater-holding card → Titan's bonus has a target
+
+      const branch = new ProductiveOutpost().cardPlayPreview(player).branches[0];
+      expect(branch.steps.some((s) => s.kind === 'note' && s.noteKind === 'warning')).is.false;
+      // Luna ×2 → +4 M€, Ceres → +2 steel (aggregated, current → resulting).
+      const mc = branch.effects.find((e) => e.icon === Resource.MEGACREDITS);
+      expect(mc?.amount).eq(4);
+      expect(mc?.resulting).eq(player.megaCredits + 4);
+      const steel = branch.effects.find((e) => e.icon === Resource.STEEL);
+      expect(steel?.amount).eq(2);
+      // Titan → +1 floater to a card.
+      const floater = branch.effects.find((e) => e.icon === 'floater');
+      expect(floater?.amount).eq(1);
+      expect(floater?.note).eq('to a card');
+    });
+
+    it('ProductiveOutpost: a card-resource bonus with NO eligible card warns (no silent loss)', () => {
+      const [game, player] = testGame(2);
+      const titan = new Titan(); // +1 floater to a card, but the player has no floater card
+      titan.colonies.push(player.id);
+      game.colonies.push(titan);
+
+      const branch = new ProductiveOutpost().cardPlayPreview(player).branches[0];
+      expect(branch.effects.some((e) => e.icon === 'floater'), 'the floater chip is suppressed').is.false;
+      expect(branch.steps.some((s) => s.kind === 'note' && s.noteKind === 'warning'), 'a warning note').is.true;
     });
   });
 });
