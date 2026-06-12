@@ -16,6 +16,7 @@ describe('TychoMagnetics', () => {
 
   it('Can not act if no energy resources available', () => {
     expect(card.canAct(player)).is.not.true;
+    expect(card.actionUnavailableReason(player)?.message).eq('Not enough energy');
     player.energy = 1;
     expect(card.canAct(player)).is.true;
   });
@@ -24,6 +25,9 @@ describe('TychoMagnetics', () => {
     player.energy = 10;
     player.game.projectDeck.drawPile.length = 0;
     expect(card.canAct(player)).is.false;
+    expect(card.actionUnavailableReason(player)?.message).eq('The deck is empty');
+    expect(card.actionPreview(player).branches[0].unavailableReason).eq('The deck is empty');
+    expect(card.actionPreview(player).branches[0].steps).has.length(0);
   });
 
   it('can act with small deck', () => {

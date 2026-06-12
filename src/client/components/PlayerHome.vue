@@ -434,6 +434,7 @@
       :viewerColor="thisPlayer.color"
       :viewerId="playerView.id"
       :availableActionNames="availableCardActionNames"
+      :preview-cache-key="actionsPreviewCacheKey"
       :awaitingInput="playerView.waitingFor !== undefined"
       @activate="onActivateCardAction($event)"
       @close="closeActionsOverlay" />
@@ -1397,6 +1398,51 @@ export default defineComponent({
     availableCardActionNames(): ReadonlyArray<CardName> {
       const found = this.findPerformActionCard(this.playerView.waitingFor);
       return found === undefined ? [] : found.model.cards.map((c) => c.name);
+    },
+    actionsPreviewCacheKey(): string {
+      const p = this.displayedPlayer;
+      const tagState = Object.entries(p.tags)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([tag, count]) => `${tag}:${count}`)
+        .join(',');
+      const tableauState = p.tableau
+        .map((c) => {
+          const reasons = (c.actionReasons ?? [])
+            .map((r) => `${r.message}:${(r.params ?? []).join('/')}`)
+            .join('~');
+          return `${c.name}:${c.resources ?? ''}:${c.isDisabled === true ? 1 : 0}:${reasons}`;
+        })
+        .join(',');
+      const privateHandState = p.color === this.thisPlayer.color ?
+        this.playerView.cardsInHand.map((c) => c.name).join(',') :
+        '';
+      return [
+        p.color,
+        this.game.deckSize,
+        this.game.discardPileSize,
+        this.game.temperature,
+        this.game.oxygenLevel,
+        this.game.venusScaleLevel,
+        this.game.oceans,
+        p.megacredits,
+        p.steel,
+        p.titanium,
+        p.plants,
+        p.energy,
+        p.heat,
+        p.megacreditProduction,
+        p.steelProduction,
+        p.titaniumProduction,
+        p.plantProduction,
+        p.energyProduction,
+        p.heatProduction,
+        p.terraformRating,
+        tagState,
+        p.actionsThisGeneration.join(','),
+        this.availableCardActionNames.join(','),
+        privateHandState,
+        tableauState,
+      ].join('|');
     },
     // Sorted ACTIVE/PRELUDE cards for the blue-card actions overlay. Cached as
     // a computed (was an inline `sortActiveCards(getCardsByType(...).filter(...))`

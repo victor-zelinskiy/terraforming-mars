@@ -127,6 +127,7 @@ import {
   actionRowKey,
   setActionSelection,
   setActionPreview,
+  setActionPreviewScope,
   resetActionsOverlay,
 } from '@/client/components/actions/actionsOverlayState';
 import ActionGroupCard from '@/client/components/actions/ActionGroupCard.vue';
@@ -176,6 +177,10 @@ export default defineComponent({
     availableActionNames: {
       type: Array as PropType<ReadonlyArray<CardName>>,
       default: () => [],
+    },
+    previewCacheKey: {
+      type: String,
+      default: '',
     },
     awaitingInput: {
       type: Boolean,
@@ -279,8 +284,16 @@ export default defineComponent({
     },
   },
   watch: {
+    previewCacheKey(): void {
+      setActionPreviewScope(this.previewCacheKey);
+      this.prefetchBranchPreviews();
+      nextTick(() => {
+        this.scheduleMeasure();
+      });
+    },
     'displayedPlayer.color'(): void {
       resetActionsOverlay();
+      setActionPreviewScope(this.previewCacheKey);
       this.prefetchBranchPreviews();
       nextTick(() => {
         this.ensureSelection();
@@ -302,6 +315,7 @@ export default defineComponent({
   },
   mounted(): void {
     actionsOverlayState.open = true;
+    setActionPreviewScope(this.previewCacheKey);
     this.ensureSelection();
     this.prefetchBranchPreviews();
     nextTick(() => {
@@ -365,11 +379,12 @@ export default defineComponent({
       const url = paths.API_ACTION_PREVIEW +
         '?id=' + encodeURIComponent(this.viewerId) +
         '&card=' + encodeURIComponent(cardName);
+      const scope = actionsOverlayState.previewCacheScope;
       fetch(url)
         .then((r) => (r.ok ? r.json() : undefined))
         .then((p) => {
           if (p !== undefined) {
-            setActionPreview(cardName, p as ActionPreview);
+            setActionPreview(cardName, p as ActionPreview, scope);
           }
         })
         .catch(() => { /* best-effort: the modal re-fetches its own preview anyway */ })

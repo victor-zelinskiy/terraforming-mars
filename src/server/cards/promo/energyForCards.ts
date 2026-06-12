@@ -1,9 +1,20 @@
 import {Resource} from '@/common/Resource';
 import {SelectAmount} from '@/server/inputs/SelectAmount';
 import {IPlayer} from '@/server/IPlayer';
+import * as actionReason from '../actionReasons';
 
 export function canSpendEnergyForCards(player: IPlayer) {
   return player.energy > 0 && player.game.projectDeck.canDraw(1);
+}
+
+export function energyForCardsUnavailableReason(player: IPlayer) {
+  if (player.energy <= 0) {
+    return actionReason.notEnoughEnergy();
+  }
+  if (!player.game.projectDeck.canDraw(1)) {
+    return actionReason.deckEmpty();
+  }
+  return undefined;
 }
 
 export function spendEnergyForCards(player: IPlayer) {

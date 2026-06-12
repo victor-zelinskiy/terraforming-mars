@@ -32,6 +32,10 @@ describe('SulphurEatingBacteria', () => {
     player.playedCards.push(card);
     player.addResourceTo(card, 5);
 
+    const preview = card.actionPreview(player);
+    expect(preview.branches[0].available).is.true;
+    expect(preview.branches[1].available).is.true;
+
     const action = cast(card.action(player), OrOptions);
     action.options[1].cb(3);
     expect(player.megaCredits).to.eq(9);
@@ -41,6 +45,11 @@ describe('SulphurEatingBacteria', () => {
   it('Should act - only one action available', () => {
     player.playedCards.push(card);
     expect(card.resourceCount).to.eq(0);
+
+    const preview = card.actionPreview(player);
+    expect(preview.branches[0].available).is.true;
+    expect(preview.branches[1].available).is.false;
+    expect(preview.branches[1].unavailableReason).eq('Not enough resources on this card');
 
     card.action(player);
     expect(card.resourceCount).to.eq(1);

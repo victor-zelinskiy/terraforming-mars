@@ -192,6 +192,9 @@ export default defineComponent({
     branchUnavailable(): boolean {
       return !this.isUnavailable && this.selectedBranch?.available === false;
     },
+    branchPreviewPending(): boolean {
+      return !this.isUnavailable && (this.group?.nodes.length ?? 0) > 1 && this.preview === undefined;
+    },
     showStatus(): boolean {
       return this.isUnavailable || this.branchUnavailable;
     },
@@ -234,6 +237,9 @@ export default defineComponent({
     },
     // The reason hosted on the disabled-CTA premium tooltip (empty when actionable).
     ctaDisabledReason(): string {
+      if (this.branchPreviewPending) {
+        return translateText('Loading action details');
+      }
       return this.ctaEnabled ? '' : this.statusText;
     },
     node(): GroupNode | undefined {
@@ -341,6 +347,9 @@ export default defineComponent({
     },
     ctaEnabled(): boolean {
       if (this.state?.status !== 'available') {
+        return false;
+      }
+      if (this.branchPreviewPending) {
         return false;
       }
       // Once the preview is in, also require the chosen branch to be available;
