@@ -37,6 +37,10 @@ describe('ExtremeColdFungus', () => {
     const tardigrades = new Tardigrades();
     player.playedCards.push(tardigrades);
 
+    const preview = card.actionPreview(player);
+    expect(preview.branches[0].available).is.true;
+    expect(preview.branches[1].available).is.true;
+
     const action = cast(churn(card.action(player), player), OrOptions);
     expect(action.options).has.lengthOf(2);
 
@@ -60,5 +64,12 @@ describe('ExtremeColdFungus', () => {
 
     action.options[0].cb([ants]);
     expect(ants.resourceCount).to.eq(2);
+  });
+
+  it('previews the microbe branch as unavailable with a reason when there is no target', () => {
+    const preview = card.actionPreview(player);
+    expect(preview.branches[0].available).is.false;
+    expect(preview.branches[0].unavailableReason).eq('No card to add microbes to');
+    expect(preview.branches[1].available).is.true;
   });
 });
