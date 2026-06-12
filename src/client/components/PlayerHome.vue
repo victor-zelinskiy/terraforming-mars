@@ -285,6 +285,9 @@
                          :minimizable="false">
       <PassConfirmContent
         :availableActions="availableCardActionNames.length"
+        :canTradeWithColony="tradeColonyContext !== undefined"
+        :canConvertPlants="convertPlantsAvailable"
+        :canConvertHeat="convertHeatAvailable"
         @confirm="onPassConfirm"
         @cancel="onPassCancel" />
     </MandatoryInputModal>

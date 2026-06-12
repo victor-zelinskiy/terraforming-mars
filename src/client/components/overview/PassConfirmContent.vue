@@ -24,6 +24,18 @@
         <span class="pass-confirm__warn-count">{{ availableActions }}</span>
       </span>
     </div>
+    <div v-if="canTradeWithColony" class="pass-confirm__warn" data-test="pass-confirm-trade-warn">
+      <span class="pass-confirm__warn-icon" aria-hidden="true">!</span>
+      <span class="pass-confirm__warn-text" v-i18n>You still have a free trade fleet and can afford a colony trade</span>
+    </div>
+    <div v-if="canConvertPlants" class="pass-confirm__warn" data-test="pass-confirm-convert-plants-warn">
+      <span class="pass-confirm__warn-icon" aria-hidden="true">!</span>
+      <span class="pass-confirm__warn-text" v-i18n>You can still convert plants into greenery</span>
+    </div>
+    <div v-if="canConvertHeat" class="pass-confirm__warn" data-test="pass-confirm-convert-heat-warn">
+      <span class="pass-confirm__warn-icon" aria-hidden="true">!</span>
+      <span class="pass-confirm__warn-text" v-i18n>You can still convert heat into temperature</span>
+    </div>
 
     <div class="pass-confirm__actions">
       <button class="pass-confirm__cancel-btn"
@@ -51,6 +63,20 @@ export default defineComponent({
     availableActions: {
       type: Number,
       default: 0,
+    },
+    // Server-offered trade action. Means the player has a free fleet, can pay
+    // one of the trade costs, and has at least one legal colony target.
+    canTradeWithColony: {
+      type: Boolean,
+      default: false,
+    },
+    canConvertPlants: {
+      type: Boolean,
+      default: false,
+    },
+    canConvertHeat: {
+      type: Boolean,
+      default: false,
     },
   },
   emits: ['confirm', 'cancel'],
