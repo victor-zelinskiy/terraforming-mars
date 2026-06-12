@@ -43,7 +43,10 @@ describe('MoholeLake', () => {
 
     card.play(player);
     expect(card.canAct()).is.true;
-    card.action(player);
+    // Always asks which card, even with a single target.
+    const action = cast(card.action(player), SelectCard<ICard>);
+    expect(action.cards).has.lengthOf(1);
+    action.cb([fish]);
     expect(fish.resourceCount).to.eq(1);
   });
 

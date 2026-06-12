@@ -62,7 +62,10 @@ describe('AirRaid', () => {
     const option = cast(player.game.deferredActions.pop()!.execute(), OrOptions);
     expect(option.options).has.lengthOf(1);
     option.options[0].cb();
-    player.game.deferredActions.pop()!.execute(); // Remove floater
+    // Always asks which card, even with a single floater card.
+    const selectCard = cast(player.game.deferredActions.pop()!.execute(), SelectCard<ICard>); // Remove floater
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([stormcraftIncorporated]);
 
     expect(stormcraftIncorporated.resourceCount).to.eq(0);
     expect(player2.megaCredits).to.eq(0);
@@ -88,8 +91,12 @@ describe('AirRaid', () => {
     soloCard.play(soloPlayer);
     runAllActions(soloGame);
 
-    expect(soloPlayer.popWaitingFor()).is.undefined;
+    // The steal grants 5 M€ directly in solo; the floater spend (source 'self')
+    // still asks which card, even with a single floater card.
     expect(soloPlayer.megaCredits).to.eq(5);
+    const selectCard = cast(soloPlayer.popWaitingFor(), SelectCard<ICard>);
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([soloStormcraft]);
     expect(soloStormcraft.resourceCount).to.eq(0);
   });
 });

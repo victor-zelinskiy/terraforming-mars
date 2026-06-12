@@ -23,7 +23,10 @@ describe('AirScrappingExpedition', () => {
     const [game, player] = testGame(2);
     player.playedCards.push(corp);
 
-    cast(card.play(player), undefined);
+    // Always asks which card, even with a single Venus floater card.
+    const selectCard = cast(card.play(player), SelectCard<ICard>);
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([corp]);
 
     expect(corp.resourceCount).to.eq(3);
     expect(game.getVenusScaleLevel()).to.eq(2);

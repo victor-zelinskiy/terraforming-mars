@@ -83,7 +83,11 @@ describe('Ants', () => {
     player2.addResourceTo(fish);
     player2.addResourceTo(securityFleet);
 
-    expect(churn(card.action(player), player)).is.undefined;
+    // Always asks which card, even with a single microbe target (Tardigrades).
+    const selectCard = cast(churn(card.action(player), player), SelectCard);
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([tardigrades]);
+    runAllActions(game);
 
     expect(card.resourceCount).to.eq(1);
     expect(tardigrades.resourceCount).to.eq(0);

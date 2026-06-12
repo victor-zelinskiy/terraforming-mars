@@ -48,29 +48,29 @@ export class FreyjaBiodomes extends Card implements IProjectCard {
   public override bespokePlay(player: IPlayer) {
     const cards = this.getResCards(player);
 
-    if (cards.length > 1) {
-      return new SelectCard(
-        'Select card to add 2 resources',
-        'Add resources',
-        cards)
-        .andThen(([card]) => {
-          player.addResourceTo(card, {qty: 2, log: true});
-          return undefined;
-        });
+    if (cards.length === 0) {
+      return undefined;
     }
 
-    if (cards.length === 1) {
-      player.addResourceTo(cards[0], {qty: 2, log: true});
-    }
-    return undefined;
+    // Per the fork's no-autoselect principle, ALWAYS ask which card receives the
+    // 2 resources — even when only one Venus card is eligible.
+    return new SelectCard(
+      'Select card to add 2 resources',
+      'Add resources',
+      cards)
+      .andThen(([card]) => {
+        player.addResourceTo(card, {qty: 2, log: true});
+        return undefined;
+      });
   }
 
-  // The declarative production chips + (when several Venus cards exist) the SAME
-  // target picker `bespokePlay` builds, so the 2 resources' destination is chosen
-  // inside the play modal.
+  // The declarative production chips + the SAME target picker `bespokePlay` builds,
+  // so the 2 resources' destination is chosen inside the play modal. Per the
+  // no-autoselect principle the picker shows whenever there's at least one
+  // eligible card (even a single candidate).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.getResCards(player);
-    const step = cards.length > 1 ?
+    const step = cards.length >= 1 ?
       actionPreviews.selectCardStep(player, 'Select card to add 2 resources', 'Add resources', cards, {amount: 2}) :
       undefined;
     return actionPreviews.playPreview(this, player, [], [step]);

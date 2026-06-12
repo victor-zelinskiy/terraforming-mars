@@ -53,7 +53,7 @@ export class Predators extends Card implements IProjectCard, IActionCard {
 
   public action(player: IPlayer) {
     player.game.defer(
-      new RemoveResourcesFromCard(player, CardResource.ANIMAL, 1, {log: true})
+      new RemoveResourcesFromCard(player, CardResource.ANIMAL, 1, {log: true, autoselect: false})
         .andThen((response) => {
           if (response.proceed) {
             player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {filter: (c) => c.name === this.name}));

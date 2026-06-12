@@ -44,8 +44,10 @@ describe('Hospitals', () => {
     pharmacy.resourceCount = 12;
     player.playedCards.push(card);
     card.resourceCount = 6;
-    const input = card.action(player);
-    expect(input).to.be.undefined;
+    // Always asks which card, even with a single disease card (this one).
+    const selectCard = cast(card.action(player), SelectCard<ICard>);
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([card]);
     expect(card.resourceCount).to.eq(5);
     expect(player.stock.megacredits).to.eq(6);
   });

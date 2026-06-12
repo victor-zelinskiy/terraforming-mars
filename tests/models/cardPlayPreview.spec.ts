@@ -520,13 +520,17 @@ describe('cardPlayPreview', () => {
       expect(names).to.have.members([t1.name, t2.name]);
     });
 
-    it('SoilEnrichment: a single eligible card auto-resolves → no step', () => {
+    it('SoilEnrichment: a single eligible card still shows the picker (no autoselect)', () => {
       const [/* game */, player] = testGame(2);
       const t1 = new Tardigrades();
       t1.resourceCount = 1;
       player.playedCards.push(t1);
       const branch = new SoilEnrichment().cardPlayPreview(player).branches[0];
-      expect(branch.steps.filter((s) => s.kind === 'input')).has.length(0);
+      const inputs = branch.steps.filter((s) => s.kind === 'input');
+      expect(inputs).has.length(1);
+      expect(inputs[0].kind === 'input' && inputs[0].input.type).eq('card');
+      const names = (inputs[0].kind === 'input' ? (inputs[0].input as SelectCardModel).cards : []).map((c) => c.name);
+      expect(names).to.have.members([t1.name]);
       expect(branch.effects.some((e) => e.icon === Resource.PLANTS)).is.true;
     });
 
