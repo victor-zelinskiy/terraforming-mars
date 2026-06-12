@@ -96,6 +96,16 @@
       <AdditionalResourceDetailOverlay
         v-if="screen === 'player-home' && playerView !== undefined"
         :player-view="playerView" />
+      <!--
+        Premium end-of-game experience. App-level (like DraftFlowOverlay) so the
+        `:key="playerkey"` remount can't tear down the reveal / results overlay.
+        Gated by `endgameView` (the active player/spectator view ONLY when the
+        game has reached Phase.END), so it never shows mid-game.
+      -->
+      <EndgameExperience
+        v-if="endgameView !== undefined"
+        :view="endgameView"
+        :viewer-color="endgameViewerColor" />
       <spectator-home
         v-else-if="screen === 'spectator-home' && spectator !== undefined"
         :spectator="spectator"
@@ -156,6 +166,9 @@ const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "star
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
 import RevealResultOverlay from '@/client/components/actions/RevealResultOverlay.vue';
+// Premium end-of-game experience (winner reveal + full-screen results). Async
+// so its charts / tabs only download once a game actually ends.
+const EndgameExperience = defineAsyncComponent(() => import(/* webpackChunkName: "endgame" */ '@/client/components/endgame/EndgameExperience.vue'));
 const ModalInputPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "modal-input-playground" */ '@/client/components/modalInputs/ModalInputPlayground.vue'));
 const EffectsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "effects-playground" */ '@/client/components/effects/EffectsPlayground.vue'));
 const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "actions-playground" */ '@/client/components/actions/ActionsPlayground.vue'));
@@ -175,6 +188,7 @@ import {
   armPlacementAnimations,
   shouldHoldForTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
+import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {SpectatorModel} from '@/common/models/SpectatorModel';
@@ -279,6 +293,7 @@ export default defineComponent({
     DraftFlowOverlay,
     StartGameFlowOverlay,
     RevealResultOverlay,
+    EndgameExperience,
     ModalInputPlayground,
     EffectsPlayground,
     ActionsPlayground,
@@ -331,6 +346,26 @@ export default defineComponent({
     // `?actionsPlayground`. Never shown in normal play.
     showActionsPlayground(): boolean {
       return window.location.search.includes('actionsPlayground');
+    },
+    // The active view (player or spectator) ONLY when its game has ended —
+    // drives the App-level EndgameExperience mount. Undefined mid-game.
+    endgameView(): ViewModel | undefined {
+      if (this.screen === 'player-home' && endgameAvailable(this.playerView)) {
+        return this.playerView;
+      }
+      if (this.screen === 'spectator-home' && endgameAvailable(this.spectator)) {
+        return this.spectator;
+      }
+      return undefined;
+    },
+    endgameViewerColor(): Color | undefined {
+      if (this.screen === 'player-home') {
+        return this.playerView?.thisPlayer?.color;
+      }
+      if (this.screen === 'spectator-home') {
+        return this.spectator?.color;
+      }
+      return undefined;
     },
   },
   methods: {
