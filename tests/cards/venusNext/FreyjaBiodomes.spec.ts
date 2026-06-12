@@ -40,7 +40,10 @@ describe('FreyjaBiodomes', () => {
     setVenusScaleLevel(game, 10);
     expect(card.canPlay(player)).is.true;
 
-    cast(card.play(player), undefined);
+    // Always asks which card, even with a single Venus target.
+    const action = cast(card.play(player), SelectCard<ICard>);
+    expect(action.cards).has.lengthOf(1);
+    action.cb([card2]);
     expect(player.production.energy).to.eq(0);
     expect(player.production.megacredits).to.eq(2);
     expect(card2.resourceCount).to.eq(2);

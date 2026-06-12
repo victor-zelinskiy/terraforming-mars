@@ -43,7 +43,7 @@ export class AirRaid extends Card implements IProjectCard {
 
   public override bespokePlay(player: IPlayer) {
     player.game.defer(new StealResources(player, Resource.MEGACREDITS, 5, undefined, true));
-    player.game.defer(new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false}));
+    player.game.defer(new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false}));
     return undefined;
   }
 
@@ -59,7 +59,7 @@ export class AirRaid extends Card implements IProjectCard {
     const stealOptions = new StealResources(player, Resource.MEGACREDITS, 5, undefined, true).previewOptions();
     const stealStep = stealOptions !== undefined ? actionPreviews.orOptionsStep(player, stealOptions) : undefined;
     const floaterStep = actionPreviews.inputStep(
-      new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false}).previewSelectCard(),
+      new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false}).previewSelectCard(),
       -1);
     return actionPreviews.playPreview(this, player, [
       actionPreviews.stockGain(player, Resource.MEGACREDITS, 5),

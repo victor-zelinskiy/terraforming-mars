@@ -11,8 +11,10 @@ import {Resource} from '../../../common/Resource';
 import {Board} from '../../boards/Board';
 import {Space} from '../../boards/Space';
 import {SelectCard} from '../../inputs/SelectCard';
+import {ICard} from '../ICard';
 import {all} from '../Options';
 import {Size} from '../../../common/cards/render/Size';
+import {ActionPreviewStep} from '../../../common/models/ActionPreviewModel';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 
@@ -63,33 +65,43 @@ export class Hospitals extends Card implements IProjectCard, IActionCard {
     return actionReason.targetReason('No disease resources to remove');
   }
 
-  // Which card the disease is removed from (SelectCard) rides the follow-up
-  // routing; the gain is 1 M€ per city in play.
+  private diseaseCards(player: IPlayer): ReadonlyArray<ICard> {
+    return player.getCardsWithResources(CardResource.DISEASE);
+  }
+
+  // PRE-COLLECT which card the disease is removed from (the SAME `SelectCard`
+  // `action()` builds) inside the confirmation modal; the gain is 1 M€ per city in
+  // play. Per the fork's no-autoselect principle the picker shows whenever at least
+  // one card holds a disease (even a single candidate), so the player always SEES
+  // which card the disease is removed from.
   public actionPreview(player: IPlayer) {
-    return actionPreviews.singleBranch(this, player, [], [
+    const cards = this.diseaseCards(player);
+    const steps: ReadonlyArray<ActionPreviewStep> = cards.length >= 1 ?
+      [actionPreviews.selectCardStep(player, 'Remove a disease from ANY OF YOUR CARD to gain 1M€ per city in play',
+        'Choose a card to remove 1 disease.', cards, {amount: -1})] :
+      [];
+    return actionPreviews.singleBranch(this, player, steps, [
       actionPreviews.stockGain(player, Resource.MEGACREDITS, player.game.board.getCities().length),
     ]);
   }
 
   public action(player: IPlayer) {
-    const diseaseCards = player.getCardsWithResources(CardResource.DISEASE);
+    const diseaseCards = this.diseaseCards(player);
     const game = player.game;
 
-    const input = new SelectCard('Remove a disease from ANY OF YOUR CARD to gain 1M€ per city in play',
+    if (diseaseCards.length === 0) {
+      return undefined;
+    }
+
+    // Per the no-autoselect principle, ALWAYS ask which card the disease is removed
+    // from — even when only one card holds a disease.
+    return new SelectCard('Remove a disease from ANY OF YOUR CARD to gain 1M€ per city in play',
       'Choose a card to remove 1 disease.',
-      diseaseCards)
+      [...diseaseCards])
       .andThen(([card]) => {
         player.removeResourceFrom(card, 1);
         player.stock.add(Resource.MEGACREDITS, (game.board.getCities()).length, {log: true});
         return undefined;
       });
-    if (diseaseCards.length === 0) {
-      return undefined;
-    }
-    if (diseaseCards.length === 1) {
-      input.cb(diseaseCards);
-      return undefined;
-    }
-    return input;
   }
 }

@@ -44,7 +44,10 @@ describe('VenusianPlants', () => {
     player.playedCards.push(card2);
     setVenusScaleLevel(game, 16);
 
-    card.play(player);
+    // Always asks which card, even with a single Venus target.
+    const action = cast(card.play(player), SelectCard);
+    expect(action.cards).has.lengthOf(1);
+    action.cb([card2]);
     expect(card2.resourceCount).to.eq(1);
     expect(game.getVenusScaleLevel()).to.eq(18);
   });

@@ -67,7 +67,9 @@ describe('Predators', () => {
     expect(card.canAct(player)).is.true;
 
     card.action(player);
-    expect(game.deferredActions.pop()!.execute()).is.undefined; // Only one option: Fish
+    const selectCard = cast(game.deferredActions.pop()!.execute(), SelectCard<ICard>); // Always asks, even with one option: Fish
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([fish]);
     game.deferredActions.pop()!.execute(); // Add animal to predators
 
     expect(card.resourceCount).to.eq(1);
@@ -87,7 +89,9 @@ describe('Predators', () => {
     expect(card.canAct(player)).is.true;
 
     card.action(player);
-    expect(game.deferredActions.pop()!.execute()).is.undefined; // Only one option: Fish
+    const selectCard = cast(game.deferredActions.pop()!.execute(), SelectCard<ICard>); // Always asks, even with one option: Fish
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([fish]);
     game.deferredActions.pop()!.execute(); // Add animal to predators
 
     expect(card.resourceCount).to.eq(1);

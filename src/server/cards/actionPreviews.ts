@@ -474,11 +474,13 @@ export function inputStep(model: PlayerInputModel | undefined, amount?: number):
 /**
  * "Remove 1 `resource` from any card, then add it to this card" (Predators,
  * Ants). The target picker (a `SelectCard` over every card holding the resource,
- * with disabled twins) is hosted in the modal; a single auto-selected / solo
- * target resolves with no step.
+ * with disabled twins) is hosted in the modal. Per the fork's no-autoselect
+ * principle (`autoselect: false`) the picker ALWAYS shows — EVEN for a single
+ * candidate — so the player always SEES which card the resource is taken from;
+ * the live `action()` mirrors this with `autoselect: false`.
  */
 export function removeAddCardResource(player: IPlayer, card: ActionCard, resource: CardResource): ActionPreview {
-  const model = new RemoveResourcesFromCard(player, resource, 1, {log: true}).previewSelectCard();
+  const model = new RemoveResourcesFromCard(player, resource, 1, {log: true, autoselect: false}).previewSelectCard();
   const steps: ReadonlyArray<ActionPreviewStep> = model !== undefined ? [{kind: 'input', input: model}] : [];
   // The gain: the removed resource lands on THIS card (current → resulting). The
   // cost — which card it's taken from — is the picker step above.

@@ -98,7 +98,10 @@ describe('StratosphericBirds', () => {
     const selectProjectCardToPlay = new SelectProjectCardToPlay(player);
     selectProjectCardToPlay.payAndPlay(card, {...Payment.EMPTY, megacredits: 12});
     runAllActions(game); // Remove floater
-    cast(player.popWaitingFor(), undefined);
+    // Always asks which card, even with a single floater card.
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([aerialMappers]);
     expect(aerialMappers.resourceCount).to.eq(0);
   });
 
@@ -128,7 +131,10 @@ describe('StratosphericBirds', () => {
     // Pay with MC only: Can play
     const selectProjectCardToPlay = new SelectProjectCardToPlay(player);
     selectProjectCardToPlay.payAndPlay(card, {...Payment.EMPTY, megacredits: 12});
-    game.deferredActions.pop()!.execute(); // Remove floater
+    // Always asks which card, even with a single floater card (Dirigibles).
+    const selectCard = cast(game.deferredActions.pop()!.execute(), SelectCard); // Remove floater
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([dirigibles]);
     expect(dirigibles.resourceCount).to.eq(0);
   });
 
@@ -146,7 +152,11 @@ describe('StratosphericBirds', () => {
     // Spend all 3 floaters from Dirigibles to pay for the card
     const selectProjectCardToPlay = new SelectProjectCardToPlay(player);
     selectProjectCardToPlay.payAndPlay(card, {...Payment.EMPTY, megacredits: 3, floaters: 3});
-    game.deferredActions.pop()!.execute(); // Remove floater
+    // After paying, only Deuterium Export still holds a floater; the removal cost
+    // always asks which card, even with that single remaining floater card.
+    const selectCard = cast(game.deferredActions.pop()!.execute(), SelectCard); // Remove floater
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([deuteriumExport]);
     expect(dirigibles.resourceCount).to.eq(0);
     expect(deuteriumExport.resourceCount).to.eq(0);
     expect(player.megaCredits).to.eq(0);

@@ -47,11 +47,8 @@ export class VenusianPlants extends Card implements IProjectCard {
       return undefined;
     }
 
-    if (cards.length === 1) {
-      player.addResourceTo(cards[0], {log: true});
-      return undefined;
-    }
-
+    // Per the fork's no-autoselect principle, ALWAYS ask which card receives the
+    // resource — even when only one Venus card is eligible.
     return new SelectCard(
       'Select card to add 1 resource',
       'Add resource',
@@ -68,12 +65,13 @@ export class VenusianPlants extends Card implements IProjectCard {
     return resourceCards.filter((card) => card.tags.includes(Tag.VENUS));
   }
 
-  // The on-play preview: the declarative venus chip + (when there's a real
-  // choice) the SAME SelectCard target picker `bespokePlay` builds, so the
-  // player picks WHERE the resource goes inside the play modal.
+  // The on-play preview: the declarative venus chip + the SAME SelectCard target
+  // picker `bespokePlay` builds, so the player picks WHERE the resource goes
+  // inside the play modal. Per the no-autoselect principle the picker shows
+  // whenever there's at least one eligible card (even a single candidate).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.getResCards(player);
-    const step = cards.length > 1 ?
+    const step = cards.length >= 1 ?
       actionPreviews.selectCardStep(player, 'Select card to add 1 resource', 'Add resource', cards, {amount: 1}) :
       undefined;
     return actionPreviews.playPreview(this, player, [], [step]);

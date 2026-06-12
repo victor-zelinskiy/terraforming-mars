@@ -63,8 +63,10 @@ describe('SoilEnrichment', () => {
     player.plants = 0;
     expect(card.canPlay(player)).is.true;
 
-    const result = card.play(player);
-    expect(result).to.be.undefined;
+    // Always asks which card, even with a single eligible card.
+    const selectCard = cast(card.play(player), SelectCard);
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([ghgProducingBacteria]);
 
     expect(ghgProducingBacteria.resourceCount).eq(0);
     expect(player.plants).eq(5);

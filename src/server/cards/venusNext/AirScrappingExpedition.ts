@@ -44,11 +44,8 @@ export class AirScrappingExpedition extends Card implements IProjectCard {
       return undefined;
     }
 
-    if (floaterCards.length === 1) {
-      player.addResourceTo(floaterCards[0], {qty: 3, log: true});
-      return;
-    }
-
+    // Per the fork's no-autoselect principle, ALWAYS ask which card receives the
+    // 3 floaters — even when only one Venus floater card is eligible.
     return new SelectCard('Select card to add 3 floaters', 'Add floaters', floaterCards)
       .andThen(([card]) => {
         player.addResourceTo(card, {qty: 3, log: true});
@@ -56,12 +53,13 @@ export class AirScrappingExpedition extends Card implements IProjectCard {
       });
   }
 
-  // The declarative venus chip + (when several Venus floater cards exist) the
-  // SAME target picker `bespokePlay` builds, so the 3 floaters' destination is
-  // chosen inside the play modal.
+  // The declarative venus chip + the SAME target picker `bespokePlay` builds, so
+  // the 3 floaters' destination is chosen inside the play modal. Per the
+  // no-autoselect principle the picker shows whenever there's at least one
+  // eligible card (even a single candidate).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.floaterCards(player);
-    const step = cards.length > 1 ?
+    const step = cards.length >= 1 ?
       actionPreviews.selectCardStep(player, 'Select card to add 3 floaters', 'Add floaters', cards, {amount: 3}) :
       undefined;
     return actionPreviews.playPreview(this, player, [actionPreviews.cardResourceGain(CardResource.FLOATER, 3)], [step]);
