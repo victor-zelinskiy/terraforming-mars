@@ -710,15 +710,17 @@ export default defineComponent({
       return typeof m === 'string' ? m : m.message;
     },
     // True when a 'card' input is a pick FROM HAND (every candidate — selectable
-    // or disabled — is in the player's hand). Those route to the КАРТЫ В РУКЕ
-    // overlay (a roomy premium surface), NOT the cramped in-modal tile picker.
+    // or disabled — is in the player's hand) AND there are MORE THAN 3 of them —
+    // then it routes to the roomy КАРТЫ В РУКЕ overlay. The SAME generic >3
+    // threshold as the played-card / step pickers: a ≤3-candidate hand pick stays
+    // inline (ActionTargetCard), never force-routed to the overlay.
     isHandCardInput(input: {type: string, cards?: ReadonlyArray<CardModel>, disabledCards?: ReadonlyArray<CardModel>} | undefined): boolean {
       if (input === undefined || input.type !== 'card') {
         return false;
       }
       const hand = new Set((this.playerView.cardsInHand ?? []).map((c) => c.name));
       const all = [...(input.cards ?? []), ...(input.disabledCards ?? [])];
-      return all.length > 0 && all.every((c) => hand.has(c.name));
+      return all.length > PLAYED_PICK_OVERLAY_THRESHOLD && all.every((c) => hand.has(c.name));
     },
     // Emit the request to host the hand overlay for the selected branch's card
     // pick. PlayerHome opens the overlay in client-pick mode and suppresses this

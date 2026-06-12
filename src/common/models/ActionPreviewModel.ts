@@ -2,6 +2,7 @@ import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {Tag} from '../cards/Tag';
 import {Message} from '../logs/Message';
+import {Units} from '../Units';
 import {PlayerInputModel} from './PlayerInputModel';
 
 /**
@@ -177,13 +178,17 @@ export type ActionPreviewStep =
      */
     dedupeFromSteps?: ReadonlyArray<number>,
     /**
-     * This card-target step COPIES the chosen card's PRODUCTION BOX into the
-     * player's production (the RoboticWorkforce / Cyberia Systems mechanic). The
-     * modal reads the chosen card's `productionBox` (client manifest) and folds it
-     * into the displayed RESULT so the player sees EXACTLY what the selection
-     * copies (clarity) — updating live as they pick different cards.
+     * This card-target step COPIES production into the player's production (the
+     * RoboticWorkforce / Cyberia Systems mechanic). Maps each candidate card name
+     * to the production it would copy — computed AUTHORITATIVELY server-side
+     * (`copiedProductionUnits`, mirroring the live copy logic) so it's correct for
+     * EVERY copyable card (bespoke `productionBox()`, counted production, …), not
+     * just full-Units declarative ones. The modal folds the CHOSEN card's units
+     * into the displayed RESULT so the player sees EXACTLY what is copied — updating
+     * live as they pick / change cards. A candidate whose production can't be
+     * previewed (a bespoke `produce()` that mutates) is simply absent from the map.
      */
-    copyProductionBox?: boolean,
+    copyProductionBox?: Partial<Record<CardName, Units>>,
   }
   | {kind: 'boardPlacement', placementType: string}
   /** A `warning` note flags an effect that WILL BE SKIPPED for lack of a valid

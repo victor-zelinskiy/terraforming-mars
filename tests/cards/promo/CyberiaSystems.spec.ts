@@ -11,6 +11,8 @@ import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
 import {cast, toName} from '../../../src/common/utils/utils';
 import {runAllActions} from '../../TestingUtils';
+import {Units} from '../../../src/common/Units';
+import {ActionPreviewStep} from '../../../src/common/models/ActionPreviewModel';
 
 describe('CyberiaSystems', () => {
   let card: CyberiaSystems;
@@ -96,6 +98,30 @@ describe('CyberiaSystems', () => {
 
     expect(player.production.energy).to.eq(0);
     expect(player.production.megacredits).to.eq(2);
+  });
+
+  it('cardPlayPreview: each step carries the server-computed copied production per candidate', () => {
+    const mine = new Mine();
+    const noctisFarming = new NoctisFarming();
+    const urbanizedArea = new UrbanizedArea();
+    player.production.override({energy: 1}); // makes Urbanized Area applicable
+    player.playedCards.push(mine, noctisFarming, urbanizedArea);
+
+    const branch = card.cardPlayPreview(player).branches[0];
+    const inputs = branch.steps.filter((s): s is ActionPreviewStep & {kind: 'input'} => s.kind === 'input');
+    expect(inputs).has.length(2);
+
+    const box = inputs[0].copyProductionBox as Partial<Record<string, Units>> | undefined;
+    expect(box, 'copyProductionBox map present').is.not.undefined;
+    // Declarative production (computed from behavior.production).
+    expect(box![mine.name]).to.include({steel: 1});
+    expect(box![noctisFarming.name]).to.include({megacredits: 1});
+    // Urbanized Area copies via a BESPOKE productionBox() method — the old
+    // client-manifest field would MISS this; the server computes it authoritatively.
+    expect(box![urbanizedArea.name]).to.include({energy: -1});
+    expect(box![urbanizedArea.name]!.megacredits).to.be.greaterThan(0);
+    // The second step's map de-dupes nothing yet (candidate set built the same way).
+    expect(inputs[1].copyProductionBox).is.not.undefined;
   });
 
   it('Cannot select Cyberia Systems as a copy target', () => {
