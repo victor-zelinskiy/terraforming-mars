@@ -9,6 +9,8 @@ import {DrawCards} from '../../deferredActions/DrawCards';
 import {Card} from '../Card';
 import {all, digit} from '../Options';
 import {IProjectCard} from '../IProjectCard';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class SponsoredAcademies extends Card implements IProjectCard {
   constructor() {
@@ -41,5 +43,21 @@ export class SponsoredAcademies extends Card implements IProjectCard {
       player.game.defer(DrawCards.keepAll(p));
     }
     return undefined;
+  }
+
+  // PRE-COLLECT the "discard 1 card" choice IN the play modal: a −1 card (discard)
+  // + +3 cards (draw) RESULT, and the hand-card pick. The live DiscardCards reads
+  // the hand AFTER this card has left it → exclude self; with only one card left it
+  // AUTO-discards (no prompt), so emit the pick step only when ≥2 remain. The draw
+  // of 3 is automatic (hidden cards), shown as the gain chip. Built read-only.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const hand = player.cardsInHand.filter((c) => c.name !== this.name);
+    const discardStep = hand.length > 1 ?
+      actionPreviews.selectCardStep(player, 'Select 1 card to discard', 'Discard', hand) :
+      undefined;
+    return actionPreviews.playPreview(this, player, [
+      {direction: 'cost', icon: 'cards', amount: 1},
+      actionPreviews.drawGain(3),
+    ], [discardStep]);
   }
 }

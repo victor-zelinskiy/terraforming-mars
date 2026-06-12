@@ -13,6 +13,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {Card} from '../Card';
 import {globalParameter} from '../../inputs/optionMetadata';
+import {ActionPreview, ActionPreviewStep, ActionEffect} from '../../../common/models/ActionPreviewModel';
+import {stepsForBehavior} from '../../models/actionPreview';
+import * as actionPreviews from '../actionPreviews';
 
 export class Atmoscoop extends Card implements IProjectCard {
   constructor() {
@@ -60,6 +63,22 @@ export class Atmoscoop extends Card implements IProjectCard {
       return undefined;
     }
 
+    if (!this.temperatureIsMaxed(game) && this.venusIsMaxed(game)) {
+      player.game.increaseTemperature(player, 2);
+    } else if (this.temperatureIsMaxed(game) && !this.venusIsMaxed(game)) {
+      player.game.increaseVenusScaleLevel(player, 2);
+    } else {
+      return this.buildParameterChoice(player);
+    }
+    return undefined;
+  }
+
+  // SIDE-EFFECT-FREE construction of the temperature-or-Venus OrOptions (the
+  // parameter is raised in each option's `andThen`), shared by `bespokePlay` and
+  // the read-only `cardPlayPreview` so the live prompt and the pre-collected modal
+  // step can't drift.
+  private buildParameterChoice(player: IPlayer): OrOptions {
+    const game = player.game;
     const tempNow = game.getTemperature();
     const venusNow = game.getVenusScaleLevel();
     const increaseTemp = new SelectOption('Raise temperature 2 steps', 'Raise temperature')
@@ -74,17 +93,32 @@ export class Atmoscoop extends Card implements IProjectCard {
         game.increaseVenusScaleLevel(player, 2);
         return undefined;
       });
-    const increaseTempOrVenus = new OrOptions(increaseTemp, increaseVenus)
+    return new OrOptions(increaseTemp, increaseVenus)
       .setTitle('Choose global parameter to raise');
+  }
 
-    if (!this.temperatureIsMaxed(game) && this.venusIsMaxed(game)) {
-      player.game.increaseTemperature(player, 2);
-    } else if (this.temperatureIsMaxed(game) && !this.venusIsMaxed(game)) {
-      player.game.increaseVenusScaleLevel(player, 2);
-    } else {
-      return increaseTempOrVenus;
+  // The on-play preview: the temperature/Venus CHOICE (a rich OrOptions step with
+  // current → resulting per option) when both are open, OR a fixed parameter chip
+  // when only one is (the live play auto-raises it), PLUS the "+2 floaters to a
+  // card" gain chip + target pick (reusing the generic behavior walker so a
+  // no-eligible-card silent-loss warning is handled). The parameter choice defers
+  // FIRST (DEFAULT) before the floater add (GAIN_RESOURCE_OR_PRODUCTION), so the
+  // steps are ordered to match. Built read-only.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const game = player.game;
+    const extra: Array<ActionEffect> = [];
+    const steps: Array<ActionPreviewStep | undefined> = [];
+    if (!this.temperatureIsMaxed(game) && !this.venusIsMaxed(game)) {
+      steps.push(actionPreviews.orOptionsStep(player, this.buildParameterChoice(player)));
+    } else if (!this.temperatureIsMaxed(game)) {
+      extra.push(actionPreviews.globalGain(player, 'temperature', 2));
+    } else if (!this.venusIsMaxed(game)) {
+      extra.push(actionPreviews.globalGain(player, 'venus', 2));
     }
-    return undefined;
+    for (const s of stepsForBehavior(player, this, this.behavior ?? {})) {
+      steps.push(s);
+    }
+    return actionPreviews.playPreview(this, player, extra, steps);
   }
 
   private temperatureIsMaxed(game: IGame) {

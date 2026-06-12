@@ -1,9 +1,10 @@
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {Tag} from '../cards/Tag';
+import {Color} from '../Color';
 import {Message} from '../logs/Message';
 import {Units} from '../Units';
-import {PlayerInputModel} from './PlayerInputModel';
+import {PlayerInputModel, SelectCardModel} from './PlayerInputModel';
 
 /**
  * Read-only PREVIEW of an activatable blue-card / corporation action, fetched
@@ -140,6 +141,20 @@ export type ActionPreviewBranch = {
   /** Present when this action REVEALS a deck card to check a condition — the modal
    *  shows the premium reveal slot instead of (or alongside) a fixed result chip. */
   reveal?: ActionRevealDescriptor;
+  /**
+   * The card-target steps in this branch are SLOTS of ONE SelectCard (e.g. Astra
+   * Mechanica "return UP TO 2 events to hand"): the live play produces a SINGLE
+   * SelectCard prompt (min..max), so on confirm the modal MERGES the slots' picked
+   * cards into ONE `{type:'card', cards:[...]}` response — and requires only `min`
+   * slots filled (the rest stay empty). Absent → each card step is its OWN response
+   * (Cyberia Systems defers two separate SelectCards, both required).
+   *
+   * `emptyWarning` (only meaningful when `min === 0`, where the rules allow picking
+   * NOTHING): the i18n text shown in a confirm popup when the player submits with no
+   * slot filled — so an empty submit (valid but easy to do by accident) is a
+   * conscious choice, not a misclick.
+   */
+  mergeCardSteps?: {min: number, emptyWarning?: string | Message};
 };
 
 /**
@@ -189,6 +204,17 @@ export type ActionPreviewStep =
      * previewed (a bespoke `produce()` that mutates) is simply absent from the map.
      */
     copyProductionBox?: Partial<Record<CardName, Units>>,
+    /**
+     * A MULTI-select card pick (`input.max > 1`): instead of listing the chosen
+     * cards (the pick can be large — e.g. Public Plans "reveal ANY NUMBER of cards
+     * from your hand"), the modal hosts it via the КАРТЫ В РУКЕ overlay's
+     * multi-select mode and shows a COUNT summary. `countLabel` is the i18n label
+     * for that count ("Cards to reveal"); `revealGain` (optional) folds a
+     * per-selected-card stock gain into the live RESULT (`+1 M€` per revealed card)
+     * so the player sees the M€ change BEFORE submit. The whole `{type:'card',
+     * cards:[...]}` set is captured as this step's single response.
+     */
+    multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}},
   }
   | {kind: 'boardPlacement', placementType: string}
   /** A `warning` note flags an effect that WILL BE SKIPPED for lack of a valid
@@ -198,4 +224,37 @@ export type ActionPreviewStep =
     /** For a `warning` about a card-resource that can't be placed (no eligible
      *  card): the resource icon key (a `CardResource` value) so the modal names
      *  WHICH resource is lost via its icon, not an ambiguous "this resource". */
-    resource?: string};
+    resource?: string}
+  | TabbedTargetsStep;
+
+/** One player target in the "remove plants" tab of a `TabbedTargetsStep`. */
+export type TabbedPlantTarget = {
+  color: Color;
+  name: string;
+  /** The player's plants now → after the removal (the impact preview). */
+  current: number;
+  resulting: number;
+  /** The OrOptions index of this player's plant-removal option — the submit is
+   *  `{type:'or', index, response:{type:'option'}}`. */
+  optionIndex: number;
+};
+
+/**
+ * A "remove X OR Y from any player" choice presented as TABS (Virus: up to 2
+ * animals OR 5 plants). Each tab shows its VALID targets — animal-holding cards
+ * (grouped by owner) for the animal tab, player targets for the plant tab — with a
+ * `current → resulting` impact so the player sees EXACTLY what is removed before
+ * the single submit. The chosen target maps to ONE top-level OrOptions response
+ * (the indices are computed server-side from the live OrOptions the card builds, so
+ * the pre-collected pick replays byte-for-byte). A tab is absent when it has no
+ * valid target.
+ */
+export type TabbedTargetsStep = {
+  kind: 'tabbedTargets';
+  /** Remove from a CARD (animals) — a card pick hosted by `ActionTargetCard`. The
+   *  chosen card nests into `{type:'or', index: branchIndex, response:{type:'card',
+   *  cards:[name]}}`. */
+  animal?: {label: string | Message, icon: string, amount: number, branchIndex: number, input: SelectCardModel};
+  /** Remove from a PLAYER (plants) — player targets, each its own OrOptions option. */
+  plant?: {label: string | Message, icon: string, amount: number, targets: ReadonlyArray<TabbedPlantTarget>};
+};

@@ -153,6 +153,14 @@ export default defineComponent({
       type: Number as PropType<number | undefined>,
       default: undefined,
     },
+    // Pre-select the lone candidate when there's exactly one. Default true (a
+    // single-target pick reads as "already chosen"). Pass false when this picker is
+    // ONE side of a larger CHOICE the player must make consciously (Virus: animals
+    // OR plants — auto-picking the animal would pre-commit the OR branch).
+    autoSelect: {
+      type: Boolean,
+      default: true,
+    },
   },
   emits: ['change'],
   data() {
@@ -251,7 +259,7 @@ export default defineComponent({
     // nothing chosen yet) so a single-target pick reads as "already chosen, here's
     // where it goes" rather than forcing a redundant click.
     maybeAutoSelectSingle(): void {
-      if (this.selectedName !== undefined) {
+      if (this.selectedName !== undefined || !this.autoSelect) {
         return;
       }
       const cards = this.input.cards;

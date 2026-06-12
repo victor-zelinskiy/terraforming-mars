@@ -56,7 +56,17 @@ export class StealResources extends DeferredAction {
       this.player.resolveInsuranceInSoloGame();
       return undefined;
     }
+    return this.buildOptions();
+  }
 
+  /**
+   * SIDE-EFFECT-FREE construction of the steal OrOptions (each option's attack
+   * lives in its `andThen`, so building it mutates nothing). Shared by `execute()`
+   * and the read-only preview (`previewOptions`), so the live prompt and the
+   * pre-collected play-modal step can't drift. Returns `undefined` when there's no
+   * valid target.
+   */
+  public buildOptions(): OrOptions | undefined {
     const candidates = StealResources.getCandidates(this.player, this.resource, this.count, this.mandatory);
 
     if (candidates.length === 0) {
@@ -85,16 +95,36 @@ export class StealResources extends DeferredAction {
       stealOptions.push(new SelectOption('Do not steal').withMetadata(skip()));
     }
 
-    // Surface opponents we can't steal from as greyed cards with a reason.
+    // Surface opponents we can't steal from as greyed cards with a reason. A
+    // mandatory steal needs the FULL `count` (Air Raid: 5 M€), so a player with
+    // SOME but fewer than that reads "Not enough to steal" — not the misleading
+    // "Nothing to steal" (which is only true at 0).
     const disabled = this.player.opponents
       .filter((p) => !candidates.includes(p))
       .map((p) => {
         const protectedResource =
           (this.resource === Resource.PLANTS && p.plantsAreProtected()) ||
           ((this.resource === Resource.STEEL || this.resource === Resource.TITANIUM) && p.alloysAreProtected());
-        return disabledPlayerTarget(p, this.resource, protectedResource ? 'Resources are protected' : 'Nothing to steal');
+        let reason: string;
+        if (protectedResource) {
+          reason = 'Resources are protected';
+        } else if (p.stock.get(this.resource) === 0) {
+          reason = 'Nothing to steal';
+        } else {
+          reason = 'Not enough to steal';
+        }
+        return disabledPlayerTarget(p, this.resource, reason);
       });
 
     return new OrOptions(...stealOptions).setDisabledOptions(disabled);
+  }
+
+  /** READ-ONLY preview of the steal OrOptions (no solo-mode mutation) — for the
+   *  play modal to host the SAME picker the live follow-up would. */
+  public previewOptions(): OrOptions | undefined {
+    if (this.player.game.isSoloMode()) {
+      return undefined;
+    }
+    return this.buildOptions();
   }
 }

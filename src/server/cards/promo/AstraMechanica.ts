@@ -7,6 +7,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {SelectCard} from '../../inputs/SelectCard';
 import {isSpecialTile} from '../../boards/Board';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class AstraMechanica extends Card implements IProjectCard {
   constructor() {
@@ -79,5 +81,30 @@ export class AstraMechanica extends Card implements IProjectCard {
           }
           return undefined;
         });
+  }
+
+  // PRE-COLLECT the "return UP TO 2 events" choice IN the play modal. The live
+  // play is a SINGLE SelectCard, so the modal shows up to TWO SLOTS (each a single
+  // board pick over the played EVENT cards, the second de-duped against the first)
+  // and `mergeCardSteps` merges the filled slots into ONE `{type:'card', cards:[...]}`
+  // response on confirm. `min: 0` — the rules allow returning NOTHING, so the CTA
+  // stays enabled with no slot filled; the `emptyWarning` confirm popup makes an
+  // empty submit a conscious choice rather than a misclick. Only emit a second slot
+  // when ≥2 events exist. The RESULT chip shows how many cards go back to hand.
+  // Built read-only (no mutation).
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const events = this.getCards(player);
+    const steps = [
+      actionPreviews.selectCardStep(player, 'Select first event to return to hand', 'Select', events),
+    ];
+    if (events.length > 1) {
+      steps.push(actionPreviews.selectCardStep(player, 'Select second event to return to hand', 'Select', events, {dedupeFromSteps: [0]}));
+    }
+    return actionPreviews.playPreview(this, player, [], steps, {
+      mergeCardSteps: {
+        min: 0,
+        emptyWarning: 'No events are selected. The card will be played, but no events will return to your hand.',
+      },
+    });
   }
 }

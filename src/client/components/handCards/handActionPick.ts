@@ -20,13 +20,26 @@ import {CardName} from '@/common/cards/CardName';
  * Module scope so it survives the `playerkey` remount, like the other overlay
  * states.
  */
-export const handActionPickResult = reactive<{card: CardName | undefined, epoch: number}>({
+export const handActionPickResult = reactive<{card: CardName | undefined, cards: ReadonlyArray<CardName>, epoch: number}>({
   card: undefined,
+  // The FULL picked set — for a MULTI-select hand pick (Public Plans "reveal any
+  // number of cards"). A single pick mirrors it as `[card]`, so a consumer can read
+  // either `card` (single) or `cards` (multi). Bumped epoch fires the watcher.
+  cards: [],
   epoch: 0,
 });
 
-/** PlayerHome delivers the card chosen in the overlay back to the confirm modal. */
+/** PlayerHome delivers the (single) card chosen in the overlay back to the modal. */
 export function deliverActionPick(card: CardName): void {
   handActionPickResult.card = card;
+  handActionPickResult.cards = [card];
+  handActionPickResult.epoch++;
+}
+
+/** PlayerHome delivers the WHOLE multi-select set back to the modal (Public Plans).
+ *  Fires even for an empty set, so the modal captures "reveal 0 cards". */
+export function deliverActionPickMulti(cards: ReadonlyArray<CardName>): void {
+  handActionPickResult.card = cards[0];
+  handActionPickResult.cards = [...cards];
   handActionPickResult.epoch++;
 }
