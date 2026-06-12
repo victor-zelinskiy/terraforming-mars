@@ -361,7 +361,7 @@ import {paths} from '@/common/app/paths';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ActionGroup, playerActionGroups, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
 import {assignBranchNodes} from '@/client/components/actions/actionBranchNodes';
-import {branchPositionForNode} from '@/client/components/actions/actionBranchView';
+import {branchPositionsForNode} from '@/client/components/actions/actionBranchView';
 import Card from '@/client/components/card/Card.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
@@ -472,15 +472,21 @@ export default defineComponent({
     // The preview branch position the selected NODE maps to (token-overlap match,
     // NOT positional) — undefined for a combined-node card → the picker fallback.
     resolvedBranchPosition(): number | undefined {
+      return this.resolvedBranchPositions.length === 1 ? this.resolvedBranchPositions[0] : undefined;
+    },
+    resolvedBranchPositions(): ReadonlyArray<number> {
       if (this.group === undefined || this.branches.length === 0) {
-        return undefined;
+        return [];
       }
-      return branchPositionForNode(this.group, this.branches, this.nodeIndex);
+      return branchPositionsForNode(this.group, this.branches, this.nodeIndex);
+    },
+    resolvedBranches(): ReadonlyArray<ActionPreviewBranch> {
+      return this.resolvedBranchPositions.map((p) => this.branches[p]).filter((b) => b !== undefined);
     },
     // Show the in-modal picker ONLY as a fallback: the node didn't resolve to one
     // branch AND nothing is selected yet AND there's a real choice.
     showBranchList(): boolean {
-      return this.resolvedBranchPosition === undefined && this.selected === undefined && this.branches.length > 1;
+      return this.resolvedBranchPosition === undefined && this.selected === undefined && this.resolvedBranches.length > 1;
     },
     // Whether the wide choices block has anything to host (a branch picker, the
     // branch's own input, or any steps). When false the modal is just the top row
@@ -557,7 +563,7 @@ export default defineComponent({
       // The branch picker also benefits from a little extra room when there are
       // several branches to lay side by side.
       if (this.showBranchList) {
-        n = Math.max(n, this.branches.length);
+        n = Math.max(n, this.branchViews.length);
       }
       return n;
     },
@@ -673,6 +679,9 @@ export default defineComponent({
       // to a single branch would paint the WHOLE action on it (the other branch's
       // part included), which misleads. In that case fall back to each branch's
       // own title text (no graphic), so the two choices read distinctly.
+      if (nodes.length > 1 && nodes.length < this.branches.length && this.resolvedBranches.length > 0) {
+        return this.resolvedBranches.map((branch) => ({branch, node: undefined}));
+      }
       if (nodes.length < this.branches.length) {
         return this.branches.map((branch) => ({branch, node: undefined}));
       }
@@ -1013,12 +1022,12 @@ export default defineComponent({
           if (p !== undefined) {
             this.selected = this.preview.branches[p];
           }
-          // Else auto-select when there's exactly ONE executable branch (a single-
-          // action card, or a multi-branch card where only one branch is
-          // affordable). When 2+ are executable the fallback picker shows; when
-          // none, nothing is selected.
-          if (this.selected === undefined && this.availableBranches.length === 1) {
-            this.selected = this.availableBranches[0];
+          // Else auto-select only inside the focused row's branch set. A card can
+          // have one available branch elsewhere (Asteroid Rights: add asteroid)
+          // while the selected row's branches are all unavailable (spend asteroid).
+          const availableHere = this.resolvedBranches.filter((b) => b.available);
+          if (this.selected === undefined && availableHere.length === 1) {
+            this.selected = availableHere[0];
           }
         }
       } catch (err) {

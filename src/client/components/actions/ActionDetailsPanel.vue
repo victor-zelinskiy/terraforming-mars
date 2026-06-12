@@ -115,7 +115,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, actionNodeDescription} from '@/client/components/actions/actionExtraction';
-import {branchPositionForNode} from '@/client/components/actions/actionBranchView';
+import {branchPositionsForNode} from '@/client/components/actions/actionBranchView';
 import {ActionState} from '@/client/components/actions/actionPlayability';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -190,7 +190,7 @@ export default defineComponent({
     // SELECTED branch isn't (e.g. Rotator Impacts: "spend an asteroid" with 0 on
     // the card). The preview carries the per-branch `available` + reason.
     branchUnavailable(): boolean {
-      return !this.isUnavailable && this.selectedBranch?.available === false;
+      return !this.isUnavailable && this.selectedBranches.length > 0 && this.selectedBranches.every((b) => b.available === false);
     },
     branchPreviewPending(): boolean {
       return !this.isUnavailable && (this.group?.nodes.length ?? 0) > 1 && this.preview === undefined;
@@ -224,16 +224,18 @@ export default defineComponent({
     // The selected branch's own "why not" text (with params filled), for a
     // branch-level block — always populated (server reason, else a generic line).
     branchReasonText(): string {
-      const b = this.selectedBranch;
-      if (b === undefined || b.available !== false) {
+      const branches = this.selectedBranches;
+      if (branches.length === 0 || branches.some((b) => b.available)) {
         return '';
       }
-      const r = b.unavailableReason;
-      if (r === undefined) {
-        return translateText('Cannot activate');
-      }
-      const msg = typeof r === 'string' ? r : r.message;
-      return translateTextWithParams(msg, [...(b.unavailableReasonParams ?? [])]);
+      return branches.map((b) => {
+        const r = b.unavailableReason;
+        if (r === undefined) {
+          return translateText('Cannot activate');
+        }
+        const msg = typeof r === 'string' ? r : r.message;
+        return translateTextWithParams(msg, [...(b.unavailableReasonParams ?? [])]);
+      }).join(' В· ');
     },
     // The reason hosted on the disabled-CTA premium tooltip (empty when actionable).
     ctaDisabledReason(): string {
@@ -265,16 +267,19 @@ export default defineComponent({
     // card's two actions never show each other's cost/result. Falls back to the
     // lone available / first branch for a single or combined-node action.
     selectedBranch(): ActionPreviewBranch | undefined {
+      const branches = this.selectedBranches;
+      if (branches.length > 0) {
+        return branches.find((b) => b.available) ?? branches[0];
+      }
+      return undefined;
+    },
+    selectedBranches(): ReadonlyArray<ActionPreviewBranch> {
       const branches = this.preview?.branches;
       const group = this.group;
       if (branches === undefined || branches.length === 0 || group === undefined) {
-        return undefined;
+        return [];
       }
-      const p = branchPositionForNode(group, branches, this.nodeIndex);
-      if (p !== undefined && branches[p] !== undefined) {
-        return branches[p];
-      }
-      return branches.find((b) => b.available) ?? branches[0];
+      return branchPositionsForNode(group, branches, this.nodeIndex).map((p) => branches[p]).filter((b) => b !== undefined);
     },
     branchEffects(): ReadonlyArray<ActionEffect> {
       return this.selectedBranch?.effects ?? [];
@@ -350,6 +355,9 @@ export default defineComponent({
         return false;
       }
       if (this.branchPreviewPending) {
+        return false;
+      }
+      if (this.preview !== undefined && this.selectedBranches.length === 0) {
         return false;
       }
       // Once the preview is in, also require the chosen branch to be available;

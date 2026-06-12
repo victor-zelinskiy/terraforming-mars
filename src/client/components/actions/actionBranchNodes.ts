@@ -33,6 +33,23 @@ function overlap(a: Set<string>, b: Set<string>): number {
   return n;
 }
 
+export function branchNodeOverlapScore(branchTitle: string, nodeDescription: string): number {
+  return overlap(tokenize(branchTitle), tokenize(nodeDescription));
+}
+
+export function bestBranchNode(branchTitle: string, nodeDescriptions: ReadonlyArray<string>): number | undefined {
+  let best: number | undefined = undefined;
+  let bestScore = 0;
+  for (let ni = 0; ni < nodeDescriptions.length; ni++) {
+    const score = branchNodeOverlapScore(branchTitle, nodeDescriptions[ni]);
+    if (score > bestScore) {
+      bestScore = score;
+      best = ni;
+    }
+  }
+  return bestScore > 0 ? best : undefined;
+}
+
 /**
  * For each branch title (in order) returns the index of the node it best maps
  * to, or -1 when there are no nodes left to assign. Greedy: each branch claims

@@ -32,6 +32,32 @@ describe('AsteroidRights', () => {
     expect(card.canAct(player)).is.not.true;
   });
 
+  it('Previews spend-asteroid branches as unavailable without asteroids', () => {
+    player.megaCredits = 1;
+    card.resourceCount = 0;
+
+    const preview = card.actionPreview(player);
+
+    expect(preview.branches[0].available).is.false;
+    expect(preview.branches[0].unavailableReason).eq('Not enough resources on this card');
+    expect(preview.branches[1].available).is.false;
+    expect(preview.branches[1].unavailableReason).eq('Not enough resources on this card');
+    expect(preview.branches[2].available).is.true;
+  });
+
+  it('Previews add-asteroid branch as unavailable without M€', () => {
+    player.megaCredits = 0;
+    card.resourceCount = 1;
+
+    const preview = card.actionPreview(player);
+
+    expect(preview.branches[0].available).is.true;
+    expect(preview.branches[1].available).is.true;
+    expect(preview.branches[2].available).is.false;
+    expect(preview.branches[2].unavailableReason).eq('Need ${0} more M€');
+    expect(preview.branches[2].unavailableReasonParams).deep.eq(['1']);
+  });
+
   it('Should act - can auto spend asteroid resource', () => {
     player.megaCredits = 0;
     const action = cast(card.action(player), OrOptions);
