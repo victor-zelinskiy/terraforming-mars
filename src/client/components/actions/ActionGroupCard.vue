@@ -212,6 +212,10 @@ export default defineComponent({
     // unavailable branch of a multi-action card can't open a modal either). An
     // unavailable action stays selected with its reason in the details + tooltip.
     activateRow(i: number): void {
+      if (this.group.nodes.length > 1 && this.preview === undefined) {
+        this.select(i);
+        return;
+      }
       if (this.rowStatus(i) !== 'available') {
         return;
       }

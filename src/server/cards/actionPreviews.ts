@@ -318,6 +318,10 @@ function reasonMessage(r: string | Message | UnplayableReason | undefined): stri
   return 'type' in r ? r.message : r;
 }
 
+function reasonParams(r: string | Message | UnplayableReason | undefined): ReadonlyArray<string> | undefined {
+  return r !== undefined && typeof r !== 'string' && 'type' in r ? r.params : undefined;
+}
+
 function definedSteps(steps: ReadonlyArray<ActionPreviewStep | undefined> | undefined): ReadonlyArray<ActionPreviewStep> {
   return (steps ?? []).filter((s): s is ActionPreviewStep => s !== undefined);
 }
@@ -354,15 +358,18 @@ export function singleBranch(
   player: IPlayer,
   steps: ReadonlyArray<ActionPreviewStep> = [],
   effects: ReadonlyArray<ActionEffect> = [],
-  opts: {reveal?: ActionRevealDescriptor} = {},
+  opts: {reveal?: ActionRevealDescriptor, unavailableReason?: string | Message | UnplayableReason} = {},
 ): ActionPreview {
+  const available = card.canAct(player);
   const branch: ActionPreviewBranch = {
     index: -1,
     title: '',
-    available: card.canAct(player),
+    available,
+    unavailableReason: available ? undefined : reasonMessage(opts.unavailableReason),
+    unavailableReasonParams: available ? undefined : reasonParams(opts.unavailableReason),
     renderKeys: [],
     effects,
-    steps,
+    steps: available ? steps : [],
     reveal: opts.reveal,
   };
   return {...base(card), kind: 'bespoke', branches: [branch]};

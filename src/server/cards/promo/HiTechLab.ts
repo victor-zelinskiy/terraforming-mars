@@ -5,8 +5,7 @@ import {CardType} from '../../../common/cards/CardType';
 import {Tag} from '../../../common/cards/Tag';
 import {IPlayer} from '../../IPlayer';
 import {CardRenderer} from '../render/CardRenderer';
-import {canSpendEnergyForCards, spendEnergyForCards} from './energyForCards';
-import * as actionReason from '../actionReasons';
+import {canSpendEnergyForCards, energyForCardsUnavailableReason, spendEnergyForCards} from './energyForCards';
 import * as actionPreviews from '../actionPreviews';
 
 export class HiTechLab extends Card implements IProjectCard {
@@ -33,8 +32,8 @@ export class HiTechLab extends Card implements IProjectCard {
     return canSpendEnergyForCards(player);
   }
 
-  public actionUnavailableReason() {
-    return actionReason.notEnoughEnergy();
+  public actionUnavailableReason(player: IPlayer) {
+    return energyForCardsUnavailableReason(player);
   }
 
   public actionPreview(player: IPlayer) {
@@ -43,7 +42,7 @@ export class HiTechLab extends Card implements IProjectCard {
       actionPreviews.amountStep('Select amount of energy to spend', 'OK', 1, max, {icon: 'energy', maxByDefault: false}),
     ], [
       actionPreviews.drawGain(1),
-    ]);
+    ], {unavailableReason: energyForCardsUnavailableReason(player)});
   }
 
   public action(player: IPlayer) {

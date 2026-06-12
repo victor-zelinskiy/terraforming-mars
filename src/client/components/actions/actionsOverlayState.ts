@@ -23,6 +23,8 @@ export const actionsOverlayState = reactive<{
   /** Faceted filters — persisted here so they survive the remount. */
   availability: AvailabilityFilter;
   activation: ActivationFilter;
+  /** Snapshot key for the game/player state the cached previews were built from. */
+  previewCacheScope: string | undefined;
   /** Per-card read-only action preview, fetched lazily for the SELECTED card. */
   previewCache: Record<string, ActionPreview>;
 }>({
@@ -30,6 +32,7 @@ export const actionsOverlayState = reactive<{
   selectedKey: undefined,
   availability: 'all',
   activation: 'dormant',
+  previewCacheScope: undefined,
   previewCache: {},
 });
 
@@ -46,7 +49,17 @@ export function getActionPreview(cardName: CardName): ActionPreview | undefined 
   return actionsOverlayState.previewCache[cardName];
 }
 
-export function setActionPreview(cardName: CardName, preview: ActionPreview): void {
+export function setActionPreviewScope(scope: string): void {
+  if (actionsOverlayState.previewCacheScope !== scope) {
+    actionsOverlayState.previewCacheScope = scope;
+    actionsOverlayState.previewCache = {};
+  }
+}
+
+export function setActionPreview(cardName: CardName, preview: ActionPreview, expectedScope?: string): void {
+  if (expectedScope !== undefined && expectedScope !== actionsOverlayState.previewCacheScope) {
+    return;
+  }
   actionsOverlayState.previewCache = {...actionsOverlayState.previewCache, [cardName]: preview};
 }
 

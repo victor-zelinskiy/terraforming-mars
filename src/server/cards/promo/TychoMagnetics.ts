@@ -4,8 +4,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {CorporationCard} from '../corporation/CorporationCard';
 import {IPlayer} from '../../IPlayer';
 import {ICorporationCard} from '../corporation/ICorporationCard';
-import {canSpendEnergyForCards, spendEnergyForCards} from './energyForCards';
-import * as actionReason from '../actionReasons';
+import {canSpendEnergyForCards, energyForCardsUnavailableReason, spendEnergyForCards} from './energyForCards';
 import * as actionPreviews from '../actionPreviews';
 
 export class TychoMagnetics extends CorporationCard implements ICorporationCard {
@@ -38,8 +37,8 @@ export class TychoMagnetics extends CorporationCard implements ICorporationCard 
     return canSpendEnergyForCards(player);
   }
 
-  public actionUnavailableReason() {
-    return actionReason.notEnoughEnergy();
+  public actionUnavailableReason(player: IPlayer) {
+    return energyForCardsUnavailableReason(player);
   }
 
   public actionPreview(player: IPlayer) {
@@ -48,7 +47,7 @@ export class TychoMagnetics extends CorporationCard implements ICorporationCard 
       actionPreviews.amountStep('Select amount of energy to spend', 'OK', 1, max, {icon: 'energy', maxByDefault: false}),
     ], [
       actionPreviews.drawGain(1),
-    ]);
+    ], {unavailableReason: energyForCardsUnavailableReason(player)});
   }
 
   public action(player: IPlayer) {

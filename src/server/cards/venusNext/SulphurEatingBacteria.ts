@@ -10,6 +10,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import * as actionPreviews from '../actionPreviews';
+import * as actionReason from '../actionReasons';
 
 export class SulphurEatingBacteria extends Card implements IActionCard {
   constructor() {
@@ -53,6 +54,7 @@ export class SulphurEatingBacteria extends Card implements IActionCard {
         // branch pick (optionInput), not a separate step.
         available: this.resourceCount > 0,
         title: 'Remove any number of microbes to gain 3 M€ per microbe removed',
+        unavailableReason: actionReason.noResourcesHere(),
         optionInput: actionPreviews.amountInput('Remove any number of microbes to gain 3 M€ per microbe removed', 'Remove microbes', 1, this.resourceCount, {icon: 'megacredits'}),
       },
     ]);
