@@ -128,6 +128,32 @@
                                       :playerinput="step.input"
                                       :onsave="noop"
                                       @select="captureStep(i)($event)" />
+                  <!-- A target pick whose candidates are HAND cards routes to the
+                       КАРТЫ В РУКЕ overlay (the hand twin of the board branch) — so a
+                       play card whose on-play target is a hand card is supported too. -->
+                  <div v-else-if="step.input.type === 'card' && isHandCardStep(step)" class="play-confirm__handpick">
+                    <span v-if="stepPromptText(step) !== ''" class="play-confirm__handpick-prompt" v-i18n>{{ stepPromptText(step) }}</span>
+                    <div v-if="chosenStepCard(step, i) !== undefined" class="play-confirm__handpick-chosen">
+                      <span class="play-confirm__handpick-badge" aria-hidden="true">
+                        <span class="play-confirm__handpick-badge-tick">✓</span>
+                        <span v-i18n>Selected</span>
+                      </span>
+                      <button type="button"
+                              class="play-confirm__handpick-card"
+                              :aria-label="$t('Open fullscreen')"
+                              @click.capture.stop="openStepFullscreen(step, i)">
+                        <Card :key="capturedCardName(i)" :card="chosenStepCard(step, i)!" />
+                      </button>
+                      <button type="button" class="play-confirm__handpick-change" @click="requestHandPick(i, step)">
+                        <span class="play-confirm__handpick-glyph" aria-hidden="true">⟲</span>
+                        <span v-i18n>Choose another card</span>
+                      </button>
+                    </div>
+                    <button v-else type="button" class="play-confirm__handpick-btn" @click="requestHandPick(i, step)">
+                      <span class="play-confirm__handpick-glyph" aria-hidden="true">▤</span>
+                      <span v-i18n>Pick a card from hand</span>
+                    </button>
+                  </div>
                   <!-- A target pick from your OWN board with MORE THAN 3 candidates
                        routes to the РАЗЫГРАНО board (pick the real card) instead of
                        the cramped tile grid. ≤3 stays inline below. -->
@@ -235,7 +261,9 @@ import {paths} from '@/common/app/paths';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {playedCardActionPickResult} from '@/client/components/playedCards/playedCardActionPick';
-import {PLAYED_PICK_OVERLAY_THRESHOLD} from '@/client/components/playedCards/playedCardsPickState';
+import {handActionPickResult} from '@/client/components/handCards/handActionPick';
+import {cardPickSurface, CardPickSurface} from '@/client/components/cardPickRouting';
+import {translateText, translateMessage} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import SelectProjectCardToPlay from '@/client/components/SelectProjectCardToPlay.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
@@ -283,7 +311,7 @@ export default defineComponent({
       required: true,
     },
   },
-  emits: ['confirm', 'cancel', 'pick-played-card'],
+  emits: ['confirm', 'cancel', 'pick-played-card', 'pick-card'],
   data() {
     return {
       zoomCard: undefined as CardModel | undefined,
@@ -294,6 +322,9 @@ export default defineComponent({
       // The step index awaiting a РАЗЫГРАНО-board pick (multi-step modal), so the
       // delivered card captures into the RIGHT slot. undefined = not awaiting.
       awaitingPlayedPickStep: undefined as number | undefined,
+      // Same, for a КАРТЫ В РУКЕ overlay pick of a HAND-card step (the hand twin) —
+      // so a play card whose target is a hand card routes there, not the board.
+      awaitingHandPickStep: undefined as number | undefined,
       // The play response captured from the embedded widget on confirm.
       capturedPlay: undefined as SelectProjectCardToPlayResponse | undefined,
       // Whether the dialed payment currently covers the cost (from the widget).
@@ -447,6 +478,14 @@ export default defineComponent({
     multiCardPick(): boolean {
       return this.cardTargetStepIndexes.length >= 2;
     },
+    // The viewer's HAND / TABLEAU card-name sets — the OWNERSHIP `cardPickSurface`
+    // uses to route a card pick to the КАРТЫ В РУКЕ overlay vs the РАЗЫГРАНО board.
+    handSet(): ReadonlySet<CardName> {
+      return new Set((this.playerView.cardsInHand ?? []).map((c) => c.name));
+    },
+    tableauSet(): ReadonlySet<CardName> {
+      return new Set((this.playerView.thisPlayer.tableau ?? []).map((c) => c.name));
+    },
     cardPicksTotal(): number {
       return this.cardTargetStepIndexes.length;
     },
@@ -462,8 +501,25 @@ export default defineComponent({
     playedPickEpoch(): number {
       return playedCardActionPickResult.epoch;
     },
+    // Bridged result epoch from the КАРТЫ В РУКЕ overlay pick (the hand twin).
+    handPickEpoch(): number {
+      return handActionPickResult.epoch;
+    },
   },
   watch: {
+    // A card picked in the КАРТЫ В РУКЕ overlay was delivered back via the bridge —
+    // capture it into the awaiting hand-step slot (only while we requested it).
+    handPickEpoch(): void {
+      const i = this.awaitingHandPickStep;
+      if (i === undefined) {
+        return;
+      }
+      this.awaitingHandPickStep = undefined;
+      const card = handActionPickResult.card;
+      if (card !== undefined) {
+        this.captureStep(i)({type: 'card', cards: [card]});
+      }
+    },
     // A card picked on the РАЗЫГРАНО board was delivered back via the bridge —
     // capture it into the awaiting step's slot (only while we requested it).
     playedPickEpoch(): void {
@@ -594,24 +650,24 @@ export default defineComponent({
       }
       return excluded.size === 0 ? input : {...input, cards: input.cards.filter((c) => !excluded.has(c.name))};
     },
-    // True when a card step's candidates are all from the player's OWN tableau and
-    // EITHER there are MORE THAN 3 (an inline tile grid gets cramped) OR this card
-    // selects MORE THAN ONE card (`multiCardPick` — Cyberia copies TWO cards) → route
-    // it to the РАЗЫГРАНО board. A MULTI-card pick is ALWAYS force-routed: two inline
-    // tile grids side by side simply don't fit the modal (they collapse to cramped
-    // vertical columns). Only a SINGLE-card pick uses the bare >3 threshold (≤3 stays
-    // inline as a centred ROW of tiles, never columns).
-    isPlayedOverlayStep(step: ActionPreviewStep): boolean {
+    // The hosting SURFACE for a card step, via the shared `cardPickSurface` (by
+    // candidate ownership + count + multiCard). A MULTI-card pick (`multiCardPick` —
+    // Cyberia copies TWO cards) is ALWAYS routed to the roomy surface: two inline tile
+    // grids don't fit the modal. A SINGLE-card pick uses the bare >3 threshold (≤3
+    // stays inline as a centred ROW). `board` = own tableau, `hand` = hand cards.
+    surfaceOfStep(step: ActionPreviewStep): CardPickSurface {
+      if (step.kind !== 'input' || step.input.type !== 'card') {
+        return 'inline';
+      }
       const input = this.stepCardInput(step);
-      const cards = input.cards ?? [];
-      if (cards.length === 0) {
-        return false;
-      }
-      const tableau = new Set((this.playerView.thisPlayer.tableau ?? []).map((c) => c.name));
-      if (!cards.every((c) => tableau.has(c.name))) {
-        return false;
-      }
-      return cards.length > PLAYED_PICK_OVERLAY_THRESHOLD || this.multiCardPick;
+      const candidates = [...(input.cards ?? []), ...(input.disabledCards ?? [])];
+      return cardPickSurface(candidates, this.handSet, this.tableauSet, this.multiCardPick);
+    },
+    isPlayedOverlayStep(step: ActionPreviewStep): boolean {
+      return this.surfaceOfStep(step) === 'board';
+    },
+    isHandCardStep(step: ActionPreviewStep): boolean {
+      return this.surfaceOfStep(step) === 'hand';
     },
     // The chosen card model for a played-overlay step (for the in-modal chip).
     chosenStepCard(step: ActionPreviewStep, i: number): CardModel | undefined {
@@ -644,6 +700,28 @@ export default defineComponent({
         selectable: input.cards.map((c) => c.name),
         reasonMode: (step as {amount?: number}).amount !== undefined ? 'resource' : 'generic',
         alreadyPicked,
+      });
+    },
+    // Hand off a card step's pick to the КАРТЫ В РУКЕ overlay (the hand twin of
+    // requestPlayedPick — for a step whose candidates are HAND cards). PlayerHome
+    // opens the overlay in client-pick mode + suppresses this modal; the picked card
+    // returns via the `handPickEpoch` watcher, captured into THIS step's slot.
+    requestHandPick(i: number, step: ActionPreviewStep): void {
+      if (step.kind !== 'input' || step.input.type !== 'card') {
+        return;
+      }
+      const input = this.stepCardInput(step);
+      const reasons: Record<string, string> = {};
+      for (const c of input.disabledCards ?? []) {
+        const r = c.disabledReason;
+        reasons[c.name] = r === undefined ? '' : (typeof r === 'string' ? translateText(r) : translateMessage(r));
+      }
+      this.awaitingHandPickStep = i;
+      this.$emit('pick-card', {
+        title: input.title,
+        buttonLabel: input.buttonLabel,
+        selectable: input.cards.map((c) => c.name),
+        reasons,
       });
     },
     openStepFullscreen(step: ActionPreviewStep, i: number): void {

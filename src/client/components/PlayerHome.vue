@@ -263,13 +263,14 @@
     -->
     <MandatoryInputModal v-if="pendingPlayCard !== undefined"
                          :title="pendingPlayCard.title"
-                         :suppressed="playedPickActive">
+                         :suppressed="playedPickActive || actionCardPickActive">
       <HandCardPaymentContent
         :playerView="playerView"
         :input="pendingPlayCard.input"
         :cardName="pendingPlayCard.cardName"
         @confirm="onPlayCardConfirm($event)"
         @cancel="onPlayCardCancel"
+        @pick-card="onActionPickCard"
         @pick-played-card="onPlayedCardActionPick" />
     </MandatoryInputModal>
 
