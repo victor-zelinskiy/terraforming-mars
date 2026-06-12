@@ -95,15 +95,36 @@
       </div>
     </section>
 
-    <!-- ── Insights: how it was decided ──────────────────────────────── -->
+    <!-- ── Match facts: the headline numbers of THIS game ─────────────── -->
+    <section v-if="facts.length > 0" class="eg-facts">
+      <div v-for="f in facts" :key="f.key" class="eg-fact"
+           :style="f.color !== undefined ? {'--eg-pc': hex(f.color)} : {}">
+        <span class="eg-fact__icon" aria-hidden="true">{{ f.glyph }}</span>
+        <div class="eg-fact__main">
+          <span class="eg-fact__label" v-i18n>{{ f.label }}</span>
+          <span v-if="f.kind === 'card' && f.cardName !== undefined" class="eg-fact__value eg-fact__value--card">
+            <JournalCardChip v-if="isCard(f.cardName)" :name="asCardName(f.cardName)" />
+            <span v-else v-i18n>{{ f.cardName }}</span>
+            <span class="eg-fact__vp">+{{ f.vp }}</span>
+          </span>
+          <span v-else class="eg-fact__value">{{ f.value }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Insights: the analysts' read of the game ───────────────────── -->
     <section v-if="insightLines.length > 0" class="eg-insights">
       <h2 class="eg-section-title" v-i18n>How it was decided</h2>
-      <div class="eg-insights__list">
-        <div v-for="(line, i) in insightLines" :key="i" class="eg-insight" :class="'eg-insight--' + line.kind"
-             :style="line.color ? {'--eg-pc': hex(line.color)} : {}">
-          <span class="eg-insight__mark" aria-hidden="true"></span>
-          <span class="eg-insight__text">{{ line.text }}</span>
-        </div>
+      <div class="eg-insights__grid">
+        <article v-for="(line, i) in insightLines" :key="line.id"
+                 class="eg-insight" :class="'eg-insight--' + line.severity"
+                 :style="insightStyle(line, i)">
+          <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
+          <div class="eg-insight__body">
+            <span class="eg-insight__badge" v-i18n>{{ line.badge }}</span>
+            <span class="eg-insight__text">{{ line.text }}</span>
+          </div>
+        </article>
       </div>
     </section>
   </div>
@@ -112,14 +133,52 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
-import {EndgameModel, EndgameCategory, EndgameCategoryKey, EndgamePlayerScore, EndgameInsight, ENDGAME_CATEGORY_LABEL} from '@/client/components/endgame/endgameModel';
+import {CardName} from '@/common/cards/CardName';
+import {EndgameModel, EndgameCategory, EndgameCategoryKey, EndgamePlayerScore, ENDGAME_CATEGORY_LABEL} from '@/client/components/endgame/endgameModel';
+import {EndgameInsightView, InsightIcon} from '@/client/components/endgame/insightEngine';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
+import {getCard} from '@/client/cards/ClientCardManifest';
+import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import {translateTextWithParams, $t} from '@/client/directives/i18n';
 
-type InsightLine = {kind: string; text: string; color?: Color};
+// Insight icons → text glyphs (deliberately NOT emoji — they stay in the
+// monochrome sci-fi palette and tint via CSS).
+const ICON_GLYPH: Record<InsightIcon, string> = {
+  crown: '♛',
+  swap: '⇄',
+  surge: '↗',
+  target: '◎',
+  scale: 'Ξ',
+  globe: '◐',
+  cards: '▤',
+  hex: '⬡',
+  flag: '⚑',
+  spark: '✦',
+};
+
+type InsightLine = {
+  id: string;
+  severity: string;
+  glyph: string;
+  badge: string; // i18n key (v-i18n translates)
+  text: string; // fully composed, translated
+  color?: Color;
+};
+
+type Fact = {
+  key: string;
+  kind: 'text' | 'card';
+  label: string; // i18n key
+  glyph: string;
+  value: string;
+  color?: Color;
+  cardName?: string;
+  vp?: number;
+};
 
 export default defineComponent({
   name: 'EndgameOverviewTab',
+  components: {JournalCardChip},
   props: {
     model: {type: Object as () => EndgameModel, required: true},
     // Declared so the shell's shared <component :is> props don't fall through
@@ -152,7 +211,55 @@ export default defineComponent({
       return result;
     },
     insightLines(): Array<InsightLine> {
-      return this.model.insights.map((ins) => this.composeInsight(ins)).filter((l): l is InsightLine => l !== undefined);
+      return this.model.insights.map((ins) => this.composeInsight(ins));
+    },
+    // The headline "match facts" strip: victory profile, the key moment, the
+    // margin, the most valuable card, lead changes. Each is derived from the
+    // analytical model — nothing is invented here.
+    facts(): Array<Fact> {
+      const out: Array<Fact> = [];
+      const m = this.model;
+      const t = m.timeline;
+      if (m.profile !== undefined) {
+        out.push({
+          key: 'profile', kind: 'text', label: 'Victory profile', glyph: '⬡',
+          value: $t(m.profile.label), color: m.winner?.color,
+        });
+      }
+      if (m.mode !== 'solo' && t !== undefined) {
+        if (t.winnerTookLeadGen !== undefined) {
+          const isComeback = t.maxDeficit >= 5 && t.winnerTookLeadGen >= Math.max(2, m.generation - 1);
+          out.push({
+            key: 'moment', kind: 'text', label: 'Key moment', glyph: isComeback ? '⇄' : '⚑',
+            value: $t('Generation') + ' ' + t.winnerTookLeadGen, color: m.winner?.color,
+          });
+        } else if (t.wireToWire) {
+          out.push({
+            key: 'moment', kind: 'text', label: 'Key moment', glyph: '♛',
+            value: $t('Entire game'), color: m.winner?.color,
+          });
+        }
+      }
+      if (m.mode !== 'solo' && m.runnerUp !== undefined) {
+        out.push({
+          key: 'margin', kind: 'text', label: 'Final margin', glyph: 'Ξ',
+          value: m.margin > 0 ? `+${m.margin} ${$t('VP')}` : $t('M€ tiebreaker'),
+          color: m.winner?.color,
+        });
+      }
+      if (t !== undefined && t.leadChanges >= 2) {
+        out.push({
+          key: 'leadChanges', kind: 'text', label: 'Lead changes', glyph: '⇄',
+          value: String(t.leadChanges),
+        });
+      }
+      if (m.bestCard !== undefined) {
+        out.push({
+          key: 'bestCard', kind: 'card', label: 'Best card', glyph: '▤',
+          value: '', color: m.bestCard.color, cardName: m.bestCard.cardName, vp: m.bestCard.victoryPoint,
+        });
+      }
+      return out;
     },
   },
   methods: {
@@ -171,6 +278,12 @@ export default defineComponent({
     categoryLabel(key: EndgameCategoryKey): string {
       return ENDGAME_CATEGORY_LABEL[key];
     },
+    isCard(name: string): boolean {
+      return getCard(name as CardName) !== undefined;
+    },
+    asCardName(name: string): CardName {
+      return name as CardName;
+    },
     catWinClass(cat: EndgameCategory): Record<string, boolean> {
       const left = this.duelPlayers[0].color;
       const right = this.duelPlayers[1].color;
@@ -185,32 +298,25 @@ export default defineComponent({
       const pct = cat.max > 0 ? (v / cat.max) * 100 : 0;
       return {width: pct + '%', background: endgamePlayerHex(color), [side === 'l' ? 'marginLeft' : 'marginRight']: 'auto'};
     },
-    composeInsight(ins: EndgameInsight): InsightLine | undefined {
-      const catsText = (ins.categories ?? []).map((k) => $t(ENDGAME_CATEGORY_LABEL[k])).join(', ');
-      const playerName = ins.player !== undefined ? this.nameOf(ins.player) : '';
-      switch (ins.kind) {
-      case 'winner-strength':
-        if (catsText === '') {
-          return undefined;
-        }
-        return {kind: ins.kind, color: ins.player, text: translateTextWithParams('${0} won thanks to a lead in ${1}.', [playerName, catsText])};
-      case 'runnerup-strength':
-        if (catsText === '') {
-          return undefined;
-        }
-        return {kind: ins.kind, color: ins.player, text: translateTextWithParams('${0} was stronger in ${1}, but it was not enough.', [playerName, catsText])};
-      case 'lead-taken':
-        return {kind: ins.kind, color: ins.player, text: translateTextWithParams('${0} took the lead in generation ${1} and never gave it back.', [playerName, String(ins.gen)])};
-      case 'wire-to-wire':
-        return {kind: ins.kind, color: ins.player, text: translateTextWithParams('${0} led from the first generation to the last.', [playerName])};
-      case 'margin':
-        if (ins.value !== undefined && ins.value > 0) {
-          return {kind: ins.kind, color: ins.player, text: translateTextWithParams('Final margin: ${0} VP.', [String(ins.value)])};
-        }
-        return {kind: ins.kind, color: ins.player, text: $t('The game was decided on the M€ tiebreaker.')};
-      default:
-        return undefined;
+    // Turn an engine insight into a render line: translate the template and
+    // each typed param (`raw` stays, `i18n`/`card` run through the translator).
+    composeInsight(ins: EndgameInsightView): InsightLine {
+      const params = ins.params.map((p) => p.t === 'raw' ? p.v : $t(p.v));
+      return {
+        id: ins.id,
+        severity: ins.severity,
+        glyph: ICON_GLYPH[ins.icon] ?? '✦',
+        badge: ins.badge,
+        text: translateTextWithParams(ins.textKey, params),
+        color: ins.color,
+      };
+    },
+    insightStyle(line: InsightLine, index: number): Record<string, string> {
+      const style: Record<string, string> = {'--eg-stagger': String(index)};
+      if (line.color !== undefined) {
+        style['--eg-pc'] = endgamePlayerHex(line.color);
       }
+      return style;
     },
   },
 });

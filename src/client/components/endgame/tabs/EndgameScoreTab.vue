@@ -18,17 +18,58 @@
                :class="{'eg-score__scale--zero': scaleTotal(col, key) === 0}">
             <div class="eg-score__scale-head">
               <span class="eg-score__scale-name" v-i18n>{{ scaleLabel(key) }}</span>
-              <span v-if="isCategoryLeader(col.color, key)" class="eg-score__lead" :title="$t('Category leader')" aria-hidden="true">▲</span>
+              <span v-if="isCategoryLeader(col.color, key)" class="eg-score__lead" :aria-label="$t('Category leader')" aria-hidden="true">▲</span>
               <span class="eg-score__scale-val">{{ formatVp(scaleTotal(col, key)) }}</span>
             </div>
             <div class="vp-scale__bar eg-score__bar">
               <span v-for="seg in positiveSegments(col, key)" :key="seg.key"
-                    class="vp-scale__seg" :class="'vp-accent--' + seg.accent" :style="{width: segWidth(seg.value)}"></span>
+                    class="vp-scale__seg eg-score__seg" :class="segClass(seg)" :style="{width: segWidth(seg.value)}"
+                    @mouseenter="onSegEnter(seg, col, $event)" @mouseleave="onSegLeave"></span>
               <span v-for="seg in penaltySegments(col, key)" :key="'p-' + seg.key"
-                    class="vp-scale__seg vp-scale__seg--penalty" :style="{width: segWidth(seg.value)}"></span>
+                    class="vp-scale__seg vp-scale__seg--penalty eg-score__seg" :class="segHotClass(seg)" :style="{width: segWidth(seg.value)}"
+                    @mouseenter="onSegEnter(seg, col, $event)" @mouseleave="onSegLeave"></span>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!--
+      Colour legend: every segment family per scale, with per-player values.
+      Hovering a chip highlights the matching segments in EVERY player column
+      (and vice versa — hovering a segment lights its chip), so the duel
+      breakdown reads like one connected diagram, not two separate charts.
+    -->
+    <section class="eg-score__legend">
+      <h2 class="eg-section-title" v-i18n>Colour legend</h2>
+      <div class="eg-score__legend-rows">
+        <div v-for="row in legendRows" :key="row.scaleKey" class="eg-score__legend-row">
+          <span class="eg-score__legend-scale" v-i18n>{{ row.scaleLabel }}</span>
+          <div class="eg-score__legend-chips">
+            <button v-for="seg in row.segments" :key="seg.key" type="button"
+                    class="eg-score__legend-chip" :class="chipClass(seg)"
+                    @mouseenter="hoverKey = seg.key" @mouseleave="hoverKey = null" @focus="hoverKey = seg.key" @blur="hoverKey = null">
+              <span class="eg-score__legend-dot" :class="'vp-accent--' + seg.accent" aria-hidden="true"></span>
+              <span class="eg-score__legend-label" v-i18n>{{ seg.label }}</span>
+              <span v-if="showChipValues" class="eg-score__legend-vals">
+                <span v-for="v in seg.values" :key="v.color" class="eg-score__legend-val" :style="{color: hex(v.color)}">{{ v.value }}</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Floating premium tooltip for the hovered segment -->
+    <div v-if="tip !== null" class="eg-score__tip" :style="{left: tip.left + 'px', top: tip.top + 'px'}">
+      <div class="eg-score__tip-head">
+        <span class="eg-score__legend-dot" :class="'vp-accent--' + tip.accent" aria-hidden="true"></span>
+        <span v-i18n>{{ tip.label }}</span>
+      </div>
+      <div v-for="row in tipRows" :key="row.color" class="eg-score__tip-row" :class="{'eg-score__tip-row--hot': row.color === tip.color}">
+        <span class="eg-score__tip-dot" :style="{background: hex(row.color)}"></span>
+        <span class="eg-score__tip-name">{{ row.name }}</span>
+        <span class="eg-score__tip-val">{{ formatVp(row.value) }}</span>
       </div>
     </div>
   </div>
@@ -51,6 +92,28 @@ type Column = {
   vp: VictoryPointsModel;
 };
 
+type LegendSegment = {
+  key: string;
+  accent: string;
+  label: string;
+  values: Array<{color: Color; value: number}>;
+};
+
+type LegendRow = {
+  scaleKey: string;
+  scaleLabel: string;
+  segments: Array<LegendSegment>;
+};
+
+type Tip = {
+  key: string;
+  accent: string;
+  label: string;
+  color: Color; // the hovered column's player
+  left: number;
+  top: number;
+};
+
 const SCALE_ORDER: ReadonlyArray<string> = ['tr', 'cards', 'board', 'mca', 'moon', 'tracks', 'ev'];
 const SCALE_LABEL: Record<string, string> = {
   tr: 'Terraform rating',
@@ -68,6 +131,14 @@ export default defineComponent({
     model: {type: Object as () => EndgameModel, required: true},
     view: {type: Object as () => ViewModel, required: true},
     viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
+  },
+  data() {
+    return {
+      // The segment family under the pointer (legend chip OR bar segment) —
+      // drives the cross-column highlight.
+      hoverKey: null as string | null,
+      tip: null as Tip | null,
+    };
   },
   computed: {
     columns(): Array<Column> {
@@ -114,6 +185,56 @@ export default defineComponent({
       }
       return out;
     },
+    // The union of segment families per scale, with each player's value —
+    // the data behind both the legend chips and the tooltip rows.
+    legendRows(): Array<LegendRow> {
+      const rows: Array<LegendRow> = [];
+      for (const scaleKey of this.scaleOrder) {
+        const segs: Array<LegendSegment> = [];
+        const seen = new Map<string, LegendSegment>();
+        for (const col of this.columns) {
+          for (const seg of this.scaleObj(col, scaleKey)?.segments ?? []) {
+            let entry = seen.get(seg.key);
+            if (entry === undefined) {
+              entry = {key: seg.key, accent: seg.accent, label: seg.label, values: []};
+              seen.set(seg.key, entry);
+              segs.push(entry);
+            }
+          }
+        }
+        // Per-player values in column order (0 when the player lacks the segment).
+        for (const entry of segs) {
+          entry.values = this.columns.map((col) => ({
+            color: col.color,
+            value: (this.scaleObj(col, scaleKey)?.segments ?? []).find((s) => s.key === entry.key)?.value ?? 0,
+          }));
+        }
+        if (segs.length > 0) {
+          rows.push({scaleKey, scaleLabel: SCALE_LABEL[scaleKey] ?? scaleKey, segments: segs});
+        }
+      }
+      return rows;
+    },
+    // Inline values fit comfortably up to a duel; bigger tables read them in
+    // the tooltip instead.
+    showChipValues(): boolean {
+      return this.columns.length <= 2;
+    },
+    tipRows(): Array<{color: Color; name: string; value: number}> {
+      if (this.tip === null) {
+        return [];
+      }
+      const key = this.tip.key;
+      const seg = this.legendRows.flatMap((r) => r.segments).find((s) => s.key === key);
+      if (seg === undefined) {
+        return [];
+      }
+      return seg.values.map((v) => ({
+        color: v.color,
+        name: this.columns.find((c) => c.color === v.color)?.name ?? '',
+        value: v.value,
+      }));
+    },
   },
   methods: {
     hex(color: Color): string {
@@ -149,6 +270,38 @@ export default defineComponent({
     },
     formatVp(n: number): string {
       return n > 0 ? `+${n}` : String(n);
+    },
+    segClass(seg: VPSegment): Record<string, boolean> {
+      return {
+        ['vp-accent--' + seg.accent]: true,
+        ...this.segHotClass(seg),
+      };
+    },
+    segHotClass(seg: VPSegment): Record<string, boolean> {
+      return {
+        'eg-score__seg--hot': this.hoverKey === seg.key,
+        'eg-score__seg--dim': this.hoverKey !== null && this.hoverKey !== seg.key,
+      };
+    },
+    chipClass(seg: LegendSegment): Record<string, boolean> {
+      return {
+        'eg-score__legend-chip--hot': this.hoverKey === seg.key,
+        'eg-score__legend-chip--dim': this.hoverKey !== null && this.hoverKey !== seg.key,
+      };
+    },
+    onSegEnter(seg: VPSegment, col: Column, evt: MouseEvent): void {
+      this.hoverKey = seg.key;
+      const el = evt.currentTarget as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      // Above the segment, horizontally centred, clamped to the viewport.
+      const width = 190;
+      const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + rect.width / 2 - width / 2));
+      const top = Math.max(8, rect.top - 12);
+      this.tip = {key: seg.key, accent: seg.accent, label: seg.label, color: col.color, left, top};
+    },
+    onSegLeave(): void {
+      this.hoverKey = null;
+      this.tip = null;
     },
   },
 });

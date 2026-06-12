@@ -13,11 +13,20 @@
         </span>
         <span v-else class="eg-stat-chip__lbl" v-i18n>Led wire to wire</span>
       </div>
+      <div v-if="leadChanges >= 2" class="eg-stat-chip">
+        <span class="eg-stat-chip__val">{{ leadChanges }}</span>
+        <span class="eg-stat-chip__lbl" v-i18n>Lead changes</span>
+      </div>
+      <div v-if="surge !== undefined" class="eg-stat-chip" :style="{'--eg-pc': hex(surge.color)}">
+        <span class="eg-stat-chip__dot" :class="'player_bg_color_' + surge.color"></span>
+        <span class="eg-stat-chip__lbl"><span v-i18n>Fastest finish</span>: {{ surge.name }} +{{ surge.gain }} <span v-i18n>VP</span></span>
+      </div>
     </div>
 
     <section class="eg-chart-card">
       <h2 class="eg-section-title" v-i18n>Victory points by generation</h2>
-      <EndgameLineChart :series="vpSeries" :generations="model.generation" :height="320" :x-label="genLabel" fill />
+      <EndgameLineChart :series="vpSeries" :generations="model.generation" :height="320" :x-label="genLabel"
+                        :annotations="vpAnnotations" show-deltas fill />
     </section>
 
     <section v-if="paramSeries.length > 0" class="eg-chart-card">
@@ -33,7 +42,7 @@ import {Color} from '@/common/Color';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {EndgameModel} from '@/client/components/endgame/endgameModel';
-import EndgameLineChart, {ChartSeries} from '@/client/components/endgame/EndgameLineChart.vue';
+import EndgameLineChart, {ChartAnnotation, ChartSeries} from '@/client/components/endgame/EndgameLineChart.vue';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {$t} from '@/client/directives/i18n';
 
@@ -67,6 +76,27 @@ export default defineComponent({
         color: p.color,
         data: p.vpByGeneration,
       }));
+    },
+    // The insight engine's decisive moment, drawn directly on the VP chart.
+    vpAnnotations(): Array<ChartAnnotation> {
+      const gen = this.model.winnerTookLeadGen;
+      if (gen === undefined || this.model.winner === undefined) {
+        return [];
+      }
+      return [{index: gen - 1, label: $t('Turning point'), color: endgamePlayerHex(this.model.winner.color)}];
+    },
+    leadChanges(): number {
+      return this.model.timeline?.leadChanges ?? 0;
+    },
+    // The fastest finisher (final two generations) — only shown when the gain
+    // is meaningful.
+    surge(): {color: Color; name: string; gain: number} | undefined {
+      const s = this.model.timeline?.finalSurge;
+      if (s === undefined || s.gain < 8) {
+        return undefined;
+      }
+      const p = this.model.players.find((pl) => pl.color === s.color);
+      return p === undefined ? undefined : {color: s.color, name: p.name, gain: s.gain};
     },
     paramSeries(): Array<ChartSeries> {
       const expansions = this.view.game.gameOptions.expansions;

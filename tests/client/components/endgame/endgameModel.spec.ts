@@ -112,7 +112,9 @@ describe('endgameModel', () => {
     const model = buildEndgameModel([a, b], {hasMoon: false, hasPathfinders: false, hasVenus: false, generation: 4});
     expect(model.winner?.name).to.eq('B');
     expect(model.winnerTookLeadGen).to.eq(3);
-    expect(model.insights.some((i) => i.kind === 'lead-taken' && i.gen === 3)).to.eq(true);
+    expect(model.timeline?.winnerTookLeadGen).to.eq(3);
+    // The engine surfaces a timeline-group insight about the lead.
+    expect(model.insights.some((i) => i.group === 'timeline')).to.eq(true);
   });
 
   it('marks a wire-to-wire winner', () => {
@@ -120,7 +122,28 @@ describe('endgameModel', () => {
     const b = player('blue', 'B', {terraformRating: 25, total: 25}, {vpByGeneration: [8, 14, 20, 25]});
     const model = buildEndgameModel([a, b], {hasMoon: false, hasPathfinders: false, hasVenus: false, generation: 4});
     expect(model.winnerTookLeadGen).to.eq(undefined);
-    expect(model.insights.some((i) => i.kind === 'wire-to-wire')).to.eq(true);
+    expect(model.timeline?.wireToWire).to.eq(true);
+    expect(model.insights.some((i) => i.id === 'timeline.wire-to-wire')).to.eq(true);
+  });
+
+  it('builds the analytical layer: profile, best card and capped insights', () => {
+    const a = player('red', 'A', {
+      terraformRating: 30, victoryPoints: 12, total: 42,
+      detailsCards: [{cardName: 'Big', victoryPoint: 8, kind: 'conditional'}, {cardName: 'Small', victoryPoint: 4, kind: 'fixed'}],
+    }, {vpByGeneration: [14, 26, 42]});
+    const b = player('blue', 'B', {terraformRating: 28, victoryPoints: 6, total: 34}, {vpByGeneration: [12, 24, 34]});
+    const model = buildEndgameModel([a, b], {hasMoon: false, hasPathfinders: false, hasVenus: false, generation: 3});
+    expect(model.profile).to.not.eq(undefined);
+    expect(model.bestCard?.cardName).to.eq('Big');
+    expect(model.bestCard?.victoryPoint).to.eq(8);
+    expect(model.insights.length).to.be.greaterThan(0);
+    expect(model.insights.length).to.be.lessThan(7);
+    // Each insight carries everything the component needs to render it.
+    for (const ins of model.insights) {
+      expect(ins.textKey).to.be.a('string').and.not.empty;
+      expect(ins.badge).to.be.a('string').and.not.empty;
+      expect(ins.icon).to.be.a('string').and.not.empty;
+    }
   });
 
   it('separates top cards from penalty cards', () => {
