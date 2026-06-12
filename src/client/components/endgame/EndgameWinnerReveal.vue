@@ -2,14 +2,18 @@
   <!--
     Cinematic winner announcement shown the moment a game ends (and once on
     re-entering an ended game). Premium sci-fi, NOT a party screen: the board
-    dims behind a soft vignette tinted with the winner's colour, a single scan
-    sweep, the winner / corporation / score reveal in a short stagger, then the
-    "View results" CTA. Skippable (button / Esc) and the CTA opens immediately.
+    sinks behind a deep vignette tinted with the winner's colour, two scan
+    sweeps cross the screen, a slow halo ring breathes behind the winner's
+    name, the score counts up, then a hero CTA materializes after a beat.
+    Choreography is pure CSS delays + one rAF count-up — transform/opacity
+    only, so the sequence never stutters. Skippable (button / Esc).
   -->
   <div class="eg-reveal" :style="glowVars" @keydown.esc="skip">
     <div class="eg-reveal__backdrop" aria-hidden="true"></div>
+    <div class="eg-reveal__aurora" aria-hidden="true"></div>
     <div class="eg-reveal__glow" aria-hidden="true"></div>
     <div class="eg-reveal__scan" aria-hidden="true"></div>
+    <div class="eg-reveal__scan eg-reveal__scan--late" aria-hidden="true"></div>
 
     <button type="button" class="eg-reveal__skip" @click="skip">
       <span v-i18n>Skip</span> ✕
@@ -17,22 +21,29 @@
 
     <div class="eg-reveal__stage" :class="'eg-reveal__stage--' + model.mode">
       <div class="eg-reveal__eyebrow">
+        <span class="eg-reveal__eyebrow-tick" aria-hidden="true"></span>
         <span v-i18n>Game over</span>
         <span class="eg-reveal__eyebrow-sep">·</span>
         <span>{{ model.generation }} <span v-i18n>generations</span></span>
+        <span class="eg-reveal__eyebrow-tick" aria-hidden="true"></span>
       </div>
 
       <div class="eg-reveal__title" :class="titleClass">{{ titleText }}</div>
 
       <template v-if="winner !== undefined">
         <div class="eg-reveal__winner">
+          <span class="eg-reveal__halo" aria-hidden="true"></span>
           <span class="eg-reveal__winner-dot" :class="'player_bg_color_' + winner.color" aria-hidden="true"></span>
           <span class="eg-reveal__winner-name">{{ winner.name }}</span>
         </div>
-        <div v-if="winnerCorp !== ''" class="eg-reveal__corp" v-i18n>{{ winnerCorp }}</div>
+        <div v-if="winnerCorp !== ''" class="eg-reveal__corp">
+          <span class="eg-reveal__corp-line" aria-hidden="true"></span>
+          <span v-i18n>{{ winnerCorp }}</span>
+          <span class="eg-reveal__corp-line" aria-hidden="true"></span>
+        </div>
 
         <div class="eg-reveal__score">
-          <span class="eg-reveal__score-value">{{ winner.total }}</span>
+          <span class="eg-reveal__score-value">{{ shownScore }}</span>
           <span class="eg-reveal__score-unit" v-i18n>VP</span>
         </div>
 
@@ -53,9 +64,10 @@
         </div>
       </div>
 
-      <button type="button" class="eg-reveal__cta cab-base cab-palette-cta-cyan" @click="open">
-        <span class="cab-base__glow" aria-hidden="true"></span>
-        <span class="cab-base__label" v-i18n>View results</span>
+      <button type="button" class="eg-reveal__cta" @click="open">
+        <span class="eg-reveal__cta-sheen" aria-hidden="true"></span>
+        <span class="eg-reveal__cta-label" v-i18n>View results</span>
+        <span class="eg-reveal__cta-arrow" aria-hidden="true">→</span>
       </button>
     </div>
   </div>
@@ -66,11 +78,24 @@ import {defineComponent} from 'vue';
 import {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {openEndgameResults, skipEndgameReveal} from '@/client/components/endgame/endgameState';
+import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
+
+// When the score count-up starts / how long it runs — tuned to land right
+// after the score block's CSS entrance (see endgame.less choreography).
+const COUNT_DELAY_MS = 850;
+const COUNT_DURATION_MS = 950;
 
 export default defineComponent({
   name: 'EndgameWinnerReveal',
   props: {
     model: {type: Object as () => EndgameModel, required: true},
+  },
+  data() {
+    return {
+      shownScore: 0,
+      countTimer: undefined as number | undefined,
+      raf: undefined as number | undefined,
+    };
   },
   computed: {
     winner(): EndgamePlayerScore | undefined {
@@ -116,12 +141,38 @@ export default defineComponent({
         this.skip();
       }
     },
+    // rAF count-up 0 → total with an ease-out so the last points land slowly.
+    startCountUp(): void {
+      const total = this.winner?.total ?? 0;
+      const t0 = performance.now();
+      const tick = (now: number) => {
+        const k = Math.min(1, (now - t0) / COUNT_DURATION_MS);
+        const eased = 1 - Math.pow(1 - k, 3);
+        this.shownScore = Math.round(total * eased);
+        if (k < 1) {
+          this.raf = requestAnimationFrame(tick);
+        }
+      };
+      this.raf = requestAnimationFrame(tick);
+    },
   },
   mounted(): void {
     window.addEventListener('keydown', this.onKeydown);
+    const total = this.winner?.total ?? 0;
+    if (prefersReducedMotion() || typeof requestAnimationFrame === 'undefined') {
+      this.shownScore = total;
+    } else {
+      this.countTimer = window.setTimeout(() => this.startCountUp(), COUNT_DELAY_MS);
+    }
   },
   beforeUnmount(): void {
     window.removeEventListener('keydown', this.onKeydown);
+    if (this.countTimer !== undefined) {
+      window.clearTimeout(this.countTimer);
+    }
+    if (this.raf !== undefined) {
+      cancelAnimationFrame(this.raf);
+    }
   },
 });
 </script>

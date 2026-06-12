@@ -460,7 +460,8 @@
       Game-over fallback affordance. The premium EndgameExperience (App-level)
       shows the reveal + full results automatically; this only matters when the
       results are minimized to the pill — a calm "reopen" button on the board.
-      The legacy /the-end report is demoted to a small secondary link.
+      The premium overlay fully covers the legacy /the-end report, so there is
+      deliberately NO link to it anymore.
     -->
     <div v-if="game.phase === 'end'" class="game-over-banner">
       <div class="player_home_block">
@@ -469,7 +470,6 @@
           <span class="cab-base__glow" aria-hidden="true"></span>
           <span class="cab-base__label" v-i18n>View results</span>
         </button>
-        <a class="game-over-banner__legacy" :href="'the-end?id='+ playerView.id" v-i18n>Open detailed report</a>
       </div>
     </div>
 

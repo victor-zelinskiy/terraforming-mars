@@ -21,6 +21,15 @@
 import {Color} from '@/common/Color';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {CardVictoryPointsDetail, CardVictoryPointsKind, VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
+import {
+  EndgameInsightView,
+  TimelineStats,
+  VictoryProfile,
+  buildVictoryProfile,
+  computeTimelineStats,
+  gameSeed,
+  generateInsights,
+} from '@/client/components/endgame/insightEngine';
 
 // What the builder needs from each player — a thin, pure projection of
 // PublicPlayerModel (the component maps it before calling the builder).
@@ -91,25 +100,10 @@ export type EndgamePlayerScore = {
   strongestCategory: EndgameCategoryKey | undefined;
 };
 
-// Structured, rule-based narrative tokens. The component composes the actual
-// translated sentence from `kind` + the referenced players / categories.
-export type EndgameInsightKind =
-  | 'winner-strength' // winner's standout categories
-  | 'runnerup-strength' // what the runner-up was better at
-  | 'lead-taken' // the generation the winner took the (final) lead
-  | 'wire-to-wire' // winner led from the first generation
-  | 'margin'; // final point gap to 2nd
-
-export type EndgameInsight = {
-  kind: EndgameInsightKind;
-  player?: Color;
-  otherPlayer?: Color;
-  categories?: Array<EndgameCategoryKey>;
-  value?: number;
-  gen?: number;
-};
-
 export type EndgameMode = 'solo' | 'duel' | 'standings';
+
+// The single most valuable card on the table — a headline "match fact".
+export type EndgameBestCard = {color: Color; owner: string; cardName: string; victoryPoint: number};
 
 export type EndgameModel = {
   mode: EndgameMode;
@@ -119,7 +113,14 @@ export type EndgameModel = {
   margin: number; // winner.total - runnerUp.total (0 for solo)
   categories: Array<EndgameCategory>; // only categories with any non-zero value
   parameters: Array<EndgameParameter>;
-  insights: Array<EndgameInsight>;
+  // Selected analytical story lines from the insight engine (3–6, deduped).
+  insights: Array<EndgameInsightView>;
+  // Timeline shape (lead changes, comeback depth, final surge…) — also feeds
+  // the chart annotations and the overview "match facts".
+  timeline: TimelineStats | undefined;
+  // The winner's victory archetype (hero chip + analytics).
+  profile: VictoryProfile | undefined;
+  bestCard: EndgameBestCard | undefined;
   generation: number;
   soloWin: boolean;
   // Generation (1-based) the eventual winner took the lead and never lost it.
@@ -259,63 +260,17 @@ function computeWinnerTookLeadGen(winner: EndgamePlayerInput, others: ReadonlyAr
   return lastNotAhead + 2; // +1 for next gen, +1 for 1-based generation
 }
 
-function buildInsights(
-  model: Pick<EndgameModel, 'mode' | 'winner' | 'runnerUp' | 'margin' | 'categories' | 'winnerTookLeadGen'>,
-): Array<EndgameInsight> {
-  const insights: Array<EndgameInsight> = [];
-  const {winner, runnerUp} = model;
-  if (winner === undefined || model.mode === 'solo') {
-    return insights;
-  }
-
-  // Per category, the winner's lead over the best opponent.
-  const winnerLeads: Array<{key: EndgameCategoryKey; lead: number}> = [];
-  const runnerLeads: Array<{key: EndgameCategoryKey; lead: number}> = [];
-  for (const cat of model.categories) {
-    const wv = cat.values[winner.color] ?? 0;
-    let bestOther = 0;
-    let runnerVal = 0;
-    for (const [color, v] of Object.entries(cat.values)) {
-      if (color !== winner.color && v > bestOther) {
-        bestOther = v;
-      }
-      if (runnerUp !== undefined && color === runnerUp.color) {
-        runnerVal = v;
+// The single most valuable positive card on the table (for the facts strip).
+function findBestCard(players: ReadonlyArray<EndgamePlayerScore>): EndgameBestCard | undefined {
+  let best: EndgameBestCard | undefined;
+  for (const p of players) {
+    for (const c of p.topCards) {
+      if (best === undefined || c.victoryPoint > best.victoryPoint) {
+        best = {color: p.color, owner: p.name, cardName: c.cardName, victoryPoint: c.victoryPoint};
       }
     }
-    if (wv > bestOther) {
-      winnerLeads.push({key: cat.key, lead: wv - bestOther});
-    }
-    // Runner-up's edge over the winner specifically (duel-flavoured).
-    if (runnerUp !== undefined && runnerVal > wv) {
-      runnerLeads.push({key: cat.key, lead: runnerVal - wv});
-    }
   }
-  winnerLeads.sort((a, b) => b.lead - a.lead);
-  runnerLeads.sort((a, b) => b.lead - a.lead);
-
-  if (winnerLeads.length > 0) {
-    insights.push({
-      kind: 'winner-strength',
-      player: winner.color,
-      categories: winnerLeads.slice(0, 2).map((l) => l.key),
-    });
-  }
-  if (model.winnerTookLeadGen !== undefined) {
-    insights.push({kind: 'lead-taken', player: winner.color, gen: model.winnerTookLeadGen});
-  } else if (winnerLeads.length > 0) {
-    insights.push({kind: 'wire-to-wire', player: winner.color});
-  }
-  if (runnerUp !== undefined && runnerLeads.length > 0) {
-    insights.push({
-      kind: 'runnerup-strength',
-      player: runnerUp.color,
-      otherPlayer: winner.color,
-      categories: runnerLeads.slice(0, 2).map((l) => l.key),
-    });
-  }
-  insights.push({kind: 'margin', player: winner.color, otherPlayer: runnerUp?.color, value: model.margin});
-  return insights;
+  return best;
 }
 
 export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opts: EndgameModelOptions): EndgameModel {
@@ -424,7 +379,24 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     }
   }
 
-  const insights = buildInsights({mode, winner, runnerUp, margin, categories, winnerTookLeadGen});
+  // ── The analytical layer: timeline shape, victory profile, insights. ──
+  const timeline = winner !== undefined ?
+    computeTimelineStats(players, winner, opts.generation, winnerTookLeadGen) : undefined;
+  const profile = winner !== undefined ? buildVictoryProfile(winner) : undefined;
+  const bestCard = findBestCard(players);
+  const insights = winner !== undefined ? generateInsights({
+    mode,
+    generation: opts.generation,
+    players,
+    winner,
+    runnerUp,
+    margin,
+    categories,
+    parameters,
+    timeline,
+    profile,
+    seed: gameSeed(players, opts.generation),
+  }) : [];
 
   return {
     mode,
@@ -435,6 +407,9 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     categories,
     parameters,
     insights,
+    timeline,
+    profile,
+    bestCard,
     generation: opts.generation,
     soloWin: opts.soloWin === true,
     winnerTookLeadGen,

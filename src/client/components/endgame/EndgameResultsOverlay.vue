@@ -55,7 +55,12 @@
     </div>
 
     <footer class="eg-results__footer">
-      <a class="eg-results__legacy" :href="legacyHref" v-i18n>Open detailed report</a>
+      <span class="eg-results__footer-note">
+        <span class="eg-results__footer-dot" aria-hidden="true"></span>
+        <span v-i18n>Final report</span>
+        <span class="eg-results__sub-sep">·</span>
+        <span>{{ view.game.name }}</span>
+      </span>
       <button type="button" class="eg-results__share" @click="copyLink">
         <span v-if="copied" v-i18n>Link copied</span>
         <span v-else v-i18n>Copy link</span>
@@ -119,10 +124,6 @@ export default defineComponent({
     },
     newGameHref(): string {
       return paths.NEW_GAME;
-    },
-    legacyHref(): string {
-      const id = this.view.id;
-      return id !== undefined ? `${paths.THE_END}?id=${id}` : paths.THE_END;
     },
   },
   methods: {
