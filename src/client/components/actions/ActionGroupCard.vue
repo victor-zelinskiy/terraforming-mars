@@ -160,7 +160,7 @@ export default defineComponent({
       } else if (s.softReason !== undefined) {
         parts.push(translateTextWithParams(s.softReason.message, [...(s.softReason.params ?? [])]));
       }
-      return parts.join(' · ');
+      return [...new Set(parts)].join(' / ');
     },
   },
   methods: {
@@ -203,14 +203,15 @@ export default defineComponent({
       if (branches.length === 0 || branches.some((b) => b.available)) {
         return '';
       }
-      return branches.map((b) => {
+      const reasons = branches.map((b) => {
         const r = b.unavailableReason;
         if (r === undefined) {
           return translateText('Cannot activate');
         }
         const msg = typeof r === 'string' ? r : r.message;
         return translateTextWithParams(msg, [...(b.unavailableReasonParams ?? [])]);
-      }).join(' В· ');
+      });
+      return [...new Set(reasons)].join(' / ');
     },
     // Selecting a row only FOCUSES the action (node-based) — the details panel
     // resolves the matching preview branch from the node; nothing executes here.

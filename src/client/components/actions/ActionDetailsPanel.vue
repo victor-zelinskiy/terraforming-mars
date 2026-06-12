@@ -228,14 +228,15 @@ export default defineComponent({
       if (branches.length === 0 || branches.some((b) => b.available)) {
         return '';
       }
-      return branches.map((b) => {
+      const reasons = branches.map((b) => {
         const r = b.unavailableReason;
         if (r === undefined) {
           return translateText('Cannot activate');
         }
         const msg = typeof r === 'string' ? r : r.message;
         return translateTextWithParams(msg, [...(b.unavailableReasonParams ?? [])]);
-      }).join(' В· ');
+      });
+      return [...new Set(reasons)].join(' / ');
     },
     // The reason hosted on the disabled-CTA premium tooltip (empty when actionable).
     ctaDisabledReason(): string {
