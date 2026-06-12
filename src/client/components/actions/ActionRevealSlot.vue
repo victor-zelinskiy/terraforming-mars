@@ -56,26 +56,26 @@
         <span class="action-reveal__pending-text" v-i18n>Revealing card…</span>
       </div>
 
-      <!-- RESULT: the revealed card + a calm success/fail marker. -->
+      <!-- RESULT: the revealed card. The success/fail is shown by the slot's
+           green/red frame (above) + the ✓/✗ badge on the outcome line (below) —
+           NOT an opaque marker OVER the card art (which collided with the card's
+           tags/content and read as a broken semi-transparent overlay). -->
       <div v-else-if="state === 'result' && result !== undefined" class="action-reveal__card">
         <Card :card="result.revealed" />
-        <span class="action-reveal__marker"
-              :class="result.conditionMet ? 'action-reveal__marker--met' : 'action-reveal__marker--miss'"
-              aria-hidden="true">{{ result.conditionMet ? '✓' : '✕' }}</span>
       </div>
     </div>
 
     <!-- The outcome line (result only): the reward on a match, or a clear "nothing". -->
     <div v-if="state === 'result' && result !== undefined" class="action-reveal__outcome"
          :class="result.conditionMet ? 'action-reveal__outcome--met' : 'action-reveal__outcome--miss'">
+      <span class="action-reveal__outcome-badge"
+            :class="result.conditionMet ? 'action-reveal__outcome-badge--met' : 'action-reveal__outcome-badge--miss'"
+            aria-hidden="true">{{ result.conditionMet ? '✓' : '✕' }}</span>
       <template v-if="result.conditionMet">
         <span class="action-reveal__outcome-label" v-i18n>Condition met</span>
         <ActionEffectChip v-if="result.reward !== undefined" :effect="result.reward" />
       </template>
-      <template v-else>
-        <span class="action-reveal__outcome-glyph" aria-hidden="true">—</span>
-        <span class="action-reveal__outcome-label" v-i18n>Condition not met</span>
-      </template>
+      <span v-else class="action-reveal__outcome-label" v-i18n>Condition not met</span>
     </div>
 
     <!-- VP clarity (result): the score either went up (+N VP — the first science

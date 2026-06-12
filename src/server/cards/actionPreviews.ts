@@ -114,7 +114,12 @@ export function cardResourceCost(resource: CardResource, amount: number): Action
  */
 export function addToCardStep(player: IPlayer, resource: CardResource | undefined, opts: AddResourceOptions = {}): ActionPreviewStep | undefined {
   const model = new AddResourcesToCard(player, resource, {...opts, autoSelect: opts.autoSelect ?? false}).previewSelectCard();
-  return model !== undefined ? {kind: 'input', input: model} : undefined;
+  if (model === undefined) {
+    return undefined;
+  }
+  // `amount` drives the per-candidate "N → N+count" impact; `cardResource` (the icon
+  // key) makes the picker prompt name the resource.
+  return {kind: 'input', input: model, amount: opts.count, cardResource: resource !== undefined ? cardResourceIcon(resource) : undefined};
 }
 
 /**

@@ -4,6 +4,9 @@ import {ICard} from '../../src/server/cards/ICard';
 import {Card} from '../../src/server/cards/Card';
 import {GameModule} from '../../src/common/cards/GameModule';
 import {CardName} from '../../src/common/cards/CardName';
+import {Behavior} from '../../src/server/behavior/Behavior';
+import {stepsForBehavior} from '../../src/server/models/actionPreview';
+import {testGame} from '../TestGame';
 
 // Only modules whose PROJECT cards are played from hand via the "РАЗЫГРАТЬ КАРТУ"
 // modal. Preludes / corporations use the start-of-game flow, not this modal.
@@ -182,5 +185,31 @@ describe('card-play-preview coverage', () => {
       }
     });
     expect(gaps, `behavior+bespokePlay cards that may HIDE a fixed on-play result. Add a cardPlayPreview hook (playPreview auto-includes the behavior chips + your bespoke extra) OR, if bespokePlay is purely an interactive choice/placement/attack with no hidden fixed result, a BEHAVIOR_BESPOKE_NO_HIDDEN_RESULT entry explaining why:\n  ${gaps.join('\n  ')}`).to.have.length(0);
+  });
+
+  // GUARD: `addResourcesToAnyCard` is single-OR-ARRAY. Both preview walkers must
+  // surface EVERY addition (a target picker or a "no eligible card" warning) — a
+  // dropped addition is invisible to the player (the Imported Nitrogen bug: the
+  // `!Array.isArray` guard silently skipped the whole +3 microbe / +2 animal block).
+  it('every in-scope declarative card surfaces EACH addResourcesToAnyCard addition (no silent ARRAY drop)', () => {
+    const [/* game */, player] = testGame(2);
+    const gaps: Array<string> = [];
+    forEachInScopeProjectCard((card, module) => {
+      const behavior = (card as {behavior?: Behavior}).behavior;
+      const raw = behavior?.addResourcesToAnyCard;
+      if (behavior === undefined || raw === undefined) {
+        return;
+      }
+      const additions = Array.isArray(raw) ? raw : [raw];
+      // Each addition surfaces as a card-target picker (the player can hold it) OR a
+      // warning (no eligible card). Fewer steps than additions = a silent drop.
+      const surfaced = stepsForBehavior(player, card, behavior).filter((s) =>
+        (s.kind === 'note' && s.noteKind === 'warning') ||
+        (s.kind === 'input' && s.input.type === 'card')).length;
+      if (surfaced < additions.length) {
+        gaps.push(`${card.name} [${module}]: ${additions.length} addResourcesToAnyCard additions, only ${surfaced} surfaced`);
+      }
+    });
+    expect(gaps, `declarative cards silently dropping an addResourcesToAnyCard addition:\n  ${gaps.join('\n  ')}`).to.have.length(0);
   });
 });

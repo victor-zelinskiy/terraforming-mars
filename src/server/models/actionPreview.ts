@@ -1,6 +1,6 @@
 import {IPlayer} from '../IPlayer';
 import {ICard, IActionCard} from '../cards/ICard';
-import {Behavior, TitledBehavior} from '../behavior/Behavior';
+import {Behavior, TitledBehavior, AddResource} from '../behavior/Behavior';
 import {Counter} from '../behavior/Counter';
 import {CardType} from '../../common/cards/CardType';
 import {CardResource} from '../../common/CardResource';
@@ -143,13 +143,27 @@ function cardResourceIcon(resource: CardResource): string {
   return String(resource).toLowerCase().replace(/\s+/g, '-');
 }
 
-/** The eligible target cards for an `addResourcesToAnyCard` behavior. EMPTY means
- *  the resource would be SILENTLY LOST — no card can hold it — so the preview warns
- *  instead of showing a fake "+N" gain (read-only; mirrors the live filter). */
-function addAnyCardCandidates(player: IPlayer, a: NonNullable<Behavior['addResourcesToAnyCard']> & object): ReadonlyArray<ICard> {
-  if (Array.isArray(a)) {
+/** A single "add to any card" instruction. `addResourcesToAnyCard` is single-OR-
+ *  ARRAY (e.g. Imported Nitrogen adds 3 microbes AND 2 animals); both walkers
+ *  normalize via `addToAnyCardList` so EVERY addition is shown — a missing
+ *  array branch silently dropped the whole chip + picker (the Imported Nitrogen bug). */
+type AddToAnyCard = Omit<AddResource, 'mustHaveCard'>;
+
+/** Normalize the single-or-array `addResourcesToAnyCard` to its list of additions,
+ *  in the SAME order `Executor.execute` defers them (so the pre-collected picks line
+ *  up positionally with the live follow-up prompts). */
+function addToAnyCardList(behavior: Behavior): ReadonlyArray<AddToAnyCard> {
+  const a = behavior.addResourcesToAnyCard;
+  if (a === undefined) {
     return [];
   }
+  return Array.isArray(a) ? a : [a];
+}
+
+/** The eligible target cards for ONE `addResourcesToAnyCard` addition. EMPTY means
+ *  the resource would be SILENTLY LOST — no card can hold it — so the preview warns
+ *  instead of showing a fake "+N" gain (read-only; mirrors the live filter). */
+function addAnyCardCandidates(player: IPlayer, a: AddToAnyCard): ReadonlyArray<ICard> {
   return new AddResourcesToCard(player, a.type, {
     restrictedTag: a.tag,
     min: a.min,
@@ -217,11 +231,11 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
     const n = ctx.count(behavior.addResources);
     out.push({direction: 'gain', icon: cardResourceIcon(card.resourceType), amount: n, current: card.resourceCount, resulting: card.resourceCount + n, note: 'on this card'});
   }
-  if (behavior.addResourcesToAnyCard !== undefined && !Array.isArray(behavior.addResourcesToAnyCard)) {
-    const a = behavior.addResourcesToAnyCard;
-    // Only show the "+N to a card" gain when a card can actually HOLD it — with no
-    // eligible card the effect is skipped (the warning step says so), and a gain chip
-    // would be a lie (the silent-loss bug this closes).
+  // `addResourcesToAnyCard` is single-OR-ARRAY (Imported Nitrogen: +3 microbes AND
+  // +2 animals). Show a "+N to a card" gain PER addition — only when a card can
+  // actually HOLD it (with no eligible card the effect is skipped, the warning step
+  // says so, and a gain chip would be a lie — the silent-loss bug this closes).
+  for (const a of addToAnyCardList(behavior)) {
     if (addAnyCardCandidates(player, a).length > 0) {
       out.push({direction: 'gain', icon: a.type !== undefined ? cardResourceIcon(a.type) : 'resources', amount: ctx.count(a.count), note: 'to a card'});
     }
@@ -338,10 +352,11 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // between the two below in defer order, which is harmless since no step is
   // emitted for it.)
 
-  // Add a resource to ANY card → a card-target picker (when a choice is offered),
-  // OR a WARNING when no card can hold it (the resource would be silently lost).
-  if (behavior.addResourcesToAnyCard !== undefined && !Array.isArray(behavior.addResourcesToAnyCard)) {
-    const a = behavior.addResourcesToAnyCard;
+  // Add a resource to ANY card → a card-target picker PER addition (the value is
+  // single-OR-ARRAY — Imported Nitrogen adds microbes AND animals), OR a WARNING when
+  // no card can hold it (the resource would be silently lost). Emitted in array order
+  // (the SAME order `Executor.execute` defers them) so the batched picks line up.
+  for (const a of addToAnyCardList(behavior)) {
     const count = ctx.count(a.count);
     if (addAnyCardCandidates(player, a).length === 0) {
       // Name WHICH resource is lost via its icon (a.type) — never an ambiguous
@@ -360,8 +375,9 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
         autoSelect: false,
       }).previewSelectCard();
       if (model !== undefined) {
-        // The signed delta lets the picker show "N → N+count" per candidate card.
-        steps.push({kind: 'input', input: model, amount: count});
+        // The signed delta lets the picker show "N → N+count" per candidate card;
+        // `cardResource` (the icon key) makes the picker prompt name the resource.
+        steps.push({kind: 'input', input: model, amount: count, cardResource: a.type !== undefined ? cardResourceIcon(a.type) : undefined});
       }
     }
   }

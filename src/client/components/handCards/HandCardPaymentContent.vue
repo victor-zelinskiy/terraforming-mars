@@ -139,7 +139,12 @@
                        host the КАРТЫ В РУКЕ overlay's multi-select mode and show a
                        COUNT summary (the pick can be large), NOT the card list. -->
                   <div v-if="isMultiSelectStep(step)" class="play-confirm__multipick">
-                    <span v-if="stepPromptText(step) !== ''" class="play-confirm__handpick-prompt" v-i18n>{{ stepPromptText(step) }}</span>
+                    <span v-if="stepResourceIcon(step) !== ''" class="play-confirm__handpick-prompt play-confirm__handpick-prompt--res">
+                      <span class="play-confirm__handpick-res-icon" :class="stepResourceIcon(step)" aria-hidden="true"></span>
+                      <span class="play-confirm__handpick-res-amt">×{{ stepResourceAmount(step) }}</span>
+                      <span class="play-confirm__handpick-res-to" v-i18n>to a card</span>
+                    </span>
+                    <span v-else-if="stepPromptText(step) !== ''" class="play-confirm__handpick-prompt">{{ stepPromptText(step) }}</span>
                     <div v-if="captured[i] !== undefined" class="play-confirm__multipick-summary">
                       <span class="play-confirm__multipick-label" v-i18n>{{ multiSelectLabel(step) }}</span>
                       <span class="play-confirm__multipick-count">{{ multiSelectCount(i) }}</span>
@@ -160,7 +165,12 @@
                        КАРТЫ В РУКЕ overlay (the hand twin of the board branch) — so a
                        play card whose on-play target is a hand card is supported too. -->
                   <div v-else-if="step.input.type === 'card' && isHandCardStep(step)" class="play-confirm__handpick">
-                    <span v-if="stepPromptText(step) !== ''" class="play-confirm__handpick-prompt" v-i18n>{{ stepPromptText(step) }}</span>
+                    <span v-if="stepResourceIcon(step) !== ''" class="play-confirm__handpick-prompt play-confirm__handpick-prompt--res">
+                      <span class="play-confirm__handpick-res-icon" :class="stepResourceIcon(step)" aria-hidden="true"></span>
+                      <span class="play-confirm__handpick-res-amt">×{{ stepResourceAmount(step) }}</span>
+                      <span class="play-confirm__handpick-res-to" v-i18n>to a card</span>
+                    </span>
+                    <span v-else-if="stepPromptText(step) !== ''" class="play-confirm__handpick-prompt">{{ stepPromptText(step) }}</span>
                     <div v-if="chosenStepCard(step, i) !== undefined" class="play-confirm__handpick-chosen">
                       <span class="play-confirm__handpick-badge" aria-hidden="true">
                         <span class="play-confirm__handpick-badge-tick">✓</span>
@@ -186,7 +196,12 @@
                        routes to the РАЗЫГРАНО board (pick the real card) instead of
                        the cramped tile grid. ≤3 stays inline below. -->
                   <div v-else-if="step.input.type === 'card' && isPlayedOverlayStep(step)" class="play-confirm__handpick">
-                    <span v-if="stepPromptText(step) !== ''" class="play-confirm__handpick-prompt" v-i18n>{{ stepPromptText(step) }}</span>
+                    <span v-if="stepResourceIcon(step) !== ''" class="play-confirm__handpick-prompt play-confirm__handpick-prompt--res">
+                      <span class="play-confirm__handpick-res-icon" :class="stepResourceIcon(step)" aria-hidden="true"></span>
+                      <span class="play-confirm__handpick-res-amt">×{{ stepResourceAmount(step) }}</span>
+                      <span class="play-confirm__handpick-res-to" v-i18n>to a card</span>
+                    </span>
+                    <span v-else-if="stepPromptText(step) !== ''" class="play-confirm__handpick-prompt">{{ stepPromptText(step) }}</span>
                     <div v-if="chosenStepCard(step, i) !== undefined" class="play-confirm__handpick-chosen">
                       <span class="play-confirm__handpick-badge" aria-hidden="true">
                         <span class="play-confirm__handpick-badge-tick">✓</span>
@@ -832,8 +847,21 @@ export default defineComponent({
     },
     // The card-target step's prompt (e.g. "Select first builder card to copy") —
     // shown above the board-pick affordance so each zone is clearly labelled.
+    // TRANSLATE + SUBSTITUTE the title's data tokens (a Message like "Select card to
+    // add ${0} ${1}" must render "…3 microbes", not the raw "${0} ${1}" placeholders).
     stepPromptText(step: ActionPreviewStep): string {
-      return this.text(this.stepCardInput(step).title);
+      const title = this.stepCardInput(step).title;
+      return typeof title === 'string' ? translateText(title) : translateMessage(title);
+    },
+    // For an "add a card resource" step: the resource ICON class (so the picker
+    // names WHICH resource — microbe / animal / floater — language- and grammar-safe,
+    // unlike a text resource name). '' when the step isn't a resource-add.
+    stepResourceIcon(step: ActionPreviewStep): string {
+      const res = (step as {cardResource?: string}).cardResource;
+      return res !== undefined && res !== '' ? iconClassFor(res) : '';
+    },
+    stepResourceAmount(step: ActionPreviewStep): number {
+      return Math.abs((step as {amount?: number}).amount ?? 0);
     },
     // Hand off step `i`'s target pick to the РАЗЫГРАНО board (PlayerHome opens it
     // in pick mode + suppresses this modal; the picked card returns via the
@@ -1258,6 +1286,32 @@ export default defineComponent({
   line-height: 1.35;
   color: rgba(150, 226, 245, 0.9);
   text-align: center;
+}
+// Resource-add prompt: the resource ICON + count, so the picker unambiguously
+// names WHICH resource it adds (grammar-safe, no text resource name).
+.play-confirm__handpick-prompt--res {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.play-confirm__handpick-res-icon {
+  width: 22px;
+  height: 22px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex: 0 0 auto;
+}
+.play-confirm__handpick-res-amt {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #bff0ff;
+}
+.play-confirm__handpick-res-to {
+  font-size: 11.5px;
+  color: rgba(150, 226, 245, 0.8);
 }
 .play-confirm__warn--cards {
   align-items: center;

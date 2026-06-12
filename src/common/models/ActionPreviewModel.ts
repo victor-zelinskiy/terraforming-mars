@@ -186,6 +186,13 @@ export type ActionPreviewStep =
      */
     amount?: number,
     /**
+     * For an "add a CARD RESOURCE to a card" pick (microbe / animal / floater / …):
+     * the resource icon key, so the picker prompt shows the resource ICON + count
+     * (`[microbe] ×3`) — unambiguous about WHICH resource this picker adds, and
+     * grammar-safe (no per-language plural agreement, unlike a text resource name).
+     */
+    cardResource?: string,
+    /**
      * Indices of EARLIER card-target steps whose chosen card must be EXCLUDED from
      * this step's candidates (no-duplicate across linked picks — e.g. Cyberia
      * Systems copies TWO DIFFERENT building cards). The client filters this step's
