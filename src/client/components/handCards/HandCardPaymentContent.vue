@@ -182,6 +182,15 @@
                               @click.capture.stop="openStepFullscreen(step, i)">
                         <Card :key="capturedCardName(i)" :card="chosenStepCard(step, i)!" />
                       </button>
+                      <!-- The per-card resource impact ON THIS card (current → after),
+                           mirroring the inline ActionTargetCard line — so a board/hand
+                           pick shows "сколько было → сколько станет", not just the card. -->
+                      <span v-if="chosenImpact(step, i) !== undefined" class="play-confirm__handpick-impact">
+                        <span class="play-confirm__handpick-impact-icon" :class="chosenImpact(step, i)!.icon" aria-hidden="true"></span>
+                        <span class="play-confirm__handpick-impact-from">{{ chosenImpact(step, i)!.from }}</span>
+                        <span class="play-confirm__handpick-impact-arrow" aria-hidden="true">→</span>
+                        <span class="play-confirm__handpick-impact-to">{{ chosenImpact(step, i)!.to }}</span>
+                      </span>
                       <button type="button" class="play-confirm__handpick-change" @click="requestHandPick(i, step)">
                         <span class="play-confirm__handpick-glyph" aria-hidden="true">⟲</span>
                         <span v-i18n>Choose another card</span>
@@ -215,6 +224,12 @@
                              card after a re-pick (Card.vue resolves render once). -->
                         <Card :key="capturedCardName(i)" :card="chosenStepCard(step, i)!" />
                       </button>
+                      <span v-if="chosenImpact(step, i) !== undefined" class="play-confirm__handpick-impact">
+                        <span class="play-confirm__handpick-impact-icon" :class="chosenImpact(step, i)!.icon" aria-hidden="true"></span>
+                        <span class="play-confirm__handpick-impact-from">{{ chosenImpact(step, i)!.from }}</span>
+                        <span class="play-confirm__handpick-impact-arrow" aria-hidden="true">→</span>
+                        <span class="play-confirm__handpick-impact-to">{{ chosenImpact(step, i)!.to }}</span>
+                      </span>
                       <button type="button" class="play-confirm__handpick-change" @click="requestPlayedPick(i, step)">
                         <span class="play-confirm__handpick-glyph" aria-hidden="true">⟲</span>
                         <span v-i18n>Choose another card</span>
@@ -464,7 +479,7 @@ export default defineComponent({
         }
       });
       if (!hasCopy) {
-        return [...branch.effects, ...this.synthResultChips(branch)];
+        return [...this.resolveCardTargetChips(branch.effects, branch), ...this.synthResultChips(branch)];
       }
       // Fold base production effects + the copied deltas into ONE chip per resource
       // (current → resulting); non-production base effects pass through unchanged.
@@ -497,7 +512,7 @@ export default defineComponent({
           note: 'production',
         });
       }
-      return [...prodChips, ...passthrough, ...this.synthResultChips(branch)];
+      return [...prodChips, ...this.resolveCardTargetChips(passthrough, branch), ...this.synthResultChips(branch)];
     },
     // A real choice only when the on-play behavior is an `or` with 2+ branches.
     showBranchList(): boolean {
@@ -724,6 +739,57 @@ export default defineComponent({
       });
       return chips;
     },
+    // Resolve the "+N to a card" RESULT chips (addResourcesToAnyCard) against the
+    // player's CHOICES, so the РЕЗУЛЬТАТ reads honestly:
+    //   • a "to a card" effect whose picker step is ANSWERED → REPLACE the indefinite
+    //     "+N на карту" with the CONCRETE `current → resulting` on the chosen card
+    //     (a definite outcome, like a plant/TR gain — and live as the player re-picks);
+    //   • a "to a card" effect whose picker step is NOT YET answered → OMIT it (the
+    //     picker below already states "+N на карту"; a green gain chip up top before
+    //     any card is chosen reads as already-applied — the premature-result the
+    //     player flagged);
+    //   • a "to a card" effect with NO picker step (rides the dynamic follow-up) →
+    //     KEEP the generic "+N на карту" (no picker exists to convey it).
+    // Steps are claimed in order so two additions of the SAME resource map to
+    // distinct picks. General — every addResourcesToAnyCard card benefits.
+    resolveCardTargetChips(effects: ReadonlyArray<ActionEffect>, branch: ActionPreviewBranch): Array<ActionEffect> {
+      const steps = branch.steps;
+      const claimed = new Set<number>();
+      const out: Array<ActionEffect> = [];
+      for (const e of effects) {
+        if (e.note !== 'to a card') {
+          out.push(e);
+          continue;
+        }
+        let matched = -1;
+        for (let i = 0; i < steps.length; i++) {
+          if (claimed.has(i)) {
+            continue;
+          }
+          const step = steps[i];
+          if (step.kind !== 'input' || step.input.type !== 'card') {
+            continue;
+          }
+          if ((step as {cardResource?: string}).cardResource !== e.icon) {
+            continue;
+          }
+          matched = i;
+          break;
+        }
+        if (matched === -1) {
+          out.push(e); // no picker → keep the generic chip.
+          continue;
+        }
+        claimed.add(matched);
+        const card = this.chosenStepCard(steps[matched], matched);
+        if (card === undefined) {
+          continue; // picker exists but not chosen yet → omit (no premature result).
+        }
+        const from = card.resources ?? 0;
+        out.push({...e, current: from, resulting: from + e.amount});
+      }
+      return out;
+    },
     placementHint(step: {kind: string, placementType?: string, text?: string | Message}): string {
       // A note with explicit text (the warning, or a card-specific note) overrides
       // the canned placement copy.
@@ -844,6 +910,24 @@ export default defineComponent({
         return undefined;
       }
       return this.stepCardInput(step).cards.find((c) => c.name === name);
+    },
+    // The per-card resource impact for a CHOSEN board/hand-pick card step: the
+    // chosen card's current resource count → the count AFTER this step's add
+    // (current + the step's signed amount), mirroring the inline ActionTargetCard
+    // impact line. undefined when the step carries no resource icon / amount (a
+    // copy-production or non-resource pick — no per-card resource delta to preview).
+    chosenImpact(step: ActionPreviewStep, i: number): {icon: string, from: number, to: number} | undefined {
+      const icon = this.stepResourceIcon(step);
+      const amount = (step as {amount?: number}).amount;
+      if (icon === '' || amount === undefined) {
+        return undefined;
+      }
+      const card = this.chosenStepCard(step, i);
+      if (card === undefined) {
+        return undefined;
+      }
+      const from = card.resources ?? 0;
+      return {icon, from, to: Math.max(0, from + amount)};
     },
     // The card-target step's prompt (e.g. "Select first builder card to copy") —
     // shown above the board-pick affordance so each zone is clearly labelled.
@@ -1397,6 +1481,32 @@ export default defineComponent({
   padding: 6px 14px;
   font-size: 12px;
 }
+// The per-card resource impact under a chosen board/hand pick (microbe 4 → 7) —
+// the same "current → resulting" readout the inline ActionTargetCard shows, so the
+// player sees exactly how much THIS card gains before confirming.
+.play-confirm__handpick-impact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(8, 20, 30, 0.6);
+  border: 1px solid rgba(120, 220, 255, 0.32);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.play-confirm__handpick-impact-icon {
+  width: 18px;
+  height: 18px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex: 0 0 auto;
+}
+.play-confirm__handpick-impact-from { color: rgba(206, 228, 244, 0.72); }
+.play-confirm__handpick-impact-arrow { color: rgba(150, 220, 255, 0.7); font-weight: 400; }
+.play-confirm__handpick-impact-to { color: #8ff0c4; }
 
 // MULTI-select card pick (Public Plans): a centred count summary + a pick button.
 // No card list — the pick can be large; the count + the РЕЗУЛЬТАТ chip say enough.

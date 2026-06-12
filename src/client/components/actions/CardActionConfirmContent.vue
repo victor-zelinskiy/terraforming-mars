@@ -74,7 +74,7 @@
                                 :reveal="selected.reveal" />
 
               <template v-if="selected !== undefined">
-                <ActionResultsPreview v-if="selected.effects.length > 0" :effects="selected.effects" />
+                <ActionResultsPreview v-if="resolvedEffects.length > 0" :effects="resolvedEffects" />
                 <div class="action-confirm__section" v-if="vpProgress !== undefined">
                   <ActionVpProgress :cardName="cardName"
                                     :resourceIcon="vpProgress.icon"
@@ -241,6 +241,12 @@
                           @click.capture.stop="openStepFullscreen(step, i)">
                     <Card :key="capturedCardName(i)" :card="chosenStepCard(step, i)!" />
                   </button>
+                  <span v-if="chosenImpact(step, i) !== undefined" class="action-confirm__handpick-impact">
+                    <span class="action-confirm__handpick-impact-icon" :class="chosenImpact(step, i)!.icon" aria-hidden="true"></span>
+                    <span class="action-confirm__handpick-impact-from">{{ chosenImpact(step, i)!.from }}</span>
+                    <span class="action-confirm__handpick-impact-arrow" aria-hidden="true">→</span>
+                    <span class="action-confirm__handpick-impact-to">{{ chosenImpact(step, i)!.to }}</span>
+                  </span>
                   <button type="button" class="action-confirm__handpick-change" @click="requestHandPickStep(i, step)" :data-test="'action-step-handpick-change-' + i">
                     <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
                     <span v-i18n>Choose another card</span>
@@ -269,6 +275,12 @@
                          first card (Card.vue resolves render once in data()). -->
                     <Card :key="capturedCardName(i)" :card="chosenStepCard(step, i)!" />
                   </button>
+                  <span v-if="chosenImpact(step, i) !== undefined" class="action-confirm__handpick-impact">
+                    <span class="action-confirm__handpick-impact-icon" :class="chosenImpact(step, i)!.icon" aria-hidden="true"></span>
+                    <span class="action-confirm__handpick-impact-from">{{ chosenImpact(step, i)!.from }}</span>
+                    <span class="action-confirm__handpick-impact-arrow" aria-hidden="true">→</span>
+                    <span class="action-confirm__handpick-impact-to">{{ chosenImpact(step, i)!.to }}</span>
+                  </span>
                   <button type="button" class="action-confirm__handpick-change" @click="requestPlayedPickStep(i, step)" :data-test="'action-step-pick-change-' + i">
                     <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
                     <span v-i18n>Choose another card</span>
@@ -343,7 +355,8 @@ import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Message} from '@/common/logs/Message';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionRevealDescriptor} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionRevealDescriptor, ActionEffect} from '@/common/models/ActionPreviewModel';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {paths} from '@/common/app/paths';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ActionGroup, playerActionGroups, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
@@ -615,6 +628,17 @@ export default defineComponent({
     // Complex: 2 VP / science). Derived entirely client-side from the manifest —
     // the effect already carries before→after; ActionVpProgress adapts the
     // display (bar for thresholds, plain VP delta for multipliers).
+    // The RESULT chips with the "+N to a card" additions resolved against the
+    // player's CHOICES (see `resolveCardTargetChips`): the indefinite "+N на карту"
+    // is hidden until a target card is picked, then shown as the CONCRETE
+    // `current → resulting` on that card. Mirrors the play modal's `resultEffects`.
+    resolvedEffects(): ReadonlyArray<ActionEffect> {
+      const branch = this.selected;
+      if (branch === undefined) {
+        return [];
+      }
+      return this.resolveCardTargetChips(branch.effects, branch);
+    },
     vpProgress(): {icon: string, before: number, after: number} | undefined {
       const branch = this.selected;
       if (branch === undefined) {
@@ -878,6 +902,73 @@ export default defineComponent({
         return undefined;
       }
       return (step.input as SelectCardModel).cards.find((c) => c.name === name);
+    },
+    // The resource ICON class for an "add a card resource" STEP ('' otherwise).
+    stepResourceIcon(step: ActionPreviewStep): string {
+      const res = (step as {cardResource?: string}).cardResource;
+      return res !== undefined && res !== '' ? iconClassFor(res) : '';
+    },
+    // The per-card resource impact for a CHOSEN board/hand-pick card STEP: the
+    // chosen card's current resource count → that + the step's signed amount,
+    // mirroring the inline ActionTargetCard line. undefined when the step carries
+    // no resource icon / amount (a copy or non-resource pick — no delta to preview).
+    chosenImpact(step: ActionPreviewStep, i: number): {icon: string, from: number, to: number} | undefined {
+      const icon = this.stepResourceIcon(step);
+      const amount = (step as {amount?: number}).amount;
+      if (icon === '' || amount === undefined) {
+        return undefined;
+      }
+      const card = this.chosenStepCard(step, i);
+      if (card === undefined) {
+        return undefined;
+      }
+      const from = card.resources ?? 0;
+      return {icon, from, to: Math.max(0, from + amount)};
+    },
+    // Resolve the "+N to a card" RESULT chips against the player's choices, so the
+    // result reads honestly: a chip whose picker step is ANSWERED becomes the
+    // concrete `current → resulting` on the chosen card; one whose picker is NOT yet
+    // answered is OMITTED (no premature "already applied" gain up top — the picker
+    // states it); one with NO picker step (rides a dynamic follow-up) keeps the
+    // generic chip. Steps are claimed in order (two same-resource adds → distinct
+    // picks). General — every action that adds resources to a card benefits.
+    resolveCardTargetChips(effects: ReadonlyArray<ActionEffect>, branch: ActionPreviewBranch): Array<ActionEffect> {
+      const steps = branch.steps;
+      const claimed = new Set<number>();
+      const out: Array<ActionEffect> = [];
+      for (const e of effects) {
+        if (e.note !== 'to a card') {
+          out.push(e);
+          continue;
+        }
+        let matched = -1;
+        for (let i = 0; i < steps.length; i++) {
+          if (claimed.has(i)) {
+            continue;
+          }
+          const step = steps[i];
+          if (step.kind !== 'input' || step.input.type !== 'card') {
+            continue;
+          }
+          if ((step as {cardResource?: string}).cardResource !== e.icon) {
+            continue;
+          }
+          matched = i;
+          break;
+        }
+        if (matched === -1) {
+          out.push(e);
+          continue;
+        }
+        claimed.add(matched);
+        const card = this.chosenStepCard(steps[matched], matched);
+        if (card === undefined) {
+          continue;
+        }
+        const from = card.resources ?? 0;
+        out.push({...e, current: from, resulting: from + e.amount});
+      }
+      return out;
     },
     openStepFullscreen(step: ActionPreviewStep, i: number): void {
       const card = this.chosenStepCard(step, i);
@@ -1223,6 +1314,32 @@ export default defineComponent({
   &:hover { border-color: #7fd4ff; color: #eaf6ff; }
 }
 .action-confirm__handpick-change-glyph { font-size: 13px; }
+// The per-card resource impact under a chosen board/hand pick (floater 1 → 2) —
+// the same "current → resulting" the inline ActionTargetCard shows, so the player
+// sees how much THIS card gains before confirming.
+.action-confirm__handpick-impact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(8, 20, 30, 0.6);
+  border: 1px solid rgba(120, 220, 255, 0.32);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.action-confirm__handpick-impact-icon {
+  width: 18px;
+  height: 18px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex: 0 0 auto;
+}
+.action-confirm__handpick-impact-from { color: rgba(206, 228, 244, 0.72); }
+.action-confirm__handpick-impact-arrow { color: rgba(150, 220, 255, 0.7); font-weight: 400; }
+.action-confirm__handpick-impact-to { color: #8ff0c4; }
 
 .action-confirm__none {
   margin: 8px 0;
