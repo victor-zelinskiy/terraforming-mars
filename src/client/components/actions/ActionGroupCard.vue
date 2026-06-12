@@ -63,7 +63,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
-import {stripNodeOr, branchPositionForNode} from '@/client/components/actions/actionBranchView';
+import {stripNodeOr, branchPositionsForNode} from '@/client/components/actions/actionBranchView';
 import {ActionState, ActionStatus} from '@/client/components/actions/actionPlayability';
 import {actionRowKey} from '@/client/components/actions/actionsOverlayState';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -169,13 +169,14 @@ export default defineComponent({
     },
     // The preview branch a given render-node row maps to (only for a multi-node
     // card with a loaded preview) — the source of PER-ROW availability.
-    rowBranch(i: number): ActionPreviewBranch | undefined {
+    rowBranches(i: number): ReadonlyArray<ActionPreviewBranch> {
       const preview = this.preview;
       if (preview === undefined || this.group.nodes.length <= 1) {
-        return undefined;
+        return [];
       }
-      const p = branchPositionForNode(this.group, preview.branches, i);
-      return p !== undefined ? preview.branches[p] : undefined;
+      return branchPositionsForNode(this.group, preview.branches, i)
+        .map((p) => preview.branches[p])
+        .filter((b) => b !== undefined);
     },
     // PER-ROW status: a card-level block applies to every row; otherwise a SINGLE
     // branch can be 'rules' (unavailable) while its sibling stays 'available'.
@@ -183,8 +184,11 @@ export default defineComponent({
       if (this.state.status !== 'available') {
         return this.state.status;
       }
-      const b = this.rowBranch(i);
-      return (b !== undefined && b.available === false) ? 'rules' : 'available';
+      const branches = this.rowBranches(i);
+      if (this.preview !== undefined && this.group.nodes.length > 1 && branches.length === 0) {
+        return 'rules';
+      }
+      return branches.length > 0 && branches.every((b) => b.available === false) ? 'rules' : 'available';
     },
     // PER-ROW reason for the premium tooltip — card-level reason, else the branch's
     // own "why not", else empty (an available row shows no tooltip).
@@ -192,16 +196,21 @@ export default defineComponent({
       if (this.state.status !== 'available') {
         return this.reasonText;
       }
-      const b = this.rowBranch(i);
-      if (b === undefined || b.available !== false) {
-        return '';
-      }
-      const r = b.unavailableReason;
-      if (r === undefined) {
+      const branches = this.rowBranches(i);
+      if (this.preview !== undefined && this.group.nodes.length > 1 && branches.length === 0) {
         return translateText('Cannot activate');
       }
-      const msg = typeof r === 'string' ? r : r.message;
-      return translateTextWithParams(msg, [...(b.unavailableReasonParams ?? [])]);
+      if (branches.length === 0 || branches.some((b) => b.available)) {
+        return '';
+      }
+      return branches.map((b) => {
+        const r = b.unavailableReason;
+        if (r === undefined) {
+          return translateText('Cannot activate');
+        }
+        const msg = typeof r === 'string' ? r : r.message;
+        return translateTextWithParams(msg, [...(b.unavailableReasonParams ?? [])]);
+      }).join(' В· ');
     },
     // Selecting a row only FOCUSES the action (node-based) — the details panel
     // resolves the matching preview branch from the node; nothing executes here.

@@ -2,28 +2,27 @@ import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {ActionGroup, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
-import {assignBranchNodes} from '@/client/components/actions/actionBranchNodes';
+import {assignBranchNodes, bestBranchNode} from '@/client/components/actions/actionBranchNodes';
 
 /*
- * Shared branch ↔ render-node mapping for an activatable action. A card has ONE
- * action but may draw 2+ render NODES for an `or` (Regolith Eaters / Jupiter
- * Floating Station → 2 nodes; Self-Replicating Robots → 1 combined node / 2
- * branches). This was duplicated across ActionBlock, CardActionConfirmContent and
- * (now) ActionDetailsPanel — extracted here so the three surfaces stay in lockstep.
+ * Shared branch/render-node mapping for activatable actions.
+ *
+ * A card has one action, but that action can draw several render nodes and expose
+ * several server preview branches. The counts are not always equal: Asteroid
+ * Rights draws two rows but has three branches because one printed row represents
+ * two spend-asteroid outcomes. The overlay needs the full node -> branch set, not
+ * only a single branch, otherwise it can incorrectly enable a disabled row by
+ * falling back to a different available branch.
  */
 
 type GroupNode = ActionGroup['nodes'][number];
 
 export type BranchView = {
-  /** Stable v-for key (cardName + branch ordinal). */
   key: string;
-  /** The render node that draws THIS branch — undefined when the card draws all
-   *  branches in one combined node (then the surface falls back to the title). */
   node: GroupNode | undefined;
   branch: ActionPreviewBranch;
 };
 
-/** A branch title as plain text (Message → its `.message`). */
 export function branchTitleText(b: ActionPreviewBranch): string {
   return typeof b.title === 'string' ? b.title : (b.title as Message).message;
 }
@@ -32,8 +31,6 @@ function nodeAt(nodes: ReadonlyArray<GroupNode>, idx: number | undefined): Group
   return (idx !== undefined && idx >= 0) ? nodes[idx] : undefined;
 }
 
-/** A branch's render node with a leading OR connector stripped, so a lone branch
- *  graphic isn't orphaned by an "ИЛИ" join. */
 function strippedBranchNode(node: GroupNode | undefined): GroupNode | undefined {
   if (node === undefined || node.actionNode === undefined) {
     return node;
@@ -41,61 +38,82 @@ function strippedBranchNode(node: GroupNode | undefined): GroupNode | undefined 
   return {...node, actionNode: branchActionNode(node.actionNode)};
 }
 
-/** Public: strip a leading OR connector from a render node (no-op for the first
- *  branch / a non-`or` action). Used to draw clean per-row graphics — the "ИЛИ"
- *  alternation is conveyed by a deliberate divider, not a stray symbol in the row. */
 export function stripNodeOr(node: GroupNode): GroupNode {
   return strippedBranchNode(node) ?? node;
 }
 
-/**
- * The PREVIEW BRANCH POSITION that corresponds to a selected RENDER NODE. The
- * overlay rows are render nodes (manifest order); the preview's branches are in
- * the server's behavior order — the two can differ (Regolith Eaters / Atmo
- * Collectors print "add" first but the server lists "spend" first). A naive
- * positional map (node i → branch i) therefore SWAPS the cost/result between a
- * card's two actions. This resolves node → branch via the SAME token-overlap
- * matching the confirm modal uses, then INVERTS it (which branch claimed this
- * node). Returns `undefined` for a combined-node card (1 node draws all branches,
- * e.g. Self-Replicating Robots) so the surface falls back to a branch picker.
- */
-export function branchPositionForNode(
+export function branchNodeIndexForBranch(
   group: ActionGroup,
   branches: ReadonlyArray<ActionPreviewBranch>,
-  nodeIndex: number,
+  branchIndex: number,
 ): number | undefined {
   if (branches.length === 0) {
     return undefined;
   }
   if (branches.length === 1) {
-    return 0; // a single-action card — the lone branch, regardless of node order.
+    return 0;
+  }
+  if (group.nodes.length === 1) {
+    return undefined;
   }
   if (group.nodes.length < branches.length) {
-    return undefined; // combined node — no single branch maps to it.
+    return bestBranchNode(branchTitleText(branches[branchIndex]), group.nodes.map((n) => actionNodeDescription(n)));
   }
   const indices = assignBranchNodes(
     branches.map((b) => branchTitleText(b)),
     group.nodes.map((n) => actionNodeDescription(n)),
   );
-  const p = indices.indexOf(nodeIndex);
+  const p = indices[branchIndex];
   return p >= 0 ? p : undefined;
 }
 
-/**
- * Pair each preview branch with the render node that draws it. When the render
- * SPLITS CLEANLY (≥ one node per branch) each branch gets its own graphic (matched
- * by token overlap via `assignBranchNodes`); when ALL branches share ONE combined
- * node (`nodes.length < branches.length`), every branch gets `node: undefined` and
- * the surface shows the branch TITLE instead (never the whole combined action).
- */
+export function branchPositionsForNode(
+  group: ActionGroup,
+  branches: ReadonlyArray<ActionPreviewBranch>,
+  nodeIndex: number,
+): ReadonlyArray<number> {
+  if (branches.length === 0) {
+    return [];
+  }
+  if (branches.length === 1) {
+    return [0];
+  }
+  if (group.nodes.length === 1) {
+    return branches.map((_b, i) => i);
+  }
+  const out: Array<number> = [];
+  for (let i = 0; i < branches.length; i++) {
+    if (branchNodeIndexForBranch(group, branches, i) === nodeIndex) {
+      out.push(i);
+    }
+  }
+  return out;
+}
+
+export function branchPositionForNode(
+  group: ActionGroup,
+  branches: ReadonlyArray<ActionPreviewBranch>,
+  nodeIndex: number,
+): number | undefined {
+  const positions = branchPositionsForNode(group, branches, nodeIndex);
+  return positions.length === 1 ? positions[0] : undefined;
+}
+
 export function buildBranchViews(
   cardName: CardName,
   group: ActionGroup,
   branches: ReadonlyArray<ActionPreviewBranch>,
 ): ReadonlyArray<BranchView> {
   const nodes = group.nodes;
-  if (nodes.length < branches.length) {
+  if (nodes.length === 1 && branches.length > 1) {
     return branches.map((branch, i): BranchView => ({key: cardName + '#br' + i, node: undefined, branch}));
+  }
+  if (nodes.length < branches.length) {
+    return branches.map((branch, i): BranchView => ({
+      key: cardName + '#br' + i,
+      node: strippedBranchNode(nodeAt(nodes, branchNodeIndexForBranch(group, branches, i))),
+      branch,
+    }));
   }
   const indices = assignBranchNodes(
     branches.map((b) => branchTitleText(b)),

@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {branchPositionForNode, stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {branchPositionForNode, branchPositionsForNode, stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 
@@ -41,6 +41,22 @@ describe('branchPositionForNode', () => {
 
   it('no branches (preview not loaded yet) → undefined', () => {
     expect(branchPositionForNode(group(['x', 'y']), branches([]), 0)).eq(undefined);
+  });
+  it('maps multiple server branches to one printed row when a row contains an OR outcome', () => {
+    const g = group([
+      'Spend 1 M€ to add 1 asteroid to ANY card.',
+      'Spend 1 asteroid here to increase M€ production 1 step OR gain 2 titanium.',
+    ]);
+    const b = branches([
+      'Remove 1 asteroid on this card to gain 2 titanium',
+      'Remove 1 asteroid on this card to increase M€ production 1 step',
+      'Add 1 asteroid to this card',
+    ]);
+
+    expect(branchPositionsForNode(g, b, 0)).deep.eq([2]);
+    expect(branchPositionsForNode(g, b, 1)).deep.eq([0, 1]);
+    expect(branchPositionForNode(g, b, 0)).eq(2);
+    expect(branchPositionForNode(g, b, 1)).eq(undefined);
   });
 });
 
