@@ -905,6 +905,8 @@
     "Select up to ${0} card(s) to buy": "Купите до ${0} карт(ы)",
     "You cannot afford any cards": "Недостаточно M€ для покупки карт",
     "Select a card to discard": "Выберите карту, чтобы сбросить",
+    "Pluto colony bonus. Select a card to discard": "Бонус колонии Плутона. Выберите карту, чтобы сбросить",
+    "Hygiea colony effect. Select a card to discard": "Эффект колонии Гигеи. Выберите карту, чтобы сбросить",
     "Your selected cards:": "Выбранные вами карты",
 
     "All*": "Все*",
