@@ -463,6 +463,12 @@ export default defineComponent({
     hasInputSteps(): boolean {
       return this.selected?.steps.some((s) => s.kind === 'input') ?? false;
     },
+    // The branch selects MORE THAN ONE card (≥2 card-target steps). Such a pick
+    // ALWAYS routes to the РАЗЫГРАНО board — multiple inline tile grids don't fit
+    // the modal. Mirrors the play modal's `multiCardPick`.
+    multiCardStep(): boolean {
+      return (this.selected?.steps.filter((s) => s.kind === 'input' && s.input.type === 'card').length ?? 0) >= 2;
+    },
     // The number of selectable CARD tiles the choices block will render. Drives the
     // width bucket (widthClass) so the modal expands horizontally — spreading the
     // candidates across more columns — BEFORE the choices block has to scroll.
@@ -770,20 +776,25 @@ export default defineComponent({
       this.awaitingPlayedPick = true;
       this.$emit('pick-played-card', {title: input.title, selectable: input.cards.map((c) => c.name)});
     },
-    // True when a STEP's 'card' input is a pick from your OWN tableau with MORE
-    // THAN 3 candidates — too many for the cramped inline tile grid, so route it to
-    // the РАЗЫГРАНО board. Mirrors `isPlayedOverlayInput` (which handles the branch's
-    // optionInput) for the wide steps block.
+    // True when a STEP's 'card' input is a pick from your OWN tableau and EITHER
+    // there are MORE THAN 3 candidates OR this branch selects MULTIPLE cards
+    // (`multiCardStep`) — too many for the inline tile grid (multiple inline grids
+    // don't fit) → route it to the РАЗЫГРАНО board. Mirrors the play modal's rule
+    // (`isPlayedOverlayStep` + `multiCardPick`): a multi-card pick ALWAYS goes to
+    // the board; only a single-card pick uses the bare >3 threshold (≤3 inline ROW).
     isPlayedOverlayStep(step: ActionPreviewStep): boolean {
       if (step.kind !== 'input' || step.input.type !== 'card') {
         return false;
       }
       const cards = (step.input as SelectCardModel).cards ?? [];
-      if (cards.length <= PLAYED_PICK_OVERLAY_THRESHOLD) {
+      if (cards.length === 0) {
         return false;
       }
       const tableau = new Set((this.playerView.thisPlayer.tableau ?? []).map((c) => c.name));
-      return cards.every((c) => tableau.has(c.name));
+      if (!cards.every((c) => tableau.has(c.name))) {
+        return false;
+      }
+      return cards.length > PLAYED_PICK_OVERLAY_THRESHOLD || this.multiCardStep;
     },
     // Hand off a card-target STEP's pick to the РАЗЫГРАНО board (PlayerHome opens it
     // in pick mode + suppresses this modal; the picked card returns via the
