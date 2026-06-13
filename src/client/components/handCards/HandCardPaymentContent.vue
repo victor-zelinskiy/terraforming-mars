@@ -701,12 +701,7 @@ export default defineComponent({
       if (card === undefined) {
         return;
       }
-      this.capturedPlay = undefined;
-      (this.$refs.payWidget as {saveData?: () => void} | undefined)?.saveData?.();
-      if (this.capturedPlay === undefined) {
-        return;
-      }
-      this.$emit('repeat-action', {chosenCard: card, playResponse: this.capturedPlay});
+      this.handoffRepeat(card, actionRepeatPickResult.nodeIndex);
     },
     // A card picked in the КАРТЫ В РУКЕ overlay was delivered back via the bridge —
     // capture it into the awaiting hand-step slot (only while we requested it).
@@ -994,16 +989,20 @@ export default defineComponent({
     repeatActionUsesOverlay(step: ActionPreviewStep): boolean {
       return this.repeatCandidates(step).length > PLAYED_PICK_OVERLAY_THRESHOLD;
     },
-    // Inline pick (<4): hand off the chosen action to its own premium confirm,
-    // carrying THIS play's response (projectCard + payment) so the host can build
-    // the outer prefix [play ProjectInspection, {card:[X]}].
-    onRepeatPick(card: CardName): void {
+    // Inline pick (<4): hand off the chosen action (+ branch node) to its own
+    // premium confirm, carrying THIS play's response (projectCard + payment) so the
+    // host can build the outer prefix [play ProjectInspection, {card:[X]}].
+    onRepeatPick(payload: {cardName: CardName, nodeIndex: number}): void {
+      this.handoffRepeat(payload.cardName, payload.nodeIndex);
+    },
+    // Shared: capture the play response and emit the repeat-action handoff.
+    handoffRepeat(card: CardName, nodeIndex: number): void {
       this.capturedPlay = undefined;
       (this.$refs.payWidget as {saveData?: () => void} | undefined)?.saveData?.();
       if (this.capturedPlay === undefined) {
         return;
       }
-      this.$emit('repeat-action', {chosenCard: card, playResponse: this.capturedPlay});
+      this.$emit('repeat-action', {chosenCard: card, nodeIndex, playResponse: this.capturedPlay});
     },
     // >=4: open the ДЕЙСТВИЯ overlay pick-mode; the chosen action returns via the
     // `actionsPickEpoch` watcher → `repeat-action`.

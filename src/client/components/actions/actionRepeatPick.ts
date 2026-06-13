@@ -19,13 +19,18 @@ import {CardName} from '@/common/cards/CardName';
  * (bumped on every delivery, so two picks of the SAME card still fire). Module
  * scope so it survives the `playerkey` remount, like the other overlay states.
  */
-export const actionRepeatPickResult = reactive<{card: CardName | undefined, epoch: number}>({
+export const actionRepeatPickResult = reactive<{card: CardName | undefined, nodeIndex: number, epoch: number}>({
   card: undefined,
+  // The chosen render NODE ordinal — a split (`or`) action has one node per branch,
+  // so picking a specific row opens the repeated action's confirm on THAT branch.
+  nodeIndex: 0,
   epoch: 0,
 });
 
-/** PlayerHome delivers the action chosen on the ДЕЙСТВИЯ overlay back to the modal. */
-export function deliverActionRepeatPick(card: CardName): void {
+/** PlayerHome delivers the action (+ chosen branch node) picked on the ДЕЙСТВИЯ
+ *  overlay back to the modal. */
+export function deliverActionRepeatPick(card: CardName, nodeIndex = 0): void {
   actionRepeatPickResult.card = card;
+  actionRepeatPickResult.nodeIndex = nodeIndex;
   actionRepeatPickResult.epoch++;
 }

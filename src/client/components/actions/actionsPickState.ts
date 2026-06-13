@@ -36,12 +36,12 @@ export const actionsPickState = reactive<ActionsPickState>({
 // The resolve callback is held OUTSIDE the reactive object (a function isn't
 // reactive data). Set by `enterActionsPick`, fired by `resolveActionsPick`,
 // cleared on exit.
-let resolveCb: ((card: CardName) => void) | undefined;
+let resolveCb: ((card: CardName, nodeIndex: number) => void) | undefined;
 
 export function enterActionsPick(opts: {
   title: string | Message,
   selectable: ReadonlyArray<CardName>,
-  onResolve: (card: CardName) => void,
+  onResolve: (card: CardName, nodeIndex: number) => void,
 }): void {
   actionsPickState.active = true;
   actionsPickState.title = opts.title;
@@ -50,14 +50,15 @@ export function enterActionsPick(opts: {
   resolveCb = opts.onResolve;
 }
 
-/** A candidate action was clicked — deliver it to the initiating modal + exit. */
-export function resolveActionsPick(card: CardName): void {
+/** A candidate action ROW was clicked — deliver the card + chosen branch node to
+ *  the initiating modal + exit. (Any node of a selectable card is pickable.) */
+export function resolveActionsPick(card: CardName, nodeIndex = 0): void {
   if (!actionsPickState.selectable.includes(card)) {
     return;
   }
   const cb = resolveCb;
   exitActionsPick();
-  cb?.(card);
+  cb?.(card, nodeIndex);
 }
 
 /** The pick was abandoned (overlay closed) — exit WITHOUT delivering. */

@@ -423,28 +423,22 @@
 }
 
 /* ─── Pick mode (choose an action to repeat — ProjectInspection / Viron) ─── */
-/* A SELECTABLE candidate: the whole card is the click target — a clear cyan-mint
-   "pick me" frame + hover lift; clicking resolves the pick + opens the action's
-   confirm. */
+/* A SELECTABLE candidate group: each BRANCH ROW inside is the click target (a
+   split `or` action = one row per branch). The group frame just signals "pickable"
+   with a cyan-mint rim; the per-row hover (.compact-action:hover) is the primary
+   feedback, so the group itself does NOT lift (avoids double-motion). */
 .action-group--pick {
     margin-bottom: 0;
 }
 .action-group--pick-selectable {
-    cursor: pointer;
     border-color: rgba(88, 214, 166, 0.45);
     box-shadow: 0 0 0 1px rgba(88, 214, 166, 0.12), 0 6px 18px rgba(0, 0, 0, 0.34);
-    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.14s ease;
-    &:hover {
-        border-color: rgba(127, 230, 200, 0.85);
-        box-shadow: 0 0 0 1px rgba(127, 230, 200, 0.5), 0 10px 26px rgba(0, 0, 0, 0.45), 0 0 22px rgba(88, 214, 166, 0.22);
-        transform: translateY(-2px);
-    }
-    &:active { transform: translateY(0); }
-    &:focus-visible { outline: 2px solid rgba(127, 230, 200, 0.8); outline-offset: 2px; }
+    transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    /* The rows carry the interactive cursor; the group cues selectability. */
+    .compact-action { cursor: pointer; }
 }
 .action-group--corp.action-group--pick-selectable {
     border-color: rgba(230, 200, 120, 0.5);
-    &:hover { border-color: rgba(240, 214, 138, 0.85); box-shadow: 0 0 0 1px rgba(240, 214, 138, 0.5), 0 10px 26px rgba(0, 0, 0, 0.45), 0 0 22px rgba(230, 200, 120, 0.22); }
 }
 /* A non-candidate action (used this gen but can't be repeated now, or never had a
    relevant action): shown for context but dimmed + inert. */

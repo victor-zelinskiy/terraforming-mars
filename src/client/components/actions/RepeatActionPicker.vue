@@ -1,40 +1,36 @@
 <template>
   <!--
     INLINE premium picker for "choose an ACTION to repeat" (ProjectInspection /
-    Viron) with FEWER THAN 4 candidates. Each candidate is rendered as a premium
-    ACTION card — the SAME action graphic the ДЕЙСТВИЯ overlay shows (via
-    CompactActionCard), NOT a generic resource-target tile. Single-select: clicking
-    a tile emits `change` with the card name; the host then opens that action's
-    premium confirmation popup. (For 4+ candidates the host routes to the Actions
-    overlay's pick-mode instead.)
+    Viron) with FEWER THAN 4 candidate cards. Mirrors the ДЕЙСТВИЯ overlay: each
+    candidate card is a slim group (name header) and EACH branch of a split (`or`)
+    action is a SEPARATELY selectable premium row (e.g. Regolith Eaters' "add a
+    microbe" vs "spend 2 microbes → oxygen"). Clicking a row emits `change` with
+    the card AND the chosen branch node ordinal; the host opens that action's
+    premium confirm pre-selected on that branch. (For 4+ candidate cards the host
+    routes to the Actions overlay's pick-mode instead.)
   -->
   <div class="repeat-action-picker">
     <span v-if="promptText !== ''" class="repeat-action-picker__prompt" v-i18n>{{ promptText }}</span>
-    <div class="repeat-action-picker__tiles" role="radiogroup">
-      <button v-for="tile in tiles"
-              :key="tile.name"
-              type="button"
-              role="radio"
-              :aria-checked="selectedName === tile.name"
-              class="repeat-action-picker__tile"
-              :class="{'repeat-action-picker__tile--selected': selectedName === tile.name}"
-              :data-test="'repeat-action-' + tile.name"
-              @click="select(tile.name)">
-        <span class="repeat-action-picker__head">
-          <span class="repeat-action-picker__name" v-i18n>{{ tile.name }}</span>
-          <span class="repeat-action-picker__mark" aria-hidden="true">
-            <span v-if="selectedName === tile.name" class="repeat-action-picker__check">✓</span>
-          </span>
-        </span>
-        <span class="repeat-action-picker__rows">
-          <template v-for="(node, i) in tile.nodes" :key="node.key">
+    <div class="repeat-action-picker__groups">
+      <div v-for="group in groups"
+           :key="group.name"
+           class="repeat-action-picker__group"
+           :data-test="'repeat-action-' + group.name">
+        <span class="repeat-action-picker__name" v-i18n>{{ group.name }}</span>
+        <div class="repeat-action-picker__rows">
+          <template v-for="(node, i) in group.nodes" :key="node.key">
             <!-- A multi-node action is an `or` — a slim "ИЛИ" divider conveys the
                  alternation, exactly like the overlay's ActionGroupCard. -->
             <span v-if="i > 0" class="repeat-action-picker__or" aria-hidden="true" v-i18n>OR</span>
-            <CompactActionCard :node="node" status="available" :interactive="false" />
+            <button type="button"
+                    class="repeat-action-picker__row"
+                    :data-test="'repeat-action-' + group.name + '-' + i"
+                    @click="select(group.name, i)">
+              <CompactActionCard :node="node" status="available" :interactive="false" />
+            </button>
           </template>
-        </span>
-      </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -48,7 +44,7 @@ import {ActionGroup, playerActionGroups} from '@/client/components/actions/actio
 import {stripNodeOr} from '@/client/components/actions/actionBranchView';
 import CompactActionCard from '@/client/components/actions/CompactActionCard.vue';
 
-type Tile = {
+type Group = {
   name: CardName;
   nodes: ReadonlyArray<ActionGroup['nodes'][number]>;
 };
@@ -61,11 +57,6 @@ export default defineComponent({
     candidates: {
       type: Array as PropType<ReadonlyArray<CardName>>,
       required: true,
-    },
-    // The currently-chosen action (for the highlight), owned by the host.
-    selectedName: {
-      type: String as PropType<CardName | undefined>,
-      default: undefined,
     },
     // The prompt label (e.g. "Perform an action from a played card again").
     prompt: {
@@ -83,10 +74,9 @@ export default defineComponent({
       return this.prompt;
     },
     // Each candidate's action graphic, derived CLIENT-SIDE from the static manifest
-    // (no network) — the same `playerActionGroups` the overlay uses. A candidate
-    // with no extractable action node falls back to an empty node list (the
-    // CompactActionCard text fallback still renders the card name in the header).
-    tiles(): ReadonlyArray<Tile> {
+    // (no network) — the same `playerActionGroups` the overlay uses. A split (`or`)
+    // action has SEVERAL nodes (one per branch); each becomes its own selectable row.
+    groups(): ReadonlyArray<Group> {
       return this.candidates.map((name) => {
         const group = playerActionGroups([{name} as CardModel])[0];
         const nodes = (group?.nodes ?? []).map((n) => stripNodeOr(n));
@@ -95,8 +85,10 @@ export default defineComponent({
     },
   },
   methods: {
-    select(name: CardName): void {
-      this.$emit('change', name);
+    // Pick a specific (card, branch-node) — hands off to that action's confirm,
+    // opened on the matching branch.
+    select(name: CardName, nodeIndex: number): void {
+      this.$emit('change', {cardName: name, nodeIndex});
     },
   },
 });
@@ -116,59 +108,29 @@ export default defineComponent({
   letter-spacing: 0.06em;
   color: rgba(200, 224, 240, 0.85);
 }
-.repeat-action-picker__tiles {
+.repeat-action-picker__groups {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
 }
 
-// Each candidate reads as a distinct SELECTABLE action card: a framed tile with
-// the source name + its action graphic. Calm at rest, a clear lift on hover, an
-// unmistakable cyan ring + ✓ when chosen — mirroring the action-confirm branch.
-.repeat-action-picker__tile {
-  position: relative;
+// One candidate card = a slim group: name header + its branch rows. Mirrors the
+// ДЕЙСТВИЯ overlay's ActionGroupCard.
+.repeat-action-picker__group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   min-width: 220px;
   max-width: 320px;
-  padding: 11px 13px 13px;
-  text-align: left;
+  padding: 10px 11px 11px;
   border-radius: 11px;
-  border: 1px solid rgba(120, 200, 255, 0.22);
-  background: linear-gradient(180deg, rgba(22, 44, 64, 0.5), rgba(16, 32, 48, 0.5));
-  color: #dbe6f4;
-  font-family: Prototype, Ubuntu, sans-serif;
-  cursor: pointer;
-  outline: none;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease, background 0.16s ease;
-
-  &:hover {
-    border-color: rgba(120, 220, 255, 0.65);
-    background: linear-gradient(180deg, rgba(28, 56, 80, 0.62), rgba(20, 40, 60, 0.62));
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-  }
-  &:active { transform: translateY(0); }
-  &:focus-visible { box-shadow: 0 0 0 2px fade(@rap-cyan, 70%); }
-
-  &--selected {
-    border-color: @rap-cyan-bright;
-    background: linear-gradient(180deg, rgba(28, 64, 92, 0.72), rgba(20, 46, 68, 0.72));
-    box-shadow: inset 0 0 0 1px fade(@rap-cyan-bright, 55%), 0 0 0 1px fade(@rap-cyan-bright, 45%), 0 0 20px fade(@rap-cyan, 30%);
-    &:hover { transform: none; }
-  }
-}
-
-.repeat-action-picker__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  border: 1px solid rgba(106, 176, 230, 0.2);
+  background:
+    radial-gradient(120% 60% at 50% -8%, rgba(127, 212, 255, 0.045), transparent 60%),
+    linear-gradient(180deg, rgba(20, 30, 44, 0.9), rgba(12, 20, 32, 0.93));
 }
 .repeat-action-picker__name {
-  flex: 1 1 auto;
-  min-width: 0;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -177,29 +139,6 @@ export default defineComponent({
   overflow: hidden;
   text-overflow: ellipsis;
 }
-// Fixed slot so the ✓ never shifts the name (mirrors the option-card mark slot).
-.repeat-action-picker__mark {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.repeat-action-picker__check {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: linear-gradient(180deg, #8fe3ff, #4fb8e6);
-  box-shadow: 0 0 10px rgba(127, 212, 255, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
-  color: #07263a;
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .repeat-action-picker__rows {
   display: flex;
   flex-direction: column;
@@ -211,5 +150,28 @@ export default defineComponent({
   font-weight: 700;
   letter-spacing: 0.1em;
   color: rgba(150, 200, 230, 0.7);
+}
+
+// Each BRANCH is its own selectable row — a clear "act now" cyan-mint frame +
+// hover lift; clicking hands off to that branch's confirm.
+.repeat-action-picker__row {
+  display: block;
+  width: 100%;
+  padding: 4px;
+  border-radius: 9px;
+  border: 1px solid rgba(88, 214, 166, 0.4);
+  background: rgba(14, 28, 42, 0.4);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease, background 0.16s ease;
+
+  &:hover {
+    border-color: rgba(127, 230, 200, 0.85);
+    background: rgba(20, 40, 58, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4), 0 0 18px rgba(88, 214, 166, 0.2);
+  }
+  &:active { transform: translateY(0); }
+  &:focus-visible { box-shadow: 0 0 0 2px fade(@rap-cyan-bright, 75%); }
 }
 </style>
