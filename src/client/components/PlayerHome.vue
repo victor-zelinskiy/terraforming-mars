@@ -2260,6 +2260,14 @@ export default defineComponent({
       if (playedCardsPickState.active) {
         return;
       }
+      // SAME for the ДЕЙСТВИЯ "repeat an action" pick (ProjectInspection / Viron,
+      // >=4 candidates): its initiating play / action-confirm modal is SUPPRESSED
+      // behind the overlay, so an outside click must NOT dismiss it (that would
+      // strand the suppressed modal + cancel the pick). Abandon it via the overlay's
+      // ОТМЕНА / ✕ instead.
+      if (actionsPickState.active) {
+        return;
+      }
       // A mandatory prompt (hand select / hand play / standard project) can't be
       // dismissed by clicking away — minimize it to its pill instead of
       // dropping the overlay.
