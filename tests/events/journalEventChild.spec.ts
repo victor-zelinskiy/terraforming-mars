@@ -57,14 +57,24 @@ describe('journal event-driven children', () => {
     expect(rows[0].tileLabel).to.be.a('string');
   });
 
-  it('drops the redundant source chip when the gain is the action itself', () => {
+  it('shows the action card itself as the source of its own result', () => {
     const events: Array<GameEvent> = [
       ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.MEDIA_GROUP}, player: 'red', correlationId: 1}),
       ev({id: 2, type: 'resource-changed', source: {kind: 'card', card: CardName.MEDIA_GROUP}, player: 'red', impact: {stock: {megacredits: 3}}, correlationId: 1, parentId: 1}),
     ];
     const rows = buildEventChildren(events, 1, 'red');
-    expect(rows[0].source).to.deep.eq({kind: 'none'});
+    expect(rows[0].source).to.deep.eq({kind: 'card', card: CardName.MEDIA_GROUP});
     expect(rows[0].chips[0]).to.deep.include({icon: 'megacredits', text: '+3'});
+  });
+
+  it('labels a payment-sourced spend as "Payment"', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY}, player: 'red', correlationId: 1}),
+      ev({id: 2, type: 'resource-changed', source: {kind: 'payment'}, player: 'red', impact: {stock: {megacredits: -25}}, correlationId: 1, parentId: 1}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    expect(rows[0].source).to.deep.eq({kind: 'label', label: 'Payment'});
+    expect(rows[0].chips[0]).to.deep.include({icon: 'megacredits', text: '−25'});
   });
 
   it('impactChips renders discounts and production deltas', () => {

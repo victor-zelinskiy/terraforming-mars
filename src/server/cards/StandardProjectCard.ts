@@ -110,7 +110,11 @@ export abstract class StandardProjectCard extends Card implements IStandardProje
       }
       events.recordPayment(player, this.getAdjustedCost(player), this.name);
     }
-    player.pay(payment);
+    if (events !== undefined) {
+      events.withSource({kind: 'payment'}, () => player.pay(payment));
+    } else {
+      player.pay(payment);
+    }
     this.projectPlayed(player);
     this.actionEssence(player);
   }
