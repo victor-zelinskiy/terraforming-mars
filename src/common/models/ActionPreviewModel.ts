@@ -229,8 +229,11 @@ export type ActionPreviewStep =
    *  so the player is never surprised by a silently-lost effect. */
   | {kind: 'note', noteKind: 'colony' | 'board' | 'generic' | 'warning', text?: string | Message,
     /** For a `warning` about a card-resource that can't be placed (no eligible
-     *  card): the resource icon key (a `CardResource` value) so the modal names
-     *  WHICH resource is lost via its icon, not an ambiguous "this resource". */
+     *  card): the NORMALIZED resource icon key (lowercase-hyphenated, via
+     *  `cardResourceIcon` — the SAME form as `ActionPreviewStep.cardResource`, NOT
+     *  the raw `CardResource` value) so `iconClassFor` resolves the sprite and the
+     *  modal names WHICH resource is lost via its icon, not an ambiguous "this
+     *  resource". */
     resource?: string}
   | TabbedTargetsStep;
 

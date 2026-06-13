@@ -82,11 +82,14 @@
         </span>
         <span v-else-if="optionKind(e.opt) === 'space'" class="modal-input__option-hint" v-i18n>on the board</span>
         <span v-else-if="optionKind(e.opt) === 'nested'" class="modal-input__option-chevron" aria-hidden="true">›</span>
-        <!-- Selected indicator — ALWAYS shown when this option is chosen (even
-             alongside a preview chip), so the selection is unmistakable. In
-             controlled mode (no inner confirm button) this ✓ + the --selected
-             frame ARE the only confirmation that the choice registered. -->
-        <span v-if="selectedIdx === e.i" class="modal-input__option-check modal-input__option-check--selected" aria-hidden="true">✓</span>
+        <!-- Selection-indicator slot — a FIXED-width slot RESERVED on every leaf
+             option (even unselected, where it's empty) so revealing the ✓ never
+             shifts the preview chip (`869 → 862`) left: the indicators stay
+             aligned across options. In controlled mode (no inner confirm button)
+             the ✓ + the --selected frame ARE the confirmation the pick registered. -->
+        <span v-if="optionKind(e.opt) === 'option'" class="modal-input__option-mark" aria-hidden="true">
+          <span v-if="selectedIdx === e.i" class="modal-input__option-check modal-input__option-check--selected">✓</span>
+        </span>
       </button>
     </div>
 

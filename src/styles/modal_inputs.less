@@ -277,6 +277,18 @@
     opacity: 0.7;
 }
 
+/* Fixed-width slot reserved on every leaf option so the ✓ appearing on select
+   does NOT push the preview chip left — the indicators stay aligned. Empty (just
+   reserved space) until the option is chosen. */
+.modal-input__option-mark {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .modal-input__option-check {
     flex-shrink: 0;
     width: 24px;
