@@ -16,7 +16,7 @@ const ModalInputHostStub = {
   template: '<div class="modal-input-host-stub"></div>',
 };
 
-function factory(playerinput: any, onsave: (out: InputResponse) => void, pickerSetter?: any, playerView: any = {}) {
+function factory(playerinput: any, onsave: (out: InputResponse) => void, pickerSetter?: any, playerView: any = {}, controlled = false) {
   return mount(ModernOptionPicker, {
     ...globalConfig,
     global: {
@@ -25,7 +25,7 @@ function factory(playerinput: any, onsave: (out: InputResponse) => void, pickerS
       stubs: {SelectSpace: true},
       provide: pickerSetter ? {[MANDATORY_MODAL_PICKER_SETTER]: pickerSetter} : {},
     },
-    props: {playerView, playerinput, onsave},
+    props: {playerView, playerinput, onsave, controlled},
   });
 }
 
@@ -247,6 +247,42 @@ describe('ModernOptionPicker', () => {
     expect(component.findComponent(ModalInputHostStub).exists()).is.false;
     expect(component.findAll('.modal-input__option-card').length).to.eq(1);
     exitHandSelect();
+  });
+
+  it('controlled mode: a leaf option COMMITS on click (no inner confirm button) and stays highlighted', async () => {
+    PreferencesManager.INSTANCE.set('learner_mode', false);
+    let saved: InputResponse | undefined;
+    let saveCount = 0;
+    const component = factory(
+      {
+        type: 'or',
+        title: 'Select global parameter to raise',
+        options: [
+          {type: 'option', title: 'Raise temperature', buttonLabel: 'Raise temperature'},
+          {type: 'option', title: 'Raise Venus', buttonLabel: 'Raise Venus'},
+        ],
+      },
+      (out) => {
+        saved = out;
+        saveCount++;
+      },
+      undefined,
+      {},
+      true, // controlled
+    );
+    const buttons = component.findAll('.modal-input__option-card');
+    // Clicking an option commits IMMEDIATELY — no select→confirm step.
+    await buttons[0].trigger('click');
+    expect(saved).to.deep.eq({type: 'or', index: 0, response: {type: 'option'}});
+    expect(saveCount).to.eq(1);
+    // The inner confirm bar is NEVER rendered in controlled mode.
+    expect(component.find('[data-test="modern-option-confirm"]').exists()).to.eq(false);
+    // The chosen option carries the --selected highlight.
+    expect(buttons[0].classes()).to.include('modal-input__option-card--selected');
+    // Re-picking the other option re-commits with the new index.
+    await buttons[1].trigger('click');
+    expect(saved).to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
+    expect(component.findAll('.modal-input__option-card')[1].classes()).to.include('modal-input__option-card--selected');
   });
 
   it('arms board picker-mode for a SelectSpace option', async () => {

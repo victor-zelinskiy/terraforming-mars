@@ -332,6 +332,14 @@
                                :showsave="false"
                                :showtitle="false"
                                @change="captureStep(i)($event)" />
+              <!-- A hosted OrOptions (e.g. Atmoscoop's temperature/Venus choice) is
+                   CONTROLLED: clicking an option captures it (highlighted), the
+                   modal's own ПОДТВЕРДИТЬ submits — no redundant inner confirm button. -->
+              <ModernOptionPicker v-else-if="step.input.type === 'or'"
+                                  :controlled="true"
+                                  :playerView="playerView"
+                                  :playerinput="step.input"
+                                  :onsave="captureStep(i)" />
               <ModalInputHost v-else :playerView="playerView" :playerinput="step.input" :onsave="captureStep(i)" />
             </div>
           </template>
@@ -392,6 +400,7 @@ import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CompactActionCard from '@/client/components/actions/CompactActionCard.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPicker.vue';
+import ModernOptionPicker from '@/client/components/modalInputs/ModernOptionPicker.vue';
 import SelectPaymentV2 from '@/client/components/SelectPaymentV2.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
@@ -421,7 +430,7 @@ type GroupNode = ActionGroup['nodes'][number];
 
 export default defineComponent({
   name: 'CardActionConfirmContent',
-  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, CompactActionCard, ModalInputHost, ModernPlayerPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot, ActionResultsPreview, ActionNextStepNotice},
+  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, CompactActionCard, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot, ActionResultsPreview, ActionNextStepNotice},
   directives: {stripActionPrefix},
   props: {
     cardName: {

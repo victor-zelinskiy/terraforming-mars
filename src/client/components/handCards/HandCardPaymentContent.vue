@@ -264,6 +264,15 @@
                                     :amount="step.amount"
                                     :selectedName="capturedCardName(i)"
                                     @change="captureStep(i)($event)" />
+                  <!-- A hosted OrOptions (e.g. Atmoscoop's temperature/Venus choice,
+                       an attack's target choice) is CONTROLLED: clicking an option
+                       captures it (highlighted), the modal's own РАЗЫГРАТЬ submits —
+                       no redundant inner confirm button inside the choice. -->
+                  <ModernOptionPicker v-else-if="step.input.type === 'or'"
+                                      :controlled="true"
+                                      :playerView="playerView"
+                                      :playerinput="step.input"
+                                      :onsave="captureStep(i)" />
                   <ModalInputHost v-else :playerView="playerView" :playerinput="step.input" :onsave="captureStep(i)" />
                 </div>
               </template>
@@ -371,6 +380,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import SelectProjectCardToPlay from '@/client/components/SelectProjectCardToPlay.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPicker.vue';
+import ModernOptionPicker from '@/client/components/modalInputs/ModernOptionPicker.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
@@ -407,7 +417,7 @@ function stepNeedsResponse(step: ActionPreviewStep): boolean {
  */
 export default defineComponent({
   name: 'HandCardPaymentContent',
-  components: {Card, CardZoomModal, SelectProjectCardToPlay, ModalInputHost, ModernPlayerPicker, ActionEffectChip, ActionTargetCard, ActionVpProgress, TabbedRemovalPicker},
+  components: {Card, CardZoomModal, SelectProjectCardToPlay, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, ActionEffectChip, ActionTargetCard, ActionVpProgress, TabbedRemovalPicker},
   props: {
     playerView: {
       type: Object as PropType<PlayerViewModel>,
