@@ -10,10 +10,12 @@
   -->
   <div class="action-group"
        :class="[
-         'action-group--' + state.status,
+         // In pick-mode the status dimming (e.g. 'activated' — these candidates were
+         // ALL used this gen) must NOT apply: the pick-selectable state owns the look.
+         pickMode ? '' : ('action-group--' + state.status),
          {
            'action-group--corp': isCorporation,
-           'action-group--disabled-card': isDisabled,
+           'action-group--disabled-card': isDisabled && !pickMode,
            'action-group--selected': selectedWithin && !pickMode,
            'action-group--pick': pickMode,
            'action-group--pick-selectable': pickMode && pickSelectable,
