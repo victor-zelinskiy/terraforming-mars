@@ -21,6 +21,8 @@ export class Production extends BaseStock {
       this.logUnitDelta(resource, amount, /* production*/ true, options.from, options.stealing);
     }
 
+    this.player.game?.events?.recordResourceDelta(this.player, resource, delta, /* production*/ true, options?.from, options?.stealing);
+
     const from = options?.from;
     if (isFromPlayer(from)) {
       LawSuit.resourceHook(this.player, delta, from.player);
@@ -31,8 +33,16 @@ export class Production extends BaseStock {
       }
     }
 
+    const events = this.player.game?.events;
     for (const card of this.player.tableau) {
-      card.onProductionGain?.(this.player, resource, amount);
+      if (card.onProductionGain === undefined) {
+        continue;
+      }
+      if (events !== undefined) {
+        events.withEffect(this.player, card, 'production-gain', () => card.onProductionGain?.(this.player, resource, amount));
+      } else {
+        card.onProductionGain(this.player, resource, amount);
+      }
     }
   }
 }

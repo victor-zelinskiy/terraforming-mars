@@ -840,6 +840,8 @@ describe('Game', () => {
       'createdTime',
       'discardedColonies',
       'doubleDownPrelude',
+      // The analytics recorder serializes as `gameEvents` + `eventSeq`, not `events`.
+      'events',
       'inDoubleDown',
       'inputsThisRound',
       'inTurmoil',
@@ -853,7 +855,9 @@ describe('Game', () => {
     const serializedValuesNotInGame: Array<keyof SerializedGame> = [
       'seed',
       'currentSeed',
-      'createdTimeMs'];
+      'createdTimeMs',
+      'gameEvents',
+      'eventSeq'];
 
     const gameKeys = Object.keys(game);
 

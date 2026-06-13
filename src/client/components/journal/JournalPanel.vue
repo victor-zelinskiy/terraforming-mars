@@ -31,11 +31,12 @@
     </header>
 
     <JournalFeed
-      :messages="filteredMessages"
+      :messages="messages"
       :players="players"
       :loadEpoch="loadEpoch"
       :loading="loading"
-      :filterActive="filterActive" />
+      :filter="filter"
+      :color="color" />
   </aside>
 </template>
 
@@ -49,7 +50,7 @@ import {PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
 import JournalGenerationSelector from '@/client/components/journal/JournalGenerationSelector.vue';
 import JournalFilterSelector from '@/client/components/journal/JournalFilterSelector.vue';
 import JournalFeed from '@/client/components/journal/JournalFeed.vue';
-import {JournalFilter, messagePassesFilter} from '@/client/components/journal/journalFilter';
+import {JournalFilter} from '@/client/components/journal/journalFilter';
 
 /**
  * Premium journal panel — the modern replacement for the legacy
@@ -127,19 +128,6 @@ export default defineComponent({
     },
     players(): ReadonlyArray<PublicPlayerModel> {
       return this.viewModel.players;
-    },
-    // Messages after the active player filter. The feed renders THIS, so
-    // a live entry that doesn't pass the filter never changes the list
-    // length → no scroll, no jump. Filtering is on structured data only
-    // (see journalFilter.ts).
-    filteredMessages(): ReadonlyArray<LogMessage> {
-      if (this.filter.kind === 'all') {
-        return this.messages;
-      }
-      return this.messages.filter((m) => messagePassesFilter(m, this.filter, this.color));
-    },
-    filterActive(): boolean {
-      return this.filter.kind !== 'all';
     },
     id(): ParticipantId | undefined {
       return this.viewModel.id;

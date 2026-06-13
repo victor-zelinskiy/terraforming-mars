@@ -82,8 +82,16 @@ export class Viron extends CorporationCard implements ICorporationCard {
       'Take action',
       this.getActionCards(player))
       .andThen(([card]) => {
-        player.game.log('${0} used ${1} action with ${2}', (b) => b.player(player).card(card).card(this));
-        return card.action(player);
+        // Analytics: a `copied-action` scope so the copied card's impact is
+        // attributed to VIRON (the copying corporation), forming the chain
+        // VIRON → copied card → its resulting gains. The "used X with VIRON" log
+        // is emitted INSIDE the scope so it heads the journal group.
+        const events = player.game?.events;
+        const run = () => {
+          player.game.log('${0} used ${1} action with ${2}', (b) => b.player(player).card(card).card(this));
+          return card.action(player);
+        };
+        return events !== undefined ? events.withCopiedAction(player, this, card, run) : run();
       });
   }
 }

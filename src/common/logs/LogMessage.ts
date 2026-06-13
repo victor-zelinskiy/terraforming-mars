@@ -2,11 +2,22 @@ import {LogMessageType} from './LogMessageType';
 import {LogMessageData} from './LogMessageData';
 import {Message} from './Message';
 import {PlayerId} from '../Types';
+import {JournalEntryRole, JournalActionCategory} from '../events/GameEvent';
 
 export class LogMessage implements Message {
   public playerId?: PlayerId;
   public timestamp = Date.now();
   public type?: LogMessageType;
+  // Bridge to the structured GameEvent stream — lets the premium journal build a
+  // grouped "action → effect → result" view WITHOUT parsing the message text.
+  // Set only when the log is emitted inside an action/effect scope (most are);
+  // absent → a flat, ungrouped system/legacy line. See LOGGING_EVENT_MODEL_PROPOSAL.md.
+  public correlationId?: number;
+  public parentId?: number;
+  public role?: JournalEntryRole;
+  // The action category, set only on the `root-action` log of a group — drives
+  // the journal's premium category icon/badge.
+  public category?: JournalActionCategory;
   constructor(
     type: LogMessageType,
     public message: string,
