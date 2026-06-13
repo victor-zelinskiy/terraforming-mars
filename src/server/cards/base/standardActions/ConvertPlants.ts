@@ -49,9 +49,17 @@ export class ConvertPlants extends StandardActionCard {
       player.game.board.getAvailableSpacesForGreenery(player),
       {placementType: 'greenery'})
       .andThen((space) => {
-        this.actionUsed(player);
-        player.game.addGreenery(player, space);
-        player.plants -= player.plantsNeededForGreenery;
+        // Root the analytics chain at the conversion so the greenery placement,
+        // oxygen rise and triggered effects group under it in the journal.
+        const events = player.game?.events;
+        events?.beginAction(player, {kind: 'standardProject', card: this.name}, {category: 'standard-project'});
+        try {
+          this.actionUsed(player);
+          player.game.addGreenery(player, space);
+          player.plants -= player.plantsNeededForGreenery;
+        } finally {
+          events?.endScope();
+        }
         return undefined;
       });
   }

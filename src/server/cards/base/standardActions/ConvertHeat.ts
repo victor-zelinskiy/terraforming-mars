@@ -40,8 +40,16 @@ export class ConvertHeat extends StandardActionCard {
 
   public action(player: IPlayer) {
     return player.spendHeat(HEAT_FOR_TEMPERATURE, () => {
-      this.actionUsed(player);
-      player.game.increaseTemperature(player, 1);
+      // Root the chain at the conversion so the temperature rise, TR and any
+      // triggered effects group under it in the journal.
+      const events = player.game?.events;
+      events?.beginAction(player, {kind: 'standardProject', card: this.name}, {category: 'standard-project'});
+      try {
+        this.actionUsed(player);
+        player.game.increaseTemperature(player, 1);
+      } finally {
+        events?.endScope();
+      }
       return undefined;
     });
   }

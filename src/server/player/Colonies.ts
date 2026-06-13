@@ -106,7 +106,17 @@ export class Colonies {
         if (selected === undefined) {
           throw new Error(`Unexpected condition: no trade funding source selected when trading with ${colony.name}.`);
         }
-        selected.trade(colony);
+        // Root the chain at this TOP-LEVEL trade so the fee, reward and colony
+        // bonuses group under it. (A trade triggered BY A CARD instead nests
+        // under that card's scope — the card vs action distinction is preserved.)
+        const events = player.game?.events;
+        events?.beginAction(player, {kind: 'colony', name: colony.name}, {category: 'colony'});
+        try {
+          player.game.log('${0} traded with ${1}', (b) => b.player(player).colony(colony));
+          selected.trade(colony);
+        } finally {
+          events?.endScope();
+        }
         return undefined;
       });
 

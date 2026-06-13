@@ -786,6 +786,53 @@ Pets (под размещением города/SP), Media Group (под роз
 Итог §16/§12: «получил 2 растения» → «Бонус клетки → +2 🌿»; «получил 2 M€ за океаны» → «Бонус океанов → +2 M€»;
 Pets → «Pets · Victor → +1 животное»; Media Group/Earth Catapult(скидка)/VIRON(copied) — все через source → impact.
 
+**Fix «действия синих карт не группируются» (УНИВЕРСАЛЬНО):** root-action лог ОБЯЗАН эмититься ВНУТРИ
+`beginAction` — иначе у него нет correlationId и группа разваливается на две плоские строки (как было у любого
+действия синей карты: «использовал действие X» + «выложил 1 бактерию» отдельно). `playActionCard` и
+`getPlayCeoOPGAction` логировали ДО `beginAction` — перенёс лог ВНУТРЬ (как уже было у `playCard`/SP/VIRON).
+Теперь группируется ЛЮБОЕ действие синей карты/CEO (не точечный патч): «использовал действие [карта]» →
+дочерняя «[карта] → +N». Подтверждено: `tests/events/EventStream.spec.ts` (Tardigrades, universal action path)
++ отладка Regolith Eaters (OrOptions autoSelect). **Правило: каждый `beginAction` логирует свой заголовок ВНУТРИ scope.**
+
+**Аудит всех мест записи лога (по запросу «проверь что нет таких проблем в других местах»):**
+- Все 7 `beginAction`/`withCopiedAction` сайтов проверены. Точный баг (root-лог ДО `beginAction`) был ТОЛЬКО в
+  `playActionCard`+`getPlayCeoOPGAction` → исправлено. `playCard`/SP/VIRON/ProjectInspection логируют внутри scope ✓.
+  RoboticWorkforce/Cyberia: «copied production» лог перед `withCopiedAction`, НО карта вложена в `playCard`-root
+  (correlationId приходит снаружи) → НЕ разваливается ✓.
+- Найдены top-level действия БЕЗ `beginAction`, чьи последствия шли плоско → **исправлено**: **Convert Plants** +
+  **Convert Heat** (`StandardActionCard`, вызываются только из меню действий → безопасно обёрнуты, category
+  `standard-project`). Теперь «использовал Convert Plants» → дети: Размещение(озеленение)/Бонус клетки/РТ.
+  Тест: «groups a top-level conversion with its consequences».
+- **Колониальный трейд (top-level действие) — СДЕЛАНО, с различием card vs action (по запросу «нам и надо
+  показывать по разному когда колония идёт из карты и из действия»):** обёрнут ТОЛЬКО top-level сайт
+  `Colonies.tradeWithColony` → `selectColony.andThen` в `beginAction(player, {kind:'colony', name}, {category:'colony'})`
+  (лог `'${0} traded with ${1}'` + `selected.trade()` внутри scope). Теперь «поторговал с Luna» → дети: −плата за
+  торговлю / +награда трека / +бонус владельцам. Категория `colony` (+ акцент `.journal-group--colony` в journal.less).
+  **Постройку колонии слепо НЕ оборачивал в beginAction — и это правильно:** `Colony.addColony` вызывается из
+  `BuildColony` deferred (карта), Maria (CEO), Prospecting (underworld) — все ВЛОЖЕНЫ в свой scope действия/карты и
+  группируются под ним (deferred захватывает eventContext карты). Отдельной colony-группы НЕ создаётся.
+  Тест: «groups a top-level colony trade with its consequences».
+- **Вложенность / атрибуция бонуса колонии под картой (по запросу «не будет ли бонусы от колоний на том же уровне
+  что от карты»):** журнал двухуровневый (root → плоские дети, дерева нет). Проблема была: бонус постройки колонии из
+  карты шёл через chokepoints с источником АКТИВНОГО scope = карта → строка читалась `[карта] → +N` и была
+  НЕОТЛИЧИМА от прямых эффектов карты. **Фикс — единый chokepoint `Colony.giveBonus`:** тело вынесено в `giveBonusImpl`
+  (без правки switch), тонкая обёртка `giveBonus` оборачивает его в `events.withSource({kind:'colony', name})`. Теперь
+  ЛЮБОЙ бонус колонии (постройка / награда трейда / бонус-владельцам) атрибутируется КОЛОНИИ → строка `Luna → +N`,
+  отличима от эффектов карты, БЕЗ нового уровня отступа (приоритет «журнал не шумит»). `withSource` сохраняет тот же
+  `rootId`/`parentId` (всё ещё группируется под картой/действием) и протекает через `game.defer` (захват eventContext)
+  → отложенные бонусы (draw/add-resource) тоже покрыты. Покрывает универсально и card-triggered трейды (ProductiveOutpost
+  «получить все бонусы колоний» и т.д.) — НЕ точечно. `onColonyAddedByAnyPlayer` (Poseidon) НЕ затронут (это
+  withEffect-эффект карты, корректно сохраняет источник=карта). Подтверждено отладкой+тестом: build-бонус из карты →
+  `source={kind:'colony',name:'Luna'}`, `correlationId=cardRoot`, отдельных colony-роутов 0. Тест: «attributes a
+  card-built colony bonus to the COLONY, nested under the card». ДЕРЕВО (3-й уровень) НЕ строил осознанно — добавляло бы
+  заголовок-строку+отступ ради часто единственного бонуса; серверный фундамент (colony sub-source) сделан, так что
+  настоящий tree-rendering — маленький доп-шаг, если понадобится.
+- **Milestone/Award/фаза производства** — без значимых немедленных последствий, корректно остаются плоскими
+  строками (одиночная группа всё равно схлопывается в плоскую). Send-delegate — вне скоупа.
+- **Итог аудита (все места записи лога проверены):** баг «root-лог до `beginAction`» — только в blue-card/CEO action
+  (исправлено); top-level конверсии (Convert Plants/Heat) и колониальный трейд обёрнуты; card-driven всё (постройка
+  колонии, copied actions, эффекты) нестится через deferred/input-propagation. Зазоров не осталось.
+
 **Fix «источник пустой»:** КАЖДАЯ строка теперь имеет явный источник (§3) — убрано подавление source==root.
 Оплата: `pay()` обёрнут в `withSource({kind:'payment'})` (новый kind) → «Оплата → −25 M€»; собственные результаты
 действия (напр. +1 произв. M€ у City SP) показывают чип карты-источника; «висячая» стрелка для редкого
