@@ -55,6 +55,7 @@
                          :key="e.cardName"
                          :entry="e"
                          :card="tableauByName.get(e.cardName)"
+                         :preview="previewFor(e.cardName)"
                          :pickMode="true"
                          :pickSelectable="pickSelectable(e.cardName)"
                          @pick="onPickResolve" />
@@ -355,8 +356,13 @@ export default defineComponent({
   },
   mounted(): void {
     // Pick mode is a lightweight selection surface — skip the master-detail
-    // selection/preview/fit machinery entirely; just size the candidate grid.
+    // selection/fit machinery; just prefetch the candidates' previews (for PER-BRANCH
+    // availability + reasons) and size the candidate grid.
     if (this.pickMode) {
+      setActionPreviewScope(this.previewCacheKey);
+      for (const name of actionsPickState.selectable) {
+        this.fetchPreviewFor(name, true);
+      }
       nextTick(() => this.fitPick());
       window.addEventListener('keydown', this.onKeydown);
       const rootEl = this.$refs.root as HTMLElement | undefined;
