@@ -1,12 +1,13 @@
 <template>
   <li class="journal-group"
-      :class="[categoryClass, {'journal-group--fresh': headerFresh, 'journal-group--filtering': filterActive}]"
-      @mouseenter="hovered = true"
-      @mouseleave="hovered = false">
-    <!-- Root action — the visually dominant header of the group. -->
+      :class="[categoryClass, {'journal-group--fresh': headerFresh, 'journal-group--summary': summary, 'journal-group--filtering': filterActive}]">
+    <!-- The category spine — runs the full group height, visually binding the
+         root action to its consequences as ONE event. -->
+    <span class="journal-group__spine" aria-hidden="true"></span>
+
+    <!-- Root action — the dominant header that owns the group. -->
     <div class="journal-group__root" :class="{'journal-group__root--dim': filterActive && !headerMatched}">
       <span class="journal-group__time" :title="fullWhen">{{ when }}</span>
-      <span class="journal-group__cat" aria-hidden="true"></span>
       <span class="journal-group__root-body">
         <JournalTokenRenderer
           v-for="(tok, i) in headerEntries"
@@ -14,71 +15,77 @@
           :token="tok"
           :players="players" />
       </span>
+      <!-- Summary mode: a compact consequence count instead of the rows. -->
+      <span v-if="summary && consequenceCount > 0" class="journal-group__count" :aria-label="$t('Consequences')">
+        <span class="journal-group__count-arrow" aria-hidden="true">↳</span>{{ consequenceCount }}
+      </span>
     </div>
 
-    <!-- Consequences — compact child rows on a shared connector. -->
-    <ul v-if="children.length > 0" class="journal-group__children" :class="{'journal-group__children--hover': hovered}">
-      <li v-for="(child, i) in shownChildren"
-          :key="i"
-          class="journal-group__child"
-          :class="[
-            'journal-group__child--' + (child.role || 'detail'),
-            {'journal-group__child--fresh': childFresh(child),
-             'journal-group__child--matched': filterActive && childMatched[childKey(child)],
-             'journal-group__child--dim': filterActive && !childMatched[childKey(child)]}]">
-        <span class="journal-group__branch" aria-hidden="true"></span>
-        <span class="journal-group__child-body">
-          <JournalTokenRenderer
-            v-for="(tok, j) in parse(child)"
-            :key="j"
-            :token="tok"
-            :players="players" />
-        </span>
-      </li>
-
-      <!-- Collapsed-tail toggle for long chains. -->
-      <li v-if="collapsible" class="journal-group__toggle-row">
-        <button type="button"
-                class="journal-group__toggle"
-                :aria-expanded="expanded"
-                @click="expanded = !expanded">
-          <span class="journal-group__toggle-chevron" :class="{'journal-group__toggle-chevron--up': expanded}" aria-hidden="true">⌄</span>
-          <span v-if="!expanded">+{{ hiddenCount }}</span>
-          <span v-else v-i18n>Collapse</span>
-        </button>
-      </li>
+    <!-- Consequences — compact rows attached to the spine. Event-driven
+         (source → impact) when structured events are available, else a
+         compacted-LogMessage fallback for old / unsupported logs. -->
+    <ul v-if="!summary && hasChildren" class="journal-group__children">
+      <template v-if="useEvents">
+        <li v-for="(vm, i) in eventVMs" :key="i" class="journal-group__child journal-group__child--event">
+          <span class="journal-group__tick" aria-hidden="true"></span>
+          <span class="journal-group__child-body">
+            <JournalChildRow :vm="vm" :players="players" />
+          </span>
+        </li>
+      </template>
+      <template v-else>
+        <li v-for="(child, i) in children"
+            :key="i"
+            class="journal-group__child"
+            :class="[
+              'journal-group__child--' + (child.role || 'detail'),
+              {'journal-group__child--fresh': childFresh(child),
+               'journal-group__child--matched': filterActive && childMatched[i],
+               'journal-group__child--dim': filterActive && !childMatched[i]}]">
+          <span class="journal-group__tick" aria-hidden="true"></span>
+          <span class="journal-group__child-body">
+            <JournalTokenRenderer
+              v-for="(tok, j) in childTokens(child)"
+              :key="j"
+              :token="tok"
+              :players="players" />
+          </span>
+        </li>
+      </template>
     </ul>
   </li>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {Color} from '@/common/Color';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Log} from '@/common/logs/Log';
-import {JournalActionCategory} from '@/common/events/GameEvent';
+import {JournalActionCategory, GameEvent} from '@/common/events/GameEvent';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
-
-// Chains longer than this collapse their tail behind a "+N" toggle so a busy
-// turn stays a calm, readable group rather than a wall of rows.
-const COLLAPSE_THRESHOLD = 3;
-
-type DataModel = {
-  expanded: boolean;
-  hovered: boolean;
-};
+import JournalChildRow from '@/client/components/journal/JournalChildRow.vue';
+import {buildEventChildren, JournalChildVM} from '@/client/components/journal/journalEventChild';
 
 /**
- * One premium cause/effect GROUP: a dominant root-action header + its compact
- * consequence rows on a shared connector. Renders entirely from the structured
- * `correlationId`/`role`/`category` already on each `LogMessage` — no text
- * parsing for grouping. Long chains collapse; an active filter expands so a
- * matched child is never hidden and is highlighted in context.
+ * One premium cause/effect GROUP rendered as a single cohesive cluster: a
+ * dominant root-action header + its compact consequence rows, all bound by a
+ * category-tinted spine so they read as ONE event with its effects.
+ *
+ * Children are compacted for their grouped context (CLAUDE journal spec):
+ * the leading player chip is dropped when it repeats the root actor, so a row
+ * reads as a consequence ("gained 2 plants") rather than a standalone action.
+ * Effect rows from a DIFFERENT player (e.g. an opponent's Pets firing) keep
+ * their player chip — it is the meaningful target.
+ *
+ * Collapse is NOT per-group: a top-level `mode` (detailed / summary) controls
+ * whether consequences are shown in full or as a compact count.
  */
 export default defineComponent({
   name: 'JournalGroup',
-  components: {JournalTokenRenderer},
+  components: {JournalTokenRenderer, JournalChildRow},
   props: {
     header: {
       type: Object as () => LogMessage,
@@ -87,6 +94,12 @@ export default defineComponent({
     children: {
       type: Array as () => ReadonlyArray<LogMessage>,
       required: true,
+    },
+    // Structured events of THIS correlation chain (root event included). When
+    // present, children render event-driven (source → impact); else fallback.
+    events: {
+      type: Array as () => ReadonlyArray<GameEvent>,
+      default: () => [],
     },
     category: {
       type: String as () => JournalActionCategory | undefined,
@@ -97,7 +110,11 @@ export default defineComponent({
       type: Array as () => ReadonlyArray<PublicPlayerModel>,
       required: true,
     },
-    // The just-arrived live messages — drives the per-row enter animation.
+    // 'summary' shows only the root + a consequence count; 'detailed' shows rows.
+    mode: {
+      type: String as () => 'detailed' | 'summary',
+      default: 'detailed',
+    },
     freshSet: {
       type: Object as () => ReadonlySet<LogMessage>,
       default: () => new Set<LogMessage>(),
@@ -110,39 +127,48 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
-    // Aligned to `children` by index — which child rows pass the active filter.
     childMatched: {
       type: Array as () => ReadonlyArray<boolean>,
       default: () => [],
     },
   },
-  data(): DataModel {
-    return {expanded: false, hovered: false};
-  },
   computed: {
+    summary(): boolean {
+      return this.mode === 'summary';
+    },
     categoryClass(): string {
       return 'journal-group--' + (this.category ?? 'generic');
-    },
-    // Header is fresh only for a brand-new group → the whole group animates in.
-    headerFresh(): boolean {
-      return this.freshSet.has(this.header);
     },
     headerEntries(): ReadonlyArray<string | LogMessageData> {
       return this.parse(this.header);
     },
-    // When filtering, show every child so a matched one deep in the chain stays
-    // visible (highlighted); otherwise collapse the tail of long chains.
-    collapsible(): boolean {
-      return !this.filterActive && this.children.length > COLLAPSE_THRESHOLD;
+    headerFresh(): boolean {
+      return this.freshSet.has(this.header);
     },
-    shownChildren(): ReadonlyArray<LogMessage> {
-      if (this.collapsible && !this.expanded) {
-        return this.children.slice(0, COLLAPSE_THRESHOLD);
+    // The actor of the root action — used to drop redundant child player chips.
+    rootPlayerColor(): Color | undefined {
+      for (const tok of this.headerEntries) {
+        if (typeof tok !== 'string' && tok.type === LogMessageDataType.PLAYER) {
+          return tok.value;
+        }
       }
-      return this.children;
+      return undefined;
     },
-    hiddenCount(): number {
-      return Math.max(0, this.children.length - COLLAPSE_THRESHOLD);
+    // Event-driven children (source → impact) for this chain, when events exist.
+    eventVMs(): ReadonlyArray<JournalChildVM> {
+      if (this.events.length === 0 || this.header.correlationId === undefined) {
+        return [];
+      }
+      return buildEventChildren(this.events, this.header.correlationId, this.rootPlayerColor);
+    },
+    useEvents(): boolean {
+      return this.eventVMs.length > 0;
+    },
+    hasChildren(): boolean {
+      return this.useEvents ? true : this.children.length > 0;
+    },
+    consequenceCount(): number {
+      return this.useEvents ? this.eventVMs.length : this.children.length;
     },
     when(): string {
       const d = new Date(this.header.timestamp);
@@ -156,11 +182,24 @@ export default defineComponent({
     parse(message: LogMessage): ReadonlyArray<string | LogMessageData> {
       return Log.parse({message: this.$t(message.message), data: message.data});
     },
-    // Index of a child within the original `children` array (for the matched map).
-    childKey(child: LogMessage): number {
-      return this.children.indexOf(child);
+    // Compact a child for its grouped context: when the row's leading actor is
+    // the SAME player as the root action, drop that chip (and the now-leading
+    // whitespace) so it reads as a consequence, not a standalone action.
+    childTokens(child: LogMessage): ReadonlyArray<string | LogMessageData> {
+      const tokens = this.parse(child);
+      const first = tokens[0];
+      if (this.rootPlayerColor !== undefined &&
+          typeof first !== 'string' &&
+          first?.type === LogMessageDataType.PLAYER &&
+          first.value === this.rootPlayerColor) {
+        const rest = tokens.slice(1);
+        if (typeof rest[0] === 'string') {
+          rest[0] = rest[0].replace(/^\s+/, '');
+        }
+        return rest;
+      }
+      return tokens;
     },
-    // A child appended to an already-present group animates on its own.
     childFresh(child: LogMessage): boolean {
       return this.freshSet.has(child) && !this.headerFresh;
     },

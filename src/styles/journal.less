@@ -578,31 +578,53 @@
     margin: 4px 0;
 }
 
-/* ── Cause/effect group ───────────────────────────────────────────────
+/* ── Cause/effect group (premium cohesive cluster) ──────────────────────
  *
- * A premium narrative block: a dominant root-action header + its compact
- * consequence rows on a shared, category-tinted connector. The accent colour
- * (`--jg-accent`) is set per category and tints the marker shard + connector,
- * so the player reads "what happened → what it caused" at a glance.
+ * Root action + its consequences rendered as ONE event: a faint glass surface
+ * bound by a category-tinted SPINE on the left, the dominant root header at the
+ * top, and compact consequence rows branching off the spine. `--jg-accent` is
+ * the category colour. A TOP-LEVEL Detailed/Summary mode (not a per-group
+ * button) decides whether the rows show or collapse to a compact count.
  */
 .journal-group {
     --jg-accent: @j-cyan;
     --jg-accent-soft: rgba(106, 176, 230, 0.16);
     position: relative;
-    margin: 5px 0 7px;
-    border-radius: 6px;
-    transition: background 160ms ease;
+    margin: 3px 0 9px;                 /* tight inside, roomier BETWEEN groups */
+    padding: 3px 8px 5px 16px;         /* left zone for the spine */
+    border-radius: 7px;
+    background: linear-gradient(180deg, rgba(106, 176, 230, 0.05), rgba(106, 176, 230, 0.018));
+    border: 1px solid rgba(106, 176, 230, 0.10);
+    transition: background 160ms ease, border-color 160ms ease;
 }
-.journal-group:hover { background: rgba(106, 176, 230, 0.035); }
+.journal-group:hover {
+    background: linear-gradient(180deg, rgba(106, 176, 230, 0.09), rgba(106, 176, 230, 0.03));
+    border-color: rgba(106, 176, 230, 0.22);
+}
+.journal-group--summary { padding-bottom: 3px; }
+
+/* The spine — binds the root action to its consequences as one event. */
+.journal-group__spine {
+    position: absolute;
+    left: 7px;
+    top: 9px;
+    bottom: 9px;
+    width: 2px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, var(--jg-accent), var(--jg-accent-soft));
+    box-shadow: 0 0 8px var(--jg-accent-soft);
+    transition: box-shadow 160ms ease;
+}
+.journal-group:hover .journal-group__spine { box-shadow: 0 0 12px var(--jg-accent-soft); }
 
 /* Per-category accent. */
-.journal-group--card-play          { --jg-accent: #6ab0e6; --jg-accent-soft: rgba(106, 176, 230, 0.16); }
-.journal-group--card-action        { --jg-accent: #5aa8e6; --jg-accent-soft: rgba(90, 168, 230, 0.16); }
-.journal-group--corporation-action { --jg-accent: #4fc7c0; --jg-accent-soft: rgba(79, 199, 192, 0.16); }
-.journal-group--ceo-action         { --jg-accent: #e6c45a; --jg-accent-soft: rgba(230, 196, 90, 0.16); }
-.journal-group--standard-project   { --jg-accent: #9fb4c8; --jg-accent-soft: rgba(159, 180, 200, 0.18); }
-.journal-group--copied-action      { --jg-accent: #c496e6; --jg-accent-soft: rgba(196, 150, 230, 0.18); }
-.journal-group--generic            { --jg-accent: rgba(150, 175, 200, 0.7); --jg-accent-soft: rgba(150, 175, 200, 0.12); }
+.journal-group--card-play          { --jg-accent: #6ab0e6; --jg-accent-soft: rgba(106, 176, 230, 0.18); }
+.journal-group--card-action        { --jg-accent: #5aa8e6; --jg-accent-soft: rgba(90, 168, 230, 0.18); }
+.journal-group--corporation-action { --jg-accent: #4fc7c0; --jg-accent-soft: rgba(79, 199, 192, 0.18); }
+.journal-group--ceo-action         { --jg-accent: #e6c45a; --jg-accent-soft: rgba(230, 196, 90, 0.18); }
+.journal-group--standard-project   { --jg-accent: #9fb4c8; --jg-accent-soft: rgba(159, 180, 200, 0.20); }
+.journal-group--copied-action      { --jg-accent: #c496e6; --jg-accent-soft: rgba(196, 150, 230, 0.20); }
+.journal-group--generic            { --jg-accent: rgba(150, 175, 200, 0.7); --jg-accent-soft: rgba(150, 175, 200, 0.14); }
 
 /* Root action — the dominant header. */
 .journal-group__root {
@@ -610,8 +632,7 @@
     display: flex;
     align-items: baseline;
     gap: 8px;
-    padding: 4px 6px 4px 8px;
-    border-radius: 5px;
+    padding: 2px;
     transition: opacity 140ms ease;
 }
 .journal-group__root--dim { opacity: 0.5; }
@@ -626,18 +647,8 @@
     padding-top: 2px;
 }
 
-/* The category marker shard (mirrors the panel glyph), tinted by --jg-accent. */
-.journal-group__cat {
-    flex-shrink: 0;
-    align-self: center;
-    width: 6px;
-    height: 15px;
-    background: linear-gradient(180deg, var(--jg-accent), var(--jg-accent-soft));
-    box-shadow: 0 0 8px var(--jg-accent-soft);
-    clip-path: polygon(0 0, 100% 12%, 100% 88%, 0 100%);
-}
-
 .journal-group__root-body {
+    flex: 1;
     min-width: 0;
     word-break: break-word;
     font-size: 13.5px;
@@ -646,55 +657,58 @@
     font-weight: 500;
 }
 
-/* Children — compact consequence rows on a shared connector. */
+/* Summary mode: a compact consequence count in place of the rows. */
+.journal-group__count {
+    flex-shrink: 0;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--jg-accent-soft);
+    background: rgba(0, 0, 0, 0.22);
+    color: @j-text-dim;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+.journal-group__count-arrow { color: var(--jg-accent); font-size: 12px; }
+
+/* Consequences — compact rows branching off the spine, close to the root. */
 .journal-group__children {
     position: relative;
-    margin: 1px 0 0;
-    padding: 0 2px 1px 26px;
+    margin: 0;
+    padding: 1px 2px 0 12px;
     list-style: none;
 }
-/* The vertical connector line, brightening on group hover. */
-.journal-group__children::before {
-    content: '';
-    position: absolute;
-    left: 14px;
-    top: -1px;
-    bottom: 10px;
-    width: 1px;
-    background: linear-gradient(180deg, var(--jg-accent), transparent);
-    opacity: 0.4;
-    transition: opacity 160ms ease;
-}
-.journal-group:hover .journal-group__children::before,
-.journal-group__children--hover::before { opacity: 0.85; }
-
 .journal-group__child {
     position: relative;
     display: flex;
     align-items: baseline;
     gap: 6px;
-    padding: 2px 5px;
+    padding: 1px 5px 1px 6px;
     border-radius: 4px;
     font-size: 12px;
-    line-height: 1.45;
+    line-height: 1.4;
     color: @j-text-dim;
     transition: background 140ms ease, opacity 140ms ease;
 
-    & + & { margin-top: 1px; }
     &:hover { background: rgba(106, 176, 230, 0.05); }
 }
 
-/* The short horizontal branch tick joining a child to the connector line. */
-.journal-group__branch {
+/* The short tick joining a child to the spine. */
+.journal-group__tick {
     position: absolute;
-    left: -12px;
-    top: 11px;
-    width: 10px;
+    left: -13px;
+    top: 9px;
+    width: 12px;
     height: 1px;
     background: var(--jg-accent);
-    opacity: 0.55;
+    opacity: 0.5;
     border-radius: 1px;
+    transition: opacity 160ms ease;
 }
+.journal-group:hover .journal-group__tick { opacity: 0.8; }
 
 .journal-group__child-body {
     min-width: 0;
@@ -707,48 +721,104 @@
 
 /* Filter highlight: matched children pop, the rest recede (context kept). */
 .journal-group__child--matched { background: var(--jg-accent-soft); }
-.journal-group__child--matched .journal-group__branch { opacity: 1; }
+.journal-group__child--matched .journal-group__tick { opacity: 1; }
 .journal-group__child--dim { opacity: 0.4; }
-
-/* Collapsed-tail toggle. */
-.journal-group__toggle-row {
-    list-style: none;
-    margin-top: 2px;
-    padding-left: 2px;
-}
-.journal-group__toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    height: 19px;
-    padding: 0 9px;
-    border: 1px solid @j-chip-rim;
-    border-radius: 999px;
-    background: rgba(16, 25, 38, 0.6);
-    color: @j-text-muted;
-    font-family: Prototype, Orbitron, sans-serif;
-    font-size: 10.5px;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
-
-    &:hover {
-        border-color: @j-cyan-line;
-        color: @j-text;
-        background: @j-cyan-soft;
-    }
-}
-.journal-group__toggle-chevron {
-    font-size: 13px;
-    line-height: 1;
-    transition: transform 160ms ease;
-}
-.journal-group__toggle-chevron--up { transform: rotate(180deg); }
 
 /* Enter animations — a whole new group, or a single child appended live. */
 .journal-group--fresh { animation: journal-entry-in 420ms cubic-bezier(0.22, 1, 0.36, 1); }
 .journal-group__child--fresh { animation: journal-entry-in 380ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ── Top-level detail-mode toggle (Detailed / Summary) ────────────────── */
+.journal-mode {
+    display: inline-flex;
+    flex-shrink: 0;
+    border: 1px solid @j-rim;
+    border-radius: 5px;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(16, 26, 40, 0.92), rgba(10, 16, 26, 0.92));
+}
+.journal-mode__btn {
+    height: 28px;
+    padding: 0 11px;
+    border: none;
+    background: transparent;
+    color: @j-text-muted;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 140ms ease, background 140ms ease;
+
+    & + & { border-left: 1px solid @j-rim; }
+    &:hover { color: @j-text; }
+}
+.journal-mode__btn--active {
+    color: @j-text;
+    background: @j-cyan-soft;
+    box-shadow: inset 0 0 0 1px @j-cyan-line;
+}
+
+/* ── Event-driven child row (source → impact) ─────────────────────────── */
+.journal-child-row {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+/* Semantic source label (Бонус клетки / Бонус океанов / Производство / …). */
+.journal-child-row__src {
+    display: inline-flex;
+    align-items: center;
+    height: 17px;
+    padding: 0 7px;
+    border-radius: 4px;
+    border: 1px solid var(--jg-accent-soft, @j-chip-rim);
+    background: rgba(0, 0, 0, 0.20);
+    color: @j-text-dim;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+.journal-child-row__tile { font-size: 12px; }
+.journal-child-row__copied { font-size: 11px; color: @j-text-muted; }
+.journal-child-row__player { font-size: 11px; }
+.journal-child-row__arrow {
+    color: @j-text-muted;
+    font-size: 12px;
+    margin: 0 1px;
+}
+
+/* Impact chip: resource icon + signed amount. */
+.journal-child-row__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 18px;
+    padding: 0 6px 0 4px;
+    border-radius: 4px;
+    background: rgba(106, 176, 230, 0.10);
+    border: 1px solid rgba(106, 176, 230, 0.22);
+    color: @j-text;
+    font-size: 11.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+/* Production deltas read in a warmer (steel/brown) tint. */
+.journal-child-row__chip--prod {
+    background: rgba(176, 138, 100, 0.14);
+    border-color: rgba(176, 138, 100, 0.32);
+}
+.journal-child-row__chip-icon {
+    width: 15px;
+    height: 15px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    flex-shrink: 0;
+}
+.journal-child-row__chip-amt { line-height: 1; }
 
 /* ── Generation divider ───────────────────────────────────────────── */
 

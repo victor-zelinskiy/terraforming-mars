@@ -24,7 +24,9 @@
             :header="node.group.header"
             :children="node.group.children"
             :category="node.group.category"
+            :events="eventsFor(node.group.correlationId)"
             :players="players"
+            :mode="mode"
             :freshSet="freshSet"
             :filterActive="filterActive"
             :headerMatched="node.headerMatched"
@@ -56,6 +58,7 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {LogMessage} from '@/common/logs/LogMessage';
+import {GameEvent} from '@/common/events/GameEvent';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import JournalEntry from '@/client/components/journal/JournalEntry.vue';
 import JournalGroup from '@/client/components/journal/JournalGroup.vue';
@@ -123,6 +126,16 @@ export default defineComponent({
       type: String as () => Color,
       required: true,
     },
+    // Top-level display mode (detailed / summary) — replaces per-group collapse.
+    mode: {
+      type: String as () => 'detailed' | 'summary',
+      default: 'detailed',
+    },
+    // Structured events for the current generation (event-driven children).
+    events: {
+      type: Array as () => ReadonlyArray<GameEvent>,
+      default: () => [],
+    },
   },
   data(): DataModel {
     return {
@@ -166,6 +179,19 @@ export default defineComponent({
     filterActive(): boolean {
       return this.filter.kind !== 'all';
     },
+    // Events grouped by their correlation chain, for event-driven children.
+    eventsByCorrelation(): Map<number, Array<GameEvent>> {
+      const map = new Map<number, Array<GameEvent>>();
+      for (const e of this.events) {
+        const arr = map.get(e.correlationId);
+        if (arr === undefined) {
+          map.set(e.correlationId, [e]);
+        } else {
+          arr.push(e);
+        }
+      }
+      return map;
+    },
     renderNodes(): ReadonlyArray<RenderNode> {
       const active = this.filterActive;
       const passes = (m: LogMessage): boolean => !active || messagePassesFilter(m, this.filter, this.color);
@@ -190,6 +216,9 @@ export default defineComponent({
   methods: {
     nodeKey(node: RenderNode, index: number): string {
       return node.kind === 'group' ? `g${node.group.correlationId}` : `m${index}`;
+    },
+    eventsFor(correlationId: number): ReadonlyArray<GameEvent> {
+      return this.eventsByCorrelation.get(correlationId) ?? [];
     },
     onScroll(): void {
       const el = this.$refs.scroll as HTMLElement | undefined;

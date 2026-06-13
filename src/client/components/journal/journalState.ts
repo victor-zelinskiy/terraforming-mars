@@ -22,6 +22,15 @@ import {reactive} from 'vue';
  * `#player-home.journal-open` class) and WRITES it (the bottom-bar Log
  * button).
  */
-export const journalState = reactive<{open: boolean}>({
+/**
+ * Journal display mode (a TOP-LEVEL control, replacing per-group collapse):
+ *   - 'detailed' — root actions WITH their consequence rows (the full feed);
+ *   - 'summary'  — only the root actions, each with a compact consequence count.
+ * Module-scoped so it survives the PlayerHome remount, like `open`.
+ */
+export type JournalDetailMode = 'detailed' | 'summary';
+
+export const journalState = reactive<{open: boolean; detail: JournalDetailMode}>({
   open: false,
+  detail: 'detailed',
 });

@@ -1,6 +1,9 @@
 import {Color} from '../../common/Color';
 import {Phase} from '../../common/Phase';
 import {CardName} from '../../common/cards/CardName';
+import {SpaceId} from '../../common/Types';
+import {TileType} from '../../common/TileType';
+import {Space} from '../boards/Space';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
 import {EventSource} from '../../common/events/EventSource';
@@ -26,7 +29,7 @@ type EventContext = {
   parentId: number | undefined;
   source: EventSource | undefined;
   playerColor: Color | undefined;
-  kind: 'action' | 'effect' | 'copied';
+  kind: 'action' | 'effect' | 'copied' | 'source';
   trigger: EventTrigger | undefined;
   triggerEmitted: boolean;
   // Whether this action/copied scope has already produced its header log
@@ -46,6 +49,8 @@ type RecordInput = {
   target?: {player?: Color; card?: CardName};
   trigger?: EventTrigger;
   impact: EventImpact;
+  space?: SpaceId;
+  tile?: TileType;
   visibility?: EventVisibility;
   tags?: ReadonlyArray<EventTag>;
 };
@@ -84,6 +89,12 @@ export class EventRecorder {
     }
     if (input.target !== undefined) {
       event.target = input.target;
+    }
+    if (input.space !== undefined) {
+      event.space = input.space;
+    }
+    if (input.tile !== undefined) {
+      event.tile = input.tile;
     }
     if (input.trigger !== undefined) {
       event.trigger = input.trigger;
@@ -208,6 +219,31 @@ export class EventRecorder {
     } finally {
       this.endScope();
     }
+  }
+
+  /**
+   * Run `fn` with an explicit source OVERRIDE for nested mutations that carry no
+   * `from` of their own — e.g. space-bonus or ocean-adjacency resource gains,
+   * which should read as "Бонус клетки" / "Бонус океанов" rather than be
+   * attributed to the surrounding action. Same correlation chain; logs inside
+   * stay 'detail'.
+   */
+  public withSource<T>(source: EventSource, fn: () => T): T {
+    const parent = this.current;
+    this.stack.push({
+      rootId: parent?.rootId, parentId: parent?.parentId, source, playerColor: parent?.playerColor,
+      kind: 'source', trigger: undefined, triggerEmitted: true, rootLogEmitted: true, category: undefined,
+    });
+    try {
+      return fn();
+    } finally {
+      this.endScope();
+    }
+  }
+
+  /** Record a tile placement (carries the space for "show on map" + the tile type). */
+  public recordTilePlaced(player: IPlayer, space: Space, tile: TileType): void {
+    this.record({type: 'tile-placed', player: player.color, impact: {tilesPlaced: 1}, space: space.id, tile, tags: ['terraforming']});
   }
 
   /** Run `fn` (the copied card's action) wrapped in a copied-action scope. */

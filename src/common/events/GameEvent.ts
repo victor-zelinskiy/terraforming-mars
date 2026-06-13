@@ -1,6 +1,8 @@
 import {Color} from '../Color';
 import {Phase} from '../Phase';
 import {CardName} from '../cards/CardName';
+import {SpaceId} from '../Types';
+import {TileType} from '../TileType';
 import {EventSource} from './EventSource';
 import {EventImpact} from './EventImpact';
 
@@ -106,6 +108,9 @@ export type GameEvent = {
   source?: EventSource;
   /** For cross-player effects (attacks/steals) or copy targets. */
   target?: {player?: Color; card?: CardName};
+  /** For `tile-placed`: the board space (for "show on map") + the tile type. */
+  space?: SpaceId;
+  tile?: TileType;
   /** For `effect-triggered`: the kind of event that fired the effect. */
   trigger?: EventTrigger;
   /** Factual deltas. */
