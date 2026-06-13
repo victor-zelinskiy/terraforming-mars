@@ -13,13 +13,13 @@ import {CardName} from '@/common/cards/CardName';
 describe('actionsPickState', () => {
   afterEach(() => exitActionsPick());
 
-  it('enter sets the state + candidates; resolve fires onResolve with the card and exits', () => {
-    let resolved: CardName | undefined;
+  it('enter sets the state + candidates; resolve fires onResolve with the card + branch node and exits', () => {
+    let resolved: {card: CardName, nodeIndex: number} | undefined;
     enterActionsPick({
       title: 'Choose an action to repeat',
       selectable: [CardName.REGOLITH_EATERS, CardName.SEARCH_FOR_LIFE],
-      onResolve: (card) => {
-        resolved = card;
+      onResolve: (card, nodeIndex) => {
+        resolved = {card, nodeIndex};
       },
     });
     expect(actionsPickState.active).is.true;
@@ -27,8 +27,9 @@ describe('actionsPickState', () => {
     expect(isActionsPickCandidate(CardName.REGOLITH_EATERS)).is.true;
     expect(isActionsPickCandidate(CardName.ANTS)).is.false;
 
-    resolveActionsPick(CardName.SEARCH_FOR_LIFE);
-    expect(resolved).eq(CardName.SEARCH_FOR_LIFE);
+    // A split action's 2nd branch (nodeIndex 1).
+    resolveActionsPick(CardName.REGOLITH_EATERS, 1);
+    expect(resolved).deep.eq({card: CardName.REGOLITH_EATERS, nodeIndex: 1});
     // Resolve EXITS the state BEFORE firing the callback, so the activeOverlay
     // cancel-net never mistakes a resolve for an abandon.
     expect(actionsPickState.active).is.false;
@@ -54,12 +55,15 @@ describe('actionsPickState', () => {
     expect(actionsPickState.active).is.false;
   });
 
-  it('deliverActionRepeatPick bumps the epoch each time (so two picks of the SAME card both fire)', () => {
+  it('deliverActionRepeatPick carries the branch node + bumps the epoch each time', () => {
     const before = actionRepeatPickResult.epoch;
-    deliverActionRepeatPick(CardName.ANTS);
+    deliverActionRepeatPick(CardName.REGOLITH_EATERS, 1);
     expect(actionRepeatPickResult.epoch).eq(before + 1);
-    expect(actionRepeatPickResult.card).eq(CardName.ANTS);
+    expect(actionRepeatPickResult.card).eq(CardName.REGOLITH_EATERS);
+    expect(actionRepeatPickResult.nodeIndex).eq(1);
+    // Two picks of the SAME card both fire (epoch bumps); default node is 0.
     deliverActionRepeatPick(CardName.ANTS);
     expect(actionRepeatPickResult.epoch).eq(before + 2);
+    expect(actionRepeatPickResult.nodeIndex).eq(0);
   });
 });

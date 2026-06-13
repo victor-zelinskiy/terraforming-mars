@@ -865,7 +865,7 @@ export default defineComponent({
       this.awaitingActionsPick = false;
       const card = actionRepeatPickResult.card;
       if (card !== undefined) {
-        this.$emit('repeat-action', {chosenCard: card});
+        this.$emit('repeat-action', {chosenCard: card, nodeIndex: actionRepeatPickResult.nodeIndex});
       }
     },
   },
@@ -953,9 +953,10 @@ export default defineComponent({
     repeatActionUsesOverlay(step: ActionPreviewStep): boolean {
       return this.repeatCandidates(step).length > PLAYED_PICK_OVERLAY_THRESHOLD;
     },
-    // Inline pick (<4): hand off the chosen action to its own premium confirm.
-    onRepeatPick(card: CardName): void {
-      this.$emit('repeat-action', {chosenCard: card});
+    // Inline pick (<4): hand off the chosen action (+ branch node) to its own
+    // premium confirm, opened on that branch.
+    onRepeatPick(payload: {cardName: CardName, nodeIndex: number}): void {
+      this.$emit('repeat-action', {chosenCard: payload.cardName, nodeIndex: payload.nodeIndex});
     },
     // >=4: open the ДЕЙСТВИЯ overlay pick-mode; the chosen action returns via the
     // `actionsPickEpoch` watcher → `repeat-action`.

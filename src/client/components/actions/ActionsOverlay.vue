@@ -605,14 +605,15 @@ export default defineComponent({
     pickSelectable(name: CardName): boolean {
       return isActionsPickCandidate(name);
     },
-    // PICK MODE — a candidate action was clicked: resolve the pick (delivers the
-    // card back to the initiating modal via the bridge) and close the overlay so
-    // the suppressed modal re-appears + opens the chosen action's confirm.
-    onPickResolve(payload: {cardName: CardName}): void {
+    // PICK MODE — a candidate action ROW (branch) was clicked: resolve the pick
+    // (delivers the card + chosen branch node back to the initiating modal via the
+    // bridge) and close the overlay so the suppressed modal re-appears + opens the
+    // chosen action's confirm ON THAT BRANCH.
+    onPickResolve(payload: {cardName: CardName, nodeIndex: number}): void {
       if (!this.pickMode || !this.pickSelectable(payload.cardName)) {
         return;
       }
-      resolveActionsPick(payload.cardName);
+      resolveActionsPick(payload.cardName, payload.nodeIndex);
       this.$emit('close');
     },
     // Pick-mode width: no detail column, so size the overlay to a comfortable

@@ -2573,14 +2573,14 @@ export default defineComponent({
       enterActionsPick({
         title: req.title,
         selectable: req.selectable,
-        onResolve: (card) => deliverActionRepeatPick(card),
+        onResolve: (card, nodeIndex) => deliverActionRepeatPick(card, nodeIndex),
       });
       this.activeOverlay = 'actions';
     },
     // The player chose an action X to repeat from the PLAY modal (ProjectInspection):
     // build the outer prefix [play ProjectInspection wrapped, {card:[X]}] and open
     // X's premium confirm (which collects X's choices + submits the combined batch).
-    onRepeatActionFromPlay(payload: {chosenCard: CardName, playResponse: unknown}): void {
+    onRepeatActionFromPlay(payload: {chosenCard: CardName, nodeIndex: number, playResponse: unknown}): void {
       const action = this.playProjectCardAction;
       const outerPlay = this.pendingPlayCard;
       if (!action || outerPlay === undefined) {
@@ -2592,11 +2592,11 @@ export default defineComponent({
       }
       const prefix: ReadonlyArray<unknown> = [play, {type: 'card' as const, cards: [payload.chosenCard]}];
       this.pendingPlayCard = undefined;
-      this.openRepeatActionConfirm(payload.chosenCard, prefix, {kind: 'play', play: outerPlay});
+      this.openRepeatActionConfirm(payload.chosenCard, payload.nodeIndex, prefix, {kind: 'play', play: outerPlay});
     },
     // The player chose an action X to repeat from the ACTION-confirm modal (Viron):
     // build the outer prefix [activate Viron wrapped, {card:[X]}] and open X's confirm.
-    onRepeatActionFromAction(payload: {chosenCard: CardName}): void {
+    onRepeatActionFromAction(payload: {chosenCard: CardName, nodeIndex: number}): void {
       const outerAction = this.pendingCardAction;
       if (outerAction === undefined) {
         return;
@@ -2606,7 +2606,7 @@ export default defineComponent({
         return;
       }
       const prefix: ReadonlyArray<unknown> = [activatePick, {type: 'card' as const, cards: [payload.chosenCard]}];
-      this.openRepeatActionConfirm(payload.chosenCard, prefix, {kind: 'action', action: outerAction});
+      this.openRepeatActionConfirm(payload.chosenCard, payload.nodeIndex, prefix, {kind: 'action', action: outerAction});
     },
     // Wrap an activate pick ({card:[cardName]}) in the action-menu OR path — the
     // SAME wrapping submitCardActionBatch uses, so the prefix's outer activate is
@@ -2623,12 +2623,12 @@ export default defineComponent({
       return pick;
     },
     // Open the repeated action X's premium confirm (a fresh CardActionConfirmContent,
-    // keyed on the card name so it remounts + re-fetches X's preview), carrying the
-    // outer prefix + the outer modal to restore on cancel.
-    openRepeatActionConfirm(chosenCard: CardName, prefix: ReadonlyArray<unknown>, outer: RepeatOuter): void {
+    // keyed on the card name so it remounts + re-fetches X's preview), opened on the
+    // chosen branch NODE, carrying the outer prefix + the outer modal to restore on cancel.
+    openRepeatActionConfirm(chosenCard: CardName, nodeIndex: number, prefix: ReadonlyArray<unknown>, outer: RepeatOuter): void {
       const card = this.thisPlayer.tableau.find((c) => c.name === chosenCard);
       this.repeatOuter = outer;
-      this.pendingCardAction = {cardName: chosenCard, card, nodeIndex: 0, repeatPrefix: prefix};
+      this.pendingCardAction = {cardName: chosenCard, card, nodeIndex, repeatPrefix: prefix};
     },
     // Submit a REPEATED action: the outer prefix + X's own responses, in one batch.
     submitRepeatActionBatch(prefix: ReadonlyArray<unknown>, branchIndex: number, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>): void {

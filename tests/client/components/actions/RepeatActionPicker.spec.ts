@@ -12,7 +12,7 @@ const CompactActionCardStub = {
   template: '<div class="compact-action-stub"></div>',
 };
 
-function factory(candidates: ReadonlyArray<CardName>, selectedName?: CardName) {
+function factory(candidates: ReadonlyArray<CardName>) {
   return mount(RepeatActionPicker, {
     ...globalConfig,
     global: {
@@ -21,7 +21,6 @@ function factory(candidates: ReadonlyArray<CardName>, selectedName?: CardName) {
     },
     props: {
       candidates,
-      selectedName,
       prompt: 'Perform an action from a played card again',
       playerView: {} as any,
     },
@@ -29,26 +28,35 @@ function factory(candidates: ReadonlyArray<CardName>, selectedName?: CardName) {
 }
 
 describe('RepeatActionPicker', () => {
-  it('renders ONE premium tile per candidate action', () => {
+  it('renders ONE group per candidate card (with its name header)', () => {
     const component = factory([CardName.REGOLITH_EATERS, CardName.SEARCH_FOR_LIFE]);
-    const tiles = component.findAll('.repeat-action-picker__tile');
-    expect(tiles.length).to.eq(2);
-    // The card NAME header is shown so the player knows the source.
+    const groups = component.findAll('.repeat-action-picker__group');
+    expect(groups.length).to.eq(2);
     expect(component.find('[data-test="repeat-action-' + CardName.REGOLITH_EATERS + '"]').exists()).is.true;
     expect(component.find('[data-test="repeat-action-' + CardName.SEARCH_FOR_LIFE + '"]').exists()).is.true;
   });
 
-  it('clicking a tile emits `change` with that card name (single-select, no submit)', async () => {
-    const component = factory([CardName.REGOLITH_EATERS, CardName.SEARCH_FOR_LIFE]);
-    await component.find('[data-test="repeat-action-' + CardName.SEARCH_FOR_LIFE + '"]').trigger('click');
-    const emitted = component.emitted('change');
-    expect(emitted).is.not.undefined;
-    expect(emitted![0]).deep.eq([CardName.SEARCH_FOR_LIFE]);
+  it('a SPLIT (`or`) action renders its branches as SEPARATELY selectable rows', () => {
+    // Regolith Eaters has TWO action branches (add a microbe / spend 2 → oxygen).
+    const component = factory([CardName.REGOLITH_EATERS]);
+    const rows = component.findAll('[data-test^="repeat-action-' + CardName.REGOLITH_EATERS + '-"]');
+    expect(rows.length).to.eq(2);
   });
 
-  it('marks the selected tile', () => {
-    const component = factory([CardName.REGOLITH_EATERS, CardName.SEARCH_FOR_LIFE], CardName.REGOLITH_EATERS);
-    const selected = component.find('[data-test="repeat-action-' + CardName.REGOLITH_EATERS + '"]');
-    expect(selected.classes()).to.include('repeat-action-picker__tile--selected');
+  it('clicking a branch row emits `change` with the card AND that branch node index', async () => {
+    const component = factory([CardName.REGOLITH_EATERS]);
+    // Click the SECOND branch (nodeIndex 1).
+    await component.find('[data-test="repeat-action-' + CardName.REGOLITH_EATERS + '-1"]').trigger('click');
+    const emitted = component.emitted('change');
+    expect(emitted).is.not.undefined;
+    expect(emitted![0]).deep.eq([{cardName: CardName.REGOLITH_EATERS, nodeIndex: 1}]);
+  });
+
+  it('a single-action card renders ONE selectable row (nodeIndex 0)', async () => {
+    const component = factory([CardName.SEARCH_FOR_LIFE]);
+    const rows = component.findAll('[data-test^="repeat-action-' + CardName.SEARCH_FOR_LIFE + '-"]');
+    expect(rows.length).to.eq(1);
+    await rows[0].trigger('click');
+    expect(component.emitted('change')![0]).deep.eq([{cardName: CardName.SEARCH_FOR_LIFE, nodeIndex: 0}]);
   });
 });
