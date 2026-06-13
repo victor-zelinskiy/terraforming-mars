@@ -33,13 +33,35 @@
         <button class="actions-board__close" @click="$emit('close')" :title="$t('Close')" data-test="actions-overlay-close">✕</button>
       </div>
       <ActionsFilters
+        v-if="!pickMode"
         :availabilityChips="availabilityChips"
         :activationChips="activationChips"
         @availability="setAvailability"
         @activation="setActivation" />
     </header>
 
-    <div class="actions-board__body" ref="body">
+    <!-- PICK MODE — a lightweight "choose an action to repeat" grid: every action
+         SOURCE is rendered as a premium action card; only the candidates are
+         selectable (the rest dimmed for context). Clicking a candidate resolves
+         the pick + closes the overlay so the chosen action's confirm opens. -->
+    <div v-if="pickMode" class="actions-board__body actions-board__body--pick" ref="body">
+      <div class="actions-board__pickstrip">
+        <span class="actions-board__pickstrip-dot" aria-hidden="true"></span>
+        <span class="actions-board__pickstrip-text">{{ pickTitle }}</span>
+        <button type="button" class="actions-board__pickstrip-cancel" @click="$emit('close')" v-i18n>Cancel</button>
+      </div>
+      <div class="actions-board__pickgrid">
+        <ActionGroupCard v-for="e in entries"
+                         :key="e.cardName"
+                         :entry="e"
+                         :card="tableauByName.get(e.cardName)"
+                         :pickMode="true"
+                         :pickSelectable="pickSelectable(e.cardName)"
+                         @pick="onPickResolve" />
+      </div>
+    </div>
+
+    <div v-else class="actions-board__body" ref="body">
       <div v-if="entries.length === 0" class="actions-board__empty">
         <span class="actions-board__empty-glyph" aria-hidden="true">⌁</span>
         <span class="actions-board__empty-text" v-i18n>No activatable actions</span>
@@ -130,6 +152,8 @@ import {
   setActionPreviewScope,
   resetActionsOverlay,
 } from '@/client/components/actions/actionsOverlayState';
+import {actionsPickState, resolveActionsPick, isActionsPickCandidate} from '@/client/components/actions/actionsPickState';
+import {translateText, translateMessage} from '@/client/directives/i18n';
 import ActionGroupCard from '@/client/components/actions/ActionGroupCard.vue';
 import ActionDetailsPanel from '@/client/components/actions/ActionDetailsPanel.vue';
 import ActionsFilters from '@/client/components/actions/ActionsFilters.vue';
@@ -183,6 +207,15 @@ export default defineComponent({
       default: '',
     },
     awaitingInput: {
+      type: Boolean,
+      default: false,
+    },
+    // PICK MODE — the overlay is hosting a "choose an ACTION to repeat" pick
+    // (ProjectInspection / Viron, ≥4 candidates) instead of its normal master-
+    // detail browser. Candidates highlight + resolve on click; the rest dim. The
+    // details panel + filters + fit machinery are suppressed. Bound to
+    // `actionsPickState.active` by PlayerHome.
+    pickMode: {
       type: Boolean,
       default: false,
     },
@@ -282,6 +315,13 @@ export default defineComponent({
     previewCount(): number {
       return Object.keys(actionsOverlayState.previewCache).length;
     },
+    // ─── Pick mode ───
+    // The prompt label for the pick strip (e.g. "Perform an action from a played
+    // card again"), translated from the pick state's title.
+    pickTitle(): string {
+      const t = actionsPickState.title;
+      return t === '' ? translateText('Choose an action to repeat') : (typeof t === 'string' ? translateText(t) : translateMessage(t));
+    },
   },
   watch: {
     previewCacheKey(): void {
@@ -314,6 +354,20 @@ export default defineComponent({
     },
   },
   mounted(): void {
+    // Pick mode is a lightweight selection surface — skip the master-detail
+    // selection/preview/fit machinery entirely; just size the candidate grid.
+    if (this.pickMode) {
+      nextTick(() => this.fitPick());
+      window.addEventListener('keydown', this.onKeydown);
+      const rootEl = this.$refs.root as HTMLElement | undefined;
+      if (rootEl !== undefined && typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => this.fitPick());
+        ro.observe(rootEl);
+        this.resizeObserver = markRaw(ro);
+      }
+      window.addEventListener('resize', this.fitPick);
+      return;
+    }
     actionsOverlayState.open = true;
     setActionPreviewScope(this.previewCacheKey);
     this.ensureSelection();
@@ -335,6 +389,7 @@ export default defineComponent({
   beforeUnmount(): void {
     this.resizeObserver?.disconnect();
     window.removeEventListener('resize', this.scheduleFit);
+    window.removeEventListener('resize', this.fitPick);
     window.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
@@ -348,6 +403,9 @@ export default defineComponent({
     // else auto-select the first AVAILABLE action (else the first), so the details
     // panel always has something to show.
     ensureSelection(): void {
+      if (this.pickMode) {
+        return;
+      }
       const current = this.selectedEntry;
       if (current !== undefined) {
         this.fetchPreviewFor(current.cardName);
@@ -398,6 +456,9 @@ export default defineComponent({
     // need it to mark a single UNAVAILABLE branch (Rotator Impacts), and ALL of them
     // feed the height measurer (results add height) so the overlay opens pre-sized.
     prefetchBranchPreviews(): void {
+      if (this.pickMode) {
+        return;
+      }
       for (const e of this.entries) {
         if (e.state.status === 'available') {
           this.fetchPreviewFor(e.cardName, true);
@@ -429,7 +490,7 @@ export default defineComponent({
       root.style.setProperty('--actions-detail-min-h', Math.min(maxH, cap) + 'px');
     },
     scheduleMeasure(): void {
-      if (this.measureScheduled) {
+      if (this.pickMode || this.measureScheduled) {
         return;
       }
       this.measureScheduled = true;
@@ -449,6 +510,10 @@ export default defineComponent({
         } else {
           this.$emit('close');
         }
+        return;
+      }
+      // Pick mode has no row navigation — Escape (handled above) is the only key.
+      if (this.pickMode) {
         return;
       }
       const rows = this.flatRows;
@@ -493,6 +558,10 @@ export default defineComponent({
     },
     // ─── Adaptive fit: a fixed compact master grid + a static detail column ───
     fit(): void {
+      if (this.pickMode) {
+        this.fitPick();
+        return;
+      }
       const root = this.$refs.root as HTMLElement | undefined;
       const grid = this.$refs.grid as HTMLElement | undefined;
       const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -531,6 +600,36 @@ export default defineComponent({
       nextTick(() => {
         (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
       });
+    },
+    // Whether an action SOURCE card is selectable in the current pick (a candidate).
+    pickSelectable(name: CardName): boolean {
+      return isActionsPickCandidate(name);
+    },
+    // PICK MODE — a candidate action was clicked: resolve the pick (delivers the
+    // card back to the initiating modal via the bridge) and close the overlay so
+    // the suppressed modal re-appears + opens the chosen action's confirm.
+    onPickResolve(payload: {cardName: CardName}): void {
+      if (!this.pickMode || !this.pickSelectable(payload.cardName)) {
+        return;
+      }
+      resolveActionsPick(payload.cardName);
+      this.$emit('close');
+    },
+    // Pick-mode width: no detail column, so size the overlay to a comfortable
+    // multi-column grid of the candidate tiles (capped to the viewport).
+    fitPick(): void {
+      const root = this.$refs.root as HTMLElement | undefined;
+      const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+      const availW = clamp(window.innerWidth - SIDE_MARGIN, MIN_W, FIT_MAX_W);
+      // Size the grid to the number of ACTION SOURCES shown (candidates + dimmed
+      // context cards), capped at 3 columns and the viewport.
+      const n = Math.max(1, this.entries.length);
+      const colsByWidth = Math.max(1, Math.floor((availW - BODY_PAD_X + GAP) / (MASTER_COL_MIN + GAP)));
+      const cols = clamp(Math.min(n, colsByWidth), 1, MAX_COLS);
+      const w = clamp(cols * MASTER_COL_MAX + (cols - 1) * GAP + BODY_PAD_X, MIN_W, availW);
+      root?.style.setProperty('--actions-overlay-width', Math.round(w) + 'px');
+      const grid = root?.querySelector('.actions-board__pickgrid') as HTMLElement | null;
+      grid?.style.setProperty('--actions-master-cols', String(cols));
     },
   },
 });

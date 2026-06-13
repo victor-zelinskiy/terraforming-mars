@@ -67,7 +67,7 @@ export class Viron extends CorporationCard implements ICorporationCard {
   public actionPreview(player: IPlayer): ActionPreview {
     const cards = this.getActionCards(player);
     const steps = cards.length > 0 ?
-      [actionPreviews.selectCardStep(player, 'Perform again an action from a played card', 'Take action', cards)] :
+      [actionPreviews.selectCardStep(player, 'Perform again an action from a played card', 'Take action', cards, {repeatAction: true})] :
       [];
     return actionPreviews.singleBranch(this, player, steps);
   }

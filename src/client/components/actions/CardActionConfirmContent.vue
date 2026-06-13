@@ -216,7 +216,26 @@
              NOT be buried below a tall payment widget here). -->
         <div v-if="selected !== undefined && hasInputSteps" class="action-confirm__steps">
           <template v-for="(step, i) in selected.steps" :key="i">
-            <div v-if="step.kind === 'input'" class="action-confirm__step action-confirm__step--input"
+            <!-- REPEAT-ACTION pick (Viron): the candidates are ACTIONS to perform
+                 again — render them as premium action cards (< 4 inline) or route
+                 to the ДЕЙСТВИЯ overlay pick-mode (>= 4). Picking one hands off to
+                 that action's OWN premium confirm (@repeat-action), it never
+                 captures as a normal step. -->
+            <div v-if="step.kind === 'input' && step.input.type === 'card' && isRepeatActionStep(step)"
+                 class="action-confirm__step action-confirm__step--bare">
+              <RepeatActionPicker v-if="!repeatActionUsesOverlay(step)"
+                                  :candidates="repeatCandidates(step)"
+                                  :playerView="playerView"
+                                  :prompt="text(step.input.title)"
+                                  @change="onRepeatPick($event)" />
+              <div v-else class="action-confirm__handpick">
+                <button type="button" class="action-confirm__handpick-btn" @click="requestActionsPick(step)" data-test="action-repeat-overlay">
+                  <span class="action-confirm__handpick-btn-glyph" aria-hidden="true">▦</span>
+                  <span class="action-confirm__handpick-btn-label" v-i18n>Choose an action to repeat</span>
+                </button>
+              </div>
+            </div>
+            <div v-else-if="step.kind === 'input'" class="action-confirm__step action-confirm__step--input"
                  :class="{
                    'action-confirm__step--answered': captured[i] !== undefined,
                    'action-confirm__step--bare': step.input.type === 'payment',
@@ -413,6 +432,9 @@ import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {handActionPickResult} from '@/client/components/handCards/handActionPick';
 import {playedCardActionPickResult} from '@/client/components/playedCards/playedCardActionPick';
+import {actionRepeatPickResult} from '@/client/components/actions/actionRepeatPick';
+import {PLAYED_PICK_OVERLAY_THRESHOLD} from '@/client/components/playedCards/playedCardsPickState';
+import RepeatActionPicker from '@/client/components/actions/RepeatActionPicker.vue';
 import {cardPickSurface, CardPickSurface} from '@/client/components/cardPickRouting';
 import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -430,7 +452,7 @@ type GroupNode = ActionGroup['nodes'][number];
 
 export default defineComponent({
   name: 'CardActionConfirmContent',
-  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, CompactActionCard, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot, ActionResultsPreview, ActionNextStepNotice},
+  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, CompactActionCard, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot, ActionResultsPreview, ActionNextStepNotice, RepeatActionPicker},
   directives: {stripActionPrefix},
   props: {
     cardName: {
@@ -458,10 +480,13 @@ export default defineComponent({
       default: 0,
     },
   },
-  emits: ['confirm', 'cancel', 'pick-card', 'pick-played-card'],
+  emits: ['confirm', 'cancel', 'pick-card', 'pick-played-card', 'pick-action', 'repeat-action'],
   data() {
     return {
       zoomCard: undefined as CardModel | undefined,
+      // True between emitting `pick-action` (open the ДЕЙСТВИЯ overlay pick-mode for
+      // a >=4-candidate repeat) and the chosen action arriving via the bridge.
+      awaitingActionsPick: false,
       // True between emitting `pick-card` and the result arriving via the bridge,
       // so a stale epoch bump can't capture into the wrong slot. `awaitingPick` is
       // the branch's optionInput hand pick; `awaitingHandPickStep` is a hand pick for
@@ -589,7 +614,9 @@ export default defineComponent({
         // overlay (РАЗЫГРАНО board or КАРТЫ В РУКЕ) — those show a single CTA, so they
         // don't widen the modal either.
         for (const step of b.steps) {
-          if (step.kind === 'input' && !this.isPlayedOverlayStep(step) && !this.isHandCardStep(step)) {
+          // A repeat-action pick renders premium action cards (its own flex-wrap)
+          // or a single overlay CTA — it sizes itself, so don't bucket it as tiles.
+          if (step.kind === 'input' && !this.isRepeatActionStep(step) && !this.isPlayedOverlayStep(step) && !this.isHandCardStep(step)) {
             n += countCards(step.input as {type: string});
           }
         }
@@ -771,6 +798,10 @@ export default defineComponent({
     playedPickEpoch(): number {
       return playedCardActionPickResult.epoch;
     },
+    // Bridged result epoch from the ДЕЙСТВИЯ overlay repeat-action pick (the watcher).
+    actionsPickEpoch(): number {
+      return actionRepeatPickResult.epoch;
+    },
     // The chosen card's full model (for rendering it in the modal after the pick).
     optionChosenCard(): CardModel | undefined {
       const input = this.selected?.optionInput;
@@ -823,6 +854,18 @@ export default defineComponent({
       this.awaitingPlayedPick = false;
       if (card !== undefined) {
         this.captureOption({type: 'card', cards: [card]});
+      }
+    },
+    // An action picked in the ДЕЙСТВИЯ overlay pick-mode (the >=4-candidate repeat)
+    // was delivered back — hand off to that action's OWN premium confirm.
+    actionsPickEpoch(): void {
+      if (!this.awaitingActionsPick) {
+        return;
+      }
+      this.awaitingActionsPick = false;
+      const card = actionRepeatPickResult.card;
+      if (card !== undefined) {
+        this.$emit('repeat-action', {chosenCard: card});
       }
     },
   },
@@ -890,10 +933,38 @@ export default defineComponent({
     // the optionInput, via `surfaceOf` — so steps support BOTH overlays, not just the
     // board (e.g. a future action whose follow-up picks from hand routes to КАРТЫ).
     isPlayedOverlayStep(step: ActionPreviewStep): boolean {
-      return step.kind === 'input' && this.surfaceOf(step.input) === 'board';
+      return step.kind === 'input' && !this.isRepeatActionStep(step) && this.surfaceOf(step.input) === 'board';
     },
     isHandCardStep(step: ActionPreviewStep): boolean {
-      return step.kind === 'input' && this.surfaceOf(step.input) === 'hand';
+      return step.kind === 'input' && !this.isRepeatActionStep(step) && this.surfaceOf(step.input) === 'hand';
+    },
+    // A "repeat an action used this generation" pick (Viron): the candidates are
+    // ACTIONS to perform again, rendered as premium action cards.
+    isRepeatActionStep(step: ActionPreviewStep): boolean {
+      return step.kind === 'input' && (step as {repeatAction?: boolean}).repeatAction === true;
+    },
+    repeatCandidates(step: ActionPreviewStep): ReadonlyArray<CardName> {
+      if (step.kind !== 'input' || step.input.type !== 'card') {
+        return [];
+      }
+      return (step.input as SelectCardModel).cards.map((c) => c.name);
+    },
+    // >3 candidates → the ДЕЙСТВИЯ overlay pick-mode (a roomy board); <=3 inline.
+    repeatActionUsesOverlay(step: ActionPreviewStep): boolean {
+      return this.repeatCandidates(step).length > PLAYED_PICK_OVERLAY_THRESHOLD;
+    },
+    // Inline pick (<4): hand off the chosen action to its own premium confirm.
+    onRepeatPick(card: CardName): void {
+      this.$emit('repeat-action', {chosenCard: card});
+    },
+    // >=4: open the ДЕЙСТВИЯ overlay pick-mode; the chosen action returns via the
+    // `actionsPickEpoch` watcher → `repeat-action`.
+    requestActionsPick(step: ActionPreviewStep): void {
+      if (step.kind !== 'input' || step.input.type !== 'card') {
+        return;
+      }
+      this.awaitingActionsPick = true;
+      this.$emit('pick-action', {title: step.input.title, selectable: this.repeatCandidates(step)});
     },
     // Hand off a card-target STEP's pick to the РАЗЫГРАНО board (PlayerHome opens it
     // in pick mode + suppresses this modal; the picked card returns via the

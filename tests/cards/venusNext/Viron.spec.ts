@@ -36,6 +36,30 @@ describe('Viron', () => {
     expect(selectCard.cards).deep.eq([restrictedArea]);
   });
 
+  it('actionPreview: a single branch with a repeatAction card-pick step', () => {
+    player.playedCards.push(card);
+    const restrictedArea = new RestrictedArea();
+    player.playedCards.push(restrictedArea);
+    player.actionsThisGeneration.add(restrictedArea.name);
+    player.megaCredits += 2;
+    expect(card.canAct(player)).is.true;
+
+    const preview = card.actionPreview(player);
+    expect(preview.branches).has.lengthOf(1);
+    const steps = preview.branches[0].steps;
+    expect(steps).has.lengthOf(1);
+    const step = steps[0];
+    expect(step.kind).eq('input');
+    if (step.kind !== 'input') {
+      throw new Error('expected an input step');
+    }
+    expect(step.input.type).eq('card');
+    // Drives the premium "choose an action to repeat" picker + nested confirm.
+    expect(step.repeatAction).is.true;
+    const input = step.input as {cards: ReadonlyArray<{name: string}>};
+    expect(input.cards.map((c) => c.name)).deep.eq([restrictedArea.name]);
+  });
+
   it('Cannot act once Viron is used', () => {
     card.play(player);
 

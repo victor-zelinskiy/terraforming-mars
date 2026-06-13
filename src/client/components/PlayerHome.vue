@@ -263,7 +263,7 @@
     -->
     <MandatoryInputModal v-if="pendingPlayCard !== undefined"
                          :title="pendingPlayCard.title"
-                         :suppressed="playedPickActive || actionCardPickActive">
+                         :suppressed="playedPickActive || actionCardPickActive || actionsPickActive">
       <HandCardPaymentContent
         :playerView="playerView"
         :input="pendingPlayCard.input"
@@ -271,7 +271,9 @@
         @confirm="onPlayCardConfirm($event)"
         @cancel="onPlayCardCancel"
         @pick-card="onActionPickCard"
-        @pick-played-card="onPlayedCardActionPick" />
+        @pick-played-card="onPlayedCardActionPick"
+        @pick-action="onActionsPick"
+        @repeat-action="onRepeatActionFromPlay($event)" />
     </MandatoryInputModal>
 
     <!--
@@ -429,13 +431,14 @@
       open the confirmation modal before any server round-trip.
     -->
     <ActionsOverlay
-      v-if="activeOverlay === 'actions'"
+      v-if="activeOverlay === 'actions' || actionsPickActive"
       :displayedPlayer="displayedPlayer"
       :viewerColor="thisPlayer.color"
       :viewerId="playerView.id"
       :availableActionNames="availableCardActionNames"
       :preview-cache-key="actionsPreviewCacheKey"
       :awaitingInput="playerView.waitingFor !== undefined"
+      :pickMode="actionsPickActive"
       @activate="onActivateCardAction($event)"
       @close="closeActionsOverlay" />
 
@@ -448,8 +451,9 @@
     <MandatoryInputModal v-if="pendingCardAction !== undefined"
                          :title="$t('Activate action')"
                          :minimizable="false"
-                         :suppressed="actionCardPickActive || playedPickActive">
+                         :suppressed="actionCardPickActive || playedPickActive || actionsPickActive">
       <CardActionConfirmContent
+        :key="pendingCardAction.cardName"
         :cardName="pendingCardAction.cardName"
         :card="pendingCardAction.card"
         :nodeIndex="pendingCardAction.nodeIndex"
@@ -457,7 +461,9 @@
         @confirm="onCardActionConfirm"
         @cancel="onCardActionCancel"
         @pick-card="onActionPickCard"
-        @pick-played-card="onPlayedCardActionPick" />
+        @pick-played-card="onPlayedCardActionPick"
+        @pick-action="onActionsPick"
+        @repeat-action="onRepeatActionFromAction($event)" />
     </MandatoryInputModal>
 
     <!--
@@ -703,6 +709,8 @@ import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverl
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import {actionsOverlayState} from '@/client/components/actions/actionsOverlayState';
+import {actionsPickState, enterActionsPick, cancelActionsPick} from '@/client/components/actions/actionsPickState';
+import {deliverActionRepeatPick} from '@/client/components/actions/actionRepeatPick';
 import {openEndgameResults} from '@/client/components/endgame/endgameState';
 import CardActionConfirmContent from '@/client/components/actions/CardActionConfirmContent.vue';
 import {beginReveal} from '@/client/components/actions/revealResultState';
@@ -855,7 +863,20 @@ type PendingCardAction = {
   // resolves the matching preview branch from this + its own preview (so a
   // multi-action card never opens on the wrong branch).
   nodeIndex: number;
+  // PREFIX-THREADING for "repeat an action" (ProjectInspection / Viron): when set,
+  // this confirm is for the action X being REPEATED, opened after the player chose
+  // X in the outer play/activate modal. The prefix is the outer response array
+  // ([play/activate, {card:[X]}]) — on confirm the batch is [...prefix, ...X's
+  // responses] (NOT the action-menu-rooted batch). Undefined for a normal activate.
+  repeatPrefix?: ReadonlyArray<unknown>;
 };
+
+// The OUTER modal a "repeat an action" handoff came from — saved so cancelling X's
+// confirm restores it (no round-trip). Play → re-open the ProjectInspection play
+// modal at its picker; action → re-open Viron's confirm.
+type RepeatOuter =
+  | {kind: 'play', play: PendingPlayCard}
+  | {kind: 'action', action: PendingCardAction};
 
 // Pending Trade-with-Colony state. Set after the player picks a colony in
 // the overlay (trade mode), cleared on Cancel or after submission. Carries
@@ -882,6 +903,9 @@ type PlayerHomeModel = ToggleableState & {
   pendingPlayCard: PendingPlayCard | undefined;
   // See PendingCardAction — the in-flight "activate an action" confirmation.
   pendingCardAction: PendingCardAction | undefined;
+  // The outer modal a "repeat an action" handoff came from (ProjectInspection /
+  // Viron) — saved so cancelling the repeated action's confirm restores it.
+  repeatOuter: RepeatOuter | undefined;
   // True while the Pass confirmation modal is open. The pass action is
   // irreversible (no more turns this generation), so we gate it through
   // a client-side confirmation modal before POSTing to the server.
@@ -972,6 +996,7 @@ export default defineComponent({
       pendingStdProjectPayment: undefined,
       pendingPlayCard: undefined,
       pendingCardAction: undefined,
+      repeatOuter: undefined,
       passConfirmOpen: false,
       convertHeatConfirmOpen: false,
       coloniesOverlayOpen: false,
@@ -1049,6 +1074,13 @@ export default defineComponent({
       // only fires on an ABANDONED pick.
       if (newVal !== 'played' && playedCardsPickState.active) {
         cancelPlayedCardsPick();
+      }
+      // SAME safety net for the ДЕЙСТВИЯ "repeat an action" pick: leaving the
+      // 'actions' overlay while the pick is still active cancels it + restores the
+      // suppressed modal. The resolve path exits the state BEFORE nulling
+      // activeOverlay, so this only fires on an ABANDONED pick.
+      if (newVal !== 'actions' && actionsPickState.active) {
+        cancelActionsPick();
       }
     },
     /*
@@ -1260,10 +1292,16 @@ export default defineComponent({
     if (playedCardsPickState.active) {
       cancelPlayedCardsPick();
     }
+    // SAME safety net for the ДЕЙСТВИЯ "repeat an action" pick — its initiating
+    // modal is gone after a remount, so a still-active pick can never deliver.
+    if (actionsPickState.active) {
+      cancelActionsPick();
+    }
     // Re-arm the actions overlay across the playerkey remount (its selection +
     // filters + preview cache persisted in module state). Only when it was left
     // open and nothing else (a server-driven / mandatory overlay) claimed the slot.
-    if (actionsOverlayState.open && this.activeOverlay === null) {
+    // NOT while a repeat-action pick is active (that mount net just cancelled it).
+    if (actionsOverlayState.open && this.activeOverlay === null && !actionsPickState.active) {
       this.activeOverlay = 'actions';
     }
   },
@@ -2016,6 +2054,12 @@ export default defineComponent({
     playedPickActive(): boolean {
       return playedCardsPickState.active;
     },
+    // True while a play / action-confirm modal has handed off to the ДЕЙСТВИЯ
+    // overlay pick-mode for a >=4-candidate "repeat an action" pick (ProjectInspection
+    // / Viron) — the modal SUPPRESSES itself so the overlay is interactable.
+    actionsPickActive(): boolean {
+      return actionsPickState.active;
+    },
     // Unified mandatory pill. Select-from-hand, play-from-hand and play-a-
     // standard-project are mutually exclusive (the top-level waitingFor is one
     // prompt), so one pill serves all three minimized states; restore re-opens
@@ -2469,6 +2513,7 @@ export default defineComponent({
         return;
       }
       const card = this.thisPlayer.tableau.find((c) => c.name === payload.cardName);
+      this.repeatOuter = undefined; // a fresh activation is never a repeat handoff
       this.pendingCardAction = {cardName: payload.cardName, card, nodeIndex: payload.nodeIndex ?? 0};
       this.activeOverlay = null; // close the overlay behind the modal
     },
@@ -2483,8 +2528,17 @@ export default defineComponent({
       if (payload.reveal !== undefined) {
         beginReveal(cardName, payload.reveal);
       }
-      this.submitCardActionBatch(cardName, payload.branchIndex, payload.optionResponse, payload.stepResponses);
+      // A REPEATED action (ProjectInspection / Viron): submit the outer prefix
+      // ([play/activate, {card:[X]}]) + X's own responses as ONE batch, instead of
+      // the action-menu-rooted batch. Strictly gated on `repeatPrefix`.
+      const repeatPrefix = this.pendingCardAction.repeatPrefix;
+      if (repeatPrefix !== undefined) {
+        this.submitRepeatActionBatch(repeatPrefix, payload.branchIndex, payload.optionResponse, payload.stepResponses);
+      } else {
+        this.submitCardActionBatch(cardName, payload.branchIndex, payload.optionResponse, payload.stepResponses);
+      }
       this.pendingCardAction = undefined;
+      this.repeatOuter = undefined;
       // After CONFIRMING, the player should land back on the board to SEE the
       // action's effect (the delta-chips animating on resources / parameters), NOT
       // be bounced back into the ДЕЙСТВИЯ overlay. Clear its persisted open-flag so
@@ -2495,8 +2549,103 @@ export default defineComponent({
       actionsOverlayState.open = false;
     },
     onCardActionCancel(): void {
+      // A REPEATED action's confirm cancelled — restore the OUTER modal it came
+      // from (nothing was submitted), NOT the actions overlay.
+      const outer = this.repeatOuter;
       this.pendingCardAction = undefined;
+      if (outer !== undefined) {
+        this.repeatOuter = undefined;
+        if (outer.kind === 'play') {
+          this.pendingPlayCard = outer.play; // re-open the ProjectInspection play modal at its picker
+        } else {
+          this.pendingCardAction = outer.action; // re-open Viron's confirm
+        }
+        return;
+      }
       this.activeOverlay = 'actions'; // restore the overlay (nothing submitted)
+    },
+    // The play / action-confirm modal asked the player to pick an ACTION to repeat
+    // (ProjectInspection / Viron) and there are >=4 candidates — open the ДЕЙСТВИЯ
+    // overlay in pick-mode; the modal SUPPRESSES itself, the chosen action returns
+    // via the bridge → the modal emits `repeat-action`. Cancelling restores the modal.
+    onActionsPick(req: {title: string | Message, selectable: ReadonlyArray<CardName>}): void {
+      this.selectedPlayerColor = undefined; // own seat — the actions are your own
+      enterActionsPick({
+        title: req.title,
+        selectable: req.selectable,
+        onResolve: (card) => deliverActionRepeatPick(card),
+      });
+      this.activeOverlay = 'actions';
+    },
+    // The player chose an action X to repeat from the PLAY modal (ProjectInspection):
+    // build the outer prefix [play ProjectInspection wrapped, {card:[X]}] and open
+    // X's premium confirm (which collects X's choices + submits the combined batch).
+    onRepeatActionFromPlay(payload: {chosenCard: CardName, playResponse: unknown}): void {
+      const action = this.playProjectCardAction;
+      const outerPlay = this.pendingPlayCard;
+      if (!action || outerPlay === undefined) {
+        return;
+      }
+      let play: unknown = payload.playResponse;
+      for (let i = action.path.length - 1; i >= 0; i--) {
+        play = {type: 'or' as const, index: action.path[i], response: play};
+      }
+      const prefix: ReadonlyArray<unknown> = [play, {type: 'card' as const, cards: [payload.chosenCard]}];
+      this.pendingPlayCard = undefined;
+      this.openRepeatActionConfirm(payload.chosenCard, prefix, {kind: 'play', play: outerPlay});
+    },
+    // The player chose an action X to repeat from the ACTION-confirm modal (Viron):
+    // build the outer prefix [activate Viron wrapped, {card:[X]}] and open X's confirm.
+    onRepeatActionFromAction(payload: {chosenCard: CardName}): void {
+      const outerAction = this.pendingCardAction;
+      if (outerAction === undefined) {
+        return;
+      }
+      const activatePick = this.wrapActivatePick(outerAction.cardName);
+      if (activatePick === undefined) {
+        return;
+      }
+      const prefix: ReadonlyArray<unknown> = [activatePick, {type: 'card' as const, cards: [payload.chosenCard]}];
+      this.openRepeatActionConfirm(payload.chosenCard, prefix, {kind: 'action', action: outerAction});
+    },
+    // Wrap an activate pick ({card:[cardName]}) in the action-menu OR path — the
+    // SAME wrapping submitCardActionBatch uses, so the prefix's outer activate is
+    // byte-identical to a normal activation submit.
+    wrapActivatePick(cardName: CardName): unknown {
+      const action = this.findPerformActionCard(this.playerView.waitingFor);
+      if (!action) {
+        return undefined;
+      }
+      let pick: unknown = {type: 'card' as const, cards: [cardName]};
+      for (let i = action.path.length - 1; i >= 0; i--) {
+        pick = {type: 'or' as const, index: action.path[i], response: pick};
+      }
+      return pick;
+    },
+    // Open the repeated action X's premium confirm (a fresh CardActionConfirmContent,
+    // keyed on the card name so it remounts + re-fetches X's preview), carrying the
+    // outer prefix + the outer modal to restore on cancel.
+    openRepeatActionConfirm(chosenCard: CardName, prefix: ReadonlyArray<unknown>, outer: RepeatOuter): void {
+      const card = this.thisPlayer.tableau.find((c) => c.name === chosenCard);
+      this.repeatOuter = outer;
+      this.pendingCardAction = {cardName: chosenCard, card, nodeIndex: 0, repeatPrefix: prefix};
+    },
+    // Submit a REPEATED action: the outer prefix + X's own responses, in one batch.
+    submitRepeatActionBatch(prefix: ReadonlyArray<unknown>, branchIndex: number, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>): void {
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
+      const responses: Array<unknown> = [...prefix];
+      if (branchIndex >= 0) {
+        responses.push({type: 'or' as const, index: branchIndex, response: optionResponse ?? {type: 'option' as const}});
+      } else if (optionResponse !== undefined) {
+        responses.push(optionResponse);
+      }
+      for (const r of stepResponses) {
+        responses.push(r);
+      }
+      const wfRef = this.$refs.waitingFor as {onsaveBatch?: (out: ReadonlyArray<unknown>) => void} | undefined;
+      wfRef?.onsaveBatch?.(responses);
     },
     // The confirm modal asked the player to pick a card FROM HAND (a hand-card
     // optionInput — Self-Replicating Robots "link a card"). Open the КАРТЫ В РУКЕ

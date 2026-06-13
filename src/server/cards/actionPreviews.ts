@@ -246,6 +246,10 @@ export function selectCardStep(
     max?: number,
     showSelectAll?: boolean,
     multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}},
+    /** The candidates are ACTIONS to perform again (ProjectInspection / Viron) —
+     *  the modal renders them as premium action cards + opens the action confirm.
+     *  See `ActionPreviewStep.repeatAction`. */
+    repeatAction?: boolean,
   },
 ): ActionPreviewStep {
   // `amount` (the resource count added to the chosen card) drives the picker's
@@ -277,6 +281,7 @@ export function selectCardStep(
     dedupeFromSteps: opts?.dedupeFromSteps,
     copyProductionBox,
     multiSelect: opts?.multiSelect,
+    repeatAction: opts?.repeatAction,
   };
 }
 

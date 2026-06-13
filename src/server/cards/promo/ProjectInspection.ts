@@ -58,7 +58,7 @@ export class ProjectInspection extends Card implements IProjectCard {
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.getActionCards(player);
     const step = cards.length > 0 ?
-      actionPreviews.selectCardStep(player, 'Perform an action from a played card again', 'Take action', cards) :
+      actionPreviews.selectCardStep(player, 'Perform an action from a played card again', 'Take action', cards, {repeatAction: true}) :
       undefined;
     return actionPreviews.playPreview(this, player, [], [step]);
   }
