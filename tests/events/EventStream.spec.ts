@@ -15,6 +15,13 @@ import {ArcticAlgae} from '@/server/cards/base/ArcticAlgae';
 import {Virus} from '@/server/cards/base/Virus';
 import {Viron} from '@/server/cards/venusNext/Viron';
 import {Tardigrades} from '@/server/cards/base/Tardigrades';
+import {ConvertPlants} from '@/server/cards/base/standardActions/ConvertPlants';
+import {SelectSpace} from '@/server/inputs/SelectSpace';
+import {AndOptions} from '@/server/inputs/AndOptions';
+import {OrOptions} from '@/server/inputs/OrOptions';
+import {SelectColony} from '@/server/inputs/SelectColony';
+import {Luna} from '@/server/colonies/Luna';
+import {BuildColony} from '@/server/deferredActions/BuildColony';
 import {aggregateBySource, aggregateCorporationImpact} from '@/common/events/aggregate';
 import {sourceKey} from '@/common/events/EventSource';
 import {Resource} from '@/common/Resource';
@@ -227,6 +234,90 @@ describe('Phase 2: attribution wraps + journal grouping', () => {
     // play action's correlationId, so the journal can reveal it on expand.
     const playLog = game.gameLog.find((m) => m.role === 'root-action' && m.correlationId === discount!.correlationId);
     expect(playLog, 'play-action log with the discount correlationId').to.not.be.undefined;
+  });
+
+  it('groups a blue-card action with its result (universal action path)', () => {
+    const [game, player] = testGame(1);
+    const tardigrades = new Tardigrades();
+    player.playedCards.push(tardigrades);
+
+    const select = cast(player.playActionCard(), SelectCard);
+    select.cb([tardigrades]);
+    runAllActions(game);
+
+    expect(tardigrades.resourceCount).to.eq(1);
+
+    // The "used … action" log heads a card-action group...
+    const groups = buildJournalView(game.gameLog).filter((n): n is JournalGroupNode => n.kind === 'group');
+    const group = groups.find((g) => g.category === 'card-action');
+    expect(group, 'card-action group').to.not.be.undefined;
+    expect(group!.header.role).to.eq('root-action');
+    expect(group!.children.length).to.be.greaterThan(0);
+
+    // ...and the action's result (the microbe) correlates to it (event-driven child).
+    const microbe = game.events.events.find((e) => e.type === 'card-resource-changed' && e.correlationId === group!.header.correlationId);
+    expect(microbe, 'microbe gain correlated to the action root').to.not.be.undefined;
+  });
+
+  it('groups a top-level conversion with its consequences (Convert Plants)', () => {
+    const [game, player] = testGame(1);
+    player.plants = 8;
+    const select = cast(new ConvertPlants().action(player), SelectSpace);
+    select.cb(game.board.getAvailableSpacesForGreenery(player)[0]);
+    runAllActions(game);
+
+    const groups = buildJournalView(game.gameLog).filter((n): n is JournalGroupNode => n.kind === 'group');
+    const group = groups.find((g) => g.category === 'standard-project' && g.header.message.includes('standard action'));
+    expect(group, 'conversion group').to.not.be.undefined;
+    // The greenery placement is correlated to the conversion root (one group).
+    const tilePlaced = game.events.events.find((e) => e.type === 'tile-placed' && e.correlationId === group!.header.correlationId);
+    expect(tilePlaced, 'greenery placement under the conversion root').to.not.be.undefined;
+  });
+
+  it('groups a top-level colony trade with its consequences', () => {
+    const [game, player, player2] = testGame(2, {coloniesExtension: true});
+    const luna = new Luna();
+    game.colonies.push(luna);
+    luna.addColony(player2);
+    player.megaCredits = 20;
+
+    const action = cast(player.colonies.coloniesTradeAction(), AndOptions);
+    cast(action.options[0], OrOptions).options.slice(-1)[0].cb();
+    cast(action.options[1], SelectColony).cb(luna);
+    runAllActions(game);
+
+    const groups = buildJournalView(game.gameLog).filter((n): n is JournalGroupNode => n.kind === 'group');
+    const group = groups.find((g) => g.category === 'colony');
+    expect(group, 'top-level colony trade group').to.not.be.undefined;
+    expect(group!.children.length).to.be.greaterThan(0);
+  });
+
+  it('attributes a card-built colony bonus to the COLONY, nested under the card', () => {
+    const [game, player] = testGame(2, {coloniesExtension: true});
+    const luna = new Luna();
+    game.colonies.push(luna);
+
+    // A card-play scope that defers a colony build (the BuildColony path every
+    // colony-building card uses). The build BONUS must read source=colony (so it
+    // is distinguishable from the card's OWN effects, not at the same level with
+    // the same source) yet stay GROUPED under the card — card vs action preserved.
+    game.events.beginAction(player, {kind: 'card', card: CardName.RESEARCH_OUTPOST}, {category: 'card-play'});
+    game.log('${0} played ${1}', (b) => b.player(player).card(CardName.RESEARCH_OUTPOST));
+    game.defer(new BuildColony(player));
+    game.events.endScope();
+
+    runAllActions(game);
+    player.process({type: 'colony', colonyName: luna.name});
+    runAllActions(game);
+
+    const cardRoot = game.events.events.find((e) => e.type === 'action' && e.source?.kind === 'card');
+    expect(cardRoot, 'card-play root').to.not.be.undefined;
+    // The build bonus (Luna +2 M€ prod) is attributed to the COLONY, not the card.
+    const colonyBonus = game.events.events.find((e) => e.source?.kind === 'colony' && e.type === 'production-changed');
+    expect(colonyBonus, 'build bonus sourced as colony').to.not.be.undefined;
+    // ...and it stays in the CARD's correlation chain (NO separate colony root).
+    expect(colonyBonus?.correlationId).to.eq(cardRoot?.correlationId);
+    expect(game.events.events.filter((e) => e.type === 'action' && e.source?.kind === 'colony')).to.have.length(0);
   });
 
   it('groups a copied action under VIRON in the journal', () => {

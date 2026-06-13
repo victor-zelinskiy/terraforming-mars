@@ -1055,14 +1055,17 @@ export class Player implements IPlayer {
       this.getPlayableActionCards(),
       {selectBlueCardAction: true})
       .andThen(([card]) => {
-        this.game.log('${0} used ${1} action', (b) => b.player(this).card(card));
-        this.game?.events?.beginAction(this, {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name, owner: this.color}, {category: card.type === CardType.CORPORATION ? 'corporation-action' : 'card-action'});
+        const events = this.game?.events;
+        events?.beginAction(this, {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name, owner: this.color}, {category: card.type === CardType.CORPORATION ? 'corporation-action' : 'card-action'});
         try {
+          // Logged INSIDE the scope so it heads the journal group; everything the
+          // action triggers (incl. across input boundaries) correlates to it.
+          this.game.log('${0} used ${1} action', (b) => b.player(this).card(card));
           const action = card.action(this);
           this.defer(action);
           this.actionsThisGeneration.add(card.name);
         } finally {
-          this.game?.events?.endScope();
+          events?.endScope();
         }
         return undefined;
       });
@@ -1079,14 +1082,15 @@ export class Player implements IPlayer {
       cards,
       {selectBlueCardAction: true})
       .andThen(([card]) => {
-        this.game.log('${0} used ${1} action', (b) => b.player(this).card(card));
-        this.game?.events?.beginAction(this, {kind: 'card', card: card.name, owner: this.color}, {category: 'ceo-action'});
+        const events = this.game?.events;
+        events?.beginAction(this, {kind: 'card', card: card.name, owner: this.color}, {category: 'ceo-action'});
         try {
+          this.game.log('${0} used ${1} action', (b) => b.player(this).card(card));
           const action = card.action(this);
           this.defer(action);
           this.actionsThisGeneration.add(card.name);
         } finally {
-          this.game?.events?.endScope();
+          events?.endScope();
         }
         return undefined;
       });

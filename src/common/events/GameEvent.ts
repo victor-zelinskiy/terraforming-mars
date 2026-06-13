@@ -74,6 +74,7 @@ export type JournalActionCategory =
   | 'corporation-action'
   | 'ceo-action'
   | 'standard-project'
+  | 'colony'
   | 'copied-action';
 
 /**

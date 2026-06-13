@@ -180,7 +180,24 @@ export abstract class Colony implements IColony {
     return this.giveBonus(player, this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource, isGiveColonyBonus);
   }
 
+  /**
+   * Attribute EVERY colony bonus (build / trade reward / colony-to-owner) to the
+   * COLONY itself in the structured event stream — so a row reads "Luna → +2 M€"
+   * instead of inheriting the SURROUNDING scope's source. Without this, a colony
+   * bonus triggered BY A CARD (a card that builds a colony, ProductiveOutpost
+   * gaining all colony bonuses, …) is attributed to that card and reads as one of
+   * the card's OWN effects — indistinguishable, and at the same level. `withSource`
+   * keeps the SAME correlation chain (the bonus still GROUPS under the card/action
+   * that triggered it) and flows through `game.defer` (captured eventContext), so
+   * deferred build bonuses (draw / add-resource) are covered too. A top-level trade
+   * is already a `colony` root, so re-sourcing there is a harmless no-op.
+   */
   private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false): undefined | PlayerInput {
+    return player.game.events.withSource({kind: 'colony', name: this.name}, () =>
+      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus));
+  }
+
+  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false): undefined | PlayerInput {
     const game = player.game;
 
     let action: undefined | DeferredAction<any> = undefined;
