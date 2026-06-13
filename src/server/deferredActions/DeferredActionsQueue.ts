@@ -12,6 +12,9 @@ export class DeferredActionsQueue {
 
   public push(action: IDeferredAction<any>): void {
     action.queueId = this.insertId++;
+    // Capture the live analytics scope (by reference) so this action's impact
+    // links to the action/effect that queued it, even though it runs later.
+    action.eventContext = action.player.game?.events?.captureContext();
     this.queue.push(action);
   }
 
@@ -84,18 +87,31 @@ export class DeferredActionsQueue {
   }
 
   public run(action: IDeferredAction, cb: () => void): void {
+    const events = action.player.game?.events;
+    const runWith = <T>(fn: () => T): T => events !== undefined ?
+      events.runWithContext(action.eventContext, fn) :
+      fn();
     // Special hook for trade bonus deferred actions
     // So that they happen for all players at the same time
     if (action instanceof GiveColonyBonus) {
       action.andThen(cb);
-      action.execute();
+      runWith(() => action.execute());
       return;
     }
 
-    const input = action.execute();
-    if (input !== undefined) {
-      action.player.setWaitingFor(input, cb);
-    } else {
+    // Run execute — and register any follow-up prompt — INSIDE the action's
+    // analytics scope, so the prompt captures it and the correlation chain
+    // survives the player-input boundary. The continuation (cb) runs OUTSIDE the
+    // scope: it drives the rest of the turn, not this action's effects.
+    const waiting = runWith(() => {
+      const input = action.execute();
+      if (input !== undefined) {
+        action.player.setWaitingFor(input, cb);
+        return true;
+      }
+      return false;
+    });
+    if (!waiting) {
       cb();
     }
   }

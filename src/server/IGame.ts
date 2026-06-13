@@ -15,6 +15,7 @@ import {PlayerId, GameId, SpectatorId, SpaceId, isGameId} from '../common/Types'
 import {AndThen, DeferredAction} from './deferredActions/DeferredAction';
 import {Priority} from './deferredActions/Priority';
 import {DeferredActionsQueue} from './deferredActions/DeferredActionsQueue';
+import {EventRecorder} from './events/EventRecorder';
 import {SerializedGame} from './SerializedGame';
 import {SpaceBonus} from '../common/boards/SpaceBonus';
 import {TileType} from '../common/TileType';
@@ -51,6 +52,7 @@ export interface IGame extends Logger {
   createdTime: Date;
   gameAge: number; // Each log event increases it
   gameLog: Array<LogMessage>;
+  events: EventRecorder; // Structured analytics event stream
   undoCount: number; // Each undo increases it
   inputsThisRound: number;
   resettable: boolean;

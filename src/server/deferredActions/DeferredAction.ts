@@ -1,6 +1,7 @@
 import {IPlayer} from '../IPlayer';
 import {PlayerInput} from '../PlayerInput';
 import {Priority} from './Priority';
+import {CapturedEventContext} from '../events/EventRecorder';
 
 export interface AndThen<T> {
   andThen(cb: (param: T) => void): this;
@@ -10,12 +11,17 @@ export interface IDeferredAction <T = undefined> extends AndThen<T> {
   queueId: number;
   player: IPlayer;
   priority: Priority;
+  // Analytics correlation scope captured when this action was deferred, so its
+  // impact links back to the action/effect that queued it. Not serialized.
+  eventContext?: CapturedEventContext;
   execute(): PlayerInput | undefined;
 }
 
 export abstract class DeferredAction<T = undefined> implements IDeferredAction<T> {
   // The position in the queue. Do not set directly.
   public queueId: number = -1;
+  // Analytics correlation scope; set by the queue when this action is pushed.
+  public eventContext?: CapturedEventContext;
   constructor(
     public player: IPlayer,
     public priority: Priority = Priority.DEFAULT,

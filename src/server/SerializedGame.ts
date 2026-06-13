@@ -9,6 +9,7 @@ import {PlayerId, GameId, SpectatorId, SpaceId} from '../common/Types';
 import {GameOptions} from './game/GameOptions';
 import {AresData} from '../common/ares/AresData';
 import {LogMessage} from '../common/logs/LogMessage';
+import {GameEvent} from '../common/events/GameEvent';
 import {SerializedBoard} from './boards/SerializedBoard';
 import {SerializedMoonData} from './moon/SerializedMoonData';
 import {SerializedPathfindersData} from './pathfinders/SerializedPathfindersData';
@@ -41,6 +42,10 @@ export type SerializedGame = {
     gagarinBase: Array<SpaceId>;
     gameAge: number;
     gameLog: Array<LogMessage>;
+    // Structured analytics event stream. Optional → old saves load with none
+    // (analytics gracefully degrades to empty).
+    gameEvents?: Array<GameEvent>;
+    eventSeq?: number;
     gameOptions: GameOptions;
     generation: number;
     globalsPerGeneration: Array<Partial<Record<GlobalParameter, number>>>;

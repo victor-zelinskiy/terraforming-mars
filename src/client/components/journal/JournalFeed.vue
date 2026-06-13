@@ -2,7 +2,7 @@
   <div class="journal-feed">
     <div ref="scroll" class="journal-feed__scroll" @scroll.passive="onScroll">
       <!-- Empty / loading states. -->
-      <div v-if="messages.length === 0" class="journal-feed__placeholder">
+      <div v-if="renderNodes.length === 0" class="journal-feed__placeholder">
         <template v-if="loading">
           <span class="journal-feed__spinner" aria-hidden="true"></span>
           <span v-i18n>Loading…</span>
@@ -14,22 +14,32 @@
         </template>
       </div>
 
-      <!-- Keyed by loadEpoch: a generation switch remounts the list (clean
-           fade-in via .journal-feed__list animation), while live appends
-           keep the same key so only the fresh tail animates. -->
+      <!-- Keyed by loadEpoch: a generation switch / filter change remounts the
+           list (clean fade-in); live appends keep the key, and each group keeps
+           a stable correlation key so only the fresh tail animates. -->
       <ul v-else :key="loadEpoch" class="journal-feed__list">
-        <JournalEntry
-          v-for="(message, index) in messages"
-          :key="index"
-          :message="message"
-          :players="players"
-          :animateIn="index >= freshFrom" />
+        <template v-for="(node, index) in renderNodes" :key="nodeKey(node, index)">
+          <JournalGroup
+            v-if="node.kind === 'group'"
+            :header="node.group.header"
+            :children="node.group.children"
+            :category="node.group.category"
+            :players="players"
+            :freshSet="freshSet"
+            :filterActive="filterActive"
+            :headerMatched="node.headerMatched"
+            :childMatched="node.childMatched" />
+          <JournalEntry
+            v-else
+            :message="node.message"
+            :players="players"
+            :animateIn="freshSet.has(node.message)" />
+        </template>
       </ul>
     </div>
 
     <!-- "New events ↓" — appears only when live entries arrived while the
-         player was scrolled up reading history. Clicking re-engages
-         auto-scroll. -->
+         player was scrolled up reading history. -->
     <Transition name="journal-newpill">
       <button v-if="showNew"
               type="button"
@@ -44,40 +54,50 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {Color} from '@/common/Color';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import JournalEntry from '@/client/components/journal/JournalEntry.vue';
+import JournalGroup from '@/client/components/journal/JournalGroup.vue';
+import {buildJournalView, JournalGroupNode} from '@/client/components/journal/journalView';
+import {JournalFilter, messagePassesFilter} from '@/client/components/journal/journalFilter';
 
-// Distance (px) from the bottom within which we still consider the player
-// "at the bottom" and keep auto-scrolling.
 const BOTTOM_THRESHOLD = 48;
-// How long the enter animation runs; after this we clear the fresh marker
-// so subsequent re-renders don't replay it.
 const FRESH_WINDOW = 650;
+
+// A rendered node: a premium cause/effect GROUP, or a flat standalone row
+// (system line, generation divider, legacy/ungrouped log).
+type GroupRenderNode = {
+  kind: 'group';
+  group: JournalGroupNode;
+  headerMatched: boolean;
+  childMatched: ReadonlyArray<boolean>;
+};
+type MessageRenderNode = {kind: 'message'; message: LogMessage};
+type RenderNode = GroupRenderNode | MessageRenderNode;
 
 type DataModel = {
   atBottom: boolean;
   showNew: boolean;
-  freshFrom: number;
+  // The just-arrived live messages (by reference) — drives the enter animation
+  // on exactly the fresh rows, whether a new group or a child of an existing one.
+  freshSet: ReadonlySet<LogMessage>;
   freshTimer: number | undefined;
 };
 
 /**
- * Scrollable journal feed with live-mode behaviour:
- *   - At the bottom + new entries → auto-scroll to follow them.
- *   - Scrolled up + new entries → show an unobtrusive "New events ↓"
- *     pill instead of yanking the view down (spec).
- *   - Only genuinely-new (appended) entries play the enter animation;
- *     a generation switch (signalled by `loadEpoch` changing) swaps the
- *     whole list silently and jumps to the bottom.
+ * Scrollable premium journal feed. Groups the flat `LogMessage[]` into
+ * cause/effect nodes via `buildJournalView` (by structured `correlationId`,
+ * never by parsing text), then renders each as a {@link JournalGroup} (root +
+ * children) or a flat {@link JournalEntry} (standalone / divider / legacy).
  *
- * Append-only assumption: within a generation the server only ever
- * appends log entries, so diffing by length is sufficient to find the
- * fresh tail.
+ * Filtering is GROUP-AWARE: a group survives if its header OR any child matches,
+ * and matched children are highlighted in context (never orphaned). Live-append
+ * detection still works on the RAW message count (independent of the filter).
  */
 export default defineComponent({
   name: 'JournalFeed',
-  components: {JournalEntry},
+  components: {JournalEntry, JournalGroup},
   props: {
     messages: {
       type: Array as () => ReadonlyArray<LogMessage>,
@@ -87,8 +107,6 @@ export default defineComponent({
       type: Array as () => ReadonlyArray<PublicPlayerModel>,
       required: true,
     },
-    // Bumped by the parent whenever a DIFFERENT generation is loaded, so
-    // the feed can tell "replaced the whole list" from "appended live".
     loadEpoch: {
       type: Number,
       required: true,
@@ -97,32 +115,31 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    // When a player filter is active, the empty state reads "no entries
-    // for the selected filter" rather than "no events this generation".
-    filterActive: {
-      type: Boolean,
-      default: false,
+    filter: {
+      type: Object as () => JournalFilter,
+      default: () => ({kind: 'all'} as JournalFilter),
+    },
+    color: {
+      type: String as () => Color,
+      required: true,
     },
   },
   data(): DataModel {
     return {
       atBottom: true,
       showNew: false,
-      // Default beyond any index → nothing animates until a live append.
-      freshFrom: Number.POSITIVE_INFINITY,
+      freshSet: new Set<LogMessage>(),
       freshTimer: undefined,
     };
   },
   watch: {
-    // Single source of truth for both "fresh load" and "live append".
     feedSignal(next: [number, number], prev: [number, number]) {
       const [epoch, len] = next;
       const [oldEpoch, oldLen] = prev;
 
       if (epoch !== oldEpoch) {
-        // A new generation was loaded — silent swap, no enter animation.
-        this.clearFreshTimer();
-        this.freshFrom = Number.POSITIVE_INFINITY;
+        // A new generation / filter change — silent swap, no enter animation.
+        this.clearFresh();
         this.showNew = false;
         this.atBottom = true;
         this.$nextTick(() => this.scrollToBottom('auto'));
@@ -130,7 +147,6 @@ export default defineComponent({
       }
 
       if (len > oldLen) {
-        // Live append within the current generation.
         this.markFresh(oldLen);
         if (this.atBottom) {
           this.$nextTick(() => this.scrollToBottom('smooth'));
@@ -138,9 +154,7 @@ export default defineComponent({
           this.showNew = true;
         }
       } else if (len < oldLen) {
-        // Unexpected shrink (e.g. undo rewound the log) — resync quietly.
-        this.clearFreshTimer();
-        this.freshFrom = Number.POSITIVE_INFINITY;
+        this.clearFresh();
         this.$nextTick(() => this.scrollToBottom('auto'));
       }
     },
@@ -149,8 +163,34 @@ export default defineComponent({
     feedSignal(): [number, number] {
       return [this.loadEpoch, this.messages.length];
     },
+    filterActive(): boolean {
+      return this.filter.kind !== 'all';
+    },
+    renderNodes(): ReadonlyArray<RenderNode> {
+      const active = this.filterActive;
+      const passes = (m: LogMessage): boolean => !active || messagePassesFilter(m, this.filter, this.color);
+      const out: Array<RenderNode> = [];
+      for (const node of buildJournalView(this.messages)) {
+        if (node.kind === 'message') {
+          if (passes(node.message)) {
+            out.push({kind: 'message', message: node.message});
+          }
+          continue;
+        }
+        const headerMatched = passes(node.header);
+        const childMatched = node.children.map(passes);
+        // Keep the whole group when anything in it matches — context preserved.
+        if (!active || headerMatched || childMatched.some(Boolean)) {
+          out.push({kind: 'group', group: node, headerMatched, childMatched});
+        }
+      }
+      return out;
+    },
   },
   methods: {
+    nodeKey(node: RenderNode, index: number): string {
+      return node.kind === 'group' ? `g${node.group.correlationId}` : `m${index}`;
+    },
     onScroll(): void {
       const el = this.$refs.scroll as HTMLElement | undefined;
       if (el === undefined) {
@@ -174,25 +214,26 @@ export default defineComponent({
       this.scrollToBottom('smooth');
     },
     markFresh(from: number): void {
-      this.clearFreshTimer();
-      this.freshFrom = from;
+      this.clearFresh();
+      this.freshSet = new Set(this.messages.slice(from));
       this.freshTimer = window.setTimeout(() => {
-        this.freshFrom = Number.POSITIVE_INFINITY;
+        this.freshSet = new Set<LogMessage>();
         this.freshTimer = undefined;
       }, FRESH_WINDOW);
     },
-    clearFreshTimer(): void {
+    clearFresh(): void {
       if (this.freshTimer !== undefined) {
         window.clearTimeout(this.freshTimer);
         this.freshTimer = undefined;
       }
+      this.freshSet = new Set<LogMessage>();
     },
   },
   mounted(): void {
     this.$nextTick(() => this.scrollToBottom('auto'));
   },
   beforeUnmount(): void {
-    this.clearFreshTimer();
+    this.clearFresh();
   },
 });
 </script>

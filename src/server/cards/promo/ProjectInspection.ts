@@ -74,8 +74,12 @@ export class ProjectInspection extends Card implements IProjectCard {
       actionCards)
       .andThen(([card]) => {
         const foundCard = card;
-        player.game.log('${0} used ${1} action with ${2}', (b) => b.player(player).card(foundCard).card(this));
-        return foundCard.action(player);
+        const events = player.game?.events;
+        const run = () => {
+          player.game.log('${0} used ${1} action with ${2}', (b) => b.player(player).card(foundCard).card(this));
+          return foundCard.action(player);
+        };
+        return events !== undefined ? events.withCopiedAction(player, this, foundCard, run) : run();
       });
   }
 }

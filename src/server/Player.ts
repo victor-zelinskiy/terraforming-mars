@@ -37,6 +37,8 @@ import {Timer} from '../common/Timer';
 import {TurmoilHandler} from './turmoil/TurmoilHandler';
 import {AllOptions, DrawCards, DrawOptions} from './deferredActions/DrawCards';
 import {Units} from '../common/Units';
+import {EventSource} from '../common/events/EventSource';
+import {CapturedEventContext} from './events/EventRecorder';
 import {MoonExpansion} from './moon/MoonExpansion';
 import {IStandardProjectCard} from './cards/IStandardProjectCard';
 import {ConvertPlants} from './cards/base/standardActions/ConvertPlants';
@@ -97,6 +99,11 @@ export class Player implements IPlayer {
   public readonly id: PlayerId;
   protected waitingFor?: PlayerInput;
   protected waitingForCb?: () => void;
+  // Analytics correlation scope captured when the prompt was set, restored when
+  // the response is processed — so an effect resolved across a player-input
+  // boundary (e.g. picking a space → tile placed → a passive fires) stays in the
+  // same chain. Transient (not serialized); a save mid-prompt loses it gracefully.
+  private waitingForContext?: CapturedEventContext;
   public game: IGame;
   public tags: Tags;
   public colonies: Colonies;
@@ -359,6 +366,7 @@ export class Player implements IPlayer {
           this.game.log('${0} gained ${1} TR', (b) => b.player(this).number(steps));
         }
       }
+      this.game?.events?.recordTrDelta(this, steps, opts.from);
       for (const cardOwner of this.game.playersInGenerationOrder) {
         for (const card of cardOwner.tableau) {
           card.onIncreaseTerraformRatingByAnyPlayer?.(cardOwner, this, steps);
@@ -385,6 +393,7 @@ export class Player implements IPlayer {
     if (opts.log === true) {
       this.game.log('${0} lost ${1} TR', (b) => b.player(this).number(steps));
     }
+    this.game?.events?.recordTrDelta(this, -steps);
   }
 
   public setTerraformRating(value: number) {
@@ -543,6 +552,8 @@ export class Player implements IPlayer {
             .card(card));
       }
 
+      this.game?.events?.recordCardResourceDelta(this, card, -amountRemoved);
+
       // Lawsuit hook
       if (removingPlayer !== undefined && removingPlayer !== this && this.removingPlayers.includes(removingPlayer.id) === false) {
         this.removingPlayers.push(removingPlayer.id);
@@ -566,6 +577,8 @@ export class Player implements IPlayer {
         LogHelper.logAddResource(this, card, count, options.from);
       }
     }
+
+    this.game?.events?.recordCardResourceDelta(this, card, count, typeof(options) !== 'number' ? options.from : undefined);
 
     if (count > 0) {
       for (const playedCard of this.tableau) {
@@ -725,26 +738,47 @@ export class Player implements IPlayer {
   }
 
   public getCardCost(card: IProjectCard): number {
+    return this.getCardCostBreakdown(card).final;
+  }
+
+  /**
+   * The same computation as {@link getCardCost} (identical result) but it also
+   * itemizes WHICH source gave WHICH discount, so the analytics layer can
+   * record per-source `discount-applied` events ("Earth Catapult saved 2 M€").
+   * Discount amounts are the nominal per-source offers (not capped against the
+   * 0-floor); `final` is the actual cost.
+   */
+  public getCardCostBreakdown(card: IProjectCard): {base: number; final: number; discounts: Array<{source: EventSource; amount: number}>} {
+    const discounts: Array<{source: EventSource; amount: number}> = [];
     let cost = card.cost;
     cost -= this.colonies.cardDiscount;
 
     for (const playedCard of this.tableau) {
-      cost -= playedCard.getCardDiscount?.(this, card) ?? 0;
+      const d = playedCard.getCardDiscount?.(this, card) ?? 0;
+      if (d > 0) {
+        discounts.push({source: {kind: playedCard.type === CardType.CORPORATION ? 'corporation' : 'card', card: playedCard.name, owner: this.color}, amount: d});
+      }
+      cost -= d;
     }
 
     // Playwrights hook
     this.removedFromPlayCards.forEach((removedFromPlayCard) => {
       if (removedFromPlayCard.getCardDiscount !== undefined) {
-        cost -= removedFromPlayCard.getCardDiscount(this, card);
+        const d = removedFromPlayCard.getCardDiscount(this, card);
+        if (d > 0) {
+          discounts.push({source: {kind: 'card', card: removedFromPlayCard.name, owner: this.color}, amount: d});
+        }
+        cost -= d;
       }
     });
 
     // TODO(kberg): put this in a callback.
     if (card.tags.includes(Tag.SPACE) && PartyHooks.shouldApplyPolicy(this, PartyName.UNITY, 'up04')) {
       cost -= 2;
+      discounts.push({source: {kind: 'party', name: PartyName.UNITY}, amount: 2});
     }
 
-    return Math.max(cost, 0);
+    return {base: card.cost, final: Math.max(cost, 0), discounts};
   }
 
   private paymentOptionsForCard(card: IProjectCard): PaymentOptions {
@@ -850,7 +884,31 @@ export class Player implements IPlayer {
   }
 
   public playCard(selectedCard: IProjectCard, payment?: Payment, cardAction: CardAction = 'add'): void {
-    if (payment !== undefined) {
+    const events = this.game?.events;
+    if (selectedCard.type === CardType.PROXY || events === undefined) {
+      this.playCardImpl(selectedCard, payment, cardAction);
+      return;
+    }
+    // Open the analytics action scope so every on-play effect, discount and
+    // deferred trigger correlates to this card play. finally → never leaks.
+    events.beginAction(this, {kind: selectedCard.type === CardType.CORPORATION ? 'corporation' : 'card', card: selectedCard.name, owner: this.color}, {category: 'card-play'});
+    try {
+      this.playCardImpl(selectedCard, payment, cardAction);
+    } finally {
+      events.endScope();
+    }
+  }
+
+  private playCardImpl(selectedCard: IProjectCard, payment?: Payment, cardAction: CardAction = 'add'): void {
+    // Computed BEFORE pay() so discount sources reflect the pre-play tableau;
+    // the discount LOG lines are emitted AFTER the "played" header below so they
+    // group as children (not as the group header).
+    const costBreakdown = payment !== undefined ? this.getCardCostBreakdown(selectedCard) : undefined;
+    if (payment !== undefined && costBreakdown !== undefined) {
+      for (const discount of costBreakdown.discounts) {
+        this.game?.events?.recordDiscount(this, discount.source, discount.amount, selectedCard.name);
+      }
+      this.game?.events?.recordPayment(this, costBreakdown.final, selectedCard.name);
       this.pay(payment);
     }
 
@@ -866,6 +924,16 @@ export class Player implements IPlayer {
     if (selectedCard.type !== CardType.PROXY) {
       this.lastCardPlayed = selectedCard.name;
       this.game.log('${0} played ${1}', (b) => b.player(this).card(selectedCard));
+      // Discount detail lines — grouped UNDER the play (role 'detail'), so the
+      // previously-invisible M€ saving reads as a connected payment detail.
+      if (costBreakdown !== undefined) {
+        for (const discount of costBreakdown.discounts) {
+          if (discount.source.kind === 'card' || discount.source.kind === 'corporation') {
+            const discountCard = discount.source.card;
+            this.game.log('${0} saved ${1} M€ playing with ${2}', (b) => b.player(this).number(discount.amount).cardName(discountCard));
+          }
+        }
+      }
     }
 
     // Play the card
@@ -926,8 +994,16 @@ export class Player implements IPlayer {
   }
 
   public triggerOnNonCardTagAdded(tag: Tag): void {
+    const events = this.game?.events;
     for (const card of this.tableau) {
-      card.onNonCardTagAdded?.(this, tag);
+      if (card.onNonCardTagAdded === undefined) {
+        continue;
+      }
+      if (events !== undefined) {
+        events.withEffect(this, card, 'tag-added', () => card.onNonCardTagAdded?.(this, tag));
+      } else {
+        card.onNonCardTagAdded(this, tag);
+      }
     }
   }
 
@@ -936,9 +1012,16 @@ export class Player implements IPlayer {
       return;
     }
 
+    const events = this.game?.events;
+
     /* A player responding to their own cards played. */
     for (const effectCard of this.playedCards) {
-      this.defer(effectCard.onCardPlayed?.(this, card));
+      if (effectCard.onCardPlayed === undefined) {
+        continue;
+      }
+      this.defer(events !== undefined ?
+        events.withEffect(this, effectCard, 'card-played', () => effectCard.onCardPlayed?.(this, card)) :
+        effectCard.onCardPlayed(this, card));
     }
 
     TurmoilHandler.applyOnCardPlayedEffect(this, card);
@@ -946,7 +1029,12 @@ export class Player implements IPlayer {
     /* A player responding to any other player's card played. */
     for (const somePlayer of this.game.playersInGenerationOrder) {
       for (const effectCard of somePlayer.playedCards) {
-        const actionFromPlayedCard = effectCard.onCardPlayedByAnyPlayer?.(somePlayer, card, this);
+        if (effectCard.onCardPlayedByAnyPlayer === undefined) {
+          continue;
+        }
+        const actionFromPlayedCard = events !== undefined ?
+          events.withEffect(somePlayer, effectCard, 'card-played-by-any', () => effectCard.onCardPlayedByAnyPlayer?.(somePlayer, card, this)) :
+          effectCard.onCardPlayedByAnyPlayer(somePlayer, card, this);
         this.defer(actionFromPlayedCard);
       }
     }
@@ -962,9 +1050,14 @@ export class Player implements IPlayer {
       {selectBlueCardAction: true})
       .andThen(([card]) => {
         this.game.log('${0} used ${1} action', (b) => b.player(this).card(card));
-        const action = card.action(this);
-        this.defer(action);
-        this.actionsThisGeneration.add(card.name);
+        this.game?.events?.beginAction(this, {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name, owner: this.color}, {category: card.type === CardType.CORPORATION ? 'corporation-action' : 'card-action'});
+        try {
+          const action = card.action(this);
+          this.defer(action);
+          this.actionsThisGeneration.add(card.name);
+        } finally {
+          this.game?.events?.endScope();
+        }
         return undefined;
       });
   }
@@ -981,9 +1074,14 @@ export class Player implements IPlayer {
       {selectBlueCardAction: true})
       .andThen(([card]) => {
         this.game.log('${0} used ${1} action', (b) => b.player(this).card(card));
-        const action = card.action(this);
-        this.defer(action);
-        this.actionsThisGeneration.add(card.name);
+        this.game?.events?.beginAction(this, {kind: 'card', card: card.name, owner: this.color}, {category: 'ceo-action'});
+        try {
+          const action = card.action(this);
+          this.defer(action);
+          this.actionsThisGeneration.add(card.name);
+        } finally {
+          this.game?.events?.endScope();
+        }
         return undefined;
       });
   }
@@ -1766,14 +1864,23 @@ export class Player implements IPlayer {
     this.lastReveal = undefined;
     const waitingFor = this.waitingFor;
     const waitingForCb = this.waitingForCb;
+    const waitingForContext = this.waitingForContext;
     this.waitingFor = undefined;
     this.waitingForCb = undefined;
+    this.waitingForContext = undefined;
+    const events = this.game?.events;
     try {
       this.timer.stop();
-      this.defer(waitingFor.process(input, this));
+      // Restore the prompt's correlation scope while resolving the response, so
+      // the work it triggers (tile placement, picked card, …) stays in the chain.
+      const followUp = events !== undefined ?
+        events.runWithContext(waitingForContext, () => waitingFor.process(input, this)) :
+        waitingFor.process(input, this);
+      this.defer(followUp);
       waitingForCb();
     } catch (err) {
       this.setWaitingFor(waitingFor, waitingForCb);
+      this.waitingForContext = waitingForContext;
       throw err;
     }
   }
@@ -1794,6 +1901,7 @@ export class Player implements IPlayer {
     this.timer.start();
     this.waitingFor = input;
     this.waitingForCb = cb;
+    this.waitingForContext = this.game?.events?.captureContext();
     this.game.inputsThisRound++;
   }
 

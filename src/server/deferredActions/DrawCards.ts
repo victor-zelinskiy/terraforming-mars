@@ -68,6 +68,9 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
         }
       }
       keep(player, cards, [], verbosity);
+      // Analytics: attribute the draw to the active effect/action (the source
+      // is resolved from the correlation context, e.g. Mars University).
+      player.game?.events?.recordCardsDrawn(player, cards.length);
       // This is exactly the "effect draws and keeps every card" path — the
       // player never sees a selection prompt, so surface the cards in the
       // reveal modal. keepSome / ChooseCards (research / buy / keep-some) go

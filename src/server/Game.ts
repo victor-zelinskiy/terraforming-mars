@@ -16,6 +16,7 @@ import {Tile} from './Tile';
 import {LogMessageBuilder} from './logs/LogMessageBuilder';
 import {LogHelper} from './LogHelper';
 import {LogMessage} from '../common/logs/LogMessage';
+import {EventRecorder} from './events/EventRecorder';
 import {milestoneManifest} from './milestones/Milestones';
 import {awardManifest} from './awards/Awards';
 import {PartyHooks} from './turmoil/parties/PartyHooks';
@@ -109,6 +110,10 @@ export class Game implements IGame, Logger {
   public createdTime: Date = new Date(0);
   public gameAge: number = 0; // Each log event increases it
   public gameLog: Array<LogMessage> = createGameLog();
+  // Structured analytics event stream (alongside the text gameLog). See
+  // LOGGING_EVENT_MODEL_PROPOSAL.md. Reads generation/phase lazily, so this
+  // field initializer running before those is safe.
+  public events: EventRecorder = new EventRecorder(this);
   public undoCount: number = 0; // Each undo increases it
   public inputsThisRound = 0;
   public resettable: boolean = false;
@@ -497,6 +502,8 @@ export class Game implements IGame, Logger {
       nomadSpace: this.nomadSpace,
       gameAge: this.gameAge,
       gameLog: this.gameLog,
+      gameEvents: this.events.events,
+      eventSeq: this.events.sequence,
       gameOptions: this.gameOptions,
       generation: this.generation,
       globalsPerGeneration: this.globalsPerGeneration,
@@ -1306,7 +1313,10 @@ export class Game implements IGame, Logger {
         }
       }
       for (const card of player.playedCards) {
-        card.onGlobalParameterIncrease?.(player, GlobalParameter.VENUS, steps);
+        if (card.onGlobalParameterIncrease === undefined) {
+          continue;
+        }
+        this.events.withEffect(player, card, 'global-parameter', () => card.onGlobalParameterIncrease?.(player, GlobalParameter.VENUS, steps));
       }
       if (this.exploitationOfVenusInEffect) {
         player.stock.add(Resource.MEGACREDITS, steps * 2, {log: true, from: {card: CardName.EXPLOITATION_OF_VENUS}});
@@ -1357,7 +1367,10 @@ export class Game implements IGame, Logger {
       }
 
       for (const card of player.playedCards) {
-        card.onGlobalParameterIncrease?.(player, GlobalParameter.TEMPERATURE, steps);
+        if (card.onGlobalParameterIncrease === undefined) {
+          continue;
+        }
+        this.events.withEffect(player, card, 'global-parameter', () => card.onGlobalParameterIncrease?.(player, GlobalParameter.TEMPERATURE, steps));
       }
       player.onGlobalParameterIncrease(GlobalParameter.TEMPERATURE, steps);
       TurmoilHandler.onGlobalParameterIncrease(player, GlobalParameter.TEMPERATURE, steps);
@@ -1455,7 +1468,12 @@ export class Game implements IGame, Logger {
     // Clear out underworld components.
     UnderworldExpansion.onTilePlaced(this, space);
 
-    this.triggerForAllCards((p, c) => c.onTilePlaced?.(p, player, space, BoardType.MARS));
+    this.triggerForAllCards((p, c) => {
+      if (c.onTilePlaced === undefined) {
+        return;
+      }
+      this.events.withEffect(p, c, 'tile-placed', () => c.onTilePlaced?.(p, player, space, BoardType.MARS));
+    });
 
     if (initialTileType !== undefined) {
       AresHandler.ifAres(this, () => {
@@ -1722,6 +1740,9 @@ export class Game implements IGame, Logger {
     f?.(builder);
     const logMessage = builder.build();
     logMessage.playerId = options?.reservedFor?.id;
+    // Bridge to the structured stream: attach the active correlation chain so the
+    // journal can group action → effect → result without parsing text.
+    this.events.stampJournal(logMessage);
     this.gameLog.push(logMessage);
     this.gameAge++;
   }
@@ -1838,6 +1859,7 @@ export class Game implements IGame, Logger {
     game.clonedGamedId = d.clonedGamedId;
     game.gameAge = d.gameAge;
     game.gameLog = d.gameLog;
+    game.events.restore(d.gameEvents, d.eventSeq);
     game.generation = d.generation;
     game.phase = d.phase;
     game.oxygenLevel = d.oxygenLevel;

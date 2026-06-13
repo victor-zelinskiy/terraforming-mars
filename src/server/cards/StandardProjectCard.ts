@@ -48,8 +48,16 @@ export abstract class StandardProjectCard extends Card implements IStandardProje
   protected abstract actionEssence(player: IPlayer): void
 
   public onStandardProject(player: IPlayer): void {
+    const events = player.game?.events;
     for (const playedCard of player.tableau) {
-      playedCard.onStandardProject?.(player, this);
+      if (playedCard.onStandardProject === undefined) {
+        continue;
+      }
+      if (events !== undefined) {
+        events.withEffect(player, playedCard, 'standard-project', () => playedCard.onStandardProject?.(player, this));
+      } else {
+        playedCard.onStandardProject(player, this);
+      }
     }
   }
 
@@ -74,6 +82,34 @@ export abstract class StandardProjectCard extends Card implements IStandardProje
   }
 
   public payAndExecute(player: IPlayer, payment: Payment): void {
+    const events = player.game?.events;
+    if (events === undefined) {
+      this.payAndExecuteImpl(player, payment);
+      return;
+    }
+    // Root the analytics chain at the standard project so its effects / tile
+    // placements / triggered effects group under it in the journal.
+    events.beginAction(player, {kind: 'standardProject', card: this.name}, {category: 'standard-project'});
+    try {
+      this.payAndExecuteImpl(player, payment);
+    } finally {
+      events.endScope();
+    }
+  }
+
+  private payAndExecuteImpl(player: IPlayer, payment: Payment): void {
+    const events = player.game?.events;
+    if (events !== undefined) {
+      // Discounts are recorded HERE (at pay time), never in getAdjustedCost —
+      // that runs on every affordability check and would spam false savings.
+      for (const card of player.tableau) {
+        const discount = card.getStandardProjectDiscount?.(player, this) ?? 0;
+        if (discount > 0) {
+          events.recordDiscount(player, {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name, owner: player.color}, discount, this.name);
+        }
+      }
+      events.recordPayment(player, this.getAdjustedCost(player), this.name);
+    }
     player.pay(payment);
     this.projectPlayed(player);
     this.actionEssence(player);
