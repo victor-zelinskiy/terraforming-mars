@@ -3,14 +3,16 @@ import {RestrictedArea} from '../../../src/server/cards/base/RestrictedArea';
 import {ProjectInspection} from '../../../src/server/cards/promo/ProjectInspection';
 import {IndenturedWorkers} from '../../../src/server/cards/base/IndenturedWorkers';
 import {Playwrights} from '../../../src/server/cards/community/Playwrights';
+import {RegolithEaters} from '../../../src/server/cards/base/RegolithEaters';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {SelectProjectCardToPlay} from '../../../src/server/inputs/SelectProjectCardToPlay';
 import {ICard} from '../../../src/server/cards/ICard';
 import {IProjectCard} from '../../../src/server/cards/IProjectCard';
 import {Resource} from '../../../src/common/Resource';
 import {TestPlayer} from '../../TestPlayer';
 import {Odyssey} from '../../../src/server/cards/pathfinders/Odyssey';
-import {runAllActions, testGame} from '../../TestingUtils';
+import {churn, runAllActions, testGame} from '../../TestingUtils';
 import {Payment} from '../../../src/common/inputs/Payment';
 import {cast} from '../../../src/common/utils/utils';
 
@@ -68,6 +70,28 @@ describe('ProjectInspection', () => {
     // The candidates are exactly the actions used this generation that can act.
     const input = step.input as {cards: ReadonlyArray<{name: string}>};
     expect(input.cards.map((c) => c.name)).deep.eq([restrictedArea.name]);
+  });
+
+  it('repeating a SPLIT (`or`) action offers BOTH branches — not just the one used before', () => {
+    // Rules: Project Inspection re-USES the card's ACTION (tracked by card NAME,
+    // not branch). So repeating Regolith Eaters lets you pick EITHER branch
+    // (add a microbe / spend 2 → oxygen), whichever is available — you are NOT
+    // forced to repeat the same branch you performed earlier this generation.
+    const [/* game */, player2] = testGame(1);
+    const regolith = new RegolithEaters();
+    regolith.resourceCount = 3; // ≥2 → BOTH branches available
+    player2.playedCards.push(regolith);
+    player2.actionsThisGeneration.add(regolith.name);
+    const pi = new ProjectInspection();
+    player2.playedCards.push(pi);
+    expect(pi.canPlay(player2)).is.true;
+
+    const select = cast(pi.play(player2), SelectCard<ICard>);
+    expect(select.cards.map((c) => c.name)).deep.eq([regolith.name]);
+    // Performing the repeated action yields the FULL `or` — both branches choosable
+    // (the engine runs `regolith.action()` fresh; `churn` drains the deferred queue).
+    const action = cast(churn(select.cb([regolith]), player2), OrOptions);
+    expect(action.options).has.lengthOf(2);
   });
 
   it('Can not play with Playwrights if there is no other card to chain', () => {
