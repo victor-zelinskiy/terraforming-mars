@@ -7,8 +7,8 @@
     only what helps decide THIS action. Rendered only when applicable (`per > 1`).
     All values are derived CLIENT-SIDE from the static manifest (no server call).
   -->
-  <div v-if="applicable" class="action-vp">
-    <span class="action-vp__label" v-i18n>VP progress</span>
+  <div v-if="applicable" class="action-vp" :class="{'action-vp--compact': compact}">
+    <span v-if="!compact" class="action-vp__label" v-i18n>VP progress</span>
     <!-- Threshold scorers (1 VP per N>1 resources) show progress toward the next
          VP; per-resource multipliers (e.g. 2 VP each) skip the bar — every
          resource is already a VP, so the VP delta line below carries it. -->
@@ -24,7 +24,7 @@
       <VpProgressBar :filled="filledAfter" :per="per" :reached="crossed" />
     </template>
     <div class="action-vp__vp" :class="{'action-vp__vp--up': crossed}">
-      <span class="action-vp__vp-label" v-i18n>VP from card</span>
+      <span class="action-vp__vp-label" v-i18n>{{ compact ? 'VP' : 'VP from card' }}</span>
       <span class="action-vp__vp-cur">{{ beforeVp }}</span>
       <span class="action-vp__arrow" aria-hidden="true">→</span>
       <span class="action-vp__vp-res">{{ afterVp }}</span>
@@ -59,6 +59,12 @@ export default defineComponent({
     after: {
       type: Number,
       required: true,
+    },
+    // Condensed variant for tight hosts (a target-picker tile / chosen-card
+    // chip): drops the section label, shortens the VP caption, tightens rhythm.
+    compact: {
+      type: Boolean,
+      default: false,
     },
   },
   computed: {
@@ -151,5 +157,18 @@ export default defineComponent({
 .action-vp__vp--up {
   .action-vp__vp-res { color: #8ff0c4; }
   .action-vp__arrow { color: #8ff0c4; }
+}
+
+/* Compact variant — fits inside a 154px target tile / chosen-card chip:
+   tighter rhythm + smaller threshold figures, centred to match the host. */
+.action-vp--compact {
+  gap: 4px;
+  align-items: center;
+
+  .action-vp__head { gap: 6px; }
+  .action-vp__icon { width: 15px; height: 15px; }
+  .action-vp__threshold { font-size: 12px; gap: 4px; }
+  .action-vp__vp { font-size: 11.5px; gap: 4px; }
+  .action-vp__vp-label { font-size: 9.5px; }
 }
 </style>

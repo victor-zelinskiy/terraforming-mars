@@ -191,6 +191,15 @@
                         <span class="play-confirm__handpick-impact-arrow" aria-hidden="true">→</span>
                         <span class="play-confirm__handpick-impact-to">{{ chosenImpact(step, i)!.to }}</span>
                       </span>
+                      <!-- VP context for a SCORING chosen card — threshold progress +
+                           VP delta. Gated on cardScores so a non-scorer shows no plate. -->
+                      <div v-if="chosenImpact(step, i) !== undefined && cardScores(capturedCardName(i))" class="play-confirm__handpick-vp">
+                        <ActionVpProgress :cardName="capturedCardName(i)!"
+                                          :resourceIcon="stepResourceKey(step)"
+                                          :before="chosenImpact(step, i)!.from"
+                                          :after="chosenImpact(step, i)!.to"
+                                          :compact="true" />
+                      </div>
                       <button type="button" class="play-confirm__handpick-change" @click="requestHandPick(i, step)">
                         <span class="play-confirm__handpick-glyph" aria-hidden="true">⟲</span>
                         <span v-i18n>Choose another card</span>
@@ -230,6 +239,15 @@
                         <span class="play-confirm__handpick-impact-arrow" aria-hidden="true">→</span>
                         <span class="play-confirm__handpick-impact-to">{{ chosenImpact(step, i)!.to }}</span>
                       </span>
+                      <!-- VP context for a SCORING chosen card — threshold progress +
+                           VP delta. Gated on cardScores so a non-scorer shows no plate. -->
+                      <div v-if="chosenImpact(step, i) !== undefined && cardScores(capturedCardName(i))" class="play-confirm__handpick-vp">
+                        <ActionVpProgress :cardName="capturedCardName(i)!"
+                                          :resourceIcon="stepResourceKey(step)"
+                                          :before="chosenImpact(step, i)!.from"
+                                          :after="chosenImpact(step, i)!.to"
+                                          :compact="true" />
+                      </div>
                       <button type="button" class="play-confirm__handpick-change" @click="requestPlayedPick(i, step)">
                         <span class="play-confirm__handpick-glyph" aria-hidden="true">⟲</span>
                         <span v-i18n>Choose another card</span>
@@ -941,8 +959,17 @@ export default defineComponent({
     // names WHICH resource — microbe / animal / floater — language- and grammar-safe,
     // unlike a text resource name). '' when the step isn't a resource-add.
     stepResourceIcon(step: ActionPreviewStep): string {
-      const res = (step as {cardResource?: string}).cardResource;
-      return res !== undefined && res !== '' ? iconClassFor(res) : '';
+      const res = this.stepResourceKey(step);
+      return res !== '' ? iconClassFor(res) : '';
+    },
+    // The raw icon-KEY of the step's card resource ('' when none) — what the VP
+    // context block needs (ActionVpProgress applies iconClassFor itself).
+    stepResourceKey(step: ActionPreviewStep): string {
+      return (step as {cardResource?: string}).cardResource ?? '';
+    },
+    // True when the named card scores VP from its resource → show the VP plate.
+    cardScores(name: CardName | undefined): boolean {
+      return name !== undefined && resourceScoring(name) !== undefined;
     },
     stepResourceAmount(step: ActionPreviewStep): number {
       return Math.abs((step as {amount?: number}).amount ?? 0);
@@ -1507,6 +1534,14 @@ export default defineComponent({
 .play-confirm__handpick-impact-from { color: rgba(206, 228, 244, 0.72); }
 .play-confirm__handpick-impact-arrow { color: rgba(150, 220, 255, 0.7); font-weight: 400; }
 .play-confirm__handpick-impact-to { color: #8ff0c4; }
+// VP context plate under the chosen card's impact — the same gold "points"
+// accent as the target-picker tiles, so chosen + candidate read as one system.
+.play-confirm__handpick-vp {
+  padding: 6px 12px 7px;
+  border-radius: 8px;
+  background: rgba(120, 95, 30, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(240, 200, 120, 0.24);
+}
 
 // MULTI-select card pick (Public Plans): a centred count summary + a pick button.
 // No card list — the pick can be large; the count + the РЕЗУЛЬТАТ chip say enough.

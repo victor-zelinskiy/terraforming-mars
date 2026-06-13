@@ -32,8 +32,13 @@ export class Insulation extends Card implements IProjectCard {
     return player.production.heat >= 1;
   }
 
+  // The conversion hint (heat production → M€ production) drives the modern
+  // stepper's rich composition + live per-side production preview.
+  private static readonly CONVERSION = {from: 'heat', to: 'megacredits', fromScope: 'production', toScope: 'production'} as const;
+
   public override bespokePlay(player: IPlayer) {
-    return new SelectAmount('Select amount of heat production to decrease', 'Decrease', 1, player.production.heat, undefined, {icon: 'heat'})
+    return new SelectAmount('Select amount of heat production to decrease', 'Decrease', 1, player.production.heat, undefined,
+      {icon: 'heat', conversion: Insulation.CONVERSION})
       .andThen((amount) => {
         player.production.add(Resource.HEAT, -amount, {log: true});
         player.production.add(Resource.MEGACREDITS, amount, {log: true});
@@ -44,7 +49,8 @@ export class Insulation extends Card implements IProjectCard {
   // The on-play preview: the SAME amount stepper `bespokePlay` builds, so the
   // player dials how much heat production → M€ production inside the play modal.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const step = actionPreviews.amountStep('Select amount of heat production to decrease', 'Decrease', 1, player.production.heat, {icon: 'heat'});
+    const step = actionPreviews.amountStep('Select amount of heat production to decrease', 'Decrease', 1, player.production.heat,
+      {icon: 'heat', conversion: Insulation.CONVERSION});
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

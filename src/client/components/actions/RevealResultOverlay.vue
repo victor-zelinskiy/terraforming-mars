@@ -40,8 +40,10 @@
               <div class="action-confirm__top2">
                 <aside class="action-confirm__src">
                   <span class="action-confirm__src-label" v-i18n>Source</span>
+                  <!-- autoTall mirrors the confirm modal's source card: the card grows
+                       to fit its text instead of squeezing behind an inner scrollbar. -->
                   <div v-if="sourceCard !== undefined" class="action-confirm__src-card action-confirm__src-card--static">
-                    <Card :key="revealResultState.cardName" :card="sourceCard" />
+                    <Card :key="revealResultState.cardName" :card="sourceCard" :autoTall="true" />
                   </div>
                 </aside>
 

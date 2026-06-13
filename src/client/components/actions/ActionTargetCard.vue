@@ -67,6 +67,18 @@
             <span v-else class="action-target-card__impact-to">{{ c.count }}</span>
           </span>
 
+          <!-- VP context for a SCORING target (Stratopolis: 1 VP / 3 floaters):
+               threshold progress before → after + the card's VP delta, so the
+               player sees how the add/remove moves them toward the next VP.
+               Gated on `c.scores` so a non-scoring target shows no empty plate. -->
+          <div v-if="c.resulting !== undefined && c.resourceKey !== '' && c.scores" class="action-target-card__vp">
+            <ActionVpProgress :cardName="c.name"
+                              :resourceIcon="c.resourceKey"
+                              :before="c.count"
+                              :after="c.resulting"
+                              :compact="true" />
+          </div>
+
           <!-- Selecting is the DEDICATED button (the card itself zooms). Disabled
                shows the reason instead. -->
           <span v-if="c.disabled" class="action-target-card__reason">{{ c.reason }}</span>
@@ -104,9 +116,11 @@ import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {SelectCardResponse} from '@/common/inputs/InputResponse';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
 import {translateText, translateMessage} from '@/client/directives/i18n';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
 
 type Tile = {
   name: CardName;
@@ -115,6 +129,11 @@ type Tile = {
   ownerName: string;
   self: boolean;
   resourceIcon: string;
+  /** Raw icon-KEY of the card's stored resource ('' when none) — drives the VP
+   *  context block (ActionVpProgress applies iconClassFor itself). */
+  resourceKey: string;
+  /** True when this card scores VP from its resource → show the VP plate. */
+  scores: boolean;
   count: number;
   /** The count AFTER the choice (current + the step's signed amount), or undefined
    *  when there's no fixed per-target delta to preview. */
@@ -132,7 +151,7 @@ type Group = {
 
 export default defineComponent({
   name: 'ActionTargetCard',
-  components: {Card, CardZoomModal},
+  components: {Card, CardZoomModal, ActionVpProgress},
   props: {
     input: {
       type: Object as PropType<SelectCardModel>,
@@ -222,9 +241,10 @@ export default defineComponent({
       const ownerColor: Color = owner?.color ?? ('neutral' as Color);
       const self = this.playerView.thisPlayer?.color === ownerColor;
       const resourceType = getCard(model.name)?.resourceType;
-      const resourceIcon = resourceType !== undefined ?
-        iconClassFor(String(resourceType).toLowerCase().replace(/\s+/g, '-')) :
+      const resourceKey = resourceType !== undefined ?
+        String(resourceType).toLowerCase().replace(/\s+/g, '-') :
         '';
+      const resourceIcon = resourceKey !== '' ? iconClassFor(resourceKey) : '';
       const reason = disabled && model.disabledReason !== undefined ?
         (typeof model.disabledReason === 'string' ? translateText(model.disabledReason) : translateMessage(model.disabledReason)) :
         '';
@@ -237,6 +257,8 @@ export default defineComponent({
         ownerName: owner?.name ?? translateText('Neutral'),
         self,
         resourceIcon,
+        resourceKey,
+        scores: resourceScoring(model.name) !== undefined,
         count,
         resulting,
         disabled,
@@ -449,6 +471,17 @@ export default defineComponent({
 .action-target-card__impact-from { color: rgba(206, 228, 244, 0.72); }
 .action-target-card__impact-arrow { color: rgba(150, 200, 230, 0.6); font-weight: 400; }
 .action-target-card__impact-to { color: @atc-mint; }
+
+// VP context plate under the impact line — gold-tinted (the project's "points"
+// accent) so a scoring target is visibly worth more than a plain store.
+.action-target-card__vp {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 9px 7px;
+  border-radius: 8px;
+  background: rgba(120, 95, 30, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(240, 200, 120, 0.24);
+}
 
 // SELECT affordance — calm steel chip at rest, a bright mint "ВЫБРАНО" + tick
 // when chosen, so the selected option is unmistakable.

@@ -48,8 +48,11 @@
                       @click.capture.stop="openFullscreen"
                       data-test="action-confirm-source">
                 <!-- @click.capture.stop suppresses Card.vue's OWN click→zoom so a
-                     single click opens ONE viewer, not two (the double-open bug). -->
-                <Card :key="cardName" :card="cardModel" />
+                     single click opens ONE viewer, not two (the double-open bug).
+                     autoTall: the source card GROWS to fit its full action text
+                     (no inner scrollbar squeezing it) — same render as the
+                     RevealResultOverlay, so the two surfaces stay twins. -->
+                <Card :key="cardName" :card="cardModel" :autoTall="true" />
               </button>
             </aside>
 
@@ -105,10 +108,12 @@
              + context chips. -->
         <div v-if="showBranchList" class="action-confirm__branches">
           <span class="action-confirm__branches-label" v-i18n>Choose an option</span>
-          <div class="action-confirm__branches-grid">
+          <div class="action-confirm__branches-grid" role="radiogroup">
             <button v-for="(bv, p) in branchViews"
                     :key="branchKey(bv.branch) + '#' + p"
                     type="button"
+                    role="radio"
+                    :aria-checked="selected === bv.branch"
                     class="action-confirm__branch"
                     :class="{
                       'action-confirm__branch--selected': selected === bv.branch,
@@ -247,6 +252,15 @@
                     <span class="action-confirm__handpick-impact-arrow" aria-hidden="true">→</span>
                     <span class="action-confirm__handpick-impact-to">{{ chosenImpact(step, i)!.to }}</span>
                   </span>
+                  <!-- VP context for a SCORING chosen card — threshold progress +
+                       VP delta. Gated on cardScores so a non-scorer shows no plate. -->
+                  <div v-if="chosenImpact(step, i) !== undefined && cardScores(capturedCardName(i))" class="action-confirm__handpick-vp">
+                    <ActionVpProgress :cardName="capturedCardName(i)!"
+                                      :resourceIcon="stepResourceKey(step)"
+                                      :before="chosenImpact(step, i)!.from"
+                                      :after="chosenImpact(step, i)!.to"
+                                      :compact="true" />
+                  </div>
                   <button type="button" class="action-confirm__handpick-change" @click="requestHandPickStep(i, step)" :data-test="'action-step-handpick-change-' + i">
                     <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
                     <span v-i18n>Choose another card</span>
@@ -281,6 +295,15 @@
                     <span class="action-confirm__handpick-impact-arrow" aria-hidden="true">→</span>
                     <span class="action-confirm__handpick-impact-to">{{ chosenImpact(step, i)!.to }}</span>
                   </span>
+                  <!-- VP context for a SCORING chosen card — threshold progress +
+                       VP delta. Gated on cardScores so a non-scorer shows no plate. -->
+                  <div v-if="chosenImpact(step, i) !== undefined && cardScores(capturedCardName(i))" class="action-confirm__handpick-vp">
+                    <ActionVpProgress :cardName="capturedCardName(i)!"
+                                      :resourceIcon="stepResourceKey(step)"
+                                      :before="chosenImpact(step, i)!.from"
+                                      :after="chosenImpact(step, i)!.to"
+                                      :compact="true" />
+                  </div>
                   <button type="button" class="action-confirm__handpick-change" @click="requestPlayedPickStep(i, step)" :data-test="'action-step-pick-change-' + i">
                     <span class="action-confirm__handpick-change-glyph" aria-hidden="true">⟲</span>
                     <span v-i18n>Choose another card</span>
@@ -484,9 +507,11 @@ export default defineComponent({
       return this.resolvedBranchPositions.map((p) => this.branches[p]).filter((b) => b !== undefined);
     },
     // Show the in-modal picker ONLY as a fallback: the node didn't resolve to one
-    // branch AND nothing is selected yet AND there's a real choice.
+    // branch AND there's a real choice. The list STAYS visible after a pick (the
+    // chosen option highlighted radio-style) so the player can change their mind
+    // any time before Confirm — hiding it on selection locked the first click in.
     showBranchList(): boolean {
-      return this.resolvedBranchPosition === undefined && this.selected === undefined && this.resolvedBranches.length > 1;
+      return this.resolvedBranchPosition === undefined && this.resolvedBranches.length > 1;
     },
     // Whether the wide choices block has anything to host (a branch picker, the
     // branch's own input, or any steps). When false the modal is just the top row
@@ -914,8 +939,17 @@ export default defineComponent({
     },
     // The resource ICON class for an "add a card resource" STEP ('' otherwise).
     stepResourceIcon(step: ActionPreviewStep): string {
-      const res = (step as {cardResource?: string}).cardResource;
-      return res !== undefined && res !== '' ? iconClassFor(res) : '';
+      const res = this.stepResourceKey(step);
+      return res !== '' ? iconClassFor(res) : '';
+    },
+    // The raw icon-KEY of the step's card resource ('' when none) — what the VP
+    // context block needs (ActionVpProgress applies iconClassFor itself).
+    stepResourceKey(step: ActionPreviewStep): string {
+      return (step as {cardResource?: string}).cardResource ?? '';
+    },
+    // True when the named card scores VP from its resource → show the VP plate.
+    cardScores(name: CardName | undefined): boolean {
+      return name !== undefined && resourceScoring(name) !== undefined;
     },
     // The per-card resource impact for a CHOSEN board/hand-pick card STEP: the
     // chosen card's current resource count → that + the step's signed amount,
@@ -1037,6 +1071,11 @@ export default defineComponent({
       }
     },
     selectBranch(b: ActionPreviewBranch): void {
+      // Re-clicking the already-selected radio is a no-op — never wipe the
+      // captured payment / target picks the player already dialed in.
+      if (this.selected === b) {
+        return;
+      }
       this.selected = b;
       this.captured = {}; // steps are branch-specific — reset captured responses.
       this.capturedOption = undefined;
@@ -1161,19 +1200,26 @@ export default defineComponent({
   background: rgba(20, 40, 60, 0.5);
   color: #d8ecf7;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-  &:hover { border-color: rgba(120, 220, 255, 0.6); background: rgba(28, 56, 80, 0.65); }
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+  &:hover {
+    border-color: rgba(120, 220, 255, 0.6);
+    background: rgba(28, 56, 80, 0.65);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  }
+  &:active { transform: translateY(0); }
   &--selected {
     border-color: rgba(120, 230, 255, 0.95);
     background: rgba(30, 70, 100, 0.7);
     box-shadow: 0 0 0 1px rgba(120, 230, 255, 0.5), 0 0 18px rgba(80, 200, 255, 0.22);
+    &:hover { transform: none; box-shadow: 0 0 0 1px rgba(120, 230, 255, 0.5), 0 0 18px rgba(80, 200, 255, 0.22); }
   }
   &--disabled {
     cursor: default;
     opacity: 0.5;
     filter: saturate(0.5);
     border-style: dashed;
-    &:hover { border-color: rgba(120, 200, 255, 0.22); background: rgba(20, 40, 60, 0.5); }
+    &:hover { border-color: rgba(120, 200, 255, 0.22); background: rgba(20, 40, 60, 0.5); transform: none; box-shadow: none; }
   }
 }
 .action-confirm__branch-tick {
@@ -1349,6 +1395,14 @@ export default defineComponent({
 .action-confirm__handpick-impact-from { color: rgba(206, 228, 244, 0.72); }
 .action-confirm__handpick-impact-arrow { color: rgba(150, 220, 255, 0.7); font-weight: 400; }
 .action-confirm__handpick-impact-to { color: #8ff0c4; }
+// VP context plate under the chosen card's impact — the same gold "points"
+// accent as the target-picker tiles, so chosen + candidate read as one system.
+.action-confirm__handpick-vp {
+  padding: 6px 12px 7px;
+  border-radius: 8px;
+  background: rgba(120, 95, 30, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(240, 200, 120, 0.24);
+}
 
 .action-confirm__none {
   margin: 8px 0;

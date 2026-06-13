@@ -1,7 +1,7 @@
 import {Message} from '../../common/logs/Message';
 import {BasePlayerInput} from '../PlayerInput';
 import {InputResponse, isSelectAmountResponse} from '../../common/inputs/InputResponse';
-import {SelectAmountModel} from '../../common/models/PlayerInputModel';
+import {SelectAmountModel, AmountConversionModel} from '../../common/models/PlayerInputModel';
 import {InputError} from './InputError';
 
 export class SelectAmount extends BasePlayerInput<number> {
@@ -15,7 +15,9 @@ export class SelectAmount extends BasePlayerInput<number> {
     public maxByDefault?: boolean,
     // OPTIONAL premium-UI hints for the modern stepper (see SelectAmountModel).
     // Purely cosmetic — backward-compatible, omit for a bare number stepper.
-    public options?: {icon?: string, unit?: string},
+    // `conversion` marks a "spend X of FROM → receive X of TO" amount so the
+    // client renders the rich conversion composition + live preview.
+    public options?: {icon?: string, unit?: string, conversion?: AmountConversionModel},
   ) {
     super('amount', title);
     this.buttonLabel = buttonLabel;
@@ -31,6 +33,7 @@ export class SelectAmount extends BasePlayerInput<number> {
       maxByDefault: this.maxByDefault ?? false,
       icon: this.options?.icon,
       unit: this.options?.unit,
+      conversion: this.options?.conversion,
     };
   }
 

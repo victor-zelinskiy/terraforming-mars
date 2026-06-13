@@ -42,7 +42,10 @@ export class Supercapacitors extends Card implements IProjectCard {
       return;
     }
     player.defer(
-      new SelectAmount('Select amount of energy to convert to heat', 'OK', 0, player.energy, true)
+      // The conversion hint lets the modern stepper render the rich
+      // [energy] → [heat] composition + a live stock preview for both sides.
+      new SelectAmount('Select amount of energy to convert to heat', 'OK', 0, player.energy, true,
+        {icon: 'energy', conversion: {from: 'energy', to: 'heat'}})
         .andThen((amount) => {
           player.energy -= amount;
           player.heat += amount;

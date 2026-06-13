@@ -207,7 +207,17 @@ export default defineComponent({
         },
         {
           label: 'SelectAmount — heat production (Insulation)',
-          input: {type: 'amount', title: 'Select amount of heat production to decrease', buttonLabel: 'Decrease', min: 1, max: 6, maxByDefault: false, icon: 'heat'},
+          input: {type: 'amount', title: 'Select amount of heat production to decrease', buttonLabel: 'Decrease', min: 1, max: 6, maxByDefault: false, icon: 'heat',
+            conversion: {from: 'heat', to: 'megacredits', fromScope: 'production', toScope: 'production'}},
+        },
+        {
+          label: 'SelectAmount — conversion, stock (Supercapacitors)',
+          input: {type: 'amount', title: 'Select amount of energy to convert to heat', buttonLabel: 'OK', min: 0, max: 3, maxByDefault: true, icon: 'energy',
+            conversion: {from: 'energy', to: 'heat'}},
+        },
+        {
+          label: 'SelectAmount — bare (no conversion hint)',
+          input: {type: 'amount', title: 'Select amount', buttonLabel: 'OK', min: 0, max: 5, maxByDefault: false},
         },
         {
           label: 'SelectResource',
@@ -260,6 +270,12 @@ export default defineComponent({
         tags.unshift(input.icon !== undefined ?
           {text: 'rich target (' + (input.scope ?? 'stock') + ')', kind: 'ok'} :
           {text: 'plain target', kind: 'warn'});
+        return tags;
+      }
+      if (input.type === 'amount') {
+        tags.unshift(input.conversion !== undefined ?
+          {text: 'conversion (' + (input.conversion.fromScope ?? 'stock') + ' → ' + (input.conversion.toScope ?? 'stock') + ')', kind: 'ok'} :
+          {text: input.icon !== undefined ? 'icon only' : 'bare stepper', kind: 'warn'});
         return tags;
       }
       tags.unshift({text: input.type, kind: 'neutral'});
