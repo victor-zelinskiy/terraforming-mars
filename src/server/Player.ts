@@ -909,7 +909,13 @@ export class Player implements IPlayer {
         this.game?.events?.recordDiscount(this, discount.source, discount.amount, selectedCard.name);
       }
       this.game?.events?.recordPayment(this, costBreakdown.final, selectedCard.name);
-      this.pay(payment);
+      // Spent resources are attributed to "Payment" in the journal.
+      const events = this.game?.events;
+      if (events !== undefined) {
+        events.withSource({kind: 'payment'}, () => this.pay(payment));
+      } else {
+        this.pay(payment);
+      }
     }
 
     const selfReplicatingRobots = this.tableau.get(CardName.SELF_REPLICATING_ROBOTS);

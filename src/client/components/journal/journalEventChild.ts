@@ -6,7 +6,7 @@ import {GlobalParameter} from '@/common/GlobalParameter';
 import {tileTypeToString} from '@/common/TileType';
 import {GameEvent} from '@/common/events/GameEvent';
 import {EventImpact} from '@/common/events/EventImpact';
-import {EventSource, sourceKey} from '@/common/events/EventSource';
+import {EventSource} from '@/common/events/EventSource';
 
 /**
  * PURE formatter that turns the structured {@link GameEvent}s of ONE correlation
@@ -15,8 +15,9 @@ import {EventSource, sourceKey} from '@/common/events/EventSource';
  * keys for `iconClassFor`, labels are English i18n keys. Unit-testable.
  *
  * Effect-triggered / copied-action markers FOLD their child impacts into one row
- * (e.g. "Pets · Victor → +1 animal"); a plain gain whose source is the action
- * itself drops the redundant source chip (the root already names it).
+ * (e.g. "Pets · Victor → +1 animal"). EVERY row carries an explicit source: the
+ * action's own results show the action card, payments read "Payment", placement
+ * bonuses get a semantic label — a child row is never source-less.
  */
 
 export type JournalImpactChip = {
@@ -103,12 +104,11 @@ export function impactChips(impact: EventImpact): Array<JournalImpactChip> {
   return chips;
 }
 
-function sourceToChild(source: EventSource | undefined, rootSource: EventSource | undefined): JournalChildSource {
+// Every event maps to an EXPLICIT source — the action's own results show the
+// action card itself, payments read "Payment", bonuses get a semantic label —
+// so a child row is never source-less.
+function sourceToChild(source: EventSource | undefined): JournalChildSource {
   if (source === undefined) {
-    return {kind: 'none'};
-  }
-  // The action's own result — the root header already names the source.
-  if (rootSource !== undefined && sourceKey(source) === sourceKey(rootSource)) {
     return {kind: 'none'};
   }
   switch (source.kind) {
@@ -120,6 +120,8 @@ function sourceToChild(source: EventSource | undefined, rootSource: EventSource 
     return {kind: 'label', label: 'Cell bonus'};
   case 'oceanBonus':
     return {kind: 'label', label: 'Ocean bonus'};
+  case 'payment':
+    return {kind: 'label', label: 'Payment'};
   case 'production':
     return {kind: 'label', label: 'Production'};
   case 'globalParameter':
@@ -146,7 +148,6 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
   for (const e of events) {
     byId.set(e.id, e);
   }
-  const rootSource = byId.get(rootId)?.source;
   const recipient = (e: GameEvent): Color | undefined => (e.player !== undefined && e.player !== rootPlayer ? e.player : undefined);
 
   // Fold each impact event parented to a marker into that marker's chips.
@@ -172,7 +173,7 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
     }
     if (e.type === 'copied-action') {
       const chips = [...impactChips(e.impact), ...(foldedChips.get(e.id) ?? [])];
-      rows.push({source: sourceToChild(e.source, rootSource), player: recipient(e), chips, copiedCard: e.target?.card});
+      rows.push({source: sourceToChild(e.source), player: recipient(e), chips, copiedCard: e.target?.card});
       continue;
     }
     if (e.type === 'effect-triggered') {
@@ -180,7 +181,7 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       if (chips.length === 0) {
         continue;
       }
-      rows.push({source: sourceToChild(e.source, rootSource), player: recipient(e), chips});
+      rows.push({source: sourceToChild(e.source), player: recipient(e), chips});
       continue;
     }
     if (e.type === 'tile-placed') {
@@ -197,7 +198,7 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
     if (chips.length === 0) {
       continue;
     }
-    rows.push({source: sourceToChild(e.source, rootSource), player: recipient(e), chips});
+    rows.push({source: sourceToChild(e.source), player: recipient(e), chips});
   }
   return rows;
 }

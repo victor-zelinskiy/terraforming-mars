@@ -33,7 +33,7 @@
         <span class="journal-player__name">{{ playerName(vm.player) }}</span>
       </span>
 
-      <span v-if="vm.chips.length > 0" class="journal-child-row__arrow" aria-hidden="true">→</span>
+      <span v-if="vm.chips.length > 0 && vm.source.kind !== 'none'" class="journal-child-row__arrow" aria-hidden="true">→</span>
       <span v-for="(chip, i) in vm.chips"
             :key="i"
             class="journal-child-row__chip"

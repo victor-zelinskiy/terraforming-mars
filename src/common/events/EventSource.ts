@@ -34,6 +34,7 @@ export type EventSource =
   | {kind: 'production'}
   | {kind: 'spaceBonus'} // a hex's printed placement bonus ("cell bonus")
   | {kind: 'oceanBonus'} // M€ for placing adjacent to oceans
+  | {kind: 'payment'} // resources spent paying for a card / project
   | {kind: 'system'};
 
 /**
