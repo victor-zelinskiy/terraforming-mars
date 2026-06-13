@@ -791,25 +791,22 @@
     margin: 0 1px;
 }
 
-/* Impact chip: resource icon + signed amount. */
+/* Impact chip: resource icon + signed amount. A STOCK gain reads in cool cyan;
+   a PRODUCTION change is framed as a brown production tile (matches the game's
+   production visual) so the two are unmistakable at a glance. */
 .journal-child-row__chip {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    height: 18px;
-    padding: 0 6px 0 4px;
+    gap: 4px;
+    height: 19px;
+    padding: 0 7px 0 4px;
     border-radius: 4px;
-    background: rgba(106, 176, 230, 0.10);
-    border: 1px solid rgba(106, 176, 230, 0.22);
+    background: rgba(106, 176, 230, 0.12);
+    border: 1px solid rgba(106, 176, 230, 0.26);
     color: @j-text;
-    font-size: 11.5px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
-}
-/* Production deltas read in a warmer (steel/brown) tint. */
-.journal-child-row__chip--prod {
-    background: rgba(176, 138, 100, 0.14);
-    border-color: rgba(176, 138, 100, 0.32);
 }
 .journal-child-row__chip-icon {
     width: 15px;
@@ -819,7 +816,31 @@
     background-position: center;
     flex-shrink: 0;
 }
-.journal-child-row__chip-amt { line-height: 1; }
+.journal-child-row__chip-amt {
+    line-height: 1;
+    letter-spacing: 0.2px;
+}
+/*
+ * Production deltas: a saturated brown chip + the icon set on a brown
+ * production TILE (the sprite sits a touch smaller so the brown frame shows
+ * through), echoing how production is drawn on the board / cards. This is the
+ * fix for "the plain brown background is hard to tell apart" — production now
+ * reads as a framed production tile, not just a faintly tinted chip.
+ */
+.journal-child-row__chip--prod {
+    background: rgba(168, 112, 68, 0.20);
+    border-color: rgba(206, 150, 100, 0.55);
+    color: #f4dcc4;
+
+    .journal-child-row__chip-icon {
+        width: 17px;
+        height: 17px;
+        background-size: 11px 11px;
+        background-color: #5d3c24;
+        border: 1px solid rgba(214, 162, 112, 0.65);
+        border-radius: 3px;
+    }
+}
 
 /* ── Generation divider ───────────────────────────────────────────── */
 

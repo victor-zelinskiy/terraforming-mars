@@ -126,9 +126,22 @@ function sourceToChild(source: EventSource | undefined): JournalChildSource {
     return {kind: 'label', label: 'Production'};
   case 'globalParameter':
     return {kind: 'label', label: paramLabel(source.parameter)};
+  case 'colony':
+    // A colony produces THREE kinds of benefit that all share `kind:'colony'`;
+    // label them distinctly so a trade's REWARD and the colony-owner BONUS don't
+    // both read as the bare colony name. The colony itself is named in the group
+    // header ("traded with Europa"), so the rows say WHAT each gain is.
+    if (source.benefit === 'trade') {
+      return {kind: 'label', label: 'Trade income'};
+    }
+    if (source.benefit === 'colonyBonus') {
+      return {kind: 'label', label: 'Colony bonus'};
+    }
+    // 'build' (a card built this colony — its group header is the CARD, not the
+    // colony) or a legacy event with no role → show WHICH colony.
+    return {kind: 'label', label: source.name};
   case 'milestone':
   case 'award':
-  case 'colony':
   case 'globalEvent':
   case 'party':
     return {kind: 'label', label: source.name};

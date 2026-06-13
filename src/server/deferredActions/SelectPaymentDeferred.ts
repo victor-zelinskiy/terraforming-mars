@@ -102,19 +102,23 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
       return undefined;
     }
 
+    // A deferred payment IS a payment — attribute the spend to the `payment`
+    // source (journal reads "Оплата → −N") rather than letting it inherit the
+    // surrounding action's source (e.g. a colony trade fee read "Luna → −3").
+    const events = this.player.game.events;
     if (this.mustPayWithMegacredits()) {
       if (this.player.megaCredits < this.amount) {
         throw new Error(`Player does not have ${this.amount} M€`);
       }
       const payment = Payment.of({megacredits: this.amount});
-      this.player.pay(payment);
+      events.withSource({kind: 'payment'}, () => this.player.pay(payment));
       this.cb(payment);
       return undefined;
     }
 
     return this.buildSelectPayment()
       .andThen((payment) => {
-        this.player.pay(payment);
+        events.withSource({kind: 'payment'}, () => this.player.pay(payment));
         this.cb(payment);
         return undefined;
       });

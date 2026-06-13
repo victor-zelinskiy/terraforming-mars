@@ -292,6 +292,38 @@ describe('Phase 2: attribution wraps + journal grouping', () => {
     expect(group!.children.length).to.be.greaterThan(0);
   });
 
+  it('attributes a colony trade fee to PAYMENT and the reward/bonus by role', () => {
+    const [game, player, player2] = testGame(2, {coloniesExtension: true});
+    const luna = new Luna();
+    game.colonies.push(luna);
+    luna.addColony(player2);
+    luna.addColony(player); // player owns a colony here → also gets the colony bonus on trade
+    player.megaCredits = 30;
+    player.energy = 10;
+
+    const action = cast(player.colonies.coloniesTradeAction(), AndOptions);
+    const payOr = cast(action.options[0], OrOptions);
+    // Pay the trade fee with ENERGY (a direct deduct, the path most at risk of
+    // inheriting the colony source).
+    const energyOpt = payOr.options.find((o) => JSON.stringify(o.title).includes('energy')) ?? payOr.options[0];
+    energyOpt.cb();
+    cast(action.options[1], SelectColony).cb(luna);
+    runAllActions(game);
+
+    const mine = game.events.events.filter((e) => e.player === player.color);
+    // The FEE is a payment, NOT "Luna → −3".
+    const fee = mine.find((e) => e.source?.kind === 'payment');
+    expect(fee, 'trade fee sourced as payment').to.not.be.undefined;
+    expect(fee?.impact.stock?.energy).to.eq(-3);
+    // The trade REWARD carries benefit 'trade' — so insightEngine can sum a
+    // player's trade income (source.kind==='colony' && benefit==='trade').
+    const reward = mine.find((e) => e.source?.kind === 'colony' && e.source.benefit === 'trade');
+    expect(reward, 'trade reward tagged benefit=trade').to.not.be.undefined;
+    // The colony-owner BONUS is a DIFFERENT role.
+    const bonus = mine.find((e) => e.source?.kind === 'colony' && e.source.benefit === 'colonyBonus');
+    expect(bonus, 'colony bonus tagged benefit=colonyBonus').to.not.be.undefined;
+  });
+
   it('attributes a card-built colony bonus to the COLONY, nested under the card', () => {
     const [game, player] = testGame(2, {coloniesExtension: true});
     const luna = new Luna();

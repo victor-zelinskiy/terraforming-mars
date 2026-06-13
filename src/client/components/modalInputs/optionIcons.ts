@@ -37,5 +37,12 @@ export function iconClassFor(icon: string | undefined): string {
   if (GLOBAL_PARAMETER_ICONS.has(icon)) {
     return 'wgt-icon wgt-icon--' + icon;
   }
-  return 'card-resource card-resource-' + icon;
+  // Card resources: the global `.card-resource-<key>` classes are generated from
+  // `@card_resource_types` (lowercase, spaces→hyphens). A caller may pass either
+  // the already-normalised key (the optionMetadata factories) OR the raw
+  // `CardResource` enum value ('Microbe', 'Hydroelectric resource', …) — e.g. the
+  // journal's `impactChips` forwards `cardResource` verbatim. Normalise here (the
+  // single resolution point) so both forms resolve to a real sprite; lowercasing
+  // an already-normalised key is idempotent.
+  return 'card-resource card-resource-' + icon.toLowerCase().replace(/\s+/g, '-');
 }
