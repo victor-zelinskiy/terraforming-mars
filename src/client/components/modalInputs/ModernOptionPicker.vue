@@ -82,7 +82,11 @@
         </span>
         <span v-else-if="optionKind(e.opt) === 'space'" class="modal-input__option-hint" v-i18n>on the board</span>
         <span v-else-if="optionKind(e.opt) === 'nested'" class="modal-input__option-chevron" aria-hidden="true">›</span>
-        <span v-else-if="selectedIdx === e.i" class="modal-input__option-check" aria-hidden="true">✓</span>
+        <!-- Selected indicator — ALWAYS shown when this option is chosen (even
+             alongside a preview chip), so the selection is unmistakable. In
+             controlled mode (no inner confirm button) this ✓ + the --selected
+             frame ARE the only confirmation that the choice registered. -->
+        <span v-if="selectedIdx === e.i" class="modal-input__option-check modal-input__option-check--selected" aria-hidden="true">✓</span>
       </button>
     </div>
 
@@ -127,13 +131,15 @@
         <span class="modal-input__option-body">
           <span class="modal-input__option-label">{{ optionActionText(e.opt) }}</span>
         </span>
-        <span v-if="selectedIdx === e.i" class="modal-input__option-check" aria-hidden="true">✓</span>
+        <span v-if="selectedIdx === e.i" class="modal-input__option-check modal-input__option-check--selected" aria-hidden="true">✓</span>
       </button>
     </div>
 
     <!-- Confirm bar — only for a SELECTED leaf option (select → confirm flow).
-         Space / nested options act on click and never reach here. -->
-    <div v-if="expandedIdx === -1 && confirmableSelection" class="modal-input__actions">
+         Space / nested options act on click and never reach here. HIDDEN in
+         controlled mode: the parent modal's own button is the final submit, so an
+         inner confirm button (the bug this addresses) would be redundant. -->
+    <div v-if="expandedIdx === -1 && confirmableSelection && !controlled" class="modal-input__actions">
       <button type="button"
               class="modal-input__primary-btn"
               @click="confirmSelectedOption"
@@ -243,6 +249,16 @@ export default defineComponent({
     onsave: {
       type: Function as unknown as () => (out: OrOptionsResponse) => void,
       required: true,
+    },
+    // CONTROLLED mode — used when this picker is hosted as a STEP inside a larger
+    // modal (the card-play / action-confirm modals) whose OWN main button does the
+    // final submit. In controlled mode a leaf option commits IMMEDIATELY on click
+    // (captured by the parent via `onsave`) and the redundant inner confirm bar is
+    // hidden; the chosen option is shown via the normal --selected highlight + ✓.
+    // Default false → the standalone select→confirm flow (WGT, top-level prompts).
+    controlled: {
+      type: Boolean,
+      default: false,
     },
   },
   // Picker-mode setter exposed by MandatoryInputModal (optional — undefined
@@ -472,8 +488,12 @@ export default defineComponent({
       // Switching options cancels any in-progress board picker.
       this.clearSpacePicker();
       if (opt.type === 'option') {
-        // Select (don't commit) — the confirm bar sends it.
         this.selectedIdx = displayedIdx;
+        // Controlled (hosted as a step) → commit immediately; the parent modal's
+        // own button does the final submit. Standalone → wait for the confirm bar.
+        if (this.controlled) {
+          this.emitOption(displayedIdx);
+        }
         return;
       }
       // A non-leaf interaction clears any leaf selection.
@@ -527,9 +547,15 @@ export default defineComponent({
       if (!this.confirmableSelection) {
         return;
       }
+      this.emitOption(this.selectedIdx);
+    },
+    // Emit the OR-wrapped {type:'option'} response for a leaf option at the given
+    // DISPLAYED index. Shared by the standalone confirm bar and the controlled
+    // commit-on-click path.
+    emitOption(displayedIdx: number): void {
       this.onsave({
         type: 'or',
-        index: this.originalIndices[this.selectedIdx],
+        index: this.originalIndices[displayedIdx],
         response: {type: 'option'},
       });
     },

@@ -192,12 +192,24 @@
     background: linear-gradient(180deg, rgba(44, 36, 18, 0.85) 0%, rgba(30, 24, 12, 0.85) 100%);
 }
 
-/* Selected leaf option — cyan frame + glow + brighter body (the ✓ confirms it). */
+/* Selected leaf option — an unmistakable cyan frame + double-ring glow + brighter
+   body + a widened, brighter accent bar. Deliberately STRONGER than :hover so the
+   chosen option reads as "locked in" — in controlled mode (no inner confirm button)
+   this IS the only confirmation that the pick registered. */
 .modal-input__option-card--selected {
-    border-color: #6ab0e6;
-    background: linear-gradient(180deg, rgba(26, 46, 68, 0.94) 0%, rgba(18, 32, 50, 0.94) 100%);
-    box-shadow: 0 0 0 1px rgba(106, 176, 230, 0.4), 0 8px 22px rgba(106, 176, 230, 0.3);
-    .modal-input__option-accent { width: 5px; }
+    border-color: #7fd4ff;
+    background: linear-gradient(180deg, rgba(26, 50, 74, 0.96) 0%, rgba(18, 34, 54, 0.96) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(127, 212, 255, 0.55),
+        0 0 0 1px rgba(127, 212, 255, 0.45),
+        0 8px 26px rgba(106, 176, 230, 0.38);
+    .modal-input__option-accent {
+        width: 6px;
+        background: #7fd4ff;
+        box-shadow: 0 0 12px rgba(127, 212, 255, 0.8);
+    }
+    /* Hover never dims/translates a card that's already chosen. */
+    &:hover { transform: none; border-color: #7fd4ff; }
 }
 /* Warning options (e.g. "remove your own plants") — amber edge cue. */
 .modal-input__option-card--warn:not(.modal-input__option-card--selected) {
@@ -278,6 +290,13 @@
     color: #aed8ff;
     font-size: 13px;
     font-weight: 700;
+}
+/* The "chosen" tick — a solid bright cyan badge so it reads as a clear, filled
+   confirmation marker next to the (right-aligned) preview chip. */
+.modal-input__option-check--selected {
+    background: linear-gradient(180deg, #8fe3ff, #4fb8e6);
+    box-shadow: 0 0 10px rgba(127, 212, 255, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+    color: #07263a;
 }
 
 /* ── Rich (metadata-driven) option card bits ── */
