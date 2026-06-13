@@ -49,14 +49,16 @@
              the per-row graphic stays clean (the leading OR is stripped, #4). -->
         <span v-if="i > 0" class="action-group__or" aria-hidden="true" v-i18n>OR</span>
         <!-- In pick-mode EACH branch ROW is separately selectable (a split `or`
-             action = one row per branch, like the normal overlay) — clicking a row
-             picks that specific branch. Non-candidate groups have inert rows. -->
+             action = one row per branch, like the normal overlay). Per the "always
+             show both, never auto-select" rule an UNAVAILABLE branch stays VISIBLE —
+             red ('rules') + its reason tooltip — but is NOT clickable; only an
+             available branch (in a selectable group) hands off. -->
         <CompactActionCard :node="node"
-                           :status="pickMode ? 'available' : rowStatus(i)"
-                           :reason="pickMode ? '' : rowReason(i)"
-                           :interactive="pickMode ? pickSelectable : true"
+                           :status="rowStatus(i)"
+                           :reason="rowReason(i)"
+                           :interactive="pickMode ? (pickSelectable && rowStatus(i) === 'available') : true"
                            :selected="!pickMode && selectedKey === rowKey(i)"
-                           :focusable="pickMode ? pickSelectable : (selectedKey === rowKey(i))"
+                           :focusable="pickMode ? (pickSelectable && rowStatus(i) === 'available') : (selectedKey === rowKey(i))"
                            :data-test="'action-row-' + cardName + '-' + i"
                            @select="select(i)"
                            @activate="activateRow(i)" />
@@ -200,8 +202,10 @@ export default defineComponent({
     },
     // PER-ROW status: a card-level block applies to every row; otherwise a SINGLE
     // branch can be 'rules' (unavailable) while its sibling stays 'available'.
+    // In PICK-mode the card-level 'activated' state is IGNORED (the repeat candidates
+    // were ALL used this gen — that's the point); only per-branch availability matters.
     rowStatus(i: number): ActionStatus {
-      if (this.state.status !== 'available') {
+      if (!this.pickMode && this.state.status !== 'available') {
         return this.state.status;
       }
       const branches = this.rowBranches(i);
@@ -213,7 +217,7 @@ export default defineComponent({
     // PER-ROW reason for the premium tooltip — card-level reason, else the branch's
     // own "why not", else empty (an available row shows no tooltip).
     rowReason(i: number): string {
-      if (this.state.status !== 'available') {
+      if (!this.pickMode && this.state.status !== 'available') {
         return this.reasonText;
       }
       const branches = this.rowBranches(i);
@@ -238,7 +242,9 @@ export default defineComponent({
     // FOCUSES the action (the details panel resolves the branch; nothing executes).
     select(i: number): void {
       if (this.pickMode) {
-        if (this.pickSelectable) {
+        // Only an AVAILABLE branch of a selectable group hands off (an unavailable
+        // branch is shown red + reason but is inert).
+        if (this.pickSelectable && this.rowStatus(i) === 'available') {
           this.$emit('pick', {cardName: this.cardName, nodeIndex: i});
         }
         return;

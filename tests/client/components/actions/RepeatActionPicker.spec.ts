@@ -59,4 +59,38 @@ describe('RepeatActionPicker', () => {
     await rows[0].trigger('click');
     expect(component.emitted('change')![0]).deep.eq([{cardName: CardName.SEARCH_FOR_LIFE, nodeIndex: 0}]);
   });
+
+  it('an UNAVAILABLE branch is shown DISABLED + its reason, and never hands off', async () => {
+    const component = factory([CardName.REGOLITH_EATERS]);
+    // Inject a preview where the "remove 2 microbes → oxygen" branch is unavailable.
+    // (behavior order: branch 0 = remove-2, branch 1 = add-1 — matched to the render
+    // nodes by token overlap, so render node 1 = "remove 2" maps to branch 0.)
+    await component.setData({
+      previews: {
+        [CardName.REGOLITH_EATERS]: {
+          card: CardName.REGOLITH_EATERS,
+          isCorporation: false,
+          kind: 'declarative',
+          branches: [
+            {index: -1, title: 'Remove 2 microbes to raise oxygen level 1 step', available: false,
+              unavailableReason: 'Not enough microbes', renderKeys: ['0'], effects: [], steps: []},
+            {index: 0, title: 'Add 1 microbe to this card', available: true,
+              renderKeys: ['1'], effects: [], steps: []},
+          ],
+        },
+      },
+    });
+    // The "remove 2" row (render node 1) is disabled + shows the reason.
+    const removeRow = component.find('[data-test="repeat-action-' + CardName.REGOLITH_EATERS + '-1"]');
+    expect(removeRow.classes()).to.include('repeat-action-picker__row--disabled');
+    expect(removeRow.text()).to.include('Not enough microbes');
+    // Clicking it does NOT hand off.
+    await removeRow.trigger('click');
+    expect(component.emitted('change')).to.eq(undefined);
+    // The "add 1" row (render node 0) stays available + clickable.
+    const addRow = component.find('[data-test="repeat-action-' + CardName.REGOLITH_EATERS + '-0"]');
+    expect(addRow.classes()).to.not.include('repeat-action-picker__row--disabled');
+    await addRow.trigger('click');
+    expect(component.emitted('change')![0]).deep.eq([{cardName: CardName.REGOLITH_EATERS, nodeIndex: 0}]);
+  });
 });
