@@ -112,6 +112,10 @@ describe('cardPlayPreview', () => {
     expect(steps).has.length(1);
     expect(steps[0].kind).eq('note');
     expect((steps[0] as {noteKind?: string}).noteKind).eq('warning');
+    // The lost resource is named by its NORMALIZED icon key ('microbe', lowercase
+    // — what `iconClassFor` resolves to the `.card-resource-microbe` sprite), NOT
+    // the raw CardResource value ('Microbe'), so the warning shows the icon.
+    expect((steps[0] as {resource?: string}).resource).eq('microbe');
     // The Venus parameter chip still describes the on-play impact.
     expect(preview.branches[0].effects.some((e) => e.icon === 'venus')).is.true;
     // The microbe-to-a-card gain chip is SUPPRESSED (no card can hold it).

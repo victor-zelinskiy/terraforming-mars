@@ -1636,6 +1636,35 @@ export default defineComponent({
   flex-direction: column;
 }
 
+// The embedded payment widget renders card-level warnings (Pharmacy Union "lose
+// 4 M€", Reds tax, Aeron/Think-Tank costs, …) via the legacy `.card-warning`
+// (bare 18px red text) — jarring inside the premium modal. Re-skin them IN THIS
+// CONTEXT to the SAME amber warning block the modal's own `.play-confirm__warn`
+// uses (a glass box + ⚠ glyph + warm amber text), so every caution reads as one
+// system. Scoped to the payment section, so the global `.card-warning` (legacy
+// surfaces) is untouched. Each warning is its own `.card-warning` div.
+.play-confirm__payment-section :deep(.card-warning) {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 11px;
+  padding: 10px 13px;
+  border-radius: 9px;
+  background: rgba(224, 150, 70, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(224, 150, 70, 0.4);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #f4d3a6;
+
+  &::before {
+    content: '⚠';
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1.35;
+    color: #f0b86a;
+  }
+}
+
 .play-confirm__loading {
   display: flex;
   gap: 8px;
