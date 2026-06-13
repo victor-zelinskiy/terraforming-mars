@@ -1492,14 +1492,17 @@ export class Game implements IGame, Logger {
 
   public grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile: boolean = false, arcadianCommunityBonus: boolean = false) {
     if (!coveringExistingTile) {
-      this.grantSpaceBonuses(player, space);
+      // Attribute the hex's printed bonuses to "cell bonus" in the journal.
+      this.events.withSource({kind: 'spaceBonus'}, () => this.grantSpaceBonuses(player, space));
     }
 
     const adjacentOceanCount = this.board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length;
     const oceanAdjacencyBonus = adjacentOceanCount * player.oceanBonus;
     if (oceanAdjacencyBonus > 0) {
-      player.stock.add(Resource.MEGACREDITS, oceanAdjacencyBonus);
-      this.log('${0} gained ${1} M€ from ${2} ocean(s)', (b) => b.player(player).number(oceanAdjacencyBonus).number(adjacentOceanCount));
+      this.events.withSource({kind: 'oceanBonus'}, () => {
+        player.stock.add(Resource.MEGACREDITS, oceanAdjacencyBonus);
+        this.log('${0} gained ${1} M€ from ${2} ocean(s)', (b) => b.player(player).number(oceanAdjacencyBonus).number(adjacentOceanCount));
+      });
     }
 
     // TODO(kberg): these might not apply for some bonuses, e.g. Frontier Town.
@@ -1531,6 +1534,7 @@ export class Game implements IGame, Logger {
       space.player = player;
     }
     LogHelper.logTilePlacement(player, space, tile.tileType);
+    this.events.recordTilePlaced(player, space, tile.tileType);
   }
 
   public grantSpaceBonuses(player: IPlayer, space: Space) {

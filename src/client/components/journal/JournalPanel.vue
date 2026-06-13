@@ -27,6 +27,20 @@
           :players="players"
           :selected="filter"
           @select="selectFilter" />
+        <div class="journal-mode" role="group" :aria-label="$t('Journal detail level')">
+          <button
+            type="button"
+            class="journal-mode__btn"
+            :class="{'journal-mode__btn--active': detail === 'detailed'}"
+            :aria-pressed="detail === 'detailed'"
+            @click="setDetail('detailed')"><span v-i18n>Detailed</span></button>
+          <button
+            type="button"
+            class="journal-mode__btn"
+            :class="{'journal-mode__btn--active': detail === 'summary'}"
+            :aria-pressed="detail === 'summary'"
+            @click="setDetail('summary')"><span v-i18n>Summary</span></button>
+        </div>
       </div>
     </header>
 
@@ -36,7 +50,9 @@
       :loadEpoch="loadEpoch"
       :loading="loading"
       :filter="filter"
-      :color="color" />
+      :color="color"
+      :mode="detail"
+      :events="events" />
   </aside>
 </template>
 
@@ -45,12 +61,14 @@ import {defineComponent} from 'vue';
 import {paths} from '@/common/app/paths';
 import {Color} from '@/common/Color';
 import {LogMessage} from '@/common/logs/LogMessage';
+import {GameEvent} from '@/common/events/GameEvent';
 import {ParticipantId} from '@/common/Types';
 import {PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
 import JournalGenerationSelector from '@/client/components/journal/JournalGenerationSelector.vue';
 import JournalFilterSelector from '@/client/components/journal/JournalFilterSelector.vue';
 import JournalFeed from '@/client/components/journal/JournalFeed.vue';
 import {JournalFilter} from '@/client/components/journal/journalFilter';
+import {journalState, JournalDetailMode} from '@/client/components/journal/journalState';
 
 /**
  * Premium journal panel — the modern replacement for the legacy
@@ -80,11 +98,14 @@ const LIVE_POLL_INTERVAL_MS = 1500;
 
 type DataModel = {
   messages: ReadonlyArray<LogMessage>,
+  // Structured events of the current generation — drives event-driven children.
+  events: ReadonlyArray<GameEvent>,
   selectedGeneration: number,
   followLatest: boolean,
   loadEpoch: number,
   loading: boolean,
   abort: AbortController | undefined,
+  eventsAbort: AbortController | undefined,
   pollTimer: number | undefined,
   // Active player filter. Persists across generation changes and survives
   // the playerkey remount (panel is App-level). Default: show everything.
@@ -113,11 +134,13 @@ export default defineComponent({
   data(): DataModel {
     return {
       messages: [],
+      events: [],
       selectedGeneration: -1,
       followLatest: true,
       loadEpoch: 0,
       loading: false,
       abort: undefined,
+      eventsAbort: undefined,
       pollTimer: undefined,
       filter: {kind: 'all'},
     };
@@ -131,6 +154,10 @@ export default defineComponent({
     },
     id(): ParticipantId | undefined {
       return this.viewModel.id;
+    },
+    // Top-level detail mode (module-scoped → survives the PlayerHome remount).
+    detail(): JournalDetailMode {
+      return journalState.detail;
     },
   },
   watch: {
@@ -151,6 +178,14 @@ export default defineComponent({
       this.selectedGeneration = gen;
       this.followLatest = gen === this.generation;
       this.fetchLogs(gen, {bumpEpoch: true, showLoading: true});
+    },
+    setDetail(mode: JournalDetailMode): void {
+      if (journalState.detail === mode) {
+        return;
+      }
+      journalState.detail = mode;
+      // Soft fade-swap + scroll-to-bottom rather than a jump, like a filter change.
+      this.loadEpoch++;
     },
     selectFilter(filter: JournalFilter): void {
       this.filter = filter;
@@ -180,6 +215,8 @@ export default defineComponent({
       if (this.id === undefined) {
         return;
       }
+      // Event-driven children ride alongside the logs for the same generation.
+      this.fetchEvents(generation, opts.bumpEpoch);
       // Abort any in-flight request so a slow historical fetch can't land
       // after a newer one.
       if (this.abort !== undefined) {
@@ -225,6 +262,34 @@ export default defineComponent({
           console.error('error updating journal, unable to reach server');
         });
     },
+    // Fetch the generation's structured events (bounded — not the full stream).
+    // Replaced only when the set actually changed, so silent polls don't churn.
+    fetchEvents(generation: number, bumpEpoch: boolean): void {
+      if (this.id === undefined) {
+        return;
+      }
+      if (this.eventsAbort !== undefined) {
+        this.eventsAbort.abort();
+      }
+      const controller = new AbortController();
+      this.eventsAbort = controller;
+      const url = `${paths.API_GAME_JOURNAL_EVENTS}?id=${this.id}&generation=${generation}`;
+      fetch(url, {signal: controller.signal})
+        .then((resp) => (resp.ok ? resp.json() : null))
+        .then((data: Array<GameEvent> | null) => {
+          if (data === null) {
+            return;
+          }
+          if (bumpEpoch || data.length !== this.events.length) {
+            this.events = data;
+          }
+        })
+        .catch((err) => {
+          if (err.name !== 'AbortError') {
+            console.error('error updating journal events');
+          }
+        });
+    },
     startPolling(): void {
       if (this.pollTimer !== undefined) {
         return;
@@ -262,6 +327,9 @@ export default defineComponent({
     this.stopPolling();
     if (this.abort !== undefined) {
       this.abort.abort();
+    }
+    if (this.eventsAbort !== undefined) {
+      this.eventsAbort.abort();
     }
     window.removeEventListener('keydown', this.onKeydown);
   },

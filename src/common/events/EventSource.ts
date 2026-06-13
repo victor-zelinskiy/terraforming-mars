@@ -32,6 +32,8 @@ export type EventSource =
   | {kind: 'party'; name: PartyName}
   | {kind: 'globalParameter'; parameter: GlobalParameter}
   | {kind: 'production'}
+  | {kind: 'spaceBonus'} // a hex's printed placement bonus ("cell bonus")
+  | {kind: 'oceanBonus'} // M€ for placing adjacent to oceans
   | {kind: 'system'};
 
 /**

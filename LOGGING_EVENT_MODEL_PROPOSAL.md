@@ -735,6 +735,57 @@ VIRON (copied-action группа). + `journalView.spec.ts` (5) + `effectSummary
 ### XII.3. Сценарии (§16) — покрыты
 Pets (под размещением города/SP), Media Group (под розыгрышем события), Arctic Algae (под океаном), Earth Catapult (скидка-деталь), Standard project (SP — это root-группа), VIRON (copied-action группа). Тесты: `tests/events/EventStream.spec.ts` (атрибуция + группировка + категория), `journalView.spec.ts` (чистая группировка + category + fallback + фильтр-порядок), `tests/client/components/journal/JournalGroup.spec.ts` (mount: рендер/collapse/expand/filter).
 
+### XII-bis. Polish-итерация — единый grouped cluster + top-level режим (СДЕЛАНО)
+Журнал доведён от «дерева под строкой» до **цельного premium-кластера**:
+- **Grouped surface:** `JournalGroup` теперь — единая стеклянная поверхность с **категорийным spine** слева
+  (`.journal-group__spine`), который связывает root-заголовок и дочерние строки в ОДНО событие; дети
+  «ветвятся» от spine короткими tick-ами (`.journal-group__tick`), индент уменьшен (ближе к root), между
+  группами — больше воздуха. Простые действия без последствий остаются плоскими строками.
+- **Per-group collapse УБРАН.** Вместо него — **top-level переключатель `Подробно / Сводка`** в шапке
+  (`JournalPanel`, состояние в `journalState.detail`, переживает remount). Сводка: только root + компактный
+  счётчик последствий (`↳ N`). Подробно: все строки.
+- **Компактные context-aware дети:** `JournalGroup.childTokens` отбрасывает ведущий player-чип, когда он
+  совпадает с актором root (строка читается как последствие «получил 2 растения», а не самостоятельное
+  действие); чужой игрок (Pets соперника) — чип сохраняется как значимая цель. Скидка → «сэкономил N M€
+  благодаря …» как тихая деталь.
+- Тесты обновлены (`JournalGroup.spec`: cluster/spine, summary-count, drop/keep player-chip, filter). ru:
+  `Detailed`/`Summary`/`Consequences`. Чисто: eslint + vue-tsc + make:json; серверный набор не затронут (7137).
+- **Следующий polish (опц.):** дети из структурного `GameEvent.impact` (иконки ресурсов + порядок
+  «источник → результат», напр. «Pets · Victor → +1 🐾») — нужен lightweight events-route; текущая
+  токен-компакция уже даёт читаемый cause/effect без него.
+
+### XII-ter. Event-driven narrative children — источник никогда не теряется (СДЕЛАНО)
+Дочерние строки журнала переведены с token-compaction на **structured `GameEvent` → `source → impact`**
+(LogMessage остаётся fallback для старых/неподдержанных логов). 7143 серверных + журнальные client-тесты зелёные.
+
+**Сервер (источники-метки + bounded доставка):**
+- `EventSource` += `spaceBonus` / `oceanBonus`; `GameEvent` += `space?` / `tile?` (для tile-placed).
+- `EventRecorder.withSource(source, fn)` — override источника для вложенных мутаций без своего `from`;
+  `recordTilePlaced(player, space, tile)`.
+- Инструментировано: `Game.simpleAddTile` → `tile-placed` (со space+tile); `grantPlacementBonuses` →
+  бонус клетки в `withSource({kind:'spaceBonus'})`, ocean-adjacency M€ в `withSource({kind:'oceanBonus'})`.
+- **Bounded route `GET /api/game/journal-events?id=&generation=`** (`ApiGameJournalEvents`) — отдаёт ТОЛЬКО
+  события запрошенного поколения (как и логи), не весь поток. Типы — публичные экономические факты
+  (без per-player редакции).
+
+**Клиент (formatter + рендер):**
+- `journalEventChild.ts buildEventChildren(events, rootId, rootPlayer)` (pure, unit-тест) → `JournalChildVM[]`:
+  effect-triggered/copied-action маркеры **сворачивают** дочерние impact в одну строку («Pets · Victor → +1 🐾»);
+  source-метка через kind (card-чип / «Бонус клетки» / «Бонус океанов» / «Производство» / параметр / «Размещение»);
+  редундантный source (== root) опускается; получатель-чип только если ≠ актора root; tile-placed → «show on map».
+- `JournalChildRow.vue` рендерит source → impact (card-чип / метка, recipient-чип, impact-чипы с реальными
+  иконками через `iconClassFor`, кнопка «показать на карте»).
+- `JournalGroup` использует event-children при наличии событий (иначе fallback на компакт-LogMessage); summary-
+  счётчик считает по event-children. `JournalFeed` строит `Map<correlationId, GameEvent[]>` и пробрасывает в группы.
+  `JournalPanel` параллельно фетчит события поколения (length-guard против churn на silent-поллах).
+- Стили `.journal-child-row*` (source-метка, impact-чипы, prod-tint) в journal.less; ru: Cell bonus/Ocean bonus/
+  Global parameter/Game rule/Placement/copied (Production/Temperature/Oxygen/Oceans/Venus переиспользованы).
+- Тесты: `tests/events/journalEventChild.spec.ts` (6: spaceBonus/oceanBonus/Pets-fold/tile/redundant-drop/impactChips),
+  `JournalGroup.spec` event-mode.
+
+Итог §16/§12: «получил 2 растения» → «Бонус клетки → +2 🌿»; «получил 2 M€ за океаны» → «Бонус океанов → +2 M€»;
+Pets → «Pets · Victor → +1 животное»; Media Group/Earth Catapult(скидка)/VIRON(copied) — все через source → impact.
+
 ### XII.4. Осталось (follow-up)
 - **Effects-overlay rendering** (Vue-панель + route `/api/game/stats/effects` + fetch; данные/провайдеры готовы — Часть XI.5).
 - Журнал: богатые **expand-детали из `GameEvent`** (доставка событий генерации отдельным lightweight-route) — сейчас скидка показана через компактный лог-детали; полный «expand тянет GameEvent» — следующий шаг.
