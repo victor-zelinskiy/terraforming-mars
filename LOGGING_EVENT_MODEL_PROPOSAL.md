@@ -833,6 +833,32 @@ Pets → «Pets · Victor → +1 животное»; Media Group/Earth Catapult(
   (исправлено); top-level конверсии (Convert Plants/Heat) и колониальный трейд обёрнуты; card-driven всё (постройка
   колонии, copied actions, эффекты) нестится через deferred/input-propagation. Зазоров не осталось.
 
+**Доработки по скриншоту журнала (4 пункта):**
+1. **Иконка card-resource не отображалась** (доп.ресурсы: бактерии/животные и т.п.). Причина: `impactChips`
+   форвардит СЫРОЕ значение `CardResource` ('Microbe'), а `iconClassFor` строил `card-resource-Microbe`, тогда как
+   глобальные классы (`@card_resource_types`, cards_v2.less) — lowercase+дефисы (`card-resource-microbe`). Фикс в
+   `iconClassFor` (единая точка резолва): `'card-resource-' + icon.toLowerCase().replace(/\s+/g,'-')` (идемпотентно
+   для уже-нормализованных ключей из optionMetadata-фабрик). Тест: `tests/client/components/modalInputs/optionIcons.spec.ts`.
+2. **Комиссия трейда писалась «Европа»** (как бонус колонии). Фикс — комиссия это ПЛАТА, не бонус: обёрнута в
+   `withSource({kind:'payment'})` → «Оплата → −N». Сделано в `SelectPaymentDeferred.execute()` (M€-комиссия +
+   глобально корректнее для Reds-tax/fund-award/party) и в трейдерах `TradeWithEnergy`/`TradeWithTitanium`
+   (прямой deduct/pay). Теперь строки трейда различимы: Оплата −N / награда / бонус-владельцу.
+3. **Роли бонусов колонии (UI-различение + insightEngine):** в `EventSource` colony добавлено
+   `benefit?: 'build' | 'trade' | 'colonyBonus'` (`ColonyBenefitRole`), проброшено из 3 вызовов `giveBonus`
+   (addColony→build, handleTrade→trade, giveColonyBonus→colonyBonus[дефолт]). `sourceKey` не изменился (ключ по name).
+   **UI (journalEventChild `sourceToChild`):** награда трейда → метка `Trade income` («Торговый доход»), бонус-владельцу
+   → `Colony bonus` («Бонус колонии») — раньше ОБА читались как имя колонии («Европа»), теперь различимы (доход vs
+   бонус; оба ключа уже существовали — colonies.json/ui.json, новых не добавлял). `benefit='build'` (карта построила
+   колонию — заголовок группы это КАРТА) → показываем ИМЯ колонии (какую построили). Колония названа в заголовке трейда,
+   так что строки говорят ЧТО за прибыль, не дублируя имя. **insightEngine — прибыль по торговле = events с
+   `source.kind==='colony' && source.benefit==='trade'`, сгруппировать по `player`** (стоимость = `payment`-события в
+   colony-группе). Тесты: «attributes a colony trade fee to PAYMENT and the reward/bonus by role» (сервер) +
+   journalEventChild «labels a colony trade fee, reward and owner bonus DISTINCTLY» / «shows the colony NAME for a
+   card-built colony bonus» (клиент).
+4. **Production-чипы плохо различимы** (просто коричневый фон). `journal.less`: production-чип = насыщенный
+   коричневый + иконка в коричневой «плитке производства» (sprite чуть меньше, рамка видна) — как production в
+   игре; усилен контраст/жирность числа. Stock-чипы остаются холодно-синими.
+
 **Fix «источник пустой»:** КАЖДАЯ строка теперь имеет явный источник (§3) — убрано подавление source==root.
 Оплата: `pay()` обёрнут в `withSource({kind:'payment'})` (новый kind) → «Оплата → −25 M€»; собственные результаты
 действия (напр. +1 произв. M€ у City SP) показывают чип карты-источника; «висячая» стрелка для редкого

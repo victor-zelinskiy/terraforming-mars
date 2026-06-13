@@ -224,8 +224,13 @@ export class TradeWithEnergy implements IColonyTrader {
   }
 
   public trade(colony: IColony) {
-    this.player.stock.deduct(Resource.ENERGY, this.tradeCost);
-    this.player.game.log('${0} spent ${1} energy to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
+    // The trade FEE is a payment, not a colony benefit — attribute it to the
+    // `payment` source so the journal reads "Оплата → −N", distinct from the
+    // colony's trade reward / bonus rows. (The reward comes from colony.trade.)
+    this.player.game.events.withSource({kind: 'payment'}, () => {
+      this.player.stock.deduct(Resource.ENERGY, this.tradeCost);
+      this.player.game.log('${0} spent ${1} energy to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
+    });
     colony.trade(this.player);
   }
 }
@@ -252,8 +257,11 @@ export class TradeWithTitanium implements IColonyTrader {
   }
 
   public trade(colony: IColony) {
-    this.player.pay(Payment.of({titanium: this.tradeCost}));
-    this.player.game.log('${0} spent ${1} titanium to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
+    // The trade FEE is a payment — see TradeWithEnergy.trade.
+    this.player.game.events.withSource({kind: 'payment'}, () => {
+      this.player.pay(Payment.of({titanium: this.tradeCost}));
+      this.player.game.log('${0} spent ${1} titanium to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
+    });
     colony.trade(this.player);
   }
 }

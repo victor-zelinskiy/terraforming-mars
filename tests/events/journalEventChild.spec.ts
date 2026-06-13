@@ -4,6 +4,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {TileType} from '@/common/TileType';
 import {GameEvent} from '@/common/events/GameEvent';
+import {ColonyName} from '@/common/colonies/ColonyName';
 import {buildEventChildren, impactChips, JournalImpactChip} from '@/client/components/journal/journalEventChild';
 
 function ev(partial: Partial<GameEvent> & {id: number; type: GameEvent['type']; correlationId: number}): GameEvent {
@@ -75,6 +76,30 @@ describe('journal event-driven children', () => {
     const rows = buildEventChildren(events, 1, 'red');
     expect(rows[0].source).to.deep.eq({kind: 'label', label: 'Payment'});
     expect(rows[0].chips[0]).to.deep.include({icon: 'megacredits', text: '−25'});
+  });
+
+  it('labels a colony trade fee, reward and owner bonus DISTINCTLY (not all "Europa")', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'colony', name: ColonyName.EUROPA}, player: 'red', correlationId: 1}),
+      ev({id: 2, type: 'resource-changed', source: {kind: 'payment'}, player: 'red', impact: {stock: {energy: -3}}, correlationId: 1, parentId: 1}),
+      ev({id: 3, type: 'resource-changed', source: {kind: 'colony', name: ColonyName.EUROPA, benefit: 'trade'}, player: 'red', impact: {stock: {plants: 1}}, correlationId: 1, parentId: 1}),
+      ev({id: 4, type: 'resource-changed', source: {kind: 'colony', name: ColonyName.EUROPA, benefit: 'colonyBonus'}, player: 'red', impact: {stock: {megacredits: 1}}, correlationId: 1, parentId: 1}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    expect(rows.map((r) => r.source)).to.deep.eq([
+      {kind: 'label', label: 'Payment'},
+      {kind: 'label', label: 'Trade income'},
+      {kind: 'label', label: 'Colony bonus'},
+    ]);
+  });
+
+  it('shows the colony NAME for a card-built colony bonus (group header is the card)', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.MEDIA_GROUP}, player: 'red', correlationId: 1}),
+      ev({id: 2, type: 'production-changed', source: {kind: 'colony', name: ColonyName.LUNA, benefit: 'build'}, player: 'red', impact: {production: {megacredits: 2}}, correlationId: 1, parentId: 1}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    expect(rows[0].source).to.deep.eq({kind: 'label', label: ColonyName.LUNA});
   });
 
   it('impactChips renders discounts and production deltas', () => {

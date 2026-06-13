@@ -25,6 +25,7 @@ import {SerializedColony} from '../SerializedColony';
 import {IColony, TradeOptions} from './IColony';
 import {ColonyMetadata, colonyMetadata, InputColonyMetadata} from '../../common/colonies/ColonyMetadata';
 import {ColonyName} from '../../common/colonies/ColonyName';
+import {ColonyBenefitRole} from '../../common/events/EventSource';
 import {sum} from '../../common/utils/utils';
 import {message} from '../logs/MessageBuilder';
 import {PlaceHazardTile} from '../deferredActions/PlaceHazardTile';
@@ -88,9 +89,9 @@ export abstract class Colony implements IColony {
   public addColony(player: IPlayer, options?: {giveBonusTwice: boolean}): void {
     player.game.log('${0} built a colony on ${1}', (b) => b.player(player).colony(this));
 
-    this.giveBonus(player, this.metadata.build.type, this.metadata.build.quantity[this.colonies.length], this.metadata.build.resource);
+    this.giveBonus(player, this.metadata.build.type, this.metadata.build.quantity[this.colonies.length], this.metadata.build.resource, false, 'build');
     if (options?.giveBonusTwice === true) { // Vital Colony hook.
-      this.giveBonus(player, this.metadata.build.type, this.metadata.build.quantity[this.colonies.length], this.metadata.build.resource);
+      this.giveBonus(player, this.metadata.build.type, this.metadata.build.quantity[this.colonies.length], this.metadata.build.resource, false, 'build');
     }
 
     this.colonies.push(player.id);
@@ -151,7 +152,7 @@ export abstract class Colony implements IColony {
   private handleTrade(player: IPlayer, options: TradeOptions) {
     const resource = Array.isArray(this.metadata.trade.resource) ? this.metadata.trade.resource[this.trackPosition] : this.metadata.trade.resource;
 
-    this.giveBonus(player, this.metadata.trade.type, this.metadata.trade.quantity[this.trackPosition], resource);
+    this.giveBonus(player, this.metadata.trade.type, this.metadata.trade.quantity[this.trackPosition], resource, false, 'trade');
 
     // !== false because default is true.
     if (options.giveColonyBonuses !== false) {
@@ -192,8 +193,8 @@ export abstract class Colony implements IColony {
    * deferred build bonuses (draw / add-resource) are covered too. A top-level trade
    * is already a `colony` root, so re-sourcing there is a harmless no-op.
    */
-  private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false): undefined | PlayerInput {
-    return player.game.events.withSource({kind: 'colony', name: this.name}, () =>
+  private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus'): undefined | PlayerInput {
+    return player.game.events.withSource({kind: 'colony', name: this.name, benefit}, () =>
       this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus));
   }
 

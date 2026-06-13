@@ -8,6 +8,15 @@ import {GlobalEventName} from '../turmoil/globalEvents/GlobalEventName';
 import {PartyName} from '../turmoil/PartyName';
 
 /**
+ * Which colony mechanic produced a `colony`-sourced bonus. Lets analytics (the
+ * insightEngine) cleanly separate a player's TRADE income from colony BUILD
+ * bonuses and the colony-to-owner bonuses — all three are `kind:'colony'` (same
+ * grouping / `sourceKey`), they differ only by this role. The trade FEE is NOT a
+ * colony benefit (it is a `payment` source), so it is intentionally absent here.
+ */
+export type ColonyBenefitRole = 'build' | 'trade' | 'colonyBonus';
+
+/**
  * Serializable projection of the server-side `From` type (src/server/logs/From.ts).
  *
  * Describes WHAT caused a {@link GameEvent}: a card, a corporation, a standard
@@ -27,7 +36,7 @@ export type EventSource =
   | {kind: 'standardProject'; card: CardName}
   | {kind: 'milestone'; name: MilestoneName}
   | {kind: 'award'; name: AwardName}
-  | {kind: 'colony'; name: ColonyName}
+  | {kind: 'colony'; name: ColonyName; benefit?: ColonyBenefitRole}
   | {kind: 'globalEvent'; name: GlobalEventName}
   | {kind: 'party'; name: PartyName}
   | {kind: 'globalParameter'; parameter: GlobalParameter}
