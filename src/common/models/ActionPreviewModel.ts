@@ -222,6 +222,18 @@ export type ActionPreviewStep =
      * cards:[...]}` set is captured as this step's single response.
      */
     multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}},
+    /**
+     * The candidates of this card pick are ACTIONS TO PERFORM AGAIN (already used
+     * this generation) — NOT resource targets. ProjectInspection (play) and Viron
+     * (corp action) are the only two cases. The modal renders the candidates as
+     * premium ACTION cards (the action graphic, like the ДЕЙСТВИЯ overlay) instead
+     * of `ActionTargetCard` resource tiles: `< 4` candidates inline
+     * (`RepeatActionPicker`), `>= 4` via the Actions overlay's pick-mode. Picking
+     * one opens the premium `CardActionConfirmContent` for that action; the chosen
+     * `{type:'card', cards:[X]}` still rides this step's response (prepended to the
+     * chosen action's own responses in one batch).
+     */
+    repeatAction?: boolean,
   }
   | {kind: 'boardPlacement', placementType: string}
   /** A `warning` note flags an effect that WILL BE SKIPPED for lack of a valid

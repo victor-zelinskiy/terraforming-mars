@@ -723,6 +723,7 @@
     "No events are selected. The card will be played, but no events will return to your hand.": "Ни одно событие не выбрано. Карта будет разыграна, но ни одно событие не вернётся в руку.",
     "Choose another card": "Выбрать другую карту",
     "Choose a card on your board": "Выберите карту на своём поле",
+    "Choose an action to repeat": "Выберите действие для повтора",
     "Choose": "Выбрать",
     "This card cannot hold resources": "Не хранит ресурсы",
     "This card holds a different resource": "Другой тип ресурса",

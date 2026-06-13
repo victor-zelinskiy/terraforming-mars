@@ -14,10 +14,18 @@
          {
            'action-group--corp': isCorporation,
            'action-group--disabled-card': isDisabled,
-           'action-group--selected': selectedWithin,
+           'action-group--selected': selectedWithin && !pickMode,
+           'action-group--pick': pickMode,
+           'action-group--pick-selectable': pickMode && pickSelectable,
+           'action-group--pick-disabled': pickMode && !pickSelectable,
          },
        ]"
-       :data-test="'action-group-' + cardName">
+       :role="pickMode && pickSelectable ? 'button' : undefined"
+       :tabindex="pickMode && pickSelectable ? 0 : undefined"
+       :data-test="'action-group-' + cardName"
+       @click="pickMode ? onPickClick() : undefined"
+       @keydown.enter.prevent="pickMode ? onPickClick() : undefined"
+       @keydown.space.prevent="pickMode ? onPickClick() : undefined">
     <div class="action-group__head">
       <span class="action-group__accent" aria-hidden="true"></span>
       <span class="action-group__name" v-i18n>{{ cardName }}</span>
@@ -43,11 +51,14 @@
              branches): a slim deliberate "ИЛИ" divider conveys the alternation, so
              the per-row graphic stays clean (the leading OR is stripped, #4). -->
         <span v-if="i > 0" class="action-group__or" aria-hidden="true" v-i18n>OR</span>
+        <!-- In pick-mode the whole group is the click target (pick the CARD), so
+             the rows are a static display — non-interactive. -->
         <CompactActionCard :node="node"
-                           :status="rowStatus(i)"
-                           :reason="rowReason(i)"
-                           :selected="selectedKey === rowKey(i)"
-                           :focusable="selectedKey === rowKey(i)"
+                           :status="pickMode ? 'available' : rowStatus(i)"
+                           :reason="pickMode ? '' : rowReason(i)"
+                           :interactive="!pickMode"
+                           :selected="!pickMode && selectedKey === rowKey(i)"
+                           :focusable="!pickMode && selectedKey === rowKey(i)"
                            :data-test="'action-row-' + cardName + '-' + i"
                            @select="select(i)"
                            @activate="activateRow(i)" />
@@ -96,8 +107,19 @@ export default defineComponent({
       type: String,
       default: undefined,
     },
+    // PICK MODE — this group is a single selectable "choose an action to repeat"
+    // unit (the whole card is the click target), not the normal per-row focus.
+    pickMode: {
+      type: Boolean,
+      default: false,
+    },
+    // Whether this group is a valid pick candidate (else dimmed + inert).
+    pickSelectable: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['select', 'activate'],
+  emits: ['select', 'activate', 'pick'],
   computed: {
     group(): ActionGroup {
       return this.entry.group;
@@ -217,6 +239,13 @@ export default defineComponent({
     // resolves the matching preview branch from the node; nothing executes here.
     select(i: number): void {
       this.$emit('select', {cardName: this.cardName, nodeIndex: i});
+    },
+    // PICK MODE — the whole group was clicked: emit `pick` (only when this group is
+    // a valid candidate; a dimmed non-candidate is inert).
+    onPickClick(): void {
+      if (this.pickSelectable) {
+        this.$emit('pick', {cardName: this.cardName});
+      }
     },
     // Double-click quick-activate — ONLY for an AVAILABLE row (per-branch, so the
     // unavailable branch of a multi-action card can't open a modal either). An

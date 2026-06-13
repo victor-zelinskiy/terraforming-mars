@@ -48,6 +48,28 @@ describe('ProjectInspection', () => {
     cast(card.play(player), SelectCard);
   });
 
+  it('cardPlayPreview: a repeatAction card-pick step over the already-used actions', () => {
+    player.playedCards.push(restrictedArea);
+    player.stock.add(Resource.MEGACREDITS, 2);
+    player.actionsThisGeneration.add(restrictedArea.name);
+
+    const preview = card.cardPlayPreview(player);
+    const steps = preview.branches[0].steps;
+    expect(steps).has.lengthOf(1);
+    const step = steps[0];
+    expect(step.kind).eq('input');
+    if (step.kind !== 'input') {
+      throw new Error('expected an input step');
+    }
+    expect(step.input.type).eq('card');
+    // The premium client renders these candidates as ACTION cards (not resource
+    // tiles) and opens the chosen action's confirm — driven by `repeatAction`.
+    expect(step.repeatAction).is.true;
+    // The candidates are exactly the actions used this generation that can act.
+    const input = step.input as {cards: ReadonlyArray<{name: string}>};
+    expect(input.cards.map((c) => c.name)).deep.eq([restrictedArea.name]);
+  });
+
   it('Can not play with Playwrights if there is no other card to chain', () => {
     const playwrights = new Playwrights();
     player.playedCards.push(playwrights);
