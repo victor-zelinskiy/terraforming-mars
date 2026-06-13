@@ -394,7 +394,15 @@
     color: @aux-text-primary;
 }
 
-.additional-resource-detail--single { max-width: min(600px, calc(100vw - 48px)); --aux-card-zoom: 1.05; }
+/*
+ * --single is a SIDE-BY-SIDE row (card LEFT, stats plate RIGHT — see the mode
+ * block at the bottom), so its cap must fit card@zoom + 24px gap + the stats
+ * plate (~260px) + paddings. The old 600px cap was NARROWER than that natural
+ * row at EVERY zoom → the centred flex overflowed symmetrically and the body's
+ * overflow clip CUT the card's left edge (and tall-viewport zooms made it
+ * worse). 900px fits the row at the largest zoom in the ladder below.
+ */
+.additional-resource-detail--single { max-width: min(900px, calc(100vw - 48px)); --aux-card-zoom: 1.05; }
 .additional-resource-detail--double { max-width: min(940px, calc(100vw - 48px)); --aux-card-zoom: 1; }
 .additional-resource-detail--grid   { max-width: min(1240px, calc(100vw - 48px)); --aux-card-zoom: 0.78; --aux-grid-gap: 14px; }
 .additional-resource-detail--many   { max-width: min(1460px, calc(100vw - 48px)); --aux-card-zoom: 0.6; --aux-grid-gap: 12px; }
@@ -402,15 +410,17 @@
 /*
  * Tall viewports: the focused 1–2-card modes use the extra height — the card
  * grows, the modal hugs it. GRADUATED + conservative so even the tallest cards
- * (e.g. Asteroid Hollowing) stay within ~88vh and never clip at the bottom;
- * the modal body still scrolls as a last resort on very short windows.
+ * (e.g. Asteroid Hollowing) stay within ~88vh and never clip at the bottom,
+ * AND the single-mode row stays inside its 900px width cap (zoom × ~300px card
+ * + gap + ~260px stats plate + paddings); the modal body still scrolls as a
+ * last resort on very short windows.
  */
 @media (min-height: 950px) {
-    .additional-resource-detail--single { --aux-card-zoom: 1.18; }
+    .additional-resource-detail--single { --aux-card-zoom: 1.15; }
     .additional-resource-detail--double { --aux-card-zoom: 1.08; }
 }
 @media (min-height: 1200px) {
-    .additional-resource-detail--single { --aux-card-zoom: 1.32; }
+    .additional-resource-detail--single { --aux-card-zoom: 1.25; }
     .additional-resource-detail--double { --aux-card-zoom: 1.18; }
 }
 
@@ -591,7 +601,10 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
-    overflow-x: hidden;
+    /* Last-resort HORIZONTAL scroll (was `hidden`, which silently CLIPPED a row
+       wider than the mode cap — the single-card left-edge cut). The caps + zoom
+       ladder are sized so this never engages in practice. */
+    overflow-x: auto;
     padding: 16px 18px 22px;
     scrollbar-width: thin;
     scrollbar-color: rgba(106, 176, 230, 0.4) transparent;
@@ -608,7 +621,11 @@
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
+    /* `safe center` keeps the row's START reachable if it ever DOES exceed the
+       cap (plain `center` overflows symmetrically → the left edge becomes
+       unreachable/clipped); older engines fall back to the plain `center`. */
     justify-content: center;
+    justify-content: safe center;
     gap: var(--aux-grid-gap);
 }
 
@@ -881,9 +898,18 @@
     .additional-resource-detail__card {
         flex-direction: row;
         align-items: center;
+        justify-content: center;
+        /* Wrap as a graceful fallback on genuinely narrow viewports: the stats
+           plate drops UNDER the card instead of the row overflowing the modal. */
+        flex-wrap: wrap;
         gap: 24px;
         padding: 8px 18px 8px 8px;
         cursor: pointer;
+    }
+    /* Focused-card pedestal: a soft cyan under-glow so the single hero card
+       reads deliberately staged, not floating in empty glass. */
+    .additional-resource-detail__card-visual {
+        filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 18px rgba(106, 176, 230, 0.12));
     }
     .additional-resource-detail__card-foot {
         /* Beside the card → hug content (not the 100% under-card width). */

@@ -132,6 +132,15 @@ export class SelfReplicatingRobots extends Card implements IProjectCard {
         }));
     }
 
+    // Auto-resolve the lone executable option (the standard bespoke-`or`
+    // convention `actionPreview`'s `orBranches` relies on): with only ONE branch
+    // available the live prompt is the bare SelectCard, matching the preview's
+    // auto-resolved `index: -1` — so the confirm modal's pre-collected pick is
+    // consumed by the batch instead of leaving a redundant follow-up "select
+    // card to link" prompt (the double-ask bug).
+    if (orOptions.options.length === 1) {
+      return orOptions.options[0];
+    }
     return orOptions;
   }
 

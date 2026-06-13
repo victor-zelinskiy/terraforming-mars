@@ -103,19 +103,9 @@ import {CardType} from '@/common/cards/CardType';
 import {translateText, translateMessage} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {getCard} from '@/client/cards/ClientCardManifest';
-
-// Icon-key → the public-player-model field carrying its current value, for the
-// two scopes. Megacredits is the singular `megacredit*` field.
-const STOCK_FIELD: Record<string, keyof PublicPlayerModel> = {
-  megacredits: 'megacredits', steel: 'steel', titanium: 'titanium',
-  plants: 'plants', energy: 'energy', heat: 'heat',
-};
-const PRODUCTION_FIELD: Record<string, keyof PublicPlayerModel> = {
-  megacredits: 'megacreditProduction', steel: 'steelProduction', titanium: 'titaniumProduction',
-  plants: 'plantProduction', energy: 'energyProduction', heat: 'heatProduction',
-};
-// M€ production can go to -5; every other production and all stocks floor at 0.
-const MC_PRODUCTION_FLOOR = -5;
+// Shared icon-key → player-model field maps (also used by the amount stepper's
+// conversion preview) — one source of truth for the client-side value derivation.
+import {STOCK_FIELD, PRODUCTION_FIELD, MC_PRODUCTION_FLOOR} from '@/client/components/modalInputs/playerResourceFields';
 
 type TargetCard = {
   color: Color;

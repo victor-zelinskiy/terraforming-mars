@@ -215,6 +215,28 @@ export type SelectSpaceModel = BaseInputModel & {
   illegalSpaces?: ReadonlyArray<import('../inputs/PlacementIllegalReason').PlacementIllegalSpace>;
 }
 
+/**
+ * OPTIONAL conversion context for a SelectAmount whose semantics are "spend X
+ * of FROM, receive X×ratio of TO" (Supercapacitors energy→heat, Insulation heat
+ * production→M€ production). The modern stepper renders a premium
+ * `[from] → [to]` composition and — when the icon is a standard resource — a
+ * live `current → resulting` preview for BOTH sides, derived client-side from
+ * the viewer's public stock/production. The server only sends the HINT (what
+ * converts into what, at which scope), never per-step values.
+ */
+export type AmountConversionModel = {
+  /** Icon-key of the resource SPENT per unit (e.g. 'energy'). */
+  from: string;
+  /** Icon-key of the resource RECEIVED per unit (e.g. 'heat'). */
+  to: string;
+  /** Which player figure the FROM side reads ('stock' default). */
+  fromScope?: 'stock' | 'production';
+  /** Which player figure the TO side reads ('stock' default). */
+  toScope?: 'stock' | 'production';
+  /** Units of TO received per 1 FROM spent (default 1). */
+  ratio?: number;
+}
+
 export type SelectAmountModel = BaseInputModel & {
   type: 'amount';
   min: number;
@@ -226,6 +248,9 @@ export type SelectAmountModel = BaseInputModel & {
   // Both fall back cleanly — a model without them renders a bare stepper.
   icon?: string;
   unit?: string;
+  // OPTIONAL conversion context (see AmountConversionModel) — renders the
+  // stepper as a rich "spend → receive" composition. Falls back cleanly.
+  conversion?: AmountConversionModel;
 }
 
 export type DeltaProjectInputModel = BaseInputModel & {

@@ -278,8 +278,9 @@ describe('Player', () => {
     player.playedCards.push(srr);
     const physicsComplex = new PhysicsComplex();
     player.cardsInHand.push(physicsComplex);
-    const action = cast(srr.action(player), OrOptions);
-    action.options[0].cb([cast(action.options[0], SelectCard<IProjectCard>).cards[0]]);
+    // A lone executable option auto-resolves to the bare SelectCard.
+    const action = cast(srr.action(player), SelectCard<IProjectCard>);
+    action.cb([action.cards[0]]);
     expect(srr.targetCards[0].resourceCount).to.eq(2);
     player.playCard(physicsComplex, Payment.of({'megacredits': 10}));
     expect(player.playedCards.asArray()).to.include(physicsComplex);

@@ -184,6 +184,71 @@ describe('ModernOptionPicker', () => {
     exitHandSelect();
   });
 
+  it('auto-expands a LONE nested option (no redundant one-row list / Back button)', async () => {
+    PreferencesManager.INSTANCE.set('learner_mode', false);
+    let saved: InputResponse | undefined;
+    const component = factory(
+      {
+        type: 'or',
+        title: 'Choose',
+        options: [
+          {type: 'player', title: 'pick a player', players: ['red', 'blue'], buttonLabel: ''},
+        ],
+      },
+      (out) => {
+        saved = out;
+      },
+    );
+    // The single nested option is expanded immediately — no option list, no Back.
+    const host = component.findComponent(ModalInputHostStub);
+    expect(host.exists()).to.be.true;
+    expect(host.props('playerinput').type).to.eq('player');
+    expect(component.find('[data-test="modern-option-back"]').exists()).to.eq(false);
+    // Its response is still wrapped in the OR at the original index.
+    host.props('onsave')({type: 'player', player: 'blue'});
+    expect(saved).to.deep.eq({type: 'or', index: 0, response: {type: 'player', player: 'blue'}});
+  });
+
+  it('does NOT auto-expand a lone LEAF option (keeps its explicit confirm)', async () => {
+    PreferencesManager.INSTANCE.set('learner_mode', false);
+    const component = factory(
+      {
+        type: 'or',
+        title: 'Choose',
+        options: [
+          {type: 'option', title: 'do the thing', buttonLabel: 'Do it'},
+        ],
+      },
+      () => {},
+    );
+    // A leaf option stays in the list (no wizard) — the explicit select→confirm.
+    expect(component.findComponent(ModalInputHostStub).exists()).is.false;
+    expect(component.findAll('.modal-input__option-card').length).to.eq(1);
+  });
+
+  it('does NOT auto-expand a lone hand-card pick (keeps the manual overlay hand-off)', async () => {
+    PreferencesManager.INSTANCE.set('learner_mode', false);
+    exitHandSelect();
+    const component = factory(
+      {
+        type: 'or',
+        title: 'Discard a card',
+        options: [
+          {type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard',
+            showOnlyInLearnerMode: false, cards: [{name: 'Ants'}]},
+        ],
+      },
+      () => {},
+      undefined,
+      {cardsInHand: [{name: 'Ants'}, {name: 'Tardigrades'}]},
+    );
+    // The hand-card pick is NOT auto-fired on mount (it opens a full overlay).
+    expect(handSelectState.active).is.false;
+    expect(component.findComponent(ModalInputHostStub).exists()).is.false;
+    expect(component.findAll('.modal-input__option-card').length).to.eq(1);
+    exitHandSelect();
+  });
+
   it('arms board picker-mode for a SelectSpace option', async () => {
     PreferencesManager.INSTANCE.set('learner_mode', false);
     const calls: Array<[boolean, unknown]> = [];

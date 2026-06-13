@@ -145,7 +145,8 @@
     <!-- Expanded view: a single nested input (wizard step). Explicit v-if (NOT
          v-else) so the confirm bar's v-if above doesn't capture the else. -->
     <div v-if="expandedIdx !== -1" class="modal-input__nested">
-      <button type="button" class="modal-input__back-btn" @click="collapse" data-test="modern-option-back">
+      <!-- A lone auto-expanded option has no list to go back to → hide the Back. -->
+      <button v-if="!autoExpandedSingle" type="button" class="modal-input__back-btn" @click="collapse" data-test="modern-option-back">
         <span class="modal-input__back-glyph">‹</span>
         <span v-i18n>Back to options</span>
       </button>
@@ -201,6 +202,9 @@ type DataModel = {
   originalIndices: Array<number>;
   // Displayed index of the option whose nested input is expanded, or -1.
   expandedIdx: number;
+  // True when the lone nested option was auto-expanded on mount — hides the
+  // pointless "Back to options" (there is no list to go back to).
+  autoExpandedSingle: boolean;
   // Displayed index of the currently SELECTED leaf option (select → confirm),
   // or -1 when none is selected.
   selectedIdx: number;
@@ -261,10 +265,34 @@ export default defineComponent({
       displayedOptions.push(option);
       originalIndices.push(i);
     });
+    // AUTO-EXPAND a lone NESTED option: an OrOptions with a single option that
+    // is itself an input (amount / player / card target / nested or) skips the
+    // redundant one-row "pick the only option" list and opens the wizard step
+    // directly — the bare single-chevron modal was pure friction. Exceptions:
+    // a leaf 'option' keeps its explicit confirm, a 'space' option keeps the
+    // explicit "arm the board picker" click, and a hand-card pick stays manual
+    // (it opens a full overlay — that hand-off shouldn't fire on mount).
+    let expandedIdx = -1;
+    let autoExpandedSingle = false;
+    if (displayedOptions.length === 1) {
+      const only = displayedOptions[0];
+      const isNested = only.type !== 'option' && only.type !== 'space';
+      let isHandPick = false;
+      if (only.type === 'card') {
+        const hand = new Set((this.playerView.cardsInHand ?? []).map((c) => c.name));
+        const all = [...(only as SelectCardModel).cards, ...((only as SelectCardModel).disabledCards ?? [])];
+        isHandPick = all.length > 0 && all.every((c) => hand.has(c.name));
+      }
+      if (isNested && !isHandPick) {
+        expandedIdx = 0;
+        autoExpandedSingle = true;
+      }
+    }
     return {
       displayedOptions,
       originalIndices,
-      expandedIdx: -1,
+      expandedIdx,
+      autoExpandedSingle,
       selectedIdx: -1,
       pendingSpacePrompt: undefined,
       pendingOptionIndex: undefined,
