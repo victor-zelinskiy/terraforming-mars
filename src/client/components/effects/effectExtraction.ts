@@ -5,15 +5,20 @@ import {CardModel} from '@/common/models/CardModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {
   ICardRenderEffect,
+  ICardRenderItem,
   ICardRenderRoot,
   ItemType,
   isICardRenderRoot,
   isICardRenderEffect,
+  isICardRenderItem,
+  isICardRenderProductionBox,
   isICardRenderCorpBoxEffect,
   isICardRenderCorpBoxEffectAction,
   isICardRenderSymbol,
 } from '@/common/cards/render/Types';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
+import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
+import {EffectSignature} from '@/client/components/effects/effectSummary';
 
 /*
  * Client-side extraction of a card's PASSIVE/ongoing effect graphics, for the
@@ -57,6 +62,10 @@ export type EffectEntry = {
   // panel only (the left grid card is icons-only), so a multi-effect card shows
   // each effect's OWN description.
   description: string | undefined;
+  // The PER-EFFECT impact signature (what this effect's result produces) — lets the
+  // details panel scope the per-game stats to the SELECTED effect on a multi-effect
+  // card (an override has the empty signature → no scoping).
+  signature: EffectSignature;
 };
 
 /*
@@ -130,6 +139,78 @@ function isPassiveEffectNode(node: ICardRenderEffect): boolean {
   // Ambiguous (no description, no clear delimiter) → exclude to avoid noise;
   // such cards are handled via EFFECT_OVERRIDES when they matter.
   return false;
+}
+
+/**
+ * The IMPACT SIGNATURE of one effect — what its RESULT row produces — so the
+ * details panel can show the per-game stats for the SELECTED effect, not the whole
+ * card. The event stream attributes to the card (not a single effect), so for a
+ * MULTI-effect card a metric is shown on an effect only if its result references
+ * that metric; a metric that belongs ONLY to a sibling effect is hidden. (Cards
+ * like PolderTech Dutch [ocean→energy / greenery→plant] and Solar Logistics
+ * [Earth discount / space-event draw] have DISJOINT signatures → genuinely
+ * per-effect stats.)
+ *   - `icons`: the stat-line icon keys the result references ('megacredits',
+ *     'steel'/…, 'tr', 'cards', or a CardResource value like 'Graphene').
+ *   - `discount`: the result is a NEGATIVE M€ (a cost reduction, not a gain).
+ *   - `valueModifier`: the CAUSE is a held resource ("each steel …") — a passive
+ *     value rule, not an event trigger.
+ * The `EffectSignature` TYPE lives in the pure `effectSummary` module (so the
+ * server test runner can import the summary without this manifest-bound module).
+ */
+const EMPTY_SIGNATURE: EffectSignature = {icons: [], discount: false, valueModifier: false};
+
+const STANDARD_RESOURCE_TYPES: ReadonlySet<CardRenderItemType> = new Set([
+  CardRenderItemType.MEGACREDITS, CardRenderItemType.STEEL, CardRenderItemType.TITANIUM,
+  CardRenderItemType.PLANTS, CardRenderItemType.ENERGY, CardRenderItemType.HEAT,
+]);
+
+/** The stat-line icon key a result item maps to (undefined for non-stat items). */
+function iconKeyForItem(item: ICardRenderItem): string | undefined {
+  switch (item.type) {
+  case CardRenderItemType.MEGACREDITS: return 'megacredits';
+  case CardRenderItemType.STEEL: return 'steel';
+  case CardRenderItemType.TITANIUM: return 'titanium';
+  case CardRenderItemType.PLANTS: return 'plants';
+  case CardRenderItemType.ENERGY: return 'energy';
+  case CardRenderItemType.HEAT: return 'heat';
+  case CardRenderItemType.TR: return 'tr';
+  case CardRenderItemType.CARDS: return 'cards';
+  case CardRenderItemType.RESOURCE: return item.resource; // a CardResource value (card resource)
+  default: return undefined; // tags / tiles / symbols / global params — not stat lines
+  }
+}
+
+function collectResultIcons(items: ReadonlyArray<ItemType> | undefined, icons: Set<string>, markDiscount: () => void): void {
+  if (items === undefined) {
+    return;
+  }
+  for (const it of items) {
+    if (isICardRenderItem(it)) {
+      const key = iconKeyForItem(it);
+      if (key !== undefined) {
+        icons.add(key);
+      }
+      if (it.type === CardRenderItemType.MEGACREDITS && it.amount < 0) {
+        markDiscount();
+      }
+    } else if (isICardRenderProductionBox(it)) {
+      for (const row of it.rows) {
+        collectResultIcons(row, icons, markDiscount);
+      }
+    }
+  }
+}
+
+function effectSignature(node: ICardRenderEffect): EffectSignature {
+  const icons = new Set<string>();
+  let discount = false;
+  collectResultIcons(node.rows?.[2], icons, () => {
+    discount = true;
+  });
+  const cause: ReadonlyArray<ItemType> = node.rows?.[0] ?? [];
+  const valueModifier = cause.some((it) => isICardRenderItem(it) && STANDARD_RESOURCE_TYPES.has(it.type));
+  return {icons: [...icons], discount, valueModifier};
 }
 
 /** Pull every passive-effect node out of a card's renderData, incl. nested in
@@ -213,12 +294,13 @@ function cardEffectEntries(card: CardModel): Array<EffectEntry> {
       // metadata.description is a VP, not the effect).
       text,
       description: text,
+      signature: EMPTY_SIGNATURE,
     }];
   }
 
   // Text-only fallback.
   if (override?.text !== undefined) {
-    return [{...base, key: cardName + '#text', effectIndex: 0, effectNode: undefined, renderRoot: undefined, text: override.text, description: override.text}];
+    return [{...base, key: cardName + '#text', effectIndex: 0, effectNode: undefined, renderRoot: undefined, text: override.text, description: override.text, signature: EMPTY_SIGNATURE}];
   }
 
   return collectEffectNodes(cardName).map((effectNode, i) => ({
@@ -229,6 +311,7 @@ function cardEffectEntries(card: CardModel): Array<EffectEntry> {
     renderRoot: undefined,
     text: undefined,
     description: descriptionString(effectNode),
+    signature: effectSignature(effectNode),
   }));
 }
 
