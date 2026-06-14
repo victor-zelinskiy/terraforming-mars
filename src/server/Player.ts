@@ -857,7 +857,7 @@ export class Player implements IPlayer {
       this.defer(this.spendHeat(payment.heat));
     }
 
-    const removeResourcesOnCard = (name: CardName, count: number) => {
+    const removeResourcesOnCard = (name: CardName, count: number, valuePerUnit: number) => {
       if (count === 0) {
         return;
       }
@@ -867,16 +867,19 @@ export class Player implements IPlayer {
       }
       // TODO(kberg): I suggest not logging this. Or do something fuller.
       this.removeResourceFrom(card, count, {log: true});
+      // Record the spent card resource as a passive-effect M€ saving attributed to
+      // the source card, so the effects overlay can show "used as payment" + value.
+      this.game?.events?.recordResourceAsPayment(this, card, count, count * valuePerUnit);
     };
 
-    removeResourcesOnCard(CardName.PSYCHROPHILES, payment.microbes);
-    removeResourcesOnCard(CardName.DIRIGIBLES, payment.floaters);
-    removeResourcesOnCard(CardName.LUNA_ARCHIVES, payment.lunaArchivesScience);
-    removeResourcesOnCard(CardName.SPIRE, payment.spireScience);
-    removeResourcesOnCard(CardName.CARBON_NANOSYSTEMS, payment.graphene);
-    removeResourcesOnCard(CardName.SOYLENT_SEEDLING_SYSTEMS, payment.seeds);
-    removeResourcesOnCard(CardName.AURORAI, payment.auroraiData);
-    removeResourcesOnCard(CardName.KUIPER_COOPERATIVE, payment.kuiperAsteroids);
+    removeResourcesOnCard(CardName.PSYCHROPHILES, payment.microbes, DEFAULT_PAYMENT_VALUES.microbes);
+    removeResourcesOnCard(CardName.DIRIGIBLES, payment.floaters, DEFAULT_PAYMENT_VALUES.floaters);
+    removeResourcesOnCard(CardName.LUNA_ARCHIVES, payment.lunaArchivesScience, DEFAULT_PAYMENT_VALUES.lunaArchivesScience);
+    removeResourcesOnCard(CardName.SPIRE, payment.spireScience, DEFAULT_PAYMENT_VALUES.spireScience);
+    removeResourcesOnCard(CardName.CARBON_NANOSYSTEMS, payment.graphene, DEFAULT_PAYMENT_VALUES.graphene);
+    removeResourcesOnCard(CardName.SOYLENT_SEEDLING_SYSTEMS, payment.seeds, DEFAULT_PAYMENT_VALUES.seeds);
+    removeResourcesOnCard(CardName.AURORAI, payment.auroraiData, DEFAULT_PAYMENT_VALUES.auroraiData);
+    removeResourcesOnCard(CardName.KUIPER_COOPERATIVE, payment.kuiperAsteroids, DEFAULT_PAYMENT_VALUES.kuiperAsteroids);
 
     if (payment.megacredits > 0 || payment.steel > 0 || payment.titanium > 0) {
       PathfindersExpansion.addToSolBank(this);

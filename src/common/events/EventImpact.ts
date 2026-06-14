@@ -34,9 +34,17 @@ export type EventImpact = {
   /** M€ actually paid (payment events). */
   megacreditsPaid?: number;
   /**
-   * M€ saved by a discount (the SAVING, not the spend). This is the "hidden
-   * value" the effect overlay / insightEngine surface — populated ONLY by
-   * `discount-applied` events, never inferred from a stock delta.
+   * M€ saved by a discount OR by spending a card resource as payment (the SAVING,
+   * not the spend). The "hidden value" the effect overlay surfaces — populated by
+   * `discount-applied` events and by resource-as-payment events (Psychrophiles
+   * microbes, Carbon Nanosystems graphene, …), never inferred from a stock delta.
    */
   megacreditsSaved?: number;
+  /**
+   * Card resources SPENT as payment (Psychrophiles microbes worth 2 M€, Carbon
+   * Nanosystems graphene worth 4 M€, …) — tracked SEPARATELY from accumulation
+   * (`cardResources`) so the effect overlay shows "used as payment" distinctly
+   * from "added to the card".
+   */
+  cardResourcesSpentAsPayment?: ReadonlyArray<{cardResource: CardResource; amount: number}>;
 };

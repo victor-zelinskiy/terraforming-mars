@@ -38,7 +38,7 @@ export type EffectSummaryLine = {
  * fallback note) so each effect reads individually even without a bespoke entry.
  */
 export type EffectCategory =
-  'corporation' | 'discount' | 'resourceAccumulation' |
+  'corporation' | 'discount' | 'resourceAccumulation' | 'payment' |
   'passiveTr' | 'passiveProduction' | 'trigger' | 'ruleChange';
 
 /**
@@ -52,6 +52,9 @@ export type EffectSignature = {
   icons: ReadonlyArray<string>;
   discount: boolean;
   valueModifier: boolean;
+  /** The card resource is spendable as M€ payment ("X = N M€" — Psychrophiles
+   *  microbes, Carbon Nanosystems graphene, Kuiper asteroids). */
+  valueAsPayment: boolean;
 };
 
 export type EffectSummaryViewModel = {
@@ -145,6 +148,11 @@ export function genericLines(stat: EffectOverlayStat): Array<EffectSummaryLine> 
 
 /** Classify an effect by its nature (the stat's footprint + the card's kind). */
 export function classifyEffect(ctx: EffectSummaryContext, stat: EffectOverlayStat): EffectCategory {
+  // A "spend this card resource as M€" effect (Psychrophiles / Carbon Nanosystems /
+  // Kuiper) is about USAGE, not accumulation — even on a corporation.
+  if (ctx.signature?.valueAsPayment === true) {
+    return 'payment';
+  }
   if (ctx.sourceKind === 'corporation') {
     return 'corporation';
   }
@@ -183,6 +191,9 @@ function isCardResourceIcon(icon: string): boolean {
  * `classifyEffect` but reads what the EFFECT produces, not the card aggregate.
  */
 export function classifyEffectSignature(sig: EffectSignature, ctx: EffectSummaryContext): EffectCategory {
+  if (sig.valueAsPayment) {
+    return 'payment';
+  }
   if (ctx.sourceKind === 'corporation') {
     return 'corporation';
   }
@@ -208,6 +219,7 @@ const CATEGORY_HEADLINE: Record<EffectCategory, string> = {
   corporation: 'Corporation ability',
   discount: 'Cost reductions this game',
   resourceAccumulation: 'Resources collected',
+  payment: 'Used as payment',
   passiveTr: 'Terraforming contributed',
   passiveProduction: 'Ongoing output',
   trigger: 'Triggered effects',
@@ -219,6 +231,7 @@ const CATEGORY_FALLBACK_NOTE: Record<EffectCategory, string> = {
   corporation: 'This corporation ability has not contributed yet this game.',
   discount: 'No discount has applied yet — it applies when you play a matching card.',
   resourceAccumulation: 'No resources collected on this card yet.',
+  payment: 'Spend this card resource as M€ when paying — none spent yet this game.',
   passiveTr: 'No terraforming from this effect yet.',
   passiveProduction: 'This ongoing effect has not produced yet.',
   trigger: 'This effect has not triggered yet this game.',
@@ -282,6 +295,35 @@ function noteFor(ctx: EffectSummaryContext, category: EffectCategory): string {
   return EFFECT_SUMMARY_NOTES[ctx.sourceName] ?? CATEGORY_FALLBACK_NOTE[category];
 }
 
+/**
+ * A "spend this card resource as M€" effect (Psychrophiles / Carbon Nanosystems /
+ * Kuiper) — show what it actually did: the M€ value realized + the resource USED +
+ * the live count still available. NEVER the accumulation "Added" (that belongs to
+ * the accumulator effect / the card's action).
+ */
+function paymentViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
+  const resourceType = ctx.cardResourceType;
+  const used = resourceType !== undefined ? ((stat.paymentResources ?? {})[resourceType] ?? 0) : 0;
+  const value = stat.megacreditsSaved;
+  const lines: Array<EffectSummaryLine> = [];
+  if (value > 0) {
+    lines.push({icon: 'megacredits', label: 'Payment value', value: `${value}`});
+  }
+  if (used > 0 && resourceType !== undefined) {
+    lines.push({icon: resourceType, label: 'Spent as payment', value: `${used}`});
+  }
+  const empty = lines.length === 0;
+  return {
+    empty,
+    triggerCount: 0,
+    headline: CATEGORY_HEADLINE['payment'],
+    category: 'payment',
+    lines,
+    currentValue: currentValueLine(ctx),
+    note: empty ? (EFFECT_SUMMARY_NOTES[ctx.sourceName] ?? CATEGORY_FALLBACK_NOTE['payment']) : EFFECT_SUMMARY_NOTES[ctx.sourceName],
+  };
+}
+
 /** The category-aware generic view-model — the default for every non-bespoke effect. */
 function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
   const multi = (ctx.effectCount ?? 1) > 1;
@@ -290,6 +332,11 @@ function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): E
   const category = (multi && ctx.signature !== undefined) ?
     classifyEffectSignature(ctx.signature, ctx) :
     classifyEffect(ctx, stat);
+  // A resource-as-payment effect has its own model (used / value / available), not
+  // the accumulation lines — applies to single AND multi effect cards.
+  if (category === 'payment') {
+    return paymentViewModel(stat, ctx);
+  }
   let lines = reorder(genericLines(stat), category);
   let currentValue = currentValueLine(ctx);
   // PER-EFFECT scoping on a multi-effect card: hide a metric that belongs ONLY to a

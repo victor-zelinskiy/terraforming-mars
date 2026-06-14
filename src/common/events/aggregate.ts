@@ -27,6 +27,9 @@ export type SourceStats = {
   stock: Units;
   production: Units;
   cardResources: Partial<Record<CardResource, number>>;
+  /** Card resources SPENT as payment (Psychrophiles microbes, Carbon Nanosystems
+   *  graphene, …) — kept separate from `cardResources` (accumulation). */
+  paymentResources: Partial<Record<CardResource, number>>;
   tr: number;
   cardsDrawn: number;
   globalParameterSteps: Partial<Record<GlobalParameter, number>>;
@@ -41,7 +44,8 @@ function hasImpact(i: EventImpact): boolean {
   return i.stock !== undefined || i.production !== undefined || (i.cardResources?.length ?? 0) > 0 ||
     i.tr !== undefined || i.globalParameter !== undefined || i.cardsDrawn !== undefined ||
     i.cardsDiscarded !== undefined || i.vp !== undefined || i.tilesPlaced !== undefined ||
-    i.megacreditsSaved !== undefined || i.megacreditsPaid !== undefined;
+    i.megacreditsSaved !== undefined || i.megacreditsPaid !== undefined ||
+    (i.cardResourcesSpentAsPayment?.length ?? 0) > 0;
 }
 
 export type PlayerStats = Omit<SourceStats, 'source' | 'triggerCount'> & {
@@ -73,6 +77,7 @@ function newSourceStats(source: EventSource): SourceStats {
     stock: emptyUnits(),
     production: emptyUnits(),
     cardResources: {},
+    paymentResources: {},
     tr: 0,
     cardsDrawn: 0,
     globalParameterSteps: {},
@@ -84,6 +89,7 @@ function newSourceStats(source: EventSource): SourceStats {
 /** Fold one event's factual impact into an accumulator. */
 function foldImpact(acc: {
   stock: Units; production: Units; cardResources: Partial<Record<CardResource, number>>;
+  paymentResources: Partial<Record<CardResource, number>>;
   tr: number; cardsDrawn: number; globalParameterSteps: Partial<Record<GlobalParameter, number>>;
   megacreditsSaved: number; vp: number;
 }, impact: EventImpact): void {
@@ -92,6 +98,11 @@ function foldImpact(acc: {
   if (impact.cardResources !== undefined) {
     for (const cr of impact.cardResources) {
       acc.cardResources[cr.cardResource] = (acc.cardResources[cr.cardResource] ?? 0) + cr.amount;
+    }
+  }
+  if (impact.cardResourcesSpentAsPayment !== undefined) {
+    for (const cr of impact.cardResourcesSpentAsPayment) {
+      acc.paymentResources[cr.cardResource] = (acc.paymentResources[cr.cardResource] ?? 0) + cr.amount;
     }
   }
   if (impact.tr !== undefined) {
@@ -186,7 +197,7 @@ export function aggregateByPlayer(events: ReadonlyArray<GameEvent>): Map<Color, 
     if (stats === undefined) {
       stats = {
         color: e.player,
-        stock: emptyUnits(), production: emptyUnits(), cardResources: {},
+        stock: emptyUnits(), production: emptyUnits(), cardResources: {}, paymentResources: {},
         tr: 0, cardsDrawn: 0, globalParameterSteps: {}, megacreditsSaved: 0, vp: 0,
         megacreditsPaid: 0, tilesPlaced: 0,
       };
@@ -235,6 +246,8 @@ export type EffectOverlayStat = {
   stock: Units;
   production: Units;
   cardResources: Partial<Record<CardResource, number>>;
+  /** Card resources SPENT as payment (kept separate from accumulation). */
+  paymentResources: Partial<Record<CardResource, number>>;
   tr: number;
   globalParameterSteps: Partial<Record<GlobalParameter, number>>;
   vp: number;
@@ -254,6 +267,7 @@ export function toEffectOverlayStat(stats: SourceStats): EffectOverlayStat {
     stock: stats.stock,
     production: stats.production,
     cardResources: stats.cardResources,
+    paymentResources: stats.paymentResources,
     tr: stats.tr,
     globalParameterSteps: stats.globalParameterSteps,
     vp: stats.vp,
@@ -268,8 +282,15 @@ export function toEffectOverlayStat(stats: SourceStats): EffectOverlayStat {
  * by card name for a hover/focus panel.
  */
 export function effectOverlayStats(events: ReadonlyArray<GameEvent>, owner: Color): Array<EffectOverlayStat> {
+  // The overlay shows ONLY what a card's PASSIVE EFFECTS did — NOT the card's
+  // immediate on-play `behavior` gains (those run under an 'action' scope and are
+  // untagged). Passive-effect impacts, discounts and resource-as-payment savings
+  // all carry the 'passive-effect' tag (the markers too), so this filter isolates
+  // them — e.g. Solar Logistics' on-play "+2 titanium" no longer leaks onto its
+  // discount / card-draw effects.
+  const passiveEvents = events.filter((e) => e.tags?.includes('passive-effect') === true);
   const result: Array<EffectOverlayStat> = [];
-  for (const stats of aggregateBySource(events).values()) {
+  for (const stats of aggregateBySource(passiveEvents).values()) {
     const s = stats.source;
     if ((s.kind === 'card' || s.kind === 'corporation') && (s.owner === undefined || s.owner === owner)) {
       result.push(toEffectOverlayStat(stats));

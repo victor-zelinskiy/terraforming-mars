@@ -158,7 +158,7 @@ function isPassiveEffectNode(node: ICardRenderEffect): boolean {
  * The `EffectSignature` TYPE lives in the pure `effectSummary` module (so the
  * server test runner can import the summary without this manifest-bound module).
  */
-const EMPTY_SIGNATURE: EffectSignature = {icons: [], discount: false, valueModifier: false};
+const EMPTY_SIGNATURE: EffectSignature = {icons: [], discount: false, valueModifier: false, valueAsPayment: false};
 
 const STANDARD_RESOURCE_TYPES: ReadonlySet<CardRenderItemType> = new Set([
   CardRenderItemType.MEGACREDITS, CardRenderItemType.STEEL, CardRenderItemType.TITANIUM,
@@ -210,7 +210,35 @@ function effectSignature(node: ICardRenderEffect): EffectSignature {
   });
   const cause: ReadonlyArray<ItemType> = node.rows?.[0] ?? [];
   const valueModifier = cause.some((it) => isICardRenderItem(it) && STANDARD_RESOURCE_TYPES.has(it.type));
-  return {icons: [...icons], discount, valueModifier};
+  // "card-resource = N M€" → the resource is spendable as payment (Psychrophiles
+  // microbes, Carbon Nanosystems graphene). The EQUALS distinguishes it from an
+  // "OR gain M€" result (Splice).
+  const result: ReadonlyArray<ItemType> = node.rows?.[2] ?? [];
+  const hasEquals = result.some((it) => isICardRenderSymbol(it) && it.type === CardRenderSymbolType.EQUALS);
+  const hasCardResource = result.some((it) => isICardRenderItem(it) && it.type === CardRenderItemType.RESOURCE);
+  const hasMegacredits = result.some((it) => isICardRenderItem(it) && it.type === CardRenderItemType.MEGACREDITS);
+  const valueAsPayment = hasEquals && hasCardResource && hasMegacredits;
+  return {icons: [...icons], discount, valueModifier, valueAsPayment};
+}
+
+/** Whether an effect node's OWN cause (rows[0]) has any drawn items. */
+function causeHasItems(node: ICardRenderEffect): boolean {
+  return (node.rows?.[0] ?? []).some(isICardRenderItem);
+}
+
+/**
+ * Some cards draw an effect's TRIGGER as a ROOT row before the effect, with an
+ * empty effect cause (`eb.empty().startEffect` — e.g. Viral Vectors:
+ * `b.tag(PLANT).slash().tag(MICROBE).slash().tag(ANIMAL).br; b.effect(eb => eb.empty().startEffect…)`).
+ * The extracted effect node then has a BLANK cause, so the overlay showed only the
+ * result. When the node's cause is empty and a root cause row precedes it, splice
+ * that row in so the effect block shows the FULL trigger : result iconography.
+ */
+function withSplicedCause(node: ICardRenderEffect, precedingCause: ReadonlyArray<ItemType> | undefined): ICardRenderEffect {
+  if (precedingCause === undefined || causeHasItems(node)) {
+    return node;
+  }
+  return {...node, rows: [[...precedingCause], node.rows[1], node.rows[2]]};
 }
 
 /** Pull every passive-effect node out of a card's renderData, incl. nested in
@@ -222,13 +250,19 @@ function collectEffectNodes(cardName: CardName): Array<ICardRenderEffect> {
   if (renderData === undefined || !isICardRenderRoot(renderData)) {
     return out;
   }
+  // The most recent ROOT row of cause items (no effect node) — spliced into a
+  // following empty-cause effect (the Viral Vectors pattern above).
+  let precedingCause: ReadonlyArray<ItemType> | undefined;
   for (const row of renderData.rows) {
+    let rowHasEffect = false;
     for (const item of row) {
       if (isICardRenderEffect(item)) {
+        rowHasEffect = true;
         if (isPassiveEffectNode(item)) {
-          out.push(item);
+          out.push(withSplicedCause(item, precedingCause));
         }
       } else if (isICardRenderCorpBoxEffect(item) || isICardRenderCorpBoxEffectAction(item)) {
+        rowHasEffect = true;
         // A corp effect box holds its effect node(s) inside its own rows.
         for (const innerRow of item.rows) {
           for (const inner of innerRow) {
@@ -239,6 +273,9 @@ function collectEffectNodes(cardName: CardName): Array<ICardRenderEffect> {
         }
       }
       // corp-box-action and everything else carries no passive effect.
+    }
+    if (!rowHasEffect && row.some(isICardRenderItem)) {
+      precedingCause = row;
     }
   }
   return out;

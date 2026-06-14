@@ -25,6 +25,7 @@ function emptyStat(name: CardName, isCorporation: boolean): EffectOverlayStat {
     stock: Units.EMPTY,
     production: Units.EMPTY,
     cardResources: {},
+    paymentResources: {},
     tr: 0,
     globalParameterSteps: {},
     vp: 0,

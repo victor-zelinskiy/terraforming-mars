@@ -150,6 +150,7 @@ function emptyStat(cardName: CardName | undefined, isCorporation: boolean): Effe
     stock: Units.EMPTY,
     production: Units.EMPTY,
     cardResources: {},
+    paymentResources: {},
     tr: 0,
     globalParameterSteps: {},
     vp: 0,

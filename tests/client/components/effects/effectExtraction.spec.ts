@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
+import {isICardRenderItem} from '@/common/cards/render/Types';
 import {
   cardHasPassiveEffect,
   playerEffects,
@@ -156,5 +157,23 @@ describe('effectExtraction', () => {
     expect(discount!.signature.icons).to.include('megacredits');
     const draw = entries.find((e) => e.signature.icons.includes('cards'));
     expect(draw, 'a draw effect (space event → draw a card)').to.not.be.undefined;
+  });
+
+  it('splices a root cause into an empty-cause effect (Viral Vectors shows the full trigger)', () => {
+    const entries = playerEffects([model(CardName.VIRAL_ENHANCERS)]);
+    expect(entries.length).to.eq(1);
+    // The trigger tags (plant/microbe/animal) lived on a ROOT row with an empty
+    // effect cause; extraction splices them in so the effect block isn't truncated.
+    const cause = entries[0].effectNode?.rows?.[0] ?? [];
+    expect(cause.some(isICardRenderItem), 'spliced trigger items present in the cause').to.be.true;
+  });
+
+  it('detects a resource-as-payment signature (Psychrophiles / Carbon Nanosystems)', () => {
+    expect(playerEffects([model(CardName.PSYCHROPHILES)]).some((e) => e.signature.valueAsPayment),
+      'Psychrophiles microbe = 2 M€').to.be.true;
+    expect(playerEffects([model(CardName.CARBON_NANOSYSTEMS)]).some((e) => e.signature.valueAsPayment),
+      'Carbon Nanosystems graphene = 4 M€').to.be.true;
+    // A plain effect (Space Station discount) is NOT a resource-as-payment effect.
+    expect(playerEffects([model(CardName.SPACE_STATION)]).every((e) => !e.signature.valueAsPayment)).to.be.true;
   });
 });
