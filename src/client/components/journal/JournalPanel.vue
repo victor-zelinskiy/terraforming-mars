@@ -11,6 +11,22 @@
           <span class="journal-panel__glyph" aria-hidden="true"></span>
           <h2 class="journal-panel__title" v-i18n>Journal</h2>
         </div>
+        <!-- The compact Detailed/Summary toggle rides the title row's free
+             space; the wider dropdowns sit on the controls row below. -->
+        <div class="journal-mode" role="group" :aria-label="$t('Journal detail level')">
+          <button
+            type="button"
+            class="journal-mode__btn"
+            :class="{'journal-mode__btn--active': detail === 'detailed'}"
+            :aria-pressed="detail === 'detailed'"
+            @click="setDetail('detailed')"><span v-i18n>Detailed</span></button>
+          <button
+            type="button"
+            class="journal-mode__btn"
+            :class="{'journal-mode__btn--active': detail === 'summary'}"
+            :aria-pressed="detail === 'summary'"
+            @click="setDetail('summary')"><span v-i18n>Summary</span></button>
+        </div>
         <button
           type="button"
           class="journal-panel__close"
@@ -27,20 +43,6 @@
           :players="players"
           :selected="filter"
           @select="selectFilter" />
-        <div class="journal-mode" role="group" :aria-label="$t('Journal detail level')">
-          <button
-            type="button"
-            class="journal-mode__btn"
-            :class="{'journal-mode__btn--active': detail === 'detailed'}"
-            :aria-pressed="detail === 'detailed'"
-            @click="setDetail('detailed')"><span v-i18n>Detailed</span></button>
-          <button
-            type="button"
-            class="journal-mode__btn"
-            :class="{'journal-mode__btn--active': detail === 'summary'}"
-            :aria-pressed="detail === 'summary'"
-            @click="setDetail('summary')"><span v-i18n>Summary</span></button>
-        </div>
       </div>
     </header>
 

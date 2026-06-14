@@ -102,6 +102,53 @@ describe('journal event-driven children', () => {
     expect(rows[0].source).to.deep.eq({kind: 'label', label: ColonyName.LUNA});
   });
 
+  it('BUNDLES a multi-resource payment into ONE "Payment" row', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.METHANE_FROM_TITAN}, player: 'red', correlationId: 1}),
+      ev({id: 2, type: 'resource-changed', source: {kind: 'payment'}, player: 'red', impact: {stock: {megacredits: -1}}, correlationId: 1, parentId: 1}),
+      ev({id: 3, type: 'resource-changed', source: {kind: 'payment'}, player: 'red', impact: {stock: {titanium: -9}}, correlationId: 1, parentId: 1}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    expect(rows.length).to.eq(1);
+    expect(rows[0].source).to.deep.eq({kind: 'label', label: 'Payment'});
+    expect(rows[0].chips.map((c) => c.text)).to.deep.eq(['−1', '−9']);
+    expect(rows[0].chips.map((c) => c.icon)).to.deep.eq(['megacredits', 'titanium']);
+  });
+
+  it('MERGES one card\'s multiple production gains into ONE source row', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.METHANE_FROM_TITAN}, player: 'red', correlationId: 1}),
+      ev({id: 2, type: 'production-changed', source: {kind: 'card', card: CardName.METHANE_FROM_TITAN}, player: 'red', impact: {production: {plants: 2}}, correlationId: 1, parentId: 1}),
+      ev({id: 3, type: 'production-changed', source: {kind: 'card', card: CardName.METHANE_FROM_TITAN}, player: 'red', impact: {production: {heat: 2}}, correlationId: 1, parentId: 1}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    expect(rows.length).to.eq(1);
+    expect(rows[0].source).to.deep.eq({kind: 'card', card: CardName.METHANE_FROM_TITAN});
+    expect(rows[0].chips).to.have.length(2);
+    expect(rows[0].chips.every((c) => c.production === true)).to.be.true;
+  });
+
+  it('does NOT merge different recipients, nor different buckets (City SP)', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY}, player: 'red', correlationId: 1}),
+      ev({id: 2, type: 'tile-placed', player: 'red', impact: {tilesPlaced: 1}, space: '03', tile: TileType.CITY, correlationId: 1, parentId: 1}),
+      ev({id: 3, type: 'resource-changed', source: {kind: 'spaceBonus'}, player: 'red', impact: {stock: {plants: 2}}, correlationId: 1, parentId: 1}),
+      ev({id: 4, type: 'resource-changed', source: {kind: 'oceanBonus'}, player: 'red', impact: {stock: {megacredits: 2}}, correlationId: 1, parentId: 1}),
+      ev({id: 5, type: 'effect-triggered', source: {kind: 'card', card: CardName.PETS}, player: 'blue', correlationId: 1, parentId: 1}),
+      ev({id: 6, type: 'card-resource-changed', source: {kind: 'card', card: CardName.PETS}, player: 'blue', impact: {cardResources: [{cardResource: CardResource.ANIMAL, target: CardName.PETS, amount: 1}]}, correlationId: 1, parentId: 5}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    // placement, cell bonus, ocean bonus, Victor's Pets — FOUR distinct rows.
+    expect(rows.length).to.eq(4);
+    expect(rows.map((r) => r.source)).to.deep.eq([
+      {kind: 'label', label: 'Placement'},
+      {kind: 'label', label: 'Cell bonus'},
+      {kind: 'label', label: 'Ocean bonus'},
+      {kind: 'card', card: CardName.PETS},
+    ]);
+    expect(rows[3].player).to.eq('blue'); // Victor — recipient shown, NOT merged into red's rows
+  });
+
   it('impactChips renders discounts and production deltas', () => {
     const discount: ReadonlyArray<JournalImpactChip> = impactChips({megacreditsSaved: 2});
     expect(discount[0]).to.deep.include({icon: 'megacredits', text: '−2'});
