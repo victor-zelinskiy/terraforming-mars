@@ -151,7 +151,11 @@ export default defineComponent({
       if (view === undefined) {
         return;
       }
-      if (view.waitingFor !== undefined) {
+      // A REQUIRED local prompt is genuine mid-input — not stuck. But an OPTIONAL
+      // prompt (draft re-pick) is suppressed to the waiting view, so if the server
+      // now names us as required-waiting while our stale local view still holds
+      // that optional prompt, that IS the stuck contradiction — recover.
+      if (view.waitingFor !== undefined && view.waitingFor.optional !== true) {
         return;
       }
       if (!newList.includes(view.thisPlayer.color)) {

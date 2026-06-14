@@ -32,6 +32,11 @@
         <JournalCardChip v-if="vm.source.kind === 'card'" :name="vm.source.card" />
         <span v-else-if="vm.source.kind === 'label'" class="journal-child-row__src" v-i18n>{{ vm.source.label }}</span>
 
+        <!-- DISCOUNT badge — a cost reduction reads as a "−N M€" chip, which a
+             player could mistake for a charge. The explicit word makes it
+             unambiguous that the source SAVED them money, not spent it. -->
+        <span v-if="vm.bucket === 'discount'" class="journal-child-row__discount-badge" v-i18n>Discount</span>
+
         <!-- Recipient — only shown when it differs from the root actor. -->
         <span v-if="vm.player !== undefined"
               class="journal-player journal-child-row__player"
