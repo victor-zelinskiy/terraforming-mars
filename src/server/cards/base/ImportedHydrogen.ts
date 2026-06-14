@@ -3,18 +3,15 @@ import {Tag} from '../../../common/cards/Tag';
 import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
-import {OrOptions} from '../../inputs/OrOptions';
-import {SelectOption} from '../../inputs/SelectOption';
-import {SelectCard} from '../../inputs/SelectCard';
 import {PlayerInput} from '../../PlayerInput';
 import {CardResource} from '../../../common/CardResource';
 import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
+import {Priority} from '../../deferredActions/Priority';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
-import {message} from '../../logs/MessageBuilder';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
-import * as actionPreviews from '../actionPreviews';
+import {gainOrAddResourceChoice, gainOrAddResourceBranches, hasAddTarget, GainSpec, AddSpec} from '../gainOrAddResource';
 
 export class ImportedHydrogen extends Card implements IProjectCard {
   constructor() {
@@ -42,66 +39,31 @@ export class ImportedHydrogen extends Card implements IProjectCard {
     });
   }
 
+  // "Gain 3 plants OR add 3 microbes / 2 animals to ANOTHER card." The fallback
+  // and the two add-alternatives are built by the shared, drift-free
+  // `gainOrAddResource` helper (same spec drives the live choice and the preview).
+  private static readonly GAIN: GainSpec = {resource: Resource.PLANTS, amount: 3};
+  private static readonly ADDS: ReadonlyArray<AddSpec> = [
+    {resource: CardResource.MICROBE, amount: 3},
+    {resource: CardResource.ANIMAL, amount: 2},
+  ];
+
   public override bespokePlay(player: IPlayer): undefined | PlayerInput {
-    const availableMicrobeCards = player.getResourceCards(CardResource.MICROBE);
-    const availableAnimalCards = player.getResourceCards(CardResource.ANIMAL);
-
-    const gainPlants = function() {
-      player.stock.add(Resource.PLANTS, 3, {log: true});
+    // No card can hold microbes/animals → the alternatives are impossible; gain the
+    // fallback directly (the preview still SHOWS them disabled-with-reason).
+    if (!hasAddTarget(player, ImportedHydrogen.ADDS)) {
+      player.stock.add(ImportedHydrogen.GAIN.resource, ImportedHydrogen.GAIN.amount, {log: true});
       return undefined;
-    };
-
-    if (availableMicrobeCards.length === 0 && availableAnimalCards.length === 0) {
-      return gainPlants();
     }
-
-    const availableActions = [];
-
-    const gainPlantsOption = new SelectOption('Gain 3 plants', 'Gain plants').andThen(gainPlants);
-    availableActions.push(gainPlantsOption);
-
-    if (availableMicrobeCards.length === 1) {
-      const targetMicrobeCard = availableMicrobeCards[0];
-      availableActions.push(new SelectOption(message('Add ${0} microbes to ${1}', (b) => b.number(3).card(targetMicrobeCard)), 'Add microbes').andThen(() => {
-        player.addResourceTo(targetMicrobeCard, {qty: 3, log: true});
-        return undefined;
-      }));
-    } else if (availableMicrobeCards.length > 1) {
-      availableActions.push(new SelectCard('Add 3 microbes to a card',
-        'Add microbes',
-        availableMicrobeCards)
-        .andThen(([card]) => {
-          player.addResourceTo(card, {qty: 3, log: true});
-          return undefined;
-        }));
-    }
-
-    if (availableAnimalCards.length === 1) {
-      const targetAnimalCard = availableAnimalCards[0];
-      availableActions.push(new SelectOption(message('Add ${0} animals to ${1}', (b) => b.number(2).card(targetAnimalCard)), 'Add animals').andThen(() => {
-        player.addResourceTo(targetAnimalCard, {qty: 2, log: true});
-        return undefined;
-      }));
-    } else if (availableAnimalCards.length > 1) {
-      availableActions.push(new SelectCard('Add 2 animals to a card', 'Add animals', availableAnimalCards)
-        .andThen(([card]) => {
-          player.addResourceTo(card, {qty: 2, log: true});
-          return undefined;
-        }));
-    }
-
-    return new OrOptions(...availableActions);
+    // Defer the choice ahead of the ocean (PLAY_CARD_RESOURCE_CHOICE < PLACE_OCEAN_TILE)
+    // so the play modal pre-collects it; the ocean then rides PlacementBanner.
+    player.defer(
+      gainOrAddResourceChoice(player, ImportedHydrogen.GAIN, ImportedHydrogen.ADDS),
+      Priority.PLAY_CARD_RESOURCE_CHOICE);
+    return undefined;
   }
 
-  // On-play preview: when you hold NO microbe/animal card the play auto-gains 3
-  // plants — a FIXED result that lives in `bespokePlay`, NOT in `behavior` (which
-  // only carries the ocean), so it MUST be shown. When you DO hold a target card,
-  // the "3 microbes / 2 animals / 3 plants" pick rides the rich follow-up OrOptions.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const hasTargets =
-      player.getResourceCards(CardResource.MICROBE).length > 0 ||
-      player.getResourceCards(CardResource.ANIMAL).length > 0;
-    const extra = hasTargets ? [] : [actionPreviews.stockGain(player, Resource.PLANTS, 3)];
-    return actionPreviews.playPreview(this, player, extra);
+    return gainOrAddResourceBranches(player, this, ImportedHydrogen.GAIN, ImportedHydrogen.ADDS);
   }
 }

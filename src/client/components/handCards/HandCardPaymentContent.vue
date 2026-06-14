@@ -567,9 +567,12 @@ export default defineComponent({
       }
       return [...prodChips, ...this.resolveCardTargetChips(passthrough, branch), ...this.synthResultChips(branch)];
     },
-    // A real choice only when the on-play behavior is an `or` with 2+ branches.
+    // Show the branch list for any multi-branch preview — and keep it visible AFTER
+    // a branch is selected (persistent), so every alternative (incl. the disabled
+    // ones with their reason) stays on screen, the selected one highlighted. A
+    // single-outcome card has one branch and shows no list.
     showBranchList(): boolean {
-      return this.selected === undefined && this.branches.length > 1;
+      return this.branches.length > 1;
     },
     // VP-progress context for the SELECTED branch (a card whose resource scores
     // VP and the on-play effect changes it). Derived client-side from the manifest.
@@ -890,10 +893,14 @@ export default defineComponent({
         const response = await fetch(url);
         if (response.ok) {
           this.preview = await response.json() as ActionPreview;
-          // Single branch (the common case) → auto-select. A multi-branch
-          // (on-play behavior.or) shows the picker.
-          if (this.branches.length === 1) {
-            this.selected = this.branches[0];
+          // Auto-select when there is exactly ONE available branch — the common
+          // single-outcome card, OR a multi-branch card whose other alternatives are
+          // all disabled (no valid target). The result shows immediately while every
+          // alternative stays visible with its reason. With 2+ available branches we
+          // leave the pick to the player (no hidden auto-select).
+          const available = this.branches.filter((b) => b.available);
+          if (available.length === 1) {
+            this.selected = available[0];
           }
         }
       } catch (err) {
@@ -910,6 +917,11 @@ export default defineComponent({
       }
     },
     selectBranch(b: ActionPreviewBranch): void {
+      // Re-clicking the already-selected branch is a no-op — don't wipe its
+      // pre-collected target pick (the branch list is persistent now).
+      if (this.selected === b) {
+        return;
+      }
       this.selected = b;
       this.captured = {}; // steps are branch-specific — reset.
     },

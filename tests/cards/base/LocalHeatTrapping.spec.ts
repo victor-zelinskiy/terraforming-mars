@@ -5,18 +5,22 @@ import {LocalHeatTrapping} from '../../../src/server/cards/base/LocalHeatTrappin
 import {Pets} from '../../../src/server/cards/base/Pets';
 import {Helion} from '../../../src/server/cards/corporation/Helion';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {IGame} from '../../../src/server/IGame';
 import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
+import {runAllActions} from '../../TestingUtils';
 import {StormCraftIncorporated} from '../../../src/server/cards/colonies/StormCraftIncorporated';
 
 describe('LocalHeatTrapping', () => {
   let card: LocalHeatTrapping;
   let player: TestPlayer;
+  let game: IGame;
   let helion: Helion;
 
   beforeEach(() => {
     card = new LocalHeatTrapping();
-    [/* game */, player] = testGame(2);
+    [game, player] = testGame(2);
     helion = new Helion();
   });
 
@@ -44,18 +48,33 @@ describe('LocalHeatTrapping', () => {
     expect(player.heat).to.eq(1);
   });
 
-  it('Should play - single animal target', () => {
+  it('Should play - gain plants branch', () => {
     player.heat = 5;
     const pets = new Pets();
     player.playedCards.push(card, pets);
 
     const orOptions = cast(card.play(player), OrOptions);
+    expect(orOptions.options).has.lengthOf(2); // gain plants / add animals
+    expect(player.heat).to.eq(0); // heat spent up front
 
     orOptions.options[0].cb();
     expect(player.plants).to.eq(4);
+  });
+
+  it('Should play - single animal target asks which card (no autoselect)', () => {
+    player.heat = 5;
+    const pets = new Pets();
+    player.playedCards.push(card, pets);
+
+    const orOptions = cast(card.play(player), OrOptions);
     expect(player.heat).to.eq(0);
 
-    orOptions.options[1].cb();
+    orOptions.options[1].cb(); // add animals → defers the target picker
+    runAllActions(game);
+    const select = cast(player.popWaitingFor(), SelectCard);
+    expect(select.cards).has.lengthOf(1);
+    select.cb([pets]);
+    runAllActions(game);
     expect(pets.resourceCount).to.eq(2);
   });
 
@@ -67,7 +86,13 @@ describe('LocalHeatTrapping', () => {
 
     const orOptions = cast(card.play(player), OrOptions);
     expect(player.heat).to.eq(0);
-    orOptions.options[1].cb([fish]);
+
+    orOptions.options[1].cb();
+    runAllActions(game);
+    const select = cast(player.popWaitingFor(), SelectCard);
+    expect(select.cards).has.lengthOf(2);
+    select.cb([fish]);
+    runAllActions(game);
     expect(fish.resourceCount).to.eq(2);
   });
 

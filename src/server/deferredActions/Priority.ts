@@ -26,6 +26,20 @@ export enum Priority {
   DRAW_CARDS,
   BUILD_COLONY,
   INCREASE_COLONY_TRACK,
+  /**
+   * An on-play resource CHOICE (and the card-target pick it leads to) that must
+   * resolve BEFORE any tile placement the same card queues. Cards like Imported
+   * Hydrogen / Large Convoy place an ocean (`behavior.ocean`, deferred at
+   * PLACE_OCEAN_TILE) AND offer a "gain plants / add microbes / add animals"
+   * choice; upstream returns that choice at DEFAULT priority, so the ocean
+   * (PLACE_OCEAN_TILE) lands FIRST and the premium play modal can't pre-collect
+   * the choice (the batch hits the SelectSpace before the OrOptions). Deferring
+   * the choice + its `AddResourcesToCard` target pick here puts them ahead of the
+   * ocean so the modal collects them up front and the ocean rides PlacementBanner.
+   * The two are independent, so the outcome is identical — only the prompt order
+   * (choice → tile, instead of tile → choice) changes. See `gainOrAddResource.ts`.
+   */
+  PLAY_CARD_RESOURCE_CHOICE,
   PLACE_OCEAN_TILE,
   IDENTIFY_UNDERGROUND_RESOURCE,
   EXCAVATE_UNDERGROUND_RESOURCE,
