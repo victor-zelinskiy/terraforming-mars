@@ -14,6 +14,7 @@
        :class="{
          'effect-group--corp': group.isCorporation,
          'effect-group--disabled': group.isDisabled,
+         'effect-group--selected': group.cardName === selectedKey,
        }"
        :data-test="'effect-block-' + group.key">
     <div class="effect-group__label">
@@ -66,6 +67,11 @@ export default defineComponent({
     group: {
       type: Object as PropType<EffectGroup>,
       required: true,
+    },
+    // The selected source card name (master-detail) — highlights this group.
+    selectedKey: {
+      type: String as PropType<CardName>,
+      default: undefined,
     },
   },
   emits: ['namehover', 'open'],

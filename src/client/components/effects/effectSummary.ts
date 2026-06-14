@@ -5,40 +5,67 @@ import {EffectOverlayStat} from '@/common/events/aggregate';
 import {EventSource} from '@/common/events/EventSource';
 
 /**
- * PURE view-model for the EFFECTS-overlay summary panel — turns a lightweight
- * {@link EffectOverlayStat} into a list of renderable lines. No Vue / DOM / i18n
- * evaluation: labels are English i18n KEYS, icons are keys the component resolves
- * through `iconClassFor`. Deterministic + unit-testable (like victoryPointsModel).
+ * PURE view-model for the EFFECTS-overlay detail panel — turns a lightweight
+ * {@link EffectOverlayStat} (the whole-game per-source aggregate) into "what did
+ * this effect actually DO this game". No Vue / DOM / i18n evaluation: labels are
+ * English i18n KEYS, icons are keys the component resolves through `iconClassFor`.
+ * Deterministic + unit-testable (like victoryPointsModel).
  *
- * Per the brief, each effect MAY have its own specialised summary — so this is a
- * REGISTRY of providers: the first card/corporation-specific provider that
- * `appliesTo` the source wins, otherwise the generic provider runs. To add a
- * bespoke summary for a card, register a provider; never special-case in the UI.
+ * Each effect is summarised INDIVIDUALLY, but without 80+ hand-written templates:
+ *  1. a per-card HEADLINE override / bespoke PROVIDER for the few that read best
+ *     with their own wording (Pharmacy Union, the resource-farming cards);
+ *  2. otherwise a CATEGORY (discount / trigger / resource / production / TR / rule
+ *     / corporation) — classified from the stat + the card — that gives a headline
+ *     + ordering so a discount reads as savings, a resource card as accumulation, …;
+ *  3. and when an effect has produced NOTHING measurable (a rule-changer, or it
+ *     just hasn't fired yet), a thematic NOTE — never a dead empty state.
+ *
+ * To add a bespoke summary for a card, add a CARD_HEADLINE / EFFECT_SUMMARY_NOTES
+ * entry or register a provider; never special-case in the UI.
  */
 
 export type EffectSummaryLine = {
   /** Icon key for `iconClassFor` (a Resource / CardResource / 'tr' / 'cards' / global param). */
   icon?: string;
-  /** English i18n key — the metric label (e.g. 'Saved', 'Added', 'Times triggered'). */
+  /** English i18n key — the metric label (e.g. 'Saved', 'Added', 'Production'). */
   label: string;
   /** Pre-formatted value (e.g. '+6', '12'). */
   value: string;
 };
 
+/**
+ * The NATURE of an effect, used to frame the summary (headline + line ordering +
+ * fallback note) so each effect reads individually even without a bespoke entry.
+ */
+export type EffectCategory =
+  'corporation' | 'discount' | 'resourceAccumulation' |
+  'passiveTr' | 'passiveProduction' | 'trigger' | 'ruleChange';
+
 export type EffectSummaryViewModel = {
-  /** True when the effect has never fired — the panel shows an empty state. */
+  /** True when the effect has produced nothing measurable — the panel shows `note`. */
   empty: boolean;
   triggerCount: number;
-  /** Optional headline i18n key for a bespoke summary (generic summaries omit it). */
+  /** Optional headline i18n key (the category headline, or a per-card override). */
   headline?: string;
+  /** The classified category (drives the panel accent + ordering). */
+  category?: EffectCategory;
   lines: ReadonlyArray<EffectSummaryLine>;
-  /** Optional "last triggered" hint (generation + the i18n key for the contribution). */
+  /** The live "current value" on the card right now (resource cards) — distinct
+   *  from the cumulative "+N added" line. */
+  currentValue?: {icon: string; value: string};
+  /** A thematic note shown when there is nothing to tally (never a dead state). */
+  note?: string;
+  /** Optional "last triggered" hint (the generation of the last contribution). */
   lastTrigger?: {generation: number};
 };
 
 export type EffectSummaryContext = {
   sourceName: CardName;
   sourceKind: EventSource['kind'];
+  /** The resource the source card holds, if any (for the current-value line + classify). */
+  cardResourceType?: CardResource;
+  /** The live count of that resource on the card right now. */
+  currentCardResource?: number;
 };
 
 export interface EffectSummaryProvider {
@@ -52,7 +79,7 @@ function signed(n: number): string {
   return n > 0 ? `+${n}` : `${n}`;
 }
 
-/** The generic impact lines every summary can fall back to. */
+/** The generic impact lines every summary can fall back to (fixed order). */
 export function genericLines(stat: EffectOverlayStat): Array<EffectSummaryLine> {
   const lines: Array<EffectSummaryLine> = [];
   if (stat.megacreditsSaved > 0) {
@@ -87,35 +114,142 @@ export function genericLines(stat: EffectOverlayStat): Array<EffectSummaryLine> 
   return lines;
 }
 
-function baseViewModel(stat: EffectOverlayStat): EffectSummaryViewModel {
+// ── Classification ──────────────────────────────────────────────────────────
+
+/** Classify an effect by its nature (the stat's footprint + the card's kind). */
+export function classifyEffect(ctx: EffectSummaryContext, stat: EffectOverlayStat): EffectCategory {
+  if (ctx.sourceKind === 'corporation') {
+    return 'corporation';
+  }
+  if (stat.megacreditsSaved > 0) {
+    return 'discount';
+  }
+  if (ctx.cardResourceType !== undefined) {
+    return 'resourceAccumulation';
+  }
+  const hasProduction = UNIT_KEYS.some((k) => stat.production[k] !== 0);
+  const hasStock = UNIT_KEYS.some((k) => stat.stock[k] !== 0);
+  if (stat.tr !== 0 && !hasProduction && !hasStock) {
+    return 'passiveTr';
+  }
+  if (hasProduction || hasStock) {
+    return 'passiveProduction';
+  }
+  if (stat.triggerCount > 0) {
+    return 'trigger';
+  }
+  return 'ruleChange';
+}
+
+const CATEGORY_HEADLINE: Record<EffectCategory, string> = {
+  corporation: 'Corporation ability',
+  discount: 'Cost reductions this game',
+  resourceAccumulation: 'Resources collected',
+  passiveTr: 'Terraforming contributed',
+  passiveProduction: 'Ongoing output',
+  trigger: 'Triggered effects',
+  ruleChange: 'Ongoing rule',
+};
+
+/** A useful per-category note when an effect is empty and has no curated note. */
+const CATEGORY_FALLBACK_NOTE: Record<EffectCategory, string> = {
+  corporation: 'This corporation ability has not contributed yet this game.',
+  discount: 'No discount has applied yet — it applies when you play a matching card.',
+  resourceAccumulation: 'No resources collected on this card yet.',
+  passiveTr: 'No terraforming from this effect yet.',
+  passiveProduction: 'This ongoing effect has not produced yet.',
+  trigger: 'This effect has not triggered yet this game.',
+  ruleChange: 'A passive rule — it shapes how you play rather than producing a tally.',
+};
+
+/**
+ * Per-card HEADLINE overrides — make a summary read individually ("Microbes
+ * farmed" vs a generic "Resources collected") without a whole provider.
+ */
+const CARD_HEADLINE: Partial<Record<CardName, string>> = {
+  [CardName.PETS]: 'Animals gathered from cities',
+  [CardName.DECOMPOSERS]: 'Microbes farmed from played cards',
+  [CardName.HERBIVORES]: 'Animals grazing on greenery',
+  [CardName.ARKLIGHT]: 'Animals raised',
+  [CardName.VENUSIAN_ANIMALS]: 'Animals bred from Venus science',
+};
+
+/**
+ * Curated thematic notes for the rule-changing / non-numeric effects that have
+ * nothing to tally (the dead-state risk). English i18n keys. Everything else
+ * falls back to the category note, so a note is ALWAYS available.
+ */
+const EFFECT_SUMMARY_NOTES: Partial<Record<CardName, string>> = {
+  [CardName.PROTECTED_HABITATS]: 'Shields your plants, microbes and animals from opponents — protection, not a tally.',
+  [CardName.ADAPTATION_TECHNOLOGY]: 'Eases your global-requirement cards by ±2 — a rule bonus, not a tally.',
+  [CardName.STANDARD_TECHNOLOGY]: 'Refunds 3 M€ each time you pay for a standard project.',
+  [CardName.MEDIA_GROUP]: 'Earns 3 M€ each time you play an event card.',
+  [CardName.OLYMPUS_CONFERENCE]: 'Adds science to itself — or draws a card — whenever you play a science-tag card.',
+  [CardName.SUPERCAPACITORS]: 'Lets you convert all your energy into heat — a conversion you choose to use.',
+  [CardName.NEPTUNIAN_POWER_CONSULTANTS]: 'Rewards M€ whenever an ocean is placed — its gains are listed above when they fire.',
+};
+
+function reorder(lines: Array<EffectSummaryLine>, category: EffectCategory): Array<EffectSummaryLine> {
+  const lead = leadPredicate(category);
+  if (lead === undefined) {
+    return lines;
+  }
+  return [...lines.filter(lead), ...lines.filter((l) => !lead(l))];
+}
+
+/** The line a category should lead with (so the summary reads in its own terms). */
+function leadPredicate(category: EffectCategory): ((l: EffectSummaryLine) => boolean) | undefined {
+  switch (category) {
+  case 'discount': return (l) => l.label === 'Saved';
+  case 'resourceAccumulation': return (l) => l.label === 'Added';
+  case 'passiveTr': return (l) => l.icon === 'tr';
+  case 'passiveProduction': return (l) => l.label === 'Production';
+  default: return undefined;
+  }
+}
+
+function currentValueLine(ctx: EffectSummaryContext): {icon: string; value: string} | undefined {
+  if (ctx.cardResourceType !== undefined && ctx.currentCardResource !== undefined) {
+    return {icon: ctx.cardResourceType, value: String(ctx.currentCardResource)};
+  }
+  return undefined;
+}
+
+function noteFor(ctx: EffectSummaryContext, category: EffectCategory): string {
+  return EFFECT_SUMMARY_NOTES[ctx.sourceName] ?? CATEGORY_FALLBACK_NOTE[category];
+}
+
+/** The category-aware generic view-model — the default for every non-bespoke effect. */
+function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
+  const category = classifyEffect(ctx, stat);
+  const lines = reorder(genericLines(stat), category);
+  const empty = stat.triggerCount === 0 && lines.length === 0;
   return {
-    empty: stat.triggerCount === 0,
+    empty,
     triggerCount: stat.triggerCount,
-    lines: genericLines(stat),
+    headline: CARD_HEADLINE[ctx.sourceName] ?? CATEGORY_HEADLINE[category],
+    category,
+    lines,
+    currentValue: currentValueLine(ctx),
+    // An empty effect shows its note; a non-empty one with a curated note keeps it
+    // as supporting context (e.g. Supercapacitors' "you choose to use" framing).
+    note: empty ? noteFor(ctx, category) : EFFECT_SUMMARY_NOTES[ctx.sourceName],
     lastTrigger: stat.lastTrigger !== undefined ? {generation: stat.lastTrigger.generation} : undefined,
   };
 }
 
 const DEFAULT_PROVIDER: EffectSummaryProvider = {
   appliesTo: () => true,
-  build: (stat) => baseViewModel(stat),
+  build: (stat, ctx) => defaultViewModel(stat, ctx),
 };
 
-// ── Bespoke providers (examples of the architecture) ────────────────────────
+// ── Bespoke providers (only where custom LINE construction is needed) ────────
 
-/** Pets — frame the summary around the animals gathered from city placements. */
-const PETS_PROVIDER: EffectSummaryProvider = {
-  appliesTo: (ctx) => ctx.sourceName === CardName.PETS,
-  build: (stat) => ({
-    ...baseViewModel(stat),
-    headline: 'Animals gathered from cities',
-  }),
-};
-
-/** Pharmacy Union — a corporation summary led by diseases placed + TR earned. */
+/** Pharmacy Union — lead the corporation summary with diseases placed + TR earned. */
 const PHARMACY_UNION_PROVIDER: EffectSummaryProvider = {
   appliesTo: (ctx) => ctx.sourceName === CardName.PHARMACY_UNION,
-  build: (stat) => {
+  build: (stat, ctx) => {
+    const base = defaultViewModel(stat, ctx);
     const lines: Array<EffectSummaryLine> = [];
     const diseases = stat.cardResources[CardResource.DISEASE];
     if (diseases !== undefined && diseases !== 0) {
@@ -125,29 +259,22 @@ const PHARMACY_UNION_PROVIDER: EffectSummaryProvider = {
       lines.push({icon: 'tr', label: 'TR', value: signed(stat.tr)});
     }
     // Keep any other generic impact below the headline metrics.
-    for (const line of genericLines(stat)) {
+    for (const line of base.lines) {
       if (line.icon !== CardResource.DISEASE && line.icon !== 'tr') {
         lines.push(line);
       }
     }
-    return {
-      empty: stat.triggerCount === 0,
-      triggerCount: stat.triggerCount,
-      headline: 'Corporation ability',
-      lines,
-      lastTrigger: stat.lastTrigger !== undefined ? {generation: stat.lastTrigger.generation} : undefined,
-    };
+    return {...base, headline: 'Corporation ability', lines};
   },
 };
 
 const PROVIDERS: ReadonlyArray<EffectSummaryProvider> = [
-  PETS_PROVIDER,
   PHARMACY_UNION_PROVIDER,
 ];
 
 /**
  * Resolve the summary for an effect source: the first bespoke provider that
- * applies, else the generic default.
+ * applies, else the category-aware default.
  */
 export function getEffectSummary(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
   const provider = PROVIDERS.find((p) => p.appliesTo(ctx)) ?? DEFAULT_PROVIDER;

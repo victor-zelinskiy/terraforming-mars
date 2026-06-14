@@ -360,6 +360,8 @@
       v-if="activeOverlay === 'effects'"
       :displayedPlayer="displayedPlayer"
       :viewerColor="thisPlayer.color"
+      :viewerId="playerView.id"
+      :statsCacheKey="String(game.generation)"
       @close="activeOverlay = null" />
 
     <!--

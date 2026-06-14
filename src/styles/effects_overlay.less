@@ -172,11 +172,61 @@
     &::-webkit-scrollbar-thumb { background: rgba(106, 176, 230, 0.3); border-radius: 5px; }
     &::-webkit-scrollbar-track { background: transparent; }
 }
-.effects-board__grid {
-    display: grid;
-    grid-template-columns: repeat(var(--effects-cols, 1), minmax(0, 1fr));
-    gap: 16px;
-    align-items: start;
+/* ─── Master-detail split: a grid of effect blocks + a static detail panel ─── */
+/* Sized (JS-measured) for the TALLEST detail at the current effect set, so NO
+   detail scrolls and the overlay size never changes per selection. */
+.effects-board__split {
+    display: flex;
+    gap: 18px;
+    align-items: stretch;
+    min-height: var(--effects-detail-min-h, 440px);
+}
+.effects-board__master {
+    flex: 1 1 0;
+    align-self: flex-start;
+    /* SMART PACKING via CSS multi-column (like the Actions overlay) — balances the
+       variable block heights (a 1-effect card vs a 3-effect card), so no tall empty
+       gaps and deterministic column-major order. */
+    column-count: var(--effects-master-cols, 2);
+    column-gap: 16px;
+    column-fill: balance;
+    min-width: 0;
+}
+.effects-board__master .effect-group {
+    break-inside: avoid;
+    margin-bottom: 16px;
+}
+/* The detail's cell: a relative box the absolute panel fills, contributing NO
+   in-flow height, so the row height = the master (or the measured min-height). */
+.effects-board__detail-cell {
+    flex: 0 0 var(--detail-width, 380px);
+    position: relative;
+    min-width: 0;
+}
+.effects-board__detail {
+    position: absolute;
+    inset: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+/* Hidden height-probe — card-less detail panels measured to find the tallest. */
+.effects-board__measure {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--detail-width, 380px);
+    visibility: hidden;
+    pointer-events: none;
+    z-index: -1;
+}
+/* On a narrow viewport the JS fit drops to 1 master column; stack the detail under
+   the master (back in normal flow) so neither gets squeezed. */
+@media (max-width: 1080px) {
+    .effects-board__split { flex-direction: column; min-height: 0; }
+    .effects-board__master { column-count: 1; }
+    .effects-board__detail-cell { flex: 1 1 auto; position: static; }
+    .effects-board__detail { position: static; }
 }
 
 .effects-board__empty {
@@ -390,6 +440,280 @@
     line-height: 1.4;
     color: #c9d8ea;
     text-align: center;
+}
+
+/* The SELECTED source group (master-detail) — a clear ring on its effect blocks so
+   it's obvious which group the details panel is showing. */
+.effect-group--selected .effect-item {
+    border-color: #6ab0e6;
+    box-shadow: 0 0 0 1px rgba(106, 176, 230, 0.55), 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 14px rgba(106, 176, 230, 0.28);
+}
+.effect-group--corp.effect-group--selected .effect-item {
+    border-color: #e6c87e;
+    box-shadow: 0 0 0 1px rgba(230, 200, 120, 0.55), 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 14px rgba(230, 200, 120, 0.3);
+}
+.effect-group--selected .effect-group__source { color: #aee0ff; }
+.effect-group--corp.effect-group--selected .effect-group__source { color: #f0d8a4; }
+
+/* ─── Details panel (right) — "what this effect did this game" ────────────── */
+.effect-detail {
+    --efd-accent: #6ab0e6;
+    --efd-accent-soft: rgba(106, 176, 230, 0.24);
+    display: flex;
+    flex-direction: column;
+    border-radius: 13px;
+    border: 1px solid var(--efd-accent-soft);
+    background:
+        radial-gradient(130% 50% at 50% -6%, rgba(127, 212, 255, 0.06), transparent 62%),
+        linear-gradient(180deg, rgba(18, 28, 42, 0.95), rgba(10, 17, 28, 0.97));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 30px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+}
+.effect-detail--corp {
+    --efd-accent: #e6c87e;
+    --efd-accent-soft: rgba(230, 200, 120, 0.26);
+}
+.effect-detail--disabled { opacity: 0.7; filter: grayscale(0.4); }
+.effect-detail--empty {
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+}
+.effect-detail__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: #6f8aa6;
+}
+.effect-detail__placeholder-glyph { font-size: 30px; opacity: 0.6; }
+.effect-detail__placeholder-text { font-size: 12px; letter-spacing: 0.4px; }
+
+.effect-detail__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 16px 16px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.35) transparent;
+    &::-webkit-scrollbar { width: 8px; }
+    &::-webkit-scrollbar-thumb { background: rgba(106, 176, 230, 0.3); border-radius: 4px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+}
+
+.effect-detail__head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        "type zoom"
+        "name zoom"
+        "res  zoom";
+    align-items: center;
+    gap: 2px 8px;
+}
+.effect-detail__type {
+    grid-area: type;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+    color: #7f9bb8;
+}
+.effect-detail--corp .effect-detail__type { color: #c9a86a; }
+.effect-detail__name {
+    grid-area: name;
+    margin: 0;
+    font-family: Prototype, "Russo One", sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: #eaf3fc;
+}
+.effect-detail__zoom {
+    grid-area: zoom;
+    align-self: start;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid rgba(106, 176, 230, 0.3);
+    background: rgba(12, 22, 34, 0.7);
+    color: #9ecbe6;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    &:hover { border-color: #7fd4ff; background: rgba(18, 32, 48, 0.85); color: #d6f1ff; }
+}
+.effect-detail__res {
+    grid-area: res;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+    font-size: 10.5px;
+    color: #8ff0c4;
+}
+.effect-detail__res-icon {
+    width: 16px;
+    height: 16px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+.effect-detail__res-count {
+    font-family: "Russo One", Prototype, sans-serif;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.effect-detail__res-label { color: #6f8aa6; letter-spacing: 0.3px; }
+
+.effect-detail__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.effect-detail__label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #7392b0;
+}
+
+/* The printed effect graphic(s) — compact (zoom 1, not the grid's 1.2). */
+.effect-detail__rules {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 10px;
+    border-radius: 9px;
+    border: 1px solid rgba(106, 176, 230, 0.16);
+    background: linear-gradient(180deg, rgba(20, 30, 44, 0.7), rgba(12, 20, 32, 0.75));
+}
+.effect-detail__rule { display: flex; justify-content: center; }
+.effect-detail__rule .effect-item__render.card-container { zoom: 1; }
+
+/* Per-game summary. */
+.effect-detail__headline {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #eaf4fe;
+    line-height: 1.4;
+}
+.effect-detail--corp .effect-detail__headline { color: #f3e3bd; }
+.effect-detail__metric {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(106, 176, 230, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.16);
+}
+.effect-detail__metric-label {
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    color: #9fb6cc;
+}
+.effect-detail__metric-value {
+    font-family: "Russo One", Prototype, sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: #9ee0ff;
+    font-variant-numeric: tabular-nums;
+}
+.effect-detail__line {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 4px 2px;
+    border-bottom: 1px solid rgba(106, 176, 230, 0.08);
+    &:last-child { border-bottom: none; }
+}
+.effect-detail__line-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+.effect-detail__line-label {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: #c8d9ec;
+}
+.effect-detail__line-value {
+    font-family: "Russo One", Prototype, sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: #eaf3fc;
+    font-variant-numeric: tabular-nums;
+}
+.effect-detail__line--current {
+    margin-top: 2px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(143, 240, 196, 0.2);
+    .effect-detail__line-label { color: #8ff0c4; }
+    .effect-detail__line-value { color: #aef5d0; }
+}
+.effect-detail__note {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 2px solid var(--efd-accent);
+    background: rgba(106, 176, 230, 0.06);
+    font-size: 12px;
+    line-height: 1.5;
+    color: #c2d4e6;
+}
+.effect-detail--corp .effect-detail__note { background: rgba(230, 200, 120, 0.07); }
+.effect-detail__last {
+    font-size: 10px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #6f8aa6;
+}
+
+.effect-detail__skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.effect-detail__skeleton-bar {
+    height: 13px;
+    border-radius: 5px;
+    background: linear-gradient(90deg, rgba(106, 176, 230, 0.08) 0%, rgba(106, 176, 230, 0.18) 50%, rgba(106, 176, 230, 0.08) 100%);
+    background-size: 200% 100%;
+    animation: effect-detail-shimmer 1.3s ease-in-out infinite;
+    &--short { width: 60%; }
+}
+@keyframes effect-detail-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Embedded source-card preview — compact, click to fullscreen. */
+.effect-detail__source-spacer {
+    align-self: center;
+    width: 165px;
+    height: 188px;
+}
+.effect-detail__source-card {
+    align-self: center;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: zoom-in;
+    border-radius: 10px;
+    transition: filter 0.15s ease, transform 0.15s ease;
+    > .card-container { margin: 0; zoom: 0.46; }
+    &:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    &:focus-visible { outline: 2px solid rgba(127, 212, 255, 0.7); outline-offset: 2px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
