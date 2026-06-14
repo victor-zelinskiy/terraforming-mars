@@ -89,6 +89,13 @@ export function downgradeRedirect(_req: Request, res: Response, ctx: Context): v
 
 export function writeJson(res: Response, ctx: Context, json: any, space?: string | number | undefined) {
   res.setHeader('Content-Type', 'application/json');
+  // Every JSON API response here is per-request dynamic game state (player
+  // view, waiting-for poll, game model, input results). It must NEVER be cached
+  // by the browser or an intermediary proxy — a cached /api/player or
+  // /api/waitingFor would show an opponent stale resources after a move was
+  // already made and confirmed (e.g. M€ spent on a colony still showing as
+  // unspent until their turn). no-store forbids any caching/reuse.
+  res.setHeader('Cache-Control', 'no-store');
   if (ctx.user) {
     json._user = {userid: ctx.user.global_name};
   }
