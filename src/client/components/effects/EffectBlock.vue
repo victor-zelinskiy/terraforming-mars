@@ -42,9 +42,8 @@
            @click="onClick(eff.key)"
            @keydown.enter="onClick(eff.key)"
            :data-test="'effect-item-' + eff.key">
-        <!-- A small ordinal chip when the source grants several effects, so a
-             split effect reads as "effect 1 / 2" rather than two stray blocks. -->
-        <span v-if="multiEffect" class="effect-item__ord" aria-hidden="true">{{ eff.effectIndex + 1 }}/{{ group.effects.length }}</span>
+        <!-- The card frame + the row buttons make the grouping obvious — no `i/N`
+             ordinal chip needed on the grid (it survives only in the details head). -->
         <div v-if="eff.effectNode !== undefined" class="effect-item__render card-container" v-i18n v-strip-effect-prefix>
           <CardRenderEffectBoxComponent :effectData="eff.effectNode" />
         </div>
@@ -89,9 +88,6 @@ export default defineComponent({
   },
   emits: ['namehover', 'open'],
   computed: {
-    multiEffect(): boolean {
-      return this.group.effects.length > 1;
-    },
     resourceType(): string | undefined {
       const r = getCard(this.group.cardName)?.resourceType;
       return r !== undefined ? String(r) : undefined;

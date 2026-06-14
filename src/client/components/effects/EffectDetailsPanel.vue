@@ -71,7 +71,7 @@
         </div>
 
         <template v-else>
-          <p v-if="vm.cardScoped && !vm.empty" class="effect-detail__scope-note" v-i18n>Stats cover all effects of this card</p>
+          <p v-if="vm.cardScoped && !vm.empty" class="effect-detail__scope-note" v-i18n>Some stats are tracked at the card level</p>
 
           <div v-if="vm.headline" class="effect-detail__headline" v-i18n>{{ vm.headline }}</div>
 
@@ -166,10 +166,16 @@ export default defineComponent({
       type: Object as PropType<EffectEntry>,
       default: undefined,
     },
-    // How many effects the source card grants (>1 → the stats are card-scoped).
+    // How many effects the source card grants (>1 → scope the stats per effect).
     effectCount: {
       type: Number,
       default: 1,
+    },
+    // The union of the OTHER same-card effects' result icons — lets the summary hide
+    // a metric that belongs only to a sibling effect (genuinely per-effect stats).
+    siblingIcons: {
+      type: Array as PropType<ReadonlyArray<string>>,
+      default: () => [],
     },
     // The whole-game aggregate for this source (undefined → no events yet / loading).
     stat: {
@@ -235,6 +241,8 @@ export default defineComponent({
         currentCardResource: this.resourceType !== undefined ? this.resourceCount : undefined,
         effectIndex: this.entry?.effectIndex,
         effectCount: this.effectCount,
+        signature: this.entry?.signature,
+        siblingIcons: this.siblingIcons,
       };
     },
     vm(): EffectSummaryViewModel {

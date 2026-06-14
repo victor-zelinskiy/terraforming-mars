@@ -41,6 +41,19 @@ export type EffectCategory =
   'corporation' | 'discount' | 'resourceAccumulation' |
   'passiveTr' | 'passiveProduction' | 'trigger' | 'ruleChange';
 
+/**
+ * The per-effect IMPACT SIGNATURE (what an effect's result produces) — extracted
+ * from the render node by `effectExtraction.effectSignature`. Lets the details
+ * panel scope the per-game stats to the SELECTED effect on a multi-effect card.
+ * (Defined here, the PURE layer, so `effectExtraction` imports it one-directionally
+ * and this module stays Vue/manifest-free for the server test runner.)
+ */
+export type EffectSignature = {
+  icons: ReadonlyArray<string>;
+  discount: boolean;
+  valueModifier: boolean;
+};
+
 export type EffectSummaryViewModel = {
   /** True when the effect has produced nothing measurable — the panel shows `note`. */
   empty: boolean;
@@ -72,8 +85,14 @@ export type EffectSummaryContext = {
   currentCardResource?: number;
   /** The ordinal of THIS effect within its source card (0-based) — per-effect-ready. */
   effectIndex?: number;
-  /** How many effects the source card grants (>1 → the stats are card-scoped). */
+  /** How many effects the source card grants (>1 → scope the stats per effect). */
   effectCount?: number;
+  /** THIS effect's impact signature (what its result produces) — drives per-effect
+   *  line filtering + headline on a multi-effect card. */
+  signature?: EffectSignature;
+  /** The union of the OTHER same-card effects' result icons — a metric in here but
+   *  NOT in `signature.icons` belongs to a sibling effect and is hidden. */
+  siblingIcons?: ReadonlyArray<string>;
 };
 
 export interface EffectSummaryProvider {
@@ -144,6 +163,42 @@ export function classifyEffect(ctx: EffectSummaryContext, stat: EffectOverlaySta
     return 'passiveProduction';
   }
   if (stat.triggerCount > 0) {
+    return 'trigger';
+  }
+  return 'ruleChange';
+}
+
+// Icon keys that are NOT card resources (standard resources / TR / cards / global
+// params). Anything else in a signature is a card resource → resourceAccumulation.
+const STANDARD_ICON_KEYS: ReadonlySet<string> =
+  new Set(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat', 'tr', 'cards', 'temperature', 'oxygen', 'ocean', 'oceans', 'venus']);
+
+function isCardResourceIcon(icon: string): boolean {
+  return !STANDARD_ICON_KEYS.has(icon);
+}
+
+/**
+ * Per-EFFECT category from its render signature (used on a multi-effect card, where
+ * the card-level stat can't say which effect a category belongs to). Mirrors
+ * `classifyEffect` but reads what the EFFECT produces, not the card aggregate.
+ */
+export function classifyEffectSignature(sig: EffectSignature, ctx: EffectSummaryContext): EffectCategory {
+  if (ctx.sourceKind === 'corporation') {
+    return 'corporation';
+  }
+  if (sig.valueModifier) {
+    return 'ruleChange';
+  }
+  if (sig.discount) {
+    return 'discount';
+  }
+  if (sig.icons.some(isCardResourceIcon)) {
+    return 'resourceAccumulation';
+  }
+  if (sig.icons.includes('tr')) {
+    return 'passiveTr';
+  }
+  if (sig.icons.length > 0) {
     return 'trigger';
   }
   return 'ruleChange';
@@ -229,21 +284,47 @@ function noteFor(ctx: EffectSummaryContext, category: EffectCategory): string {
 
 /** The category-aware generic view-model — the default for every non-bespoke effect. */
 function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
-  const category = classifyEffect(ctx, stat);
-  const lines = reorder(genericLines(stat), category);
-  const empty = stat.triggerCount === 0 && lines.length === 0;
+  const multi = (ctx.effectCount ?? 1) > 1;
+  // Per-effect category on a multi-effect card (from the effect's render signature);
+  // otherwise the data-driven card classification (the card stat IS the effect).
+  const category = (multi && ctx.signature !== undefined) ?
+    classifyEffectSignature(ctx.signature, ctx) :
+    classifyEffect(ctx, stat);
+  let lines = reorder(genericLines(stat), category);
+  let currentValue = currentValueLine(ctx);
+  // PER-EFFECT scoping on a multi-effect card: hide a metric that belongs ONLY to a
+  // sibling effect (in siblingIcons but NOT this effect's signature). A metric in
+  // BOTH effects (or in neither) is kept — we never wrongly hide this effect's own
+  // or an ambiguous line. (PolderTech / Solar Logistics → genuinely per-effect.)
+  if (multi) {
+    const sibling = ctx.siblingIcons ?? [];
+    const mine = ctx.signature?.icons ?? [];
+    const siblingOnly = (icon?: string): boolean =>
+      icon !== undefined && sibling.includes(icon) && !mine.includes(icon);
+    lines = lines.filter((l) => !siblingOnly(l.icon));
+    if (currentValue !== undefined && siblingOnly(currentValue.icon)) {
+      currentValue = undefined;
+    }
+  }
+  // For a multi-effect card an effect is "empty" when ITS filtered lines are empty
+  // (the card-level trigger count can't say which effect fired); for a single-effect
+  // card the card stat IS the effect, so the trigger count counts too.
+  const empty = multi ? lines.length === 0 : (stat.triggerCount === 0 && lines.length === 0);
   return {
     empty,
-    triggerCount: stat.triggerCount,
+    // Trigger count + last-trigger are card-level (the stream attributes to the
+    // card) — shown ONLY for a single-effect card, where they're unambiguous.
+    triggerCount: multi ? 0 : stat.triggerCount,
     headline: CARD_HEADLINE[ctx.sourceName] ?? CATEGORY_HEADLINE[category],
     category,
     lines,
-    currentValue: currentValueLine(ctx),
+    currentValue,
     // An empty effect shows its note; a non-empty one with a curated note keeps it
     // as supporting context (e.g. Supercapacitors' "you choose to use" framing).
     note: empty ? noteFor(ctx, category) : EFFECT_SUMMARY_NOTES[ctx.sourceName],
-    lastTrigger: stat.lastTrigger !== undefined ? {generation: stat.lastTrigger.generation} : undefined,
-    cardScoped: (ctx.effectCount ?? 1) > 1 ? true : undefined,
+    lastTrigger: !multi && stat.lastTrigger !== undefined ? {generation: stat.lastTrigger.generation} : undefined,
+    // A multi-effect card with shown stats captions that some metrics are card-level.
+    cardScoped: (multi && !empty) ? true : undefined,
   };
 }
 

@@ -135,4 +135,26 @@ describe('effectExtraction', () => {
     expect(effects.map((e) => e.effectIndex)).to.deep.eq([0, 1]);
     expect(effects[0]).to.have.property('description');
   });
+
+  it('extracts a DISJOINT per-effect impact signature (PolderTech Dutch)', () => {
+    // effect A: ocean → energy; effect B: greenery → plant. Disjoint signatures let
+    // the details panel scope the per-game stats to the SELECTED effect.
+    const entries = playerEffects([model(CardName.POLDERTECH_DUTCH)]);
+    expect(entries.length).to.eq(2);
+    const a = entries[0].signature.icons;
+    const b = entries[1].signature.icons;
+    expect(a).to.include('energy');
+    expect(a).to.not.include('plants');
+    expect(b).to.include('plants');
+    expect(b).to.not.include('energy');
+  });
+
+  it('marks a discount-effect signature + a draw-effect signature (Solar Logistics)', () => {
+    const entries = playerEffects([model(CardName.SOLAR_LOGISTICS)]);
+    const discount = entries.find((e) => e.signature.discount);
+    expect(discount, 'a discount effect (earth tag → −2 M€)').to.not.be.undefined;
+    expect(discount!.signature.icons).to.include('megacredits');
+    const draw = entries.find((e) => e.signature.icons.includes('cards'));
+    expect(draw, 'a draw effect (space event → draw a card)').to.not.be.undefined;
+  });
 });

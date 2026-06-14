@@ -6,7 +6,7 @@ import {CardResource} from '@/common/CardResource';
 import {Units} from '@/common/Units';
 import {Pets} from '@/server/cards/base/Pets';
 import {effectOverlayStats, EffectOverlayStat} from '@/common/events/aggregate';
-import {getEffectSummary, classifyEffect} from '@/client/components/effects/effectSummary';
+import {getEffectSummary, classifyEffect, classifyEffectSignature} from '@/client/components/effects/effectSummary';
 
 function stat(overrides: Partial<EffectOverlayStat>): EffectOverlayStat {
   return {
@@ -130,5 +130,30 @@ describe('effect summary view-model', () => {
       stat({card: CardName.EARTH_CATAPULT, megacreditsSaved: 4}),
       {sourceName: CardName.EARTH_CATAPULT, sourceKind: 'card', effectIndex: 0, effectCount: 1});
     expect(vm.cardScoped).to.eq(undefined);
+  });
+
+  it('scopes a multi-effect card stat to the SELECTED effect (hides sibling-only metrics)', () => {
+    // PolderTech Dutch: effect A (ocean→energy) vs effect B (greenery→plant). Viewing
+    // effect A must show energy but NOT the plant that belongs to effect B.
+    const vm = getEffectSummary(
+      stat({card: CardName.POLDERTECH_DUTCH, stock: {...Units.EMPTY, energy: 3, plants: 2}}),
+      {
+        sourceName: CardName.POLDERTECH_DUTCH, sourceKind: 'card', effectCount: 2,
+        signature: {icons: ['energy'], discount: false, valueModifier: false},
+        siblingIcons: ['plants'],
+      });
+    const icons = vm.lines.map((l) => l.icon);
+    expect(icons).to.include('energy');
+    expect(icons).to.not.include('plants'); // belongs to the sibling effect
+    expect(vm.cardScoped).to.be.true;
+    expect(vm.triggerCount).to.eq(0); // card-level firing count is hidden for a multi-effect card
+  });
+
+  it('classifies an effect from its render signature (per-effect headline)', () => {
+    const c = {sourceName: CardName.SOLAR_LOGISTICS, sourceKind: 'card' as const};
+    expect(classifyEffectSignature({icons: ['megacredits'], discount: true, valueModifier: false}, c)).to.eq('discount');
+    expect(classifyEffectSignature({icons: ['cards'], discount: false, valueModifier: false}, c)).to.eq('trigger');
+    expect(classifyEffectSignature({icons: ['Graphene'], discount: false, valueModifier: false}, c)).to.eq('resourceAccumulation');
+    expect(classifyEffectSignature({icons: ['megacredits'], discount: false, valueModifier: true}, c)).to.eq('ruleChange');
   });
 });

@@ -240,16 +240,25 @@
 .effects-board__empty-glyph { font-size: 40px; opacity: 0.5; }
 .effects-board__empty-text { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; }
 
-/* ─── Source group (light bracket) + individual effect blocks ────────── */
+/* ─── Source group = ONE card FRAME (mirrors the Actions overlay) ─────── */
 
-/* The group is a LIGHT wrapper, never one big block: a one-time source label +
-   the effects bracketed by a thin accent line. Each EFFECT is the bordered,
-   hoverable unit (one effect = one block). */
+/* The group is ONE card FRAME (like .action-group): a slim source header, then
+   the source's effects as separately-selectable ROW buttons INSIDE the same frame.
+   So a multi-effect card reads as one cohesive card whose effects are clearly
+   distinct buttons — no loose nested tiles, no `i/N` labels. */
 .effect-group {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    padding: 9px 10px 10px;
+    border-radius: 11px;
+    border: 1px solid rgba(106, 176, 230, 0.2);
+    background:
+        radial-gradient(120% 60% at 50% -8%, rgba(127, 212, 255, 0.045), transparent 60%),
+        linear-gradient(180deg, rgba(20, 30, 44, 0.9), rgba(12, 20, 32, 0.93));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
+.effect-group--corp { border-color: rgba(230, 200, 120, 0.26); }
 .effect-group--disabled {
     opacity: 0.55;
     filter: grayscale(0.5);
@@ -257,8 +266,7 @@
 .effect-group__label {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 0 2px 1px;
+    gap: 8px;
 }
 .effect-group__accent {
     width: 3px;
@@ -294,41 +302,40 @@
 }
 .effect-group--corp .effect-group__type { color: #c9a86a; }
 
-/* The effects of a source, bracketed by a thin left accent line (soft grouping
-   — NOT a wrapping border, so each effect block stays the visual unit). */
+/* The source's effects as a column of separately-selectable ROW buttons — no left
+   bracket (the frame already groups them), so they read as buttons, not nested tiles. */
 .effect-group__items {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding-left: 9px;
-    border-left: 1px solid rgba(106, 176, 230, 0.18);
+    gap: 6px;
 }
-.effect-group--corp .effect-group__items { border-left-color: rgba(230, 200, 120, 0.22); }
 
-/* ONE EFFECT = ONE BLOCK: its own border + hover highlight (only THIS block
-   lights up on hover), so effects never read as one merged block. */
+/* Each EFFECT = a separately-selectable ROW BUTTON inside the frame (mirrors the
+   Actions overlay's .compact-action). A SUBTLE rest border (the frame owns the outer
+   structure); a clear hover + selected state so each effect reads as its own button. */
 .effect-item {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 13px 12px 12px;
+    padding: 10px 10px;
     border-radius: 9px;
-    border: 1px solid rgba(106, 176, 230, 0.22);
-    background: linear-gradient(180deg, rgba(20, 30, 44, 0.9), rgba(12, 20, 32, 0.92));
+    border: 1px solid rgba(120, 200, 255, 0.16);
+    background: linear-gradient(180deg, rgba(20, 38, 56, 0.5), rgba(14, 26, 40, 0.5));
     cursor: pointer;
     outline: none;
-    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, transform 0.12s ease;
 
     &:hover, &:focus-visible {
-        border-color: #6ab0e6;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 13px rgba(106, 176, 230, 0.24);
-        transform: translateY(-2px);
+        border-color: rgba(120, 220, 255, 0.5);
+        background: linear-gradient(180deg, rgba(26, 50, 72, 0.6), rgba(18, 34, 52, 0.6));
+        transform: translateY(-1px);
     }
+    &:focus-visible { box-shadow: 0 0 0 2px rgba(106, 176, 230, 0.7); }
 }
 .effect-group--corp .effect-item {
-    border-color: rgba(230, 200, 120, 0.26);
+    border-color: rgba(230, 200, 120, 0.2);
     &:hover, &:focus-visible {
-        border-color: #e6c87e;
+        border-color: rgba(240, 210, 150, 0.55);
         box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 13px rgba(230, 200, 120, 0.26);
     }
 }
@@ -447,12 +454,14 @@
    it's unambiguous which effect the details panel is showing (a multi-effect card
    highlights only the chosen block, not the whole source). */
 .effect-item--selected {
-    border-color: #6ab0e6;
-    box-shadow: 0 0 0 1px rgba(106, 176, 230, 0.55), 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 14px rgba(106, 176, 230, 0.28);
+    border-color: rgba(120, 230, 255, 0.95);
+    background: linear-gradient(180deg, rgba(28, 60, 88, 0.7), rgba(20, 44, 66, 0.7));
+    box-shadow: 0 0 0 1px rgba(120, 230, 255, 0.55), 0 0 16px rgba(80, 200, 255, 0.22);
 }
 .effect-group--corp .effect-item--selected {
-    border-color: #e6c87e;
-    box-shadow: 0 0 0 1px rgba(230, 200, 120, 0.55), 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 14px rgba(230, 200, 120, 0.3);
+    border-color: rgba(240, 214, 138, 0.95);
+    background: linear-gradient(180deg, rgba(58, 50, 24, 0.62), rgba(42, 36, 18, 0.62));
+    box-shadow: 0 0 0 1px rgba(240, 214, 138, 0.5), 0 0 16px rgba(230, 200, 120, 0.22);
 }
 
 /* Live resource badge on the source header (current count on the card). */
@@ -480,27 +489,6 @@
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
-
-/* Per-effect ordinal chip (only on a multi-effect source) — top-right of the block. */
-.effect-item {
-    position: relative;
-}
-.effect-item__ord {
-    position: absolute;
-    top: 6px;
-    right: 8px;
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: rgba(8, 14, 22, 0.8);
-    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.32);
-    color: #9ec6e6;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    font-variant-numeric: tabular-nums;
-    pointer-events: none;
-}
-.effect-group--corp .effect-item__ord { box-shadow: inset 0 0 0 1px rgba(230, 200, 120, 0.34); color: #e6c87e; }
 
 /* ─── Details panel (right) — "what this effect did this game" ────────────── */
 .effect-detail {

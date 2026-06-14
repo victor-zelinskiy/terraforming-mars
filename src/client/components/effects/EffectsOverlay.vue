@@ -54,6 +54,7 @@
           <EffectDetailsPanel class="effects-board__detail"
                               :entry="selectedEntry"
                               :effectCount="selectedEffectCount"
+                              :siblingIcons="selectedSiblingIcons"
                               :stat="selectedStat"
                               :card="selectedCardModel"
                               :loading="loadingStats"
@@ -70,6 +71,7 @@
                             :measuring="true"
                             :entry="e"
                             :effectCount="effectCountFor(e.cardName)"
+                            :siblingIcons="siblingIconsFor(e)"
                             :stat="statForGroup(e.cardName)" />
       </div>
     </div>
@@ -200,6 +202,11 @@ export default defineComponent({
       const card = this.selectedEntry?.cardName;
       return card === undefined ? 0 : this.effectCountFor(card);
     },
+    // The union of the OTHER same-card effects' result icons — lets the details panel
+    // scope the per-game stats to the SELECTED effect (hide sibling-only metrics).
+    selectedSiblingIcons(): ReadonlyArray<string> {
+      return this.selectedEntry !== undefined ? this.siblingIconsFor(this.selectedEntry) : [];
+    },
     selectedStat(): EffectOverlayStat | undefined {
       return this.statForGroup(this.selectedEntry?.cardName);
     },
@@ -275,6 +282,18 @@ export default defineComponent({
     // How many effects the given source card grants.
     effectCountFor(cardName: CardName): number {
       return this.effects.reduce((n, e) => (e.cardName === cardName ? n + 1 : n), 0);
+    },
+    // The result icons of the OTHER effects of this entry's source card.
+    siblingIconsFor(entry: EffectEntry): ReadonlyArray<string> {
+      const set = new Set<string>();
+      for (const e of this.effects) {
+        if (e.cardName === entry.cardName && e.key !== entry.key) {
+          for (const icon of e.signature.icons) {
+            set.add(icon);
+          }
+        }
+      }
+      return [...set];
     },
     onNameHover(key: string | null): void {
       this.hoverKey = key === null ? undefined : key;
