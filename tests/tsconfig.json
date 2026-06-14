@@ -8,5 +8,10 @@
         "testing/setup.ts",
         "**/*.spec.ts",
         "vue-shims.d.ts"
+    ],
+    // E2E specs use @playwright/test (its own runner/types) and are compiled by
+    // Playwright, not by the Mocha/tsc test build.
+    "exclude": [
+        "e2e"
     ]
 }

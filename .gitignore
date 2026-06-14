@@ -20,6 +20,12 @@ pid
 tsconfig*.tsbuildinfo
 assets/locales
 
+# Playwright (E2E) artifacts
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # Local Packages
 node_modules/
 
