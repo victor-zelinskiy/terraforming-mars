@@ -83,6 +83,9 @@ export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
   buttonLabel: string;
+  // When true the input is optional: the client should keep polling rather than
+  // block on it (draft re-pick). See PlayerInput.optional.
+  optional?: boolean;
   startGamePrompt?: StartGamePromptMeta;
   awardFundingPrompt?: AwardFundingPromptMeta;
   choiceContext?: ChoiceContext;

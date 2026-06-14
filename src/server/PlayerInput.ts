@@ -29,6 +29,15 @@ export interface PlayerInput {
      * Used only when this option is a child option of an OrOptions.
      */
     eligibleForDefault?: boolean;
+    /**
+     * When true, this indicates that the input is optional and the user should
+     * continue to poll for updates. Used by the draft re-pick flow: after a
+     * player has made their required pick they get an optional re-pick prompt
+     * while others are still choosing. The premium client treats optional
+     * inputs as "waiting for others" (see DraftFlowOverlay / WaitingFor.vue),
+     * so re-pick UI is intentionally not surfaced.
+     */
+    optional?: boolean;
 
     cb(...item: any): PlayerInput | undefined;
 
@@ -54,6 +63,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public warning?: string | Message;
   public cb: (param: T) => PlayerInput | undefined = NULL_FUNCTION;
   public eligibleForDefault: boolean | undefined = undefined;
+  public optional?: boolean;
   public annotation: string | undefined;
   public startGamePrompt: StartGamePromptMeta | undefined;
   public awardFundingPrompt: AwardFundingPromptMeta | undefined;

@@ -1880,7 +1880,10 @@ export class Player implements IPlayer {
     this.waitingForContext = undefined;
     const events = this.game?.events;
     try {
-      this.timer.stop();
+      // Optional inputs (draft re-pick) don't consume the player's clock.
+      if (!waitingFor.optional) {
+        this.timer.stop();
+      }
       // Restore the prompt's correlation scope while resolving the response, so
       // the work it triggers (tile placement, picked card, …) stays in the chain.
       const followUp = events !== undefined ?
@@ -1908,7 +1911,10 @@ export class Player implements IPlayer {
         console.warn(message);
       }
     }
-    this.timer.start();
+    // Optional inputs (draft re-pick) don't consume the player's clock.
+    if (!input.optional) {
+      this.timer.start();
+    }
     this.waitingFor = input;
     this.waitingForCb = cb;
     this.waitingForContext = this.game?.events?.captureContext();
@@ -1936,6 +1942,17 @@ export class Player implements IPlayer {
           this.setWaitingForSafely(input, cb);
         };
       }
+    }
+  }
+
+  public clearWaitingFor(): void {
+    const waitingFor = this.waitingFor;
+    this.waitingFor = undefined;
+    this.waitingForCb = undefined;
+    this.waitingForContext = undefined;
+    // An optional input (draft re-pick) never started the clock, so don't stop it.
+    if (waitingFor !== undefined && !waitingFor.optional) {
+      this.timer.stop();
     }
   }
 

@@ -68,6 +68,7 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
       selectBlueCardAction: this.config.selectBlueCardAction,
       showOwner: this.config.showOwner === true,
       showSelectAll: this.config.showSelectAll === true,
+      optional: this.optional,
     };
     const disabled = this.config.disabled;
     if (disabled !== undefined && disabled.length > 0) {

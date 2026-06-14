@@ -2131,7 +2131,8 @@ export default defineComponent({
   },
   methods: {
     isPlayerActing(playerView: PlayerViewModel) : boolean {
-      return playerView.players.length > 1 && playerView.waitingFor !== undefined;
+      // An optional prompt (draft re-pick) is not an active turn.
+      return playerView.players.length > 1 && playerView.waitingFor !== undefined && playerView.waitingFor.optional !== true;
     },
     toggleOverlay(id: OverlayId): void {
       // Leaving an overlay that hosts a MANDATORY prompt via the bottom bar
