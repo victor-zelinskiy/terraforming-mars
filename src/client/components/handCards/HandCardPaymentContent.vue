@@ -40,11 +40,20 @@
                           :after="vpProgress.after" />
       </div>
 
-      <div class="play-confirm__body">
-        <!-- LEFT: the card we're about to play (the source anchor), compact so it
-             reads as part of the layout, with a separate fullscreen control. -->
-        <aside class="play-confirm__left">
-          <div class="play-confirm__source">
+      <!-- Preview loading skeleton. -->
+      <div v-if="loading" class="play-confirm__loading">
+        <span class="play-confirm__loading-dot" aria-hidden="true"></span>
+        <span class="play-confirm__loading-dot" aria-hidden="true"></span>
+        <span class="play-confirm__loading-dot" aria-hidden="true"></span>
+      </div>
+
+      <template v-else>
+        <!-- TOP — the card we're playing, the on-play OPTIONS, and the PAYMENT laid
+             out SIDE BY SIDE so the modal uses its width rather than stretching
+             tall. The big target-selection block sits full-width BELOW. -->
+        <div class="play-confirm__top">
+          <!-- The card we're about to play (compact, click → fullscreen). -->
+          <aside class="play-confirm__card-col">
             <span class="play-confirm__section-label" v-i18n>Card</span>
             <button type="button"
                     class="play-confirm__card"
@@ -54,23 +63,11 @@
               <Card :card="cardModel" />
               <span class="play-confirm__zoom" aria-hidden="true">⤢</span>
             </button>
-          </div>
-        </aside>
+          </aside>
 
-        <!-- RIGHT: the PLANNING area — every decision the player makes before the
-             single submit (the on-play `or` branch, target pickers, payment). -->
-        <section class="play-confirm__right">
-          <!-- Preview loading skeleton. -->
-          <div v-if="loading" class="play-confirm__loading">
-            <span class="play-confirm__loading-dot" aria-hidden="true"></span>
-            <span class="play-confirm__loading-dot" aria-hidden="true"></span>
-            <span class="play-confirm__loading-dot" aria-hidden="true"></span>
-          </div>
-
-          <template v-else>
-            <!-- Branch picker — only for the rare on-play `behavior.or` card with
-                 more than one option. Each branch shows its title + chips. -->
-            <div v-if="showBranchList" class="play-confirm__branches">
+          <!-- OPTIONS — the branch picker (only for a multi-branch on-play card).
+               Each branch shows its title + chips; disabled ones show their reason. -->
+          <div v-if="showBranchList" class="play-confirm__branches play-confirm__options-col">
               <span class="play-confirm__section-label" v-i18n>Choose an option</span>
               <button v-for="(b, p) in branches"
                       :key="p"
@@ -91,13 +88,33 @@
                   <span v-if="!b.available && b.unavailableReason !== undefined" class="play-confirm__branch-reason" v-i18n>{{ text(b.unavailableReason) }}</span>
                 </span>
               </button>
-            </div>
+          </div>
 
-            <!-- CHOICES — the interactive target/parameter pickers for the play.
-                 A multi-card pick (Cyberia) lays its card zones side by side. -->
-            <div v-if="selected !== undefined && selected.steps.length > 0"
-                 class="play-confirm__steps"
-                 :class="{'play-confirm__steps--cards-row': multiCardPick}">
+          <!-- PAYMENT — the embedded project-card payment widget (all tag / reserve
+               / Reds-tax / discount rules reused), BESIDE the options. The source
+               card is in the card column; the host owns the submit via the single
+               CTA; `@change` re-emits payment validity to gate it. -->
+          <section class="play-confirm__pay-col">
+            <span class="play-confirm__section-label" v-i18n>Payment</span>
+            <SelectProjectCardToPlay
+              ref="payWidget"
+              :playerView="playerView"
+              :playerinput="input"
+              :onsave="capturePlay"
+              :hideCards="true"
+              :showsave="false"
+              :showtitle="false"
+              @change="paymentValid = $event" />
+          </section>
+        </div>
+
+        <!-- TARGETS — the big full-width "choose your card(s)" block. The interactive
+             target/parameter pickers for the play; ≤3 candidates render inline, >3
+             (or a multi-card pick) route to the РАЗЫГРАНО board pick-mode (the same
+             rule as everywhere). -->
+        <div v-if="selected !== undefined && selected.steps.length > 0"
+             class="play-confirm__steps play-confirm__targets"
+             :class="{'play-confirm__steps--cards-row': multiCardPick}">
               <span v-if="hasInteractiveStep" class="play-confirm__section-label" v-i18n>Choose targets</span>
               <!-- Merged slots (Astra): the slots are SLOTS of one "up to N" pick, so
                    the later ones are optional — say so (the "all N" warning below is
@@ -295,27 +312,8 @@
                   <ModalInputHost v-else :playerView="playerView" :playerinput="step.input" :onsave="captureStep(i)" />
                 </div>
               </template>
-            </div>
-
-            <!-- PAYMENT — the embedded project-card payment widget (all tag /
-                 reserve / Reds-tax / discount rules reused). The source card is
-                 hidden (shown in the aside); the host owns the submit via the
-                 single CTA. `@change` re-emits payment validity to gate it. -->
-            <div class="play-confirm__section play-confirm__payment-section">
-              <span class="play-confirm__section-label" v-i18n>Payment</span>
-              <SelectProjectCardToPlay
-                ref="payWidget"
-                :playerView="playerView"
-                :playerinput="input"
-                :onsave="capturePlay"
-                :hideCards="true"
-                :showsave="false"
-                :showtitle="false"
-                @change="paymentValid = $event" />
-            </div>
-          </template>
-        </section>
-      </div>
+        </div>
+      </template>
 
       <footer class="play-confirm__footer">
         <!-- Readiness — a clear "is everything chosen + paid?" line so the player
@@ -1263,6 +1261,11 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 14px;
+  // A wide working canvas so the top row (card · options · payment) sits side by
+  // side and the target-selection block below has room to spread cards. Shrinks
+  // on a narrow viewport (the top row then wraps). The host modal's max-width is
+  // raised to match via the `:has(.play-confirm)` rule below.
+  width: min(1040px, calc(100vw - 64px));
 }
 .play-confirm__corner {
   position: absolute;
@@ -1305,23 +1308,35 @@ export default defineComponent({
   color: #eaf6ff;
 }
 
-.play-confirm__body {
+// TOP — the card, the on-play OPTIONS, and the PAYMENT side by side, so the modal
+// uses its WIDTH instead of stretching tall. Wraps on a narrow viewport.
+.play-confirm__top {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
   align-items: flex-start;
-  // A comfortable working width so the two-column layout (card + outcome |
-  // planning) never feels cramped; the modal still hugs (its max-width caps it).
-  width: 660px;
-  max-width: 100%;
+  // Centre the columns so a card with FEWER columns (no options → just card +
+  // payment) sits balanced in the middle instead of a sprawling wide payment.
+  justify-content: center;
 }
-// LEFT — the card we're playing + WHAT IT DOES (a compact "spec" panel).
-.play-confirm__left {
-  flex: 0 0 196px;
+// The card column — a slim rail hugging the (scaled-down) card.
+.play-confirm__card-col {
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
-.play-confirm__source {
+// OPTIONS (the branch list) + PAYMENT share the remaining width, side by side.
+// The max-width keeps each readable (and stops a lone payment from sprawling).
+.play-confirm__options-col {
+  flex: 1 1 340px;
+  min-width: 280px;
+  max-width: 460px;
+}
+.play-confirm__pay-col {
+  flex: 1 1 380px;
+  min-width: 320px;
+  max-width: 480px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1374,13 +1389,12 @@ export default defineComponent({
 }
 .play-confirm__vp { margin-top: 2px; }
 
-// RIGHT — the planning area (the decisions): branch / targets / payment.
-.play-confirm__right {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+// TARGETS — the big full-width "choose your card(s)" block under the top row. A
+// thin divider sets it apart as a distinct zone; ≤3 candidates render inline (a
+// centred row), >3 (or a multi-card pick) route to the РАЗЫГРАНО board pick-mode.
+.play-confirm__targets {
+  border-top: 1px solid rgba(120, 200, 255, 0.12);
+  padding-top: 14px;
 }
 .play-confirm__section {
   display: flex;
@@ -1394,10 +1408,10 @@ export default defineComponent({
   &--summary { margin-top: 1px; }
 }
 
-// Narrow viewports: stack the two columns so nothing is cramped.
-@media (max-width: 580px) {
-  .play-confirm__body { flex-direction: column; width: auto; }
-  .play-confirm__left { flex: 0 0 auto; }
+// Narrow viewports: the top row already wraps (flex-wrap); let the card rail go
+// full-width so the card isn't squeezed beside a wrapped option/payment column.
+@media (max-width: 640px) {
+  .play-confirm__card-col { flex-basis: 100%; }
 }
 
 .play-confirm__branches {
@@ -1862,5 +1876,15 @@ export default defineComponent({
   display: flex;
   gap: 12px;
   margin-top: 6px;
+}
+</style>
+
+<!-- Non-scoped: the host modal card is App-level (outside this component's scope),
+     so raising its width cap for the play layout must be a global rule — the same
+     `:has()` mechanism the card-selection / action-confirm modals use. Scoped to
+     play-confirm, so every OTHER modal-hosted input keeps its narrower cap. -->
+<style lang="less">
+.mandatory-input-modal__card:has(.play-confirm) {
+  max-width: min(1080px, calc(100vw - 48px));
 }
 </style>
