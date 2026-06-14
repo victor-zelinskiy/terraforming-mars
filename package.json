@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
+    "@playwright/test": "^1.60.0",
     "@types/ansi-escape-sequences": "^4.0.4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/chai": "^5.2.3",
@@ -86,13 +87,18 @@
     "make:json": "npx tsx src/tools/make_static_json.ts",
     "make:static": "npm run make:css && npm run make:json",
     "test": "npm run test:server && npm run test:client",
-    "test:server": "mocha --import=tsx --require tests/testing/setup.ts \"tests/*.spec.ts\" \"tests/!(client|integration)/**/*.spec.ts\"",
+    "test:server": "mocha --import=tsx --require tests/testing/setup.ts \"tests/*.spec.ts\" \"tests/!(client|integration|e2e)/**/*.spec.ts\"",
     "test:integration": "mocha --import=tsx --no-timeouts \"tests/integration/**/*.spec.ts\"",
     "test:postgresql": "mocha --import=tsx \"tests/integration/PostgreSQL.spec.ts\"",
     "test:client": "cross-env NODE_ENV=development mochapack --require tests/client/components/setup.ts \"tests/client/**/*.spec.ts\"",
     "test:client:watch": "cross-env NODE_ENV=development mochapack --watch --require tests/client/components/setup.ts \"tests/client/**/*.spec.ts\"",
     "dev:client": "cross-env NODE_ENV=development webpack --watch",
-    "dev:server": "cross-env NODE_ENV=development tsx watch src/server/server.ts"
+    "dev:server": "cross-env NODE_ENV=development tsx watch src/server/server.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report"
   },
   "repository": {
     "type": "git",
