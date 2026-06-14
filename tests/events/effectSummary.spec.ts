@@ -93,6 +93,12 @@ describe('effect summary view-model', () => {
     expect(cn!.megacreditsSaved).to.eq(8); // passive payment saving kept
     expect(cn!.paymentResources[CardResource.GRAPHENE]).to.eq(2);
     expect(cn!.stock.titanium ?? 0).to.eq(0); // on-play gain excluded
+
+    // The payment event is tagged so the JOURNAL route can EXCLUDE it (the spend is
+    // already shown in the "Оплата" row) while the OVERLAY (above) still counts it.
+    const paymentEvent = events.events.find((e) => e.tags?.includes('resource-payment'));
+    expect(paymentEvent, 'a resource-payment event is recorded').to.not.be.undefined;
+    expect(paymentEvent!.tags).to.include('passive-effect');
   });
 
   it('classifies an effect by its nature', () => {

@@ -16,7 +16,7 @@ const ModalInputHostStub = {
   template: '<div class="modal-input-host-stub"></div>',
 };
 
-function factory(playerinput: any, onsave: (out: InputResponse) => void, pickerSetter?: any, playerView: any = {}, controlled = false) {
+function factory(playerinput: any, onsave: (out: InputResponse) => void, pickerSetter?: any, playerView: any = {}, controlled = false, confirmRisky = false) {
   return mount(ModernOptionPicker, {
     ...globalConfig,
     global: {
@@ -25,7 +25,7 @@ function factory(playerinput: any, onsave: (out: InputResponse) => void, pickerS
       stubs: {SelectSpace: true},
       provide: pickerSetter ? {[MANDATORY_MODAL_PICKER_SETTER]: pickerSetter} : {},
     },
-    props: {playerView, playerinput, onsave, controlled},
+    props: {playerView, playerinput, onsave, controlled, confirmRisky},
   });
 }
 
@@ -283,6 +283,80 @@ describe('ModernOptionPicker', () => {
     await buttons[1].trigger('click');
     expect(saved).to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
     expect(component.findAll('.modal-input__option-card')[1].classes()).to.include('modal-input__option-card--selected');
+  });
+
+  it('confirmRisky: a SAFE option commits one-click; a RISKY option arms an inline confirm', async () => {
+    PreferencesManager.INSTANCE.set('learner_mode', false);
+    let saved: InputResponse | undefined;
+    let saveCount = 0;
+    const component = factory(
+      {
+        type: 'or',
+        title: 'Select one option',
+        options: [
+          // Risky: carries a non-numeric tradeoff (irreversible flip).
+          {type: 'option', title: 'Turn this card face down and gain 3 TR', buttonLabel: 'Gain TR',
+            metadata: {kind: 'resourceGain', effects: [{direction: 'gain', icon: 'tr', amount: 3}],
+              tradeoff: 'Card is turned face down — its effect stops working'}},
+          // Safe: a plain "do nothing".
+          {type: 'option', title: 'Do nothing', buttonLabel: 'Do nothing', metadata: {kind: 'skip'}},
+        ],
+      },
+      (out) => {
+        saved = out;
+        saveCount++;
+      },
+      undefined,
+      {},
+      true, // controlled
+      true, // confirmRisky
+    );
+    const buttons = component.findAll('.modal-input__option-card');
+    // Clicking the RISKY option does NOT commit — it arms the inline confirm drawer.
+    await buttons[0].trigger('click');
+    expect(saved).to.eq(undefined);
+    expect(saveCount).to.eq(0);
+    expect(buttons[0].classes()).to.include('modal-input__option-card--confirming');
+    const drawer = component.find('[data-test="modern-option-confirm-drawer"]');
+    expect(drawer.exists()).to.eq(true);
+    // Cancel disarms with no commit.
+    await component.find('[data-test="modern-option-cancel-0"]').trigger('click');
+    expect(component.find('[data-test="modern-option-confirm-drawer"]').exists()).to.eq(false);
+    expect(saveCount).to.eq(0);
+    // Re-arm and Confirm commits the risky option (original index 0).
+    await component.findAll('.modal-input__option-card')[0].trigger('click');
+    await component.find('[data-test="modern-option-confirm-0"]').trigger('click');
+    expect(saved).to.deep.eq({type: 'or', index: 0, response: {type: 'option'}});
+    expect(saveCount).to.eq(1);
+  });
+
+  it('confirmRisky: the safe skip option still commits on a single click', async () => {
+    PreferencesManager.INSTANCE.set('learner_mode', false);
+    let saved: InputResponse | undefined;
+    const component = factory(
+      {
+        type: 'or',
+        title: 'Select one option',
+        options: [
+          {type: 'option', title: 'Turn this card face down and gain 3 TR', buttonLabel: 'Gain TR',
+            metadata: {effects: [{direction: 'gain', icon: 'tr', amount: 3}],
+              tradeoff: 'Card is turned face down — its effect stops working'}},
+          {type: 'option', title: 'Do nothing', buttonLabel: 'Do nothing', metadata: {kind: 'skip'}},
+        ],
+      },
+      (out) => {
+        saved = out;
+      },
+      undefined,
+      {},
+      true, // controlled
+      true, // confirmRisky
+    );
+    // The skip option is pulled into the separate block; clicking it commits at once.
+    const skip = component.find('.modal-input__option-card--skip');
+    expect(skip.exists()).to.eq(true);
+    await skip.trigger('click');
+    expect(saved).to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
   });
 
   it('arms board picker-mode for a SelectSpace option', async () => {

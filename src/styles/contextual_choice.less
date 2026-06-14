@@ -4,18 +4,23 @@
  * carries `choiceContext`). Mirrors the visual language of the action-confirm
  * modal (`.action-confirm__*`) so the two premium decision surfaces read as one
  * design system: sci-fi frame + L-corner ticks, kicker eyebrow, a 2-column top
- * (source card LEFT, source identity + trigger RIGHT), then the options below
- * (rendered by the header-suppressed ModernOptionPicker).
+ * (source ARTIFACT framed LEFT, source identity + event summary RIGHT), then the
+ * options below (one-click, rendered by the header-suppressed ModernOptionPicker).
+ *
+ * The whole decision (source + summary + options) scrolls AS ONE well-defined area
+ * when it overflows — so a tall card (corporations) is never clipped inside a small
+ * fixed box. The common short case never scrolls.
  * ─────────────────────────────────────────────────────────────────────────── */
 
 .contextual-choice {
     --cc-accent: #6ab0e6;
     --cc-accent-bright: #7fd4ff;
     --cc-accent-soft: rgba(106, 176, 230, 0.5);
-    --cc-accent-glow: rgba(106, 176, 230, 0.12);
+    --cc-accent-glow: rgba(106, 176, 230, 0.14);
+    --cc-card-zoom: 0.56;
 
     position: relative;
-    width: var(--cc-width, 640px);
+    width: var(--cc-width, 700px);
     max-width: calc(100vw - 48px);
 }
 
@@ -25,26 +30,26 @@
     --cc-accent: #e6c87e;
     --cc-accent-bright: #f0d28a;
     --cc-accent-soft: rgba(230, 200, 120, 0.5);
-    --cc-accent-glow: rgba(230, 200, 120, 0.12);
+    --cc-accent-glow: rgba(230, 200, 120, 0.14);
 }
 .contextual-choice--attack {
     --cc-accent: #e68a82;
     --cc-accent-bright: #ff9f96;
     --cc-accent-soft: rgba(230, 130, 120, 0.5);
-    --cc-accent-glow: rgba(230, 130, 120, 0.12);
+    --cc-accent-glow: rgba(230, 130, 120, 0.14);
 }
 
 /* The MandatoryInputModal card hugs its content (width: auto). Let it grow to the
  * contextual frame's width (same `:has()` mechanism action-confirm uses). */
 .mandatory-input-modal__card:has(.contextual-choice) {
-    max-width: min(820px, calc(100vw - 48px));
+    max-width: min(900px, calc(100vw - 48px));
 }
 
 .contextual-choice__frame {
     position: relative;
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 64px);
+    max-height: calc(100vh - 56px);
 }
 
 .contextual-choice__corner {
@@ -99,46 +104,127 @@
     color: var(--cc-accent);
 }
 
-/* ── Top row: source card (LEFT) + source identity / trigger (RIGHT) ── */
+/* ── Scroll area: source + summary + options scroll together ── */
+.contextual-choice__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* room for the thin scrollbar so it never overlaps the option cards */
+    padding-right: 4px;
+    margin-right: -4px;
+
+    /* premium thin scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.45) transparent;
+    &::-webkit-scrollbar { width: 8px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, rgba(106, 176, 230, 0.55), rgba(106, 176, 230, 0.3));
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+    }
+}
+
+/* ── Top row: source ARTIFACT (LEFT) + source identity / event summary (RIGHT) ── */
 .contextual-choice__top2 {
     display: flex;
     align-items: stretch;
-    gap: 16px;
-    flex: 0 0 auto;
-    margin-bottom: 16px;
+    gap: 18px;
+    margin-bottom: 18px;
 }
 .contextual-choice__src {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 8px;
 }
 .contextual-choice__src-label {
     font-size: 9.5px;
     font-weight: 700;
-    letter-spacing: 1.6px;
+    letter-spacing: 1.8px;
     text-transform: uppercase;
     color: #7f9bb8;
+    padding-left: 2px;
 }
+
+/* Source as a premium framed ARTIFACT — dark-glass container, type-tinted glow rim,
+   a corner tick + a quiet zoom hint, so the card reads as an important object, not a
+   thumbnail squeezed into a corner. */
+.contextual-choice__src-frame {
+    position: relative;
+    align-self: flex-start;
+    padding: 12px 12px 10px;
+    border-radius: 13px;
+    border: 1px solid var(--cc-accent-soft);
+    background:
+        radial-gradient(130% 70% at 50% 0%, var(--cc-accent-glow), transparent 70%),
+        linear-gradient(180deg, rgba(17, 27, 41, 0.94) 0%, rgba(9, 15, 24, 0.96) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 14px 34px rgba(0, 0, 0, 0.46),
+        0 0 22px var(--cc-accent-glow);
+    overflow: hidden;
+}
+/* A thin top accent strip — the "control panel" cue. */
+.contextual-choice__src-frame::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 14px;
+    right: 14px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cc-accent-soft), transparent);
+    opacity: 0.85;
+}
+.contextual-choice__src-frame-tick {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 10px;
+    height: 10px;
+    border-top: 2px solid var(--cc-accent);
+    border-left: 2px solid var(--cc-accent);
+    opacity: 0.6;
+    pointer-events: none;
+}
+.contextual-choice__src-zoom-hint {
+    position: absolute;
+    right: 8px;
+    bottom: 7px;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--cc-accent-bright);
+    opacity: 0;
+    transition: opacity 0.16s ease;
+    pointer-events: none;
+}
+.contextual-choice__src-frame:hover .contextual-choice__src-zoom-hint { opacity: 0.85; }
+
 .contextual-choice__src-card {
+    display: block;
     border: none;
     background: none;
     padding: 0;
     cursor: zoom-in;
-    border-radius: 10px;
+    border-radius: 8px;
     transition: filter 0.15s ease, transform 0.15s ease;
-    /* Zero the legacy asymmetric card margin + scale down (the panel leads). */
-    > .card-container { margin: 0; zoom: 0.52; }
-    &:hover { filter: brightness(1.07); transform: translateY(-1px); }
-    &:focus-visible { outline: 2px solid rgba(127, 212, 255, 0.7); outline-offset: 2px; }
+    /* Zero the legacy asymmetric card margin + scale to a prominent (not tiny)
+       source artifact. autoTall lets a corp card grow; the scroll area absorbs it. */
+    > .card-container { margin: 0; zoom: var(--cc-card-zoom); }
+    &:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    &:focus-visible { outline: 2px solid var(--cc-accent-bright); outline-offset: 3px; }
 }
+
+/* Right info panel — the event summary. */
 .contextual-choice__panel {
     flex: 1 1 auto;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 9px;
-    padding: 14px 16px 15px;
+    gap: 10px;
+    padding: 15px 17px 16px;
     border-radius: 13px;
     border: 1px solid var(--cc-accent-soft);
     background:
@@ -148,51 +234,71 @@
 }
 .contextual-choice__kind {
     align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: 1.2px;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
-    padding: 3px 9px;
+    padding: 3px 11px;
     border-radius: 999px;
     border: 1px solid var(--cc-accent-soft);
     color: var(--cc-accent-bright);
-    background: rgba(8, 14, 22, 0.4);
+    background: rgba(8, 14, 22, 0.45);
+    box-shadow: 0 0 12px var(--cc-accent-glow);
 }
 .contextual-choice__title {
     margin: 0;
-    font-size: 19px;
+    font-size: 21px;
     font-weight: 700;
-    letter-spacing: 1.1px;
+    letter-spacing: 1px;
     text-transform: uppercase;
-    line-height: 1.14;
+    line-height: 1.12;
     background: linear-gradient(92deg, #f2f8ff 0%, #cfe7fb 55%, var(--cc-accent-bright) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
 }
+
+/* The "what just happened" event-summary block — the centrepiece of the panel:
+   a clearer framed readout (accent rail + label + readable text). */
 .contextual-choice__trigger {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 5px;
     margin-top: 2px;
-    padding: 8px 11px;
-    border-radius: 9px;
+    padding: 11px 13px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(106, 176, 230, 0.18);
     border-left: 3px solid var(--cc-accent-soft);
-    background: rgba(8, 14, 22, 0.42);
+    background:
+        linear-gradient(180deg, rgba(10, 17, 26, 0.6), rgba(7, 12, 19, 0.55));
 }
 .contextual-choice__trigger-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 9.5px;
     font-weight: 700;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: rgba(150, 200, 230, 0.7);
+    color: var(--cc-accent-bright);
+    opacity: 0.85;
+}
+.contextual-choice__trigger-label::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--cc-accent-bright);
+    box-shadow: 0 0 7px var(--cc-accent-soft);
 }
 .contextual-choice__trigger-text {
     margin: 0;
-    font-size: 13px;
-    line-height: 1.45;
-    color: #dce8f4;
+    font-size: 13.5px;
+    line-height: 1.46;
+    color: #e3eef9;
 }
 .contextual-choice__instruction {
     margin: 0;
@@ -201,17 +307,30 @@
     color: #aebfce;
 }
 
-/* ── Options: hosted ModernOptionPicker (header suppressed) ── */
+/* ── Options: hosted ModernOptionPicker (header suppressed, one-click) ── */
 .contextual-choice__options {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-
     /* The wrapped ModernOptionPicker should fill the frame, not re-clamp itself. */
     .modal-input {
         max-width: none;
         padding: 0;
         min-width: 0;
+    }
+
+    /* Premium action cards in this contextual surface read a touch larger / richer
+       than the generic modal option (these are the player's MAIN reaction choices). */
+    .modal-input__option-card {
+        min-height: 60px;
+        padding: 15px 17px 15px 21px;
+        border-radius: 10px;
+    }
+    .modal-input__option-label {
+        font-size: 15.5px;
+        letter-spacing: 0.2px;
+    }
+    .modal-input__option-effects { margin-top: 3px; }
+    /* A leaf option in this one-click surface gets a soft "act now" hover cue. */
+    .modal-input__option-card--option:hover {
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4), 0 0 14px var(--cc-accent-glow);
     }
 }
 
@@ -220,10 +339,15 @@
     50% { opacity: 0.4; }
 }
 
-@media (max-width: 580px) {
+/* ── Responsive ── */
+@media (max-width: 640px) {
+    .contextual-choice { --cc-width: calc(100vw - 32px); --cc-card-zoom: 0.5; }
     .contextual-choice__top2 { flex-direction: column; }
-    .contextual-choice__src { flex-direction: row; align-items: center; gap: 12px; }
+    .contextual-choice__src { flex-direction: column; align-items: stretch; }
+    .contextual-choice__src-frame { align-self: stretch; display: flex; justify-content: center; }
+    .contextual-choice__title { font-size: 19px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .contextual-choice__kicker-dot { animation: none; }
+    .contextual-choice__src-card { transition: none; }
 }
