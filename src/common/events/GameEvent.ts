@@ -89,6 +89,7 @@ export type EventVisibility = 'journal' | 'analytics';
 export type EventTag =
   | 'discount'
   | 'passive-effect'
+  | 'resource-payment'
   | 'card-impact'
   | 'corporation'
   | 'copy'

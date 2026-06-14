@@ -119,6 +119,12 @@ export class EventRecorder {
     const ctx = this.current;
     if (ctx !== undefined) {
       this.ensureTriggerMarker(ctx);
+      // Mark impacts produced INSIDE a passive-effect scope, so the effects overlay
+      // can aggregate per card EXCLUDING on-play / action gains (a card's immediate
+      // `behavior` bonus runs under an 'action' scope, NOT 'effect').
+      if (ctx.kind === 'effect' && input.tags?.includes('passive-effect') !== true) {
+        input = {...input, tags: [...(input.tags ?? []), 'passive-effect']};
+      }
     }
     return this.emit(input, this.current);
   }
@@ -341,7 +347,9 @@ export class EventRecorder {
     this.record({type: 'cards-drawn', source, player: player.color, impact: {cardsDrawn: count}});
   }
 
-  /** Record a discount (the M€ saving) applied to a played card / project. */
+  /** Record a discount (the M€ saving) applied to a played card / project. A
+   *  discount is a passive CARD effect, so it carries the 'passive-effect' tag for
+   *  the effects overlay (which excludes on-play / action gains). */
   public recordDiscount(player: IPlayer, source: EventSource, saved: number, target?: CardName): void {
     if (saved <= 0) {
       return;
@@ -351,8 +359,32 @@ export class EventRecorder {
       source, player: player.color,
       target: target !== undefined ? {card: target} : undefined,
       impact: {megacreditsSaved: saved},
-      tags: source.kind === 'corporation' ? ['discount', 'corporation'] : ['discount'],
+      tags: source.kind === 'corporation' ? ['discount', 'corporation', 'passive-effect'] : ['discount', 'passive-effect'],
     });
+  }
+
+  /**
+   * Record a CARD RESOURCE spent as payment (Psychrophiles microbes @2 M€, Carbon
+   * Nanosystems graphene @4 M€, Dirigibles floaters @3 M€, …) — a passive-effect
+   * saving attributed to the SOURCE card. Tracked SEPARATELY from accumulation
+   * (`cardResourcesSpentAsPayment`, not `cardResources`) so the effect overlay can
+   * show "used as payment" + its M€ value distinctly from "added to the card".
+   */
+  public recordResourceAsPayment(player: IPlayer, card: ICard, amount: number, megacredits: number): void {
+    if (amount <= 0 || card.resourceType === undefined) {
+      return;
+    }
+    const kind = card.type === CardType.CORPORATION ? 'corporation' : 'card';
+    this.emit({
+      type: 'resource-changed',
+      source: {kind, card: card.name, owner: player.color},
+      player: player.color,
+      impact: {
+        megacreditsSaved: megacredits,
+        cardResourcesSpentAsPayment: [{cardResource: card.resourceType, amount}],
+      },
+      tags: ['passive-effect', 'resource-payment'],
+    }, this.current);
   }
 
   /** Record what was actually paid for a card / project. */
