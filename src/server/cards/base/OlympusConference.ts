@@ -10,7 +10,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {Priority} from '../../deferredActions/Priority';
 import {CardRenderer} from '../render/CardRenderer';
 import {ICard} from '../ICard';
-import {addResourceToCard, removeResourceFromCard} from '../../inputs/optionMetadata';
+import {addResourceToCard, removeResourceFromCard, chip} from '../../inputs/optionMetadata';
+import {cardEffect} from '../../inputs/choiceContext';
 
 export class OlympusConference extends Card implements IProjectCard {
   constructor() {
@@ -54,7 +55,7 @@ export class OlympusConference extends Card implements IProjectCard {
         }
         return new OrOptions(
           new SelectOption('Remove a science resource from this card to draw a card', 'Remove resource')
-            .withMetadata(removeResourceFromCard(CardResource.SCIENCE))
+            .withMetadata({...removeResourceFromCard(CardResource.SCIENCE), effects: [chip('gain', 'cards', 1)]})
             .andThen(() => {
               player.removeResourceFrom(this, 1, {log: false});
               player.game.log('${0} removed a resource from ${1} to draw a card', (b) => b.player(player).card(this));
@@ -67,7 +68,8 @@ export class OlympusConference extends Card implements IProjectCard {
               player.addResourceTo(this, {log: true});
               return undefined;
             }),
-        ).setTitle('Select an option for Olympus Conference');
+        ).setTitle('Select an option for Olympus Conference')
+          .markChoiceContext(cardEffect(this, 'A science tag was played.', 'effect-choice'));
       },
       Priority.OLYMPUS_CONFERENCE); // Unshift that deferred action
     }

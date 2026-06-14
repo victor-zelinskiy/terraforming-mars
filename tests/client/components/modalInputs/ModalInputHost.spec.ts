@@ -3,6 +3,8 @@ import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
+import ContextualChoiceContent from '@/client/components/modalInputs/ContextualChoiceContent.vue';
+import ModernOptionPicker from '@/client/components/modalInputs/ModernOptionPicker.vue';
 
 // Heavy descendants of the premium card grid — stub them so the test is about
 // ModalInputHost's ROUTING decision, not card rendering / the fit engine.
@@ -23,6 +25,9 @@ function factory(playerinput: any) {
     global: {
       ...globalConfig.global,
       stubs: {Card: CardStub, CardZoomModal: true, PlayerInputFactory: FactoryStub},
+      // The real ModernOptionPicker (rendered for the 'or' routing cases) hosts the
+      // globally-registered <modal-input-host> — stub it so its render resolves.
+      components: {'modal-input-host': {template: '<div class="mih-stub"></div>'}},
     },
     props: {
       playerView: {
@@ -50,6 +55,27 @@ describe('ModalInputHost — premium routing', () => {
     // The legacy SelectCard list (purple "Добавить астероид" button) must NOT
     // render for a card prompt anymore.
     expect(component.find('.legacy-factory-stub').exists()).to.eq(false);
+  });
+
+  it('routes an OrOptions WITH choiceContext to the premium ContextualChoiceContent', () => {
+    const component = factory({
+      type: 'or',
+      title: 'Select one option',
+      choiceContext: {source: {kind: 'corporation', card: 'Pharmacy Union'}, trigger: 'A science tag was played.', mode: 'optional-effect'},
+      options: [{type: 'option', title: 'A', buttonLabel: ''}, {type: 'option', title: 'B', buttonLabel: ''}],
+    });
+    expect(component.findComponent(ContextualChoiceContent).exists()).to.eq(true);
+    expect(component.find('.legacy-factory-stub').exists()).to.eq(false);
+  });
+
+  it('routes a plain OrOptions (no choiceContext) to the bare ModernOptionPicker', () => {
+    const component = factory({
+      type: 'or',
+      title: 'Select one option',
+      options: [{type: 'option', title: 'A', buttonLabel: ''}, {type: 'option', title: 'B', buttonLabel: ''}],
+    });
+    expect(component.findComponent(ModernOptionPicker).exists()).to.eq(true);
+    expect(component.findComponent(ContextualChoiceContent).exists()).to.eq(false);
   });
 
   it('still falls back to the legacy factory for a type with no premium component', () => {

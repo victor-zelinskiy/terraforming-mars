@@ -6,6 +6,8 @@ import {IPlayer} from '../../IPlayer';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectCard} from '../../inputs/SelectCard';
 import {SelectOption} from '../../inputs/SelectOption';
+import {skip} from '../../inputs/optionMetadata';
+import {cardEffect} from '../../inputs/choiceContext';
 import {CardName} from '../../../common/cards/CardName';
 import {Priority} from '../../deferredActions/Priority';
 import {CardRenderer} from '../render/CardRenderer';
@@ -55,8 +57,8 @@ export class MarsUniversity extends Card implements IProjectCard {
               player.drawCard();
               return undefined;
             }),
-          new SelectOption('Do nothing'),
-        );
+          new SelectOption('Do nothing').withMetadata(skip()),
+        ).markChoiceContext(cardEffect(this, 'You played a science tag.', 'optional-effect'));
       },
       Priority.DISCARD_AND_DRAW);
     }

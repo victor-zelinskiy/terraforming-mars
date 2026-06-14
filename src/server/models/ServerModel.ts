@@ -327,6 +327,11 @@ export class Server {
     if (waitingFor.awardFundingPrompt !== undefined) {
       model.awardFundingPrompt = waitingFor.awardFundingPrompt;
     }
+    // Contextual-choice marker — routes the prompt to the premium
+    // ContextualChoiceContent modal (source card + trigger + rich options).
+    if (waitingFor.choiceContext !== undefined) {
+      model.choiceContext = waitingFor.choiceContext;
+    }
     return model;
     // showReset: player.game.inputsThisRound > 0 && player.game.resettable === true && player.game.phase === Phase.ACTION,
   }

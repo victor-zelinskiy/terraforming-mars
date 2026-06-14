@@ -1,4 +1,5 @@
 import {DisabledOptionModel, OptionMetadata} from '../../common/models/PlayerInputModel';
+import {ActionEffect} from '../../common/models/ActionPreviewModel';
 import {Resource} from '../../common/Resource';
 import {CardResource} from '../../common/CardResource';
 import {Message} from '../../common/logs/Message';
@@ -80,6 +81,46 @@ export function removeResourceFromCard(cardResource: CardResource, amount: numbe
 /** A "do nothing / skip" option. */
 export function skip(): OptionMetadata {
   return {kind: 'skip'};
+}
+
+/**
+ * A single RESULT/COST chip for an option's premium preview (reuses the
+ * `ActionEffect` shape so the client renders it with the shared `ActionEffectChip`).
+ * `icon` is an icon-key (a standard resource, a global parameter, a card resource,
+ * or the pseudo-keys `tr` / `cards`). Pass `current`/`resulting` for a
+ * `current → resulting` preview, `unit` (`'°C'`/`'%'`) for parameters.
+ */
+export function chip(direction: 'gain' | 'cost', icon: string, amount: number, extra?: Partial<ActionEffect>): ActionEffect {
+  return {direction, icon, amount, ...extra};
+}
+
+/** A "+N TR" gain chip. */
+export function trChip(amount: number): ActionEffect {
+  return {direction: 'gain', icon: 'tr', amount};
+}
+
+/**
+ * Build OPTION metadata that shows premium RESULT chips (+ an optional non-numeric
+ * `tradeoff` downside line and a clarifying `description`). The flagship use is an
+ * apply-or-skip choice with a real cost (Pharmacy Union: gain 3 TR BUT flip the
+ * card face down).
+ */
+export function optionResult(opts: {
+  kind?: OptionMetadata['kind'],
+  effects?: ReadonlyArray<ActionEffect>,
+  tradeoff?: string | Message,
+  description?: string | Message,
+  icon?: string,
+  amount?: number,
+}): OptionMetadata {
+  return {
+    kind: opts.kind ?? 'resourceGain',
+    icon: opts.icon,
+    amount: opts.amount,
+    effects: opts.effects,
+    tradeoff: opts.tradeoff,
+    description: opts.description,
+  };
 }
 
 /**

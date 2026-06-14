@@ -41,6 +41,7 @@ import ModernAmountSelector from '@/client/components/modalInputs/ModernAmountSe
 import ModernResourcePicker from '@/client/components/modalInputs/ModernResourcePicker.vue';
 import ModernResourcesPicker from '@/client/components/modalInputs/ModernResourcesPicker.vue';
 import ModernProductionToLose from '@/client/components/modalInputs/ModernProductionToLose.vue';
+import ContextualChoiceContent from '@/client/components/modalInputs/ContextualChoiceContent.vue';
 import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
 
 // Modern, premium-styled components for modal-hosted sub-prompts. Types absent
@@ -79,6 +80,7 @@ export default defineComponent({
     ModernResourcePicker,
     ModernResourcesPicker,
     ModernProductionToLose,
+    ContextualChoiceContent,
     CardSelectionContent,
   },
   props: {
@@ -97,6 +99,12 @@ export default defineComponent({
   },
   computed: {
     premiumComponent(): Component | undefined {
+      // A top-level OrOptions carrying contextual metadata (a triggered effect /
+      // on-play decision / deferred action) routes to the premium CONTEXTUAL modal
+      // (source card + trigger + rich options) instead of the bare option list.
+      if (this.playerinput.type === 'or' && this.playerinput.choiceContext !== undefined) {
+        return ContextualChoiceContent;
+      }
       return PREMIUM_COMPONENTS[this.playerinput.type];
     },
   },

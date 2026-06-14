@@ -1,0 +1,229 @@
+/* ───────────────────────────────────────────────────────────────────────────
+ * ContextualChoiceContent — the premium CONTEXTUAL choice modal (a top-level
+ * OrOptions from a triggered effect / on-play decision / deferred action that
+ * carries `choiceContext`). Mirrors the visual language of the action-confirm
+ * modal (`.action-confirm__*`) so the two premium decision surfaces read as one
+ * design system: sci-fi frame + L-corner ticks, kicker eyebrow, a 2-column top
+ * (source card LEFT, source identity + trigger RIGHT), then the options below
+ * (rendered by the header-suppressed ModernOptionPicker).
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+.contextual-choice {
+    --cc-accent: #6ab0e6;
+    --cc-accent-bright: #7fd4ff;
+    --cc-accent-soft: rgba(106, 176, 230, 0.5);
+    --cc-accent-glow: rgba(106, 176, 230, 0.12);
+
+    position: relative;
+    width: var(--cc-width, 640px);
+    max-width: calc(100vw - 48px);
+}
+
+/* Corporation sources read amber; an opponent-targeting attack reads red — so the
+ * accent itself conveys what KIND of moment this is. */
+.contextual-choice:has(.contextual-choice__kind--corporation) {
+    --cc-accent: #e6c87e;
+    --cc-accent-bright: #f0d28a;
+    --cc-accent-soft: rgba(230, 200, 120, 0.5);
+    --cc-accent-glow: rgba(230, 200, 120, 0.12);
+}
+.contextual-choice--attack {
+    --cc-accent: #e68a82;
+    --cc-accent-bright: #ff9f96;
+    --cc-accent-soft: rgba(230, 130, 120, 0.5);
+    --cc-accent-glow: rgba(230, 130, 120, 0.12);
+}
+
+/* The MandatoryInputModal card hugs its content (width: auto). Let it grow to the
+ * contextual frame's width (same `:has()` mechanism action-confirm uses). */
+.mandatory-input-modal__card:has(.contextual-choice) {
+    max-width: min(820px, calc(100vw - 48px));
+}
+
+.contextual-choice__frame {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 64px);
+}
+
+.contextual-choice__corner {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    border-color: var(--cc-accent);
+    opacity: 0.7;
+    filter: drop-shadow(0 0 5px var(--cc-accent-soft));
+    &--tl { top: -5px; left: -5px;     border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -5px; right: -5px;    border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -5px; left: -5px;  border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -5px; right: -5px; border-bottom: 2px solid; border-right: 2px solid; }
+}
+
+/* ── Header: kicker eyebrow + sci-fi divider ── */
+.contextual-choice__header {
+    position: relative;
+    flex-shrink: 0;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+}
+.contextual-choice__header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cc-accent-soft) 16%, var(--cc-accent-soft) 84%, transparent);
+    opacity: 0.75;
+}
+.contextual-choice__kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+.contextual-choice__kicker-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--cc-accent-bright);
+    box-shadow: 0 0 8px var(--cc-accent-soft);
+    animation: cc-dot-pulse 2.4s ease-in-out infinite;
+}
+.contextual-choice__kicker-text {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--cc-accent);
+}
+
+/* ── Top row: source card (LEFT) + source identity / trigger (RIGHT) ── */
+.contextual-choice__top2 {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+    flex: 0 0 auto;
+    margin-bottom: 16px;
+}
+.contextual-choice__src {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.contextual-choice__src-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #7f9bb8;
+}
+.contextual-choice__src-card {
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: zoom-in;
+    border-radius: 10px;
+    transition: filter 0.15s ease, transform 0.15s ease;
+    /* Zero the legacy asymmetric card margin + scale down (the panel leads). */
+    > .card-container { margin: 0; zoom: 0.52; }
+    &:hover { filter: brightness(1.07); transform: translateY(-1px); }
+    &:focus-visible { outline: 2px solid rgba(127, 212, 255, 0.7); outline-offset: 2px; }
+}
+.contextual-choice__panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 14px 16px 15px;
+    border-radius: 13px;
+    border: 1px solid var(--cc-accent-soft);
+    background:
+        radial-gradient(130% 60% at 50% -10%, var(--cc-accent-glow), transparent 60%),
+        linear-gradient(180deg, rgba(20, 31, 46, 0.95), rgba(11, 18, 29, 0.96));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 30px rgba(0, 0, 0, 0.44);
+}
+.contextual-choice__kind {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--cc-accent-soft);
+    color: var(--cc-accent-bright);
+    background: rgba(8, 14, 22, 0.4);
+}
+.contextual-choice__title {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+    line-height: 1.14;
+    background: linear-gradient(92deg, #f2f8ff 0%, #cfe7fb 55%, var(--cc-accent-bright) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+}
+.contextual-choice__trigger {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 2px;
+    padding: 8px 11px;
+    border-radius: 9px;
+    border-left: 3px solid var(--cc-accent-soft);
+    background: rgba(8, 14, 22, 0.42);
+}
+.contextual-choice__trigger-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(150, 200, 230, 0.7);
+}
+.contextual-choice__trigger-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #dce8f4;
+}
+.contextual-choice__instruction {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #aebfce;
+}
+
+/* ── Options: hosted ModernOptionPicker (header suppressed) ── */
+.contextual-choice__options {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+
+    /* The wrapped ModernOptionPicker should fill the frame, not re-clamp itself. */
+    .modal-input {
+        max-width: none;
+        padding: 0;
+        min-width: 0;
+    }
+}
+
+@keyframes cc-dot-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+@media (max-width: 580px) {
+    .contextual-choice__top2 { flex-direction: column; }
+    .contextual-choice__src { flex-direction: row; align-items: center; gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .contextual-choice__kicker-dot { animation: none; }
+}

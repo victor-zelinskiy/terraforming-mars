@@ -232,6 +232,47 @@
     color: #e8f1fb;
 }
 
+/* A clarifying sub-line under the label ("what this option means"). */
+.modal-input__option-desc {
+    font-size: 12px;
+    line-height: 1.35;
+    color: rgba(190, 212, 232, 0.78);
+}
+
+/* Premium RESULT/COST chips (reuse ActionEffectChip) — what the player gains /
+   spends, shown inline so the option is never a bare line of text. */
+.modal-input__option-effects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 1px;
+}
+
+/* The option's non-numeric DOWNSIDE (e.g. "card turned face down") — an amber
+   warning so the price of the choice is never hidden. */
+.modal-input__option-tradeoff {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    padding: 3px 9px 3px 7px;
+    border-radius: 4px;
+    background: rgba(242, 193, 78, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(242, 193, 78, 0.28);
+}
+.modal-input__option-tradeoff-icon {
+    font-size: 11px;
+    line-height: 1;
+    color: #f2c14e;
+    flex-shrink: 0;
+}
+.modal-input__option-tradeoff-text {
+    color: #f0d9a8;
+    font-size: 11.5px;
+    line-height: 1.3;
+}
+
 /* Amber warning chip under the label. */
 .modal-input__option-warn-chip {
     display: inline-flex;

@@ -13,6 +13,8 @@ import {Space} from '../../boards/Space';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectPayment} from '../../inputs/SelectPayment';
+import {skip} from '../../inputs/optionMetadata';
+import {cardEffect} from '../../inputs/choiceContext';
 import {Size} from '../../../common/cards/render/Size';
 import {Priority} from '../../deferredActions/Priority';
 
@@ -57,10 +59,11 @@ export class NeptunianPowerConsultants extends Card implements IProjectCard {
             cardOwner.addResourceTo(this, {qty: 1, log: true});
             return undefined;
           }));
-        orOptions.options.push(new SelectOption('Do not use card effect').andThen(() => {
+        orOptions.options.push(new SelectOption('Do not use card effect').withMetadata(skip()).andThen(() => {
           game.log('${0} declined to use the ${1} effect', (b) => b.player(cardOwner).card(this));
           return undefined;
         }));
+        orOptions.markChoiceContext(cardEffect(this, 'An ocean tile was placed.', 'optional-effect'));
         cardOwner.defer(orOptions, Priority.OPPONENT_TRIGGER);
       } else {
         game.log('${0} cannot afford to use the ${1} effect', (b) => b.player(cardOwner).card(this));
