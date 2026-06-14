@@ -3,19 +3,16 @@ import {Card} from '../Card';
 import {IProjectCard} from '../IProjectCard';
 import {Tag} from '../../../common/cards/Tag';
 import {CardType} from '../../../common/cards/CardType';
-import {OrOptions} from '../../inputs/OrOptions';
-import {SelectCard} from '../../inputs/SelectCard';
-import {SelectOption} from '../../inputs/SelectOption';
 import {PlayerInput} from '../../PlayerInput';
 import {CardResource} from '../../../common/CardResource';
 import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
+import {Priority} from '../../deferredActions/Priority';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {digit} from '../Options';
-import {message} from '../../logs/MessageBuilder';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
-import * as actionPreviews from '../actionPreviews';
+import {gainOrAddResourceChoice, gainOrAddResourceBranches, hasAddTarget, GainSpec, AddSpec} from '../gainOrAddResource';
 
 export class LargeConvoy extends Card implements IProjectCard {
   constructor() {
@@ -42,52 +39,26 @@ export class LargeConvoy extends Card implements IProjectCard {
     });
   }
 
+  // "Gain 5 plants OR add 4 animals to ANOTHER card." Shared, drift-free builder
+  // (see `gainOrAddResource`); the draw 2 + ocean ride the declarative `behavior`.
+  private static readonly GAIN: GainSpec = {resource: Resource.PLANTS, amount: 5};
+  private static readonly ADDS: ReadonlyArray<AddSpec> = [
+    {resource: CardResource.ANIMAL, amount: 4},
+  ];
+
   public override bespokePlay(player: IPlayer): PlayerInput | undefined {
-    const animalCards = player.getResourceCards(CardResource.ANIMAL);
-
-    const gainPlants = function() {
-      player.stock.add(Resource.PLANTS, 5, {log: true});
+    if (!hasAddTarget(player, LargeConvoy.ADDS)) {
+      player.stock.add(LargeConvoy.GAIN.resource, LargeConvoy.GAIN.amount, {log: true});
       return undefined;
-    };
-
-    if (animalCards.length === 0 ) {
-      return gainPlants();
     }
-
-    const availableActions = [];
-
-    const gainPlantsOption = new SelectOption('Gain 5 plants', 'Gain plants').andThen(gainPlants);
-    availableActions.push(gainPlantsOption);
-
-    if (animalCards.length === 1) {
-      const targetAnimalCard = animalCards[0];
-      availableActions.push(new SelectOption(message('Add ${0} animals to ${1}', (b) => b.number(4).card(targetAnimalCard)), 'Add animals').andThen(() => {
-        player.addResourceTo(targetAnimalCard, {qty: 4, log: true});
-        return undefined;
-      }));
-    } else {
-      availableActions.push(
-        new SelectCard(
-          'Select card to add 4 animals',
-          'Add animals',
-          animalCards)
-          .andThen(([card]) => {
-            player.addResourceTo(card, {qty: 4, log: true});
-            return undefined;
-          }),
-      );
-    }
-
-    return new OrOptions(...availableActions);
+    // Resolve the choice ahead of the ocean so the play modal pre-collects it.
+    player.defer(
+      gainOrAddResourceChoice(player, LargeConvoy.GAIN, LargeConvoy.ADDS),
+      Priority.PLAY_CARD_RESOURCE_CHOICE);
+    return undefined;
   }
 
-  // On-play preview: `playPreview` auto-includes the declarative chips (draw 2 +
-  // the ocean). When you hold NO animal card the play auto-gains 5 plants — a
-  // FIXED result that lives in `bespokePlay`, NOT in `behavior` — so show it. When
-  // you DO hold one, the "5 plants / 4 animals" pick rides the follow-up OrOptions.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const hasTargets = player.getResourceCards(CardResource.ANIMAL).length > 0;
-    const extra = hasTargets ? [] : [actionPreviews.stockGain(player, Resource.PLANTS, 5)];
-    return actionPreviews.playPreview(this, player, extra);
+    return gainOrAddResourceBranches(player, this, LargeConvoy.GAIN, LargeConvoy.ADDS);
   }
 }

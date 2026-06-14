@@ -59,6 +59,11 @@ import {Luna} from '../../src/server/colonies/Luna';
 import {Ceres} from '../../src/server/colonies/Ceres';
 import {Titan} from '../../src/server/colonies/Titan';
 import {ImportedNitrogen} from '../../src/server/cards/base/ImportedNitrogen';
+import {ImportedHydrogen} from '../../src/server/cards/base/ImportedHydrogen';
+import {LargeConvoy} from '../../src/server/cards/base/LargeConvoy';
+import {LocalHeatTrapping} from '../../src/server/cards/base/LocalHeatTrapping';
+import {Pets} from '../../src/server/cards/base/Pets';
+import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 
 describe('cardPlayPreview', () => {
   it('VenusSoils (declarative): venus + plant-production gain chips + a microbe target step', () => {
@@ -548,14 +553,19 @@ describe('cardPlayPreview', () => {
       expect(branch.steps.filter((s) => s.kind === 'input')).has.length(0);
     });
 
-    it('LocalHeatTrapping: with an animal card → −5 heat + a plants/animals OrOptions step', () => {
+    it('LocalHeatTrapping: with an animal card → two branches (gain plants / add animals), each showing −5 heat', () => {
       const [/* game */, player] = testGame(2);
       player.heat = 5;
       player.playedCards.push(new Birds());
-      const branch = new LocalHeatTrapping().cardPlayPreview(player).branches[0];
-      expect(branch.effects.some((e) => e.icon === Resource.HEAT && e.direction === 'cost')).is.true;
-      const step = branch.steps.find((s) => s.kind === 'input');
-      expect(step !== undefined && step.kind === 'input' && step.input.type).eq('or');
+      const preview = new LocalHeatTrapping().cardPlayPreview(player);
+      expect(preview.branches).has.length(2);
+      const [gain, animal] = preview.branches;
+      // Both branches show the −5 heat cost (it is spent regardless of the choice).
+      expect(gain.effects.some((e) => e.icon === Resource.HEAT && e.direction === 'cost')).is.true;
+      expect(animal.effects.some((e) => e.icon === Resource.HEAT && e.direction === 'cost')).is.true;
+      // The animal branch is now available with a card-target picker (was an OrOptions step).
+      expect(animal.available).is.true;
+      expect(animal.steps.some((s) => s.kind === 'input' && s.input.type === 'card')).is.true;
     });
   });
 
@@ -914,6 +924,134 @@ describe('cardPlayPreview', () => {
       cast(player.popWaitingFor(), SelectCard).process({type: 'card', cards: [animalCard.name]}, player);
       runAllActions(game);
       expect(animalCard.resourceCount).eq(2);
+    });
+  });
+
+  // "Gain a resource OR add a card-resource to ANOTHER card" cards (Imported
+  // Hydrogen, Large Convoy, Local Heat Trapping) used to silently auto-gain the
+  // fallback and HIDE the alternatives when no target card existed. They now show
+  // EVERY branch — the impossible ones DISABLED with a reason — and pre-collect the
+  // chosen branch + its target in the play modal.
+  describe('gain-or-add-to-card multi-branch (no hidden auto-select)', () => {
+    it('ImportedHydrogen: no microbe/animal card → 3 branches, plants available, the other two disabled-with-reason', () => {
+      const [/* game */, player] = testGame(2);
+      const preview = new ImportedHydrogen().cardPlayPreview(player);
+      expect(preview.branches).has.length(3);
+      const [gain, microbe, animal] = preview.branches;
+      // The fallback is the lone available branch → it auto-resolves (index -1: the
+      // live bespokePlay gains plants with no OrOptions).
+      expect(gain.available).is.true;
+      expect(gain.index).eq(-1);
+      expect(gain.effects.some((e) => e.icon === Resource.PLANTS && e.current === player.plants)).is.true;
+      // Both add-alternatives are shown DISABLED with a clear reason (never hidden).
+      expect(microbe.available).is.false;
+      expect(microbe.unavailableReason).is.not.undefined;
+      expect(microbe.effects.some((e) => e.note === 'to a card' && e.amount === 3)).is.true;
+      expect(animal.available).is.false;
+      expect(animal.unavailableReason).is.not.undefined;
+      expect(animal.effects.some((e) => e.note === 'to a card' && e.amount === 2)).is.true;
+    });
+
+    it('ImportedHydrogen: with both targets → 3 available branches, runtime indices 0/1/2 + target pickers', () => {
+      const [/* game */, player] = testGame(2);
+      player.playedCards.push(new Tardigrades(), new Pets());
+      const preview = new ImportedHydrogen().cardPlayPreview(player);
+      const [gain, microbe, animal] = preview.branches;
+      expect(gain.index).eq(0);
+      expect(microbe.available).is.true;
+      expect(microbe.index).eq(1);
+      expect(animal.available).is.true;
+      expect(animal.index).eq(2);
+      // The add branches host the target picker (a SelectCard step, +N impact).
+      const microbeStep = microbe.steps.find((s) => s.kind === 'input' && s.input.type === 'card');
+      expect(microbeStep, 'microbe target picker').is.not.undefined;
+      expect(microbeStep?.kind === 'input' && microbeStep.amount).eq(3);
+      expect(animal.steps.some((s) => s.kind === 'input' && s.input.type === 'card')).is.true;
+    });
+
+    it('ImportedHydrogen: the pre-collected choice + target resolve BEFORE the ocean (the batch lines up)', () => {
+      const [game, player] = testGame(2);
+      const tardigrades = new Tardigrades();
+      player.playedCards.push(tardigrades);
+      const card = new ImportedHydrogen();
+
+      // The preview says: branch 1 = add microbes, then pick the card.
+      const preview = card.cardPlayPreview(player);
+      const microbe = preview.branches[1];
+      expect(microbe.index).eq(1);
+
+      // Live: play, then replay the batch responses. The CHOICE must surface before
+      // the ocean (deferred at PLAY_CARD_RESOURCE_CHOICE, ahead of PLACE_OCEAN_TILE).
+      player.playCard(card);
+      runAllActions(game);
+      const choice = cast(player.popWaitingFor(), OrOptions);
+      expect(choice.options).has.length(2); // plants + microbes
+      choice.process({type: 'or', index: microbe.index, response: {type: 'option'}}, player);
+      runAllActions(game);
+      // The target picker comes NEXT — still before the ocean.
+      const select = cast(player.popWaitingFor(), SelectCard);
+      expect(select.cards.map((c) => c.name)).to.include(tardigrades.name);
+      select.process({type: 'card', cards: [tardigrades.name]}, player);
+      runAllActions(game);
+      expect(tardigrades.resourceCount).eq(3);
+      // ONLY now does the ocean placement remain — it rides PlacementBanner.
+      cast(player.popWaitingFor(), SelectSpace);
+    });
+
+    it('LargeConvoy: shows the automatic draw 2 chip on every branch + a disabled animal branch when no target', () => {
+      const [/* game */, player] = testGame(2);
+      const preview = new LargeConvoy().cardPlayPreview(player);
+      expect(preview.branches).has.length(2);
+      const [gain, animal] = preview.branches;
+      // The declarative behavior (draw 2) shows on each branch as part of the outcome.
+      expect(gain.effects.some((e) => e.icon === 'cards' && e.note === 'draw' && e.amount === 2)).is.true;
+      expect(animal.effects.some((e) => e.icon === 'cards' && e.note === 'draw')).is.true;
+      // The animal alternative is shown disabled with a reason (no animal card).
+      expect(animal.available).is.false;
+      expect(animal.unavailableReason).is.not.undefined;
+      expect(gain.available).is.true;
+      expect(gain.effects.some((e) => e.icon === Resource.PLANTS && e.amount === 5)).is.true;
+    });
+
+    it('LocalHeatTrapping: every branch shows the −5 heat cost; the animal branch is disabled with a reason when no target', () => {
+      const [/* game */, player] = testGame(2);
+      player.heat = 8;
+      const preview = new LocalHeatTrapping().cardPlayPreview(player);
+      expect(preview.branches).has.length(2);
+      const [gain, animal] = preview.branches;
+      // The −5 heat (a prefix cost) is shown on BOTH branches.
+      expect(gain.effects.some((e) => e.icon === Resource.HEAT && e.direction === 'cost' && e.amount === 5)).is.true;
+      expect(animal.effects.some((e) => e.icon === Resource.HEAT && e.direction === 'cost')).is.true;
+      expect(gain.effects.some((e) => e.icon === Resource.PLANTS && e.amount === 4)).is.true;
+      expect(animal.available).is.false;
+      expect(animal.unavailableReason).is.not.undefined;
+    });
+
+    it('LocalHeatTrapping: with an animal card the animal branch is available with the target picker', () => {
+      const [/* game */, player] = testGame(2);
+      player.heat = 8;
+      player.playedCards.push(new Pets());
+      const preview = new LocalHeatTrapping().cardPlayPreview(player);
+      const animal = preview.branches[1];
+      expect(animal.available).is.true;
+      expect(animal.index).eq(1);
+      const step = animal.steps.find((s) => s.kind === 'input' && s.input.type === 'card');
+      expect(step, 'animal target picker').is.not.undefined;
+      expect(step?.kind === 'input' && step.amount).eq(2);
+    });
+
+    it('READ-ONLY: the gain-or-add preview never mutates plants / heat / card resources', () => {
+      const [/* game */, player] = testGame(2);
+      player.heat = 8;
+      const pets = new Pets();
+      player.playedCards.push(pets);
+      const before = {plants: player.plants, heat: player.heat, pets: pets.resourceCount};
+      new ImportedHydrogen().cardPlayPreview(player);
+      new LargeConvoy().cardPlayPreview(player);
+      new LocalHeatTrapping().cardPlayPreview(player);
+      expect(player.plants).eq(before.plants);
+      expect(player.heat).eq(before.heat);
+      expect(pets.resourceCount).eq(before.pets);
     });
   });
 });

@@ -2,18 +2,14 @@ import {IProjectCard} from '../IProjectCard';
 import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
-import {OrOptions} from '../../inputs/OrOptions';
-import {SelectOption} from '../../inputs/SelectOption';
-import {SelectCard} from '../../inputs/SelectCard';
 import {CardResource} from '../../../common/CardResource';
-import {ICard} from '../ICard';
 import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
-import {message} from '../../logs/MessageBuilder';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {gainOrAddResourceChoice, gainOrAddResourceBranches, GainSpec, AddSpec} from '../gainOrAddResource';
 
 export class LocalHeatTrapping extends Card implements IProjectCard {
   constructor() {
@@ -42,6 +38,13 @@ export class LocalHeatTrapping extends Card implements IProjectCard {
     });
   }
 
+  // "Gain 4 plants OR add 2 animals to ANOTHER card", after spending 5 heat. Shared,
+  // drift-free builder (see `gainOrAddResource`); the −5 heat shows as a prefix chip.
+  private static readonly GAIN: GainSpec = {resource: Resource.PLANTS, amount: 4};
+  private static readonly ADDS: ReadonlyArray<AddSpec> = [
+    {resource: CardResource.ANIMAL, amount: 2},
+  ];
+
   public override canPlay(player: IPlayer) {
     // This card can cost 0 or 1.
     const cardCost = player.getCardCost(this); // Would be nice to use precalculated value.
@@ -67,65 +70,28 @@ export class LocalHeatTrapping extends Card implements IProjectCard {
     return availableHeat >= 5;
   }
 
-  // The post-heat choice (gain 4 plants OR add 2 animals to a card). SIDE-EFFECT
-  // FREE to BUILD (the mutations live in the `andThen` callbacks), so it's shared
-  // by `play()` and the read-only `cardPlayPreview` without drifting.
-  private buildOptions(player: IPlayer): OrOptions {
-    const availableActions = new OrOptions();
-
-    const animalCards: Array<ICard> = player.getResourceCards(CardResource.ANIMAL);
-    const gainPlantsOption = new SelectOption('Gain 4 plants', 'Gain plants').andThen(() => {
-      player.stock.add(Resource.PLANTS, 4, {log: true});
-      return undefined;
-    });
-
-    if (animalCards.length === 0) {
-      availableActions.options.push(gainPlantsOption);
-    } else if (animalCards.length === 1) {
-      const targetCard = animalCards[0];
-      availableActions.options.push(
-        gainPlantsOption,
-        new SelectOption(message('Add ${0} animals to ${1}', (b) => b.number(2).card(targetCard)), 'Add animals').andThen(() => {
-          player.addResourceTo(targetCard, {qty: 2, log: true});
-          return undefined;
-        }));
-    } else {
-      availableActions.options.push(
-        gainPlantsOption,
-        new SelectCard('Select card to add 2 animals', 'Add animals', animalCards)
-          .andThen(([card]) => {
-            player.addResourceTo(card, {qty: 2, log: true});
-            return undefined;
-          }));
-    }
-    return availableActions;
-  }
-
   // By overriding play, the heat is not deducted automatically.
   public override play(player: IPlayer) {
-    const availableActions = this.buildOptions(player);
-
+    // SIDE-EFFECT FREE to build (the mutations live in the option callbacks), so the
+    // same choice drives `play` and the read-only `cardPlayPreview` without drifting.
+    const choice = gainOrAddResourceChoice(player, LocalHeatTrapping.GAIN, LocalHeatTrapping.ADDS);
     return player.spendHeat(5, () => {
-      if (availableActions.options.length === 1) {
-        return availableActions.options[0].cb();
+      // With no animal card the only option is "gain 4 plants" → auto-resolve it.
+      if (choice.options.length === 1) {
+        return choice.options[0].cb();
       }
-      return availableActions;
+      return choice;
     });
   }
 
-  // The on-play preview: LocalHeatTrapping overrides `play()` directly, so the
-  // modal needs an explicit hook. Always shows the −5 heat the effect spends; then
-  // either the fixed +4 plants (when there's no animal card → the choice auto-
-  // resolves) or the SAME "gain 4 plants / add 2 animals" OrOptions `play()` builds,
-  // hosted as a step so the player picks IN the modal. (With Stormcraft floaters as
-  // heat the live path inserts a heat-source prompt first; the batch's graceful
-  // fallback then lets the OrOptions ride the follow-up — a rare, safe degrade.)
+  // The on-play preview: the −5 heat the effect spends (prefix chip) PLUS the
+  // "gain 4 plants / add 2 animals" branches — the add branch shown disabled-with-
+  // reason when there's no animal card, so the alternative is never silently hidden.
+  // (With Stormcraft floaters as heat the live path inserts a heat-source prompt
+  // first; the batch's graceful fallback then lets the choice ride the follow-up — a
+  // rare, safe degrade.)
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const options = this.buildOptions(player);
     const heatCost = actionPreviews.stockCost(player, Resource.HEAT, 5);
-    if (options.options.length === 1) {
-      return actionPreviews.playPreview(this, player, [heatCost, actionPreviews.stockGain(player, Resource.PLANTS, 4)]);
-    }
-    return actionPreviews.playPreview(this, player, [heatCost], [actionPreviews.orOptionsStep(player, options)]);
+    return gainOrAddResourceBranches(player, this, LocalHeatTrapping.GAIN, LocalHeatTrapping.ADDS, {prefixEffects: [heatCost]});
   }
 }
