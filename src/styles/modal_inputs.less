@@ -352,6 +352,119 @@
     color: #07263a;
 }
 
+/* ── Inline confirm for RISKY one-click options (confirmRisky mode) ──
+   A risky option (irreversible / hidden tradeoff) doesn't commit on the first
+   click; it ARMS this drawer attached under the card. Safe options stay one-click. */
+.modal-input__option-slot {
+    display: flex;
+    flex-direction: column;
+}
+
+/* A small ⚠ glyph in the option's right mark slot signalling "needs confirmation".
+   Idle = quiet amber; armed = bright, so the card that's waiting stands out. */
+.modal-input__option-arm-glyph {
+    font-size: 14px;
+    line-height: 1;
+    color: #f2c14e;
+    filter: drop-shadow(0 0 6px rgba(242, 193, 78, 0.6));
+}
+.modal-input__option-arm-glyph--idle {
+    opacity: 0.42;
+    filter: none;
+}
+
+/* Armed card — amber framed, bottom corners squared so the confirm drawer reads as
+   a continuation of the SAME card (not a detached strip). */
+.modal-input__option-card--confirming {
+    border-color: #f2c14e;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    background: linear-gradient(180deg, rgba(44, 36, 18, 0.9) 0%, rgba(30, 24, 12, 0.9) 100%);
+    box-shadow: 0 0 0 1px rgba(242, 193, 78, 0.42), 0 8px 24px rgba(0, 0, 0, 0.42);
+    .modal-input__option-accent { background: #f2c14e; box-shadow: 0 0 10px rgba(242, 193, 78, 0.6); }
+    &:hover { transform: none; border-color: #f2c14e; }
+}
+
+.modal-input__option-confirm {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 11px 14px 12px;
+    border: 1px solid #f2c14e;
+    border-top: 1px dashed rgba(242, 193, 78, 0.45);
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    background: linear-gradient(180deg, rgba(50, 40, 19, 0.92), rgba(30, 24, 12, 0.94));
+    box-shadow: 0 0 0 1px rgba(242, 193, 78, 0.42), 0 10px 26px rgba(0, 0, 0, 0.46);
+}
+.modal-input__option-confirm-q {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12.5px;
+    letter-spacing: 0.3px;
+    color: #f4e3bc;
+}
+.modal-input__option-confirm-glyph {
+    font-size: 14px;
+    line-height: 1;
+    color: #f2c14e;
+}
+.modal-input__option-confirm-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+/* Ghost cancel — calm, secondary. */
+.modal-input__option-confirm-no {
+    padding: 7px 16px;
+    border: 1px solid rgba(214, 226, 242, 0.3);
+    border-radius: 5px;
+    background: rgba(16, 24, 34, 0.6);
+    color: #cdd9e8;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+    &:hover { border-color: #9fc4e6; color: #eaf3fc; background: rgba(24, 36, 52, 0.7); }
+}
+/* Amber CTA — the deliberate, irreversible commit. Dark text on the bright plate. */
+.modal-input__option-confirm-yes {
+    padding: 7px 20px;
+    border: none;
+    border-radius: 5px;
+    background: linear-gradient(180deg, #f5d98a 0%, #e0b24e 100%);
+    color: #2a1d05;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 0 14px rgba(242, 193, 78, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transition: filter 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
+    &:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 0 22px rgba(242, 193, 78, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+    &:active { transform: translateY(0); filter: brightness(0.95); }
+}
+
+/* Drawer reveal — a calm slide+fade, honouring reduced-motion. */
+.modal-input-confirm-enter-active { transition: opacity 0.16s ease, transform 0.16s ease; }
+.modal-input-confirm-leave-active { transition: opacity 0.12s ease, transform 0.12s ease; }
+.modal-input-confirm-enter-from,
+.modal-input-confirm-leave-to { opacity: 0; transform: translateY(-6px); }
+@media (prefers-reduced-motion: reduce) {
+    .modal-input-confirm-enter-active,
+    .modal-input-confirm-leave-active { transition: none; }
+    .modal-input-confirm-enter-from,
+    .modal-input-confirm-leave-to { transform: none; }
+}
+
 /* ── Rich (metadata-driven) option card bits ── */
 
 /* Lead column: a player chip (colour dot + name) or a resource/param icon. */

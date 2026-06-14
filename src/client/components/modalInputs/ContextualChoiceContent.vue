@@ -31,40 +31,54 @@
         </span>
       </header>
 
-      <div class="contextual-choice__top2">
-        <!-- LEFT: source card (compact, click → fullscreen like everywhere). -->
-        <aside v-if="sourceCardName !== undefined" class="contextual-choice__src">
-          <span class="contextual-choice__src-label" v-i18n>Source</span>
-          <button type="button"
-                  class="contextual-choice__src-card"
-                  :aria-label="$t('Open fullscreen')"
-                  @click.capture.stop="openFullscreen"
-                  data-test="contextual-choice-source">
-            <Card :key="sourceCardName" :card="sourceCardModel" :autoTall="true" />
-          </button>
-        </aside>
+      <!-- The whole decision (source + summary + options) scrolls AS ONE when it
+           overflows the viewport, so a tall card (corporations!) is NEVER clipped
+           inside a small fixed box — the scroll lives on this well-defined area,
+           not on the card. The common short case never scrolls. -->
+      <div class="contextual-choice__scroll">
+        <div class="contextual-choice__top2">
+          <!-- LEFT: source as a premium framed ARTIFACT (click → fullscreen). -->
+          <aside v-if="sourceCardName !== undefined" class="contextual-choice__src">
+            <span class="contextual-choice__src-label" v-i18n>Source</span>
+            <div class="contextual-choice__src-frame">
+              <span class="contextual-choice__src-frame-tick" aria-hidden="true"></span>
+              <button type="button"
+                      class="contextual-choice__src-card"
+                      :aria-label="$t('Open fullscreen')"
+                      @click.capture.stop="openFullscreen"
+                      data-test="contextual-choice-source">
+                <Card :key="sourceCardName" :card="sourceCardModel" :autoTall="true" />
+              </button>
+              <span class="contextual-choice__src-zoom-hint" aria-hidden="true">⤢</span>
+            </div>
+          </aside>
 
-        <!-- RIGHT: source kind + name + the trigger / instruction. -->
-        <section class="contextual-choice__panel">
-          <span class="contextual-choice__kind" :class="'contextual-choice__kind--' + sourceKind" v-i18n>{{ kindLabel }}</span>
-          <h3 v-if="sourceCardName !== undefined" class="contextual-choice__title" v-i18n>{{ sourceCardName }}</h3>
-          <h3 v-else class="contextual-choice__title" v-i18n>{{ titleText }}</h3>
+          <!-- RIGHT: source kind + name + the event summary / instruction. -->
+          <section class="contextual-choice__panel">
+            <span class="contextual-choice__kind" :class="'contextual-choice__kind--' + sourceKind" v-i18n>{{ kindLabel }}</span>
+            <h3 v-if="sourceCardName !== undefined" class="contextual-choice__title" v-i18n>{{ sourceCardName }}</h3>
+            <h3 v-else class="contextual-choice__title" v-i18n>{{ titleText }}</h3>
 
-          <div v-if="triggerText !== ''" class="contextual-choice__trigger">
-            <span class="contextual-choice__trigger-label" v-i18n>Effect triggered</span>
-            <p class="contextual-choice__trigger-text">{{ triggerText }}</p>
-          </div>
+            <div v-if="triggerText !== ''" class="contextual-choice__trigger">
+              <span class="contextual-choice__trigger-label" v-i18n>Effect triggered</span>
+              <p class="contextual-choice__trigger-text">{{ triggerText }}</p>
+            </div>
 
-          <p v-if="instructionText !== ''" class="contextual-choice__instruction">{{ instructionText }}</p>
-        </section>
-      </div>
+            <p v-if="instructionText !== ''" class="contextual-choice__instruction">{{ instructionText }}</p>
+          </section>
+        </div>
 
-      <!-- BELOW: the real options + select/confirm flow (shared component). -->
-      <div class="contextual-choice__options">
-        <ModernOptionPicker :playerView="playerView"
-                            :playerinput="playerinput"
-                            :onsave="onsave"
-                            :hideHeader="true" />
+        <!-- BELOW: the real options. ONE-CLICK for safe options (`controlled`);
+             a risky option (irreversible / tradeoff) arms an inline confirm drawer
+             (`confirmRisky`) instead of committing — no redundant footer button. -->
+        <div class="contextual-choice__options">
+          <ModernOptionPicker :playerView="playerView"
+                              :playerinput="playerinput"
+                              :onsave="onsave"
+                              :hideHeader="true"
+                              :controlled="true"
+                              :confirmRisky="true" />
+        </div>
       </div>
     </div>
 

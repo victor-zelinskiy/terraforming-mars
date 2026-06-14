@@ -322,10 +322,15 @@ export default defineComponent({
         return;
       }
       const color = this.displayedPlayer.color;
-      if (getEffectStats(color) !== undefined) {
-        return; // already cached for this scope
+      // STALE-WHILE-REVALIDATE: events accumulate WITHIN a generation, so the cache
+      // (keyed by generation) would show stale "not used yet" right after the player
+      // spends a resource / triggers an effect. So ALWAYS refetch on open / seat
+      // change — but show the cached data instantly (skeleton ONLY on a cold cache),
+      // then update in place when the fresh stats land. (The overlay closes on the
+      // post-action remount and is re-opened, so this isn't a per-poll fetch.)
+      if (getEffectStats(color) === undefined) {
+        this.loadingStats = true;
       }
-      this.loadingStats = true;
       const url = paths.API_GAME_EFFECT_STATS +
         '?id=' + encodeURIComponent(this.viewerId) +
         '&color=' + encodeURIComponent(color);

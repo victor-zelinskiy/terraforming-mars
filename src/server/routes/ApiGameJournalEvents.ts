@@ -39,9 +39,16 @@ export class ApiGameJournalEvents extends Handler {
       return;
     }
     const generation = ctx.url.searchParams.get('generation');
+    // `resource-payment` events are ANALYTICS-only for the Эффекты overlay (a card
+    // resource spent as M€, attributed to the source card for its "used as payment"
+    // stat). The actual spend is ALREADY shown in the journal's "Оплата" row, so
+    // these would duplicate it / mislead (e.g. "Углеродные наносистемы → −12 M€").
+    // The overlay uses a SEPARATE route (`/api/game/effect-stats`), so excluding
+    // them here doesn't affect it.
+    const generationNumber = generation === null ? NaN : Number(generation);
     const events: ReadonlyArray<GameEvent> = generation === null ?
       [] :
-      game.events.events.filter((e) => e.generation === Number(generation));
+      game.events.events.filter((e) => e.generation === generationNumber && e.tags?.includes('resource-payment') !== true);
     responses.writeJson(res, ctx, events);
   }
 }

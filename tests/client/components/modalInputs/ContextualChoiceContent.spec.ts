@@ -8,7 +8,7 @@ import ContextualChoiceContent from '@/client/components/modalInputs/ContextualC
 // list (covered by ModernOptionPicker.spec).
 const ModernOptionPickerStub = {
   name: 'ModernOptionPicker',
-  props: ['playerView', 'playerinput', 'onsave', 'hideHeader'],
+  props: ['playerView', 'playerinput', 'onsave', 'hideHeader', 'controlled', 'confirmRisky'],
   template: '<div class="mop-stub"></div>',
 };
 
@@ -58,7 +58,7 @@ describe('ContextualChoiceContent', () => {
       .to.eq('You played a science tag and there are no diseases left here.');
   });
 
-  it('forwards the options to a HEADER-SUPPRESSED ModernOptionPicker', () => {
+  it('forwards the options to a HEADER-SUPPRESSED, one-click ModernOptionPicker', () => {
     const onsave = () => {};
     const component = factory(PHARMACY_INPUT, onsave);
     const mop = component.findComponent(ModernOptionPickerStub);
@@ -66,6 +66,10 @@ describe('ContextualChoiceContent', () => {
     expect(mop.props('hideHeader')).to.eq(true);
     expect(mop.props('playerinput')).to.deep.eq(PHARMACY_INPUT);
     expect(mop.props('onsave')).to.eq(onsave);
+    // The contextual modal is one-click: safe options commit on click (`controlled`),
+    // while a risky option arms an inline confirm (`confirmRisky`) — no footer button.
+    expect(mop.props('controlled')).to.eq(true);
+    expect(mop.props('confirmRisky')).to.eq(true);
   });
 
   it('suppresses the default OrOptions title as a redundant instruction', () => {

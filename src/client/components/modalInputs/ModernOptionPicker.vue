@@ -32,78 +32,118 @@
 
     <!-- Collapsed view: the real choice cards (skip / "do nothing" options are
          pulled OUT into a separate neutral block below, so a safe fallback never
-         sits BETWEEN two real targets). -->
+         sits BETWEEN two real targets). Each card lives in a SLOT so a RISKY option
+         (confirmRisky mode) can attach an inline confirm drawer BELOW it without
+         nesting buttons. -->
     <div v-if="expandedIdx === -1" class="modal-input__options">
-      <button v-for="e in primaryEntries"
-              :key="e.i"
-              type="button"
-              class="modal-input__option-card"
-              :class="[
-                'modal-input__option-card--' + optionKind(e.opt),
-                {
-                  'modal-input__option-card--selected': selectedIdx === e.i,
-                  'modal-input__option-card--armed': isPendingSpace(e.i),
-                  'modal-input__option-card--player': optionColor(e.opt) !== undefined,
-                  'modal-input__option-card--warn': optionWarnings(e.opt) !== undefined,
-                },
-              ]"
-              @click="pickOption(e.i)"
-              :data-test="'modern-option-' + e.i">
-        <span class="modal-input__option-accent"
-              :class="optionColor(e.opt) !== undefined ? ('player_bg_color_' + optionColor(e.opt)) : ''"
-              aria-hidden="true"></span>
+      <div v-for="e in primaryEntries"
+           :key="e.i"
+           class="modal-input__option-slot"
+           :class="{'modal-input__option-slot--confirming': armedIdx === e.i}"
+           @keydown.esc="disarm">
+        <button type="button"
+                class="modal-input__option-card"
+                :class="[
+                  'modal-input__option-card--' + optionKind(e.opt),
+                  {
+                    'modal-input__option-card--selected': selectedIdx === e.i,
+                    'modal-input__option-card--armed': isPendingSpace(e.i),
+                    'modal-input__option-card--confirming': armedIdx === e.i,
+                    'modal-input__option-card--risky': isArmableRisky(e.opt),
+                    'modal-input__option-card--player': optionColor(e.opt) !== undefined,
+                    'modal-input__option-card--warn': optionWarnings(e.opt) !== undefined,
+                  },
+                ]"
+                @click="pickOption(e.i)"
+                :data-test="'modern-option-' + e.i">
+          <span class="modal-input__option-accent"
+                :class="optionColor(e.opt) !== undefined ? ('player_bg_color_' + optionColor(e.opt)) : ''"
+                aria-hidden="true"></span>
 
-        <!-- Lead: player chip (colour dot + name) for player-target options,
-             else a resource/parameter icon when the metadata supplies one. -->
-        <span v-if="optionColor(e.opt) !== undefined" class="modal-input__option-lead modal-input__option-player">
-          <span class="modal-input__option-dot" :class="'player_bg_color_' + optionColor(e.opt)" aria-hidden="true"></span>
-          <span v-if="optionPlayerName(e.opt) !== ''" class="modal-input__option-player-name">{{ optionPlayerName(e.opt) }}</span>
-        </span>
-        <span v-else-if="optionIcon(e.opt) !== ''"
-              class="modal-input__option-lead modal-input__option-icon"
-              :class="optionIconClass(e.opt)"
-              aria-hidden="true"></span>
+          <!-- Lead: player chip (colour dot + name) for player-target options,
+               else a resource/parameter icon when the metadata supplies one. -->
+          <span v-if="optionColor(e.opt) !== undefined" class="modal-input__option-lead modal-input__option-player">
+            <span class="modal-input__option-dot" :class="'player_bg_color_' + optionColor(e.opt)" aria-hidden="true"></span>
+            <span v-if="optionPlayerName(e.opt) !== ''" class="modal-input__option-player-name">{{ optionPlayerName(e.opt) }}</span>
+          </span>
+          <span v-else-if="optionIcon(e.opt) !== ''"
+                class="modal-input__option-lead modal-input__option-icon"
+                :class="optionIconClass(e.opt)"
+                aria-hidden="true"></span>
 
-        <span class="modal-input__option-body">
-          <span class="modal-input__option-label">{{ optionActionText(e.opt) }}</span>
-          <!-- Optional clarifying sub-line (what the option means). -->
-          <span v-if="optionDescription(e.opt) !== ''" class="modal-input__option-desc">{{ optionDescription(e.opt) }}</span>
-          <!-- Premium result/cost chips (e.g. "+3 TR", "−2 microbes") — reuse the
-               shared ActionEffectChip so they match the action-confirm modal. -->
-          <span v-if="optionEffects(e.opt).length > 0" class="modal-input__option-effects">
-            <ActionEffectChip v-for="(eff, ei) in optionEffects(e.opt)" :key="ei" :effect="eff" />
+          <span class="modal-input__option-body">
+            <span class="modal-input__option-label">{{ optionActionText(e.opt) }}</span>
+            <!-- Optional clarifying sub-line (what the option means). -->
+            <span v-if="optionDescription(e.opt) !== ''" class="modal-input__option-desc">{{ optionDescription(e.opt) }}</span>
+            <!-- Premium result/cost chips (e.g. "+3 TR", "−2 microbes") — reuse the
+                 shared ActionEffectChip so they match the action-confirm modal. -->
+            <span v-if="optionEffects(e.opt).length > 0" class="modal-input__option-effects">
+              <ActionEffectChip v-for="(eff, ei) in optionEffects(e.opt)" :key="ei" :effect="eff" />
+            </span>
+            <!-- A non-numeric downside / tradeoff of the option (e.g. "card turned
+                 face down"), shown as an amber warning so the price is never hidden. -->
+            <span v-if="optionTradeoff(e.opt) !== ''" class="modal-input__option-tradeoff">
+              <span class="modal-input__option-tradeoff-icon" aria-hidden="true">⚠</span>
+              <span class="modal-input__option-tradeoff-text">{{ optionTradeoff(e.opt) }}</span>
+            </span>
+            <span v-if="optionWarnings(e.opt) !== undefined" class="modal-input__option-warn-chip">
+              <span class="modal-input__option-warn-icon" aria-hidden="true">⚠</span>
+              <warnings-component :warnings="optionWarnings(e.opt)"
+                                  class="modal-input__option-warnings"></warnings-component>
+            </span>
           </span>
-          <!-- A non-numeric downside / tradeoff of the option (e.g. "card turned
-               face down"), shown as an amber warning so the price is never hidden. -->
-          <span v-if="optionTradeoff(e.opt) !== ''" class="modal-input__option-tradeoff">
-            <span class="modal-input__option-tradeoff-icon" aria-hidden="true">⚠</span>
-            <span class="modal-input__option-tradeoff-text">{{ optionTradeoff(e.opt) }}</span>
-          </span>
-          <span v-if="optionWarnings(e.opt) !== undefined" class="modal-input__option-warn-chip">
-            <span class="modal-input__option-warn-icon" aria-hidden="true">⚠</span>
-            <warnings-component :warnings="optionWarnings(e.opt)"
-                                class="modal-input__option-warnings"></warnings-component>
-          </span>
-        </span>
 
-        <!-- Impact preview: resource icon + current → resulting. -->
-        <span v-if="hasPreview(e.opt)" class="modal-input__option-preview" aria-hidden="true">
-          <span v-if="optionIcon(e.opt) !== ''" class="modal-input__option-icon" :class="optionIconClass(e.opt)"></span>
-          <span class="modal-input__option-preview-from">{{ previewFrom(e.opt) }}</span>
-          <span class="modal-input__option-preview-arrow">→</span>
-          <span class="modal-input__option-preview-to">{{ previewTo(e.opt) }}</span>
-        </span>
-        <span v-else-if="optionKind(e.opt) === 'space'" class="modal-input__option-hint" v-i18n>on the board</span>
-        <span v-else-if="optionKind(e.opt) === 'nested'" class="modal-input__option-chevron" aria-hidden="true">›</span>
-        <!-- Selection-indicator slot — a FIXED-width slot RESERVED on every leaf
-             option (even unselected, where it's empty) so revealing the ✓ never
-             shifts the preview chip (`869 → 862`) left: the indicators stay
-             aligned across options. In controlled mode (no inner confirm button)
-             the ✓ + the --selected frame ARE the confirmation the pick registered. -->
-        <span v-if="optionKind(e.opt) === 'option'" class="modal-input__option-mark" aria-hidden="true">
-          <span v-if="selectedIdx === e.i" class="modal-input__option-check modal-input__option-check--selected">✓</span>
-        </span>
-      </button>
+          <!-- Impact preview: resource icon + current → resulting. -->
+          <span v-if="hasPreview(e.opt)" class="modal-input__option-preview" aria-hidden="true">
+            <span v-if="optionIcon(e.opt) !== ''" class="modal-input__option-icon" :class="optionIconClass(e.opt)"></span>
+            <span class="modal-input__option-preview-from">{{ previewFrom(e.opt) }}</span>
+            <span class="modal-input__option-preview-arrow">→</span>
+            <span class="modal-input__option-preview-to">{{ previewTo(e.opt) }}</span>
+          </span>
+          <span v-else-if="optionKind(e.opt) === 'space'" class="modal-input__option-hint" v-i18n>on the board</span>
+          <span v-else-if="optionKind(e.opt) === 'nested'" class="modal-input__option-chevron" aria-hidden="true">›</span>
+          <!-- Selection-indicator slot — a FIXED-width slot RESERVED on every leaf
+               option (even unselected, where it's empty) so revealing the ✓ never
+               shifts the preview chip (`869 → 862`) left: the indicators stay
+               aligned across options. In controlled mode (no inner confirm button)
+               the ✓ + the --selected frame ARE the confirmation the pick registered.
+               A RISKY armable option shows a small ⚠ "needs confirm" glyph instead. -->
+          <span v-if="optionKind(e.opt) === 'option'" class="modal-input__option-mark" aria-hidden="true">
+            <span v-if="armedIdx === e.i" class="modal-input__option-arm-glyph">⚠</span>
+            <span v-else-if="selectedIdx === e.i" class="modal-input__option-check modal-input__option-check--selected">✓</span>
+            <span v-else-if="isArmableRisky(e.opt)" class="modal-input__option-arm-glyph modal-input__option-arm-glyph--idle">⚠</span>
+          </span>
+        </button>
+
+        <!-- Inline confirm drawer — only for an ARMED risky option (confirmRisky
+             mode). The choice is irreversible / has a hidden tradeoff, so the first
+             click ARMS this drawer instead of committing; the player confirms
+             deliberately. Real buttons (a SIBLING of the card, never nested) so it's
+             valid HTML + keyboard-accessible. Safe options never reach here — they
+             commit one-click. -->
+        <transition name="modal-input-confirm">
+          <div v-if="armedIdx === e.i" class="modal-input__option-confirm" data-test="modern-option-confirm-drawer">
+            <span class="modal-input__option-confirm-q">
+              <span class="modal-input__option-confirm-glyph" aria-hidden="true">⚠</span>
+              <span v-i18n>Confirm this choice?</span>
+            </span>
+            <span class="modal-input__option-confirm-actions">
+              <button type="button"
+                      class="modal-input__option-confirm-no"
+                      @click.stop="disarm"
+                      :data-test="'modern-option-cancel-' + e.i">
+                <span v-i18n>Cancel</span>
+              </button>
+              <button type="button"
+                      class="modal-input__option-confirm-yes"
+                      @click.stop="confirmArmed"
+                      :data-test="'modern-option-confirm-' + e.i">
+                <span v-i18n>Confirm</span>
+              </button>
+            </span>
+          </div>
+        </transition>
+      </div>
     </div>
 
     <!-- Informational, non-selectable targets the server flagged as unavailable
@@ -232,6 +272,9 @@ type DataModel = {
   // Displayed index of the currently SELECTED leaf option (select → confirm),
   // or -1 when none is selected.
   selectedIdx: number;
+  // Displayed index of the currently ARMED risky option (its inline confirm drawer
+  // is open, awaiting a deliberate Confirm), or -1. Only used in confirmRisky mode.
+  armedIdx: number;
   // Active board-picker state (original index + the SelectSpace model).
   pendingSpacePrompt: SelectSpaceModel | undefined;
   pendingOptionIndex: number | undefined;
@@ -287,6 +330,18 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // Opt-in inline-confirm for RISKY options (only meaningful WITH `controlled`).
+    // In plain controlled mode every leaf option commits on the first click (the
+    // one-click flow). When `confirmRisky` is on, an option the server flagged as
+    // risky — it carries a non-numeric `tradeoff` (e.g. "card turned face down")
+    // or `warnings` — instead ARMS an inline Confirm/Cancel drawer on the first
+    // click, so an irreversible choice is never a single mis-click. SAFE options
+    // still commit one-click. Used by the CONTEXTUAL triggered-effect modal so the
+    // standard case is fast while a dangerous option stays deliberate.
+    confirmRisky: {
+      type: Boolean,
+      default: false,
+    },
   },
   // Picker-mode setter exposed by MandatoryInputModal (optional — undefined
   // when rendered outside a modal).
@@ -337,6 +392,7 @@ export default defineComponent({
       expandedIdx,
       autoExpandedSingle,
       selectedIdx: -1,
+      armedIdx: -1,
       pendingSpacePrompt: undefined,
       pendingOptionIndex: undefined,
     };
@@ -523,21 +579,48 @@ export default defineComponent({
       return this.pendingSpacePrompt !== undefined &&
         this.pendingOptionIndex === this.originalIndices[displayedIdx];
     },
+    // A leaf option that must ask before committing in confirmRisky mode: it carries
+    // a non-numeric tradeoff (irreversible side-effect) or warnings. Safe options
+    // (a plain gain, "do nothing") are NOT armable → they commit one-click.
+    isArmableRisky(opt: PlayerInputModel): boolean {
+      if (!this.confirmRisky || opt.type !== 'option') {
+        return false;
+      }
+      if (this.optionMeta(opt)?.tradeoff !== undefined) {
+        return true;
+      }
+      const w = this.optionWarnings(opt);
+      return w !== undefined && w.length > 0;
+    },
     pickOption(displayedIdx: number): void {
       const opt = this.displayedOptions[displayedIdx];
       const orig = this.originalIndices[displayedIdx];
       // Switching options cancels any in-progress board picker.
       this.clearSpacePicker();
       if (opt.type === 'option') {
+        // Risky option (confirmRisky mode): the first click ARMS the inline confirm
+        // drawer; a second click on the same card (or the drawer's Confirm) commits.
+        // Never a single mis-click on an irreversible choice.
+        if (this.isArmableRisky(opt)) {
+          if (this.armedIdx === displayedIdx) {
+            this.emitOption(displayedIdx);
+            return;
+          }
+          this.armedIdx = displayedIdx;
+          this.selectedIdx = -1;
+          return;
+        }
+        this.armedIdx = -1;
         this.selectedIdx = displayedIdx;
-        // Controlled (hosted as a step) → commit immediately; the parent modal's
-        // own button does the final submit. Standalone → wait for the confirm bar.
+        // Controlled (hosted as a step / a one-click contextual modal) → commit
+        // immediately. Standalone select→confirm → wait for the confirm bar.
         if (this.controlled) {
           this.emitOption(displayedIdx);
         }
         return;
       }
-      // A non-leaf interaction clears any leaf selection.
+      // A non-leaf interaction clears any leaf selection / arming.
+      this.armedIdx = -1;
       this.selectedIdx = -1;
       if (opt.type === 'space') {
         this.pendingOptionIndex = orig;
@@ -589,6 +672,18 @@ export default defineComponent({
         return;
       }
       this.emitOption(this.selectedIdx);
+    },
+    // Commit the ARMED risky option (the inline confirm drawer's Confirm button).
+    confirmArmed(): void {
+      if (this.armedIdx === -1) {
+        return;
+      }
+      this.emitOption(this.armedIdx);
+    },
+    // Close the inline confirm drawer without committing (Cancel / Esc / re-pick).
+    disarm(): void {
+      this.armedIdx = -1;
+      this.selectedIdx = -1;
     },
     // Emit the OR-wrapped {type:'option'} response for a leaf option at the given
     // DISPLAYED index. Shared by the standalone confirm bar and the controlled
