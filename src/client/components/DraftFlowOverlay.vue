@@ -178,6 +178,13 @@ export default defineComponent({
       if (wf === undefined || wf.type !== 'card') {
         return undefined;
       }
+      // Optional draft re-pick prompt (upstream #8151): the server lets a player
+      // change their pick until everyone has chosen. This fork intentionally does
+      // NOT surface a re-pick UI — an optional prompt is treated as "waiting for
+      // the other players" (see isWaitingState), so suppress the card grid here.
+      if (wf.optional === true) {
+        return undefined;
+      }
       // Hand-card selections (discard / reveal / pick FROM the player's hand)
       // are hosted by the КАРТЫ В РУКЕ overlay (HandCardsOverlay) in its
       // mandatory-select mode — far better for browsing a large hand than this
@@ -235,7 +242,11 @@ export default defineComponent({
       if (view === undefined) {
         return false;
       }
-      if (view.waitingFor !== undefined) {
+      // A required prompt means it's the player's turn to act — not a wait state.
+      // An OPTIONAL prompt (draft re-pick) is treated as "waiting for others":
+      // the player already made their required pick, so fall through to show the
+      // "Waiting for draft cards" view instead of letting the overlay vanish.
+      if (view.waitingFor !== undefined && view.waitingFor.optional !== true) {
         return false;
       }
       if (draftWaitState.pending) {

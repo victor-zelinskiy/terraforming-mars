@@ -696,7 +696,8 @@ export default defineComponent({
   mounted() {
     document.title = gameDocumentTitle(this.playerView.game);
     if (getPreferences().experimental_ui) {
-      setFaviconStatus(this.waitingfor !== undefined ? 'turn' : 'idle');
+      // An optional prompt (draft re-pick) is not the viewer's turn to act.
+      setFaviconStatus(this.waitingfor !== undefined && this.waitingfor.optional !== true ? 'turn' : 'idle');
     }
     window.clearInterval(documentTitleTimer);
     // Always poll — even when the viewer is mid-prompt — so other players'
@@ -705,7 +706,7 @@ export default defineComponent({
     // handler skips full refreshes while the viewer has a prompt to avoid
     // resetting partial input state.
     this.waitForUpdate();
-    if (this.playerView.players.length > 1 && this.waitingfor !== undefined) {
+    if (this.playerView.players.length > 1 && this.waitingfor !== undefined && this.waitingfor.optional !== true) {
       documentTitleTimer = window.setInterval(() => this.animateTitle(), 1000);
     }
   },
