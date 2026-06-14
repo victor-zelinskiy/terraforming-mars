@@ -13,6 +13,8 @@ import {Tag} from '../../../src/common/cards/Tag';
 import {IGame} from '../../../src/server/IGame';
 import {SelectInitialCards} from '../../../src/server/inputs/SelectInitialCards';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
+import {SelectOption} from '../../../src/server/inputs/SelectOption';
+import {CardName} from '../../../src/common/cards/CardName';
 import {TestPlayer} from '../../TestPlayer';
 import {Virus} from '../../../src/server/cards/base/Virus';
 import {runAllActions, runNextAction, setOxygenLevel, setRulingParty} from '../../TestingUtils';
@@ -133,6 +135,30 @@ describe('PharmacyUnion', () => {
     player.playCard(new AntiGravityTechnology());
     expect(game.deferredActions).has.lengthOf(0);
     expect(player.terraformRating).to.eq(23);
+  });
+
+  it('Face-down choice carries premium contextual metadata', () => {
+    player.playCorporationCard(pharmacyUnion);
+    pharmacyUnion.resourceCount = 0;
+
+    player.playCard(new SearchForLife());
+    const orOptions = cast(game.deferredActions.peek()!.execute(), OrOptions);
+
+    // Source + trigger context so the premium ContextualChoiceContent modal can
+    // frame "who asks + why" instead of a bare option list.
+    expect(orOptions.choiceContext).is.not.undefined;
+    expect(orOptions.choiceContext!.source.kind).to.eq('corporation');
+    expect(orOptions.choiceContext!.source.card).to.eq(CardName.PHARMACY_UNION);
+    expect(orOptions.choiceContext!.mode).to.eq('optional-effect');
+
+    // The "gain 3 TR" option carries a +3 TR result chip and the face-down tradeoff.
+    const gain = cast(orOptions.options[0], SelectOption);
+    expect(gain.metadata?.effects).to.deep.eq([{direction: 'gain', icon: 'tr', amount: 3}]);
+    expect(gain.metadata?.tradeoff).is.not.undefined;
+
+    // The "do nothing" option is flagged as a skip so it renders in the safe block.
+    const skip = cast(orOptions.options[1], SelectOption);
+    expect(skip.metadata?.kind).to.eq('skip');
   });
 
   it('Corporation tags do not count when corporation is disabled', () => {

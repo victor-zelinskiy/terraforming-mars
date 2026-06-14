@@ -16,6 +16,8 @@ import {SelectPayment} from '../../inputs/SelectPayment';
 import {TITLES} from '../../inputs/titles';
 import {message} from '../../logs/MessageBuilder';
 import {Resource} from '../../../common/Resource';
+import {skip} from '../../inputs/optionMetadata';
+import {cardEffect} from '../../inputs/choiceContext';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 
@@ -114,8 +116,8 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
                       spaceOwner.drawCard();
                       return undefined;
                     }),
-                  new SelectOption('Do not buy a card'),
-                ));
+                  new SelectOption('Do not buy a card').withMetadata(skip()),
+                ).markChoiceContext(cardEffect(this, 'A Cathedral was built in one of your cities.', 'optional-effect')));
             }
             return undefined;
           }));

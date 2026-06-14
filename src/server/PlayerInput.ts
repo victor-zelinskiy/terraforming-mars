@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext} from '../common/models/PlayerInputModel';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -16,6 +16,9 @@ export interface PlayerInput {
     // Explicit award-funding marker (see AwardFundingPromptMeta). Routes the
     // prompt to the modern AwardsOverlay. Serialized in ServerModel.getWaitingFor.
     awardFundingPrompt?: AwardFundingPromptMeta;
+    // Explicit contextual-choice marker (see ChoiceContext). Routes the prompt to
+    // the premium ContextualChoiceContent modal. Serialized in getWaitingFor.
+    choiceContext?: ChoiceContext;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -54,6 +57,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public annotation: string | undefined;
   public startGamePrompt: StartGamePromptMeta | undefined;
   public awardFundingPrompt: AwardFundingPromptMeta | undefined;
+  public choiceContext: ChoiceContext | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -106,6 +110,13 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   /** Mark this prompt as an award-funding selection (chainable). */
   public markAwardFundingPrompt(meta: AwardFundingPromptMeta): this {
     this.awardFundingPrompt = meta;
+    return this;
+  }
+
+  /** Attach contextual-choice metadata (source card + trigger) so the premium
+   *  client renders a CONTEXTUAL modal instead of a bare option list (chainable). */
+  public markChoiceContext(meta: ChoiceContext): this {
+    this.choiceContext = meta;
     return this;
   }
 }

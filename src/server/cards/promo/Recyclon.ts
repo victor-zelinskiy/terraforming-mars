@@ -7,6 +7,8 @@ import {ICorporationCard} from '../corporation/ICorporationCard';
 import {ICard} from '../ICard';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
+import {addResourceToCard, optionResult, chip} from '../../inputs/optionMetadata';
+import {cardEffect} from '../../inputs/choiceContext';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
@@ -49,16 +51,21 @@ export class Recyclon extends CorporationCard implements ICorporationCard {
       return undefined;
     }
 
-    const addResource = new SelectOption('Add a microbe resource to this card', 'Add microbe').andThen(() => {
-      player.addResourceTo(this);
-      return undefined;
-    });
+    const addResource = new SelectOption('Add a microbe resource to this card', 'Add microbe')
+      .withMetadata(addResourceToCard(CardResource.MICROBE))
+      .andThen(() => {
+        player.addResourceTo(this);
+        return undefined;
+      });
 
-    const spendResource = new SelectOption('Remove 2 microbes on this card and increase plant production 1 step', 'Remove microbes').andThen(() => {
-      player.removeResourceFrom(this, 2);
-      player.production.add(Resource.PLANTS, 1);
-      return undefined;
-    });
-    return new OrOptions(spendResource, addResource);
+    const spendResource = new SelectOption('Remove 2 microbes on this card and increase plant production 1 step', 'Remove microbes')
+      .withMetadata(optionResult({kind: 'resourceRemoval', effects: [chip('cost', 'microbe', 2), chip('gain', 'plants', 1, {note: 'production'})]}))
+      .andThen(() => {
+        player.removeResourceFrom(this, 2);
+        player.production.add(Resource.PLANTS, 1);
+        return undefined;
+      });
+    return new OrOptions(spendResource, addResource)
+      .markChoiceContext(cardEffect(this, 'You played a building tag.', 'effect-choice'));
   }
 }

@@ -23,7 +23,7 @@
   -->
   <div class="modal-input modal-input--options"
        :class="{'modal-input--wide-nested': expandedIsWide}">
-    <header class="modal-input__header">
+    <header v-if="!hideHeader" class="modal-input__header">
       <div class="modal-input__header-tab"></div>
       <h3 class="modal-input__title">{{ titleText }}</h3>
     </header>
@@ -66,6 +66,19 @@
 
         <span class="modal-input__option-body">
           <span class="modal-input__option-label">{{ optionActionText(e.opt) }}</span>
+          <!-- Optional clarifying sub-line (what the option means). -->
+          <span v-if="optionDescription(e.opt) !== ''" class="modal-input__option-desc">{{ optionDescription(e.opt) }}</span>
+          <!-- Premium result/cost chips (e.g. "+3 TR", "−2 microbes") — reuse the
+               shared ActionEffectChip so they match the action-confirm modal. -->
+          <span v-if="optionEffects(e.opt).length > 0" class="modal-input__option-effects">
+            <ActionEffectChip v-for="(eff, ei) in optionEffects(e.opt)" :key="ei" :effect="eff" />
+          </span>
+          <!-- A non-numeric downside / tradeoff of the option (e.g. "card turned
+               face down"), shown as an amber warning so the price is never hidden. -->
+          <span v-if="optionTradeoff(e.opt) !== ''" class="modal-input__option-tradeoff">
+            <span class="modal-input__option-tradeoff-icon" aria-hidden="true">⚠</span>
+            <span class="modal-input__option-tradeoff-text">{{ optionTradeoff(e.opt) }}</span>
+          </span>
           <span v-if="optionWarnings(e.opt) !== undefined" class="modal-input__option-warn-chip">
             <span class="modal-input__option-warn-icon" aria-hidden="true">⚠</span>
             <warnings-component :warnings="optionWarnings(e.opt)"
@@ -190,6 +203,7 @@
 import {defineComponent} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DisabledOptionModel, OrOptionsModel, PlayerInputModel, SelectSpaceModel, SelectOptionModel, OptionMetadata} from '@/common/models/PlayerInputModel';
+import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {InputResponse, OrOptionsResponse, SelectSpaceResponse} from '@/common/inputs/InputResponse';
 import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
@@ -200,6 +214,7 @@ import {translateText, translateMessage} from '@/client/directives/i18n';
 import {MANDATORY_MODAL_PICKER_SETTER} from '@/client/components/MandatoryInputModal.vue';
 import SelectSpace from '@/client/components/SelectSpace.vue';
 import WarningsComponent from '@/client/components/WarningsComponent.vue';
+import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {enterClientHandSelect} from '@/client/components/handCards/handSelectState';
@@ -234,6 +249,7 @@ export default defineComponent({
   components: {
     SelectSpace,
     WarningsComponent,
+    ActionEffectChip,
     // `<modal-input-host>` is registered GLOBALLY (main.ts) so we can host a
     // nested input recursively without importing ModalInputHost here — that
     // static import would re-introduce the ModalInputHost <-> ModernOptionPicker
@@ -260,6 +276,14 @@ export default defineComponent({
     // hidden; the chosen option is shown via the normal --selected highlight + ✓.
     // Default false → the standalone select→confirm flow (WGT, top-level prompts).
     controlled: {
+      type: Boolean,
+      default: false,
+    },
+    // Suppress this component's OWN title header — used when it's WRAPPED by a
+    // premium contextual frame (ContextualChoiceContent) that renders the source /
+    // trigger / instruction above the option list, so the bare "Select one option"
+    // title would be redundant. Default false → standalone keeps its header.
+    hideHeader: {
       type: Boolean,
       default: false,
     },
@@ -390,6 +414,20 @@ export default defineComponent({
     // The option's structured UI metadata (premium render), or undefined.
     optionMeta(opt: PlayerInputModel): OptionMetadata | undefined {
       return opt.type === 'option' ? (opt as SelectOptionModel).metadata : undefined;
+    },
+    // Premium result/cost chips attached to this option (e.g. "+3 TR"), or [].
+    optionEffects(opt: PlayerInputModel): ReadonlyArray<ActionEffect> {
+      return this.optionMeta(opt)?.effects ?? [];
+    },
+    // A non-numeric downside/tradeoff line (translated), or '' when none.
+    optionTradeoff(opt: PlayerInputModel): string {
+      const t = this.optionMeta(opt)?.tradeoff;
+      return t === undefined ? '' : optionTitleText(t);
+    },
+    // A clarifying sub-description (translated), or '' when none.
+    optionDescription(opt: PlayerInputModel): string {
+      const d = this.optionMeta(opt)?.description;
+      return d === undefined ? '' : optionTitleText(d);
     },
     // ----- informational disabled (non-selectable) targets -----
     disabledColor(d: DisabledOptionModel): Color | undefined {

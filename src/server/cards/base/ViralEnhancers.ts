@@ -10,6 +10,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardResource} from '../../../common/CardResource';
 import {CardRenderer} from '../render/CardRenderer';
 import {message} from '../../logs/MessageBuilder';
+import {addResourceToCard, chip} from '../../inputs/optionMetadata';
+import {cardEffect} from '../../inputs/choiceContext';
 import {ICard} from '../ICard';
 import {Resource} from '../../../common/Resource';
 
@@ -52,15 +54,19 @@ export class ViralEnhancers extends Card implements IProjectCard {
     for (let i = 0; i < resourceCount; i++) {
       player.defer(
         () => new OrOptions(
-          new SelectOption(message('Add resource to card ${0}', (b) => b.card(card)), 'Add resource').andThen(() => {
-            player.addResourceTo(card, {log: true});
-            return undefined;
-          }),
-          new SelectOption('Gain plant').andThen(() => {
-            this.addPlant(player, 1);
-            return undefined;
-          }),
-        ),
+          new SelectOption(message('Add resource to card ${0}', (b) => b.card(card)), 'Add resource')
+            .withMetadata(addResourceToCard(card.resourceType ?? CardResource.MICROBE))
+            .andThen(() => {
+              player.addResourceTo(card, {log: true});
+              return undefined;
+            }),
+          new SelectOption('Gain plant')
+            .withMetadata({kind: 'resourceGain', effects: [chip('gain', 'plants', 1)]})
+            .andThen(() => {
+              this.addPlant(player, 1);
+              return undefined;
+            }),
+        ).markChoiceContext(cardEffect(this, 'You played a plant, microbe, or animal tag.', 'effect-choice')),
       );
     }
     return undefined;

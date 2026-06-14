@@ -1,5 +1,7 @@
 import {CardModel} from './CardModel';
 import {ColonyModel} from './ColonyModel';
+import type {ActionEffect} from './ActionPreviewModel';
+import {CardName} from '../cards/CardName';
 import {Color, ColorWithNeutral} from '../Color';
 import {PayProductionModel} from './PayProductionUnitsModel';
 import {AresData} from '../ares/AresData';
@@ -48,12 +50,42 @@ export type AwardFundingPromptMeta = {
   free: boolean;
 }
 
+/** Where a contextual choice originated — the card / corporation / system that
+ *  asks the player to decide. Drives the premium modal's source-card preview +
+ *  kicker chip. `card` is the source card's name (undefined for system choices). */
+export type ChoiceContextSource = {
+  kind: 'card' | 'corporation' | 'standardProject' | 'colony' | 'system';
+  card?: CardName;
+}
+
+/**
+ * EXPLICIT context for a top-level choice prompt (an `OrOptions` produced by a
+ * triggered effect, an on-play decision, or a deferred action). Lets the premium
+ * client (ContextualChoiceContent) render a CONTEXTUAL modal — source card on the
+ * left, a "why this appeared" trigger line, rich per-option result chips — instead
+ * of a context-less "Select one option" list. Set server-side, CO-LOCATED in the
+ * card that builds the prompt (e.g. `OrOptions(...).markChoiceContext(...)`), and
+ * serialized centrally in `ServerModel.getWaitingFor`. Backward-compatible: a
+ * prompt WITHOUT it renders via the existing ModernOptionPicker.
+ */
+export type ChoiceContext = {
+  source: ChoiceContextSource;
+  /** A short "why this choice appeared" explanation (i18n text/Message), e.g.
+   *  "A science tag was played." Rendered as the trigger/reason block. */
+  trigger?: string | Message;
+  /** Semantic mode — drives the kicker copy + accent. `optional-effect` =
+   *  apply-or-skip (Pharmacy Union); `effect-choice` = pick between effects
+   *  (Olympus); `attack` = target an opponent; `reward` = collect a bonus. */
+  mode?: 'optional-effect' | 'effect-choice' | 'attack' | 'reward';
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
   buttonLabel: string;
   startGamePrompt?: StartGamePromptMeta;
   awardFundingPrompt?: AwardFundingPromptMeta;
+  choiceContext?: ChoiceContext;
 }
 
 export type AndOptionsModel = BaseInputModel & {
@@ -115,6 +147,17 @@ export type OptionMetadata = {
   /** SELF-resource spend context (e.g. paying a trade fee) — the viewer's own
    *  stock of `icon` before/after, for a "5 → 2" preview + "available" badge. */
   resource?: {current: number, resulting: number};
+  /** Premium RESULT/COST chips for this option (icon + amount + optional
+   *  current → resulting), reusing the `ActionEffect` shape so the contextual
+   *  modal renders them with the same `ActionEffectChip` the action-confirm modal
+   *  uses (e.g. Pharmacy Union's "+3 TR"). */
+  effects?: ReadonlyArray<ActionEffect>;
+  /** A NON-numeric downside of taking this option, shown as a warning chip (e.g.
+   *  "Card turned face down — its effect stops"). i18n text/Message. */
+  tradeoff?: string | Message;
+  /** A short descriptive sub-line clarifying what this option does, under the
+   *  label (i18n text/Message). */
+  description?: string | Message;
 };
 
 export type SelectOptionModel = BaseInputModel & {

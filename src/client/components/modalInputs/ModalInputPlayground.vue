@@ -133,6 +133,41 @@ export default defineComponent({
     scenarios(): Array<{label: string, input: any}> {
       return [
         {
+          label: 'Contextual — optional effect w/ tradeoff (Pharmacy Union)',
+          input: {
+            type: 'or',
+            title: 'Select one option',
+            choiceContext: {
+              source: {kind: 'corporation', card: 'Pharmacy Union'},
+              trigger: 'You played a science tag and there are no diseases left here.',
+              mode: 'optional-effect',
+            },
+            options: [
+              {type: 'option', title: 'Turn this card face down and gain 3 TR', buttonLabel: 'Gain TR',
+                metadata: {kind: 'resourceGain', effects: [{direction: 'gain', icon: 'tr', amount: 3}], tradeoff: 'Card is turned face down — its effect stops working'}},
+              {type: 'option', title: 'Do nothing', buttonLabel: 'Do nothing', metadata: {kind: 'skip'}},
+            ],
+          },
+        },
+        {
+          label: 'Contextual — effect choice (Olympus Conference)',
+          input: {
+            type: 'or',
+            title: 'Select an option for Olympus Conference',
+            choiceContext: {
+              source: {kind: 'card', card: 'Olympus Conference'},
+              trigger: 'A science tag was played.',
+              mode: 'effect-choice',
+            },
+            options: [
+              {type: 'option', title: 'Remove a science resource from this card to draw a card', buttonLabel: 'Remove resource',
+                metadata: {kind: 'resourceRemoval', icon: 'science', amount: 1, effects: [{direction: 'gain', icon: 'cards', amount: 1}]}},
+              {type: 'option', title: 'Add a science resource to this card', buttonLabel: 'Add resource',
+                metadata: {kind: 'resourceGain', icon: 'science', amount: 1, effects: [{direction: 'gain', icon: 'science', amount: 1}]}},
+            ],
+          },
+        },
+        {
           label: 'OrOptions — remove plants (player targets + skip + warning)',
           input: {
             type: 'or',
@@ -259,6 +294,11 @@ export default defineComponent({
           tags.unshift({text: 'metadata: partial', kind: 'warn'});
         } else {
           tags.unshift({text: 'fallback (text only)', kind: 'fallback'});
+        }
+        // Carrying choiceContext → routes to the premium ContextualChoiceContent
+        // (source card + trigger frame), not the bare ModernOptionPicker.
+        if (input.choiceContext !== undefined) {
+          tags.unshift({text: 'contextual', kind: 'ok'});
         }
         return tags;
       }

@@ -11,6 +11,8 @@ import {Size} from '../../../common/cards/render/Size';
 import {Resource} from '../../../common/Resource';
 import {all} from '../Options';
 import {message} from '../../logs/MessageBuilder';
+import {addResourceToCard, chip} from '../../inputs/optionMetadata';
+import {cardEffect} from '../../inputs/choiceContext';
 import {ICard} from '../ICard';
 import {GainResourcesDeferred} from '../../deferredActions/GainResourcesDeferred';
 
@@ -65,14 +67,17 @@ export class Splice extends CorporationCard implements ICorporationCard {
     // Splice owner gets 2M€ per microbe tag
     game.defer(new GainResourcesDeferred(player, Resource.MEGACREDITS, {count: gain, log: true, from: {card: this}}));
 
-    const gainResource = new SelectOption('Add a microbe resource to this card', 'Add microbe').andThen(() => {
-      cardPlayer.addResourceTo(card);
-      return undefined;
-    });
+    const gainResource = new SelectOption('Add a microbe resource to this card', 'Add microbe')
+      .withMetadata(addResourceToCard(CardResource.MICROBE))
+      .andThen(() => {
+        cardPlayer.addResourceTo(card);
+        return undefined;
+      });
 
     const gainMC = new SelectOption(
       message('Gain ${0} M€', (b) => b.number(gain)),
       'Gain M€')
+      .withMetadata({kind: 'resourceGain', effects: [chip('gain', 'megacredits', gain)]})
       .andThen(() => {
         game.defer(new GainResourcesDeferred(cardPlayer, Resource.MEGACREDITS, {count: gain, log: true, from: {card: this}}));
         return undefined;
@@ -80,7 +85,8 @@ export class Splice extends CorporationCard implements ICorporationCard {
 
     if (card.resourceType === CardResource.MICROBE) {
       // Card player chooses between 2 M€ and a microbe on card, if possible
-      cardPlayer.defer(new OrOptions(gainResource, gainMC));
+      cardPlayer.defer(new OrOptions(gainResource, gainMC)
+        .markChoiceContext(cardEffect(this, 'A microbe tag was played.', 'effect-choice')));
     } else {
       gainMC.cb(undefined);
     }
