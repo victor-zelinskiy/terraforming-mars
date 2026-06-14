@@ -183,17 +183,18 @@
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 9px;
-    padding: 10px 12px 11px 14px;
+    gap: 7px;
+    padding: 9px 12px 9px 14px;
     border-bottom: 1px solid rgba(106, 176, 230, 0.14);
     background: linear-gradient(180deg, rgba(20, 32, 48, 0.55), rgba(12, 20, 32, 0.20));
 }
 
-/* Row 1: title + close. */
+/* Row 1 (premium toolbar): title (left) · Detailed/Summary + close (right) —
+   the compact mode toggle uses the free space that sat empty next to the title. */
 .journal-panel__titlebar {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 /* Row 2: the generation + player-filter dropdowns. Wrap as a safety on
@@ -201,7 +202,7 @@
 .journal-panel__controls {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     flex-wrap: wrap;
 }
 
@@ -210,6 +211,7 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
+    margin-right: auto;          /* pushes the mode toggle + close to the right */
 }
 
 .journal-panel__glyph {
@@ -233,10 +235,9 @@
 }
 
 .journal-panel__close {
-    margin-left: auto;
     flex-shrink: 0;
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     display: grid;
     place-items: center;
     border: 1px solid transparent;
@@ -264,16 +265,16 @@
 .journal-genselect__trigger {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    height: 28px;
-    padding: 0 9px;
+    gap: 6px;
+    height: 26px;
+    padding: 0 8px;
     border: 1px solid @j-rim;
     border-radius: 4px;
     background: linear-gradient(180deg, rgba(16, 26, 40, 0.92), rgba(10, 16, 26, 0.92));
     color: @j-text-dim;
     font-family: Prototype, Orbitron, sans-serif;
-    font-size: 11.5px;
-    letter-spacing: 0.6px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
     cursor: pointer;
     transition: border-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
@@ -685,9 +686,9 @@
 .journal-group__child {
     position: relative;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 6px;
-    padding: 1px 5px 1px 6px;
+    padding: 2px 5px 2px 6px;
     border-radius: 4px;
     font-size: 12px;
     line-height: 1.4;
@@ -696,6 +697,9 @@
 
     &:hover { background: rgba(106, 176, 230, 0.05); }
 }
+/* Event-driven rows own the full body width so their internal grid can align
+   the source / arrow / impact columns. */
+.journal-group__child--event .journal-group__child-body { flex: 1; }
 
 /* The short tick joining a child to the spine. */
 .journal-group__tick {
@@ -739,14 +743,14 @@
     background: linear-gradient(180deg, rgba(16, 26, 40, 0.92), rgba(10, 16, 26, 0.92));
 }
 .journal-mode__btn {
-    height: 28px;
-    padding: 0 11px;
+    height: 23px;
+    padding: 0 9px;
     border: none;
     background: transparent;
     color: @j-text-muted;
     font-family: Prototype, Orbitron, sans-serif;
-    font-size: 11px;
-    letter-spacing: 0.6px;
+    font-size: 10px;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
     cursor: pointer;
     transition: color 140ms ease, background 140ms ease;
@@ -760,40 +764,72 @@
     box-shadow: inset 0 0 0 1px @j-cyan-line;
 }
 
-/* ── Event-driven child row (source → impact) ─────────────────────────── */
+/* ── Grouped child row (source → impact · impact) ─────────────────────────
+ *
+ * [lead: source(+recipient)] · [arrow] · [impacts]. A robust FLEX-WRAP row (not
+ * a rigid grid): the lead reserves a min width so short labels like "Оплата"
+ * roughly align down the feed, but content can NEVER be squeezed into a fixed
+ * track — a wide copied-action result ("copied <card>") simply wraps to the next
+ * line instead of collapsing the source column (the bug a fixed grid caused). */
 .journal-child-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px 7px;
+    width: 100%;
+}
+.journal-child-row__lead {
     display: inline-flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 5px;
+    min-width: 74px;          /* approximate column alignment for short labels */
+}
+.journal-child-row__impacts {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
-/* Semantic source label (Бонус клетки / Бонус океанов / Производство / …). */
+/* Semantic source label (Оплата / Бонус клетки / Торговый доход / …). The accent
+   is tinted PER BUCKET so the kind of contribution reads at a glance. */
 .journal-child-row__src {
     display: inline-flex;
     align-items: center;
-    height: 17px;
-    padding: 0 7px;
+    height: 18px;
+    padding: 0 8px;
     border-radius: 4px;
-    border: 1px solid var(--jg-accent-soft, @j-chip-rim);
-    background: rgba(0, 0, 0, 0.20);
-    color: @j-text-dim;
+    border: 1px solid var(--src-rim, @j-chip-rim);
+    background: var(--src-bg, rgba(0, 0, 0, 0.22));
+    color: var(--src-fg, @j-text-dim);
     font-size: 11px;
     letter-spacing: 0.3px;
     white-space: nowrap;
 }
 .journal-child-row__tile { font-size: 12px; }
-.journal-child-row__copied { font-size: 11px; color: @j-text-muted; }
-.journal-child-row__player { font-size: 11px; }
+/* `nowrap` so the "copied" label never wraps mid-word (the body sets
+   `word-break: break-word`, which otherwise broke it into vertical letters). */
+.journal-child-row__copied { font-size: 11px; color: @j-text-muted; white-space: nowrap; }
+.journal-child-row__player { font-size: 11px; flex-shrink: 0; }
 .journal-child-row__arrow {
     color: @j-text-muted;
-    font-size: 12px;
-    margin: 0 1px;
+    font-size: 11px;
+    opacity: 0.6;
 }
 
-/* Impact chip: resource icon + signed amount. A STOCK gain reads in cool cyan;
-   a PRODUCTION change is framed as a brown production tile (matches the game's
-   production visual) so the two are unmistakable at a glance. */
+/* Per-bucket source accent (subtle — the impact chips carry the colour weight). */
+.journal-child-row--payment        { --src-rim: rgba(150, 170, 195, 0.34); --src-fg: #c7d4e4; }
+.journal-child-row--discount       { --src-rim: rgba(230, 196, 90, 0.45);  --src-bg: rgba(230, 196, 90, 0.08); --src-fg: #ecd79a; }
+.journal-child-row--spaceBonus     { --src-rim: rgba(120, 200, 130, 0.40); --src-fg: #bfe6c6; }
+.journal-child-row--oceanBonus     { --src-rim: rgba(96, 168, 230, 0.42);  --src-fg: #bcd9f4; }
+.journal-child-row--colony         { --src-rim: rgba(120, 200, 210, 0.42); --src-fg: #b6e3ea; }
+.journal-child-row--globalParameter{ --src-rim: rgba(150, 175, 200, 0.40); --src-fg: #cdddf0; }
+.journal-child-row--production     { --src-rim: rgba(206, 150, 100, 0.45); --src-fg: #f0d2b6; }
+
+/* Impact chip: resource icon + signed amount, toned by KIND. */
 .journal-child-row__chip {
     display: inline-flex;
     align-items: center;
@@ -801,8 +837,8 @@
     height: 19px;
     padding: 0 7px 0 4px;
     border-radius: 4px;
-    background: rgba(106, 176, 230, 0.12);
-    border: 1px solid rgba(106, 176, 230, 0.26);
+    background: rgba(120, 150, 180, 0.12);
+    border: 1px solid rgba(120, 150, 180, 0.26);
     color: @j-text;
     font-size: 12px;
     font-weight: 700;
@@ -820,24 +856,43 @@
     line-height: 1;
     letter-spacing: 0.2px;
 }
+/* A GAIN reads cool-mint, a stock LOSS reads VIVID RED — deliberately pulled to a
+   pure red hue (≈2°) so it can't be confused with the warm AMBER-BROWN production
+   tile (≈33°). Red = a stock change; brown = a production change. */
+.journal-child-row__chip--pos {
+    background: rgba(96, 200, 150, 0.14);
+    border-color: rgba(96, 200, 150, 0.34);
+    color: #d9f4e6;
+}
+.journal-child-row__chip--neg {
+    background: rgba(228, 72, 66, 0.18);
+    border-color: rgba(244, 104, 96, 0.58);
+    color: #ffcfca;
+}
+/* A discount / cost reduction is a SAVING — gold, distinct from a plain spend. */
+.journal-child-row__chip--saved {
+    background: rgba(230, 196, 90, 0.15);
+    border-color: rgba(230, 196, 90, 0.45);
+    color: #ecd79a;
+}
 /*
- * Production deltas: a saturated brown chip + the icon set on a brown
+ * Production deltas (gain OR loss): an AMBER-BROWN chip + the icon set on a brown
  * production TILE (the sprite sits a touch smaller so the brown frame shows
- * through), echoing how production is drawn on the board / cards. This is the
- * fix for "the plain brown background is hard to tell apart" — production now
- * reads as a framed production tile, not just a faintly tinted chip.
- */
+ * through), echoing how production is drawn on the board / cards. The framed icon
+ * tile is the unmistakable production signature — paired with the amber hue it
+ * never reads as a red stock loss. `--prod` is applied BEFORE `--neg`, so a
+ * production attack (−1 energy prod) stays brown, not red. */
 .journal-child-row__chip--prod {
-    background: rgba(168, 112, 68, 0.20);
-    border-color: rgba(206, 150, 100, 0.55);
-    color: #f4dcc4;
+    background: rgba(180, 124, 58, 0.24);
+    border-color: rgba(216, 160, 96, 0.62);
+    color: #f6e2c6;
 
     .journal-child-row__chip-icon {
         width: 17px;
         height: 17px;
         background-size: 11px 11px;
-        background-color: #5d3c24;
-        border: 1px solid rgba(214, 162, 112, 0.65);
+        background-color: #5a3a20;
+        border: 1px solid rgba(220, 168, 118, 0.72);
         border-radius: 3px;
     }
 }
