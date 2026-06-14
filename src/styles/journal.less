@@ -823,6 +823,25 @@
 /* Per-bucket source accent (subtle — the impact chips carry the colour weight). */
 .journal-child-row--payment        { --src-rim: rgba(150, 170, 195, 0.34); --src-fg: #c7d4e4; }
 .journal-child-row--discount       { --src-rim: rgba(230, 196, 90, 0.45);  --src-bg: rgba(230, 196, 90, 0.08); --src-fg: #ecd79a; }
+
+/* Explicit "СКИДКА" word on a discount row — gold, uppercase, so a "−N M€" chip
+   reads unmistakably as a SAVING, not a charge. Sits right after the source. */
+.journal-child-row__discount-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 7px;
+    border-radius: 4px;
+    background: rgba(230, 196, 90, 0.16);
+    border: 1px solid rgba(230, 196, 90, 0.5);
+    color: #f1dca0;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
 .journal-child-row--spaceBonus     { --src-rim: rgba(120, 200, 130, 0.40); --src-fg: #bfe6c6; }
 .journal-child-row--oceanBonus     { --src-rim: rgba(96, 168, 230, 0.42);  --src-fg: #bcd9f4; }
 .journal-child-row--colony         { --src-rim: rgba(120, 200, 210, 0.42); --src-fg: #b6e3ea; }

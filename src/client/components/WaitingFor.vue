@@ -603,7 +603,15 @@ export default defineComponent({
             // a full refresh would reset their partial input state
             // (selected cards, etc.). Skip it — the bubbled list above
             // is enough to keep other players' cube/status in sync.
-            const viewerHasPrompt = this.waitingfor !== undefined;
+            //
+            // EXCEPTION: an OPTIONAL prompt (draft re-pick, upstream #8151) is
+            // NOT real mid-input — this fork suppresses its UI and shows the
+            // "waiting for the other players" view, so there is no partial input
+            // to protect. It MUST count as "no prompt" here, otherwise when the
+            // server clears the optional re-pick and hands the viewer their next
+            // REQUIRED prompt (the next draft set), the 'GO' below is skipped and
+            // the player is stuck on the waiting view forever — a draft deadlock.
+            const viewerHasPrompt = this.waitingfor !== undefined && this.waitingfor.optional !== true;
 
             if (result.result === 'GO') {
               if (!viewerHasPrompt) {
