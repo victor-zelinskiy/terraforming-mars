@@ -1,33 +1,36 @@
 <template>
   <!--
-    The static RIGHT panel of the Эффекты overlay — the "what did this effect DO
-    this game" step between scanning the effect grid and reading the rule. Always
-    shows the SELECTED source (card / corporation): the printed effect graphic, a
-    per-game summary built individually by `getEffectSummary` (trigger count +
-    impact lines + the live current value + last-trigger generation), and — when an
-    effect has produced nothing measurable — a thematic NOTE instead of a dead
-    empty state. Read-only (no CTA): effects are passive. ⤢ opens the source card
-    fullscreen.
+    The static RIGHT panel — PER EFFECT (not per card). For the SELECTED effect it
+    shows: a mini-context header, the effect's OWN icon graphic, the effect's OWN
+    full text DESCRIPTION (which lives ONLY here — the left grid is icons-only), a
+    per-game summary ("what this effect did this game": trigger count + impact lines
+    + live current value + last-trigger gen) or a thematic NOTE, and the source card
+    preview. A multi-effect card shows EACH effect's own description; the per-game
+    stats are aggregated at the source-card level (the event stream attributes to the
+    card), so a small caption says so. Read-only (effects are passive). ⤢ → fullscreen.
   -->
   <aside class="effect-detail"
          :class="{
-           'effect-detail--empty': group === undefined,
+           'effect-detail--empty': entry === undefined,
            'effect-detail--corp': isCorporation,
            'effect-detail--disabled': isDisabled,
          }">
-    <div v-if="group === undefined" class="effect-detail__placeholder">
+    <div v-if="entry === undefined" class="effect-detail__placeholder">
       <span class="effect-detail__placeholder-glyph" aria-hidden="true">⌁</span>
       <span class="effect-detail__placeholder-text" v-i18n>Select an effect to see details</span>
     </div>
 
     <div v-else class="effect-detail__scroll">
       <header class="effect-detail__head">
-        <span class="effect-detail__type" v-i18n>{{ isCorporation ? 'Corporation' : 'Card' }}</span>
-        <h3 class="effect-detail__name" v-i18n>{{ cardName }}</h3>
+        <span class="effect-detail__type">
+          <span v-i18n>{{ isCorporation ? 'Corporation' : 'Card' }}</span>
+          <span v-if="multiEffect" class="effect-detail__ord">{{ entry.effectIndex + 1 }}/{{ effectCount }}</span>
+        </span>
+        <h3 class="effect-detail__name" v-i18n>{{ entry.cardName }}</h3>
         <button type="button"
                 class="effect-detail__zoom"
                 :aria-label="$t('Open fullscreen')"
-                @click="$emit('open', cardName)">⤢</button>
+                @click="$emit('open', entry.cardName)">⤢</button>
         <span v-if="resourceChip" class="effect-detail__res">
           <span class="effect-detail__res-icon" :class="resIconClass" aria-hidden="true"></span>
           <span class="effect-detail__res-count">{{ resourceCount }}</span>
@@ -35,26 +38,30 @@
         </span>
       </header>
 
-      <!-- The printed passive-effect graphic (the rule). Reuses the card's own
-           render — the global `.effect-item__render.card-container` styles localize
-           the plate text, render the sprite icons + light text on the dark glass. -->
+      <!-- The SELECTED effect's icon graphic (description hidden via CSS — the prose
+           lives in the Description block below, not baked into the graphic). -->
       <div class="effect-detail__section">
         <span class="effect-detail__label" v-i18n>Effect</span>
         <div class="effect-detail__rules">
-          <div v-for="eff in group.effects" :key="eff.key" class="effect-detail__rule">
-            <div v-if="eff.effectNode !== undefined" class="effect-item__render card-container" v-i18n v-strip-effect-prefix>
-              <CardRenderEffectBoxComponent :effectData="eff.effectNode" />
+          <div class="effect-detail__rule">
+            <div v-if="entry.effectNode !== undefined" class="effect-item__render card-container" v-i18n v-strip-effect-prefix>
+              <CardRenderEffectBoxComponent :effectData="entry.effectNode" />
             </div>
-            <div v-else-if="eff.renderRoot !== undefined" class="effect-item__render card-container" v-i18n v-strip-effect-prefix>
-              <CardRenderData :renderData="eff.renderRoot" />
-              <div v-if="eff.text" class="effect-item__desc">(<span v-i18n>{{ eff.text }}</span>)</div>
+            <div v-else-if="entry.renderRoot !== undefined" class="effect-item__render card-container" v-i18n v-strip-effect-prefix>
+              <CardRenderData :renderData="entry.renderRoot" />
             </div>
-            <div v-else class="effect-item__text" v-i18n v-strip-effect-prefix>{{ eff.text }}</div>
+            <div v-else class="effect-item__text" v-i18n v-strip-effect-prefix>{{ entry.text }}</div>
           </div>
         </div>
       </div>
 
-      <!-- Per-game summary — what this effect actually did this game. -->
+      <!-- This effect's OWN full text description (translated, prefix-stripped). -->
+      <div v-if="hasDescription" class="effect-detail__section">
+        <span class="effect-detail__label" v-i18n>Description</span>
+        <p class="effect-detail__desc" v-i18n v-strip-effect-prefix>{{ entry.description }}</p>
+      </div>
+
+      <!-- Per-game summary — what this effect did this game. -->
       <div class="effect-detail__section effect-detail__summary">
         <span class="effect-detail__label" v-i18n>This game</span>
 
@@ -64,6 +71,8 @@
         </div>
 
         <template v-else>
+          <p v-if="vm.cardScoped && !vm.empty" class="effect-detail__scope-note" v-i18n>Stats cover all effects of this card</p>
+
           <div v-if="vm.headline" class="effect-detail__headline" v-i18n>{{ vm.headline }}</div>
 
           <div v-if="vm.triggerCount > 0" class="effect-detail__metric">
@@ -100,12 +109,12 @@
                 type="button"
                 class="effect-detail__source-card"
                 :aria-label="$t('Open fullscreen')"
-                @click.capture.stop="$emit('open', cardName)">
+                @click.capture.stop="$emit('open', entry.cardName)">
           <!-- @click.capture.stop suppresses Card.vue's OWN click→zoom (else one
                click opens TWO viewers). :key is load-bearing — Card.vue resolves
                its render data ONCE in data(), so a reused keyless <Card> sticks on
                the first card it ever rendered. -->
-          <Card :key="cardName" :card="cardModel" />
+          <Card :key="entry.cardName" :card="cardModel" />
         </button>
       </div>
     </div>
@@ -119,7 +128,7 @@ import {CardResource} from '@/common/CardResource';
 import {Units} from '@/common/Units';
 import {CardModel} from '@/common/models/CardModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
-import {EffectGroup} from '@/client/components/effects/effectExtraction';
+import {EffectEntry} from '@/client/components/effects/effectExtraction';
 import {getEffectSummary, EffectSummaryViewModel, EffectSummaryContext} from '@/client/components/effects/effectSummary';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -152,9 +161,15 @@ export default defineComponent({
   components: {Card, CardRenderEffectBoxComponent, CardRenderData},
   directives: {stripEffectPrefix},
   props: {
-    group: {
-      type: Object as PropType<EffectGroup>,
+    // The SELECTED effect (per-effect, not per-card).
+    entry: {
+      type: Object as PropType<EffectEntry>,
       default: undefined,
+    },
+    // How many effects the source card grants (>1 → the stats are card-scoped).
+    effectCount: {
+      type: Number,
+      default: 1,
     },
     // The whole-game aggregate for this source (undefined → no events yet / loading).
     stat: {
@@ -182,13 +197,19 @@ export default defineComponent({
   },
   computed: {
     cardName(): CardName | undefined {
-      return this.group?.cardName;
+      return this.entry?.cardName;
     },
     isCorporation(): boolean {
-      return this.group?.isCorporation ?? false;
+      return this.entry?.isCorporation ?? false;
     },
     isDisabled(): boolean {
-      return this.group?.isDisabled ?? false;
+      return this.entry?.isDisabled ?? false;
+    },
+    multiEffect(): boolean {
+      return this.effectCount > 1;
+    },
+    hasDescription(): boolean {
+      return this.entry?.description !== undefined && this.entry.description !== '';
     },
     cardModel(): CardModel {
       return this.card ?? ({name: this.cardName} as CardModel);
@@ -212,6 +233,8 @@ export default defineComponent({
         sourceKind: this.isCorporation ? 'corporation' : 'card',
         cardResourceType: this.resourceType,
         currentCardResource: this.resourceType !== undefined ? this.resourceCount : undefined,
+        effectIndex: this.entry?.effectIndex,
+        effectCount: this.effectCount,
       };
     },
     vm(): EffectSummaryViewModel {

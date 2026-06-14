@@ -112,4 +112,27 @@ describe('effectExtraction', () => {
     expect(flagged).to.not.include(CardName.OLYMPUS_CONFERENCE); // overridden
     expect(flagged.length).to.be.lessThan(8);
   });
+
+  it('carries a per-effect index + a SEPARATE key per effect (multi-effect card)', () => {
+    const entries = playerEffects([model(CardName.CARBON_NANOSYSTEMS)]);
+    expect(entries.length).to.eq(2);
+    expect(entries.map((e) => e.effectIndex)).to.deep.eq([0, 1]);
+    // Each effect is independently selectable → distinct keys.
+    expect(entries[0].key).to.not.eq(entries[1].key);
+    // The per-effect description field is present on every entry.
+    expect(entries[0]).to.have.property('description');
+    expect(entries[1]).to.have.property('description');
+  });
+
+  it('extracts the per-effect description string from a clean effect node (Space Station)', () => {
+    const entry = playerEffects([model(CardName.SPACE_STATION)])[0];
+    expect(entry.effectIndex).to.eq(0);
+    expect(entry.description, 'a discount effect carries a prose description').to.be.a('string');
+  });
+
+  it('exposes effectIndex + description on the grouped effects too', () => {
+    const effects = playerEffectGroups([model(CardName.CARBON_NANOSYSTEMS)])[0].effects;
+    expect(effects.map((e) => e.effectIndex)).to.deep.eq([0, 1]);
+    expect(effects[0]).to.have.property('description');
+  });
 });

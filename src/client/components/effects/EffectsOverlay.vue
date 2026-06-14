@@ -41,16 +41,19 @@
           <EffectBlock v-for="g in groups"
                        :key="g.key"
                        :group="g"
+                       :card="tableauByName.get(g.cardName)"
                        :selectedKey="activeKey"
                        @namehover="onNameHover"
                        @open="onPin" />
         </div>
         <!-- The detail lives in a RELATIVE cell + is ABSOLUTE inside it, so its
              (variable) content height NEVER drives the split's row height — the
-             overlay size is fixed by the master + a min-height (no jump on select). -->
+             overlay size is fixed by the master + a min-height (no jump on select).
+             Driven by the SELECTED EFFECT (not the whole card). -->
         <div class="effects-board__detail-cell">
           <EffectDetailsPanel class="effects-board__detail"
-                              :group="selectedGroup"
+                              :entry="selectedEntry"
+                              :effectCount="selectedEffectCount"
                               :stat="selectedStat"
                               :card="selectedCardModel"
                               :loading="loadingStats"
@@ -58,15 +61,16 @@
         </div>
       </div>
 
-      <!-- HIDDEN height-probe: one card-less details panel per group, measured to
+      <!-- HIDDEN height-probe: one card-less details panel per EFFECT, measured to
            find the TALLEST detail so the overlay opens at a size where no detail
            scrolls (pre-computed, not grown per selection). -->
       <div v-if="effects.length > 0" class="effects-board__measure" ref="measure" aria-hidden="true">
-        <EffectDetailsPanel v-for="g in measureItems"
-                            :key="g.key"
+        <EffectDetailsPanel v-for="e in effects"
+                            :key="e.key"
                             :measuring="true"
-                            :group="g"
-                            :stat="statForGroup(g.cardName)" />
+                            :entry="e"
+                            :effectCount="effectCountFor(e.cardName)"
+                            :stat="statForGroup(e.cardName)" />
       </div>
     </div>
 
@@ -115,7 +119,7 @@ const MIN_W = 640;            // floor so the header never wraps
 const MAX_COLS = 3;           // the master is at most 3 columns
 
 type DataModel = {
-  hoverKey: CardName | undefined;
+  hoverKey: string | undefined;
   zoomCard: CardModel | undefined;
   loadingStats: boolean;
   resizeObserver: ResizeObserver | undefined;
@@ -177,26 +181,30 @@ export default defineComponent({
       }
       return map;
     },
-    // The pinned selection (module state, survives the remount).
-    selectedKey(): CardName | undefined {
+    // The pinned selection — an EFFECT key (`<cardName>#<i>`), module state, survives
+    // the remount.
+    selectedKey(): string | undefined {
       return effectsOverlayState.selectedKey;
     },
     // The effect whose detail is shown: a hover preview overrides the pin.
-    activeKey(): CardName | undefined {
+    activeKey(): string | undefined {
       return this.hoverKey ?? this.selectedKey;
     },
-    selectedGroup(): EffectGroup | undefined {
-      return this.groups.find((g) => g.cardName === this.activeKey);
+    // The SELECTED effect entry (per-effect, not per-card).
+    selectedEntry(): EffectEntry | undefined {
+      return this.effects.find((e) => e.key === this.activeKey);
+    },
+    // How many effects the selected effect's SOURCE card grants (drives the
+    // "stats cover all effects" caption for a multi-effect card).
+    selectedEffectCount(): number {
+      const card = this.selectedEntry?.cardName;
+      return card === undefined ? 0 : this.effectCountFor(card);
     },
     selectedStat(): EffectOverlayStat | undefined {
-      return this.statForGroup(this.selectedGroup?.cardName);
+      return this.statForGroup(this.selectedEntry?.cardName);
     },
     selectedCardModel(): CardModel | undefined {
-      return this.selectedGroup !== undefined ? this.tableauByName.get(this.selectedGroup.cardName) : undefined;
-    },
-    // One height-probe per group.
-    measureItems(): ReadonlyArray<EffectGroup> {
-      return this.groups;
+      return this.selectedEntry !== undefined ? this.tableauByName.get(this.selectedEntry.cardName) : undefined;
     },
     // The fetched stats for the viewed seat (re-measure when they land).
     statsCount(): number {
@@ -255,21 +263,25 @@ export default defineComponent({
     window.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
-    // ─── Selection ──────────────────────────────────────────────────────
-    // Keep a valid pinned selection, else auto-select the first group so the
+    // ─── Selection (per EFFECT, not per card) ───────────────────────────
+    // Keep a valid pinned selection, else auto-select the first effect so the
     // details panel always has content.
     ensureSelection(): void {
-      const current = this.groups.find((g) => g.cardName === this.selectedKey);
+      const current = this.effects.find((e) => e.key === this.selectedKey);
       if (current === undefined) {
-        setEffectSelection(this.groups[0]?.cardName);
+        setEffectSelection(this.effects[0]?.key);
       }
     },
-    onNameHover(payload: {name: CardName} | null): void {
-      this.hoverKey = payload === null ? undefined : payload.name;
+    // How many effects the given source card grants.
+    effectCountFor(cardName: CardName): number {
+      return this.effects.reduce((n, e) => (e.cardName === cardName ? n + 1 : n), 0);
     },
-    // A click on an effect block PINS it (the panel's ⤢ is the fullscreen path).
-    onPin(name: CardName): void {
-      setEffectSelection(name);
+    onNameHover(key: string | null): void {
+      this.hoverKey = key === null ? undefined : key;
+    },
+    // A click on an effect block PINS that effect (the panel's ⤢ is the fullscreen path).
+    onPin(key: string): void {
+      setEffectSelection(key);
     },
     openFullscreen(name: CardName): void {
       this.zoomCard = this.tableauByName.get(name) ?? ({name} as CardModel);
@@ -382,7 +394,7 @@ export default defineComponent({
         }
         return;
       }
-      const keys = this.groups.map((g) => g.cardName);
+      const keys = this.effects.map((e) => e.key);
       if (keys.length === 0) {
         return;
       }

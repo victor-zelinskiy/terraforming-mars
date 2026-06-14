@@ -57,6 +57,10 @@ export type EffectSummaryViewModel = {
   note?: string;
   /** Optional "last triggered" hint (the generation of the last contribution). */
   lastTrigger?: {generation: number};
+  /** True when the source card grants SEVERAL effects — the per-game stats are
+   *  aggregated at the CARD level (the event stream attributes to the card, not a
+   *  single effect), so the panel captions the summary as card-wide. */
+  cardScoped?: boolean;
 };
 
 export type EffectSummaryContext = {
@@ -66,6 +70,10 @@ export type EffectSummaryContext = {
   cardResourceType?: CardResource;
   /** The live count of that resource on the card right now. */
   currentCardResource?: number;
+  /** The ordinal of THIS effect within its source card (0-based) — per-effect-ready. */
+  effectIndex?: number;
+  /** How many effects the source card grants (>1 → the stats are card-scoped). */
+  effectCount?: number;
 };
 
 export interface EffectSummaryProvider {
@@ -235,6 +243,7 @@ function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): E
     // as supporting context (e.g. Supercapacitors' "you choose to use" framing).
     note: empty ? noteFor(ctx, category) : EFFECT_SUMMARY_NOTES[ctx.sourceName],
     lastTrigger: stat.lastTrigger !== undefined ? {generation: stat.lastTrigger.generation} : undefined,
+    cardScoped: (ctx.effectCount ?? 1) > 1 ? true : undefined,
   };
 }
 

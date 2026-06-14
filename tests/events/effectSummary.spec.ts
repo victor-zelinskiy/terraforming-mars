@@ -117,4 +117,18 @@ describe('effect summary view-model', () => {
     expect(vm.category).to.eq('corporation');
     expect(vm.headline).to.eq('Corporation ability');
   });
+
+  it('marks a multi-effect card summary as card-scoped (stats aggregate the whole card)', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.PHARMACY_UNION, kind: 'corporation', triggerCount: 3, tr: 1}),
+      {sourceName: CardName.PHARMACY_UNION, sourceKind: 'corporation', effectIndex: 0, effectCount: 2});
+    expect(vm.cardScoped).to.be.true;
+  });
+
+  it('a single-effect summary is NOT card-scoped', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.EARTH_CATAPULT, megacreditsSaved: 4}),
+      {sourceName: CardName.EARTH_CATAPULT, sourceKind: 'card', effectIndex: 0, effectCount: 1});
+    expect(vm.cardScoped).to.eq(undefined);
+  });
 });

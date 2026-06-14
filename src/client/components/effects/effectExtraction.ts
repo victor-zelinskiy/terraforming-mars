@@ -31,8 +31,12 @@ import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
 
 export type EffectEntry = {
   // Stable v-for key (card name + ordinal — a card can grant several effects).
+  // This is the PER-EFFECT selection key in the master-detail overlay.
   key: string;
   cardName: CardName;
+  // The ordinal of this effect within its source card (0 for a single-effect
+  // card / an override). Lets the details panel say "effect i of N".
+  effectIndex: number;
   isCorporation: boolean;
   // The card is out of the game (e.g. PharmacyUnion turned into a disease) —
   // its effect is shown dimmed.
@@ -47,6 +51,12 @@ export type EffectEntry = {
   // Optional localized description text shown below the graphic (text-only
   // overrides, or the description for a `renderWhole` card).
   text: string | undefined;
+  // The PER-EFFECT description string (still i18n-key + 'Effect: '-prefixed; the
+  // client strips the prefix on display). For a clean `effect()` node it's pulled
+  // from the node; for an override it's the override text. Shown in the DETAILS
+  // panel only (the left grid card is icons-only), so a multi-effect card shows
+  // each effect's OWN description.
+  description: string | undefined;
 };
 
 /*
@@ -191,29 +201,34 @@ function cardEffectEntries(card: CardModel): Array<EffectEntry> {
   // Render the card's WHOLE renderData (the raw symbol rows ARE the effect) +
   // its description.
   if (override?.renderWhole === true) {
+    const text = override.text ?? (override.descFromMeta === true ? cardDescriptionText(cardName) : undefined);
     return [{
       ...base,
       key: cardName + '#whole',
+      effectIndex: 0,
       effectNode: undefined,
       renderRoot: cardRenderRoot(cardName),
       // Only append the card description when asked (some renderWhole cards
       // already carry their effect text inside the render, or their
       // metadata.description is a VP, not the effect).
-      text: override.text ?? (override.descFromMeta === true ? cardDescriptionText(cardName) : undefined),
+      text,
+      description: text,
     }];
   }
 
   // Text-only fallback.
   if (override?.text !== undefined) {
-    return [{...base, key: cardName + '#text', effectNode: undefined, renderRoot: undefined, text: override.text}];
+    return [{...base, key: cardName + '#text', effectIndex: 0, effectNode: undefined, renderRoot: undefined, text: override.text, description: override.text}];
   }
 
   return collectEffectNodes(cardName).map((effectNode, i) => ({
     ...base,
     key: cardName + '#' + i,
+    effectIndex: i,
     effectNode,
     renderRoot: undefined,
     text: undefined,
+    description: descriptionString(effectNode),
   }));
 }
 
@@ -242,17 +257,21 @@ export function playerEffectCount(tableau: ReadonlyArray<CardModel>): number {
 // One SOURCE (card / corporation) and ALL of its passive effects. The overlay
 // renders one group per source — the source name appears ONCE (no duplication
 // when a card grants several effects) but each effect stays its OWN sub-block.
+export type GroupEffect = {
+  key: string;
+  effectIndex: number;
+  effectNode: ICardRenderEffect | undefined;
+  renderRoot: ICardRenderRoot | undefined;
+  text: string | undefined;
+  description: string | undefined;
+};
+
 export type EffectGroup = {
   key: string;
   cardName: CardName;
   isCorporation: boolean;
   isDisabled: boolean;
-  effects: Array<{
-    key: string;
-    effectNode: ICardRenderEffect | undefined;
-    renderRoot: ICardRenderRoot | undefined;
-    text: string | undefined;
-  }>;
+  effects: Array<GroupEffect>;
 };
 
 /**
@@ -274,7 +293,7 @@ export function playerEffectGroups(tableau: ReadonlyArray<CardModel>): Array<Eff
       };
       groups.set(e.cardName, g);
     }
-    g.effects.push({key: e.key, effectNode: e.effectNode, renderRoot: e.renderRoot, text: e.text});
+    g.effects.push({key: e.key, effectIndex: e.effectIndex, effectNode: e.effectNode, renderRoot: e.renderRoot, text: e.text, description: e.description});
   }
   return [...groups.values()];
 }
