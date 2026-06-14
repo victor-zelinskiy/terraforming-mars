@@ -265,6 +265,16 @@ type DataModel = {
    * src/client/components/board/tilePlacementAnimation.ts.
    */
   holdingForTilePlacement: boolean;
+  /*
+   * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
+   * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
+   * player on another tab/window would return to STALE state (e.g. an
+   * opponent's spent M€ still showing as unspent). We force an immediate poll
+   * when the game tab becomes visible/focused again. Stored so `unmounted`
+   * (the component remounts on every server response via playerkey++) can
+   * detach the exact same listener and not leak one per remount.
+   */
+  onVisibilityChange: (() => void) | undefined;
 }
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
@@ -298,6 +308,7 @@ export default defineComponent({
       savedPlayerView: undefined,
       holdingForMarker: false,
       holdingForTilePlacement: false,
+      onVisibilityChange: undefined,
     };
   },
   /*
@@ -580,7 +591,7 @@ export default defineComponent({
         this.savedPlayerView = playerView;
       }
     },
-    waitForUpdate() {
+    waitForUpdate(immediate = false) {
       const vueApp = this;
       const root = vueRoot(this);
       clearTimeout(ui_update_timeout_id);
@@ -656,7 +667,15 @@ export default defineComponent({
         xhr.responseType = 'json';
         xhr.send();
       };
-      ui_update_timeout_id = window.setTimeout(askForUpdate, raw_settings.waitingForTimeout);
+      if (immediate) {
+        // Poll RIGHT NOW instead of after waitingForTimeout. Used when the tab
+        // regains visibility/focus: the background-throttled timer may be far
+        // out (or frozen), so we fetch current state the instant the player
+        // looks again. askForUpdate re-arms the normal chain when it returns.
+        askForUpdate();
+      } else {
+        ui_update_timeout_id = window.setTimeout(askForUpdate, raw_settings.waitingForTimeout);
+      }
     },
     notify() {
       if (getPreferences().enable_sounds) {
@@ -714,8 +733,32 @@ export default defineComponent({
     // handler skips full refreshes while the viewer has a prompt to avoid
     // resetting partial input state.
     this.waitForUpdate();
+    // Browsers throttle (and after ~5 min freeze) setTimeout in a backgrounded
+    // tab, so the poll chain above stalls while the player is on another
+    // tab/window — they'd come back to STALE state (the reported bug: an
+    // opponent's M€ spent on a colony still shown as unspent until their turn).
+    // Force an immediate poll the moment the game tab becomes visible/focused
+    // again. The poll handler itself decides whether anything actually changed
+    // (REFRESH/GO vs WAIT) and skips refreshes while the viewer is mid-prompt,
+    // so this is safe and never disrupts partial input.
+    this.onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        this.waitForUpdate(true);
+      }
+    };
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    window.addEventListener('focus', this.onVisibilityChange);
     if (this.playerView.players.length > 1 && this.waitingfor !== undefined && this.waitingfor.optional !== true) {
       documentTitleTimer = window.setInterval(() => this.animateTitle(), 1000);
+    }
+  },
+  unmounted() {
+    // The component remounts on every server response (playerkey++); detach the
+    // exact listener added in mounted() so they don't accumulate per remount.
+    if (this.onVisibilityChange !== undefined) {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+      window.removeEventListener('focus', this.onVisibilityChange);
+      this.onVisibilityChange = undefined;
     }
   },
   computed: {
