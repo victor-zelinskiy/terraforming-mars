@@ -135,13 +135,14 @@ export type LiveNotification = NotificationModel & {
   expanded: boolean;
 };
 
-/** Default time-to-live per kind (ms). 0 ⇒ persistent. */
+/** Default time-to-live per kind (ms). 0 ⇒ persistent. (~20% snappier than the
+ *  initial tuning per user feedback.) */
 export const NOTIFICATION_TTL: Readonly<Record<NotificationKind, number>> = {
   'action-required': 0,
   'your-turn': 0,
-  'warning': 10_000,
-  'important': 12_000,
-  'normal': 8_500,
+  'warning': 8_000,
+  'important': 9_600,
+  'normal': 6_800,
 };
 
 /** How many transient (normal/important/warning) cards are visible at once. */
