@@ -1,12 +1,13 @@
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {GameEvent, JournalActionCategory} from '@/common/events/GameEvent';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {buildJournalView} from '@/client/components/journal/journalView';
-import {buildEventChildren, JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
-import {NotificationKind, NotificationVariant, NotificationModel, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
+import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
+import {NotificationKind, NotificationVariant, NotificationModel, NegativeScope, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 
 /**
  * PURE notification mappers — turn the structured journal stream + the client's
@@ -66,12 +67,26 @@ function categoryTypeLabel(category: JournalActionCategory | undefined): string 
  * server stamps it on the root-action log) plus the chain's event types. This
  * is what gives a milestone, a colony trade and a card play DISTINCT looks.
  */
+function headerHasCard(header: LogMessage, card: CardName): boolean {
+  return header.data.some((tok) => tok.type === LogMessageDataType.CARD && tok.value === card);
+}
+
 function rootVariant(header: LogMessage, chain: ReadonlyArray<GameEvent>): NotificationVariant {
   if (header.category === 'milestone' || chain.some((e) => e.type === 'milestone-claimed')) {
     return 'milestone';
   }
   if (header.category === 'award' || chain.some((e) => e.type === 'award-funded')) {
     return 'award';
+  }
+  // Vermin DAMAGE — the server stamps a 'vp-pressure' root the moment the card
+  // reaches 10 animals (every player now loses 1 VP per city at scoring).
+  if (header.category === 'vp-pressure') {
+    return 'vp-loss';
+  }
+  // Vermin WARNING — the card was just PLAYED (a known special VP-pressure card;
+  // recognised by its CardName, NOT by parsing text). No damage yet → a threat.
+  if (header.category === 'card-play' && headerHasCard(header, CardName.VERMIN)) {
+    return 'threat';
   }
   switch (header.category) {
   case 'card-play': return 'play-card';
@@ -92,12 +107,36 @@ function rootVariant(header: LogMessage, chain: ReadonlyArray<GameEvent>): Notif
   return 'event';
 }
 
-/** The header label for a variant — prestige variants get their own word. */
+/** The behaviour KIND a variant implies (priority / TTL / persistence channel). */
+function variantKind(variant: NotificationVariant): NotificationKind {
+  switch (variant) {
+  case 'vp-loss':
+  case 'destroy':
+  case 'steal':
+  case 'production-reduction':
+  case 'production-transfer':
+    return 'negative';
+  case 'milestone':
+  case 'award':
+  case 'threat':
+    return 'important';
+  default:
+    return 'normal';
+  }
+}
+
+/** The header label for a variant. */
 function variantTypeLabel(variant: NotificationVariant, category: JournalActionCategory | undefined): string {
   switch (variant) {
   case 'milestone': return 'Achievement';
   case 'award': return 'Award';
   case 'passive-effect': return 'Effect triggered';
+  case 'threat': return 'VP threat';
+  case 'vp-loss': return 'VP loss';
+  case 'destroy': return 'Resource lost';
+  case 'steal': return 'Stolen';
+  case 'production-reduction': return 'Income reduced';
+  case 'production-transfer': return 'Income redirected';
   default: return categoryTypeLabel(category);
   }
 }
@@ -197,11 +236,11 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
   const {header, chain, viewerColor} = input;
   const actor = rootActor(header, chain);
   const variant = rootVariant(header, chain);
-  const important = variant === 'milestone' || variant === 'award';
-  const kind: NotificationKind = important ? 'important' : 'normal';
+  const kind = variantKind(variant);
 
   // Suppress the viewer's own ordinary actions — no self-spam for a card you
-  // just played. Highlights (milestone/award) are worth a card even when yours.
+  // just played. Highlights / threats / VP-pressure are worth a card even when
+  // yours (kind !== 'normal'), so only ordinary actions are dropped.
   if (kind === 'normal' && actor !== undefined && actor === viewerColor) {
     return undefined;
   }
@@ -418,6 +457,110 @@ export function buildGenerationNotification(generation: number, createdAt: numbe
     cta: {labelKey: 'Show in journal', action: 'open-journal'},
     createdAt,
   };
+}
+
+// ── Hostile / negative events (the VIEWER lost something to another player) ──
+
+/** The attacker behind a viewer-loss event — the recipient (steal/transfer) or
+ *  the source card's owner (destroy/reduction). `undefined` ⇒ not a player attack
+ *  (a cost / global event / the viewer's own spend). */
+function attackerOf(e: GameEvent, viewer: Color): Color | undefined {
+  if (e.target?.player !== undefined && e.target.player !== viewer) {
+    return e.target.player;
+  }
+  const s = e.source;
+  if (s !== undefined && (s.kind === 'card' || s.kind === 'corporation') && s.owner !== undefined && s.owner !== viewer) {
+    return s.owner;
+  }
+  return undefined;
+}
+
+/** The card / corp / standard project behind a loss event. */
+function negativeSourceCard(e: GameEvent): CardName | undefined {
+  const s = e.source;
+  if (s !== undefined && (s.kind === 'card' || s.kind === 'corporation' || s.kind === 'standardProject')) {
+    return s.card;
+  }
+  return undefined;
+}
+
+/** Only the LOSS chips of an event (negative; a discount saving is NOT a loss). */
+function negativeChips(e: GameEvent): Array<JournalImpactChip> {
+  return impactChips(e.impact).filter((c) => c.saved !== true && c.text.startsWith('−'));
+}
+
+/** A negative event the VIEWER suffered FROM ANOTHER PLAYER (not a cost/own-spend). */
+function isViewerVictimEvent(e: GameEvent, viewer: Color): boolean {
+  if (e.player !== viewer) {
+    return false;
+  }
+  if (negativeChips(e).length === 0) {
+    return false;
+  }
+  return attackerOf(e, viewer) !== undefined;
+}
+
+function buildNegativeNotification(correlationId: number, negs: ReadonlyArray<GameEvent>, viewer: Color, generation: number, createdAt: number): NotificationModel {
+  const anyProduction = negs.some((e) => negativeChips(e).some((c) => c.production === true));
+  const scope: NegativeScope = anyProduction ? 'production' : 'stock';
+  // The resource MOVED to the attacker (a steal / production transfer) when the
+  // victim event carries a `target.player` (set by the `stealing` flag).
+  const transfer = negs.some((e) => e.target?.player !== undefined && e.target.player !== viewer);
+  const attacker = attackerOf(negs[0], viewer);
+  const sourceCard = negativeSourceCard(negs[0]);
+  const variant: NotificationVariant = scope === 'production' ?
+    (transfer ? 'production-transfer' : 'production-reduction') :
+    (transfer ? 'steal' : 'destroy');
+  const loss = mergeChips(negs.flatMap((e) => negativeChips(e)));
+  const gain = transfer ? loss.map((c) => ({...c, text: c.text.replace('−', '+')})) : undefined;
+  return {
+    id: `neg${correlationId}`,
+    kind: 'negative',
+    variant,
+    priority: NOTIFICATION_PRIORITY['negative'],
+    typeLabelKey: variantTypeLabel(variant, undefined),
+    actor: attacker,
+    pills: loss,
+    detailCount: 0,
+    correlationId,
+    generation,
+    ttl: NOTIFICATION_TTL['negative'],
+    persistent: false,
+    cta: {labelKey: 'Show in journal', action: 'open-journal'},
+    createdAt,
+    negative: {attacker, sourceCard, scope, transfer, loss, gain},
+  };
+}
+
+/**
+ * Detect cross-player losses the VIEWER suffered this generation and emit a
+ * dedicated HOSTILE notification per attacking action (grouped by correlationId,
+ * all of the viewer's losses in that action merged). Built ENTIRELY from the
+ * structured victim events — never from text. Returns every encountered id so
+ * the caller can seed the seen-set (no spam on load).
+ */
+export function diffNegativeNotifications(input: {
+  events: ReadonlyArray<GameEvent>;
+  seen: ReadonlySet<number>;
+  viewerColor: Color;
+  generation: number;
+  createdAt: number;
+}): {models: Array<NotificationModel>; encounteredIds: Array<number>} {
+  const byCorr = eventsByCorrelation(input.events);
+  const models: Array<NotificationModel> = [];
+  const encounteredIds: Array<number> = [];
+  for (const [correlationId, chain] of byCorr) {
+    const negs = chain.filter((e) => isViewerVictimEvent(e, input.viewerColor));
+    if (negs.length === 0) {
+      continue;
+    }
+    encounteredIds.push(correlationId);
+    if (input.seen.has(correlationId)) {
+      continue;
+    }
+    models.push(buildNegativeNotification(correlationId, negs, input.viewerColor, input.generation, input.createdAt));
+  }
+  return {models, encounteredIds};
 }
 
 /** A "player passed" highlight (driven by the game.passedPlayers diff). */

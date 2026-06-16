@@ -38,8 +38,52 @@
       <!-- Clear generation line (your turn / new generation) — no cryptic "G25". -->
       <div v-if="metaLine !== undefined" class="notification-card__meta">{{ metaLine }}</div>
 
+      <!-- ── HOSTILE loss the VIEWER suffered (destroy / steal / transfer / reduction). -->
+      <template v-if="negative !== undefined">
+        <!-- Who caused it. -->
+        <div class="notification-card__neg-cause">
+          <span class="notification-card__neg-by" v-i18n>Caused by</span>
+          <span v-if="negative.attacker !== undefined"
+                class="journal-player notification-card__actor"
+                :class="'player_translucent_bg_color_' + negative.attacker">
+            <span class="journal-player__dot" :class="'player_bg_color_' + negative.attacker" aria-hidden="true"></span>
+            <span class="journal-player__name">{{ attackerName }}</span>
+          </span>
+          <JournalCardChip v-if="negative.sourceCard !== undefined" :name="negative.sourceCard" />
+        </div>
+        <!-- The loss (and, for steal/transfer, the attacker's gain). -->
+        <div class="notification-card__neg-flow" :class="{'notification-card__neg-flow--transfer': negative.transfer}">
+          <span class="notification-card__neg-side">
+            <span class="notification-card__neg-who" v-i18n>You</span>
+            <span v-for="(chip, i) in negative.loss" :key="'l' + i"
+                  class="notification-card__chip notification-card__chip--neg"
+                  :class="{'notification-card__chip--prod': chip.production === true}">
+              <span class="notification-card__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
+              <span class="notification-card__chip-amt">{{ chip.text }}</span>
+            </span>
+          </span>
+          <template v-if="negative.transfer && negative.gain !== undefined">
+            <span class="notification-card__neg-arrow" aria-hidden="true">→</span>
+            <span class="notification-card__neg-side notification-card__neg-side--attacker">
+              <span class="notification-card__neg-who">{{ attackerName }}</span>
+              <span v-for="(chip, i) in negative.gain" :key="'g' + i"
+                    class="notification-card__chip notification-card__chip--pos"
+                    :class="{'notification-card__chip--prod': chip.production === true}">
+                <span class="notification-card__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
+                <span class="notification-card__chip-amt">{{ chip.text }}</span>
+              </span>
+            </span>
+          </template>
+        </div>
+        <!-- Stock-vs-production marker + before → after. -->
+        <div class="notification-card__neg-scope">
+          <span class="notification-card__neg-tag" v-i18n>{{ scopeLabel }}</span>
+          <span v-if="beforeAfter !== undefined" class="notification-card__neg-ba">{{ beforeAfter }}</span>
+        </div>
+      </template>
+
       <!-- Coalesced burst: "<actor>: N events". -->
-      <template v-if="notification.groupCount !== undefined">
+      <template v-else-if="notification.groupCount !== undefined">
         <span v-if="notification.actor !== undefined"
               class="journal-player notification-card__actor"
               :class="'player_translucent_bg_color_' + notification.actor">
@@ -85,8 +129,8 @@
       </span>
     </div>
 
-    <!-- ── Impact pills ──────────────────────────────────────────────────── -->
-    <div v-if="notification.pills.length > 0" class="notification-card__pills">
+    <!-- ── Impact pills (hidden for hostile cards — the neg-flow shows them). -->
+    <div v-if="notification.pills.length > 0 && negative === undefined" class="notification-card__pills">
       <span v-for="(chip, i) in notification.pills"
             :key="i"
             class="notification-card__chip"
@@ -156,7 +200,19 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 import JournalChildRow from '@/client/components/journal/JournalChildRow.vue';
-import {LiveNotification, NotificationVariant} from '@/client/components/notifications/notificationTypes';
+import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
+import {Color} from '@/common/Color';
+import {LiveNotification, NotificationVariant, NegativeMeta} from '@/client/components/notifications/notificationTypes';
+
+// Icon-key → PublicPlayerModel field (irregular: megacredit/plant production drop
+// the plural 's'). Used to show the victim's before → after value.
+const STOCK_FIELD: Readonly<Record<string, string>> = {
+  megacredits: 'megacredits', steel: 'steel', titanium: 'titanium', plants: 'plants', energy: 'energy', heat: 'heat',
+};
+const PROD_FIELD: Readonly<Record<string, string>> = {
+  megacredits: 'megacreditProduction', steel: 'steelProduction', titanium: 'titaniumProduction',
+  plants: 'plantProduction', energy: 'energyProduction', heat: 'heatProduction',
+};
 
 /**
  * One premium notification card. Compact by default (type label + headline +
@@ -182,7 +238,7 @@ const ACTOR_RAIL_VARIANTS: ReadonlySet<NotificationVariant> = new Set<Notificati
 
 export default defineComponent({
   name: 'NotificationCard',
-  components: {JournalTokenRenderer, JournalChildRow},
+  components: {JournalTokenRenderer, JournalChildRow, JournalCardChip},
   props: {
     notification: {
       type: Object as PropType<LiveNotification>,
@@ -191,6 +247,10 @@ export default defineComponent({
     players: {
       type: Array as () => ReadonlyArray<PublicPlayerModel>,
       required: true,
+    },
+    viewerColor: {
+      type: String as () => Color,
+      default: undefined,
     },
   },
   emits: ['dismiss', 'toggle', 'cta'],
@@ -204,6 +264,42 @@ export default defineComponent({
   computed: {
     canExpand(): boolean {
       return (this.notification.childVMs?.length ?? 0) > 0;
+    },
+    negative(): NegativeMeta | undefined {
+      return this.notification.negative;
+    },
+    attackerName(): string {
+      const a = this.notification.negative?.attacker;
+      if (a === undefined) {
+        return '';
+      }
+      return this.players.find((p) => p.color === a)?.name ?? a;
+    },
+    scopeLabel(): string {
+      return this.notification.negative?.scope === 'production' ? 'from production' : 'from stock';
+    },
+    // Victim before → after for a SINGLE-resource loss (the common case), read
+    // from the viewer's CURRENT (post-attack) value + the loss amount.
+    beforeAfter(): string | undefined {
+      const neg = this.notification.negative;
+      if (neg === undefined || neg.loss.length !== 1 || this.viewerColor === undefined) {
+        return undefined;
+      }
+      const chip = neg.loss[0];
+      const field = (neg.scope === 'production' ? PROD_FIELD : STOCK_FIELD)[chip.icon];
+      if (field === undefined) {
+        return undefined;
+      }
+      const viewer = this.players.find((p) => p.color === this.viewerColor) as unknown as Record<string, number> | undefined;
+      const after = viewer?.[field];
+      if (typeof after !== 'number') {
+        return undefined;
+      }
+      const lossAbs = Math.abs(Number(chip.text.replace('−', '-')));
+      if (Number.isNaN(lossAbs)) {
+        return undefined;
+      }
+      return `${after + lossAbs} → ${after}`;
     },
     actorName(): string {
       const a = this.notification.actor;
@@ -255,6 +351,12 @@ export default defineComponent({
       case 'colony': return '◉';
       case 'blue-action': return '⟳';
       case 'passive-effect': return '✦';
+      case 'destroy': return '✖';
+      case 'steal': return '⇢';
+      case 'production-reduction': return '▼';
+      case 'production-transfer': return '⇄';
+      case 'vp-loss': return '★';
+      case 'threat': return '⚠';
       case 'play-card':
       case 'event':
       default: return '◈';

@@ -1,4 +1,5 @@
 {
+    "${0} reached 10 animals on ${1}: each player now loses 1 VP per city": "${0} накопил 10 животных на ${1}: каждый игрок теперь теряет 1 ПО за каждый город",
     "Generation ${0}": "Поколение ${0}",
     "First player this generation is ${0}": "Первый игрок в этом поколении — ${0}",
     "${0} gained ${1} ${2}": "${0} получил ${1} ${2}",

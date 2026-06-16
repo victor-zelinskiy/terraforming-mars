@@ -55,6 +55,16 @@ describe('notificationState (lifecycle)', () => {
       expect(notificationState.queue).to.have.length(1);
     });
 
+    it('a higher-priority (negative) card EVICTS a normal one into the queue when full', () => {
+      pushMany([model('a'), model('b'), model('c')]); // 3 normal, full
+      pushTransient(model('hit', 'negative')); // higher priority
+      expect(notificationState.transient.some((n) => n.id === 'hit')).to.eq(true);
+      expect(notificationState.transient).to.have.length(3);
+      // one normal got bumped to the FRONT of the queue
+      expect(notificationState.queue).to.have.length(1);
+      expect(['a', 'b', 'c']).to.include(notificationState.queue[0].id);
+    });
+
     it('respects the showNormal setting', () => {
       notificationState.settings.showNormal = false;
       pushTransient(model('a'));

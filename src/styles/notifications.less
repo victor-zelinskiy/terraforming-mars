@@ -24,6 +24,12 @@
 @notif-ice: #9fd6e6; // generation transition
 @notif-mute: #8595a3; // a pass
 @notif-medal: #d6a6e0; // award (gold-purple medal)
+@notif-destroy: #e8745f; // a resource destroyed (red)
+@notif-prod-down: #f0935a; // income reduced (orange)
+@notif-steal: #c79ae0; // stolen (amber-purple)
+@notif-transfer: #5fc6d6; // income redirected (amber-cyan)
+@notif-threat: #f0b44a; // a future threat (amber)
+@notif-vploss: #e8806a; // VP pressure / loss (red-gold prestige damage)
 
 .notifications-layer {
     position: fixed;
@@ -454,6 +460,100 @@
 .notification-card--variant-action-required { --notif-accent: @notif-amber; }
 .notification-card--variant-warning { --notif-accent: @notif-red; }
 
+// ── HOSTILE variants — a loss the viewer suffered. Destroy / steal / transfer /
+//    income-reduction read as DISTINCT hostile colours; VP loss is prestige-damage. ──
+.notification-card--variant-destroy { --notif-accent: @notif-destroy; }
+.notification-card--variant-production-reduction { --notif-accent: @notif-prod-down; }
+.notification-card--variant-steal { --notif-accent: @notif-steal; }
+.notification-card--variant-production-transfer { --notif-accent: @notif-transfer; }
+.notification-card--variant-threat { --notif-accent: @notif-threat; }
+.notification-card--variant-vp-loss {
+    --notif-accent: @notif-vploss;
+    border-color: rgba(232, 120, 95, 0.5);
+    box-shadow:
+        0 12px 32px -10px rgba(0, 0, 0, 0.72),
+        0 0 0 1px rgba(0, 0, 0, 0.35) inset,
+        0 0 26px -7px @notif-vploss;
+}
+
+// ── Hostile card layout (victim / attacker split, source, scope, transfer). ──
+.notification-card__neg-cause {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    margin-bottom: 6px;
+}
+.notification-card__neg-by {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9aa7b2;
+}
+.notification-card__neg-flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.notification-card__neg-side {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.notification-card__neg-who {
+    font-size: 11px;
+    font-weight: 700;
+    color: #e2edf3;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.notification-card__neg-arrow {
+    color: var(--notif-accent);
+    font-size: 15px;
+    font-weight: 700;
+    filter: drop-shadow(0 0 6px var(--notif-accent));
+}
+.notification-card__neg-scope {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 7px;
+}
+.notification-card__neg-tag {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 1px 7px;
+    border-radius: 999px;
+    color: var(--notif-accent);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.notification-card__neg-ba {
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: #cdd9e1;
+}
+
+// A calm ONE-SHOT impact glow on arrival (never looping) + a single loss-pill flash.
+.notification-card--negative {
+    animation: notif-hostile-in 850ms ease-out;
+}
+@keyframes notif-hostile-in {
+    0% { box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0, 0, 0, 0.35) inset, 0 0 42px 2px var(--notif-accent); }
+    100% { box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0, 0, 0, 0.35) inset, 0 0 22px -10px var(--notif-accent); }
+}
+.notification-card--negative .notification-card__chip--neg {
+    animation: notif-pill-flash 900ms ease-out;
+}
+@keyframes notif-pill-flash {
+    0%, 100% { transform: scale(1); }
+    22% { transform: scale(1.12); }
+}
+
 // ── Prestige variants — milestones & awards read more important than the feed:
 //    a stronger rim + a calm celebration glow + a native trophy/medal glyph. ───
 .notification-card--variant-milestone {
@@ -577,7 +677,9 @@
     .notification-card--your-turn,
     .notification-card--action-required,
     .notification-card--variant-milestone,
-    .notification-card--variant-award {
+    .notification-card--variant-award,
+    .notification-card--negative,
+    .notification-card--negative .notification-card__chip--neg {
         animation: none;
     }
     .notification-pop-enter-from,

@@ -11,6 +11,7 @@
           :key="turn.id"
           :notification="turn"
           :players="players"
+          :viewer-color="viewerColor"
           @dismiss="onDismiss"
           @toggle="onToggle"
           @cta="onCta" />
@@ -23,6 +24,7 @@
           :key="n.id"
           :notification="n"
           :players="players"
+          :viewer-color="viewerColor"
           @dismiss="onDismiss"
           @toggle="onToggle"
           @cta="onCta" />
@@ -43,6 +45,7 @@ import {journalState, openJournalToEvent} from '@/client/components/journal/jour
 import {NotificationModel} from '@/client/components/notifications/notificationTypes';
 import {
   diffRootNotifications,
+  diffNegativeNotifications,
   coalesceBurst,
   buildTurnNotification,
   buildGenerationNotification,
@@ -206,27 +209,42 @@ export default defineComponent({
     },
 
     applyDiff(messages: ReadonlyArray<LogMessage>, events: ReadonlyArray<GameEvent>, generation: number): void {
+      const now = Date.now();
       const {models, encounteredIds} = diffRootNotifications({
         messages,
         events,
         seen: notificationState.seenRootIds,
         viewerColor: this.viewerColor,
         generation,
-        createdAt: Date.now(),
+        createdAt: now,
       });
       for (const corrId of encounteredIds) {
         notificationState.seenRootIds.add(corrId);
+      }
+      // Hostile losses the VIEWER suffered — a SEPARATE id space (a victim loss
+      // lives inside the attacker's root action, which root-diff already saw).
+      const neg = diffNegativeNotifications({
+        events,
+        seen: notificationState.seenNegativeIds,
+        viewerColor: this.viewerColor,
+        generation,
+        createdAt: now,
+      });
+      for (const corrId of neg.encounteredIds) {
+        notificationState.seenNegativeIds.add(corrId);
       }
       const firstSeed = !notificationState.seeded;
       notificationState.seeded = true;
       if (firstSeed) {
         return; // initial load / reconnect: seed silently, never spam
       }
-      if (this.journalOpen) {
-        return; // journal open: the feed itself shows everything — no toasts
+      // The ORDINARY feed is suppressed while the journal is open (it shows
+      // everything there). But a HOSTILE loss the viewer suffered is critical —
+      // surface it regardless, like a turn card, so the player never misses it.
+      if (!this.journalOpen) {
+        pushMany(coalesceBurst(models));
       }
-      const finalModels: ReadonlyArray<NotificationModel> = coalesceBurst(models);
-      pushMany(finalModels);
+      pushMany(neg.models);
     },
 
     onDismiss(id: string): void {

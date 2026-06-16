@@ -13,6 +13,7 @@ import {
   mergeChips,
   summarizeImpact,
   diffRootNotifications,
+  diffNegativeNotifications,
   coalesceBurst,
   buildTurnNotification,
   buildGenerationNotification,
@@ -181,6 +182,95 @@ describe('notificationModel (pure)', () => {
       expect(out).to.have.length(1);
       expect(out[0].groupCount).to.eq(4);
       expect(out[0].typeLabelKey).to.eq('Multiple events');
+    });
+  });
+
+  describe('Vermin variants (via rootVariant)', () => {
+    function verminHeader(correlationId: number, category: LogMessage['category']): LogMessage {
+      const m = new LogMessage(LogMessageType.DEFAULT, '${0} played ${1}', [
+        {type: LogMessageDataType.PLAYER, value: BLUE},
+        {type: LogMessageDataType.CARD, value: 'Vermin' as CardName},
+      ]);
+      m.correlationId = correlationId;
+      m.role = 'root-action';
+      m.category = category;
+      return m;
+    }
+
+    it('a played Vermin is a VP THREAT (warning), not a card play', () => {
+      const {models} = diffRootNotifications({
+        messages: [verminHeader(30, 'card-play')],
+        events: [event({id: 300, type: 'action', player: BLUE, correlationId: 30, impact: {}})],
+        seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1,
+      });
+      expect(models[0]).to.include({variant: 'threat', kind: 'important', typeLabelKey: 'VP threat'});
+    });
+
+    it('the vp-pressure flip is a VP LOSS card (shown to everyone, incl. owner)', () => {
+      const {models} = diffRootNotifications({
+        messages: [verminHeader(31, 'vp-pressure')],
+        events: [event({id: 310, type: 'action', player: BLUE, correlationId: 31, impact: {}})],
+        seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1, // viewer is the owner
+      });
+      expect(models[0]).to.include({variant: 'vp-loss', kind: 'negative', typeLabelKey: 'VP loss'});
+    });
+  });
+
+  describe('diffNegativeNotifications (the viewer as victim)', () => {
+    const opp: {kind: 'card'; card: CardName; owner: Color} = {kind: 'card', card: CARD, owner: BLUE};
+
+    function neg(o: {id: number; corr: number; type: GameEvent['type']; impact: EventImpact; target?: {player: Color}}) {
+      return event({id: o.id, type: o.type, player: RED, correlationId: o.corr, source: opp, target: o.target, impact: o.impact});
+    }
+
+    function detect(e: GameEvent) {
+      return diffNegativeNotifications({events: [e], seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1}).models;
+    }
+
+    it('classifies a DESTROY (stock loss, no target)', () => {
+      const m = detect(neg({id: 1, corr: 1, type: 'resource-changed', impact: {stock: {plants: -3}}}));
+      expect(m[0]).to.include({variant: 'destroy', kind: 'negative', typeLabelKey: 'Resource lost'});
+      expect(m[0].negative).to.deep.include({attacker: BLUE, scope: 'stock', transfer: false, sourceCard: CARD});
+      expect(m[0].negative?.loss[0]).to.include({icon: 'plants', text: '−3'});
+    });
+
+    it('classifies a PRODUCTION-REDUCTION (production loss, no target)', () => {
+      const m = detect(neg({id: 2, corr: 2, type: 'production-changed', impact: {production: {energy: -1}}}));
+      expect(m[0]).to.include({variant: 'production-reduction', typeLabelKey: 'Income reduced'});
+      expect(m[0].negative?.scope).to.eq('production');
+      expect(m[0].negative?.transfer).to.eq(false);
+    });
+
+    it('classifies a STEAL (stock loss + target) with a mirror gain', () => {
+      const m = detect(neg({id: 3, corr: 3, type: 'resource-changed', target: {player: BLUE}, impact: {stock: {titanium: -2}}}));
+      expect(m[0]).to.include({variant: 'steal', typeLabelKey: 'Stolen'});
+      expect(m[0].negative?.transfer).to.eq(true);
+      expect(m[0].negative?.gain?.[0]).to.include({icon: 'titanium', text: '+2'});
+    });
+
+    it('classifies a PRODUCTION-TRANSFER (production loss + target) as ONE linked event', () => {
+      const m = detect(neg({id: 4, corr: 4, type: 'production-changed', target: {player: BLUE}, impact: {production: {energy: -1}}}));
+      expect(m[0]).to.include({variant: 'production-transfer', typeLabelKey: 'Income redirected'});
+      expect(m[0].negative?.transfer).to.eq(true);
+      expect(m[0].negative?.gain?.[0]).to.include({icon: 'energy', text: '+1', production: true});
+    });
+
+    it('does NOT flag the viewer spending their OWN resource', () => {
+      const own = event({id: 5, type: 'resource-changed', player: RED, correlationId: 5, source: {kind: 'card', card: CARD, owner: RED}, impact: {stock: {megacredits: -3}}});
+      expect(detect(own)).to.have.length(0);
+    });
+
+    it('does NOT flag a payment', () => {
+      const pay = event({id: 6, type: 'resource-changed', player: RED, correlationId: 6, source: {kind: 'payment'}, impact: {stock: {megacredits: -5}}});
+      expect(detect(pay)).to.have.length(0);
+    });
+
+    it('seeds (encountered) and does not re-emit a seen loss', () => {
+      const e = neg({id: 7, corr: 7, type: 'resource-changed', impact: {stock: {plants: -2}}});
+      const first = diffNegativeNotifications({events: [e], seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1});
+      expect(first.encounteredIds).to.deep.eq([7]);
+      const again = diffNegativeNotifications({events: [e], seen: new Set([7]), viewerColor: RED, generation: 1, createdAt: 1});
+      expect(again.models).to.have.length(0);
     });
   });
 
