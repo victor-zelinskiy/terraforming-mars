@@ -3,6 +3,7 @@ import {LogMessageData} from './LogMessageData';
 import {Message} from './Message';
 import {PlayerId} from '../Types';
 import {JournalEntryRole, JournalActionCategory} from '../events/GameEvent';
+import {RevealLogMeta} from './RevealLogMeta';
 
 export class LogMessage implements Message {
   public playerId?: PlayerId;
@@ -18,6 +19,10 @@ export class LogMessage implements Message {
   // The action category, set only on the `root-action` log of a group — drives
   // the journal's premium category icon/badge.
   public category?: JournalActionCategory;
+  // Set when this message PUBLICLY reveals/shows cards (the names are in `data`
+  // as CARD/CARDS tokens). Lets the journal + notifications detect a reveal
+  // structurally (deck-reveal vs hand-show) without parsing the message text.
+  public reveal?: RevealLogMeta;
   constructor(
     type: LogMessageType,
     public message: string,

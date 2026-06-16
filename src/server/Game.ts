@@ -16,6 +16,7 @@ import {Tile} from './Tile';
 import {LogMessageBuilder} from './logs/LogMessageBuilder';
 import {LogHelper} from './LogHelper';
 import {LogMessage} from '../common/logs/LogMessage';
+import {RevealLogMeta} from '../common/logs/RevealLogMeta';
 import {EventRecorder} from './events/EventRecorder';
 import {milestoneManifest} from './milestones/Milestones';
 import {awardManifest} from './awards/Awards';
@@ -1744,11 +1745,14 @@ export class Game implements IGame, Logger {
       .sort((a, b) => a.cost - b.cost);
   }
 
-  public log(message: string, f?: (builder: LogMessageBuilder) => void, options?: {reservedFor?: IPlayer}) {
+  public log(message: string, f?: (builder: LogMessageBuilder) => void, options?: {reservedFor?: IPlayer, reveal?: RevealLogMeta}) {
     const builder = new LogMessageBuilder(message);
     f?.(builder);
     const logMessage = builder.build();
     logMessage.playerId = options?.reservedFor?.id;
+    if (options?.reveal !== undefined) {
+      logMessage.reveal = options.reveal;
+    }
     // Bridge to the structured stream: attach the active correlation chain so the
     // journal can group action → effect → result without parsing text.
     this.events.stampJournal(logMessage);

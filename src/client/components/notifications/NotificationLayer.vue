@@ -46,11 +46,13 @@ import {NotificationModel} from '@/client/components/notifications/notificationT
 import {
   diffRootNotifications,
   diffNegativeNotifications,
+  diffRevealNotifications,
   coalesceBurst,
   buildTurnNotification,
   buildGenerationNotification,
   buildPassNotification,
 } from '@/client/components/notifications/notificationModel';
+import {openRevealViewer} from '@/client/components/notifications/revealViewerState';
 import {
   notificationState,
   pushMany,
@@ -241,16 +243,28 @@ export default defineComponent({
       for (const corrId of neg.encounteredIds) {
         notificationState.seenNegativeIds.add(corrId);
       }
+      // Public card reveals / shows by OTHER players (the names are public).
+      const reveal = diffRevealNotifications({
+        messages,
+        seen: notificationState.seenRevealIds,
+        viewerColor: this.viewerColor,
+        generation,
+        createdAt: now,
+      });
+      for (const key of reveal.encounteredIds) {
+        notificationState.seenRevealIds.add(key);
+      }
       const firstSeed = !notificationState.seeded;
       notificationState.seeded = true;
       if (firstSeed) {
         return; // initial load / reconnect: seed silently, never spam
       }
-      // The ORDINARY feed is suppressed while the journal is open (it shows
-      // everything there). But a HOSTILE loss the viewer suffered is critical —
-      // surface it regardless, like a turn card, so the player never misses it.
+      // The ORDINARY feed (incl. reveals — their cards live in the journal) is
+      // suppressed while the journal is open. But a HOSTILE loss the viewer
+      // suffered is critical — surface it regardless, like a turn card.
       if (!this.journalOpen) {
         pushMany(coalesceBurst(models));
+        pushMany(reveal.models);
       }
       pushMany(neg.models);
     },
@@ -284,6 +298,12 @@ export default defineComponent({
           journalState.open = false;
         }
         window.dispatchEvent(new CustomEvent('tm-notification-go-to-action'));
+        break;
+      case 'view-reveal':
+        if (notification.reveal !== undefined) {
+          openRevealViewer(notification.reveal);
+        }
+        dismiss(notification.id); // the viewer is now the focus; journal keeps the record
         break;
       case 'dismiss':
       default:

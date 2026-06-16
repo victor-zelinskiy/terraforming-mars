@@ -1,0 +1,246 @@
+/*
+ * RevealedCardsModal — the read-only viewer for PUBLICLY revealed / shown cards.
+ * Premium dark-glass, minimalist (no game actions): look + close only. Adaptive
+ * grid (a centred row for ≤3, a wrapping grid for 4+). Sits above mandatory
+ * modals (12000) so the user-opened viewer is on top; the native-dialog
+ * CardZoomModal (top layer) still opens above it for fullscreen.
+ */
+
+.reveal-viewer {
+    --reveal-accent: #6fc2e0;
+    position: fixed;
+    inset: 0;
+    z-index: 12200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: rgba(4, 8, 16, 0.62);
+    backdrop-filter: blur(3px);
+
+    &--hand {
+        --reveal-accent: #9a9cf0;
+    }
+}
+
+.reveal-viewer__card {
+    position: relative;
+    box-sizing: border-box;
+    width: auto;
+    max-width: min(1180px, calc(100vw - 48px));
+    max-height: calc(100vh - 56px);
+    display: flex;
+    flex-direction: column;
+    padding: 16px 18px 14px;
+    border-radius: 14px;
+    background: linear-gradient(155deg, rgba(18, 28, 40, 0.96) 0%, rgba(10, 16, 26, 0.98) 100%);
+    border: 1px solid rgba(120, 170, 200, 0.22);
+    box-shadow:
+        0 24px 60px -18px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(0, 0, 0, 0.4) inset,
+        0 0 30px -14px var(--reveal-accent);
+    color: #d9e6ef;
+}
+
+.reveal-viewer__tick {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--reveal-accent);
+    opacity: 0.7;
+    pointer-events: none;
+
+    &--tl {
+        top: 7px;
+        left: 7px;
+        border-top: 1.5px solid;
+        border-left: 1.5px solid;
+        border-top-left-radius: 5px;
+    }
+    &--br {
+        bottom: 7px;
+        right: 7px;
+        border-bottom: 1.5px solid;
+        border-right: 1.5px solid;
+        border-bottom-right-radius: 5px;
+    }
+}
+
+.reveal-viewer__head {
+    flex: 0 0 auto;
+    margin-bottom: 12px;
+}
+.reveal-viewer__title-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+.reveal-viewer__glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #07121a;
+    background: var(--reveal-accent);
+    box-shadow: 0 0 12px -3px var(--reveal-accent);
+}
+.reveal-viewer__title {
+    flex: 1;
+    font-family: 'Prototype', @font_family_main;
+    font-size: 15px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #e7f1f7;
+}
+.reveal-viewer__close {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 7px;
+    background: rgba(120, 170, 200, 0.1);
+    color: #b6c6d2;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+
+    &:hover {
+        background: rgba(232, 116, 95, 0.2);
+        color: #f0a392;
+    }
+}
+.reveal-viewer__sub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 9px;
+}
+.reveal-viewer__chip {
+    font-size: 11px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    color: #c6d4dd;
+    background: rgba(120, 170, 200, 0.1);
+    border: 1px solid rgba(120, 170, 200, 0.18);
+
+    &--origin {
+        color: var(--reveal-accent);
+        border-color: rgba(111, 194, 224, 0.3);
+    }
+    &--result {
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-size: 10px;
+    }
+}
+
+.reveal-viewer__grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    justify-content: center;
+    gap: 10px;
+    padding: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 170, 200, 0.35) transparent;
+
+    &::-webkit-scrollbar {
+        width: 7px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: rgba(120, 170, 200, 0.3);
+        border-radius: 3px;
+    }
+
+    // ≤3 cards: a calm centred row, never a sparse grid.
+    &--few {
+        align-items: center;
+    }
+}
+.reveal-viewer__slot {
+    flex: 0 0 auto;
+    cursor: pointer;
+    transition: transform 160ms ease, filter 160ms ease;
+
+    // Centre the card under its slot (the legacy .card-container right margin).
+    > .card-container {
+        margin: 0;
+        zoom: 0.62;
+    }
+    &:hover {
+        transform: translateY(-3px);
+        filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
+    }
+}
+
+.reveal-viewer__foot {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+.reveal-viewer__done {
+    padding: 7px 18px;
+    border-radius: 8px;
+    font-family: 'Prototype', @font_family_main;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #07121a;
+    background: var(--reveal-accent);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 0 14px -4px var(--reveal-accent);
+    transition: filter 160ms ease, transform 160ms ease;
+
+    &:hover {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+    }
+}
+
+// ── Enter / leave ─────────────────────────────────────────────────────────────
+.reveal-viewer-enter-from,
+.reveal-viewer-leave-to {
+    opacity: 0;
+}
+.reveal-viewer-enter-from .reveal-viewer__card,
+.reveal-viewer-leave-to .reveal-viewer__card {
+    transform: translateY(14px) scale(0.97);
+}
+.reveal-viewer-enter-active,
+.reveal-viewer-leave-active {
+    transition: opacity 0.24s ease;
+}
+.reveal-viewer-enter-active .reveal-viewer__card,
+.reveal-viewer-leave-active .reveal-viewer__card {
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reveal-viewer-enter-from .reveal-viewer__card,
+    .reveal-viewer-leave-to .reveal-viewer__card {
+        transform: none;
+    }
+    .reveal-viewer__slot {
+        transition: none;
+    }
+}
+
+@media (max-width: 720px) {
+    .reveal-viewer {
+        padding: 12px;
+    }
+    .reveal-viewer__slot > .card-container {
+        zoom: 0.5;
+    }
+}

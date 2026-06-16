@@ -82,6 +82,24 @@
         </div>
       </template>
 
+      <!-- Public card REVEAL / SHOW (another player publicly revealed/showed cards). -->
+      <template v-else-if="notification.reveal !== undefined">
+        <div class="notification-card__reveal-line">
+          <span v-if="notification.actor !== undefined"
+                class="journal-player notification-card__actor"
+                :class="'player_translucent_bg_color_' + notification.actor">
+            <span class="journal-player__dot" :class="'player_bg_color_' + notification.actor" aria-hidden="true"></span>
+            <span class="journal-player__name">{{ actorName }}</span>
+          </span>
+          <span class="notification-card__reveal-verb" v-i18n>{{ revealVerb }}</span>
+        </div>
+        <div class="notification-card__reveal-cards">
+          <JournalCardChip v-if="notification.reveal.cards.length === 1" :name="notification.reveal.cards[0]" />
+          <span v-else class="notification-card__reveal-count">{{ notification.reveal.cards.length }}&nbsp;<span v-i18n>cards</span></span>
+          <span v-if="notification.reveal.origin === 'deck'" class="notification-card__reveal-result" v-i18n>{{ revealResultLabel }}</span>
+        </div>
+      </template>
+
       <!-- Coalesced burst: "<actor>: N events". -->
       <template v-else-if="notification.groupCount !== undefined">
         <span v-if="notification.actor !== undefined"
@@ -278,6 +296,17 @@ export default defineComponent({
     scopeLabel(): string {
       return this.notification.negative?.scope === 'production' ? 'from production' : 'from stock';
     },
+    revealVerb(): string {
+      return this.notification.reveal?.origin === 'hand' ? 'showed from hand' : 'revealed from deck';
+    },
+    revealResultLabel(): string {
+      switch (this.notification.reveal?.result) {
+      case 'discarded': return 'discarded';
+      case 'kept': return 'kept';
+      case 'shown': return 'shown';
+      default: return 'revealed';
+      }
+    },
     // Victim before → after for a SINGLE-resource loss (the common case), read
     // from the viewer's CURRENT (post-attack) value + the loss amount.
     beforeAfter(): string | undefined {
@@ -357,6 +386,8 @@ export default defineComponent({
       case 'production-transfer': return '⇄';
       case 'vp-loss': return '★';
       case 'threat': return '⚠';
+      case 'reveal-deck': return '◇';
+      case 'reveal-hand': return '⊙';
       case 'play-card':
       case 'event':
       default: return '◈';

@@ -44,6 +44,8 @@ type NotificationStore = {
   seenRootIds: Set<number>;
   /** Correlation ids whose VIEWER-LOSS was already surfaced (separate id space). */
   seenNegativeIds: Set<number>;
+  /** String keys of public card reveals already surfaced (separate id space). */
+  seenRevealIds: Set<string>;
   /** Whether the initial seed (no-spam-on-load) has run. */
   seeded: boolean;
   /** Last generation observed — drives the "new generation" highlight. */
@@ -67,6 +69,7 @@ export const notificationState = reactive<NotificationStore>({
   dismissedTurnId: undefined,
   seenRootIds: new Set<number>(),
   seenNegativeIds: new Set<number>(),
+  seenRevealIds: new Set<string>(),
   seeded: false,
   lastGeneration: undefined,
   viewerWasWaiting: false,
@@ -265,6 +268,7 @@ export function resetNotifications(): void {
   notificationState.queue = [];
   notificationState.seenRootIds = new Set<number>();
   notificationState.seenNegativeIds = new Set<number>();
+  notificationState.seenRevealIds = new Set<string>();
   notificationState.seeded = false;
   notificationState.lastGeneration = undefined;
   notificationState.viewerWasWaiting = false;

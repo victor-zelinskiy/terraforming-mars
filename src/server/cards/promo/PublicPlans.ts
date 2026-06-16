@@ -40,7 +40,10 @@ export class PublicPlans extends Card implements IProjectCard {
     }).andThen((cards) => {
       player.stock.add(Resource.MEGACREDITS, cards.length, {log: true, from: {card: this}});
       if (cards.length > 0) {
-        player.game.log('${0} revealed ${1}', (b) => b.player(player).cards(cards));
+        // Mark the public hand-show so opponents get a premium "shown cards"
+        // notification + read-only viewer (the names are already public here).
+        player.game.log('${0} revealed ${1}', (b) => b.player(player).cards(cards),
+          {reveal: {origin: 'hand', result: 'shown', source: this.name}});
       }
       return undefined;
     });
