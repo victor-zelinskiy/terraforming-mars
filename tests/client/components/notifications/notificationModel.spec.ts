@@ -280,22 +280,30 @@ describe('notificationModel (pure)', () => {
     }
 
     it('returns nothing when not waiting or when optional', () => {
-      expect(buildTurnNotification(undefined, {generation: 2, createdAt: 1})).to.eq(undefined);
-      expect(buildTurnNotification(input({type: 'card', title: 'x', optional: true}), {generation: 2, createdAt: 1})).to.eq(undefined);
+      expect(buildTurnNotification(undefined, {generation: 2, createdAt: 1, freshTurn: true})).to.eq(undefined);
+      expect(buildTurnNotification(input({type: 'card', title: 'x', optional: true}), {generation: 2, createdAt: 1, freshTurn: true})).to.eq(undefined);
     });
 
-    it('maps the inline action menu to YOUR TURN', () => {
-      const n = buildTurnNotification(input({type: 'or', title: 'Take your next action'}), {generation: 5, createdAt: 1});
+    it('announces YOUR TURN only on a FRESH hand-off (transition)', () => {
+      const n = buildTurnNotification(input({type: 'or', title: 'Take your first action'}), {generation: 5, createdAt: 1, freshTurn: true});
       expect(n).to.not.eq(undefined);
       expect(n?.kind).to.eq('your-turn');
       expect(n?.persistent).to.eq(true);
       expect(n?.id).to.eq('turn:your-turn');
-      // Its button just acknowledges + closes (the action UI is already in front).
       expect(n?.cta?.action).to.eq('dismiss');
     });
 
-    it('maps any other prompt to ACTION REQUIRED with the prompt text', () => {
-      const n = buildTurnNotification(input({type: 'card', title: 'Select a card to discard'}), {generation: 5, createdAt: 1});
+    it('does NOT re-announce YOUR TURN when the action menu continues the same turn', () => {
+      // After a sub-prompt the menu returns as 'Take your next action' — still the
+      // viewer's turn (not a hand-off), so no card. Same for the lone repeating player.
+      const cont = buildTurnNotification(input({type: 'or', title: 'Take your next action'}), {generation: 5, createdAt: 1, freshTurn: false});
+      expect(cont).to.eq(undefined);
+      const firstAgain = buildTurnNotification(input({type: 'or', title: 'Take your first action'}), {generation: 5, createdAt: 1, freshTurn: false});
+      expect(firstAgain).to.eq(undefined);
+    });
+
+    it('maps any other prompt to ACTION REQUIRED regardless of freshTurn', () => {
+      const n = buildTurnNotification(input({type: 'card', title: 'Select a card to discard'}), {generation: 5, createdAt: 1, freshTurn: false});
       expect(n?.kind).to.eq('action-required');
       expect(n?.persistent).to.eq(true);
       expect(n?.prompt).to.eq('Select a card to discard');

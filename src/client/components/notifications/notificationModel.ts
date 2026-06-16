@@ -388,12 +388,16 @@ function titleText(title: string | Message | undefined): string | undefined {
 /**
  * Derive the singleton "turn" notification from `waitingFor`:
  *  - undefined / optional → none (not the viewer's forced move);
- *  - the inline action menu → YOUR TURN;
- *  - anything else (a mandatory sub-prompt) → ACTION REQUIRED.
+ *  - the inline action menu → YOUR TURN, but ONLY on a real hand-off
+ *    (`opts.freshTurn`): the turn just transitioned TO the player. NOT on a
+ *    continuation of the same turn (the action menu reappears after a
+ *    sub-prompt — still their two actions, the turn never left them) nor for
+ *    the lone non-passed player repeating turns (control is never handed off);
+ *  - anything else (a mandatory sub-prompt) → ACTION REQUIRED (always).
  */
 export function buildTurnNotification(
   waitingFor: PlayerInputModel | undefined,
-  opts: {generation: number; createdAt: number},
+  opts: {generation: number; createdAt: number; freshTurn: boolean},
 ): NotificationModel | undefined {
   if (waitingFor === undefined || waitingFor.optional === true) {
     return undefined;
@@ -402,6 +406,11 @@ export function buildTurnNotification(
   const isActionMenu = waitingFor.type === 'or' && title !== undefined && ACTION_MENU_TITLES.has(title);
 
   if (isActionMenu) {
+    if (!opts.freshTurn) {
+      // Same turn continuing (after a sub-prompt) OR the lone player repeating
+      // their turns — the turn was never handed off, so don't re-announce it.
+      return undefined;
+    }
     return {
       id: 'turn:your-turn',
       kind: 'your-turn',
