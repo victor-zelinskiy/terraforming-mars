@@ -78,7 +78,7 @@ describe('journal event-driven children', () => {
     expect(rows[0].chips[0]).to.deep.include({icon: 'megacredits', text: '−25'});
   });
 
-  it('labels a colony trade fee, reward and owner bonus DISTINCTLY (not all "Europa")', () => {
+  it('labels a colony trade fee, reward and owner bonus DISTINCTLY, GAINS before the fee', () => {
     const events: Array<GameEvent> = [
       ev({id: 1, type: 'action', source: {kind: 'colony', name: ColonyName.EUROPA}, player: 'red', correlationId: 1}),
       ev({id: 2, type: 'resource-changed', source: {kind: 'payment'}, player: 'red', impact: {stock: {energy: -3}}, correlationId: 1, parentId: 1}),
@@ -86,10 +86,28 @@ describe('journal event-driven children', () => {
       ev({id: 4, type: 'resource-changed', source: {kind: 'colony', name: ColonyName.EUROPA, benefit: 'colonyBonus'}, player: 'red', impact: {stock: {megacredits: 1}}, correlationId: 1, parentId: 1}),
     ];
     const rows = buildEventChildren(events, 1, 'red');
+    // Gains (trade income, colony bonus) come FIRST; the energy fee is shown last.
     expect(rows.map((r) => r.source)).to.deep.eq([
-      {kind: 'label', label: 'Payment'},
       {kind: 'label', label: 'Trade income'},
       {kind: 'label', label: 'Colony bonus'},
+      {kind: 'label', label: 'Payment'},
+    ]);
+  });
+
+  it('orders rows GAINS-first: own card result → indirect gain → payment', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.MEDIA_GROUP}, player: 'red', correlationId: 1}),
+      // Chronologically the payment fires first, then a bonus, then the card result —
+      // but the display must reorder them by gain priority.
+      ev({id: 2, type: 'resource-changed', source: {kind: 'payment'}, player: 'red', impact: {stock: {megacredits: -6}}, correlationId: 1, parentId: 1}),
+      ev({id: 3, type: 'resource-changed', source: {kind: 'spaceBonus'}, player: 'red', impact: {stock: {plants: 1}}, correlationId: 1, parentId: 1}),
+      ev({id: 4, type: 'resource-changed', source: {kind: 'card', card: CardName.MEDIA_GROUP}, player: 'red', impact: {stock: {megacredits: 3}}, correlationId: 1, parentId: 1}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    expect(rows.map((r) => r.source)).to.deep.eq([
+      {kind: 'card', card: CardName.MEDIA_GROUP}, // the card's OWN result first
+      {kind: 'label', label: 'Cell bonus'}, // then the indirect gain
+      {kind: 'label', label: 'Payment'}, // the cost last
     ]);
   });
 

@@ -30,7 +30,33 @@ import {reactive} from 'vue';
  */
 export type JournalDetailMode = 'detailed' | 'summary';
 
-export const journalState = reactive<{open: boolean; detail: JournalDetailMode}>({
+/**
+ * A pulse request for a specific root event — set by the premium notification
+ * system's "Show in journal" CTA. `correlationId` names the entry to scroll to +
+ * flash; `token` is a monotonic nonce so requesting the SAME entry again still
+ * retriggers the watcher (the value, not just identity, changes). `generation`
+ * lets the panel jump to the right generation when the entry isn't in view.
+ */
+export type JournalHighlight = {
+  correlationId: number;
+  generation: number;
+  token: number;
+};
+
+export const journalState = reactive<{open: boolean; detail: JournalDetailMode; highlight: JournalHighlight | undefined}>({
   open: false,
   detail: 'detailed',
+  highlight: undefined,
 });
+
+let highlightSeq = 0;
+
+/**
+ * Open the journal and ask the feed to scroll to + flash the given root event.
+ * Used by the notification system so a card and the journal never diverge.
+ */
+export function openJournalToEvent(correlationId: number, generation: number): void {
+  journalState.open = true;
+  highlightSeq++;
+  journalState.highlight = {correlationId, generation, token: highlightSeq};
+}

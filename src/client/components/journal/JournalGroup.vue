@@ -1,5 +1,6 @@
 <template>
   <li class="journal-group"
+      :data-correlation-id="header.correlationId"
       :class="[categoryClass, {'journal-group--fresh': headerFresh, 'journal-group--summary': summary, 'journal-group--filtering': filterActive}]">
     <!-- The category spine — runs the full group height, visually binding the
          root action to its consequences as ONE event. -->

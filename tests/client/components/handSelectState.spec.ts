@@ -10,6 +10,7 @@ import {
   isSelectedForHandSelect,
   isHandSelectable,
 } from '@/client/components/handCards/handSelectState';
+import {handFilterState} from '@/client/components/handCards/handFilterState';
 
 const A = CardName.ANTS;
 const B = CardName.BACTOVIRAL_RESEARCH;
@@ -95,6 +96,42 @@ describe('handSelectState', () => {
       expect(handSelectState.active).to.be.false;
       expect(handSelectState.selected).to.deep.eq([]);
       expect(handSelectState.selectable).to.deep.eq([]);
+    });
+  });
+
+  // The select mode BORROWS the availability filter (snaps it to "Available" so
+  // the player sees the selectable cards), but the mode-forced value must NOT
+  // persist for the user — only filters the player chose themselves in the UI do.
+  describe('availability filter is borrowed, not persisted', () => {
+    afterEach(() => {
+      handFilterState.availability = 'all';
+    });
+
+    it('forces "playable" on enter and RESTORES the user filter on exit', () => {
+      handFilterState.availability = 'all'; // the user's own choice
+      enterHandSelect(cardPrompt([A, B], 1, 1));
+      expect(handFilterState.availability).to.eq('playable'); // borrowed for the mode
+      exitHandSelect();
+      expect(handFilterState.availability).to.eq('all'); // user's choice restored
+    });
+
+    it('restores a NON-default user filter too', () => {
+      handFilterState.availability = 'unplayable';
+      enterHandSelect(cardPrompt([A], 1, 1));
+      expect(handFilterState.availability).to.eq('playable');
+      exitHandSelect();
+      expect(handFilterState.availability).to.eq('unplayable');
+    });
+
+    it('a re-enter (signature change while active) does NOT corrupt the saved value', () => {
+      handFilterState.availability = 'all';
+      enterHandSelect(cardPrompt([A], 1, 1));
+      // A new prompt arrives while still in select mode — availability is already
+      // the mode-forced 'playable'; re-saving it here would be the bug.
+      enterHandSelect(cardPrompt([A, B], 1, 1));
+      expect(handFilterState.availability).to.eq('playable');
+      exitHandSelect();
+      expect(handFilterState.availability).to.eq('all'); // still the original
     });
   });
 });

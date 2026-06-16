@@ -9,6 +9,7 @@
   <!-- Normal entry. -->
   <li v-else
       class="journal-entry"
+      :data-correlation-id="message.correlationId"
       :class="{'journal-entry--fresh': animateIn, 'journal-entry--private': isPrivate, 'journal-entry--announcement': isAnnouncement}">
     <span class="journal-entry__rail" aria-hidden="true"></span>
     <span class="journal-entry__time" :title="fullWhen">{{ when }}</span>

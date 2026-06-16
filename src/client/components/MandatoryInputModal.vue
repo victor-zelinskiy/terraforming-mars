@@ -365,8 +365,13 @@ export default defineComponent({
       cardEl.addEventListener('animationend', this.onCardAnimEnd);
     }
     this.enterTimer = window.setTimeout(() => this.markEntered(), 360);
+    // The premium notification system's "Go to action" CTA fires this when a
+    // mandatory prompt is pending but minimized — restore the modal so the
+    // player can act. No-op when already expanded.
+    window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
   },
   beforeUnmount() {
+    window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
     document.documentElement.classList.remove('mandatory-input-modal-open');
     document.body.classList.remove('mandatory-input-modal-open');
     if (this.enterTimer !== undefined) {
@@ -409,6 +414,11 @@ export default defineComponent({
     },
     restore(): void {
       this.minimized = false;
+    },
+    onNotificationGoToAction(): void {
+      if (this.minimized) {
+        this.restore();
+      }
     },
     onBackdropClick(): void {
       // Backdrop never dismisses (modal is mandatory). When minimized
