@@ -1,4 +1,5 @@
 import {IPlayer} from '../../../IPlayer';
+import {Resource} from '../../../../common/Resource';
 import {CardName} from '../../../../common/cards/CardName';
 import {CardRenderer} from '../../render/CardRenderer';
 import {StandardProjectCard} from '../../StandardProjectCard';
@@ -36,7 +37,9 @@ export class SellPatentsStandardProject extends StandardProjectCard {
       player.cardsInHand,
       {max: player.cardsInHand.length, played: false})
       .andThen((cards) => {
-        player.megaCredits += cards.length;
+        // stock.add (NOT `player.megaCredits +=`) so the +M€ from selling patents is
+        // recorded as a GameEvent and appears in the journal / notifications.
+        player.stock.add(Resource.MEGACREDITS, cards.length);
         cards.forEach((card) => player.discardCardFromHand(card));
         this.projectPlayed(player);
         player.game.log('${0} sold ${1} patents', (b) => b.player(player).number(cards.length));

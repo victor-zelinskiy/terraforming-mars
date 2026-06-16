@@ -133,8 +133,11 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
       });
 
     const spendResource = new SelectOption('Remove 1 asteroid on this card to gain 3 titanium', 'Remove asteroid').andThen(() => {
-      this.resourceCount--;
-      player.titanium += 3;
+      // removeResourceFrom + stock.add (NOT raw `resourceCount--` / `titanium +=`) so
+      // BOTH the asteroid spend AND the titanium gain are recorded as GameEvents and
+      // show in the journal. log:false — LogHelper logs the single combined message.
+      player.removeResourceFrom(this, 1, {log: false});
+      player.stock.add(Resource.TITANIUM, 3);
       LogHelper.logRemoveResource(player, this, 1, 'gain 3 titanium');
 
       return undefined;

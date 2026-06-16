@@ -49,7 +49,10 @@ export class MonsInsurance extends CorporationCard implements ICorporationCard {
     if (player !== claimant) {
       const retribution = Math.min(player.megaCredits, 3);
       if (claimant) {
-        claimant.megaCredits += retribution;
+        // stock.add (NOT `claimant.megaCredits +=`) so the victim's compensation is
+        // recorded as a GameEvent — it shows in the journal / notifications, mirroring
+        // the owner's recorded `deduct` below.
+        claimant.stock.add(Resource.MEGACREDITS, retribution);
       }
       player.stock.deduct(Resource.MEGACREDITS, retribution);
       if (retribution > 0) {

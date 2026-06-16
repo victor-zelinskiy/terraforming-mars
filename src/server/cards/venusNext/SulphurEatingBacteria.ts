@@ -3,6 +3,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardResource} from '../../../common/CardResource';
+import {Resource} from '../../../common/Resource';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectAmount} from '../../inputs/SelectAmount';
@@ -86,7 +87,11 @@ export class SulphurEatingBacteria extends Card implements IActionCard {
     player.removeResourceFrom(this, amount, {log: false});
 
     const megaCreditsGained = 3 * amount;
-    player.megaCredits += megaCreditsGained;
+    // Use stock.add (NOT `player.megaCredits +=`, which writes the field directly and
+    // bypasses the structured event recorder) so the M€ gain is recorded as a
+    // GameEvent → it shows in the journal / notifications next to the microbe spend.
+    // log:false (default) — the combined message below is the single log line.
+    player.stock.add(Resource.MEGACREDITS, megaCreditsGained);
 
     player.game.log('${0} removed ${1} microbes from ${2} to gain ${3} M€', (b) =>
       b.player(player).number(amount).card(this).number(megaCreditsGained));
