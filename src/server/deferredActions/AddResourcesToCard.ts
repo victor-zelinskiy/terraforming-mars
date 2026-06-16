@@ -19,6 +19,18 @@ export type Options = {
   filter?(card: ICard): boolean;
   log?: boolean;
   /**
+   * PREVIEW-ONLY: a card that is ABOUT to enter play but isn't on the tableau yet.
+   * The play-card modal previews an on-play `addResourcesToAnyCard` BEFORE the card
+   * is played, so `getResourceCards` (which reads the live tableau) can't see it —
+   * yet the card itself is a valid target for its OWN floaters once played (Jovian
+   * Lanterns / Atmo Collectors / Titan Floating Launch-pad hold floaters and "add to
+   * ANY card"). When set, `getCards()` includes it (if it holds the matching resource
+   * + passes the tag filter) so the modal offers the card itself. The LIVE path never
+   * sets this — by the time the deferred runs, the card is already on the tableau, so
+   * `getResourceCards` returns it and the `!cards.includes` guard avoids a duplicate.
+   */
+  cardBeingPlayed?: ICard;
+  /**
    * When `false`, NEVER apply silently even if only ONE card matches — always
    * present the pick so the player explicitly confirms WHERE the resource goes
    * (rather than it happening behind the board). The "add to ANY card"
@@ -47,6 +59,19 @@ export class AddResourcesToCard extends DeferredAction {
     });
 
     let cards = playedCards;
+
+    // Include the card about to enter play (preview only — see Options.cardBeingPlayed):
+    // it isn't on the tableau yet, but it WILL be a valid target for its own on-play
+    // "add to any card". Match `getResourceCards`'s resource rule (exact type or the
+    // WARE wildcard), and only if it isn't already present.
+    const beingPlayed = this.options.cardBeingPlayed;
+    if (beingPlayed !== undefined &&
+        beingPlayed.resourceType !== undefined &&
+        (this.resourceType === undefined || beingPlayed.resourceType === this.resourceType || beingPlayed.resourceType === CardResource.WARE) &&
+        !cards.includes(beingPlayed)) {
+      cards = [beingPlayed, ...cards];
+    }
+
     if (this.options.robotCards === true) {
       cards = cards.concat(srrCards);
     }
