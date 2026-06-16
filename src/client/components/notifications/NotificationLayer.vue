@@ -139,9 +139,17 @@ export default defineComponent({
         return;
       }
       const now = Date.now();
-      // 1) Turn signal (synchronous — the highest-priority card).
+      // 1) Turn signal (synchronous — the highest-priority card). "Your turn"
+      // announces ONLY on a real hand-off: the transition from NOT-waiting →
+      // waiting. A continuation of the same turn (the action menu reappears
+      // after a sub-prompt) and the lone non-passed player repeating turns both
+      // keep `isWaiting` true the whole time → no re-announce.
+      const waitingFor = this.playerView.waitingFor;
+      const isWaiting = waitingFor !== undefined && waitingFor.optional !== true;
+      const freshTurn = isWaiting && !notificationState.viewerWasWaiting;
+      notificationState.viewerWasWaiting = isWaiting;
       if (notificationState.settings.showTurn) {
-        setTurn(buildTurnNotification(this.playerView.waitingFor, {generation: this.generation, createdAt: now}));
+        setTurn(buildTurnNotification(waitingFor, {generation: this.generation, createdAt: now, freshTurn}));
       } else {
         setTurn(undefined);
       }
