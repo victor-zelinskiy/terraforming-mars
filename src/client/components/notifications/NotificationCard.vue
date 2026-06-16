@@ -213,9 +213,10 @@
       <button v-if="notification.cta !== undefined"
               type="button"
               class="notification-card__cta"
+              :class="{'notification-card__cta--ghost': notification.cta.action === 'open-journal'}"
               @click.stop="$emit('cta', notification)">
         <span v-i18n>{{ notification.cta.labelKey }}</span>
-        <span class="notification-card__cta-arrow" aria-hidden="true">→</span>
+        <span v-if="notification.cta.action !== 'open-journal'" class="notification-card__cta-arrow" aria-hidden="true">→</span>
       </button>
     </footer>
 

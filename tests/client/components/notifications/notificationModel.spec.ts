@@ -15,6 +15,7 @@ import {
   diffRootNotifications,
   diffNegativeNotifications,
   diffRevealNotifications,
+  recomputeRootImpact,
   coalesceBurst,
   buildTurnNotification,
   buildGenerationNotification,
@@ -160,6 +161,23 @@ describe('notificationModel (pure)', () => {
         });
         expect(models[0]?.variant, `${category}`).to.eq(variant);
       }
+    });
+  });
+
+  describe('recomputeRootImpact (colony-trade reward race)', () => {
+    it('adds the GAIN chip once the deferred reward arrives after the fee', () => {
+      const corr = 60;
+      const fee = event({id: 601, type: 'resource-changed', player: BLUE, correlationId: corr, source: {kind: 'payment'}, impact: {stock: {energy: -3}}});
+      const reward = event({id: 602, type: 'card-resource-changed', player: BLUE, correlationId: corr, source: {kind: 'colony', name: 'Titan' as never, benefit: 'trade'}, impact: {cardResources: [{cardResource: 'Floater' as never, amount: 3}]}});
+
+      // First build sees only the fee (the reward pick hasn't resolved yet).
+      const only = recomputeRootImpact([fee], corr, BLUE);
+      expect(only.pills.map((p) => p.icon)).to.deep.eq(['energy']);
+
+      // Once the floater reward records, the refreshed impact shows the GAIN FIRST.
+      const full = recomputeRootImpact([fee, reward], corr, BLUE);
+      expect(full.pills.map((p) => p.icon)).to.deep.eq(['Floater', 'energy']);
+      expect(full.childVMs.length).to.eq(2);
     });
   });
 

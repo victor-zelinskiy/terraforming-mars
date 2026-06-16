@@ -47,6 +47,7 @@ import {
   diffRootNotifications,
   diffNegativeNotifications,
   diffRevealNotifications,
+  recomputeRootImpact,
   coalesceBurst,
   buildTurnNotification,
   buildGenerationNotification,
@@ -254,6 +255,11 @@ export default defineComponent({
       for (const key of reveal.encounteredIds) {
         notificationState.seenRevealIds.add(key);
       }
+      // Refresh STILL-VISIBLE root cards whose chain GREW since they were first
+      // shown (e.g. an opponent's colony trade whose deferred reward — "add
+      // floaters to a card" — resolved a moment after the fee). Keeps the gain
+      // chip from being lost to a poll-timing race; updates in place, no re-animate.
+      this.refreshVisibleImpacts(events);
       const firstSeed = !notificationState.seeded;
       notificationState.seeded = true;
       if (firstSeed) {
@@ -269,6 +275,21 @@ export default defineComponent({
       pushMany(neg.models);
     },
 
+    refreshVisibleImpacts(events: ReadonlyArray<GameEvent>): void {
+      // Only the journal-derived root cards (they carry a `header` + correlationId);
+      // negative / reveal / coalesced cards compute their pills differently.
+      for (const n of notificationState.transient) {
+        if (n.header === undefined || n.correlationId === undefined) {
+          continue;
+        }
+        const next = recomputeRootImpact(events, n.correlationId, n.actor);
+        if (next.childVMs.length !== (n.childVMs?.length ?? 0)) {
+          n.pills = next.pills;
+          n.detailCount = next.detailCount;
+          n.childVMs = next.childVMs;
+        }
+      }
+    },
     onDismiss(id: string): void {
       dismiss(id);
     },

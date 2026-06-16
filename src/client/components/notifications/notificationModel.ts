@@ -225,6 +225,25 @@ export function summarizeImpact(vms: ReadonlyArray<JournalChildVM>, maxPills = 3
   return {pills: merged.slice(0, maxPills), detailCount: vms.length};
 }
 
+/**
+ * Re-derive a root event's IMPACT (pills + breakdown rows) from the LATEST
+ * fetched events. Used to REFRESH a still-visible root notification when its
+ * chain grows AFTER it was first shown — e.g. an opponent's colony trade whose
+ * reward (a deferred "add floaters to a card" pick) resolved a moment after the
+ * fee, so the first build saw only the fee. Keyed by the same correlationId, so
+ * the visible card gains the missing gain chip without re-animating.
+ */
+export function recomputeRootImpact(
+  events: ReadonlyArray<GameEvent>,
+  correlationId: number,
+  actor: Color | undefined,
+): {pills: Array<JournalImpactChip>; detailCount: number; childVMs: Array<JournalChildVM>} {
+  const chain = events.filter((e) => e.correlationId === correlationId);
+  const childVMs = buildEventChildren(chain, correlationId, actor);
+  const {pills, detailCount} = summarizeImpact(childVMs);
+  return {pills, detailCount, childVMs};
+}
+
 // ── Root-event notification ─────────────────────────────────────────────────
 
 type RootBuildInput = {
@@ -274,7 +293,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     generation: input.generation,
     ttl: NOTIFICATION_TTL[kind],
     persistent: false,
-    cta: {labelKey: 'Show in journal', action: 'open-journal'},
+    cta: {labelKey: 'To journal', action: 'open-journal'},
     createdAt: input.createdAt,
     effectCard: variant === 'passive-effect' ? effectSourceCard(chain, input.correlationId) : undefined,
   };
@@ -381,7 +400,7 @@ export function coalesceBurst(models: ReadonlyArray<NotificationModel>): Array<N
       detailCount: 0,
       correlationId: last.correlationId,
       groupCount: group.length,
-      cta: {labelKey: 'Show in journal', action: 'open-journal'},
+      cta: {labelKey: 'To journal', action: 'open-journal'},
     });
   }
   return [...rest, ...summaries];
@@ -474,7 +493,7 @@ export function buildGenerationNotification(generation: number, createdAt: numbe
     generation,
     ttl: NOTIFICATION_TTL['important'],
     persistent: false,
-    cta: {labelKey: 'Show in journal', action: 'open-journal'},
+    cta: {labelKey: 'To journal', action: 'open-journal'},
     createdAt,
   };
 }
@@ -546,7 +565,7 @@ function buildNegativeNotification(correlationId: number, negs: ReadonlyArray<Ga
     generation,
     ttl: NOTIFICATION_TTL['negative'],
     persistent: false,
-    cta: {labelKey: 'Show in journal', action: 'open-journal'},
+    cta: {labelKey: 'To journal', action: 'open-journal'},
     createdAt,
     negative: {attacker, sourceCard, scope, transfer, loss, gain},
   };
