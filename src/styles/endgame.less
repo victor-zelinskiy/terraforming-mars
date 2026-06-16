@@ -1426,8 +1426,48 @@
    Game-over board banner (fallback reopen button)
    ══════════════════════════════════════════════════════════════════════ */
 
-.game-over-banner .player_home_block { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.game-over-banner__btn { padding: 11px 30px; font-size: 14px; }
+/*
+ * Slim premium "game over" status chip, pinned top-center. Mirrors the .eg-pill
+ * language (dark glass + cyan rim + pulse dot + Prototype caps) so it reads as
+ * part of the endgame experience, NOT the old DynamicTitle + legacy button.
+ * pointer-events:none + a compact footprint so it barely covers the board; the
+ * lower z (below @eg-z-reveal / @eg-z-results) keeps it hidden behind the reveal
+ * and full-results overlays, surfacing only once the results are minimized.
+ */
+.game-over-banner {
+    position: fixed;
+    left: 50%;
+    top: calc(var(--bottom-bar-button-height, 38px) + 28px);
+    transform: translateX(-50%);
+    z-index: (@eg-z-pill - 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 18px;
+    border: 1px solid ~"color-mix(in srgb, @eg-cyan 42%, transparent)";
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(16, 25, 38, 0.93), rgba(9, 14, 22, 0.95));
+    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.46), 0 0 16px ~"color-mix(in srgb, @eg-cyan 22%, transparent)";
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    pointer-events: none;
+    animation: eg-rise 320ms ease backwards;
+}
+.game-over-banner__pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: @eg-cyan;
+    box-shadow: 0 0 10px @eg-cyan;
+    animation: eg-pulse 1800ms ease-in-out infinite;
+}
+.game-over-banner__label {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: @eg-text;
+}
 
 /* ══════════════════════════════════════════════════════════════════════
    Motion
@@ -1477,7 +1517,7 @@
     .eg-reveal__eyebrow, .eg-reveal__title, .eg-reveal__winner, .eg-reveal__corp,
     .eg-reveal__score, .eg-reveal__delta, .eg-reveal__runners, .eg-reveal__cta,
     .eg-reveal__glow, .eg-reveal__scan, .eg-reveal__aurora, .eg-reveal__halo,
-    .eg-reveal__cta-sheen, .eg-insight, .eg-pill { animation: none; }
-    .eg-pill__pulse { animation: none; }
+    .eg-reveal__cta-sheen, .eg-insight, .eg-pill, .game-over-banner { animation: none; }
+    .eg-pill__pulse, .game-over-banner__pulse { animation: none; }
     .eg-chart__line, .eg-pbar__fill { transition: none; }
 }
