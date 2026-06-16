@@ -469,20 +469,18 @@
     </MandatoryInputModal>
 
     <!--
-      Game-over fallback affordance. The premium EndgameExperience (App-level)
-      shows the reveal + full results automatically; this only matters when the
-      results are minimized to the pill — a calm "reopen" button on the board.
-      The premium overlay fully covers the legacy /the-end report, so there is
-      deliberately NO link to it anymore.
+      Game-over board indicator. The premium EndgameExperience (App-level) shows
+      the reveal + full results automatically, and exposes its OWN reopen pill
+      (.eg-pill, bottom-center) when the results are minimized. So this is a pure
+      premium STATUS chip — "Игра окончена!" at the top — with NO reopen button
+      (the pill already owns that) and NO link to the legacy /the-end report.
+      It's a slim fixed chip (pointer-events:none) so it barely covers the board,
+      and it sits behind the reveal/results overlays (lower z) — only visible
+      once the results are minimized.
     -->
     <div v-if="game.phase === 'end'" class="game-over-banner">
-      <div class="player_home_block">
-        <DynamicTitle title="This game is over!" :color="thisPlayer.color"/>
-        <button type="button" class="game-over-banner__btn cab-base cab-palette-cta-cyan" @click="showEndgameResults">
-          <span class="cab-base__glow" aria-hidden="true"></span>
-          <span class="cab-base__label" v-i18n>View results</span>
-        </button>
-      </div>
+      <span class="game-over-banner__pulse" aria-hidden="true"></span>
+      <span class="game-over-banner__label" v-i18n>This game is over!</span>
     </div>
 
     <sidebar v-trim-whitespace
@@ -713,7 +711,6 @@ import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import {actionsOverlayState} from '@/client/components/actions/actionsOverlayState';
 import {actionsPickState, enterActionsPick, cancelActionsPick} from '@/client/components/actions/actionsPickState';
 import {deliverActionRepeatPick} from '@/client/components/actions/actionRepeatPick';
-import {openEndgameResults} from '@/client/components/endgame/endgameState';
 import CardActionConfirmContent from '@/client/components/actions/CardActionConfirmContent.vue';
 import {beginReveal} from '@/client/components/actions/revealResultState';
 import {ActionRevealDescriptor} from '@/common/models/ActionPreviewModel';
@@ -2159,11 +2156,6 @@ export default defineComponent({
     closeActionsOverlay(): void {
       this.activeOverlay = null;
       actionsOverlayState.open = false;
-    },
-    // Reopen the premium end-of-game results overlay (the board-level fallback
-    // button, used when the results were minimized to their pill).
-    showEndgameResults(): void {
-      openEndgameResults();
     },
     // Minimize whichever mandatory hand/standard-project/award prompt is
     // currently active to its shared pill (no-op when none is active). Shared by

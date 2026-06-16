@@ -1162,14 +1162,10 @@ export class Game implements IGame, Logger {
   }
 
   private async gotoEndGame(): Promise<void> {
-    // Log id or cloned game id
-    if (this.clonedGamedId !== undefined && this.clonedGamedId.startsWith('#')) {
-      const clonedGamedId = this.clonedGamedId;
-      this.log('This game was a clone from game ${0}', (b) => b.rawString(clonedGamedId));
-    } else {
-      const id = this.id;
-      this.log('This game id was ${0}', (b) => b.rawString(id));
-    }
+    // NOTE: the upstream end-of-game "This game id was <id>" / "This game was a
+    // clone from game <id>" log lines were intentionally removed — that's debug
+    // identity info (the id is already in the URL) with no place in the premium
+    // journal.
 
     const scores: Array<Score> = [];
     this.players.forEach((player) => {
