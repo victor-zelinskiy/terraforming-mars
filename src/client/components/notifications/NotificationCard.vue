@@ -100,6 +100,27 @@
         </div>
       </template>
 
+      <!-- Passive effect fired — name + hover effect-block popover + click → details. -->
+      <template v-else-if="notification.variant === 'passive-effect' && notification.effectCard !== undefined">
+        <span v-if="notification.actor !== undefined"
+              class="journal-player notification-card__actor"
+              :class="'player_translucent_bg_color_' + notification.actor">
+          <span class="journal-player__dot" :class="'player_bg_color_' + notification.actor" aria-hidden="true"></span>
+          <span class="journal-player__name">{{ actorName }}</span>
+        </span>
+        <button type="button"
+                ref="effectChip"
+                class="notification-card__effect-chip"
+                @mouseenter="onEffectHover"
+                @mouseleave="onEffectLeave"
+                @focus="onEffectHover"
+                @blur="onEffectLeave"
+                @click.stop="onEffectClick">
+          <span class="notification-card__effect-name" v-i18n>{{ notification.effectCard }}</span>
+          <span class="notification-card__effect-hint" v-i18n>Details</span>
+        </button>
+      </template>
+
       <!-- Coalesced burst: "<actor>: N events". -->
       <template v-else-if="notification.groupCount !== undefined">
         <span v-if="notification.actor !== undefined"
@@ -198,6 +219,13 @@
       </button>
     </footer>
 
+    <!-- Hover popover with the passive-effect block (same style as the Эффекты overlay). -->
+    <EffectPreviewPopover
+      v-if="notification.variant === 'passive-effect'"
+      :name="notification.effectCard"
+      :anchor="effectAnchor"
+      :visible="effectHover" />
+
     <!-- Lifetime indicator — a CSS-driven shrink (pauses on hover / expanded via
          CSS); animationend → auto-dismiss. Persistent cards have none — EXCEPT
          the YOUR-TURN card, which arms a countdown once the player is active. -->
@@ -219,6 +247,8 @@ import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 import JournalChildRow from '@/client/components/journal/JournalChildRow.vue';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
+import EffectPreviewPopover from '@/client/components/notifications/EffectPreviewPopover.vue';
+import {openEffectDetail} from '@/client/components/notifications/effectDetailState';
 import {Color} from '@/common/Color';
 import {LiveNotification, NotificationVariant, NegativeMeta} from '@/client/components/notifications/notificationTypes';
 
@@ -256,7 +286,7 @@ const ACTOR_RAIL_VARIANTS: ReadonlySet<NotificationVariant> = new Set<Notificati
 
 export default defineComponent({
   name: 'NotificationCard',
-  components: {JournalTokenRenderer, JournalChildRow, JournalCardChip},
+  components: {JournalTokenRenderer, JournalChildRow, JournalCardChip, EffectPreviewPopover},
   props: {
     notification: {
       type: Object as PropType<LiveNotification>,
@@ -277,6 +307,9 @@ export default defineComponent({
       // Set once the player is active (only meaningful for the your-turn card).
       activityArmed: false,
       activityOrigin: undefined as {x: number; y: number} | undefined,
+      // Passive-effect hover popover state.
+      effectHover: false,
+      effectAnchor: undefined as DOMRect | undefined,
     };
   },
   computed: {
@@ -447,6 +480,19 @@ export default defineComponent({
     onCardClick(): void {
       if (this.canExpand) {
         this.$emit('toggle', this.notification.id);
+      }
+    },
+    onEffectHover(): void {
+      const el = this.$refs.effectChip as HTMLElement | undefined;
+      this.effectAnchor = el?.getBoundingClientRect();
+      this.effectHover = true;
+    },
+    onEffectLeave(): void {
+      this.effectHover = false;
+    },
+    onEffectClick(): void {
+      if (this.notification.effectCard !== undefined) {
+        openEffectDetail(this.notification.effectCard, this.notification.actor);
       }
     },
     // Arm the your-turn countdown on the FIRST meaningful player activity.

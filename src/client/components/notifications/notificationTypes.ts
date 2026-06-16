@@ -176,6 +176,11 @@ export type NotificationModel = {
   /** Set on a REVEAL notification — cards another player publicly revealed/showed. */
   reveal?: RevealMeta;
 
+  // ── Passive effect ────────────────────────────────────────────────────────
+  /** The card whose passive effect fired (variant `passive-effect`) — drives the
+   *  effect name + the hover effect-block popover + the details modal. */
+  effectCard?: CardName;
+
   // ── Coalesced burst ───────────────────────────────────────────────────────
   /** When several same-actor events were merged: how many. */
   groupCount?: number;

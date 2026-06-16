@@ -37,7 +37,12 @@
     position: fixed;
     top: calc(var(--bottom-bar-button-height) + 16px);
     right: calc(var(--right-sidebar-width) + 16px);
-    z-index: 111;
+    // ABOVE the full-screen modal backdrops (12000) so a modal's `backdrop-filter`
+    // blur / dim NEVER smears our cards (a backdrop-filter only blurs what paints
+    // BELOW it). Below the reveal viewer (12200) + the native-dialog card zoom
+    // (top layer). The turn card is still hidden behind a full mandatory modal via
+    // the body-class rule below, preserving "the modal IS the prompt".
+    z-index: 12050;
     width: 340px;
     max-width: calc(100vw - 32px);
     display: flex;
@@ -58,6 +63,17 @@
         display: flex;
         flex-direction: column;
         gap: 10px;
+    }
+}
+
+// When a FULL mandatory modal is displayed it IS the prompt — hide the turn card
+// (action-required / your-turn) behind it (the layer now paints ABOVE the modal
+// backdrop, so without this the turn card would float over its own modal). The
+// transient feed (reveals / losses / events) stays crisp on top — never blurred.
+body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-modal--minimized):not(.mandatory-input-modal--picker-mode):not(.mandatory-input-modal--suppressed)) {
+    .notifications-layer .notification-card--action-required,
+    .notifications-layer .notification-card--your-turn {
+        visibility: hidden;
     }
 }
 
@@ -463,6 +479,213 @@
 .notification-card--variant-warning { --notif-accent: @notif-red; }
 .notification-card--variant-reveal-deck { --notif-accent: @notif-reveal-deck; }
 .notification-card--variant-reveal-hand { --notif-accent: @notif-reveal-hand; }
+
+// ── Passive-effect notification: the clickable effect chip (name + hint). ──────
+.notification-card__effect-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 6px;
+    padding: 4px 9px;
+    border-radius: 8px;
+    background: rgba(120, 170, 200, 0.1);
+    border: 1px solid var(--notif-accent);
+    color: var(--notif-accent);
+    cursor: pointer;
+    transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+
+    &:hover {
+        background: rgba(120, 170, 200, 0.2);
+        box-shadow: 0 0 13px -4px var(--notif-accent);
+        transform: translateY(-1px);
+    }
+}
+.notification-card__effect-name {
+    font-weight: 700;
+    font-size: 12.5px;
+}
+.notification-card__effect-hint {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+// ── Effect hover popover — renders the effect BLOCK (reuses EffectBlock). ──────
+.effect-preview-popover {
+    position: fixed;
+    z-index: 12120;
+    padding: 10px;
+    border-radius: 12px;
+    background: linear-gradient(155deg, rgba(18, 28, 40, 0.97) 0%, rgba(10, 16, 26, 0.99) 100%);
+    border: 1px solid rgba(120, 170, 200, 0.24);
+    box-shadow: 0 18px 44px -16px rgba(0, 0, 0, 0.8), 0 0 24px -12px #57c7e0;
+    pointer-events: none; // hover-only preview, never steals the pointer
+}
+.effect-preview-enter-from,
+.effect-preview-leave-to {
+    opacity: 0;
+    transform: translateX(6px);
+}
+.effect-preview-enter-active,
+.effect-preview-leave-active {
+    transition: opacity 0.16s ease, transform 0.2s ease;
+}
+
+// ── Effect DETAIL modal (mirrors the additional-resources modal style). ───────
+.effect-detail-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 12200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: rgba(4, 8, 16, 0.62);
+    backdrop-filter: blur(3px);
+}
+.effect-detail-modal {
+    position: relative;
+    box-sizing: border-box;
+    width: min(460px, calc(100vw - 48px));
+    max-height: calc(100vh - 56px);
+    display: flex;
+    flex-direction: column;
+    padding: 15px 17px 16px;
+    border-radius: 14px;
+    background: linear-gradient(155deg, rgba(18, 28, 40, 0.97) 0%, rgba(10, 16, 26, 0.99) 100%);
+    border: 1px solid rgba(95, 199, 224, 0.28);
+    box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.82), 0 0 0 1px rgba(0, 0, 0, 0.4) inset, 0 0 30px -14px #57c7e0;
+    color: #d9e6ef;
+}
+.effect-detail-modal__tick {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: #57c7e0;
+    opacity: 0.7;
+    pointer-events: none;
+
+    &--tl {
+        top: 7px;
+        left: 7px;
+        border-top: 1.5px solid;
+        border-left: 1.5px solid;
+        border-top-left-radius: 5px;
+    }
+    &--br {
+        bottom: 7px;
+        right: 7px;
+        border-bottom: 1.5px solid;
+        border-right: 1.5px solid;
+        border-bottom-right-radius: 5px;
+    }
+}
+.effect-detail-modal__header {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 10px;
+}
+.effect-detail-modal__glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #07121a;
+    background: #57c7e0;
+}
+.effect-detail-modal__kicker {
+    flex: 1;
+    font-family: 'Prototype', @font_family_main;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8fd6e6;
+}
+.effect-detail-modal__close {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 7px;
+    background: rgba(120, 170, 200, 0.1);
+    color: #b6c6d2;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+
+    &:hover {
+        background: rgba(232, 116, 95, 0.2);
+        color: #f0a392;
+    }
+}
+.effect-detail-modal__tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 9px;
+}
+.effect-detail-modal__tab {
+    width: 26px;
+    height: 24px;
+    border-radius: 6px;
+    border: 1px solid rgba(120, 170, 200, 0.2);
+    background: rgba(120, 170, 200, 0.08);
+    color: #9fb6c4;
+    font-size: 12px;
+    cursor: pointer;
+
+    &--active {
+        color: #07121a;
+        background: #57c7e0;
+        border-color: #57c7e0;
+    }
+}
+.effect-detail-modal__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 170, 200, 0.35) transparent;
+
+    &::-webkit-scrollbar {
+        width: 7px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: rgba(120, 170, 200, 0.3);
+        border-radius: 3px;
+    }
+}
+.effect-detail-modal-enter-from,
+.effect-detail-modal-leave-to {
+    opacity: 0;
+}
+.effect-detail-modal-enter-from .effect-detail-modal,
+.effect-detail-modal-leave-to .effect-detail-modal {
+    transform: translateY(14px) scale(0.97);
+}
+.effect-detail-modal-enter-active,
+.effect-detail-modal-leave-active {
+    transition: opacity 0.24s ease;
+}
+.effect-detail-modal-enter-active .effect-detail-modal,
+.effect-detail-modal-leave-active .effect-detail-modal {
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .effect-preview-enter-from,
+    .effect-preview-leave-to,
+    .effect-detail-modal-enter-from .effect-detail-modal,
+    .effect-detail-modal-leave-to .effect-detail-modal {
+        transform: none;
+    }
+}
 
 // ── Reveal / show card body (calm informational, the card name highlighted). ──
 .notification-card__reveal-line {

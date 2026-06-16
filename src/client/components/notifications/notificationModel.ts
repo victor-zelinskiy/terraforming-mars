@@ -107,6 +107,16 @@ function rootVariant(header: LogMessage, chain: ReadonlyArray<GameEvent>): Notif
   return 'event';
 }
 
+/** The card behind a passive-effect root (the effect-triggered marker's source). */
+function effectSourceCard(chain: ReadonlyArray<GameEvent>, correlationId: number | undefined): CardName | undefined {
+  const root = chain.find((e) => e.id === correlationId && e.type === 'effect-triggered');
+  const s = root?.source;
+  if (s !== undefined && (s.kind === 'card' || s.kind === 'corporation')) {
+    return s.card;
+  }
+  return undefined;
+}
+
 /** The behaviour KIND a variant implies (priority / TTL / persistence channel). */
 function variantKind(variant: NotificationVariant): NotificationKind {
   switch (variant) {
@@ -266,6 +276,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     persistent: false,
     cta: {labelKey: 'Show in journal', action: 'open-journal'},
     createdAt: input.createdAt,
+    effectCard: variant === 'passive-effect' ? effectSourceCard(chain, input.correlationId) : undefined,
   };
 }
 
