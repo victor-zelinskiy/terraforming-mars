@@ -143,6 +143,19 @@
           :step="playerView.game.step"
           @close="journalState.open = false" />
       </Transition>
+
+      <!--
+        Premium NOTIFICATION layer. App-level (like the journal) so the
+        `:key="playerkey"` remount on every server response can't tear it
+        down — the queue / seen-set / live cards must survive it. Surfaces
+        important game events (opponents' plays, your turn, mandatory
+        decisions, milestones, …) as floating sci-fi cards even when the
+        journal is collapsed. Driven entirely by module-level
+        notificationState + the same journal streams it links back to.
+      -->
+      <NotificationLayer
+        v-if="screen === 'player-home' && playerView !== undefined"
+        :player-view="playerView" />
     </div>
   </div>
 </template>
@@ -174,6 +187,7 @@ const EffectsPlayground = defineAsyncComponent(() => import(/* webpackChunkName:
 const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "actions-playground" */ '@/client/components/actions/ActionsPlayground.vue'));
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
+import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
 import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
@@ -298,6 +312,7 @@ export default defineComponent({
     EffectsPlayground,
     ActionsPlayground,
     JournalPanel,
+    NotificationLayer,
     DrawCardRevealFlow,
     AdditionalResourceDetailOverlay,
     GameAtmosphere,

@@ -709,6 +709,7 @@ import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverl
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import {actionsOverlayState} from '@/client/components/actions/actionsOverlayState';
+import {playerViewState} from '@/client/components/playerViewState';
 import {actionsPickState, enterActionsPick, cancelActionsPick} from '@/client/components/actions/actionsPickState';
 import {deliverActionRepeatPick} from '@/client/components/actions/actionRepeatPick';
 import CardActionConfirmContent from '@/client/components/actions/CardActionConfirmContent.vue';
@@ -890,7 +891,6 @@ type PendingTradeColony = {
 };
 
 type PlayerHomeModel = ToggleableState & {
-  selectedPlayerColor: Color | undefined;
   activeOverlay: OverlayId | null;
   // True while the Convert-Plants flow is in "click a greenery space"
   // mode. Renders SelectSpace.vue with the inner SelectSpace prompt so
@@ -989,7 +989,6 @@ export default defineComponent({
       showActiveCards: !preferences.hide_active_cards,
       showAutomatedCards: !preferences.hide_automated_cards,
       showEventCards: !preferences.hide_event_cards,
-      selectedPlayerColor: undefined,
       activeOverlay: null,
       convertPlantsPickerActive: false,
       pendingStdProjectPayment: undefined,
@@ -1044,6 +1043,16 @@ export default defineComponent({
       } else if (newVal === null && oldVal !== null) {
         document.removeEventListener('click', this.handleOutsideOverlayClick);
       }
+      // Keep the ДЕЙСТВИЯ overlay's persisted open-flag in LOCK-STEP with whether
+      // it is the live overlay. This is the single source of truth for the flag,
+      // so EVERY close path clears it: the ✕, an outside click, switching to
+      // another overlay, AND activating an action into the confirm modal (which
+      // sets activeOverlay = null). Without this a stale `open = true` made the
+      // post-remount mounted() re-arm RE-OPEN the overlay after the player had
+      // already left it (picked an action, or closed it some other way). Re-arm is
+      // only meant for "the overlay was genuinely still open across a forced
+      // remount" — which is exactly `activeOverlay === 'actions'`.
+      actionsOverlayState.open = newVal === 'actions';
       // Leaving the КАРТЫ В РУКЕ overlay (close, or switching to another
       // overlay) cancels any in-progress Sell-patents sale mode with NO
       // submit. A polling remount keeps activeOverlay === 'cards', so sale
@@ -1303,8 +1312,14 @@ export default defineComponent({
     if (actionsOverlayState.open && this.activeOverlay === null && !actionsPickState.active) {
       this.activeOverlay = 'actions';
     }
+    // The premium notification system's "Go to action" CTA: if a mandatory
+    // hand / award / standard-project prompt is minimized to its pill, restore
+    // it so the player can act. (A minimized generic modal restores itself via
+    // its own listener; this covers the dedicated-overlay pills.)
+    window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
   },
   beforeUnmount() {
+    window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
     document.removeEventListener('click', this.handleOutsideOverlayClick);
     /* Defensive cleanup — if PlayerHome unmounts mid-placement (e.g.
      * navigation, game-over reroute), don't leave the lock state behind:
@@ -1393,6 +1408,20 @@ export default defineComponent({
     },
     sortActiveCards(): typeof sortActiveCards {
       return sortActiveCards;
+    },
+    // The seat the HUD is VIEWING. Backed by module-level `playerViewState` (NOT
+    // component data) so the choice survives the `playerkey` remount that fires on
+    // every server response — otherwise a routine poll (another player's turn)
+    // reset it to undefined and snapped the view back to the viewer's own seat
+    // while they were inspecting an opponent. A get/set computed keeps every
+    // existing `this.selectedPlayerColor = …` read/write working unchanged.
+    selectedPlayerColor: {
+      get(): Color | undefined {
+        return playerViewState.selectedPlayerColor;
+      },
+      set(value: Color | undefined): void {
+        playerViewState.selectedPlayerColor = value;
+      },
     },
     // The player whose info is currently shown in the bottom panel — drives
     // which tableau the "Played" overlay renders. Mirrors PlayersOverview's
@@ -2144,18 +2173,14 @@ export default defineComponent({
       if (this.activeOverlay === 'cards' || this.activeOverlay === 'standardProjects' || this.activeOverlay === 'awards') {
         this.minimizeMandatoryHandPrompts();
       }
+      // The actions overlay's persisted open-flag is kept in sync centrally by the
+      // `activeOverlay` watcher, so this assignment alone clears / sets it.
       this.activeOverlay = this.activeOverlay === id ? null : id;
-      // Keep the actions overlay's persisted open-flag in sync with the live
-      // activeOverlay — set UNCONDITIONALLY (not just when id === 'actions') so
-      // navigating AWAY from actions to another overlay also clears the flag;
-      // otherwise the remount re-arm would yank the player back to actions.
-      actionsOverlayState.open = this.activeOverlay === 'actions';
     },
-    // The actions overlay ✕ — also clears its persisted open-flag (so a server
-    // poll doesn't re-arm it after an explicit close).
+    // The actions overlay ✕ — the `activeOverlay` watcher clears the persisted
+    // open-flag (so a server poll doesn't re-arm it after an explicit close).
     closeActionsOverlay(): void {
       this.activeOverlay = null;
-      actionsOverlayState.open = false;
     },
     // Minimize whichever mandatory hand/standard-project/award prompt is
     // currently active to its shared pill (no-op when none is active). Shared by
@@ -2542,14 +2567,13 @@ export default defineComponent({
       }
       this.pendingCardAction = undefined;
       this.repeatOuter = undefined;
-      // After CONFIRMING, the player should land back on the board to SEE the
-      // action's effect (the delta-chips animating on resources / parameters), NOT
-      // be bounced back into the ДЕЙСТВИЯ overlay. Clear its persisted open-flag so
-      // the post-submit playerkey remount's mounted() re-arm doesn't re-open it.
-      // (Cancel keeps the flag — onCardActionCancel restores the overlay.) A REVEAL
-      // action still shows its drawn card via the App-level RevealResultOverlay,
-      // which is armed above and independent of this overlay.
-      actionsOverlayState.open = false;
+      // After CONFIRMING, the player lands back on the board to SEE the action's
+      // effect (the delta-chips animating on resources / parameters), NOT bounced
+      // back into the ДЕЙСТВИЯ overlay. The overlay's persisted open-flag was
+      // already cleared when onActivateCardAction set activeOverlay = null (the
+      // `activeOverlay` watcher), so the post-submit remount re-arm won't re-open
+      // it. (Cancel re-opens via onCardActionCancel.) A REVEAL action still shows
+      // its drawn card via the App-level RevealResultOverlay, armed above.
     },
     onCardActionCancel(): void {
       // A REPEATED action's confirm cancelled — restore the OUTER modal it came
@@ -3513,6 +3537,11 @@ export default defineComponent({
     },
     // Restore the minimized mandatory overlay from the shared pill — re-opens
     // whichever overlay owns the active prompt (hand vs standard projects).
+    onNotificationGoToAction(): void {
+      if (this.handPillVisible) {
+        this.restoreHandPill();
+      }
+    },
     restoreHandPill(): void {
       handSelectState.minimized = false;
       handPlayState.minimized = false;

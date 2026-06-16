@@ -207,6 +207,50 @@ function sourceDiscriminator(source: EventSource | undefined): string {
   return sourceKey(source);
 }
 
+/** The CARD heading the chain (a card / corp / standard project root), if any. */
+function rootCardOf(events: ReadonlyArray<GameEvent>, rootId: number): CardName | undefined {
+  const root = events.find((e) => e.id === rootId);
+  const s = root?.source;
+  if (s !== undefined && (s.kind === 'card' || s.kind === 'corporation' || s.kind === 'standardProject')) {
+    return s.card;
+  }
+  return undefined;
+}
+
+/**
+ * The display PRIORITY tier of a child row — GAINS read first, the cost reads
+ * last, so the player sees what they GOT before what they paid:
+ *   0 — what the ACTION ITSELF produced (the root card's own result + the tile
+ *       it placed): the most direct "what I got";
+ *   1 — INDIRECT gains from other effects (bonuses, other cards, colony income);
+ *   2 — discounts (cost reductions — a saving, but cost-related so after gains);
+ *   3 — payment + any net LOSS (what was spent / lost) — last.
+ * A stable sort within a tier preserves the chronological story.
+ */
+function childTier(vm: JournalChildVM, rootCard: CardName | undefined): number {
+  if (vm.bucket === 'payment') {
+    return 3;
+  }
+  const meaningful = vm.chips.filter((c) => c.saved !== true);
+  const allNegative = meaningful.length > 0 && meaningful.every((c) => c.text.startsWith('−'));
+  if (allNegative) {
+    return 3; // a net loss → grouped with the cost, last
+  }
+  if (vm.bucket === 'discount') {
+    return 2;
+  }
+  if (vm.space !== undefined) {
+    return 0; // a placed tile is the action's own direct result
+  }
+  if (vm.source.kind === 'none') {
+    return 0; // the action's bare own result
+  }
+  if (vm.source.kind === 'card' && rootCard !== undefined && vm.source.card === rootCard) {
+    return 0; // the root card crediting itself
+  }
+  return 1; // an indirect gain from another source
+}
+
 /**
  * Build the GROUPED child rows for a correlation chain. `events` are the
  * GameEvents whose `correlationId` === `rootId` (the root action event included).
@@ -286,5 +330,12 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       {source: sourceToChild(e.source), player, bucket, chips: []}, chips);
   }
 
-  return ordered.map((entry) => ({...entry.vm, chips: entry.chips}));
+  // Resolve each row's final chips, then re-order GAINS → discounts → cost,
+  // with a STABLE sort (chronological order preserved within a tier).
+  const rootCard = rootCardOf(events, rootId);
+  const rows = ordered.map((entry) => ({...entry.vm, chips: entry.chips}));
+  return rows
+    .map((vm, i) => ({vm, i, tier: childTier(vm, rootCard)}))
+    .sort((a, b) => a.tier - b.tier || a.i - b.i)
+    .map((d) => d.vm);
 }

@@ -1232,6 +1232,19 @@
     100% { background-color: rgba(106, 176, 230, 0);    filter: drop-shadow(0 0 0 rgba(106, 176, 230, 0)); }
 }
 
+/* A root-event row briefly flashed when jumped-to from a notification card's
+   "Show in journal" CTA — a calm cyan wash + rim glow, ~2s, transform-free. */
+.journal-group--pulse,
+.journal-entry--pulse {
+    animation: journal-row-pulse 2s ease-out;
+    border-radius: 8px;
+}
+@keyframes journal-row-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(106, 176, 230, 0); background-color: rgba(106, 176, 230, 0); }
+    14%  { box-shadow: 0 0 0 1px rgba(106, 176, 230, 0.6), 0 0 18px -2px rgba(106, 176, 230, 0.7); background-color: rgba(106, 176, 230, 0.14); }
+    100% { box-shadow: 0 0 0 0 rgba(106, 176, 230, 0); background-color: rgba(106, 176, 230, 0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .journal-entry--fresh,
     .journal-group--fresh,
@@ -1240,6 +1253,8 @@
     .journal-genselect__live-dot,
     .journal-feed__newpill-arrow,
     .journal-feed__spinner,
+    .journal-group--pulse,
+    .journal-entry--pulse,
     .board-log-highlight.journal-pulse {
         animation: none;
     }

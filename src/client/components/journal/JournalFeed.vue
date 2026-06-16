@@ -64,9 +64,12 @@ import JournalEntry from '@/client/components/journal/JournalEntry.vue';
 import JournalGroup from '@/client/components/journal/JournalGroup.vue';
 import {buildJournalView, JournalGroupNode} from '@/client/components/journal/journalView';
 import {JournalFilter, messagePassesFilter} from '@/client/components/journal/journalFilter';
+import {journalState} from '@/client/components/journal/journalState';
 
 const BOTTOM_THRESHOLD = 48;
 const FRESH_WINDOW = 650;
+const HIGHLIGHT_PULSE_MS = 2000;
+const HIGHLIGHT_MAX_RETRIES = 24;
 
 // A rendered node: a premium cause/effect GROUP, or a flat standalone row
 // (system line, generation divider, legacy/ungrouped log).
@@ -86,6 +89,9 @@ type DataModel = {
   // on exactly the fresh rows, whether a new group or a child of an existing one.
   freshSet: ReadonlySet<LogMessage>;
   freshTimer: number | undefined;
+  // The element currently flashing from a notification "Show in journal" jump.
+  highlightEl: HTMLElement | undefined;
+  highlightTimer: number | undefined;
 };
 
 /**
@@ -143,9 +149,20 @@ export default defineComponent({
       showNew: false,
       freshSet: new Set<LogMessage>(),
       freshTimer: undefined,
+      highlightEl: undefined,
+      highlightTimer: undefined,
     };
   },
   watch: {
+    // A notification "Show in journal" CTA sets journalState.highlight — scroll
+    // to that root event and flash it. Watch the nonce token so requesting the
+    // SAME entry twice still fires.
+    highlightToken(token: number | undefined): void {
+      if (token === undefined) {
+        return;
+      }
+      this.scheduleHighlight(HIGHLIGHT_MAX_RETRIES);
+    },
     feedSignal(next: [number, number], prev: [number, number]) {
       const [epoch, len] = next;
       const [oldEpoch, oldLen] = prev;
@@ -175,6 +192,9 @@ export default defineComponent({
   computed: {
     feedSignal(): [number, number] {
       return [this.loadEpoch, this.messages.length];
+    },
+    highlightToken(): number | undefined {
+      return journalState.highlight?.token;
     },
     filterActive(): boolean {
       return this.filter.kind !== 'all';
@@ -257,12 +277,62 @@ export default defineComponent({
       }
       this.freshSet = new Set<LogMessage>();
     },
+    // Find the root-event row for the highlighted correlationId, scroll it into
+    // view + flash it. The list may not be laid out yet (the journal just
+    // opened / is still fetching), so retry on the next frame a bounded number
+    // of times until the element exists.
+    scheduleHighlight(retries: number): void {
+      this.$nextTick(() => {
+        const target = journalState.highlight;
+        if (target === undefined) {
+          return;
+        }
+        const scroll = this.$refs.scroll as HTMLElement | undefined;
+        const el = scroll?.querySelector<HTMLElement>(`[data-correlation-id="${target.correlationId}"]`) ?? undefined;
+        if (el === undefined) {
+          if (retries > 0) {
+            window.requestAnimationFrame(() => this.scheduleHighlight(retries - 1));
+          }
+          return;
+        }
+        this.applyHighlight(el);
+      });
+    },
+    applyHighlight(el: HTMLElement): void {
+      if (this.highlightTimer !== undefined) {
+        window.clearTimeout(this.highlightTimer);
+        this.highlightTimer = undefined;
+      }
+      if (this.highlightEl !== undefined && this.highlightEl !== el) {
+        this.highlightEl.classList.remove('journal-group--pulse', 'journal-entry--pulse');
+      }
+      el.scrollIntoView({behavior: 'smooth', block: 'center'});
+      const cls = el.classList.contains('journal-group') ? 'journal-group--pulse' : 'journal-entry--pulse';
+      // Restart the animation cleanly if the same row is re-requested.
+      el.classList.remove(cls);
+      void el.offsetWidth;
+      el.classList.add(cls);
+      this.highlightEl = el;
+      this.highlightTimer = window.setTimeout(() => {
+        el.classList.remove(cls);
+        this.highlightEl = undefined;
+        this.highlightTimer = undefined;
+      }, HIGHLIGHT_PULSE_MS);
+    },
   },
   mounted(): void {
     this.$nextTick(() => this.scrollToBottom('auto'));
+    // If the panel was opened directly onto an event (notification CTA), the
+    // highlight token is already set when the feed mounts.
+    if (journalState.highlight !== undefined) {
+      this.scheduleHighlight(HIGHLIGHT_MAX_RETRIES);
+    }
   },
   beforeUnmount(): void {
     this.clearFresh();
+    if (this.highlightTimer !== undefined) {
+      window.clearTimeout(this.highlightTimer);
+    }
   },
 });
 </script>

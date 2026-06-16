@@ -4,6 +4,7 @@ import {Message} from '@/common/logs/Message';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {handFilterState} from '@/client/components/handCards/handFilterState';
+import {AvailabilityFilter} from '@/client/components/handCards/handCardModel';
 
 /**
  * Module-level reactive state for the MANDATORY "select cards from your hand"
@@ -79,6 +80,15 @@ export const handSelectState: HandSelectState = reactive({
 let clientResolveCb: ((cards: ReadonlyArray<CardName>) => void) | undefined;
 let clientCancelCb: (() => void) | undefined;
 
+// The player's OWN availability filter, captured when a SELECT/PICK mode first
+// borrows the hand overlay (so the mode-forced "Available" default doesn't
+// outlive the mode). Module scope (like the callbacks above) so it survives the
+// `playerkey` remount that keeps a select mode alive across server responses.
+// `undefined` ⇔ no select mode is currently borrowing the filter (nothing to
+// restore). A mode-imposed filter must NEVER persist as if the player chose it —
+// only the filters the player set themselves in the UI survive a mode.
+let savedUserAvailability: AvailabilityFilter | undefined;
+
 function titleText(title: string | Message | undefined): string {
   if (title === undefined) {
     return '';
@@ -128,9 +138,26 @@ export function enterHandSelect(input: SelectCardModel): void {
 // On entering a SELECT/PICK mode, snap the availability filter to "Available" so
 // the player immediately sees the cards selectable in THIS context (the chips are
 // re-pointed to selectability while a select mode is active — see handCardModel
-// `isEntryAvailable`). Set once on enter; the player can re-filter freely after.
+// `isEntryAvailable`). The player's own filter is SAVED first (only on the FIRST
+// entry — `savedUserAvailability === undefined` makes a remount re-enter / a
+// signature change idempotent) and RESTORED on exit, so this mode-forced default
+// never sticks once the mode ends.
 function defaultFilterToAvailable(): void {
+  if (savedUserAvailability === undefined) {
+    savedUserAvailability = handFilterState.availability;
+  }
   handFilterState.availability = 'playable';
+}
+
+// Restore the player's own availability filter when leaving the select/pick mode
+// (no-op when no mode borrowed it). The single exit point exitHandSelect calls
+// this, so every leave path — server prompt resolved, client pick resolved /
+// cancelled, mounted() safety-net cancel — restores the pre-mode filter.
+function restoreUserAvailability(): void {
+  if (savedUserAvailability !== undefined) {
+    handFilterState.availability = savedUserAvailability;
+    savedUserAvailability = undefined;
+  }
 }
 
 export function exitHandSelect(): void {
@@ -143,6 +170,7 @@ export function exitHandSelect(): void {
   handSelectState.reasons = {};
   clientResolveCb = undefined;
   clientCancelCb = undefined;
+  restoreUserAvailability();
 }
 
 /**

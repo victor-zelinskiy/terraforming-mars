@@ -1,0 +1,130 @@
+import {Color} from '@/common/Color';
+import {Message} from '@/common/logs/Message';
+import {LogMessage} from '@/common/logs/LogMessage';
+import {JournalActionCategory} from '@/common/events/GameEvent';
+import {JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
+
+/**
+ * Premium notification system — the decoupled "live game feedback layer" that
+ * surfaces important game events (other players' plays, your turn, mandatory
+ * decisions, milestones, …) as floating sci-fi cards even when the journal is
+ * collapsed. The data SOURCE is the same structured journal stream (root events
+ * keyed by `correlationId` + their `GameEvent` children) plus the client's
+ * `waitingFor` state — never a guess from the UI.
+ *
+ * This file is the PURE type vocabulary. The pure mappers live in
+ * `notificationModel.ts` (unit-testable), the reactive store / lifecycle in
+ * `notificationState.ts`, and the Vue surface in `NotificationLayer.vue` /
+ * `NotificationCard.vue`.
+ */
+
+/**
+ * The five notification KINDS, also the priority order (lower index = wins a
+ * contested slot). `action-required` and `your-turn` are SINGLETON "turn"
+ * notifications (only one is meaningful at a time — `waitingFor` is one thing);
+ * the rest are transient feed cards.
+ */
+export type NotificationKind =
+  | 'action-required' // a mandatory sub-prompt is pending (discard / pick target / pay / …)
+  | 'your-turn' // the inline action menu is active — it's the viewer's move
+  | 'warning' // an action failed / impossible / a server problem
+  | 'important' // generation change, pass, milestone / award, big swing
+  | 'normal'; // a regular journal root event (a player played a card, …)
+
+/** Numeric priority for sorting / slot contention (lower wins). */
+export const NOTIFICATION_PRIORITY: Readonly<Record<NotificationKind, number>> = {
+  'action-required': 0,
+  'your-turn': 1,
+  'warning': 2,
+  'important': 3,
+  'normal': 4,
+};
+
+/** What the single call-to-action button does. */
+export type NotificationCtaAction =
+  | 'open-journal' // open the journal + highlight this root event
+  | 'focus-actions' // draw attention to the action area (your turn)
+  | 'go-to-action' // best-effort: surface the pending mandatory prompt
+  | 'dismiss';
+
+export type NotificationCta = {
+  /** i18n key for the button label. */
+  labelKey: string;
+  action: NotificationCtaAction;
+};
+
+/**
+ * The serializable notification MODEL — the output of the pure mappers. It is
+ * deliberately render-agnostic: it carries the journal `LogMessage` header +
+ * `JournalChildVM` children so the card can reuse the journal's renderers, and
+ * a parsed prompt for the turn notifications.
+ */
+export type NotificationModel = {
+  /** Stable de-dup key. Root events → `g<correlationId>`; turn → `turn:<kind>`. */
+  id: string;
+  kind: NotificationKind;
+  priority: number;
+
+  /** i18n key for the small type label in the header ("Card played", "Your turn"…). */
+  typeLabelKey: string;
+  /** The root-action category — drives the category glyph / accent. */
+  category?: JournalActionCategory;
+  /** The acting / benefiting player (colour accent + actor chip). */
+  actor?: Color;
+
+  // ── Journal-derived content (normal / important) ──────────────────────────
+  /** The root `LogMessage` — rendered via `JournalTokenRenderer` (the headline). */
+  header?: LogMessage;
+  /** The expanded breakdown rows (source → impact), reusing `JournalChildRow`. */
+  childVMs?: ReadonlyArray<JournalChildVM>;
+  /** Compact headline impact pills (merged net deltas, top few). */
+  pills: ReadonlyArray<JournalImpactChip>;
+  /** Number of breakdown rows available behind "+N details". */
+  detailCount: number;
+  /** The journal root-event id, for "open in journal" + highlight. */
+  correlationId?: number;
+
+  // ── Turn content (your-turn / action-required / warning) ──────────────────
+  /** A pre-translatable prompt — a plain string or a tokenised `Message`. */
+  prompt?: string | Message;
+  /** A secondary i18n body line under the prompt. */
+  bodyKey?: string;
+
+  // ── Coalesced burst ───────────────────────────────────────────────────────
+  /** When several same-actor events were merged: how many. */
+  groupCount?: number;
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  generation: number;
+  /** Auto-dismiss after this many ms; 0 = persistent (turn / action-required). */
+  ttl: number;
+  persistent: boolean;
+  cta?: NotificationCta;
+  /** Epoch ms the model was minted (client clock). */
+  createdAt: number;
+};
+
+/** A live notification = the model plus its in-layer runtime status. */
+export type LiveNotification = NotificationModel & {
+  /** Whether the card is currently expanded (pauses auto-dismiss). */
+  expanded: boolean;
+};
+
+/** Default time-to-live per kind (ms). 0 ⇒ persistent. */
+export const NOTIFICATION_TTL: Readonly<Record<NotificationKind, number>> = {
+  'action-required': 0,
+  'your-turn': 0,
+  'warning': 10_000,
+  'important': 12_000,
+  'normal': 8_500,
+};
+
+/** How many transient (normal/important/warning) cards are visible at once. */
+export const MAX_VISIBLE_TRANSIENT = 3;
+
+/**
+ * When a single diff yields MORE than this many fresh normal events (an
+ * opponent took a whole turn while we were idle), they are coalesced into
+ * per-actor summary cards instead of spamming one card each.
+ */
+export const COALESCE_THRESHOLD = 3;
