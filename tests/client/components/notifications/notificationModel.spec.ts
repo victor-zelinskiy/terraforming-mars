@@ -163,6 +163,16 @@ describe('notificationModel (pure)', () => {
     });
   });
 
+  describe('passive-effect root', () => {
+    it('carries the effect source card (for the name + popover + details)', () => {
+      const header = rootHeader(BLUE, 50);
+      header.category = undefined; // no action category → reaches the effect-triggered branch
+      const chain = [event({id: 50, type: 'effect-triggered', player: BLUE, correlationId: 50, source: {kind: 'card', card: CARD}, impact: {}})];
+      const {models} = diffRootNotifications({messages: [header], events: chain, seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1});
+      expect(models[0]).to.include({variant: 'passive-effect', effectCard: CARD, typeLabelKey: 'Effect triggered'});
+    });
+  });
+
   describe('coalesceBurst', () => {
     // Opponent (RED) actions viewed by BLUE — so they are NOT self-suppressed.
     function normalModel(corr: number) {

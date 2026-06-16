@@ -166,6 +166,16 @@
       <RevealedCardsModal
         v-if="screen === 'player-home' && playerView !== undefined"
         :players="playerView.players" />
+
+      <!--
+        Per-effect detail modal opened from a «сработал эффект» notification —
+        shows ONE card's passive effect (graphic + description + per-game stats),
+        reusing the Эффекты overlay's EffectDetailsPanel.
+      -->
+      <EffectDetailOverlay
+        v-if="screen === 'player-home' && playerView !== undefined"
+        :viewer-id="playerView.id"
+        :players="playerView.players" />
     </div>
   </div>
 </template>
@@ -199,6 +209,7 @@ import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
 import RevealedCardsModal from '@/client/components/notifications/RevealedCardsModal.vue';
+import EffectDetailOverlay from '@/client/components/notifications/EffectDetailOverlay.vue';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
 import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
@@ -325,6 +336,7 @@ export default defineComponent({
     JournalPanel,
     NotificationLayer,
     RevealedCardsModal,
+    EffectDetailOverlay,
     DrawCardRevealFlow,
     AdditionalResourceDetailOverlay,
     GameAtmosphere,
