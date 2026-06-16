@@ -168,9 +168,10 @@ import {LiveNotification, NotificationVariant} from '@/client/components/notific
  * Emits: `dismiss(id)`, `toggle(id)`, `cta(notification)`.
  */
 // How long the YOUR-TURN card lingers AFTER the player becomes active (moves /
-// types / clicks) before it auto-dismisses — long enough to read, short enough
-// to get out of the way once they're clearly playing.
-const YOUR_TURN_ACTIVITY_TTL = 5000;
+// types / clicks) before it auto-dismisses — once they're clearly playing it
+// should get out of the way fast (~40% shorter than the feed cards per user
+// feedback).
+const YOUR_TURN_ACTIVITY_TTL = 3000;
 // Tiny pointer travel is debounced so a stray 1-px jitter doesn't arm the timer.
 const ACTIVITY_MOVE_THRESHOLD = 6;
 // Variants that read as "what an opponent just did" — their rail is tinted in
