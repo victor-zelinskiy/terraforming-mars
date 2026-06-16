@@ -588,7 +588,22 @@ export class Player implements IPlayer {
 
     // Vermin hook (2 of 2)
     if (card.name === CardName.VERMIN) {
+      const wasInEffect = this.game.verminInEffect;
       this.game.verminInEffect = card.resourceCount >= 10;
+      // The threshold was JUST crossed — from now on every player loses 1 VP per
+      // city at scoring. Root a 'vp-pressure' journal event so the premium
+      // notification system can warn each player honestly (VP is scored at game
+      // end, so this is a "VP pressure" signal, not a literal mid-game VP loss).
+      if (wasInEffect === false && this.game.verminInEffect === true) {
+        const events = this.game.events;
+        events.beginAction(this, {kind: 'card', card: CardName.VERMIN, owner: this.color}, {category: 'vp-pressure'});
+        try {
+          this.game.log('${0} reached 10 animals on ${1}: each player now loses 1 VP per city', (b) =>
+            b.player(this).card(card));
+        } finally {
+          events.endScope();
+        }
+      }
     }
   }
 

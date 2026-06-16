@@ -27,6 +27,8 @@ export type NotificationSettings = {
   showImportant: boolean;
   /** Show the your-turn / action-required card. */
   showTurn: boolean;
+  /** Show hostile cards (the viewer lost something to another player). */
+  showNegative: boolean;
 };
 
 type NotificationStore = {
@@ -40,6 +42,8 @@ type NotificationStore = {
   dismissedTurnId: string | undefined;
   /** Root `correlationId`s already processed (so they never re-pop). */
   seenRootIds: Set<number>;
+  /** Correlation ids whose VIEWER-LOSS was already surfaced (separate id space). */
+  seenNegativeIds: Set<number>;
   /** Whether the initial seed (no-spam-on-load) has run. */
   seeded: boolean;
   /** Last generation observed — drives the "new generation" highlight. */
@@ -55,6 +59,7 @@ export const notificationState = reactive<NotificationStore>({
   queue: [],
   dismissedTurnId: undefined,
   seenRootIds: new Set<number>(),
+  seenNegativeIds: new Set<number>(),
   seeded: false,
   lastGeneration: undefined,
   passedSeen: new Set<string>(),
@@ -63,6 +68,7 @@ export const notificationState = reactive<NotificationStore>({
     showNormal: true,
     showImportant: true,
     showTurn: true,
+    showNegative: true,
   },
 });
 
@@ -77,6 +83,8 @@ function settingAllows(kind: NotificationKind): boolean {
   case 'your-turn':
   case 'action-required':
     return s.showTurn;
+  case 'negative':
+    return s.showNegative;
   case 'important':
     return s.showImportant;
   case 'warning':
@@ -93,22 +101,45 @@ function knownId(id: string): boolean {
     notificationState.queue.some((n) => n.id === id);
 }
 
-/** Promote one queued model into a freed transient slot, if any. */
+/** Promote queued models into freed transient slots — HIGHEST priority first. */
 function promoteFromQueue(): void {
   while (notificationState.transient.length < MAX_VISIBLE_TRANSIENT && notificationState.queue.length > 0) {
-    const next = notificationState.queue.shift();
-    if (next !== undefined) {
-      notificationState.transient.push({...next, expanded: false});
-    }
+    let bestIdx = 0;
+    notificationState.queue.forEach((n, i) => {
+      if (n.priority < notificationState.queue[bestIdx].priority) {
+        bestIdx = i;
+      }
+    });
+    const next = notificationState.queue.splice(bestIdx, 1)[0];
+    notificationState.transient.push({...next, expanded: false});
   }
 }
 
-/** Push one transient (normal/important/warning) card. De-duped by id. */
+/**
+ * Push one transient (negative/normal/important/warning) card. De-duped by id.
+ * PRIORITY-aware: when the visible set is full, a higher-priority card (e.g. a
+ * hostile loss the viewer suffered) EVICTS the lowest-priority visible card to
+ * the front of the queue rather than waiting behind it.
+ */
 export function pushTransient(model: NotificationModel): void {
   if (!settingAllows(model.kind) || knownId(model.id)) {
     return;
   }
   if (notificationState.transient.length < MAX_VISIBLE_TRANSIENT) {
+    notificationState.transient.push({...model, expanded: false});
+    return;
+  }
+  let worstIdx = -1;
+  let worstPriority = -Infinity;
+  notificationState.transient.forEach((n, i) => {
+    if (n.priority > worstPriority) {
+      worstPriority = n.priority;
+      worstIdx = i;
+    }
+  });
+  if (worstIdx !== -1 && model.priority < worstPriority) {
+    const evicted = notificationState.transient.splice(worstIdx, 1)[0];
+    notificationState.queue.unshift({...evicted});
     notificationState.transient.push({...model, expanded: false});
   } else {
     notificationState.queue.push(model);
@@ -225,6 +256,7 @@ export function resetNotifications(): void {
   notificationState.transient = [];
   notificationState.queue = [];
   notificationState.seenRootIds = new Set<number>();
+  notificationState.seenNegativeIds = new Set<number>();
   notificationState.seeded = false;
   notificationState.lastGeneration = undefined;
   notificationState.passedSeen = new Set<string>();

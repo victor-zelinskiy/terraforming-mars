@@ -77,7 +77,8 @@ export type JournalActionCategory =
   | 'colony'
   | 'copied-action'
   | 'milestone'
-  | 'award';
+  | 'award'
+  | 'vp-pressure'; // a VP-pressure effect activated (Vermin reached 10 animals)
 
 /**
  * `journal` — meaningful to the player / the game's story (may later be shown

@@ -1,8 +1,32 @@
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {JournalActionCategory} from '@/common/events/GameEvent';
 import {JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
+
+/** Where a hostile loss came from — the stock, future production, or VP score. */
+export type NegativeScope = 'stock' | 'production' | 'vp';
+
+/**
+ * Structured payload for a HOSTILE notification — a cross-player loss the viewer
+ * suffered. Carries enough to answer "who / what / from where / destroyed or
+ * moved" WITHOUT parsing text. Built from the victim's `GameEvent`(s).
+ */
+export type NegativeMeta = {
+  /** The player who caused the loss. */
+  attacker?: Color;
+  /** The card / corp that caused it. */
+  sourceCard?: CardName;
+  /** Stock vs production vs VP — drives the "из запаса"/"доход" marker. */
+  scope: NegativeScope;
+  /** True when the resource MOVED to the attacker (steal / production transfer). */
+  transfer: boolean;
+  /** The loss chips (negative) the viewer suffered. */
+  loss: ReadonlyArray<JournalImpactChip>;
+  /** Mirror gain chips (positive) the attacker receives — steal / transfer only. */
+  gain?: ReadonlyArray<JournalImpactChip>;
+};
 
 /**
  * Premium notification system — the decoupled "live game feedback layer" that
@@ -27,6 +51,7 @@ import {JournalChildVM, JournalImpactChip} from '@/client/components/journal/jou
 export type NotificationKind =
   | 'action-required' // a mandatory sub-prompt is pending (discard / pick target / pay / …)
   | 'your-turn' // the inline action menu is active — it's the viewer's move
+  | 'negative' // the VIEWER lost something to another player (destroy / steal / transfer / VP)
   | 'warning' // an action failed / impossible / a server problem
   | 'important' // generation change, pass, milestone / award, big swing
   | 'normal'; // a regular journal root event (a player played a card, …)
@@ -44,6 +69,12 @@ export type NotificationVariant =
   | 'blue-action' // an activatable card / corp / CEO action was used
   | 'passive-effect' // a passive effect fired as its own root event
   | 'standard-project' // a standard project (city / greenery / aquifer / power / …)
+  | 'destroy' // another player destroyed the viewer's stock/production (gone from game)
+  | 'steal' // another player stole the viewer's stock (moved to them)
+  | 'production-reduction' // another player reduced the viewer's production (not transferred)
+  | 'production-transfer' // another player redirected the viewer's production to themselves
+  | 'vp-loss' // a VP-pressure effect (Vermin in effect) lowers the VP calculation
+  | 'threat' // a future threat appeared (Vermin played, no damage yet)
   | 'colony' // a colony was traded with / built
   | 'milestone' // an achievement was claimed
   | 'award' // an award was funded
@@ -58,9 +89,10 @@ export type NotificationVariant =
 export const NOTIFICATION_PRIORITY: Readonly<Record<NotificationKind, number>> = {
   'action-required': 0,
   'your-turn': 1,
-  'warning': 2,
-  'important': 3,
-  'normal': 4,
+  'negative': 2,
+  'warning': 3,
+  'important': 4,
+  'normal': 5,
 };
 
 /** What the single call-to-action button does. */
@@ -115,6 +147,10 @@ export type NotificationModel = {
   /** A secondary i18n body line under the prompt. */
   bodyKey?: string;
 
+  // ── Hostile / negative event ─────────────────────────────────────────────
+  /** Set on a HOSTILE notification — the viewer lost something to another player. */
+  negative?: NegativeMeta;
+
   // ── Coalesced burst ───────────────────────────────────────────────────────
   /** When several same-actor events were merged: how many. */
   groupCount?: number;
@@ -140,6 +176,8 @@ export type LiveNotification = NotificationModel & {
 export const NOTIFICATION_TTL: Readonly<Record<NotificationKind, number>> = {
   'action-required': 0,
   'your-turn': 0,
+  // A loss the VIEWER suffered lingers longer — they must not miss it.
+  'negative': 13_000,
   'warning': 8_000,
   'important': 9_600,
   'normal': 6_800,
