@@ -8,7 +8,9 @@ import {VenusSoils} from '../../src/server/cards/venusNext/VenusSoils';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {NitriteReducingBacteria} from '../../src/server/cards/base/NitriteReducingBacteria';
 import {Asteroid} from '../../src/server/cards/base/Asteroid';
-import {SelectCardModel} from '../../src/common/models/PlayerInputModel';
+import {MiningExpedition} from '../../src/server/cards/base/MiningExpedition';
+import {Comet} from '../../src/server/cards/base/Comet';
+import {SelectCardModel, OrOptionsModel} from '../../src/common/models/PlayerInputModel';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {cast} from '../../src/common/utils/utils';
 import {runAllActions} from '../TestingUtils';
@@ -164,17 +166,39 @@ describe('cardPlayPreview', () => {
     expect(inputs[1].kind === 'input' && inputs[1].input.type).eq('player');
   });
 
-  it('Asteroid (declarative): shows automatic gain chips; plant-removal rides the follow-up (no input step)', () => {
-    const [/* game */, player] = testGame(2);
+  it('Asteroid (declarative): automatic gain chips PLUS a pre-collected plant-removal target picker', () => {
+    const [/* game */, player, opponent] = testGame(3);
+    opponent.plants = 5; // a removable target → the live OrOptions offers a choice
     const preview = cardPlayPreview(player, new Asteroid());
     expect(preview.kind).eq('declarative');
     const branch = preview.branches[0];
     // Temperature raise + titanium gain are shown as chips.
     expect(branch.effects.some((e) => e.icon === 'temperature')).is.true;
     expect(branch.effects.some((e) => e.icon === Resource.TITANIUM)).is.true;
-    // removeAnyPlants is an OrOptions with no clean controlled capture → not
-    // pre-collected as a step (it rides the post-batch follow-up routing).
+    // The plant removal is now PRE-COLLECTED as an OrOptions target step — it no
+    // longer rides a delayed "select a player" modal after РАЗЫГРАТЬ.
+    expect(branch.steps.some((s) => s.kind === 'input' && s.input.type === 'or'), 'plant-removal OrOptions step').is.true;
+  });
+
+  it('Asteroid (declarative): plant-removal rides the follow-up only when NO opponent has plants', () => {
+    const [/* game */, player] = testGame(2); // opponent starts with 0 plants → no target, no choice
+    const branch = cardPlayPreview(player, new Asteroid()).branches[0];
+    // previewOptions() returns undefined (no candidate) → no step, matching the live
+    // path (which prompts nothing). The automatic gains still show as chips.
     expect(branch.steps.filter((s) => s.kind === 'input')).has.length(0);
+    expect(branch.effects.some((e) => e.icon === 'temperature')).is.true;
+  });
+
+  it('Comet (declarative): the plant attack rides the follow-up (the ocean placement prompts first)', () => {
+    const [/* game */, player, opponent] = testGame(3);
+    opponent.plants = 5;
+    const branch = cardPlayPreview(player, new Comet()).branches[0];
+    // Comet ALSO places an ocean (deferred at a HIGHER priority than the attack), so
+    // the strictly-positional batch can't pre-collect the plant pick — it's a
+    // documented follow-up (the ocean rides PlacementBanner, the plant attack the
+    // OrOptions after). So NO `or` step here; the board placement is noted instead.
+    expect(branch.steps.some((s) => s.kind === 'input' && s.input.type === 'or'), 'no pre-collected plant step').is.false;
+    expect(branch.steps.some((s) => s.kind === 'boardPlacement'), 'an ocean placement note').is.true;
   });
 
   // The preview's pre-collected step response must be byte-compatible with the
@@ -681,6 +705,56 @@ describe('cardPlayPreview', () => {
 
   // Player-target attacks + steals + multi-step on-play picks pre-collected.
   describe('attack / steal / draw on-play picks', () => {
+    it('MiningExpedition: a pre-collected plant-removal OrOptions (target current→resulting, self-warning, skip, disabled)', () => {
+      const [/* game */, player, opponent, protectedPlayer] = testGame(4);
+      opponent.plants = 6; // a removable target
+      player.plants = 3; // → a self-removal option (with a warning)
+      protectedPlayer.plants = 0; // → a disabled "No plants to remove" target
+
+      const branch = cardPlayPreview(player, new MiningExpedition()).branches[0];
+      // The automatic gains (steel + oxygen) show as chips; the plant attack is the step.
+      expect(branch.effects.some((e) => e.icon === Resource.STEEL && e.direction === 'gain')).is.true;
+      expect(branch.effects.some((e) => e.icon === 'oxygen')).is.true;
+
+      const step = branch.steps.find((s) => s.kind === 'input' && s.input.type === 'or');
+      expect(step, 'a plant-removal OrOptions step').to.exist;
+      const model = step!.kind === 'input' ? (step!.input as OrOptionsModel) : undefined;
+      // The opponent target carries a current→resulting plant preview via metadata.
+      const targetOption = model!.options.find((o) => o.metadata?.player?.color === opponent.color);
+      expect(targetOption?.metadata?.player?.current).eq(6);
+      expect(targetOption?.metadata?.player?.resulting).eq(4); // remove up to 2
+      // A self-removal option exists with the self-harm warning.
+      const selfOption = model!.options.find((o) => (o.warnings ?? []).includes('removeOwnPlants'));
+      expect(selfOption, 'a self-removal option with a warning').to.exist;
+      // A "skip" option (do not remove) is part of the picker.
+      expect(model!.options.some((o) => o.metadata?.kind === 'skip'), 'a skip option').is.true;
+      // The 0-plant opponent is a disabled target with a reason.
+      expect((model!.disabledOptions ?? []).some((d) => d.reason === 'No plants to remove'), 'a disabled target').is.true;
+    });
+
+    it('MiningExpedition: the pre-collected plant choice replays against the live follow-up', () => {
+      const [game, player, opponent] = testGame(3);
+      opponent.plants = 6;
+      const card = new MiningExpedition();
+
+      // The preview's OrOptions option ORDER (the index the modal captures).
+      const branch = cardPlayPreview(player, card).branches[0];
+      const step = branch.steps.find((s) => s.kind === 'input' && s.input.type === 'or');
+      const model = step!.kind === 'input' ? (step!.input as OrOptionsModel) : undefined;
+      const targetIdx = model!.options.findIndex((o) => o.metadata?.player?.color === opponent.color);
+      expect(targetIdx).is.greaterThan(-1);
+
+      // Live play: steel + oxygen apply immediately, then the plant-removal OrOptions.
+      player.playCard(card);
+      runAllActions(game);
+      const live = cast(player.popWaitingFor(), OrOptions);
+      // The live OrOptions enumerates options IDENTICALLY (same side-effect-free
+      // builder), so the captured index targets the same opponent.
+      live.process({type: 'or', index: targetIdx, response: {type: 'option'}}, player);
+      runAllActions(game);
+      expect(opponent.plants).eq(4); // 6 − 2
+    });
+
     it('Hackers: −1 energy / +2 M€ production chips + a DecreaseAnyProduction (M€) step', () => {
       const [/* game */, player] = testGame(3); // 3 players → the decrease offers a choice
       const branch = new Hackers().cardPlayPreview(player).branches[0];

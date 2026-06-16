@@ -1,0 +1,150 @@
+# Delayed-target audit — pre-collecting on-play target choices in the play modal
+
+## The reported bug
+
+Playing **«Рудная экспедиция» (Mining Expedition)** showed only the card + payment +
+result chips in the premium play modal; after pressing **РАЗЫГРАТЬ КАРТУ** a SEPARATE
+delayed modal appeared — *«Выберите игрока, у которого удалить до 2 растений»*. The
+target choice (which player loses plants, the projected delta, the self-harm warning,
+the disabled targets, the optional skip) was hidden until AFTER the player committed.
+
+This is the exact anti-pattern the play-card-preview rework was built to eliminate: a
+precomputable target must be chosen INSIDE the play modal, before confirm.
+
+## Root cause — why prior audits missed it
+
+1. **Mining Expedition is purely DECLARATIVE.** Its whole effect is a `behavior`
+   (`{stock:{steel:2}, global:{oxygen:1}, removeAnyPlants:2}`) — it does NOT override
+   `bespokePlay()` or `play()`. The coverage guard (`tests/models/cardPlayPreviewCoverage.spec.ts`)
+   only inspects cards that `customizesPlay()` (bespokePlay **or** play()). A declarative
+   card is `!customizesPlay`, so the guard never looked at it — declarative cards were
+   assumed "auto-covered by the walker".
+
+2. **The walker DELIBERATELY skipped `removeAnyPlants`.** The shared on-play step walker
+   `stepsForBehavior` (`src/server/models/actionPreview.ts`) pre-collected
+   `addResourcesToAnyCard` and `decreaseAnyProduction`, but a code comment explicitly
+   read: *"removeAnyPlants is an OrOptions with no clean controlled capture yet, so it is
+   NOT pre-collected — it rides the post-batch follow-up routing."* So the assumption
+   "declarative ⇒ covered" was false for this one key.
+
+   Combined, (1)+(2) are the gap: a declarative card whose only deferred prompt was
+   `removeAnyPlants` slipped past BOTH the guard (it's declarative) and the walker (the
+   key was skipped). No test asserted that declarative attack cards pre-collect their
+   target.
+
+3. **The "no clean controlled capture" reason was already obsolete.** The infrastructure
+   to host an OrOptions as a pre-collected step had already shipped for bespoke cards:
+   `actionPreviews.orOptionsStep()` + the client's `ModernOptionPicker` (controlled mode)
+   in `HandCardPaymentContent.vue`, used by **Air Raid** (a side-effect-free
+   `StealResources.previewOptions()`). `removeAnyPlants` simply hadn't been given the same
+   side-effect-free builder.
+
+## Single card or a class? — A CLASS.
+
+`removeAnyPlants` is a shared `behavior` key. The fix is architectural (one builder + one
+walker branch), not per-card.
+
+## Code patterns audited
+
+A programmatic sweep enumerated EVERY in-scope project card (`base`, `corpera`, `promo`,
+`venus`, `colonies`, `prelude`) with a declarative `behavior` and classified every
+deferred-choice key:
+
+| behavior key | what it defers | in-scope count | status |
+| --- | --- | --- | --- |
+| `removeAnyPlants` | OrOptions: which player loses plants | 9 | **the bug — now fixed (6) + documented follow-up (3)** |
+| `decreaseAnyProduction` | SelectPlayer: whose production drops | 9 | already pre-collected via `previewSelectPlayer` (a step only when a CHOICE exists; auto-target when single) |
+| `addResourcesToAnyCard` | SelectCard: which card gets the resource | 15 | already pre-collected (+ the no-eligible-card warning) |
+| `drawCard` (keep/pay) | draw-then-choose | 2 | **legitimate post-reveal exception** (cards unknown until drawn) |
+| `standardResource` | SelectResource: which resource to gain | 0 | none in scope |
+| `spend.*` | payment / discard / card-resource | 0 (on-play) | none in scope (only blue-card actions, out of scope) |
+
+Bespoke cards (`customizesPlay`) are already enforced by the existing coverage guard:
+every in-scope bespoke-play card has a `cardPlayPreview` hook, a `behavior`, or an explicit
+`ACCEPTED_DYNAMIC`/`BEHAVIOR_BESPOKE_NO_HIDDEN_RESULT` entry. The bespoke attack/steal
+cards (Air Raid, Hackers, Virus, Sabotage/HiredRaiders/CometForVenus, Flooding, the Venus
+resource-target cards) were already hooked or documented before this change.
+
+## The fix (architectural, server-only)
+
+1. **`src/server/deferredActions/RemoveAnyPlants.ts`** — refactored to the
+   `StealResources` shape: a SIDE-EFFECT-FREE `buildOptions()` (each option's attack lives
+   in its `andThen`, so building mutates nothing) + a read-only `previewOptions()`.
+   `execute()` now delegates to `buildOptions()`. The option ORDER (opponents → skip →
+   self-with-warning) and the disabled-target list are preserved EXACTLY, so the index the
+   play modal captures replays byte-identically against the live OrOptions. Behaviour is
+   unchanged (verified by 226 passing consumer tests, incl. the dedicated
+   `RemoveAnyPlants.spec.ts`, Mons Insurance solo, Botanical Experience halving).
+
+2. **`src/server/models/actionPreview.ts`** (`stepsForBehavior`) — emits the
+   `removeAnyPlants` step (an `or` input hosting `previewOptions().toModel()`) between
+   `decreaseAnyProduction` and the board-placement notes (the Executor defer order). The
+   client already hosts `or` steps via `ModernOptionPicker` (controlled), so NO client
+   code and NO new i18n were needed — the SAME OrOptions that used to render as a delayed
+   modal now renders inside the play modal: per-target `current → resulting`, the
+   self-removal warning, the «Skip» option, and disabled opponents with reasons. The
+   single РАЗЫГРАТЬ gates on the choice being made.
+
+3. **`tests/models/cardPlayPreviewCoverage.spec.ts`** — a NEW guard: every in-scope
+   declarative `removeAnyPlants` card (without a co-placement) MUST emit the `or`
+   pre-collect step, else the test fails with the card list. This catches the whole class
+   and prevents regressions. `tests/models/cardPlayPreview.spec.ts` gained explicit
+   Mining Expedition tests (OrOptions structure + a live-replay protocol test) and the
+   Asteroid/Comet cases were updated to the new behaviour.
+
+## Cards fixed (plant target now pre-collected in the play modal)
+
+Asteroid, Big Asteroid, Deimos Down, Impactor Swarm, **Mining Expedition**, Small Asteroid.
+
+## Legitimate exceptions (documented, NOT silent gaps)
+
+- **Comet, Giant Ice Asteroid, Deimos Down (promo)** — these ALSO place a tile/ocean. A
+  board placement defers at a HIGHER priority than the attack (`ATTACK_OPPONENT`) and
+  prompts FIRST; the batch endpoint (`PlayerInputBatch`) is strictly positional and stops
+  at the first response that doesn't match the live `waitingFor`, so the plant pick can't
+  be pre-collected ahead of the placement. These are inherently FOLLOW-UP cards: the
+  placement is post-confirm via `PlacementBanner` (unavoidable), and the plant attack rides
+  the same follow-up — consistent with **`Flooding`** (ocean + M€ steal), the established
+  "attack + placement" decision. Reordering the game so the attack resolves first was
+  deliberately NOT done: it would change the prompt order across base/ares/underworld cards
+  (and break their order-asserting tests) for no rules reason (the effects are independent —
+  only the prompt order would change). Several existing tests (`Comet.spec`,
+  `GiantIceAsteroid.spec`) assert the ocean-first order.
+
+- **Business Contacts, Invention Contest** (`drawCard` keep) — a draw-then-choose: the
+  cards aren't known until drawn, so the choice is genuinely post-reveal and rides the
+  existing premium card-selection surface.
+
+- **`decreaseAnyProduction` single-target** — when only one opponent can be reduced the
+  server auto-attacks (no choice), so no step and no delayed modal. A multi-target case
+  pre-collects a `SelectPlayer` step.
+
+## Journal / notifications
+
+Unchanged. The fix alters NO game logic — `RemoveAnyPlants` still calls
+`target.attack(player, PLANTS, qty, {log:true})` exactly as before; the play modal merely
+submits the SAME response the delayed modal would have. So the victim still gets the
+hostile/negative notification, the journal still groups the removal under the card-play
+root event, and a self-target is still NOT classified as an attack on the viewer (the
+attacker is the viewer, so `diffNegativeNotifications` skips it).
+
+## Verification
+
+- `npm run build:server` — clean.
+- `tests/models/cardPlayPreview.spec.ts` + `cardPlayPreviewCoverage.spec.ts` — pass
+  (incl. the new Mining Expedition structure + replay tests and the new class guard).
+- All 9 `removeAnyPlants` card specs + `RemoveAnyPlants.spec.ts` + Mons Insurance +
+  Botanical Experience + the out-of-scope consumers (Metallic Asteroid, Deepnuking, Aerial
+  Lenses) + Warmonger + Virus + Sabotage — 226 passing (the refactor is behaviour-identical).
+- `tests/models/**` + `tests/behavior/**` — 197 passing.
+- ESLint clean on all changed files.
+
+## Manual scenarios to confirm in-game
+
+1. Mining Expedition with opponents having plants → the target picker is IN the play modal;
+   no delayed modal after confirm; projected plant delta + self-warning + skip visible.
+2. An opponent with 0 plants → shown disabled with a reason; the player with plants → a
+   self-removal option with a warning; «Не удалять растения» available pre-confirm.
+3. No opponent has plants → no picker, no follow-up (consistent with the live rules).
+4. Comet / Giant Ice Asteroid → the plant attack + the tile placement both ride the
+   post-confirm follow-up (PlacementBanner + the OrOptions), as documented.

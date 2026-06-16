@@ -187,6 +187,55 @@ describe('card-play-preview coverage', () => {
     expect(gaps, `behavior+bespokePlay cards that may HIDE a fixed on-play result. Add a cardPlayPreview hook (playPreview auto-includes the behavior chips + your bespoke extra) OR, if bespokePlay is purely an interactive choice/placement/attack with no hidden fixed result, a BEHAVIOR_BESPOKE_NO_HIDDEN_RESULT entry explaining why:\n  ${gaps.join('\n  ')}`).to.have.length(0);
   });
 
+  // GUARD: a declarative ATTACK card that removes plants from ANY player must
+  // PRE-COLLECT the target in the play modal — not defer it to a delayed "выберите
+  // игрока…" OrOptions AFTER the player confirms РАЗЫГРАТЬ. This is the class of bug
+  // Mining Expedition exhibited: a purely-declarative `removeAnyPlants` card is
+  // `!customizesPlay`, so the two tests above never looked at it, and the walker
+  // historically skipped `removeAnyPlants` ("no clean controlled capture yet"). The
+  // fix gave `RemoveAnyPlants` a side-effect-free `previewOptions()` and made the
+  // walker emit the `or` step. The ONLY exception is a card that ALSO queues a board /
+  // colony / moon / underworld placement (Comet / Giant Ice Asteroid / Deimos Down
+  // promo): that placement defers at a HIGHER priority and prompts first, so the
+  // strictly-positional batch can't pre-collect the plant pick — those are
+  // intentional follow-ups (like `Flooding`), the placement riding PlacementBanner and
+  // the plant attack the same follow-up. This guard FAILS if a new declarative
+  // plant-attack card (no placement) regresses to the delayed-modal flow.
+  it('every in-scope declarative removeAnyPlants card pre-collects the plant target (unless it also places a tile)', () => {
+    const [/* game */, player, opponent] = testGame(2);
+    opponent.plants = 5; // a removable target so the live OrOptions offers a choice
+    const gaps: Array<string> = [];
+    const followups: Array<string> = [];
+    forEachInScopeProjectCard((card, module) => {
+      const behavior = (card as {behavior?: Behavior}).behavior;
+      if (behavior?.removeAnyPlants === undefined) {
+        return;
+      }
+      // Cards that ALSO queue a placement are intentional follow-ups (the placement
+      // prompts first; see actionPreview.ts). Record them so the exception stays
+      // visible, but don't require pre-collection.
+      const hasFollowUpPlacement =
+        behavior.ocean !== undefined || behavior.city !== undefined ||
+        behavior.greenery !== undefined || behavior.tile !== undefined ||
+        behavior.colonies?.buildColony !== undefined || behavior.moon !== undefined ||
+        behavior.underworld !== undefined;
+      if (hasFollowUpPlacement) {
+        followups.push(`${card.name} [${module}]`);
+        return;
+      }
+      const hasOrStep = stepsForBehavior(player, card, behavior)
+        .some((s) => s.kind === 'input' && s.input.type === 'or');
+      if (!hasOrStep) {
+        gaps.push(`${card.name} [${module}]`);
+      }
+    });
+    expect(gaps, `declarative removeAnyPlants cards NOT pre-collecting the plant target in the play modal (they would show a delayed "select a player" modal AFTER confirm):\n  ${gaps.join('\n  ')}`).to.have.length(0);
+    // Sanity: the fix must actually pre-collect SOMETHING — if every removeAnyPlants
+    // card were (wrongly) classified as a follow-up, the guard above would pass
+    // vacuously. At least Mining Expedition (no placement) must be pre-collected.
+    expect(followups, 'follow-up removeAnyPlants cards (documented exceptions — placement prompts first)').not.to.include('Mining Expedition [base]');
+  });
+
   // GUARD: `addResourcesToAnyCard` is single-OR-ARRAY. Both preview walkers must
   // surface EVERY addition (a target picker or a "no eligible card" warning) — a
   // dropped addition is invisible to the player (the Imported Nitrogen bug: the

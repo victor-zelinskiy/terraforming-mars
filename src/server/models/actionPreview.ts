@@ -11,6 +11,7 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} from '../../common/models/ActionPreviewModel';
 import {collectActionBehaviorReasons} from './actionUnavailableReasons';
 import {DecreaseAnyProduction} from '../deferredActions/DecreaseAnyProduction';
+import {RemoveAnyPlants} from '../deferredActions/RemoveAnyPlants';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 
 /**
@@ -347,10 +348,6 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // priority). Executor defer order for these keys:
   //   addResourcesToAnyCard → decreaseAnyProduction → removeAnyPlants →
   //   colonies.buildColony → ocean → city → greenery → tile.
-  // (removeAnyPlants is an OrOptions with no clean controlled capture yet, so it
-  // is NOT pre-collected — it rides the post-batch follow-up routing; it sits
-  // between the two below in defer order, which is harmless since no step is
-  // emitted for it.)
 
   // Add a resource to ANY card → a card-target picker PER addition (the value is
   // single-OR-ARRAY — Imported Nitrogen adds microbes AND animals), OR a WARNING when
@@ -391,6 +388,43 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
     const model = new DecreaseAnyProduction(player, dap.type, {count: dap.count}).previewSelectPlayer();
     if (model !== undefined) {
       steps.push({kind: 'input', input: model});
+    }
+  }
+
+  // Remove plants from ANY player (Mining Expedition / Asteroid / Big Asteroid /
+  // Deimos Down / Small Asteroid / Impactor Swarm) → the SAME premium OrOptions
+  // target picker the live follow-up would show, hosted INSIDE the play modal
+  // (ModernOptionPicker): every pickable player with its plants `current → resulting`,
+  // a self-removal option with a warning, the "skip" option, and opponents who can't
+  // be targeted shown disabled with a reason. Built read-only via the side-effect-free
+  // `previewOptions` (shared with the live `execute`), so the chosen `{type:'or',
+  // index, response}` replays BYTE-IDENTICALLY against the live OrOptions in the
+  // batch. `undefined` (solo mode / no opponent has plants) → no step, exactly
+  // matching the live path.
+  //
+  // GUARD — only pre-collect when the plant removal is the card's FIRST follow-up
+  // prompt. If the SAME card ALSO queues a board / colony / moon / underworld
+  // placement, that placement defers at a HIGHER priority than the attack
+  // (`ATTACK_OPPONENT`) and resolves FIRST; the batch is strictly positional
+  // (`PlayerInputBatch` stops at the first response that doesn't match the live
+  // `waitingFor`), so the plant response would hit the placement's SelectSpace and be
+  // discarded. Those cards — Comet / Giant Ice Asteroid / Deimos Down (promo) — are
+  // inherently FOLLOW-UP cards anyway (the tile placement is post-confirm via
+  // PlacementBanner, which can't be pre-collected); the plant attack rides the SAME
+  // follow-up, consistent with `Flooding` (ocean + M€ steal — the established
+  // "attack + placement" decision). Reordering the game so the attack resolves first
+  // is deliberately NOT done: it would change the prompt order across base/ares/
+  // underworld cards (and their tests) for no rules reason (the effects are
+  // independent — only the order would change). See cardPlayPreviewCoverage.spec.ts.
+  const hasFollowUpPlacement =
+    behavior.ocean !== undefined || behavior.city !== undefined ||
+    behavior.greenery !== undefined || behavior.tile !== undefined ||
+    behavior.colonies?.buildColony !== undefined || behavior.moon !== undefined ||
+    behavior.underworld !== undefined;
+  if (behavior.removeAnyPlants !== undefined && !hasFollowUpPlacement) {
+    const orOptions = new RemoveAnyPlants(player, behavior.removeAnyPlants).previewOptions();
+    if (orOptions !== undefined) {
+      steps.push({kind: 'input', input: orOptions.toModel(player)});
     }
   }
 
