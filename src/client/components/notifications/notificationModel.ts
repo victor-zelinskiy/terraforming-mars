@@ -6,7 +6,7 @@ import {GameEvent, JournalActionCategory} from '@/common/events/GameEvent';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {buildJournalView} from '@/client/components/journal/journalView';
 import {buildEventChildren, JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
-import {NotificationKind, NotificationModel, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
+import {NotificationKind, NotificationVariant, NotificationModel, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 
 /**
  * PURE notification mappers — turn the structured journal stream + the client's
@@ -58,6 +58,47 @@ function categoryTypeLabel(category: JournalActionCategory | undefined): string 
   case 'colony': return 'Colony';
   case 'copied-action': return 'Copied action';
   default: return 'Event';
+  }
+}
+
+/**
+ * The VISUAL variant of a journal root event — derived from its `category` (the
+ * server stamps it on the root-action log) plus the chain's event types. This
+ * is what gives a milestone, a colony trade and a card play DISTINCT looks.
+ */
+function rootVariant(header: LogMessage, chain: ReadonlyArray<GameEvent>): NotificationVariant {
+  if (header.category === 'milestone' || chain.some((e) => e.type === 'milestone-claimed')) {
+    return 'milestone';
+  }
+  if (header.category === 'award' || chain.some((e) => e.type === 'award-funded')) {
+    return 'award';
+  }
+  switch (header.category) {
+  case 'card-play': return 'play-card';
+  case 'card-action':
+  case 'corporation-action':
+  case 'ceo-action':
+  case 'copied-action': return 'blue-action';
+  case 'standard-project': return 'standard-project';
+  case 'colony': return 'colony';
+  default: break;
+  }
+  // A passive effect that surfaced as its OWN root chain (its trigger marker is
+  // the root) — distinct from an action that triggered it as a child.
+  const rootEvent = chain.find((e) => e.id === header.correlationId);
+  if (rootEvent?.type === 'effect-triggered') {
+    return 'passive-effect';
+  }
+  return 'event';
+}
+
+/** The header label for a variant — prestige variants get their own word. */
+function variantTypeLabel(variant: NotificationVariant, category: JournalActionCategory | undefined): string {
+  switch (variant) {
+  case 'milestone': return 'Achievement';
+  case 'award': return 'Award';
+  case 'passive-effect': return 'Effect triggered';
+  default: return categoryTypeLabel(category);
   }
 }
 
@@ -155,9 +196,8 @@ type RootBuildInput = {
 function buildRootNotification(input: RootBuildInput): NotificationModel | undefined {
   const {header, chain, viewerColor} = input;
   const actor = rootActor(header, chain);
-  const isMilestone = chain.some((e) => e.type === 'milestone-claimed');
-  const isAward = chain.some((e) => e.type === 'award-funded');
-  const important = isMilestone || isAward;
+  const variant = rootVariant(header, chain);
+  const important = variant === 'milestone' || variant === 'award';
   const kind: NotificationKind = important ? 'important' : 'normal';
 
   // Suppress the viewer's own ordinary actions — no self-spam for a card you
@@ -168,13 +208,13 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
 
   const vms = buildEventChildren(chain, input.correlationId, actor);
   const {pills, detailCount} = summarizeImpact(vms);
-  const typeLabelKey = isMilestone ? 'Milestone claimed' : isAward ? 'Award funded' : categoryTypeLabel(header.category);
 
   return {
     id: `g${input.correlationId}`,
     kind,
+    variant,
     priority: NOTIFICATION_PRIORITY[kind],
-    typeLabelKey,
+    typeLabelKey: variantTypeLabel(variant, header.category),
     category: header.category,
     actor,
     header,
@@ -283,6 +323,7 @@ export function coalesceBurst(models: ReadonlyArray<NotificationModel>): Array<N
     summaries.push({
       ...last,
       id: `gsum:${last.generation}:${key}:${last.correlationId}`,
+      variant: 'event',
       typeLabelKey: 'Multiple events',
       header: undefined,
       childVMs: undefined,
@@ -325,6 +366,7 @@ export function buildTurnNotification(
     return {
       id: 'turn:your-turn',
       kind: 'your-turn',
+      variant: 'your-turn',
       priority: NOTIFICATION_PRIORITY['your-turn'],
       typeLabelKey: 'Your turn',
       pills: [],
@@ -343,6 +385,7 @@ export function buildTurnNotification(
   return {
     id: 'turn:action-required',
     kind: 'action-required',
+    variant: 'action-required',
     priority: NOTIFICATION_PRIORITY['action-required'],
     typeLabelKey: 'Action required',
     pills: [],
@@ -362,6 +405,7 @@ export function buildGenerationNotification(generation: number, createdAt: numbe
   return {
     id: `gen:${generation}`,
     kind: 'important',
+    variant: 'generation',
     priority: NOTIFICATION_PRIORITY['important'],
     typeLabelKey: 'New generation',
     pills: [],
@@ -381,6 +425,7 @@ export function buildPassNotification(actor: Color, generation: number, createdA
   return {
     id: `pass:${generation}:${actor}`,
     kind: 'important',
+    variant: 'pass',
     priority: NOTIFICATION_PRIORITY['important'],
     typeLabelKey: 'Player passed',
     actor,

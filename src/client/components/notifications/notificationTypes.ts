@@ -31,6 +31,29 @@ export type NotificationKind =
   | 'important' // generation change, pass, milestone / award, big swing
   | 'normal'; // a regular journal root event (a player played a card, …)
 
+/**
+ * The fine-grained EVENT TYPE — orthogonal to {@link NotificationKind}. `kind`
+ * drives BEHAVIOUR (priority / TTL / persistence / channel); `variant` drives
+ * the VISUAL identity (accent colour, glyph, header label) so a player can tell
+ * a milestone from a colony trade from a card play at a glance, before reading.
+ * One event has one kind AND one variant (a milestone is kind `important` +
+ * variant `milestone`; a colony trade is kind `normal` + variant `colony`).
+ */
+export type NotificationVariant =
+  | 'play-card' // a project card was played
+  | 'blue-action' // an activatable card / corp / CEO action was used
+  | 'passive-effect' // a passive effect fired as its own root event
+  | 'standard-project' // a standard project (city / greenery / aquifer / power / …)
+  | 'colony' // a colony was traded with / built
+  | 'milestone' // an achievement was claimed
+  | 'award' // an award was funded
+  | 'generation' // a new generation began
+  | 'pass' // a player passed
+  | 'your-turn'
+  | 'action-required'
+  | 'warning'
+  | 'event'; // generic fallback / coalesced burst
+
 /** Numeric priority for sorting / slot contention (lower wins). */
 export const NOTIFICATION_PRIORITY: Readonly<Record<NotificationKind, number>> = {
   'action-required': 0,
@@ -63,6 +86,8 @@ export type NotificationModel = {
   /** Stable de-dup key. Root events → `g<correlationId>`; turn → `turn:<kind>`. */
   id: string;
   kind: NotificationKind;
+  /** The fine-grained event type — drives the accent / glyph / header visual. */
+  variant: NotificationVariant;
   priority: number;
 
   /** i18n key for the small type label in the header ("Card played", "Your turn"…). */

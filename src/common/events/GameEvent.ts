@@ -75,7 +75,9 @@ export type JournalActionCategory =
   | 'ceo-action'
   | 'standard-project'
   | 'colony'
-  | 'copied-action';
+  | 'copied-action'
+  | 'milestone'
+  | 'award';
 
 /**
  * `journal` — meaningful to the player / the game's story (may later be shown

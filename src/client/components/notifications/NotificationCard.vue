@@ -3,6 +3,7 @@
     class="notification-card"
     :class="[
       'notification-card--' + notification.kind,
+      'notification-card--variant-' + notification.variant,
       {
         'notification-card--expanded': notification.expanded,
         'notification-card--persistent': notification.persistent,
@@ -155,7 +156,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 import JournalChildRow from '@/client/components/journal/JournalChildRow.vue';
-import {LiveNotification} from '@/client/components/notifications/notificationTypes';
+import {LiveNotification, NotificationVariant} from '@/client/components/notifications/notificationTypes';
 
 /**
  * One premium notification card. Compact by default (type label + headline +
@@ -172,6 +173,11 @@ import {LiveNotification} from '@/client/components/notifications/notificationTy
 const YOUR_TURN_ACTIVITY_TTL = 5000;
 // Tiny pointer travel is debounced so a stray 1-px jitter doesn't arm the timer.
 const ACTIVITY_MOVE_THRESHOLD = 6;
+// Variants that read as "what an opponent just did" — their rail is tinted in
+// the actor's player colour. Prestige / system variants keep their own accent.
+const ACTOR_RAIL_VARIANTS: ReadonlySet<NotificationVariant> = new Set<NotificationVariant>([
+  'play-card', 'blue-action', 'standard-project', 'colony', 'passive-effect', 'event',
+]);
 
 export default defineComponent({
   name: 'NotificationCard',
@@ -206,11 +212,12 @@ export default defineComponent({
       return this.players.find((p) => p.color === a)?.name ?? a;
     },
     railColorClass(): string {
-      // A normal/important event tints the rail in the actor's colour (reusing
-      // the global `player_bg_color_*` class); turn / warning cards keep the
-      // kind accent from CSS (no class).
+      // Ordinary "what an opponent did" events tint the rail in the actor's
+      // colour (reusing the global `player_bg_color_*` class). Prestige / system
+      // variants (milestone / award / generation / pass / turn / warning) keep
+      // their own variant accent from CSS so the type reads at a glance.
       const a = this.notification.actor;
-      if (a !== undefined && (this.notification.kind === 'normal' || this.notification.kind === 'important')) {
+      if (a !== undefined && ACTOR_RAIL_VARIANTS.has(this.notification.variant)) {
         return 'player_bg_color_' + a;
       }
       return '';
@@ -235,30 +242,20 @@ export default defineComponent({
       return typeof p === 'string' ? p : undefined;
     },
     glyph(): string {
-      switch (this.notification.kind) {
+      switch (this.notification.variant) {
+      case 'milestone': return '🏆';
+      case 'award': return '🏅';
       case 'action-required': return '!';
       case 'your-turn': return '▸';
       case 'warning': return '⚠';
-      case 'important':
-        if (this.notification.typeLabelKey === 'Milestone claimed') {
-          return '★';
-        }
-        if (this.notification.typeLabelKey === 'Award funded') {
-          return '✦';
-        }
-        if (this.notification.typeLabelKey === 'Player passed') {
-          return '⏻';
-        }
-        return '◆';
-      default: break;
-      }
-      switch (this.notification.category) {
-      case 'card-action':
-      case 'corporation-action':
-      case 'ceo-action': return '⟳';
+      case 'generation': return '◆';
+      case 'pass': return '⏻';
       case 'standard-project': return '⬡';
       case 'colony': return '◉';
-      case 'copied-action': return '⎘';
+      case 'blue-action': return '⟳';
+      case 'passive-effect': return '✦';
+      case 'play-card':
+      case 'event':
       default: return '◈';
       }
     },

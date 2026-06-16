@@ -17,6 +17,13 @@
 @notif-amber: #f0b44a;
 @notif-red: #e8745f;
 @notif-gold: #e8c66a;
+@notif-blue: #5b9cf0; // blue-card action
+@notif-teal: #57e0cf; // passive effect
+@notif-steel: #93a8cc; // standard project / infrastructure
+@notif-violet: #b78cf0; // colony / space trade
+@notif-ice: #9fd6e6; // generation transition
+@notif-mute: #8595a3; // a pass
+@notif-medal: #d6a6e0; // award (gold-purple medal)
 
 .notifications-layer {
     position: fixed;
@@ -433,14 +440,71 @@
     to { transform: scaleX(0); }
 }
 
-// ── Per-kind accents ─────────────────────────────────────────────────────────
-.notification-card--normal { --notif-accent: @notif-cyan; }
-.notification-card--important {
+// ── Per-VARIANT accents — the visual identity of each event TYPE. So a player
+//    tells a milestone from a colony trade from a card play at a glance. ────────
+.notification-card--variant-play-card,
+.notification-card--variant-event { --notif-accent: @notif-cyan; }
+.notification-card--variant-blue-action { --notif-accent: @notif-blue; }
+.notification-card--variant-passive-effect { --notif-accent: @notif-teal; }
+.notification-card--variant-standard-project { --notif-accent: @notif-steel; }
+.notification-card--variant-colony { --notif-accent: @notif-violet; }
+.notification-card--variant-generation { --notif-accent: @notif-ice; }
+.notification-card--variant-pass { --notif-accent: @notif-mute; }
+.notification-card--variant-your-turn { --notif-accent: @notif-mint; }
+.notification-card--variant-action-required { --notif-accent: @notif-amber; }
+.notification-card--variant-warning { --notif-accent: @notif-red; }
+
+// ── Prestige variants — milestones & awards read more important than the feed:
+//    a stronger rim + a calm celebration glow + a native trophy/medal glyph. ───
+.notification-card--variant-milestone {
     --notif-accent: @notif-gold;
-    border-color: rgba(232, 198, 106, 0.3);
+    border-color: rgba(232, 198, 106, 0.5);
+    box-shadow:
+        0 12px 32px -10px rgba(0, 0, 0, 0.72),
+        0 0 0 1px rgba(0, 0, 0, 0.35) inset,
+        0 0 26px -7px @notif-gold;
 }
+.notification-card--variant-award {
+    --notif-accent: @notif-medal;
+    border-color: rgba(214, 166, 224, 0.5);
+    box-shadow:
+        0 12px 32px -10px rgba(0, 0, 0, 0.72),
+        0 0 0 1px rgba(0, 0, 0, 0.35) inset,
+        0 0 26px -7px @notif-medal;
+}
+// The trophy / medal show as native colour glyphs (drop the accent plate).
+.notification-card--variant-milestone .notification-card__glyph,
+.notification-card--variant-award .notification-card__glyph {
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    width: 20px;
+    height: 20px;
+    font-size: 16px;
+}
+.notification-card--variant-milestone .notification-card__type-label,
+.notification-card--variant-award .notification-card__type-label {
+    font-weight: 700;
+    letter-spacing: 0.16em;
+}
+// A ONE-SHOT bright→calm glow on arrival — celebratory, never looping.
+.notification-card--variant-milestone {
+    animation: notif-prestige-gold 1100ms ease-out;
+}
+.notification-card--variant-award {
+    animation: notif-prestige-medal 1100ms ease-out;
+}
+@keyframes notif-prestige-gold {
+    0% { box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(0, 0, 0, 0.35) inset, 0 0 44px 0 @notif-gold; }
+    100% { box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(0, 0, 0, 0.35) inset, 0 0 26px -7px @notif-gold; }
+}
+@keyframes notif-prestige-medal {
+    0% { box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(0, 0, 0, 0.35) inset, 0 0 44px 0 @notif-medal; }
+    100% { box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(0, 0, 0, 0.35) inset, 0 0 26px -7px @notif-medal; }
+}
+
+// ── Kind-level emphasis — the urgent turn cards (accent from their variant). ──
 .notification-card--your-turn {
-    --notif-accent: @notif-mint;
     border-color: rgba(95, 227, 180, 0.42);
     box-shadow:
         0 12px 32px -10px rgba(0, 0, 0, 0.7),
@@ -448,7 +512,6 @@
         0 0 26px -8px @notif-mint;
 }
 .notification-card--action-required {
-    --notif-accent: @notif-amber;
     border-color: rgba(240, 180, 74, 0.45);
     box-shadow:
         0 12px 32px -10px rgba(0, 0, 0, 0.7),
@@ -456,7 +519,6 @@
         0 0 26px -8px @notif-amber;
 }
 .notification-card--warning {
-    --notif-accent: @notif-red;
     border-color: rgba(232, 116, 95, 0.4);
 }
 
@@ -513,7 +575,9 @@
 // ── Reduced motion — keep the timer (it's informative), drop the flourish ────
 @media (prefers-reduced-motion: reduce) {
     .notification-card--your-turn,
-    .notification-card--action-required {
+    .notification-card--action-required,
+    .notification-card--variant-milestone,
+    .notification-card--variant-award {
         animation: none;
     }
     .notification-pop-enter-from,
