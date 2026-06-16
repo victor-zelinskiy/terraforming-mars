@@ -4,6 +4,7 @@ import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardResource} from '../../../common/CardResource';
+import {Resource} from '../../../common/Resource';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectAmount} from '../../inputs/SelectAmount';
@@ -81,7 +82,9 @@ export class TitanShuttles extends Card implements IProjectCard {
         1, this.resourceCount, true,
       ).andThen((amount) => {
         player.removeResourceFrom(this, amount);
-        player.titanium += amount;
+        // stock.add (NOT `player.titanium +=`) so the titanium gain is recorded as a
+        // GameEvent → shown in the journal / notifications beside the floater spend.
+        player.stock.add(Resource.TITANIUM, amount);
         player.game.log('${0} removed ${1} floaters to gain ${2} titanium', (b) => b.player(player).number(amount).number(amount));
         return undefined;
       }),
