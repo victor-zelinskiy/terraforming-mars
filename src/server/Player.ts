@@ -1218,15 +1218,26 @@ export class Player implements IPlayer {
     }
 
     const recordClaim = () => {
-      this.game.log('${0} claimed ${1} milestone', (b) => b.player(this).milestone(milestone));
-      this.game.claimedMilestones.push({
-        player: this,
-        milestone: milestone,
-      });
-      // VanAllen CEO Hook for Milestones
-      const vanAllen = this.game.getCardPlayerOrUndefined(CardName.VANALLEN);
-      if (vanAllen !== undefined) {
-        vanAllen.stock.add(Resource.MEGACREDITS, 3, {log: true, from: {player: this}});
+      // Root the claim in an action scope so its log becomes a journal ROOT
+      // event (correlationId + role 'root-action' + category 'milestone') — the
+      // premium journal groups it and the notification system surfaces it as a
+      // distinct achievement card. Without this the line was a bare, ungrouped
+      // log that no notification could pick up.
+      const events = this.game.events;
+      events.beginAction(this, {kind: 'milestone', name: milestone.name}, {category: 'milestone'});
+      try {
+        this.game.log('${0} claimed ${1} milestone', (b) => b.player(this).milestone(milestone));
+        this.game.claimedMilestones.push({
+          player: this,
+          milestone: milestone,
+        });
+        // VanAllen CEO Hook for Milestones
+        const vanAllen = this.game.getCardPlayerOrUndefined(CardName.VANALLEN);
+        if (vanAllen !== undefined) {
+          vanAllen.stock.add(Resource.MEGACREDITS, 3, {log: true, from: {player: this}});
+        }
+      } finally {
+        events.endScope();
       }
     };
 

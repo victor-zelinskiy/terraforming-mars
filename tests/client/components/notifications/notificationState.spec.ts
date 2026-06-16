@@ -15,6 +15,7 @@ function model(id: string, kind: NotificationKind = 'normal'): NotificationModel
   return {
     id,
     kind,
+    variant: 'event',
     priority: NOTIFICATION_PRIORITY[kind],
     typeLabelKey: 'Event',
     pills: [],

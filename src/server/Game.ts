@@ -662,16 +662,25 @@ export class Game implements IGame, Logger {
     if (this.allAwardsFunded()) {
       throw new Error('All awards already funded');
     }
-    this.log('${0} funded ${1} award',
-      (b) => b.player(player).award(award));
+    // Root the funding in an action scope so its log becomes a journal ROOT
+    // event (correlationId + role 'root-action' + category 'award') — picked up
+    // by the premium journal grouping AND surfaced by the notification system as
+    // a distinct award card. Without this it was a bare, ungrouped log.
+    this.events.beginAction(player, {kind: 'award', name: award.name}, {category: 'award'});
+    try {
+      this.log('${0} funded ${1} award',
+        (b) => b.player(player).award(award));
 
-    if (this.hasBeenFunded(award)) {
-      throw new Error(award.name + ' cannot is already funded.');
+      if (this.hasBeenFunded(award)) {
+        throw new Error(award.name + ' cannot is already funded.');
+      }
+      this.fundedAwards.push({
+        award: award,
+        player: player,
+      });
+    } finally {
+      this.events.endScope();
     }
-    this.fundedAwards.push({
-      award: award,
-      player: player,
-    });
   }
 
   public hasBeenFunded(award: IAward): boolean {

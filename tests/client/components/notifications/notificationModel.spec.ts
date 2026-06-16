@@ -23,14 +23,14 @@ const RED: Color = 'red';
 const BLUE: Color = 'blue';
 const CARD = 'Wind Turbines' as CardName;
 
-function rootHeader(actor: Color, correlationId: number): LogMessage {
+function rootHeader(actor: Color, correlationId: number, category: LogMessage['category'] = 'card-play'): LogMessage {
   const m = new LogMessage(LogMessageType.DEFAULT, '${0} played ${1}', [
     {type: LogMessageDataType.PLAYER, value: actor},
     {type: LogMessageDataType.CARD, value: CARD},
   ]);
   m.correlationId = correlationId;
   m.role = 'root-action';
-  m.category = 'card-play';
+  m.category = category;
   return m;
 }
 
@@ -100,7 +100,7 @@ describe('notificationModel (pure)', () => {
       });
       expect(encounteredIds).to.deep.eq([7]);
       expect(models).to.have.length(1);
-      expect(models[0]).to.include({id: 'g7', kind: 'normal', actor: RED});
+      expect(models[0]).to.include({id: 'g7', kind: 'normal', variant: 'play-card', actor: RED});
       expect(models[0].pills.some((p) => p.icon === 'energy')).to.eq(true);
     });
 
@@ -119,16 +119,44 @@ describe('notificationModel (pure)', () => {
       expect(models).to.have.length(0);
     });
 
-    it('shows a milestone highlight even when it is the viewer own', () => {
-      const milestoneChain = [
-        event({id: 80, type: 'action', player: RED, correlationId: 8, impact: {}}),
-        event({id: 81, type: 'milestone-claimed', player: RED, correlationId: 8, source: {kind: 'milestone', name: 'Terraformer' as never}, impact: {}}),
-      ];
+    it('shows a milestone highlight even when it is the viewer own (via category)', () => {
+      // The server now stamps the root-action log with category 'milestone'
+      // (no separate milestone-claimed GameEvent needed).
+      const header = rootHeader(RED, 8, 'milestone');
+      const chain = [event({id: 80, type: 'action', player: RED, correlationId: 8, source: {kind: 'milestone', name: 'Terraformer' as never}, impact: {}})];
       const {models} = diffRootNotifications({
-        messages: [rootHeader(RED, 8)], events: milestoneChain, seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1000,
+        messages: [header], events: chain, seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1000,
       });
       expect(models).to.have.length(1);
-      expect(models[0]).to.include({kind: 'important', typeLabelKey: 'Milestone claimed'});
+      expect(models[0]).to.include({kind: 'important', variant: 'milestone', typeLabelKey: 'Achievement'});
+    });
+
+    it('shows an award funding highlight (via category), kind important', () => {
+      const header = rootHeader(BLUE, 9, 'award');
+      const chain = [event({id: 90, type: 'action', player: BLUE, correlationId: 9, source: {kind: 'award', name: 'Banker' as never}, impact: {}})];
+      const {models} = diffRootNotifications({
+        messages: [header], events: chain, seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1000,
+      });
+      expect(models[0]).to.include({kind: 'important', variant: 'award', typeLabelKey: 'Award'});
+    });
+
+    it('maps each action category to its visual variant', () => {
+      const cases: Array<[LogMessage['category'], string]> = [
+        ['card-play', 'play-card'],
+        ['card-action', 'blue-action'],
+        ['corporation-action', 'blue-action'],
+        ['standard-project', 'standard-project'],
+        ['colony', 'colony'],
+      ];
+      for (const [category, variant] of cases) {
+        const header = rootHeader(BLUE, 20, category);
+        const {models} = diffRootNotifications({
+          messages: [header],
+          events: [event({id: 200, type: 'action', player: BLUE, correlationId: 20, impact: {}})],
+          seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1000,
+        });
+        expect(models[0]?.variant, `${category}`).to.eq(variant);
+      }
     });
   });
 

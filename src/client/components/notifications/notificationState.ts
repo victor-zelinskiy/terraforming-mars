@@ -156,6 +156,7 @@ export function pushWarning(text: string): void {
   pushTransient({
     id: `warn:${warningSeq}`,
     kind: 'warning',
+    variant: 'warning',
     priority: NOTIFICATION_PRIORITY['warning'],
     typeLabelKey: 'Problem',
     prompt: text,
