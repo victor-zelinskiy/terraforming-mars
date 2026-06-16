@@ -1651,6 +1651,20 @@ export class Player implements IPlayer {
       return;
     }
 
+    // Signal that game state advanced so OTHER players' (and spectators')
+    // clients refresh promptly. `gameAge` is the change-detector the
+    // `/api/waitingFor` poll compares against (ApiWaitingFor → 'REFRESH'), but
+    // historically it ONLY ticked inside `game.log()`. An action that mutates
+    // state WITHOUT logging therefore left gameAge unchanged, so opponents kept
+    // getting 'WAIT' and didn't see the change until the NEXT logged action — an
+    // off-by-one board/resource lag (e.g. moving the Mars Nomads tile onto a
+    // bonus-less space logs nothing, so the move was invisible to opponents
+    // until the player's following action). This guard runs exactly once per
+    // FULLY-RESOLVED action (the deferred queue is drained by the early return
+    // above), so bumping here makes every committed action observable to other
+    // clients regardless of whether it happened to log.
+    game.gameAge++;
+
     if (this.actionsTakenThisRound === 0 || game.gameOptions.undoOption) {
       game.save();
     }
