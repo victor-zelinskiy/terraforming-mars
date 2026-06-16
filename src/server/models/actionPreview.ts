@@ -163,12 +163,16 @@ function addToAnyCardList(behavior: Behavior): ReadonlyArray<AddToAnyCard> {
 
 /** The eligible target cards for ONE `addResourcesToAnyCard` addition. EMPTY means
  *  the resource would be SILENTLY LOST — no card can hold it — so the preview warns
- *  instead of showing a fake "+N" gain (read-only; mirrors the live filter). */
-function addAnyCardCandidates(player: IPlayer, a: AddToAnyCard): ReadonlyArray<ICard> {
+ *  instead of showing a fake "+N" gain (read-only; mirrors the live filter). `card`
+ *  is the card being PLAYED (not on the tableau yet) — passed as `cardBeingPlayed` so
+ *  an on-play "add to ANY card" can target the card ITSELF (Jovian Lanterns adds its
+ *  own floaters), which the live `getResourceCards` would only see post-play. */
+function addAnyCardCandidates(player: IPlayer, card: ICard, a: AddToAnyCard): ReadonlyArray<ICard> {
   return new AddResourcesToCard(player, a.type, {
     restrictedTag: a.tag,
     min: a.min,
     robotCards: a.robotCards !== undefined,
+    cardBeingPlayed: card,
   }).getCards();
 }
 
@@ -237,7 +241,7 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
   // actually HOLD it (with no eligible card the effect is skipped, the warning step
   // says so, and a gain chip would be a lie — the silent-loss bug this closes).
   for (const a of addToAnyCardList(behavior)) {
-    if (addAnyCardCandidates(player, a).length > 0) {
+    if (addAnyCardCandidates(player, card, a).length > 0) {
       out.push({direction: 'gain', icon: a.type !== undefined ? cardResourceIcon(a.type) : 'resources', amount: ctx.count(a.count), note: 'to a card'});
     }
   }
@@ -355,7 +359,7 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // (the SAME order `Executor.execute` defers them) so the batched picks line up.
   for (const a of addToAnyCardList(behavior)) {
     const count = ctx.count(a.count);
-    if (addAnyCardCandidates(player, a).length === 0) {
+    if (addAnyCardCandidates(player, card, a).length === 0) {
       // Name WHICH resource is lost via its icon — never an ambiguous "this
       // resource" (the gain chip is suppressed, so this warning is the only
       // mention of it). Pass the NORMALIZED icon key (`cardResourceIcon`, same as
@@ -373,6 +377,9 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
         // candidate — so the player ALWAYS sees WHERE the resource goes (matches
         // the live `Executor` defer; no silent single-apply).
         autoSelect: false,
+        // The card being played can be its OWN target (Jovian Lanterns adds its own
+        // floaters) — it isn't on the tableau yet, so add it explicitly.
+        cardBeingPlayed: card,
       }).previewSelectCard();
       if (model !== undefined) {
         // The signed delta lets the picker show "N → N+count" per candidate card;

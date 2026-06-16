@@ -7,6 +7,9 @@ import {CardName} from '../../src/common/cards/CardName';
 import {Behavior} from '../../src/server/behavior/Behavior';
 import {stepsForBehavior} from '../../src/server/models/actionPreview';
 import {testGame} from '../TestGame';
+import {CardResource} from '../../src/common/CardResource';
+import {Tag} from '../../src/common/cards/Tag';
+import {SelectCardModel} from '../../src/common/models/PlayerInputModel';
 
 // Only modules whose PROJECT cards are played from hand via the "РАЗЫГРАТЬ КАРТУ"
 // modal. Preludes / corporations use the start-of-game flow, not this modal.
@@ -234,6 +237,43 @@ describe('card-play-preview coverage', () => {
     // card were (wrongly) classified as a follow-up, the guard above would pass
     // vacuously. At least Mining Expedition (no placement) must be pre-collected.
     expect(followups, 'follow-up removeAnyPlants cards (documented exceptions — placement prompts first)').not.to.include('Mining Expedition [base]');
+  });
+
+  // GUARD: a card that HOLDS the resource its on-play `addResourcesToAnyCard` adds
+  // can target ITSELF (Jovian Lanterns / Atmo Collectors / Titan Floating Launch-pad
+  // add floaters and hold them — usually the optimal target, it scores VP "here").
+  // The preview runs while the card is in HAND (not on the tableau), so `getResourceCards`
+  // can't see it; the walker must add the card-being-played to the candidate set, else
+  // the modal can't offer "add to the card you're playing" (and falsely warns "no
+  // eligible card" when nothing else holds it). FAILS if a self-holding card stops
+  // offering itself.
+  it('every in-scope card whose on-play addResourcesToAnyCard it can HOLD offers ITSELF as a target', () => {
+    const [/* game */, player] = testGame(2); // no other resource cards in play
+    const gaps: Array<string> = [];
+    forEachInScopeProjectCard((card, module) => {
+      const behavior = (card as {behavior?: Behavior}).behavior;
+      const resourceType = (card as {resourceType?: CardResource}).resourceType;
+      const raw = behavior?.addResourcesToAnyCard;
+      if (behavior === undefined || raw === undefined || resourceType === undefined) {
+        return;
+      }
+      const additions = Array.isArray(raw) ? raw : [raw];
+      // The card can self-target an addition iff it holds the matching resource AND
+      // (the add is untagged OR the card carries that tag / WILD).
+      const selfAddable = additions.some((a) =>
+        (a.type === undefined || a.type === resourceType) &&
+        (a.tag === undefined || card.tags.includes(a.tag) || card.tags.includes(Tag.WILD)));
+      if (!selfAddable) {
+        return;
+      }
+      const offersSelf = stepsForBehavior(player, card, behavior).some((s) =>
+        s.kind === 'input' && s.input.type === 'card' &&
+        (s.input as SelectCardModel).cards.some((c) => c.name === card.name));
+      if (!offersSelf) {
+        gaps.push(`${card.name} [${module}]`);
+      }
+    });
+    expect(gaps, `cards whose on-play floater/resource add can target the card itself but the preview doesn't offer it:\n  ${gaps.join('\n  ')}`).to.have.length(0);
   });
 
   // GUARD: `addResourcesToAnyCard` is single-OR-ARRAY. Both preview walkers must

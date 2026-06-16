@@ -10,6 +10,8 @@ import {NitriteReducingBacteria} from '../../src/server/cards/base/NitriteReduci
 import {Asteroid} from '../../src/server/cards/base/Asteroid';
 import {MiningExpedition} from '../../src/server/cards/base/MiningExpedition';
 import {Comet} from '../../src/server/cards/base/Comet';
+import {JovianLanterns} from '../../src/server/cards/colonies/JovianLanterns';
+import {TitanFloatingLaunchPad} from '../../src/server/cards/colonies/TitanFloatingLaunchPad';
 import {SelectCardModel, OrOptionsModel} from '../../src/common/models/PlayerInputModel';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {cast} from '../../src/common/utils/utils';
@@ -199,6 +201,49 @@ describe('cardPlayPreview', () => {
     // OrOptions after). So NO `or` step here; the board placement is noted instead.
     expect(branch.steps.some((s) => s.kind === 'input' && s.input.type === 'or'), 'no pre-collected plant step').is.false;
     expect(branch.steps.some((s) => s.kind === 'boardPlacement'), 'an ocean placement note').is.true;
+  });
+
+  // A card that HOLDS the resource it adds on play can target ITSELF. The preview
+  // runs while the card is still in HAND (not on the tableau), so the live
+  // `getResourceCards` can't see it — the preview must add the card-being-played to
+  // the candidate set explicitly, else the modal can't offer "add to the card you're
+  // playing" (and falsely warns "no eligible card" when nothing else holds it).
+  describe('on-play self-target (card holds the resource it adds)', () => {
+    it('JovianLanterns: the card itself is an on-play floater target even with NO other floater card', () => {
+      const [game, player] = testGame(2);
+      const card = new JovianLanterns();
+      const branch = cardPlayPreview(player, card).branches[0];
+      // The "+2 floaters to a card" gain chip shows (not suppressed) …
+      expect(branch.effects.some((e) => e.note === 'to a card' && e.amount === 2)).is.true;
+      // … and the target picker offers the card ITSELF — with NO false silent-loss warning.
+      const step = branch.steps.find((s) => s.kind === 'input' && s.input.type === 'card');
+      expect(step, 'a floater-target picker').to.exist;
+      const names = step!.kind === 'input' ? (step!.input as SelectCardModel).cards.map((c) => c.name) : [];
+      expect(names).to.include(card.name);
+      expect(branch.steps.some((s) => s.kind === 'note' && s.noteKind === 'warning'), 'no false silent-loss warning').is.false;
+
+      // The pre-collected self-pick replays against the live follow-up: once played,
+      // the card IS on the tableau, so it's a candidate and the 2 floaters land on it.
+      player.playCard(card);
+      runAllActions(game);
+      const live = cast(player.popWaitingFor(), SelectCard);
+      expect(live.cards.map((c) => c.name)).to.include(card.name);
+      live.process({type: 'card', cards: [card.name]}, player);
+      runAllActions(game);
+      expect(card.resourceCount).eq(2);
+    });
+
+    it('TitanFloatingLaunchPad: itself is a valid target (a Jovian-restricted add + its own Jovian tag)', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new TitanFloatingLaunchPad();
+      // The add is restricted to Jovian cards; Titan FLP carries a Jovian tag, so it
+      // qualifies as its own target (it isn't on the tableau at preview time).
+      const branch = cardPlayPreview(player, card).branches[0];
+      const step = branch.steps.find((s) => s.kind === 'input' && s.input.type === 'card');
+      expect(step, 'a floater-target picker').to.exist;
+      const names = step!.kind === 'input' ? (step!.input as SelectCardModel).cards.map((c) => c.name) : [];
+      expect(names).to.include(card.name);
+    });
   });
 
   // The preview's pre-collected step response must be byte-compatible with the

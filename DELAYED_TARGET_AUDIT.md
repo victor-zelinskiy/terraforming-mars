@@ -119,6 +119,44 @@ Asteroid, Big Asteroid, Deimos Down, Impactor Swarm, **Mining Expedition**, Smal
   server auto-attacks (no choice), so no step and no delayed modal. A multi-target case
   pre-collects a `SelectPlayer` step.
 
+## Second gap found in review — a card can't target ITSELF on play
+
+**Symptom (Jovian Lanterns / «Огни Юпитера»):** by the rules, an on-play *"add 2
+floaters to ANY card"* may target the card just played (Jovian Lanterns holds floaters
+and scores 1 VP per 2 floaters *here* — self-targeting is usually optimal). The play
+modal did NOT offer the card itself.
+
+**Root cause — preview timing.** The preview runs while the card is still in HAND.
+`AddResourcesToCard.getCards()` derives candidates from `player.getResourceCards()`,
+which reads the LIVE tableau — and the card isn't on the tableau yet. So the
+card-being-played was excluded from its OWN target list. Consequences: (a) with other
+floater cards in play, the picker offered those but not the card itself; (b) with NO
+other floater card, the preview showed the false *"No eligible card — this resource is
+not added"* warning, even though the card itself becomes a valid target the instant it's
+played.
+
+**Scope — a CLASS, programmatically enumerated.** In-scope cards whose on-play
+`addResourcesToAnyCard` can target themselves (they HOLD the added resource and satisfy
+any tag restriction with their own tags): **Atmo Collectors, Jovian Lanterns, Titan
+Floating Launch-pad** (all `colonies`, all FLOATER, all declarative). Floater Prototypes
+is correctly EXCLUDED — *"add to ANOTHER card"*, an EVENT with no `resourceType`.
+
+**Fix.** `AddResourcesToCard.Options` gained a preview-only `cardBeingPlayed?: ICard`;
+`getCards()` prepends it when it holds the matching resource (mirroring
+`getResourceCards`'s exact-type/WARE rule) and passes the same tag/min/filter pipeline.
+The declarative walker (`actionPreview.ts`: `addAnyCardCandidates` + the
+`AddResourcesToCard` in `stepsForBehavior`) threads the card being played. The LIVE path
+never sets it (the card is on the tableau by the time the deferred runs, and a
+`!cards.includes` guard prevents a duplicate), so live behaviour is byte-for-byte
+unchanged. The captured self-pick replays cleanly: after play the card IS on the tableau,
+so the live `SelectCard` lists it and the batched `{type:'card', cards:[<self>]}` matches.
+
+**Guard.** A new test in `cardPlayPreviewCoverage.spec.ts` enumerates every in-scope
+card that can self-target an on-play resource add and asserts the preview offers the card
+itself — FAILS if a self-holding card stops offering itself. Plus explicit
+`cardPlayPreview.spec.ts` tests (Jovian Lanterns offers itself with no other floater card
++ the live replay; Titan Floating Launch-pad's Jovian-restricted self-target).
+
 ## Journal / notifications
 
 Unchanged. The fix alters NO game logic — `RemoveAnyPlants` still calls
@@ -138,6 +176,10 @@ attacker is the viewer, so `diffNegativeNotifications` skips it).
   Lenses) + Warmonger + Virus + Sabotage — 226 passing (the refactor is behaviour-identical).
 - `tests/models/**` + `tests/behavior/**` — 197 passing.
 - ESLint clean on all changed files.
+- Self-target fix: `JovianLanterns`/`AtmoCollectors`/`TitanFloatingLaunchPad` specs +
+  `AddResourcesToCard.spec.ts` + the new `cardPlayPreview` self-target tests + the new
+  coverage guard — pass; `tests/deferredActions/**` + `tests/behavior/**` 154 passing
+  (the `cardBeingPlayed` option is additive — no live caller sets it).
 
 ## Manual scenarios to confirm in-game
 
