@@ -30,6 +30,8 @@
 @notif-transfer: #5fc6d6; // income redirected (amber-cyan)
 @notif-threat: #f0b44a; // a future threat (amber)
 @notif-vploss: #e8806a; // VP pressure / loss (red-gold prestige damage)
+@notif-reveal-deck: #5fb8d8; // cards revealed from the deck (calm blue-cyan)
+@notif-reveal-hand: #9a9cf0; // cards shown from hand (soft blue-purple, public info)
 
 .notifications-layer {
     position: fixed;
@@ -459,6 +461,42 @@
 .notification-card--variant-your-turn { --notif-accent: @notif-mint; }
 .notification-card--variant-action-required { --notif-accent: @notif-amber; }
 .notification-card--variant-warning { --notif-accent: @notif-red; }
+.notification-card--variant-reveal-deck { --notif-accent: @notif-reveal-deck; }
+.notification-card--variant-reveal-hand { --notif-accent: @notif-reveal-hand; }
+
+// ── Reveal / show card body (calm informational, the card name highlighted). ──
+.notification-card__reveal-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.notification-card__reveal-verb {
+    font-size: 12.5px;
+    color: #cdd9e1;
+}
+.notification-card__reveal-cards {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+.notification-card__reveal-count {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--notif-accent);
+}
+.notification-card__reveal-result {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 1px 7px;
+    border-radius: 999px;
+    color: var(--notif-accent);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
 
 // ── HOSTILE variants — a loss the viewer suffered. Destroy / steal / transfer /
 //    income-reduction read as DISTINCT hostile colours; VP loss is prestige-damage. ──

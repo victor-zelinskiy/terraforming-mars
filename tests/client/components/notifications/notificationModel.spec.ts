@@ -14,11 +14,13 @@ import {
   summarizeImpact,
   diffRootNotifications,
   diffNegativeNotifications,
+  diffRevealNotifications,
   coalesceBurst,
   buildTurnNotification,
   buildGenerationNotification,
   buildPassNotification,
 } from '@/client/components/notifications/notificationModel';
+import {RevealLogMeta} from '@/common/logs/RevealLogMeta';
 
 const RED: Color = 'red';
 const BLUE: Color = 'blue';
@@ -270,6 +272,63 @@ describe('notificationModel (pure)', () => {
       const first = diffNegativeNotifications({events: [e], seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1});
       expect(first.encounteredIds).to.deep.eq([7]);
       const again = diffNegativeNotifications({events: [e], seen: new Set([7]), viewerColor: RED, generation: 1, createdAt: 1});
+      expect(again.models).to.have.length(0);
+    });
+  });
+
+  describe('diffRevealNotifications (public card reveals/shows)', () => {
+    function revealMsg(o: {corr: number; actor: Color; cards: Array<CardName>; single?: boolean; reveal: RevealLogMeta}): LogMessage {
+      const data = [
+        {type: LogMessageDataType.PLAYER, value: o.actor},
+        o.single ?
+          {type: LogMessageDataType.CARD, value: o.cards[0]} :
+          {type: LogMessageDataType.CARDS, value: o.cards},
+      ] as LogMessage['data'];
+      const m = new LogMessage(LogMessageType.DEFAULT, '${0} revealed ${1}', data);
+      m.correlationId = o.corr;
+      m.reveal = o.reveal;
+      return m;
+    }
+
+    function detect(m: LogMessage, viewer: Color = RED) {
+      return diffRevealNotifications({messages: [m], seen: new Set(), viewerColor: viewer, generation: 1, createdAt: 1});
+    }
+
+    it('builds a HAND-SHOW notification (PublicPlans) for an opponent', () => {
+      const m = revealMsg({corr: 1, actor: BLUE, cards: ['A' as CardName, 'B' as CardName, 'C' as CardName], reveal: {origin: 'hand', result: 'shown', source: 'Public Plans' as CardName}});
+      const {models} = detect(m);
+      expect(models).to.have.length(1);
+      expect(models[0]).to.include({variant: 'reveal-hand', kind: 'important', typeLabelKey: 'Cards shown', actor: BLUE});
+      expect(models[0].reveal?.cards).to.deep.eq(['A', 'B', 'C']);
+      expect(models[0].cta?.action).to.eq('view-reveal');
+    });
+
+    it('builds a DECK-REVEAL (single card, discarded) notification', () => {
+      const m = revealMsg({corr: 2, actor: BLUE, cards: [CARD], single: true, reveal: {origin: 'deck', result: 'discarded'}});
+      const {models} = detect(m);
+      expect(models[0]).to.include({variant: 'reveal-deck', kind: 'normal', typeLabelKey: 'Card revealed'});
+      expect(models[0].reveal).to.deep.include({origin: 'deck', result: 'discarded'});
+      expect(models[0].reveal?.cards).to.deep.eq([CARD]);
+    });
+
+    it('SUPPRESSES the reveal for the actor (they already know their cards)', () => {
+      const m = revealMsg({corr: 3, actor: BLUE, cards: [CARD], single: true, reveal: {origin: 'hand', result: 'shown'}});
+      const res = detect(m, BLUE); // viewer IS the actor
+      expect(res.encounteredIds).to.have.length(1); // still seeded
+      expect(res.models).to.have.length(0);
+    });
+
+    it('ignores a message with no reveal marker', () => {
+      const m = new LogMessage(LogMessageType.DEFAULT, '${0} drew a card', [{type: LogMessageDataType.PLAYER, value: BLUE}]);
+      m.correlationId = 4;
+      expect(detect(m).models).to.have.length(0);
+    });
+
+    it('does not re-emit a seen reveal', () => {
+      const m = revealMsg({corr: 5, actor: BLUE, cards: [CARD], single: true, reveal: {origin: 'deck', result: 'discarded'}});
+      const first = diffRevealNotifications({messages: [m], seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1});
+      const key = first.encounteredIds[0];
+      const again = diffRevealNotifications({messages: [m], seen: new Set([key]), viewerColor: RED, generation: 1, createdAt: 1});
       expect(again.models).to.have.length(0);
     });
   });

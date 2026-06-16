@@ -9,6 +9,7 @@ import {IMilestone} from './milestones/IMilestone';
 import {Space} from './boards/Space';
 import {LogMessageBuilder} from './logs/LogMessageBuilder';
 import {LogMessage} from '../common/logs/LogMessage';
+import {RevealLogMeta} from '../common/logs/RevealLogMeta';
 import {Phase} from '../common/Phase';
 import {IPlayer} from './IPlayer';
 import {PlayerId, GameId, SpectatorId, SpaceId, isGameId} from '../common/Types';
@@ -248,7 +249,7 @@ export interface IGame extends Logger {
    */
   getStandardProjects(): Array<IStandardProjectCard>;
 
-  log(message: string, f?: (builder: LogMessageBuilder) => void, options?: {reservedFor?: IPlayer}): void;
+  log(message: string, f?: (builder: LogMessageBuilder) => void, options?: {reservedFor?: IPlayer, reveal?: RevealLogMeta}): void;
   discardForCost(cardCount: 1 | 2, toPlace: TileType): number;
   expectedPurgeTimeMs(): number;
   logIllegalState(description: string, metadata: {}): void;

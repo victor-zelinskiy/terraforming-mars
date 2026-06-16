@@ -92,7 +92,8 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
       .andThen(() => {
         const vpBefore = this.vpFor(this.resourceCount);
         const card = player.game.projectDeck.drawOrThrow(player.game);
-        player.game.log('${0} revealed and discarded ${1}', (b) => b.player(player).card(card, {tags: true}));
+        player.game.log('${0} revealed and discarded ${1}', (b) => b.player(player).card(card, {tags: true}),
+          {reveal: {origin: 'deck', result: 'discarded', source: this.name}});
         const found = card.tags.includes(Tag.MICROBE);
         if (found) {
           player.addResourceTo(this, 1);

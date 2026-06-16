@@ -156,6 +156,16 @@
       <NotificationLayer
         v-if="screen === 'player-home' && playerView !== undefined"
         :player-view="playerView" />
+
+      <!--
+        Read-only viewer for PUBLICLY revealed / shown cards (opened from a
+        reveal notification's «Посмотреть» CTA or a journal reveal row). App-level
+        so it survives the playerkey remount; driven by module-level
+        revealViewerState.
+      -->
+      <RevealedCardsModal
+        v-if="screen === 'player-home' && playerView !== undefined"
+        :players="playerView.players" />
     </div>
   </div>
 </template>
@@ -188,6 +198,7 @@ const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName:
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
+import RevealedCardsModal from '@/client/components/notifications/RevealedCardsModal.vue';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
 import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
@@ -313,6 +324,7 @@ export default defineComponent({
     ActionsPlayground,
     JournalPanel,
     NotificationLayer,
+    RevealedCardsModal,
     DrawCardRevealFlow,
     AdditionalResourceDetailOverlay,
     GameAtmosphere,

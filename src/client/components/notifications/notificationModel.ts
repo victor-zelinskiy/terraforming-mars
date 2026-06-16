@@ -572,6 +572,88 @@ export function diffNegativeNotifications(input: {
   return {models, encounteredIds};
 }
 
+// ── Public card reveals / shows ──────────────────────────────────────────────
+
+function firstPlayerColor(m: LogMessage): Color | undefined {
+  for (const tok of m.data) {
+    if (tok.type === LogMessageDataType.PLAYER) {
+      return tok.value;
+    }
+  }
+  return undefined;
+}
+
+/** The card names a reveal log carries (CARD = one, CARDS = a list). */
+function revealedCardNames(m: LogMessage): Array<CardName> {
+  const names: Array<CardName> = [];
+  for (const tok of m.data) {
+    if (tok.type === LogMessageDataType.CARD) {
+      names.push(tok.value);
+    } else if (tok.type === LogMessageDataType.CARDS) {
+      names.push(...tok.value);
+    }
+  }
+  return names;
+}
+
+/**
+ * Detect PUBLIC card reveals / shows (the server-stamped `reveal` marker) and
+ * emit an info notification for players OTHER than the actor (the actor already
+ * knows their own hand / has the self reveal-result overlay). Card names are
+ * read from the public log tokens — no text parsing. De-duped by a string key
+ * (a SEPARATE id space from the numeric root ids). Returns every encountered key
+ * so the caller can seed the seen-set (no spam on load).
+ */
+export function diffRevealNotifications(input: {
+  messages: ReadonlyArray<LogMessage>;
+  seen: ReadonlySet<string>;
+  viewerColor: Color;
+  generation: number;
+  createdAt: number;
+}): {models: Array<NotificationModel>; encounteredIds: Array<string>} {
+  const models: Array<NotificationModel> = [];
+  const encounteredIds: Array<string> = [];
+  for (const m of input.messages) {
+    const meta = m.reveal;
+    if (meta === undefined) {
+      continue;
+    }
+    const cards = revealedCardNames(m);
+    if (cards.length === 0) {
+      continue;
+    }
+    const actor = firstPlayerColor(m);
+    const key = `reveal:${m.correlationId ?? 'x'}:${input.generation}:${cards.join('|')}`;
+    encounteredIds.push(key);
+    if (input.seen.has(key)) {
+      continue;
+    }
+    if (actor !== undefined && actor === input.viewerColor) {
+      continue; // the actor already knows these cards (their hand / their reveal overlay)
+    }
+    const variant: NotificationVariant = meta.origin === 'hand' ? 'reveal-hand' : 'reveal-deck';
+    const kind: NotificationKind = meta.origin === 'hand' ? 'important' : 'normal';
+    models.push({
+      id: key,
+      kind,
+      variant,
+      priority: NOTIFICATION_PRIORITY[kind],
+      typeLabelKey: meta.origin === 'hand' ? 'Cards shown' : (cards.length > 1 ? 'Cards revealed' : 'Card revealed'),
+      actor,
+      pills: [],
+      detailCount: 0,
+      correlationId: m.correlationId,
+      generation: input.generation,
+      ttl: NOTIFICATION_TTL[kind],
+      persistent: false,
+      cta: {labelKey: 'View', action: 'view-reveal'},
+      createdAt: input.createdAt,
+      reveal: {origin: meta.origin, result: meta.result, source: meta.source, actor, cards},
+    });
+  }
+  return {models, encounteredIds};
+}
+
 /** A "player passed" highlight (driven by the game.passedPlayers diff). */
 export function buildPassNotification(actor: Color, generation: number, createdAt: number): NotificationModel {
   return {

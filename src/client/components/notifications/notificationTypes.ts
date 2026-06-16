@@ -2,6 +2,7 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {LogMessage} from '@/common/logs/LogMessage';
+import {RevealOrigin, RevealResult} from '@/common/logs/RevealLogMeta';
 import {JournalActionCategory} from '@/common/events/GameEvent';
 import {JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
 
@@ -26,6 +27,23 @@ export type NegativeMeta = {
   loss: ReadonlyArray<JournalImpactChip>;
   /** Mirror gain chips (positive) the attacker receives — steal / transfer only. */
   gain?: ReadonlyArray<JournalImpactChip>;
+};
+
+/**
+ * Structured payload for a REVEAL / SHOW notification — cards a player publicly
+ * revealed from the deck or showed from hand. The card NAMES are public (they
+ * ride the log's CARD/CARDS tokens); this drives the compact card + the
+ * read-only viewer. No text parsing.
+ */
+export type RevealMeta = {
+  origin: RevealOrigin;
+  result: RevealResult;
+  /** The card / corp that caused the reveal (PublicPlans, SearchForLife, …). */
+  source?: CardName;
+  /** The player who revealed / showed the cards. */
+  actor?: Color;
+  /** The revealed / shown card names (read from the public log tokens). */
+  cards: ReadonlyArray<CardName>;
 };
 
 /**
@@ -75,6 +93,8 @@ export type NotificationVariant =
   | 'production-transfer' // another player redirected the viewer's production to themselves
   | 'vp-loss' // a VP-pressure effect (Vermin in effect) lowers the VP calculation
   | 'threat' // a future threat appeared (Vermin played, no damage yet)
+  | 'reveal-deck' // cards were publicly revealed from the deck (then discarded)
+  | 'reveal-hand' // cards were shown from a player's hand (PublicPlans)
   | 'colony' // a colony was traded with / built
   | 'milestone' // an achievement was claimed
   | 'award' // an award was funded
@@ -100,6 +120,7 @@ export type NotificationCtaAction =
   | 'open-journal' // open the journal + highlight this root event
   | 'focus-actions' // draw attention to the action area (your turn)
   | 'go-to-action' // best-effort: surface the pending mandatory prompt
+  | 'view-reveal' // open the read-only viewer of the revealed/shown cards
   | 'dismiss';
 
 export type NotificationCta = {
@@ -150,6 +171,10 @@ export type NotificationModel = {
   // ── Hostile / negative event ─────────────────────────────────────────────
   /** Set on a HOSTILE notification — the viewer lost something to another player. */
   negative?: NegativeMeta;
+
+  // ── Public card reveal / show ────────────────────────────────────────────
+  /** Set on a REVEAL notification — cards another player publicly revealed/showed. */
+  reveal?: RevealMeta;
 
   // ── Coalesced burst ───────────────────────────────────────────────────────
   /** When several same-actor events were merged: how many. */
