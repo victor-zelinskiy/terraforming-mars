@@ -432,6 +432,26 @@ body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-
             transform: translateX(1px);
             box-shadow: 0 0 18px -3px var(--notif-accent);
         }
+
+        // The "to journal" CTA is SECONDARY — a small quiet text link, not a
+        // bright accent plate (the card itself is the info; the journal is a
+        // peek). No fill, no glow, smaller.
+        &--ghost {
+            padding: 3px 6px;
+            font-size: 10px;
+            letter-spacing: 0.04em;
+            color: #8ba2b1;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+
+            &:hover {
+                filter: none;
+                transform: none;
+                box-shadow: none;
+                color: var(--notif-accent);
+            }
+        }
     }
     &__cta-arrow {
         font-size: 12px;
