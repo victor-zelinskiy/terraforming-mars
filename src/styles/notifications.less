@@ -87,6 +87,18 @@ body:has(.draw-reveal) {
         visibility: hidden;
     }
 }
+// And for the КАРТЫ В РУКЕ overlay while it hosts a mandatory decision (discard /
+// reveal / play / sale). The overlay's confirm strip lives in the top-right —
+// exactly where the turn card paints — so a visible action-required card would
+// cover the СБРОСИТЬ / ПОДТВЕРДИТЬ button and softlock the player. The overlay IS
+// the prompt here, so the redundant turn card is hidden; the transient feed stays.
+body:has(.hand-board-overlay--mandatory-select),
+body:has(.hand-board-overlay .hand-sale-strip) {
+    .notifications-layer .notification-card--action-required,
+    .notifications-layer .notification-card--your-turn {
+        visibility: hidden;
+    }
+}
 
 .notification-card {
     --notif-accent: @notif-cyan;
