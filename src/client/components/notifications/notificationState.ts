@@ -50,13 +50,6 @@ type NotificationStore = {
   seeded: boolean;
   /** Last generation observed — drives the "new generation" highlight. */
   lastGeneration: number | undefined;
-  /**
-   * Whether the viewer was waiting for input on the PREVIOUS update. Drives the
-   * "your turn" card: it announces ONLY on the transition NOT-waiting → waiting
-   * (a real hand-off), never on a continuation of the same turn (after a
-   * sub-prompt) nor for the lone non-passed player repeating turns.
-   */
-  viewerWasWaiting: boolean;
   /** Colours already announced as passed this generation. */
   passedSeen: Set<string>;
   settings: NotificationSettings;
@@ -72,7 +65,6 @@ export const notificationState = reactive<NotificationStore>({
   seenRevealIds: new Set<string>(),
   seeded: false,
   lastGeneration: undefined,
-  viewerWasWaiting: false,
   passedSeen: new Set<string>(),
   settings: {
     enabled: true,
@@ -271,6 +263,5 @@ export function resetNotifications(): void {
   notificationState.seenRevealIds = new Set<string>();
   notificationState.seeded = false;
   notificationState.lastGeneration = undefined;
-  notificationState.viewerWasWaiting = false;
   notificationState.passedSeen = new Set<string>();
 }

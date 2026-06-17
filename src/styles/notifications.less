@@ -37,12 +37,15 @@
     position: fixed;
     top: calc(var(--bottom-bar-button-height) + 16px);
     right: calc(var(--right-sidebar-width) + 16px);
-    // ABOVE the full-screen modal backdrops (12000) so a modal's `backdrop-filter`
-    // blur / dim NEVER smears our cards (a backdrop-filter only blurs what paints
-    // BELOW it). Below the reveal viewer (12200) + the native-dialog card zoom
-    // (top layer). The turn card is still hidden behind a full mandatory modal via
-    // the body-class rule below, preserving "the modal IS the prompt".
-    z-index: 12050;
+    // ABOVE every full-screen blur backdrop (mandatory modal 12000, the
+    // drawn-cards reveal 12600, …) so a modal's `backdrop-filter` blur/dim NEVER
+    // smears our cards (a backdrop-filter only blurs what paints BELOW it — the
+    // earlier z=12050 sat under the drawn-reveal at 12600 and got blurred). Only
+    // the native-dialog CardZoomModal (top layer) sits above us. The TURN card is
+    // still hidden behind a full mandatory / drawn-reveal modal via the body
+    // rules below, preserving "the modal IS the prompt"; the transient feed stays
+    // crisp on top.
+    z-index: 12650;
     width: 340px;
     max-width: calc(100vw - 32px);
     display: flex;
@@ -71,6 +74,14 @@
 // backdrop, so without this the turn card would float over its own modal). The
 // transient feed (reveals / losses / events) stays crisp on top — never blurred.
 body.mandatory-input-modal-open:has(.mandatory-input-modal:not(.mandatory-input-modal--minimized):not(.mandatory-input-modal--picker-mode):not(.mandatory-input-modal--suppressed)) {
+    .notifications-layer .notification-card--action-required,
+    .notifications-layer .notification-card--your-turn {
+        visibility: hidden;
+    }
+}
+// Same for the drawn-cards reveal (a full modal that IS the current focus) — the
+// transient feed still shows crisp above it, only the turn card is hidden.
+body:has(.draw-reveal) {
     .notifications-layer .notification-card--action-required,
     .notifications-layer .notification-card--your-turn {
         visibility: hidden;
