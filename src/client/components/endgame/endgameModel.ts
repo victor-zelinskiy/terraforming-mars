@@ -30,8 +30,9 @@ import {
   buildVictoryProfile,
   computeTimelineStats,
   gameSeed,
-  generateInsights,
+  composeStory,
 } from '@/client/components/endgame/insightEngine';
+import type {GameStoryDNA} from '@/client/components/endgame/gameStoryDna';
 
 // What the builder needs from each player — a thin, pure projection of
 // PublicPlayerModel (the component maps it before calling the builder).
@@ -124,6 +125,10 @@ export type EndgameModel = {
   parameters: Array<EndgameParameter>;
   // Selected analytical story lines from the insight engine (3–6, deduped).
   insights: Array<EndgameInsightView>;
+  // Iteration 9: the Game Story DNA — the meta-classification (storyType, main
+  // conflict, twists, player arcs) that drives the "why this game was special"
+  // headline + the composer. undefined for solo / when no winner.
+  storyDna: GameStoryDNA | undefined;
   // Timeline shape (lead changes, comeback depth, final surge…) — also feeds
   // the chart annotations and the overview "match facts".
   timeline: TimelineStats | undefined;
@@ -393,7 +398,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     computeTimelineStats(players, winner, opts.generation, winnerTookLeadGen) : undefined;
   const profile = winner !== undefined ? buildVictoryProfile(winner) : undefined;
   const bestCard = findBestCard(players);
-  const insights = winner !== undefined ? generateInsights({
+  const composed = winner !== undefined ? composeStory({
     mode,
     generation: opts.generation,
     players,
@@ -408,7 +413,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     facts: opts.facts,
     playerCards: opts.playerCards,
     cardResources: opts.cardResources,
-  }) : [];
+  }) : {dna: undefined, insights: []};
 
   return {
     mode,
@@ -418,7 +423,8 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     margin,
     categories,
     parameters,
-    insights,
+    insights: composed.insights,
+    storyDna: composed.dna,
     timeline,
     profile,
     bestCard,

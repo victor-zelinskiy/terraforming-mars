@@ -46,6 +46,10 @@ describe('EndgameOverviewTab', () => {
     expect(wrapper.find('.eg-duel__side--left').text()).to.include('Victor');
     // Category mirror rows render for each present category.
     expect(wrapper.findAll('.eg-catwin').length).to.be.greaterThan(0);
+    // Iteration 9: the composed "why this game was special" headline band renders
+    // (the model carries a Story DNA), replacing the bare section title.
+    expect(wrapper.find('.eg-storyhead').exists(), 'story headline band').to.eq(true);
+    expect(wrapper.find('.eg-storyhead__title').text().length).to.be.greaterThan(0);
   });
 
   it('renders the podium + leaderboard for three players', () => {

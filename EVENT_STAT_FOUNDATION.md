@@ -848,3 +848,115 @@ greenery" claim; final-inventory (steel/titanium/cards) bridge for unused-potent
 depth; more counter matchups (production-steal-vs-energy-engine once a production profile
 is in ctx); a fuller attacker/victim split UI card; expansion special cards as those
 modules enter scope; a dev candidate-scoring panel.
+
+# Iteration 9 — Game Story DNA + Narrative Composer
+
+**The jump from "many smart facts" to "the story of THIS game."** Iterations 5–8 give a
+pile of correct-but-disconnected insight cards; the screen could say several true things
+without answering *why THIS game was special*. Iteration 9 adds a META-LAYER above the
+candidates — it classifies the game's STORY, names the main CONFLICT, builds player ARCS,
+lists TWISTS + SIGNATURE moments — then a COMPOSER uses that DNA to boost on-story
+candidates, penalize off-story generics, pick a hero that MATCHES the story, and assign
+narrative ROLES, turning the candidate list into a composed post-game report.
+
+## §2-3 — Game Story DNA layer (`src/client/components/endgame/gameStoryDna.ts`, PURE)
+
+`buildGameStoryDna(ctx, scoredCandidates, {styleOf})` → a typed `GameStoryDNA`:
+`storyType` (15: `photo_finish` / `late_comeback` / `runaway` / `duel_styles` /
+`economy_upset` / `terraforming_vs_cards` / `award_betrayal` / `attack_pressure` /
+`rare_card_drama` / `category_counterplay` / `card_flow_advantage` / `colony_engine` /
+`standard_project_plan` / `engine_not_converted` / `balanced_control`), `titleKind`,
+`headlineKey` (the "why special" subtitle), `mainConflict` (duel: both players + styles +
+`contrastScore`), `playerArcs` (style / strongestCategory / unusedPotential / pressure
+applied+received / lateMomentum / tags), `twists` (`weakerEconomyWon` /
+`lessTerraformingWon` / `bestCardLost` / `ledMostLost` / `moneyNoConversion` /
+`sponsorLostAward`), `keyMoments`, `signatureClusters` (the spine the composer boosts),
+`recommendedHeroCluster`, `suppressedGenericThemes`, `uniqueness/drama/rarity/confidence`
+scores, and a `debug` (`reasons` + `rejectedStoryTypes`). **storyType detection is an
+ORDERED, most-special-first DETECTOR LIST** (a candidate-driven meta-classification — the
+candidates already encode the facts via cluster/family/id/scores). **NO runtime import of
+insightEngine** (type-only) → no module cycle; the canonical `duelStyle` is INJECTED via
+the `styleOf` callback rather than duplicated. Graceful: empty candidates / quiet game →
+`balanced_control`, low uniqueness, no generic suppression.
+
+## §4-5 — the COMPOSER + story ROLES (`insightEngine.ts`)
+
+`composeStory(ctx) → {dna, insights}`: analyzers → score → `buildGameStoryDna` →
+`applyStoryBoost` (hero cluster `+16`, signature `+8`, off-story generic `−14` — only on a
+strong story, `uniqueness ≥ 0.5`) → `selectStoryInsights` (reads the boosted `finalScore`)
+→ `ensureHero` (a strong story ALWAYS gets a headline subject — promotes the top on-story
+insight when no candidate is `heroWorthy`, e.g. an economy conversion at rarity 0.6) →
+`assignStoryRoles`. New optional `InsightCandidate` fields `storyBoost` (folded into
+`finalScore`) + `storyRole` (`headline` / `whyWinnerWon` / `whyRunnerLost` / `turningPoint`
+/ `signatureMoment` / `twist` / `contrast` / `almost` / `rareDetail` / `supportingDetail` /
+`warning` / `trivia`). `generateInsights` now delegates to `composeStory` (back-compat —
+same return shape). `buildStoryDebug(ctx) → {dna, candidates}` (every candidate scored +
+`storyBoost` + the section it'd land in) powers the debug panel + tuning. The Story DNA is
+attached to `EndgameModel.storyDna` (via `buildEndgameModel` → `composeStory`).
+
+## §7 — cross-fact analyzers (5, the "unique party" feeling)
+
+Connect TWO fact areas (a single-family analyzer says "X had economy"; a cross-fact says
+"X had economy but it never became points"). All gate on data + thresholds, are
+confidence-aware, and **never invent VP/M€** — every claim compares KNOWN quantities:
+- **A · economy → conversion** (`xfact.econConv`): a non-winner with the strongest economy
+  whose card scoring stayed low — bought tempo, not points.
+- **B · card flow → cards** (`xfact.cardFlow`): heavy card flow that DID (winner) or DID
+  NOT (loser) become card scoring.
+- **C · global params → mismatch** (`xfact.globalMismatch`): top terraformer ≠ winner, or
+  the winner barely moved the planet and still won.
+- **D · attack → damaged strategy** (`xfact.attackDamage`): the biggest attack landing on a
+  board-heavy victim's plan.
+- **E · standard projects → card scoring** (`xfact.projectStarvation`): heavy SP + low
+  card-VP = projects in place of a card engine (the richer "plan B" framing — suppresses
+  the neutral `fact.standardProject.strategy`). **Grounded in the cards CATEGORY, NOT the
+  rare `reveal` facts** (which would fire for almost everyone → false attribution).
+
+## §6 + §11 — "Why this game was special" headline + debug panel (`EndgameOverviewTab`)
+
+A composed headline BAND tops the insights: a kicker «Чем эта партия была особенной» + the
+DNA `headlineKey` title + storyType / twist CHIPS, accent-tinted per `titleKind`
+(`endgame.less` `.eg-storyhead`). The hero card (with the duel VS rivalry row from
+Iteration 7) renders below it. A dev-only **`?egDebug`** panel (`.eg-dnadebug`) prints the
+storyType + scores + detector reasons + twists + a role/section/cluster/boost/score table —
+calibration visibility (the engine is client-side, so this is the feasible debug surface;
+the full unselected-candidate list is `buildStoryDebug`/`buildInsightCandidates` for
+tests/console).
+
+## §8 — novelty / anti-repetition
+
+The boost model IS the novelty layer: a generic theme (`verdict` / `race` / `profile` /
+`categorySecondary`) is penalized whenever a strong story exists, while multi-condition
+cross-fact + rare-card stories get the spine boost — so a specific multi-fact story is
+never buried behind "won by category", and the same generic line can't headline game after
+game. `selectStoryInsights`'s rare-breakthrough (rarity ≥ 0.6 always enters primary) keeps
+rare events out of the hidden band.
+
+## §9 — story quality guard
+
+`tests/client/components/endgame/gameStoryDna.spec.ts` (23): storyType detection per
+shape; composer (hero matches DNA, off-story generic penalized, roles assigned, solo →
+[]); the 5 cross-fact analyzers; and a **DISTINCTNESS guard** — 6 fixtures (photo finish /
+runaway / award betrayal / attack pressure / economy upset / quiet) classify to ≥ 5
+distinct story types (the screen doesn't read the same game-to-game), a rare event is
+never hidden, a duel names both players, a quiet game still produces graceful low-
+uniqueness output.
+
+## Verification / non-breaking
+
+`build:server` (exit 0), `vue-tsc` (0 errors), `make:json` (no dupes — 48 new
+`ru/endgame.json` keys, "Standard projects" reused from `ui.json`), eslint on touched
+files; pure specs `gameStoryDna`(23) + `factInsights`(35) + `insightEngine` + `endgameModel`
++ `endgameFacts` + `factAggregates` (105 combined) + the `EndgameOverviewTab` client spec
+(+ a story-headline assertion) — all green. Old analyzers untouched; facts-absent →
+graceful template fallback; solo → []; duel-gating preserved; deterministic; no module
+cycle; no private leaks (the cross-facts read only public categories / aggregate losses).
+
+## Next wave (Iteration 10 candidates)
+
+Per-player STYLE arcs surfaced as a dedicated UI "player arcs" section (the DNA already
+computes `playerArcs`); momentum/turning-point cross-facts (attack timing vs a late
+collapse); a richer `whyRunnerLost` role mapping; threading a production PROFILE into ctx
+(unlocks production-steal-vs-energy-engine counter matchups); the per-source steal bridge
++ final-inventory bridge carried over from Iteration 8; a full dev candidate-scoring panel
+(data already exposed via `buildStoryDebug`).
