@@ -125,6 +125,16 @@
         <div class="eg-insight__body">
           <span class="eg-insight__badge" v-i18n>{{ heroInsight.badge }}</span>
           <span class="eg-insight__text">{{ heroInsight.text }}</span>
+          <!-- DUEL rivalry row: the two players the contrast is between. -->
+          <div v-if="rivalDots(heroInsight).length === 2" class="eg-insight__rivals">
+            <span class="eg-insight__rival" :style="{'--eg-pc': hex(rivalDots(heroInsight)[0].color)}">
+              <span class="eg-insight__rival-dot" :class="'player_bg_color_' + rivalDots(heroInsight)[0].color"></span>{{ rivalDots(heroInsight)[0].name }}
+            </span>
+            <span class="eg-insight__rival-vs">VS</span>
+            <span class="eg-insight__rival" :style="{'--eg-pc': hex(rivalDots(heroInsight)[1].color)}">
+              <span class="eg-insight__rival-dot" :class="'player_bg_color_' + rivalDots(heroInsight)[1].color"></span>{{ rivalDots(heroInsight)[1].name }}
+            </span>
+          </div>
         </div>
       </article>
 
@@ -209,6 +219,7 @@ type InsightLine = {
   family?: string;
   uiVariant?: string;
   rankSection?: string;
+  relatedPlayers?: ReadonlyArray<Color>;
 };
 
 type Fact = {
@@ -374,7 +385,15 @@ export default defineComponent({
         family: ins.family,
         uiVariant: ins.uiVariant,
         rankSection: ins.rankSection,
+        relatedPlayers: ins.relatedPlayers,
       };
+    },
+    // The two rivals of a duel-contrast insight (winner + runner-up), for the VS row.
+    rivalDots(line: InsightLine): Array<{color: Color; name: string}> {
+      if (line.family !== 'duelContrast' || (line.relatedPlayers?.length ?? 0) < 2) {
+        return [];
+      }
+      return (line.relatedPlayers ?? []).slice(0, 2).map((c) => ({color: c, name: this.nameOf(c)}));
     },
     // Premium accent class by story family (styled in endgame.less).
     familyClass(line: InsightLine): string {

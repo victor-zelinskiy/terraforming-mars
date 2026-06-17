@@ -661,3 +661,90 @@ touched files all green.
 All new analyzers are additive + thresholded; the 9 base template analyzers remain the
 fallback. Old games / missing facts / missing cardResources → graceful (no Vermin false
 positive, no errors). Solo → []. Deterministic. The reveal/SP facts carry counts only.
+
+---
+
+# ═══════════════════════════════════════════════════════════════════
+# ITERATION 7 — Duel-Specific Endgame Storytelling
+# ═══════════════════════════════════════════════════════════════════
+
+Goal: for `mode === 'duel'`, tell the story of a RIVALRY between two strategies, not
+just "winner won categories". Additive on Iterations 5–6 (gated to duel, multiplayer
+unaffected); the data turned out to be richer than expected (the award/milestone
+outcome is fully in the breakdown), so no fragile bridges were needed.
+
+## Key data finding (no fake data)
+
+`VictoryPointsBreakdown.detailsAwards` rows carry `messageArgs = [place, awardName,
+funderName]` + `victoryPoint`, and `detailsMilestones` carry `[milestoneName]` — set by
+`calculateVictoryPoints`. So the award race ("funded by A but won by B", swing) and the
+milestone race (who claimed what) are RELIABLY derivable from `ctx.players[].breakdown`
+— structured, not text-parsed. Only the TIMING (generation) needed the stream, added as
+lightweight `milestoneClaim` / `awardFunding` facts.
+
+## §15 — required report
+
+**1. Duel analyzers added** (all gate on `mode==='duel'` + a runner-up, set a high
+`duelRelevance`, involve BOTH players): `analyzeDuelStyleContrast` (a style label per
+player → "Two plans: A as Terraformer, B as Card Engine" — the duel HERO), `analyzeAwardRace`
+(sponsor-lost / award swing > margin), `analyzeMilestoneRace` (lockout / contested),
+`analyzeDuelCategoryCounterplay` (A took X, B answered with Y), `analyzeDuelEconomyConversion`
+("not richer — more efficient", suppresses the generic underdog), `analyzeDuelAlmost`
+(penalties cost the match / leftover M€ > the gap). Negative-drama is duel-boosted.
+
+**2. Facts needed:** the award/milestone OUTCOME came free from the breakdown; only the
+new `milestoneClaim`/`awardFunding` facts (generation) were added for timing.
+
+**3. Data gaps found:** award/milestone PROGRESS ("almost claimed") is NOT reliably
+recoverable → deliberately NOT claimed (only confirmed claims + margin relation).
+Leftover steel/titanium is not in `ctx` → only leftover M€ used. Per-source Predators
+attribution + a scoring-time Vermin VP delta remain unavailable.
+
+**4. Awards/milestones cases covered:** sponsor funds but opponent wins the points;
+award swing larger than the final margin; milestone lockout; contested milestone split.
+
+**5. Special cards studied:** Vermin (2.0, animal-count precise — Iteration 6) + Predators
+(2.0, source-aware, tiered — Iteration 6). A broader special-card REGISTRY (#11 of the
+brief) was scoped as Iteration-8 work — the duel rivalry/award/milestone stories were the
+higher-value first wave and reused existing reliable data.
+
+**6. Left for future iterations:** the special-card registry beyond Vermin/Predators;
+steel/titanium leftover (needs a final-inventory bridge); a fuller VS-comparison card
+layout (style chips A-vs-B beyond the hero rivalry row); per-source Predators attribution;
+broader phrasing variety; a dev candidate-scoring PANEL (data is exposed via
+`buildInsightCandidates`).
+
+**7. Fixtures/tests added:** `factInsights.spec.ts` → 27 (duel style contrast, award
+sponsor-lost, award swing, milestone lockout, category counterplay, economy conversion +
+generic-underdog suppression, almost-penalty, "duel selector surfaces BOTH players").
+
+**8. What the duel screen now notices:** each player's STYLE + the contrast, who answered
+whom across categories, who intercepted an award (and whose bet backfired), milestone
+lockouts, efficiency-over-economy wins, and how close the runner-up got — surfaced as a
+duel HERO + a rivalry VS row, with `duelRelevance` lifting these above generic facts.
+
+## Selector tuning (duel)
+
+`InsightScores.duelRelevance` (0..1) is folded into `finalScore` (+30 max), set high by
+the duel analyzers, so in a 2-player game rivalry/contrast/award-race insights out-rank
+generic facts. Multiplayer carries 0 → unaffected. The suppression PRE-PASS now runs by
+`finalScore` order (a strong PRIMARY candidate can suppress a weaker HERO-worthy one — so
+the duel economy-conversion cleanly replaces the generic underdog).
+
+## UI
+
+A duel HERO renders a rivalry VS row (player A dot · VS · player B dot) when the insight
+is `family:'duelContrast'` with two related players; a `duelContrast` family accent
+(violet). The full VS-comparison card (style chips per side) is the documented next step.
+
+## Verification
+
+Server build, `vue-tsc` (0), `make:json` (no dupes — `Terraformer` style label reuses the
+existing profile translation), eslint on touched files; `factInsights` (27) +
+`insightEngine`/`endgameModel`/`endgameFacts` (40) + `EndgameOverviewTab` (3) all green.
+
+## Non-breaking guarantees
+
+Duel analyzers gate on `mode==='duel'` → standings/solo untouched. Old games / missing
+facts / missing breakdown details → graceful. Deterministic. No fake VP/M€; award/milestone
+outcomes are read from the authoritative breakdown.

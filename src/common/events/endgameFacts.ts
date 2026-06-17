@@ -32,7 +32,7 @@ import {
 export type FactType =
   'economy' | 'actionUsage' | 'passiveEffect' | 'globalParameter' |
   'colony' | 'negativeInteraction' | 'engineTiming' | 'notableEvent' | 'reveal' |
-  'standardProject';
+  'standardProject' | 'milestoneClaim' | 'awardFunding';
 
 export type FactConfidence = 'exact' | 'partial' | 'approximate' | 'ruleOnly';
 
@@ -365,6 +365,31 @@ function engineTimingFacts(events: ReadonlyArray<GameEvent>, opts: BuildFactsOpt
   return facts;
 }
 
+// ── Milestone claims + award funding (the WHEN; the outcome is in the breakdown) ──
+
+function maFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
+  const facts: Array<EndgameFact> = [];
+  for (const e of events) {
+    if (e.player === undefined) {
+      continue;
+    }
+    if (e.category === 'milestone' && e.source?.kind === 'milestone') {
+      facts.push({
+        id: `milestone:${e.source.name}`, type: 'milestoneClaim', player: e.player, generation: e.generation,
+        severity: 0.4, confidence: 'exact', metrics: {generation: e.generation},
+        relatedEventIds: [e.id], tags: ['timeline'],
+      });
+    } else if (e.category === 'award' && e.source?.kind === 'award') {
+      facts.push({
+        id: `award:${e.source.name}`, type: 'awardFunding', player: e.player, generation: e.generation,
+        severity: 0.4, confidence: 'exact', metrics: {generation: e.generation},
+        relatedEventIds: [e.id], tags: ['timeline'],
+      });
+    }
+  }
+  return facts;
+}
+
 // ── Standard projects (infrastructure strategy) ────────────────────────────────
 
 function standardProjectFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
@@ -612,6 +637,7 @@ export function buildEndgameFacts(events: ReadonlyArray<GameEvent>, opts: BuildF
     ...negativeInteractionFacts(events),
     ...revealFacts(events),
     ...standardProjectFacts(events),
+    ...maFacts(events),
     ...engineTimingFacts(events, opts),
     ...notableEventFacts(events),
   ];
