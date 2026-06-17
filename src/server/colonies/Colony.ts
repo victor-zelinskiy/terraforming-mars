@@ -237,7 +237,9 @@ export abstract class Colony implements IColony {
       break;
 
     case ColonyBenefit.DRAW_CARDS:
-      action = DrawCards.keepAll(player, quantity);
+      // Attribute the reveal to THIS colony (Pluto, …) so the "cards received"
+      // modal shows a hoverable colony chip as the source.
+      action = DrawCards.keepAll(player, quantity, {source: {type: 'colony', colonyName: this.name}});
       break;
 
     case ColonyBenefit.DRAW_CARDS_AND_BUY_ONE:
