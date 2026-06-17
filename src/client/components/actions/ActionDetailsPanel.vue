@@ -63,6 +63,33 @@
       <!-- What happens next (board placement / colony / target / payment …). -->
       <ActionNextStepNotice v-if="selectedBranch !== undefined" :steps="selectedBranch.steps" variant="next" />
 
+      <!-- This game — how this action performed (activations + impact + last used). -->
+      <div v-if="!loadingPreview" class="action-detail__section action-detail__usage">
+        <span class="action-detail__label" v-i18n>This game</span>
+        <p v-if="usage.empty" class="action-detail__note" v-i18n>{{ usage.note }}</p>
+        <template v-else>
+          <div class="action-detail__usage-head">
+            <span v-i18n>{{ usage.headline }}</span>
+            <span v-if="usageConfidenceLabel !== ''"
+                  class="action-detail__confidence"
+                  :class="'action-detail__confidence--' + usage.confidence"
+                  v-i18n>{{ usageConfidenceLabel }}</span>
+          </div>
+          <div class="action-detail__usage-line">
+            <span class="action-detail__usage-label" v-i18n>Activations</span>
+            <span class="action-detail__usage-value">{{ usage.activations }}</span>
+          </div>
+          <div v-for="(line, i) in usage.lines" :key="i" class="action-detail__usage-line">
+            <span v-if="line.icon" class="action-detail__usage-icon" :class="iconClassFor(line.icon)" aria-hidden="true"></span>
+            <span class="action-detail__usage-label" v-i18n>{{ line.label }}</span>
+            <span class="action-detail__usage-value">{{ line.value }}</span>
+          </div>
+          <div v-if="usage.lastGeneration !== undefined" class="action-detail__usage-last">
+            <span v-i18n>Last used</span> · <span v-i18n>Generation</span> {{ usage.lastGeneration }}
+          </div>
+        </template>
+      </div>
+
       <!-- Source card — a compact reference of WHERE this action comes from (the ⤢
            in the header opens it fullscreen). Lives here, in the panel, so it can
            never cover the action rows the way the old grid hover popover did. -->
@@ -117,6 +144,8 @@ import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, actionNodeDescription} from '@/client/components/actions/actionExtraction';
 import {branchPositionsForNode} from '@/client/components/actions/actionBranchView';
 import {ActionState} from '@/client/components/actions/actionPlayability';
+import {EffectOverlayStat} from '@/common/events/aggregate';
+import {getActionUsageSummary, ActionUsageViewModel} from '@/client/components/actions/actionUsageSummary';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
@@ -149,6 +178,12 @@ export default defineComponent({
     },
     card: {
       type: Object as PropType<CardModel>,
+      default: undefined,
+    },
+    // The whole-game ACTION-usage aggregate for this card (undefined → not used yet
+    // / loading → the "this game" section shows the "not used yet" note).
+    stat: {
+      type: Object as PropType<EffectOverlayStat>,
       default: undefined,
     },
     loadingPreview: {
@@ -301,6 +336,19 @@ export default defineComponent({
     resIconClass(): string {
       return this.resourceType !== undefined ? iconClassFor(this.resourceType) : '';
     },
+    // "This game" usage summary for the selected action (activations + impact +
+    // last-used), or the "not used yet" note. Pure view-model.
+    usage(): ActionUsageViewModel {
+      return getActionUsageSummary(this.stat);
+    },
+    usageConfidenceLabel(): string {
+      switch (this.usage.confidence) {
+      case 'exact': return 'Exact';
+      case 'partial': return 'Partial';
+      case 'ruleOnly': return 'Rule effect';
+      default: return '';
+      }
+    },
     // The EXACT "why can't I act" reason — ALWAYS populated for an unavailable
     // action (covers every case): a branch-level block uses the branch's own
     // reason; else the card-level rules reasons (joined), soft/activated reason,
@@ -367,6 +415,7 @@ export default defineComponent({
     },
   },
   methods: {
+    iconClassFor,
     activate(): void {
       if (this.cardName === undefined || !this.ctaEnabled) {
         return;

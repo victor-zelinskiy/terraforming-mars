@@ -7,7 +7,10 @@ import {ColonyName} from '@/common/colonies/ColonyName';
 import {AdvancedAlloys} from '@/server/cards/base/AdvancedAlloys';
 import {RegoPlastics} from '@/server/cards/promo/RegoPlastics';
 import {TradingColony} from '@/server/cards/colonies/TradingColony';
+import {CryoSleep} from '@/server/cards/colonies/CryoSleep';
 import {Ceres} from '@/server/colonies/Ceres';
+import {TradeWithEnergy} from '@/server/player/Colonies';
+import {GlobalParameter} from '@/common/GlobalParameter';
 import {aggregateBySource, toEffectOverlayStat} from '@/common/events/aggregate';
 import {sourceKey} from '@/common/events/EventSource';
 
@@ -119,6 +122,58 @@ describe('Economic stat special-handlers', () => {
       expect(stat.colonyTrack.extraReward).to.eq(1);
       expect(stat.colonyTrack.count).to.eq(1);
       expect(stat.colonyTrack.colonies[ColonyName.CERES]).to.eq(1);
+    });
+  });
+
+  describe('colony trade discount (Cryo-Sleep paying fewer resources)', () => {
+    it('records the trade resources saved, attributed to Cryo-Sleep', () => {
+      const [game, player] = testGame(2, {coloniesExtension: true});
+      const ceres = new Ceres();
+      game.colonies = [ceres];
+      player.playedCards.push(new CryoSleep());
+      player.colonies.tradeDiscount = 1; // what playing Cryo-Sleep grants
+      player.energy = 6;
+
+      game.events.beginAction(player, {kind: 'colony', name: ceres.name}, {category: 'colony'});
+      new TradeWithEnergy(player).trade(ceres); // base energy cost 3 → pays 2, saves 1
+      game.events.endScope();
+      runAllActions(game);
+
+      const ev = game.events.events.find((e) => e.impact.tradeDiscountSaved !== undefined);
+      expect(ev, 'a trade-discount event was recorded').to.not.be.undefined;
+      expect(ev!.source).to.deep.eq({kind: 'card', card: CardName.CRYO_SLEEP, owner: player.color});
+      expect(ev!.tags).to.contain('trade-discount');
+      expect(ev!.impact.tradeDiscountSaved).to.deep.eq([
+        {colony: ColonyName.CERES, resource: 'energy', amount: 1},
+      ]);
+
+      const stats = aggregateBySource(game.events.events);
+      const stat = toEffectOverlayStat(stats.get(sourceKey({kind: 'card', card: CardName.CRYO_SLEEP, owner: player.color}))!);
+      expect(stat.tradeDiscount.energy).to.eq(1);
+      expect(stat.tradeDiscount.count).to.eq(1);
+      expect(stat.tradeDiscount.colonies[ColonyName.CERES]).to.eq(1);
+    });
+  });
+
+  describe('global-parameter-changed recorder path', () => {
+    it('records who raised a global parameter, attributed to the active scope source', () => {
+      const [game, player] = testGame(2);
+      game.events.beginAction(player, {kind: 'card', card: CardName.ADVANCED_ALLOYS, owner: player.color}, {category: 'card-play'});
+      game.increaseOxygenLevel(player, 2);
+      game.increaseTemperature(player, 1);
+      game.events.endScope();
+
+      const oxygen = game.events.events.find((e) => e.type === 'global-parameter-changed' &&
+        e.impact.globalParameter?.parameter === GlobalParameter.OXYGEN);
+      expect(oxygen, 'oxygen raise recorded').to.not.be.undefined;
+      expect(oxygen!.impact.globalParameter!.steps).to.eq(2);
+      expect(oxygen!.source).to.deep.eq({kind: 'card', card: CardName.ADVANCED_ALLOYS, owner: player.color});
+      expect(oxygen!.tags).to.contain('global-parameter');
+
+      // It aggregates into the source's globalParameterSteps (the "who terraformed" feed).
+      const stats = aggregateBySource(game.events.events);
+      const stat = stats.get(sourceKey({kind: 'card', card: CardName.ADVANCED_ALLOYS, owner: player.color}))!;
+      expect(stat.globalParameterSteps[GlobalParameter.OXYGEN]).to.eq(2);
     });
   });
 });

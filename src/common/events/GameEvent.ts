@@ -95,6 +95,8 @@ export type EventTag =
   | 'resource-payment'
   | 'payment-bonus' // steel/titanium worth more than base (Advanced Alloys, …)
   | 'colony-track' // a trade-offset effect advanced a colony track (Trading Colony)
+  | 'trade-discount' // a trade-discount effect saved trade resources (Cryo-Sleep, …)
+  | 'global-parameter' // a global parameter was raised (oxygen/temp/oceans/venus)
   | 'card-impact'
   | 'corporation'
   | 'copy'
@@ -126,6 +128,14 @@ export type GameEvent = {
   correlationId: number;
   /** Immediate cause event id (chain nesting). */
   parentId?: number;
+  /**
+   * For a ROOT action event (`action` / `copied-action`): which kind of action it
+   * heads (card-play vs a blue-card / corp / CEO action vs a standard project / …).
+   * Lets aggregation tell a card's ACTION usage apart from its on-PLAY gains (both
+   * are `beginAction` roots with the same card source). Stamped by `beginAction` /
+   * `beginCopiedAction`; absent on non-root events and on older saves.
+   */
+  category?: JournalActionCategory;
   visibility: EventVisibility;
   tags?: ReadonlyArray<EventTag>;
 };

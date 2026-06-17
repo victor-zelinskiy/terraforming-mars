@@ -167,6 +167,7 @@ function emptyStat(cardName: CardName | undefined, isCorporation: boolean): Effe
     paymentResources: {},
     paymentValueBonus: {steel: 0, titanium: 0, bonusValue: 0, count: 0},
     colonyTrack: {steps: 0, extraReward: 0, count: 0, colonies: {}},
+    tradeDiscount: {energy: 0, titanium: 0, megacredits: 0, count: 0, colonies: {}},
     tr: 0,
     globalParameterSteps: {},
     vp: 0,
