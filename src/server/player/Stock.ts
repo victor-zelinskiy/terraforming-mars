@@ -47,7 +47,7 @@ export class Stock extends BaseStock {
       this.logUnitDelta(resource, delta, /* production*/ false, options.from, options.stealing);
     }
 
-    this.player.game?.events?.recordResourceDelta(this.player, resource, delta, /* production*/ false, options?.from, options?.stealing);
+    this.player.game?.events?.recordResourceDelta(this.player, resource, delta, /* production*/ false, options?.from, options?.stealing, this[resource]);
 
     const from = options?.from;
     if (isFromPlayer(from)) {

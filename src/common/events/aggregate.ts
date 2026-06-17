@@ -86,7 +86,7 @@ function hasImpact(i: EventImpact): boolean {
     i.megacreditsSaved !== undefined || i.megacreditsPaid !== undefined ||
     (i.cardResourcesSpentAsPayment?.length ?? 0) > 0 ||
     (i.paymentValueBonus?.length ?? 0) > 0 || (i.colonyTrackAdvanced?.length ?? 0) > 0 ||
-    (i.tradeDiscountSaved?.length ?? 0) > 0;
+    (i.tradeDiscountSaved?.length ?? 0) > 0 || i.reveal !== undefined;
 }
 
 export type PlayerStats = Omit<SourceStats, 'source' | 'triggerCount'> & {

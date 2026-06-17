@@ -8,6 +8,11 @@ import {
   negativeInteractionStream,
   globalParameterStream,
   unusedEngineStream,
+  revealSearchStream,
+  shownHandStream,
+  productionTransferStream,
+  lateEconomyBurstStream,
+  mixedWinnerStream,
 } from './endgameFactFixtures';
 
 /** The analysis-ready Fact Engine over the synthetic analyzer scenarios. PURE, so it
@@ -105,5 +110,50 @@ describe('endgame Fact Engine', () => {
     const a = factsOf(economyEngineStream()).map((f) => f.id).sort();
     const b = factsOf(economyEngineStream()).map((f) => f.id).sort();
     expect(a).to.deep.eq(b);
+  });
+
+  // ── Iteration 4: reveal / search + notable extensions + transfer ──
+
+  it('reveal/search → a reveal fact with revealed count + search hits', () => {
+    const reveal = byType(factsOf(revealSearchStream()), 'reveal');
+    expect(reveal).to.have.length(1);
+    expect(reveal[0].player).to.eq('red');
+    expect(reveal[0].metrics.revealed, '4 deck reveals').to.eq(4);
+    expect(reveal[0].metrics.searchHits, 'hits on gens 4 and 6').to.eq(2);
+  });
+
+  it('shown hand → a reveal fact with the shown count', () => {
+    const reveal = byType(factsOf(shownHandStream()), 'reveal');
+    expect(reveal).to.have.length(1);
+    expect(reveal[0].metrics.shown).to.eq(5);
+    expect(reveal[0].metrics.revealed).to.eq(0);
+  });
+
+  it('notable: the biggest reveal is surfaced', () => {
+    const notable = byType(factsOf(shownHandStream()), 'notableEvent');
+    const biggestReveal = notable.find((f) => f.id === 'notable:biggestReveal');
+    expect(biggestReveal, 'biggest reveal notable').to.not.be.undefined;
+    expect(biggestReveal!.metrics.revealed).to.eq(5);
+  });
+
+  it('notable: a late-game economy burst pins to its generation', () => {
+    const burst = byType(factsOf(lateEconomyBurstStream()), 'notableEvent').find((f) => f.id === 'notable:economyBurst');
+    expect(burst, 'economy burst notable').to.not.be.undefined;
+    expect(burst!.generation, 'the big burst was gen 11').to.eq(11);
+    expect(burst!.metrics.savedMegacredits).to.eq(16);
+  });
+
+  it('production transfer → a negative-interaction fact with the production lost', () => {
+    const neg = byType(factsOf(productionTransferStream()), 'negativeInteraction');
+    const vsBlue = neg.find((f) => f.player === 'red' && f.targetPlayer === 'blue');
+    expect(vsBlue, 'red reduced blue\'s production').to.not.be.undefined;
+    expect(vsBlue!.metrics.energy).to.eq(2);
+  });
+
+  it('mixed winner → economy + actionUsage + globalParameter facts all present', () => {
+    const facts = factsOf(mixedWinnerStream(), {cardHasAction: (c: CardName) => c === CardName.AI_CENTRAL});
+    expect(byType(facts, 'economy').length, 'economy').to.be.greaterThan(0);
+    expect(byType(facts, 'actionUsage').length, 'action usage').to.be.greaterThan(0);
+    expect(byType(facts, 'globalParameter').length, 'global parameter').to.be.greaterThan(0);
   });
 });

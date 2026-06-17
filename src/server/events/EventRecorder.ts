@@ -295,7 +295,7 @@ export class EventRecorder {
     return this.current !== undefined;
   }
 
-  public recordResourceDelta(player: IPlayer, resource: Resource | StandardResource, amount: number, production: boolean, from?: From, stealing?: boolean): void {
+  public recordResourceDelta(player: IPlayer, resource: Resource | StandardResource, amount: number, production: boolean, from?: From, stealing?: boolean, after?: number): void {
     if (amount === 0) {
       return;
     }
@@ -307,12 +307,40 @@ export class EventRecorder {
     const impact: EventImpact = production ?
       {production: {[resource]: amount}} :
       {stock: {[resource]: amount}};
+    // Before/after snapshot, captured live (the chokepoint already mutated the value,
+    // so `after` is the current value and `before = after − amount`). Lets a loss read
+    // "plants 506 → 504", not just "−2".
+    if (after !== undefined) {
+      impact.snapshot = {resource, scope: production ? 'production' : 'stock', before: after - amount, after};
+    }
     const target = stealing && from !== undefined && 'player' in from ? {player: from.player.color} : undefined;
     this.record({
       type: production ? 'production-changed' : 'resource-changed',
       source, player: player.color, target, impact,
       tags: production ? ['production'] : undefined,
     });
+  }
+
+  /**
+   * Record a PUBLIC card reveal / show / search (PublicPlans shows hand, SearchForLife
+   * / AsteroidDeflectionSystem reveal the deck top) — counts + semantics ONLY, never
+   * card names (so nothing private leaks; the public names ride the log's CARD tokens).
+   * Attributed to the source card under the active scope. Tagged `reveal` (analytics-
+   * only — excluded from the journal, which already shows the reveal via its log).
+   * NEVER called for a private draw, so a private draw can't become a public fact.
+   */
+  public recordCardReveal(player: IPlayer, source: ICard, reveal: {origin: 'deck' | 'hand'; result: 'discarded' | 'shown' | 'kept' | 'revealed'; count: number; found?: boolean}): void {
+    if (reveal.count <= 0) {
+      return;
+    }
+    const kind = source.type === CardType.CORPORATION ? 'corporation' : 'card';
+    this.emit({
+      type: 'card-revealed',
+      source: {kind, card: source.name, owner: player.color},
+      player: player.color,
+      impact: {reveal},
+      tags: ['reveal'],
+    }, this.current);
   }
 
   public recordCardResourceDelta(player: IPlayer, card: ICard, amount: number, from?: From): void {

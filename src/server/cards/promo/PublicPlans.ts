@@ -44,6 +44,7 @@ export class PublicPlans extends Card implements IProjectCard {
         // notification + read-only viewer (the names are already public here).
         player.game.log('${0} revealed ${1}', (b) => b.player(player).cards(cards),
           {reveal: {origin: 'hand', result: 'shown', source: this.name}});
+        player.game.events?.recordCardReveal(player, this, {origin: 'hand', result: 'shown', count: cards.length});
       }
       return undefined;
     });

@@ -31,6 +31,7 @@ export type GameEventType =
   | 'tr-changed'
   | 'global-parameter-changed'
   | 'cards-drawn'
+  | 'card-revealed' // a PUBLIC reveal / show / search (counts only, never names)
   | 'tile-placed'
   | 'vp-granted'
   // High-level game milestones:
@@ -97,6 +98,7 @@ export type EventTag =
   | 'colony-track' // a trade-offset effect advanced a colony track (Trading Colony)
   | 'trade-discount' // a trade-discount effect saved trade resources (Cryo-Sleep, …)
   | 'global-parameter' // a global parameter was raised (oxygen/temp/oceans/venus)
+  | 'reveal' // a public card reveal / show / search (analytics-only; counts not names)
   | 'card-impact'
   | 'corporation'
   | 'copy'

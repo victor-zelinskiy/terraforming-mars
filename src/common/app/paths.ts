@@ -9,6 +9,7 @@ export const paths = {
   API_GAME_JOURNAL_EVENTS: 'api/game/journal-events',
   API_GAME_EFFECT_STATS: 'api/game/effect-stats',
   API_GAME_ACTION_STATS: 'api/game/action-stats',
+  API_GAME_ENDGAME_FACTS: 'api/game/endgame-facts',
   API_GAMES: 'api/games',
   API_IPS: 'api/ips',
   API_METRICS: 'api/metrics',
