@@ -64,6 +64,20 @@ export default defineComponent({
       }
       return out;
     },
+    // Resource counts on each player's cards (for Vermin 2.0 — animals on Vermin, etc.).
+    cardResources(): Partial<Record<Color, Partial<Record<CardName, number>>>> {
+      const out: Partial<Record<Color, Partial<Record<CardName, number>>>> = {};
+      for (const p of this.view.players) {
+        const byCard: Partial<Record<CardName, number>> = {};
+        for (const c of p.tableau) {
+          if (c.resources !== undefined && c.resources > 0) {
+            byCard[c.name] = c.resources;
+          }
+        }
+        out[p.color] = byCard;
+      }
+      return out;
+    },
     model(): EndgameModel {
       const game = this.view.game;
       const inputs: Array<EndgamePlayerInput> = this.view.players
@@ -85,6 +99,7 @@ export default defineComponent({
         soloWin: game.isSoloModeWin,
         facts: this.facts,
         playerCards: this.playerCards,
+        cardResources: this.cardResources,
       });
     },
     pillVars(): Record<string, string> {

@@ -563,3 +563,101 @@ translations), eslint on touched files all green.
 Old games / missing facts → base insights (graceful). Solo mode still returns []. The
 reveal facts carry counts only (no private leak). No runtime errors when `ctx.facts` is
 absent. The existing overview bars / tabs / duel / podium are untouched.
+
+---
+
+# ═══════════════════════════════════════════════════════════════════
+# ITERATION 6 — Deep Story Expansion («Как сложилась партия»)
+# ═══════════════════════════════════════════════════════════════════
+
+Goal: the second quality leap — from "first fact-based insights appeared" to "the
+final screen genuinely notices the unique shape of THIS game". Additive on the
+Iteration-5 foundation (no rewrite): more fact analyzers, deeper economy/action/global
+reads, precise Vermin/Predators, a runner-up story, category structure, standard-project
+strategy, unused potential, notable single moments, selector tuning + candidate debug.
+
+## What was added
+
+**1. Runner-up story** (`analyzeRunnerUpStory`, family `runnerUpStory`): the category the
+runner-up out-scored the winner in vs. what the winner answered with ("X was stronger in
+TR, but Y answered with cards — and that decided it") + "had the better economy but
+couldn't convert it". Comparison/compact UI.
+
+**2. Category structure** (`analyzeCategoryStructure`): TWO-PILLAR win ("built on two
+pillars: cards +12 and awards +8" — suppresses the soft single-pillar line) vs. SECONDARY
+strength ("not just TR: also a +6 edge in cards"). No category spam — only meaningful
+structure.
+
+**3. Standard-project strategy** (`analyzeStandardProjectStrategy`): a NEW server fact
+`standardProject` (per player: project count + the parameter steps they drove — derived
+from `category:'standard-project'` roots, NO invented data) → "infrastructure plan: N
+standard projects, M parameter steps" / "Plan B when the card engine ran thin".
+
+**4. Unused potential** (`analyzeUnusedPotential`): a big leftover M€ pile (`player.megacredits`)
+— "money with nowhere to go" (loser) / "plenty of unspent runway" (winner) — joining the
+existing never-activated-engine fact. Analytical, not toxic.
+
+**5. Notable single moments** (`analyzeNotableMoments`): the biggest one-off beats from the
+`notableEvent` facts — e.g. a late single-generation economy burst pinned to its gen.
+
+**6. Vermin 2.0** — FALSE-POSITIVE FIX: reads the actual ANIMALS on Vermin (threaded via
+`ctx.cardResources` from the view; absent → no claim). Played-but-empty Vermin yields NO
+insight; ≥4 animals + a city-heavy opponent → a rare insight (stronger at ≥8, and when the
+Vermin owner builds fewer cities themselves). Never a fabricated VP delta — only "pressure".
+
+**7. Predators 2.0** — source-aware (the attacker owns Predators) + threshold-tuned: 6+
+animals = rare/major raid, 3–5 = a normal hunt (picks the biggest such hit).
+
+**8–10. Deeper economy / blue-action / global** reads layered in (economy underdog +
+burst; most-used + unused engine; who-moved-the-planet) — all confidence-aware.
+
+**11. UI** — new family accents (`runnerUpStory` / `cardStory` / `turningPoint` /
+`boardStory`) on top of the Iteration-5 hero/primary/secondary/show-more hierarchy.
+
+**12. Debug visibility** — `buildInsightCandidates(ctx)` returns EVERY candidate (base +
+fact) with `finalScore`, sorted, BEFORE selection (the selected ones also carry
+`rankSection`/`family`/`storyCluster`/`scores` on the rendered insight) — the data a dev
+needs to tune thresholds + see why a candidate was/wasn't picked.
+
+**13. Selector tuning** — PRIMARY now sorts by `finalScore` (strongest story first), with
+the legacy `GROUP_ORDER` only as a stable tiebreak, so strong fact insights are no longer
+buried behind legacy groups. Rare ≥0.6 still breaks the cluster dedup; the hero is the
+single biggest beat.
+
+## §17 — required report
+
+- **Analyzers added (Iteration 6):** runner-up story, category structure, standard-project
+  strategy, unused potential, notable moments (+ Vermin/Predators upgraded to 2.0,
+  Predators threshold-tiered). 12 fact analyzers total now.
+- **Facts used:** + the new `standardProject` fact + `ctx.cardResources` (Vermin animals);
+  everything else reuses economy / actionUsage / engineTiming / negativeInteraction /
+  globalParameter / reveal / colony / notableEvent.
+- **UI variants/families:** runnerUpStory (comparison), cardStory, turningPoint, boardStory
+  accents added; hero/major/normal/compact/legendary unchanged.
+- **Rare scenarios improved:** Vermin (precise, no false positive), Predators (source-aware,
+  tiered). Runner-up + two-pillar + standard-project + unused-money are new story angles.
+- **Iteration-7 frontier:** richer per-family card CHIPS (attacker/victim split, savings/
+  activation/leftover chips — the families/data are ready, the chip layout is the work); a
+  dev candidate-scoring PANEL UI (the data is exposed via `buildInsightCandidates` + the
+  rendered insights' `finalScore`); exact per-source Predators attribution + Vermin VP delta
+  if the engine ever emits a scoring-time fact; broader phrasing variety.
+
+## Honesty / confidence (unchanged discipline)
+
+Standard-project = counts + parameter steps (no invented VP). Vermin = "pressure" (no fake
+VP; confidence 0.6). Economy = "measured value"/units. `finalScore` scales by confidence so
+a `partial` fact can't out-shout an `exact` one at equal magnitude (guarded).
+
+## Tests / verification
+
+`tests/client/components/endgame/factInsights.spec.ts` extended to 19 (runner-up, two-pillar,
+standard-project, unused money, notable burst, Vermin with/without animals, Predators normal
+tier, `buildInsightCandidates` debug). Existing `insightEngine`/`endgameModel`/`EndgameOverviewTab`
+specs unchanged (25 + 3). Server build, `vue-tsc` (0), `make:json` (no dupes), eslint on
+touched files all green.
+
+## Non-breaking guarantees
+
+All new analyzers are additive + thresholded; the 9 base template analyzers remain the
+fallback. Old games / missing facts / missing cardResources → graceful (no Vermin false
+positive, no errors). Solo → []. Deterministic. The reveal/SP facts carry counts only.

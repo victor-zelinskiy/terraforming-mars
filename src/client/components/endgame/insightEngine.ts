@@ -187,6 +187,9 @@ export type InsightContext = {
   /** Each player's played-card names — lets a rare analyzer detect card presence
    *  (Vermin / Predators) that the facts alone don't name. Optional → graceful. */
   playerCards?: Partial<Record<Color, ReadonlyArray<CardName>>>;
+  /** Resource COUNT on a player's cards (card name → units) — lets Vermin 2.0 read the
+   *  animals on Vermin (precision the facts don't carry). Optional → graceful. */
+  cardResources?: Partial<Record<Color, Partial<Record<CardName, number>>>>;
 };
 
 // ── Fact selection helpers (the bridge for future fact-based analyzers) ──────────
@@ -1077,32 +1080,44 @@ const analyzeNegativeDramaFacts: Analyzer = (ctx) => {
       relatedPlayers: [topVictim[0]],
     });
   }
-  // Predators (or any 6+ animal destruction) — a rare attack engine.
-  for (const f of attacks) {
-    const animals = metric(f, 'Animal');
-    if (animals >= 6 && hasCard(ctx, f.player, CardName.PREDATORS)) {
-      out.push({
-        id: 'fact.negative.predators', group: 'cards', priority: 78, severity: 'major', icon: 'target',
-        badge: 'Predators', color: f.player,
-        textKey: 'Predators went hunting: ${0} devoured ${1} animals from ${2} — a rare, painful raid.',
-        params: [raw(playerName(ctx, f.player)), raw(animals), raw(playerName(ctx, f.targetPlayer ?? f.player))],
-        family: 'rareEvent', uiVariant: 'major', storyCluster: 'predators',
-        scores: {rarity: 0.85, drama: 0.8, relevance: 0.6, confidence: 1},
-        relatedPlayers: [f.player, ...(f.targetPlayer !== undefined ? [f.targetPlayer] : [])],
-        relatedCards: [CardName.PREDATORS],
-      });
-      break;
-    }
+  // Predators — source-aware (the attacker owns Predators) + threshold-tuned:
+  // 6+ animals = rare/major raid; 3–5 = a normal hunt. Picks the biggest such hit.
+  const predatorHit = attacks
+    .filter((f) => metric(f, 'Animal') >= 3 && hasCard(ctx, f.player, CardName.PREDATORS))
+    .sort((a, b) => metric(b, 'Animal') - metric(a, 'Animal'))[0];
+  if (predatorHit !== undefined) {
+    const animals = metric(predatorHit, 'Animal');
+    const big = animals >= 6;
+    out.push({
+      id: 'fact.negative.predators', group: 'cards', priority: big ? 78 : 62, severity: big ? 'major' : 'normal', icon: 'target',
+      badge: 'Predators', color: predatorHit.player,
+      textKey: big ?
+        'Predators went hunting: ${0} devoured ${1} animals from ${2} — a rare, painful raid.' :
+        'Predators kept feeding: ${0} took ${1} animals from ${2}.',
+      params: [raw(playerName(ctx, predatorHit.player)), raw(animals), raw(playerName(ctx, predatorHit.targetPlayer ?? predatorHit.player))],
+      family: 'rareEvent', uiVariant: big ? 'major' : 'normal', storyCluster: 'predators',
+      scores: {rarity: big ? 0.85 : 0.55, drama: big ? 0.8 : 0.55, relevance: 0.6, confidence: 1},
+      relatedPlayers: [predatorHit.player, ...(predatorHit.targetPlayer !== undefined ? [predatorHit.targetPlayer] : [])],
+      relatedCards: [CardName.PREDATORS],
+    });
   }
   return out;
 };
 
-// ── Vermin: a rare VP-pressure threat on a city-heavy opponent ──
+// ── Vermin 2.0: a rare VP-pressure threat — precise about the animals on Vermin ──
+// FALSE-POSITIVE FIX: Vermin only matters once it has grown MEANINGFUL animals (its
+// rule docks city VP at scoring), so a played-but-empty Vermin yields NO insight. The
+// animal count comes from ctx.cardResources (the facts don't carry it); absent → no
+// claim (graceful). We never invent an exact VP delta — only "pressure".
 const analyzeVerminDrama: Analyzer = (ctx) => {
   const out: Array<InsightCandidate> = [];
   const verminOwner = ctx.players.find((p) => hasCard(ctx, p.color, CardName.VERMIN));
   if (verminOwner === undefined) {
     return out;
+  }
+  const animals = ctx.cardResources?.[verminOwner.color]?.[CardName.VERMIN] ?? 0;
+  if (animals < 4) {
+    return out; // played but not grown — not a story
   }
   // The most city-heavy OTHER player (board VP) is the one Vermin pressures.
   const victim = ctx.players
@@ -1111,16 +1126,166 @@ const analyzeVerminDrama: Analyzer = (ctx) => {
   if (victim === undefined || boardVp(ctx, victim.color) < 8) {
     return out;
   }
+  const strong = animals >= 8; // approaching the 10-animal full effect
+  // The threat reads stronger when the Vermin owner builds fewer cities themselves.
+  const ownerLighter = boardVp(ctx, verminOwner.color) * 1.5 < boardVp(ctx, victim.color);
   out.push({
-    id: 'fact.vermin.pressure', group: 'cards', priority: 80, severity: 'major', icon: 'spark',
+    id: 'fact.vermin.pressure', group: 'cards', priority: strong ? 84 : 76, severity: 'major', icon: 'spark',
     badge: 'Vermin', color: verminOwner.color,
-    // Honest: Vermin pressures city VP at scoring; we do NOT claim an exact VP delta.
-    textKey: 'A rat infestation: ${0} played Vermin, putting pressure on the cities ${1} built the game around.',
-    params: [raw(verminOwner.name), raw(victim.name)],
+    textKey: ownerLighter ?
+      'A rat infestation: ${0} grew ${1} animals on Vermin — a hidden tax on the cities ${2} built the game around.' :
+      'A rat infestation: ${0} grew ${1} animals on Vermin, pressuring everyone’s cities — ${2} most of all.',
+    params: [raw(verminOwner.name), raw(animals), raw(victim.name)],
     family: 'rareEvent', uiVariant: 'major', storyCluster: 'vermin',
-    scores: {rarity: 0.85, drama: 0.7, relevance: 0.55, confidence: 0.6},
+    scores: {rarity: 0.85, drama: strong ? 0.8 : 0.65, relevance: ownerLighter ? 0.65 : 0.5, confidence: 0.6},
     relatedPlayers: [verminOwner.color, victim.color], relatedCards: [CardName.VERMIN],
   });
+  return out;
+};
+
+// ── Runner-up story: why second place nearly got there ──
+const analyzeRunnerUpStory: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  const ru = ctx.runnerUp;
+  if (ru === undefined || ctx.margin <= 0 || ctx.margin > 20) {
+    return out; // a tiebreaker / a runaway is told elsewhere
+  }
+  // The category where the runner-up most out-scored the WINNER.
+  let bestCat: {cat: EndgameCategory; edge: number} | undefined;
+  for (const cat of ctx.categories) {
+    const edge = (cat.values[ru.color] ?? 0) - (cat.values[ctx.winner.color] ?? 0);
+    if (edge > 0 && (bestCat === undefined || edge > bestCat.edge)) {
+      bestCat = {cat, edge};
+    }
+  }
+  // The winner's strongest category (what they beat the runner-up with).
+  const winnerLead = sortedWinnerLeads(ctx)[0];
+  if (bestCat !== undefined && bestCat.edge >= 5 && winnerLead !== undefined && winnerLead.lead >= 5) {
+    out.push({
+      id: 'fact.runnerup.category', group: 'race', priority: 64, severity: 'normal', icon: 'scale',
+      badge: 'So close', color: ru.color,
+      textKey: '${0} was stronger in ${1}, but ${2} answered with ${3} — and that decided it.',
+      params: [raw(ru.name), key(bestCat.cat.label), raw(ctx.winner.name), key(winnerLead.cat.label)],
+      family: 'runnerUpStory', uiVariant: 'comparison', storyCluster: 'runnerUp',
+      scores: {drama: 0.5, relevance: 0.7, rarity: ctx.margin <= 5 ? 0.55 : 0.3, confidence: 1},
+      relatedPlayers: [ru.color, ctx.winner.color],
+    });
+  }
+  // The runner-up had the better economy engine but couldn't convert it.
+  const ruEcon = factsByType(ctx, 'economy').find((f) => f.player === ru.color);
+  const winEcon = factsByType(ctx, 'economy').find((f) => f.player === ctx.winner.color);
+  if (ruEcon !== undefined && metric(ruEcon, 'savedMegacredits') >= 18 &&
+      (winEcon === undefined || metric(ruEcon, 'savedMegacredits') > metric(winEcon, 'savedMegacredits') * 1.5)) {
+    out.push({
+      id: 'fact.runnerup.economy', group: 'reason', priority: 54, severity: 'minor', icon: 'spark',
+      badge: 'So close', color: ru.color,
+      textKey: '${0} had the better economy but couldn’t turn it into the win.',
+      params: [raw(ru.name)],
+      family: 'runnerUpStory', uiVariant: 'compact', storyCluster: 'runnerUpEconomy',
+      scores: {relevance: 0.55, drama: 0.4, confidence: 0.8},
+      relatedPlayers: [ru.color],
+    });
+  }
+  return out;
+};
+
+// ── Category structure: one-pillar vs two-pillar vs secondary strength ──
+const analyzeCategoryStructure: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  const leads = sortedWinnerLeads(ctx).filter((l) => l.lead > 0);
+  if (leads.length < 2) {
+    return out;
+  }
+  const first = leads[0];
+  const second = leads[1];
+  // TWO-PILLAR: the second pillar is also substantial (not dwarfed by the first).
+  if (second.lead >= 5 && second.lead >= first.lead * 0.55) {
+    out.push({
+      id: 'fact.category.twopillar', group: 'category', priority: 57, severity: 'normal', icon: 'crown',
+      badge: 'Two pillars', color: ctx.winner.color,
+      textKey: 'Built on two pillars: ${0} led ${1} (+${2}) and ${3} (+${4}).',
+      params: [raw(ctx.winner.name), key(first.cat.label), raw(first.lead), key(second.cat.label), raw(second.lead)],
+      family: 'cardStory', uiVariant: 'normal', storyCluster: 'categoryStructure',
+      scores: {relevance: 0.6, impact: Math.min(1, (first.lead + second.lead) / 30), confidence: 1},
+      // The soft "won via one category" line is redundant when the win had two pillars.
+      suppresses: ['reason.dominant-category'],
+      relatedPlayers: [ctx.winner.color],
+    });
+  } else if (first.lead >= 8 && second.lead >= 4) {
+    // SECONDARY STRENGTH: a clear main pillar, but a meaningful backup worth naming.
+    out.push({
+      id: 'fact.category.secondary', group: 'category', priority: 44, severity: 'minor', icon: 'crown',
+      badge: 'And more', color: ctx.winner.color,
+      textKey: 'Not just ${1}: ${0} also banked a ${2} edge in ${3}.',
+      params: [raw(ctx.winner.name), key(first.cat.label), raw(second.lead), key(second.cat.label)],
+      family: 'cardStory', uiVariant: 'compact', storyCluster: 'categorySecondary',
+      scores: {relevance: 0.45, confidence: 1},
+      relatedPlayers: [ctx.winner.color],
+    });
+  }
+  return out;
+};
+
+// ── Standard-project strategy (infrastructure over cards) ──
+const analyzeStandardProjectStrategy: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  const top = [...factsByType(ctx, 'standardProject')].sort((a, b) => metric(b, 'projects') - metric(a, 'projects'))[0];
+  if (top === undefined || metric(top, 'projects') < 5) {
+    return out;
+  }
+  const steps = metric(top, 'parameterSteps');
+  out.push({
+    id: 'fact.standardProject.strategy', group: 'parameters', priority: 52, severity: 'normal', icon: 'hex',
+    badge: 'Plan B', color: top.player,
+    textKey: steps >= 4 ?
+      'Infrastructure plan: ${0} ran ${1} standard projects, terraforming Mars directly (${2} parameter steps).' :
+      'Plan B paid off: ${0} leaned on ${1} standard projects when the card engine ran thin.',
+    params: [raw(playerName(ctx, top.player)), raw(metric(top, 'projects')), raw(steps)],
+    family: 'standardProject', uiVariant: 'normal', storyCluster: 'standardProject',
+    scores: {impact: Math.min(1, metric(top, 'projects') / 10), relevance: 0.55, confidence: 1},
+    relatedFactIds: [top.id], relatedPlayers: [top.player],
+  });
+  return out;
+};
+
+// ── Unused potential: money / engine left on the table ──
+const analyzeUnusedPotential: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  // A big leftover M€ pile — economy that never became points.
+  const richest = [...ctx.players].sort((a, b) => b.megacredits - a.megacredits)[0];
+  if (richest !== undefined && richest.megacredits >= 30) {
+    const isWinner = richest.color === ctx.winner.color;
+    out.push({
+      id: 'fact.unused.money', group: 'cards', priority: isWinner ? 46 : 56, severity: 'minor', icon: 'flag',
+      badge: 'On the table', color: richest.color,
+      textKey: isWinner ?
+        '${0} still had ${1} M€ in the bank at the finish — plenty of unspent runway.' :
+        'Money with nowhere to go: ${0} ended on ${1} M€ that never became points.',
+      params: [raw(richest.name), raw(richest.megacredits)],
+      family: 'unusedPotential', uiVariant: 'compact', storyCluster: 'unusedMoney',
+      scores: {relevance: isWinner ? 0.35 : 0.6, drama: 0.4, confidence: 1},
+      relatedPlayers: [richest.color],
+    });
+  }
+  return out;
+};
+
+// ── Notable single moments (the biggest one-off events) ──
+const analyzeNotableMoments: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  const notables = factsByType(ctx, 'notableEvent');
+  const burst = notables.find((f) => f.id === 'notable:economyBurst');
+  if (burst !== undefined && metric(burst, 'savedMegacredits') >= 12) {
+    out.push({
+      id: 'fact.notable.economyBurst', group: 'momentum', priority: 50, severity: 'minor', icon: 'surge',
+      badge: 'Burst', color: burst.player,
+      textKey: 'A late surge of value: ${0} banked ${1} of measured economy in generation ${2}.',
+      params: [raw(playerName(ctx, burst.player)), raw(metric(burst, 'savedMegacredits')), raw(burst.generation ?? 0)],
+      family: 'economy', uiVariant: 'compact', storyCluster: 'economyBurst',
+      scores: {impact: Math.min(1, metric(burst, 'savedMegacredits') / 24), relevance: 0.45, confidence: 0.85},
+      relatedFactIds: [burst.id], relatedPlayers: [burst.player], relatedGeneration: burst.generation,
+    });
+  }
   return out;
 };
 
@@ -1193,6 +1358,12 @@ const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeGlobalParameterFacts,
   analyzeRevealFacts,
   analyzeColonyFacts,
+  // Iteration 6 — deep story expansion.
+  analyzeRunnerUpStory,
+  analyzeCategoryStructure,
+  analyzeStandardProjectStrategy,
+  analyzeUnusedPotential,
+  analyzeNotableMoments,
 ];
 
 const ANALYZERS: ReadonlyArray<Analyzer> = [
@@ -1348,9 +1519,27 @@ export function selectStoryInsights(candidates: ReadonlyArray<InsightCandidate>)
     usedIds.add(c.id);
   }
 
-  // Reading order WITHIN primary follows the story flow (GROUP_ORDER), then score.
-  primary.sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group) || (b.finalScore ?? 0) - (a.finalScore ?? 0));
+  // Reading order WITHIN primary = strongest story first (a commentator leads with the
+  // biggest beat), with the legacy GROUP_ORDER as a stable tiebreak for equal scores.
+  // (This replaces the old GROUP_ORDER-primary sort, which buried strong fact insights
+  // behind legacy groups — see Iteration-6 selector tuning.)
+  primary.sort((a, b) => (b.finalScore ?? 0) - (a.finalScore ?? 0) ||
+    GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group) || a.id.localeCompare(b.id));
   return [...(hero !== undefined ? [hero] : []), ...primary, ...secondary, ...hidden];
+}
+
+/** Every candidate from every analyzer (base + fact), with `finalScore` computed and
+ *  sorted strongest-first — BEFORE selection. Dev/debug visibility for tuning the
+ *  thresholds + understanding why a candidate was/wasn't picked (the selected ones
+ *  also carry `rankSection`; an absent `rankSection` here ⇒ it would be dropped). */
+export function buildInsightCandidates(ctx: InsightContext): Array<InsightCandidate> {
+  const candidates: Array<InsightCandidate> = [];
+  for (const analyzer of [...ANALYZERS, ...FACT_ANALYZERS]) {
+    candidates.push(...analyzer(ctx));
+  }
+  return candidates
+    .map((c) => ({...c, finalScore: finalScore(c)}))
+    .sort((a, b) => (b.finalScore ?? 0) - (a.finalScore ?? 0) || a.id.localeCompare(b.id));
 }
 
 export function generateInsights(ctx: InsightContext): Array<EndgameInsightView> {
