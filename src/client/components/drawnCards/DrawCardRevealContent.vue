@@ -1,9 +1,25 @@
 <template>
   <div class="draw-reveal__content" :style="{'--draw-card-zoom': zoom}">
-    <!-- Context subtitle: source-attributed where the server knew it. -->
+    <!-- Context subtitle: the count + a HOVERABLE source chip (card / colony) so
+         the player always sees WHERE the cards came from. -->
     <div class="draw-reveal__subtitle">
       <span class="draw-reveal__subtitle-dot" aria-hidden="true"></span>
-      <span class="draw-reveal__subtitle-text">{{ subtitle }}</span>
+      <span class="draw-reveal__subtitle-text">{{ countText }}</span>
+      <template v-if="sourceCard !== undefined">
+        <span class="draw-reveal__subtitle-sep" aria-hidden="true">·</span>
+        <span class="draw-reveal__subtitle-label" v-i18n>Source</span><span aria-hidden="true">:</span>
+        <JournalCardChip :name="sourceCard" />
+      </template>
+      <template v-else-if="sourceColony !== undefined">
+        <span class="draw-reveal__subtitle-sep" aria-hidden="true">·</span>
+        <span class="draw-reveal__subtitle-label" v-i18n>Source</span><span aria-hidden="true">:</span>
+        <JournalColonyChip :name="sourceColony" />
+      </template>
+      <template v-else-if="event.source !== undefined && event.source.type === 'tile'">
+        <span class="draw-reveal__subtitle-sep" aria-hidden="true">·</span>
+        <span class="draw-reveal__subtitle-label" v-i18n>Source</span><span aria-hidden="true">:</span>
+        <span class="draw-reveal__subtitle-text" v-i18n>Tile bonus</span>
+      </template>
     </div>
 
     <!--
@@ -51,8 +67,12 @@
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/Card.vue';
 import {CardModel} from '@/common/models/CardModel';
+import {CardName} from '@/common/cards/CardName';
+import {ColonyName} from '@/common/colonies/ColonyName';
 import {DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {translateText} from '@/client/directives/i18n';
+import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
+import JournalColonyChip from '@/client/components/journal/JournalColonyChip.vue';
 
 /**
  * The card tray for ONE reveal batch. Renders only the cards still awaiting a
@@ -62,7 +82,7 @@ import {translateText} from '@/client/directives/i18n';
  */
 export default defineComponent({
   name: 'DrawCardRevealContent',
-  components: {Card},
+  components: {Card, JournalCardChip, JournalColonyChip},
   props: {
     event: {
       type: Object as PropType<DrawnCardEntry>,
@@ -87,17 +107,14 @@ export default defineComponent({
       // Single remaining card → "Take card"; more → "Take all cards".
       return this.untakenCount <= 1 ? 'Take card' : 'Take all cards';
     },
-    subtitle(): string {
-      const source = this.event.source;
-      const n = this.event.cards.length;
-      if (source?.type === 'card') {
-        return `${translateText('Card effect')}: ${translateText(source.cardName)}`;
-      }
-      if (source?.type === 'tile') {
-        return translateText('Tile bonus: card');
-      }
-      // Generic — "You received N card(s)".
-      return translateText('You received ${0} card(s)').replace('${0}', String(n));
+    countText(): string {
+      return translateText('You received ${0} card(s)').replace('${0}', String(this.event.cards.length));
+    },
+    sourceCard(): CardName | undefined {
+      return this.event.source?.type === 'card' ? this.event.source.cardName : undefined;
+    },
+    sourceColony(): ColonyName | undefined {
+      return this.event.source?.type === 'colony' ? this.event.source.colonyName : undefined;
     },
     // Roomy for the common 1–3 cards; compacts as the batch grows so a large
     // (rare) draw still fits without turning into the hand overlay.

@@ -1096,7 +1096,9 @@
 
 .journal-card-preview {
     position: fixed;
-    z-index: 12000;
+    /* Above the notification layer (12650) — these token popovers also fire from
+       a card chip INSIDE a notification, where z=12000 would sit behind it. */
+    z-index: 12700;
     pointer-events: none; /* pure preview — must not steal hover */
     transform-origin: center center;
 }
@@ -1109,11 +1111,73 @@
    the card silhouette (see CLAUDE "Centering UI under a <Card>"). */
 .journal-card-preview .card-container { margin: 0; }
 
+/* ── Colony hover preview (a read-only ColonyTile mini-card) ───────────── */
+.journal-colony-preview {
+    position: fixed;
+    z-index: 12700;
+    pointer-events: none; /* pure preview — never steals hover */
+    filter: drop-shadow(0 16px 34px rgba(0, 0, 0, 0.66));
+
+    /* A compact mini-card; the tile sizes to its content. */
+    .colony-tile {
+        zoom: 0.86;
+        cursor: default;
+    }
+    /* It's a PREVIEW — drop the tile's action affordance. */
+    .colony-tile__select-btn,
+    .colony-tile__reason {
+        display: none;
+    }
+}
+
+/* ── Milestone / Award hover preview (name + rule description) ─────────── */
+.journal-ma-preview {
+    position: fixed;
+    z-index: 12700;
+    pointer-events: none;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 11px;
+    background: linear-gradient(155deg, rgba(20, 28, 40, 0.97) 0%, rgba(10, 16, 26, 0.99) 100%);
+    border: 1px solid rgba(232, 198, 106, 0.34);
+    box-shadow: 0 16px 38px -14px rgba(0, 0, 0, 0.7), 0 0 22px -12px #e8c66a;
+
+    &--award {
+        border-color: rgba(214, 166, 224, 0.36);
+        box-shadow: 0 16px 38px -14px rgba(0, 0, 0, 0.7), 0 0 22px -12px #d6a6e0;
+    }
+
+    &__kicker {
+        font-size: 9.5px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #e8c66a;
+        margin-bottom: 3px;
+    }
+    &--award &__kicker {
+        color: #d6a6e0;
+    }
+    &__name {
+        font-family: 'Prototype', @font_family_main;
+        font-size: 13.5px;
+        color: #f1e7cf;
+        margin-bottom: 5px;
+    }
+    &--award &__name {
+        color: #efe0f3;
+    }
+    &__desc {
+        font-size: 12px;
+        line-height: 1.4;
+        color: #c6d4dd;
+    }
+}
+
 /* ── Standard-project compact preview popover ─────────────────────── */
 
 .journal-sp-preview {
     position: fixed;
-    z-index: 12000;
+    z-index: 12700;
     pointer-events: none;
     display: flex;
     align-items: center;

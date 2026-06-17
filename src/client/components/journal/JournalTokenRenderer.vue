@@ -44,9 +44,9 @@
 
     <!-- Named game objects — semantic, calm chips. -->
     <span v-else-if="token.type === LogMessageDataType.GLOBAL_EVENT" class="journal-token journal-token--global-event" v-i18n>{{ token.value }}</span>
-    <span v-else-if="token.type === LogMessageDataType.COLONY" class="journal-token journal-token--colony" v-i18n>{{ token.value }}</span>
-    <span v-else-if="token.type === LogMessageDataType.AWARD" class="journal-token journal-token--award" v-i18n>{{ token.value }}</span>
-    <span v-else-if="token.type === LogMessageDataType.MILESTONE" class="journal-token journal-token--milestone" v-i18n>{{ token.value }}</span>
+    <JournalColonyChip v-else-if="token.type === LogMessageDataType.COLONY" :name="token.value" />
+    <JournalMaChip v-else-if="token.type === LogMessageDataType.AWARD" kind="award" :name="token.value" />
+    <JournalMaChip v-else-if="token.type === LogMessageDataType.MILESTONE" kind="milestone" :name="token.value" />
     <span v-else-if="token.type === LogMessageDataType.PARTY" class="journal-token journal-token--party" v-i18n>{{ token.value }}</span>
     <span v-else-if="token.type === LogMessageDataType.UNDERGROUND_TOKEN" class="journal-token journal-token--underground" v-i18n>{{ undergroundDescription[token.value] }}</span>
     <span v-else-if="token.type === LogMessageDataType.TILE_TYPE" class="journal-em" v-i18n>{{ tileTypeToString[token.value] }}</span>
@@ -72,6 +72,8 @@ import {range} from '@/common/utils/utils';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {gameLocaleToIntlLocale} from '@/client/utils/LocaleUtils';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
+import JournalColonyChip from '@/client/components/journal/JournalColonyChip.vue';
+import JournalMaChip from '@/client/components/journal/JournalMaChip.vue';
 import {highlightBoardSpace} from '@/client/components/journal/boardCellHighlight';
 
 type CardPart = {kind: 'card', name: CardName} | {kind: 'text', text: string};
@@ -84,7 +86,7 @@ type CardPart = {kind: 'card', name: CardName} | {kind: 'text', text: string};
  */
 export default defineComponent({
   name: 'JournalTokenRenderer',
-  components: {JournalCardChip},
+  components: {JournalCardChip, JournalColonyChip, JournalMaChip},
   props: {
     token: {
       type: [String, Object] as PropType<string | LogMessageData>,

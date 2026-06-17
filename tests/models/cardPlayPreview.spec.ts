@@ -56,6 +56,8 @@ import {Atmoscoop} from '../../src/server/cards/venusNext/Atmoscoop';
 import {SponsoredAcademies} from '../../src/server/cards/venusNext/SponsoredAcademies';
 import {StormCraftIncorporated} from '../../src/server/cards/colonies/StormCraftIncorporated';
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
+import {StratosphericBirds} from '../../src/server/cards/venusNext/StratosphericBirds';
+import {DeuteriumExport} from '../../src/server/cards/venusNext/DeuteriumExport';
 import {StealResources} from '../../src/server/deferredActions/StealResources';
 import {Virus} from '../../src/server/cards/base/Virus';
 import {ProductiveOutpost} from '../../src/server/cards/colonies/ProductiveOutpost';
@@ -249,6 +251,35 @@ describe('cardPlayPreview', () => {
   // The preview's pre-collected step response must be byte-compatible with the
   // LIVE follow-up prompt the server produces after play, so the batch lines up.
   describe('play protocol (preview step matches the live follow-up)', () => {
+    it('StratosphericBirds: the "spend a floater from a card" SOURCE pick is pre-collected (not a post-confirm modal)', () => {
+      const [game, player] = testGame(2);
+      const dirigibles = new Dirigibles();
+      const deuteriumExport = new DeuteriumExport();
+      player.playedCards.push(dirigibles, deuteriumExport);
+      player.addResourceTo(dirigibles, 2);
+      player.addResourceTo(deuteriumExport, 1);
+      const card = new StratosphericBirds();
+
+      // The on-play preview hosts the floater-SOURCE picker IN the modal — every
+      // floater-holding card is a candidate (the player chooses WHICH to spend from
+      // BEFORE confirm). This is the class the audit covers: a "spend from one of your
+      // cards" source pick, not just a target-player pick.
+      const step = card.cardPlayPreview(player).branches[0].steps
+        .find((s) => s.kind === 'input' && s.input.type === 'card');
+      expect(step, 'a floater-source card pick step').to.exist;
+      const previewNames = step!.kind === 'input' ? (step!.input as SelectCardModel).cards.map((c) => c.name) : [];
+      expect(previewNames).to.have.members([dirigibles.name, deuteriumExport.name]);
+
+      // Live play: bespokePlay defers the floater RemoveResourcesFromCard — the LIVE
+      // SelectCard enumerates the SAME candidates, so the pre-collected pick replays.
+      player.playCard(card);
+      runAllActions(game);
+      const live = cast(player.popWaitingFor(), SelectCard);
+      expect(live.cards.map((c) => c.name)).to.have.members(previewNames);
+      live.process({type: 'card', cards: [dirigibles.name]}, player);
+      expect(dirigibles.resourceCount).to.eq(1); // 2 − 1, no post-confirm modal needed
+    });
+
     it('VenusSoils: the previewed microbe-target step matches the live AddResourcesToCard prompt', () => {
       const [game, player] = testGame(2);
       const t1 = new Tardigrades();

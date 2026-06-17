@@ -157,6 +157,53 @@ itself — FAILS if a self-holding card stops offering itself. Plus explicit
 `cardPlayPreview.spec.ts` tests (Jovian Lanterns offers itself with no other floater card
 + the live replay; Titan Floating Launch-pad's Jovian-restricted self-target).
 
+## Follow-up audit — SOURCE / DESTINATION card selection (not just target players)
+
+A later review asked whether the pre-collection contract also covers "pick one of YOUR
+cards as the source/destination" (e.g. **Stratospheric Birds** / «Птицы в стратосфере»:
+*spend 1 floater from any of your cards* on play) — a class the earlier target-player
+audit might have missed.
+
+**Finding: the source/destination class IS covered.** Every in-scope card whose ON-PLAY
+effect picks a SOURCE card (spend a card resource from one of your cards) or a
+DESTINATION card (add a resource to one of your cards) pre-collects it:
+
+| On-play card pick | mechanism | covered by |
+| --- | --- | --- |
+| **Stratospheric Birds** — spend 1 floater from a card | `RemoveResourcesFromCard(source:'self', autoselect:false)` | co-located `cardPlayPreview` hook → `previewSelectCard()` |
+| **Air Raid** — spend 1 floater from a card | same | `cardPlayPreview` hook |
+| **Venus Soils / Eos Chasma / Imported Nitrogen / … (~15)** — add a card resource to ANY card | declarative `addResourcesToAnyCard` | the `stepsForBehavior` walker (+ the `cardBeingPlayed` self-target fix above) |
+| **Ecology Research** — add a microbe AND an animal to cards | bespoke | `cardPlayPreview` hook (two pickers) |
+| **Virus** — remove animals / plants | bespoke | `cardPlayPreview` hook (tabbed picker) |
+| Blue-card ACTIONS that spend/add from a card (Ants, Predators, Titan Shuttles, Titan Floating Launch-pad, Jupiter Floating Station) | — | the ACTION-confirm modal (`actionPreview`), a separate already-covered surface |
+
+**Stratospheric Birds verified end-to-end.** Its `cardPlayPreview` hook builds the
+floater-source `SelectCard` via `RemoveResourcesFromCard.previewSelectCard()` (with
+`autoselect:false`, so the picker shows EVEN for one candidate). The client routes a
+card pick by `cardPickSurface`: ≤3 own-tableau candidates render inline as
+`ActionTargetCard` tiles in the modal; >3 route to the РАЗЫГРАНО board pick-mode — both
+PRE-CONFIRM. A new guard in `cardPlayPreview.spec.ts` ("StratosphericBirds: the spend-a-
+floater-from-a-card SOURCE pick is pre-collected") asserts the preview emits the source
+step with every floater card as a candidate AND that the live `RemoveResourcesFromCard`
+prompt enumerates the SAME candidates, so the pre-collected pick replays byte-for-byte.
+
+**No declarative `spend.resourceFromAnyCard` gap in scope.** A programmatic sweep found
+ZERO in-scope declarative cards whose `behavior.spend` defers a card/hand pick — so there
+is no "pure-declarative spend-from-card slips past the coverage spec" analog of the
+removeAnyPlants gap. (If a future expansion adds one, `stepsForBehavior` must emit a
+`spend.resourceFromAnyCard` step the same way it does for `addResourcesToAnyCard`.)
+
+**Root cause of the report (why it can still APPEAR delayed).** The server hook +
+client routing pre-collect correctly in the CURRENT code — a guard test proves it. The
+ONE degradation path: `HandCardPaymentContent.fetchPreview` falls back to a synthetic
+no-step `dynamic` branch IF the `/api/card-play-preview` fetch FAILS (by design — a
+failed preview must not BLOCK the play). With no steps, the floater-source pick then
+rides the live post-confirm `RemoveResourcesFromCard`. So a stale client bundle (the
+hook + the `cardPickSurface` routing predate the running build) or a transient preview
+fetch failure reproduces the reported symptom even though the committed code is correct.
+Possible hardening (not done — no evidence of a live fetch failure): retry the preview
+fetch once before falling back. Surfaced for follow-up.
+
 ## Journal / notifications
 
 Unchanged. The fix alters NO game logic — `RemoveAnyPlants` still calls

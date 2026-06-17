@@ -1,14 +1,18 @@
 import {CardModel} from './CardModel';
 import {CardName} from '../cards/CardName';
+import {ColonyName} from '../colonies/ColonyName';
 
 /**
  * Where a batch of drawn cards came from, used to give the player a
- * contextual subtitle in the "cards received" reveal modal. Attributed only
- * where it's cheaply known (the behavior executor knows the card being
- * played; tile bonuses tag themselves); otherwise omitted → generic text.
+ * contextual subtitle in the "cards received" reveal modal. Attributed where
+ * cheaply known (the behavior executor knows the card being played; a colony
+ * bonus tags itself; tile bonuses tag themselves); otherwise omitted → generic
+ * text. A `card` / `colony` source renders as a HOVERABLE chip (mini-card
+ * popover) + click-to-fullscreen for a card.
  */
 export type CardDrawRevealSource =
   | {type: 'card', cardName: CardName}
+  | {type: 'colony', colonyName: ColonyName}
   | {type: 'tile'}
   | {type: 'other'};
 
