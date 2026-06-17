@@ -131,7 +131,7 @@
         <span class="eg-insight__glow" aria-hidden="true"></span>
         <span class="eg-insight__icon" aria-hidden="true">{{ heroInsight.glyph }}</span>
         <div class="eg-insight__body">
-          <span class="eg-insight__badge" v-i18n>{{ heroInsight.badge }}</span>
+          <ExplainableBadge :label="heroInsight.badge" :detail="heroInsight.detail" />
           <span class="eg-insight__text">{{ heroInsight.text }}</span>
           <!-- Evidence chips: the numbers + meaning behind the headline. -->
           <div v-if="heroInsight.chips.length > 0" class="eg-insight__chips">
@@ -159,7 +159,7 @@
                    :style="insightStyle(line, i)">
             <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
             <div class="eg-insight__body">
-              <span class="eg-insight__badge" v-i18n>{{ line.badge }}</span>
+              <ExplainableBadge :label="line.badge" :detail="line.detail" />
               <span class="eg-insight__text">{{ line.text }}</span>
               <div v-if="line.chips.length > 0" class="eg-insight__chips">
                 <span v-for="(ch, ci) in line.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
@@ -178,7 +178,7 @@
                    :style="insightStyle(line, i)">
             <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
             <div class="eg-insight__body">
-              <span class="eg-insight__badge" v-i18n>{{ line.badge }}</span>
+              <ExplainableBadge :label="line.badge" :detail="line.detail" />
               <span class="eg-insight__text">{{ line.text }}</span>
               <div v-if="line.chips.length > 0" class="eg-insight__chips">
                 <span v-for="(ch, ci) in line.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
@@ -200,7 +200,7 @@
               <span v-if="isViewer(arc.color)" class="eg-arc__you" v-i18n>You</span>
               <span v-if="arc.isWinner" class="eg-arc__crown" aria-hidden="true">♛</span>
             </div>
-            <div class="eg-arc__style" v-i18n>{{ arc.style }}</div>
+            <ExplainableBadge badge-class="eg-arc__style" :label="arc.style" :detail="arc.styleDetail" />
             <div v-if="arc.tags.length > 0" class="eg-arc__tags">
               <span v-for="(tg, ti) in arc.tags" :key="ti" class="eg-chip eg-chip--neutral" v-i18n>{{ tg }}</span>
             </div>
@@ -231,7 +231,7 @@
                    :style="insightStyle(line, i)">
             <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
             <div class="eg-insight__body">
-              <span class="eg-insight__badge" v-i18n>{{ line.badge }}</span>
+              <ExplainableBadge :label="line.badge" :detail="line.detail" />
               <span class="eg-insight__text">{{ line.text }}</span>
               <div v-if="line.chips.length > 0" class="eg-insight__chips">
                 <span v-for="(ch, ci) in line.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
@@ -248,7 +248,7 @@
                  :style="insightStyle(line, i)">
           <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
           <div class="eg-insight__body">
-            <span class="eg-insight__badge" v-i18n>{{ line.badge }}</span>
+            <ExplainableBadge :label="line.badge" :detail="line.detail" />
             <span class="eg-insight__text">{{ line.text }}</span>
           </div>
         </article>
@@ -264,7 +264,7 @@
                  :style="insightStyle(line, i)">
           <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
           <div class="eg-insight__body">
-            <span class="eg-insight__badge" v-i18n>{{ line.badge }}</span>
+            <ExplainableBadge :label="line.badge" :detail="line.detail" />
             <span class="eg-insight__text">{{ line.text }}</span>
           </div>
         </article>
@@ -305,9 +305,11 @@ import {CardName} from '@/common/cards/CardName';
 import {EndgameModel, EndgameCategory, EndgameCategoryKey, EndgamePlayerScore, ENDGAME_CATEGORY_LABEL} from '@/client/components/endgame/endgameModel';
 import {EndgameInsightView, InsightIcon} from '@/client/components/endgame/insightEngine';
 import type {StoryType, StoryTwistKind} from '@/client/components/endgame/gameStoryDna';
+import type {ChipDetail} from '@/client/components/endgame/insightDetail';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
+import ExplainableBadge from '@/client/components/endgame/ExplainableBadge.vue';
 import {translateTextWithParams, $t} from '@/client/directives/i18n';
 
 // Insight icons → text glyphs (deliberately NOT emoji — they stay in the
@@ -378,6 +380,7 @@ type InsightLine = {
   storyRole?: string;
   storySection?: string;
   chips: Array<EvidenceChipView>; // evidence chips (composed/translated)
+  detail?: ChipDetail; // Iteration 12 — hover/focus explanation
   relatedPlayers?: ReadonlyArray<Color>;
 };
 
@@ -391,6 +394,7 @@ type ArcView = {
   strongest?: EndgameCategoryKey;
   workedBadge?: string; // i18n key — what worked (their strongest visible insight)
   failedBadge?: string; // i18n key — where it fell short
+  styleDetail?: ChipDetail; // Iteration 12 — "why this style" explanation
 };
 
 type Fact = {
@@ -406,7 +410,7 @@ type Fact = {
 
 export default defineComponent({
   name: 'EndgameOverviewTab',
-  components: {JournalCardChip},
+  components: {JournalCardChip, ExplainableBadge},
   props: {
     model: {type: Object as () => EndgameModel, required: true},
     // Declared so the shell's shared <component :is> props don't fall through
@@ -498,6 +502,7 @@ export default defineComponent({
           style: arc.style, tags: [...arc.shortSummaryTags],
           strongest: p.strongestCategory,
           workedBadge: worked?.badge, failedBadge: failed?.badge,
+          styleDetail: arc.styleDetail,
         });
       }
       return views;
@@ -634,6 +639,7 @@ export default defineComponent({
         storyRole: ins.storyRole,
         storySection: ins.storySection,
         chips: (ins.evidenceChips ?? []).map((ch) => ({text: ch.t === 'raw' ? ch.v : $t(ch.v), tone: ch.tone ?? 'neutral'})),
+        detail: ins.detail,
         relatedPlayers: ins.relatedPlayers,
       };
     },

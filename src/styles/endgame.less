@@ -819,6 +819,119 @@
 .eg-arc__facet--good .eg-arc__facet-val { color: #8fd8ad; }
 .eg-arc__facet--bad .eg-arc__facet-val { color: #e8a0a0; }
 
+/* ── Iteration 12: explainable badges + hover/focus detail popover ── */
+.eg-xbadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.eg-xbadge--interactive {
+    cursor: help;
+    outline: none;
+
+    .eg-xbadge__mark {
+        display: inline-grid;
+        place-items: center;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        font-size: 8.5px;
+        font-weight: 700;
+        line-height: 1;
+        color: ~"color-mix(in srgb, var(--eg-pc, @eg-cyan) 75%, #cfe3f5)";
+        background: ~"color-mix(in srgb, var(--eg-pc, @eg-cyan) 16%, transparent)";
+        box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-pc, @eg-cyan) 40%, transparent)";
+        opacity: 0.7;
+        transition: opacity 130ms ease;
+    }
+    &:hover .eg-xbadge__mark, &:focus-visible .eg-xbadge__mark { opacity: 1; }
+    &:focus-visible { box-shadow: 0 0 0 2px ~"color-mix(in srgb, var(--eg-pc, @eg-cyan) 55%, transparent)"; border-radius: 6px; }
+}
+
+.eg-detail {
+    --eg-dc: @eg-cyan;
+    box-sizing: border-box;
+    padding: 12px 14px 13px;
+    border-radius: 11px;
+    background:
+        linear-gradient(180deg, ~"color-mix(in srgb, var(--eg-dc) 10%, transparent)", rgba(9, 14, 22, 0)),
+        rgba(10, 16, 25, 0.96);
+    box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-dc) 30%, transparent)", inset 3px 0 0 var(--eg-dc), 0 14px 40px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    pointer-events: none; /* pure info — never traps the cursor */
+    animation: eg-detail-in 130ms ease-out backwards;
+}
+@keyframes eg-detail-in {
+    0% { opacity: 0; transform: translateY(-4px); }
+    100% { opacity: 1; transform: none; }
+}
+.eg-detail__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.eg-detail__title {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 12.5px;
+    letter-spacing: 0.6px;
+    color: ~"color-mix(in srgb, var(--eg-dc) 70%, #eaf3fb)";
+}
+.eg-detail__conf {
+    flex: 0 0 auto;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 9px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #9fb6cc;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(159, 182, 204, 0.25);
+}
+.eg-detail__conf--exact { color: #8fd8ad; box-shadow: inset 0 0 0 1px rgba(143, 216, 173, 0.4); }
+.eg-detail__conf--measured { color: #7fd0e6; box-shadow: inset 0 0 0 1px rgba(127, 208, 230, 0.4); }
+.eg-detail__conf--partial { color: #f3c969; box-shadow: inset 0 0 0 1px rgba(243, 201, 105, 0.4); }
+.eg-detail__conf--ruleOnly { color: #9fb6cc; }
+.eg-detail__explain { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: #cfddec; }
+.eg-detail__evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.eg-detail__why {
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: #aebfd0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.eg-detail__why-lbl {
+    font-size: 8.5px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: ~"color-mix(in srgb, var(--eg-dc) 60%, #8aa0b6)";
+}
+.eg-detail__caveat {
+    margin: 7px 0 0;
+    font-size: 10.5px;
+    font-style: italic;
+    line-height: 1.4;
+    color: #8298ad;
+}
+/* Family accent for the popover rim — mirrors the .eg-fam colours. */
+.eg-dc(@name, @col) { .eg-detail--fam-@{name} { --eg-dc: @col; } }
+.eg-dc(economy, #f3c969);
+.eg-dc(colony, #a99af0);
+.eg-dc(negativeDrama, #e87878);
+.eg-dc(duelContrast, #d7a8f0);
+.eg-dc(reveal, #b6a0f0);
+.eg-dc(unusedPotential, #c8b88a);
+.eg-dc(globalParameter, #7fd0e6);
+.eg-dc(rareEvent, #c79af0);
+.eg-dc(cardStory, #6ab0e6);
+.eg-dc(runnerUpStory, #9fb6cc);
+.eg-dc(turningPoint, #7fd0e6);
+.eg-dc(standardProject, #b0a896);
+.eg-dc(blueAction, #6ab0e6);
+.eg-dc(boardStory, #8fd0a0);
+
+@media (prefers-reduced-motion: reduce) {
+    .eg-detail { animation: none; }
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    Overview — duel
    ══════════════════════════════════════════════════════════════════════ */

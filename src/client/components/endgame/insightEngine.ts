@@ -35,6 +35,7 @@ import {CardName} from '@/common/cards/CardName';
 import type {EndgameFact, FactType, FactTag} from '@/common/events/endgameFacts';
 import {analyzeSpecialCardStories} from '@/client/components/endgame/specialCardStories';
 import {buildGameStoryDna, type GameStoryDNA} from '@/client/components/endgame/gameStoryDna';
+import {buildInsightDetail, type ChipDetail} from '@/client/components/endgame/insightDetail';
 import type {
   EndgameCategory,
   EndgameCategoryKey,
@@ -207,6 +208,11 @@ export type InsightCandidate = {
   storySection?: StorySection;
   /** Small metric/label chips so a hero / family card SHOWS its evidence. */
   evidenceChips?: ReadonlyArray<EvidenceChip>;
+
+  // ── Iteration 12: explainability (set by the composer) ──
+  /** The hover/focus EXPLANATION (title / meaning / evidence / why / confidence). The
+   *  premium popover renders it; undefined → the badge is self-evident (no popover). */
+  detail?: ChipDetail;
 };
 
 // What the selector returns — same shape; alias for readability at call sites.
@@ -2581,7 +2587,11 @@ export function composeStory(ctx: InsightContext): {dna: GameStoryDNA; insights:
   insights = surfaceRunnerUpVoice(insights, dna);
   insights = assignStorySections(insights, dna);
   // 6) Visual identity: a meaningful, type-revealing icon per card (Iteration 11).
-  insights = insights.map((c) => ({...c, icon: resolveInsightIcon(c)}));
+  // 7) Explainability: attach the hover/focus detail (Iteration 12).
+  insights = insights.map((c) => {
+    const withIcon = {...c, icon: resolveInsightIcon(c)};
+    return {...withIcon, detail: buildInsightDetail(withIcon)};
+  });
   return {dna, insights};
 }
 

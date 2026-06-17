@@ -53,6 +53,13 @@ describe('EndgameOverviewTab', () => {
     // Iteration 10: the player-arcs section renders both players' arcs in a duel.
     expect(wrapper.find('.eg-storysec--arcs').exists(), 'player arcs section').to.eq(true);
     expect(wrapper.findAll('.eg-arc').length, 'an arc card per player').to.eq(2);
+    // Iteration 12: the style chip is an EXPLAINABLE badge (hover/focus detail), with the
+    // "?" affordance + a focusable role — no native title.
+    const styleBadge = wrapper.find('.eg-arc .eg-xbadge--interactive');
+    expect(styleBadge.exists(), 'style chip is explainable').to.eq(true);
+    expect(styleBadge.attributes('role')).to.eq('button');
+    expect(styleBadge.attributes('tabindex')).to.eq('0');
+    expect(wrapper.find('.eg-arc .eg-xbadge__mark').exists(), 'has the ? affordance').to.eq(true);
   });
 
   it('renders the podium + leaderboard for three players', () => {

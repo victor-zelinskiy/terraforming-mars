@@ -24,6 +24,7 @@ import type {Color} from '@/common/Color';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import type {EndgameCategoryKey} from '@/client/components/endgame/endgameModel';
 import type {InsightCandidate, InsightContext, InsightFamily} from '@/client/components/endgame/insightEngine';
+import {buildStyleDetail, type ChipDetail} from '@/client/components/endgame/insightDetail';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -87,6 +88,8 @@ export type PlayerArc = {
   lateMomentum: number; // VP gained over the final two generations
   /** Short i18n tag KEYS describing the arc (e.g. 'Economy Engine', 'Under pressure'). */
   shortSummaryTags: ReadonlyArray<string>;
+  /** Iteration 12 — the "why this style" explainability detail for the style chip. */
+  styleDetail?: ChipDetail;
 };
 
 export type GameStoryDNA = {
@@ -426,6 +429,7 @@ export function buildGameStoryDna(
       directPressureReceived: received,
       lateMomentum,
       shortSummaryTags: tags,
+      styleDetail: buildStyleDetail(ctx, p.color, style),
     };
   }
 

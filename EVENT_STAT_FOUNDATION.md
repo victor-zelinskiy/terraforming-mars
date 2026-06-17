@@ -1143,3 +1143,89 @@ Per-source CLEAN-steal attribution + a production-steal-vs-energy counter analyz
 profile data is now in ctx); a board-closed bridge (final parameter LEVELS from game state);
 bespoke per-family card LAYOUTS (today: shared card + family icon/accent/chips); a 3rd
 "most unusual" multiplayer player-arc; a live dev candidate-scoring panel.
+
+# Iteration 12 — Insight Explainability (badge hover details) + editorial rewrite
+
+Every important badge / chip can now be hovered/focused for a premium "why did the engine
+say this?" popover — backed by the SAME evidence, never a parallel truth.
+
+## §2 — the explainability MODEL (`insightDetail.ts`, PURE)
+
+`ChipDetail` = `{title, explanation, whyItMatters?, evidence[], confidence?, caveat?,
+accent?}` (all texts are English i18n KEYS). `buildInsightDetail(insight)` resolves a
+per-cluster (or per-id) explanation/why/confidence from the `CLUSTER_DETAIL` registry
+(~32 clusters + `cards.best-loser` by id) and REUSES the insight's `evidenceChips` verbatim
+as the evidence rows — so the popover numbers are identically the card numbers. An explicit
+`exact`/`measured` chip on the card overrides the cluster's default confidence. An
+unregistered/decorative badge → `undefined` (no popover). NO runtime import of insightEngine
+(type-only) → no module cycle (the composer imports `buildInsightDetail`).
+
+## §3 — player STYLE explainability (the flagship)
+
+`buildStyleDetail(ctx, color, style)` answers "why did the engine call them an Aggressor /
+Colonist / …" — it derives the evidence rows from the SAME facts `duelStyle` reads
+(attacks + resources dealt for Disruptor, trades for Colony Trader, savedMegacredits for
+Economy Engine, activations for Blue Action Engine, reveals for Card Flow, …), plus the
+player's strongest VP category and any pressure they took. `STYLE_DETAIL` carries the
+per-style explanation + why-it-matters. A THIN-evidence style is honest: it adds a caveat
+("read from limited data — the main signal is shown above"). The detail is attached to the
+DNA `playerArcs[color].styleDetail` (built in `gameStoryDna`, which runtime-imports
+`buildStyleDetail`).
+
+## §1,14,15 — the popover UI (`ExplainableBadge.vue`)
+
+A reusable badge wrapper: renders the badge text + a subtle `?` affordance, and on
+hover OR keyboard-focus OR click (touch) opens a Teleported, viewport-aware, dark-glass
+popover (title + confidence chip + explanation + evidence chips + why-it-matters + caveat),
+family-accented (`.eg-detail--fam-*` mirrors `.eg-fam` colours). ESC closes; the popover is
+`pointer-events:none` (pure info); `prefers-reduced-motion: reduce` kills the fade. NO native
+`title`. Accessible: `role="button"`, `tabindex`, `aria-label` (title + meaning),
+`aria-expanded`. Wired into EVERY insight badge (hero + all sections) via `InsightCandidate.
+detail` (set by the composer step 7) and onto the player-arc STYLE chips via
+`arc.styleDetail`.
+
+## §9-12 — editorial rewrite + honesty
+
+Reworked the weak ru phrasings the brief flagged — the banned label "победил стиль «X»" is
+gone (the duel-style line now reads "Столкнулись два плана: A (style) против B (style) — и в
+этой партии подход A оказался сильнее"); "Колониальный движок вытащил партию" → "Колонии
+стали скрытым двигателем партии…"; "Движок, который так и не стал очками" → "Потенциал был,
+но не успел стать очками"; "Прямое давление сформировало исход" → "Давление по ресурсам
+изменило темп партии…"; "Экономика на одной стороне…" → "Один игрок был богаче, другой —
+точнее в реализации". Confidence is surfaced everywhere (Exact/Measured/Partial reusing the
+existing `ui.json` labels where present); economy details carry the honest "card draw is not
+converted to M€" caveat; unused-potential/leftover carry "no exact proof these could have
+become VP". ~95 new `ru/endgame.json` keys (explanation/why/caveat per cluster + per style),
+all `grep`-checked, no dupes; `Exact`/`Partial`/the category labels reused from `ui.json`.
+
+## §17 — tests
+
+`insightDetail.spec.ts` (15): economy measured+caveat, exact-chip override, colony-
+domination partial, counterplay why, unused-potential caveat, best-card by-id, NO detail for
+a decorative badge; style Disruptor (attacks+dealt evidence), Colony Trader (trades), thin-
+style caveat; + an **editorial guard** asserting no `ru/endgame.json` value contains a banned
+phrase ("победил стиль", "играл как") or debug term (storyCluster/evidenceKey/finalScore).
+`EndgameOverviewTab.spec` asserts the style chip renders as an explainable badge
+(`.eg-xbadge--interactive` + `role=button` + `tabindex=0` + the `?` mark).
+
+## §10 — remaining chips without details (intentional)
+
+Decorative/self-evident chips (pure number chips inside a card, the rivalry VS dots, the
+arc tag chips) deliberately have no popover — only the analytical BADGES + style chips are
+explainable. The hero evidence-chip ROWS are explained by the hero badge's own detail (one
+popover per card, not per micro-chip — avoids popover noise).
+
+## Verification / non-breaking
+
+`build:server` unaffected (the detail layer is client-side, reads `ctx.facts`); `vue-tsc`
+(0 — `aria-expanded` bound as boolean, not `String()`); `make:json` (no dupes); eslint on
+touched files (quote-props auto-fixed); 141 pure + 3 UI specs green. Old games (no facts) →
+style details still build from standings (strongest category); no detail invents data;
+honest confidence + caveats; deterministic.
+
+## Next wave (Iteration 13 candidates)
+
+Per-source clean-steal + production-steal-vs-energy counter; board-closed bridge (final
+parameter LEVELS); bespoke per-family card layouts; a live candidate-scoring dev panel; an
+interactive (mouse-into) popover with a "open full detail" link to the debug panel; richer
+per-evidence-chip explanations for the most complex cards.
