@@ -57,6 +57,8 @@ export type EndgameModelOptions = {
   // template analyzers when absent (old games / before the fetch resolves).
   facts?: ReadonlyArray<EndgameFact>;
   playerCards?: Partial<Record<Color, ReadonlyArray<CardName>>>;
+  /** Resource count on each player's cards (card name → units) — for Vermin 2.0. */
+  cardResources?: Partial<Record<Color, Partial<Record<CardName, number>>>>;
 };
 
 // The major VP families compared across players ("who won what").
@@ -405,6 +407,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     seed: gameSeed(players, opts.generation),
     facts: opts.facts,
     playerCards: opts.playerCards,
+    cardResources: opts.cardResources,
   }) : [];
 
   return {

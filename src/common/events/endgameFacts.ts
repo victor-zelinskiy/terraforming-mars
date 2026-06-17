@@ -31,7 +31,8 @@ import {
 
 export type FactType =
   'economy' | 'actionUsage' | 'passiveEffect' | 'globalParameter' |
-  'colony' | 'negativeInteraction' | 'engineTiming' | 'notableEvent' | 'reveal';
+  'colony' | 'negativeInteraction' | 'engineTiming' | 'notableEvent' | 'reveal' |
+  'standardProject';
 
 export type FactConfidence = 'exact' | 'partial' | 'approximate' | 'ruleOnly';
 
@@ -364,6 +365,51 @@ function engineTimingFacts(events: ReadonlyArray<GameEvent>, opts: BuildFactsOpt
   return facts;
 }
 
+// ── Standard projects (infrastructure strategy) ────────────────────────────────
+
+function standardProjectFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
+  const byId = new Map<number, GameEvent>();
+  for (const e of events) {
+    byId.set(e.id, e);
+  }
+  // Per player: how many standard projects they ran + the parameter steps those drove.
+  const byPlayer = new Map<Color, {count: number; paramSteps: number; ids: Array<number>}>();
+  for (const e of events) {
+    if (e.category === 'standard-project' && e.player !== undefined) {
+      const p = byPlayer.get(e.player) ?? {count: 0, paramSteps: 0, ids: []};
+      p.count += 1;
+      p.ids.push(e.id);
+      byPlayer.set(e.player, p);
+    }
+    // Parameter steps under a standard-project root.
+    if (e.type === 'global-parameter-changed' && e.impact.globalParameter !== undefined && e.player !== undefined) {
+      const root = byId.get(e.correlationId);
+      if (root?.category === 'standard-project') {
+        const p = byPlayer.get(e.player) ?? {count: 0, paramSteps: 0, ids: []};
+        p.paramSteps += e.impact.globalParameter.steps;
+        byPlayer.set(e.player, p);
+      }
+    }
+  }
+  const facts: Array<EndgameFact> = [];
+  for (const [color, p] of byPlayer) {
+    if (p.count === 0) {
+      continue;
+    }
+    facts.push({
+      id: `standardProject:${color}`,
+      type: 'standardProject',
+      player: color,
+      severity: clamp01(p.count / 8),
+      confidence: 'exact',
+      metrics: {projects: p.count, parameterSteps: p.paramSteps},
+      relatedEventIds: p.ids,
+      tags: ['global'],
+    });
+  }
+  return facts;
+}
+
 // ── Reveal / search / show card flow ───────────────────────────────────────────
 
 function revealFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
@@ -565,6 +611,7 @@ export function buildEndgameFacts(events: ReadonlyArray<GameEvent>, opts: BuildF
     ...colonyFacts(events),
     ...negativeInteractionFacts(events),
     ...revealFacts(events),
+    ...standardProjectFacts(events),
     ...engineTimingFacts(events, opts),
     ...notableEventFacts(events),
   ];
