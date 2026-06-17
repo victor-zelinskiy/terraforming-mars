@@ -26,6 +26,8 @@ function emptyStat(name: CardName, isCorporation: boolean): EffectOverlayStat {
     production: Units.EMPTY,
     cardResources: {},
     paymentResources: {},
+    paymentValueBonus: {steel: 0, titanium: 0, bonusValue: 0, count: 0},
+    colonyTrack: {steps: 0, extraReward: 0, count: 0, colonies: {}},
     tr: 0,
     globalParameterSteps: {},
     vp: 0,

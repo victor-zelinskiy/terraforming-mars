@@ -21,12 +21,16 @@ function stat(overrides: Partial<EffectOverlayStat>): EffectOverlayStat {
     production: Units.EMPTY,
     cardResources: {},
     paymentResources: {},
+    paymentValueBonus: {steel: 0, titanium: 0, bonusValue: 0, count: 0},
+    colonyTrack: {steps: 0, extraReward: 0, count: 0, colonies: {}},
     tr: 0,
     globalParameterSteps: {},
     vp: 0,
     ...overrides,
   };
 }
+
+const PASSIVE_RULE_NOTE = 'A passive rule — it shapes how you play rather than producing a tally.';
 
 describe('effect summary view-model', () => {
   it('reports an empty state for an effect that never fired', () => {
@@ -221,5 +225,81 @@ describe('effect summary view-model', () => {
     expect(vm.category).to.eq('payment');
     expect(vm.empty).to.be.true;
     expect(vm.note).to.not.be.undefined;
+  });
+
+  // ── ROOT-CAUSE FIX: signature-driven empty note (no more blanket "passive rule") ──
+
+  it('an unfired trigger effect frames its empty note by capability, NOT "passive rule"', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.MEDIA_GROUP}),
+      {
+        sourceName: CardName.MEDIA_GROUP,
+        sourceKind: 'card',
+        signature: {icons: ['megacredits'], discount: false, valueModifier: false, valueAsPayment: false},
+      });
+    expect(vm.empty).to.be.true;
+    expect(vm.category).to.eq('trigger');
+    expect(vm.note).to.not.eq(PASSIVE_RULE_NOTE);
+  });
+
+  it('a genuine rule-only effect (no result icons) still gets the honest "passive rule" note + ruleOnly confidence', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.PROTECTED_HABITATS}),
+      {
+        sourceName: CardName.PROTECTED_HABITATS,
+        sourceKind: 'card',
+        signature: {icons: [], discount: false, valueModifier: false, valueAsPayment: false},
+      });
+    expect(vm.empty).to.be.true;
+    // Protected Habitats has a curated note (not the bare fallback), but confidence is rule-only.
+    expect(vm.confidence).to.eq('ruleOnly');
+  });
+
+  // ── Payment-value modifier (steel/titanium worth more) ──
+
+  it('frames a steel/titanium value modifier as a payment-value bonus even before any payment', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.ADVANCED_ALLOYS}),
+      {sourceName: CardName.ADVANCED_ALLOYS, sourceKind: 'card'});
+    expect(vm.category).to.eq('paymentValueBonus');
+    expect(vm.note).to.not.eq(PASSIVE_RULE_NOTE);
+    expect(vm.confidence).to.eq('exact');
+  });
+
+  it('shows the recorded payment-value bonus (extra value + spent under effect)', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.ADVANCED_ALLOYS, paymentValueBonus: {steel: 4, titanium: 3, bonusValue: 7, count: 2}}),
+      {sourceName: CardName.ADVANCED_ALLOYS, sourceKind: 'card'});
+    expect(vm.empty).to.be.false;
+    expect(vm.headline).to.eq('Payment value bonus');
+    expect(vm.triggerCount).to.eq(2);
+    expect(vm.lines).to.deep.include({icon: 'megacredits', label: 'Extra value', value: '+7'});
+    expect(vm.lines).to.deep.include({icon: 'steel', label: 'Spent under effect', value: '4'});
+    expect(vm.lines).to.deep.include({icon: 'titanium', label: 'Spent under effect', value: '3'});
+    expect(vm.confidence).to.eq('exact');
+  });
+
+  // ── Colony-track bonus (Trading Colony) ──
+
+  it('frames Trading Colony AND Trade Envoys as colony-track effects even before any trade', () => {
+    for (const card of [CardName.TRADING_COLONY, CardName.TRADE_ENVOYS]) {
+      const vm = getEffectSummary(stat({card}), {sourceName: card, sourceKind: 'card'});
+      expect(vm.category, card).to.eq('colonyTrade');
+      expect(vm.note, card).to.not.eq(PASSIVE_RULE_NOTE);
+      expect(vm.confidence, card).to.eq('partial');
+    }
+  });
+
+  it('shows the recorded colony-track advances + per-colony breakdown', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.TRADING_COLONY, colonyTrack: {steps: 4, extraReward: 6, count: 4, colonies: {Pluto: 2, Luna: 1, Europa: 1} as any}}),
+      {sourceName: CardName.TRADING_COLONY, sourceKind: 'card'});
+    expect(vm.empty).to.be.false;
+    expect(vm.headline).to.eq('Colony track advanced');
+    expect(vm.triggerCount).to.eq(4);
+    expect(vm.lines).to.deep.include({label: 'Track advanced', value: '+4'});
+    expect(vm.lines).to.deep.include({label: 'Extra trade reward', value: '+6'});
+    expect(vm.breakdown?.[0]).to.deep.eq({label: 'Pluto', value: '+2'}); // sorted desc by steps
+    expect(vm.confidence).to.eq('partial');
   });
 });

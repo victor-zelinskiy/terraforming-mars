@@ -3,6 +3,7 @@ import {Units} from '../Units';
 import {CardResource} from '../CardResource';
 import {GlobalParameter} from '../GlobalParameter';
 import {CardName} from '../cards/CardName';
+import {ColonyName} from '../colonies/ColonyName';
 import {GameEvent, GameEventType} from './GameEvent';
 import {EventImpact} from './EventImpact';
 import {EventSource, sourceKey} from './EventSource';
@@ -20,6 +21,20 @@ const UNIT_KEYS: ReadonlyArray<keyof Units> = ['megacredits', 'steel', 'titanium
 // Event types that count as "a use / a firing" of a source (for triggerCount).
 const TRIGGER_TYPES: ReadonlyArray<GameEventType> = ['action', 'copied-action', 'effect-triggered', 'discount-applied'];
 
+/**
+ * Steel/Titanium spent UNDER a payment-value modifier + the EXACT extra M€ it
+ * gave (Advanced Alloys / Rego Plastics / PhoboLog …). `count` = how many payments
+ * the modifier touched (one per payment-bonus event).
+ */
+export type PaymentValueBonusStats = {steel: number; titanium: number; bonusValue: number; count: number};
+
+/**
+ * Colony-track steps a trade-offset effect (Trading Colony) advanced + the EXACT
+ * extra trade-reward units the bumps produced, broken down per colony. `count` =
+ * how many trades the effect boosted.
+ */
+export type ColonyTrackStats = {steps: number; extraReward: number; count: number; colonies: Partial<Record<ColonyName, number>>};
+
 export type SourceStats = {
   source: EventSource;
   /** How many times this source fired / was used / applied. */
@@ -30,6 +45,10 @@ export type SourceStats = {
   /** Card resources SPENT as payment (Psychrophiles microbes, Carbon Nanosystems
    *  graphene, …) — kept separate from `cardResources` (accumulation). */
   paymentResources: Partial<Record<CardResource, number>>;
+  /** Steel/Titanium value-modifier savings (Advanced Alloys, …). */
+  paymentValueBonus: PaymentValueBonusStats;
+  /** Colony-track advances from a trade-offset effect (Trading Colony). */
+  colonyTrack: ColonyTrackStats;
   tr: number;
   cardsDrawn: number;
   globalParameterSteps: Partial<Record<GlobalParameter, number>>;
@@ -39,13 +58,22 @@ export type SourceStats = {
   lastTrigger?: {generation: number; impact: EventImpact};
 };
 
+function emptyPaymentValueBonus(): PaymentValueBonusStats {
+  return {steel: 0, titanium: 0, bonusValue: 0, count: 0};
+}
+
+function emptyColonyTrack(): ColonyTrackStats {
+  return {steps: 0, extraReward: 0, count: 0, colonies: {}};
+}
+
 /** True if an impact carries any factual delta (used to find the last meaningful event). */
 function hasImpact(i: EventImpact): boolean {
   return i.stock !== undefined || i.production !== undefined || (i.cardResources?.length ?? 0) > 0 ||
     i.tr !== undefined || i.globalParameter !== undefined || i.cardsDrawn !== undefined ||
     i.cardsDiscarded !== undefined || i.vp !== undefined || i.tilesPlaced !== undefined ||
     i.megacreditsSaved !== undefined || i.megacreditsPaid !== undefined ||
-    (i.cardResourcesSpentAsPayment?.length ?? 0) > 0;
+    (i.cardResourcesSpentAsPayment?.length ?? 0) > 0 ||
+    (i.paymentValueBonus?.length ?? 0) > 0 || (i.colonyTrackAdvanced?.length ?? 0) > 0;
 }
 
 export type PlayerStats = Omit<SourceStats, 'source' | 'triggerCount'> & {
@@ -78,6 +106,8 @@ function newSourceStats(source: EventSource): SourceStats {
     production: emptyUnits(),
     cardResources: {},
     paymentResources: {},
+    paymentValueBonus: emptyPaymentValueBonus(),
+    colonyTrack: emptyColonyTrack(),
     tr: 0,
     cardsDrawn: 0,
     globalParameterSteps: {},
@@ -90,6 +120,7 @@ function newSourceStats(source: EventSource): SourceStats {
 function foldImpact(acc: {
   stock: Units; production: Units; cardResources: Partial<Record<CardResource, number>>;
   paymentResources: Partial<Record<CardResource, number>>;
+  paymentValueBonus: PaymentValueBonusStats; colonyTrack: ColonyTrackStats;
   tr: number; cardsDrawn: number; globalParameterSteps: Partial<Record<GlobalParameter, number>>;
   megacreditsSaved: number; vp: number;
 }, impact: EventImpact): void {
@@ -104,6 +135,22 @@ function foldImpact(acc: {
     for (const cr of impact.cardResourcesSpentAsPayment) {
       acc.paymentResources[cr.cardResource] = (acc.paymentResources[cr.cardResource] ?? 0) + cr.amount;
     }
+  }
+  if (impact.paymentValueBonus !== undefined) {
+    for (const pb of impact.paymentValueBonus) {
+      acc.paymentValueBonus[pb.resource] += pb.amountSpent;
+      acc.paymentValueBonus.bonusValue += pb.bonusValue;
+    }
+    // One payment-bonus event = one payment the modifier touched.
+    acc.paymentValueBonus.count += 1;
+  }
+  if (impact.colonyTrackAdvanced !== undefined) {
+    for (const ct of impact.colonyTrackAdvanced) {
+      acc.colonyTrack.steps += ct.steps;
+      acc.colonyTrack.extraReward += ct.extraReward;
+      acc.colonyTrack.colonies[ct.colony] = (acc.colonyTrack.colonies[ct.colony] ?? 0) + ct.steps;
+    }
+    acc.colonyTrack.count += 1;
   }
   if (impact.tr !== undefined) {
     acc.tr += impact.tr;
@@ -198,6 +245,7 @@ export function aggregateByPlayer(events: ReadonlyArray<GameEvent>): Map<Color, 
       stats = {
         color: e.player,
         stock: emptyUnits(), production: emptyUnits(), cardResources: {}, paymentResources: {},
+        paymentValueBonus: emptyPaymentValueBonus(), colonyTrack: emptyColonyTrack(),
         tr: 0, cardsDrawn: 0, globalParameterSteps: {}, megacreditsSaved: 0, vp: 0,
         megacreditsPaid: 0, tilesPlaced: 0,
       };
@@ -248,6 +296,10 @@ export type EffectOverlayStat = {
   cardResources: Partial<Record<CardResource, number>>;
   /** Card resources SPENT as payment (kept separate from accumulation). */
   paymentResources: Partial<Record<CardResource, number>>;
+  /** Steel/Titanium value-modifier savings (Advanced Alloys, …). */
+  paymentValueBonus: PaymentValueBonusStats;
+  /** Colony-track advances from a trade-offset effect (Trading Colony). */
+  colonyTrack: ColonyTrackStats;
   tr: number;
   globalParameterSteps: Partial<Record<GlobalParameter, number>>;
   vp: number;
@@ -268,6 +320,8 @@ export function toEffectOverlayStat(stats: SourceStats): EffectOverlayStat {
     production: stats.production,
     cardResources: stats.cardResources,
     paymentResources: stats.paymentResources,
+    paymentValueBonus: stats.paymentValueBonus,
+    colonyTrack: stats.colonyTrack,
     tr: stats.tr,
     globalParameterSteps: stats.globalParameterSteps,
     vp: stats.vp,

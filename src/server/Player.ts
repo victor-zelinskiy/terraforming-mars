@@ -896,8 +896,45 @@ export class Player implements IPlayer {
     removeResourcesOnCard(CardName.AURORAI, payment.auroraiData, DEFAULT_PAYMENT_VALUES.auroraiData);
     removeResourcesOnCard(CardName.KUIPER_COOPERATIVE, payment.kuiperAsteroids, DEFAULT_PAYMENT_VALUES.kuiperAsteroids);
 
+    this.recordPaymentValueBonus(payment);
+
     if (payment.megacredits > 0 || payment.steel > 0 || payment.titanium > 0) {
       PathfindersExpansion.addToSolBank(this);
+    }
+  }
+
+  /**
+   * Record the EXTRA M€ value any steel/titanium VALUE-modifier effect (Advanced
+   * Alloys / Rego Plastics / Mercurian Alloys / PhoboLog / …) contributed to this
+   * payment, attributed to the OWNING card — EXACT: each +1 modifier makes each unit
+   * of that resource worth 1 more M€. The declarative `behavior.steelValue` /
+   * `behavior.titanumValue` flag covers every such card across expansions; imperative
+   * modifiers (Price Wars / Turmoil policies) are out of scope and their share stays
+   * honestly unattributed (we never over-claim). Read-only side effect on the event
+   * stream — the actual resources were already deducted above.
+   */
+  private recordPaymentValueBonus(payment: Payment): void {
+    const events = this.game?.events;
+    if (events === undefined || (payment.steel === 0 && payment.titanium === 0)) {
+      return;
+    }
+    const steelBonusPerUnit = this.getSteelValue() - DEFAULT_PAYMENT_VALUES.steel;
+    const titaniumBonusPerUnit = this.getTitaniumValue() - DEFAULT_PAYMENT_VALUES.titanium;
+    if (steelBonusPerUnit <= 0 && titaniumBonusPerUnit <= 0) {
+      return;
+    }
+    for (const card of this.tableau) {
+      const behavior = card.behavior;
+      const entries: Array<{resource: 'steel' | 'titanium'; amountSpent: number; bonusValue: number}> = [];
+      if (payment.steel > 0 && steelBonusPerUnit > 0 && behavior?.steelValue === 1) {
+        entries.push({resource: 'steel', amountSpent: payment.steel, bonusValue: payment.steel * behavior.steelValue});
+      }
+      if (payment.titanium > 0 && titaniumBonusPerUnit > 0 && behavior?.titanumValue === 1) {
+        entries.push({resource: 'titanium', amountSpent: payment.titanium, bonusValue: payment.titanium * behavior.titanumValue});
+      }
+      if (entries.length > 0) {
+        events.recordPaymentValueBonus(this, card, entries);
+      }
     }
   }
 

@@ -138,8 +138,10 @@ export abstract class Colony implements IColony {
 
     if (this.metadata.shouldIncreaseTrack === 'yes' || (this.metadata.trade.resource !== undefined && this.metadata.trade.resource[this.trackPosition] === this.metadata.trade.resource[maxPossibleTrackPosition])) {
       // No point in asking the player, just increase it
+      const oldPosition = this.trackPosition;
       this.increaseTrack(steps);
       LogHelper.logColonyTrackIncrease(player, this, steps);
+      this.recordTradeTrackBonus(player, oldPosition, this.trackPosition - oldPosition);
       this.handleTrade(player, tradeOptions);
       return;
     }
@@ -147,6 +149,45 @@ export abstract class Colony implements IColony {
     // Ask the player if they want to increase the track
     player.game.defer(new IncreaseColonyTrack(player, this, steps))
       .andThen(() => this.handleTrade(player, tradeOptions));
+  }
+
+  /**
+   * Record (analytics only) a trade-offset effect advancing this colony's track
+   * BEFORE a trade — the whole value of Trading Colony's "+1 step when you trade
+   * here". Attributes the `appliedSteps` + the EXACT extra trade-reward units to the
+   * owning card(s): the track steps come from declarative `behavior.colonies.tradeOffset`
+   * cards (Trading Colony; any future card is covered automatically). With several
+   * such cards the steps are split sequentially so EACH card's extra reward is exact
+   * (`quantity[after] − quantity[before]` over its own slice). Any portion from a
+   * non-card `bonusTradeOffset` stays honestly unattributed. The track was already
+   * advanced by the caller — this only writes the stat event.
+   */
+  public recordTradeTrackBonus(player: IPlayer, oldPosition: number, appliedSteps: number): void {
+    const events = player.game.events;
+    if (events === undefined || appliedSteps <= 0) {
+      return;
+    }
+    const sources = player.tableau.asArray().filter((c) => (c.behavior?.colonies?.tradeOffset ?? 0) > 0);
+    if (sources.length === 0) {
+      return;
+    }
+    const quantity = this.metadata.trade.quantity;
+    const rewardAt = (pos: number): number => quantity[pos] ?? quantity[quantity.length - 1] ?? 0;
+    let pos = oldPosition;
+    let remaining = appliedSteps;
+    for (const card of sources) {
+      if (remaining <= 0) {
+        break;
+      }
+      const take = Math.min(card.behavior?.colonies?.tradeOffset ?? 0, remaining);
+      if (take <= 0) {
+        continue;
+      }
+      const extraReward = Math.max(0, rewardAt(pos + take) - rewardAt(pos));
+      events.recordColonyTrackBonus(player, card, this.name, take, extraReward);
+      pos += take;
+      remaining -= take;
+    }
   }
 
   private handleTrade(player: IPlayer, options: TradeOptions) {

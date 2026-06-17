@@ -34,8 +34,10 @@ export class IncreaseColonyTrack extends DeferredAction {
       options.options.push(
         new SelectOption(message('Increase colony track ${0} step(s)', (b) => b.number(step)))
           .andThen(() => {
+            const oldPosition = this.colony.trackPosition;
             this.colony.increaseTrack(step);
             LogHelper.logColonyTrackIncrease(this.player, this.colony, step);
+            this.colony.recordTradeTrackBonus(this.player, oldPosition, this.colony.trackPosition - oldPosition);
             this.cb(undefined);
             return undefined;
           }),

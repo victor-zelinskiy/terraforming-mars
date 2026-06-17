@@ -73,7 +73,13 @@
         <template v-else>
           <p v-if="vm.cardScoped && !vm.empty" class="effect-detail__scope-note" v-i18n>Some stats are tracked at the card level</p>
 
-          <div v-if="vm.headline" class="effect-detail__headline" v-i18n>{{ vm.headline }}</div>
+          <div v-if="vm.headline" class="effect-detail__headline">
+            <span v-i18n>{{ vm.headline }}</span>
+            <span v-if="confidenceLabel !== ''"
+                  class="effect-detail__confidence"
+                  :class="'effect-detail__confidence--' + vm.confidence"
+                  v-i18n>{{ confidenceLabel }}</span>
+          </div>
 
           <div v-if="vm.triggerCount > 0" class="effect-detail__metric">
             <span class="effect-detail__metric-label" v-i18n>Times triggered</span>
@@ -81,7 +87,7 @@
           </div>
 
           <div v-for="(line, i) in vm.lines" :key="i" class="effect-detail__line">
-            <span class="effect-detail__line-icon" :class="iconClassFor(line.icon)" aria-hidden="true"></span>
+            <span v-if="line.icon" class="effect-detail__line-icon" :class="iconClassFor(line.icon)" aria-hidden="true"></span>
             <span class="effect-detail__line-label" v-i18n>{{ line.label }}</span>
             <span class="effect-detail__line-value">{{ line.value }}</span>
           </div>
@@ -90,6 +96,14 @@
             <span class="effect-detail__line-icon" :class="iconClassFor(vm.currentValue.icon)" aria-hidden="true"></span>
             <span class="effect-detail__line-label" v-i18n>Current</span>
             <span class="effect-detail__line-value">{{ vm.currentValue.value }}</span>
+          </div>
+
+          <!-- Per-target breakdown (e.g. Trading Colony: which colonies, how many steps). -->
+          <div v-if="vm.breakdown !== undefined && vm.breakdown.length > 0" class="effect-detail__breakdown">
+            <div v-for="(row, i) in vm.breakdown" :key="i" class="effect-detail__breakdown-row">
+              <span class="effect-detail__breakdown-label" v-i18n>{{ row.label }}</span>
+              <span class="effect-detail__breakdown-value">{{ row.value }}</span>
+            </div>
           </div>
 
           <!-- Thematic note (always present when there's nothing to tally). -->
@@ -151,6 +165,8 @@ function emptyStat(cardName: CardName | undefined, isCorporation: boolean): Effe
     production: Units.EMPTY,
     cardResources: {},
     paymentResources: {},
+    paymentValueBonus: {steel: 0, titanium: 0, bonusValue: 0, count: 0},
+    colonyTrack: {steps: 0, extraReward: 0, count: 0, colonies: {}},
     tr: 0,
     globalParameterSteps: {},
     vp: 0,
@@ -249,6 +265,16 @@ export default defineComponent({
     vm(): EffectSummaryViewModel {
       const stat = this.stat ?? emptyStat(this.cardName, this.isCorporation);
       return getEffectSummary(stat, this.ctx);
+    },
+    // A short i18n key for the confidence chip ('' → no chip). Exact = a precise
+    // tally, Partial = exact facts but no M€ valuation, Rule effect = no numeric delta.
+    confidenceLabel(): string {
+      switch (this.vm.confidence) {
+      case 'exact': return 'Exact';
+      case 'partial': return 'Partial';
+      case 'ruleOnly': return 'Rule effect';
+      default: return '';
+      }
     },
   },
 });
