@@ -28,7 +28,10 @@
 import {defineComponent} from 'vue';
 import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
+import {paths} from '@/common/app/paths';
+import type {EndgameFact} from '@/common/events/endgameFacts';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildEndgameModel, EndgameModel, EndgamePlayerInput} from '@/client/components/endgame/endgameModel';
 import {endgameState, beginEndgameReveal, restoreEndgameResults} from '@/client/components/endgame/endgameState';
@@ -43,9 +46,23 @@ export default defineComponent({
     view: {type: Object as () => ViewModel, required: true},
     viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
   },
+  data() {
+    return {
+      // The analysis-ready facts, fetched once after mount (graceful: the model uses
+      // the base template analyzers until they arrive / if the fetch is unavailable).
+      facts: undefined as ReadonlyArray<EndgameFact> | undefined,
+    };
+  },
   computed: {
     state() {
       return endgameState;
+    },
+    playerCards(): Partial<Record<Color, ReadonlyArray<CardName>>> {
+      const out: Partial<Record<Color, ReadonlyArray<CardName>>> = {};
+      for (const p of this.view.players) {
+        out[p.color] = p.tableau.map((c) => c.name);
+      }
+      return out;
     },
     model(): EndgameModel {
       const game = this.view.game;
@@ -66,6 +83,8 @@ export default defineComponent({
         hasVenus: game.gameOptions.expansions.venus === true,
         generation: game.generation,
         soloWin: game.isSoloModeWin,
+        facts: this.facts,
+        playerCards: this.playerCards,
       });
     },
     pillVars(): Record<string, string> {
@@ -82,10 +101,27 @@ export default defineComponent({
     restore(): void {
       restoreEndgameResults();
     },
+    // Fetch the analysis-ready facts ONCE (the server builds them from the event
+    // stream). Best-effort: any failure / missing fetch leaves the base insights.
+    fetchFacts(): void {
+      const id = this.view.id;
+      if (id === undefined || typeof fetch !== 'function') {
+        return;
+      }
+      fetch(paths.API_GAME_ENDGAME_FACTS + '?id=' + encodeURIComponent(id))
+        .then((r) => (r.ok ? r.json() : undefined))
+        .then((f) => {
+          if (Array.isArray(f)) {
+            this.facts = f as ReadonlyArray<EndgameFact>;
+          }
+        })
+        .catch(() => { /* the base template insights remain */ });
+    },
   },
   mounted(): void {
     // Trigger the cinematic once, the first time an ended game is seen this load.
     beginEndgameReveal();
+    this.fetchFacts();
   },
 });
 </script>

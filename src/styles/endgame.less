@@ -1015,6 +1015,107 @@
     .eg-insight__text { color: @eg-text-muted; }
 }
 
+/* ── Iteration 5: premium story hierarchy ──────────────────────────────── */
+
+/* HERO — the single defining story: large, cinematic, glowing. */
+.eg-insight--hero {
+    position: relative;
+    gap: 16px;
+    margin-bottom: 12px;
+    padding: 20px 22px;
+    border-radius: 13px;
+    overflow: hidden;
+    background:
+        linear-gradient(105deg, ~"color-mix(in srgb, var(--eg-pc) 12%, transparent)", transparent 55%),
+        rgba(13, 21, 34, 0.62);
+    box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-pc) 35%, transparent)", inset 4px 0 0 var(--eg-pc), 0 10px 34px rgba(0, 0, 0, 0.35);
+
+    .eg-insight__icon { width: 46px; height: 46px; font-size: 22px; border-radius: 11px; }
+    .eg-insight__badge { font-size: 11px; padding: 2px 12px; }
+    .eg-insight__text { font-size: 17px; line-height: 1.5; color: @eg-text; font-weight: 500; }
+}
+/* The cinematic glow sweep behind a hero card. */
+.eg-insight__glow {
+    position: absolute;
+    inset: -40% -10%;
+    background: radial-gradient(60% 60% at 18% 30%, ~"color-mix(in srgb, var(--eg-pc) 22%, transparent)", transparent 70%);
+    pointer-events: none;
+    animation: eg-hero-glow 6s ease-in-out infinite;
+}
+@keyframes eg-hero-glow {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.9; }
+}
+/* LEGENDARY — a tiebreaker / once-a-season beat: gold cinematic + animated rim. */
+.eg-insight--var-legendary {
+    background:
+        linear-gradient(105deg, rgba(255, 204, 100, 0.14), transparent 55%),
+        rgba(20, 17, 10, 0.66);
+    box-shadow: inset 0 0 0 1px rgba(255, 204, 100, 0.45), inset 4px 0 0 @eg-gold, 0 12px 40px rgba(255, 180, 70, 0.16);
+
+    .eg-insight__icon { color: @eg-gold; background: rgba(255, 204, 100, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 204, 100, 0.4); }
+    .eg-insight__badge { border-color: rgba(255, 204, 100, 0.55); color: @eg-gold; }
+    .eg-insight__glow { background: radial-gradient(60% 60% at 18% 30%, rgba(255, 204, 100, 0.3), transparent 70%); }
+}
+
+/* COMPACT — interesting details: denser chips. */
+.eg-insights__compact {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(248px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+.eg-insights__compact--extra { margin-top: 8px; }
+.eg-insight--compact {
+    padding: 9px 11px;
+    gap: 9px;
+
+    .eg-insight__icon { width: 26px; height: 26px; font-size: 13px; border-radius: 7px; }
+    .eg-insight__badge { font-size: 8.5px; letter-spacing: 1px; padding: 1px 7px; }
+    .eg-insight__text { font-size: 12px; line-height: 1.45; color: @eg-text-muted; }
+}
+
+/* "Show more analysis" toggle. */
+.eg-insights__more {
+    align-self: flex-start;
+    margin-top: 10px;
+    padding: 6px 16px;
+    border: 1px solid ~"color-mix(in srgb, @eg-cyan 30%, transparent)";
+    border-radius: 999px;
+    background: rgba(16, 25, 38, 0.4);
+    color: @eg-cyan;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 140ms ease, box-shadow 140ms ease;
+
+    &:hover { background: rgba(22, 34, 52, 0.6); box-shadow: 0 0 0 1px ~"color-mix(in srgb, @eg-cyan 45%, transparent)"; }
+}
+
+/* FAMILY accents — a flavour tint per story family (icon/badge), keeping the
+   player rim via --eg-pc. Defined as a mixin so each family is one line. */
+.eg-fam(@name, @col) {
+    .eg-insight--fam-@{name} {
+        .eg-insight__icon { color: @col; }
+    }
+    .eg-insight--fam-@{name}.eg-insight--compact {
+        box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, @col 22%, transparent)", inset 3px 0 0 @col;
+        .eg-insight__badge { border-color: ~"color-mix(in srgb, @col 40%, transparent)"; color: @col; }
+    }
+}
+.eg-fam(economy, #f3c969);
+.eg-fam(blueAction, #6ab0e6);
+.eg-fam(passiveEngine, #7fd8c0);
+.eg-fam(negativeDrama, #e87878);
+.eg-fam(rareEvent, #c79af0);
+.eg-fam(globalParameter, #7fd0e6);
+.eg-fam(reveal, #b6a0f0);
+.eg-fam(colony, #a99af0);
+.eg-fam(unusedPotential, #c8b88a);
+.eg-fam(standardProject, #b0a896);
+
 /* shared stat chips (timeline + misc) */
 .eg-stat-chip {
     --eg-pc: @eg-cyan;

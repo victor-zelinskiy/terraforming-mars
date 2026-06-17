@@ -471,3 +471,95 @@ suites all green.
 - The Fact Engine remains PURE + manifest-injected; the route supplies `cardHasAction`
   from the live game. The insight bridge is OPT-IN (`facts?` is optional) — wiring the
   feed into `generateInsights` is the Iteration-5 step, intentionally not done here (§8).
+
+---
+
+# ═══════════════════════════════════════════════════════════════════
+# ITERATION 5 — fact-based endgame STORYTELLING + premium UI
+# ═══════════════════════════════════════════════════════════════════
+
+Goal: turn "data ready" into "the final screen tells the STORY of THIS game". The
+fact layer (Iterations 1–4) is now WIRED into the endgame insight engine, the selector
+ranks by impact/rarity/drama (not just priority), and «Как сложилась партия» renders a
+premium hierarchy (hero → key moments → details → show more). The prose layer is
+deliberately a FIRST wave — honest, fact-derived, never inventing M€/VP.
+
+## What was added
+
+**1. Story model (insightEngine.ts).** `InsightCandidate` gained (all OPTIONAL → legacy
+analyzers unchanged): `family` (15 story families), `uiVariant` (hero/major/normal/
+compact/legendary/…), `storyCluster` (diversity key), `scores` (`impact`/`rarity`/`drama`/
+`confidence`/`relevance`, 0..1), `relatedFactIds`/`relatedPlayers`/`relatedCards`/
+`relatedGeneration`, and selector-set `rankSection` + `finalScore`.
+
+**2. Smart selector `selectStoryInsights`.** Ranks by `finalScore` = priority + a
+fact-score bonus (`impact·40 + rarity·60 + drama·40 + relevance·20`) SCALED by
+`confidence` (a shaky `partial` fact can't dominate). Picks ONE hero (a decisive verdict
+or rarity≥0.7 / drama≥0.8 / `uiVariant:'hero'|'legendary'`), then a diverse PRIMARY band
+(≤1 per cluster, rare facts ≥0.6 break through), a looser SECONDARY band, and HIDDEN
+("show more"). Honours `suppresses`. Deterministic (id tiebreak). `generateInsights` now
+runs the base analyzers + the FACT analyzers → `selectStoryInsights`.
+
+**3. Facts WIRED into the engine.** `EndgameExperience` fetches `/api/game/endgame-facts`
+once on mount + derives `playerCards` from the view, passing both into
+`buildEndgameModel` → `generateInsights(ctx.facts, ctx.playerCards)`. Graceful: before
+the fetch resolves / on an old game / in JSDOM, `facts` is undefined and the engine falls
+back to the base template analyzers (no error, no empty screen).
+
+**4. First-wave FACT analyzers** (on `ctx.facts`): `analyzeEconomyFacts` (economy engine +
+**economy-underdog win**), `analyzeBlueActionFacts` (most-used action + **unused engine**),
+`analyzeNegativeDramaFacts` (most-targeted player + **Predators** rare raid), `analyzeVerminDrama`
+(**Vermin** city-pressure, via `playerCards`), `analyzeGlobalParameterFacts` (who moved the
+planet), `analyzeRevealFacts` (card-flow edge), `analyzeColonyFacts` (colony engine). Each
+is THRESHOLDED (only fires when genuinely notable) + honest with confidence ("measured
+value" / units, never invented M€).
+
+**5. Rare/decisive → HERO UI.** Tiebreaker (legendary), photo-finish (hero) and late-
+comeback (hero) carry `uiVariant` + high `scores`, so the selector makes them the hero
+of the story with a cinematic treatment — no longer a small card lost in the grid.
+
+**6. Premium UI (EndgameOverviewTab + endgame.less).** A HERO card (large, glowing,
+legendary gold variant), a KEY-MOMENTS grid, a COMPACT details grid, and a "Show more
+analysis" toggle for the hidden band. Per-FAMILY accent tints (economy gold, blueAction
+cyan, negativeDrama red, rareEvent violet, …). `prefers-reduced-motion` honoured.
+
+## §17 — required report
+
+- **Analyzers added:** 7 fact-based (economy, blueAction, negativeDrama, vermin, global,
+  reveal, colony) on top of the 9 base template analyzers (kept as the fallback layer).
+- **Facts used:** economy / actionUsage / engineTiming / negativeInteraction /
+  globalParameter / reveal / colony — plus `playerCards` for card-presence (Vermin/Predators).
+- **UI variants:** hero, legendary, major, normal, compact (+ family accents + show-more).
+- **Rare scenarios covered:** tiebreaker (legendary hero), photo-finish + late-comeback
+  (hero), economy-underdog win, unused/never-activated engine, most-targeted player,
+  Predators 6+ animal raid, Vermin city-pressure.
+- **What remains for Iteration 6:** more first-wave analyzers (standard-project strategy,
+  category multi-dominance depth, runner-up story, biggest-single-fact notables); a
+  candidate-scoring DEBUG panel (the route shows facts; finalScore/rankSection are on
+  each insight but not yet surfaced in a dev UI); richer per-family card layouts
+  (attacker/victim split, savings chips, activation counters); and broader phrasing
+  variety.
+
+## Honesty / confidence
+
+- Economy/colony savings → "measured value" / units; NEVER a fake exact M€ from
+  cards-drawn or partial rewards. `confidence` scales `finalScore` (a `partial` fact
+  can't out-shout an `exact` one at equal magnitude — guarded).
+- Vermin reads "pressure on cities" (no fabricated VP delta — there is no mid-game VP
+  event); confidence `0.6`.
+
+## Tests / verification
+
+`tests/client/components/endgame/factInsights.spec.ts` (12 tests: each fact analyzer
+fires; tiebreaker→hero; graceful no-facts fallback; selector cluster-dedup + rare
+breakthrough; finalScore ranking; partial-confidence scaling). The existing
+`insightEngine.spec.ts` + `endgameModel.spec.ts` + `EndgameOverviewTab.spec.ts` still
+pass (the model extension + new UI are backward-compatible). Server build, `vue-tsc` (0),
+`make:json` (no dupes — Predators/Vermin/Terraformer badges REUSE existing card/profile
+translations), eslint on touched files all green.
+
+## Non-breaking guarantees
+
+Old games / missing facts → base insights (graceful). Solo mode still returns []. The
+reveal facts carry counts only (no private leak). No runtime errors when `ctx.facts` is
+absent. The existing overview bars / tabs / duel / podium are untouched.
