@@ -4,6 +4,7 @@ import {CardName} from '../../common/cards/CardName';
 import {SpaceId} from '../../common/Types';
 import {TileType} from '../../common/TileType';
 import {Space} from '../boards/Space';
+import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
 import {EventSource} from '../../common/events/EventSource';
@@ -384,6 +385,52 @@ export class EventRecorder {
         cardResourcesSpentAsPayment: [{cardResource: card.resourceType, amount}],
       },
       tags: ['passive-effect', 'resource-payment'],
+    }, this.current);
+  }
+
+  /**
+   * Record the EXTRA M€ value a payment-VALUE modifier (Advanced Alloys +1 steel &
+   * titanium, Rego Plastics +1 steel, PhoboLog +1 titanium, …) contributed to a
+   * single payment — attributed to the OWNING card. `entries` are the per-resource
+   * bonuses this ONE card gave in this payment (steel and/or titanium), so a card
+   * that boosts both (Advanced Alloys) records ONE event = ONE "payment touched".
+   * Overlay-analytics only (excluded from the journal route): the journal already
+   * shows the actual spend; this is the HIDDEN value the modifier added.
+   */
+  public recordPaymentValueBonus(player: IPlayer, card: ICard, entries: ReadonlyArray<{resource: 'steel' | 'titanium'; amountSpent: number; bonusValue: number}>): void {
+    const useful = entries.filter((e) => e.amountSpent > 0 && e.bonusValue > 0);
+    if (useful.length === 0) {
+      return;
+    }
+    const kind = card.type === CardType.CORPORATION ? 'corporation' : 'card';
+    this.emit({
+      type: 'resource-changed',
+      source: {kind, card: card.name, owner: player.color},
+      player: player.color,
+      impact: {paymentValueBonus: useful},
+      tags: ['passive-effect', 'payment-bonus'],
+    }, this.current);
+  }
+
+  /**
+   * Record a TRADE-OFFSET effect (Trading Colony) advancing a colony track by
+   * `steps` before a trade — attributed to the OWNING card. `extraReward` is the
+   * EXACT extra trade-reward units the bump produced (its M€ value is intentionally
+   * not estimated). Emitted as an `effect-triggered` so the passive effect's
+   * trigger count reflects it; overlay-analytics only (excluded from the journal,
+   * which already logs the track increase as text).
+   */
+  public recordColonyTrackBonus(player: IPlayer, card: ICard, colony: ColonyName, steps: number, extraReward: number): void {
+    if (steps <= 0) {
+      return;
+    }
+    const kind = card.type === CardType.CORPORATION ? 'corporation' : 'card';
+    this.emit({
+      type: 'effect-triggered',
+      source: {kind, card: card.name, owner: player.color},
+      player: player.color,
+      impact: {colonyTrackAdvanced: [{colony, steps, extraReward}]},
+      tags: ['passive-effect', 'colony-track', 'engine'],
     }, this.current);
   }
 

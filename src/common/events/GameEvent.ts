@@ -93,6 +93,8 @@ export type EventTag =
   | 'discount'
   | 'passive-effect'
   | 'resource-payment'
+  | 'payment-bonus' // steel/titanium worth more than base (Advanced Alloys, …)
+  | 'colony-track' // a trade-offset effect advanced a colony track (Trading Colony)
   | 'card-impact'
   | 'corporation'
   | 'copy'

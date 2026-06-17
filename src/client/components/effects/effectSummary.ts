@@ -39,7 +39,16 @@ export type EffectSummaryLine = {
  */
 export type EffectCategory =
   'corporation' | 'discount' | 'resourceAccumulation' | 'payment' |
+  'paymentValueBonus' | 'colonyTrade' |
   'passiveTr' | 'passiveProduction' | 'trigger' | 'ruleChange';
+
+/**
+ * How well we can quantify an effect's contribution — surfaced so the player knows
+ * whether a number is an EXACT tally, a PARTIAL measurable slice (exact facts, no
+ * M€ valuation), or a genuine RULE-ONLY effect with no numeric delta. Never
+ * over-claims a value we can't honestly compute (see the Trading Colony note).
+ */
+export type EffectConfidence = 'exact' | 'partial' | 'ruleOnly';
 
 /**
  * The per-effect IMPACT SIGNATURE (what an effect's result produces) — extracted
@@ -71,6 +80,12 @@ export type EffectSummaryViewModel = {
   currentValue?: {icon: string; value: string};
   /** A thematic note shown when there is nothing to tally (never a dead state). */
   note?: string;
+  /** Optional secondary rows beneath the impact lines — a per-target breakdown
+   *  (e.g. Trading Colony's "which colonies, how many steps"). Labels are i18n keys
+   *  OR already-translatable names (colony names). */
+  breakdown?: ReadonlyArray<{label: string; value: string}>;
+  /** How quantifiable this effect's contribution is (exact / partial / rule-only). */
+  confidence?: EffectConfidence;
   /** Optional "last triggered" hint (the generation of the last contribution). */
   lastTrigger?: {generation: number};
   /** True when the source card grants SEVERAL effects — the per-game stats are
@@ -215,11 +230,89 @@ export function classifyEffectSignature(sig: EffectSignature, ctx: EffectSummary
   return 'ruleChange';
 }
 
+/**
+ * The CLIENT can't read a card's server `behavior`, so the few cards whose passive
+ * rule is a steel/titanium VALUE modifier are listed here (the same pattern as
+ * CARD_HEADLINE / EFFECT_SUMMARY_NOTES). This drives only the EMPTY-state framing
+ * (headline + honest note + category) — once a payment is made the dedicated
+ * `paymentValueBonusViewModel` takes over from the RECORDED stat. The server records
+ * EVERY such card generically (via `behavior.steelValue/titanumValue`), so a new
+ * expansion modifier still tallies correctly; add it here only for the pre-payment
+ * note. Guarded by `effectSummaryCoverage`.
+ */
+const PAYMENT_VALUE_MODIFIER_CARDS: ReadonlySet<CardName> = new Set([
+  CardName.ADVANCED_ALLOYS, CardName.REGO_PLASTICS, CardName.MERCURIAN_ALLOYS, CardName.PHOBOLOG,
+]);
+
+/** Cards whose passive rule advances a colony track before trading (`tradeOffset`).
+ *  The server records EVERY such card generically; this drives only the pre-trade note. */
+const COLONY_TRADE_OFFSET_CARDS: ReadonlySet<CardName> = new Set([
+  CardName.TRADING_COLONY, CardName.TRADE_ENVOYS,
+]);
+
+/**
+ * The category to FRAME an empty effect's note by — what the effect CAN do (its
+ * render signature), NOT the (empty) data. The ROOT-CAUSE fix: without this, an
+ * unfired trigger / unused discount classified data-driven to `ruleChange` and
+ * showed the bare "passive rule" note. Unlike `classifyEffectSignature` this does
+ * NOT treat `valueModifier` as rule-only (that heuristic mislabels threshold
+ * conditions like "play a 20 M€ card" — Advertising / CrediCor — as value modifiers);
+ * the genuine value modifiers are the explicit set above.
+ */
+function emptyNoteCategory(sig: EffectSignature, ctx: EffectSummaryContext): EffectCategory {
+  if (ctx.sourceKind === 'corporation') {
+    return 'corporation';
+  }
+  if (sig.valueAsPayment) {
+    return 'payment';
+  }
+  if (sig.discount) {
+    return 'discount';
+  }
+  if (sig.icons.some(isCardResourceIcon)) {
+    return 'resourceAccumulation';
+  }
+  if (sig.icons.includes('tr')) {
+    return 'passiveTr';
+  }
+  if (sig.icons.length > 0) {
+    return 'trigger';
+  }
+  return 'ruleChange';
+}
+
+/** The category an EMPTY effect should frame itself as (special cards → their special
+ *  category; else by render signature). */
+function emptyCategory(ctx: EffectSummaryContext): EffectCategory {
+  if (PAYMENT_VALUE_MODIFIER_CARDS.has(ctx.sourceName)) {
+    return 'paymentValueBonus';
+  }
+  if (COLONY_TRADE_OFFSET_CARDS.has(ctx.sourceName)) {
+    return 'colonyTrade';
+  }
+  if (ctx.signature !== undefined) {
+    return emptyNoteCategory(ctx.signature, ctx);
+  }
+  return ctx.sourceKind === 'corporation' ? 'corporation' : 'ruleChange';
+}
+
+/** Confidence to surface for a category (only where it adds signal). */
+function confidenceFor(category: EffectCategory): EffectConfidence | undefined {
+  switch (category) {
+  case 'ruleChange': return 'ruleOnly';
+  case 'colonyTrade': return 'partial';
+  case 'paymentValueBonus': return 'exact';
+  default: return undefined;
+  }
+}
+
 const CATEGORY_HEADLINE: Record<EffectCategory, string> = {
   corporation: 'Corporation ability',
   discount: 'Cost reductions this game',
   resourceAccumulation: 'Resources collected',
   payment: 'Used as payment',
+  paymentValueBonus: 'Payment value bonus',
+  colonyTrade: 'Colony track advanced',
   passiveTr: 'Terraforming contributed',
   passiveProduction: 'Ongoing output',
   trigger: 'Triggered effects',
@@ -232,6 +325,8 @@ const CATEGORY_FALLBACK_NOTE: Record<EffectCategory, string> = {
   discount: 'No discount has applied yet — it applies when you play a matching card.',
   resourceAccumulation: 'No resources collected on this card yet.',
   payment: 'Spend this card resource as M€ when paying — none spent yet this game.',
+  paymentValueBonus: 'Makes your steel or titanium worth more — the extra value is tallied once you spend them.',
+  colonyTrade: 'Advances a colony track before you trade there — its steps and extra reward are tallied once you trade.',
   passiveTr: 'No terraforming from this effect yet.',
   passiveProduction: 'This ongoing effect has not produced yet.',
   trigger: 'This effect has not triggered yet this game.',
@@ -324,20 +419,96 @@ function paymentViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): E
   };
 }
 
+/**
+ * A steel/titanium VALUE-modifier effect (Advanced Alloys / Rego Plastics / PhoboLog
+ * …) — show what it actually did: how much steel/titanium was spent UNDER the effect
+ * and the EXACT extra M€ value it added. A genuine economic stat, not a rule note.
+ */
+function paymentValueBonusViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
+  const pvb = stat.paymentValueBonus;
+  const lines: Array<EffectSummaryLine> = [];
+  if (pvb.bonusValue > 0) {
+    lines.push({icon: 'megacredits', label: 'Extra value', value: `+${pvb.bonusValue}`});
+  }
+  if (pvb.steel > 0) {
+    lines.push({icon: 'steel', label: 'Spent under effect', value: `${pvb.steel}`});
+  }
+  if (pvb.titanium > 0) {
+    lines.push({icon: 'titanium', label: 'Spent under effect', value: `${pvb.titanium}`});
+  }
+  const empty = pvb.bonusValue === 0 && pvb.count === 0;
+  return {
+    empty,
+    triggerCount: pvb.count,
+    headline: CATEGORY_HEADLINE['paymentValueBonus'],
+    category: 'paymentValueBonus',
+    lines,
+    confidence: 'exact',
+    note: empty ? noteFor(ctx, 'paymentValueBonus') : EFFECT_SUMMARY_NOTES[ctx.sourceName],
+  };
+}
+
+/**
+ * A trade-offset effect (Trading Colony) — show the EXACT colony-track steps it
+ * advanced, the extra trade reward (in resource units), and a per-colony breakdown.
+ * Confidence is `partial`: the track + reward facts are exact, but their M€ value is
+ * deliberately NOT estimated (it depends on each colony's reward mapping).
+ */
+function colonyTradeViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
+  const ct = stat.colonyTrack;
+  const lines: Array<EffectSummaryLine> = [];
+  if (ct.steps > 0) {
+    lines.push({label: 'Track advanced', value: `+${ct.steps}`});
+  }
+  if (ct.extraReward > 0) {
+    lines.push({label: 'Extra trade reward', value: `+${ct.extraReward}`});
+  }
+  const breakdown = Object.entries(ct.colonies)
+    .filter((e): e is [string, number] => e[1] !== undefined && e[1] > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([colony, steps]) => ({label: colony, value: `+${steps}`}));
+  const empty = ct.steps === 0 && ct.count === 0;
+  return {
+    empty,
+    triggerCount: ct.count,
+    headline: CATEGORY_HEADLINE['colonyTrade'],
+    category: 'colonyTrade',
+    lines,
+    breakdown: breakdown.length > 0 ? breakdown : undefined,
+    confidence: 'partial',
+    note: empty ?
+      noteFor(ctx, 'colonyTrade') :
+      'Extra reward is shown in resource units; its M€ value is not estimated.',
+  };
+}
+
 /** The category-aware generic view-model — the default for every non-bespoke effect. */
 function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
+  // Dedicated economic-modifier summaries, resolved from the RECORDED stat — these
+  // are the special handlers that turn a former "passive rule" into real numbers.
+  // Defensive access: an older serialized stat (or a partial test fixture) may omit
+  // these fields, so a missing dimension is treated as "no contribution".
+  const pvb = stat.paymentValueBonus;
+  if (pvb !== undefined && (pvb.count > 0 || pvb.bonusValue > 0)) {
+    return paymentValueBonusViewModel(stat, ctx);
+  }
+  const ct = stat.colonyTrack;
+  if (ct !== undefined && (ct.count > 0 || ct.steps > 0)) {
+    return colonyTradeViewModel(stat, ctx);
+  }
+
   const multi = (ctx.effectCount ?? 1) > 1;
   // Per-effect category on a multi-effect card (from the effect's render signature);
   // otherwise the data-driven card classification (the card stat IS the effect).
-  const category = (multi && ctx.signature !== undefined) ?
+  const dataCategory = (multi && ctx.signature !== undefined) ?
     classifyEffectSignature(ctx.signature, ctx) :
     classifyEffect(ctx, stat);
   // A resource-as-payment effect has its own model (used / value / available), not
   // the accumulation lines — applies to single AND multi effect cards.
-  if (category === 'payment') {
+  if (dataCategory === 'payment') {
     return paymentViewModel(stat, ctx);
   }
-  let lines = reorder(genericLines(stat), category);
+  let lines = reorder(genericLines(stat), dataCategory);
   let currentValue = currentValueLine(ctx);
   // PER-EFFECT scoping on a multi-effect card: hide a metric that belongs ONLY to a
   // sibling effect (in siblingIcons but NOT this effect's signature). A metric in
@@ -357,6 +528,12 @@ function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): E
   // (the card-level trigger count can't say which effect fired); for a single-effect
   // card the card stat IS the effect, so the trigger count counts too.
   const empty = multi ? lines.length === 0 : (stat.triggerCount === 0 && lines.length === 0);
+  // ROOT-CAUSE FIX: when there's nothing recorded yet, frame the NOTE by what the
+  // effect CAN do (its render signature / special kind), NOT by the (empty) data —
+  // else every unfired trigger / unused discount collapsed to the bare "passive rule"
+  // note. With data present, use the data-driven category (so the headline + lead
+  // line match what actually happened).
+  const category = empty ? emptyCategory(ctx) : dataCategory;
   return {
     empty,
     // Trigger count + last-trigger are card-level (the stream attributes to the
@@ -366,6 +543,7 @@ function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): E
     category,
     lines,
     currentValue,
+    confidence: confidenceFor(category),
     // An empty effect shows its note; a non-empty one with a curated note keeps it
     // as supporting context (e.g. Supercapacitors' "you choose to use" framing).
     note: empty ? noteFor(ctx, category) : EFFECT_SUMMARY_NOTES[ctx.sourceName],

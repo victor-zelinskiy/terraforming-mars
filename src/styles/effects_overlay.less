@@ -666,12 +666,75 @@
     font-style: italic;
 }
 .effect-detail__headline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     font-size: 13.5px;
     font-weight: 600;
     color: #eaf4fe;
     line-height: 1.4;
 }
 .effect-detail--corp .effect-detail__headline { color: #f3e3bd; }
+// Confidence chip — how quantifiable the tally is (exact / partial / rule-only).
+.effect-detail__confidence {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: #9fb6cc;
+    background: rgba(106, 176, 230, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.2);
+}
+.effect-detail__confidence--exact {
+    color: #aef5d0;
+    background: rgba(143, 240, 196, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(143, 240, 196, 0.28);
+}
+.effect-detail__confidence--partial {
+    color: #f3d79a;
+    background: rgba(230, 200, 120, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(230, 200, 120, 0.28);
+}
+.effect-detail__confidence--ruleOnly {
+    color: #9fb6cc;
+}
+// Per-target breakdown rows (Trading Colony: colony × steps).
+.effect-detail__breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(106, 176, 230, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.12);
+}
+.effect-detail__breakdown-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11.5px;
+}
+.effect-detail__breakdown-label {
+    min-width: 0;
+    color: #b6c8db;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.effect-detail__breakdown-value {
+    flex-shrink: 0;
+    font-family: "Russo One", Prototype, sans-serif;
+    font-weight: 700;
+    color: #9ee0ff;
+    font-variant-numeric: tabular-nums;
+}
 .effect-detail__metric {
     display: flex;
     align-items: baseline;
