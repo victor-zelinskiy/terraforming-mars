@@ -269,6 +269,9 @@ describe('cardPlayPreview', () => {
       expect(step, 'a floater-source card pick step').to.exist;
       const previewNames = step!.kind === 'input' ? (step!.input as SelectCardModel).cards.map((c) => c.name) : [];
       expect(previewNames).to.have.members([dirigibles.name, deuteriumExport.name]);
+      // The step carries the signed delta (−1) so the picker shows each candidate's
+      // floater `current → resulting` (the projected change), not just the bare count.
+      expect((step as {amount?: number}).amount).to.eq(-1);
 
       // Live play: bespokePlay defers the floater RemoveResourcesFromCard — the LIVE
       // SelectCard enumerates the SAME candidates, so the pre-collected pick replays.
@@ -278,6 +281,22 @@ describe('cardPlayPreview', () => {
       expect(live.cards.map((c) => c.name)).to.have.members(previewNames);
       live.process({type: 'card', cards: [dirigibles.name]}, player);
       expect(dirigibles.resourceCount).to.eq(1); // 2 − 1, no post-confirm modal needed
+    });
+
+    it('StratosphericBirds: a SINGLE floater source is STILL shown (autoselect:false → never a silent spend)', () => {
+      const [/* game */, player] = testGame(2);
+      const onlyFloaterCard = new Dirigibles();
+      player.playedCards.push(onlyFloaterCard);
+      player.addResourceTo(onlyFloaterCard, 3);
+
+      // Even with exactly ONE eligible card, the picker step is emitted (the client
+      // pre-selects it + shows its floater count → the player still SEES where the
+      // floater is spent from). It is NOT auto-applied behind the modal.
+      const step = new StratosphericBirds().cardPlayPreview(player).branches[0].steps
+        .find((s) => s.kind === 'input' && s.input.type === 'card');
+      expect(step, 'the lone floater source is still a shown pick step').to.exist;
+      const names = step!.kind === 'input' ? (step!.input as SelectCardModel).cards.map((c) => c.name) : [];
+      expect(names).to.deep.eq([onlyFloaterCard.name]);
     });
 
     it('VenusSoils: the previewed microbe-target step matches the live AddResourcesToCard prompt', () => {
