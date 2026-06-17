@@ -146,9 +146,12 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'V. Spacefarer': {Factory: VSpacefarer},
   },
   boards: {
-    [BoardName.THARSIS]: ['Terraformer', 'Mayor', 'Gardener', 'Builder', 'Planner'],
+    // vize1215 fork: Tharsis uses Terraformer29 (flat 29 TR, no Turmoil branch) and Elysium
+    // uses Tycoon10 (10 blue+green cards) instead of the classic Terraformer/Tycoon, for a
+    // single canonical version of each across the board defaults and the unified random pool.
+    [BoardName.THARSIS]: ['Terraformer29', 'Mayor', 'Gardener', 'Builder', 'Planner'],
     [BoardName.HELLAS]: ['Diversifier', 'Tactician', 'Polar Explorer', 'Energizer', 'Rim Settler'],
-    [BoardName.ELYSIUM]: ['Generalist', 'Specialist', 'Ecologist', 'Tycoon', 'Legend'],
+    [BoardName.ELYSIUM]: ['Generalist', 'Specialist', 'Ecologist', 'Tycoon10', 'Legend'],
     [BoardName.AMAZONIS]: ['Colonizer', 'Forester', 'Minimalist', 'Terran', 'Tropicalist'],
     [BoardName.ARABIA_TERRA]: ['Economizer', 'Pioneer', 'Land Specialist', 'Martian', 'Terran'],
     [BoardName.TERRA_CIMMERIA]: ['T. Collector', 'Firestarter', 'Terra Pioneer', 'Spacefarer', 'Gambler'],

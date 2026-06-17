@@ -15,7 +15,7 @@ describe('StagedProtests', () => {
   beforeEach(() => {
     card = new StagedProtests();
     [game, player/* , player2 */] = testGame(2);
-    terraformer = game.milestones.find((milestone) => milestone.name === 'Terraformer')!;
+    terraformer = game.milestones.find((milestone) => milestone.name === 'Terraformer29')!;
   });
 
   it('canPlay', () => {
@@ -34,7 +34,7 @@ describe('StagedProtests', () => {
   it('Milestone costs', () => {
     card.play(player);
     player.playedCards.push(card);
-    player.setTerraformRating(35); // Can claim Terraformer milestone
+    player.setTerraformRating(35); // Can claim Terraformer29 milestone
     player.megaCredits = 15;
     expect(player.claimableMilestones()).is.empty;
     player.megaCredits = 16;

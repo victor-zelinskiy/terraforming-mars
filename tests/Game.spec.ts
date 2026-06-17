@@ -673,7 +673,7 @@ describe('Game', () => {
     const game = Game.newInstance('gameid', [player, player2], player, 'spectatorid', {});
     player.popWaitingFor();
 
-    player.setTerraformRating(35); // Can claim Terraformer milestone
+    player.setTerraformRating(35); // Can claim Terraformer29 milestone
 
     player.megaCredits = 7;
     // Cannot afford milestone.
@@ -686,7 +686,7 @@ describe('Game', () => {
     const claimMilestoneAction = cast(actions2.options.find((option) => option.title === 'Claim a milestone'), OrOptions);
     claimMilestoneAction.options[0].cb();
     runAllActions(game);
-    expect(game.claimedMilestones.some((cm) => cm.milestone.name === 'Terraformer' && cm.player === player)).is.true;
+    expect(game.claimedMilestones.some((cm) => cm.milestone.name === 'Terraformer29' && cm.player === player)).is.true;
   });
 
   // https://github.com/terraforming-mars/terraforming-mars/issues/5572
@@ -696,15 +696,15 @@ describe('Game', () => {
     const game = Game.newInstance('gameid', [player, player2], player, 'spectatorid', {});
     player.popWaitingFor();
 
-    player.setTerraformRating(35); // Can claim Terraformer milestone
+    player.setTerraformRating(35); // Can claim Terraformer29 milestone
     player.megaCredits = 8;
     const actions = cast(player.getActions(), OrOptions);
     const claimMilestoneAction = cast(actions.options.find((option) => option.title === 'Claim a milestone'), OrOptions);
     claimMilestoneAction.options[0].cb();
     runAllActions(game);
-    expect(game.claimedMilestones.some((cm) => cm.milestone.name === 'Terraformer' && cm.player === player)).is.true;
+    expect(game.claimedMilestones.some((cm) => cm.milestone.name === 'Terraformer29' && cm.player === player)).is.true;
 
-    expect(() => claimMilestoneAction.options[0].cb()).to.throw(/Terraformer is already claimed/);
+    expect(() => claimMilestoneAction.options[0].cb()).to.throw(/Terraformer29 is already claimed/);
     const actions2 = cast(player.getActions(), OrOptions);
     expect(actions2.options.some((option) => option.title === 'Claim a milestone')).is.false;
   });
@@ -994,7 +994,7 @@ describe('Game', () => {
     const player = TestPlayer.BLUE.newPlayer();
     const player2 = TestPlayer.RED.newPlayer();
     const game = Game.newInstance('gameid', [player, player2], player, 'spectatorid', {pathfindersExpansion: false});
-    const terraformier = game.milestones.find((milestone) => milestone.name === 'Terraformer')!;
+    const terraformier = game.milestones.find((milestone) => milestone.name === 'Terraformer29')!;
 
     game.claimedMilestones.push({
       milestone: terraformier,
@@ -1002,7 +1002,7 @@ describe('Game', () => {
     });
     const serialized = game.serialize();
     expect(serialized.claimedMilestones).deep.eq([{
-      name: 'Terraformer',
+      name: 'Terraformer29',
       playerId: 'p-blue-id',
     }]);
   });
@@ -1051,7 +1051,7 @@ describe('Game', () => {
     const player = TestPlayer.BLUE.newPlayer();
     const player2 = TestPlayer.RED.newPlayer();
     const game = Game.newInstance('gameid', [player, player2], player, 'spectatorid', {pathfindersExpansion: false});
-    const terraformier = game.milestones.find((milestone) => milestone.name === 'Terraformer')!;
+    const terraformier = game.milestones.find((milestone) => milestone.name === 'Terraformer29')!;
 
     game.claimedMilestones.push({
       milestone: terraformier,
@@ -1067,17 +1067,17 @@ describe('Game', () => {
     // Serializing both of these isn't great, but it's how it works, and demonstrates how the
     // duplication goes away during deserialization
     expect(serialized.claimedMilestones).deep.eq([{
-      name: 'Terraformer',
+      name: 'Terraformer29',
       playerId: 'p-blue-id',
     },
     {
-      name: 'Terraformer',
+      name: 'Terraformer29',
       playerId: 'p-blue-id',
     }]);
 
     const deserialized = Game.deserialize(serialized);
     expect(deserialized.claimedMilestones).has.length(1);
-    expect(deserialized.claimedMilestones[0].milestone.name).eq('Terraformer');
+    expect(deserialized.claimedMilestones[0].milestone.name).eq('Terraformer29');
     expect(deserialized.claimedMilestones[0].player.id).eq('p-blue-id');
   });
 

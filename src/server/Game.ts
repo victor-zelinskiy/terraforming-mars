@@ -348,7 +348,8 @@ export class Game implements IGame, Logger {
       game.aresData = AresSetup.initialData(gameOptions.aresHazards, players);
     }
 
-    const {milestones, awards} = chooseMilestonesAndAwards(gameOptions);
+    const hasVolcanicSpaces = board.spaces.some((space) => space.volcanic === true);
+    const {milestones, awards} = chooseMilestonesAndAwards(gameOptions, {hasVolcanicSpaces});
     game.milestones = milestones.map(milestoneManifest.createOrThrow);
     game.awards = awards.map(awardManifest.createOrThrow);
 

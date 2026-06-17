@@ -392,50 +392,19 @@
                                 <span v-i18n>Random first player</span>
                             </label>
 
-                            <input type="checkbox" name="randomMAToggle" id="randomMA-checkbox" v-on:change="randomMAToggle()">
+                            <!-- vize1215 fork: one button = the unified "all" pool (every compatible
+                                 milestone/award incl. fan + modular, pure random, clone pairs deduped).
+                                 The Limited/Full/Official-α controls and the fan-MA toggle were folded into it. -->
+                            <input type="checkbox" name="randomMAToggle" id="randomMA-checkbox" :checked="isRandomMAEnabled()" v-on:change="randomMAToggle()">
                             <label for="randomMA-checkbox">
                                 <span v-i18n>Random Milestones/Awards</span>&nbsp;<a :href="wikiUrls.randomMilestonesAndAwards" class="tooltip" v-i18n data-tooltip="Link opens in a new tab/window" target="_blank">&#9432;</a>
                             </label>
 
-                            <div class="create-game-page-column-row" v-if="isRandomMAEnabled()">
-                                <div>
-                                <input type="radio" name="randomMAOption" v-model="randomMA" :value="getRandomMaOptionType('limited')" id="limitedRandomMA-radio">
-                                <label class="label-randomMAOption" for="limitedRandomMA-radio">
-                                    <span v-i18n>{{ getRandomMaOptionType('limited') }}</span>
-                                </label>
-                                </div>
-
-                                <div>
-                                <input type="radio" name="randomMAOption" v-model="randomMA" :value="getRandomMaOptionType('full')" id="unlimitedRandomMA-radio">
-                                <label class="label-randomMAOption" for="unlimitedRandomMA-radio">
-                                    <span v-i18n>{{ getRandomMaOptionType('full') }}</span>
-                                </label>
-                                </div>
-                                <div>
-                                  <input type="checkbox" name="modularMA" v-model="modularMA" id="modularMA-checkbox">
-                                   <label for="modularMA-checkbox">
-                                    <span v-i18n>Official Random α</span>
-                                  </label>
-                                </div>
-                            </div>
-
-                            <div v-if="modularMA">
-                              The new Milestones and Awards are still in active development.<br/>
-                              Please don't report anything unless it breaks the game.<br/>
-                              These are <b>always fully random</b>.
-                            </div>
                             <template v-if="expansions.venus">
                                 <input type="checkbox" v-model="requiresVenusTrackCompletion" id="requiresVenusTrackCompletion-checkbox">
                                 <label for="requiresVenusTrackCompletion-checkbox">
                                     <span v-i18n>Mandatory Venus Terraforming</span> &nbsp;<a :href="wikiUrls.venusTerraforming" class="tooltip" v-i18n data-tooltip="Link opens in a new tab/window" target="_blank">&#9432;</a>
                                 </label>
-                            </template>
-
-                            <template v-if="randomMA !== RandomMAOptionType.NONE">
-                              <input type="checkbox" v-model="includeFanMA" id="fanMA-checkbox">
-                              <label for="fanMA-checkbox">
-                                  <span v-i18n>Include fan Milestones/Awards</span>
-                              </label>
                             </template>
 
                             <input type="checkbox" name="showOtherPlayersVP" v-model="showOtherPlayersVP" id="realTimeVP-checkbox">
@@ -709,9 +678,6 @@ export default defineComponent({
     RandomBoardOption(): typeof RandomBoardOption {
       return RandomBoardOption;
     },
-    RandomMAOptionType(): typeof RandomMAOptionType {
-      return RandomMAOptionType;
-    },
     constants(): typeof constants {
       return constants;
     },
@@ -823,23 +789,15 @@ export default defineComponent({
     getPlayers(): Array<NewPlayerModel> {
       return this.players.slice(0, this.playersCount);
     },
-    isRandomMAEnabled(): Boolean {
+    isRandomMAEnabled(): boolean {
       return this.randomMA !== RandomMAOptionType.NONE;
     },
     randomMAToggle() {
+      // vize1215 fork: one button toggles between board-default MAs and the unified "all" pool.
       if (this.randomMA === RandomMAOptionType.NONE) {
-        this.randomMA = RandomMAOptionType.LIMITED;
+        this.randomMA = RandomMAOptionType.ALL;
       } else {
         this.randomMA = RandomMAOptionType.NONE;
-      }
-    },
-    getRandomMaOptionType(type: 'limited' | 'full'): RandomMAOptionType {
-      if (type === 'limited') {
-        return RandomMAOptionType.LIMITED;
-      } else if (type === 'full') {
-        return RandomMAOptionType.UNLIMITED;
-      } else {
-        return RandomMAOptionType.NONE;
       }
     },
     isPoliticalAgendasExtensionEnabled(): Boolean {
