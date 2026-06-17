@@ -21,10 +21,12 @@
  *     empty candidate set / quiet game resolves to `balanced_control` with low scores.
  */
 import type {Color} from '@/common/Color';
+import type {CardName} from '@/common/cards/CardName';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import type {EndgameCategoryKey} from '@/client/components/endgame/endgameModel';
 import type {InsightCandidate, InsightContext, InsightFamily} from '@/client/components/endgame/insightEngine';
-import {buildStyleDetail, type ChipDetail} from '@/client/components/endgame/insightDetail';
+import {buildStyleDetail, buildCorporationDetail, type ChipDetail} from '@/client/components/endgame/insightDetail';
+import {ARCHETYPE_LABEL, corporationProfile} from '@/client/components/endgame/corporationStories';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -46,6 +48,8 @@ export type StoryType =
   | 'colony_engine' // colonies carried a player
   | 'standard_project_plan' // standard projects as the plan
   | 'engine_not_converted' // resources/engine that never became points
+  | 'merger_story' // a rare double corporation (Merger) defined the game
+  | 'corporation_identity' // the corporation itself was the plan, and it delivered
   | 'balanced_control'; // a clean, all-round win — no single defining beat
 
 export type StoryTitleKind = 'clash' | 'comeback' | 'domination' | 'upset' | 'duel' | 'pressure' | 'quiet';
@@ -90,6 +94,17 @@ export type PlayerArc = {
   shortSummaryTags: ReadonlyArray<string>;
   /** Iteration 12 — the "why this style" explainability detail for the style chip. */
   styleDetail?: ChipDetail;
+  /** Iteration 13 — the player's CORPORATION identity (name + archetype + how realized). */
+  corporation?: {
+    /** The (primary) corporation card name. */
+    name: string;
+    /** i18n KEY — the archetype label (Capital Starter / Metal Economy / …). */
+    archetypeLabel: string;
+    /** How the corporation played out this game. */
+    realized: 'carried' | 'start' | 'underused' | 'merged' | 'present';
+    /** The hover detail (what the corporation did) for the arc chip. */
+    detail?: ChipDetail;
+  };
 };
 
 export type GameStoryDNA = {
@@ -209,6 +224,12 @@ const DETECTORS: ReadonlyArray<StoryDetector> = [
     test: ({hasId}) => hasId('duel.award.sponsorLost') ? 'a sponsor lost their own award' : undefined,
   },
   {
+    type: 'merger_story', titleKind: 'upset', heroCluster: 'merger',
+    primaryFamilies: ['corporationImpact', 'economy', 'cardStory'],
+    headlineKey: 'A rare double corporation defined the game.',
+    test: ({hasCluster}) => hasCluster('merger') ? 'merger (double corporation) present' : undefined,
+  },
+  {
     type: 'rare_card_drama', titleKind: 'pressure', heroCluster: undefined,
     primaryFamilies: ['rareEvent', 'negativeDrama', 'cardStory'],
     headlineKey: 'A rare card scenario defined the game.',
@@ -265,6 +286,12 @@ const DETECTORS: ReadonlyArray<StoryDetector> = [
     headlineKey: 'Card flow fed the engine that won.',
     test: ({hasCluster}) => hasCluster('cardFlow') || hasCluster('reveal') ?
       'card-flow / reveal cluster present' : undefined,
+  },
+  {
+    type: 'corporation_identity', titleKind: 'domination', heroCluster: 'corporation',
+    primaryFamilies: ['corporationImpact', 'economy', 'cardStory'],
+    headlineKey: 'The corporation was the plan — and it delivered.',
+    test: ({hasCluster}) => hasCluster('corporation') ? 'corporation engine cluster present' : undefined,
   },
   {
     type: 'colony_engine', titleKind: 'domination', heroCluster: 'colony',
@@ -419,6 +446,33 @@ export function buildGameStoryDna(
     if (p.megacredits >= 25) {
       tags.push('Money to spare');
     }
+    // Iteration 13 — the corporation identity for this player's arc.
+    let corporation: PlayerArc['corporation'];
+    const corpName = p.corporations[0];
+    if (corpName !== undefined) {
+      const profile = corporationProfile(corpName as CardName);
+      const corpInsight = candidates.find((c) => c.family === 'corporationImpact' && (c.relatedPlayers ?? []).includes(p.color));
+      let realized: NonNullable<PlayerArc['corporation']>['realized'] = 'present';
+      if (corpInsight !== undefined) {
+        if (corpInsight.id.startsWith('corp.merger')) {
+          realized = 'merged';
+        } else if (corpInsight.id.startsWith('corp.underused')) {
+          realized = 'underused';
+        } else if (corpInsight.id.startsWith('corp.start')) {
+          realized = 'start';
+        } else {
+          realized = 'carried';
+        }
+      } else if (p.corporations.length >= 2) {
+        realized = 'merged';
+      }
+      corporation = {
+        name: corpName,
+        archetypeLabel: profile !== undefined ? ARCHETYPE_LABEL[profile.archetype] : 'Corporation',
+        realized,
+        detail: buildCorporationDetail(ctx, p.color, corpName as CardName),
+      };
+    }
     playerArcs[p.color] = {
       color: p.color,
       style,
@@ -430,6 +484,7 @@ export function buildGameStoryDna(
       lateMomentum,
       shortSummaryTags: tags,
       styleDetail: buildStyleDetail(ctx, p.color, style),
+      corporation,
     };
   }
 
@@ -498,7 +553,8 @@ export function buildGameStoryDna(
     economy_upset: 0.75, terraforming_vs_cards: 0.8, award_betrayal: 0.9,
     attack_pressure: 0.8, rare_card_drama: 0.95, category_counterplay: 0.7,
     card_flow_advantage: 0.65, colony_engine: 0.65, standard_project_plan: 0.6,
-    engine_not_converted: 0.75, balanced_control: 0.2,
+    engine_not_converted: 0.75, merger_story: 0.9, corporation_identity: 0.62,
+    balanced_control: 0.2,
   };
   const sigCands = candidates.filter((c) => signatureCandidateIds.includes(c.id));
   const maxOf = (k: 'rarity' | 'drama') => sigCands.reduce((m, c) => Math.max(m, c.scores?.[k] ?? 0), 0);
