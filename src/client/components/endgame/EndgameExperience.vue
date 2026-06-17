@@ -90,6 +90,12 @@ export default defineComponent({
           breakdown: p.victoryPointsBreakdown,
           vpByGeneration: p.victoryPointsByGeneration ?? [],
           globalSteps: p.globalParameterSteps ?? {},
+          // Iteration 11 — final-inventory + production bridge (leftover stock + profile).
+          leftover: {steel: p.steel, titanium: p.titanium, heat: p.heat, plants: p.plants, energy: p.energy},
+          production: {
+            megacredits: p.megacreditProduction, steel: p.steelProduction, titanium: p.titaniumProduction,
+            plants: p.plantProduction, energy: p.energyProduction, heat: p.heatProduction,
+          },
         }));
       return buildEndgameModel(inputs, {
         hasMoon: game.moon !== undefined,

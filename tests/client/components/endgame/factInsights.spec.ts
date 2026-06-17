@@ -486,4 +486,52 @@ describe('fact-based endgame insights (Iteration 5)', () => {
       expect(composeStory(c).insights.some((i) => i.storySection !== undefined), 'sections assigned').to.be.true;
     });
   });
+
+  // ── Iteration 11: final-inventory bridge, hero chips, icon application ──
+  describe('Iteration 11', () => {
+    const withLeftover = (p: any, lo: {steel?: number; titanium?: number; heat?: number; plants?: number; energy?: number}) => {
+      p.leftover = {steel: 0, titanium: 0, heat: 0, plants: 0, energy: 0, ...lo};
+      return p;
+    };
+
+    it('final inventory: a big steel+titanium hoard → an "unspent material" insight', () => {
+      const players = [pl('red', 'A', 90), withLeftover(pl('blue', 'B', 80), {steel: 12, titanium: 9})];
+      const c = ctx({players, margin: 10});
+      expect(ids(c)).to.include('fact.resourceHoard.blue');
+    });
+
+    it('no leftover bridge (old game) → no hoard insight (graceful)', () => {
+      const c = ctx({players: duo(), margin: 10}); // pl() sets no leftover
+      expect(ids(c).some((id) => id.startsWith('fact.resourceHoard')), 'graceful without inventory').to.be.false;
+    });
+
+    it('small leftover → no hoard insight (no spam)', () => {
+      const players = [pl('red', 'A', 90), withLeftover(pl('blue', 'B', 80), {steel: 4, titanium: 3})];
+      expect(ids(ctx({players, margin: 10})).some((id) => id.startsWith('fact.resourceHoard'))).to.be.false;
+    });
+
+    it('leftover-M€ and material hoard collapse to ONE "on the table" card (shared evidenceKey)', () => {
+      const blue = withLeftover(pl('blue', 'B', 80, {megacredits: 40}), {steel: 14, titanium: 10});
+      const players = [pl('red', 'A', 90), blue];
+      const c = ctx({players, margin: 10});
+      const onTable = generateInsights(c).filter((i) =>
+        i.rankSection !== 'hidden' && (i.evidenceKey ?? '') === 'unused:blue');
+      expect(onTable.length, 'one visible "unused" card for blue').to.eq(1);
+    });
+
+    it('the comeback hero carries mini-timeline evidence chips', () => {
+      const players = [pl('red', 'A', 85, {strongestCategory: 'cards'}), pl('blue', 'B', 80)];
+      players[0].vpByGeneration = [10, 18, 30, 50, 85];
+      players[1].vpByGeneration = [20, 34, 48, 60, 80];
+      const c = ctx({players, margin: 5});
+      (c as any).generation = 5; // so the LATE-comeback threshold (gen−1) is met
+      // A timeline must be present for the comeback analyzer to fire.
+      c.timeline = {sampled: 5, leadChanges: 1, winnerLedGens: 1, topOtherLeader: {color: 'blue', gens: 4},
+        maxDeficit: 16, maxDeficitGen: 3, finalSurge: undefined, winnerTookLeadGen: 5, wireToWire: false, earlyGap: -16} as any;
+      const hero = composeStory(c).insights.find((i) => i.rankSection === 'hero');
+      expect(hero, 'a hero').to.not.be.undefined;
+      expect((hero!.evidenceChips ?? []).length, 'hero has chips').to.be.greaterThan(0);
+      expect(hero!.icon, 'comeback → surge icon').to.eq('surge');
+    });
+  });
 });

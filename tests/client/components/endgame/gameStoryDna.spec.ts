@@ -3,6 +3,7 @@ import {
   composeStory,
   buildStoryDebug,
   finalScore,
+  resolveInsightIcon,
   InsightContext,
   InsightCandidate,
 } from '@/client/components/endgame/insightEngine';
@@ -264,5 +265,63 @@ describe('Story quality guard (Iteration 9)', () => {
   it('finalScore folds in the storyBoost (composer reward)', () => {
     const boosted = {...cand('x'), priority: 50, storyBoost: 16} as InsightCandidate;
     expect(finalScore(boosted)).to.eq(66);
+  });
+});
+
+describe('Visual identity — icon registry (Iteration 11)', () => {
+  const iconFor = (cluster: string, family?: string) =>
+    resolveInsightIcon(cand('x', {storyCluster: cluster, family: family as any}));
+
+  it('maps distinct semantic families to DISTINCT icons', () => {
+    const icons = {
+      economy: iconFor('economy', 'economy'),
+      colony: iconFor('colony', 'colony'),
+      attack: iconFor('attackPressure', 'negativeDrama'),
+      award: iconFor('awardRace', 'duelContrast'),
+      milestone: iconFor('milestoneRace', 'duelContrast'),
+      reveal: iconFor('reveal', 'reveal'),
+      unused: iconFor('unusedMoney', 'unusedPotential'),
+      blueAction: iconFor('actionEngine', 'blueAction'),
+      global: iconFor('terraform', 'globalParameter'),
+      transfer: iconFor('productionSteal', 'negativeDrama'),
+    };
+    expect(icons.economy).to.eq('coin');
+    expect(icons.colony).to.eq('orbit');
+    expect(icons.attack).to.eq('target');
+    expect(icons.award).to.eq('trophy');
+    expect(icons.milestone).to.eq('medal');
+    expect(icons.reveal).to.eq('eye');
+    expect(icons.unused).to.eq('lock');
+    expect(icons.blueAction).to.eq('cog');
+    expect(icons.global).to.eq('globe');
+    expect(icons.transfer).to.eq('transfer');
+    // The whole set must be visually diverse — not one generic icon for everything.
+    const distinct = new Set(Object.values(icons));
+    expect(distinct.size, 'at least 8 distinct icons across families').to.be.greaterThanOrEqual(8);
+  });
+
+  it('award and milestone do NOT share an icon', () => {
+    expect(iconFor('awardRace')).to.not.eq(iconFor('milestoneRace'));
+  });
+
+  it('steal/transfer is distinct from a generic attack (destroy)', () => {
+    expect(iconFor('productionSteal')).to.not.eq(iconFor('attackPressure'));
+  });
+
+  it('a tiebreaker verdict gets the finish-line icon', () => {
+    expect(resolveInsightIcon(cand('verdict.tiebreaker', {storyCluster: 'verdict', family: 'verdict' as any}))).to.eq('finish');
+  });
+
+  it('a verdict card keeps its analyzer icon (crown for a runaway)', () => {
+    expect(resolveInsightIcon(cand('verdict.runaway', {storyCluster: 'verdict', family: 'verdict' as any, icon: 'crown'}))).to.eq('crown');
+  });
+
+  it('composeStory applies the resolved icon to the selected insights', () => {
+    const players = [pl('red', 'A', 90), pl('blue', 'B', 80)];
+    const c = ctx({players, margin: 10, facts: [
+      fact('economy', {id: 'economy:red', player: 'red', metrics: {savedMegacredits: 30, discountAndPaymentSaved: 30}}),
+    ]});
+    const eng = composeStory(c).insights.find((i) => i.id === 'fact.economy.engine');
+    expect(eng?.icon, 'economy → coin icon').to.eq('coin');
   });
 });
