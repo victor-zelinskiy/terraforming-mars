@@ -308,4 +308,52 @@ describe('fact-based endgame insights (Iteration 5)', () => {
     }
     expect(players2.has('red') && players2.has('blue'), 'both players appear in the story').to.be.true;
   });
+
+  // ── Iteration 8: special card story registry (source-aware attacks) ──
+
+  const cardAttack = (player: Color, victim: Color, sourceCard: CardName, metrics: Record<string, number>): EndgameFact =>
+    fact('cardAttack', {id: `cardAttack:${player}:${sourceCard}:${victim}`, player, targetPlayer: victim, sourceCard, metrics});
+
+  it('production steal: a card that hijacked production → insight', () => {
+    const c = ctx({players: duo(), margin: 10, facts: [cardAttack('red', 'blue', CardName.SABOTAGE, {total: 3, production: 1, transfer: 1, energy: 3})]});
+    const ins = find(c, 'special.productionSteal');
+    expect(ins, 'production steal insight').to.not.be.undefined;
+    expect(ins!.relatedCards).to.include(CardName.SABOTAGE);
+  });
+
+  it('production steal: a tiny hit (1) does NOT fire (no spam)', () => {
+    const c = ctx({players: duo(), margin: 10, facts: [cardAttack('red', 'blue', CardName.SABOTAGE, {total: 1, production: 1, energy: 1})]});
+    expect(find(c, 'special.productionSteal'), 'tiny production hit is not a story').to.be.undefined;
+  });
+
+  it('resource-on-card disruption: a microbe engine broken → rare insight', () => {
+    const c = ctx({players: duo(), margin: 10, facts: [cardAttack('red', 'blue', CardName.SABOTAGE, {total: 5, production: 0, Microbe: 5})]});
+    const ins = find(c, 'special.resourceDisruption');
+    expect(ins, 'resource disruption insight').to.not.be.undefined;
+    expect(ins!.family).to.eq('rareEvent');
+  });
+
+  it('resource disruption EXCLUDES animals (Predators owns that story)', () => {
+    const c = ctx({players: duo(), margin: 10, facts: [cardAttack('red', 'blue', CardName.PREDATORS, {total: 6, production: 0, Animal: 6})]});
+    expect(find(c, 'special.resourceDisruption'), 'animals are not generic disruption').to.be.undefined;
+  });
+
+  it('plant denial: a big plant strip → insight', () => {
+    const c = ctx({players: duo(), margin: 10, facts: [cardAttack('red', 'blue', CardName.ASTEROID, {total: 7, production: 0, plants: 7})]});
+    expect(ids(c)).to.include('special.plantDenial');
+  });
+
+  it('counter-style: plant attack on a board-heavy victim supersedes plain plant denial', () => {
+    const c = ctx({players: duo(), margin: 10,
+      facts: [cardAttack('red', 'blue', CardName.ASTEROID, {total: 6, production: 0, plants: 6})],
+      categories: [cat('board', {blue: 16, red: 4})]});
+    const out = generateInsights(c);
+    expect(out.some((i) => i.id === 'special.counterStyle'), 'counter-style present').to.be.true;
+    expect(out.some((i) => i.id === 'special.plantDenial'), 'plant-denial suppressed by counter').to.be.false;
+  });
+
+  it('no card attacks → no special-card stories (graceful)', () => {
+    const out = ids(ctx({players: duo(), margin: 10}));
+    expect(out.some((id) => id.startsWith('special.')), 'no special stories without attacks').to.be.false;
+  });
 });

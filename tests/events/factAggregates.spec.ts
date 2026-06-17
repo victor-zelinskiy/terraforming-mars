@@ -4,6 +4,7 @@ import {
   aggregateByPlayerGeneration,
   actionVictimBreakdown,
   aggregateAttacks,
+  aggregateAttacksBySource,
   eventAttacker,
 } from '@/common/events/aggregate';
 import {sourceKey} from '@/common/events/EventSource';
@@ -52,6 +53,22 @@ describe('analysis-ready aggregates (Iteration 3)', () => {
       const green = redVictims!.find((v) => v.color === 'green');
       expect(blue!.resources.plants).to.eq(4); // from the Predators action
       expect(green!.resources.megacredits).to.eq(4); // from the HiredRaiders play steal
+    });
+  });
+
+  describe('aggregateAttacksBySource — source-aware (which CARD attacked)', () => {
+    it('attributes each loss to the attacking source card', () => {
+      const bySource = aggregateAttacksBySource(negativeInteractionStream());
+      const redRecords = bySource.get('red');
+      expect(redRecords, 'red made source-attributed attacks').to.not.be.undefined;
+      const predators = redRecords!.find((r) => r.sourceCard === CardName.PREDATORS);
+      expect(predators, 'Predators attack record').to.not.be.undefined;
+      expect(predators!.victim).to.eq('blue');
+      expect(predators!.resources.plants).to.eq(4); // 2 plants × 2 activations
+      expect(predators!.scope).to.eq('stock');
+      const raiders = redRecords!.find((r) => r.sourceCard === CardName.HIRED_RAIDERS);
+      expect(raiders!.victim).to.eq('green');
+      expect(raiders!.transfer, 'the steal is a transfer').to.be.true;
     });
   });
 

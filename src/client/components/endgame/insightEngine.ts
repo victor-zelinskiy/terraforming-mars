@@ -33,6 +33,7 @@
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import type {EndgameFact, FactType, FactTag} from '@/common/events/endgameFacts';
+import {analyzeSpecialCardStories} from '@/client/components/endgame/specialCardStories';
 import type {
   EndgameCategory,
   EndgameCategoryKey,
@@ -1643,6 +1644,8 @@ const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeDuelCategoryCounterplay,
   analyzeDuelEconomyConversion,
   analyzeDuelAlmost,
+  // Iteration 8 — special card story registry (source-aware card attacks).
+  analyzeSpecialCardStories,
 ];
 
 const ANALYZERS: ReadonlyArray<Analyzer> = [

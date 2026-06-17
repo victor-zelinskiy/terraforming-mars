@@ -748,3 +748,103 @@ existing profile translation), eslint on touched files; `factInsights` (27) +
 Duel analyzers gate on `mode==='duel'` → standings/solo untouched. Old games / missing
 facts / missing breakdown details → graceful. Deterministic. No fake VP/M€; award/milestone
 outcomes are read from the authoritative breakdown.
+
+---
+
+# ═══════════════════════════════════════════════════════════════════
+# ITERATION 8 — Special Card Story Registry + deep card audit
+# ═══════════════════════════════════════════════════════════════════
+
+Goal: notice rare/impactful CARD stories ("this card DID something notable"), via an
+EXTENSIBLE registry — never "this card was played". The first wave fills the genuine
+gap: SOURCE-AWARE attacks (which CARD broke whose engine). The brief's #1 rule
+("don't add garbage / impact-based only") drove a careful audit so the registry adds
+only NON-DUPLICATIVE, evidence-based stories.
+
+## §6 — Deep card audit (required)
+
+**Mechanic classes inspected** (the brief's A–L): production steal/redirect (A),
+resource destruction/denial (B), resource-on-card disruption (C), VP pressure (D),
+huge single-card VP (E), economy engines (F), reveal/search/card-flow (G), colony (H),
+standard projects (I), blue actions (J), board/greenery counters (K), penalties (L).
+
+**Covered NEW this iteration (the gap) — source-aware attacks via the `cardAttack` fact:**
+- A — production steal/redirect → `productionSteal` (transfer vs reduction).
+- B / K — plant denial → `plantDenial`; the board-heavy counter → `counterStyle`.
+- C — microbe/floater engine disruption → `resourceOnCardDisruption` (animals excluded —
+  Predators owns that).
+
+**Already covered by EXISTING analyzers — NOT re-added (would be duplication/spam):**
+- E huge single-card VP → `analyzeCards` (`cards.best-winner` / `cards.best-loser`).
+- L penalty tradeoff → `analyzeCards` (`cards.penalties-cost` / `cards.winner-penalties`) +
+  `duel.almost.penalty`.
+- F economy monster → `analyzeEconomyFacts` + the `biggestDiscount` notable.
+- G card-flow → `analyzeRevealFacts`. H colony → `analyzeColonyFacts`. I standard projects
+  → `analyzeStandardProjectStrategy`. J blue action → `analyzeBlueActionFacts` (+ unused).
+- D VP pressure / counters → Vermin 2.0 + Predators 2.0. Late bomb → `economyBurst`
+  notable + `timeline.late-comeback`.
+
+**Bridges added:** ONE — `aggregateAttacksBySource` (`aggregate.ts`) → the `cardAttack`
+fact (`endgameFacts.ts`): per (attacker, sourceCard, victim, scope) loss totals + a
+transfer flag, read from each victim-loss event's CARD source. Reliable for destroys /
+production-reductions (the "broke your engine" cases). Steals sourced only to a PLAYER
+(no card) are NOT source-attributable → omitted from the source-aware fact (the aggregate
+`aggregateAttacks` still counts them). No text parsing, no guessing.
+
+**False-positive risks found + mitigated:** tiny/late attacks (thresholds: production ≥ 2,
+card-resource ≥ 4, plants ≥ 6); a card merely played (the registry requires a measurable
+recorded impact); animals double-told (resourceDisruption EXCLUDES animals — Predators
+owns them); a plant hit told twice (counterStyle `suppresses` plantDenial); empty Vermin
+(fixed Iteration 6).
+
+**Intentionally ignored / next wave:** per-source attribution of player-only STEALS
+(no card source on the event); "prevented greenery" as an EXACT claim (needs a rules-
+confirmed plant→greenery threshold — not asserted, only "fuel that never grew"); final
+inventory steel/titanium (no bridge yet); expansion-specific special cards (Moon /
+Pathfinders / Turmoil — out of the in-scope modules / generic-covered).
+
+## §15 — Special stories added (the registry)
+
+`src/client/components/endgame/specialCardStories.ts` — an EXTENSIBLE registry
+(`SpecialCardStory = {id, detect(ctx)}` + `SPECIAL_CARD_STORIES` + one
+`analyzeSpecialCardStories` analyzer registered in `FACT_ANALYZERS`). Type-only engine
+imports → NO module cycle; self-contained param/fact helpers; PURE + deterministic.
+First wave (4, source-aware): **productionSteal** ("hijacked / knocked off N production
+with Card X"), **resourceOnCardDisruption** ("broke Y's engine with Card X, stripping N
+microbes/floaters", `rareEvent`), **plantDenial** ("torched N plants with Card X"),
+**counterStyle** ("answered Y's board game in kind", suppresses plantDenial). All carry
+`relatedCards`/`relatedPlayers`, a `duelRelevance` bonus in duel, and honest confidence
+("could have scored", never a fake VP).
+
+## Selector / honesty
+
+Each story has a distinct `storyCluster` (productionSteal / resourceDisruption /
+plantDenial / counterStyle); `rareEvent` resourceDisruption (rarity 0.8) competes for the
+hero/major bands per the existing `finalScore`/heroWorthy rules; counterStyle suppresses
+the plainer plantDenial telling of the same hit. No fake VP/M€; resource-on-card
+disruption says "could have scored" (potential, not realized VP); attacks are read from
+the authoritative loss events.
+
+## Tests / verification
+
+`factInsights.spec.ts` → 34 (production steal fires / tiny-hit doesn't, microbe
+disruption fires / animals excluded, plant denial, counter-style supersedes plant-denial,
+graceful no-attacks). `factAggregates.spec.ts` → `aggregateAttacksBySource` source
+attribution (Predators→plants, HiredRaiders→transfer). Server build, `vue-tsc` (0),
+`make:json` (no dupes), eslint on touched files; `insightEngine`/`endgameModel`/
+`endgameFacts`/`EndgameOverviewTab` specs unchanged — all green.
+
+## Non-breaking guarantees
+
+The registry is one additive analyzer; no `cardAttack` facts → no special stories
+(graceful). Existing analyzers + the huge-VP/penalty/economy/colony/action/cardFlow/
+Vermin/Predators coverage untouched. Deterministic; no module cycle; multiplayer + solo
+unaffected (duelRelevance is 0 outside duel).
+
+## Next wave (Iteration 9 candidates)
+
+Per-source steal attribution (a player-source→card bridge); a rules-grounded "prevented
+greenery" claim; final-inventory (steel/titanium/cards) bridge for unused-potential
+depth; more counter matchups (production-steal-vs-energy-engine once a production profile
+is in ctx); a fuller attacker/victim split UI card; expansion special cards as those
+modules enter scope; a dev candidate-scoring panel.

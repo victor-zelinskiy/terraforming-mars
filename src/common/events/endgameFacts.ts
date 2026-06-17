@@ -9,6 +9,7 @@ import {
   aggregateBySource,
   actionStatsBySource,
   aggregateAttacks,
+  aggregateAttacksBySource,
   aggregateByPlayerGeneration,
 } from './aggregate';
 
@@ -32,7 +33,7 @@ import {
 export type FactType =
   'economy' | 'actionUsage' | 'passiveEffect' | 'globalParameter' |
   'colony' | 'negativeInteraction' | 'engineTiming' | 'notableEvent' | 'reveal' |
-  'standardProject' | 'milestoneClaim' | 'awardFunding';
+  'standardProject' | 'milestoneClaim' | 'awardFunding' | 'cardAttack';
 
 export type FactConfidence = 'exact' | 'partial' | 'approximate' | 'ruleOnly';
 
@@ -365,6 +366,29 @@ function engineTimingFacts(events: ReadonlyArray<GameEvent>, opts: BuildFactsOpt
   return facts;
 }
 
+// ── Source-aware card attacks (which CARD broke whose engine) ──────────────────
+
+function cardAttackFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
+  const facts: Array<EndgameFact> = [];
+  for (const [attacker, records] of aggregateAttacksBySource(events)) {
+    for (const r of records) {
+      facts.push({
+        id: `cardAttack:${attacker}:${r.sourceCard}:${r.victim}:${r.scope}`,
+        type: 'cardAttack',
+        player: attacker,
+        sourceCard: r.sourceCard,
+        targetPlayer: r.victim,
+        severity: clamp01(r.total / 10),
+        confidence: 'exact',
+        metrics: {total: r.total, production: r.scope === 'production' ? 1 : 0, transfer: r.transfer ? 1 : 0, ...r.resources},
+        relatedEventIds: [],
+        tags: ['attack'],
+      });
+    }
+  }
+  return facts;
+}
+
 // ── Milestone claims + award funding (the WHEN; the outcome is in the breakdown) ──
 
 function maFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
@@ -637,6 +661,7 @@ export function buildEndgameFacts(events: ReadonlyArray<GameEvent>, opts: BuildF
     ...negativeInteractionFacts(events),
     ...revealFacts(events),
     ...standardProjectFacts(events),
+    ...cardAttackFacts(events),
     ...maFacts(events),
     ...engineTimingFacts(events, opts),
     ...notableEventFacts(events),
