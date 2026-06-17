@@ -1,4 +1,4 @@
-import {EffectOverlayStat} from '@/common/events/aggregate';
+import {EffectOverlayStat, VictimRecord} from '@/common/events/aggregate';
 import {Units} from '@/common/Units';
 import {EffectSummaryLine, EffectConfidence, genericLines} from '@/client/components/effects/effectSummary';
 
@@ -34,6 +34,8 @@ export type ActionUsageViewModel = {
   lastGeneration?: number;
   /** How quantifiable the summary is. */
   confidence: EffectConfidence;
+  /** Opponents this action made LOSE resources (attacks), strongest-hit first. */
+  victims: ReadonlyArray<VictimRecord>;
   /** A note shown when the action hasn't been used (never a dead state). */
   note?: string;
 };
@@ -89,6 +91,7 @@ export function getActionUsageSummary(stat: EffectOverlayStat | undefined): Acti
     lines,
     lastGeneration: stat?.lastTrigger?.generation,
     confidence: confidenceForKind(kind),
+    victims: stat?.victims ?? [],
     note: empty ? 'Action not used yet — its usage stats will appear here.' : undefined,
   };
 }
