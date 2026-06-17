@@ -34,6 +34,7 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import type {EndgameFact, FactType, FactTag} from '@/common/events/endgameFacts';
 import {analyzeSpecialCardStories} from '@/client/components/endgame/specialCardStories';
+import {buildGameStoryDna, type GameStoryDNA} from '@/client/components/endgame/gameStoryDna';
 import type {
   EndgameCategory,
   EndgameCategoryKey,
@@ -88,6 +89,26 @@ export type InsightUiVariant =
 export type InsightRankSection = 'hero' | 'primary' | 'secondary' | 'hidden';
 
 /**
+ * Iteration 9 — the NARRATIVE role an insight plays in the composed report (set by the
+ * composer from the Game Story DNA). Lets the UI lay out story SECTIONS (headline / key
+ * moments / player arcs / details) rather than a flat grid. Optional → legacy paths
+ * (selectStoryInsights without DNA) leave it undefined.
+ */
+export type StoryRole =
+  | 'headline' // the composed "why this game was special" hero
+  | 'whyWinnerWon' // the winner's decisive lever
+  | 'whyRunnerLost' // where the runner-up fell short
+  | 'turningPoint' // the moment the game swung
+  | 'signatureMoment' // a defining beat (on the story spine)
+  | 'twist' // a "against expectation" detail
+  | 'contrast' // the duel style contrast
+  | 'almost' // how close the runner-up got
+  | 'rareDetail' // a rare/unusual fact
+  | 'supportingDetail' // solid colour
+  | 'warning' // a pressure/threat note
+  | 'trivia'; // filler (quiet games)
+
+/**
  * The scoring components a fact-based analyzer can supply so the smart selector can
  * rank by more than raw `priority` (a rare/dramatic event should out-rank a routine
  * category note). All 0..1; absent → treated as 0 (so legacy analyzers are unaffected).
@@ -138,6 +159,13 @@ export type InsightCandidate = {
   rankSection?: InsightRankSection;
   /** The combined score the selector ranked by (for debug). */
   finalScore?: number;
+
+  // ── Iteration 9: set by the narrative composer (composeStory) ──
+  /** A score adjustment from the Game Story DNA: + for on-story candidates, − for
+   *  off-story generics. Folded into {@link finalScore}. Absent → 0 (legacy paths). */
+  storyBoost?: number;
+  /** The narrative role in the composed report (headline / twist / contrast / …). */
+  storyRole?: StoryRole;
 };
 
 // What the selector returns — same shape; alias for readability at call sites.
@@ -1623,6 +1651,190 @@ const analyzeDuelAlmost: Analyzer = (ctx) => {
   return out;
 };
 
+// ─────────────────────────────────────────────────────────────────────────
+// Iteration 9: CROSS-FACT analyzers — connect TWO fact areas.
+// A single-family analyzer says "X had economy". A cross-fact analyzer says
+// "X had economy but it never became points" — the connection is where the
+// "why THIS game was special" feeling lives. Each gates on data presence +
+// thresholds, is confidence-aware, and never invents VP/M€.
+// ─────────────────────────────────────────────────────────────────────────
+
+// A · Economy → Scoring conversion: a non-winner with the strongest economy whose
+//     card scoring stayed low — the money bought tempo, not the points that decide it.
+const analyzeEconomyConversionMismatch: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  let best: {p: EndgamePlayerScore; saved: number} | undefined;
+  for (const p of ctx.players) {
+    if (p.color === ctx.winner.color) {
+      continue;
+    }
+    const econ = factsByType(ctx, 'economy').find((f) => f.player === p.color);
+    const saved = econ !== undefined ? metric(econ, 'savedMegacredits') : 0;
+    const cardsVp = p.categories.cards ?? 0;
+    if (saved >= 20 && cardsVp <= 6 && (best === undefined || saved > best.saved)) {
+      best = {p, saved};
+    }
+  }
+  if (best !== undefined) {
+    out.push({
+      id: `xfact.econConv.${best.p.color}`, group: 'reason', priority: 58, severity: 'normal', icon: 'spark',
+      badge: 'Tempo, not points', color: best.p.color,
+      textKey: '${0} built the strongest economy — about ${1} M€ of measured value — but it bought tempo, not the points that decide the game.',
+      params: [raw(best.p.name), raw(best.saved)],
+      family: 'economy', uiVariant: 'normal', storyCluster: 'economyConversion',
+      scores: {impact: 0.5, rarity: 0.55, drama: 0.45, relevance: 0.7, confidence: 0.75},
+      relatedPlayers: [best.p.color],
+    });
+  }
+  return out;
+};
+
+// B · Card flow → Cards category: heavy card flow that DID (winner) or DID NOT
+//     (a loser) turn into card scoring.
+const analyzeCardFlowToCards: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  for (const p of ctx.players) {
+    const reveal = factsByType(ctx, 'reveal').find((f) => f.player === p.color);
+    if (reveal === undefined) {
+      continue;
+    }
+    const flow = metric(reveal, 'revealed') + metric(reveal, 'shown');
+    if (flow < 6) {
+      continue;
+    }
+    const cardsVp = p.categories.cards ?? 0;
+    const isWinner = p.color === ctx.winner.color;
+    if (cardsVp >= 12 && isWinner) {
+      out.push({
+        id: `xfact.cardFlow.fed.${p.color}`, group: 'reason', priority: 60, severity: 'normal', icon: 'cards',
+        badge: 'Card flow', color: p.color,
+        textKey: '${0} kept the cards coming (${1} seen) and converted that flow into ${2} VP of card scoring — the engine that won.',
+        params: [raw(p.name), raw(flow), raw(cardsVp)],
+        family: 'reveal', uiVariant: 'normal', storyCluster: 'cardFlow',
+        scores: {impact: 0.55, rarity: 0.55, drama: 0.4, relevance: 0.75, confidence: 0.8},
+        relatedPlayers: [p.color],
+      });
+    } else if (cardsVp <= 5 && !isWinner) {
+      out.push({
+        id: `xfact.cardFlow.stalled.${p.color}`, group: 'cards', priority: 50, severity: 'minor', icon: 'cards',
+        badge: 'Cards, not points', color: p.color,
+        textKey: '${0} saw plenty of cards (${1}), but little of it became score — the flow never turned into a card engine.',
+        params: [raw(p.name), raw(flow)],
+        family: 'reveal', uiVariant: 'compact', storyCluster: 'cardFlow',
+        scores: {rarity: 0.5, drama: 0.4, relevance: 0.6, confidence: 0.75},
+        relatedPlayers: [p.color],
+      });
+    }
+  }
+  // One card-flow story is enough — keep the strongest (winner-fed outranks stalled).
+  return out.sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id)).slice(0, 1);
+};
+
+// C · Global parameters → category mismatch: the top terraformer didn't win, or the
+//     winner barely moved the planet (the points came from cards/laurels, not the board).
+const analyzeGlobalParamMismatch: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  if (ctx.players.length < 2) {
+    return out;
+  }
+  const topTerraformer = [...ctx.players].sort((a, b) => b.parametersTotal - a.parametersTotal)[0];
+  if (topTerraformer.parametersTotal < 8) {
+    return out; // nobody really moved the planet
+  }
+  if (topTerraformer.color !== ctx.winner.color && topTerraformer.parametersTotal >= ctx.winner.parametersTotal + 4) {
+    out.push({
+      id: `xfact.globalMismatch.${topTerraformer.color}`, group: 'parameters', priority: 61, severity: 'normal', icon: 'globe',
+      badge: 'Moved the planet, lost', color: topTerraformer.color,
+      textKey: '${0} did the most terraforming (${1} parameter steps), but the win was decided off the visible board.',
+      params: [raw(topTerraformer.name), raw(topTerraformer.parametersTotal)],
+      family: 'globalParameter', uiVariant: 'normal', storyCluster: 'globalMismatch',
+      scores: {impact: 0.5, rarity: 0.6, drama: 0.5, relevance: 0.75, confidence: 0.85},
+      relatedPlayers: [topTerraformer.color, ctx.winner.color],
+    });
+  } else if (ctx.winner.parametersTotal <= 4 && ((ctx.winner.categories.cards ?? 0) + (ctx.winner.categories.mca ?? 0)) >= 25) {
+    out.push({
+      id: 'xfact.globalMismatch.winnerNoTerraform', group: 'parameters', priority: 60, severity: 'normal', icon: 'globe',
+      badge: 'Won without the planet', color: ctx.winner.color,
+      textKey: '${0} barely touched the global parameters and still won — the points came from cards and laurels, not the planet.',
+      params: [raw(ctx.winner.name)],
+      family: 'globalParameter', uiVariant: 'normal', storyCluster: 'globalMismatch',
+      scores: {impact: 0.5, rarity: 0.6, drama: 0.45, relevance: 0.75, confidence: 0.8},
+      relatedPlayers: [ctx.winner.color],
+    });
+  }
+  return out;
+};
+
+// D · Negative pressure → damaged strategy: the biggest attack that landed on a victim
+//     whose plan it actually hit (plant attacks vs a board-heavy player).
+const analyzeAttackDamagedStrategy: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  let best: {f: EndgameFact; victim: EndgamePlayerScore; lost: number} | undefined;
+  for (const f of factsByType(ctx, 'negativeInteraction')) {
+    const lost = metric(f, 'totalLost');
+    if (f.targetPlayer === undefined || lost < 6) {
+      continue;
+    }
+    const victim = ctx.players.find((p) => p.color === f.targetPlayer);
+    if (victim !== undefined && (best === undefined || lost > best.lost)) {
+      best = {f, victim, lost};
+    }
+  }
+  if (best === undefined) {
+    return out;
+  }
+  const hitBoard = metric(best.f, 'plants') > 0 && best.victim.strongestCategory === 'board';
+  out.push(hitBoard ? {
+    id: `xfact.attackDamage.${best.victim.color}`, group: 'cards', priority: 59, severity: 'normal', icon: 'target',
+    badge: 'Hit the plan', color: best.f.player,
+    textKey: 'The pressure landed where it hurt: ${0} lost ${1} resources to attacks while leaning on the board — their strongest plan took the hit.',
+    params: [raw(best.victim.name), raw(best.lost)],
+    family: 'negativeDrama', uiVariant: 'normal', storyCluster: 'attackDamage',
+    scores: {impact: 0.5, rarity: 0.6, drama: 0.6, relevance: 0.7, confidence: 0.7},
+    relatedPlayers: [best.f.player, best.victim.color],
+  } : {
+    id: `xfact.attackDamage.${best.victim.color}`, group: 'cards', priority: 52, severity: 'normal', icon: 'target',
+    badge: 'Under fire', color: best.f.player,
+    textKey: '${0} spent the game under fire, losing ${1} resources to opponents’ attacks.',
+    params: [raw(best.victim.name), raw(best.lost)],
+    family: 'negativeDrama', uiVariant: 'compact', storyCluster: 'attackDamage',
+    scores: {impact: 0.4, rarity: 0.5, drama: 0.5, relevance: 0.6, confidence: 0.7},
+    relatedPlayers: [best.f.player, best.victim.color],
+  });
+  return out;
+};
+
+// E · Standard projects → card scoring: heavy standard-project use AND low card-VP —
+//     projects carried the game in place of a card engine (the richer "plan B" framing
+//     of the plain strategy line). Grounded in two KNOWN quantities (projects used vs
+//     the cards category), never an unmeasured "draw quality" claim.
+const analyzeProjectCardStarvation: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  for (const p of ctx.players) {
+    const sp = factsByType(ctx, 'standardProject').find((f) => f.player === p.color);
+    if (sp === undefined || metric(sp, 'projects') < 5) {
+      continue;
+    }
+    // Only "plan B" when card scoring stayed low — otherwise it's a genuine multi-prong
+    // strategy and the neutral base line (fact.standardProject.strategy) tells it.
+    if ((p.categories.cards ?? 0) > 6) {
+      continue;
+    }
+    out.push({
+      id: `xfact.projectStarvation.${p.color}`, group: 'reason', priority: 56, severity: 'normal', icon: 'hex',
+      badge: 'Plan B', color: p.color,
+      textKey: '${0} leaned on ${1} standard projects rather than a card engine — the steady, reliable plan when cards weren’t the answer.',
+      params: [raw(p.name), raw(metric(sp, 'projects'))],
+      family: 'standardProject', uiVariant: 'normal', storyCluster: 'projectStarvation',
+      scores: {impact: 0.45, rarity: 0.55, drama: 0.4, relevance: 0.65, confidence: 0.75},
+      suppresses: ['fact.standardProject.strategy'],
+      relatedPlayers: [p.color],
+    });
+    break; // one is enough
+  }
+  return out;
+};
+
 const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeEconomyFacts,
   analyzeBlueActionFacts,
@@ -1646,6 +1858,12 @@ const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeDuelAlmost,
   // Iteration 8 — special card story registry (source-aware card attacks).
   analyzeSpecialCardStories,
+  // Iteration 9 — cross-fact analyzers (connect two fact areas).
+  analyzeEconomyConversionMismatch,
+  analyzeCardFlowToCards,
+  analyzeGlobalParamMismatch,
+  analyzeAttackDamagedStrategy,
+  analyzeProjectCardStarvation,
 ];
 
 const ANALYZERS: ReadonlyArray<Analyzer> = [
@@ -1709,7 +1927,8 @@ export function finalScore(c: InsightCandidate): number {
   const bonus = ((s.impact ?? 0) * 40 + (s.rarity ?? 0) * 60 + (s.drama ?? 0) * 40 + (s.relevance ?? 0) * 20) * conf;
   // Duel-mode rivalry bonus (added flat — it's already gated to duel by the analyzer
   // only setting it in a 2-player game, so multiplayer candidates carry 0).
-  return c.priority + bonus + (s.duelRelevance ?? 0) * 30;
+  // `storyBoost` (Iteration 9): the Game Story DNA's on-story reward / off-story penalty.
+  return c.priority + bonus + (s.duelRelevance ?? 0) * 30 + (c.storyBoost ?? 0);
 }
 
 /** The diversity key (one strong card per cluster in the primary band). */
@@ -1821,30 +2040,151 @@ export function selectStoryInsights(candidates: ReadonlyArray<InsightCandidate>)
   return [...(hero !== undefined ? [hero] : []), ...primary, ...secondary, ...hidden];
 }
 
+/** Run every analyzer (base + fact) → the raw candidate list (no scores yet). */
+function runAnalyzers(ctx: InsightContext): Array<InsightCandidate> {
+  const candidates: Array<InsightCandidate> = [];
+  for (const analyzer of [...ANALYZERS, ...FACT_ANALYZERS]) {
+    candidates.push(...analyzer(ctx));
+  }
+  return candidates;
+}
+
 /** Every candidate from every analyzer (base + fact), with `finalScore` computed and
  *  sorted strongest-first — BEFORE selection. Dev/debug visibility for tuning the
  *  thresholds + understanding why a candidate was/wasn't picked (the selected ones
  *  also carry `rankSection`; an absent `rankSection` here ⇒ it would be dropped). */
 export function buildInsightCandidates(ctx: InsightContext): Array<InsightCandidate> {
-  const candidates: Array<InsightCandidate> = [];
-  for (const analyzer of [...ANALYZERS, ...FACT_ANALYZERS]) {
-    candidates.push(...analyzer(ctx));
-  }
-  return candidates
+  return runAnalyzers(ctx)
     .map((c) => ({...c, finalScore: finalScore(c)}))
     .sort((a, b) => (b.finalScore ?? 0) - (a.finalScore ?? 0) || a.id.localeCompare(b.id));
 }
 
-export function generateInsights(ctx: InsightContext): Array<EndgameInsightView> {
+// ─────────────────────────────────────────────────────────────────────────
+// Iteration 9: the NARRATIVE COMPOSER (Game Story DNA → boosted, role-tagged story)
+// ─────────────────────────────────────────────────────────────────────────
+
+const HERO_STORY_BOOST = 16; // make the DNA's recommended hero cluster headline
+const SIGNATURE_STORY_BOOST = 8; // lift the on-story spine into the primary band
+const GENERIC_STORY_PENALTY = 14; // push off-story generics down (only on a strong story)
+
+/** The per-player style label callback the DNA uses (reuses the canonical duelStyle). */
+function styleResolver(ctx: InsightContext): (color: Color) => string {
+  return (color) => {
+    const p = ctx.players.find((x) => x.color === color);
+    return p !== undefined ? duelStyle(ctx, p) : 'Balanced';
+  };
+}
+
+/** Apply the DNA's on-story boost / off-story penalty to each candidate's `storyBoost`. */
+function applyStoryBoost(candidates: ReadonlyArray<InsightCandidate>, dna: GameStoryDNA): Array<InsightCandidate> {
+  const signature = new Set(dna.signatureClusters);
+  const generic = new Set(dna.suppressedGenericThemes);
+  return candidates.map((c) => {
+    const cluster = clusterOf(c);
+    let boost = 0;
+    if (cluster === dna.recommendedHeroCluster) {
+      boost += HERO_STORY_BOOST;
+    } else if (signature.has(cluster)) {
+      boost += SIGNATURE_STORY_BOOST;
+    }
+    // Penalize a generic theme ONLY when it's off-story (not part of the spine).
+    if (generic.has(cluster) && !signature.has(cluster) && cluster !== dna.recommendedHeroCluster) {
+      boost -= GENERIC_STORY_PENALTY;
+    }
+    return boost !== 0 ? {...c, storyBoost: (c.storyBoost ?? 0) + boost} : c;
+  });
+}
+
+/**
+ * Guarantee a HERO for a non-quiet story: `selectStoryInsights` only promotes a
+ * `heroWorthy` candidate (high rarity/drama/severity), but a strong story can be
+ * carried by a candidate that's defining-yet-not-flashy (e.g. an economy conversion
+ * at rarity 0.6). When the DNA says the game WAS special (uniqueness ≥ 0.45) but no
+ * hero was chosen, promote the strongest ON-STORY insight so the headline always has a
+ * subject. A quiet game keeps no forced hero (the headline reads as a calm summary).
+ */
+function ensureHero(insights: ReadonlyArray<EndgameInsightView>, dna: GameStoryDNA): Array<EndgameInsightView> {
+  const list = [...insights];
+  if (list.length === 0 || list.some((i) => i.rankSection === 'hero') || dna.uniquenessScore < 0.45) {
+    return list;
+  }
+  const signature = new Set(dna.signatureClusters);
+  // The list is already ordered strongest-first (primary band leads), so the first
+  // on-story candidate is the best headline; fall back to the overall strongest.
+  const idx = Math.max(0, list.findIndex((i) => signature.has(clusterOf(i))));
+  const [hero] = list.splice(idx, 1);
+  return [{...hero, rankSection: 'hero'}, ...list];
+}
+
+/** Tag each selected insight with its NARRATIVE role (drives the UI story sections). */
+function assignStoryRoles(insights: ReadonlyArray<EndgameInsightView>, dna: GameStoryDNA): Array<EndgameInsightView> {
+  const twistIds = new Set(dna.twists.map((t) => t.candidateId).filter((id): id is string => id !== undefined));
+  const momentClusters = new Set(dna.keyMoments.map((m) => m.cluster));
+  return insights.map((c) => {
+    const cluster = clusterOf(c);
+    let role: StoryRole;
+    if (c.rankSection === 'hero') {
+      role = 'headline';
+    } else if (c.family === 'duelContrast' && cluster === 'duelContrast') {
+      role = 'contrast';
+    } else if (twistIds.has(c.id)) {
+      role = 'twist';
+    } else if (c.family === 'turningPoint') {
+      role = 'turningPoint';
+    } else if (c.family === 'runnerUpStory' || cluster.startsWith('almost')) {
+      role = 'almost';
+    } else if (cluster === dna.recommendedHeroCluster || momentClusters.has(cluster)) {
+      role = 'signatureMoment';
+    } else if ((c.scores?.rarity ?? 0) >= 0.6 && (c.rankSection === 'secondary' || c.rankSection === 'hidden')) {
+      role = 'rareDetail';
+    } else if ((c.family === 'negativeDrama' || c.family === 'rareEvent') && (c.scores?.drama ?? 0) >= 0.55) {
+      role = 'warning';
+    } else if (c.group === 'reason' && c.color === dna.mainConflict?.leftPlayer) {
+      role = 'whyWinnerWon';
+    } else if (c.rankSection === 'hidden') {
+      role = 'trivia';
+    } else {
+      role = 'supportingDetail';
+    }
+    return {...c, storyRole: role};
+  });
+}
+
+/**
+ * The full narrative pipeline: analyzers → score → Game Story DNA → on-story boost →
+ * select (hero/primary/secondary/hidden) → role tagging. Returns BOTH the typed DNA
+ * (for the headline UI / debug) and the composed insight list.
+ */
+export function composeStory(ctx: InsightContext): {dna: GameStoryDNA; insights: Array<EndgameInsightView>} {
   if (ctx.mode === 'solo') {
-    return [];
+    const dna = buildGameStoryDna(ctx, [], {styleOf: styleResolver(ctx)});
+    return {dna, insights: []};
   }
-  const candidates: Array<InsightCandidate> = [];
-  for (const analyzer of ANALYZERS) {
-    candidates.push(...analyzer(ctx));
-  }
-  for (const analyzer of FACT_ANALYZERS) {
-    candidates.push(...analyzer(ctx));
-  }
-  return selectStoryInsights(candidates);
+  // 1) Score the raw candidates (DNA ranks key moments by finalScore).
+  const scored = runAnalyzers(ctx).map((c) => ({...c, finalScore: finalScore(c)}));
+  // 2) Classify the game's story from the scored candidates + ctx.
+  const dna = buildGameStoryDna(ctx, scored, {styleOf: styleResolver(ctx)});
+  // 3) Boost on-story candidates / penalize off-story generics.
+  const boosted = applyStoryBoost(scored, dna);
+  // 4) Select the hierarchy, guarantee a hero for a strong story, then tag roles.
+  const insights = assignStoryRoles(ensureHero(selectStoryInsights(boosted), dna), dna);
+  return {dna, insights};
+}
+
+export function generateInsights(ctx: InsightContext): Array<EndgameInsightView> {
+  return composeStory(ctx).insights;
+}
+
+/** Dev/debug bundle: the Game Story DNA + every candidate (scored, with `storyBoost`
+ *  applied) sorted strongest-first. Powers the `?egDebug` panel + tuning. */
+export function buildStoryDebug(ctx: InsightContext): {dna: GameStoryDNA; candidates: Array<InsightCandidate>} {
+  const scored = runAnalyzers(ctx).map((c) => ({...c, finalScore: finalScore(c)}));
+  const dna = buildGameStoryDna(ctx, scored, {styleOf: styleResolver(ctx)});
+  const boosted = applyStoryBoost(scored, dna)
+    .map((c) => ({...c, finalScore: finalScore(c)}))
+    .sort((a, b) => (b.finalScore ?? 0) - (a.finalScore ?? 0) || a.id.localeCompare(b.id));
+  // Annotate with the section each would land in (re-run the selector for parity).
+  const placed = new Map(selectStoryInsights(applyStoryBoost(scored, dna)).map((c) => [c.id, c.rankSection]));
+  const candidates = boosted.map((c) => ({...c, rankSection: placed.get(c.id)}));
+  return {dna, candidates};
 }

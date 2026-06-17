@@ -191,10 +191,22 @@ describe('fact-based endgame insights (Iteration 5)', () => {
   });
 
   it('standard-project strategy fires on a project-heavy player', () => {
-    const c = ctx({players: duo(), margin: 10, facts: [
+    const players = duo();
+    (players[0].categories as any).cards = 12; // card scoring present → a genuine strategy, not "plan B"
+    const c = ctx({players, margin: 10, facts: [
       fact('standardProject', {id: 'standardProject:red', player: 'red', metrics: {projects: 6, parameterSteps: 5}}),
     ]});
     expect(ids(c)).to.include('fact.standardProject.strategy');
+  });
+
+  it('cross-fact: project starvation (projects, not a card engine) supersedes the plain strategy', () => {
+    const players = duo(); // red.categories.cards unset → 0 (low card scoring)
+    const c = ctx({players, margin: 10, facts: [
+      fact('standardProject', {id: 'standardProject:red', player: 'red', metrics: {projects: 6, parameterSteps: 5}}),
+    ]});
+    const got = ids(c);
+    expect(got).to.include('xfact.projectStarvation.red');
+    expect(got, 'the richer cross-fact suppresses the neutral line').to.not.include('fact.standardProject.strategy');
   });
 
   it('unused potential: a player left a big M€ pile', () => {
