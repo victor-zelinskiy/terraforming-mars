@@ -63,7 +63,19 @@ export type InsightGroup =
 
 export type InsightIcon =
   | 'crown' | 'swap' | 'surge' | 'target' | 'scale'
-  | 'globe' | 'cards' | 'hex' | 'flag' | 'spark';
+  | 'globe' | 'cards' | 'hex' | 'flag' | 'spark'
+  // Iteration 11 — a richer registry so a card's TYPE reads from its icon at a glance.
+  | 'coin' // economy
+  | 'orbit' // colony
+  | 'transfer' // steal / transfer (distinct from destroy)
+  | 'trophy' // award
+  | 'medal' // milestone
+  | 'eye' // reveal / card flow
+  | 'lock' // unused potential / leftover
+  | 'cog' // blue action engine
+  | 'star' // special / rare card
+  | 'split' // duel style contrast
+  | 'finish'; // photo finish / tiebreaker
 
 // `raw` — final text (names, numbers); `i18n` — an English key the component
 // translates (category/parameter labels); `card` — a card name ($t translates
@@ -604,6 +616,8 @@ const analyzeTimeline: Analyzer = (ctx) => {
       params: [raw(winner.name), raw(t.maxDeficit), raw(t.winnerTookLeadGen)],
       suppresses: ['momentum.winner-surge', 'momentum.pulled-away', 'timeline.lead-taken'],
       family: 'turningPoint', uiVariant: 'hero', storyCluster: 'turningPoint',
+      // Mini-timeline chips: how far down → it turned → the final margin.
+      evidenceChips: [chipN(`−${t.maxDeficit}`, 'bad'), chipL('then took the lead', 'good'), chipN(`+${ctx.margin}`, 'good')],
       scores: {rarity: 0.8, drama: 0.85, impact: 0.9, relevance: 1, confidence: 1},
     });
   } else if (t.maxDeficit >= 8) {
@@ -1129,6 +1143,7 @@ const analyzeBlueActionFacts: Analyzer = (ctx) => {
       textKey: 'Blue-action engine: ${0} fired ${1} times for ${2}.',
       params: [card(topAction.sourceCard), raw(metric(topAction, 'activations')), raw(playerName(ctx, topAction.player))],
       family: 'blueAction', uiVariant: 'normal', storyCluster: 'actionEngine',
+      evidenceChips: [chipN(`×${metric(topAction, 'activations')}`, 'good'), chipL('blue action', 'neutral')],
       scores: {impact: Math.min(1, metric(topAction, 'activations') / 10), confidence: 1, relevance: 0.6},
       relatedFactIds: [topAction.id], relatedPlayers: [topAction.player], relatedCards: [topAction.sourceCard],
     });
@@ -1313,6 +1328,7 @@ const analyzeCategoryStructure: Analyzer = (ctx) => {
       textKey: 'Built on two pillars: ${0} led ${1} (+${2}) and ${3} (+${4}).',
       params: [raw(ctx.winner.name), key(first.cat.label), raw(first.lead), key(second.cat.label), raw(second.lead)],
       family: 'cardStory', uiVariant: 'normal', storyCluster: 'categoryStructure',
+      evidenceChips: [chipN(`+${first.lead}`, 'good'), chipN(`+${second.lead}`, 'good')],
       scores: {relevance: 0.6, impact: Math.min(1, (first.lead + second.lead) / 30), confidence: 1},
       // The soft "won via one category" line is redundant when the win had two pillars.
       suppresses: ['reason.dominant-category'],
@@ -1370,10 +1386,49 @@ const analyzeUnusedPotential: Analyzer = (ctx) => {
         'Money with nowhere to go: ${0} ended on ${1} M€ that never became points.',
       params: [raw(richest.name), raw(richest.megacredits)],
       family: 'unusedPotential', uiVariant: 'compact', storyCluster: 'unusedMoney',
+      evidenceKey: `unused:${richest.color}`,
+      evidenceChips: [chipN(`${richest.megacredits} M€`, 'neutral'), chipL('never spent', 'bad')],
       scores: {relevance: isWinner ? 0.35 : 0.6, drama: 0.4, confidence: 1},
       relatedPlayers: [richest.color],
     });
   }
+  return out;
+};
+
+// ── Resource hoard: building material (steel + titanium) left unspent at the finish ──
+// (Iteration 11 — final-inventory bridge. Honest: steel/titanium never become VP directly,
+//  so this is "material that never became projects", never a fake "could have won".)
+const analyzeResourceHoard: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  let best: {p: EndgamePlayerScore; steel: number; titanium: number; mat: number} | undefined;
+  for (const p of ctx.players) {
+    const lo = p.leftover;
+    if (lo === undefined) {
+      continue; // old game / no final-inventory bridge → graceful
+    }
+    const mat = lo.steel + lo.titanium;
+    if (mat >= 16 && (best === undefined || mat > best.mat)) {
+      best = {p, steel: lo.steel, titanium: lo.titanium, mat};
+    }
+  }
+  if (best === undefined) {
+    return out;
+  }
+  const isWinner = best.p.color === ctx.winner.color;
+  out.push({
+    id: `fact.resourceHoard.${best.p.color}`, group: 'cards', priority: isWinner ? 43 : 53, severity: 'minor', icon: 'flag',
+    badge: 'Unspent', color: best.p.color,
+    textKey: isWinner ?
+      '${0} finished with ${1} steel and ${2} titanium to spare — building material the win didn’t even need.' :
+      'Building material left on the table: ${0} ended on ${1} steel and ${2} titanium that never became projects.',
+    params: [raw(best.p.name), raw(best.steel), raw(best.titanium)],
+    family: 'unusedPotential', uiVariant: 'compact', storyCluster: 'resourceHoard',
+    // Shares the per-player "unused" key with leftover-M€ → a player gets ONE "on the table" card.
+    evidenceKey: `unused:${best.p.color}`,
+    evidenceChips: [chipN(`${best.steel}+${best.titanium}`, 'neutral'), chipL('unspent material', 'bad')],
+    scores: {relevance: isWinner ? 0.3 : 0.55, drama: 0.35, confidence: 1},
+    relatedPlayers: [best.p.color],
+  });
   return out;
 };
 
@@ -1409,6 +1464,7 @@ const analyzeGlobalParameterFacts: Analyzer = (ctx) => {
     textKey: '${0} drove the terraforming — ${1} parameter steps moved this game.',
     params: [raw(playerName(ctx, top.player)), raw(metric(top, 'totalSteps'))],
     family: 'globalParameter', uiVariant: 'compact', storyCluster: 'terraform',
+    evidenceChips: [chipN(`${metric(top, 'totalSteps')}`, 'metric'), chipL('parameter steps', 'neutral')],
     scores: {impact: Math.min(1, metric(top, 'totalSteps') / 20), relevance: 0.5, confidence: 1},
     relatedFactIds: [top.id], relatedPlayers: [top.player],
   });
@@ -1432,6 +1488,7 @@ const analyzeRevealFacts: Analyzer = (ctx) => {
     textKey: 'Card-flow edge: ${0} saw ${1} extra cards through reveals and searches.',
     params: [raw(playerName(ctx, top.player)), raw(seen)],
     family: 'reveal', uiVariant: 'compact', storyCluster: 'reveal',
+    evidenceChips: [chipN(`${seen}`, 'metric'), chipL('cards seen', 'neutral')],
     scores: {impact: Math.min(1, seen / 12), relevance: 0.45, confidence: 1},
     relatedFactIds: [top.id], relatedPlayers: [top.player],
   });
@@ -1563,6 +1620,7 @@ const analyzeDuelStyleContrast: Analyzer = (ctx) => {
     textKey: 'Two plans: ${0} played as ${1}, ${2} as ${3} — and ${4} prevailed.',
     params: [raw(ctx.winner.name), key(wStyle), raw(ctx.runnerUp.name), key(rStyle), key(wStyle)],
     family: 'duelContrast', uiVariant: 'hero', storyCluster: 'duelContrast',
+    evidenceChips: [chipL(wStyle, 'good'), chipL(rStyle, 'neutral')],
     scores: {rarity: 0.5, drama: 0.6, relevance: 0.8, duelRelevance: 1, confidence: 1},
     relatedPlayers: [ctx.winner.color, ctx.runnerUp.color],
   });
@@ -1704,6 +1762,7 @@ const analyzeDuelCategoryCounterplay: Analyzer = (ctx) => {
       textKey: '${0} vs ${1}: ${2} took ${3}, ${4} answered with ${5} — but ${2}’s edge held.',
       params: [key(winnerCat.cat.label), key(runnerCat.cat.label), raw(ctx.winner.name), key(winnerCat.cat.label), raw(ctx.runnerUp.name), key(runnerCat.cat.label)],
       family: 'duelContrast', uiVariant: 'comparison', storyCluster: 'counterplay',
+      evidenceChips: [chipL(winnerCat.cat.label, 'good'), chipL(runnerCat.cat.label, 'neutral')],
       scores: {drama: 0.5, relevance: 0.75, duelRelevance: 0.95, confidence: 1},
       relatedPlayers: [w, r],
     });
@@ -2078,6 +2137,8 @@ const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
   // Iteration 10 — more unusual shapes.
   analyzeOneCategoryTrap,
   analyzeNarrowEfficiency,
+  // Iteration 11 — final-inventory: building material left unspent.
+  analyzeResourceHoard,
 ];
 
 const ANALYZERS: ReadonlyArray<Analyzer> = [
@@ -2148,6 +2209,57 @@ export function finalScore(c: InsightCandidate): number {
 /** The diversity key (one strong card per cluster in the primary band). */
 function clusterOf(c: InsightCandidate): string {
   return c.storyCluster ?? c.family ?? c.group;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Iteration 11: VISUAL IDENTITY — a card's TYPE reads from its icon at a glance.
+// A central registry maps cluster (most specific) → family (fallback) → an icon, so
+// the composer can set a meaningful icon without editing every analyzer. Different
+// SEMANTIC families get DISTINCT icons (the guard test enforces it).
+// ─────────────────────────────────────────────────────────────────────────
+
+const ICON_BY_CLUSTER: Readonly<Record<string, InsightIcon>> = {
+  // economy
+  economy: 'coin', economyUpset: 'coin', economyConversion: 'coin', economyBurst: 'surge', runnerUpEconomy: 'coin',
+  // colony
+  colony: 'orbit', colonyDomination: 'orbit',
+  // awards / milestones
+  awardRace: 'trophy', milestoneRace: 'medal',
+  // attacks / pressure
+  attackPressure: 'target', attackDamage: 'target', plantDenial: 'target', counterStyle: 'split',
+  resourceDisruption: 'star', productionSteal: 'transfer', predators: 'star', vermin: 'star',
+  // card flow / reveal
+  reveal: 'eye', cardFlow: 'eye',
+  // unused potential / leftover
+  unused: 'lock', unusedMoney: 'lock', almostMoney: 'lock', projectStarvation: 'hex', resourceHoard: 'lock',
+  // engines / infra / planet
+  actionEngine: 'cog', standardProject: 'hex', terraform: 'globe', globalMismatch: 'globe',
+  // structure / duel
+  duelContrast: 'split', counterplay: 'swap', categoryStructure: 'swap', categorySecondary: 'swap', oneCategoryTrap: 'swap',
+  narrowEfficiency: 'scale', turningPoint: 'surge',
+  // runner-up
+  runnerUp: 'flag', almostPenalty: 'flag',
+};
+
+const ICON_BY_FAMILY: Readonly<Record<InsightFamily, InsightIcon>> = {
+  verdict: 'scale', turningPoint: 'surge', economy: 'coin', blueAction: 'cog', passiveEngine: 'cog',
+  negativeDrama: 'target', colony: 'orbit', standardProject: 'hex', globalParameter: 'globe', reveal: 'eye',
+  unusedPotential: 'lock', runnerUpStory: 'flag', rareEvent: 'star', cardStory: 'cards', boardStory: 'hex',
+  duelContrast: 'split',
+};
+
+/** The icon that best conveys an insight's TYPE — cluster first, then family, then the
+ *  analyzer's own choice. Photo-finish/tiebreaker get the dedicated finish icon; verdict
+ *  cards keep their already-apt analyzer icon (crown for a runaway, scale for a close one). */
+export function resolveInsightIcon(c: InsightCandidate): InsightIcon {
+  if (c.id === 'verdict.tiebreaker' || c.id === 'verdict.photo-finish') {
+    return 'finish';
+  }
+  if (c.family === 'verdict') {
+    return c.icon;
+  }
+  const cluster = clusterOf(c);
+  return ICON_BY_CLUSTER[cluster] ?? (c.family !== undefined ? ICON_BY_FAMILY[c.family] : undefined) ?? c.icon;
 }
 
 function heroWorthy(c: InsightCandidate): boolean {
@@ -2468,6 +2580,8 @@ export function composeStory(ctx: InsightContext): {dna: GameStoryDNA; insights:
   insights = assignStoryRoles(insights, dna);
   insights = surfaceRunnerUpVoice(insights, dna);
   insights = assignStorySections(insights, dna);
+  // 6) Visual identity: a meaningful, type-revealing icon per card (Iteration 11).
+  insights = insights.map((c) => ({...c, icon: resolveInsightIcon(c)}));
   return {dna, insights};
 }
 

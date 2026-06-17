@@ -36,6 +36,12 @@ import type {GameStoryDNA} from '@/client/components/endgame/gameStoryDna';
 
 // What the builder needs from each player — a thin, pure projection of
 // PublicPlayerModel (the component maps it before calling the builder).
+// Iteration 11 — the final-inventory / production bridge. Leftover STOCK at game end +
+// the player's PRODUCTION profile (both from PublicPlayerModel). Optional → old games /
+// callers without it degrade gracefully (the analyzers that read it simply don't fire).
+export type ResourceInventory = {steel: number; titanium: number; heat: number; plants: number; energy: number};
+export type ProductionProfile = {megacredits: number; steel: number; titanium: number; plants: number; energy: number; heat: number};
+
 export type EndgamePlayerInput = {
   color: Color;
   name: string;
@@ -44,6 +50,8 @@ export type EndgamePlayerInput = {
   breakdown: VictoryPointsBreakdown;
   vpByGeneration: ReadonlyArray<number>;
   globalSteps: Partial<Record<GlobalParameter, number>>;
+  leftover?: ResourceInventory;
+  production?: ProductionProfile;
 };
 
 export type EndgameModelOptions = {
@@ -108,6 +116,9 @@ export type EndgamePlayerScore = {
   parametersTotal: number;
   // The single category this player scored the most in (their identity).
   strongestCategory: EndgameCategoryKey | undefined;
+  // Iteration 11 — leftover stock + production profile (optional → absent on old games).
+  leftover?: ResourceInventory;
+  production?: ProductionProfile;
 };
 
 export type EndgameMode = 'solo' | 'duel' | 'standings';
@@ -338,6 +349,8 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
       globalSteps: p.globalSteps,
       parametersTotal,
       strongestCategory: strongestCategoryOf(categories, presentCategories),
+      leftover: p.leftover,
+      production: p.production,
     };
   });
 

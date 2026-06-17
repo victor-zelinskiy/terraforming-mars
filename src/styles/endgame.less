@@ -1196,17 +1196,19 @@
     .eg-insight__badge { font-size: 11px; padding: 2px 12px; }
     .eg-insight__text { font-size: 17px; line-height: 1.5; color: @eg-text; font-weight: 500; }
 }
-/* The cinematic glow sweep behind a hero card. */
+/* The cinematic glow behind a hero card — a ONE-SHOT reveal (Iteration 11: no pulsing
+   spam; the glow settles to a calm static state and stays there). */
 .eg-insight__glow {
     position: absolute;
     inset: -40% -10%;
     background: radial-gradient(60% 60% at 18% 30%, ~"color-mix(in srgb, var(--eg-pc) 22%, transparent)", transparent 70%);
     pointer-events: none;
-    animation: eg-hero-glow 6s ease-in-out infinite;
+    opacity: 0.62;
+    animation: eg-hero-glow-in 1100ms ease-out 120ms backwards;
 }
-@keyframes eg-hero-glow {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 0.9; }
+@keyframes eg-hero-glow-in {
+    0% { opacity: 0; transform: scale(1.08); }
+    100% { opacity: 0.62; transform: none; }
 }
 /* LEGENDARY — a tiebreaker / once-a-season beat: gold cinematic + animated rim. */
 .eg-insight--var-legendary {
@@ -1814,5 +1816,8 @@
     .eg-reveal__glow, .eg-reveal__scan, .eg-reveal__aurora, .eg-reveal__halo,
     .eg-reveal__cta-sheen, .eg-insight, .eg-pill, .game-over-banner { animation: none; }
     .eg-pill__pulse, .game-over-banner__pulse { animation: none; }
+    /* Iteration 11 — the one-shot hero glow + story sections / arcs settle instantly. */
+    .eg-insight__glow { animation: none; opacity: 0.5; }
+    .eg-storysec, .eg-arc, .eg-storyhead { animation: none; }
     .eg-chart__line, .eg-pbar__fill { transition: none; }
 }

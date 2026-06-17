@@ -1068,3 +1068,78 @@ CHIPS); a production PROFILE in ctx (production-steal-vs-energy counters); the c
 per-source steal + final-inventory bridges; "board closed" (money but nowhere to place) —
 needs a placement-availability bridge; a fuller multiplayer player-arcs row (3rd "most
 unusual" player); a live dev candidate-scoring panel surfaced from `buildStoryDebug`.
+
+# Iteration 11 — Visual Identity (icon registry) + Final-Inventory bridge + Premium polish
+
+The screen now READS its card types at a glance and explains leftover resources.
+
+## §3 — Visual identity: a card's TYPE reads from its icon
+
+`InsightIcon` expanded with 11 type-revealing glyphs (coin/orbit/transfer/trophy/medal/
+eye/lock/cog/star/split/finish). A CENTRAL registry — `ICON_BY_CLUSTER` (most specific) →
+`ICON_BY_FAMILY` (fallback) → the analyzer's own icon — resolved by `resolveInsightIcon(c)`
+and applied to every insight in `composeStory` (no need to edit 30 analyzers). Different
+SEMANTIC families get DISTINCT icons (economy=coin, colony=orbit, attack=target,
+steal/transfer=transfer, award=trophy, milestone=medal, reveal=eye, unused=lock,
+blueAction=cog, global=globe, duel=split); a tiebreaker gets the dedicated finish-line
+icon; verdict cards keep their already-apt analyzer icon (crown for a runaway). Guard:
+`gameStoryDna.spec.ts` "Visual identity" block — distinct families → ≥ 8 distinct icons,
+award≠milestone, steal≠destroy, tiebreaker→finish, runaway keeps crown, composer applies it.
+
+## §8 — Final-inventory + production bridge
+
+`EndgamePlayerInput`/`EndgamePlayerScore` gained optional `leftover` (steel/titanium/heat/
+plants/energy STOCK at game end) + `production` (the 6-resource PROFILE), threaded from
+`PublicPlayerModel` in `EndgameExperience.vue` (additive, optional → old games / no-bridge
+degrade gracefully). New `analyzeResourceHoard` — a big leftover steel+titanium pile (≥ 16)
+→ "building material that never became projects", HONEST (steel/titanium aren't VP, so no
+fake "could have won"). Shares the per-player `unused:<player>` evidence key with the
+leftover-M€ insight, so a player gets ONE "on the table" card. The production PROFILE now
+lives in `ctx.players[].production` for future counter analyzers (the steal-vs-energy-engine
+counter is deferred to avoid spam/fake — the DATA bridge is the deliverable here).
+
+## §2,4,5 — Hero + family chips + premium polish
+
+Evidence chips extended to the headline families that lacked them: the comeback hero now
+shows a **mini-timeline** (`−deficit → then took the lead → +margin`), blue-action (×N),
+global (steps), reveal (cards seen), two-pillar (+lead/+lead), counterplay + duel-style
+(the two style/category chips). The hero cinematic glow is now a **ONE-SHOT reveal** (no
+infinite pulse — the brief's "glow once, no pulsing spam"); `prefers-reduced-motion: reduce`
+disables the glow + section/arc rise animations. `?egDebug` gained an **icon** column for
+icon QA.
+
+## Phrasing
+
+39→ +8 new `ru/endgame.json` keys (chip labels: «действие синей карты»/«шаги параметров»/
+«карт просмотрено»/«не потрачено»/«неизрасходованный материал»/«и вышел вперёд»; the two
+resource-hoard sentences). All `grep`-checked, no dupes.
+
+## Bridges status (honest)
+
+- **Final inventory** — DONE (leftover stock + production profile threaded; resource-hoard
+  analyzer live).
+- **Production profile** — PARTIAL: the per-player profile is now in `ctx`; the
+  steal-vs-energy COUNTER analyzer is deferred (needs per-source production-loss attribution
+  to be non-fake).
+- **Per-source steal** — still PARTIAL (Iteration 8 `aggregateAttacksBySource` attributes
+  destroys/production-reductions to the source card; clean player-only steals lack a card
+  source → omitted, documented gap).
+- **Board closed** — INVESTIGATED, deferred: the model carries global-param STEPS, not final
+  LEVELS, so "oceans full / oxygen maxed" can't be derived yet; needs a final-parameter-level
+  bridge from the game state (Iteration 12).
+
+## Verification / non-breaking
+
+`build:server` unaffected (no server/common change — the bridge is client-side from
+`PublicPlayerModel`); `vue-tsc` (0 — `ICON_GLYPH` is a complete `Record<InsightIcon,…>`);
+`make:json` (no dupes); eslint on touched files; `gameStoryDna.spec.ts` (30) +
+`factInsights.spec.ts` (49) + the rest of the endgame/event specs + the `EndgameOverviewTab`
+client spec — all green. Old games (no `leftover`) → resource-hoard simply doesn't fire;
+solo → []; deterministic; honest (no fake VP/M€, no "could have won" from leftover).
+
+## Next wave (Iteration 12 candidates)
+
+Per-source CLEAN-steal attribution + a production-steal-vs-energy counter analyzer (the
+profile data is now in ctx); a board-closed bridge (final parameter LEVELS from game state);
+bespoke per-family card LAYOUTS (today: shared card + family icon/accent/chips); a 3rd
+"most unusual" multiplayer player-arc; a live dev candidate-scoring panel.

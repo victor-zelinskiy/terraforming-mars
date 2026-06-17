@@ -286,10 +286,10 @@
         twists: {{ model.storyDna.twists.map((t) => t.kind).join(', ') }}
       </div>
       <table class="eg-dnadebug__table">
-        <thead><tr><th>id</th><th>role</th><th>section</th><th>band</th><th>evidence</th><th>boost</th><th>score</th></tr></thead>
+        <thead><tr><th>id</th><th>icon</th><th>role</th><th>section</th><th>band</th><th>evidence</th><th>boost</th><th>score</th></tr></thead>
         <tbody>
           <tr v-for="ins in debugInsights" :key="ins.id">
-            <td>{{ ins.id }}</td><td>{{ ins.storyRole }}</td><td>{{ ins.storySection }}</td><td>{{ ins.rankSection }}</td>
+            <td>{{ ins.id }}</td><td>{{ ins.icon }}</td><td>{{ ins.storyRole }}</td><td>{{ ins.storySection }}</td><td>{{ ins.rankSection }}</td>
             <td>{{ evKey(ins) }}</td><td>{{ ins.storyBoost || 0 }}</td><td>{{ round2(ins.finalScore) }}</td>
           </tr>
         </tbody>
@@ -323,6 +323,18 @@ const ICON_GLYPH: Record<InsightIcon, string> = {
   hex: '⬡',
   flag: '⚑',
   spark: '✦',
+  // Iteration 11 — visual identity (monochrome geometric glyphs, tinted via CSS).
+  coin: '⊛', // economy
+  orbit: '◍', // colony
+  transfer: '⇌', // steal / transfer
+  trophy: '✷', // award
+  medal: '✸', // milestone
+  eye: '⊙', // reveal / card flow
+  lock: '⊟', // unused potential
+  cog: '⟳', // blue action
+  star: '✪', // special / rare card
+  split: '⋔', // duel style contrast
+  finish: '‖', // photo finish / tiebreaker
 };
 
 // Story-type → short chip label (English i18n key, translated for the headline chips).
