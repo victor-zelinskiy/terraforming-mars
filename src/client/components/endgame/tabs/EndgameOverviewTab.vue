@@ -112,12 +112,55 @@
       </div>
     </section>
 
-    <!-- ── Insights: the analysts' read of the game ───────────────────── -->
+    <!-- ── Insights: the analysts' read of the game (premium hierarchy) ── -->
     <section v-if="insightLines.length > 0" class="eg-insights">
       <h2 class="eg-section-title" v-i18n>How it was decided</h2>
-      <div class="eg-insights__grid">
-        <article v-for="(line, i) in insightLines" :key="line.id"
-                 class="eg-insight" :class="'eg-insight--' + line.severity"
+
+      <!-- HERO — the single defining story of the game. -->
+      <article v-if="heroInsight !== undefined" class="eg-insight eg-insight--hero"
+               :class="[familyClass(heroInsight), 'eg-insight--var-' + (heroInsight.uiVariant || 'hero')]"
+               :style="insightStyle(heroInsight, 0)">
+        <span class="eg-insight__glow" aria-hidden="true"></span>
+        <span class="eg-insight__icon" aria-hidden="true">{{ heroInsight.glyph }}</span>
+        <div class="eg-insight__body">
+          <span class="eg-insight__badge" v-i18n>{{ heroInsight.badge }}</span>
+          <span class="eg-insight__text">{{ heroInsight.text }}</span>
+        </div>
+      </article>
+
+      <!-- KEY MOMENTS — the main analytical cards. -->
+      <div v-if="primaryInsights.length > 0" class="eg-insights__grid">
+        <article v-for="(line, i) in primaryInsights" :key="line.id"
+                 class="eg-insight" :class="['eg-insight--' + line.severity, familyClass(line)]"
+                 :style="insightStyle(line, i)">
+          <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
+          <div class="eg-insight__body">
+            <span class="eg-insight__badge" v-i18n>{{ line.badge }}</span>
+            <span class="eg-insight__text">{{ line.text }}</span>
+          </div>
+        </article>
+      </div>
+
+      <!-- INTERESTING DETAILS — compact chips. -->
+      <div v-if="secondaryInsights.length > 0" class="eg-insights__compact">
+        <article v-for="(line, i) in secondaryInsights" :key="line.id"
+                 class="eg-insight eg-insight--compact" :class="familyClass(line)"
+                 :style="insightStyle(line, i)">
+          <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
+          <div class="eg-insight__body">
+            <span class="eg-insight__badge" v-i18n>{{ line.badge }}</span>
+            <span class="eg-insight__text">{{ line.text }}</span>
+          </div>
+        </article>
+      </div>
+
+      <!-- SHOW MORE — the rest of the analysis. -->
+      <button v-if="hiddenInsights.length > 0" type="button" class="eg-insights__more" @click="showMore = !showMore">
+        <span v-i18n>{{ showMore ? 'Show less' : 'Show more analysis' }}</span>
+      </button>
+      <div v-if="showMore && hiddenInsights.length > 0" class="eg-insights__compact eg-insights__compact--extra">
+        <article v-for="(line, i) in hiddenInsights" :key="line.id"
+                 class="eg-insight eg-insight--compact" :class="familyClass(line)"
                  :style="insightStyle(line, i)">
           <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
           <div class="eg-insight__body">
@@ -163,6 +206,9 @@ type InsightLine = {
   badge: string; // i18n key (v-i18n translates)
   text: string; // fully composed, translated
   color?: Color;
+  family?: string;
+  uiVariant?: string;
+  rankSection?: string;
 };
 
 type Fact = {
@@ -186,9 +232,25 @@ export default defineComponent({
     view: {type: Object, required: false, default: undefined},
     viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
   },
+  data() {
+    return {showMore: false};
+  },
   computed: {
     mode(): string {
       return this.model.mode;
+    },
+    heroInsight(): InsightLine | undefined {
+      return this.insightLines.find((l) => l.rankSection === 'hero');
+    },
+    primaryInsights(): Array<InsightLine> {
+      // 'primary' band, plus any legacy line with no rankSection (graceful fallback).
+      return this.insightLines.filter((l) => l.rankSection === 'primary' || l.rankSection === undefined);
+    },
+    secondaryInsights(): Array<InsightLine> {
+      return this.insightLines.filter((l) => l.rankSection === 'secondary');
+    },
+    hiddenInsights(): Array<InsightLine> {
+      return this.insightLines.filter((l) => l.rankSection === 'hidden');
     },
     duelPlayers(): Array<EndgamePlayerScore> {
       // Winner on the left for a stable, readable head-to-head.
@@ -309,7 +371,14 @@ export default defineComponent({
         badge: ins.badge,
         text: translateTextWithParams(ins.textKey, params),
         color: ins.color,
+        family: ins.family,
+        uiVariant: ins.uiVariant,
+        rankSection: ins.rankSection,
       };
+    },
+    // Premium accent class by story family (styled in endgame.less).
+    familyClass(line: InsightLine): string {
+      return 'eg-insight--fam-' + (line.family ?? 'generic');
     },
     insightStyle(line: InsightLine, index: number): Record<string, string> {
       const style: Record<string, string> = {'--eg-stagger': String(index)};

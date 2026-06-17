@@ -20,6 +20,8 @@
  */
 import {Color} from '@/common/Color';
 import {GlobalParameter} from '@/common/GlobalParameter';
+import type {CardName} from '@/common/cards/CardName';
+import type {EndgameFact} from '@/common/events/endgameFacts';
 import {CardVictoryPointsDetail, CardVictoryPointsKind, VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {
   EndgameInsightView,
@@ -50,6 +52,11 @@ export type EndgameModelOptions = {
   generation: number;
   // game.isSoloModeWin — only meaningful for a solo game.
   soloWin?: boolean;
+  // Iteration 5: the analysis-ready facts (`buildEndgameFacts`) + per-player card
+  // names, fetched/derived upstream. Optional → the engine falls back to the base
+  // template analyzers when absent (old games / before the fetch resolves).
+  facts?: ReadonlyArray<EndgameFact>;
+  playerCards?: Partial<Record<Color, ReadonlyArray<CardName>>>;
 };
 
 // The major VP families compared across players ("who won what").
@@ -396,6 +403,8 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     timeline,
     profile,
     seed: gameSeed(players, opts.generation),
+    facts: opts.facts,
+    playerCards: opts.playerCards,
   }) : [];
 
   return {
