@@ -72,4 +72,18 @@ describe('action usage summary view-model', () => {
     expect(vm.confidence).to.eq('ruleOnly');
     expect(vm.lastGeneration).to.eq(5);
   });
+
+  it('surfaces the victim breakdown of an attack action', () => {
+    const vm = getActionUsageSummary(stat({
+      triggerCount: 2,
+      victims: [{color: 'blue', hits: 2, totalLost: 4, resources: {plants: 4}}],
+    }));
+    expect(vm.victims).to.have.length(1);
+    expect(vm.victims[0].color).to.eq('blue');
+    expect(vm.victims[0].resources.plants).to.eq(4);
+  });
+
+  it('defaults victims to an empty list for a non-attack action', () => {
+    expect(getActionUsageSummary(stat({triggerCount: 1, cardsDrawn: 2})).victims).to.have.length(0);
+  });
 });

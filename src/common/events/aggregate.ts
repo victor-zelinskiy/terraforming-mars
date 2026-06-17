@@ -283,8 +283,7 @@ export function aggregateByPlayer(events: ReadonlyArray<GameEvent>): Map<Color, 
   return result;
 }
 
-/** Per-generation source totals — feeds the "engine value over time" timeline. */
-export function aggregateByGeneration(events: ReadonlyArray<GameEvent>): Map<number, Map<string, SourceStats>> {
+function groupByGeneration(events: ReadonlyArray<GameEvent>): Map<number, Array<GameEvent>> {
   const byGen = new Map<number, Array<GameEvent>>();
   for (const e of events) {
     const arr = byGen.get(e.generation);
@@ -294,9 +293,192 @@ export function aggregateByGeneration(events: ReadonlyArray<GameEvent>): Map<num
       arr.push(e);
     }
   }
+  return byGen;
+}
+
+/** Per-generation source totals — feeds the "engine value over time" timeline. */
+export function aggregateByGeneration(events: ReadonlyArray<GameEvent>): Map<number, Map<string, SourceStats>> {
   const result = new Map<number, Map<string, SourceStats>>();
-  for (const [gen, arr] of byGen) {
+  for (const [gen, arr] of groupByGeneration(events)) {
     result.set(gen, aggregateBySource(arr));
+  }
+  return result;
+}
+
+/**
+ * Per-player, per-generation totals — the analysis-ready TIMELINE for "when did
+ * the economy / terraforming / engine kick in". `result.get(color).get(gen)` is the
+ * {@link PlayerStats} for that player IN that generation (so a consumer can plot
+ * discounts / params / draws / attacks over time). Derived purely from the stream.
+ */
+export function aggregateByPlayerGeneration(events: ReadonlyArray<GameEvent>): Map<Color, Map<number, PlayerStats>> {
+  const result = new Map<Color, Map<number, PlayerStats>>();
+  for (const [gen, arr] of groupByGeneration(events)) {
+    for (const [color, stats] of aggregateByPlayer(arr)) {
+      let perGen = result.get(color);
+      if (perGen === undefined) {
+        perGen = new Map<number, PlayerStats>();
+        result.set(color, perGen);
+      }
+      perGen.set(gen, stats);
+    }
+  }
+  return result;
+}
+
+/**
+ * One player's RESOURCE LOSSES to another player's action — the victim breakdown.
+ * `totalLost` is the summed magnitude of every negative delta; `resources` is the
+ * per-resource breakdown (standard resource / production / card-resource keys), in
+ * POSITIVE units lost. `hits` = how many loss events that victim suffered.
+ */
+export type VictimRecord = {
+  color: Color;
+  hits: number;
+  totalLost: number;
+  resources: Record<string, number>;
+};
+
+/** Positive magnitudes of every NEGATIVE delta in an impact (a loss), keyed by
+ *  resource / production / card-resource. */
+function negativeLosses(impact: EventImpact): {resources: Record<string, number>; total: number} {
+  const resources: Record<string, number> = {};
+  let total = 0;
+  const add = (key: string, lost: number) => {
+    if (lost > 0) {
+      resources[key] = (resources[key] ?? 0) + lost;
+      total += lost;
+    }
+  };
+  for (const k of UNIT_KEYS) {
+    const sv = impact.stock?.[k];
+    if (sv !== undefined && sv < 0) {
+      add(k, -sv);
+    }
+    const pv = impact.production?.[k];
+    if (pv !== undefined && pv < 0) {
+      add(k, -pv);
+    }
+  }
+  for (const cr of impact.cardResources ?? []) {
+    if (cr.amount < 0) {
+      add(cr.cardResource, -cr.amount);
+    }
+  }
+  return {resources, total};
+}
+
+/**
+ * Per-action VICTIM breakdown — for every action-category root owned by `attacker`,
+ * the OTHER players who LOST resources inside that action's chain (a destroy / steal /
+ * production reduction). Derived from the same structured loss events the negative
+ * notifications read (an event with `player !== attacker` + a negative impact under the
+ * attacker's action correlationId) — never from text, never a parallel system. Keyed by
+ * the action's `sourceKey`. Closes the Iteration-2 "actions lose victim/target" gap.
+ */
+export function actionVictimBreakdown(events: ReadonlyArray<GameEvent>, attacker: Color): Map<string, Array<VictimRecord>> {
+  const byId = new Map<number, GameEvent>();
+  for (const e of events) {
+    byId.set(e.id, e);
+  }
+  const isAttackerActionRoot = (e: GameEvent | undefined): boolean =>
+    e !== undefined && e.category !== undefined && ACTION_CATEGORIES.includes(e.category) &&
+    (e.source?.kind === 'card' || e.source?.kind === 'corporation') && e.source.owner === attacker;
+
+  const bySource = new Map<string, Map<Color, VictimRecord>>();
+  for (const e of events) {
+    const root = byId.get(e.correlationId);
+    if (!isAttackerActionRoot(root) || root === undefined || root.source === undefined) {
+      continue;
+    }
+    if (e.player === undefined || e.player === attacker) {
+      continue; // only OTHER players' events can be a victim loss
+    }
+    const losses = negativeLosses(e.impact);
+    if (losses.total === 0) {
+      continue;
+    }
+    const key = sourceKey(root.source);
+    let victims = bySource.get(key);
+    if (victims === undefined) {
+      victims = new Map<Color, VictimRecord>();
+      bySource.set(key, victims);
+    }
+    let record = victims.get(e.player);
+    if (record === undefined) {
+      record = {color: e.player, hits: 0, totalLost: 0, resources: {}};
+      victims.set(e.player, record);
+    }
+    record.hits += 1;
+    record.totalLost += losses.total;
+    for (const [k, v] of Object.entries(losses.resources)) {
+      record.resources[k] = (record.resources[k] ?? 0) + v;
+    }
+  }
+  const result = new Map<string, Array<VictimRecord>>();
+  for (const [key, victims] of bySource) {
+    result.set(key, [...victims.values()].sort((a, b) => b.totalLost - a.totalLost));
+  }
+  return result;
+}
+
+/**
+ * The attacker behind a victim-LOSS event (`e.player` = the victim) — the recipient
+ * (steal / transfer, via `target.player`) or the source card's owner (destroy /
+ * reduction). `undefined` ⇒ not a cross-player attack (a cost / global event / the
+ * player's own spend). Mirrors the notification model's `attackerOf`, generalised to
+ * any viewer so the fact engine can attribute attacks across the whole game.
+ */
+export function eventAttacker(e: GameEvent): Color | undefined {
+  if (e.target?.player !== undefined && e.target.player !== e.player) {
+    return e.target.player;
+  }
+  const s = e.source;
+  if ((s?.kind === 'card' || s?.kind === 'corporation') && s.owner !== undefined && s.owner !== e.player) {
+    return s.owner;
+  }
+  return undefined;
+}
+
+/**
+ * Whole-game attack ledger: which opponents EACH player made lose resources (from a
+ * card PLAY or a blue ACTION), with the per-victim loss breakdown. Built from the same
+ * structured loss events as the negative notifications. Feeds the negative-interaction
+ * facts ("Nastya pressured Victor through plant attacks ×3").
+ */
+export function aggregateAttacks(events: ReadonlyArray<GameEvent>): Map<Color, Array<VictimRecord>> {
+  const byAttacker = new Map<Color, Map<Color, VictimRecord>>();
+  for (const e of events) {
+    if (e.player === undefined) {
+      continue;
+    }
+    const losses = negativeLosses(e.impact);
+    if (losses.total === 0) {
+      continue;
+    }
+    const attacker = eventAttacker(e);
+    if (attacker === undefined) {
+      continue; // a cost / global event / the player's own spend — not an attack
+    }
+    let victims = byAttacker.get(attacker);
+    if (victims === undefined) {
+      victims = new Map<Color, VictimRecord>();
+      byAttacker.set(attacker, victims);
+    }
+    let record = victims.get(e.player);
+    if (record === undefined) {
+      record = {color: e.player, hits: 0, totalLost: 0, resources: {}};
+      victims.set(e.player, record);
+    }
+    record.hits += 1;
+    record.totalLost += losses.total;
+    for (const [k, v] of Object.entries(losses.resources)) {
+      record.resources[k] = (record.resources[k] ?? 0) + v;
+    }
+  }
+  const result = new Map<Color, Array<VictimRecord>>();
+  for (const [attacker, victims] of byAttacker) {
+    result.set(attacker, [...victims.values()].sort((a, b) => b.totalLost - a.totalLost));
   }
   return result;
 }
@@ -327,6 +509,9 @@ export type EffectOverlayStat = {
   globalParameterSteps: Partial<Record<GlobalParameter, number>>;
   vp: number;
   lastTrigger?: {generation: number; impact: EventImpact};
+  /** For an ACTION stat: the opponents this action made LOSE resources (attacks).
+   *  Only populated by `actionOverlayStats`; absent for effects. */
+  victims?: ReadonlyArray<VictimRecord>;
 };
 
 export function toEffectOverlayStat(stats: SourceStats): EffectOverlayStat {
@@ -421,11 +606,17 @@ export function actionStatsBySource(events: ReadonlyArray<GameEvent>, owner?: Co
  * usage summary + the endgame analyzer's "which blue cards were the engine".
  */
 export function actionOverlayStats(events: ReadonlyArray<GameEvent>, owner: Color): Array<EffectOverlayStat> {
+  const victims = actionVictimBreakdown(events, owner);
   const result: Array<EffectOverlayStat> = [];
   for (const stats of actionStatsBySource(events, owner).values()) {
     const s = stats.source;
     if ((s.kind === 'card' || s.kind === 'corporation') && (s.owner === undefined || s.owner === owner)) {
-      result.push(toEffectOverlayStat(stats));
+      const stat = toEffectOverlayStat(stats);
+      const v = victims.get(stat.sourceKey);
+      if (v !== undefined && v.length > 0) {
+        stat.victims = v;
+      }
+      result.push(stat);
     }
   }
   return result;

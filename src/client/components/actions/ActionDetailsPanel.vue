@@ -84,6 +84,19 @@
             <span class="action-detail__usage-label" v-i18n>{{ line.label }}</span>
             <span class="action-detail__usage-value">{{ line.value }}</span>
           </div>
+          <!-- Victim breakdown — opponents this action made LOSE resources. -->
+          <div v-if="usage.victims.length > 0" class="action-detail__victims">
+            <span class="action-detail__victims-label" v-i18n>Targets</span>
+            <div v-for="v in usage.victims" :key="v.color" class="action-detail__victim">
+              <span class="action-detail__victim-dot" :class="'player_bg_color_' + v.color" aria-hidden="true"></span>
+              <span v-for="(amount, res) in v.resources" :key="res" class="action-detail__victim-loss">
+                <span v-if="iconClassFor(res) !== ''" class="action-detail__usage-icon" :class="iconClassFor(res)" aria-hidden="true"></span>
+                <span class="action-detail__victim-amount">−{{ amount }}</span>
+              </span>
+              <span v-if="v.hits > 1" class="action-detail__victim-hits">×{{ v.hits }}</span>
+            </div>
+          </div>
+
           <div v-if="usage.lastGeneration !== undefined" class="action-detail__usage-last">
             <span v-i18n>Last used</span> · <span v-i18n>Generation</span> {{ usage.lastGeneration }}
           </div>

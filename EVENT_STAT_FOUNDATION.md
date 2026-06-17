@@ -265,3 +265,111 @@ generic action aggregation. 14 ✅ server build / vue-tsc / make:json / eslint /
   detail, not just the aggregate; deferred (the aggregate gives totals + last-used now).
 - **Opportunity cost / "built but never activated"** engine analysis — needs comparing
   the action's availability history vs its usage; an endgame-analyzer concern.
+
+---
+
+# ═══════════════════════════════════════════════════════════════════
+# ITERATION 3 — analysis-ready fact layer for the endgame analyzer
+# ═══════════════════════════════════════════════════════════════════
+
+Goal: move from aggregate-ONLY stats ("how much did X give?") to an ANALYSIS-READY
+fact layer the future analyzer turns into a story ("WHEN, WHO was hit, what was the
+turning point, which engine actually worked"). No parallel system — every new view is
+DERIVED from the existing `GameEvent` stream (the per-event detail IS the stream).
+
+## What was added
+
+**1. Timeline aggregation** (`aggregate.ts`). `aggregateByPlayerGeneration(events)` →
+`Map<Color, Map<gen, PlayerStats>>` — every key stat (economy / params / draws /
+attacks) per player PER GENERATION, so a consumer can plot "when the engine kicked
+in / the late-game economy burst". (`aggregateByGeneration` per-source already existed.)
+
+**2. Attack / victim breakdown** (closes the Iteration-2 gap). `eventAttacker(e)` reads
+the attacker behind a victim-loss event (recipient via `target.player` for a steal,
+else the source card's owner for a destroy — the notification model's logic generalised
+to any viewer). `actionVictimBreakdown(events, attacker)` attributes per-ACTION victims
+(for the Actions overlay), `aggregateAttacks(events)` is the whole-game attack ledger
+(play + action). Both reuse the SAME structured loss events the negative notifications
+read — no duplication. `EffectOverlayStat.victims` is populated by `actionOverlayStats`,
+and the Actions-overlay "This game" section renders a "Цели" block (victim colour dot +
+resources lost + ×hits). So "Удалено у соперников: растения −7 · Цели: …" is now real.
+
+**3. Fact Engine** (`src/common/events/endgameFacts.ts`, PURE, dependency-injected).
+`buildEndgameFacts(events, {cardHasAction?, finalGeneration?})` → `EndgameFact[]`. This is
+the `GameEvents/Stats → Facts → (later) Insights` middle arrow — it builds facts but
+deliberately writes NO insight prose (§17). Fact types produced: **economy** (saved M€ +
+value bonus + trade-discount units, per player), **actionUsage** (per blue/corp action:
+activations + gains + cards drawn + last gen), **passiveEffect** (per passive source),
+**globalParameter** (per player: per-parameter steps + the top source card — "who moved
+the planet"), **colony** (trades + track bonus + trade discount), **negativeInteraction**
+(per attacker→victim, what was lost), **engineTiming** (played-gen + activations +
+**neverActivated / lowUsage** = "built but not activated"), **notableEvent** (the single
+biggest discount / draw / attack). Each fact carries `metrics` (structured numbers, never
+prose), `confidence` (exact/partial/approximate/ruleOnly), `severity` (a 0..1 ranking
+hint), `relatedEventIds`, and `tags`. Ids are content-derived (no Date/random) → fully
+deterministic + snapshot-testable. The engine is pure (no manifest import) — the
+"is this an action card" predicate for engine-timing is INJECTED so it runs anywhere.
+
+**4. Coverage guards** (`tests/client/components/effects/trackerCoverageGuard.spec.ts`).
+A repeatable, machine-checkable audit (so a gap can't slip in via a screenshot): it
+flags any in-scope PASSIVE effect whose render SIGNATURE is measurable (result icons /
+discount / value-as-payment) yet whose empty summary collapses to the bare "passive
+rule" — currently ZERO (the Iteration-1 signature-driven note + the special-card sets
+hold). Plus an ACTIVE-action guard: the usage summary never dead-states, and a
+measurable recorded stat classifies to a value kind (not bare `usage`).
+
+**5. Fixtures** (`tests/events/endgameFactFixtures.ts`). A `FactStream` builder + 6
+synthetic analyzer scenarios — economy engine / colony engine / blue-action engine /
+negative interaction / global-parameter pusher / engine-built-but-unused — the seed of
+the suite a future analyzer is tested against. The Fact Engine spec runs over them.
+
+## §19 — required answers
+
+1. **Added:** timeline (`aggregateByPlayerGeneration`), attack/victim breakdown
+   (`eventAttacker`/`actionVictimBreakdown`/`aggregateAttacks` + UI), the pure Fact
+   Engine (`endgameFacts.ts`), coverage guards, and analyzer fixtures.
+2. **Per-event details now available:** the raw `GameEvent` stream already carries
+   per-event generation / source / impact (cost+gain) / target / correlationId /
+   category / confidence-able tags — the fact layer + timeline + victim breakdown make
+   those queryable WITHOUT a parallel store.
+3. **Facts buildable now:** economy / actionUsage / passiveEffect / globalParameter /
+   colony / negativeInteraction / engineTiming / notableEvent (see above).
+4. **Coverage guards added:** suspicious-passive-effect guard + active-action coverage
+   guard (both machine-checkable tests).
+5. **Suspicious gaps found:** none in scope (the guard list is empty).
+6. **Gaps fixed:** the action victim/target gap (Iteration-2 remainder) is closed.
+7. **Legitimate ruleOnly/actionOnly kept:** genuine no-output passive rules (Protected
+   Habitats, Adaptation Technology, …) stay `ruleChange`/`ruleOnly`; activation-only
+   actions stay `usage`/`ruleOnly` — both honest, not "missing tracker".
+8. **Fixtures added:** 6 scenarios (economy / colony / blue-action / negative / global /
+   unused-engine).
+9. **Ready for the analyzer:** facts + timeline + per-source/per-player aggregates +
+   victim breakdown are a deterministic, replayable, snapshot-tested base.
+10. **For Iteration 4:** the debug VIEW/route over facts; reveal/search FACTS (the
+    reveal data lives on `LogMessage.reveal`, not the GameEvent stream — needs a small
+    structural bridge); per-event before/after snapshots (needs player-state-at-time);
+    the first insight modules (prose) on top of the facts.
+
+**Is the base ready for the first analyzer modules?** YES — `buildEndgameFacts(events)`
+gives typed, ranked, deterministic facts; an insight module is now "read facts → phrase".
+**Weak data:** VP (no mid-game stream event — endgame breakdown only); reveal/search
+(structural marker exists on the log, not yet a fact); attack before/after values.
+**Confidence caution:** keep energy/titanium-saved + colony-reward as UNIT facts (the
+`partial` confidence) — never auto-convert to M€; cards-drawn is a count, not a M€ value.
+
+## Tests / verification (Iteration 3)
+
+`tests/events/endgameFacts.spec.ts` (fact engine over fixtures), `factAggregates.spec.ts`
+(timeline + victim breakdown + attack ledger + `eventAttacker`), `endgameFactFixtures.ts`
+(the 6 scenarios), `trackerCoverageGuard.spec.ts` (the suspicious/coverage audit),
+`actionUsageSummary.spec.ts` (victim line). Server build, `vue-tsc` (0), `make:json`
+(no dupes), eslint on touched files, and the events/colonies suites all green.
+
+## Deferred to Iteration 4 (honest)
+
+- A debug VIEW/route exposing facts/per-player stats (the engine is invokable in tests
+  for now — development visibility exists, a UI does not).
+- Reveal/search FACTS (bridge `LogMessage.reveal` markers into the fact layer).
+- Per-event before/after resource snapshots (needs player-state-at-time, not in the
+  stream today).
+- The first INSIGHT modules (prose) — intentionally NOT started this iteration (§17).
