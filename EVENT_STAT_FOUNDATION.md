@@ -960,3 +960,111 @@ collapse); a richer `whyRunnerLost` role mapping; threading a production PROFILE
 (unlocks production-steal-vs-energy-engine counter matchups); the per-source steal bridge
 + final-inventory bridge carried over from Iteration 8; a full dev candidate-scoring panel
 (data already exposed via `buildStoryDebug`).
+
+# Iteration 10 — Narrative UX Director + Evidence Dedup + Player Arcs + Economy/Colony polish
+
+**The bottleneck moved from "how many facts" to "how it's directed."** Iteration 9 found
+the story; Iteration 10 makes the screen READ like a directed post-game report — no
+duplicate thoughts, a sectioned layout (why-won / why-lost / player arcs / highlights),
+evidence chips on the cards, and a much deeper economy + colony telling. Engine-side this
+is composition + dedup, NOT "more analyzers."
+
+## §3 — Evidence dedup (no two visible cards tell the same thought)
+
+`InsightCandidate.evidenceKey` (explicit, else derived `cluster|sorted-players`) is the
+dedup IDENTITY. `composeStory` runs an `evidenceDedup` pre-pass: group the scored
+candidates by key, keep the STRONGEST of each group selectable, FORCE the rest to the
+hidden band ("show more" — present, never cluttering). `selectStoryInsights` gained an
+optional `forceHidden` set (the hero/primary/secondary loops skip it; hidden still
+collects it). Explicit keys set on the colliding families so the SAME thought collapses:
+`attack:<victim>` (the generic "under fire" + the cross-fact board-hit → one card),
+`award:<name>` (sponsor-lost + swing), `almost:<runnerUp>` (penalty + leftover-money +
+"won the category, not enough"), `economy:<player>` (a player's economy told once),
+`economyUpset` (underdog + duel-conversion + runner-up-economy → one). `colony` (engine vs
+domination → one).
+
+## §4 — Section-aware composition + runner-up voice
+
+`InsightCandidate.storySection` (`mainStory` / `whyWinnerWon` / `whyRunnerLost` /
+`highlights` / `details`) assigned by the composer from the role + the involved player (a
+runner-up-coloured "moment" → why-they-fell-short, not why-winner-won). `surfaceRunnerUpVoice`
+promotes a hidden runner-up "almost/whyRunnerLost" insight to secondary when the visible
+report otherwise has no runner-up voice — never invents one, only surfaces an existing one.
+The pipeline is now: analyzers → score → DNA → boost → **evidence-dedup** → select →
+ensureHero → roles → **surface runner-up** → sections.
+
+## §5–6 — Hero + family evidence chips, UI sections, Player Arcs
+
+`InsightCandidate.evidenceChips: EvidenceChip[]` ({t:'raw'|'i18n', v, tone}) — small
+metric/label chips so a card SHOWS its evidence, not just prose. Set on the key
+families: economy (value + source label + exact/measured), attacks (−N + ×hits +
+"under fire"/"hit the board plan"), award (name + +swing + "sponsor lost it"), runner-up
+almost (penalty/money + "no outlet"/"not enough"), colony (trades vs + "one-sided"), the
+new unusual cases. `EndgameOverviewTab` is rebuilt into SECTIONS with headers — hero (+
+its chips + duel VS row) → «Почему победитель выиграл» → «Почему второй не дожал» →
+**«Как играли игроки»** (Player Arcs) → «Самые необычные эпизоды» → details → «Показать
+больше». The **Player Arcs** section (duel: both; else winner+runner-up) renders each
+player's `playerArcs` data — style label, tag chips (style / "Under pressure" / "Money to
+spare"), and Worked / Fell short / Strongest facets derived from the player's insights —
+the human framing the brief asked for ("строил колониальный engine", not "Агрессор").
+Styles: `endgame.less` `.eg-storysec` / `.eg-chip` (tone variants) / `.eg-arc`.
+
+## §7 — Economy storytelling deep pass
+
+`economySource(fact)` splits the value honestly (discounts vs steel/titanium value vs
+trade discounts vs card discounts) → a SOURCE chip + an EXACT-vs-MEASURED chip (pure
+discounts = exact M€; mixed units = "measured value", never a fake M€). Cases now covered:
+**carried the winner** (winner-framed engine card), **strong economy (non-winner)**,
+**economy upset / underdog won** ("not richer — sharper"), **economy didn't convert**
+(cross-fact, tempo not points), **late burst** (existing), **leftover money** (existing).
+The prose dropped the awkward source-as-param; the source lives on the chip.
+
+## §8 — Colony storytelling deep pass (asymmetry, honestly)
+
+`analyzeColonyFacts` now detects **colony DOMINATION** — one player traded far more
+(share ≥ 70% or ≥ 3 more trades, ≥ 5 trades) → "colonies were a one-player game" /
+"colonies tilted one way", with a trades-vs chip + track-bonus chip. **Honesty guard:
+roughly-equal trades → NO domination**, only the plain engine note (or nothing). The plain
+engine card is enriched with the track / trade-discount angle when present. Domination +
+engine share `evidenceKey: 'colony'` so only one shows.
+
+## §9 — More unusual cases
+
+`analyzeOneCategoryTrap` (a non-winner ran away with ONE category but lost the breadth —
+the win needed range), `analyzeNarrowEfficiency` (the winner dominated NOTHING yet had
+enough everywhere — `suppresses` the "dominant category" line). Both standings/category-
+derived (honest, no facts needed), named `story.*` (not `fact.*`) so they don't read as
+fact-derived; thresholded to avoid spam (trap ≥ 12 lead + low breadth; narrow = no lead ≥ 6).
+
+## §13 — Debug
+
+`buildStoryDebug` now annotates every candidate with the derived `evidenceKey`, the
+role, the `storySection`, and the band it landed in (incl. evidence-deduped → hidden).
+The `?egDebug` panel shows id / role / section / band / evidence / boost / score.
+
+## §14 — Tests / verification
+
+`factInsights.spec.ts` → an **Iteration 10** block (evidence dedup collapses "under fire";
+economy carried-winner chips; exact-vs-measured phrasing; colony domination vs equal-trades
+honesty; one-category trap; narrow efficiency; section/role of a runner-up almost; every
+visible insight sectioned; `buildStoryDebug` evidence/section). `gameStoryDna.spec.ts`
+updated for dedup (one visible attack card). `EndgameOverviewTab.spec.ts` → the player-arcs
+section + arc-per-player. `build:server` unaffected (no server/common change); `vue-tsc`
+(0), `make:json` (no dupes — 39 new `ru/endgame.json` keys, all `grep`-checked, player-style
+labels reused from Iter 7), eslint on touched files; 128 pure + 3 UI specs green.
+
+## Honesty / non-breaking (unchanged rules held)
+
+No fake VP/M€ (economy mixed units → "measured value"; colony reward value NOT estimated);
+no "domination" when trades were even; no "almost milestone" invented; confidence-aware
+chips (exact/measured). Old analyzers untouched (a couple of textKeys reworded for tone —
+old keys harmlessly orphaned); facts-absent → graceful; solo → []; deterministic; no module
+cycle.
+
+## Next wave (Iteration 11 candidates)
+
+A dedicated family micro-LAYOUT per card type (today: shared card + family-specific
+CHIPS); a production PROFILE in ctx (production-steal-vs-energy counters); the carried-over
+per-source steal + final-inventory bridges; "board closed" (money but nowhere to place) —
+needs a placement-availability bridge; a fuller multiplayer player-arcs row (3rd "most
+unusual" player); a live dev candidate-scoring panel surfaced from `buildStoryDebug`.

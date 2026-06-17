@@ -3,6 +3,8 @@ import {
   generateInsights,
   selectStoryInsights,
   buildInsightCandidates,
+  composeStory,
+  buildStoryDebug,
   finalScore,
   InsightContext,
   InsightCandidate,
@@ -121,7 +123,10 @@ describe('fact-based endgame insights (Iteration 5)', () => {
     const out = ids(c);
     expect(out).to.include('fact.global.driver');
     expect(out).to.include('fact.reveal.flow');
-    expect(out).to.include('fact.colony.engine');
+    // red traded 5×, blue never → a one-sided colony story (domination supersedes the
+    // plain engine note in Iteration 10).
+    expect(out.some((id) => id.startsWith('fact.colony.')), 'a colony insight').to.be.true;
+    expect(out).to.include('fact.colony.domination');
   });
 
   it('a tiebreaker becomes the HERO of the story', () => {
@@ -367,5 +372,118 @@ describe('fact-based endgame insights (Iteration 5)', () => {
   it('no card attacks → no special-card stories (graceful)', () => {
     const out = ids(ctx({players: duo(), margin: 10}));
     expect(out.some((id) => id.startsWith('special.')), 'no special stories without attacks').to.be.false;
+  });
+
+  // ── Iteration 10: evidence dedup, economy/colony depth, sections, arcs, unusual ──
+  describe('Iteration 10', () => {
+    const visible = (c: InsightContext) => generateInsights(c).filter((i) => i.rankSection !== 'hidden');
+
+    it('evidence dedup: two "under fire" tellings collapse to one visible', () => {
+      // negativeInteraction (generic "under fire") + the cross-fact board-hit BOTH target
+      // blue → same evidenceKey attack:blue → only the strongest is visible.
+      const players = [pl('red', 'A', 90), pl('blue', 'B', 80, {strongestCategory: 'board'})];
+      const c = ctx({players, margin: 10, facts: [
+        fact('negativeInteraction', {id: 'neg', player: 'red', targetPlayer: 'blue', metrics: {totalLost: 12, plants: 12, hits: 3}}),
+      ]});
+      const vis = visible(c).filter((i) => (i.evidenceKey ?? '').startsWith('attack:'));
+      expect(vis.length, 'only one attack card visible').to.eq(1);
+      // The duplicate is present but hidden (still in "show more").
+      const all = generateInsights(c).filter((i) => (i.evidenceKey ?? '').startsWith('attack:'));
+      expect(all.length).to.be.greaterThan(1);
+    });
+
+    it('economy carried the winner: a winner-framed engine card with chips', () => {
+      const c = ctx({players: duo(), margin: 10, facts: [
+        fact('economy', {id: 'economy:red', player: 'red', metrics: {savedMegacredits: 30, discountAndPaymentSaved: 30}}),
+      ]});
+      const eng = find(c, 'fact.economy.engine');
+      expect(eng, 'economy engine').to.not.be.undefined;
+      expect(eng!.evidenceKey).to.eq('economy:red');
+      expect((eng!.evidenceChips ?? []).length, 'has evidence chips').to.be.greaterThan(0);
+      // Pure discounts → an EXACT M€ claim.
+      expect((eng!.evidenceChips ?? []).some((ch) => ch.v === 'exact'), 'exact phrasing').to.be.true;
+    });
+
+    it('economy with payment-value bonus reads as MEASURED, not exact M€', () => {
+      const c = ctx({players: duo(), margin: 10, facts: [
+        fact('economy', {id: 'economy:red', player: 'red', metrics: {savedMegacredits: 24, paymentValueBonus: 24}}),
+      ]});
+      const eng = find(c, 'fact.economy.engine');
+      expect((eng!.evidenceChips ?? []).some((ch) => ch.v === 'measured'), 'measured phrasing').to.be.true;
+    });
+
+    it('colony domination: one player traded far more → a domination card (not the plain engine)', () => {
+      const c = ctx({players: duo(), margin: 10, facts: [
+        fact('colony', {id: 'colony:red', player: 'red', metrics: {trades: 7}}),
+        fact('colony', {id: 'colony:blue', player: 'blue', metrics: {trades: 1}}),
+      ]});
+      const out = ids(c);
+      expect(out).to.include('fact.colony.domination');
+      expect(out, 'plain engine superseded').to.not.include('fact.colony.engine');
+    });
+
+    it('colony: roughly equal trades → NO domination (honest)', () => {
+      const c = ctx({players: duo(), margin: 10, facts: [
+        fact('colony', {id: 'colony:red', player: 'red', metrics: {trades: 5}}),
+        fact('colony', {id: 'colony:blue', player: 'blue', metrics: {trades: 4}}),
+      ]});
+      const out = ids(c);
+      expect(out, 'no false domination').to.not.include('fact.colony.domination');
+      expect(out).to.include('fact.colony.engine');
+    });
+
+    it('one-category trap: a non-winner dominated one race but lost the breadth', () => {
+      const players = [pl('red', 'A', 95), pl('blue', 'B', 80)];
+      const c = ctx({players, margin: 15, categories: [
+        cat('cards', {blue: 30, red: 12}), // blue +18 cards
+        cat('tr', {red: 30, blue: 18}), cat('board', {red: 20, blue: 6}), // red broad
+      ]});
+      expect(ids(c)).to.include('story.oneCategoryTrap.blue');
+    });
+
+    it('narrow efficiency: winner dominated nothing, edged it everywhere', () => {
+      const players = [pl('red', 'A', 82), pl('blue', 'B', 78)];
+      const c = ctx({players, margin: 4, categories: [
+        cat('tr', {red: 22, blue: 19}), cat('cards', {red: 14, blue: 12}), cat('board', {red: 10, blue: 8}),
+      ]});
+      expect(ids(c)).to.include('story.narrowEfficiency');
+    });
+
+    it('sections + roles: a runner-up "almost" lands in the whyRunnerLost section', () => {
+      // A clear hero (economy upset) so the runner-up penalty is NOT promoted to hero.
+      const players = [pl('red', 'A', 86), pl('blue', 'B', 80, {
+        penaltyCards: [{cardName: 'X', victoryPoint: -8}],
+      })];
+      const c = ctx({players, margin: 6, facts: [
+        fact('economy', {id: 'e:red', player: 'red', metrics: {savedMegacredits: 5}}),
+        fact('economy', {id: 'e:blue', player: 'blue', metrics: {savedMegacredits: 26}}),
+      ]});
+      const insights = generateInsights(c);
+      const almost = insights.find((i) => i.id === 'duel.almost.penalty');
+      expect(almost, 'almost insight present').to.not.be.undefined;
+      expect(almost!.rankSection, 'not the hero (the economy upset is)').to.not.eq('hero');
+      expect(almost!.storyRole).to.eq('almost');
+      expect(almost!.storySection).to.eq('whyRunnerLost');
+    });
+
+    it('every visible insight carries a storySection', () => {
+      const c = ctx({players: duo(), margin: 8, facts: [
+        fact('economy', {id: 'e:blue', player: 'blue', metrics: {savedMegacredits: 28}}),
+        fact('economy', {id: 'e:red', player: 'red', metrics: {savedMegacredits: 5}}),
+      ]});
+      expect(visible(c).every((i) => i.storySection !== undefined), 'all sectioned').to.be.true;
+    });
+
+    it('buildStoryDebug exposes evidenceKey + section for tuning', () => {
+      const c = ctx({players: duo(), margin: 8, facts: [
+        fact('economy', {id: 'e:blue', player: 'blue', metrics: {savedMegacredits: 28}}),
+        fact('economy', {id: 'e:red', player: 'red', metrics: {savedMegacredits: 5}}),
+      ]});
+      const {dna, candidates} = buildStoryDebug(c);
+      expect(dna.storyType, 'DNA classified').to.be.a('string');
+      // Every candidate carries a (derived-or-explicit) evidence key + the section it landed in.
+      expect(candidates.every((x) => typeof x.evidenceKey === 'string'), 'evidence keys present').to.be.true;
+      expect(composeStory(c).insights.some((i) => i.storySection !== undefined), 'sections assigned').to.be.true;
+    });
   });
 });
