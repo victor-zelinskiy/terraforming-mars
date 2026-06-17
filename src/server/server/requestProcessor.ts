@@ -14,6 +14,7 @@ import {ApiGameLogs} from '../routes/ApiGameLogs';
 import {ApiGameJournalEvents} from '../routes/ApiGameJournalEvents';
 import {ApiGameEffectStats} from '../routes/ApiGameEffectStats';
 import {ApiGameActionStats} from '../routes/ApiGameActionStats';
+import {ApiGameEndgameFacts} from '../routes/ApiGameEndgameFacts';
 import {ApiGames} from '../routes/ApiGames';
 import {ApiIPs} from '../routes/ApiIPs';
 import {ApiLogout} from '../routes/ApiLogout';
@@ -83,6 +84,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_GAME_JOURNAL_EVENTS, ApiGameJournalEvents.INSTANCE],
     [paths.API_GAME_EFFECT_STATS, ApiGameEffectStats.INSTANCE],
     [paths.API_GAME_ACTION_STATS, ApiGameActionStats.INSTANCE],
+    [paths.API_GAME_ENDGAME_FACTS, ApiGameEndgameFacts.INSTANCE],
     [paths.API_GAMES, ApiGames.INSTANCE],
     [paths.API_IPS, ApiIPs.INSTANCE],
     [paths.API_METRICS, ApiMetrics.INSTANCE],

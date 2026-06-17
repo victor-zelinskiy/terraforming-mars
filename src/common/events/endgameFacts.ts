@@ -9,6 +9,7 @@ import {
   aggregateBySource,
   actionStatsBySource,
   aggregateAttacks,
+  aggregateByPlayerGeneration,
 } from './aggregate';
 
 /**
@@ -363,6 +364,50 @@ function engineTimingFacts(events: ReadonlyArray<GameEvent>, opts: BuildFactsOpt
   return facts;
 }
 
+// ── Reveal / search / show card flow ───────────────────────────────────────────
+
+function revealFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
+  // per (player, source): revealed (deck) / shown (hand) / found (search hits) / count.
+  const bySource = new Map<string, {player: Color; card?: CardName; revealed: number; shown: number; found: number; count: number; ids: Array<number>}>();
+  for (const e of events) {
+    if (e.type !== 'card-revealed' || e.impact.reveal === undefined || e.player === undefined) {
+      continue;
+    }
+    const r = e.impact.reveal;
+    const key = sourceKey(e.source);
+    let agg = bySource.get(key);
+    if (agg === undefined) {
+      agg = {player: e.player, card: sourceCardOf(e.source), revealed: 0, shown: 0, found: 0, count: 0, ids: []};
+      bySource.set(key, agg);
+    }
+    if (r.origin === 'deck') {
+      agg.revealed += r.count;
+    } else {
+      agg.shown += r.count;
+    }
+    if (r.found === true) {
+      agg.found += 1;
+    }
+    agg.count += 1;
+    agg.ids.push(e.id);
+  }
+  const facts: Array<EndgameFact> = [];
+  for (const [, agg] of bySource) {
+    facts.push({
+      id: `reveal:${agg.player}:${agg.card ?? 'unknown'}`,
+      type: 'reveal',
+      player: agg.player,
+      sourceCard: agg.card,
+      severity: clamp01((agg.revealed + agg.shown) / 12),
+      confidence: 'exact',
+      metrics: {revealed: agg.revealed, shown: agg.shown, searchHits: agg.found, events: agg.count},
+      relatedEventIds: agg.ids,
+      tags: ['reveal'],
+    });
+  }
+  return facts;
+}
+
 // ── Notable single events ──────────────────────────────────────────────────────
 
 function notableEventFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
@@ -400,7 +445,77 @@ function notableEventFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact>
     (e) => e.impact.cardsDrawn ?? 0, 'cardsDrawn');
   pushBest('notableEvent', 'attack', 'biggestAttack',
     (e) => negativeMagnitudeOfAttack(e), 'lost');
+  pushBest('notableEvent', 'reveal', 'biggestReveal',
+    (e) => e.impact.reveal?.count ?? 0, 'revealed');
+  pushBest('notableEvent', 'blueAction', 'biggestProductionLoss',
+    (e) => productionLossMagnitude(e), 'productionLost');
+
+  // Strongest single-generation economy burst (from the per-player timeline).
+  let burstPlayer: Color | undefined;
+  let burstGen = 0;
+  let burstVal = 0;
+  for (const [color, perGen] of aggregateByPlayerGeneration(events)) {
+    for (const [gen, stats] of perGen) {
+      const saved = stats.megacreditsSaved + stats.paymentValueBonus.bonusValue;
+      if (saved > burstVal) {
+        burstVal = saved;
+        burstPlayer = color;
+        burstGen = gen;
+      }
+    }
+  }
+  if (burstPlayer !== undefined && burstVal > 0) {
+    facts.push({
+      id: 'notable:economyBurst',
+      type: 'notableEvent',
+      player: burstPlayer,
+      generation: burstGen,
+      severity: clamp01(burstVal / 20),
+      confidence: 'partial',
+      metrics: {savedMegacredits: burstVal, generation: burstGen},
+      relatedEventIds: [],
+      tags: ['economy', 'timeline'],
+    });
+  }
+
+  // The most-used blue action (the engine workhorse).
+  let topAction: {player: Color; card: CardName; activations: number} | undefined;
+  for (const [, stats] of actionStatsBySource(events)) {
+    const owner = sourceOwnerOf(stats.source);
+    const card = sourceCardOf(stats.source);
+    if (owner !== undefined && card !== undefined && (topAction === undefined || stats.triggerCount > topAction.activations)) {
+      topAction = {player: owner, card, activations: stats.triggerCount};
+    }
+  }
+  if (topAction !== undefined && topAction.activations > 0) {
+    facts.push({
+      id: 'notable:mostUsedAction',
+      type: 'notableEvent',
+      player: topAction.player,
+      sourceCard: topAction.card,
+      severity: clamp01(topAction.activations / 10),
+      confidence: 'exact',
+      metrics: {activations: topAction.activations},
+      relatedEventIds: [],
+      tags: ['blueAction'],
+    });
+  }
   return facts;
+}
+
+/** Magnitude of a single production LOSS event (0 if it isn't a production loss). */
+function productionLossMagnitude(e: GameEvent): number {
+  if (e.type !== 'production-changed' || e.impact.production === undefined) {
+    return 0;
+  }
+  let total = 0;
+  for (const k of UNIT_KEYS) {
+    const v = e.impact.production[k];
+    if (v !== undefined && v < 0) {
+      total += -v;
+    }
+  }
+  return total;
 }
 
 /** Magnitude of a single cross-player attack event (0 if not an attack). */
@@ -449,6 +564,7 @@ export function buildEndgameFacts(events: ReadonlyArray<GameEvent>, opts: BuildF
     ...globalParameterFacts(events),
     ...colonyFacts(events),
     ...negativeInteractionFacts(events),
+    ...revealFacts(events),
     ...engineTimingFacts(events, opts),
     ...notableEventFacts(events),
   ];

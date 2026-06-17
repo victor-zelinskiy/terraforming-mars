@@ -117,3 +117,61 @@ export function unusedEngineStream(): ReadonlyArray<GameEvent> {
   }
   return s.events;
 }
+
+// ── Scenario 7 — reveal / search card flow (deck reveals, some hits) ──
+export function revealSearchStream(): ReadonlyArray<GameEvent> {
+  const s = new FactStream();
+  for (let gen = 3; gen <= 6; gen++) {
+    const r = s.root({gen, player: 'red', source: card(CardName.SEARCH_FOR_LIFE, 'red'), category: 'card-action'});
+    // Reveal the deck top; a hit (microbe tag) on even generations.
+    s.child({corr: r, gen, player: 'red', source: card(CardName.SEARCH_FOR_LIFE, 'red'), type: 'card-revealed', impact: {reveal: {origin: 'deck', result: 'discarded', count: 1, found: gen % 2 === 0}}, tags: ['reveal']});
+  }
+  return s.events;
+}
+
+// ── Scenario 8 — shown hand / public reveal (PublicPlans) ──
+export function shownHandStream(): ReadonlyArray<GameEvent> {
+  const s = new FactStream();
+  const r = s.root({gen: 4, player: 'blue', source: card(CardName.PUBLIC_PLANS, 'blue'), category: 'card-play'});
+  s.child({corr: r, gen: 4, player: 'blue', source: card(CardName.PUBLIC_PLANS, 'blue'), type: 'card-revealed', impact: {reveal: {origin: 'hand', result: 'shown', count: 5}}, tags: ['reveal']});
+  s.child({corr: r, gen: 4, player: 'blue', source: card(CardName.PUBLIC_PLANS, 'blue'), impact: {stock: {megacredits: 5}}});
+  return s.events;
+}
+
+// ── Scenario 9 — production transfer (attacker reduces + takes a victim's production) ──
+export function productionTransferStream(): ReadonlyArray<GameEvent> {
+  const s = new FactStream();
+  const r = s.root({gen: 5, player: 'red', source: card(CardName.HIRED_RAIDERS, 'red'), category: 'card-play'});
+  // Victim loses 2 energy production (with a before/after snapshot), marked transfer to red.
+  s.child({corr: r, gen: 5, player: 'blue', source: card(CardName.HIRED_RAIDERS, 'red'), type: 'production-changed',
+    impact: {production: {energy: -2}, snapshot: {resource: 'energy', scope: 'production', before: 3, after: 1}}, target: {player: 'red'}, tags: ['production']});
+  // Attacker gains the 2 energy production.
+  s.child({corr: r, gen: 5, player: 'red', source: card(CardName.HIRED_RAIDERS, 'red'), type: 'production-changed', impact: {production: {energy: 2}}, tags: ['production']});
+  return s.events;
+}
+
+// ── Scenario 10 — late-game economy burst (discounts concentrated late) ──
+export function lateEconomyBurstStream(): ReadonlyArray<GameEvent> {
+  const s = new FactStream();
+  // Small early economy, then a big burst in generation 11.
+  const early = s.root({gen: 3, player: 'red', source: card(CardName.EARTH_CATAPULT, 'red'), category: 'card-play'});
+  s.child({corr: early, gen: 3, player: 'red', source: card(CardName.EARTH_CATAPULT, 'red'), type: 'discount-applied', impact: {megacreditsSaved: 2}, tags: ['discount', 'passive-effect']});
+  const late = s.root({gen: 11, player: 'red', source: card(CardName.EARTH_CATAPULT, 'red'), category: 'card-play'});
+  s.child({corr: late, gen: 11, player: 'red', source: card(CardName.EARTH_CATAPULT, 'red'), type: 'discount-applied', impact: {megacreditsSaved: 16}, tags: ['discount', 'passive-effect']});
+  return s.events;
+}
+
+// ── Scenario 11 — mixed winner (economy + a blue action + global parameters) ──
+export function mixedWinnerStream(): ReadonlyArray<GameEvent> {
+  const s = new FactStream();
+  const eco = s.root({gen: 4, player: 'red', source: card(CardName.EARTH_CATAPULT, 'red'), category: 'card-play'});
+  s.child({corr: eco, gen: 4, player: 'red', source: card(CardName.EARTH_CATAPULT, 'red'), type: 'discount-applied', impact: {megacreditsSaved: 6}, tags: ['discount', 'passive-effect']});
+  s.root({gen: 5, player: 'red', source: card(CardName.AI_CENTRAL, 'red'), category: 'card-play'});
+  for (let gen = 6; gen <= 9; gen++) {
+    const a = s.root({gen, player: 'red', source: card(CardName.AI_CENTRAL, 'red'), category: 'card-action'});
+    s.child({corr: a, gen, player: 'red', source: card(CardName.AI_CENTRAL, 'red'), type: 'cards-drawn', impact: {cardsDrawn: 2}});
+  }
+  const g = s.root({gen: 7, player: 'red', source: card(CardName.AI_CENTRAL, 'red'), category: 'card-action'});
+  s.child({corr: g, gen: 7, player: 'red', source: card(CardName.AI_CENTRAL, 'red'), type: 'global-parameter-changed', impact: {globalParameter: {parameter: GlobalParameter.OXYGEN, steps: 2}}, tags: ['global-parameter']});
+  return s.events;
+}

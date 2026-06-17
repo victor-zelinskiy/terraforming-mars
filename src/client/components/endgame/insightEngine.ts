@@ -31,6 +31,7 @@
  *   <35  filler that only appears in quiet games (profile line)
  */
 import {Color} from '@/common/Color';
+import type {EndgameFact, FactType, FactTag} from '@/common/events/endgameFacts';
 import type {
   EndgameCategory,
   EndgameCategoryKey,
@@ -124,7 +125,50 @@ export type InsightContext = {
   timeline: TimelineStats | undefined;
   profile: VictoryProfile | undefined;
   seed: number;
+  /**
+   * OPTIONAL analysis-ready facts (Iteration 4 bridge — `buildEndgameFacts(events)`).
+   * Future fact-based analyzers read these via the `facts*` selection helpers below;
+   * absent today (the existing template analyzers don't need them), so wiring the feed
+   * is non-breaking. This is the prepared integration path, NOT a rewrite.
+   */
+  facts?: ReadonlyArray<EndgameFact>;
 };
+
+// ── Fact selection helpers (the bridge for future fact-based analyzers) ──────────
+// Stable, pure selectors over `ctx.facts` so a new analyzer reads facts without
+// re-deriving them. All return [] when no facts are wired (graceful).
+
+export function factsByType(ctx: InsightContext, type: FactType): ReadonlyArray<EndgameFact> {
+  return (ctx.facts ?? []).filter((f) => f.type === type);
+}
+export function factsByPlayer(ctx: InsightContext, player: Color): ReadonlyArray<EndgameFact> {
+  return (ctx.facts ?? []).filter((f) => f.player === player);
+}
+export function factsByTag(ctx: InsightContext, tag: FactTag): ReadonlyArray<EndgameFact> {
+  return (ctx.facts ?? []).filter((f) => f.tags.includes(tag));
+}
+export function factsByGeneration(ctx: InsightContext, generation: number): ReadonlyArray<EndgameFact> {
+  return (ctx.facts ?? []).filter((f) => f.generation === generation);
+}
+/** The strongest facts overall (severity desc), optionally limited. */
+export function topFactsBySeverity(ctx: InsightContext, limit = 5): ReadonlyArray<EndgameFact> {
+  return [...(ctx.facts ?? [])].sort((a, b) => b.severity - a.severity).slice(0, limit);
+}
+function topByType(ctx: InsightContext, type: FactType, limit: number): ReadonlyArray<EndgameFact> {
+  return [...factsByType(ctx, type)].sort((a, b) => b.severity - a.severity).slice(0, limit);
+}
+export function topEconomyFacts(ctx: InsightContext, limit = 3): ReadonlyArray<EndgameFact> {
+  return topByType(ctx, 'economy', limit);
+}
+export function topActionFacts(ctx: InsightContext, limit = 3): ReadonlyArray<EndgameFact> {
+  return topByType(ctx, 'actionUsage', limit);
+}
+export function topNegativeFacts(ctx: InsightContext, limit = 3): ReadonlyArray<EndgameFact> {
+  return topByType(ctx, 'negativeInteraction', limit);
+}
+export function topGlobalFacts(ctx: InsightContext, limit = 3): ReadonlyArray<EndgameFact> {
+  return topByType(ctx, 'globalParameter', limit);
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Deterministic phrasing

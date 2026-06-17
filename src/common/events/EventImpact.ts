@@ -3,6 +3,7 @@ import {CardResource} from '../CardResource';
 import {GlobalParameter} from '../GlobalParameter';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
+import {RevealOrigin, RevealResult} from '../logs/RevealLogMeta';
 
 /**
  * FACTUAL impact of a {@link GameEvent}. Facts only — never an estimated
@@ -76,4 +77,19 @@ export type EventImpact = {
    * clean M€ value, so the saving is shown in resource units (confidence partial).
    */
   tradeDiscountSaved?: ReadonlyArray<{colony: ColonyName; resource: 'energy' | 'titanium' | 'megacredits'; amount: number}>;
+  /**
+   * A PUBLIC card reveal / show / search (PublicPlans shows hand, SearchForLife /
+   * AsteroidDeflectionSystem reveal the deck top). Carries ONLY counts + semantics —
+   * NEVER card names (so it leaks nothing private; the names that ARE public ride the
+   * log's CARD tokens). `found` flags a successful search (a deck reveal that matched).
+   */
+  reveal?: {origin: RevealOrigin; result: RevealResult; count: number; found?: boolean};
+  /**
+   * Before/after snapshot of the SINGLE resource a stock / production delta moved —
+   * captured AT the event from live state (`before = after − amount`), so a loss can
+   * read "plants 506 → 504" not just "−2". Only the affected resource; attached by the
+   * resource/production chokepoint when the value is known (the most important attack /
+   * loss cases). Absent where the live value wasn't threaded (documented partial).
+   */
+  snapshot?: {resource: string; scope: 'stock' | 'production'; before: number; after: number};
 };

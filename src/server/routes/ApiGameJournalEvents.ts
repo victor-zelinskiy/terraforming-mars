@@ -47,7 +47,7 @@ export class ApiGameJournalEvents extends Handler {
     // them here doesn't affect it. `payment-bonus` (steel/titanium worth more) and
     // `colony-track` (Trading Colony advancing a track — already logged as text)
     // are likewise overlay-analytics only and excluded for the same reason.
-    const ANALYTICS_ONLY_TAGS = ['resource-payment', 'payment-bonus', 'colony-track', 'trade-discount', 'global-parameter'] as const;
+    const ANALYTICS_ONLY_TAGS = ['resource-payment', 'payment-bonus', 'colony-track', 'trade-discount', 'global-parameter', 'reveal'] as const;
     const generationNumber = generation === null ? NaN : Number(generation);
     const events: ReadonlyArray<GameEvent> = generation === null ?
       [] :
