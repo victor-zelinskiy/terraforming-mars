@@ -33,7 +33,8 @@ import {
 export type FactType =
   'economy' | 'actionUsage' | 'passiveEffect' | 'globalParameter' |
   'colony' | 'negativeInteraction' | 'engineTiming' | 'notableEvent' | 'reveal' |
-  'standardProject' | 'milestoneClaim' | 'awardFunding' | 'cardAttack';
+  'standardProject' | 'milestoneClaim' | 'awardFunding' | 'cardAttack' |
+  'corporationImpact';
 
 export type FactConfidence = 'exact' | 'partial' | 'approximate' | 'ruleOnly';
 
@@ -646,6 +647,108 @@ function magnitudeOfLosses(impact: EventImpact): number {
   return total;
 }
 
+// ── Corporations (the identity layer) ──────────────────────────────────────────
+//
+// A corporation is NOT an ordinary card: it sets the start, may carry a passive rule,
+// and may have an activatable action. The event stream already marks corp-sourced
+// events first-class (`source.kind === 'corporation'`), tags passive-effect impacts,
+// and categorises actions ('corporation-action' / 'copied-action'), so the WHOLE corp
+// fact is derived from the existing stream — no parallel store, no new bridge.
+//
+// One fact per (owner, corporation) the player PLAYED — split into PASSIVE (the corp's
+// ongoing rule), ACTION (its activatable button) and EARLY tempo (the owner's measured
+// generation 1–3 activity, which contextualises a high-capital start). A corp that was
+// played but did nothing measurable still gets a fact (so the "built but barely used
+// action corp" case is detectable). Starting CAPITAL is static reference data and lives
+// in the client corporationStories registry — this fact carries only what the stream
+// measured. Honest confidence: 'partial' (mixed units, no fake M€ valuation).
+function corporationFacts(events: ReadonlyArray<GameEvent>, opts: BuildFactsOptions): Array<EndgameFact> {
+  // Every corporation a player actually played shows up as a corp-sourced event (at
+  // minimum its 'card-play' root). Discover them (owner + card), de-duped.
+  const corps = new Map<string, {owner: Color; corp: CardName}>();
+  for (const e of events) {
+    if (e.source?.kind === 'corporation' && e.source.owner !== undefined) {
+      corps.set(`${e.source.owner}:${e.source.card}`, {owner: e.source.owner, corp: e.source.card});
+    }
+  }
+  if (corps.size === 0) {
+    return [];
+  }
+  // Aggregations computed ONCE (the loop just looks each corp up by sourceKey).
+  const passive = aggregateBySource(events.filter((e) => e.tags?.includes('passive-effect') === true));
+  const actions = actionStatsBySource(events); // category 'corporation-action' / 'copied-action'
+  const perGen = aggregateByPlayerGeneration(events);
+
+  const facts: Array<EndgameFact> = [];
+  for (const {owner, corp} of corps.values()) {
+    const key = sourceKey({kind: 'corporation', card: corp, owner});
+    const p = passive.get(key);
+    const a = actions.get(key);
+
+    const passiveTriggers = p?.triggerCount ?? 0;
+    const passiveSaved = p?.megacreditsSaved ?? 0;
+    const passiveResources = p !== undefined ? sumPositiveUnits(p.stock) : 0;
+    const passiveProduction = p !== undefined ? sumPositiveUnits(p.production) : 0;
+    const passiveCardResources = p !== undefined ? Object.values(p.cardResources).reduce<number>((s, v) => s + (v ?? 0), 0) : 0;
+    const passiveTr = p?.tr ?? 0;
+    const passiveCardsDrawn = p?.cardsDrawn ?? 0;
+
+    // ACTION: triggerCount counts activations (incl. Viron's copied-action roots). The
+    // copied OUTPUT is attributed to the copied card, so a copy corp's actionValue stays
+    // low by design — its story is the REPETITION (activations), not raw output.
+    const actionActivations = a?.triggerCount ?? 0;
+    const actionResources = a !== undefined ? sumPositiveUnits(a.stock) : 0;
+    const actionProduction = a !== undefined ? sumPositiveUnits(a.production) : 0;
+    const actionCardsDrawn = a?.cardsDrawn ?? 0;
+    const actionTr = a?.tr ?? 0;
+    const actionLastGeneration = a?.lastTrigger?.generation ?? 0;
+
+    // EARLY tempo: the OWNER's measured economy + gains over generations 1–3. Honestly
+    // the player's early activity (not the corp's alone) — it contextualises a start boost.
+    let earlyValue = 0;
+    let earlyResources = 0;
+    let earlyCardsDrawn = 0;
+    const og = perGen.get(owner);
+    if (og !== undefined) {
+      for (const [gen, st] of og) {
+        if (gen <= 3) {
+          earlyValue += st.megacreditsSaved + st.paymentValueBonus.bonusValue;
+          earlyResources += sumPositiveUnits(st.stock) + sumPositiveUnits(st.production);
+          earlyCardsDrawn += st.cardsDrawn;
+        }
+      }
+    }
+
+    const passiveValue = passiveSaved + passiveResources + passiveProduction + passiveCardResources + passiveTr * 2 + passiveCardsDrawn;
+    const actionValue = actionResources + actionProduction + actionCardsDrawn + actionTr * 2;
+    const totalMeasuredValue = passiveValue + actionValue;
+    const lastGeneration = Math.max(p?.lastTrigger?.generation ?? 0, actionLastGeneration);
+
+    facts.push({
+      id: `corporation:${owner}:${corp}`,
+      type: 'corporationImpact',
+      player: owner,
+      sourceCard: corp,
+      generation: lastGeneration > 0 ? lastGeneration : undefined,
+      severity: clamp01(totalMeasuredValue / 40),
+      confidence: 'partial',
+      metrics: {
+        passiveTriggers, passiveSaved, passiveResources, passiveProduction,
+        passiveCardResources, passiveTr, passiveCardsDrawn,
+        actionActivations, actionResources, actionProduction, actionCardsDrawn,
+        actionTr, actionLastGeneration,
+        earlyValue, earlyResources, earlyCardsDrawn,
+        passiveValue, actionValue, totalMeasuredValue,
+        hasAction: opts.cardHasAction?.(corp) === true ? 1 : 0,
+        lastGeneration,
+      },
+      relatedEventIds: [],
+      tags: ['economy', 'timeline'],
+    });
+  }
+  return facts;
+}
+
 /**
  * Build every analysis-ready fact from the event stream. Pure + deterministic — the
  * SAME stream always yields the SAME facts (ids are content-derived, no Date/random),
@@ -665,5 +768,6 @@ export function buildEndgameFacts(events: ReadonlyArray<GameEvent>, opts: BuildF
     ...maFacts(events),
     ...engineTimingFacts(events, opts),
     ...notableEventFacts(events),
+    ...corporationFacts(events, opts),
   ];
 }

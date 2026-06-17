@@ -16,9 +16,11 @@
  *     VP/M€; a thin-evidence style says so.
  */
 import type {Color} from '@/common/Color';
+import type {CardName} from '@/common/cards/CardName';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import type {EndgameCategoryKey, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import type {EvidenceChip, InsightCandidate, InsightContext, InsightFamily} from '@/client/components/endgame/insightEngine';
+import {ARCHETYPE_LABEL, corporationProfile} from '@/client/components/endgame/corporationStories';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -234,6 +236,29 @@ const CLUSTER_DETAIL: Readonly<Record<string, ClusterDetail>> = {
     why: 'Projects filled in for a card engine that never arrived.',
     confidence: 'exact',
   },
+  // ── Corporation identity (Iteration 13) ──
+  corporation: {
+    explanation: 'A corporation is the player\'s identity — it set the start and, here, became the engine the whole plan ran on.',
+    why: 'When the corporation itself is the engine, the game was shaped by that choice more than by any single card.',
+    confidence: 'partial',
+  },
+  corporationStart: {
+    explanation: 'The corporation\'s opening budget bought early tempo — measured by the player\'s generation 1–3 activity.',
+    why: 'A fast start is not points by itself; it is the room to make expensive plays before opponents can.',
+    confidence: 'partial',
+    caveat: 'Starting capital is opportunity, not VP — the early tempo shown is what it actually bought.',
+  },
+  corporationUnused: {
+    explanation: 'The corporation\'s activatable action was barely used while the game stayed close.',
+    why: 'An unfired corporate action is free value left on the table — here, in a game decided by a small margin.',
+    confidence: 'exact',
+    caveat: 'This is untapped potential, not a proven lost win — the action might not have changed the result.',
+  },
+  merger: {
+    explanation: 'The Merger prelude gave this player a SECOND corporation — a rare double-engine start.',
+    why: 'Two corporations means two sets of starting resources, passives and actions — a uniquely wide plan.',
+    confidence: 'partial',
+  },
 };
 
 // Special by-id details (clusters that don't capture the meaning on their own).
@@ -416,5 +441,48 @@ export function buildStyleDetail(ctx: InsightContext, color: Color, style: strin
     confidence: style === 'Economy Engine' || style === 'Colony Trader' ? 'measured' : 'exact',
     caveat: styleIsThin(evidence) ? 'This style is read from limited data — the main signal is shown above.' : undefined,
     accent: 'duelContrast',
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Corporation arc explainability (Iteration 13) — "what did the corporation do?"
+// Reads the SAME `corporationImpact` fact the analyzer reads, plus the registry's
+// archetype + starting capital, so the player-arc corp chip explains itself honestly.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Build the hover detail for a player-arc CORPORATION chip. */
+export function buildCorporationDetail(ctx: InsightContext, color: Color, corp: CardName): ChipDetail {
+  const profile = corporationProfile(corp);
+  const f = facts(ctx).find((x) => x.type === 'corporationImpact' && x.player === color && x.sourceCard === corp);
+  const rows: Array<DetailEvidenceRow> = [];
+  if (f !== undefined) {
+    const act = m(f, 'actionActivations');
+    const saved = m(f, 'passiveSaved');
+    const trig = m(f, 'passiveTriggers');
+    const total = m(f, 'totalMeasuredValue');
+    if (act > 0) {
+      rows.push(rawRow(`×${act}`, 'good'), i18nRow('activations', 'neutral'));
+    }
+    if (saved > 0) {
+      rows.push(rawRow(`+${saved}`, 'good'));
+    }
+    if (trig > 0 && act === 0) {
+      rows.push(rawRow(`${trig}`, 'metric'), i18nRow('triggers', 'neutral'));
+    }
+    if (rows.length === 0 && total > 0) {
+      rows.push(rawRow(`${total}`, 'metric'));
+    }
+  }
+  if (profile !== undefined) {
+    rows.push(rawRow(`${profile.startingMegacredits} M€`, 'neutral'));
+  }
+  return {
+    title: profile !== undefined ? ARCHETYPE_LABEL[profile.archetype] : 'Corporation',
+    explanation: CLUSTER_DETAIL.corporation.explanation,
+    whyItMatters: CLUSTER_DETAIL.corporation.why,
+    evidence: rows.slice(0, 4),
+    confidence: 'partial',
+    caveat: f === undefined ? 'This corporation produced no measured events — its value was its start and rules.' : undefined,
+    accent: 'corporationImpact',
   };
 }

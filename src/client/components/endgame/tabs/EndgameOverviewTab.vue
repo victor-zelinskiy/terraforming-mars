@@ -201,6 +201,14 @@
               <span v-if="arc.isWinner" class="eg-arc__crown" aria-hidden="true">♛</span>
             </div>
             <ExplainableBadge badge-class="eg-arc__style" :label="arc.style" :detail="arc.styleDetail" />
+            <!-- Iteration 13 — the corporation identity (archetype badge + corp name). -->
+            <div v-if="arc.corporation !== undefined" class="eg-arc__corp" :class="'eg-arc__corp--' + arc.corporation.realized">
+              <span class="eg-arc__corp-icon" aria-hidden="true">◈</span>
+              <span class="eg-arc__corp-name" v-i18n>{{ arc.corporation.name }}</span>
+              <ExplainableBadge badge-class="eg-arc__corp-badge" :label="arc.corporation.archetypeLabel" :detail="arc.corporation.detail" />
+              <span v-if="arc.corporation.realized === 'merged'" class="eg-arc__corp-tag eg-arc__corp-tag--merged" v-i18n>Merger</span>
+              <span v-else-if="arc.corporation.realized === 'underused'" class="eg-arc__corp-tag eg-arc__corp-tag--untapped" v-i18n>Untapped</span>
+            </div>
             <div v-if="arc.tags.length > 0" class="eg-arc__tags">
               <span v-for="(tg, ti) in arc.tags" :key="ti" class="eg-chip eg-chip--neutral" v-i18n>{{ tg }}</span>
             </div>
@@ -337,6 +345,7 @@ const ICON_GLYPH: Record<InsightIcon, string> = {
   star: '✪', // special / rare card
   split: '⋔', // duel style contrast
   finish: '‖', // photo finish / tiebreaker
+  corp: '◈', // Iteration 13 — corporation identity
 };
 
 // Story-type → short chip label (English i18n key, translated for the headline chips).
@@ -355,6 +364,8 @@ const STORY_TYPE_LABEL: Record<StoryType, string> = {
   colony_engine: 'Colony engine',
   standard_project_plan: 'Standard projects',
   engine_not_converted: 'Unconverted engine',
+  merger_story: 'Double corporation',
+  corporation_identity: 'Corporation engine',
   balanced_control: 'All-round win',
 };
 const TWIST_LABEL: Record<StoryTwistKind, string> = {
@@ -395,6 +406,8 @@ type ArcView = {
   workedBadge?: string; // i18n key — what worked (their strongest visible insight)
   failedBadge?: string; // i18n key — where it fell short
   styleDetail?: ChipDetail; // Iteration 12 — "why this style" explanation
+  // Iteration 13 — the player's corporation identity (name + archetype + how realized).
+  corporation?: {name: string; archetypeLabel: string; realized: string; detail?: ChipDetail};
 };
 
 type Fact = {
@@ -503,6 +516,7 @@ export default defineComponent({
           strongest: p.strongestCategory,
           workedBadge: worked?.badge, failedBadge: failed?.badge,
           styleDetail: arc.styleDetail,
+          corporation: arc.corporation,
         });
       }
       return views;

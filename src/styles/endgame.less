@@ -806,6 +806,27 @@
     font-size: 13px;
     color: ~"color-mix(in srgb, var(--eg-pc) 60%, #dceaf6)";
 }
+/* Iteration 13 — the corporation identity line inside a player arc. */
+@eg-corp: #54c8c0;
+.eg-arc__corp {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+    padding: 5px 8px; border-radius: 8px;
+    background: ~"color-mix(in srgb, @eg-corp 7%, rgba(13, 20, 31, 0.45))";
+    box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, @eg-corp 22%, transparent)", inset 2px 0 0 @eg-corp;
+}
+.eg-arc__corp-icon { color: @eg-corp; font-size: 12px; }
+.eg-arc__corp-name { font-weight: 600; color: #e6f3f1; font-size: 12.5px; }
+.eg-arc__corp-badge {
+    font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase;
+    color: ~"color-mix(in srgb, @eg-corp 70%, #dceaf6)";
+}
+.eg-arc__corp-tag {
+    margin-left: auto; font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+    padding: 1px 7px; border-radius: 6px;
+}
+.eg-arc__corp-tag--merged { color: #d7a8f0; background: rgba(215, 168, 240, 0.14); }
+.eg-arc__corp-tag--untapped { color: #c8b88a; background: rgba(200, 184, 138, 0.14); }
+.eg-arc__corp--carried { box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, @eg-corp 34%, transparent)", inset 2px 0 0 @eg-corp, 0 0 16px -10px @eg-corp; }
 .eg-arc__tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .eg-arc__facets { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
 .eg-arc__facet {
@@ -917,6 +938,7 @@
 .eg-dc(colony, #a99af0);
 .eg-dc(negativeDrama, #e87878);
 .eg-dc(duelContrast, #d7a8f0);
+.eg-dc(corporationImpact, #54c8c0); // Iteration 13 — corporation identity
 .eg-dc(reveal, #b6a0f0);
 .eg-dc(unusedPotential, #c8b88a);
 .eg-dc(globalParameter, #7fd0e6);
@@ -1397,6 +1419,7 @@
 .eg-fam(turningPoint, #7fd0e6);
 .eg-fam(boardStory, #8fd0a0);
 .eg-fam(duelContrast, #d7a8f0);
+.eg-fam(corporationImpact, #54c8c0); // Iteration 13 — corporation identity (corporate teal)
 
 /* Duel rivalry row inside a hero card (player A · VS · player B). */
 .eg-insight__rivals {
