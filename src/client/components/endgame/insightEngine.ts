@@ -109,6 +109,26 @@ export type StoryRole =
   | 'trivia'; // filler (quiet games)
 
 /**
+ * Iteration 10 — the report SECTION an insight is laid out under (the UX director's
+ * grouping). Derived by the composer from the role + the involved player. The UI renders
+ * a header per section ("Почему победил" / "Почему не дожал" / …).
+ */
+export type StorySection =
+  | 'mainStory' // the hero — the headline of the game
+  | 'whyWinnerWon' // the winner's decisive levers
+  | 'whyRunnerLost' // where the runner-up fell short
+  | 'highlights' // the unusual / rare episodes
+  | 'details'; // supporting colour + "show more"
+
+/**
+ * Iteration 10 — a small metric/label CHIP rendered under a hero / family card so the
+ * card SHOWS the evidence (a number + a meaning), not just prose. `t:'raw'` is final
+ * text (a composed number like "−9 ПО"); `t:'i18n'` is an English label key the UI
+ * translates ("скидки + бонусы оплаты"). `tone` drives the chip colour.
+ */
+export type EvidenceChip = {t: 'raw' | 'i18n'; v: string; tone?: 'metric' | 'good' | 'bad' | 'neutral'};
+
+/**
  * The scoring components a fact-based analyzer can supply so the smart selector can
  * rank by more than raw `priority` (a rare/dramatic event should out-rank a routine
  * category note). All 0..1; absent → treated as 0 (so legacy analyzers are unaffected).
@@ -166,6 +186,15 @@ export type InsightCandidate = {
   storyBoost?: number;
   /** The narrative role in the composed report (headline / twist / contrast / …). */
   storyRole?: StoryRole;
+
+  // ── Iteration 10: dedup + section + chips ──
+  /** The "what thought is this" identity for EVIDENCE DEDUP — two visible cards must not
+   *  share one. Absent → derived from `storyCluster` + the involved players. */
+  evidenceKey?: string;
+  /** The report section the UI lays this under (set by the composer). */
+  storySection?: StorySection;
+  /** Small metric/label chips so a hero / family card SHOWS its evidence. */
+  evidenceChips?: ReadonlyArray<EvidenceChip>;
 };
 
 // What the selector returns — same shape; alias for readability at call sites.
@@ -292,6 +321,10 @@ function pick(seed: number, salt: string, variants: ReadonlyArray<string>): stri
 const raw = (v: number | string): InsightParam => ({t: 'raw', v: String(v)});
 const key = (v: string): InsightParam => ({t: 'i18n', v});
 const card = (v: string): InsightParam => ({t: 'card', v});
+
+// Evidence-chip helpers (Iteration 10): a composed number, or an i18n label.
+const chipN = (v: number | string, tone: EvidenceChip['tone'] = 'metric'): EvidenceChip => ({t: 'raw', v: String(v), tone});
+const chipL = (v: string, tone: EvidenceChip['tone'] = 'neutral'): EvidenceChip => ({t: 'i18n', v, tone});
 
 // ─────────────────────────────────────────────────────────────────────────
 // Timeline statistics
@@ -1012,7 +1045,30 @@ function boardVp(ctx: InsightContext, color: Color): number {
   return ctx.categories.find((c) => c.key === 'board')?.values[color] ?? 0;
 }
 
-// ── Economy engine + economy-underdog win ──
+// What KIND of economy this was — for an honest source chip (don't blur everything
+// into one "+N"). Returns an i18n label key + whether it's exact M€ or measured value.
+function economySource(f: EndgameFact): {label: string; exact: boolean} {
+  const discount = metric(f, 'discountAndPaymentSaved');
+  const valueBonus = metric(f, 'paymentValueBonus');
+  const tradeDisc = metric(f, 'tradeDiscountMegacredits');
+  if (discount > 0 && valueBonus > 0) {
+    return {label: 'discounts + payment bonuses', exact: false};
+  }
+  if (valueBonus > 0 && discount === 0) {
+    return {label: 'steel & titanium value', exact: false};
+  }
+  if (tradeDisc > 0 && discount === 0 && valueBonus === 0) {
+    return {label: 'trade discounts', exact: false};
+  }
+  // Pure discounts / resource-as-payment are exact M€ savings.
+  return {label: 'card discounts', exact: valueBonus === 0 && tradeDisc === 0};
+}
+// "+N M€" for exact, "+N учтённой выгоды" for mixed/measured units.
+function economyValueChip(saved: number, exact: boolean): EvidenceChip {
+  return chipN(exact ? `+${saved} M€` : `+${saved}`, 'good');
+}
+
+// ── Economy engine (carried a player) + economy-underdog win ──
 const analyzeEconomyFacts: Analyzer = (ctx) => {
   const out: Array<InsightCandidate> = [];
   const econ = factsByType(ctx, 'economy');
@@ -1022,17 +1078,26 @@ const analyzeEconomyFacts: Analyzer = (ctx) => {
   const top = [...econ].sort((a, b) => metric(b, 'savedMegacredits') - metric(a, 'savedMegacredits'))[0];
   const saved = metric(top, 'savedMegacredits');
   if (saved >= 12) {
+    const src = economySource(top);
+    const isWinner = top.player === ctx.winner.color;
+    const chips: Array<EvidenceChip> = [economyValueChip(saved, src.exact), chipL(src.label)];
+    chips.push(src.exact ? chipL('exact', 'good') : chipL('measured', 'neutral'));
     out.push({
-      id: 'fact.economy.engine', group: 'reason', priority: 58, severity: 'major', icon: 'spark',
+      id: 'fact.economy.engine', group: 'reason', priority: isWinner ? 60 : 56, severity: 'major', icon: 'spark',
       badge: 'Economy engine', color: top.player,
-      textKey: 'Economy did the work for ${0}: discounts and payment bonuses added ${1} of measured value.',
+      // Carried-the-winner framing when it's the winner; otherwise a strong-economy note.
+      // (The SOURCE — discounts / payment bonuses — rides the chip, so the prose stays clean.)
+      textKey: isWinner ?
+        'Economy gave ${0} the headroom to win: ${1} of value fed the tempo that decided it.' :
+        'Economy did the work for ${0}: ${1} of value built up across the game.',
       params: [raw(playerName(ctx, top.player)), raw(saved)],
       family: 'economy', uiVariant: 'major', storyCluster: 'economy',
-      scores: {impact: Math.min(1, saved / 40), confidence: 0.85, relevance: 0.7},
+      evidenceKey: `economy:${top.player}`, evidenceChips: chips,
+      scores: {impact: Math.min(1, saved / 40), confidence: src.exact ? 0.95 : 0.8, relevance: 0.7},
       relatedFactIds: [top.id], relatedPlayers: [top.player],
     });
   }
-  // Underdog: the winner was out-economised yet still won.
+  // Underdog: the winner was out-economised yet still won (efficiency over economy).
   const winnerSaved = metric(econ.find((f) => f.player === ctx.winner.color) ?? {metrics: {}} as EndgameFact, 'savedMegacredits');
   const oppBest = econ.filter((f) => f.player !== ctx.winner.color)
     .sort((a, b) => metric(b, 'savedMegacredits') - metric(a, 'savedMegacredits'))[0];
@@ -1040,9 +1105,11 @@ const analyzeEconomyFacts: Analyzer = (ctx) => {
     out.push({
       id: 'fact.economy.underdog', group: 'reason', priority: 74, severity: 'major', icon: 'crown',
       badge: 'Economy upset', color: ctx.winner.color,
-      textKey: '${0} was out-economised by ${1}, but still found the win through cards and the board.',
+      textKey: 'Not richer, just sharper: ${1} banked more economy, but ${0} converted fewer resources into more points.',
       params: [raw(ctx.winner.name), raw(playerName(ctx, oppBest.player))],
       family: 'economy', uiVariant: 'major', storyCluster: 'economyUpset',
+      evidenceKey: 'economyUpset',
+      evidenceChips: [chipN(`${metric(oppBest, 'savedMegacredits')} vs ${winnerSaved}`, 'neutral'), chipL('efficiency', 'good')],
       scores: {rarity: 0.7, drama: 0.6, relevance: 0.8, confidence: 0.8},
       relatedPlayers: [ctx.winner.color, oppBest.player],
     });
@@ -1110,6 +1177,8 @@ const analyzeNegativeDramaFacts: Analyzer = (ctx) => {
       textKey: '${0} took the brunt of the aggression — ${1} resources lost to opponents across ${2} hits.',
       params: [raw(playerName(ctx, topVictim[0])), raw(topVictim[1].lost), raw(topVictim[1].hits)],
       family: 'negativeDrama', uiVariant: 'normal', storyCluster: 'attackPressure',
+      evidenceKey: `attack:${topVictim[0]}`,
+      evidenceChips: [chipN(`−${topVictim[1].lost}`, 'bad'), chipN(`×${topVictim[1].hits}`, 'neutral'), chipL('under fire', 'bad')],
       // In a duel every attack lands on the single opponent — it weighs more.
       scores: {drama: Math.min(1, topVictim[1].lost / 12), relevance: ctx.mode === 'duel' ? 0.8 : 0.6, confidence: 1, duelRelevance: ctx.mode === 'duel' ? 0.75 : 0},
       relatedPlayers: [topVictim[0]],
@@ -1199,9 +1268,11 @@ const analyzeRunnerUpStory: Analyzer = (ctx) => {
     out.push({
       id: 'fact.runnerup.category', group: 'race', priority: 64, severity: 'normal', icon: 'scale',
       badge: 'So close', color: ru.color,
-      textKey: '${0} was stronger in ${1}, but ${2} answered with ${3} — and that decided it.',
+      textKey: '${0} won the ${1} race, but ${2} covered it with ${3} — and that was the difference.',
       params: [raw(ru.name), key(bestCat.cat.label), raw(ctx.winner.name), key(winnerLead.cat.label)],
       family: 'runnerUpStory', uiVariant: 'comparison', storyCluster: 'runnerUp',
+      evidenceKey: `almost:${ru.color}`,
+      evidenceChips: [chipN(`+${bestCat.edge}`, 'good'), chipL('not enough', 'bad')],
       scores: {drama: 0.5, relevance: 0.7, rarity: ctx.margin <= 5 ? 0.55 : 0.3, confidence: 1},
       relatedPlayers: [ru.color, ctx.winner.color],
     });
@@ -1217,6 +1288,7 @@ const analyzeRunnerUpStory: Analyzer = (ctx) => {
       textKey: '${0} had the better economy but couldn’t turn it into the win.',
       params: [raw(ru.name)],
       family: 'runnerUpStory', uiVariant: 'compact', storyCluster: 'runnerUpEconomy',
+      evidenceKey: 'economyUpset',
       scores: {relevance: 0.55, drama: 0.4, confidence: 0.8},
       relatedPlayers: [ru.color],
     });
@@ -1366,20 +1438,63 @@ const analyzeRevealFacts: Analyzer = (ctx) => {
   return out;
 };
 
-// ── Colony engine ──
+// ── Colony engine + DOMINATION (asymmetry) ──
+// Honesty: a "colony domination" story only fires on a genuine ASYMMETRY — one player
+// traded far more than the others. If everyone traded similarly, it's just an engine note
+// (or nothing). Never claim "colonies decided it" off a couple of even trades.
 const analyzeColonyFacts: Analyzer = (ctx) => {
   const out: Array<InsightCandidate> = [];
-  const top = [...factsByType(ctx, 'colony')].sort((a, b) => metric(b, 'trades') - metric(a, 'trades'))[0];
+  const colonies = [...factsByType(ctx, 'colony')].sort((a, b) => metric(b, 'trades') - metric(a, 'trades'));
+  const top = colonies[0];
   if (top === undefined || metric(top, 'trades') < 4) {
     return out;
+  }
+  const topTrades = metric(top, 'trades');
+  const totalTrades = colonies.reduce((s, f) => s + metric(f, 'trades'), 0);
+  const secondTrades = colonies[1] !== undefined ? metric(colonies[1], 'trades') : 0;
+  const share = totalTrades > 0 ? topTrades / totalTrades : 1;
+  const track = metric(top, 'trackBonusSteps');
+  const discountUnits = metric(top, 'tradeDiscountUnits');
+  // DOMINATION: one player owned the colony game (share ≥ 70% or ≥ 3 more trades) AND it
+  // mattered (≥ 5 trades). The second player barely touched colonies.
+  const domination = topTrades >= 5 && (share >= 0.7 || topTrades - secondTrades >= 3);
+  if (domination) {
+    const chips: Array<EvidenceChip> = [chipN(`${topTrades} vs ${secondTrades}`, 'good'), chipL('one-sided colonies', 'good')];
+    if (track > 0) {
+      chips.push(chipL('track bonuses', 'neutral'));
+    }
+    out.push({
+      id: 'fact.colony.domination', group: 'reason', priority: 60, severity: 'major', icon: 'hex',
+      badge: 'Colony control', color: top.player,
+      textKey: secondTrades === 0 ?
+        'Colonies were a one-player game: ${0} traded ${1} times while the rest left them alone — a private engine.' :
+        'Colonies tilted one way: ${0} traded ${1} times to ${2}’s ${3}, turning the colony track into a personal engine.',
+      params: [raw(playerName(ctx, top.player)), raw(topTrades),
+        raw(colonies[1] !== undefined ? playerName(ctx, colonies[1].player) : ''), raw(secondTrades)],
+      family: 'colony', uiVariant: 'major', storyCluster: 'colonyDomination',
+      evidenceKey: 'colony', evidenceChips: chips,
+      scores: {impact: Math.min(1, topTrades / 12), rarity: 0.55, drama: 0.5, relevance: 0.65, confidence: 0.8},
+      relatedFactIds: [top.id], relatedPlayers: colonies[1] !== undefined ? [top.player, colonies[1].player] : [top.player],
+    });
+    return out; // domination supersedes the plain engine note
+  }
+  // Plain engine note (no clear asymmetry) — enrich with the track/discount angle if present.
+  const chips: Array<EvidenceChip> = [chipN(`${topTrades}`, 'metric'), chipL('trades', 'neutral')];
+  if (track > 0) {
+    chips.push(chipL('track bonuses', 'good'));
+  } else if (discountUnits > 0) {
+    chips.push(chipL('trade discounts', 'good'));
   }
   out.push({
     id: 'fact.colony.engine', group: 'cards', priority: 47, severity: 'minor', icon: 'hex',
     badge: 'Colony engine', color: top.player,
-    textKey: 'Colonies powered ${0}: ${1} trades fed the engine.',
-    params: [raw(playerName(ctx, top.player)), raw(metric(top, 'trades'))],
+    textKey: track > 0 ?
+      'Colonies powered ${0}: ${1} trades, boosted by the colony track.' :
+      'Colonies powered ${0}: ${1} trades fed the engine.',
+    params: [raw(playerName(ctx, top.player)), raw(topTrades)],
     family: 'colony', uiVariant: 'compact', storyCluster: 'colony',
-    scores: {impact: Math.min(1, metric(top, 'trades') / 12), relevance: 0.45, confidence: 0.8},
+    evidenceKey: 'colony', evidenceChips: chips,
+    scores: {impact: Math.min(1, topTrades / 12), relevance: 0.45, confidence: 0.8},
     relatedFactIds: [top.id], relatedPlayers: [top.player],
   });
   return out;
@@ -1504,6 +1619,8 @@ const analyzeAwardRace: Analyzer = (ctx) => {
       textKey: 'A bet that backfired: ${0} funded the ${1} award, but ${2} took the ${3} VP for it.',
       params: [raw(sponsorLost.funder.name), key(sponsorLost.award), raw(sponsorLost.winner.name), raw(sponsorLost.points)],
       family: 'duelContrast', uiVariant: 'major', storyCluster: 'awardRace',
+      evidenceKey: `award:${sponsorLost.award}`,
+      evidenceChips: [chipL(sponsorLost.award), chipN(`+${sponsorLost.points}`, 'good'), chipL('sponsor lost it', 'bad')],
       scores: {rarity: 0.65, drama: 0.75, relevance: 0.8, duelRelevance: 1, confidence: 1},
       relatedPlayers: [sponsorLost.funder.color, sponsorLost.winner.color],
     });
@@ -1514,6 +1631,8 @@ const analyzeAwardRace: Analyzer = (ctx) => {
       textKey: 'The ${0} award alone swung ${1} VP — more than the ${2}-VP final margin.',
       params: [key(bestSwing.award), raw(bestSwing.swing), raw(ctx.margin)],
       family: 'duelContrast', uiVariant: 'normal', storyCluster: 'awardRace',
+      evidenceKey: `award:${bestSwing.award}`,
+      evidenceChips: [chipL(bestSwing.award), chipN(`+${bestSwing.swing}`, 'good'), chipN(`> ${ctx.margin}`, 'neutral')],
       scores: {rarity: 0.5, drama: 0.6, relevance: 0.75, duelRelevance: 0.9, confidence: 1},
       relatedPlayers: [bestSwing.winner.color],
     });
@@ -1608,6 +1727,8 @@ const analyzeDuelEconomyConversion: Analyzer = (ctx) => {
       textKey: '${0} wasn’t richer than ${1} — just more efficient, turning fewer resources into more points.',
       params: [raw(ctx.winner.name), raw(ru.name)],
       family: 'duelContrast', uiVariant: 'major', storyCluster: 'economyUpset', // dedups with the generic underdog
+      evidenceKey: 'economyUpset',
+      evidenceChips: [chipL('efficiency over economy', 'good')],
       scores: {rarity: 0.6, drama: 0.5, relevance: 0.8, duelRelevance: 1, confidence: 0.8},
       suppresses: ['fact.economy.underdog'],
       relatedPlayers: [ctx.winner.color, ru.color],
@@ -1632,6 +1753,8 @@ const analyzeDuelAlmost: Analyzer = (ctx) => {
       textKey: 'Penalties decided it: ${0} lost ${1} VP to penalties — more than the ${2}-VP gap.',
       params: [raw(ru.name), raw(penalty), raw(ctx.margin)],
       family: 'runnerUpStory', uiVariant: 'normal', storyCluster: 'almostPenalty',
+      evidenceKey: `almost:${ru.color}`,
+      evidenceChips: [chipN(`−${penalty}`, 'bad'), chipL('penalties', 'bad')],
       scores: {drama: 0.6, relevance: 0.75, rarity: 0.5, duelRelevance: 0.9, confidence: 1},
       relatedPlayers: [ru.color],
     });
@@ -1644,10 +1767,92 @@ const analyzeDuelAlmost: Analyzer = (ctx) => {
       textKey: '${0} finished on ${1} M€ — more than the ${2}-VP gap, had it found a use.',
       params: [raw(ru.name), raw(ru.megacredits), raw(ctx.margin)],
       family: 'unusedPotential', uiVariant: 'compact', storyCluster: 'almostMoney',
+      evidenceKey: `almost:${ru.color}`,
+      evidenceChips: [chipN(`${ru.megacredits} M€`, 'neutral'), chipL('no outlet', 'bad')],
       scores: {relevance: 0.55, drama: 0.4, duelRelevance: 0.7, confidence: 0.7},
       relatedPlayers: [ru.color],
     });
   }
+  return out;
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Iteration 10: more UNUSUAL-shape analyzers (honest, standings/category-derived).
+// ─────────────────────────────────────────────────────────────────────────
+
+// ── One-category trap: a non-winner who dominated ONE category but lost the breadth ──
+const analyzeOneCategoryTrap: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  if (ctx.players.length < 2 || ctx.margin <= 0) {
+    return out;
+  }
+  // The biggest single-category lead held by a NON-winner over the field.
+  let best: {p: EndgamePlayerScore; cat: EndgameCategory; lead: number} | undefined;
+  for (const p of ctx.players) {
+    if (p.color === ctx.winner.color) {
+      continue;
+    }
+    for (const cat of ctx.categories) {
+      const mine = cat.values[p.color] ?? 0;
+      const fieldBest = Math.max(...ctx.players.filter((o) => o.color !== p.color).map((o) => cat.values[o.color] ?? 0));
+      const lead = mine - fieldBest;
+      if (lead >= 12 && (best === undefined || lead > best.lead)) {
+        best = {p, cat, lead};
+      }
+    }
+  }
+  if (best === undefined) {
+    return out;
+  }
+  const trap = best;
+  // It's a "trap" only if that one category was their ONLY real strength — measured
+  // consistently from the category VALUES (same source as the lead above).
+  const otherLeads = ctx.categories
+    .filter((c) => c.key !== trap.cat.key)
+    .reduce((s, c) => s + Math.max(0, (c.values[trap.p.color] ?? 0) - (c.values[ctx.winner.color] ?? 0)), 0);
+  if (otherLeads > trap.lead * 0.4) {
+    return out; // they were broad too — not a trap
+  }
+  out.push({
+    id: `story.oneCategoryTrap.${best.p.color}`, group: 'category', priority: 57, severity: 'normal', icon: 'target',
+    badge: 'One-track', color: best.p.color,
+    textKey: '${0} ran away with ${1} (+${2}), but the win needed breadth — ${3} scored across the board instead.',
+    params: [raw(best.p.name), key(best.cat.label), raw(best.lead), raw(ctx.winner.name)],
+    family: 'cardStory', uiVariant: 'normal', storyCluster: 'oneCategoryTrap',
+    evidenceKey: `oneCategoryTrap:${best.p.color}`,
+    evidenceChips: [chipL(best.cat.label), chipN(`+${best.lead}`, 'good'), chipL('but lost the breadth', 'bad')],
+    scores: {rarity: 0.55, drama: 0.45, relevance: 0.65, confidence: 1},
+    relatedPlayers: [best.p.color, ctx.winner.color],
+  });
+  return out;
+};
+
+// ── Narrow efficiency win: the winner dominated NOTHING, yet had enough everywhere ──
+const analyzeNarrowEfficiency: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  if (ctx.runnerUp === undefined || ctx.margin <= 0 || ctx.margin > 15) {
+    return out;
+  }
+  // A genuinely FLAT win: the winner needs at least one positive category lead (so we
+  // have data + they actually won races) but NONE reaching 6 — "enough everywhere,
+  // dominant nowhere". A 6+ lead is a real edge → not this story.
+  const topLead = sortedWinnerLeads(ctx)[0];
+  if (topLead === undefined || topLead.lead <= 0 || topLead.lead >= 6) {
+    return out;
+  }
+  out.push({
+    id: 'story.narrowEfficiency', group: 'reason', priority: 55, severity: 'normal', icon: 'scale',
+    badge: 'Enough everywhere', color: ctx.winner.color,
+    textKey: '${0} didn’t dominate any single race — just had enough in each to edge ${1} by ${2}.',
+    params: [raw(ctx.winner.name), raw(ctx.runnerUp.name), raw(ctx.margin)],
+    family: 'cardStory', uiVariant: 'normal', storyCluster: 'narrowEfficiency',
+    evidenceKey: 'narrowEfficiency',
+    evidenceChips: [chipN(`+${ctx.margin}`, 'good'), chipL('balanced edge', 'neutral')],
+    // Soft-suppress the "dominant category" line — there wasn't one.
+    suppresses: ['reason.dominant-category'],
+    scores: {rarity: 0.5, relevance: 0.6, confidence: 1},
+    relatedPlayers: [ctx.winner.color, ctx.runnerUp.color],
+  });
   return out;
 };
 
@@ -1679,9 +1884,11 @@ const analyzeEconomyConversionMismatch: Analyzer = (ctx) => {
     out.push({
       id: `xfact.econConv.${best.p.color}`, group: 'reason', priority: 58, severity: 'normal', icon: 'spark',
       badge: 'Tempo, not points', color: best.p.color,
-      textKey: '${0} built the strongest economy — about ${1} M€ of measured value — but it bought tempo, not the points that decide the game.',
+      textKey: '${0} built the strongest economy — about ${1} of measured value — but it bought tempo, not the points that decide the game.',
       params: [raw(best.p.name), raw(best.saved)],
       family: 'economy', uiVariant: 'normal', storyCluster: 'economyConversion',
+      evidenceKey: `economy:${best.p.color}`,
+      evidenceChips: [chipN(`+${best.saved}`, 'neutral'), chipL('tempo not points', 'bad')],
       scores: {impact: 0.5, rarity: 0.55, drama: 0.45, relevance: 0.7, confidence: 0.75},
       relatedPlayers: [best.p.color],
     });
@@ -1790,6 +1997,8 @@ const analyzeAttackDamagedStrategy: Analyzer = (ctx) => {
     textKey: 'The pressure landed where it hurt: ${0} lost ${1} resources to attacks while leaning on the board — their strongest plan took the hit.',
     params: [raw(best.victim.name), raw(best.lost)],
     family: 'negativeDrama', uiVariant: 'normal', storyCluster: 'attackDamage',
+    evidenceKey: `attack:${best.victim.color}`,
+    evidenceChips: [chipN(`−${best.lost}`, 'bad'), chipL('hit the board plan', 'bad')],
     scores: {impact: 0.5, rarity: 0.6, drama: 0.6, relevance: 0.7, confidence: 0.7},
     relatedPlayers: [best.f.player, best.victim.color],
   } : {
@@ -1798,6 +2007,8 @@ const analyzeAttackDamagedStrategy: Analyzer = (ctx) => {
     textKey: '${0} spent the game under fire, losing ${1} resources to opponents’ attacks.',
     params: [raw(best.victim.name), raw(best.lost)],
     family: 'negativeDrama', uiVariant: 'compact', storyCluster: 'attackDamage',
+    evidenceKey: `attack:${best.victim.color}`,
+    evidenceChips: [chipN(`−${best.lost}`, 'bad'), chipL('under fire', 'bad')],
     scores: {impact: 0.4, rarity: 0.5, drama: 0.5, relevance: 0.6, confidence: 0.7},
     relatedPlayers: [best.f.player, best.victim.color],
   });
@@ -1864,6 +2075,9 @@ const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeGlobalParamMismatch,
   analyzeAttackDamagedStrategy,
   analyzeProjectCardStarvation,
+  // Iteration 10 — more unusual shapes.
+  analyzeOneCategoryTrap,
+  analyzeNarrowEfficiency,
 ];
 
 const ANALYZERS: ReadonlyArray<Analyzer> = [
@@ -1949,7 +2163,10 @@ function heroWorthy(c: InsightCandidate): boolean {
  * (reading order) with `rankSection` + `finalScore` set, so the UI lays out the
  * hierarchy and tests stay array-based. Deterministic (id tiebreak).
  */
-export function selectStoryInsights(candidates: ReadonlyArray<InsightCandidate>): Array<EndgameInsightView> {
+export function selectStoryInsights(
+  candidates: ReadonlyArray<InsightCandidate>,
+  forceHidden: ReadonlySet<string> = new Set(),
+): Array<EndgameInsightView> {
   const scored = candidates.map((c) => ({...c, finalScore: finalScore(c)}));
   scored.sort((a, b) => b.finalScore - a.finalScore || a.id.localeCompare(b.id));
 
@@ -1972,7 +2189,7 @@ export function selectStoryInsights(candidates: ReadonlyArray<InsightCandidate>)
   // HERO — the single strongest hero-worthy candidate.
   let hero: EndgameInsightView | undefined;
   for (const c of scored) {
-    if (suppressed.has(c.id)) {
+    if (suppressed.has(c.id) || forceHidden.has(c.id)) {
       continue;
     }
     if (heroWorthy(c)) {
@@ -1989,7 +2206,7 @@ export function selectStoryInsights(candidates: ReadonlyArray<InsightCandidate>)
     if (primary.length >= STORY_PRIMARY_MAX) {
       break;
     }
-    if (usedIds.has(c.id) || suppressed.has(c.id)) {
+    if (usedIds.has(c.id) || suppressed.has(c.id) || forceHidden.has(c.id)) {
       continue;
     }
     const cluster = clusterOf(c);
@@ -2009,7 +2226,7 @@ export function selectStoryInsights(candidates: ReadonlyArray<InsightCandidate>)
     if (secondary.length >= STORY_SECONDARY_MAX) {
       break;
     }
-    if (usedIds.has(c.id) || suppressed.has(c.id)) {
+    if (usedIds.has(c.id) || suppressed.has(c.id) || forceHidden.has(c.id)) {
       continue;
     }
     const cluster = clusterOf(c);
@@ -2116,6 +2333,84 @@ function ensureHero(insights: ReadonlyArray<EndgameInsightView>, dna: GameStoryD
   return [{...hero, rankSection: 'hero'}, ...list];
 }
 
+/** The dedup IDENTITY of a candidate — its explicit `evidenceKey`, else cluster+players
+ *  (so two cards telling the SAME thought about the SAME people collapse). */
+function evidenceKeyOf(c: InsightCandidate): string {
+  return c.evidenceKey ?? `${clusterOf(c)}|${[...(c.relatedPlayers ?? [])].sort().join('+')}`;
+}
+
+/**
+ * EVIDENCE DEDUP (Iteration 10): two VISIBLE cards must not tell the same thought. Group
+ * the scored candidates by `evidenceKeyOf`; the strongest of each group stays selectable,
+ * the rest are FORCED to the hidden band ("show more") — present for the curious, never
+ * cluttering the headline. Returns the set of ids to force-hide.
+ */
+function evidenceDedup(scored: ReadonlyArray<InsightCandidate>): Set<string> {
+  const seenKey = new Set<string>();
+  const demote = new Set<string>();
+  // Strongest-first so the kept card per key is the richest one.
+  for (const c of [...scored].sort((a, b) => (b.finalScore ?? finalScore(b)) - (a.finalScore ?? finalScore(a)) || a.id.localeCompare(b.id))) {
+    const k = evidenceKeyOf(c);
+    if (seenKey.has(k)) {
+      demote.add(c.id);
+    } else {
+      seenKey.add(k);
+    }
+  }
+  return demote;
+}
+
+/** The report SECTION an insight lays out under (the UX director's grouping). */
+function sectionOf(c: EndgameInsightView, dna: GameStoryDNA): StorySection {
+  const runnerColor = dna.mainConflict?.rightPlayer;
+  if (c.rankSection === 'hero' || c.storyRole === 'headline' || c.storyRole === 'contrast') {
+    return 'mainStory';
+  }
+  if (c.storyRole === 'whyRunnerLost' || c.storyRole === 'almost') {
+    return 'whyRunnerLost';
+  }
+  if (c.storyRole === 'rareDetail' || c.storyRole === 'warning' || c.storyRole === 'twist') {
+    return 'highlights';
+  }
+  if (c.storyRole === 'whyWinnerWon' || c.storyRole === 'signatureMoment' || c.storyRole === 'turningPoint') {
+    // A runner-up-coloured "moment" belongs to why-they-fell-short, not why-winner-won.
+    return runnerColor !== undefined && c.color === runnerColor ? 'whyRunnerLost' : 'whyWinnerWon';
+  }
+  if (c.rankSection === 'hidden' || c.storyRole === 'trivia' || c.storyRole === 'supportingDetail') {
+    return 'details';
+  }
+  return 'whyWinnerWon';
+}
+
+/** Assign a `storySection` to every selected insight (after roles). */
+function assignStorySections(insights: ReadonlyArray<EndgameInsightView>, dna: GameStoryDNA): Array<EndgameInsightView> {
+  return insights.map((c) => ({...c, storySection: sectionOf(c, dna)}));
+}
+
+/**
+ * Ensure the runner-up has a VOICE: if a duel/standings game has a meaningful runner-up
+ * insight (role almost/whyRunnerLost) but it landed in `hidden`, promote it to secondary
+ * so "why they didn't close it out" is always part of the visible report. Never invents
+ * one — only surfaces an existing hidden insight.
+ */
+function surfaceRunnerUpVoice(insights: ReadonlyArray<EndgameInsightView>, dna: GameStoryDNA): Array<EndgameInsightView> {
+  const list = [...insights];
+  if (dna.mainConflict === undefined) {
+    return list;
+  }
+  const hasVisibleVoice = list.some((c) =>
+    c.rankSection !== 'hidden' && (c.storyRole === 'almost' || c.storyRole === 'whyRunnerLost'));
+  if (hasVisibleVoice) {
+    return list;
+  }
+  const idx = list.findIndex((c) =>
+    c.rankSection === 'hidden' && (c.storyRole === 'almost' || c.storyRole === 'whyRunnerLost'));
+  if (idx >= 0) {
+    list[idx] = {...list[idx], rankSection: 'secondary'};
+  }
+  return list;
+}
+
 /** Tag each selected insight with its NARRATIVE role (drives the UI story sections). */
 function assignStoryRoles(insights: ReadonlyArray<EndgameInsightView>, dna: GameStoryDNA): Array<EndgameInsightView> {
   const twistIds = new Set(dna.twists.map((t) => t.candidateId).filter((id): id is string => id !== undefined));
@@ -2166,8 +2461,13 @@ export function composeStory(ctx: InsightContext): {dna: GameStoryDNA; insights:
   const dna = buildGameStoryDna(ctx, scored, {styleOf: styleResolver(ctx)});
   // 3) Boost on-story candidates / penalize off-story generics.
   const boosted = applyStoryBoost(scored, dna);
-  // 4) Select the hierarchy, guarantee a hero for a strong story, then tag roles.
-  const insights = assignStoryRoles(ensureHero(selectStoryInsights(boosted), dna), dna);
+  // 4) Evidence dedup: same-thought duplicates are forced to the hidden band.
+  const forceHidden = evidenceDedup(boosted.map((c) => ({...c, finalScore: finalScore(c)})));
+  // 5) Select the hierarchy, guarantee a hero, surface the runner-up, tag roles + sections.
+  let insights = ensureHero(selectStoryInsights(boosted, forceHidden), dna);
+  insights = assignStoryRoles(insights, dna);
+  insights = surfaceRunnerUpVoice(insights, dna);
+  insights = assignStorySections(insights, dna);
   return {dna, insights};
 }
 
@@ -2175,16 +2475,28 @@ export function generateInsights(ctx: InsightContext): Array<EndgameInsightView>
   return composeStory(ctx).insights;
 }
 
-/** Dev/debug bundle: the Game Story DNA + every candidate (scored, with `storyBoost`
- *  applied) sorted strongest-first. Powers the `?egDebug` panel + tuning. */
+/** Dev/debug bundle: the Game Story DNA + every candidate (scored, with `storyBoost` +
+ *  `evidenceKey` + the band/section it landed in + whether it was evidence-deduped).
+ *  Powers the `?egDebug` panel + tuning — you can't calibrate this blind. */
 export function buildStoryDebug(ctx: InsightContext): {dna: GameStoryDNA; candidates: Array<InsightCandidate>} {
   const scored = runAnalyzers(ctx).map((c) => ({...c, finalScore: finalScore(c)}));
   const dna = buildGameStoryDna(ctx, scored, {styleOf: styleResolver(ctx)});
-  const boosted = applyStoryBoost(scored, dna)
-    .map((c) => ({...c, finalScore: finalScore(c)}))
+  const boosted = applyStoryBoost(scored, dna).map((c) => ({...c, finalScore: finalScore(c)}));
+  const forceHidden = evidenceDedup(boosted);
+  // The composed, placed list (same pipeline as composeStory) → band + role + section.
+  const composed = composeStory(ctx).insights;
+  const placed = new Map(composed.map((c) => [c.id, c]));
+  const candidates = boosted
+    .map((c) => {
+      const p = placed.get(c.id);
+      return {
+        ...c,
+        evidenceKey: evidenceKeyOf(c),
+        rankSection: p?.rankSection ?? (forceHidden.has(c.id) ? 'hidden' as const : undefined),
+        storyRole: p?.storyRole,
+        storySection: p?.storySection,
+      };
+    })
     .sort((a, b) => (b.finalScore ?? 0) - (a.finalScore ?? 0) || a.id.localeCompare(b.id));
-  // Annotate with the section each would land in (re-run the selector for parity).
-  const placed = new Map(selectStoryInsights(applyStoryBoost(scored, dna)).map((c) => [c.id, c.rankSection]));
-  const candidates = boosted.map((c) => ({...c, rankSection: placed.get(c.id)}));
   return {dna, candidates};
 }

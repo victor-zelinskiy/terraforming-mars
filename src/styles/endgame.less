@@ -734,6 +734,91 @@
     .eg-dnadebug__table tr:first-child td { border-top: 1px solid rgba(106, 176, 230, 0.12); }
 }
 
+/* ── Iteration 10: report SECTIONS (the UX director's grouping) ── */
+.eg-storysec {
+    --eg-sec: #6ab0e6;
+    margin-top: 18px;
+}
+.eg-storysec__head {
+    margin: 0 0 10px;
+    padding: 4px 0 4px 11px;
+    border-left: 3px solid var(--eg-sec);
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 12px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: ~"color-mix(in srgb, var(--eg-sec) 75%, #d6e6f4)";
+}
+.eg-storysec--won { --eg-sec: #7fd8a0; }
+.eg-storysec--lost { --eg-sec: #9fb6cc; }
+.eg-storysec--arcs { --eg-sec: #7fd0e6; }
+.eg-storysec--highlights { --eg-sec: #c79af0; }
+
+/* ── Evidence chips (numbers + meaning under a card) ── */
+.eg-insight__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.eg-chip {
+    --c: #9fb6cc;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: ~"color-mix(in srgb, var(--c) 12%, rgba(16, 25, 38, 0.5))";
+    box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--c) 32%, transparent)";
+    color: ~"color-mix(in srgb, var(--c) 62%, #e6f0fa)";
+    font-size: 10.5px;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+}
+.eg-chip--metric { --c: #6ab0e6; font-variant-numeric: tabular-nums; font-weight: 600; }
+.eg-chip--good { --c: #7fd8a0; }
+.eg-chip--bad { --c: #e88a8a; }
+.eg-chip--neutral { --c: #9fb6cc; }
+
+/* ── Player arcs ── */
+.eg-arcs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 12px;
+}
+.eg-arc {
+    --eg-pc: #6ab0e6;
+    position: relative;
+    padding: 13px 14px 14px;
+    border-radius: 10px;
+    background: rgba(13, 20, 31, 0.5);
+    box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.16), inset 3px 0 0 var(--eg-pc);
+}
+.eg-arc--winner { box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-pc) 45%, transparent)", inset 3px 0 0 var(--eg-pc), 0 0 22px -8px var(--eg-pc); }
+.eg-arc__head { display: flex; align-items: center; gap: 7px; }
+.eg-arc__dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; }
+.eg-arc__name { font-weight: 600; color: #eaf3fb; font-size: 13.5px; }
+.eg-arc__you {
+    font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+    color: #f3c969; padding: 1px 6px; border-radius: 6px; background: rgba(243, 201, 105, 0.14);
+}
+.eg-arc__crown { margin-left: auto; color: #f3c969; }
+.eg-arc__style {
+    margin-top: 6px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 13px;
+    color: ~"color-mix(in srgb, var(--eg-pc) 60%, #dceaf6)";
+}
+.eg-arc__tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.eg-arc__facets { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+.eg-arc__facet {
+    display: flex; align-items: baseline; gap: 8px;
+    font-size: 11.5px; color: #c2d2e2;
+}
+.eg-arc__facet-lbl {
+    flex: 0 0 78px; font-size: 9.5px; letter-spacing: 0.8px; text-transform: uppercase; color: #708498;
+}
+.eg-arc__facet-val { color: #dceaf6; }
+.eg-arc__facet--good .eg-arc__facet-val { color: #8fd8ad; }
+.eg-arc__facet--bad .eg-arc__facet-val { color: #e8a0a0; }
+
 /* ══════════════════════════════════════════════════════════════════════
    Overview — duel
    ══════════════════════════════════════════════════════════════════════ */

@@ -50,6 +50,9 @@ describe('EndgameOverviewTab', () => {
     // (the model carries a Story DNA), replacing the bare section title.
     expect(wrapper.find('.eg-storyhead').exists(), 'story headline band').to.eq(true);
     expect(wrapper.find('.eg-storyhead__title').text().length).to.be.greaterThan(0);
+    // Iteration 10: the player-arcs section renders both players' arcs in a duel.
+    expect(wrapper.find('.eg-storysec--arcs').exists(), 'player arcs section').to.eq(true);
+    expect(wrapper.findAll('.eg-arc').length, 'an arc card per player').to.eq(2);
   });
 
   it('renders the podium + leaderboard for three players', () => {

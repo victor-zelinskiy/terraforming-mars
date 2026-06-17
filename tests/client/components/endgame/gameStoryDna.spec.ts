@@ -236,9 +236,14 @@ describe('Story quality guard (Iteration 9)', () => {
   it('a rare event is never buried in the hidden band', () => {
     const c = fixtures.find((f) => f.name === 'attack pressure')!.build();
     const insights = composeStory(c).insights;
-    const attack = insights.find((i) => (i.storyCluster ?? '') === 'attackDamage');
+    // The attack STORY (by evidence key) must be visible — Iteration 10 dedups the two
+    // "under fire" cards to one, so we assert the story, not a specific cluster.
+    const attack = insights.find((i) => (i.evidenceKey ?? '').startsWith('attack:'));
     expect(attack, 'attack insight present').to.not.be.undefined;
     expect(attack!.rankSection, 'shown in hero/primary, not hidden').to.be.oneOf(['hero', 'primary', 'secondary']);
+    // And the duplicate "under fire" telling is force-hidden — never two visible.
+    const visibleAttacks = insights.filter((i) => (i.evidenceKey ?? '').startsWith('attack:') && i.rankSection !== 'hidden');
+    expect(visibleAttacks.length, 'only one attack card visible (deduped)').to.eq(1);
   });
 
   it('a duel story names both players', () => {
