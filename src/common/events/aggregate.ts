@@ -422,6 +422,63 @@ export function actionVictimBreakdown(events: ReadonlyArray<GameEvent>, attacker
   return result;
 }
 
+/** One source CARD's attack on one victim (for source-aware "Card X broke your engine"
+ *  stories). `scope` is production vs stock; `transfer` ⇒ the attacker took it. */
+export type CardAttackRecord = {
+  attacker: Color;
+  sourceCard: CardName;
+  victim: Color;
+  scope: 'stock' | 'production';
+  transfer: boolean;
+  resources: Record<string, number>;
+  total: number;
+};
+
+/**
+ * SOURCE-AWARE attack ledger: each victim-loss event whose source is a CARD/CORP (the
+ * common destroy / production-reduction case) → "this card hurt that player". Steals
+ * sourced only to a player (no card) are not source-attributable and are omitted (the
+ * aggregate {@link aggregateAttacks} still counts them) — honest, no guessing. Keyed
+ * `attacker → records`, merged per (sourceCard, victim, scope).
+ */
+export function aggregateAttacksBySource(events: ReadonlyArray<GameEvent>): Map<Color, Array<CardAttackRecord>> {
+  const byKey = new Map<string, CardAttackRecord>();
+  for (const e of events) {
+    if (e.player === undefined || (e.source?.kind !== 'card' && e.source?.kind !== 'corporation')) {
+      continue;
+    }
+    const attacker = eventAttacker(e);
+    if (attacker === undefined) {
+      continue; // not a cross-player attack (a cost / own gain)
+    }
+    const losses = negativeLosses(e.impact);
+    if (losses.total === 0) {
+      continue;
+    }
+    const scope: 'stock' | 'production' = UNIT_KEYS.some((k) => (e.impact.production?.[k] ?? 0) < 0) ? 'production' : 'stock';
+    const key = `${attacker}|${e.source.card}|${e.player}|${scope}`;
+    let rec = byKey.get(key);
+    if (rec === undefined) {
+      rec = {attacker, sourceCard: e.source.card, victim: e.player, scope, transfer: false, resources: {}, total: 0};
+      byKey.set(key, rec);
+    }
+    if (e.target?.player !== undefined && e.target.player !== e.player) {
+      rec.transfer = true;
+    }
+    rec.total += losses.total;
+    for (const [k, v] of Object.entries(losses.resources)) {
+      rec.resources[k] = (rec.resources[k] ?? 0) + v;
+    }
+  }
+  const result = new Map<Color, Array<CardAttackRecord>>();
+  for (const rec of byKey.values()) {
+    const arr = result.get(rec.attacker) ?? [];
+    arr.push(rec);
+    result.set(rec.attacker, arr);
+  }
+  return result;
+}
+
 /**
  * The attacker behind a victim-LOSS event (`e.player` = the victim) — the recipient
  * (steal / transfer, via `target.player`) or the source card's owner (destroy /

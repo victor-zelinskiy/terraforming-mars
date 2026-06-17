@@ -185,5 +185,15 @@
     "${0} vs ${1}: ${2} took ${3}, ${4} answered with ${5} — but ${2}’s edge held.": "«${0}» против «${1}»: ${2} забрал «${3}», ${4} ответил категорией «${5}» — но перевес ${2} устоял.",
     "${0} wasn’t richer than ${1} — just more efficient, turning fewer resources into more points.": "${0} был не богаче ${1} — просто эффективнее, превращая меньше ресурсов в больше очков.",
     "Penalties decided it: ${0} lost ${1} VP to penalties — more than the ${2}-VP gap.": "Решили штрафы: ${0} потерял ${1} ПО на штрафах — больше, чем отрыв в ${2} ПО.",
-    "${0} finished on ${1} M€ — more than the ${2}-VP gap, had it found a use.": "${0} закончил с ${1} M€ — больше, чем отрыв в ${2} ПО, если бы им нашлось применение."
+    "${0} finished on ${1} M€ — more than the ${2}-VP gap, had it found a use.": "${0} закончил с ${1} M€ — больше, чем отрыв в ${2} ПО, если бы им нашлось применение.",
+    "Production heist": "Кража производства",
+    "Engine hit": "Удар по движку",
+    "Engine broken": "Движок сломан",
+    "Scorched": "Выжжено",
+    "Hard counter": "Жёсткий контр",
+    "${0} hijacked ${1} production from ${2} with ${3} — a direct hit on the engine.": "${0} перехватил ${1} производства у ${2} картой «${3}» — прямой удар по движку.",
+    "${0} knocked ${1} production off ${2} with ${3}, throttling the engine.": "${0} срезал ${1} производства у ${2} картой «${3}», придушив движок.",
+    "${0} broke ${1}’s engine with ${2}, stripping ${3} ${4} that could have scored.": "${0} сломал движок ${1} картой «${2}», сняв ${3} ${4}, которые могли стать очками.",
+    "${0} torched ${1} plants off ${2} with ${3} — greenery fuel that never grew.": "${0} сжёг ${1} растений у ${2} картой «${3}» — топливо для озеленений, которое так и не выросло.",
+    "${0} answered ${1}’s board game in kind: ${2} struck the plants feeding their greenery push.": "${0} ответил на застройку ${1} тем же: «${2}» ударила по растениям, питавшим их озеленения."
 }
