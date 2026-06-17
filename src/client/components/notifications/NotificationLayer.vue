@@ -41,6 +41,7 @@ import {Phase} from '@/common/Phase';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {GameEvent} from '@/common/events/GameEvent';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
+import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {journalState, openJournalToEvent} from '@/client/components/journal/journalState';
 import {NotificationModel} from '@/client/components/notifications/notificationTypes';
 import {
@@ -143,14 +144,17 @@ export default defineComponent({
       }
       const now = Date.now();
       // 1) Turn signal (synchronous — the highest-priority card). "Your turn"
-      // announces ONLY on a real hand-off: the transition from NOT-waiting →
-      // waiting. A continuation of the same turn (the action menu reappears
-      // after a sub-prompt) and the lone non-passed player repeating turns both
-      // keep `isWaiting` true the whole time → no re-announce.
+      // announces ONLY at the START of a fresh turn: the action menu titled
+      // 'Take your first action' (NOT 'Take your next action', the continuation
+      // after a sub-prompt / a 2nd action), AND only when the turn was actually
+      // handed off — NOT when the viewer is the lone non-passed player repeating
+      // turns. This is a STRUCTURAL signal (title + passedPlayers), robust to the
+      // server not always emitting a waitingFor-cleared update between turns
+      // (which made the old transition-tracking show "your turn" only every other
+      // turn).
       const waitingFor = this.playerView.waitingFor;
-      const isWaiting = waitingFor !== undefined && waitingFor.optional !== true;
-      const freshTurn = isWaiting && !notificationState.viewerWasWaiting;
-      notificationState.viewerWasWaiting = isWaiting;
+      const isFirstAction = waitingFor?.type === 'or' && this.titleText(waitingFor) === 'Take your first action';
+      const freshTurn = isFirstAction && !this.isLonePlayer();
       if (notificationState.settings.showTurn) {
         setTurn(buildTurnNotification(waitingFor, {generation: this.generation, createdAt: now, freshTurn}));
       } else {
@@ -162,6 +166,17 @@ export default defineComponent({
       void this.fetchAndDiff();
     },
 
+    titleText(waitingFor: PlayerInputModel): string | undefined {
+      const t = waitingFor.title;
+      return typeof t === 'string' ? t : t?.message;
+    },
+    // True when the viewer is the ONLY player who hasn't passed — their repeated
+    // turns are not a hand-off, so "your turn" should not re-announce each one.
+    isLonePlayer(): boolean {
+      const passed = this.playerView.game.passedPlayers ?? [];
+      const active = this.players.filter((p) => !passed.includes(p.color));
+      return active.length === 1 && active[0].color === this.viewerColor;
+    },
     handleGenerationAndPass(now: number): void {
       const gen = this.generation;
       // Generation went backwards → a different game / a load was opened in the
