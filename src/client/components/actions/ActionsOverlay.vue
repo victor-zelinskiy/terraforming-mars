@@ -94,6 +94,7 @@
                               :nodeIndex="selectedNodeIndex"
                               :preview="selectedPreview"
                               :card="selectedCardModel"
+                              :stat="selectedStat"
                               :loadingPreview="previewLoading"
                               @activate="$emit('activate', $event)"
                               @open="openFullscreen" />
@@ -110,6 +111,7 @@
                             :entry="m.entry"
                             :nodeIndex="m.nodeIndex"
                             :preview="previewFor(m.entry.cardName)"
+                            :stat="statForCard(m.entry.cardName)"
                             :loadingPreview="false" />
       </div>
     </div>
@@ -145,12 +147,16 @@ import {
   buildActivationChips,
   availableActionCount,
 } from '@/client/components/actions/actionModel';
+import {EffectOverlayStat} from '@/common/events/aggregate';
 import {
   actionsOverlayState,
   actionRowKey,
   setActionSelection,
   setActionPreview,
   setActionPreviewScope,
+  setActionStatsScope,
+  setActionStats,
+  getActionStats,
   resetActionsOverlay,
 } from '@/client/components/actions/actionsOverlayState';
 import {actionsPickState, resolveActionsPick, isActionsPickCandidate} from '@/client/components/actions/actionsPickState';
@@ -204,6 +210,11 @@ export default defineComponent({
       default: () => [],
     },
     previewCacheKey: {
+      type: String,
+      default: '',
+    },
+    // Scope key (the generation) for the per-game ACTION-usage stats cache.
+    statsCacheKey: {
       type: String,
       default: '',
     },
@@ -295,6 +306,11 @@ export default defineComponent({
     selectedCardModel(): CardModel | undefined {
       return this.selectedCardName !== undefined ? this.tableauByName.get(this.selectedCardName) : undefined;
     },
+    // The whole-game ACTION-usage stat for the selected card (undefined → not used /
+    // loading → the panel shows the "not used yet" note).
+    selectedStat(): EffectOverlayStat | undefined {
+      return this.selectedCardName !== undefined ? this.statForCard(this.selectedCardName) : undefined;
+    },
     // Flat master order of selectable rows (for keyboard nav).
     flatRows(): ReadonlyArray<string> {
       const rows: Array<string> = [];
@@ -335,12 +351,18 @@ export default defineComponent({
     'displayedPlayer.color'(): void {
       resetActionsOverlay();
       setActionPreviewScope(this.previewCacheKey);
+      setActionStatsScope(this.statsCacheKey);
+      this.fetchActionStats();
       this.prefetchBranchPreviews();
       nextTick(() => {
         this.ensureSelection();
         this.fit();
         this.scheduleMeasure();
       });
+    },
+    statsCacheKey(): void {
+      setActionStatsScope(this.statsCacheKey);
+      this.fetchActionStats();
     },
     filtered(): void {
       this.ensureSelection();
@@ -376,6 +398,8 @@ export default defineComponent({
     }
     actionsOverlayState.open = true;
     setActionPreviewScope(this.previewCacheKey);
+    setActionStatsScope(this.statsCacheKey);
+    this.fetchActionStats();
     this.ensureSelection();
     this.prefetchBranchPreviews();
     nextTick(() => {
@@ -433,6 +457,33 @@ export default defineComponent({
     // the shared cache. `silent` suppresses the details skeleton — used by the
     // background prefetch so it doesn't flicker the panel. The panel renders
     // manifest content immediately and refines when this resolves.
+    // The per-game action-usage stat for a card (from the cached, colour-keyed feed).
+    statForCard(cardName: CardName): EffectOverlayStat | undefined {
+      return getActionStats(this.displayedPlayer.color)?.find((s) => s.card === cardName);
+    },
+    // Fetch the per-game ACTION-usage stats for the displayed player (stale-while-
+    // revalidate, mirroring the Эффекты overlay): events accumulate within a
+    // generation, so always refetch on open / seat change but show cached instantly.
+    // No id (playground) or no fetch (JSDOM) → the panel shows the "not used yet" note.
+    fetchActionStats(): void {
+      if (this.viewerId === '' || typeof fetch !== 'function') {
+        return;
+      }
+      const color = this.displayedPlayer.color;
+      const url = paths.API_GAME_ACTION_STATS +
+        '?id=' + encodeURIComponent(this.viewerId) +
+        '&color=' + encodeURIComponent(color);
+      const scope = actionsOverlayState.statsScope;
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : undefined))
+        .then((s) => {
+          if (s !== undefined) {
+            setActionStats(color, s as ReadonlyArray<EffectOverlayStat>, scope);
+          }
+        })
+        .catch(() => { /* best-effort: the panel falls back to the "not used yet" note */ })
+        .finally(() => nextTick(() => this.scheduleMeasure()));
+    },
     fetchPreviewFor(cardName: CardName, silent = false): void {
       if (!this.isViewerSeat || this.viewerId === '' || actionsOverlayState.previewCache[cardName] !== undefined) {
         return;

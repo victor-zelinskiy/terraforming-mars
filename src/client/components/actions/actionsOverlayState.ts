@@ -1,5 +1,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {Color} from '@/common/Color';
+import {EffectOverlayStat} from '@/common/events/aggregate';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {AvailabilityFilter, ActivationFilter} from '@/client/components/actions/actionModel';
 
@@ -27,6 +29,10 @@ export const actionsOverlayState = reactive<{
   previewCacheScope: string | undefined;
   /** Per-card read-only action preview, fetched lazily for the SELECTED card. */
   previewCache: Record<string, ActionPreview>;
+  /** Snapshot key (generation) the cached per-game ACTION-usage stats were fetched for. */
+  statsScope: string | undefined;
+  /** Per-player whole-game action-usage stats (`/api/game/action-stats`), by colour. */
+  statsCache: Partial<Record<Color, ReadonlyArray<EffectOverlayStat>>>;
 }>({
   open: false,
   selectedKey: undefined,
@@ -34,7 +40,27 @@ export const actionsOverlayState = reactive<{
   activation: 'dormant',
   previewCacheScope: undefined,
   previewCache: {},
+  statsScope: undefined,
+  statsCache: {},
 });
+
+export function setActionStatsScope(scope: string): void {
+  if (actionsOverlayState.statsScope !== scope) {
+    actionsOverlayState.statsScope = scope;
+    actionsOverlayState.statsCache = {};
+  }
+}
+
+export function setActionStats(color: Color, stats: ReadonlyArray<EffectOverlayStat>, expectedScope?: string): void {
+  if (expectedScope !== undefined && expectedScope !== actionsOverlayState.statsScope) {
+    return;
+  }
+  actionsOverlayState.statsCache = {...actionsOverlayState.statsCache, [color]: stats};
+}
+
+export function getActionStats(color: Color): ReadonlyArray<EffectOverlayStat> | undefined {
+  return actionsOverlayState.statsCache[color];
+}
 
 /** The selection key for a given card + node ordinal. */
 export function actionRowKey(cardName: CardName, nodeIndex: number): string {
@@ -63,8 +89,9 @@ export function setActionPreview(cardName: CardName, preview: ActionPreview, exp
   actionsOverlayState.previewCache = {...actionsOverlayState.previewCache, [cardName]: preview};
 }
 
-/** Drop selection + preview cache (on player switch); keep the filters. */
+/** Drop selection + preview/stats caches (on player switch); keep the filters. */
 export function resetActionsOverlay(): void {
   actionsOverlayState.selectedKey = undefined;
   actionsOverlayState.previewCache = {};
+  actionsOverlayState.statsCache = {};
 }

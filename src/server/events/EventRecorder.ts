@@ -5,6 +5,7 @@ import {SpaceId} from '../../common/Types';
 import {TileType} from '../../common/TileType';
 import {Space} from '../boards/Space';
 import {ColonyName} from '../../common/colonies/ColonyName';
+import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
 import {EventSource} from '../../common/events/EventSource';
@@ -54,6 +55,7 @@ type RecordInput = {
   tile?: TileType;
   visibility?: EventVisibility;
   tags?: ReadonlyArray<EventTag>;
+  category?: JournalActionCategory;
 };
 
 export class EventRecorder {
@@ -102,6 +104,9 @@ export class EventRecorder {
     }
     if (input.tags !== undefined) {
       event.tags = input.tags;
+    }
+    if (input.category !== undefined) {
+      event.category = input.category;
     }
     if (ctx?.parentId !== undefined) {
       event.parentId = ctx.parentId;
@@ -183,7 +188,7 @@ export class EventRecorder {
   /** Begin a top-level player action (card play, blue-card action, standard project). */
   public beginAction(player: IPlayer, source: EventSource | undefined, opts?: {category?: JournalActionCategory; visibility?: EventVisibility}): void {
     const root = this.emit(
-      {type: 'action', source, player: player.color, impact: {}, visibility: opts?.visibility ?? 'journal', tags: source?.kind === 'corporation' ? ['corporation'] : undefined},
+      {type: 'action', source, player: player.color, impact: {}, visibility: opts?.visibility ?? 'journal', tags: source?.kind === 'corporation' ? ['corporation'] : undefined, category: opts?.category},
       this.current);
     this.stack.push({rootId: root.id, parentId: root.id, source, playerColor: player.color, kind: 'action', trigger: undefined, triggerEmitted: true, rootLogEmitted: false, category: opts?.category});
   }
@@ -198,7 +203,7 @@ export class EventRecorder {
   public beginCopiedAction(player: IPlayer, source: EventSource, copiedCard: ICard): void {
     const ctx = this.current;
     const marker = this.emit(
-      {type: 'copied-action', source, player: player.color, target: {card: copiedCard.name}, impact: {}, visibility: 'journal', tags: ['corporation', 'copy']},
+      {type: 'copied-action', source, player: player.color, target: {card: copiedCard.name}, impact: {}, visibility: 'journal', tags: ['corporation', 'copy'], category: 'copied-action'},
       ctx);
     const rootId = ctx?.rootId ?? marker.id;
     if (ctx?.rootId === undefined) {
@@ -432,6 +437,45 @@ export class EventRecorder {
       impact: {colonyTrackAdvanced: [{colony, steps, extraReward}]},
       tags: ['passive-effect', 'colony-track', 'engine'],
     }, this.current);
+  }
+
+  /**
+   * Record a TRADE-DISCOUNT effect (Cryo-Sleep / Rim Freighters) saving trade
+   * resources on a trade, attributed to the OWNING card. `amount` is the EXACT units
+   * of `resource` saved. Overlay-analytics only (the trade fee is already logged).
+   */
+  public recordTradeDiscount(player: IPlayer, card: ICard, colony: ColonyName, resource: 'energy' | 'titanium' | 'megacredits', amount: number): void {
+    if (amount <= 0) {
+      return;
+    }
+    const kind = card.type === CardType.CORPORATION ? 'corporation' : 'card';
+    this.emit({
+      type: 'effect-triggered',
+      source: {kind, card: card.name, owner: player.color},
+      player: player.color,
+      impact: {tradeDiscountSaved: [{colony, resource, amount}]},
+      tags: ['passive-effect', 'trade-discount', 'engine'],
+    }, this.current);
+  }
+
+  /**
+   * Record a global-parameter raise (oxygen / temperature / oceans / venus) under
+   * the active scope, so the source card / action / standard project is attributed
+   * the parameter steps it moved (the "who terraformed the planet" feed). The TR
+   * itself is recorded separately by `recordTrDelta`. Tagged `global-parameter`
+   * (analytics-only — excluded from the journal, which shows the TR + tile); the
+   * `record()` chokepoint adds `passive-effect` automatically inside an effect scope.
+   */
+  public recordGlobalParameterChange(player: IPlayer, parameter: GlobalParameter, steps: number): void {
+    if (steps <= 0) {
+      return;
+    }
+    this.record({
+      type: 'global-parameter-changed',
+      player: player.color,
+      impact: {globalParameter: {parameter, steps}},
+      tags: ['global-parameter'],
+    });
   }
 
   /** Record what was actually paid for a card / project. */

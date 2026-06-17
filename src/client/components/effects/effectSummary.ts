@@ -39,7 +39,7 @@ export type EffectSummaryLine = {
  */
 export type EffectCategory =
   'corporation' | 'discount' | 'resourceAccumulation' | 'payment' |
-  'paymentValueBonus' | 'colonyTrade' |
+  'paymentValueBonus' | 'colonyTrade' | 'tradeDiscount' |
   'passiveTr' | 'passiveProduction' | 'trigger' | 'ruleChange';
 
 /**
@@ -250,6 +250,11 @@ const COLONY_TRADE_OFFSET_CARDS: ReadonlySet<CardName> = new Set([
   CardName.TRADING_COLONY, CardName.TRADE_ENVOYS,
 ]);
 
+/** Cards whose passive rule makes a trade cost fewer resources (`tradeDiscount`). */
+const TRADE_DISCOUNT_CARDS: ReadonlySet<CardName> = new Set([
+  CardName.CRYO_SLEEP, CardName.RIM_FREIGHTERS,
+]);
+
 /**
  * The category to FRAME an empty effect's note by — what the effect CAN do (its
  * render signature), NOT the (empty) data. The ROOT-CAUSE fix: without this, an
@@ -290,6 +295,9 @@ function emptyCategory(ctx: EffectSummaryContext): EffectCategory {
   if (COLONY_TRADE_OFFSET_CARDS.has(ctx.sourceName)) {
     return 'colonyTrade';
   }
+  if (TRADE_DISCOUNT_CARDS.has(ctx.sourceName)) {
+    return 'tradeDiscount';
+  }
   if (ctx.signature !== undefined) {
     return emptyNoteCategory(ctx.signature, ctx);
   }
@@ -301,6 +309,7 @@ function confidenceFor(category: EffectCategory): EffectConfidence | undefined {
   switch (category) {
   case 'ruleChange': return 'ruleOnly';
   case 'colonyTrade': return 'partial';
+  case 'tradeDiscount': return 'partial';
   case 'paymentValueBonus': return 'exact';
   default: return undefined;
   }
@@ -313,6 +322,7 @@ const CATEGORY_HEADLINE: Record<EffectCategory, string> = {
   payment: 'Used as payment',
   paymentValueBonus: 'Payment value bonus',
   colonyTrade: 'Colony track advanced',
+  tradeDiscount: 'Trade discount',
   passiveTr: 'Terraforming contributed',
   passiveProduction: 'Ongoing output',
   trigger: 'Triggered effects',
@@ -327,6 +337,7 @@ const CATEGORY_FALLBACK_NOTE: Record<EffectCategory, string> = {
   payment: 'Spend this card resource as M€ when paying — none spent yet this game.',
   paymentValueBonus: 'Makes your steel or titanium worth more — the extra value is tallied once you spend them.',
   colonyTrade: 'Advances a colony track before you trade there — its steps and extra reward are tallied once you trade.',
+  tradeDiscount: 'Makes trading cost fewer resources — the resources saved are tallied once you trade.',
   passiveTr: 'No terraforming from this effect yet.',
   passiveProduction: 'This ongoing effect has not produced yet.',
   trigger: 'This effect has not triggered yet this game.',
@@ -482,6 +493,40 @@ function colonyTradeViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext
   };
 }
 
+/**
+ * A trade-discount effect (Cryo-Sleep / Rim Freighters) — show the EXACT trade
+ * resources saved (per resource type) + a per-colony breakdown. Confidence partial:
+ * the saved counts are exact, but only titanium/M€ have a clean M€ valuation.
+ */
+function tradeDiscountViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
+  const td = stat.tradeDiscount;
+  const lines: Array<EffectSummaryLine> = [];
+  if (td.energy > 0) {
+    lines.push({icon: 'energy', label: 'Saved on trades', value: `${td.energy}`});
+  }
+  if (td.titanium > 0) {
+    lines.push({icon: 'titanium', label: 'Saved on trades', value: `${td.titanium}`});
+  }
+  if (td.megacredits > 0) {
+    lines.push({icon: 'megacredits', label: 'Saved on trades', value: `${td.megacredits}`});
+  }
+  const breakdown = Object.entries(td.colonies)
+    .filter((e): e is [string, number] => e[1] !== undefined && e[1] > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([colony, amount]) => ({label: colony, value: `${amount}`}));
+  const empty = td.count === 0;
+  return {
+    empty,
+    triggerCount: td.count,
+    headline: CATEGORY_HEADLINE['tradeDiscount'],
+    category: 'tradeDiscount',
+    lines,
+    breakdown: breakdown.length > 0 ? breakdown : undefined,
+    confidence: 'partial',
+    note: empty ? noteFor(ctx, 'tradeDiscount') : EFFECT_SUMMARY_NOTES[ctx.sourceName],
+  };
+}
+
 /** The category-aware generic view-model — the default for every non-bespoke effect. */
 function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
   // Dedicated economic-modifier summaries, resolved from the RECORDED stat — these
@@ -495,6 +540,10 @@ function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): E
   const ct = stat.colonyTrack;
   if (ct !== undefined && (ct.count > 0 || ct.steps > 0)) {
     return colonyTradeViewModel(stat, ctx);
+  }
+  const td = stat.tradeDiscount;
+  if (td !== undefined && td.count > 0) {
+    return tradeDiscountViewModel(stat, ctx);
   }
 
   const multi = (ctx.effectCount ?? 1) > 1;

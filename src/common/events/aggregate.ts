@@ -4,7 +4,7 @@ import {CardResource} from '../CardResource';
 import {GlobalParameter} from '../GlobalParameter';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
-import {GameEvent, GameEventType} from './GameEvent';
+import {GameEvent, GameEventType, JournalActionCategory} from './GameEvent';
 import {EventImpact} from './EventImpact';
 import {EventSource, sourceKey} from './EventSource';
 
@@ -35,6 +35,12 @@ export type PaymentValueBonusStats = {steel: number; titanium: number; bonusValu
  */
 export type ColonyTrackStats = {steps: number; extraReward: number; count: number; colonies: Partial<Record<ColonyName, number>>};
 
+/**
+ * Trade resources a trade-discount effect (Cryo-Sleep / Rim Freighters) saved —
+ * per resource (energy/titanium/M€) and per colony. `count` = trades discounted.
+ */
+export type TradeDiscountStats = {energy: number; titanium: number; megacredits: number; count: number; colonies: Partial<Record<ColonyName, number>>};
+
 export type SourceStats = {
   source: EventSource;
   /** How many times this source fired / was used / applied. */
@@ -49,6 +55,8 @@ export type SourceStats = {
   paymentValueBonus: PaymentValueBonusStats;
   /** Colony-track advances from a trade-offset effect (Trading Colony). */
   colonyTrack: ColonyTrackStats;
+  /** Trade resources saved by a trade-discount effect (Cryo-Sleep, …). */
+  tradeDiscount: TradeDiscountStats;
   tr: number;
   cardsDrawn: number;
   globalParameterSteps: Partial<Record<GlobalParameter, number>>;
@@ -66,6 +74,10 @@ function emptyColonyTrack(): ColonyTrackStats {
   return {steps: 0, extraReward: 0, count: 0, colonies: {}};
 }
 
+function emptyTradeDiscount(): TradeDiscountStats {
+  return {energy: 0, titanium: 0, megacredits: 0, count: 0, colonies: {}};
+}
+
 /** True if an impact carries any factual delta (used to find the last meaningful event). */
 function hasImpact(i: EventImpact): boolean {
   return i.stock !== undefined || i.production !== undefined || (i.cardResources?.length ?? 0) > 0 ||
@@ -73,7 +85,8 @@ function hasImpact(i: EventImpact): boolean {
     i.cardsDiscarded !== undefined || i.vp !== undefined || i.tilesPlaced !== undefined ||
     i.megacreditsSaved !== undefined || i.megacreditsPaid !== undefined ||
     (i.cardResourcesSpentAsPayment?.length ?? 0) > 0 ||
-    (i.paymentValueBonus?.length ?? 0) > 0 || (i.colonyTrackAdvanced?.length ?? 0) > 0;
+    (i.paymentValueBonus?.length ?? 0) > 0 || (i.colonyTrackAdvanced?.length ?? 0) > 0 ||
+    (i.tradeDiscountSaved?.length ?? 0) > 0;
 }
 
 export type PlayerStats = Omit<SourceStats, 'source' | 'triggerCount'> & {
@@ -108,6 +121,7 @@ function newSourceStats(source: EventSource): SourceStats {
     paymentResources: {},
     paymentValueBonus: emptyPaymentValueBonus(),
     colonyTrack: emptyColonyTrack(),
+    tradeDiscount: emptyTradeDiscount(),
     tr: 0,
     cardsDrawn: 0,
     globalParameterSteps: {},
@@ -120,7 +134,7 @@ function newSourceStats(source: EventSource): SourceStats {
 function foldImpact(acc: {
   stock: Units; production: Units; cardResources: Partial<Record<CardResource, number>>;
   paymentResources: Partial<Record<CardResource, number>>;
-  paymentValueBonus: PaymentValueBonusStats; colonyTrack: ColonyTrackStats;
+  paymentValueBonus: PaymentValueBonusStats; colonyTrack: ColonyTrackStats; tradeDiscount: TradeDiscountStats;
   tr: number; cardsDrawn: number; globalParameterSteps: Partial<Record<GlobalParameter, number>>;
   megacreditsSaved: number; vp: number;
 }, impact: EventImpact): void {
@@ -151,6 +165,13 @@ function foldImpact(acc: {
       acc.colonyTrack.colonies[ct.colony] = (acc.colonyTrack.colonies[ct.colony] ?? 0) + ct.steps;
     }
     acc.colonyTrack.count += 1;
+  }
+  if (impact.tradeDiscountSaved !== undefined) {
+    for (const td of impact.tradeDiscountSaved) {
+      acc.tradeDiscount[td.resource] += td.amount;
+      acc.tradeDiscount.colonies[td.colony] = (acc.tradeDiscount.colonies[td.colony] ?? 0) + td.amount;
+    }
+    acc.tradeDiscount.count += 1;
   }
   if (impact.tr !== undefined) {
     acc.tr += impact.tr;
@@ -245,7 +266,7 @@ export function aggregateByPlayer(events: ReadonlyArray<GameEvent>): Map<Color, 
       stats = {
         color: e.player,
         stock: emptyUnits(), production: emptyUnits(), cardResources: {}, paymentResources: {},
-        paymentValueBonus: emptyPaymentValueBonus(), colonyTrack: emptyColonyTrack(),
+        paymentValueBonus: emptyPaymentValueBonus(), colonyTrack: emptyColonyTrack(), tradeDiscount: emptyTradeDiscount(),
         tr: 0, cardsDrawn: 0, globalParameterSteps: {}, megacreditsSaved: 0, vp: 0,
         megacreditsPaid: 0, tilesPlaced: 0,
       };
@@ -300,6 +321,8 @@ export type EffectOverlayStat = {
   paymentValueBonus: PaymentValueBonusStats;
   /** Colony-track advances from a trade-offset effect (Trading Colony). */
   colonyTrack: ColonyTrackStats;
+  /** Trade resources saved by a trade-discount effect (Cryo-Sleep, …). */
+  tradeDiscount: TradeDiscountStats;
   tr: number;
   globalParameterSteps: Partial<Record<GlobalParameter, number>>;
   vp: number;
@@ -322,6 +345,7 @@ export function toEffectOverlayStat(stats: SourceStats): EffectOverlayStat {
     paymentResources: stats.paymentResources,
     paymentValueBonus: stats.paymentValueBonus,
     colonyTrack: stats.colonyTrack,
+    tradeDiscount: stats.tradeDiscount,
     tr: stats.tr,
     globalParameterSteps: stats.globalParameterSteps,
     vp: stats.vp,
@@ -335,6 +359,78 @@ export function toEffectOverlayStat(stats: SourceStats): EffectOverlayStat {
  * to the cards / corporations the player owns. `lookup(card)` returns the stat
  * by card name for a hover/focus panel.
  */
+// The root-action categories that represent an ACTIVATABLE blue-card / corp / CEO
+// action (as opposed to a card PLAY, a standard project, a milestone/award, …).
+const ACTION_CATEGORIES: ReadonlyArray<JournalActionCategory> =
+  ['card-action', 'corporation-action', 'ceo-action', 'copied-action'];
+
+/**
+ * Per-source ACTIVE-ACTION stats — "what each blue-card / corp / CEO ACTION
+ * accomplished this game", told apart from the card's on-PLAY gains by the root
+ * event's {@link JournalActionCategory}. For every action-category root owned by
+ * `owner`, folds the action's OWN output (events sourced to the action card, or
+ * sourceless events inheriting the action scope) into that card's stats; nested
+ * OTHER-card passive effects the action happened to trigger stay attributed to
+ * their own card (the effects overlay), not double-counted as the action's output.
+ * `triggerCount` = how many times the action was activated.
+ */
+export function actionStatsBySource(events: ReadonlyArray<GameEvent>, owner?: Color): Map<string, SourceStats> {
+  const byId = new Map<number, GameEvent>();
+  for (const e of events) {
+    byId.set(e.id, e);
+  }
+  const isActionRoot = (e: GameEvent | undefined): boolean =>
+    e !== undefined && e.category !== undefined && ACTION_CATEGORIES.includes(e.category) &&
+    (e.source?.kind === 'card' || e.source?.kind === 'corporation') &&
+    (owner === undefined || e.source.owner === undefined || e.source.owner === owner);
+
+  const result = new Map<string, SourceStats>();
+  for (const e of events) {
+    const root = byId.get(e.correlationId);
+    if (!isActionRoot(root) || root === undefined || root.source === undefined) {
+      continue;
+    }
+    const key = sourceKey(root.source);
+    let stats = result.get(key);
+    if (stats === undefined) {
+      stats = newSourceStats(root.source);
+      result.set(key, stats);
+    }
+    // Count an activation on the root event itself.
+    if (e === root) {
+      stats.triggerCount++;
+    }
+    // Only the action's OWN output — its source card, or a sourceless event that
+    // inherited the action scope. A nested effect of ANOTHER card is not this
+    // action's output (it's that card's effect, shown in the effects overlay).
+    const ownOutput = e.source === undefined || sourceKey(e.source) === key;
+    if (!ownOutput) {
+      continue;
+    }
+    foldImpact(stats, e.impact);
+    if (hasImpact(e.impact)) {
+      stats.lastTrigger = {generation: e.generation, impact: e.impact};
+    }
+  }
+  return result;
+}
+
+/**
+ * Lightweight per-source ACTION stats for ONE player's owned cards — the action
+ * twin of {@link effectOverlayStats}, feeding the Actions overlay's "this game"
+ * usage summary + the endgame analyzer's "which blue cards were the engine".
+ */
+export function actionOverlayStats(events: ReadonlyArray<GameEvent>, owner: Color): Array<EffectOverlayStat> {
+  const result: Array<EffectOverlayStat> = [];
+  for (const stats of actionStatsBySource(events, owner).values()) {
+    const s = stats.source;
+    if ((s.kind === 'card' || s.kind === 'corporation') && (s.owner === undefined || s.owner === owner)) {
+      result.push(toEffectOverlayStat(stats));
+    }
+  }
+  return result;
+}
+
 export function effectOverlayStats(events: ReadonlyArray<GameEvent>, owner: Color): Array<EffectOverlayStat> {
   // The overlay shows ONLY what a card's PASSIVE EFFECTS did — NOT the card's
   // immediate on-play `behavior` gains (those run under an 'action' scope and are

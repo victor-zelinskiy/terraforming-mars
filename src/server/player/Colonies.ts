@@ -202,6 +202,38 @@ export class Colonies {
   }
 }
 
+/**
+ * Record (analytics only) the trade resources a TRADE-DISCOUNT effect (Cryo-Sleep /
+ * Rim Freighters — `behavior.colonies.tradeDiscount`) saved on this trade, attributed
+ * to the owning card(s). Saved units = `min(tradeDiscount, baseCost)` of the trade
+ * resource (the cost can't go below 0); split sequentially when several cards apply.
+ * The Adhai card-resource discount (MC trader) is a separate mechanism and stays
+ * unattributed here. The trade was already paid by the caller.
+ */
+function recordTradeDiscountSaving(player: IPlayer, colony: IColony, resource: 'energy' | 'titanium' | 'megacredits', baseCost: number): void {
+  const events = player.game.events;
+  const discount = player.colonies.tradeDiscount;
+  if (events === undefined || discount <= 0) {
+    return;
+  }
+  let remaining = Math.min(discount, baseCost);
+  if (remaining <= 0) {
+    return;
+  }
+  const sources = player.tableau.asArray().filter((c) => (c.behavior?.colonies?.tradeDiscount ?? 0) > 0);
+  for (const card of sources) {
+    if (remaining <= 0) {
+      break;
+    }
+    const take = Math.min(card.behavior?.colonies?.tradeDiscount ?? 0, remaining);
+    if (take <= 0) {
+      continue;
+    }
+    events.recordTradeDiscount(player, card, colony.name, resource, take);
+    remaining -= take;
+  }
+}
+
 export class TradeWithEnergy implements IColonyTrader {
   private tradeCost: number;
 
@@ -231,6 +263,7 @@ export class TradeWithEnergy implements IColonyTrader {
       this.player.stock.deduct(Resource.ENERGY, this.tradeCost);
       this.player.game.log('${0} spent ${1} energy to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
     });
+    recordTradeDiscountSaving(this.player, colony, 'energy', ENERGY_TRADE_COST);
     colony.trade(this.player);
   }
 }
@@ -262,6 +295,7 @@ export class TradeWithTitanium implements IColonyTrader {
       this.player.pay(Payment.of({titanium: this.tradeCost}));
       this.player.game.log('${0} spent ${1} titanium to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
     });
+    recordTradeDiscountSaving(this.player, colony, 'titanium', TITANIUM_TRADE_COST);
     colony.trade(this.player);
   }
 }
@@ -299,6 +333,7 @@ export class TradeWithMegacredits implements IColonyTrader {
       {title: message('Select how to pay ${0} for colony trade', (b) => b.number(this.tradeCost))}))
       .andThen(() => {
         this.player.game.log('${0} spent ${1} M€ to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
+        recordTradeDiscountSaving(this.player, colony, 'megacredits', MC_TRADE_COST);
         colony.trade(this.player);
       });
   }

@@ -439,6 +439,7 @@
       :viewerId="playerView.id"
       :availableActionNames="availableCardActionNames"
       :preview-cache-key="actionsPreviewCacheKey"
+      :statsCacheKey="String(game.generation)"
       :awaitingInput="playerView.waitingFor !== undefined"
       :pickMode="actionsPickActive"
       @activate="onActivateCardAction($event)"

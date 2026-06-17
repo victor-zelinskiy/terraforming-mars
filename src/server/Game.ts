@@ -1266,6 +1266,7 @@ export class Game implements IGame, Logger {
       TurmoilHandler.onGlobalParameterIncrease(player, GlobalParameter.OXYGEN, steps);
       player.onGlobalParameterIncrease(GlobalParameter.OXYGEN, steps);
       player.increaseTerraformRating(steps, {global: true});
+      this.events.recordGlobalParameterChange(player, GlobalParameter.OXYGEN, steps);
     }
     if (this.oxygenLevel < constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
       this.oxygenLevel + steps >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
@@ -1331,6 +1332,7 @@ export class Game implements IGame, Logger {
       TurmoilHandler.onGlobalParameterIncrease(player, GlobalParameter.VENUS, steps);
       player.onGlobalParameterIncrease(GlobalParameter.VENUS, steps);
       player.increaseTerraformRating(steps, {global: true});
+      this.events.recordGlobalParameterChange(player, GlobalParameter.VENUS, steps);
     }
 
     // Check for Aphrodite corporation
@@ -1382,6 +1384,7 @@ export class Game implements IGame, Logger {
       player.onGlobalParameterIncrease(GlobalParameter.TEMPERATURE, steps);
       TurmoilHandler.onGlobalParameterIncrease(player, GlobalParameter.TEMPERATURE, steps);
       player.increaseTerraformRating(steps, {global: true});
+      this.events.recordGlobalParameterChange(player, GlobalParameter.TEMPERATURE, steps);
     }
 
     // BONUS FOR OCEAN TILE AT 0
@@ -1667,6 +1670,7 @@ export class Game implements IGame, Logger {
       TurmoilHandler.onGlobalParameterIncrease(player, GlobalParameter.OCEANS);
       player.onGlobalParameterIncrease(GlobalParameter.OCEANS, 1);
       player.increaseTerraformRating(1, {global: true});
+      this.events.recordGlobalParameterChange(player, GlobalParameter.OCEANS, 1);
     }
     AresHandler.ifAres(this, (aresData) => {
       AresHandler.onOceanPlaced(aresData, player);

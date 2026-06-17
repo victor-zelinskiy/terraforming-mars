@@ -23,6 +23,7 @@ function stat(overrides: Partial<EffectOverlayStat>): EffectOverlayStat {
     paymentResources: {},
     paymentValueBonus: {steel: 0, titanium: 0, bonusValue: 0, count: 0},
     colonyTrack: {steps: 0, extraReward: 0, count: 0, colonies: {}},
+    tradeDiscount: {energy: 0, titanium: 0, megacredits: 0, count: 0, colonies: {}},
     tr: 0,
     globalParameterSteps: {},
     vp: 0,
@@ -300,6 +301,29 @@ describe('effect summary view-model', () => {
     expect(vm.lines).to.deep.include({label: 'Track advanced', value: '+4'});
     expect(vm.lines).to.deep.include({label: 'Extra trade reward', value: '+6'});
     expect(vm.breakdown?.[0]).to.deep.eq({label: 'Pluto', value: '+2'}); // sorted desc by steps
+    expect(vm.confidence).to.eq('partial');
+  });
+
+  // ── Trade discount (Cryo-Sleep / Rim Freighters) ──
+
+  it('frames a trade-discount effect even before any trade', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.CRYO_SLEEP}),
+      {sourceName: CardName.CRYO_SLEEP, sourceKind: 'card'});
+    expect(vm.category).to.eq('tradeDiscount');
+    expect(vm.note).to.not.eq(PASSIVE_RULE_NOTE);
+    expect(vm.confidence).to.eq('partial');
+  });
+
+  it('shows the recorded trade-discount savings + per-colony breakdown', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.CRYO_SLEEP, tradeDiscount: {energy: 3, titanium: 0, megacredits: 0, count: 3, colonies: {Pluto: 2, Luna: 1} as any}}),
+      {sourceName: CardName.CRYO_SLEEP, sourceKind: 'card'});
+    expect(vm.empty).to.be.false;
+    expect(vm.headline).to.eq('Trade discount');
+    expect(vm.triggerCount).to.eq(3);
+    expect(vm.lines).to.deep.include({icon: 'energy', label: 'Saved on trades', value: '3'});
+    expect(vm.breakdown?.[0]).to.deep.eq({label: 'Pluto', value: '2'});
     expect(vm.confidence).to.eq('partial');
   });
 });

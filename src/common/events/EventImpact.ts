@@ -68,4 +68,12 @@ export type EventImpact = {
    * note in effectSummary). Attributed to the owning card via a `colony` target.
    */
   colonyTrackAdvanced?: ReadonlyArray<{colony: ColonyName; steps: number; extraReward: number}>;
+  /**
+   * Trade resources a TRADE-DISCOUNT effect (Cryo-Sleep / Rim Freighters —
+   * `behavior.colonies.tradeDiscount`) saved on a trade (you pay N fewer of the trade
+   * resource). `amount` is the EXACT units saved of `resource` (energy/titanium/M€) on
+   * a trade with `colony`. Attributed to the owning card. Only titanium/M€ have a
+   * clean M€ value, so the saving is shown in resource units (confidence partial).
+   */
+  tradeDiscountSaved?: ReadonlyArray<{colony: ColonyName; resource: 'energy' | 'titanium' | 'megacredits'; amount: number}>;
 };
