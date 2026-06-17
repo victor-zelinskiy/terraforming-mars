@@ -52,7 +52,38 @@ const UNLIMITED_SYNERGY: Constraints = {
   highThreshold: 100,
 };
 
-export function chooseMilestonesAndAwards(gameOptions: GameOptions): DrawnMilestonesAndAwards {
+// vize1215 fork: the unified "all milestones and awards" pool (RandomMAOptionType.ALL)
+// includes EVERY compatible milestone/award — base, fan and modular — with no synergy
+// balancing. Several modular milestones are merely re-tuned clones of a classic one (same
+// scoring, different threshold), so including both halves would place two milestones that
+// reward the identical thing in one game. Each clone pair is collapsed to the single version
+// chosen for this fork; the other variant is dropped from the unified pool (and the board
+// defaults — see Milestones.ts — keep Terraformer29 / Tycoon10 to match).
+const UNIFIED_POOL_EXCLUSIONS: ReadonlySet<string> = new Set<MilestoneName | AwardName>([
+  'Terraformer', // -> Terraformer29 (flat 29 TR, no Turmoil branch)
+  'Tycoon', // -> Tycoon10 (10 blue+green cards)
+  'Spacefarer4', // -> Spacefarer (6 space tags)
+  'Builder7', // -> Builder (8 building tags)
+  'Terran5', // -> Terran (6 Earth tags)
+  'Legend4', // -> Legend (5 events)
+  'Tactician4', // -> Tactician (5 cards with requirements)
+  'Pioneer4', // -> Pioneer (identical class)
+]);
+
+// vize1215 fork: board-derived facts needed to avoid offering an unclaimable milestone in
+// the random pool. Defaults assume the board is unknown (don't exclude anything), so callers
+// without a built board (dev tools, isolated unit tests) keep the previous behaviour.
+export type MASelectionContext = {
+  /**
+   * Whether the (already-built) board has any volcanic spaces. When false, Geologist — which
+   * needs tiles ON or ADJACENT to volcanic areas — can never be claimed, so it's dropped.
+   */
+  hasVolcanicSpaces: boolean;
+};
+
+const DEFAULT_MA_CONTEXT: MASelectionContext = {hasVolcanicSpaces: true};
+
+export function chooseMilestonesAndAwards(gameOptions: GameOptions, context: MASelectionContext = DEFAULT_MA_CONTEXT): DrawnMilestonesAndAwards {
   let drawnMilestonesAndAwards: DrawnMilestonesAndAwards = {
     milestones: [],
     awards: [],
@@ -82,7 +113,10 @@ export function chooseMilestonesAndAwards(gameOptions: GameOptions): DrawnMilest
       push(milestoneManifest.boards[boardName], awardManifest.boards[gameOptions.boardName]);
       break;
     default:
-      return getRandomMilestonesAndAwards(gameOptions, requiredQty, LIMITED_SYNERGY);
+      // vize1215 fork: boards without a fixed MA set (e.g. Hollandia) draw from the unified
+      // "all" pool — pure random, deduped, expansion-filtered — same as the ALL button,
+      // instead of the old synergy-limited classic-only fallback.
+      return getRandomMilestonesAndAwards({...gameOptions, randomMA: RandomMAOptionType.ALL}, requiredQty, UNLIMITED_SYNERGY, context);
     }
     if (gameOptions.venusNextExtension) {
       push(milestoneManifest.expansions['venus'], awardManifest.expansions['venus']);
@@ -101,10 +135,14 @@ export function chooseMilestonesAndAwards(gameOptions: GameOptions): DrawnMilest
     break;
 
   case RandomMAOptionType.LIMITED:
-    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, LIMITED_SYNERGY);
+    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, LIMITED_SYNERGY, context);
     break;
   case RandomMAOptionType.UNLIMITED:
-    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, UNLIMITED_SYNERGY);
+    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, UNLIMITED_SYNERGY, context);
+    break;
+  case RandomMAOptionType.ALL:
+    // vize1215 fork: pure random from the full deduplicated, expansion-filtered pool.
+    drawnMilestonesAndAwards = getRandomMilestonesAndAwards(gameOptions, requiredQty, UNLIMITED_SYNERGY, context);
     break;
   default:
     throw new Error('Unknown milestone/award type: ' + gameOptions.randomMA);
@@ -120,7 +158,7 @@ export function chooseMilestonesAndAwards(gameOptions: GameOptions): DrawnMilest
  *
  * exported for tests
  */
-export function getCandidates(gameOptions: GameOptions): [Array<MilestoneName>, Array<AwardName>] {
+export function getCandidates(gameOptions: GameOptions, context: MASelectionContext = DEFAULT_MA_CONTEXT): [Array<MilestoneName>, Array<AwardName>] {
   function include<T extends string>(name: T, manifest: MAManifest<T, any>): boolean {
     // Never include deprecated MAs in random candidates.  They generally have "more official" versions that will be
     // considered for inclusion.
@@ -128,12 +166,26 @@ export function getCandidates(gameOptions: GameOptions): [Array<MilestoneName>, 
       return false;
     }
 
+    // vize1215 fork: Geologist needs tiles ON or ADJACENT to volcanic areas, so on a board with
+    // no volcanic spaces it can never be claimed — never offer it there (the former kberg TODO).
+    if (name === 'Geologist' && context.hasVolcanicSpaces === false) {
+      return false;
+    }
+
+    // vize1215 fork: the unified "all" pool — every compatible milestone/award (base, fan and
+    // modular), no synergy filter, with the clone pairs collapsed to a single chosen variant.
+    if (gameOptions.randomMA === RandomMAOptionType.ALL) {
+      if (UNIFIED_POOL_EXCLUSIONS.has(name)) {
+        return false;
+      }
+      return isCompatible(name, manifest, gameOptions);
+    }
+
     const random = manifest.all[name].random;
     if (gameOptions.modularMA) {
       if (random === undefined) {
         return false;
       }
-      // TODO(kberg): Exclude Geologist if the board has no volcanic spaces
     } else {
       // The game boards this MA appears in, if any.
       const boards = Object.values(BoardName).filter((boardName) => manifest.boards[boardName].includes(name));
@@ -173,6 +225,7 @@ export function getCandidates(gameOptions: GameOptions): [Array<MilestoneName>, 
 function getRandomMilestonesAndAwards(gameOptions: GameOptions,
   numberMARequested: number,
   constraints: Constraints,
+  context: MASelectionContext = DEFAULT_MA_CONTEXT,
   attempt: number = 1): DrawnMilestonesAndAwards {
   // 5 is a fine number of attempts. A sample of 100,000 runs showed that this algorithm
   // didn't get past 3.
@@ -183,7 +236,7 @@ function getRandomMilestonesAndAwards(gameOptions: GameOptions,
     throw new Error('No limited synergy milestones and awards set was generated after ' + maxAttempts + ' attempts. Please try again.');
   }
 
-  const [candidateMilestones, candidateAwards] = getCandidates(gameOptions);
+  const [candidateMilestones, candidateAwards] = getCandidates(gameOptions, context);
 
   inplaceShuffle(candidateMilestones, UnseededRandom.INSTANCE);
   inplaceShuffle(candidateAwards, UnseededRandom.INSTANCE);
@@ -197,14 +250,14 @@ function getRandomMilestonesAndAwards(gameOptions: GameOptions,
       const newMilestone = candidateMilestones.splice(0, 1)[0];
       // If not enough milestone are left to satisfy the constraints, restart the function with a recursive call.
       if (newMilestone === undefined) {
-        return getRandomMilestonesAndAwards(gameOptions, numberMARequested, constraints, attempt+1);
+        return getRandomMilestonesAndAwards(gameOptions, numberMARequested, constraints, context, attempt+1);
       }
       accum.add(newMilestone, true);
     } else {
       const newAward = candidateAwards.splice(0, 1)[0];
       // If not enough awards are left to satisfy the constraints, restart the function with a recursive call.
       if (newAward === undefined) {
-        return getRandomMilestonesAndAwards(gameOptions, numberMARequested, constraints, attempt+1);
+        return getRandomMilestonesAndAwards(gameOptions, numberMARequested, constraints, context, attempt+1);
       }
       accum.add(newAward, false);
     }

@@ -21,7 +21,7 @@ describe('Van Allen', () => {
 
   it('Cannot claim for free if VanAllen is not in play', () => {
     player.megaCredits = 0;
-    player.setTerraformRating(35); // Can claim Terraformer milestone
+    player.setTerraformRating(35); // Can claim Terraformer29 milestone
     const actions = cast(player.getActions(), OrOptions);
     const claimMilestoneAction = actions.options.find((option) => option.title === 'Claim a milestone');
     expect(claimMilestoneAction).is.undefined;
@@ -32,7 +32,7 @@ describe('Van Allen', () => {
 
     player.megaCredits = 0;
 
-    player.setTerraformRating(35); // Can claim Terraformer milestone
+    player.setTerraformRating(35); // Can claim Terraformer29 milestone
 
     const actions = cast(player.getActions(), OrOptions);
     const claimMilestoneAction = cast(actions.options.find((option) => option.title === 'Claim a milestone'), OrOptions);
@@ -40,7 +40,7 @@ describe('Van Allen', () => {
     runAllActions(game);
     expect(player.megaCredits).eq(3); // No M€ cost incurred, gains 3 M€ instead
     const claimedMilestones = player.game.claimedMilestones;
-    expect(claimedMilestones.find((cm) => cm.milestone.name === 'Terraformer' && cm.player === player)).is.not.undefined;
+    expect(claimedMilestones.find((cm) => cm.milestone.name === 'Terraformer29' && cm.player === player)).is.not.undefined;
   });
 
   it('Gains 3 M€ when an opponent claims', () => {
@@ -48,7 +48,7 @@ describe('Van Allen', () => {
 
     player.megaCredits = 0;
     player2.megaCredits = 8;
-    player2.setTerraformRating(35); // Can claim Terraformer milestone
+    player2.setTerraformRating(35); // Can claim Terraformer29 milestone
 
     const actions = cast(player2.getActions(), OrOptions);
     const claimMilestoneAction = cast(actions.options.find((option) => option.title === 'Claim a milestone'), OrOptions);
@@ -56,6 +56,6 @@ describe('Van Allen', () => {
     runAllActions(game);
     expect(player.megaCredits).eq(3); // player2 claimed milestone, grants Van Allen 3 M€
     const claimedMilestones = player.game.claimedMilestones;
-    expect(claimedMilestones.find((cm) => cm.milestone.name === 'Terraformer' && cm.player === player2)).is.not.undefined;
+    expect(claimedMilestones.find((cm) => cm.milestone.name === 'Terraformer29' && cm.player === player2)).is.not.undefined;
   });
 });

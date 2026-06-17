@@ -31,8 +31,9 @@ describe('MilestoneAwardSelector', () => {
   });
 
   const verifySynergyRuns = [
-    // Tharsis milestones and awards has total synergy of 21 and break the rules.
-    {milestones: milestoneManifest.boards[BoardName.THARSIS], awards: awardManifest.boards[BoardName.THARSIS], expected: false},
+    // vize1215 fork: Tharsis now uses Terraformer29 (which has no synergy-table entries) instead
+    // of Terraformer, dropping the total synergy from 21 to 17, so the set no longer breaks the rules.
+    {milestones: milestoneManifest.boards[BoardName.THARSIS], awards: awardManifest.boards[BoardName.THARSIS], expected: true},
     // Elysium milestones and awards has total synergy of 13 and two high pairs of 4 and 5.
     // This set does not break the rules.
     {milestones: milestoneManifest.boards[BoardName.ELYSIUM], awards: awardManifest.boards[BoardName.ELYSIUM], expected: true},
@@ -192,6 +193,86 @@ describe('MilestoneAwardSelector', () => {
 
     expect(intersection(milestones as Array<string>, deprecatedMilestones)).is.empty;
     expect(intersection(awards as Array<string>, deprecatedAwards)).is.empty;
+  });
+
+  describe('vize1215 unified "all" pool (RandomMAOptionType.ALL)', () => {
+    // The clone variants that are dropped from the unified pool (the other threshold is kept).
+    const CLONE_EXCLUSIONS = ['Terraformer', 'Tycoon', 'Spacefarer4', 'Builder7', 'Terran5', 'Legend4', 'Tactician4', 'Pioneer4'];
+
+    it('board defaults use Terraformer29 / Tycoon10', () => {
+      expect(milestoneManifest.boards[BoardName.THARSIS]).to.include('Terraformer29');
+      expect(milestoneManifest.boards[BoardName.THARSIS]).to.not.include('Terraformer');
+      expect(milestoneManifest.boards[BoardName.ELYSIUM]).to.include('Tycoon10');
+      expect(milestoneManifest.boards[BoardName.ELYSIUM]).to.not.include('Tycoon');
+    });
+
+    it('never offers both halves of a clone pair, keeps the chosen variant', () => {
+      const [milestones] = getCandidates({
+        ...DEFAULT_GAME_OPTIONS,
+        randomMA: RandomMAOptionType.ALL,
+        expansions: {
+          ...DEFAULT_GAME_OPTIONS.expansions,
+          venus: true, ares: true, moon: true, colonies: true, turmoil: true, underworld: true, pathfinders: true,
+        },
+      });
+      for (const excluded of CLONE_EXCLUSIONS) {
+        expect(milestones, `should exclude ${excluded}`).to.not.include(excluded);
+      }
+      // The kept halves are present.
+      for (const kept of ['Terraformer29', 'Tycoon10', 'Spacefarer', 'Builder', 'Terran', 'Legend', 'Tactician', 'Pioneer']) {
+        expect(milestones, `should include ${kept}`).to.include(kept);
+      }
+    });
+
+    it('includes fan and modular milestones (compatible, untagged) without the fan toggle', () => {
+      const [milestones] = getCandidates({...DEFAULT_GAME_OPTIONS, randomMA: RandomMAOptionType.ALL, includeFanMA: false});
+      expect(milestones).to.include('Trader'); // genuinely-new modular milestone
+      expect(milestones).to.include('Economizer'); // fan-board milestone
+    });
+
+    it('respects enabled expansions', () => {
+      const [milestones, awards] = getCandidates({...DEFAULT_GAME_OPTIONS, randomMA: RandomMAOptionType.ALL});
+      expect(milestones).to.not.include('Hoverlord'); // venus, disabled
+      expect(milestones).to.not.include('One Giant Step'); // moon, disabled
+      expect(awards).to.not.include('Constructor'); // colonies, disabled
+    });
+
+    it('does not select deprecated milestones or awards', () => {
+      const [milestones, awards] = getCandidates({...DEFAULT_GAME_OPTIONS, randomMA: RandomMAOptionType.ALL});
+      const deprecatedMilestones = Object.keys(milestoneManifest.all).filter((name) => milestoneManifest.all[name as MilestoneName].deprecated);
+      const deprecatedAwards = Object.keys(awardManifest.all).filter((name) => awardManifest.all[name as AwardName].deprecated);
+      expect(intersection(milestones as Array<string>, deprecatedMilestones)).is.empty;
+      expect(intersection(awards as Array<string>, deprecatedAwards)).is.empty;
+    });
+
+    it('chooses the required count with no synergy filter and no clones', () => {
+      for (let idx = 0; idx < 200; idx++) {
+        const mas = chooseMilestonesAndAwards({...DEFAULT_GAME_OPTIONS, randomMA: RandomMAOptionType.ALL});
+        expect(mas.milestones).to.have.length(5);
+        expect(mas.awards).to.have.length(5);
+        expect(intersection(mas.milestones, CLONE_EXCLUSIONS as Array<MilestoneName>)).is.empty;
+      }
+    });
+
+    it('excludes Geologist on a board with no volcanic spaces', () => {
+      const withVolcanic = getCandidates({...DEFAULT_GAME_OPTIONS, randomMA: RandomMAOptionType.ALL}, {hasVolcanicSpaces: true});
+      const noVolcanic = getCandidates({...DEFAULT_GAME_OPTIONS, randomMA: RandomMAOptionType.ALL}, {hasVolcanicSpaces: false});
+      expect(withVolcanic[0]).to.include('Geologist');
+      expect(noVolcanic[0]).to.not.include('Geologist');
+    });
+
+    it('boards without a fixed set (Hollandia, NONE mode) draw from the unified pool', () => {
+      for (let idx = 0; idx < 100; idx++) {
+        const mas = chooseMilestonesAndAwards(
+          {...DEFAULT_GAME_OPTIONS, randomMA: RandomMAOptionType.NONE, boardName: BoardName.HOLLANDIA},
+          {hasVolcanicSpaces: false}, // Hollandia has no volcanic spaces
+        );
+        expect(mas.milestones).to.have.length(5);
+        expect(mas.awards).to.have.length(5);
+        expect(intersection(mas.milestones, CLONE_EXCLUSIONS as Array<MilestoneName>)).is.empty;
+        expect(mas.milestones).to.not.include('Geologist'); // unclaimable here, never offered
+      }
+    });
   });
 
   function choose(options: Partial<GameOptions>) {
