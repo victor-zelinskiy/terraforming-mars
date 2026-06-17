@@ -14,10 +14,23 @@ import {CardName} from '@/common/cards/CardName';
 
 // ── Minimal builders (the fact analyzers only read color/name/total + ctx.facts +
 //    ctx.categories[board] + ctx.playerCards; the selector reads candidate fields). ──
-function pl(color: Color, name: string, total: number): EndgamePlayerScore {
-  return {color, name, total, isWinner: false, place: 1, megacredits: 0, corporations: [],
-    vpByGeneration: [], categories: {} as any, topCards: [], penaltyCards: [], globalSteps: {},
-    parametersTotal: 0, strongestCategory: undefined, breakdown: {total} as any} as unknown as EndgamePlayerScore;
+type MA = {message: string; messageArgs?: Array<string>; victoryPoint: number};
+function pl(color: Color, name: string, total: number, opts: {
+  megacredits?: number; strongestCategory?: EndgameCategoryKey;
+  detailsAwards?: Array<MA>; detailsMilestones?: Array<MA>; penaltyCards?: Array<{cardName: string; victoryPoint: number}>;
+} = {}): EndgamePlayerScore {
+  return {color, name, total, isWinner: false, place: 1, megacredits: opts.megacredits ?? 0, corporations: [],
+    vpByGeneration: [], categories: {} as any, topCards: [],
+    penaltyCards: (opts.penaltyCards ?? []).map((c) => ({...c, kind: 'penalty' as const})),
+    globalSteps: {}, parametersTotal: 0, strongestCategory: opts.strongestCategory,
+    breakdown: {total, detailsAwards: opts.detailsAwards ?? [], detailsMilestones: opts.detailsMilestones ?? []} as any} as unknown as EndgamePlayerScore;
+}
+// MADetail builders mirroring calculateVictoryPoints' exact messageArgs shape.
+function award(place: string, name: string, funder: string, vp: number): MA {
+  return {message: '${0} place for ${1} award (funded by ${2})', messageArgs: [place, name, funder], victoryPoint: vp};
+}
+function milestone(name: string): MA {
+  return {message: 'Claimed ${0} milestone', messageArgs: [name], victoryPoint: 5};
 }
 function boardCat(values: Partial<Record<Color, number>>): EndgameCategory {
   return {key: 'board' as EndgameCategoryKey, label: 'board', accent: 'board', values: values as Record<string, number>, max: 0, leaders: []};
@@ -57,8 +70,10 @@ describe('fact-based endgame insights (Iteration 5)', () => {
     expect(ins!.family).to.eq('economy');
   });
 
-  it('economy underdog: winner out-economised but still wins', () => {
-    const c = ctx({players: duo(), margin: 10, facts: [
+  it('economy underdog (multiplayer): winner out-economised but still wins', () => {
+    // 3 players = standings, so the DUEL economy-conversion analyzer (which would
+    // otherwise suppress this generic one) does not run.
+    const c = ctx({players: [pl('red', 'Nastya', 80), pl('blue', 'Victor', 70), pl('green', 'Ada', 60)], margin: 10, facts: [
       fact('economy', {id: 'economy:red', player: 'red', metrics: {savedMegacredits: 4}}),
       fact('economy', {id: 'economy:blue', player: 'blue', metrics: {savedMegacredits: 24}}),
     ]});
@@ -217,5 +232,80 @@ describe('fact-based endgame insights (Iteration 5)', () => {
     // Sorted strongest-first.
     expect(cands[0].finalScore).to.be.gte(cands[cands.length - 1].finalScore ?? 0);
     expect(cands.some((x) => x.id === 'fact.economy.engine'), 'includes the economy candidate').to.be.true;
+  });
+
+  // ── Iteration 7: duel-specific ──
+
+  it('duel style contrast: two different styles → a comparison hero', () => {
+    const players = [pl('red', 'Nastya', 84, {strongestCategory: 'cards'}), pl('blue', 'Victor', 76, {strongestCategory: 'tr'})];
+    const c = ctx({players, margin: 8});
+    const ins = find(c, 'duel.styleContrast');
+    expect(ins, 'style contrast insight').to.not.be.undefined;
+    expect(ins!.family).to.eq('duelContrast');
+    expect(ins!.relatedPlayers).to.have.length(2);
+  });
+
+  it('award race: a sponsor who LOST their own award (funded by A, won by B)', () => {
+    const players = [
+      pl('red', 'Nastya', 82, {detailsAwards: [award('1st', 'Banker', 'Victor', 5)]}), // Nastya won it
+      pl('blue', 'Victor', 74, {detailsAwards: [award('2nd', 'Banker', 'Victor', 2)]}), // Victor funded but 2nd
+    ];
+    const c = ctx({players, margin: 8});
+    const ins = find(c, 'duel.award.sponsorLost');
+    expect(ins, 'sponsor-lost award insight').to.not.be.undefined;
+    expect(ins!.relatedPlayers).to.include('blue');
+    expect(ins!.relatedPlayers).to.include('red');
+  });
+
+  it('award swing bigger than the margin (no sponsor-lost)', () => {
+    const players = [
+      pl('red', 'Nastya', 80, {detailsAwards: [award('1st', 'Scientist', 'Nastya', 5)]}),
+      pl('blue', 'Victor', 76, {detailsAwards: [award('2nd', 'Scientist', 'Nastya', 0)]}),
+    ];
+    const c = ctx({players, margin: 4});
+    expect(ids(c)).to.include('duel.award.swing');
+  });
+
+  it('milestone lockout: winner claimed several, runner-up none', () => {
+    const players = [
+      pl('red', 'Nastya', 85, {detailsMilestones: [milestone('Builder'), milestone('Planner')]}),
+      pl('blue', 'Victor', 75, {}),
+    ];
+    const c = ctx({players, margin: 10});
+    expect(ids(c)).to.include('duel.milestone.lockout');
+  });
+
+  it('category counterplay: winner took one category, runner-up answered with another', () => {
+    const players = [pl('red', 'Nastya', 84), pl('blue', 'Victor', 76)];
+    const c = ctx({players, margin: 8, categories: [cat('cards', {red: 30, blue: 16}), cat('board', {blue: 24, red: 12})]});
+    expect(ids(c)).to.include('duel.counterplay');
+  });
+
+  it('economy conversion: winner less rich but more efficient (suppresses generic underdog)', () => {
+    const players = [pl('red', 'Nastya', 80), pl('blue', 'Victor', 70)];
+    const c = ctx({players, margin: 10, facts: [
+      fact('economy', {id: 'economy:red', player: 'red', metrics: {savedMegacredits: 4}}),
+      fact('economy', {id: 'economy:blue', player: 'blue', metrics: {savedMegacredits: 24}}),
+    ]});
+    const out = generateInsights(c);
+    expect(out.some((i) => i.id === 'duel.economyConversion'), 'duel conversion present').to.be.true;
+    expect(out.some((i) => i.id === 'fact.economy.underdog'), 'generic underdog suppressed').to.be.false;
+  });
+
+  it('almost: penalties cost the runner-up the match', () => {
+    const players = [pl('red', 'Nastya', 78), pl('blue', 'Victor', 74, {penaltyCards: [{cardName: 'X', victoryPoint: -6}]})];
+    const c = ctx({players, margin: 4});
+    expect(ids(c)).to.include('duel.almost.penalty');
+  });
+
+  it('duel selector surfaces BOTH players, not only the winner', () => {
+    const players = [pl('red', 'Nastya', 84, {strongestCategory: 'cards'}), pl('blue', 'Victor', 76, {strongestCategory: 'tr'})];
+    const c = ctx({players, margin: 8, categories: [cat('cards', {red: 30, blue: 16}), cat('board', {blue: 22, red: 10})]});
+    const out = generateInsights(c);
+    const players2 = new Set<string>();
+    for (const i of out) {
+      (i.relatedPlayers ?? []).forEach((p) => players2.add(p));
+    }
+    expect(players2.has('red') && players2.has('blue'), 'both players appear in the story').to.be.true;
   });
 });

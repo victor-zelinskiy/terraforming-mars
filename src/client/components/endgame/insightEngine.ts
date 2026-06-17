@@ -76,7 +76,8 @@ export type InsightParam = {t: 'raw' | 'i18n' | 'card'; v: string};
 export type InsightFamily =
   | 'verdict' | 'turningPoint' | 'economy' | 'blueAction' | 'passiveEngine'
   | 'negativeDrama' | 'colony' | 'standardProject' | 'globalParameter' | 'reveal'
-  | 'unusedPotential' | 'runnerUpStory' | 'rareEvent' | 'cardStory' | 'boardStory';
+  | 'unusedPotential' | 'runnerUpStory' | 'rareEvent' | 'cardStory' | 'boardStory'
+  | 'duelContrast'; // Iteration 7 — 2-player rivalry stories
 
 /** How prominently to render an insight (the UI hierarchy). */
 export type InsightUiVariant =
@@ -96,6 +97,10 @@ export type InsightScores = {
   drama?: number;
   confidence?: number;
   relevance?: number;
+  /** Iteration 7: a DUEL-mode bonus (0..1) — set high by the duel analyzers for
+   *  rivalry/contrast/award-race insights so they rank above generic facts in a
+   *  2-player game. Ignored (0) elsewhere, so multiplayer is unaffected. */
+  duelRelevance?: number;
 };
 
 export type InsightCandidate = {
@@ -1076,7 +1081,8 @@ const analyzeNegativeDramaFacts: Analyzer = (ctx) => {
       textKey: '${0} took the brunt of the aggression — ${1} resources lost to opponents across ${2} hits.',
       params: [raw(playerName(ctx, topVictim[0])), raw(topVictim[1].lost), raw(topVictim[1].hits)],
       family: 'negativeDrama', uiVariant: 'normal', storyCluster: 'attackPressure',
-      scores: {drama: Math.min(1, topVictim[1].lost / 12), relevance: 0.6, confidence: 1},
+      // In a duel every attack lands on the single opponent — it weighs more.
+      scores: {drama: Math.min(1, topVictim[1].lost / 12), relevance: ctx.mode === 'duel' ? 0.8 : 0.6, confidence: 1, duelRelevance: ctx.mode === 'duel' ? 0.75 : 0},
       relatedPlayers: [topVictim[0]],
     });
   }
@@ -1350,6 +1356,272 @@ const analyzeColonyFacts: Analyzer = (ctx) => {
   return out;
 };
 
+// ═════════════════════════════════════════════════════════════════════════
+// Iteration 7: DUEL-SPECIFIC analyzers (mode === 'duel') — the story of a 2-player
+// RIVALRY, not just "winner won categories". All gate on a duel + a runner-up, set a
+// high `duelRelevance` so they surface, and involve BOTH players where possible.
+// ═════════════════════════════════════════════════════════════════════════
+
+function isDuel(ctx: InsightContext): boolean {
+  return ctx.mode === 'duel' && ctx.runnerUp !== undefined;
+}
+
+/** A short STYLE label (i18n key) for a player, from their dominant signal. */
+function duelStyle(ctx: InsightContext, p: EndgamePlayerScore): string {
+  const econ = factsByType(ctx, 'economy').find((f) => f.player === p.color);
+  const action = factsByType(ctx, 'actionUsage').filter((f) => f.player === p.color);
+  const colony = factsByType(ctx, 'colony').find((f) => f.player === p.color);
+  const sp = factsByType(ctx, 'standardProject').find((f) => f.player === p.color);
+  const reveal = factsByType(ctx, 'reveal').find((f) => f.player === p.color);
+  const attacks = factsByType(ctx, 'negativeInteraction').filter((f) => f.player === p.color);
+  if (attacks.reduce((s, f) => s + metric(f, 'totalLost'), 0) >= 8) {
+    return 'Disruptor';
+  }
+  if (sp !== undefined && metric(sp, 'projects') >= 5) {
+    return 'Standard Project Builder';
+  }
+  if (colony !== undefined && metric(colony, 'trades') >= 5) {
+    return 'Colony Trader';
+  }
+  if (action.reduce((s, f) => s + metric(f, 'activations'), 0) >= 6) {
+    return 'Blue Action Engine';
+  }
+  if (econ !== undefined && metric(econ, 'savedMegacredits') >= 18) {
+    return 'Economy Engine';
+  }
+  if (reveal !== undefined && (metric(reveal, 'revealed') + metric(reveal, 'shown')) >= 6) {
+    return 'Card Flow';
+  }
+  // Fall back to the player's strongest VP category.
+  switch (p.strongestCategory) {
+  case 'tr': return 'Terraformer';
+  case 'cards': return 'Card Engine';
+  case 'board': return 'Board Builder';
+  case 'mca': return 'Award Hunter';
+  default: return 'Balanced';
+  }
+}
+
+// ── Duel style contrast — two plans collide ──
+const analyzeDuelStyleContrast: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  if (!isDuel(ctx) || ctx.runnerUp === undefined) {
+    return out;
+  }
+  const wStyle = duelStyle(ctx, ctx.winner);
+  const rStyle = duelStyle(ctx, ctx.runnerUp);
+  if (wStyle === rStyle || wStyle === 'Balanced' || rStyle === 'Balanced') {
+    return out; // no clear contrast to tell
+  }
+  out.push({
+    id: 'duel.styleContrast', group: 'reason', priority: 70, severity: 'major', icon: 'scale',
+    badge: 'Clash of styles', color: ctx.winner.color,
+    textKey: 'Two plans: ${0} played as ${1}, ${2} as ${3} — and ${4} prevailed.',
+    params: [raw(ctx.winner.name), key(wStyle), raw(ctx.runnerUp.name), key(rStyle), key(wStyle)],
+    family: 'duelContrast', uiVariant: 'hero', storyCluster: 'duelContrast',
+    scores: {rarity: 0.5, drama: 0.6, relevance: 0.8, duelRelevance: 1, confidence: 1},
+    relatedPlayers: [ctx.winner.color, ctx.runnerUp.color],
+  });
+  return out;
+};
+
+/** Parse the two players' award/milestone detail rows into a per-name view. */
+function awardOutcomes(ctx: InsightContext): Map<string, {funder?: string; entries: Array<{player: EndgamePlayerScore; place: string; points: number}>}> {
+  const awards = new Map<string, {funder?: string; entries: Array<{player: EndgamePlayerScore; place: string; points: number}>}>();
+  for (const p of ctx.players) {
+    for (const d of p.breakdown.detailsAwards) {
+      const args = d.messageArgs ?? [];
+      const name = args[1];
+      if (name === undefined) {
+        continue;
+      }
+      const a = awards.get(name) ?? {funder: args[2], entries: []};
+      a.funder = a.funder ?? args[2];
+      a.entries.push({player: p, place: args[0] ?? '', points: d.victoryPoint});
+      awards.set(name, a);
+    }
+  }
+  return awards;
+}
+
+// ── Award race — the sponsor who lost their own award / a swing bigger than the margin ──
+const analyzeAwardRace: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  if (!isDuel(ctx)) {
+    return out;
+  }
+  let sponsorLost: {award: string; funder: EndgamePlayerScore; winner: EndgamePlayerScore; points: number} | undefined;
+  let bestSwing: {award: string; winner: EndgamePlayerScore; swing: number} | undefined;
+  for (const [award, info] of awardOutcomes(ctx)) {
+    const first = info.entries.find((e) => e.place === '1st') ??
+      [...info.entries].sort((a, b) => b.points - a.points)[0];
+    if (first === undefined || first.points === 0) {
+      continue;
+    }
+    const other = info.entries.find((e) => e.player.color !== first.player.color);
+    const swing = first.points - (other?.points ?? 0);
+    if (bestSwing === undefined || swing > bestSwing.swing) {
+      bestSwing = {award, winner: first.player, swing};
+    }
+    const funder = info.funder !== undefined ? ctx.players.find((p) => p.name === info.funder) : undefined;
+    if (funder !== undefined && funder.color !== first.player.color && sponsorLost === undefined) {
+      sponsorLost = {award, funder, winner: first.player, points: first.points};
+    }
+  }
+  if (sponsorLost !== undefined) {
+    out.push({
+      id: 'duel.award.sponsorLost', group: 'category', priority: 76, severity: 'major', icon: 'flag',
+      badge: 'Backfired', color: sponsorLost.winner.color,
+      textKey: 'A bet that backfired: ${0} funded the ${1} award, but ${2} took the ${3} VP for it.',
+      params: [raw(sponsorLost.funder.name), key(sponsorLost.award), raw(sponsorLost.winner.name), raw(sponsorLost.points)],
+      family: 'duelContrast', uiVariant: 'major', storyCluster: 'awardRace',
+      scores: {rarity: 0.65, drama: 0.75, relevance: 0.8, duelRelevance: 1, confidence: 1},
+      relatedPlayers: [sponsorLost.funder.color, sponsorLost.winner.color],
+    });
+  } else if (bestSwing !== undefined && ctx.margin > 0 && bestSwing.swing >= ctx.margin && bestSwing.swing >= 3) {
+    out.push({
+      id: 'duel.award.swing', group: 'category', priority: 66, severity: 'normal', icon: 'scale',
+      badge: 'Award swing', color: bestSwing.winner.color,
+      textKey: 'The ${0} award alone swung ${1} VP — more than the ${2}-VP final margin.',
+      params: [key(bestSwing.award), raw(bestSwing.swing), raw(ctx.margin)],
+      family: 'duelContrast', uiVariant: 'normal', storyCluster: 'awardRace',
+      scores: {rarity: 0.5, drama: 0.6, relevance: 0.75, duelRelevance: 0.9, confidence: 1},
+      relatedPlayers: [bestSwing.winner.color],
+    });
+  }
+  return out;
+};
+
+// ── Milestone race — who locked the milestones (claims are confirmed; no "almost") ──
+const analyzeMilestoneRace: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  if (!isDuel(ctx) || ctx.runnerUp === undefined) {
+    return out;
+  }
+  const claims = new Map<Color, number>();
+  for (const p of ctx.players) {
+    claims.set(p.color, p.breakdown.detailsMilestones.length);
+  }
+  const wClaims = claims.get(ctx.winner.color) ?? 0;
+  const rClaims = claims.get(ctx.runnerUp.color) ?? 0;
+  // Lockout: the winner took several milestones and the runner-up none.
+  if (wClaims >= 2 && rClaims === 0) {
+    out.push({
+      id: 'duel.milestone.lockout', group: 'momentum', priority: 64, severity: 'normal', icon: 'flag',
+      badge: 'Milestone lockout', color: ctx.winner.color,
+      textKey: '${0} locked the board, claiming ${1} milestones before ${2} could answer.',
+      params: [raw(ctx.winner.name), raw(wClaims), raw(ctx.runnerUp.name)],
+      family: 'duelContrast', uiVariant: 'normal', storyCluster: 'milestoneRace',
+      scores: {rarity: 0.5, drama: 0.55, relevance: 0.7, duelRelevance: 0.85, confidence: 1},
+      relatedPlayers: [ctx.winner.color, ctx.runnerUp.color],
+    });
+  } else if (rClaims > 0 && wClaims > 0 && (wClaims + rClaims) >= 3) {
+    out.push({
+      id: 'duel.milestone.contested', group: 'momentum', priority: 50, severity: 'minor', icon: 'swap',
+      badge: 'Milestone race', color: ctx.winner.color,
+      textKey: 'A contested board: the milestones split ${0}–${1} between ${2} and ${3}.',
+      params: [raw(wClaims), raw(rClaims), raw(ctx.winner.name), raw(ctx.runnerUp.name)],
+      family: 'duelContrast', uiVariant: 'compact', storyCluster: 'milestoneRace',
+      scores: {drama: 0.4, relevance: 0.55, duelRelevance: 0.7, confidence: 1},
+      relatedPlayers: [ctx.winner.color, ctx.runnerUp.color],
+    });
+  }
+  return out;
+};
+
+// ── Category counterplay — A won X, B won Y ──
+const analyzeDuelCategoryCounterplay: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  if (!isDuel(ctx) || ctx.runnerUp === undefined) {
+    return out;
+  }
+  const w = ctx.winner.color;
+  const r = ctx.runnerUp.color;
+  let winnerCat: {cat: EndgameCategory; lead: number} | undefined;
+  let runnerCat: {cat: EndgameCategory; lead: number} | undefined;
+  for (const cat of ctx.categories) {
+    const wv = cat.values[w] ?? 0;
+    const rv = cat.values[r] ?? 0;
+    if (wv - rv > 0 && (winnerCat === undefined || wv - rv > winnerCat.lead)) {
+      winnerCat = {cat, lead: wv - rv};
+    }
+    if (rv - wv > 0 && (runnerCat === undefined || rv - wv > runnerCat.lead)) {
+      runnerCat = {cat, lead: rv - wv};
+    }
+  }
+  if (winnerCat !== undefined && runnerCat !== undefined && winnerCat.lead >= 5 && runnerCat.lead >= 5) {
+    out.push({
+      id: 'duel.counterplay', group: 'category', priority: 62, severity: 'normal', icon: 'target',
+      badge: 'Counterplay', color: ctx.winner.color,
+      textKey: '${0} vs ${1}: ${2} took ${3}, ${4} answered with ${5} — but ${2}’s edge held.',
+      params: [key(winnerCat.cat.label), key(runnerCat.cat.label), raw(ctx.winner.name), key(winnerCat.cat.label), raw(ctx.runnerUp.name), key(runnerCat.cat.label)],
+      family: 'duelContrast', uiVariant: 'comparison', storyCluster: 'counterplay',
+      scores: {drama: 0.5, relevance: 0.75, duelRelevance: 0.95, confidence: 1},
+      relatedPlayers: [w, r],
+    });
+  }
+  return out;
+};
+
+// ── Economy conversion — efficiency over raw economy (duel framing) ──
+const analyzeDuelEconomyConversion: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  const ru = ctx.runnerUp;
+  if (!isDuel(ctx) || ru === undefined) {
+    return out;
+  }
+  const wEcon = metric(factsByType(ctx, 'economy').find((f) => f.player === ctx.winner.color) ?? {metrics: {}} as EndgameFact, 'savedMegacredits');
+  const rEcon = metric(factsByType(ctx, 'economy').find((f) => f.player === ru.color) ?? {metrics: {}} as EndgameFact, 'savedMegacredits');
+  if (rEcon >= 15 && rEcon > wEcon * 1.4) {
+    out.push({
+      id: 'duel.economyConversion', group: 'reason', priority: 73, severity: 'major', icon: 'spark',
+      badge: 'Efficiency', color: ctx.winner.color,
+      textKey: '${0} wasn’t richer than ${1} — just more efficient, turning fewer resources into more points.',
+      params: [raw(ctx.winner.name), raw(ru.name)],
+      family: 'duelContrast', uiVariant: 'major', storyCluster: 'economyUpset', // dedups with the generic underdog
+      scores: {rarity: 0.6, drama: 0.5, relevance: 0.8, duelRelevance: 1, confidence: 0.8},
+      suppresses: ['fact.economy.underdog'],
+      relatedPlayers: [ctx.winner.color, ru.color],
+    });
+  }
+  return out;
+};
+
+// ── "Almost" — how close the runner-up got ──
+const analyzeDuelAlmost: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  if (!isDuel(ctx) || ctx.runnerUp === undefined || ctx.margin <= 0 || ctx.margin > 12) {
+    return out;
+  }
+  const ru = ctx.runnerUp;
+  // Penalties cost the match: the runner-up's penalty VP exceeded the final margin.
+  const penalty = ru.penaltyCards.reduce((s, c) => s + Math.abs(c.victoryPoint), 0);
+  if (penalty > 0 && penalty >= ctx.margin) {
+    out.push({
+      id: 'duel.almost.penalty', group: 'cards', priority: 68, severity: 'normal', icon: 'flag',
+      badge: 'So close', color: ru.color,
+      textKey: 'Penalties decided it: ${0} lost ${1} VP to penalties — more than the ${2}-VP gap.',
+      params: [raw(ru.name), raw(penalty), raw(ctx.margin)],
+      family: 'runnerUpStory', uiVariant: 'normal', storyCluster: 'almostPenalty',
+      scores: {drama: 0.6, relevance: 0.75, rarity: 0.5, duelRelevance: 0.9, confidence: 1},
+      relatedPlayers: [ru.color],
+    });
+  }
+  // Leftover M€ exceeded the gap (factual; framed as "had it found a use", no fake VP).
+  if (ru.megacredits >= ctx.margin && ru.megacredits >= 10) {
+    out.push({
+      id: 'duel.almost.money', group: 'cards', priority: 48, severity: 'minor', icon: 'flag',
+      badge: 'So close', color: ru.color,
+      textKey: '${0} finished on ${1} M€ — more than the ${2}-VP gap, had it found a use.',
+      params: [raw(ru.name), raw(ru.megacredits), raw(ctx.margin)],
+      family: 'unusedPotential', uiVariant: 'compact', storyCluster: 'almostMoney',
+      scores: {relevance: 0.55, drama: 0.4, duelRelevance: 0.7, confidence: 0.7},
+      relatedPlayers: [ru.color],
+    });
+  }
+  return out;
+};
+
 const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeEconomyFacts,
   analyzeBlueActionFacts,
@@ -1364,6 +1636,13 @@ const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeStandardProjectStrategy,
   analyzeUnusedPotential,
   analyzeNotableMoments,
+  // Iteration 7 — duel-specific.
+  analyzeDuelStyleContrast,
+  analyzeAwardRace,
+  analyzeMilestoneRace,
+  analyzeDuelCategoryCounterplay,
+  analyzeDuelEconomyConversion,
+  analyzeDuelAlmost,
 ];
 
 const ANALYZERS: ReadonlyArray<Analyzer> = [
@@ -1425,7 +1704,9 @@ export function finalScore(c: InsightCandidate): number {
   const s = c.scores ?? {};
   const conf = s.confidence ?? 1;
   const bonus = ((s.impact ?? 0) * 40 + (s.rarity ?? 0) * 60 + (s.drama ?? 0) * 40 + (s.relevance ?? 0) * 20) * conf;
-  return c.priority + bonus;
+  // Duel-mode rivalry bonus (added flat — it's already gated to duel by the analyzer
+  // only setting it in a 2-player game, so multiplayer candidates carry 0).
+  return c.priority + bonus + (s.duelRelevance ?? 0) * 30;
 }
 
 /** The diversity key (one strong card per cluster in the primary band). */
@@ -1450,8 +1731,19 @@ export function selectStoryInsights(candidates: ReadonlyArray<InsightCandidate>)
   const scored = candidates.map((c) => ({...c, finalScore: finalScore(c)}));
   scored.sort((a, b) => b.finalScore - a.finalScore || a.id.localeCompare(b.id));
 
+  // Suppression PRE-PASS (by finalScore order): a stronger non-suppressed candidate
+  // hides the redundant ones it `suppresses`, regardless of which band each lands in.
+  // (Done up-front so a strong PRIMARY candidate can suppress a weaker HERO-worthy one
+  // — the per-band order can't.)
   const suppressed = new Set<string>();
-  const takeSuppress = (c: InsightCandidate) => (c.suppresses ?? []).forEach((s) => suppressed.add(s));
+  for (const c of scored) {
+    if (suppressed.has(c.id)) {
+      continue;
+    }
+    for (const s of c.suppresses ?? []) {
+      suppressed.add(s);
+    }
+  }
   const usedClusters = new Set<string>();
   const usedIds = new Set<string>();
 
@@ -1465,7 +1757,6 @@ export function selectStoryInsights(candidates: ReadonlyArray<InsightCandidate>)
       hero = {...c, rankSection: 'hero'};
       usedIds.add(c.id);
       usedClusters.add(clusterOf(c));
-      takeSuppress(c);
       break;
     }
   }
@@ -1487,7 +1778,6 @@ export function selectStoryInsights(candidates: ReadonlyArray<InsightCandidate>)
     primary.push({...c, rankSection: 'primary'});
     usedIds.add(c.id);
     usedClusters.add(cluster);
-    takeSuppress(c);
   }
 
   // SECONDARY — looser: any not-yet-used, deduped only by cluster among themselves.
