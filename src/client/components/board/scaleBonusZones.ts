@@ -64,7 +64,7 @@ const NUMBER_HALF = 13;
  * (so the inner edge the markers face is ~18 in), the Oxygen digit sits AT its
  * band's outer edge (~4), and the Temperature band extends well outward (~25).
  */
-const BAND_EDGE: Record<BonusScale, number> = {venus: 18, oxygen: 4, temperature: 18};
+const BAND_EDGE: Record<BonusScale, number> = {venus: 18, oxygen: 14, temperature: 18};
 /** Length of the triangle pointer (must match `.bonus-zone__pointer` height). */
 const POINTER_LEN = 10;
 /** Small gap between the pointer base and the marker edge. */
@@ -95,6 +95,10 @@ type AnchorDef = {
   size: number;
   /** Tangent tilt of the node visuals (the crystals follow the arc). */
   rot: number;
+  /** Per-bonus band-edge override (else BAND_EDGE[scale]) — for spots where
+   *  the printed band sits at a different distance from the digit than its
+   *  neighbours (the Temperature ocean@0 band is thinner than the heat bands). */
+  bandEdge?: number;
 };
 
 const WILD = 'Gain a standard resource of your choice';
@@ -107,7 +111,7 @@ const ANCHOR_DEFS: ReadonlyArray<AnchorDef> = [
   // Temperature track (base game) — OUTSIDE the band.
   {key: 't-heat-24', scale: 'temperature', step: -24, side: 'outer', icon: 'bonus-zone-icon--heat', reward: 'Gain 1 heat production', tier: 'regular', requires: 'always', size: 25, rot: 0},
   {key: 't-heat-20', scale: 'temperature', step: -20, side: 'outer', icon: 'bonus-zone-icon--heat', reward: 'Gain 1 heat production', tier: 'regular', requires: 'always', size: 25, rot: 0},
-  {key: 't-ocean-0', scale: 'temperature', step: 0, side: 'outer', icon: 'bonus-zone-icon--ocean', reward: 'Place an ocean', tier: 'regular', requires: 'always', size: 25, rot: 0},
+  {key: 't-ocean-0', scale: 'temperature', step: 0, side: 'outer', icon: 'bonus-zone-icon--ocean', reward: 'Place an ocean', tier: 'regular', requires: 'always', size: 25, rot: 0, bandEdge: 10},
   // Oxygen track (base game) — OUTSIDE the band.
   {key: 'o-temp-8', scale: 'oxygen', step: 8, side: 'outer', icon: 'bonus-zone-icon--temperature', reward: 'Raise temperature 1 step', tier: 'regular', requires: 'always', size: 25, rot: 0},
   // Venus base bonuses (Venus expansion) — BELOW the band, same size/system as
@@ -149,7 +153,8 @@ function anchorNode(d: AnchorDef): ScaleBonusZoneDef {
   const oy = (sign * uy) / m;
   // Marker centre: out past the band edge, the pointer and a small gap. The
   // pointer tip then lands exactly on the band edge (BAND_EDGE from the digit).
-  const dist = BAND_EDGE[d.scale] + POINTER_LEN + MARKER_GAP + d.size / 2;
+  const bandEdge = d.bandEdge ?? BAND_EDGE[d.scale];
+  const dist = bandEdge + POINTER_LEN + MARKER_GAP + d.size / 2;
   const cx = nx + ox * dist;
   const cy = ny + oy * dist;
   // Pointer rotation: an up-triangle rotated by `point` aims at the number
