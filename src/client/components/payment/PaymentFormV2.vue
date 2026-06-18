@@ -319,17 +319,21 @@ export default defineComponent({
       this.payment.megacredits = megacredits;
     },
     maxValue(unit: SpendableResource): void {
-      const target = Math.min(this.ledger[unit].available, Math.floor(this.cost / this.ledger[unit].rate));
-      if (this.payment[unit] < target) {
-        this.payment[unit] = target;
-        if (unit !== 'megacredits') {
-          this.setRemainingMCValue();
-        } else {
-          const saved = this.payment.megacredits;
-          this.payment = computeDefaultPayment(this.cost, this.order, this.ledger, /* reserveMegacredits=*/ true);
-          this.payment.megacredits = saved;
-        }
-      }
+      // MAX means "use as much of THIS resource as possible, then cover only the
+      // remaining cost with the other resources — NEVER overpay." The old code set
+      // the unit to the FULL cost while only re-balancing M€, leaving any seeded
+      // steel/titanium allocated on top → a large overpay (the reported Helion heat
+      // case: cost 10 + steel 3 [→6] made heat 10, total 16). We instead max the unit
+      // up to what covers the whole cost, then re-fill the remainder with the OTHER
+      // resources (excluded from re-fill so the maxed unit isn't re-added).
+      const rate = this.ledger[unit].rate;
+      const unitMax = Math.min(
+        this.ledger[unit].available,
+        rate === 1 ? this.cost : Math.ceil(this.cost / rate));
+      const remaining = Math.max(0, this.cost - unitMax * rate);
+      const ledgerWithoutUnit = {...this.ledger, [unit]: {...this.ledger[unit], available: 0}};
+      const filled = computeDefaultPayment(remaining, this.order, ledgerWithoutUnit, /* reserveMegacredits=*/ false);
+      this.payment = {...filled, [unit]: unitMax};
     },
     totalSpent(): number {
       return sum(this.order.map((unit) => this.payment[unit] * this.ledger[unit].rate));

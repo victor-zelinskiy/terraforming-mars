@@ -57,6 +57,9 @@ export class ConvertPlants extends StandardActionCard {
           this.actionUsed(player);
           player.game.addGreenery(player, space);
           player.plants -= player.plantsNeededForGreenery;
+          // Attribute the plants saved (8 − plantsNeededForGreenery) to the
+          // greenery-discount effect (EcoLine) so the effects overlay tallies it.
+          player.recordGreeneryDiscount();
         } finally {
           events?.endScope();
         }

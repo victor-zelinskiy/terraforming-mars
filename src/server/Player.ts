@@ -581,8 +581,20 @@ export class Player implements IPlayer {
     this.game?.events?.recordCardResourceDelta(this, card, count, typeof(options) !== 'number' ? options.from : undefined);
 
     if (count > 0) {
+      const events = this.game?.events;
       for (const playedCard of this.tableau) {
-        playedCard.onResourceAdded?.(this, card, count);
+        if (playedCard.onResourceAdded === undefined) {
+          continue;
+        }
+        // Wrap in a passive-effect scope (mirrors onCardPlayed/onTilePlaced/…) so the
+        // hook's gains (TopsoilContract +1 M€ per microbe, MeatIndustry +2 M€ per
+        // animal) are attributed to the effect card and surface in the effects overlay
+        // instead of reading as "never triggered". The hook is synchronous.
+        if (events !== undefined) {
+          events.withEffect(this, playedCard, 'resource-added', () => playedCard.onResourceAdded?.(this, card, count));
+        } else {
+          playedCard.onResourceAdded(this, card, count);
+        }
       }
     }
 
@@ -870,6 +882,15 @@ export class Player implements IPlayer {
 
     if (payment.heat > 0) {
       this.defer(this.spendHeat(payment.heat));
+      // Helion-style "use heat as M€" (`canUseHeatAsMegaCredits`): attribute the M€
+      // value the heat substituted to the granting card as a passive-effect saving.
+      // Heat is spent via the stock path above, NOT the card-resource payment path
+      // (`removeResourcesOnCard`) that records the other substitution effects, so
+      // without this the effects overlay shows the ability as never-triggered.
+      const heatAsMcSource = this.playedCards.get(CardName.HELION) ?? this.playedCards.get(CardName.INDUSTRIAL_COMPLEX);
+      if (heatAsMcSource !== undefined) {
+        this.game?.events?.recordHeatAsPayment(this, heatAsMcSource, payment.heat);
+      }
     }
 
     const removeResourcesOnCard = (name: CardName, count: number, valuePerUnit: number) => {
@@ -934,6 +955,26 @@ export class Player implements IPlayer {
       }
       if (entries.length > 0) {
         events.recordPaymentValueBonus(this, card, entries);
+      }
+    }
+  }
+
+  /**
+   * Record the plants a GREENERY-DISCOUNT effect (EcoLine — `behavior.greeneryDiscount`)
+   * saved on ONE plants→greenery conversion, attributed per OWNING card. Generic over
+   * the declarative flag, so any such card across expansions is covered; called from
+   * the conversion sites AFTER the plants are spent. Read-only side effect on the event
+   * stream. No-op when no discount card is in play (nothing saved).
+   */
+  public recordGreeneryDiscount(): void {
+    const events = this.game?.events;
+    if (events === undefined) {
+      return;
+    }
+    for (const card of this.tableau) {
+      const discount = card.behavior?.greeneryDiscount;
+      if (discount !== undefined && discount > 0) {
+        events.recordGreeneryDiscount(this, card, discount);
       }
     }
   }
@@ -1404,6 +1445,7 @@ export class Player implements IPlayer {
             // Do not raise oxygen or award TR for final greenery placements
             this.game.addGreenery(this, space, false);
             this.stock.deduct(Resource.PLANTS, this.plantsNeededForGreenery);
+            this.recordGreeneryDiscount();
 
             // Resolve Philares deferred actions and maybe place another greenery
             resolveFinalGreeneryDeferredActions();

@@ -41,6 +41,12 @@ export type ColonyTrackStats = {steps: number; extraReward: number; count: numbe
  */
 export type TradeDiscountStats = {energy: number; titanium: number; megacredits: number; count: number; colonies: Partial<Record<ColonyName, number>>};
 
+/**
+ * Plants a greenery-discount effect (EcoLine) saved on plants→greenery conversions.
+ * `plants` = total plants saved, `count` = conversions made under the effect.
+ */
+export type GreeneryDiscountStats = {plants: number; count: number};
+
 export type SourceStats = {
   source: EventSource;
   /** How many times this source fired / was used / applied. */
@@ -57,6 +63,8 @@ export type SourceStats = {
   colonyTrack: ColonyTrackStats;
   /** Trade resources saved by a trade-discount effect (Cryo-Sleep, …). */
   tradeDiscount: TradeDiscountStats;
+  /** Plants saved by a greenery-discount effect (EcoLine). */
+  greeneryDiscount: GreeneryDiscountStats;
   tr: number;
   cardsDrawn: number;
   globalParameterSteps: Partial<Record<GlobalParameter, number>>;
@@ -78,6 +86,10 @@ function emptyTradeDiscount(): TradeDiscountStats {
   return {energy: 0, titanium: 0, megacredits: 0, count: 0, colonies: {}};
 }
 
+function emptyGreeneryDiscount(): GreeneryDiscountStats {
+  return {plants: 0, count: 0};
+}
+
 /** True if an impact carries any factual delta (used to find the last meaningful event). */
 function hasImpact(i: EventImpact): boolean {
   return i.stock !== undefined || i.production !== undefined || (i.cardResources?.length ?? 0) > 0 ||
@@ -86,7 +98,7 @@ function hasImpact(i: EventImpact): boolean {
     i.megacreditsSaved !== undefined || i.megacreditsPaid !== undefined ||
     (i.cardResourcesSpentAsPayment?.length ?? 0) > 0 ||
     (i.paymentValueBonus?.length ?? 0) > 0 || (i.colonyTrackAdvanced?.length ?? 0) > 0 ||
-    (i.tradeDiscountSaved?.length ?? 0) > 0 || i.reveal !== undefined;
+    (i.tradeDiscountSaved?.length ?? 0) > 0 || i.greeneryDiscountSaved !== undefined || i.reveal !== undefined;
 }
 
 export type PlayerStats = Omit<SourceStats, 'source' | 'triggerCount'> & {
@@ -122,6 +134,7 @@ function newSourceStats(source: EventSource): SourceStats {
     paymentValueBonus: emptyPaymentValueBonus(),
     colonyTrack: emptyColonyTrack(),
     tradeDiscount: emptyTradeDiscount(),
+    greeneryDiscount: emptyGreeneryDiscount(),
     tr: 0,
     cardsDrawn: 0,
     globalParameterSteps: {},
@@ -135,6 +148,7 @@ function foldImpact(acc: {
   stock: Units; production: Units; cardResources: Partial<Record<CardResource, number>>;
   paymentResources: Partial<Record<CardResource, number>>;
   paymentValueBonus: PaymentValueBonusStats; colonyTrack: ColonyTrackStats; tradeDiscount: TradeDiscountStats;
+  greeneryDiscount: GreeneryDiscountStats;
   tr: number; cardsDrawn: number; globalParameterSteps: Partial<Record<GlobalParameter, number>>;
   megacreditsSaved: number; vp: number;
 }, impact: EventImpact): void {
@@ -172,6 +186,10 @@ function foldImpact(acc: {
       acc.tradeDiscount.colonies[td.colony] = (acc.tradeDiscount.colonies[td.colony] ?? 0) + td.amount;
     }
     acc.tradeDiscount.count += 1;
+  }
+  if (impact.greeneryDiscountSaved !== undefined) {
+    acc.greeneryDiscount.plants += impact.greeneryDiscountSaved;
+    acc.greeneryDiscount.count += 1;
   }
   if (impact.tr !== undefined) {
     acc.tr += impact.tr;
@@ -267,6 +285,7 @@ export function aggregateByPlayer(events: ReadonlyArray<GameEvent>): Map<Color, 
         color: e.player,
         stock: emptyUnits(), production: emptyUnits(), cardResources: {}, paymentResources: {},
         paymentValueBonus: emptyPaymentValueBonus(), colonyTrack: emptyColonyTrack(), tradeDiscount: emptyTradeDiscount(),
+        greeneryDiscount: emptyGreeneryDiscount(),
         tr: 0, cardsDrawn: 0, globalParameterSteps: {}, megacreditsSaved: 0, vp: 0,
         megacreditsPaid: 0, tilesPlaced: 0,
       };
@@ -562,6 +581,8 @@ export type EffectOverlayStat = {
   colonyTrack: ColonyTrackStats;
   /** Trade resources saved by a trade-discount effect (Cryo-Sleep, …). */
   tradeDiscount: TradeDiscountStats;
+  /** Plants saved by a greenery-discount effect (EcoLine). */
+  greeneryDiscount: GreeneryDiscountStats;
   tr: number;
   globalParameterSteps: Partial<Record<GlobalParameter, number>>;
   vp: number;
@@ -588,6 +609,7 @@ export function toEffectOverlayStat(stats: SourceStats): EffectOverlayStat {
     paymentValueBonus: stats.paymentValueBonus,
     colonyTrack: stats.colonyTrack,
     tradeDiscount: stats.tradeDiscount,
+    greeneryDiscount: stats.greeneryDiscount,
     tr: stats.tr,
     globalParameterSteps: stats.globalParameterSteps,
     vp: stats.vp,

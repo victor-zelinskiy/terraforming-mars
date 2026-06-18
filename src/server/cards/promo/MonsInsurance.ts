@@ -51,10 +51,20 @@ export class MonsInsurance extends CorporationCard implements ICorporationCard {
       if (claimant) {
         // stock.add (NOT `claimant.megaCredits +=`) so the victim's compensation is
         // recorded as a GameEvent — it shows in the journal / notifications, mirroring
-        // the owner's recorded `deduct` below.
+        // the owner's recorded `deduct` below. Left under the active (attacker) scope:
+        // attributing this GAIN to MonsInsurance too would CANCEL the owner's payout in
+        // the per-source effect aggregate (same source, opposite stock M€).
         claimant.stock.add(Resource.MEGACREDITS, retribution);
       }
-      player.stock.deduct(Resource.MEGACREDITS, retribution);
+      // Attribute the owner's payout to MonsInsurance as a passive effect so the effects
+      // overlay shows the compensation actually paid (it otherwise read as "never
+      // triggered" — the deduct ran under the attacker's scope, not the owner's effect).
+      const events = player.game.events;
+      if (events !== undefined) {
+        events.withEffect(player, this, 'insurance-claim', () => player.stock.deduct(Resource.MEGACREDITS, retribution));
+      } else {
+        player.stock.deduct(Resource.MEGACREDITS, retribution);
+      }
       if (retribution > 0) {
         if (claimant !== undefined) {
           player.game.log('${0} received ${1} M€ from ${2} owner (${3})', (b) =>

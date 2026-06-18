@@ -39,7 +39,7 @@ export type EffectSummaryLine = {
  */
 export type EffectCategory =
   'corporation' | 'discount' | 'resourceAccumulation' | 'payment' |
-  'paymentValueBonus' | 'colonyTrade' | 'tradeDiscount' |
+  'paymentValueBonus' | 'colonyTrade' | 'tradeDiscount' | 'greeneryDiscount' |
   'passiveTr' | 'passiveProduction' | 'trigger' | 'ruleChange';
 
 /**
@@ -255,6 +255,12 @@ const TRADE_DISCOUNT_CARDS: ReadonlySet<CardName> = new Set([
   CardName.CRYO_SLEEP, CardName.RIM_FREIGHTERS,
 ]);
 
+/** Cards whose passive rule makes greenery cost fewer plants (`greeneryDiscount`).
+ *  The server records EVERY such card generically; this drives only the pre-conversion note. */
+const GREENERY_DISCOUNT_CARDS: ReadonlySet<CardName> = new Set([
+  CardName.ECOLINE,
+]);
+
 /**
  * The category to FRAME an empty effect's note by — what the effect CAN do (its
  * render signature), NOT the (empty) data. The ROOT-CAUSE fix: without this, an
@@ -298,6 +304,9 @@ function emptyCategory(ctx: EffectSummaryContext): EffectCategory {
   if (TRADE_DISCOUNT_CARDS.has(ctx.sourceName)) {
     return 'tradeDiscount';
   }
+  if (GREENERY_DISCOUNT_CARDS.has(ctx.sourceName)) {
+    return 'greeneryDiscount';
+  }
   if (ctx.signature !== undefined) {
     return emptyNoteCategory(ctx.signature, ctx);
   }
@@ -310,6 +319,7 @@ function confidenceFor(category: EffectCategory): EffectConfidence | undefined {
   case 'ruleChange': return 'ruleOnly';
   case 'colonyTrade': return 'partial';
   case 'tradeDiscount': return 'partial';
+  case 'greeneryDiscount': return 'exact';
   case 'paymentValueBonus': return 'exact';
   default: return undefined;
   }
@@ -323,6 +333,7 @@ const CATEGORY_HEADLINE: Record<EffectCategory, string> = {
   paymentValueBonus: 'Payment value bonus',
   colonyTrade: 'Colony track advanced',
   tradeDiscount: 'Trade discount',
+  greeneryDiscount: 'Greenery discount',
   passiveTr: 'Terraforming contributed',
   passiveProduction: 'Ongoing output',
   trigger: 'Triggered effects',
@@ -338,6 +349,7 @@ const CATEGORY_FALLBACK_NOTE: Record<EffectCategory, string> = {
   paymentValueBonus: 'Makes your steel or titanium worth more — the extra value is tallied once you spend them.',
   colonyTrade: 'Advances a colony track before you trade there — its steps and extra reward are tallied once you trade.',
   tradeDiscount: 'Makes trading cost fewer resources — the resources saved are tallied once you trade.',
+  greeneryDiscount: 'Lets you place greenery for fewer plants — the plants saved are tallied once you convert.',
   passiveTr: 'No terraforming from this effect yet.',
   passiveProduction: 'This ongoing effect has not produced yet.',
   trigger: 'This effect has not triggered yet this game.',
@@ -369,6 +381,7 @@ const EFFECT_SUMMARY_NOTES: Partial<Record<CardName, string>> = {
   [CardName.OLYMPUS_CONFERENCE]: 'Adds science to itself — or draws a card — whenever you play a science-tag card.',
   [CardName.SUPERCAPACITORS]: 'Lets you convert all your energy into heat — a conversion you choose to use.',
   [CardName.NEPTUNIAN_POWER_CONSULTANTS]: 'Rewards M€ whenever an ocean is placed — its gains are listed above when they fire.',
+  [CardName.INVENTRIX]: 'Eases your temperature, oxygen, ocean and Venus requirements by ±2 — a rule bonus, not a tally.',
 };
 
 function reorder(lines: Array<EffectSummaryLine>, category: EffectCategory): Array<EffectSummaryLine> {
@@ -527,6 +540,29 @@ function tradeDiscountViewModel(stat: EffectOverlayStat, ctx: EffectSummaryConte
   };
 }
 
+/**
+ * A greenery-discount effect (EcoLine) — show the EXACT plants saved across all
+ * plants→greenery conversions made under the effect + how many conversions. An exact
+ * tally in plant units (its M€ value is not estimated — plants aren't M€).
+ */
+function greeneryDiscountViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
+  const gd = stat.greeneryDiscount;
+  const lines: Array<EffectSummaryLine> = [];
+  if (gd.plants > 0) {
+    lines.push({icon: 'plants', label: 'Plants saved', value: `${gd.plants}`});
+  }
+  const empty = gd.count === 0;
+  return {
+    empty,
+    triggerCount: gd.count,
+    headline: CATEGORY_HEADLINE['greeneryDiscount'],
+    category: 'greeneryDiscount',
+    lines,
+    confidence: 'exact',
+    note: empty ? noteFor(ctx, 'greeneryDiscount') : EFFECT_SUMMARY_NOTES[ctx.sourceName],
+  };
+}
+
 /** The category-aware generic view-model — the default for every non-bespoke effect. */
 function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): EffectSummaryViewModel {
   // Dedicated economic-modifier summaries, resolved from the RECORDED stat — these
@@ -544,6 +580,10 @@ function defaultViewModel(stat: EffectOverlayStat, ctx: EffectSummaryContext): E
   const td = stat.tradeDiscount;
   if (td !== undefined && td.count > 0) {
     return tradeDiscountViewModel(stat, ctx);
+  }
+  const gd = stat.greeneryDiscount;
+  if (gd !== undefined && gd.count > 0) {
+    return greeneryDiscountViewModel(stat, ctx);
   }
 
   const multi = (ctx.effectCount ?? 1) > 1;

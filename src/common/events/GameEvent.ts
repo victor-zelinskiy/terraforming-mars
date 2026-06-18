@@ -53,7 +53,8 @@ export type EventTrigger =
   | 'global-parameter'
   | 'standard-project'
   | 'resource-added'
-  | 'tag-added';
+  | 'tag-added'
+  | 'insurance-claim';
 
 /**
  * The narrative role a {@link LogMessage} plays inside its correlation group —
@@ -97,6 +98,7 @@ export type EventTag =
   | 'payment-bonus' // steel/titanium worth more than base (Advanced Alloys, …)
   | 'colony-track' // a trade-offset effect advanced a colony track (Trading Colony)
   | 'trade-discount' // a trade-discount effect saved trade resources (Cryo-Sleep, …)
+  | 'greenery-discount' // a greenery-discount effect saved plants on conversion (EcoLine)
   | 'global-parameter' // a global parameter was raised (oxygen/temp/oceans/venus)
   | 'reveal' // a public card reveal / show / search (analytics-only; counts not names)
   | 'card-impact'

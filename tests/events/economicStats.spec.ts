@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {runAllActions} from '../TestingUtils';
+import {cast} from '@/common/utils/utils';
 import {Payment} from '@/common/inputs/Payment';
 import {CardName} from '@/common/cards/CardName';
 import {ColonyName} from '@/common/colonies/ColonyName';
@@ -8,6 +9,15 @@ import {AdvancedAlloys} from '@/server/cards/base/AdvancedAlloys';
 import {RegoPlastics} from '@/server/cards/promo/RegoPlastics';
 import {TradingColony} from '@/server/cards/colonies/TradingColony';
 import {CryoSleep} from '@/server/cards/colonies/CryoSleep';
+import {Helion} from '@/server/cards/corporation/Helion';
+import {TopsoilContract} from '@/server/cards/promo/TopsoilContract';
+import {MeatIndustry} from '@/server/cards/promo/MeatIndustry';
+import {MonsInsurance} from '@/server/cards/promo/MonsInsurance';
+import {Tardigrades} from '@/server/cards/base/Tardigrades';
+import {Birds} from '@/server/cards/base/Birds';
+import {EcoLine} from '@/server/cards/corporation/EcoLine';
+import {ConvertPlants} from '@/server/cards/base/standardActions/ConvertPlants';
+import {SelectSpace} from '@/server/inputs/SelectSpace';
 import {Ceres} from '@/server/colonies/Ceres';
 import {TradeWithEnergy} from '@/server/player/Colonies';
 import {GlobalParameter} from '@/common/GlobalParameter';
@@ -152,6 +162,148 @@ describe('Economic stat special-handlers', () => {
       expect(stat.tradeDiscount.energy).to.eq(1);
       expect(stat.tradeDiscount.count).to.eq(1);
       expect(stat.tradeDiscount.colonies[ColonyName.CERES]).to.eq(1);
+    });
+  });
+
+  describe('heat-as-M€ payment (Helion)', () => {
+    it('records heat spent as M€ as a passive-effect saving attributed to Helion', () => {
+      const [game, player] = testGame(2);
+      const helion = new Helion();
+      helion.play(player); // sets canUseHeatAsMegaCredits
+      player.playedCards.push(helion);
+      player.heat = 7;
+
+      game.events.beginAction(player, {kind: 'corporation', card: CardName.HELION, owner: player.color}, {category: 'corporation-action'});
+      game.events.withSource({kind: 'payment'}, () => player.pay(Payment.of({heat: 5})));
+      game.events.endScope();
+      runAllActions(game);
+
+      const ev = game.events.events.find((e) =>
+        e.impact.megacreditsSaved !== undefined &&
+        e.source?.kind === 'corporation' && e.source.card === CardName.HELION);
+      expect(ev, 'a heat-as-M€ saving event was recorded').to.not.be.undefined;
+      expect(ev!.impact.megacreditsSaved).to.eq(5);
+      expect(ev!.tags).to.contain('passive-effect');
+      expect(ev!.tags).to.contain('resource-payment');
+
+      // It aggregates into the effect-overlay stat so the ability no longer reads
+      // as "hasn't triggered yet".
+      const stats = aggregateBySource(game.events.events.filter((e) => e.tags?.includes('passive-effect') === true));
+      const stat = toEffectOverlayStat(stats.get(sourceKey({kind: 'corporation', card: CardName.HELION, owner: player.color}))!);
+      expect(stat.megacreditsSaved).to.eq(5);
+    });
+
+    it('does not record when no heat is used as payment', () => {
+      const [game, player] = testGame(2);
+      const helion = new Helion();
+      helion.play(player);
+      player.playedCards.push(helion);
+      player.megaCredits = 10;
+
+      game.events.beginAction(player, {kind: 'corporation', card: CardName.HELION, owner: player.color}, {category: 'corporation-action'});
+      game.events.withSource({kind: 'payment'}, () => player.pay(Payment.of({megacredits: 5})));
+      game.events.endScope();
+      runAllActions(game);
+
+      const ev = game.events.events.find((e) =>
+        e.impact.megacreditsSaved !== undefined &&
+        e.source?.kind === 'corporation' && e.source.card === CardName.HELION);
+      expect(ev, 'no heat-as-M€ event when paying with M€').to.be.undefined;
+    });
+  });
+
+  describe('onResourceAdded passive effects (wrapped in an effect scope)', () => {
+    it('TopsoilContract records +1 M€ per microbe, attributed as a passive effect', () => {
+      const [game, player] = testGame(2);
+      const topsoil = new TopsoilContract();
+      player.playedCards.push(topsoil);
+      const tardigrades = new Tardigrades();
+      player.playedCards.push(tardigrades);
+
+      player.addResourceTo(tardigrades, 3); // 3 microbes → TopsoilContract grants +3 M€
+      runAllActions(game);
+
+      const ev = game.events.events.find((e) =>
+        e.impact.stock?.megacredits === 3 &&
+        e.source?.card === CardName.TOPSOIL_CONTRACT);
+      expect(ev, 'TopsoilContract gain recorded under its effect').to.not.be.undefined;
+      expect(ev!.tags).to.contain('passive-effect');
+
+      const stats = aggregateBySource(game.events.events.filter((e) => e.tags?.includes('passive-effect') === true));
+      const stat = toEffectOverlayStat(stats.get(sourceKey({kind: 'card', card: CardName.TOPSOIL_CONTRACT, owner: player.color}))!);
+      expect(stat.stock.megacredits).to.eq(3);
+    });
+
+    it('MeatIndustry records +2 M€ per animal, attributed as a passive effect', () => {
+      const [game, player] = testGame(2);
+      const meat = new MeatIndustry();
+      player.playedCards.push(meat);
+      const birds = new Birds();
+      player.playedCards.push(birds);
+
+      player.addResourceTo(birds, 2); // 2 animals → MeatIndustry grants +4 M€
+      runAllActions(game);
+
+      const stats = aggregateBySource(game.events.events.filter((e) => e.tags?.includes('passive-effect') === true));
+      const stat = toEffectOverlayStat(stats.get(sourceKey({kind: 'card', card: CardName.MEAT_INDUSTRY, owner: player.color}))!);
+      expect(stat.stock.megacredits).to.eq(4);
+    });
+  });
+
+  describe('MonsInsurance compensation (attributed to the owner effect)', () => {
+    it('records the M€ paid out as a passive effect on the owner', () => {
+      const [game, owner, attacker] = testGame(2);
+      const mons = new MonsInsurance();
+      mons.play(owner);
+      owner.playedCards.push(mons);
+      game.monsInsuranceOwner = owner;
+      owner.megaCredits = 10;
+
+      // An attack on the attacker triggers the owner's compensation to a victim.
+      // Simulate the resolution directly: the victim (attacker here) claims.
+      game.events.beginAction(attacker, {kind: 'card', card: CardName.MEAT_INDUSTRY, owner: attacker.color}, {category: 'card-play'});
+      attacker.resolveInsurance();
+      game.events.endScope();
+      runAllActions(game);
+
+      const ev = game.events.events.find((e) =>
+        e.source?.card === CardName.MONS_INSURANCE &&
+        e.impact.stock?.megacredits === -3);
+      expect(ev, 'owner payout recorded under MonsInsurance effect').to.not.be.undefined;
+      expect(ev!.tags).to.contain('passive-effect');
+
+      // No cancellation: the victim's +3 is NOT attributed to MonsInsurance.
+      const stats = aggregateBySource(game.events.events.filter((e) => e.tags?.includes('passive-effect') === true));
+      const stat = toEffectOverlayStat(stats.get(sourceKey({kind: 'corporation', card: CardName.MONS_INSURANCE, owner: owner.color}))!);
+      expect(stat.stock.megacredits).to.eq(-3);
+    });
+  });
+
+  describe('greenery discount (EcoLine paying fewer plants)', () => {
+    it('records the plants saved on a conversion, attributed to EcoLine', () => {
+      const [game, player] = testGame(2);
+      const ecoline = new EcoLine();
+      player.playedCards.push(ecoline);
+      player.plantsNeededForGreenery = 7; // EcoLine discount active (8 → 7)
+      player.plants = 9;
+
+      const convert = new ConvertPlants();
+      const selectSpace = cast(convert.action(player), SelectSpace);
+      selectSpace.cb(selectSpace.spaces[0]);
+      runAllActions(game);
+
+      const ev = game.events.events.find((e) =>
+        e.impact.greeneryDiscountSaved !== undefined &&
+        e.source?.card === CardName.ECOLINE);
+      expect(ev, 'a greenery-discount event was recorded').to.not.be.undefined;
+      expect(ev!.impact.greeneryDiscountSaved).to.eq(1); // 8 − 7
+      expect(ev!.tags).to.contain('passive-effect');
+      expect(ev!.tags).to.contain('greenery-discount');
+
+      const stats = aggregateBySource(game.events.events.filter((e) => e.tags?.includes('passive-effect') === true));
+      const stat = toEffectOverlayStat(stats.get(sourceKey({kind: 'corporation', card: CardName.ECOLINE, owner: player.color}))!);
+      expect(stat.greeneryDiscount.plants).to.eq(1);
+      expect(stat.greeneryDiscount.count).to.eq(1);
     });
   });
 

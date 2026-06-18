@@ -56,6 +56,23 @@ describe('SelectPaymentV2 — controlled mode', () => {
     expect(emitted[emitted.length - 1][0], 'an under-payment must emit undefined').is.undefined;
   });
 
+  it('MAX on heat (Helion) does NOT overpay when an alt resource is already seeded', async () => {
+    // Regression: cost 10, default seeds steel 3 (×2 = 6) + M€ 4. MAX heat used to
+    // set heat to the FULL cost (10) on top of the still-allocated steel (6) and only
+    // re-balance M€ → total 16, a 6 M€ overpay. With the fix, MAX heat maximizes heat
+    // and drops the OTHER resources, so the total spent equals the cost exactly.
+    const wrapper = mountControlled(10, {megacredits: 50, steel: 3, heat: 20, steelValue: 2}, {steel: true, heat: true});
+    const max = wrapper.find('[data-test="heat"] .payment-v2-step--max');
+    expect(max.exists(), 'heat MAX control should render').is.true;
+    await max.trigger('click');
+    await wrapper.vm.$nextTick();
+    const emitted = wrapper.emitted('change') as Array<Array<unknown>>;
+    const last = emitted[emitted.length - 1][0] as {type: string, payment: Record<string, number>};
+    const total = last.payment.megacredits + last.payment.steel * 2 + last.payment.heat;
+    expect(total, 'MAX heat must not overpay').to.eq(10);
+    expect(last.payment.heat, 'heat should be used').to.be.greaterThan(0);
+  });
+
   it('re-emits the updated response when the player adjusts the resource mix', async () => {
     const wrapper = mountControlled(12, {megacredits: 100, titanium: 3, titaniumValue: 3}, {titanium: true});
     // The default already spends titanium; decrement it and confirm a fresh change fires.
