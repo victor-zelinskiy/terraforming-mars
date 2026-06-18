@@ -702,3 +702,26 @@ export function buildPassNotification(actor: Color, generation: number, createdA
     createdAt,
   };
 }
+
+/**
+ * A player claimed a global-parameter SCALE bonus (a premium reward zone on the
+ * Venus/Oxygen/Temperature track). `rewardKey` is the bonus's reward i18n key
+ * (shown as the body); `claimKey` (`<scale>-<step>`) makes the id stable.
+ */
+export function buildScaleBonusClaimNotification(actor: Color, rewardKey: string, claimKey: string, generation: number, createdAt: number): NotificationModel {
+  return {
+    id: `scaleclaim:${claimKey}`,
+    kind: 'important',
+    variant: 'event',
+    priority: NOTIFICATION_PRIORITY['important'],
+    typeLabelKey: 'Claimed a scale bonus',
+    actor,
+    pills: [],
+    detailCount: 0,
+    bodyKey: rewardKey,
+    generation,
+    ttl: NOTIFICATION_TTL['important'],
+    persistent: false,
+    createdAt,
+  };
+}

@@ -1,4 +1,5 @@
 import {Phase} from '../common/Phase';
+import {Color} from '../common/Color';
 import {SerializedClaimedMilestone} from './milestones/ClaimedMilestone';
 import {SerializedFundedAward} from './awards/FundedAward';
 import {DeferredAction} from './deferredActions/DeferredAction';
@@ -71,6 +72,9 @@ export type SerializedGame = {
     stJosephCathedrals: Array<SpaceId>;
     syndicatePirateRaider: PlayerId | undefined;
     tags: ReadonlyArray<Tag>
+    // Who claimed each global-parameter scale bonus (`<scale>-<step>` → colour /
+    // 'neutral'). Optional — absent in pre-feature saves.
+    scaleBonusClaims?: Array<[string, Color]>;
     temperature: number;
     tradeEmbargo?: boolean;
     turmoil?: SerializedTurmoil;

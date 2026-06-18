@@ -1,0 +1,446 @@
+/*
+ * ════════════════════════════════════════════════════════════════════════
+ *  PREMIUM REWARD-ZONE SYSTEM  (bonus_zones.less)
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ *  The unified "reward node" visual language for the GLOBAL-PARAMETER SCALE
+ *  bonuses (BonusZone.vue, placed by scaleBonusZones.ts): the Venus card/TR +
+ *  Alternative-Board resources + gold final bonus, the Oxygen temperature
+ *  bonus, and the Temperature heat/ocean bonuses. The Mars hex space-bonus
+ *  chips share the same palette (variables.less @bonus-*) + treatment in
+ *  board.less so the whole board reads as ONE premium bonus layer instead of
+ *  scattered sticker icons.
+ *
+ *  A node is built from four stacked layers (see BonusZone.vue):
+ *    __halo      ambient bloom  (behind, extends outward, soft)
+ *    __frame     glassmorphic chip + holographic accent rim + facet sheen
+ *    __icon      the reward pictogram (a holographic "wild" crystal for the
+ *                choose-a-resource bonus, or an existing game icon — card / TR
+ *                / temperature / heat / ocean — for the others)
+ *    __cube-slot RESERVED anchor for the phase-2 player / government cube
+ *
+ *  Two tiers carry the importance hierarchy the brief asks for:
+ *    --regular   a calm cyan/silver holographic chip (octagon silhouette)
+ *    --final     the legendary GOLD CUBE (gold mount + richer bloom + a slow
+ *                shimmer) — visibly outranks the regular bonuses.
+ *
+ *  EXTENSIBILITY (phase 2): the claim `state` ('available' | 'claimed' |
+ *  'government') already keys styling hooks below, and `.bonus-zone__cube-slot`
+ *  is an in-DOM anchor sized + positioned for a future cube overlay. Adding the
+ *  cube mechanic = paint the slot + flip the state class; no restructuring.
+ */
+
+@bonus-octagon: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+@bonus-gem:     polygon(50% 0%, 92% 24%, 100% 50%, 92% 76%, 50% 100%, 8% 76%, 0% 50%, 8% 24%);
+@bonus-crystal: polygon(50% 5%, 82% 30%, 82% 70%, 50% 95%, 18% 70%, 18% 30%);
+
+.bonus-zone {
+  position: absolute;
+  // Hoverable so the premium reward tooltip can show; the scales aren't
+  // interactive, so claiming hover here costs nothing.
+  pointer-events: auto;
+  z-index: 2;
+  // width / height / margin are supplied inline (scaleBonusZones.ts) so the
+  // node lands on the measured arc coordinates; rotation is on __rot below.
+
+  &:hover { z-index: 20; }
+}
+
+// Rotation wrapper — the visual layers tilt to follow the arc tangent, while
+// the node root (its pointer + tooltip) does not.
+.bonus-zone__rot {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+}
+
+/* ── Stylized pointer — aims the bonus at its scale division ────────────── */
+// A sleek premium arrowhead between the node and the band. Rotated (inline)
+// to the division's radial line + pushed just past the node edge, so it is
+// unmistakable which tick the bonus belongs to. Lives on the node ROOT, so it
+// is oriented purely by `point` (independent of the node's tangent tilt).
+.bonus-zone__pointer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 10px;
+  margin: -5px 0 0 -4.5px;
+  z-index: 1;
+  pointer-events: none;
+  transform-origin: center;
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+  background: linear-gradient(180deg,
+    #dcf3ff 0%,
+    @bonus-rim-cyan 46%,
+    fade(@bonus-rim-cyan, 26%) 100%);
+  filter: drop-shadow(0 0 3px fade(@bonus-glow-cyan, 55%));
+}
+
+/* ── Ambient bloom ─────────────────────────────────────────────────────── */
+.bonus-zone__halo {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 46%,
+    @bonus-glow-cyan 0%,
+    fade(@bonus-glow-cyan, 22%) 38%,
+    fade(@bonus-glow-cyan, 0%) 72%);
+  opacity: 0.5;
+}
+
+/* ── Glassmorphic chip + holographic rim ───────────────────────────────── */
+.bonus-zone__frame {
+  position: absolute;
+  inset: -2px;
+  clip-path: @bonus-octagon;
+  // The rim layer: a bright holographic edge. The inner glass (::before) sits
+  // 1.4px in, so this band reads as a lit rim around the chip.
+  background: linear-gradient(150deg,
+    @bonus-rim-cyan 0%,
+    @bonus-rim-cyan-soft 48%,
+    fade(@bonus-rim-cyan, 18%) 100%);
+  box-shadow:
+    0 0 7px fade(@bonus-glow-cyan, 60%),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 1.4px;
+    clip-path: @bonus-octagon;
+    // Dark glass body with a cool upper sheen.
+    background:
+      linear-gradient(165deg,
+        @bonus-glass-light 0%,
+        @bonus-glass-dark 58%,
+        rgba(4, 9, 16, 0.92) 100%);
+  }
+
+  // Top specular streak — the "glass catching light" highlight.
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 1.4px;
+    clip-path: @bonus-octagon;
+    background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.30) 0%,
+      rgba(255, 255, 255, 0.05) 34%,
+      transparent 56%);
+    opacity: 0.85;
+    pointer-events: none;
+  }
+}
+
+/* ── Reward pictogram ──────────────────────────────────────────────────── */
+.bonus-zone__icon {
+  position: absolute;
+  inset: 16%;
+  z-index: 1;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+}
+
+/*
+ * Holographic "wild" crystal — a CSS-drawn cut gem standing in for "a standard
+ * resource of YOUR CHOICE". Deliberately replaces the legacy white "?" PNG
+ * (cheap placeholder); the prismatic sheen reads as "any / wildcard" while
+ * looking like a designed reward, not a missing-asset marker.
+ */
+.bonus-zone-icon--wild {
+  clip-path: @bonus-crystal;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 34%),
+    conic-gradient(from 205deg,
+      #8fd8ff 0%,
+      #b7a6ff 24%,
+      #8ff0cf 48%,
+      #ffe6a6 70%,
+      #8fd8ff 100%);
+  box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.4);
+
+  // Central facet seam — gives the flat gradient cut-gem volume.
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: @bonus-crystal;
+    background: linear-gradient(105deg,
+      transparent 46%,
+      rgba(255, 255, 255, 0.5) 50%,
+      transparent 54%),
+      linear-gradient(180deg,
+        transparent 48%,
+        rgba(10, 20, 34, 0.35) 50%,
+        transparent 52%);
+  }
+}
+
+/*
+ * Asset-backed reward pictograms — reuse the EXISTING game icons (card / TR /
+ * temperature / heat / ocean) so each scale bonus keeps its real colour + game
+ * meaning inside the unified glass node. The base `.bonus-zone__icon` already
+ * sizes them (contain, centred); we only set the image here.
+ */
+.bonus-zone-icon--card        { background-image: url(./assets/resources/card.png); }
+.bonus-zone-icon--tr          { background-image: url(./assets/resources/tr.png); }
+.bonus-zone-icon--heat        { background-image: url(./assets/resources/heat.png); }
+.bonus-zone-icon--temperature { background-image: url(./assets/global-parameters/temperature.png); }
+.bonus-zone-icon--ocean       { background-image: url(./assets/tiles/ocean.png); }
+
+/*
+ * The FINAL Venus bonus — ONE premium GOLD CUBE (the brief's "один золотой
+ * кубик"). A CSS-drawn faceted ingot: a diagonal light→dark gold gradient +
+ * bevel + a top specular glint reads as a solid 3-D gold cube that clearly
+ * outranks the cyan resource crystals. Game-wise it stands for the step-30
+ * standard + wild reward combined (server logic unchanged).
+ */
+.bonus-zone-icon--gold-cube {
+  border-radius: 3px;
+  background: linear-gradient(135deg,
+    #fff2c8 0%,
+    #ffd778 28%,
+    #f2b340 58%,
+    #c4831c 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.75),
+    inset 0 -1px 2px rgba(120, 68, 8, 0.6),
+    inset 0 0 0 0.7px rgba(255, 240, 190, 0.55);
+
+  // Top face glint — the lit upper plane of the cube.
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 14% 16% 52% 16%;
+    border-radius: 2px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0) 100%);
+  }
+}
+
+/* ── Reserved phase-2 claim anchor ─────────────────────────────────────── */
+.bonus-zone__cube-slot {
+  position: absolute;
+  // Reserved hook for the phase-2 claim. (The claim mechanic PAINTS the node
+  // background in the player's colour — see the --claimed/--government rules —
+  // so this stays an empty anchor for any extra marker that's wanted later.)
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* ── Premium hover tooltip — "what this bonus gives" ────────────────────── */
+// Lives on the node ROOT (outside __rot), so it stays upright on the tilted
+// arc nodes. Sits above the node; the board container shows overflow so even
+// the topmost nodes' tooltips aren't clipped.
+.bonus-zone__tip {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 11px;
+  white-space: nowrap;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(14, 24, 38, 0.97), rgba(8, 14, 24, 0.97));
+  border: 1px solid @bonus-rim-cyan-soft;
+  box-shadow:
+    0 5px 16px rgba(0, 0, 0, 0.55),
+    0 0 10px fade(@bonus-glow-cyan, 24%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+
+  // Caret pointing down at the node.
+  &::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(10, 18, 30, 0.97);
+  }
+}
+.bonus-zone:hover .bonus-zone__tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+.bonus-zone__tip-reward {
+  font-family: Prototype, Ubuntu, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: #e2effc;
+}
+.bonus-zone__tip-claim {
+  font-family: Prototype, Ubuntu, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: #a6bdd6;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+ *  TIER: REGULAR  (calm cyan/silver — the default above)
+ * ════════════════════════════════════════════════════════════════════════ */
+// (regular IS the base look defined above — no overrides needed)
+
+/* ════════════════════════════════════════════════════════════════════════
+ *  TIER: FINAL  (legendary GOLD — the top-of-track bonus, the gold cube)
+ * ════════════════════════════════════════════════════════════════════════ */
+// SAME node footprint as the regular alt-Venus resources (the brief: make the
+// final the same SIZE as the others) — the GOLD colour + a modest gold bloom +
+// the shimmer carry the "this one is the prize" hierarchy, not a bigger box.
+.bonus-zone--final {
+  .bonus-zone__halo {
+    background: radial-gradient(circle at 50% 46%,
+      @bonus-glow-gold 0%,
+      fade(@bonus-glow-gold, 26%) 40%,
+      fade(@bonus-glow-gold, 0%) 74%);
+    opacity: 0.7;
+  }
+
+  .bonus-zone__frame {
+    background: linear-gradient(150deg,
+      @bonus-rim-gold 0%,
+      @bonus-rim-gold-soft 46%,
+      fade(@bonus-rim-gold, 20%) 100%);
+    box-shadow:
+      0 0 8px fade(@bonus-glow-gold, 68%),
+      0 1px 2px rgba(0, 0, 0, 0.55);
+
+    &::before {
+      background: linear-gradient(165deg,
+        rgba(46, 38, 18, 0.78) 0%,
+        rgba(20, 14, 6, 0.92) 60%,
+        rgba(10, 7, 3, 0.95) 100%);
+    }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+ *  STATE HOOKS  (phase-2 ready)
+ * ════════════════════════════════════════════════════════════════════════ */
+// AVAILABLE — the reward is unclaimed. Regular zones stay calm (static glow);
+// only the legendary FINAL zone gets a slow shimmer so the eye is drawn to the
+// single most valuable node, not to seven pulsing chips (calm-by-default rule).
+.bonus-zone--available.bonus-zone--final .bonus-zone__halo {
+  animation: bonus-zone-breathe 3.6s ease-in-out infinite;
+}
+
+// CLAIMED — a player took the bonus: PAINT the node in their colour (injected
+// via `--bonus-claim-color`). Coloured rim + body + bloom so the node reads
+// unmistakably as "owned by <player>"; the reward icon stays bright on top.
+.bonus-zone--claimed {
+  .bonus-zone__frame {
+    background: linear-gradient(150deg,
+      var(--bonus-claim-color, @bonus-rim-cyan) 0%,
+      var(--bonus-claim-color, @bonus-rim-cyan) 40%,
+      rgba(8, 14, 24, 0.6) 100%);
+    box-shadow:
+      0 0 7px var(--bonus-claim-color, @bonus-glow-cyan),
+      0 1px 2px rgba(0, 0, 0, 0.5);
+    &::before {
+      background: linear-gradient(165deg,
+        var(--bonus-claim-color, rgba(40, 60, 84, 0.9)) 0%,
+        rgba(8, 14, 22, 0.82) 96%);
+    }
+  }
+  .bonus-zone__halo {
+    background: radial-gradient(circle at 50% 46%,
+      var(--bonus-claim-color, @bonus-glow-cyan) 0%,
+      transparent 72%);
+    opacity: 0.5;
+  }
+  .bonus-zone__icon { filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.75)) brightness(1.05); }
+}
+
+// GOVERNMENT — taken via World Government, owned by no one: neutral grey + the
+// reward DIMMED so it reads "spent, but unclaimed".
+.bonus-zone--government {
+  .bonus-zone__frame {
+    background: linear-gradient(150deg, rgba(150, 156, 168, 0.85) 0%, rgba(64, 70, 80, 0.5) 100%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    &::before {
+      background: linear-gradient(165deg, rgba(86, 92, 104, 0.9) 0%, rgba(10, 14, 20, 0.92) 92%);
+    }
+  }
+  .bonus-zone__icon { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6)) saturate(0.4) brightness(0.62); }
+  .bonus-zone__halo { opacity: 0.18; }
+}
+
+// CAPTURE — a one-shot premium ring + flash the FIRST time a claim is observed
+// (gated in JS so the board's per-response remount never replays it).
+.bonus-zone--just-claimed::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--bonus-claim-color, rgba(200, 216, 240, 0.95));
+  z-index: 5;
+  pointer-events: none;
+  animation: bonus-zone-capture 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.bonus-zone--just-claimed .bonus-zone__frame {
+  animation: bonus-zone-capture-flash 1s ease-out;
+}
+@keyframes bonus-zone-capture {
+  0%   { transform: scale(0.45); opacity: 0; }
+  25%  { opacity: 0.95; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes bonus-zone-capture-flash {
+  0%   { filter: brightness(2.1); }
+  60%  { filter: brightness(1.3); }
+  100% { filter: brightness(1); }
+}
+
+// Tooltip owner row: a colour dot + the player's name (or the grey gov note).
+.bonus-zone__tip-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 4px rgba(0, 0, 0, 0.5);
+}
+.bonus-zone__tip-claim--gov { color: #b8bcc4; }
+
+// Gold pointer + tooltip for the legendary final bonus.
+.bonus-zone--final {
+  .bonus-zone__pointer {
+    background: linear-gradient(180deg,
+      #fff1cc 0%,
+      @bonus-rim-gold 46%,
+      fade(@bonus-rim-gold, 26%) 100%);
+    filter: drop-shadow(0 0 3px fade(@bonus-glow-gold, 55%));
+  }
+  .bonus-zone__tip {
+    border-color: @bonus-rim-gold-soft;
+    box-shadow:
+      0 5px 16px rgba(0, 0, 0, 0.55),
+      0 0 10px fade(@bonus-glow-gold, 28%);
+  }
+}
+
+@keyframes bonus-zone-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.9;  transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bonus-zone--available.bonus-zone--final .bonus-zone__halo,
+  .bonus-zone--just-claimed::after,
+  .bonus-zone--just-claimed .bonus-zone__frame {
+    animation: none;
+  }
+}

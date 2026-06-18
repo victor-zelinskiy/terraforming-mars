@@ -53,7 +53,9 @@ import {
   buildTurnNotification,
   buildGenerationNotification,
   buildPassNotification,
+  buildScaleBonusClaimNotification,
 } from '@/client/components/notifications/notificationModel';
+import {scaleBonusRewardKey} from '@/client/components/board/scaleBonusZones';
 import {openRevealViewer} from '@/client/components/notifications/revealViewerState';
 import {
   notificationState,
@@ -162,8 +164,29 @@ export default defineComponent({
       }
       // 2) Generation / pass highlights (from the public game model).
       this.handleGenerationAndPass(now);
+      // 2b) Scale-bonus claims (a player took a premium reward zone).
+      this.handleScaleBonusClaims(now);
       // 3) Root-event feed (async).
       void this.fetchAndDiff();
+    },
+
+    // Surface a dedicated card when a player claims a global-parameter SCALE
+    // bonus. Diffed from the public game model (like passes) + seeded silently
+    // on first load. The viewer's OWN claims are skipped (their action already
+    // notifies); World-Government (neutral) claims belong to no one, so no card.
+    handleScaleBonusClaims(now: number): void {
+      const claims = this.playerView.game.scaleBonusClaims ?? {};
+      const canToast = notificationState.seeded && !this.journalOpen && notificationState.settings.showImportant;
+      for (const [key, color] of Object.entries(claims)) {
+        if (notificationState.seenScaleClaims.has(key)) {
+          continue;
+        }
+        notificationState.seenScaleClaims.add(key);
+        if (!canToast || color === 'neutral' || color === this.viewerColor) {
+          continue;
+        }
+        pushTransient(buildScaleBonusClaimNotification(color, scaleBonusRewardKey(key), key, this.generation, now));
+      }
     },
 
     titleText(waitingFor: PlayerInputModel): string | undefined {

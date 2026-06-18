@@ -192,6 +192,8 @@
                   :expansions="game.gameOptions.expansions"
                   :venusScaleLevel="game.venusScaleLevel"
                   :altVenusBoard="game.gameOptions.altVenusBoard"
+                  :scaleBonusClaims="game.scaleBonusClaims"
+                  :players="players"
                   :boardName ="game.gameOptions.boardName"
                   :oceans_count="game.oceans"
                   :oxygen_level="game.oxygenLevel"

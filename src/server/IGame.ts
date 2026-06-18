@@ -67,6 +67,9 @@ export interface IGame extends Logger {
    * Used for rendering game-end statistics.
    */
   globalsPerGeneration: Array<Partial<Record<GlobalParameter, number>>>;
+  // Who claimed each global-parameter SCALE bonus (`<scale>-<step>` → colour /
+  // 'neutral'). Surfaced to every client for the premium claimed/government nodes.
+  scaleBonusClaims: Map<string, Color>;
   phase: Phase;
   projectDeck: ProjectDeck;
   preludeDeck: PreludeDeck;

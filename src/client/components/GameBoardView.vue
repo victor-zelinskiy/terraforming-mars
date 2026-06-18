@@ -10,6 +10,8 @@
     :oxygen_level="game.oxygenLevel"
     :temperature="game.temperature"
     :altVenusBoard="game.gameOptions.altVenusBoard"
+    :scaleBonusClaims="game.scaleBonusClaims"
+    :players="players"
     :aresData="game.aresData"
     :tileView="tileView"
     @toggleTileView="$emit('toggleTileView')"
