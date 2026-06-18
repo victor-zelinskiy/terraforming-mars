@@ -52,3 +52,18 @@
 @radius_circle: 50%;
 //shadows
 @outline-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(0, 0, 0, 0.3);
+
+// ─── Premium reward-zone / bonus system (board + Venus scale) ──────────────
+// Shared design tokens for the unified "reward node" visual language used by
+// both the Venus-scale alt-board bonus zones (bonus_zones.less) and the Mars
+// hex space-bonus chips (board.less). Keeping the palette here means both
+// surfaces read as ONE system, not two ad-hoc looks. Phase-2 (cube occupancy)
+// will add `@bonus-claim-*` accents alongside these.
+@bonus-glass-dark:    rgba(9, 16, 26, 0.86);   // glassmorphic node fill
+@bonus-glass-light:   rgba(28, 44, 64, 0.72);  // upper-face sheen
+@bonus-rim-cyan:      rgba(126, 206, 240, 0.9); // holographic accent rim (regular)
+@bonus-rim-cyan-soft: rgba(126, 206, 240, 0.32);
+@bonus-glow-cyan:     rgba(120, 200, 240, 0.5); // ambient bloom (regular)
+@bonus-rim-gold:      rgba(245, 214, 124, 0.95); // legendary rim (final / high-value)
+@bonus-rim-gold-soft: rgba(245, 214, 124, 0.36);
+@bonus-glow-gold:     rgba(245, 200, 110, 0.55); // legendary bloom (final)

@@ -50,9 +50,13 @@ export const PROJECT_VISUAL: Partial<Record<CardName, StandardProjectVisual>> = 
     iconClass: 'std-icon std-icon--venus',
     description: 'Raise Venus 1 step',
   },
+  // Alternative Venus Board variant. To the player it IS "Air Scrapping" — the
+  // overlay shows the canonical name (see StandardProjectsOverlay.nameFor) and
+  // this description explains the REAL mechanic (the per-Venus-tag discount),
+  // never the internal "(variant)" marker.
   [CardName.AIR_SCRAPPING_STANDARD_PROJECT_VARIANT]: {
     iconClass: 'std-icon std-icon--venus',
-    description: 'Raise Venus 1 step (variant)',
+    description: 'Raise Venus 1 step. Discount: −1 M€ per played Venus tag (max −5).',
   },
   [CardName.BUILD_COLONY_STANDARD_PROJECT]: {
     iconClass: 'std-icon std-icon--colony',

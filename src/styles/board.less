@@ -631,21 +631,29 @@
 	 * whole assembly. Three depth layers stack cleanly: ambient
 	 * plate glow (here), icon, contact shadow (wrapper filter).
 	 */
+	/*
+	 * Warm grounding disc — lifts each bonus off the planet so it reads on
+	 * light AND dark Mars patches, WITHOUT cooling or dulling the icon. A
+	 * faint warm-gold inner rim gives a subtle premium "chip" definition that
+	 * nods to the reward-zone language while staying WARM + minimal, so the
+	 * icon's own colour (green plant, blue ocean, red heat, steel) reads at
+	 * full saturation. (An earlier cool dark-glass + cyan-rim mount washed the
+	 * icons out + felt stuck-on — reverted in favour of this.) The soft radial
+	 * fades to transparent so there is no hard edge to overflow the hex; the
+	 * wrapper `.board-space-bonuses` filter adds the warm bloom + contact
+	 * shadow on top.
+	 */
 	&::before {
 		content: '';
 		position: absolute;
-		inset: -3px;
+		inset: -2px;
 		border-radius: 50%;
-		// Warm-umber grounding disc (was cool 6,14,24) so the plate sits
-		// in the same warm survey palette as the grid + tile rim, and a
-		// touch denser (0.34/0.14 vs 0.15/0.05) for more "chip" volume.
-		// The wrapper brightness/saturate bump below pays the small
-		// brightness cost back so the icon still reads near-full.
 		background: radial-gradient(
 			ellipse at center,
-			rgba(20, 9, 4, 0.34) 0%,
-			rgba(20, 9, 4, 0.14) 52%,
-			transparent 76%);
+			rgba(24, 12, 5, 0.42) 0%,
+			rgba(24, 12, 5, 0.16) 52%,
+			transparent 75%);
+		box-shadow: inset 0 0 0 0.6px rgba(250, 214, 150, 0.16);
 		z-index: -1;
 		pointer-events: none;
 	}
@@ -666,6 +674,14 @@
 	&.board-space-bonus-pos--3 {
 		margin: 29px 0 0 14px;
 	}
+}
+
+// Placement lock-on: while a cell is a legal (hovered / selected) target, the
+// bonus mount's warm rim brightens to amber to match the cell's amber outline +
+// the wrapper's amber bloom, so the whole reward reads "lock-on" in one language.
+.board-space--available:hover .board-space-bonus::before,
+.board-space--selected .board-space-bonus::before {
+	box-shadow: inset 0 0 0 0.8px rgba(255, 216, 140, 0.5);
 }
 
 .board-space-bonus--plant {

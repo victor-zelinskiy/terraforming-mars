@@ -4654,6 +4654,54 @@ each(@players, {
 }
 
 /*
+ * Air Scrapping (Alternative Venus Board) discount breakdown — "15 − 3 [Venus]".
+ * A compact accent chip under the description so the player can ACCOUNT for the
+ * final price (base 15 minus the per-Venus-tag discount), not just read a bare
+ * number. The Venus pictogram (the same global-parameter art the HUD uses)
+ * names what earned the discount; a premium data-hint tooltip spells it out.
+ */
+.std-project-row-discount {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    margin-top: 1px;
+    padding: 2px 8px 2px 7px;
+    border-radius: 5px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11.5px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: #cfe0d2;
+    background: linear-gradient(180deg, rgba(120, 196, 150, 0.12), rgba(60, 120, 90, 0.06));
+    border: 1px solid rgba(132, 214, 162, 0.28);
+    box-shadow: inset 0 0 8px rgba(120, 210, 150, 0.08);
+    cursor: help;
+
+    .std-project-row-discount-op {
+        color: #82d6a2;
+        font-weight: 700;
+    }
+    .std-project-row-discount-amount {
+        color: #b6f0cb;
+        font-weight: 700;
+        text-shadow: 0 0 6px rgba(120, 220, 150, 0.35);
+    }
+    .std-project-row-discount-icon {
+        width: 13px;
+        height: 13px;
+        margin: 0 1px;
+        background: url('./assets/global-parameters/venus.png') no-repeat center;
+        background-size: 13px auto;
+        filter: drop-shadow(0 0 3px rgba(245, 214, 116, 0.4));
+    }
+    .std-project-row-discount-label {
+        color: #9fc0a8;
+        letter-spacing: 0.3px;
+    }
+}
+
+/*
  * USE button — parallelogram chrome matching .bottom-bar-btn /
  * .payment-v2__confirm-btn. Cost chip is laid into the button on the
  * right side via flex; megacredit icon caps it. Disabled state grays

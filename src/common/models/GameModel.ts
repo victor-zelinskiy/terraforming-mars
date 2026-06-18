@@ -63,4 +63,9 @@ export type GameModel = {
   turmoil: TurmoilModel | undefined;
   undoCount: number;
   venusScaleLevel: number;
+  // Who claimed each global-parameter SCALE bonus (the premium reward zones on
+  // the Venus/Oxygen/Temperature tracks). Keyed `<scale>-<step>` (e.g. `venus-8`,
+  // `temperature--24`); value is the owner's colour, or 'neutral' when it was
+  // taken via World Government and belongs to no one. Public to every client.
+  scaleBonusClaims: Record<string, Color>;
 }

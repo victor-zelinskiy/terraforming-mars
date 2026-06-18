@@ -52,19 +52,29 @@
               current value glides along the arc instead of teleporting between
               `val-is-active` swaps. See AnimatedScaleMarker.vue for the contract.
             -->
+            <!--
+              SCALE reward zones are rendered INSIDE each scale's number
+              container so they share the EXACT coordinate origin with the
+              digits (the `@*-vals` anchors). That makes the anchor geometry
+              (scaleBonusZones.ts) pixel-accurate relative to each division —
+              a separate container would carry a per-scale origin offset.
+            -->
             <div class="global-numbers-temperature">
                 <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in temperatureValues" :key="idx">{{ lvl.strValue }}</div>
                 <animated-scale-marker accent="temperature" :value="temperature" />
+                <bonus-zone v-for="zone in temperatureZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
             </div>
 
             <div class="global-numbers-oxygen">
                 <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in oxygenValues" :key="idx">{{ lvl.strValue }}</div>
                 <animated-scale-marker accent="oxygen" :value="oxygen_level" />
+                <bonus-zone v-for="zone in oxygenZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
             </div>
 
             <div class="global-numbers-venus" v-if="expansions.venus">
                 <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in venusValues" :key="idx">{{ lvl.strValue }}</div>
                 <animated-scale-marker accent="venus" :value="venusScaleLevel" />
+                <bonus-zone v-for="zone in venusZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
             </div>
 
 <div v-if="expansions.ares && aresData !== undefined">
@@ -86,16 +96,6 @@
                 </div>
             </div>
 
-            <div v-if="altVenusBoard" class="global-alt-venus">
-              <div class="std-wild-resource p18"></div>
-              <div class="std-wild-resource p20"></div>
-              <div class="std-wild-resource p22"></div>
-              <div class="std-wild-resource p24"></div>
-              <div class="std-wild-resource p26"></div>
-              <div class="std-wild-resource p28"></div>
-              <div class="std-wild-resource p30"></div>
-              <div class="wild-resource p30b"></div>
-            </div>
         </div>
 
         <div class="board" id="main_board">
@@ -315,6 +315,10 @@ import BoardSpace from '@/client/components/BoardSpace.vue';
 import SpecialCellMarker from '@/client/components/board/SpecialCellMarker.vue';
 import SpecialCellInfoOverlay from '@/client/components/board/SpecialCellInfoOverlay.vue';
 import AnimatedScaleMarker from '@/client/components/board/AnimatedScaleMarker.vue';
+import BonusZone from '@/client/components/board/BonusZone.vue';
+import {scaleBonusZoneViews, ScaleBonusZoneView, ScaleBonusClaim, resolveScaleBonusClaim} from '@/client/components/board/scaleBonusZones';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {Color} from '@/common/Color';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import {
   activateSpecialCellBySpaceId,
@@ -348,6 +352,16 @@ export default defineComponent({
     },
     altVenusBoard: {
       type: Boolean,
+    },
+    // Who claimed each global-parameter SCALE bonus (`<scale>-<step>` → colour /
+    // 'neutral'). Drives the premium claimed/government node states.
+    scaleBonusClaims: {
+      type: Object as () => Record<string, Color>,
+      default: () => ({}),
+    },
+    players: {
+      type: Array as () => ReadonlyArray<PublicPlayerModel>,
+      default: () => [],
     },
     boardName: {
       type: String as () => BoardName,
@@ -383,6 +397,7 @@ export default defineComponent({
     SpecialCellMarker,
     SpecialCellInfoOverlay,
     AnimatedScaleMarker,
+    BonusZone,
   },
   data() {
     return {
@@ -527,6 +542,25 @@ export default defineComponent({
     getGameBoardClassName(): string {
       return this.expansions.venus ? 'board-cont board-with-venus' : 'board-cont board-without-venus';
     },
+    // The full BonusZone prop set for a scale-bonus view (bound via v-bind so
+    // the same markup serves all three scale containers). The return type is
+    // inferred as the literal (NOT Record<string, unknown>) so vue-tsc can match
+    // it against BonusZone's props in the template.
+    bonusZoneProps(zone: ScaleBonusZoneView & ScaleBonusClaim) {
+      return {
+        icon: zone.icon,
+        reward: zone.reward,
+        tier: zone.tier,
+        rot: zone.rot,
+        point: zone.point,
+        pointerDist: zone.pointerDist,
+        surface: zone.scale,
+        state: zone.state,
+        claimColor: zone.claimColor,
+        claimedBy: zone.claimedBy,
+        claimKey: `${zone.scale}-${zone.step}`,
+      };
+    },
   },
   computed: {
     /**
@@ -553,6 +587,32 @@ export default defineComponent({
     },
     venusValues(): Array<GlobalParamLevel> {
       return this.getValuesForParameter('venus');
+    },
+    /**
+     * Render-ready global-parameter scale reward zones, filtered to the active
+     * expansions (Venus base bonuses need Venus; the resource/gold bonuses need
+     * the Alternative Venus Board; oxygen/temperature bonuses are base game).
+     */
+    scaleBonusZones(): ReadonlyArray<ScaleBonusZoneView & ScaleBonusClaim> {
+      const views = scaleBonusZoneViews({
+        venus: this.expansions.venus === true,
+        altVenus: this.altVenusBoard === true,
+      });
+      return views.map((z) => ({
+        ...z,
+        ...resolveScaleBonusClaim(this.scaleBonusClaims, z.scale, z.step, this.players),
+      }));
+    },
+    // Per-scale slices — each rendered INSIDE its own number container so the
+    // anchor geometry shares the digits' coordinate origin (pixel-accurate).
+    venusZones(): ReadonlyArray<ScaleBonusZoneView & ScaleBonusClaim> {
+      return this.scaleBonusZones.filter((z) => z.scale === 'venus');
+    },
+    oxygenZones(): ReadonlyArray<ScaleBonusZoneView & ScaleBonusClaim> {
+      return this.scaleBonusZones.filter((z) => z.scale === 'oxygen');
+    },
+    temperatureZones(): ReadonlyArray<ScaleBonusZoneView & ScaleBonusClaim> {
+      return this.scaleBonusZones.filter((z) => z.scale === 'temperature');
     },
     /**
      * Mars-surface cells (non-colony) for which a special-cell info entry

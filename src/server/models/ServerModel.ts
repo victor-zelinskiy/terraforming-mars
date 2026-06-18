@@ -171,6 +171,7 @@ export class Server {
       turmoil: turmoil,
       undoCount: game.undoCount,
       venusScaleLevel: game.getVenusScaleLevel(),
+      scaleBonusClaims: Object.fromEntries(game.scaleBonusClaims),
     };
   }
 

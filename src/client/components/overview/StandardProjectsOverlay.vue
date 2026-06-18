@@ -28,6 +28,18 @@
         <div class="std-project-row-text">
           <div class="std-project-row-name" v-i18n>{{ nameFor(p) }}</div>
           <div class="std-project-row-desc" v-i18n>{{ descriptionFor(p) }}</div>
+          <!-- Air Scrapping (Alternative Venus Board): name the per-Venus-tag
+               discount the final price already reflects — "−3 за теги Венеры" —
+               WITHOUT repeating the base 15 M€ (the right-side CTA already shows
+               the resulting price). Hidden when there's no discount. -->
+          <div v-if="discountFor(p) > 0"
+               class="std-project-row-discount"
+               :data-hint="$t('Discount for Venus tags')">
+            <span class="std-project-row-discount-op">−</span>
+            <span class="std-project-row-discount-amount">{{ discountFor(p) }}</span>
+            <i class="std-project-row-discount-icon"></i>
+            <span class="std-project-row-discount-label" v-i18n>per Venus tags</span>
+          </div>
         </div>
 
         <!-- Right column: USE button with cost + M€ icon. Disabled state
@@ -80,6 +92,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {Tag} from '@/common/cards/Tag';
 import {GameModel, StandardProjectModel} from '@/common/models/GameModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
@@ -158,7 +171,30 @@ export default defineComponent({
       return PROJECT_VISUAL[p.name]?.description ?? '';
     },
     nameFor(p: StandardProjectModel): string {
+      // The Alternative Venus Board swaps in a discounted "Air Scrapping (Var)"
+      // — but it's the SAME project to the player. Show the canonical name so no
+      // internal "(альт.)" / "(Var)" service marker ever leaks into the UI.
+      if (p.name === CardName.AIR_SCRAPPING_STANDARD_PROJECT_VARIANT) {
+        return CardName.AIR_SCRAPPING_STANDARD_PROJECT;
+      }
       return p.name;
+    },
+    isAirScrappingVariant(p: StandardProjectModel): boolean {
+      return p.name === CardName.AIR_SCRAPPING_STANDARD_PROJECT_VARIANT;
+    },
+    // The Air Scrapping variant costs 1 M€ less per played Venus tag (max 5).
+    // When the player is acting we trust the server's exact `calculatedCost`
+    // (it already accounts for wild tags); otherwise estimate from the played
+    // Venus tag count so the discount is still visible off-turn.
+    discountFor(p: StandardProjectModel): number {
+      if (!this.isAirScrappingVariant(p)) {
+        return 0;
+      }
+      const actionable = this.findActionable(p.name);
+      if (actionable?.calculatedCost !== undefined) {
+        return Math.max(0, p.cost - actionable.calculatedCost);
+      }
+      return Math.min(5, this.thisPlayer.tags[Tag.VENUS] ?? 0);
     },
     findActionable(name: CardName) {
       const cards = this.actionableProjects?.cards;
@@ -196,7 +232,17 @@ export default defineComponent({
     },
     displayedCost(p: StandardProjectModel): number {
       const actionable = this.findActionable(p.name);
-      return actionable?.calculatedCost ?? p.cost;
+      if (actionable?.calculatedCost !== undefined) {
+        return actionable.calculatedCost;
+      }
+      // Off-turn the server sends no per-player cost. For the Air Scrapping
+      // variant reflect the Venus-tag discount so the button isn't misleadingly
+      // showing the full 15 M€ (the estimate only ever rounds the cost UP — the
+      // raw tag count omits wild tags — so we never under-quote the real price).
+      if (this.isAirScrappingVariant(p)) {
+        return Math.max(0, p.cost - this.discountFor(p));
+      }
+      return p.cost;
     },
     rowClasses(p: StandardProjectModel): Record<string, boolean> {
       return {

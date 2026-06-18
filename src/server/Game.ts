@@ -132,6 +132,12 @@ export class Game implements IGame, Logger {
   private oxygenLevel: number = constants.MIN_OXYGEN_LEVEL;
   private temperature: number = constants.MIN_TEMPERATURE;
   private venusScaleLevel: number = constants.MIN_VENUS_SCALE;
+  // Who claimed each global-parameter SCALE bonus (the premium reward zones on
+  // the Venus/Oxygen/Temperature tracks). Keyed `<scale>-<step>` (e.g. `venus-8`,
+  // `temperature--24`); value is the player's colour, or 'neutral' when the
+  // bonus was passed during World Government terraforming (claimed by no one).
+  // Public, additive — surfaced to every client so the claim shows for all.
+  public scaleBonusClaims: Map<string, Color> = new Map();
 
   // Player data
   public activePlayer: IPlayer;
@@ -528,6 +534,7 @@ export class Game implements IGame, Logger {
       spectatorId: this.spectatorId,
       syndicatePirateRaider: this.syndicatePirateRaider,
       tags: this.tags,
+      scaleBonusClaims: Array.from(this.scaleBonusClaims.entries()),
       temperature: this.temperature,
       tradeEmbargo: this.tradeEmbargo,
       underworldData: this.underworldData,
@@ -1248,6 +1255,33 @@ export class Game implements IGame, Logger {
     player.takeAction();
   }
 
+  // Record who took a global-parameter scale bonus the first time its threshold
+  // is crossed. The colour is the player's, or 'neutral' when it's passed during
+  // World Government terraforming (SOLAR phase) and reaches no one. Logs the
+  // claim so the journal + the premium scale-bonus notification surface it.
+  private claimScaleBonus(player: IPlayer, scale: 'venus' | 'oxygen' | 'temperature', step: number): void {
+    const key = `${scale}-${step}`;
+    if (this.scaleBonusClaims.has(key)) {
+      return;
+    }
+    const government = this.phase === Phase.SOLAR;
+    this.scaleBonusClaims.set(key, government ? 'neutral' : player.color);
+    if (government) {
+      this.log('A ${0} scale bonus was claimed via World Government', (b) => b.string(scale));
+    } else {
+      this.log('${0} claimed a ${1} scale bonus', (b) => b.player(player).string(scale));
+    }
+  }
+
+  // Record claims for every scale-bonus threshold an increase just crossed.
+  private claimCrossedScaleBonuses(player: IPlayer, scale: 'venus' | 'oxygen' | 'temperature', from: number, to: number, steps: ReadonlyArray<number>): void {
+    for (const step of steps) {
+      if (from < step && to >= step) {
+        this.claimScaleBonus(player, scale, step);
+      }
+    }
+  }
+
   public increaseOxygenLevel(player: IPlayer, increments: -2 | -1 | 1 | 2): void {
     if (this.oxygenLevel >= constants.MAX_OXYGEN_LEVEL) {
       return undefined;
@@ -1272,6 +1306,8 @@ export class Game implements IGame, Logger {
       this.oxygenLevel + steps >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
       this.increaseTemperature(player, 1);
     }
+
+    this.claimCrossedScaleBonuses(player, 'oxygen', this.oxygenLevel, this.oxygenLevel + steps, [constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS]);
 
     this.oxygenLevel += steps;
     this.maybeLogMarsIsTerraformed();
@@ -1341,6 +1377,11 @@ export class Game implements IGame, Logger {
       aphrodite.stock.add(Resource.MEGACREDITS, 2 * steps, {log: true, from: {card: CardName.APHRODITE}});
     }
 
+    const venusBonusSteps = this.gameOptions.altVenusBoard ?
+      [constants.VENUS_LEVEL_FOR_CARD_BONUS, constants.VENUS_LEVEL_FOR_TR_BONUS, 18, 20, 22, 24, 26, 28, 30] :
+      [constants.VENUS_LEVEL_FOR_CARD_BONUS, constants.VENUS_LEVEL_FOR_TR_BONUS];
+    this.claimCrossedScaleBonuses(player, 'venus', this.venusScaleLevel, this.venusScaleLevel + steps * 2, venusBonusSteps);
+
     this.venusScaleLevel += steps * 2;
     this.maybeLogMarsIsTerraformed();
 
@@ -1391,6 +1432,9 @@ export class Game implements IGame, Logger {
     if (this.temperature < constants.TEMPERATURE_FOR_OCEAN_BONUS && this.temperature + steps * 2 >= constants.TEMPERATURE_FOR_OCEAN_BONUS) {
       this.defer(new PlaceOceanTile(player, {title: 'Select space for ocean from temperature increase'}));
     }
+
+    this.claimCrossedScaleBonuses(player, 'temperature', this.temperature, this.temperature + steps * 2,
+      [constants.TEMPERATURE_BONUS_FOR_HEAT_1, constants.TEMPERATURE_BONUS_FOR_HEAT_2, constants.TEMPERATURE_FOR_OCEAN_BONUS]);
 
     this.temperature += steps * 2;
     this.maybeLogMarsIsTerraformed();
@@ -1884,6 +1928,7 @@ export class Game implements IGame, Logger {
     game.undoCount = d.undoCount ?? 0;
     game.temperature = d.temperature;
     game.venusScaleLevel = d.venusScaleLevel;
+    game.scaleBonusClaims = new Map(d.scaleBonusClaims ?? []);
     game.activePlayer = game.getPlayerById(d.activePlayer);
     game.draftRound = d.draftRound;
     game.initialDraftIteration = d.initialDraftIteration;
