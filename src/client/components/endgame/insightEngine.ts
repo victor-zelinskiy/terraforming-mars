@@ -1380,23 +1380,38 @@ const analyzeStandardProjectStrategy: Analyzer = (ctx) => {
   return out;
 };
 
+// At game end, a player's M€ / steel / titanium include the FINAL production-phase income
+// (M€ income = TR + M€ production; steel/titanium = their production) which is added right
+// before the game ends and can NEVER be spent — the action phase is already over. So the
+// honest "unused" figure SUBTRACTS that final income, leaving only what was actually
+// spendable during play and left on the table.
+function spendableMegacredits(p: EndgamePlayerScore): number {
+  const finalIncome = Math.max(0, (p.breakdown.terraformRating ?? 0) + (p.production?.megacredits ?? 0));
+  return Math.max(0, p.megacredits - finalIncome);
+}
+function spendableStock(stock: number, production: number): number {
+  return Math.max(0, stock - Math.max(0, production));
+}
+
 // ── Unused potential: money / engine left on the table ──
 const analyzeUnusedPotential: Analyzer = (ctx) => {
   const out: Array<InsightCandidate> = [];
-  // A big leftover M€ pile — economy that never became points.
-  const richest = [...ctx.players].sort((a, b) => b.megacredits - a.megacredits)[0];
-  if (richest !== undefined && richest.megacredits >= 30) {
+  // A big SPENDABLE leftover M€ pile — economy that could have been used but never became
+  // points (final-generation income is excluded; it was never spendable).
+  const richest = [...ctx.players].sort((a, b) => spendableMegacredits(b) - spendableMegacredits(a))[0];
+  const spendable = richest !== undefined ? spendableMegacredits(richest) : 0;
+  if (richest !== undefined && spendable >= 30) {
     const isWinner = richest.color === ctx.winner.color;
     out.push({
       id: 'fact.unused.money', group: 'cards', priority: isWinner ? 46 : 56, severity: 'minor', icon: 'flag',
       badge: 'On the table', color: richest.color,
       textKey: isWinner ?
-        '${0} still had ${1} M€ in the bank at the finish — plenty of unspent runway.' :
-        'Money with nowhere to go: ${0} ended on ${1} M€ that never became points.',
-      params: [raw(richest.name), raw(richest.megacredits)],
+        '${0} left ${1} M€ of spendable money unused at the finish — runway that never got played.' :
+        'Money with nowhere to go: ${0} had ${1} M€ still spendable that never became points.',
+      params: [raw(richest.name), raw(spendable)],
       family: 'unusedPotential', uiVariant: 'compact', storyCluster: 'unusedMoney',
       evidenceKey: `unused:${richest.color}`,
-      evidenceChips: [chipN(`${richest.megacredits} M€`, 'neutral'), chipL('never spent', 'bad')],
+      evidenceChips: [chipN(`${spendable} M€`, 'neutral'), chipL('spendable, unused', 'bad')],
       scores: {relevance: isWinner ? 0.35 : 0.6, drama: 0.4, confidence: 1},
       relatedPlayers: [richest.color],
     });
@@ -1415,9 +1430,15 @@ const analyzeResourceHoard: Analyzer = (ctx) => {
     if (lo === undefined) {
       continue; // old game / no final-inventory bridge → graceful
     }
-    const mat = lo.steel + lo.titanium;
+    // Subtract the final-generation production income (never spendable — the game ends
+    // right after it is granted), leaving only material that was actually spendable. When
+    // the production profile is absent (old games), fall back to the raw stock.
+    const prod = p.production;
+    const steel = prod !== undefined ? spendableStock(lo.steel, prod.steel) : lo.steel;
+    const titanium = prod !== undefined ? spendableStock(lo.titanium, prod.titanium) : lo.titanium;
+    const mat = steel + titanium;
     if (mat >= 16 && (best === undefined || mat > best.mat)) {
-      best = {p, steel: lo.steel, titanium: lo.titanium, mat};
+      best = {p, steel, titanium, mat};
     }
   }
   if (best === undefined) {
@@ -1992,16 +2013,20 @@ const analyzeDuelAlmost: Analyzer = (ctx) => {
       relatedPlayers: [ru.color],
     });
   }
-  // Leftover M€ exceeded the gap (factual; framed as "had it found a use", no fake VP).
-  if (ru.megacredits >= ctx.margin && ru.megacredits >= 10) {
+  // SPENDABLE leftover M€ exceeded the gap (final-generation income excluded — it was
+  // never spendable; framed as "had it found a use", no fake VP).
+  const ruSpendable = spendableMegacredits(ru);
+  if (ruSpendable >= ctx.margin && ruSpendable >= 10) {
     out.push({
       id: 'duel.almost.money', group: 'cards', priority: 48, severity: 'minor', icon: 'flag',
       badge: 'So close', color: ru.color,
-      textKey: '${0} finished on ${1} M€ — more than the ${2}-VP gap, had it found a use.',
-      params: [raw(ru.name), raw(ru.megacredits), raw(ctx.margin)],
+      textKey: '${0} left ${1} M€ spendable — more than the ${2}-VP gap, had it found a use.',
+      params: [raw(ru.name), raw(ruSpendable), raw(ctx.margin)],
       family: 'unusedPotential', uiVariant: 'compact', storyCluster: 'almostMoney',
-      evidenceKey: `almost:${ru.color}`,
-      evidenceChips: [chipN(`${ru.megacredits} M€`, 'neutral'), chipL('no outlet', 'bad')],
+      // Same leftover-M€ thought as fact.unused.money → share the per-player "unused" key
+      // so the two never show as duplicate cards about the same pile.
+      evidenceKey: `unused:${ru.color}`,
+      evidenceChips: [chipN(`${ruSpendable} M€`, 'neutral'), chipL('no outlet', 'bad')],
       scores: {relevance: 0.55, drama: 0.4, duelRelevance: 0.7, confidence: 0.7},
       relatedPlayers: [ru.color],
     });
@@ -2688,13 +2713,19 @@ function surfaceRunnerUpVoice(insights: ReadonlyArray<EndgameInsightView>, dna: 
   if (dna.mainConflict === undefined) {
     return list;
   }
+  const runner = dna.mainConflict.rightPlayer;
+  // A visible card ABOUT the runner-up already speaks for them — even if its role is
+  // "headline" (e.g. their leftover-money card became the hero).
   const hasVisibleVoice = list.some((c) =>
-    c.rankSection !== 'hidden' && (c.storyRole === 'almost' || c.storyRole === 'whyRunnerLost'));
+    c.rankSection !== 'hidden' && (c.storyRole === 'almost' || c.storyRole === 'whyRunnerLost' || c.color === runner));
   if (hasVisibleVoice) {
     return list;
   }
+  // Don't un-hide a card whose evidence is ALREADY visible (an evidence-dedup duplicate).
+  const visibleKeys = new Set(list.filter((c) => c.rankSection !== 'hidden').map((c) => evidenceKeyOf(c)));
   const idx = list.findIndex((c) =>
-    c.rankSection === 'hidden' && (c.storyRole === 'almost' || c.storyRole === 'whyRunnerLost'));
+    c.rankSection === 'hidden' && (c.storyRole === 'almost' || c.storyRole === 'whyRunnerLost') &&
+    !visibleKeys.has(evidenceKeyOf(c)));
   if (idx >= 0) {
     list[idx] = {...list[idx], rankSection: 'secondary'};
   }

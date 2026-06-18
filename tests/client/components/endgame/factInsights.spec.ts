@@ -510,6 +510,47 @@ describe('fact-based endgame insights (Iteration 5)', () => {
       expect(ids(ctx({players, margin: 10})).some((id) => id.startsWith('fact.resourceHoard'))).to.be.false;
     });
 
+    it('unused-money excludes the unspendable FINAL-generation income (bug fix)', () => {
+      // Victor ends on 133 M€, but TR 35 + M€ production 25 = 60 of that is the final
+      // production income — never spendable. Only 73 was actually spendable.
+      const victor = pl('blue', 'Victor', 70, {megacredits: 133});
+      (victor.breakdown as any).terraformRating = 35;
+      (victor as any).production = {megacredits: 25, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0};
+      const c = ctx({players: [pl('red', 'A', 90), victor], margin: 6});
+      const ins = find(c, 'fact.unused.money');
+      expect(ins, 'unused money insight').to.not.be.undefined;
+      const shown = ins!.params.map((p) => p.v);
+      expect(shown, 'the SPENDABLE figure is shown').to.include('73');
+      expect(shown, 'the raw figure incl. final income is NOT shown').to.not.include('133');
+    });
+
+    it('a pile that is ALL final income does NOT fire unused-money (no false signal)', () => {
+      const rich = pl('blue', 'B', 70, {megacredits: 40});
+      (rich.breakdown as any).terraformRating = 30;
+      (rich as any).production = {megacredits: 20, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0};
+      // finalIncome 50 ≥ 40 → spendable 0 → the insight stays silent.
+      const c = ctx({players: [pl('red', 'A', 90), rich], margin: 8});
+      expect(ids(c).some((id) => id === 'fact.unused.money'), 'no false unused-money').to.be.false;
+    });
+
+    it('resource hoard subtracts steel/titanium production (spendable material only)', () => {
+      // 14 steel / 12 titanium leftover, but 8 steel + 6 titanium of that is final
+      // production → spendable 6 + 6 = 12 < 16 → no hoard (it was mostly final income).
+      const blue: any = withLeftover(pl('blue', 'B', 80), {steel: 14, titanium: 12});
+      blue.production = {megacredits: 0, steel: 8, titanium: 6, plants: 0, energy: 0, heat: 0};
+      const c = ctx({players: [pl('red', 'A', 90), blue], margin: 10});
+      expect(ids(c).some((id) => id.startsWith('fact.resourceHoard')), 'mostly final income → no hoard').to.be.false;
+    });
+
+    it('the two leftover-M€ cards (almost + unused) dedup to ONE visible card', () => {
+      const ru = pl('blue', 'Victor', 76, {megacredits: 90});
+      (ru.breakdown as any).terraformRating = 10; // finalIncome 10 → spendable 80
+      const c = ctx({players: [pl('red', 'A', 82), ru], margin: 6});
+      const visible = generateInsights(c).filter((i) =>
+        i.rankSection !== 'hidden' && (i.evidenceKey ?? '') === 'unused:blue');
+      expect(visible.length, 'one visible leftover-money card').to.eq(1);
+    });
+
     it('leftover-M€ and material hoard collapse to ONE "on the table" card (shared evidenceKey)', () => {
       const blue = withLeftover(pl('blue', 'B', 80, {megacredits: 40}), {steel: 14, titanium: 10});
       const players = [pl('red', 'A', 90), blue];
