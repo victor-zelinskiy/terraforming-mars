@@ -328,7 +328,7 @@
     "A strong category alone does not win if the opponent compensates elsewhere.": "Одна сильная категория не приносит победу, если соперник компенсирует её в другом месте.",
     "A large pile of resources was left at the finish that never became points.": "К финишу остался большой запас ресурсов, так и не ставший очками.",
     "In Terraforming Mars resources only matter if they convert into VP, cards, board or parameters in time.": "В «Покорении Марса» ресурсы важны, только если успеть превратить их в ПО, карты, поле или параметры.",
-    "There is no exact proof these resources could have become VP — it is a signal of unused potential.": "Нет точного доказательства, что эти ресурсы стали бы ПО, — это сигнал неиспользованного потенциала.",
+    "There is no exact proof these resources could have become VP — it is a signal of unused potential.": "Доход финального производства уже исключён — это деньги, которые можно было потратить во время партии. Точного доказательства, что они стали бы ПО, нет; это сигнал неиспользованного потенциала.",
     "Building material — steel and titanium — was left unspent at the finish.": "Строительный материал — сталь и титан — остался неизрасходованным к финишу.",
     "Steel and titanium are not VP; left over, they are projects that never got built.": "Сталь и титан — не ПО; в остатке это проекты, которые так и не построили.",
     "Leftover material is unused potential, not a guaranteed lost win.": "Оставшийся материал — неиспользованный потенциал, а не гарантированно упущенная победа.",
@@ -457,5 +457,10 @@
     "This is untapped potential, not a proven lost win — the action might not have changed the result.": "Это нераскрытый потенциал, а не доказанно упущенная победа — действие могло и не изменить исход.",
     "The Merger prelude gave this player a SECOND corporation — a rare double-engine start.": "Прелюдия «Слияние» дала этому игроку ВТОРУЮ корпорацию — редкий старт с двумя движками.",
     "Two corporations means two sets of starting resources, passives and actions — a uniquely wide plan.": "Две корпорации — это два набора стартовых ресурсов, пассивных способностей и действий: уникально широкий план.",
-    "This corporation produced no measured events — its value was its start and rules.": "Эта корпорация не дала измеримых событий — её ценность была в старте и правилах."
+    "This corporation produced no measured events — its value was its start and rules.": "Эта корпорация не дала измеримых событий — её ценность была в старте и правилах.",
+
+    "spendable, unused": "можно было потратить",
+    "${0} left ${1} M€ of spendable money unused at the finish — runway that never got played.": "${0} оставил ${1} M€, которые ещё можно было потратить, — запас хода, который так и не разыграли.",
+    "Money with nowhere to go: ${0} had ${1} M€ still spendable that never became points.": "Деньги без выхода: у ${0} оставалось ${1} M€, которые ещё можно было потратить, но они не стали очками.",
+    "${0} left ${1} M€ spendable — more than the ${2}-VP gap, had it found a use.": "${0} оставил ${1} M€, которые ещё можно было потратить, — больше отрыва в ${2} ПО, если бы им нашлось применение."
 }
