@@ -24,6 +24,7 @@ function stat(overrides: Partial<EffectOverlayStat>): EffectOverlayStat {
     paymentValueBonus: {steel: 0, titanium: 0, bonusValue: 0, count: 0},
     colonyTrack: {steps: 0, extraReward: 0, count: 0, colonies: {}},
     tradeDiscount: {energy: 0, titanium: 0, megacredits: 0, count: 0, colonies: {}},
+    greeneryDiscount: {plants: 0, count: 0},
     tr: 0,
     globalParameterSteps: {},
     vp: 0,
@@ -325,5 +326,24 @@ describe('effect summary view-model', () => {
     expect(vm.lines).to.deep.include({icon: 'energy', label: 'Saved on trades', value: '3'});
     expect(vm.breakdown?.[0]).to.deep.eq({label: 'Pluto', value: '2'});
     expect(vm.confidence).to.eq('partial');
+  });
+
+  it('frames EcoLine as a greenery-discount effect even before any conversion', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.ECOLINE, kind: 'corporation'}),
+      {sourceName: CardName.ECOLINE, sourceKind: 'corporation'});
+    expect(vm.category).to.eq('greeneryDiscount');
+    expect(vm.note).to.not.eq(PASSIVE_RULE_NOTE);
+  });
+
+  it('shows the recorded greenery-discount plants saved', () => {
+    const vm = getEffectSummary(
+      stat({card: CardName.ECOLINE, kind: 'corporation', greeneryDiscount: {plants: 3, count: 3}}),
+      {sourceName: CardName.ECOLINE, sourceKind: 'corporation'});
+    expect(vm.empty).to.be.false;
+    expect(vm.headline).to.eq('Greenery discount');
+    expect(vm.triggerCount).to.eq(3);
+    expect(vm.lines).to.deep.include({icon: 'plants', label: 'Plants saved', value: '3'});
+    expect(vm.confidence).to.eq('exact');
   });
 });

@@ -78,6 +78,14 @@ export type EventImpact = {
    */
   tradeDiscountSaved?: ReadonlyArray<{colony: ColonyName; resource: 'energy' | 'titanium' | 'megacredits'; amount: number}>;
   /**
+   * Plants a GREENERY-DISCOUNT effect (EcoLine — `behavior.greeneryDiscount`) saved on
+   * ONE plants→greenery conversion (you pay N fewer plants than the base 8). `plants` is
+   * the EXACT plants saved (the card's per-conversion discount); one event = one
+   * conversion under the effect. Attributed to the owning card — the hidden value the
+   * effect overlay surfaces as "greenery discount" (EXACT, in plant units).
+   */
+  greeneryDiscountSaved?: number;
+  /**
    * A PUBLIC card reveal / show / search (PublicPlans shows hand, SearchForLife /
    * AsteroidDeflectionSystem reveal the deck top). Carries ONLY counts + semantics —
    * NEVER card names (so it leaks nothing private; the names that ARE public ride the

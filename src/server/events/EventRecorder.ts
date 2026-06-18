@@ -422,6 +422,29 @@ export class EventRecorder {
   }
 
   /**
+   * Record HEAT spent as M€ via Helion's "use heat as M€" ability
+   * (`canUseHeatAsMegaCredits`) — a passive-effect M€ saving attributed to the
+   * granting card. Heat is a STOCK resource (not a CardResource), so only
+   * `megacreditsSaved` is tracked (each heat = 1 M€ substituted); the effects
+   * overlay then shows the corporation ability actually performed rather than
+   * "hasn't triggered yet". Mirrors {@link recordResourceAsPayment} but for the
+   * stock-resource case (which that method's `resourceType` guard excludes).
+   */
+  public recordHeatAsPayment(player: IPlayer, card: ICard, heat: number): void {
+    if (heat <= 0) {
+      return;
+    }
+    const kind = card.type === CardType.CORPORATION ? 'corporation' : 'card';
+    this.emit({
+      type: 'resource-changed',
+      source: {kind, card: card.name, owner: player.color},
+      player: player.color,
+      impact: {megacreditsSaved: heat},
+      tags: ['passive-effect', 'resource-payment'],
+    }, this.current);
+  }
+
+  /**
    * Record the EXTRA M€ value a payment-VALUE modifier (Advanced Alloys +1 steel &
    * titanium, Rego Plastics +1 steel, PhoboLog +1 titanium, …) contributed to a
    * single payment — attributed to the OWNING card. `entries` are the per-resource
@@ -483,6 +506,27 @@ export class EventRecorder {
       player: player.color,
       impact: {tradeDiscountSaved: [{colony, resource, amount}]},
       tags: ['passive-effect', 'trade-discount', 'engine'],
+    }, this.current);
+  }
+
+  /**
+   * Record a GREENERY-DISCOUNT effect (EcoLine — `behavior.greeneryDiscount`) saving
+   * `plants` on ONE plants→greenery conversion (you pay fewer than the base 8),
+   * attributed to the OWNING card. `plants` is EXACT (the card's per-conversion
+   * discount); one event = one conversion under the effect. Overlay-analytics only
+   * (excluded from the journal — the conversion itself is already logged).
+   */
+  public recordGreeneryDiscount(player: IPlayer, card: ICard, plants: number): void {
+    if (plants <= 0) {
+      return;
+    }
+    const kind = card.type === CardType.CORPORATION ? 'corporation' : 'card';
+    this.emit({
+      type: 'effect-triggered',
+      source: {kind, card: card.name, owner: player.color},
+      player: player.color,
+      impact: {greeneryDiscountSaved: plants},
+      tags: ['passive-effect', 'greenery-discount', 'engine'],
     }, this.current);
   }
 
