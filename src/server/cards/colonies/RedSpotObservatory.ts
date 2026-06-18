@@ -29,8 +29,11 @@ export class RedSpotObservatory extends Card implements IProjectCard {
       metadata: {
         cardNumber: 'C32',
         renderData: CardRenderer.builder((b) => {
-          b.action('Add 1 floater to this card, or spend 1 floater here to draw a card.', (eb) => {
-            eb.empty().arrow().resource(CardResource.FLOATER).or();
+          b.action('Add 1 floater to this card.', (eb) => {
+            eb.empty().startAction.resource(CardResource.FLOATER);
+          }).br;
+          b.or().br;
+          b.action('Spend 1 floater here to draw a card.', (eb) => {
             eb.resource(CardResource.FLOATER).startAction.cards(1);
           }).br;
           b.cards(2);
@@ -49,17 +52,21 @@ export class RedSpotObservatory extends Card implements IProjectCard {
   }
 
   // Branch order MUST match action(): spend-to-draw first, add second.
+  // Titles MIRROR the render-node descriptions verbatim so the overlay's node ->
+  // branch token-overlap match (assignBranchNodes) is UNAMBIGUOUS — otherwise the
+  // generic "on this card" wording tied with the wrong node and clicking a split
+  // row opened the modal on the OTHER action.
   public actionPreview(_player: IPlayer) {
     return actionPreviews.orBranches(this, [
       {
         available: this.resourceCount >= 1,
-        title: 'Remove 1 floater on this card to draw a card',
+        title: 'Spend 1 floater here to draw a card',
         effects: [actionPreviews.cardCost(this, 1), actionPreviews.drawGain(1)],
         unavailableReason: actionReason.noResourcesHere(),
       },
       {
         available: true,
-        title: 'Add 1 floater on this card',
+        title: 'Add 1 floater to this card',
         effects: [actionPreviews.cardGain(this, 1)],
       },
     ]);
