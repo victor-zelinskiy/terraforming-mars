@@ -784,6 +784,20 @@ export default defineComponent({
           root.isServerSideRequestInProgress = false;
         });
     },
+    // CTA «Перейти к действию» из премиум-нотификации «требуется действие».
+    // Финальная сводка сворачивается кастомным dismiss-флагом
+    // (`finalConfirmDismissed`) на MandatoryInputModal с :minimizable="false",
+    // поэтому её НЕ восстанавливают ни собственный listener модалки, ни
+    // PlayerHome.restoreHandPill — и CTA «никуда не переходила». Возвращаем
+    // свёрнутую сводку так же, как клик по pill «Финальная сводка».
+    onNotificationGoToAction(): void {
+      if (!this.isActive) {
+        return;
+      }
+      if (this.finalConfirmDismissed) {
+        this.onPillReopen('final');
+      }
+    },
     resetLocal() {
       this.committedCorp = undefined;
       this.committedPreludes = [];
@@ -801,7 +815,11 @@ export default defineComponent({
       this.summarySnapshot = undefined;
     },
   },
+  mounted() {
+    window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
+  },
   beforeUnmount() {
+    window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
     if (typeof document !== 'undefined') {
       document.body.classList.remove(BODY_CLASS);
     }
