@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {Units} from '@/common/Units';
 import {EffectOverlayStat} from '@/common/events/aggregate';
-import {getActionUsageSummary} from '@/client/components/actions/actionUsageSummary';
+import {getActionUsageSummary, branchMetricTokens} from '@/client/components/actions/actionUsageSummary';
+import {ActionEffect} from '@/common/models/ActionPreviewModel';
 
 /**
  * PURE view-model for the ДЕЙСТВИЯ overlay's "this game" usage summary. No Vue deps,
@@ -85,5 +86,43 @@ describe('action usage summary view-model', () => {
 
   it('defaults victims to an empty list for a non-attack action', () => {
     expect(getActionUsageSummary(stat({triggerCount: 1, cardsDrawn: 2})).victims).to.have.length(0);
+  });
+
+  describe('per-branch filtering (Red Spot Observatory shape)', () => {
+    // The whole-card aggregate folds BOTH the "add a floater" and "spend a floater
+    // to draw" outcomes onto one stat. Each branch's details must show only ITS own.
+    const addEffects: ReadonlyArray<ActionEffect> = [
+      {direction: 'gain', icon: 'floater', amount: 1, note: 'on this card'},
+    ];
+    const drawEffects: ReadonlyArray<ActionEffect> = [
+      {direction: 'cost', icon: 'floater', amount: 1, note: 'on this card'},
+      {direction: 'gain', icon: 'cards', amount: 1, note: 'draw'},
+    ];
+    const mixedStat = stat({triggerCount: 3, cardResources: {floater: 2}, cardsDrawn: 4});
+
+    it('maps branch effects to metric tokens (a card-resource COST does not claim "Added")', () => {
+      expect(branchMetricTokens(addEffects)).to.deep.eq(['cardres:floater']);
+      expect(branchMetricTokens(drawEffects)).to.deep.eq(['cards']);
+    });
+
+    it('the ADD branch shows only floaters added, never cards drawn', () => {
+      const vm = getActionUsageSummary(mixedStat, {mineTokens: ['cardres:floater'], siblingTokens: ['cards']});
+      expect(vm.lines).to.deep.eq([{icon: 'floater', label: 'Added', value: '+2'}]);
+      expect(vm.kind).to.eq('resource');
+      expect(vm.cardScoped).to.be.true;
+    });
+
+    it('the DRAW branch shows only cards drawn, never floaters added', () => {
+      const vm = getActionUsageSummary(mixedStat, {mineTokens: ['cards'], siblingTokens: ['cardres:floater']});
+      expect(vm.lines).to.deep.eq([{icon: 'cards', label: 'Cards drawn', value: '+4'}]);
+      expect(vm.kind).to.eq('draw');
+      expect(vm.cardScoped).to.be.true;
+    });
+
+    it('a single-branch action (no siblings) is never filtered or card-scoped', () => {
+      const vm = getActionUsageSummary(mixedStat);
+      expect(vm.lines).to.have.length(2);
+      expect(vm.cardScoped).to.be.undefined;
+    });
   });
 });

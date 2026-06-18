@@ -1,5 +1,6 @@
 import {EffectOverlayStat, VictimRecord} from '@/common/events/aggregate';
 import {Units} from '@/common/Units';
+import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {EffectSummaryLine, EffectConfidence, genericLines} from '@/client/components/effects/effectSummary';
 
 /**
@@ -38,7 +39,74 @@ export type ActionUsageViewModel = {
   victims: ReadonlyArray<VictimRecord>;
   /** A note shown when the action hasn't been used (never a dead state). */
   note?: string;
+  /** True when this is ONE branch of a multi-branch action: the impact lines are
+   *  filtered to THIS branch, but the activation COUNT / last-used are card-level
+   *  (the aggregate doesn't split activations per branch) — drives a caption. */
+  cardScoped?: boolean;
 };
+
+/**
+ * A multi-branch action's per-branch SCOPE — which result metrics belong to the
+ * SELECTED branch (`mineTokens`) vs its siblings (`siblingTokens`). A whole-card
+ * aggregate folds every branch's outcome into ONE stat (Red Spot Observatory's
+ * "add a floater" + "spend a floater to draw" both land on the same card), so the
+ * details panel must show only the SELECTED branch's lines — exactly the per-effect
+ * filtering the Эффекты overlay does. A line whose metric token is ONLY a sibling's
+ * is hidden; one in mine (or in neither — shared/ambiguous) is kept.
+ */
+export type ActionBranchScope = {
+  mineTokens: ReadonlyArray<string>;
+  siblingTokens: ReadonlyArray<string>;
+};
+
+/**
+ * The metric TOKEN a preview-branch EFFECT lays claim to — must line up with
+ * {@link lineMetricToken} so a branch's effects map onto the aggregate lines.
+ * A card-resource COST (spending the resource) does NOT claim the net "Added"
+ * line — that accumulation belongs to the branch that ADDS the resource.
+ */
+export function branchMetricTokens(effects: ReadonlyArray<ActionEffect>): Array<string> {
+  const out: Array<string> = [];
+  for (const e of effects) {
+    if (e.note === 'on this card') {
+      if (e.direction === 'gain') {
+        out.push('cardres:' + e.icon);
+      }
+    } else if (e.note === 'production') {
+      out.push('prod:' + e.icon);
+    } else if (e.note === 'draw' || e.icon === 'cards') {
+      out.push('cards');
+    } else {
+      out.push(e.icon);
+    }
+  }
+  return out;
+}
+
+/** The metric TOKEN of a generic summary LINE (mirrors `branchMetricTokens`). */
+function lineMetricToken(l: EffectSummaryLine): string {
+  switch (l.label) {
+  case 'Added': return 'cardres:' + (l.icon ?? '');
+  case 'Production': return 'prod:' + (l.icon ?? '');
+  default: return l.icon ?? '';
+  }
+}
+
+/** Per-branch value kind, classified from the FILTERED lines (not the whole stat). */
+function kindFromLines(lines: ReadonlyArray<EffectSummaryLine>): ActionValueKind {
+  if (lines.some((l) => l.label === 'Cards drawn')) {
+    return 'draw';
+  }
+  const hasLoss = lines.some((l) => l.label === 'Lost');
+  const hasGain = lines.some((l) => l.label === 'Gained' || l.label === 'Added' || l.label === 'Production' || l.label === 'Saved');
+  if (hasLoss && hasGain) {
+    return 'conversion';
+  }
+  if (lines.some((l) => l.label === 'TR' || l.label === 'Global parameter') && !hasGain) {
+    return 'terraform';
+  }
+  return lines.length > 0 ? 'resource' : 'usage';
+}
 
 const UNIT_KEYS: ReadonlyArray<keyof Units> = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
 
@@ -78,11 +146,26 @@ function confidenceForKind(kind: ActionValueKind): EffectConfidence {
   return kind === 'usage' ? 'ruleOnly' : 'exact';
 }
 
-export function getActionUsageSummary(stat: EffectOverlayStat | undefined): ActionUsageViewModel {
+export function getActionUsageSummary(stat: EffectOverlayStat | undefined, scope?: ActionBranchScope): ActionUsageViewModel {
   const activations = stat?.triggerCount ?? 0;
-  const lines = stat !== undefined ? genericLines(stat) : [];
+  let lines = stat !== undefined ? genericLines(stat) : [];
+  // Per-branch filtering: keep a line only when its metric belongs to THIS branch
+  // (or is shared/ambiguous — in neither set); drop a sibling-only metric so a
+  // card's "add floater" branch never shows the "draw" branch's cards (and vice
+  // versa). Only kicks in for a genuine multi-branch action (siblingTokens present).
+  const cardScoped = scope !== undefined && scope.siblingTokens.length > 0;
+  if (cardScoped) {
+    const mine = new Set(scope!.mineTokens);
+    const sib = new Set(scope!.siblingTokens);
+    lines = lines.filter((l) => {
+      const t = lineMetricToken(l);
+      return mine.has(t) || !sib.has(t);
+    });
+  }
   const empty = activations === 0 && lines.length === 0;
-  const kind = stat !== undefined ? classifyAction(stat) : 'usage';
+  // A multi-branch action classifies per BRANCH (its filtered lines); a single
+  // action keeps the whole-stat classification (back-compat with the bare call).
+  const kind = empty ? 'usage' : (cardScoped ? kindFromLines(lines) : (stat !== undefined ? classifyAction(stat) : 'usage'));
   return {
     empty,
     activations,
@@ -93,5 +176,6 @@ export function getActionUsageSummary(stat: EffectOverlayStat | undefined): Acti
     confidence: confidenceForKind(kind),
     victims: stat?.victims ?? [],
     note: empty ? 'Action not used yet — its usage stats will appear here.' : undefined,
+    cardScoped: cardScoped && !empty ? true : undefined,
   };
 }
