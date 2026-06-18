@@ -149,7 +149,11 @@
     align-content: flex-start;
     justify-content: center;
     gap: 10px;
-    padding: 4px;
+    // Extra TOP padding: the card's cost badge (top:-10px) + frame glow poke
+    // above the card box; with the scroll container's overflow:auto a tight top
+    // padding clips them (the same defect fixed on the РАЗЫГРАНО stack). The
+    // hover lift (-3px) needs the headroom too.
+    padding: 16px 8px 8px;
     scrollbar-width: thin;
     scrollbar-color: rgba(120, 170, 200, 0.35) transparent;
 

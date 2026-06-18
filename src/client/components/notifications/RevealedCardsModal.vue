@@ -50,6 +50,7 @@
     <!-- Fullscreen browser of the revealed cards (read-only). -->
     <CardZoomModal
       v-if="zoomCard !== undefined"
+      ref="zoomModal"
       :card="zoomCard"
       :cards="zoomCards"
       @navigate="onZoomNav"
@@ -58,7 +59,7 @@
 </template>
 
 <script lang="ts">
-import {defineComponent} from 'vue';
+import {defineComponent, nextTick} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import Card from '@/client/components/card/Card.vue';
@@ -143,6 +144,11 @@ export default defineComponent({
         return;
       }
       this.zoomCard = {name: names[index]};
+      // CardZoomModal is a native <dialog> — it must be told to open. Wait for
+      // the v-if mount before calling show() (mirrors PlayedCardsOverlay).
+      nextTick(() => {
+        (this.$refs as {zoomModal?: {show: () => void}}).zoomModal?.show();
+      });
     },
     onZoomNav(card: CardModel): void {
       this.zoomCard = card;
