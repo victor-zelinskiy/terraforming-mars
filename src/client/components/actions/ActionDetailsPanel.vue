@@ -100,6 +100,9 @@
           <div v-if="usage.lastGeneration !== undefined" class="action-detail__usage-last">
             <span v-i18n>Last used</span> · <span v-i18n>Generation</span> {{ usage.lastGeneration }}
           </div>
+          <!-- A multi-branch action's activation count / last-used are CARD-level
+               (the aggregate doesn't split activations per branch) — be transparent. -->
+          <p v-if="usage.cardScoped" class="action-detail__scope-note" v-i18n>Some stats are tracked at the card level</p>
         </template>
       </div>
 
@@ -158,7 +161,7 @@ import {ActionGroup, actionNodeDescription} from '@/client/components/actions/ac
 import {branchPositionsForNode} from '@/client/components/actions/actionBranchView';
 import {ActionState} from '@/client/components/actions/actionPlayability';
 import {EffectOverlayStat} from '@/common/events/aggregate';
-import {getActionUsageSummary, ActionUsageViewModel} from '@/client/components/actions/actionUsageSummary';
+import {getActionUsageSummary, ActionUsageViewModel, ActionBranchScope, branchMetricTokens} from '@/client/components/actions/actionUsageSummary';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
@@ -350,9 +353,34 @@ export default defineComponent({
       return this.resourceType !== undefined ? iconClassFor(this.resourceType) : '';
     },
     // "This game" usage summary for the selected action (activations + impact +
-    // last-used), or the "not used yet" note. Pure view-model.
+    // last-used), or the "not used yet" note. Pure view-model. For a multi-branch
+    // action the whole-card aggregate is filtered to the SELECTED branch's metrics
+    // (`branchScope`) so e.g. Red Spot Observatory's "spend → draw" branch shows
+    // "Cards drawn", not the "add a floater" branch's "Добавлено".
     usage(): ActionUsageViewModel {
-      return getActionUsageSummary(this.stat);
+      return getActionUsageSummary(this.stat, this.branchScope);
+    },
+    // The selected branch's metric tokens vs its siblings'. Only defined for a true
+    // multi-branch action (≥2 preview branches with a per-row split); a single or
+    // combined-node action gets no scope → the summary is unfiltered.
+    branchScope(): ActionBranchScope | undefined {
+      const branches = this.preview?.branches;
+      if (branches === undefined || branches.length < 2) {
+        return undefined;
+      }
+      const mineSet = new Set(this.selectedBranches);
+      const mineTokens: Array<string> = [];
+      const siblingTokens: Array<string> = [];
+      for (const b of branches) {
+        const tokens = branchMetricTokens(b.effects);
+        (mineSet.has(b) ? mineTokens : siblingTokens).push(...tokens);
+      }
+      // A combined node selects ALL branches → no siblings → unfiltered (we can't
+      // attribute the aggregate to one branch when the render didn't split them).
+      if (mineTokens.length === 0 || siblingTokens.length === 0) {
+        return undefined;
+      }
+      return {mineTokens, siblingTokens};
     },
     usageConfidenceLabel(): string {
       switch (this.usage.confidence) {
