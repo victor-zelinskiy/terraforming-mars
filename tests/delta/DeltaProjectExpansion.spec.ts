@@ -3,7 +3,7 @@ import {IGame} from '../../src/server/IGame';
 import {TestPlayer} from '../TestPlayer';
 import {testGame} from '../TestGame';
 import {DELTA_TRACK_TAGS, DeltaProjectExpansion, VP2_POSITION, VP5_POSITION} from '../../src/server/delta/DeltaProjectExpansion';
-import {DeltaProject} from '../../src/server/cards/delta/DeltaProject';
+import {SelectOption} from '../../src/server/inputs/SelectOption';
 import {Tag} from '../../src/common/cards/Tag';
 import {fakeCard, runAllActions} from '../TestingUtils';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
@@ -39,7 +39,8 @@ function prepareAdvanceFrom7To8(p: IPlayer) {
 function expectDeltaVp(player: IPlayer, expected: number) {
   const builder = new VictoryPointsBreakdownBuilder();
   DeltaProjectExpansion.calculateVictoryPoints(player, builder);
-  expect(builder.build().victoryPoints).eq(expected);
+  // Delta Project VP is now its own category (shown under "Достижения и награды").
+  expect(builder.build().deltaProject).eq(expected);
 }
 
 describe('DeltaProjectExpansion', () => {
@@ -481,53 +482,72 @@ describe('DeltaProjectExpansion', () => {
     });
   });
 
-  describe('prelude card', () => {
-    it('is added to prelude hand when expansion is enabled', () => {
-      expect(player.preludeCardsInHand.some((c) => c.name === CardName.DELTA_PROJECT)).is.true;
+  describe('global action (getActions)', () => {
+    // The track action is a global subsystem action (not a prelude card): it
+    // appears in the standard action menu, gated by the once-per-generation flag.
+    function findDeltaAction(p: TestPlayer): SelectOption | undefined {
+      const actions = cast(p.getActions(), OrOptions);
+      return actions.options.find(
+        (o): o is SelectOption => o.title === 'Advance on the Delta Project track');
+    }
+
+    it('initializes the track for every player when the expansion is enabled', () => {
+      expect(player.deltaProjectData).is.not.undefined;
+      expect(player2.deltaProjectData).is.not.undefined;
     });
 
-    it('is not present when expansion is disabled', () => {
+    it('does not initialize the track when the expansion is disabled', () => {
       const [/* game */, p] = testGame(1);
-      expect(p.preludeCardsInHand.some((c) => c.name === CardName.DELTA_PROJECT)).is.false;
+      expect(p.deltaProjectData).is.undefined;
     });
 
-    it('canAct returns false with no energy', () => {
-      const card = new DeltaProject();
+    it('does not deal a Delta Project prelude card', () => {
+      expect(player.preludeCardsInHand.some((c) => c.name === CardName.DELTA_PROJECT)).is.false;
+    });
+
+    it('offers the advance action when the player can advance', () => {
+      setupPlayerForThreeStepsFromStart(player);
+      expect(findDeltaAction(player)).is.not.undefined;
+    });
+
+    it('does not offer the action with no energy', () => {
       player.energy = 0;
       player.playedCards.push(fakeCard({tags: [Tag.BUILDING]}));
-      expect(card.canAct(player)).is.false;
+      expect(findDeltaAction(player)).is.undefined;
     });
 
-    it('canAct returns false when no tags to advance', () => {
-      const card = new DeltaProject();
+    it('does not offer the action when no tags to advance', () => {
       player.energy = 5;
-      expect(card.canAct(player)).is.false;
+      expect(findDeltaAction(player)).is.undefined;
     });
 
-    it('canAct returns true when can advance', () => {
-      const card = new DeltaProject();
-      player.energy = 5;
-      player.playedCards.push(fakeCard({tags: [Tag.BUILDING]}));
-      expect(card.canAct(player)).is.true;
-    });
-
-    it('action returns DeltaProjectInput with valid step list', () => {
-      const card = new DeltaProject();
+    it('does not offer the action when already used this generation', () => {
       setupPlayerForThreeStepsFromStart(player);
+      player.deltaProjectData!.usedThisGeneration = true;
+      expect(findDeltaAction(player)).is.undefined;
+    });
 
-      const input = cast(card.action(player), DeltaProjectInput);
+    it('the action returns a DeltaProjectInput with the valid step list', () => {
+      setupPlayerForThreeStepsFromStart(player);
+      const input = cast(findDeltaAction(player)!.cb(), DeltaProjectInput);
       expect(input.validSteps).deep.eq([1, 2, 3]);
     });
 
-    it('action advances the player on the track', () => {
-      const card = new DeltaProject();
+    it('advancing via the action moves the player and marks it used this generation', () => {
       setupPlayerForThreeStepsFromStart(player);
-
-      const input = cast(card.action(player), DeltaProjectInput);
+      const input = cast(findDeltaAction(player)!.cb(), DeltaProjectInput);
       input.cb(2);
 
       expect(player.deltaProjectData!.position).eq(2);
       expect(player.energy).eq(1);
+      expect(player.deltaProjectData!.usedThisGeneration).is.true;
+      expect(findDeltaAction(player)).is.undefined;
+    });
+
+    it('runProductionPhase resets the once-per-generation flag', () => {
+      player.deltaProjectData!.usedThisGeneration = true;
+      player.runProductionPhase();
+      expect(player.deltaProjectData!.usedThisGeneration).is.false;
     });
   });
 
@@ -541,8 +561,8 @@ describe('DeltaProjectExpansion', () => {
       const serialized = game.serialize();
       const serializedPlayer = serialized.players.find((p) => p.color === player.color)!;
       const serializedPlayer2 = serialized.players.find((p) => p.color === player2.color)!;
-      expect(serializedPlayer.deltaProject).deep.eq({position: 5, jovianBonus: true});
-      expect(serializedPlayer2.deltaProject).deep.eq({position: 10, jovianBonus: false});
+      expect(serializedPlayer.deltaProject).deep.eq({position: 5, jovianBonus: true, usedThisGeneration: false});
+      expect(serializedPlayer2.deltaProject).deep.eq({position: 10, jovianBonus: false, usedThisGeneration: false});
     });
 
     it('full deserialization round-trip preserves delta project progress', () => {

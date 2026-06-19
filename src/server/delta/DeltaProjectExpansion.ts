@@ -1,6 +1,8 @@
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {DeltaProjectPlayerModel} from '../../common/models/DeltaProjectPlayerModel';
+import {DeltaTrackDestination, DeltaTrackPreviewModel} from '../../common/models/DeltaTrackPreviewModel';
+import {DELTA_STAGE_NAMES} from '../../common/delta/deltaStages';
 import {CardName} from '../../common/cards/CardName';
 import {Tag} from '../../common/cards/Tag';
 import {Resource} from '../../common/Resource';
@@ -74,6 +76,95 @@ export class DeltaProjectExpansion {
   }
 
   /**
+   * Breaks down the tag requirement for reaching `targetPos`: the full path tags,
+   * which lacked tags a wild covers, and which remain uncovered (⇒ illegal). The
+   * wild→tag assignment is positional (arbitrary but stable) — only the counts /
+   * uncovered set are rule-meaningful; the rest is presentation for the overlay.
+   */
+  private static pathTagAnalysis(player: IPlayer, targetPos: number): {
+    requiredTags: Array<Tag>;
+    wildCoveredTags: Array<Tag>;
+    missingTags: Array<Tag>;
+  } {
+    const requiredTags: Array<Tag> = [];
+    const lacking: Array<Tag> = [];
+    for (let pos = 1; pos <= Math.min(targetPos, 9); pos++) {
+      const tag = DELTA_TRACK_TAGS[pos];
+      if (tag !== undefined) {
+        requiredTags.push(tag);
+        if (player.tags.count(tag, 'raw') === 0) {
+          lacking.push(tag);
+        }
+      }
+    }
+    const wilds = player.tags.count(Tag.WILD, 'raw');
+    const covered = Math.min(lacking.length, wilds);
+    return {
+      requiredTags,
+      wildCoveredTags: lacking.slice(0, covered),
+      missingTags: lacking.slice(covered),
+    };
+  }
+
+  /**
+   * The viewer's full planning preview (energy / current position / every
+   * energy-reachable destination with legality + tag breakdown + VP occupancy).
+   * Energy bounds the depth; tags bound legality, not depth. Drives the premium
+   * "Гидросеть" overlay action-zone — see {@link DeltaTrackPreviewModel}.
+   */
+  public static getPreview(player: IPlayer): DeltaTrackPreviewModel {
+    const progress = player.deltaProjectData;
+    if (progress === undefined) {
+      return {
+        currentPosition: 0,
+        availableEnergy: player.energy,
+        usedThisGeneration: false,
+        atEndOfTrack: false,
+        maxLegalSteps: 0,
+        maxPreviewSteps: 0,
+        destinations: [],
+      };
+    }
+    const game = player.game;
+    const currentPos = progress.position;
+    const validSteps = DeltaProjectExpansion.getValidAdvanceSteps(player);
+    const validSet = new Set(validSteps);
+    const maxPreviewSteps = Math.max(0, Math.min(player.energy, MAX_TRACK_POSITION - currentPos));
+
+    const destinations: Array<DeltaTrackDestination> = [];
+    for (let steps = 1; steps <= maxPreviewSteps; steps++) {
+      const position = currentPos + steps;
+      const tagInfo = DeltaProjectExpansion.pathTagAnalysis(player, position);
+      const occupied =
+        (position === VP2_POSITION || position === VP5_POSITION) &&
+        DeltaProjectExpansion.hasOtherPlayerAtPosition(game, position, player);
+      const jumpedOverVp2 =
+        position === VP5_POSITION &&
+        DeltaProjectExpansion.hasOtherPlayerAtPosition(game, VP2_POSITION, player);
+      destinations.push({
+        steps,
+        position,
+        legal: validSet.has(steps),
+        occupied,
+        jumpedOverVp2,
+        requiredTags: tagInfo.requiredTags,
+        wildCoveredTags: tagInfo.wildCoveredTags,
+        missingTags: tagInfo.missingTags,
+      });
+    }
+
+    return {
+      currentPosition: currentPos,
+      availableEnergy: player.energy,
+      usedThisGeneration: progress.usedThisGeneration === true,
+      atEndOfTrack: currentPos >= MAX_TRACK_POSITION,
+      maxLegalSteps: validSteps.length === 0 ? 0 : Math.max(...validSteps),
+      maxPreviewSteps,
+      destinations,
+    };
+  }
+
+  /**
    * Returns the allowed values for `advance(player, steps)` from the current position: each array
    * element is one legal `steps` argument (energy spent equals steps; landing passes tag checks and VP occupancy).
    * For example `[1, 2, 3]` when several jump sizes work, or `[2]` when only a two-step jump ends on a legal space.
@@ -135,16 +226,46 @@ export class DeltaProjectExpansion {
       throw new Error(`Invalid Delta Project advance: ${String(steps)} step(s) (valid: ${valid.join(', ')})`);
     }
 
+    const game = player.game;
     const progress = DeltaProjectExpansion.getProgress(player);
     const currentPos = progress.position;
     const newPos = currentPos + steps;
+    const jumpedOverVp2 =
+      newPos === VP5_POSITION &&
+      DeltaProjectExpansion.hasOtherPlayerAtPosition(game, VP2_POSITION, player);
+    const stageName = DELTA_STAGE_NAMES[newPos] ?? '';
 
-    player.stock.deduct(Resource.ENERGY, steps);
-    progress.position = newPos;
+    // Root the whole advance (energy spend + reward + any deferred follow-ups) in
+    // a journal action scope so it becomes ONE grouped root event (correlationId +
+    // category 'delta-project') — picked up by the premium journal AND surfaced by
+    // the notification layer as a distinct "Гидросеть" card. The deferred rewards
+    // (steel/plants, draw, reuse, animals) capture this scope at defer-time, so
+    // their result logs stay in the same group.
+    game.events.beginAction(player, {kind: 'card', card: CardName.DELTA_PROJECT, owner: player.color}, {category: 'delta-project'});
+    try {
+      player.stock.deduct(Resource.ENERGY, steps);
+      progress.position = newPos;
 
-    DeltaProjectExpansion.resolveReward(player, newPos);
+      game.log('${0} directed ${1} energy into the Delta Project, reaching ${2}', (b) =>
+        b.player(player).number(steps).string(stageName));
 
-    player.game.log('${0} spend ${1} energy to advance on the Delta Project track', (b) => b.player(player).number(steps));
+      if (newPos === VP2_POSITION) {
+        game.log('${0} claimed the ${1} position on the Delta Project (2 VP at game end)', (b) =>
+          b.player(player).string(stageName));
+      } else if (newPos === VP5_POSITION) {
+        if (jumpedOverVp2) {
+          game.log('${0} leapt past the occupied 2 VP position to reach ${1} on the Delta Project (5 VP at game end)', (b) =>
+            b.player(player).string(stageName));
+        } else {
+          game.log('${0} claimed the ${1} position on the Delta Project (5 VP at game end)', (b) =>
+            b.player(player).string(stageName));
+        }
+      }
+
+      DeltaProjectExpansion.resolveReward(player, newPos);
+    } finally {
+      game.events.endScope();
+    }
   }
 
   private static resolveReward(player: IPlayer, position: number): void {
@@ -253,10 +374,14 @@ export class DeltaProjectExpansion {
       return;
     }
 
+    // The player scores ONLY their current final position (never 2+5): leaving
+    // slot 10 for slot 11 frees slot 10 for others. Routed to the dedicated
+    // `deltaProject` category so the score report shows it under "Достижения и
+    // награды" rather than the generic card-VP bucket.
     if (progress.position === VP5_POSITION) {
-      builder.setVictoryPoints('victoryPoints', 5, 'Delta Project (5VP)');
+      builder.setVictoryPoints('deltaProject', 5, 'Delta Project (5VP)');
     } else if (progress.position === VP2_POSITION) {
-      builder.setVictoryPoints('victoryPoints', 2, 'Delta Project (2VP)');
+      builder.setVictoryPoints('deltaProject', 2, 'Delta Project (2VP)');
     }
   }
 }

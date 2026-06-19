@@ -57,7 +57,6 @@ import {MultiSet} from 'mnemonist';
 import {GrantVenusAltTrackBonusDeferred} from './venusNext/GrantVenusAltTrackBonusDeferred';
 import {PathfindersExpansion} from './pathfinders/PathfindersExpansion';
 import {PathfindersData} from './pathfinders/PathfindersData';
-import {DeltaProject} from './cards/delta/DeltaProject';
 import {AddResourcesToCard} from './deferredActions/AddResourcesToCard';
 import {ColonyDeserializer} from './colonies/ColonyDeserializer';
 import {GameLoader} from './database/GameLoader';
@@ -397,9 +396,12 @@ export class Game implements IGame, Logger {
     }
 
     if (game.gameOptions.deltaProjectExpansion) {
+      // The Delta Project ("Гидросеть") is a global engineering subsystem, not a
+      // prelude card: every player participates in the shared track from the
+      // start and advances via the standard "Advance on the Delta Project track"
+      // action (see Player.getActions). No card is dealt or played.
       for (const player of game.players) {
-        player.preludeCardsInHand.push(new DeltaProject());
-        player.deltaProjectData = {position: 0, jovianBonus: false};
+        player.deltaProjectData = {position: 0, jovianBonus: false, usedThisGeneration: false};
       }
     }
 

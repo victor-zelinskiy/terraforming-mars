@@ -13,7 +13,7 @@ function breakdown(p: Partial<VictoryPointsBreakdown>): VictoryPointsBreakdown {
   const b: VictoryPointsBreakdown = {
     terraformRating: 25, terraformRatingBreakdown: {base: 20, temperature: 2, oxygen: 1, oceans: 2, venus: 0, cards: 0},
     milestones: 0, awards: 0, greenery: 0, city: 0, escapeVelocity: 0,
-    moonHabitats: 0, moonMines: 0, moonRoads: 0, planetaryTracks: 0, victoryPoints: 0, total: 25,
+    moonHabitats: 0, moonMines: 0, moonRoads: 0, planetaryTracks: 0, deltaProject: 0, victoryPoints: 0, total: 25,
     detailsCards: [], detailsMilestones: [], detailsAwards: [], detailsPlanetaryTracks: [], negativeVP: 0,
   };
   const merged = {...b, ...p};

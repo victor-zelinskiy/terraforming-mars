@@ -177,6 +177,8 @@ export function buildVictoryPointsModel(b: VictoryPointsBreakdown, opts: Victory
     makeScale('mca', 'Milestones & awards', 'milestones', nonZero([
       {key: 'mca.milestones', accent: 'milestones', label: 'Milestones', value: b.milestones},
       {key: 'mca.awards', accent: 'awards', label: 'Awards', value: b.awards},
+      // Delta Project ("Гидросеть") end-game VP lives in this family per design.
+      {key: 'mca.delta', accent: 'delta', label: 'Hydronetwork', value: b.deltaProject},
     ])),
   ];
 

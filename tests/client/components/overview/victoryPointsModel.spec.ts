@@ -16,6 +16,7 @@ function breakdown(overrides: Partial<VictoryPointsBreakdown> = {}): VictoryPoin
     moonMines: 0,
     moonRoads: 0,
     planetaryTracks: 0,
+    deltaProject: 0,
     victoryPoints: 0,
     total: 50,
     detailsCards: [],

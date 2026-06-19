@@ -70,6 +70,8 @@ import {PreludesExpansion} from './preludes/PreludesExpansion';
 import {ChooseCards} from './deferredActions/ChooseCards';
 import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
+import {DeltaProjectExpansion} from './delta/DeltaProjectExpansion';
+import {DeltaProjectInput} from './delta/DeltaProjectInput';
 import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
@@ -659,6 +661,10 @@ export class Player implements IPlayer {
     this.actionsThisGeneration.clear();
     this.removingPlayers = [];
     this.standardProjectsThisGeneration.clear();
+    if (this.deltaProjectData !== undefined) {
+      // The global "Гидросеть" track action is once per generation.
+      this.deltaProjectData.usedThisGeneration = false;
+    }
 
     this.turmoilPolicyActionUsed = false;
     this.politicalAgendasActionUsedCount = 0;
@@ -1870,6 +1876,26 @@ export class Player implements IPlayer {
           return undefined;
         }));
       action.options.push(milestoneOption);
+    }
+
+    // Delta Project — global "Гидросеть" track advancement, once per generation.
+    // Exposed as a standard action available to every player (not a card), so
+    // the dedicated overlay can drive it. The stable English title is used for
+    // client-side detection (findOptionPathByTitle) and is never mutated by i18n.
+    if (this.game.gameOptions.deltaProjectExpansion &&
+        this.deltaProjectData !== undefined &&
+        this.deltaProjectData.usedThisGeneration !== true &&
+        DeltaProjectExpansion.maxSteps(this) > 0) {
+      action.options.push(
+        new SelectOption('Advance on the Delta Project track', 'Advance').andThen(() => {
+          return new DeltaProjectInput(DeltaProjectExpansion.getValidAdvanceSteps(this)).andThen((amount) => {
+            DeltaProjectExpansion.advance(this, amount);
+            if (this.deltaProjectData !== undefined) {
+              this.deltaProjectData.usedThisGeneration = true;
+            }
+            return undefined;
+          });
+        }));
     }
 
     // Convert Plants
