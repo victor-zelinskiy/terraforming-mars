@@ -105,6 +105,7 @@
             <span class="hydro-action__delta-ico" :class="{'hydro-action__delta-ico--prod': l.production}">
               <span class="hydro-action__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
             </span>
+            <span v-if="l.labelKey" class="hydro-action__delta-label"><span v-i18n>{{ l.labelKey }}</span>:</span>
             <span class="hydro-action__delta-vals"><b>{{ l.before }}</b> <span class="hydro-action__delta-arrow" aria-hidden="true">→</span> <b class="hydro-action__delta-after">{{ l.after }}</b></span>
             <span class="hydro-action__delta-plus">+{{ l.delta }}</span>
             <span v-if="l.cardName" class="hydro-action__delta-card" v-i18n>{{ l.cardName }}</span>

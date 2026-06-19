@@ -28,12 +28,21 @@ export class GrantVenusAltTrackBonusDeferred extends DeferredAction {
     const resourceCards = this.player.getResourceCards(undefined);
     const base = this.standardResourceCount;
 
-    // No wild bonus (or nowhere to put a wild card-resource) → just the base
-    // standard resources. Marked so the premium client renders the resource-tile
-    // picker instead of the legacy numeric-distribution form.
-    if (this.wildResource === false || resourceCards.length === 0) {
+    // No wild bonus → just the base standard resources. Marked so the premium
+    // client renders the resource-tile picker instead of the legacy form.
+    if (this.wildResource === false) {
       return this.selectStandardResources(base)
         .markVenusBonusPrompt({kind: 'standard', baseCount: base});
+    }
+
+    // Final-step (30%) bonus with a wild resource but NO card that can host it:
+    // the wild can ONLY be a standard resource, so grant base + 1 standard. Still
+    // marked 'final' (empty wildCardTargets) so the premium modal shows the final
+    // layout with the "resource on a card" tab DISABLED (+ a reason tooltip) — the
+    // player must NEVER silently lose the wild just because they have no card.
+    if (resourceCards.length === 0) {
+      return this.selectStandardResources(base + 1)
+        .markVenusBonusPrompt({kind: 'final', baseCount: base, wildCardTargets: []});
     }
 
     // Final-step (30%) bonus: the base standard resources PLUS one wild resource

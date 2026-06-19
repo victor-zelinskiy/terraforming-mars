@@ -22,12 +22,17 @@ describe('venusBonusResponses', () => {
   });
 
   it('standard bonus → bare AndOptions response', () => {
-    const r = buildVenusBonusResponse(false, Units.of({plants: 1}), undefined);
+    const r = buildVenusBonusResponse(false, Units.of({plants: 1}), undefined, false);
     expect(r).to.deep.eq(venusAmountsResponse(Units.of({plants: 1})));
   });
 
+  it('final WITHOUT a card branch → bare AndOptions (base + wild standard)', () => {
+    const r = buildVenusBonusResponse(true, Units.of({megacredits: 1}), {kind: 'standard', resource: 'heat'}, false);
+    expect(r).to.deep.eq(venusAmountsResponse(Units.of({megacredits: 1, heat: 1})));
+  });
+
   it('final wild→standard → OrOptions index 1 with the wild folded into base', () => {
-    const r = buildVenusBonusResponse(true, Units.of({megacredits: 1}), {kind: 'standard', resource: 'megacredits'});
+    const r = buildVenusBonusResponse(true, Units.of({megacredits: 1}), {kind: 'standard', resource: 'megacredits'}, true);
     expect(r).to.deep.eq({
       type: 'or',
       index: 1,
@@ -36,7 +41,7 @@ describe('venusBonusResponses', () => {
   });
 
   it('final wild→standard with a different resource', () => {
-    const r = buildVenusBonusResponse(true, Units.of({steel: 1}), {kind: 'standard', resource: 'plants'});
+    const r = buildVenusBonusResponse(true, Units.of({steel: 1}), {kind: 'standard', resource: 'plants'}, true);
     expect(r).to.deep.eq({
       type: 'or',
       index: 1,
@@ -45,7 +50,7 @@ describe('venusBonusResponses', () => {
   });
 
   it('final wild→card → OrOptions index 0 with nested [card, base]', () => {
-    const r = buildVenusBonusResponse(true, Units.of({titanium: 1}), {kind: 'card', card: CardName.TARDIGRADES});
+    const r = buildVenusBonusResponse(true, Units.of({titanium: 1}), {kind: 'card', card: CardName.TARDIGRADES}, true);
     expect(r).to.deep.eq({
       type: 'or',
       index: 0,

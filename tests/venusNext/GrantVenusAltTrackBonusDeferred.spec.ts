@@ -53,8 +53,28 @@ describe('GrantVenusAltTrackBonusDeferred', () => {
     expect(player.heat).eq(2);
   });
 
+  it('final bonus with NO resource card still grants the wild as a standard resource', () => {
+    // The critical bug: a 30% bonus with a wild but no card to host it must NOT
+    // silently drop the wild. The deferred yields a marked 'final' AndOptions for
+    // base + 1 standard resources (the on-card tab is disabled client-side).
+    const input = cast(new GrantVenusAltTrackBonusDeferred(player, 1, true).execute(), AndOptions);
+    expect(input.venusBonusPrompt).to.deep.eq({kind: 'final', baseCount: 1, wildCardTargets: []});
+    // base 1 + wild 1 (forced standard) = 2 standard resources.
+    input.process({type: 'and', responses: [
+      {type: 'amount', amount: 1}, // megacredits
+      {type: 'amount', amount: 0},
+      {type: 'amount', amount: 0},
+      {type: 'amount', amount: 1}, // plants
+      {type: 'amount', amount: 0},
+      {type: 'amount', amount: 0},
+    ]}, player);
+    expect(player.megaCredits).eq(1);
+    expect(player.plants).eq(1);
+  });
+
   it('grants wild resource', () => {
-    // With no resource card, the deferred falls back to the standard AndOptions.
+    // With no resource card, the deferred yields the marked 'final' AndOptions
+    // (base + 1 standard, wild forced to standard).
     cast(new GrantVenusAltTrackBonusDeferred(player, 0, true).execute(), AndOptions);
 
     const card = new Tardigrades();

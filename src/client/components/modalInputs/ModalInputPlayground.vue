@@ -281,6 +281,11 @@ export default defineComponent({
           input: {type: 'or', title: 'Choose your wild resource bonus.', buttonLabel: '', options: [],
             venusBonusPrompt: {kind: 'final', baseCount: 1, wildCardTargets: ['Tardigrades', 'Physics Complex']}},
         },
+        {
+          label: 'Venus bonus — FINAL, NO card (on-card tab disabled, wild as standard)',
+          input: {type: 'and', title: 'Choose your wild resource bonus.', buttonLabel: '', options: [],
+            venusBonusPrompt: {kind: 'final', baseCount: 1, wildCardTargets: []}},
+        },
       ];
     },
   },
