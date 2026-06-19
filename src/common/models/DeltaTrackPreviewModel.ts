@@ -1,22 +1,27 @@
 import {Tag} from '../cards/Tag';
 
 /**
- * One reachable-by-energy destination on the Delta Project ("Гидросеть") track,
- * relative to the player's current position. The server computes the canonical
- * legality so the UI never guesses.
+ * One reachable destination on the Delta Project ("Гидросеть") track, relative to
+ * the player's current position. The server computes the canonical legality so the
+ * UI never guesses.
  *
- * Energy bounds the DEPTH of the preview (`steps` <= available energy); tags bound
- * LEGALITY (`legal`) but NOT the preview depth — the player may explore an
- * out-of-reach destination to see which tags / reward it would require.
+ * The preview covers EVERY remaining position (1..end-of-track), NOT only the
+ * energy-affordable ones — so the player can click a distant stage to study what
+ * it requires. `legal` = tags + VP occupancy OK (independent of energy);
+ * `affordable` = within the player's energy. Confirm needs `legal && affordable`.
  */
 export type DeltaTrackDestination = {
-  /** Energy that would be spent (equals the number of track positions advanced). */
+  /** Track positions advanced (also the energy cost). */
   steps: number;
   /** Absolute track position reached (currentPosition + steps). */
   position: number;
-  /** Tags OK (all path requirements met, wilds applied) AND not blocked by VP occupancy. */
+  /** Tags OK (path requirements met, wilds applied) AND not blocked by VP occupancy. */
   legal: boolean;
-  /** The destination is a VP slot already occupied by another player (cannot land here). */
+  /** Within the player's current energy (steps <= availableEnergy). */
+  affordable: boolean;
+  /** Extra energy needed beyond what the player has (0 when affordable). */
+  energyDeficit: number;
+  /** The destination is a VP slot already occupied by another player. */
   occupied: boolean;
   /** Reaching position 11 (5 VP) by passing an occupied position 10 (2 VP). */
   jumpedOverVp2: boolean;
@@ -29,21 +34,21 @@ export type DeltaTrackDestination = {
 };
 
 /**
- * The viewer's full planning preview for the Delta Project track action, served by
- * `/api/game/delta-preview`. The track DISPLAY (every player's position) rides the
- * public player model; this is purely the viewer's action-zone planning data.
+ * The viewer's full planning preview, served by `/api/game/delta-preview`. The
+ * track DISPLAY (every player's position + stop history) rides the public player
+ * model; this is the viewer's action-zone planning data.
  */
 export type DeltaTrackPreviewModel = {
   currentPosition: number;
   availableEnergy: number;
-  /** The once-per-generation track action has already been used this generation. */
   usedThisGeneration: boolean;
-  /** Already at the final position (11) — no further advance possible. */
   atEndOfTrack: boolean;
-  /** Highest legal step count (best confirmable move). 0 when none. Drives the default spend. */
+  /** Highest legal AND affordable step count (best confirmable move). Drives the default spend. */
   maxLegalSteps: number;
-  /** Deepest energy-reachable step count (legal or not) — the preview's max depth. */
+  /** Deepest energy-affordable step count — bounds the −/+ stepper. */
+  maxEnergySteps: number;
+  /** Deepest reachable step count on the track (= destinations.length) — bounds click-preview. */
   maxPreviewSteps: number;
-  /** One entry per reachable step count 1..maxPreviewSteps. */
+  /** One entry per reachable step count 1..maxPreviewSteps (whole remaining track). */
   destinations: ReadonlyArray<DeltaTrackDestination>;
 };

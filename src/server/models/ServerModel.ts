@@ -28,12 +28,13 @@ import {SpaceId} from '../../common/Types';
 import {cardsToModel, coloniesToModel} from './ModelUtils';
 import {runId} from '../utils/server-ids';
 import {toName} from '../../common/utils/utils';
-import {MAX_AWARDS, MAX_MILESTONES} from '../../common/constants';
+import {MAX_AWARDS, MAX_MILESTONES, MAX_TEMPERATURE} from '../../common/constants';
 import {Message} from '../../common/logs/Message';
 import {PartyHooks} from '../turmoil/parties/PartyHooks';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {ConvertPlants} from '../cards/base/standardActions/ConvertPlants';
 import {ConvertHeat} from '../cards/base/standardActions/ConvertHeat';
+import {DeltaProjectExpansion} from '../delta/DeltaProjectExpansion';
 import {KELVINISTS_POLICY_3} from '../turmoil/parties/Kelvinists';
 
 const DEFAULT_HEAT_FOR_TEMPERATURE = 8;
@@ -353,10 +354,20 @@ export class Server {
     // mid-card sub-prompts).
     const inActionSelection = isInActionSelectionPhase(player.getWaitingFor());
     const canConvertPlants = inActionSelection && new ConvertPlants().canAct(player);
-    const canConvertHeat = inActionSelection && (
+    // Heat→temperature is pointless once temperature is maxed (no parameter rise,
+    // no TR): suppress the dedicated button AND the pass warning there, even though
+    // the legacy action menu still technically offers it with a 'maxtemp' warning.
+    const canConvertHeat = inActionSelection && game.getTemperature() < MAX_TEMPERATURE && (
       PartyHooks.shouldApplyPolicy(player, PartyName.KELVINISTS, 'kp03') ?
         KELVINISTS_POLICY_3.canAct(player) :
         new ConvertHeat().canAct(player));
+    // The global "Гидросеть" advance action is available right now (drives the
+    // bottom-bar ready cue + the pass warning). Same gate as Player.getActions().
+    const canAdvanceDelta = inActionSelection &&
+      game.gameOptions.deltaProjectExpansion === true &&
+      player.deltaProjectData !== undefined &&
+      player.deltaProjectData.usedThisGeneration !== true &&
+      DeltaProjectExpansion.maxSteps(player) > 0;
     const model: PublicPlayerModel = {
       actionsTakenThisRound: player.actionsTakenThisRound,
       actionsTakenThisGame: player.actionsTakenThisGame,
@@ -399,6 +410,7 @@ export class Server {
           DEFAULT_HEAT_FOR_TEMPERATURE,
       canConvertPlants,
       canConvertHeat,
+      canAdvanceDelta,
       protectedResources: Server.getResourceProtections(player),
       protectedProduction: Server.getProductionProtections(player),
       // actionReasons only for the viewer's OWN tableau (the self-model): the

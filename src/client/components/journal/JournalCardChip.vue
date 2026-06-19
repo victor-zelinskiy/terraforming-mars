@@ -28,14 +28,16 @@
   </span>
 
   <!-- Hover preview: full card for project cards, compact effect card for
-       standard projects. Mutually exclusive by card type. -->
+       standard projects. Mutually exclusive by card type. The Delta Project is a
+       global subsystem ("Гидросеть") — it has NO user-facing card, so suppress
+       both previews + fullscreen entirely. -->
   <CardPreviewPopover
-    v-if="!isStandardProject"
+    v-if="!isStandardProject && !isHydronetwork"
     :name="name"
     :visible="previewVisible"
     :anchor="anchor" />
   <StandardProjectPreviewPopover
-    v-else
+    v-else-if="!isHydronetwork"
     :name="name"
     :visible="previewVisible"
     :anchor="anchor" />
@@ -133,7 +135,15 @@ export default defineComponent({
     isStandardProject(): boolean {
       return this.cardType === CardType.STANDARD_PROJECT || this.cardType === CardType.STANDARD_ACTION;
     },
+    // The Delta Project is presented as the global "Гидросеть" subsystem — the
+    // technical card must never leak into the UI (name / hover / fullscreen).
+    isHydronetwork(): boolean {
+      return this.name === CardName.DELTA_PROJECT;
+    },
     label(): string {
+      if (this.isHydronetwork) {
+        return 'Hydronetwork';
+      }
       // Strip ":" suffix (e.g. "Self-Replicating Robots: Foo") like the
       // rest of the log UI.
       return this.name.split(':')[0];
@@ -145,8 +155,11 @@ export default defineComponent({
       if (mod !== undefined) {
         classes.push(mod);
       }
-      if (!this.isStandardProject) {
+      if (!this.isStandardProject && !this.isHydronetwork) {
         classes.push('journal-chip--zoomable');
+      }
+      if (this.isHydronetwork) {
+        classes.push('journal-chip--system');
       }
       return classes;
     },
@@ -165,6 +178,10 @@ export default defineComponent({
   },
   methods: {
     onEnter(): void {
+      // The Гидросеть chip has no card preview.
+      if (this.isHydronetwork) {
+        return;
+      }
       // Ignore the phantom mouseenter the browser fires while fullscreen
       // is open / just closed (see blockHover). Real hovers are unaffected.
       if (this.blockHover) {
@@ -201,8 +218,8 @@ export default defineComponent({
       }
     },
     onClick(): void {
-      // Standard projects never open fullscreen.
-      if (this.isStandardProject) {
+      // Standard projects + the Гидросеть system chip never open fullscreen.
+      if (this.isStandardProject || this.isHydronetwork) {
         return;
       }
       // Opening fullscreen — drop the hover preview so they don't stack,

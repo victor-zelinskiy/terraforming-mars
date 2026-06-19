@@ -12,7 +12,9 @@ import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
  */
 export const hydroNetworkState = reactive<{
   open: boolean;
-  selectedSpend: number;
+  /** The clicked/selected track position (-1 = use the max-legal default). A
+   *  position > current = a plan target; <= current = a details/history view. */
+  selectedPosition: number;
   rewardChoice: number | undefined;
   /** Cache scope key (generation + viewed colour) for the fetched preview. */
   previewScope: string | undefined;
@@ -20,15 +22,15 @@ export const hydroNetworkState = reactive<{
   previewColor: Color | undefined;
 }>({
   open: false,
-  selectedSpend: -1,
+  selectedPosition: -1,
   rewardChoice: undefined,
   previewScope: undefined,
   preview: undefined,
   previewColor: undefined,
 });
 
-/** Reset the planning state (spend + reward choice) — on open / player switch / submit. */
+/** Reset the planning state (selection + reward choice) — on open / player switch / submit. */
 export function resetHydroPlan(): void {
-  hydroNetworkState.selectedSpend = -1;
+  hydroNetworkState.selectedPosition = -1;
   hydroNetworkState.rewardChoice = undefined;
 }

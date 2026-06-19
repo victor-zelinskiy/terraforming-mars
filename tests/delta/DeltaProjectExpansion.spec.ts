@@ -551,6 +551,50 @@ describe('DeltaProjectExpansion', () => {
     });
   });
 
+  describe('getPreview', () => {
+    it('covers the whole remaining track, affordability follows energy', () => {
+      player.energy = 2;
+      player.playedCards.push(fakeCard({tags: [Tag.BUILDING, Tag.POWER, Tag.EARTH]}));
+      const preview = DeltaProjectExpansion.getPreview(player);
+
+      expect(preview.maxPreviewSteps).eq(11); // every remaining position
+      expect(preview.destinations.length).eq(11);
+      expect(preview.maxEnergySteps).eq(2);
+      expect(preview.maxLegalSteps).eq(2); // legal AND affordable
+      // Step 3 (Earth) is legal by tags but unaffordable on 2 energy.
+      const d3 = preview.destinations[2];
+      expect(d3.legal).is.true;
+      expect(d3.affordable).is.false;
+      expect(d3.energyDeficit).eq(1);
+      // Step 4 (Space) lacks the tag → illegal.
+      expect(preview.destinations[3].missingTags).deep.eq([Tag.SPACE]);
+    });
+  });
+
+  describe('stop history', () => {
+    it('records a landing and the chosen reward', () => {
+      player.energy = 1;
+      playAllDeltaTrackTags(player);
+      DeltaProjectExpansion.advance(player, 1); // lands on position 1 (choice stage)
+      runAllActions(game);
+      const orOptions = cast(player.popWaitingFor(), OrOptions);
+      orOptions.options[1].cb(); // choose plants (index 1)
+
+      const stops = player.deltaProjectData!.stops!;
+      expect(stops.length).eq(1);
+      expect(stops[0].position).eq(1);
+      expect(stops[0].choice).eq(1);
+    });
+
+    it('does not record skipped intermediate positions', () => {
+      player.energy = 3;
+      playAllDeltaTrackTags(player);
+      DeltaProjectExpansion.advance(player, 3); // jumps 0 → 3
+      const stops = player.deltaProjectData!.stops!;
+      expect(stops.map((s) => s.position)).deep.eq([3]);
+    });
+  });
+
   describe('serialization', () => {
     it('round-trips delta project progress through player serialization', () => {
       player.deltaProjectData!.position = 5;
@@ -561,8 +605,8 @@ describe('DeltaProjectExpansion', () => {
       const serialized = game.serialize();
       const serializedPlayer = serialized.players.find((p) => p.color === player.color)!;
       const serializedPlayer2 = serialized.players.find((p) => p.color === player2.color)!;
-      expect(serializedPlayer.deltaProject).deep.eq({position: 5, jovianBonus: true, usedThisGeneration: false});
-      expect(serializedPlayer2.deltaProject).deep.eq({position: 10, jovianBonus: false, usedThisGeneration: false});
+      expect(serializedPlayer.deltaProject).deep.eq({position: 5, jovianBonus: true, usedThisGeneration: false, stops: []});
+      expect(serializedPlayer2.deltaProject).deep.eq({position: 10, jovianBonus: false, usedThisGeneration: false, stops: []});
     });
 
     it('full deserialization round-trip preserves delta project progress', () => {

@@ -1,15 +1,21 @@
 <template>
   <span class="hydro-reward" :class="{'hydro-reward--compact': compact}">
     <template v-for="(chip, i) in chips" :key="i">
-      <!-- Standard resource / production gain. -->
-      <span v-if="chip.resource !== undefined"
-            class="hydro-reward__chip"
-            :class="{'hydro-reward__chip--prod': chip.production === true}">
+      <!-- Standard resource gain (steel / plants / titanium / mc …). -->
+      <span v-if="chip.resource !== undefined && chip.production !== true" class="hydro-reward__chip">
         <span v-if="(chip.amount ?? 1) !== 1" class="hydro-reward__amt">{{ chip.amount }}</span>
-        <span class="hydro-reward__icon resource_icon" :class="'resource_icon--' + chip.resource" aria-hidden="true"></span>
+        <span class="hydro-reward__icon" :class="iconClassFor(chip.resource)" aria-hidden="true"></span>
       </span>
 
-      <!-- Special rewards. -->
+      <!-- Production gain — icon inside a brown production frame. -->
+      <span v-else-if="chip.resource !== undefined" class="hydro-reward__chip">
+        <span v-if="(chip.amount ?? 1) !== 1" class="hydro-reward__amt">{{ chip.amount }}</span>
+        <span class="hydro-reward__prod">
+          <span class="hydro-reward__icon" :class="iconClassFor(chip.resource)" aria-hidden="true"></span>
+        </span>
+      </span>
+
+      <!-- Specials. -->
       <span v-else-if="chip.special === 'plants-per-plant-tag'" class="hydro-reward__chip hydro-reward__chip--special">
         <span class="hydro-reward__icon resource_icon resource_icon--plants" aria-hidden="true"></span>
         <span class="hydro-reward__per" aria-hidden="true">/</span>
@@ -29,7 +35,7 @@
       </span>
 
       <span v-else-if="chip.special === 'draw-4-keep-2'" class="hydro-reward__chip hydro-reward__chip--special">
-        <span class="hydro-reward__glyph" aria-hidden="true">🜨</span>
+        <span class="hydro-reward__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
         <span class="hydro-reward__mini">4→2</span>
         <span v-if="!compact" class="hydro-reward__label" v-i18n>{{ SPECIAL_LABEL['draw-4-keep-2'] }}</span>
       </span>
@@ -44,6 +50,7 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {HydroRewardChip, HydroSpecialReward} from './hydroStages';
 
 // English i18n keys for the abstract reward effects (translated by the overlay).
@@ -69,6 +76,9 @@ export default defineComponent({
   },
   data() {
     return {SPECIAL_LABEL};
+  },
+  methods: {
+    iconClassFor,
   },
 });
 </script>

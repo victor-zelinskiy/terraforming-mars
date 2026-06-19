@@ -98,6 +98,8 @@ export type PublicPlayerModel = {
   // the button is enabled iff the matching server-side action would be in
   // the menu.
   canConvertHeat: boolean;
+  // The global "Гидросеть" (Delta Project) advance action is available this turn.
+  canAdvanceDelta?: boolean;
   plantProduction: number;
   protectedResources: Record<Resource, Protection>;
   protectedProduction: Record<Resource, Protection>;

@@ -401,7 +401,7 @@ export class Game implements IGame, Logger {
       // start and advances via the standard "Advance on the Delta Project track"
       // action (see Player.getActions). No card is dealt or played.
       for (const player of game.players) {
-        player.deltaProjectData = {position: 0, jovianBonus: false, usedThisGeneration: false};
+        player.deltaProjectData = {position: 0, jovianBonus: false, usedThisGeneration: false, stops: []};
       }
     }
 

@@ -1,13 +1,15 @@
 import {expect} from 'chai';
-import {buildHydroModel, HydroModelInput} from '../../../../src/client/components/hydronetwork/hydroNetworkModel';
+import {buildHydroModel, HydroModelInput, HydroPlayerPos} from '../../../../src/client/components/hydronetwork/hydroNetworkModel';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '../../../../src/common/models/DeltaTrackPreviewModel';
 import {Tag} from '../../../../src/common/cards/Tag';
 
 function dest(steps: number, opts: Partial<DeltaTrackDestination> = {}): DeltaTrackDestination {
   return {
     steps,
-    position: steps, // tests start the viewer at position 0
+    position: steps, // viewer starts at position 0 in these tests
     legal: true,
+    affordable: true,
+    energyDeficit: 0,
     occupied: false,
     jumpedOverVp2: false,
     requiredTags: [],
@@ -17,133 +19,164 @@ function dest(steps: number, opts: Partial<DeltaTrackDestination> = {}): DeltaTr
   };
 }
 
-function preview(overrides: Partial<DeltaTrackPreviewModel> = {}): DeltaTrackPreviewModel {
+// A preview from position 0 covering the WHOLE track (1..11), with `energy`
+// affordable steps; the rest legal-by-tags but unaffordable.
+function fullPreview(energy: number, overrides: Partial<DeltaTrackPreviewModel> = {}): DeltaTrackPreviewModel {
+  const destinations: Array<DeltaTrackDestination> = [];
+  for (let steps = 1; steps <= 11; steps++) {
+    destinations.push(dest(steps, {affordable: steps <= energy, energyDeficit: Math.max(0, steps - energy)}));
+  }
   return {
     currentPosition: 0,
-    availableEnergy: 3,
+    availableEnergy: energy,
     usedThisGeneration: false,
     atEndOfTrack: false,
-    maxLegalSteps: 3,
-    maxPreviewSteps: 3,
-    destinations: [dest(1), dest(2), dest(3)],
+    maxLegalSteps: Math.min(energy, 11),
+    maxEnergySteps: Math.min(energy, 11),
+    maxPreviewSteps: 11,
+    destinations,
     ...overrides,
   };
 }
 
+function viewer(overrides: Partial<HydroPlayerPos> = {}): HydroPlayerPos {
+  return {color: 'red', name: 'Red', position: 0, isViewer: true, stops: [], ...overrides};
+}
+
 function input(overrides: Partial<HydroModelInput> = {}): HydroModelInput {
   return {
-    preview: preview(),
-    players: [{color: 'red', position: 0, isViewer: true}],
+    preview: fullPreview(3),
+    players: [viewer()],
     viewerColor: 'red',
-    selectedSpend: -1,
+    selectedPosition: -1,
     rewardChoice: undefined,
     actionAvailable: true,
     ...overrides,
   };
 }
 
-describe('buildHydroModel', () => {
-  it('defaults the spend to the max legal move', () => {
+describe('buildHydroModel (iteration 2)', () => {
+  it('defaults the selection to the max-legal target', () => {
     const m = buildHydroModel(input());
     expect(m.defaultSpend).eq(3);
+    expect(m.selectedPosition).eq(3);
+    expect(m.mode).eq('plan');
     expect(m.selectedSpend).eq(3);
-    expect(m.destinationPosition).eq(3);
   });
 
-  it('falls back to the deepest preview when no legal move exists', () => {
+  it('previews a distant stage beyond energy (click), confirm blocked', () => {
+    const m = buildHydroModel(input({preview: fullPreview(2), selectedPosition: 7}));
+    expect(m.mode).eq('plan');
+    expect(m.selectedSpend).eq(7);
+    expect(m.destination?.affordable).eq(false);
+    expect(m.destination?.energyDeficit).eq(5);
+    expect(m.canConfirm).eq(false);
+    // The stepper is still energy-bounded.
+    expect(m.stepperMax).eq(2);
+    expect(m.maxSpend).eq(11);
+  });
+
+  it('blocks confirm on missing tags but still previews', () => {
     const m = buildHydroModel(input({
-      preview: preview({maxLegalSteps: 0, destinations: [dest(1, {legal: false, missingTags: [Tag.BUILDING]}), dest(2, {legal: false, missingTags: [Tag.BUILDING, Tag.POWER]})], maxPreviewSteps: 2}),
-    }));
-    expect(m.defaultSpend).eq(2);
-    expect(m.selectedSpend).eq(2);
-  });
-
-  it('clamps the spend to the energy-bounded preview depth', () => {
-    expect(buildHydroModel(input({selectedSpend: 99})).selectedSpend).eq(3);
-    expect(buildHydroModel(input({selectedSpend: 2})).selectedSpend).eq(2);
-  });
-
-  it('exposes the server destination for the chosen spend', () => {
-    const m = buildHydroModel(input({selectedSpend: 2}));
-    expect(m.destination?.steps).eq(2);
-    expect(m.destinationPosition).eq(2);
-  });
-
-  it('allows previewing illegal (missing-tag) destinations but blocks confirm', () => {
-    const m = buildHydroModel(input({
-      selectedSpend: 3,
-      preview: preview({
+      selectedPosition: 3,
+      preview: fullPreview(5, {
         maxLegalSteps: 1,
-        destinations: [dest(1), dest(2, {legal: false, missingTags: [Tag.POWER]}), dest(3, {legal: false, missingTags: [Tag.POWER, Tag.EARTH]})],
+        destinations: [
+          dest(1), dest(2, {legal: false, missingTags: [Tag.POWER]}), dest(3, {legal: false, missingTags: [Tag.POWER, Tag.EARTH]}),
+          ...Array.from({length: 8}, (_v, i) => dest(i + 4, {legal: false, missingTags: [Tag.POWER]})),
+        ],
       }),
     }));
-    expect(m.maxSpend).eq(3); // energy still allows the preview
     expect(m.destination?.legal).eq(false);
     expect(m.canConfirm).eq(false);
+    expect(m.stages[3].missingTags).deep.eq([Tag.POWER, Tag.EARTH]);
   });
 
-  it('requires a reward choice on a choice stage before confirming', () => {
-    // Destination position 1 (Dam Foundations) is a steel-or-plants choice.
-    const withoutChoice = buildHydroModel(input({selectedSpend: 1, rewardChoice: undefined}));
-    expect(withoutChoice.targetNeedsChoice).eq(true);
-    expect(withoutChoice.canConfirm).eq(false);
-    const withChoice = buildHydroModel(input({selectedSpend: 1, rewardChoice: 0}));
-    expect(withChoice.canConfirm).eq(true);
+  it('requires a reward choice on a choice stage', () => {
+    expect(buildHydroModel(input({selectedPosition: 1, rewardChoice: undefined})).canConfirm).eq(false);
+    expect(buildHydroModel(input({selectedPosition: 1, rewardChoice: 0})).canConfirm).eq(true);
   });
 
-  it('confirms a legal fixed-reward destination', () => {
-    const m = buildHydroModel(input({selectedSpend: 3}));
+  it('confirms a legal affordable fixed-reward destination', () => {
+    const m = buildHydroModel(input({selectedPosition: 3}));
     expect(m.targetNeedsChoice).eq(false);
     expect(m.canConfirm).eq(true);
   });
 
-  it('cannot confirm when the action is not available or already used', () => {
-    expect(buildHydroModel(input({selectedSpend: 3, actionAvailable: false})).canConfirm).eq(false);
-    expect(buildHydroModel(input({selectedSpend: 3, preview: preview({usedThisGeneration: true})})).canConfirm).eq(false);
+  it('lists ALL skipped intermediate rewards on a jump', () => {
+    const m = buildHydroModel(input({preview: fullPreview(5), selectedPosition: 5}));
+    expect(m.skippedStages.map((s) => s.position)).deep.eq([1, 2, 3, 4]);
   });
 
-  it('lists the intermediate stages whose reward is skipped by a jump', () => {
-    const m = buildHydroModel(input({selectedSpend: 3}));
-    // Jump 0 → 3 skips positions 1 and 2 (both have rewards).
-    expect(m.skippedStages.map((s) => s.position)).deep.eq([1, 2]);
-  });
-
-  it('marks current / route / target / reachable states', () => {
-    const m = buildHydroModel(input({selectedSpend: 2}));
-    const stateAt = (pos: number) => m.stages[pos].state;
-    expect(stateAt(0)).eq('current');
-    expect(stateAt(1)).eq('route');
-    expect(stateAt(2)).eq('target');
-    expect(stateAt(3)).eq('reachable');
-    expect(stateAt(4)).eq('future');
-  });
-
-  it('places player markers and flags an occupied VP slot', () => {
+  it('switches to details mode for a passed/current position', () => {
     const m = buildHydroModel(input({
-      preview: preview({currentPosition: 9, availableEnergy: 5, maxLegalSteps: 2, maxPreviewSteps: 2, destinations: [dest(1, {position: 10, occupied: true, legal: false}), dest(2, {position: 11, legal: true, jumpedOverVp2: true})]}),
-      players: [{color: 'red', position: 9, isViewer: true}, {color: 'blue', position: 10, isViewer: false}],
-      selectedSpend: 2,
+      preview: fullPreview(3, {currentPosition: 4, maxPreviewSteps: 7, maxEnergySteps: 3, maxLegalSteps: 3,
+        destinations: Array.from({length: 7}, (_v, i) => dest(i + 1, {position: 5 + i}))}),
+      players: [viewer({position: 4, stops: [{position: 2, generation: 1, choice: 1}, {position: 4, generation: 2}]})],
+      selectedPosition: 2,
+    }));
+    expect(m.mode).eq('details');
+    expect(m.detailsStage?.position).eq(2);
+    expect(m.viewerStatusAtDetails).eq('rewarded');
+    expect(m.viewerChoiceAtDetails).eq(1);
+  });
+
+  it('marks viewer rewarded vs skipped stages from stops', () => {
+    const m = buildHydroModel(input({
+      preview: fullPreview(2, {currentPosition: 5, maxPreviewSteps: 6, maxEnergySteps: 2, maxLegalSteps: 2,
+        destinations: Array.from({length: 6}, (_v, i) => dest(i + 1, {position: 6 + i}))}),
+      players: [viewer({position: 5, stops: [{position: 5, generation: 1}]})], // jumped 0 → 5
+      selectedPosition: 8,
+    }));
+    // Stopped on 5 (current), jumped over 1..4 (skipped).
+    expect(m.stages[5].state).eq('current');
+    expect(m.stages[1].skippedByViewer).eq(true);
+    expect(m.stages[3].skippedByViewer).eq(true);
+    expect(m.stages[5].rewardedByViewer).eq(false); // current, not a past reward badge
+  });
+
+  it('builds per-player stage history in details mode', () => {
+    const m = buildHydroModel(input({
+      preview: fullPreview(1, {currentPosition: 3, maxPreviewSteps: 8, maxEnergySteps: 1, maxLegalSteps: 1,
+        destinations: Array.from({length: 8}, (_v, i) => dest(i + 1, {position: 4 + i}))}),
+      players: [
+        viewer({position: 3, stops: [{position: 2, generation: 1, choice: 0}, {position: 3, generation: 2}]}),
+        {color: 'blue', name: 'Blue', position: 5, isViewer: false, stops: [{position: 5, generation: 2}]},
+      ],
+      selectedPosition: 2,
+    }));
+    expect(m.mode).eq('details');
+    const byColor = new Map(m.detailsHistory.map((h) => [h.color, h]));
+    expect(byColor.get('red')?.status).eq('rewarded');
+    expect(byColor.get('red')?.choice).eq(0);
+    expect(byColor.get('blue')?.status).eq('passed'); // reached past 2 without a stop there
+    // Viewer is listed first.
+    expect(m.detailsHistory[0].isViewer).eq(true);
+  });
+
+  it('flags an occupied VP slot and the jump-over', () => {
+    const m = buildHydroModel(input({
+      preview: fullPreview(5, {currentPosition: 9, maxPreviewSteps: 2, maxEnergySteps: 2, maxLegalSteps: 2,
+        destinations: [dest(1, {position: 10, occupied: true, legal: false}), dest(2, {position: 11, jumpedOverVp2: true})]}),
+      players: [viewer({position: 9}), {color: 'blue', name: 'Blue', position: 10, isViewer: false, stops: [{position: 10, generation: 3}]}],
+      selectedPosition: 11,
     }));
     expect(m.stages[10].occupiedByOther).eq(true);
-    expect(m.stages[10].markers.map((mk) => mk.color)).deep.eq(['blue']);
-    expect(m.stages[9].markers.some((mk) => mk.isViewer)).eq(true);
-    // The 5 VP destination remains confirmable (jumping the occupied 2 VP).
     expect(m.destination?.jumpedOverVp2).eq(true);
     expect(m.canConfirm).eq(true);
   });
 
-  it('handles a spectator / no-preview gracefully (track display only)', () => {
+  it('handles no preview (details on current stage)', () => {
     const m = buildHydroModel({
       preview: undefined,
-      players: [{color: 'red', position: 4, isViewer: false}, {color: 'blue', position: 7, isViewer: false}],
-      viewerColor: undefined,
-      selectedSpend: -1,
+      players: [viewer({position: 4})],
+      viewerColor: 'red',
+      selectedPosition: -1,
       rewardChoice: undefined,
       actionAvailable: false,
     });
-    expect(m.selectedSpend).eq(0);
+    expect(m.maxSpend).eq(0);
+    expect(m.mode).eq('details');
     expect(m.canConfirm).eq(false);
-    expect(m.stages[4].markers.map((mk) => mk.color)).deep.eq(['red']);
-    expect(m.stages[7].markers.map((mk) => mk.color)).deep.eq(['blue']);
   });
 });

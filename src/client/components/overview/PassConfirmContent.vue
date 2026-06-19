@@ -36,6 +36,10 @@
       <span class="pass-confirm__warn-icon" aria-hidden="true">!</span>
       <span class="pass-confirm__warn-text" v-i18n>You can still convert heat into temperature</span>
     </div>
+    <div v-if="canAdvanceDelta" class="pass-confirm__warn" data-test="pass-confirm-advance-delta-warn">
+      <span class="pass-confirm__warn-icon" aria-hidden="true">!</span>
+      <span class="pass-confirm__warn-text" v-i18n>You can still advance the Hydronetwork this generation</span>
+    </div>
 
     <div class="pass-confirm__actions">
       <button class="pass-confirm__cancel-btn"
@@ -75,6 +79,12 @@ export default defineComponent({
       default: false,
     },
     canConvertHeat: {
+      type: Boolean,
+      default: false,
+    },
+    // The global "Гидросеть" (Delta Project) advance action is still available
+    // this generation (energy + tags + once-per-generation gate all pass).
+    canAdvanceDelta: {
       type: Boolean,
       default: false,
     },

@@ -285,14 +285,16 @@ export default defineComponent({
     hydroStages(): ReadonlyArray<HydroStageVM> {
       const players = this.players.map((p) => ({
         color: p.color,
+        name: p.name,
         position: p.deltaProject?.position ?? 0,
         isViewer: false,
+        stops: p.deltaProject?.stops ?? [],
       }));
       return buildHydroModel({
         preview: undefined,
         players,
         viewerColor: undefined,
-        selectedSpend: -1,
+        selectedPosition: -1,
         rewardChoice: undefined,
         actionAvailable: false,
       }).stages;
