@@ -51,6 +51,16 @@ export class DeltaProjectExpansion {
     return player.deltaProjectData;
   }
 
+  // Records which reward alternative the player took on the most recent landing
+  // (a choice stage, positions 1/2). Runs from the deferred reward OrOptions, so
+  // the latest stop is the current advance's stop.
+  private static recordStopChoice(player: IPlayer, choice: number): void {
+    const stops = player.deltaProjectData?.stops;
+    if (stops !== undefined && stops.length > 0) {
+      stops[stops.length - 1].choice = choice;
+    }
+  }
+
   // True if another player (not `excludePlayer`) occupies this track position.
   private static hasOtherPlayerAtPosition(game: IGame, position: number, excludePlayer: IPlayer): boolean {
     for (const p of game.players) {
@@ -122,17 +132,21 @@ export class DeltaProjectExpansion {
         usedThisGeneration: false,
         atEndOfTrack: false,
         maxLegalSteps: 0,
+        maxEnergySteps: 0,
         maxPreviewSteps: 0,
         destinations: [],
       };
     }
     const game = player.game;
     const currentPos = progress.position;
-    const validSteps = DeltaProjectExpansion.getValidAdvanceSteps(player);
-    const validSet = new Set(validSteps);
-    const maxPreviewSteps = Math.max(0, Math.min(player.energy, MAX_TRACK_POSITION - currentPos));
+    const energy = player.energy;
+    // The preview covers the WHOLE remaining track (not just affordable steps) so
+    // the player can click any distant stage to study it; energy only gates the
+    // stepper bound + the confirm.
+    const maxPreviewSteps = Math.max(0, MAX_TRACK_POSITION - currentPos);
 
     const destinations: Array<DeltaTrackDestination> = [];
+    let maxLegalSteps = 0;
     for (let steps = 1; steps <= maxPreviewSteps; steps++) {
       const position = currentPos + steps;
       const tagInfo = DeltaProjectExpansion.pathTagAnalysis(player, position);
@@ -142,10 +156,17 @@ export class DeltaProjectExpansion {
       const jumpedOverVp2 =
         position === VP5_POSITION &&
         DeltaProjectExpansion.hasOtherPlayerAtPosition(game, VP2_POSITION, player);
+      const legal = tagInfo.missingTags.length === 0 && !occupied;
+      const affordable = steps <= energy;
+      if (legal && affordable) {
+        maxLegalSteps = steps;
+      }
       destinations.push({
         steps,
         position,
-        legal: validSet.has(steps),
+        legal,
+        affordable,
+        energyDeficit: Math.max(0, steps - energy),
         occupied,
         jumpedOverVp2,
         requiredTags: tagInfo.requiredTags,
@@ -156,10 +177,11 @@ export class DeltaProjectExpansion {
 
     return {
       currentPosition: currentPos,
-      availableEnergy: player.energy,
+      availableEnergy: energy,
       usedThisGeneration: progress.usedThisGeneration === true,
       atEndOfTrack: currentPos >= MAX_TRACK_POSITION,
-      maxLegalSteps: validSteps.length === 0 ? 0 : Math.max(...validSteps),
+      maxLegalSteps,
+      maxEnergySteps: Math.max(0, Math.min(energy, MAX_TRACK_POSITION - currentPos)),
       maxPreviewSteps,
       destinations,
     };
@@ -246,6 +268,12 @@ export class DeltaProjectExpansion {
     try {
       player.stock.deduct(Resource.ENERGY, steps);
       progress.position = newPos;
+      // Record the landing for the per-stage history panel (a choice stage's
+      // chosen reward is filled in by the deferred OrOptions callback below).
+      if (progress.stops === undefined) {
+        progress.stops = [];
+      }
+      progress.stops.push({position: newPos, generation: game.generation});
 
       game.log('${0} directed ${1} energy into the Delta Project, reaching ${2}', (b) =>
         b.player(player).number(steps).string(stageName));
@@ -281,10 +309,12 @@ export class DeltaProjectExpansion {
       player.defer(() => new OrOptions(
         new SelectOption('Gain 2 steel', 'Gain steel').andThen(() => {
           player.stock.add(Resource.STEEL, 2, {log: true, from: {card: CardName.DELTA_PROJECT}});
+          DeltaProjectExpansion.recordStopChoice(player, 0);
           return undefined;
         }),
         new SelectOption('Gain 2 plants', 'Gain plants').andThen(() => {
           player.stock.add(Resource.PLANTS, 2, {log: true, from: {card: CardName.DELTA_PROJECT}});
+          DeltaProjectExpansion.recordStopChoice(player, 1);
           return undefined;
         }),
       ).markChoiceContext(namedCardEffect(CardName.DELTA_PROJECT, false, 'Choose your Delta Project reward', 'effect-choice')));
@@ -294,10 +324,12 @@ export class DeltaProjectExpansion {
       player.defer(() => new OrOptions(
         new SelectOption('Increase energy production 1 step', 'Increase').andThen(() => {
           player.production.add(Resource.ENERGY, 1, {log: true, from: {card: CardName.DELTA_PROJECT}});
+          DeltaProjectExpansion.recordStopChoice(player, 0);
           return undefined;
         }),
         new SelectOption('Increase heat production 1 step', 'Increase').andThen(() => {
           player.production.add(Resource.HEAT, 1, {log: true, from: {card: CardName.DELTA_PROJECT}});
+          DeltaProjectExpansion.recordStopChoice(player, 1);
           return undefined;
         }),
       ).markChoiceContext(namedCardEffect(CardName.DELTA_PROJECT, false, 'Choose your Delta Project reward', 'effect-choice')));

@@ -1,11 +1,10 @@
 <template>
   <!--
     Premium "Гидросеть Марса" overlay — the Delta Project as a global engineering
-    subsystem (level of Colonies / Turmoil), NOT a prelude card. A horizontal
-    premium track (players shown ON the stages) + an embedded "План инженерных
-    работ" action-zone. The track DISPLAY reads every player's position from the
-    public model; the viewer's planning preview is server-authoritative
-    (`/api/game/delta-preview`) so the UI never guesses legality / missing tags.
+    subsystem. A two-row snake track (players shown ON the stages, click any stage
+    to plan or inspect) + an embedded action-zone that switches between PLAN mode
+    (future target: energy / route / reward / confirm) and DETAILS mode
+    (current/passed stage: per-player history). Legality is server-authoritative.
   -->
   <div class="hydronetwork-overlay" role="region" :aria-label="$t('Mars Hydronetwork')">
     <span class="hydronetwork-overlay__corner hydronetwork-overlay__corner--tl" aria-hidden="true"></span>
@@ -29,7 +28,7 @@
 
     <div class="hydro-board__body">
       <div class="hydro-board__track-wrap">
-        <HydroTrack :stages="model.stages" />
+        <HydroTrack :stages="model.stages" @select="onSelectPosition" />
       </div>
       <HydroActionZone
         class="hydro-board__action"
@@ -38,6 +37,7 @@
         :actionAvailable="actionAvailable"
         @spend="onSpend"
         @choice="onChoice"
+        @plan="onPlan"
         @confirm="onConfirm" />
     </div>
   </div>
@@ -67,12 +67,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    // The "Advance on the Delta Project track" action is present in waitingFor.
     actionAvailable: {
       type: Boolean,
       default: false,
     },
-    // Generation — refetch the preview when it changes (events accrue per gen).
     cacheKey: {
       type: String,
       default: '',
@@ -87,20 +85,21 @@ export default defineComponent({
       return hydroNetworkState.rewardChoice;
     },
     preview(): DeltaTrackPreviewModel | undefined {
-      // Use the cached preview only for the matching viewer colour.
       return hydroNetworkState.previewColor === this.viewerColor ? hydroNetworkState.preview : undefined;
     },
     model(): HydroModel {
       const players = this.playerView.players.map((p) => ({
         color: p.color,
+        name: p.name,
         position: p.deltaProject?.position ?? 0,
         isViewer: p.color === this.viewerColor,
+        stops: p.deltaProject?.stops ?? [],
       }));
       return buildHydroModel({
         preview: this.preview,
         players,
         viewerColor: this.viewerColor,
-        selectedSpend: hydroNetworkState.selectedSpend,
+        selectedPosition: hydroNetworkState.selectedPosition,
         rewardChoice: hydroNetworkState.rewardChoice,
         actionAvailable: this.actionAvailable,
       });
@@ -129,10 +128,17 @@ export default defineComponent({
         this.$emit('close');
       }
     },
-    onSpend(value: number): void {
-      hydroNetworkState.selectedSpend = value;
+    onSelectPosition(position: number): void {
+      hydroNetworkState.selectedPosition = position;
       // A different destination stage invalidates a pending reward choice.
       hydroNetworkState.rewardChoice = undefined;
+    },
+    onSpend(spend: number): void {
+      this.onSelectPosition(this.model.currentPosition + spend);
+    },
+    // Return to the default plan target (e.g. from details mode).
+    onPlan(): void {
+      this.onSelectPosition(this.model.currentPosition + Math.max(1, this.model.defaultSpend));
     },
     onChoice(idx: number): void {
       hydroNetworkState.rewardChoice = idx;
@@ -147,7 +153,6 @@ export default defineComponent({
       });
     },
     fetchPreview(): void {
-      // No fetch target under JSDOM / when fetch is unavailable (tests/playground).
       if (typeof fetch !== 'function' || this.viewerId === '') {
         return;
       }

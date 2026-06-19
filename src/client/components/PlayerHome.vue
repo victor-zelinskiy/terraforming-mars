@@ -163,9 +163,10 @@
       <div class="bar-rail bar-rail--bottom-right">
         <div v-if="game.colonies.length > 0"
              class="bottom-bar-btn bottom-bar-btn--colonies"
-             :class="{'bottom-bar-btn--active': coloniesOverlayOpen}"
+             :class="{'bottom-bar-btn--active': coloniesOverlayOpen, 'bottom-bar-btn--hydro-ready': colonyTradeAvailable}"
              v-on:click="onOpenColoniesOverlay">
           <BarButtonIcon name="colonies" /><span class="bar-btn__label" v-i18n>Colonies</span>
+          <span v-if="colonyTradeAvailable" class="bottom-bar-btn__hydro-dot" aria-hidden="true"></span>
         </div>
         <div v-if="game.gameOptions.expansions.deltaProject"
              class="bottom-bar-btn bottom-bar-btn--hydronetwork"
@@ -297,6 +298,7 @@
         :canTradeWithColony="tradeColonyContext !== undefined"
         :canConvertPlants="convertPlantsAvailable"
         :canConvertHeat="convertHeatAvailable"
+        :canAdvanceDelta="thisPlayer.canAdvanceDelta === true"
         @confirm="onPassConfirm"
         @cancel="onPassCancel" />
     </MandatoryInputModal>
@@ -1509,6 +1511,11 @@ export default defineComponent({
     // overlay action-zone's confirm gate.
     hydroActionAvailable(): boolean {
       return this.findHydroActionPath(this.playerView.waitingFor) !== undefined;
+    },
+    // Colony trade is available right now — drives the Colonies bottom-bar ready
+    // cue (mirrors the Гидросеть dot). Reuses the existing trade-context finder.
+    colonyTradeAvailable(): boolean {
+      return this.tradeColonyContext !== undefined;
     },
     actionsPreviewCacheKey(): string {
       const p = this.displayedPlayer;

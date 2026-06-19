@@ -1,123 +1,168 @@
 /*
  * Pure, framework-agnostic view-model builder for the premium "Гидросеть"
- * (Delta Project) overlay. Merges the STATIC track definition ({@link HYDRO_STAGES})
- * with the server's DYNAMIC planning preview ({@link DeltaTrackPreviewModel}) and
- * every player's position into a render-ready model: per-stage state + markers,
- * the planned destination, the default/min/max spend, and the confirm gate.
+ * (Delta Project) overlay. Merges the STATIC track ({@link HYDRO_STAGES}) with the
+ * server's DYNAMIC preview ({@link DeltaTrackPreviewModel}) and every player's
+ * position + stop history into a render-ready model.
  *
- * No Vue / DOM / i18n here (labels stay English i18n keys) — unit-tested by
- * hydroNetworkModel.spec.ts.
+ * The selection is a POSITION (clicked or stepped). A position > current is a PLAN
+ * target (energy / legality / reward / confirm); a position <= current is a
+ * DETAILS view (per-stage history). Energy bounds the −/+ stepper and the confirm,
+ * NOT the click-preview depth.
+ *
+ * No Vue / DOM / i18n here (labels stay English keys) — unit-tested.
  */
 import {Color} from '@/common/Color';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
+import {DeltaStop} from '@/common/models/DeltaProjectPlayerModel';
 import {HYDRO_STAGES, HydroStage, hydroStageNeedsChoice, HydroFollowUp} from './hydroStages';
 
-/** A player's marker on a track cell. */
 export type HydroMarker = {color: Color; isViewer: boolean};
 
-/** Visual state of a track cell relative to the viewer's plan. */
 export type HydroStageState =
   | 'completed' // the viewer already passed this position
   | 'current' // the viewer's current position
   | 'route' // an intermediate stage the planned move passes (reward skipped)
   | 'target' // the planned destination
-  | 'reachable' // energy-reachable but beyond the planned destination
-  | 'future'; // out of energy reach this turn
+  | 'reachable' // energy-affordable but beyond the planned destination
+  | 'future'; // beyond energy this turn
 
 export type HydroStageVM = {
   stage: HydroStage;
   position: number;
   state: HydroStageState;
   markers: ReadonlyArray<HydroMarker>;
-  /** A VP finish slot held by another player (cannot be landed on). */
   occupiedByOther: boolean;
-  /** When state === 'target': is landing here legal (tags + occupancy)? */
+  /** The currently selected cell (plan target or details view). */
+  isSelected: boolean;
+  /** Viewer stopped here and took the reward. */
+  rewardedByViewer: boolean;
+  /** Viewer jumped over this rewarding stage (no reward). */
+  skippedByViewer: boolean;
+  /** On the CURRENT plan: an intermediate stage whose reward will be skipped. */
+  willSkipReward: boolean;
+  // Target-only (state === 'target'):
   targetLegal: boolean;
-  /** Per-destination tag breakdown (only meaningful for the target). */
+  targetAffordable: boolean;
   requiredTags: ReadonlyArray<string>;
   wildCoveredTags: ReadonlyArray<string>;
   missingTags: ReadonlyArray<string>;
 };
 
-export type HydroPlayerPos = {color: Color; position: number; isViewer: boolean};
+export type HydroHistoryStatus = 'rewarded' | 'passed' | 'not-reached' | 'current';
+
+export type HydroStageHistoryEntry = {
+  color: Color;
+  name: string;
+  isViewer: boolean;
+  status: HydroHistoryStatus;
+  choice?: number;
+  generation?: number;
+};
+
+export type HydroPlayerPos = {
+  color: Color;
+  name: string;
+  position: number;
+  isViewer: boolean;
+  stops: ReadonlyArray<DeltaStop>;
+};
 
 export type HydroModelInput = {
   preview: DeltaTrackPreviewModel | undefined;
   players: ReadonlyArray<HydroPlayerPos>;
   viewerColor: Color | undefined;
-  /** The current planned spend (overlay state). Clamped here. */
-  selectedSpend: number;
-  /** The chosen reward alternative index for a choice stage (pos 1/2), else undefined. */
+  /** The clicked/selected position (-1 = max-legal default). */
+  selectedPosition: number;
   rewardChoice: number | undefined;
-  /** The advance action is present in waitingFor — it's the viewer's window to act. */
   actionAvailable: boolean;
 };
 
 export type HydroModel = {
   stages: ReadonlyArray<HydroStageVM>;
   currentPosition: number;
-  /** Clamped planned spend (energy / steps). 0 when nothing is reachable. */
-  selectedSpend: number;
-  /** The max-legal default the selector snaps to on open. */
-  defaultSpend: number;
-  /** Inclusive bounds for the −/+ stepper. */
-  minSpend: number;
-  maxSpend: number;
+  selectedPosition: number;
+  /** 'plan' when a future target is selected; 'details' for current/passed. */
+  mode: 'plan' | 'details';
   availableEnergy: number;
   atEndOfTrack: boolean;
   usedThisGeneration: boolean;
-  /** The destination descriptor for the current spend (server-authoritative). */
+
+  // ── Plan mode ──────────────────────────────────────────────────────────
+  selectedSpend: number; // energy/steps for the target (0 in details mode)
+  defaultSpend: number;
+  /** Inclusive −/+ bounds. The stepper is energy-bounded; clicks bypass it. */
+  minSpend: number;
+  stepperMax: number; // energy-affordable depth (−/+ upper bound)
+  maxSpend: number; // whole remaining track (click-preview depth)
   destination: DeltaTrackDestination | undefined;
-  destinationPosition: number;
-  /** The destination stage (static) — reward / choice / follow-up. */
   targetStage: HydroStage | undefined;
   targetNeedsChoice: boolean;
   targetFollowUp: HydroFollowUp | undefined;
-  /** Intermediate stages whose reward is skipped by a multi-step jump. */
   skippedStages: ReadonlyArray<HydroStage>;
-  /** The confirm CTA is enabled. */
   canConfirm: boolean;
+
+  // ── Details mode ───────────────────────────────────────────────────────
+  detailsStage: HydroStage | undefined;
+  detailsHistory: ReadonlyArray<HydroStageHistoryEntry>;
+  viewerStatusAtDetails: HydroHistoryStatus;
+  viewerChoiceAtDetails: number | undefined;
 };
+
+const MAX_POS = 11;
 
 function viewerPosition(input: HydroModelInput): number {
   if (input.preview !== undefined) {
     return input.preview.currentPosition;
   }
-  const self = input.players.find((p) => p.isViewer);
-  return self?.position ?? 0;
+  return input.players.find((p) => p.isViewer)?.position ?? 0;
+}
+
+function hasStopAt(stops: ReadonlyArray<DeltaStop>, position: number): DeltaStop | undefined {
+  return stops.find((s) => s.position === position);
+}
+
+function statusFor(player: HydroPlayerPos, position: number): {status: HydroHistoryStatus; choice?: number; generation?: number} {
+  const stop = hasStopAt(player.stops, position);
+  if (stop !== undefined) {
+    return {status: player.position === position ? 'current' : 'rewarded', choice: stop.choice, generation: stop.generation};
+  }
+  if (player.position >= position && position > 0) {
+    return {status: 'passed'};
+  }
+  return {status: 'not-reached'};
 }
 
 export function buildHydroModel(input: HydroModelInput): HydroModel {
   const preview = input.preview;
   const currentPosition = viewerPosition(input);
   const availableEnergy = preview?.availableEnergy ?? 0;
-  const maxPreview = preview?.maxPreviewSteps ?? 0;
+  const maxSpend = preview?.maxPreviewSteps ?? 0;
+  const stepperMax = preview?.maxEnergySteps ?? 0;
   const maxLegal = preview?.maxLegalSteps ?? 0;
-  const defaultSpend = maxLegal > 0 ? maxLegal : maxPreview;
+  const defaultSpend = maxLegal > 0 ? maxLegal : (maxSpend > 0 ? 1 : 0);
+  const defaultTarget = currentPosition + defaultSpend;
 
-  // Clamp the planned spend. Energy bounds the depth; below 1 means "no plan".
-  let spend = input.selectedSpend;
-  if (maxPreview === 0) {
-    spend = 0;
-  } else {
-    if (spend < 1) {
-      spend = defaultSpend;
-    }
-    if (spend > maxPreview) {
-      spend = maxPreview;
-    }
-    if (spend < 1) {
-      spend = 1;
-    }
+  // Resolve the selected position.
+  let selectedPosition = input.selectedPosition;
+  if (selectedPosition < 0) {
+    selectedPosition = defaultTarget;
+  }
+  selectedPosition = Math.max(0, Math.min(MAX_POS, selectedPosition));
+  // A selected position beyond the reachable track collapses to the end.
+  if (selectedPosition > currentPosition + maxSpend) {
+    selectedPosition = currentPosition + maxSpend;
   }
 
+  const mode: 'plan' | 'details' = selectedPosition > currentPosition ? 'plan' : 'details';
+  const selectedSpend = mode === 'plan' ? selectedPosition - currentPosition : 0;
   const destination: DeltaTrackDestination | undefined =
-    spend >= 1 && preview !== undefined ? preview.destinations[spend - 1] : undefined;
-  const destinationPosition = spend >= 1 ? currentPosition + spend : currentPosition;
-  const targetStage = destination !== undefined ? HYDRO_STAGES[destinationPosition] : undefined;
+    mode === 'plan' && preview !== undefined ? preview.destinations[selectedSpend - 1] : undefined;
+  const destinationPosition = mode === 'plan' ? selectedPosition : currentPosition;
+  const targetStage = mode === 'plan' ? HYDRO_STAGES[selectedPosition] : undefined;
   const targetNeedsChoice = targetStage !== undefined ? hydroStageNeedsChoice(targetStage) : false;
   const targetFollowUp = targetStage?.followUp;
 
+  const viewerStops = input.players.find((p) => p.isViewer)?.stops ?? [];
   const markersByPos = new Map<number, Array<HydroMarker>>();
   for (const p of input.players) {
     const list = markersByPos.get(p.position) ?? [];
@@ -129,38 +174,48 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     const pos = stage.position;
     const markers = markersByPos.get(pos) ?? [];
     const occupiedByOther = stage.vp !== undefined && markers.some((m) => !m.isViewer);
+    const stop = hasStopAt(viewerStops, pos);
+    const rewardedByViewer = stop !== undefined && pos !== currentPosition;
+    const skippedByViewer = stop === undefined && currentPosition > pos && pos > 0;
 
     let state: HydroStageState;
     if (pos === currentPosition) {
       state = 'current';
     } else if (pos < currentPosition) {
       state = 'completed';
-    } else if (destination !== undefined && pos === destinationPosition) {
+    } else if (mode === 'plan' && pos === destinationPosition) {
       state = 'target';
-    } else if (destination !== undefined && pos > currentPosition && pos < destinationPosition) {
+    } else if (mode === 'plan' && pos > currentPosition && pos < destinationPosition) {
       state = 'route';
-    } else if (preview !== undefined && pos > currentPosition && pos <= currentPosition + maxPreview) {
+    } else if (pos > currentPosition && pos <= currentPosition + stepperMax) {
       state = 'reachable';
     } else {
       state = 'future';
     }
 
     const isTarget = state === 'target';
+    const willSkipReward = state === 'route' && (stage.rewardOptions.length > 0 || stage.vp !== undefined);
     return {
       stage,
       position: pos,
       state,
       markers,
       occupiedByOther,
+      isSelected: pos === selectedPosition,
+      rewardedByViewer,
+      skippedByViewer,
+      willSkipReward,
       targetLegal: isTarget ? (destination?.legal ?? false) : false,
+      targetAffordable: isTarget ? (destination?.affordable ?? false) : false,
       requiredTags: isTarget ? (destination?.requiredTags ?? []) : [],
       wildCoveredTags: isTarget ? (destination?.wildCoveredTags ?? []) : [],
       missingTags: isTarget ? (destination?.missingTags ?? []) : [],
     };
   });
 
+  // Skipped intermediate stages (rewards not granted on a jump).
   const skippedStages: Array<HydroStage> = [];
-  if (destination !== undefined) {
+  if (mode === 'plan') {
     for (let pos = currentPosition + 1; pos < destinationPosition; pos++) {
       const s = HYDRO_STAGES[pos];
       if (s !== undefined && s.rewardOptions.length > 0) {
@@ -176,24 +231,50 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     preview.usedThisGeneration !== true &&
     destination !== undefined &&
     destination.legal === true &&
+    destination.affordable === true &&
     choiceSatisfied;
+
+  // Details mode: per-stage history across all players.
+  let detailsStage: HydroStage | undefined;
+  let detailsHistory: Array<HydroStageHistoryEntry> = [];
+  let viewerStatusAtDetails: HydroHistoryStatus = 'not-reached';
+  let viewerChoiceAtDetails: number | undefined;
+  if (mode === 'details') {
+    detailsStage = HYDRO_STAGES[selectedPosition];
+    for (const p of input.players) {
+      const s = statusFor(p, selectedPosition);
+      detailsHistory.push({color: p.color, name: p.name, isViewer: p.isViewer, status: s.status, choice: s.choice, generation: s.generation});
+      if (p.isViewer) {
+        viewerStatusAtDetails = s.status;
+        viewerChoiceAtDetails = s.choice;
+      }
+    }
+    // Viewer first, then others.
+    detailsHistory = detailsHistory.sort((a, b) => (a.isViewer === b.isViewer ? 0 : a.isViewer ? -1 : 1));
+  }
 
   return {
     stages,
     currentPosition,
-    selectedSpend: spend,
-    defaultSpend,
-    minSpend: maxPreview === 0 ? 0 : 1,
-    maxSpend: maxPreview,
+    selectedPosition,
+    mode,
     availableEnergy,
-    atEndOfTrack: preview?.atEndOfTrack ?? (currentPosition >= 11),
+    atEndOfTrack: preview?.atEndOfTrack ?? (currentPosition >= MAX_POS),
     usedThisGeneration: preview?.usedThisGeneration ?? false,
+    selectedSpend,
+    defaultSpend,
+    minSpend: maxSpend === 0 ? 0 : 1,
+    stepperMax,
+    maxSpend,
     destination,
-    destinationPosition,
     targetStage,
     targetNeedsChoice,
     targetFollowUp,
     skippedStages,
     canConfirm,
+    detailsStage,
+    detailsHistory,
+    viewerStatusAtDetails,
+    viewerChoiceAtDetails,
   };
 }
