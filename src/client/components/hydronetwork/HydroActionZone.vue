@@ -69,11 +69,29 @@
         <span v-i18n>The occupied 2 VP position is leapt over to reach the 5 VP slot.</span>
       </div>
 
-      <!-- Row 3: reward (+ follow-up) on the left, confirm on the right. -->
+      <!-- Preselection: choose the target card / action BEFORE confirm (pos 7 / 9). -->
+      <div v-if="model.needsCardSelect && model.eligibleCardNames.length > 0" class="hydro-action__preselect">
+        <span class="hydro-action__preselect-label" v-i18n>{{ preselectLabel }}</span>
+        <span class="hydro-action__preselect-cards">
+          <button v-for="c in eligibleCards" :key="c.name"
+                  type="button" class="hydro-action__pick"
+                  :class="{'hydro-action__pick--selected': model.selectedCard === c.name}"
+                  @click="$emit('select-card', c.name)">
+            <span class="hydro-action__pick-name" v-i18n>{{ c.name }}</span>
+            <span v-if="c.current !== undefined" class="hydro-action__pick-cur">
+              <span class="card-resource card-resource-animal" aria-hidden="true"></span>{{ c.current }}
+            </span>
+            <span class="hydro-action__pick-tick" aria-hidden="true">✓</span>
+          </button>
+        </span>
+      </div>
+
+      <!-- Row 3: reward summary (deltas / choice / vp) + confirm. -->
       <div class="hydro-action__row3">
         <div class="hydro-action__reward-line">
-          <span class="hydro-action__reward-label" v-i18n>You will gain</span>:
-          <span v-if="model.targetNeedsChoice && targetStage !== undefined" class="hydro-action__choices">
+          <span class="hydro-action__reward-label" v-i18n>You will gain</span>
+          <!-- A reward choice (pos 1/2) not yet made → show the two options. -->
+          <span v-if="rewardView.needsChoiceFirst && targetStage !== undefined" class="hydro-action__choices">
             <button v-for="(opt, idx) in targetStage.rewardOptions" :key="idx"
                     type="button" class="hydro-action__choice"
                     :class="{'hydro-action__choice--selected': rewardChoice === idx}"
@@ -82,14 +100,21 @@
               <span class="hydro-action__choice-tick" aria-hidden="true">✓</span>
             </button>
           </span>
-          <HydroReward v-else-if="targetStage !== undefined && targetStage.rewardOptions.length === 1" :chips="targetStage.rewardOptions[0]" />
-          <span v-else-if="targetStage && targetStage.vp !== undefined" class="hydro-action__reward-vp">
-            <span class="hydro-action__reward-vp-num">{{ targetStage.vp }}</span>
-            <span v-i18n>VP at game end</span>
+          <!-- Computed "before → after" delta lines. -->
+          <span v-for="(l, i) in rewardView.lines" :key="i" class="hydro-action__delta">
+            <span class="hydro-action__delta-ico" :class="{'hydro-action__delta-ico--prod': l.production}">
+              <span class="hydro-action__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
+            </span>
+            <span class="hydro-action__delta-vals"><b>{{ l.before }}</b> <span class="hydro-action__delta-arrow" aria-hidden="true">→</span> <b class="hydro-action__delta-after">{{ l.after }}</b></span>
+            <span class="hydro-action__delta-plus">+{{ l.delta }}</span>
+            <span v-if="l.cardName" class="hydro-action__delta-card" v-i18n>{{ l.cardName }}</span>
+            <span v-if="l.noteKey" class="hydro-action__delta-note"><span v-i18n>{{ l.noteKey }}</span>: {{ l.noteValue }}</span>
           </span>
-          <span v-else class="hydro-action__reward-none" v-i18n>No reward</span>
-          <span v-if="model.targetFollowUp !== undefined" class="hydro-action__next-inline">
-            · <span v-i18n>After confirming</span>: <span v-i18n>{{ followUpText }}</span>
+          <!-- Flow-resolved rewards (draw / reuse / animals-before-pick): raw chip. -->
+          <HydroReward v-if="rewardView.lines.length === 0 && rewardView.rawChips.length > 0" :chips="rewardView.rawChips" />
+          <span v-if="rewardView.vp !== undefined" class="hydro-action__reward-vp">
+            <span class="hydro-action__reward-vp-num">{{ rewardView.vp }}</span>
+            <span v-i18n>VP at game end</span>
           </span>
         </div>
         <div class="hydro-action__cta-row" :data-hint="ctaDisabledReason">
@@ -97,6 +122,11 @@
             <span v-i18n>Reinforce the hydronetwork</span>
           </button>
         </div>
+      </div>
+
+      <!-- Secondary follow-up hint (muted, separate line — never shifts confirm). -->
+      <div v-if="rewardView.followUpKey" class="hydro-action__hintline hydro-action__hintline--muted">
+        <span aria-hidden="true">↳</span> <span v-i18n>{{ rewardView.followUpKey }}</span>
       </div>
     </template>
 
@@ -162,10 +192,15 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {Tag} from '@/common/cards/Tag';
+import {CardName} from '@/common/cards/CardName';
 import {$t} from '@/client/directives/i18n';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {HydroModel} from './hydroNetworkModel';
-import {HYDRO_FOLLOWUP_KEY, HydroStage, HydroRewardChip} from './hydroStages';
+import {HydroStage, HydroRewardChip} from './hydroStages';
+import {buildRewardView, HydroPlayerSnapshot, HydroDeltaLine, HydroRewardView} from './hydroReward';
 import HydroReward from './HydroReward.vue';
+
+type EligibleCard = {name: CardName; current?: number};
 
 export default defineComponent({
   name: 'HydroActionZone',
@@ -183,8 +218,19 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // The viewer's current resources / production / tags — drives the
+    // "сейчас → станет" reward deltas.
+    snapshot: {
+      type: Object as () => HydroPlayerSnapshot,
+      required: true,
+    },
+    // Candidate cards for a pos 7 / pos 9 pre-selection (name + current animals).
+    eligibleCards: {
+      type: Array as () => ReadonlyArray<EligibleCard>,
+      default: () => [],
+    },
   },
-  emits: ['spend', 'choice', 'confirm', 'plan'],
+  emits: ['spend', 'choice', 'confirm', 'plan', 'select-card'],
   computed: {
     interactive(): boolean {
       return this.actionAvailable && !this.model.usedThisGeneration;
@@ -213,9 +259,19 @@ export default defineComponent({
     energyDeficit(): number {
       return this.model.destination?.energyDeficit ?? 0;
     },
-    followUpText(): string {
-      const f = this.model.targetFollowUp;
-      return f !== undefined ? HYDRO_FOLLOWUP_KEY[f] : '';
+    rewardView(): HydroRewardView {
+      const sel = this.eligibleCards.find((c) => c.name === this.model.selectedCard);
+      return buildRewardView({
+        stage: this.model.targetStage,
+        snapshot: this.snapshot,
+        rewardChoice: this.rewardChoice,
+        animalTargetCurrent: sel?.current,
+        animalTargetCardName: this.model.selectedCard,
+      });
+    },
+    preselectLabel(): string {
+      return this.model.needsCardSelect === 'reuse-action' ?
+        'Choose a used blue card action' : 'Choose a card for the animals';
     },
     statusKind(): 'ready' | 'used' | 'waiting' | 'end' {
       if (this.model.usedThisGeneration) {
@@ -256,11 +312,23 @@ export default defineComponent({
       if (this.model.targetNeedsChoice && this.rewardChoice === undefined) {
         return $t('Choose a reward');
       }
+      if (this.model.mustSelectCard && this.model.selectedCard === undefined) {
+        return this.model.needsCardSelect === 'reuse-action' ? $t('Choose an action') : $t('Choose a card');
+      }
       return $t('You cannot advance the track right now.');
     },
   },
   methods: {
     $t,
+    deltaIconClass(l: HydroDeltaLine): string {
+      if (l.special === 'jovian-tag') {
+        return 'resource-tag tag-jovian';
+      }
+      if (l.special === 'animals') {
+        return 'card-resource card-resource-animal';
+      }
+      return l.resource !== undefined ? iconClassFor(l.resource) : '';
+    },
     setSpend(value: number): void {
       const clamped = Math.max(this.model.minSpend, Math.min(this.model.maxSpend, value));
       this.$emit('spend', clamped);

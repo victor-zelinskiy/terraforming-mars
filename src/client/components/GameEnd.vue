@@ -296,6 +296,7 @@ export default defineComponent({
         viewerColor: undefined,
         selectedPosition: -1,
         rewardChoice: undefined,
+        selectedCard: undefined,
         actionAvailable: false,
       }).stages;
     },

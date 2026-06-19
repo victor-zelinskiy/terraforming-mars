@@ -1,4 +1,5 @@
 import {Tag} from '../cards/Tag';
+import {CardName} from '../cards/CardName';
 
 /**
  * One reachable destination on the Delta Project ("Гидросеть") track, relative to
@@ -51,4 +52,9 @@ export type DeltaTrackPreviewModel = {
   maxPreviewSteps: number;
   /** One entry per reachable step count 1..maxPreviewSteps (whole remaining track). */
   destinations: ReadonlyArray<DeltaTrackDestination>;
+  /** Used-this-generation blue card actions eligible for the pos 7 reuse reward —
+   *  pre-collected in the overlay before confirm. */
+  reuseActionCards: ReadonlyArray<CardName>;
+  /** Cards that can receive the pos 9 animals — pre-collected before confirm. */
+  animalTargetCards: ReadonlyArray<CardName>;
 };

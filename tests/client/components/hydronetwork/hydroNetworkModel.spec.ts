@@ -35,6 +35,8 @@ function fullPreview(energy: number, overrides: Partial<DeltaTrackPreviewModel> 
     maxEnergySteps: Math.min(energy, 11),
     maxPreviewSteps: 11,
     destinations,
+    reuseActionCards: [],
+    animalTargetCards: [],
     ...overrides,
   };
 }
@@ -50,6 +52,7 @@ function input(overrides: Partial<HydroModelInput> = {}): HydroModelInput {
     viewerColor: 'red',
     selectedPosition: -1,
     rewardChoice: undefined,
+    selectedCard: undefined,
     actionAvailable: true,
     ...overrides,
   };
@@ -164,6 +167,40 @@ describe('buildHydroModel (iteration 2)', () => {
     expect(m.stages[10].occupiedByOther).eq(true);
     expect(m.destination?.jumpedOverVp2).eq(true);
     expect(m.canConfirm).eq(true);
+  });
+
+  it('gates confirm on a pos-9 animal target preselection', () => {
+    const base = input({
+      preview: fullPreview(1, {
+        currentPosition: 8, maxLegalSteps: 1, maxEnergySteps: 1, maxPreviewSteps: 3,
+        destinations: [dest(1, {position: 9}), dest(2, {position: 10}), dest(3, {position: 11})],
+        animalTargetCards: ['Birds' as never],
+      }),
+      players: [viewer({position: 8})],
+      selectedPosition: 9,
+    });
+    const without = buildHydroModel(base);
+    expect(without.needsCardSelect).eq('animal-target');
+    expect(without.mustSelectCard).eq(true);
+    expect(without.canConfirm).eq(false);
+    const withCard = buildHydroModel({...base, selectedCard: 'Birds' as never});
+    expect(withCard.selectedCard).eq('Birds');
+    expect(withCard.canConfirm).eq(true);
+  });
+
+  it('does not require a pick when no eligible cards exist (reward fizzles)', () => {
+    const m = buildHydroModel(input({
+      preview: fullPreview(1, {
+        currentPosition: 8, maxLegalSteps: 1, maxEnergySteps: 1, maxPreviewSteps: 3,
+        destinations: [dest(1, {position: 9}), dest(2, {position: 10}), dest(3, {position: 11})],
+        animalTargetCards: [],
+      }),
+      players: [viewer({position: 8})],
+      selectedPosition: 9,
+    }));
+    expect(m.needsCardSelect).eq('animal-target');
+    expect(m.mustSelectCard).eq(false);
+    expect(m.canConfirm).eq(true); // may advance; the reward simply fizzles
   });
 
   it('handles no preview (details on current stage)', () => {

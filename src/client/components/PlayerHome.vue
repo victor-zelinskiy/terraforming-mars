@@ -2861,7 +2861,7 @@ export default defineComponent({
     // choice]. The reward OrOptions (pos 1/2) is a deferred top-level prompt the
     // batch endpoint answers after the amount; pos 5/7/9 follow-ups arrive as
     // their own prompts and ride the existing premium surfaces.
-    submitHydroAdvance(payload: {spend: number; rewardChoice: number | undefined}): void {
+    submitHydroAdvance(payload: {spend: number; rewardChoice: number | undefined; selectedCard?: CardName}): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
@@ -2874,8 +2874,14 @@ export default defineComponent({
         activate = {type: 'or' as const, index: path[i], response: activate};
       }
       const responses: Array<unknown> = [activate, {type: 'deltaProject' as const, amount: payload.spend}];
+      // Pos 1/2 reward CHOICE — the deferred OrOptions becomes the next prompt.
       if (payload.rewardChoice !== undefined) {
         responses.push({type: 'or' as const, index: payload.rewardChoice, response: {type: 'option' as const}});
+      }
+      // Pos 7/9 pre-collected card pick — the deferred SelectCard becomes the
+      // next prompt (reuse-action card / animal target), answered byte-identically.
+      if (payload.selectedCard !== undefined) {
+        responses.push({type: 'card' as const, cards: [payload.selectedCard]});
       }
       const wfRef = this.$refs.waitingFor as {onsaveBatch?: (out: ReadonlyArray<unknown>) => void} | undefined;
       wfRef?.onsaveBatch?.(responses);

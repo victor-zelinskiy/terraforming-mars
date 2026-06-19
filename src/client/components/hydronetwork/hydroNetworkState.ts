@@ -1,5 +1,6 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 
 /**
@@ -16,6 +17,8 @@ export const hydroNetworkState = reactive<{
    *  position > current = a plan target; <= current = a details/history view. */
   selectedPosition: number;
   rewardChoice: number | undefined;
+  /** Pre-collected target card for a card-pick reward (pos 7 / pos 9). */
+  selectedCard: CardName | undefined;
   /** Cache scope key (generation + viewed colour) for the fetched preview. */
   previewScope: string | undefined;
   preview: DeltaTrackPreviewModel | undefined;
@@ -24,13 +27,15 @@ export const hydroNetworkState = reactive<{
   open: false,
   selectedPosition: -1,
   rewardChoice: undefined,
+  selectedCard: undefined,
   previewScope: undefined,
   preview: undefined,
   previewColor: undefined,
 });
 
-/** Reset the planning state (selection + reward choice) — on open / player switch / submit. */
+/** Reset the planning state (selection + reward choice + card) — on open / player switch / submit. */
 export function resetHydroPlan(): void {
   hydroNetworkState.selectedPosition = -1;
   hydroNetworkState.rewardChoice = undefined;
+  hydroNetworkState.selectedCard = undefined;
 }

@@ -2,6 +2,7 @@
   <div class="hydro-stage"
        role="listitem"
        tabindex="0"
+       :data-hydro-pos="vm.position"
        :class="[
          'hydro-stage--' + vm.state,
          {
