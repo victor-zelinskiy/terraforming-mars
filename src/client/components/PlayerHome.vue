@@ -2286,6 +2286,16 @@ export default defineComponent({
       if (!target) {
         return;
       }
+      // The clicked element was already DETACHED from the document by the time
+      // this bubble-phase listener runs — i.e. an in-overlay control handled the
+      // click and re-rendered (removed) the clicked node in the same dispatch
+      // (e.g. the Гидросеть reward-choice button, whose `v-if` collapses the
+      // choices once a reward is picked). A detached target means the click was
+      // handled INSIDE the app, never an outside click, so `target.closest(...)`
+      // below would wrongly return null and close the overlay. Treat it as inside.
+      if (!target.isConnected) {
+        return;
+      }
       // An open fullscreen card (native <dialog>, e.g. the played-cards
       // board's CardZoomModal) sits OVER the overlay; a click on its
       // backdrop must close the dialog, not the overlay underneath.
