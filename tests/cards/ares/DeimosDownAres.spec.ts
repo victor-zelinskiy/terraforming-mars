@@ -32,11 +32,12 @@ describe('DeimosDownAres', () => {
   it('Should play without plants', () => {
     cast(card.play(player), undefined);
     runAllActions(game);
+    // No opponent has plants → the plant-removal attack produces no prompt; only the
+    // tile placement remains (post-confirm PlacementBanner).
     cast(player.popWaitingFor(), SelectSpace);
     expect(player.game.getTemperature()).to.eq(-24);
     expect(player.steel).to.eq(4);
-    const input = player.game.deferredActions.peek()!.execute();
-    expect(input).is.undefined;
+    expect(player.game.deferredActions).has.lengthOf(0);
   });
 
   // Identical to the Deimos Down Promo test
@@ -45,17 +46,18 @@ describe('DeimosDownAres', () => {
 
     cast(card.play(player), undefined);
     runAllActions(game);
+
+    // The plant removal now resolves BEFORE the tile placement: elevated to
+    // Priority.PLAY_CARD_PLANT_REMOVAL so the play modal can pre-collect the target
+    // before confirm; the tile then rides the post-confirm PlacementBanner.
+    const orOptions = cast(player.popWaitingFor(), OrOptions);
+    orOptions.options[0].cb();
+    expect(player2.plants).to.eq(0);
+
+    runAllActions(game);
     cast(player.popWaitingFor(), SelectSpace);
     expect(player.game.getTemperature()).to.eq(-24);
     expect(player.steel).to.eq(4);
-
-    expect(player.game.deferredActions).has.lengthOf(1);
-
-    // Choose Remove 5 plants option
-    const orOptions = cast(player.game.deferredActions.peek()!.execute(), OrOptions);
-    orOptions.options[0].cb([player2]);
-
-    expect(player2.plants).to.eq(0);
   });
 
   // Identical to the Deimos Down Promo test

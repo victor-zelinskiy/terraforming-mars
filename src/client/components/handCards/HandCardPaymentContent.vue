@@ -24,6 +24,13 @@
         <h3 class="play-confirm__title" v-i18n>{{ cardTitle }}</h3>
       </header>
 
+      <!-- NOTICES — premium replacement for the legacy red warning text: maxed
+           parameters ("part of the effect won't apply"), Reds tax, self-harm, etc.
+           Shown immediately (on the card model, before the preview loads). -->
+      <PremiumCardWarnings :warnings="cardModel.warnings"
+                           :additionalCosts="cardModel.additionalProjectCosts"
+                           :cardName="cardName" />
+
       <!-- RESULT — a SHORT premium summary AT THE TOP of WHAT playing this card
            does (the on-play effect chips, current → resulting). The detailed,
            target-dependent impact reads on each target option below. -->
@@ -102,6 +109,7 @@
               :playerinput="input"
               :onsave="capturePlay"
               :hideCards="true"
+              :hideWarnings="true"
               :showsave="false"
               :showtitle="false"
               @change="paymentValid = $event" />
@@ -389,6 +397,7 @@ import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} fro
 import {paths} from '@/common/app/paths';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import PremiumCardWarnings from '@/client/components/card/PremiumCardWarnings.vue';
 import {playedCardActionPickResult} from '@/client/components/playedCards/playedCardActionPick';
 import {handActionPickResult} from '@/client/components/handCards/handActionPick';
 import {actionRepeatPickResult} from '@/client/components/actions/actionRepeatPick';
@@ -437,7 +446,7 @@ function stepNeedsResponse(step: ActionPreviewStep): boolean {
  */
 export default defineComponent({
   name: 'HandCardPaymentContent',
-  components: {Card, CardZoomModal, SelectProjectCardToPlay, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, ActionEffectChip, ActionTargetCard, ActionVpProgress, TabbedRemovalPicker, RepeatActionPicker},
+  components: {Card, CardZoomModal, PremiumCardWarnings, SelectProjectCardToPlay, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, ActionEffectChip, ActionTargetCard, ActionVpProgress, TabbedRemovalPicker, RepeatActionPicker},
   props: {
     playerView: {
       type: Object as PropType<PlayerViewModel>,

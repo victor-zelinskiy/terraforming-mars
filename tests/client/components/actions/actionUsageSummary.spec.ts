@@ -126,4 +126,44 @@ describe('action usage summary view-model', () => {
       expect(vm.cardScoped).to.be.undefined;
     });
   });
+
+  describe('per-branch filtering (BioPrinting Facility shape: plants OR add-to-a-card)', () => {
+    // BioPrinting's two branches: "gain 2 plants" (stock) and "add 1 animal to
+    // ANOTHER card" (`to a card`). The aggregate folds plants gained + animals added
+    // onto one stat; each branch's details must show only ITS own metric.
+    const plantsEffects: ReadonlyArray<ActionEffect> = [
+      {direction: 'cost', icon: 'energy', amount: 2},
+      {direction: 'gain', icon: 'plants', amount: 2},
+    ];
+    const animalEffects: ReadonlyArray<ActionEffect> = [
+      {direction: 'cost', icon: 'energy', amount: 2},
+      {direction: 'gain', icon: 'animal', amount: 1, note: 'to a card'},
+    ];
+    const mixedStat = stat({triggerCount: 5, stock: Units.of({plants: 6, energy: -10}), cardResources: {animal: 3}});
+
+    it('an "add to a card" gain claims the cardres token (so the sibling filter works)', () => {
+      // The fix: `to a card` (add to ANOTHER card) maps to `cardres:animal`, matching
+      // the aggregate's net "Added" line — else it leaked onto the plants branch.
+      expect(branchMetricTokens(animalEffects)).to.include('cardres:animal');
+      expect(branchMetricTokens(plantsEffects)).to.include('plants');
+    });
+
+    it('the PLANTS branch shows plants gained, never the animals added', () => {
+      const mine = branchMetricTokens(plantsEffects);
+      const sibling = branchMetricTokens(animalEffects);
+      const vm = getActionUsageSummary(mixedStat, {mineTokens: mine, siblingTokens: sibling});
+      expect(vm.lines.some((l) => l.icon === 'plants' && l.label === 'Gained')).to.be.true;
+      expect(vm.lines.some((l) => l.label === 'Added'), 'no animal "Added" line on the plants branch').to.be.false;
+      expect(vm.cardScoped).to.be.true;
+    });
+
+    it('the ANIMAL branch shows the animals added, never the plants gained', () => {
+      const mine = branchMetricTokens(animalEffects);
+      const sibling = branchMetricTokens(plantsEffects);
+      const vm = getActionUsageSummary(mixedStat, {mineTokens: mine, siblingTokens: sibling});
+      expect(vm.lines.some((l) => l.icon === 'animal' && l.label === 'Added')).to.be.true;
+      expect(vm.lines.some((l) => l.icon === 'plants' && l.label === 'Gained'), 'no plants line on the animal branch').to.be.false;
+      expect(vm.cardScoped).to.be.true;
+    });
+  });
 });

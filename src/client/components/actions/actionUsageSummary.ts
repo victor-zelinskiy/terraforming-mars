@@ -68,7 +68,11 @@ export type ActionBranchScope = {
 export function branchMetricTokens(effects: ReadonlyArray<ActionEffect>): Array<string> {
   const out: Array<string> = [];
   for (const e of effects) {
-    if (e.note === 'on this card') {
+    // A card-resource gain — added to THIS card (`on this card`) OR to ANOTHER card
+    // (`to a card`, e.g. BioPrinting's "add 1 animal to another card") — claims the
+    // aggregate's net "Added" line (token `cardres:<icon>`). A card-resource COST
+    // (spending it) does NOT claim that accumulation line.
+    if (e.note === 'on this card' || e.note === 'to a card') {
       if (e.direction === 'gain') {
         out.push('cardres:' + e.icon);
       }
@@ -154,9 +158,9 @@ export function getActionUsageSummary(stat: EffectOverlayStat | undefined, scope
   // card's "add floater" branch never shows the "draw" branch's cards (and vice
   // versa). Only kicks in for a genuine multi-branch action (siblingTokens present).
   const cardScoped = scope !== undefined && scope.siblingTokens.length > 0;
-  if (cardScoped) {
-    const mine = new Set(scope!.mineTokens);
-    const sib = new Set(scope!.siblingTokens);
+  if (scope !== undefined && cardScoped) {
+    const mine = new Set(scope.mineTokens);
+    const sib = new Set(scope.siblingTokens);
     lines = lines.filter((l) => {
       const t = lineMetricToken(l);
       return mine.has(t) || !sib.has(t);

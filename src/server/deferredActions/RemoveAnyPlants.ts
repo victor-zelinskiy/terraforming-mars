@@ -12,8 +12,11 @@ export class RemoveAnyPlants extends DeferredAction {
   private title: string | Message;
   private count: number;
 
-  constructor(player: IPlayer, count: number = 1, title?: string | Message) {
-    super(player, Priority.ATTACK_OPPONENT);
+  constructor(player: IPlayer, count: number = 1, title?: string | Message, priority: Priority = Priority.ATTACK_OPPONENT) {
+    // Default ATTACK_OPPONENT. A card that ALSO places a tile passes
+    // `Priority.PLAY_CARD_PLANT_REMOVAL` so the OrOptions prompts BEFORE the
+    // placement and the play modal can pre-collect it (see Executor.execute).
+    super(player, priority);
     this.count = count;
     this.title = title ?? message('Select player to remove up to ${0} plants', (b) => b.number(count));
   }

@@ -1,5 +1,52 @@
 # Delayed-target audit — pre-collecting on-play target choices in the play modal
 
+## UPDATE (follow-up fix): the "attack + placement" cards now PRE-COLLECT the plant target
+
+The original audit (below) left **Comet / Giant Ice Asteroid / Deimos Down promo** as
+documented exceptions: they place a tile/ocean AND remove plants, and the placement
+defers at a HIGHER priority than the attack, so the strictly-positional batch couldn't
+pre-collect the plant pick. **That exception is now CLOSED.** The plant removal is
+INDEPENDENT of where the tile lands, so there is no reason to defer it:
+
+- **`Priority.PLAY_CARD_PLANT_REMOVAL`** (a new value just before `PLACE_OCEAN_TILE`) —
+  `Executor.execute` defers `removeAnyPlants` at this elevated priority **only when the
+  SAME card also queues a placement** (`ocean`/`city`/`greenery`/`tile`/`buildColony`/
+  `moon`/`underworld`); otherwise it stays at `ATTACK_OPPONENT`. So the plant OrOptions
+  prompts FIRST, the batch pre-collects it, and the tile/ocean rides the post-confirm
+  `PlacementBanner`. This mirrors the existing `PLAY_CARD_RESOURCE_CHOICE` precedent
+  (an on-play resource choice elevated above an ocean — Imported Hydrogen / Large Convoy).
+- **`RemoveAnyPlants`** takes an optional `priority` arg (default `ATTACK_OPPONENT`).
+- **`actionPreview.ts` (`stepsForBehavior`)** — the `!hasFollowUpPlacement` guard was
+  REMOVED; the `removeAnyPlants` `or` step is now emitted for EVERY plant-attack card
+  (still BEFORE the placement note, matching the elevated live order).
+- The change is **rules-neutral** (the effects are independent — only the prompt order
+  changes) and **generic** — it also covers the out-of-scope `MetallicAsteroid` /
+  `Deimos Down ares` (ares) and `Deepnuking` (underworld) for free.
+
+**Cards now pre-collecting the plant target even with a placement:** Comet, Giant Ice
+Asteroid, Deimos Down promo (+ Metallic Asteroid, Deimos Down ares, Deepnuking).
+
+**Tests updated for the new order** (plant pick first, placement second): `Comet.spec`,
+`GiantIceAsteroid.spec`, `DeimosDownPromo.spec`, `DeimosDownAres.spec`,
+`MetallicAsteroid.spec`, `Deepnuking.spec`, plus `cardPlayPreview.spec` (Comet now
+emits the `or` step before the placement note + a live-replay test) and the
+`cardPlayPreviewCoverage` guard (now requires EVERY declarative `removeAnyPlants` card —
+with or without a placement — to pre-collect).
+
+**Still a CORRECT follow-up (NOT a gap): `Flooding`.** Its M€ steal targets the OWNER
+OF A TILE ADJACENT TO THE OCEAN it places — the eligible targets are only known AFTER
+the ocean is placed, so the choice is genuinely placement-DEPENDENT and cannot be
+pre-collected. This is the user's allowed deferred case ("the target only becomes known
+after another action"), unlike the placement-INDEPENDENT plant attacks above.
+
+**Empty classes in scope (audited):** no in-scope card has an on-play
+`addResourcesToAnyCard` or `decreaseAnyProduction` behind a placement PROMPT
+(MaxwellBase / Stratopolis place a FIXED-space city — no `SelectSpace` — and their
+`addResourcesToAnyCard` is a repeatable ACTION, handled by the action-confirm modal). If
+a future expansion adds such a card, apply the SAME elevation pattern.
+
+---
+
 ## The reported bug
 
 Playing **«Рудная экспедиция» (Mining Expedition)** showed only the card + payment +

@@ -399,36 +399,27 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   }
 
   // Remove plants from ANY player (Mining Expedition / Asteroid / Big Asteroid /
-  // Deimos Down / Small Asteroid / Impactor Swarm) → the SAME premium OrOptions
-  // target picker the live follow-up would show, hosted INSIDE the play modal
-  // (ModernOptionPicker): every pickable player with its plants `current → resulting`,
-  // a self-removal option with a warning, the "skip" option, and opponents who can't
-  // be targeted shown disabled with a reason. Built read-only via the side-effect-free
-  // `previewOptions` (shared with the live `execute`), so the chosen `{type:'or',
-  // index, response}` replays BYTE-IDENTICALLY against the live OrOptions in the
-  // batch. `undefined` (solo mode / no opponent has plants) → no step, exactly
-  // matching the live path.
+  // Deimos Down / Small Asteroid / Impactor Swarm / Comet / Giant Ice Asteroid /
+  // Deimos Down promo) → the SAME premium OrOptions target picker the live follow-up
+  // would show, hosted INSIDE the play modal (ModernOptionPicker): every pickable
+  // player with its plants `current → resulting`, a self-removal option with a
+  // warning, the "skip" option, and opponents who can't be targeted shown disabled
+  // with a reason. Built read-only via the side-effect-free `previewOptions` (shared
+  // with the live `execute`), so the chosen `{type:'or', index, response}` replays
+  // BYTE-IDENTICALLY against the live OrOptions in the batch. `undefined` (solo mode /
+  // no opponent has plants) → no step, exactly matching the live path.
   //
-  // GUARD — only pre-collect when the plant removal is the card's FIRST follow-up
-  // prompt. If the SAME card ALSO queues a board / colony / moon / underworld
-  // placement, that placement defers at a HIGHER priority than the attack
-  // (`ATTACK_OPPONENT`) and resolves FIRST; the batch is strictly positional
-  // (`PlayerInputBatch` stops at the first response that doesn't match the live
-  // `waitingFor`), so the plant response would hit the placement's SelectSpace and be
-  // discarded. Those cards — Comet / Giant Ice Asteroid / Deimos Down (promo) — are
-  // inherently FOLLOW-UP cards anyway (the tile placement is post-confirm via
-  // PlacementBanner, which can't be pre-collected); the plant attack rides the SAME
-  // follow-up, consistent with `Flooding` (ocean + M€ steal — the established
-  // "attack + placement" decision). Reordering the game so the attack resolves first
-  // is deliberately NOT done: it would change the prompt order across base/ares/
-  // underworld cards (and their tests) for no rules reason (the effects are
-  // independent — only the order would change). See cardPlayPreviewCoverage.spec.ts.
-  const hasFollowUpPlacement =
-    behavior.ocean !== undefined || behavior.city !== undefined ||
-    behavior.greenery !== undefined || behavior.tile !== undefined ||
-    behavior.colonies?.buildColony !== undefined || behavior.moon !== undefined ||
-    behavior.underworld !== undefined;
-  if (behavior.removeAnyPlants !== undefined && !hasFollowUpPlacement) {
+  // PRE-COLLECTED EVEN WHEN THE CARD ALSO PLACES A TILE. The plant attack is
+  // INDEPENDENT of where the tile lands, so it's resolved up front, not deferred.
+  // The placement defers at PLACE_OCEAN_TILE / DEFAULT (BEFORE ATTACK_OPPONENT), so
+  // normally it would prompt FIRST and the positional batch couldn't pre-collect a
+  // pick queued behind a SelectSpace. `Executor.execute` therefore ELEVATES the plant
+  // removal to `Priority.PLAY_CARD_PLANT_REMOVAL` (ahead of every placement) whenever
+  // the card has a co-placement, so the OrOptions prompts FIRST; this step is emitted
+  // BEFORE the placement note below, matching that elevated order. The tile then rides
+  // PlacementBanner after confirm (it's inherently post-confirm — it CAN'T be
+  // pre-collected). See Priority.PLAY_CARD_PLANT_REMOVAL + cardPlayPreviewCoverage.spec.ts.
+  if (behavior.removeAnyPlants !== undefined) {
     const orOptions = new RemoveAnyPlants(player, behavior.removeAnyPlants).previewOptions();
     if (orOptions !== undefined) {
       steps.push({kind: 'input', input: orOptions.toModel(player)});

@@ -12,7 +12,6 @@ import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
-import {message} from '../../logs/MessageBuilder';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 
@@ -26,10 +25,18 @@ export class BioPrintingFacility extends Card implements IActionCard, IProjectCa
 
       metadata: {
         cardNumber: 'X36',
+        // TWO action boxes (not one box with an internal OR), so the ДЕЙСТВИЯ overlay
+        // renders the card as TWO separate, individually-selectable action rows (the
+        // fork's split-action model — like Rotator Impacts) instead of one row that
+        // forces a branch choice INSIDE the confirm modal. Each box maps to its own
+        // preview branch (per-row select → its own confirm + per-branch stats). The
+        // 2 energy cost is shown on BOTH boxes (each branch spends it).
         renderData: CardRenderer.builder((b) => {
-          b.action('Spend 2 energy to gain 2 plants OR to add 1 animal to ANOTHER card.', (eb) => {
+          b.action('Spend 2 energy to gain 2 plants.', (eb) => {
             eb.energy(2, {digit}).startAction.plants(2);
-            eb.or().resource(CardResource.ANIMAL).asterix();
+          });
+          b.action('Spend 2 energy to add 1 animal to ANOTHER card.', (eb) => {
+            eb.or().energy(2, {digit}).startAction.resource(CardResource.ANIMAL).asterix();
           });
         }),
       },
@@ -45,15 +52,22 @@ export class BioPrintingFacility extends Card implements IActionCard, IProjectCa
   }
 
   // Branch order MUST match action(): add-animal (only when an animal card
-  // exists) pushed first, gain-plants second. 2 energy is always spent.
+  // exists) pushed first, gain-plants second. 2 energy is always spent. The
+  // render-node order (plants box, then animal box) DIFFERS — the overlay maps
+  // each node to its branch by token overlap (branchPositionForNode), so this is
+  // fine. The animal branch PRE-COLLECTS the destination card via the premium
+  // target picker (`optionInput`), shown EVEN for one candidate (no-autoselect).
   public actionPreview(player: IPlayer) {
-    const hasAnimalCard = player.getResourceCards(CardResource.ANIMAL).length > 0;
+    const animalCards = player.getResourceCards(CardResource.ANIMAL);
+    const hasAnimalCard = animalCards.length > 0;
     return actionPreviews.orBranches(this, [
       {
-        // The animal target card (SelectCard) rides the follow-up routing.
         available: hasAnimalCard,
         title: 'Add 1 animal to another card',
         effects: [actionPreviews.stockCost(player, Resource.ENERGY, 2), actionPreviews.cardResourceGain(CardResource.ANIMAL, 1)],
+        // The branch's OrOptions option IS this SelectCard, so its picked-card
+        // response nests into the branch pick — collected BEFORE confirm.
+        optionInput: hasAnimalCard ? actionPreviews.cardInput(player, 'Select card to add 1 animal', 'Add animal', animalCards) : undefined,
         unavailableReason: actionReason.targetReason('No card to add an animal to'),
       },
       {
@@ -68,7 +82,6 @@ export class BioPrintingFacility extends Card implements IActionCard, IProjectCa
     const availableAnimalCards = player.getResourceCards(CardResource.ANIMAL);
     player.stock.deduct(Resource.ENERGY, 2);
 
-
     if (availableAnimalCards.length === 0) {
       player.stock.add(Resource.PLANTS, 2, {log: true});
       return undefined;
@@ -79,18 +92,10 @@ export class BioPrintingFacility extends Card implements IActionCard, IProjectCa
       return undefined;
     });
 
-    if (availableAnimalCards.length === 1) {
-      const targetCard = availableAnimalCards[0];
-
-      return new OrOptions(
-        new SelectOption(message('Add ${0} animal to ${1}', (b) => b.number(1).card(targetCard)), 'Add animal').andThen(() => {
-          player.addResourceTo(targetCard, {log: true});
-          return undefined;
-        }),
-        gainPlantOption,
-      );
-    }
-
+    // ALWAYS a SelectCard for the animal branch — even for a single candidate — so
+    // the player ALWAYS sees/picks WHERE the animal goes (matches the premium
+    // confirm modal's pre-collected `optionInput`, byte-for-byte). The OrOptions
+    // option order (animal first, plants second) matches actionPreview's branch order.
     return new OrOptions(
       new SelectCard(
         'Select card to add 1 animal',

@@ -193,16 +193,44 @@ describe('cardPlayPreview', () => {
     expect(branch.effects.some((e) => e.icon === 'temperature')).is.true;
   });
 
-  it('Comet (declarative): the plant attack rides the follow-up (the ocean placement prompts first)', () => {
+  it('Comet (declarative): the plant attack IS pre-collected, the ocean placement noted after', () => {
     const [/* game */, player, opponent] = testGame(3);
     opponent.plants = 5;
     const branch = cardPlayPreview(player, new Comet()).branches[0];
-    // Comet ALSO places an ocean (deferred at a HIGHER priority than the attack), so
-    // the strictly-positional batch can't pre-collect the plant pick — it's a
-    // documented follow-up (the ocean rides PlacementBanner, the plant attack the
-    // OrOptions after). So NO `or` step here; the board placement is noted instead.
-    expect(branch.steps.some((s) => s.kind === 'input' && s.input.type === 'or'), 'no pre-collected plant step').is.false;
-    expect(branch.steps.some((s) => s.kind === 'boardPlacement'), 'an ocean placement note').is.true;
+    // Comet ALSO places an ocean, but the plant attack is independent of WHERE the
+    // ocean lands, so it's elevated to Priority.PLAY_CARD_PLANT_REMOVAL (ahead of the
+    // ocean) and PRE-COLLECTED in the play modal as an OrOptions step. The ocean is an
+    // inherently post-confirm placement → noted (PlacementBanner). Order matters: the
+    // OrOptions step comes BEFORE the placement note (matching the live prompt order).
+    const orIdx = branch.steps.findIndex((s) => s.kind === 'input' && s.input.type === 'or');
+    const placeIdx = branch.steps.findIndex((s) => s.kind === 'boardPlacement');
+    expect(orIdx, 'pre-collected plant OrOptions step').is.greaterThan(-1);
+    expect(placeIdx, 'ocean placement note').is.greaterThan(-1);
+    expect(orIdx, 'plant pick is collected BEFORE the placement note').is.lessThan(placeIdx);
+  });
+
+  it('Comet (placement card): the pre-collected plant pick resolves the live OrOptions BEFORE the ocean', () => {
+    const [game, player, opponent] = testGame(3);
+    opponent.plants = 5;
+    // The preview offers the plant OrOptions (option 0 = the opponent). The batch
+    // replay submits that index. Prove the LIVE prompt order now matches: after play,
+    // the plant OrOptions prompts FIRST (so the batch's plant response lands on it),
+    // and the ocean placement is the remaining post-confirm prompt.
+    const preview = cardPlayPreview(player, new Comet()).branches[0];
+    const orStep = preview.steps.find((s) => s.kind === 'input' && s.input.type === 'or');
+    expect(orStep, 'preview offers a plant OrOptions step').is.not.undefined;
+
+    const card = new Comet();
+    card.play(player);
+    runAllActions(game);
+    // FIRST live prompt = the plant OrOptions (elevated ahead of the ocean) — exactly
+    // where the batch's pre-collected {type:'or', index:0} response lands.
+    const live = cast(player.popWaitingFor(), OrOptions);
+    live.options[0].cb();
+    expect(opponent.plants, 'plant attack applied from the pre-collected pick').to.eq(2);
+    // The ocean is the leftover post-confirm placement (PlacementBanner).
+    runAllActions(game);
+    cast(player.popWaitingFor(), SelectSpace);
   });
 
   // A card that HOLDS the resource it adds on play can target ITSELF. The preview
