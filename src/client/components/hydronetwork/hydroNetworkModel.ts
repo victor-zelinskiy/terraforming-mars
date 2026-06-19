@@ -12,6 +12,7 @@
  * No Vue / DOM / i18n here (labels stay English keys) — unit-tested.
  */
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {DeltaStop} from '@/common/models/DeltaProjectPlayerModel';
 import {HYDRO_STAGES, HydroStage, hydroStageNeedsChoice, HydroFollowUp} from './hydroStages';
@@ -74,8 +75,13 @@ export type HydroModelInput = {
   /** The clicked/selected position (-1 = max-legal default). */
   selectedPosition: number;
   rewardChoice: number | undefined;
+  /** Pre-collected target card for a card-pick reward (pos 7 / pos 9). */
+  selectedCard: CardName | undefined;
   actionAvailable: boolean;
 };
+
+/** A reward that needs a card pick before confirm. */
+export type HydroCardSelectKind = 'reuse-action' | 'animal-target';
 
 export type HydroModel = {
   stages: ReadonlyArray<HydroStageVM>;
@@ -99,6 +105,12 @@ export type HydroModel = {
   targetNeedsChoice: boolean;
   targetFollowUp: HydroFollowUp | undefined;
   skippedStages: ReadonlyArray<HydroStage>;
+  // Pre-collected card pick (pos 7 reuse-action / pos 9 animal target).
+  needsCardSelect: HydroCardSelectKind | undefined;
+  eligibleCardNames: ReadonlyArray<CardName>;
+  selectedCard: CardName | undefined;
+  /** A card MUST be picked before confirm (a pick is needed AND candidates exist). */
+  mustSelectCard: boolean;
   canConfirm: boolean;
 
   // ── Details mode ───────────────────────────────────────────────────────
@@ -224,6 +236,20 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     }
   }
 
+  // Pre-collected card pick for the target (pos 7 reuse-action / pos 9 animals).
+  const needsCardSelect: HydroCardSelectKind | undefined =
+    targetFollowUp === 'reuse-action' ? 'reuse-action' :
+      targetFollowUp === 'add-animals' ? 'animal-target' : undefined;
+  const eligibleCardNames: ReadonlyArray<CardName> =
+    needsCardSelect === 'reuse-action' ? (preview?.reuseActionCards ?? []) :
+      needsCardSelect === 'animal-target' ? (preview?.animalTargetCards ?? []) : [];
+  // A pick is REQUIRED only when one is needed AND candidates exist (an empty
+  // pool means the reward simply fizzles — the player may still advance).
+  const mustSelectCard = needsCardSelect !== undefined && eligibleCardNames.length > 0;
+  const selectedCard =
+    input.selectedCard !== undefined && eligibleCardNames.includes(input.selectedCard) ? input.selectedCard : undefined;
+  const cardSelectSatisfied = !mustSelectCard || selectedCard !== undefined;
+
   const choiceSatisfied = !targetNeedsChoice || input.rewardChoice !== undefined;
   const canConfirm =
     input.actionAvailable === true &&
@@ -232,7 +258,8 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     destination !== undefined &&
     destination.legal === true &&
     destination.affordable === true &&
-    choiceSatisfied;
+    choiceSatisfied &&
+    cardSelectSatisfied;
 
   // Details mode: per-stage history across all players.
   let detailsStage: HydroStage | undefined;
@@ -271,6 +298,10 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     targetNeedsChoice,
     targetFollowUp,
     skippedStages,
+    needsCardSelect,
+    eligibleCardNames,
+    selectedCard,
+    mustSelectCard,
     canConfirm,
     detailsStage,
     detailsHistory,

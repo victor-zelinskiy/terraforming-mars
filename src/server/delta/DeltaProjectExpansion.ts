@@ -135,6 +135,8 @@ export class DeltaProjectExpansion {
         maxEnergySteps: 0,
         maxPreviewSteps: 0,
         destinations: [],
+        reuseActionCards: [],
+        animalTargetCards: [],
       };
     }
     const game = player.game;
@@ -175,6 +177,13 @@ export class DeltaProjectExpansion {
       });
     }
 
+    // Eligible targets for the stages whose reward needs a card pick, so the
+    // overlay can pre-collect the choice BEFORE confirm (pos 7 reuse-action,
+    // pos 9 add-animals). Computed from current state via the same helpers the
+    // reward resolution uses, so the lists are authoritative.
+    const reuseActionCards = DeltaProjectExpansion.getUsedActionCards(player).map((c) => c.name);
+    const animalTargetCards = new AddResourcesToCard(player, CardResource.ANIMAL, {count: 2}).getCards().map((c) => c.name);
+
     return {
       currentPosition: currentPos,
       availableEnergy: energy,
@@ -184,6 +193,8 @@ export class DeltaProjectExpansion {
       maxEnergySteps: Math.max(0, Math.min(energy, MAX_TRACK_POSITION - currentPos)),
       maxPreviewSteps,
       destinations,
+      reuseActionCards,
+      animalTargetCards,
     };
   }
 

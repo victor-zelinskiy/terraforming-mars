@@ -35,9 +35,12 @@
         :model="model"
         :rewardChoice="rewardChoice"
         :actionAvailable="actionAvailable"
+        :snapshot="snapshot"
+        :eligibleCards="eligibleCards"
         @spend="onSpend"
         @choice="onChoice"
         @plan="onPlan"
+        @select-card="onSelectCard"
         @confirm="onConfirm" />
     </div>
   </div>
@@ -47,10 +50,13 @@
 import {defineComponent} from 'vue';
 import {paths} from '@/common/app/paths';
 import {Color} from '@/common/Color';
+import {Tag} from '@/common/cards/Tag';
+import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {$t} from '@/client/directives/i18n';
 import {buildHydroModel, HydroModel} from './hydroNetworkModel';
+import {HydroPlayerSnapshot} from './hydroReward';
 import {hydroNetworkState, resetHydroPlan} from './hydroNetworkState';
 import HydroTrack from './HydroTrack.vue';
 import HydroActionZone from './HydroActionZone.vue';
@@ -101,8 +107,32 @@ export default defineComponent({
         viewerColor: this.viewerColor,
         selectedPosition: hydroNetworkState.selectedPosition,
         rewardChoice: hydroNetworkState.rewardChoice,
+        selectedCard: hydroNetworkState.selectedCard,
         actionAvailable: this.actionAvailable,
       });
+    },
+    snapshot(): HydroPlayerSnapshot {
+      const p = this.playerView.thisPlayer;
+      return {
+        steel: p.steel, plants: p.plants, titanium: p.titanium, energy: p.energy, heat: p.heat, megacredits: p.megacredits,
+        prod: {
+          megacredits: p.megacreditProduction, steel: p.steelProduction, titanium: p.titaniumProduction,
+          plants: p.plantProduction, energy: p.energyProduction, heat: p.heatProduction,
+        },
+        plantTags: p.tags[Tag.PLANT] ?? 0,
+        jovianTags: p.tags[Tag.JOVIAN] ?? 0,
+      };
+    },
+    // Candidate cards for a pos 7 / pos 9 pre-selection — names from the preview,
+    // with the current animal count read from the viewer's tableau (pos 9).
+    eligibleCards(): ReadonlyArray<{name: CardName; current?: number}> {
+      const names = this.model.eligibleCardNames;
+      if (names.length === 0) {
+        return [];
+      }
+      const byName = new Map(this.playerView.thisPlayer.tableau.map((c) => [c.name, c]));
+      const animalMode = this.model.needsCardSelect === 'animal-target';
+      return names.map((n) => animalMode ? {name: n, current: byName.get(n)?.resources ?? 0} : {name: n});
     },
   },
   watch: {
@@ -130,8 +160,12 @@ export default defineComponent({
     },
     onSelectPosition(position: number): void {
       hydroNetworkState.selectedPosition = position;
-      // A different destination stage invalidates a pending reward choice.
+      // A different destination stage invalidates a pending reward choice / card.
       hydroNetworkState.rewardChoice = undefined;
+      hydroNetworkState.selectedCard = undefined;
+    },
+    onSelectCard(name: CardName): void {
+      hydroNetworkState.selectedCard = name;
     },
     onSpend(spend: number): void {
       this.onSelectPosition(this.model.currentPosition + spend);
@@ -150,6 +184,7 @@ export default defineComponent({
       this.$emit('confirm', {
         spend: this.model.selectedSpend,
         rewardChoice: this.model.targetNeedsChoice ? hydroNetworkState.rewardChoice : undefined,
+        selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
       });
     },
     fetchPreview(): void {
