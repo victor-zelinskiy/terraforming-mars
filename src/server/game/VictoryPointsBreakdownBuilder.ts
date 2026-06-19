@@ -1,7 +1,7 @@
 import {Tag} from '../../common/cards/Tag';
 import {CardVictoryPointsKind, TerraformRatingBreakdown, VictoryPointsBreakdown} from '../../common/game/VictoryPointsBreakdown';
 
-export type VictoryPoints = 'terraformRating' | 'milestones' | 'awards' | 'greenery' | 'city' | 'escapeVelocity' | 'moon habitat' | 'moon mine' | 'moon road' | 'planetary tracks' | 'victoryPoints';
+export type VictoryPoints = 'terraformRating' | 'milestones' | 'awards' | 'greenery' | 'city' | 'escapeVelocity' | 'moon habitat' | 'moon mine' | 'moon road' | 'planetary tracks' | 'deltaProject' | 'victoryPoints';
 
 type Mutable<T> = {
   [K in keyof T]: T[K] extends ReadonlyArray<infer T> ? T[] : T[K];
@@ -20,6 +20,7 @@ export class VictoryPointsBreakdownBuilder {
     moonMines: 0,
     moonRoads: 0,
     planetaryTracks: 0,
+    deltaProject: 0,
     victoryPoints: 0,
     total: 0,
     detailsCards: [],
@@ -46,6 +47,7 @@ export class VictoryPointsBreakdownBuilder {
     this.points.total += this.points.moonMines;
     this.points.total += this.points.moonRoads;
     this.points.total += this.points.planetaryTracks;
+    this.points.total += this.points.deltaProject;
     this.points.total += this.points.victoryPoints;
   }
 
@@ -105,6 +107,9 @@ export class VictoryPointsBreakdownBuilder {
       if (message !== undefined) {
         this.points.detailsPlanetaryTracks.push({tag: message as Tag, points});
       }
+      break;
+    case 'deltaProject':
+      this.points.deltaProject += points;
       break;
     default:
       console.warn('Unknown victory point constraint ' + key);

@@ -44,6 +44,9 @@ export type VictoryPointsBreakdown = {
   moonMines: number;
   moonRoads: number;
   planetaryTracks: number;
+  // Delta Project ("Гидросеть") end-game VP (2 for slot 10, 5 for slot 11).
+  // Shown under the "Достижения и награды" bar in the premium score report.
+  deltaProject: number;
   victoryPoints: number;
   total: number;
   detailsCards: ReadonlyArray<CardVictoryPointsDetail>;

@@ -80,6 +80,7 @@ export type JournalActionCategory =
   | 'copied-action'
   | 'milestone'
   | 'award'
+  | 'delta-project' // an advance on the Delta Project ("Гидросеть") track
   | 'vp-pressure'; // a VP-pressure effect activated (Vermin reached 10 animals)
 
 /**

@@ -20,6 +20,7 @@ function fullBreakdown(overrides: Partial<VictoryPointsBreakdown> = {}): Victory
     moonMines: 0,
     moonRoads: 0,
     planetaryTracks: 0,
+    deltaProject: 0,
     victoryPoints: 4,
     total: 49,
     // Fake names → isCard() is false → no JournalCardChip / card manifest needed.

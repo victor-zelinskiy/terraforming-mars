@@ -17,7 +17,7 @@ function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreak
     terraformRating: 20,
     terraformRatingBreakdown: {base: 20, temperature: 0, oxygen: 0, oceans: 0, venus: 0, cards: 0},
     milestones: 0, awards: 0, greenery: 0, city: 0, escapeVelocity: 0,
-    moonHabitats: 0, moonMines: 0, moonRoads: 0, planetaryTracks: 0,
+    moonHabitats: 0, moonMines: 0, moonRoads: 0, planetaryTracks: 0, deltaProject: 0,
     victoryPoints: 0, total: 20,
     detailsCards: [], detailsMilestones: [], detailsAwards: [], detailsPlanetaryTracks: [],
     negativeVP: 0,

@@ -17,6 +17,7 @@ function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreak
     moonMines: 0,
     moonRoads: 0,
     planetaryTracks: 0,
+    deltaProject: 0,
     victoryPoints: 0,
     total: 20,
     detailsCards: [],

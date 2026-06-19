@@ -96,6 +96,7 @@ export type NotificationVariant =
   | 'reveal-deck' // cards were publicly revealed from the deck (then discarded)
   | 'reveal-hand' // cards were shown from a player's hand (PublicPlans)
   | 'colony' // a colony was traded with / built
+  | 'hydronetwork' // an advance on the Delta Project ("Гидросеть") track
   | 'milestone' // an achievement was claimed
   | 'award' // an award was funded
   | 'generation' // a new generation began
