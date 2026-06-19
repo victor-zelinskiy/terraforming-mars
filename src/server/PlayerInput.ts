@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, VenusBonusPromptMeta} from '../common/models/PlayerInputModel';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -19,6 +19,9 @@ export interface PlayerInput {
     // Explicit contextual-choice marker (see ChoiceContext). Routes the prompt to
     // the premium ContextualChoiceContent modal. Serialized in getWaitingFor.
     choiceContext?: ChoiceContext;
+    // Explicit Venus alt-track bonus marker (see VenusBonusPromptMeta). Routes the
+    // prompt to the premium VenusBonusContent modal. Serialized in getWaitingFor.
+    venusBonusPrompt?: VenusBonusPromptMeta;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -68,6 +71,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public startGamePrompt: StartGamePromptMeta | undefined;
   public awardFundingPrompt: AwardFundingPromptMeta | undefined;
   public choiceContext: ChoiceContext | undefined;
+  public venusBonusPrompt: VenusBonusPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -127,6 +131,12 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  client renders a CONTEXTUAL modal instead of a bare option list (chainable). */
   public markChoiceContext(meta: ChoiceContext): this {
     this.choiceContext = meta;
+    return this;
+  }
+
+  /** Mark this prompt as a Venus alt-track bonus selection (chainable). */
+  public markVenusBonusPrompt(meta: VenusBonusPromptMeta): this {
+    this.venusBonusPrompt = meta;
     return this;
   }
 }

@@ -167,6 +167,13 @@
              v-on:click="onOpenColoniesOverlay">
           <BarButtonIcon name="colonies" /><span class="bar-btn__label" v-i18n>Colonies</span>
         </div>
+        <div v-if="game.gameOptions.expansions.deltaProject"
+             class="bottom-bar-btn bottom-bar-btn--hydronetwork"
+             :class="{'bottom-bar-btn--active': activeOverlay === 'hydronetwork', 'bottom-bar-btn--hydro-ready': hydroActionAvailable}"
+             v-on:click="toggleOverlay('hydronetwork')">
+          <BarButtonIcon name="hydronetwork" /><span class="bar-btn__label" v-i18n>Hydronetwork</span>
+          <span v-if="hydroActionAvailable" class="bottom-bar-btn__hydro-dot" aria-hidden="true"></span>
+        </div>
         <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': journalOpen}" v-on:click="toggleJournal()">
           <BarButtonIcon name="log" /><span class="bar-btn__label" v-i18n>Log</span>
         </div>
@@ -446,6 +453,21 @@
       @close="closeActionsOverlay" />
 
     <!--
+      Premium "Гидросеть Марса" overlay — the Delta Project track as a global
+      engineering subsystem. Horizontal track + embedded action-zone. The advance
+      action rides the standard action menu (detected via findHydroActionPath);
+      Confirm batch-submits [activate, amount, reward?] through WaitingFor.
+    -->
+    <HydroNetworkOverlay
+      v-if="activeOverlay === 'hydronetwork'"
+      :playerView="playerView"
+      :viewerId="playerView.id"
+      :actionAvailable="hydroActionAvailable"
+      :cacheKey="String(game.generation)"
+      @confirm="submitHydroAdvance($event)"
+      @close="activeOverlay = null" />
+
+    <!--
       Client-side confirmation gate before an action is performed. Hosts the
       source card + action summary; Confirm submits the nested action SelectCard
       response through WaitingFor.onsave, Cancel restores the overlay (no
@@ -710,6 +732,8 @@ import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverl
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import {actionsOverlayState} from '@/client/components/actions/actionsOverlayState';
+import HydroNetworkOverlay from '@/client/components/hydronetwork/HydroNetworkOverlay.vue';
+import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {playerViewState} from '@/client/components/playerViewState';
 import {actionsPickState, enterActionsPick, cancelActionsPick} from '@/client/components/actions/actionsPickState';
 import {deliverActionRepeatPick} from '@/client/components/actions/actionRepeatPick';
@@ -827,7 +851,7 @@ type ToggleableState = {
 // Overlays opened by the top/bottom bar buttons. Only one can be visible at a time —
 // pressing a different button closes the previous overlay. Pressing the same button
 // again closes the active overlay.
-type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'actions' | 'played' | 'effects' | 'victoryPoints' | 'legacyUi';
+type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'actions' | 'played' | 'effects' | 'victoryPoints' | 'hydronetwork' | 'legacyUi';
 
 // Set while the player has chosen a Standard Project from the overlay
 // AND the choice requires picking between M€ and alternative resources.
@@ -1054,6 +1078,16 @@ export default defineComponent({
       // only meant for "the overlay was genuinely still open across a forced
       // remount" — which is exactly `activeOverlay === 'actions'`.
       actionsOverlayState.open = newVal === 'actions';
+      // The Гидросеть overlay survives the playerkey remount the same way: keep
+      // its persisted open-flag in lock-step so the mounted() re-arm only re-opens
+      // it when it was genuinely still open across a forced remount.
+      hydroNetworkState.open = newVal === 'hydronetwork';
+      // Genuinely closing the Гидросеть overlay (not a polling remount, which
+      // re-arms it) resets the plan so it snaps back to the max-legal default
+      // next time it opens.
+      if (oldVal === 'hydronetwork' && newVal !== 'hydronetwork') {
+        resetHydroPlan();
+      }
       // Leaving the КАРТЫ В РУКЕ overlay (close, or switching to another
       // overlay) cancels any in-progress Sell-patents sale mode with NO
       // submit. A polling remount keeps activeOverlay === 'cards', so sale
@@ -1313,6 +1347,10 @@ export default defineComponent({
     if (actionsOverlayState.open && this.activeOverlay === null && !actionsPickState.active) {
       this.activeOverlay = 'actions';
     }
+    // Re-arm the Гидросеть overlay across the playerkey remount (same pattern).
+    if (hydroNetworkState.open && this.activeOverlay === null) {
+      this.activeOverlay = 'hydronetwork';
+    }
     // The premium notification system's "Go to action" CTA: if a mandatory
     // hand / award / standard-project prompt is minimized to its pill, restore
     // it so the player can act. (A minimized generic modal restores itself via
@@ -1465,6 +1503,12 @@ export default defineComponent({
     availableCardActionNames(): ReadonlyArray<CardName> {
       const found = this.findPerformActionCard(this.playerView.waitingFor);
       return found === undefined ? [] : found.model.cards.map((c) => c.name);
+    },
+    // The global Гидросеть advance action is in the action menu right now (it's
+    // the viewer's window to act). Drives the bottom-bar "ready" cue + the
+    // overlay action-zone's confirm gate.
+    hydroActionAvailable(): boolean {
+      return this.findHydroActionPath(this.playerView.waitingFor) !== undefined;
     },
     actionsPreviewCacheKey(): string {
       const p = this.displayedPlayer;
@@ -2144,6 +2188,7 @@ export default defineComponent({
     PlayedCardsOverlay,
     EffectsOverlay,
     ActionsOverlay,
+    HydroNetworkOverlay,
     CardActionConfirmContent,
     HandCardsOverlay,
     OpponentHandOverlay,
@@ -2255,6 +2300,7 @@ export default defineComponent({
           target.closest('.actions-board-overlay') ||
           target.closest('.hand-board-overlay') ||
           target.closest('.vp-board-overlay') ||
+          target.closest('.hydronetwork-overlay') ||
           target.closest('.legacy-ui-overlay') ||
           target.closest('.sidebar_cont') ||
           target.closest('.bottom-bar-btn') ||
@@ -2797,6 +2843,37 @@ export default defineComponent({
     },
     findEndTurnPath(wf: PlayerInputModel | undefined): ReadonlyArray<number> | undefined {
       return this.findOptionPathByTitle(wf, 'End Turn');
+    },
+    // The global "Гидросеть" advance action in the action menu (stable English
+    // title, never mutated by i18n — same contract as the milestone / pass paths).
+    findHydroActionPath(wf: PlayerInputModel | undefined): ReadonlyArray<number> | undefined {
+      return this.findOptionPathByTitle(wf, 'Advance on the Delta Project track');
+    },
+    // Confirm from the Гидросеть overlay → ONE batch, byte-identical to the radio
+    // UI: [select the advance action, the energy amount, the optional reward
+    // choice]. The reward OrOptions (pos 1/2) is a deferred top-level prompt the
+    // batch endpoint answers after the amount; pos 5/7/9 follow-ups arrive as
+    // their own prompts and ride the existing premium surfaces.
+    submitHydroAdvance(payload: {spend: number; rewardChoice: number | undefined}): void {
+      if (this.startGameFlowActionLocked) {
+        return;
+      }
+      const path = this.findHydroActionPath(this.playerView.waitingFor);
+      if (path === undefined) {
+        return;
+      }
+      let activate: unknown = {type: 'option' as const};
+      for (let i = path.length - 1; i >= 0; i--) {
+        activate = {type: 'or' as const, index: path[i], response: activate};
+      }
+      const responses: Array<unknown> = [activate, {type: 'deltaProject' as const, amount: payload.spend}];
+      if (payload.rewardChoice !== undefined) {
+        responses.push({type: 'or' as const, index: payload.rewardChoice, response: {type: 'option' as const}});
+      }
+      const wfRef = this.$refs.waitingFor as {onsaveBatch?: (out: ReadonlyArray<unknown>) => void} | undefined;
+      wfRef?.onsaveBatch?.(responses);
+      resetHydroPlan();
+      this.activeOverlay = null;
     },
     // Maps a colony name to the SPECIFIC tooltip explaining what activates
     // it. Driven by the colony's metadata: cardResource fields point to

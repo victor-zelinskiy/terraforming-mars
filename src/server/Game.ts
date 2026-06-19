@@ -301,10 +301,10 @@ export class Game implements IGame, Logger {
       throw new Error('Cloning should not come through this execution path.');
     }
     if (gameOptions.customPreludes !== undefined && gameOptions.customPreludes.includes(CardName.DELTA_PROJECT)) {
-      throw new Error('Delta Project cannot be included in custom preludes. It is given to all players as part of the Delta Project.');
+      throw new Error('Delta Project cannot be included in custom preludes. It is a global subsystem available to all players, not a prelude card.');
     }
     if (gameOptions.bannedCards !== undefined && gameOptions.bannedCards.includes(CardName.DELTA_PROJECT)) {
-      throw new Error('Delta Project cannot be banned. It is given to all players as part of the Delta Project.');
+      throw new Error('Delta Project cannot be banned. It is a global subsystem available to all players, not a prelude card.');
     }
 
     const rng = new SeededRandom(seed);

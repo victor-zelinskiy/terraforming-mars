@@ -79,6 +79,32 @@ export type ChoiceContext = {
   mode?: 'optional-effect' | 'effect-choice' | 'attack' | 'reward';
 }
 
+/**
+ * EXPLICIT, translation-proof marker that a top-level prompt is a VENUS ALT-TRACK
+ * bonus selection — the reward for crossing a bonus step on the Alternative Venus
+ * Board. Routes the prompt to the premium VenusBonusContent modal (selectable
+ * resource tiles + the final-step wild bonus with an on-card target preview)
+ * instead of the legacy numeric-distribution / OrOptions forms. Set server-side in
+ * `GrantVenusAltTrackBonusDeferred`; serialized centrally in
+ * `ServerModel.getWaitingFor`. Backward-compatible: a prompt without it renders via
+ * the existing fallbacks.
+ *
+ *  - kind 'standard': pick `baseCount` standard resources (repeats allowed). The
+ *    prompt is a `GainResources` (AndOptions of 6 SelectAmount).
+ *  - kind 'final': the 30% milestone reward. The prompt is a single `OrOptions`:
+ *      branch 0 = AndOptions(SelectCard wild-on-card, GainResources(baseCount));
+ *      branch 1 = GainResources(baseCount + 1)  // the wild folded in as standard.
+ *    `wildCardTargets` is the server's exact eligible-card set for the on-card
+ *    option (so the client offers precisely those, never a card the server rejects).
+ */
+export type VenusBonusPromptMeta = {
+  kind: 'standard' | 'final';
+  /** Distinct standard resources granted by the base bonus. */
+  baseCount: number;
+  /** (final only) Card names eligible to receive the wild card-resource. */
+  wildCardTargets?: ReadonlyArray<CardName>;
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
@@ -89,6 +115,7 @@ export type BaseInputModel = {
   startGamePrompt?: StartGamePromptMeta;
   awardFundingPrompt?: AwardFundingPromptMeta;
   choiceContext?: ChoiceContext;
+  venusBonusPrompt?: VenusBonusPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

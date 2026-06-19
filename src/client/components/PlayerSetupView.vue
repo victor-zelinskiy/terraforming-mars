@@ -104,7 +104,6 @@
 
         <a name="moonBoard" class="player_home_anchor"></a>
         <MoonBoard v-if="game.moon !== undefined" :model="game.moon" :tileView="tileView"></MoonBoard>
-        <DeltaProjectBoard v-if="game.gameOptions.expansions.deltaProject" :players="playerView.players"></DeltaProjectBoard>
       </div>
     </details>
   </div>
@@ -115,7 +114,6 @@ import {defineComponent} from 'vue';
 
 import Board from '@/client/components/Board.vue';
 import Card from '@/client/components/card/Card.vue';
-import DeltaProjectBoard from '@/client/components/delta/DeltaProjectBoard.vue';
 import DynamicTitle from '@/client/components/common/DynamicTitle.vue';
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import Turmoil from '@/client/components/turmoil/Turmoil.vue';
@@ -153,7 +151,6 @@ export default defineComponent({
   components: {
     'board': Board,
     Card,
-    DeltaProjectBoard,
     DynamicTitle,
     'waiting-for': WaitingFor,
     'turmoil': Turmoil,

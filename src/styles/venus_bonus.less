@@ -1,0 +1,280 @@
+// Premium VENUS ALT-TRACK BONUS modal (VenusBonusContent.vue). Hosted inside
+// MandatoryInputModal via ModalInputHost; reuses the shared `.modal-input`
+// header / actions / primary-btn chrome and adds the resource-tile picker,
+// the final-step section + tabs, and the live summary.
+
+@vb-cyan: #6ab0e6;
+@vb-mint: #58d6a6;
+@vb-gold: #f2c14e;
+
+.venus-bonus {
+  width: 560px;
+  max-width: 92vw;
+  box-sizing: border-box;
+
+  &--final {
+    width: 640px;
+  }
+}
+
+.venus-bonus__subtitle {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: rgba(200, 224, 240, 0.8);
+}
+
+.venus-bonus__section {
+  margin-top: 16px;
+  padding: 12px 13px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 200, 255, 0.16);
+  background: rgba(12, 26, 40, 0.4);
+
+  &--wild {
+    border-color: rgba(242, 193, 78, 0.26);
+    background: rgba(34, 28, 12, 0.34);
+  }
+}
+
+.venus-bonus__section-title {
+  margin: 0 0 4px;
+  font-family: Prototype, Ubuntu, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #cfe6f7;
+
+  .venus-bonus__section--wild & {
+    color: #ffdd9a;
+  }
+}
+
+.venus-bonus__section-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: rgba(196, 218, 234, 0.74);
+}
+
+// ── Resource tiles ──────────────────────────────────────────────────────────
+.venus-bonus__tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.venus-bonus__tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 86px;
+  padding: 12px 8px 10px;
+  border-radius: 11px;
+  border: 1px solid rgba(120, 200, 255, 0.22);
+  background: linear-gradient(180deg, rgba(22, 44, 64, 0.5), rgba(16, 32, 48, 0.5));
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease, background 0.16s ease;
+
+  &:hover {
+    border-color: rgba(120, 220, 255, 0.62);
+    background: linear-gradient(180deg, rgba(28, 56, 80, 0.62), rgba(20, 40, 60, 0.62));
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.38);
+  }
+  &:active { transform: translateY(0); }
+  &:focus-visible { box-shadow: 0 0 0 2px fade(@vb-cyan, 70%); }
+
+  &--selected {
+    border-color: fade(@vb-cyan, 95%);
+    background: linear-gradient(180deg, rgba(28, 64, 92, 0.74), rgba(20, 46, 68, 0.74));
+    box-shadow: 0 0 0 1px fade(@vb-cyan, 60%), 0 0 18px fade(@vb-cyan, 30%);
+  }
+
+  &--sm {
+    width: 78px;
+    padding: 10px 6px 8px;
+  }
+}
+
+.venus-bonus__tile-icon {
+  width: 30px;
+  height: 30px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.venus-bonus__tile-label {
+  font-size: 11px;
+  text-transform: capitalize;
+  color: rgba(214, 232, 245, 0.92);
+  text-align: center;
+  line-height: 1.15;
+}
+
+.venus-bonus__tile-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #06241a;
+  background: linear-gradient(180deg, @vb-mint, #34b98a);
+  box-shadow: 0 0 10px fade(@vb-mint, 50%);
+}
+
+.venus-bonus__tile-dec {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 16px;
+  line-height: 1;
+  color: #ffd0d0;
+  background: rgba(120, 30, 30, 0.85);
+  border: 1px solid rgba(255, 140, 140, 0.45);
+  cursor: pointer;
+  transition: background 0.14s ease, transform 0.1s ease;
+  &:hover { background: rgba(160, 40, 40, 0.95); transform: translateX(-50%) translateY(-1px); }
+}
+
+.venus-bonus__counter {
+  margin-top: 11px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(206, 228, 244, 0.72);
+  &--complete { color: @vb-mint; }
+}
+
+// ── Final-step wild tabs ────────────────────────────────────────────────────
+.venus-bonus__tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.venus-bonus__tab {
+  flex: 1;
+  padding: 9px 10px;
+  border-radius: 9px;
+  font-family: Prototype, Ubuntu, sans-serif;
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(196, 216, 232, 0.82);
+  border: 1px solid rgba(242, 193, 78, 0.28);
+  background: rgba(20, 18, 10, 0.5);
+  cursor: pointer;
+  outline: none;
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease, transform 0.1s ease;
+
+  &:hover:not(:disabled) {
+    color: #fff2d6;
+    border-color: rgba(242, 193, 78, 0.55);
+    transform: translateY(-1px);
+  }
+  &:focus-visible { box-shadow: 0 0 0 2px fade(@vb-gold, 60%); }
+
+  &--active {
+    color: #2a1e06;
+    background: linear-gradient(180deg, @vb-gold, #d89f2c);
+    border-color: transparent;
+    box-shadow: 0 0 12px fade(@vb-gold, 40%);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+    filter: saturate(0.5);
+  }
+}
+
+.venus-bonus__wild-card {
+  margin-top: 2px;
+}
+
+// ── Live summary ────────────────────────────────────────────────────────────
+.venus-bonus__summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 11px 14px;
+  border-radius: 11px;
+  border: 1px solid rgba(120, 200, 255, 0.2);
+  background: rgba(10, 22, 34, 0.5);
+}
+
+.venus-bonus__summary-label {
+  font-family: Prototype, Ubuntu, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(180, 206, 226, 0.74);
+  white-space: nowrap;
+}
+
+.venus-bonus__summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.venus-bonus__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(18, 46, 66, 0.7);
+  border: 1px solid fade(@vb-cyan, 45%);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.venus-bonus__chip-icon {
+  width: 18px;
+  height: 18px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.venus-bonus__chip-amount { color: @vb-mint; }
+
+.venus-bonus__chip-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(214, 232, 245, 0.85);
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.venus-bonus__summary-empty {
+  color: rgba(180, 206, 226, 0.5);
+  font-size: 16px;
+}

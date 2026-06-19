@@ -8,7 +8,7 @@
  * never drift between the journal and the track.
  */
 export const DELTA_STAGE_NAMES: ReadonlyArray<string> = [
-  'Start', // 0
+  'Track start', // 0
   'Dam Foundations', // 1 — Building
   'Pumping Stations', // 2 — Power
   'Terran Hydro Standards', // 3 — Earth

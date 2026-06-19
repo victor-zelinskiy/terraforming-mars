@@ -78,7 +78,11 @@ function mockPlayer(color: string, name: string, corp: string, overrides: Record
   };
 }
 const PLAYERS = [
-  mockPlayer('red', 'Victor', 'Tharsis Republic', {energyProduction: 2, megacredits: 40}),
+  mockPlayer('red', 'Victor', 'Tharsis Republic', {energyProduction: 2, megacredits: 40,
+    // Two resource cards in the tableau so the Venus final-bonus "resource on a
+    // card" tab has real candidates to render (with the current→resulting + VP
+    // preview).
+    tableau: [{name: 'Tharsis Republic'}, {name: 'Tardigrades', resources: 4}, {name: 'Physics Complex', resources: 2}]}),
   mockPlayer('blue', 'Nastya', 'Ecoline', {energyProduction: 0, megacredits: 2, plants: 9}),
 ];
 
@@ -262,6 +266,21 @@ export default defineComponent({
           label: 'SelectResources — distribute',
           input: {type: 'resources', title: {message: 'Gain ${0} standard resources', data: [raw(2)]}, buttonLabel: 'Gain', count: 2},
         },
+        {
+          label: 'Venus bonus — standard (pick 1)',
+          input: {type: 'and', title: {message: 'Gain ${0} resource(s) for your Venus track bonus.', data: [raw(1)]}, buttonLabel: '', options: [],
+            venusBonusPrompt: {kind: 'standard', baseCount: 1}},
+        },
+        {
+          label: 'Venus bonus — standard (pick 3)',
+          input: {type: 'and', title: {message: 'Gain ${0} resource(s) for your Venus track bonus.', data: [raw(3)]}, buttonLabel: '', options: [],
+            venusBonusPrompt: {kind: 'standard', baseCount: 3}},
+        },
+        {
+          label: 'Venus bonus — FINAL (base + wild: standard / on-card)',
+          input: {type: 'or', title: 'Choose your wild resource bonus.', buttonLabel: '', options: [],
+            venusBonusPrompt: {kind: 'final', baseCount: 1, wildCardTargets: ['Tardigrades', 'Physics Complex']}},
+        },
       ];
     },
   },
@@ -281,6 +300,11 @@ export default defineComponent({
     scenarioTags(s: {input: any}): Array<{text: string, kind: string}> {
       const input = s.input;
       const tags: Array<{text: string, kind: string}> = [];
+      // A Venus alt-track bonus prompt routes to the dedicated premium
+      // VenusBonusContent (resource tiles + final wild bonus), not any fallback.
+      if (input.venusBonusPrompt !== undefined) {
+        return [{text: 'venus premium', kind: 'ok'}];
+      }
       const disabledCount = (input.disabledOptions?.length ?? 0) + (input.disabledPlayers?.length ?? 0);
       if (disabledCount > 0) {
         tags.push({text: 'disabled: ' + disabledCount, kind: 'info'});

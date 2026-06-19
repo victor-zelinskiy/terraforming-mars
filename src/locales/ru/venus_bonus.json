@@ -1,0 +1,16 @@
+{
+    "Venus scale bonus": "Бонус шкалы Венеры",
+    "Final Venus bonus": "Финальный бонус Венеры",
+    "Choose a standard resource": "Выберите базовый ресурс",
+    "Choose ${0} standard resources": "Выберите базовых ресурсов: ${0}",
+    "Venus bonus": "Бонус Венеры",
+    "Extra 30% bonus": "Дополнительный бонус 30%",
+    "Standard resource": "Обычный ресурс",
+    "Resource on a card": "Ресурс на карту",
+    "Pick another standard resource": "Выберите ещё один обычный ресурс",
+    "Pick a card to receive a resource": "Выберите карту для получения ресурса",
+    "Take bonus": "Забрать бонус",
+    "Gain ${0} resource(s) for your Venus track bonus.": "Получите ресурсы за бонус шкалы Венеры: ${0}",
+    "Choose your wild resource bonus.": "Выберите дополнительный бонус",
+    "Choose your wild resource bonus, after which you will gain ${0} more distinct standard resources.": "Выберите дополнительный бонус, затем получите ещё базовых ресурсов: ${0}"
+}
