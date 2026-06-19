@@ -49,6 +49,11 @@
       <circle cx="12" cy="12" r="5.3" />
       <ellipse cx="12" cy="12" rx="9.5" ry="3.4" transform="rotate(-22 12 12)" />
     </template>
+    <template v-else-if="name === 'hydronetwork'">
+      <path d="M3.6 7.5q2.1-2.4 4.2 0t4.2 0t4.2 0t3.6-.6" />
+      <path d="M3.6 12q2.1-2.4 4.2 0t4.2 0t4.2 0t3.6-.6" />
+      <path d="M3.6 16.5q2.1-2.4 4.2 0t4.2 0t4.2 0t3.6-.6" />
+    </template>
     <template v-else-if="name === 'log'">
       <path d="M4.6 6.6h14.8" />
       <path d="M4.6 12h14.8" />

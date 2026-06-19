@@ -3,6 +3,7 @@ import {IPlayer} from '../IPlayer';
 import {DeltaProjectPlayerModel} from '../../common/models/DeltaProjectPlayerModel';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '../../common/models/DeltaTrackPreviewModel';
 import {DELTA_STAGE_NAMES} from '../../common/delta/deltaStages';
+import {namedCardEffect} from '../inputs/choiceContext';
 import {CardName} from '../../common/cards/CardName';
 import {Tag} from '../../common/cards/Tag';
 import {Resource} from '../../common/Resource';
@@ -272,6 +273,11 @@ export class DeltaProjectExpansion {
     // Positions 10/11 (VP spots) have no additional reward beyond VP claiming.
     switch (DELTA_TRACK_TAGS[position]) {
     case Tag.BUILDING: // Choose 2 steel or 2 plants
+      // The premium overlay pre-collects this choice in the action-zone (it is
+      // batch-submitted with the advance). markChoiceContext is a graceful
+      // fallback: if the OrOptions ever surfaces as a standalone prompt (batch
+      // divergence / undo), it renders as a premium contextual choice modal
+      // sourced to the Delta Project, not a bare option list.
       player.defer(() => new OrOptions(
         new SelectOption('Gain 2 steel', 'Gain steel').andThen(() => {
           player.stock.add(Resource.STEEL, 2, {log: true, from: {card: CardName.DELTA_PROJECT}});
@@ -281,7 +287,7 @@ export class DeltaProjectExpansion {
           player.stock.add(Resource.PLANTS, 2, {log: true, from: {card: CardName.DELTA_PROJECT}});
           return undefined;
         }),
-      ));
+      ).markChoiceContext(namedCardEffect(CardName.DELTA_PROJECT, false, 'Choose your Delta Project reward', 'effect-choice')));
       break;
 
     case Tag.POWER: // Choose +1 energy production or +1 heat production
@@ -294,7 +300,7 @@ export class DeltaProjectExpansion {
           player.production.add(Resource.HEAT, 1, {log: true, from: {card: CardName.DELTA_PROJECT}});
           return undefined;
         }),
-      ));
+      ).markChoiceContext(namedCardEffect(CardName.DELTA_PROJECT, false, 'Choose your Delta Project reward', 'effect-choice')));
       break;
 
     case Tag.EARTH: // +2 MC production

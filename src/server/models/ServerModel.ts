@@ -333,6 +333,11 @@ export class Server {
     if (waitingFor.choiceContext !== undefined) {
       model.choiceContext = waitingFor.choiceContext;
     }
+    // Venus alt-track bonus marker — routes the prompt to the premium
+    // VenusBonusContent modal (resource tiles + final-step wild bonus).
+    if (waitingFor.venusBonusPrompt !== undefined) {
+      model.venusBonusPrompt = waitingFor.venusBonusPrompt;
+    }
     return model;
     // showReset: player.game.inputsThisRound > 0 && player.game.resettable === true && player.game.phase === Phase.ACTION,
   }

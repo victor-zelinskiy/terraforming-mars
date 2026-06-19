@@ -282,7 +282,7 @@ const ACTIVITY_MOVE_THRESHOLD = 6;
 // Variants that read as "what an opponent just did" — their rail is tinted in
 // the actor's player colour. Prestige / system variants keep their own accent.
 const ACTOR_RAIL_VARIANTS: ReadonlySet<NotificationVariant> = new Set<NotificationVariant>([
-  'play-card', 'blue-action', 'standard-project', 'colony', 'passive-effect', 'event',
+  'play-card', 'blue-action', 'standard-project', 'colony', 'hydronetwork', 'passive-effect', 'event',
 ]);
 
 export default defineComponent({
@@ -412,6 +412,7 @@ export default defineComponent({
       case 'pass': return '⏻';
       case 'standard-project': return '⬡';
       case 'colony': return '◉';
+      case 'hydronetwork': return '≈';
       case 'blue-action': return '⟳';
       case 'passive-effect': return '✦';
       case 'destroy': return '✖';

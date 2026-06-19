@@ -33,8 +33,6 @@
     <PlanetaryTracks :tracks="game.pathfinders" :gameOptions="game.gameOptions"/>
   </template>
 
-  <DeltaProjectBoard v-if="game.gameOptions.expansions.deltaProject" :players="players"/>
-
   <!--
     vize1215 fork: legacy inline `<Milestones>` + `<Awards>` strip
     removed entirely. The fork ships dedicated bottom-bar overlays
@@ -53,7 +51,6 @@ import {defineComponent, PropType} from 'vue';
 import {GameModel} from '@/common/models/GameModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import Board from '@/client/components/Board.vue';
-import DeltaProjectBoard from '@/client/components/delta/DeltaProjectBoard.vue';
 import Turmoil from '@/client/components/turmoil/Turmoil.vue';
 import MoonBoard from '@/client/components/moon/MoonBoard.vue';
 import PlanetaryTracks from '@/client/components/pathfinders/PlanetaryTracks.vue';
@@ -78,7 +75,6 @@ export default defineComponent({
   emits: ['toggleTileView'],
   components: {
     'board': Board,
-    DeltaProjectBoard,
     'turmoil': Turmoil,
     MoonBoard,
     PlanetaryTracks,

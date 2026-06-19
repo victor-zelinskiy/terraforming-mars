@@ -204,7 +204,9 @@
             <div v-if="game.gameOptions.expansions.pathfinders">
               <PlanetaryTracks :tracks="game.pathfinders" :gameOptions="game.gameOptions"/>
             </div>
-            <DeltaProjectBoard v-if="game.gameOptions.expansions.deltaProject" :players="players"></DeltaProjectBoard>
+            <div v-if="game.gameOptions.expansions.deltaProject" class="hydro-board__track-wrap">
+              <HydroTrack :stages="hydroStages"></HydroTrack>
+            </div>
           </div>
           <div class="game_end_block--log game-end-column">
             <log-panel :color="color" :viewModel="viewModel"></log-panel>
@@ -228,7 +230,8 @@ import {PlayerViewModel, PublicPlayerModel, ViewModel} from '@/common/models/Pla
 import Board from '@/client/components/Board.vue';
 import MoonBoard from '@/client/components/moon/MoonBoard.vue';
 import PlanetaryTracks from '@/client/components/pathfinders/PlanetaryTracks.vue';
-import DeltaProjectBoard from '@/client/components/delta/DeltaProjectBoard.vue';
+import HydroTrack from '@/client/components/hydronetwork/HydroTrack.vue';
+import {buildHydroModel, HydroStageVM} from '@/client/components/hydronetwork/hydroNetworkModel';
 import LogPanel from '@/client/components/logpanel/LogPanel.vue';
 import AppButton from '@/client/components/common/AppButton.vue';
 import VictoryPointChart, {DataSet} from '@/client/components/gameend/VictoryPointChart.vue';
@@ -276,6 +279,23 @@ export default defineComponent({
     },
     players(): Array<PublicPlayerModel> {
       return getViewModel(this.playerView, this.spectator).players;
+    },
+    // Read-only premium Гидросеть track for the end screen (final positions, no
+    // action-zone). Built from the public positions; no server preview needed.
+    hydroStages(): ReadonlyArray<HydroStageVM> {
+      const players = this.players.map((p) => ({
+        color: p.color,
+        position: p.deltaProject?.position ?? 0,
+        isViewer: false,
+      }));
+      return buildHydroModel({
+        preview: undefined,
+        players,
+        viewerColor: undefined,
+        selectedSpend: -1,
+        rewardChoice: undefined,
+        actionAvailable: false,
+      }).stages;
     },
     color(): Color {
       if (this.playerView !== undefined) {
@@ -397,7 +417,7 @@ export default defineComponent({
     AppButton,
     MoonBoard,
     PlanetaryTracks,
-    DeltaProjectBoard,
+    HydroTrack,
     VictoryPointChart,
   },
   mounted() {

@@ -42,6 +42,7 @@ import ModernResourcePicker from '@/client/components/modalInputs/ModernResource
 import ModernResourcesPicker from '@/client/components/modalInputs/ModernResourcesPicker.vue';
 import ModernProductionToLose from '@/client/components/modalInputs/ModernProductionToLose.vue';
 import ContextualChoiceContent from '@/client/components/modalInputs/ContextualChoiceContent.vue';
+import VenusBonusContent from '@/client/components/modalInputs/VenusBonusContent.vue';
 import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
 
 // Modern, premium-styled components for modal-hosted sub-prompts. Types absent
@@ -81,6 +82,7 @@ export default defineComponent({
     ModernResourcesPicker,
     ModernProductionToLose,
     ContextualChoiceContent,
+    VenusBonusContent,
     CardSelectionContent,
   },
   props: {
@@ -99,6 +101,13 @@ export default defineComponent({
   },
   computed: {
     premiumComponent(): Component | undefined {
+      // A Venus alt-track bonus prompt (a marked GainResources 'and' or the
+      // final-step wild 'or') routes to the dedicated premium VenusBonusContent —
+      // checked FIRST so it overrides the type-based fallbacks ('and' → legacy,
+      // 'or' → ModernOptionPicker).
+      if (this.playerinput.venusBonusPrompt !== undefined) {
+        return VenusBonusContent;
+      }
       // A top-level OrOptions carrying contextual metadata (a triggered effect /
       // on-play decision / deferred action) routes to the premium CONTEXTUAL modal
       // (source card + trigger + rich options) instead of the bare option list.

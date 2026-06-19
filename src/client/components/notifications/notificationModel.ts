@@ -96,6 +96,7 @@ function rootVariant(header: LogMessage, chain: ReadonlyArray<GameEvent>): Notif
   case 'copied-action': return 'blue-action';
   case 'standard-project': return 'standard-project';
   case 'colony': return 'colony';
+  case 'delta-project': return 'hydronetwork';
   default: break;
   }
   // A passive effect that surfaced as its OWN root chain (its trigger marker is
@@ -141,6 +142,7 @@ function variantTypeLabel(variant: NotificationVariant, category: JournalActionC
   case 'milestone': return 'Achievement';
   case 'award': return 'Award';
   case 'passive-effect': return 'Effect triggered';
+  case 'hydronetwork': return 'Hydronetwork';
   case 'threat': return 'VP threat';
   case 'vp-loss': return 'VP loss';
   case 'destroy': return 'Resource lost';

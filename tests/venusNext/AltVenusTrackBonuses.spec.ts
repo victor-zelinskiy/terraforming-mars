@@ -3,9 +3,11 @@
 
 import {expect} from 'chai';
 import {IGame} from '../../src/server/IGame';
-import {setVenusScaleLevel} from '../TestingUtils';
+import {setVenusScaleLevel, runAllActions} from '../TestingUtils';
 import {TestPlayer} from '../TestPlayer';
 import {GrantVenusAltTrackBonusDeferred} from '../../src/server/venusNext/GrantVenusAltTrackBonusDeferred';
+import {Server} from '../../src/server/models/ServerModel';
+import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {testGame} from '../TestGame';
 import {cast} from '@/common/utils/utils';
 
@@ -64,5 +66,29 @@ describe('AltVenusTrackBonuses', () => {
     setVenusScaleLevel(game, 30);
     game.increaseVenusScaleLevel(player, -1);
     expect(game.deferredActions.pop()).is.undefined;
+  });
+
+  // The serialized waitingFor model MUST carry the venusBonusPrompt marker so the
+  // client routes to the premium VenusBonusContent modal (and NEVER the legacy
+  // numeric/OrOptions forms). This is the deterministic "no legacy modal" guard.
+  it('standard bonus model carries the venusBonusPrompt marker', () => {
+    setVenusScaleLevel(game, 16);
+    game.increaseVenusScaleLevel(player, 1);
+    runAllActions(game);
+    const model = Server.getWaitingFor(player, player.getWaitingFor());
+    expect(model?.type).eq('and');
+    expect(model?.venusBonusPrompt).to.deep.eq({kind: 'standard', baseCount: 1});
+  });
+
+  it('final bonus model carries the venusBonusPrompt marker', () => {
+    player.playedCards.push(new Tardigrades());
+    setVenusScaleLevel(game, 24);
+    game.increaseVenusScaleLevel(player, 3);
+    runAllActions(game);
+    const model = Server.getWaitingFor(player, player.getWaitingFor());
+    expect(model?.type).eq('or');
+    expect(model?.venusBonusPrompt?.kind).eq('final');
+    expect(model?.venusBonusPrompt?.baseCount).eq(3);
+    expect(model?.venusBonusPrompt?.wildCardTargets).to.include(new Tardigrades().name);
   });
 });
