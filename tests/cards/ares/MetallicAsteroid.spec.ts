@@ -6,6 +6,7 @@ import {TileType} from '../../../src/common/TileType';
 import {TestPlayer} from '../../TestPlayer';
 import {runAllActions} from '../../TestingUtils';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
+import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {testGame} from '../../TestGame';
 import {cast} from '../../../src/common/utils/utils';
 
@@ -29,15 +30,19 @@ describe('MetallicAsteroid', () => {
 
     card.play(player);
     runAllActions(game);
-    const action = cast(player.popWaitingFor(), SelectSpace);
 
     expect(player.titanium).eq(1);
     expect(game.getTemperature()).eq(-28);
-    // This interrupt is for removing four plants. Not going to do further
-    // testing on this because it's beyond the scope of this test without
-    // exposing more from the source method.
-    expect(game.deferredActions).is.length(1);
 
+    // The plant-removal attack now resolves BEFORE the tile placement (elevated to
+    // Priority.PLAY_CARD_PLANT_REMOVAL so the play modal can pre-collect the target);
+    // the metallic-asteroid tile then rides the post-confirm PlacementBanner.
+    const orOptions = cast(player.popWaitingFor(), OrOptions);
+    orOptions.options[0].cb();
+    expect(otherPlayer.plants).eq(1); // 5 − 4 removed
+
+    runAllActions(game);
+    const action = cast(player.popWaitingFor(), SelectSpace);
     const space = game.board.getAvailableSpacesOnLand(player)[0];
     action.cb(space);
     expect(space.player).to.eq(player);

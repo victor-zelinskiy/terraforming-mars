@@ -23,11 +23,12 @@ describe('DeimosDownPromo', () => {
   it('Should play without plants', () => {
     cast(card.play(player), undefined);
     runAllActions(game);
+    // No opponent has plants → the plant-removal attack produces no prompt; only the
+    // tile placement remains (it rides the post-confirm PlacementBanner).
     cast(player.popWaitingFor(), SelectSpace);
     expect(player.game.getTemperature()).to.eq(-24);
     expect(player.steel).to.eq(4);
-    const input = player.game.deferredActions.peek()!.execute();
-    expect(input).is.undefined;
+    expect(player.game.deferredActions).has.lengthOf(0);
   });
 
   it('Can remove plants', () => {
@@ -35,17 +36,19 @@ describe('DeimosDownPromo', () => {
 
     cast(card.play(player), undefined);
     runAllActions(game);
+
+    // The plant removal now resolves BEFORE the tile placement: it's elevated to
+    // Priority.PLAY_CARD_PLANT_REMOVAL so the premium play modal can pre-collect the
+    // target before confirm; the Deimos Down tile then rides the post-confirm
+    // PlacementBanner. (Effects are independent — only the prompt order changed.)
+    const orOptions = cast(player.popWaitingFor(), OrOptions);
+    orOptions.options[0].cb();
+    expect(player2.plants).to.eq(0);
+
+    runAllActions(game);
     cast(player.popWaitingFor(), SelectSpace);
     expect(player.game.getTemperature()).to.eq(-24);
     expect(player.steel).to.eq(4);
-
-    expect(player.game.deferredActions).has.lengthOf(1);
-
-    // Choose Remove 5 plants option
-    const orOptions = cast(player.game.deferredActions.peek()!.execute(), OrOptions);
-    orOptions.options[0].cb([player2]);
-
-    expect(player2.plants).to.eq(0);
   });
 
   it('Works fine in solo mode', () => {

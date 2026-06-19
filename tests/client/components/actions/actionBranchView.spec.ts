@@ -35,6 +35,21 @@ describe('branchPositionForNode', () => {
     expect(branchPositionForNode(group(['x']), branches(['y']), 0)).eq(0);
   });
 
+  it('BioPrinting: each printed box selects its OWN branch (plants box / animal box)', () => {
+    // Render nodes printed [plants box, animal box]; server branches [animal, plants].
+    // So selecting a row must resolve to its OWN outcome, not a positional swap.
+    const g = group([
+      'Spend 2 energy to gain 2 plants.',
+      'Spend 2 energy to add 1 animal to ANOTHER card.',
+    ]);
+    const b = branches([
+      'Add 1 animal to another card',
+      'Gain 2 plants',
+    ]);
+    expect(branchPositionForNode(g, b, 0)).eq(1); // plants box → the gain-plants branch
+    expect(branchPositionForNode(g, b, 1)).eq(0); // animal box → the add-animal branch
+  });
+
   it('a combined node (1 node draws 2 branches) → undefined (picker fallback)', () => {
     expect(branchPositionForNode(group(['combined graphic']), branches(['a', 'b']), 0)).eq(undefined);
   });

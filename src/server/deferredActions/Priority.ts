@@ -40,6 +40,20 @@ export enum Priority {
    * (choice → tile, instead of tile → choice) changes. See `gainOrAddResource.ts`.
    */
   PLAY_CARD_RESOURCE_CHOICE,
+  /**
+   * An on-play "remove plants from any player" attack (`behavior.removeAnyPlants`)
+   * on a card that ALSO places a tile/ocean (Comet, Giant Ice Asteroid, Deimos
+   * Down promo). The attack is independent of WHERE the tile lands, so it should
+   * be pre-collected in the premium play modal BEFORE confirm. By default plant
+   * removal defers at ATTACK_OPPONENT (well AFTER PLACE_OCEAN_TILE / DEFAULT), so
+   * the placement prompts FIRST and the positional batch can't pre-collect the
+   * pick. Elevated to here (ahead of every placement) ONLY when the same card has
+   * a co-placement, so the OrOptions prompts first and the modal collects it up
+   * front; the tile then rides PlacementBanner. Mirrors PLAY_CARD_RESOURCE_CHOICE.
+   * The order change is rules-neutral (the effects are independent). Applied in
+   * `Executor.execute`; see `actionPreview.ts` (the matching pre-collect step).
+   */
+  PLAY_CARD_PLANT_REMOVAL,
   PLACE_OCEAN_TILE,
   IDENTIFY_UNDERGROUND_RESOURCE,
   EXCAVATE_UNDERGROUND_RESOURCE,

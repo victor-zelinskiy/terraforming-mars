@@ -58,6 +58,18 @@ describe('actionExtraction', () => {
     expect(groups[0].nodes.length).to.be.greaterThan(1); // two action alternatives, one source
   });
 
+  it('splits BioPrinting Facility into TWO action rows (plants box + animal box)', () => {
+    // The card was given TWO action boxes so the overlay renders it as two
+    // individually-selectable rows (split action) instead of one row that forces an
+    // in-modal branch choice. One source (one card), two render nodes.
+    const groups = playerActionGroups([model(CardName.BIO_PRINTING_FACILITY)]);
+    expect(groups).to.have.length(1);
+    expect(groups[0].cardName).to.eq(CardName.BIO_PRINTING_FACILITY);
+    expect(groups[0].nodes.length).to.eq(2);
+    // Each node is a real action graphic (not a fallback/text override).
+    expect(groups[0].nodes.every((n) => n.actionNode !== undefined)).to.eq(true);
+  });
+
   it('counts action SOURCES (one per card, not per node)', () => {
     expect(playerActionSourceCount([
       model(CardName.UNITED_NATIONS_MARS_INITIATIVE),

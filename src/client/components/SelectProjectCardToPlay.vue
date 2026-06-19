@@ -13,21 +13,23 @@
       <Card class="cardbox" :card="availableCard" />
     </label>
   </template>
-  <template v-if="card !== undefined && card.additionalProjectCosts">
-    <div v-if="card.additionalProjectCosts.aeronGenomicsResources" class="card-warning"
-      v-i18n="[$t(card.name), card.additionalProjectCosts.aeronGenomicsResources, 'animals', $t(CardName.AERON_GENOMICS)]"
-    >
-      Playing ${0} consumes ${1} ${2} from ${3}
-    </div>
-    <div v-if="card.additionalProjectCosts.thinkTankResources" class="card-warning"
-      v-i18n="[$t(card.name), card.additionalProjectCosts.thinkTankResources, 'data', $t(CardName.THINK_TANK)]">
-      Playing ${0} consumes ${1} ${2} from ${3}
-    </div>
-    <div v-if="card.additionalProjectCosts.redsCost" class="card-warning" v-i18n="[$t(card.name), card.additionalProjectCosts.redsCost, $t('Reds')]">
-      Playing ${0} will cost ${1} M€ more because ${2} are in power
-    </div>
+  <template v-if="hideWarnings !== true">
+    <template v-if="card !== undefined && card.additionalProjectCosts">
+      <div v-if="card.additionalProjectCosts.aeronGenomicsResources" class="card-warning"
+        v-i18n="[$t(card.name), card.additionalProjectCosts.aeronGenomicsResources, 'animals', $t(CardName.AERON_GENOMICS)]"
+      >
+        Playing ${0} consumes ${1} ${2} from ${3}
+      </div>
+      <div v-if="card.additionalProjectCosts.thinkTankResources" class="card-warning"
+        v-i18n="[$t(card.name), card.additionalProjectCosts.thinkTankResources, 'data', $t(CardName.THINK_TANK)]">
+        Playing ${0} consumes ${1} ${2} from ${3}
+      </div>
+      <div v-if="card.additionalProjectCosts.redsCost" class="card-warning" v-i18n="[$t(card.name), card.additionalProjectCosts.redsCost, $t('Reds')]">
+        Playing ${0} will cost ${1} M€ more because ${2} are in power
+      </div>
+    </template>
+    <warnings-component v-if="card !== undefined" :warnings="card.warnings"></warnings-component>
   </template>
-  <warnings-component v-if="card !== undefined" :warnings="card.warnings"></warnings-component>
 
   <PaymentFormV2
     v-if="showPaymentSection"
@@ -87,6 +89,13 @@ export default defineComponent({
     // the host renders the source card itself + owns the submit (via `saveData`),
     // and re-emit payment validity through `@change` so the host can gate its CTA.
     hideCards: {
+      type: Boolean,
+      default: false,
+    },
+    // Premium host only: suppress the legacy red `.card-warning` notices (maxtemp,
+    // Reds tax, Think Tank / Aeron Genomics). The host renders them premium via
+    // `PremiumCardWarnings` instead, so the modal never shows raw legacy text.
+    hideWarnings: {
       type: Boolean,
       default: false,
     },

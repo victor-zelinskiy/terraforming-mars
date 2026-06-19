@@ -8,6 +8,7 @@ import {PlaceCityTile} from '../deferredActions/PlaceCityTile';
 import {PlaceGreeneryTile} from '../deferredActions/PlaceGreeneryTile';
 import {PlaceOceanTile} from '../deferredActions/PlaceOceanTile';
 import {RemoveAnyPlants} from '../deferredActions/RemoveAnyPlants';
+import {Priority} from '../deferredActions/Priority';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {PlaceMoonHabitatTile} from '../moon/PlaceMoonHabitatTile';
 import {PlaceMoonMineTile} from '../moon/PlaceMoonMineTile';
@@ -520,7 +521,20 @@ export class Executor implements BehaviorExecutor {
       player.game.defer(new DecreaseAnyProduction(player, behavior.decreaseAnyProduction.type, {count: behavior.decreaseAnyProduction.count}));
     }
     if (behavior.removeAnyPlants !== undefined) {
-      player.game.defer(new RemoveAnyPlants(player, behavior.removeAnyPlants));
+      // When the SAME card also queues a placement (Comet/Giant Ice Asteroid place
+      // an ocean, Deimos Down promo places a tile), elevate the plant attack ahead
+      // of the placement so its OrOptions prompts FIRST and the premium play modal
+      // can pre-collect the target (the positional batch can't pre-collect a pick
+      // that prompts AFTER a SelectSpace). Rules-neutral — the effects are
+      // independent, only the prompt order changes. Otherwise (no placement) the
+      // default ATTACK_OPPONENT order is unchanged.
+      const hasPlacement =
+        behavior.ocean !== undefined || behavior.city !== undefined ||
+        behavior.greenery !== undefined || behavior.tile !== undefined ||
+        behavior.colonies?.buildColony !== undefined || behavior.moon !== undefined ||
+        behavior.underworld !== undefined;
+      const priority = hasPlacement ? Priority.PLAY_CARD_PLANT_REMOVAL : Priority.ATTACK_OPPONENT;
+      player.game.defer(new RemoveAnyPlants(player, behavior.removeAnyPlants, undefined, priority));
     }
     if (behavior.colonies !== undefined) {
       const colonies = behavior.colonies;

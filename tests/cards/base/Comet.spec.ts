@@ -28,13 +28,17 @@ describe('Comet', () => {
     expect(game.getTemperature()).to.eq(-28);
     expect(game.deferredActions).has.lengthOf(2);
 
-    const selectSpace = cast(game.deferredActions.pop()!.execute(), SelectSpace);
-    selectSpace.cb(selectSpace.spaces[0]);
-    expect(player.terraformRating).to.eq(22);
-
+    // The plant-removal attack now resolves BEFORE the ocean placement: it's
+    // elevated to Priority.PLAY_CARD_PLANT_REMOVAL (ahead of PLACE_OCEAN_TILE) so the
+    // premium play modal can pre-collect the target before confirm; the ocean rides
+    // the post-confirm PlacementBanner. (Effects are independent — only order changed.)
     const orOptions = cast(game.deferredActions.pop()!.execute(), OrOptions);
     orOptions.options[0].cb();
     expect(player2.plants).to.eq(0);
+
+    const selectSpace = cast(game.deferredActions.pop()!.execute(), SelectSpace);
+    selectSpace.cb(selectSpace.spaces[0]);
+    expect(player.terraformRating).to.eq(22);
   });
 
   it('Provides no options if there is nothing to confirm', () => {

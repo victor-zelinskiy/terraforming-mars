@@ -30,16 +30,19 @@ describe('Deepnuking', () => {
 
     cast(card.play(player), undefined);
     runAllActions(game);
-    assertIsExcavationAction(player, player.popWaitingFor());
-    runAllActions(game);
-    assertIsExcavationAction(player, player.popWaitingFor());
-    runAllActions(game);
 
+    // The plant-removal attack now resolves BEFORE the underworld excavations: it's
+    // elevated to Priority.PLAY_CARD_PLANT_REMOVAL (ahead of EXCAVATE_UNDERGROUND_RESOURCE)
+    // so the play modal can pre-collect the target; the excavations ride the follow-up.
     const orOptions = cast(player.popWaitingFor(), OrOptions);
     expect(orOptions.options).has.length(3);
     orOptions.options[0].cb();
     expect(player2.plants).to.eq(2);
 
+    runAllActions(game);
+    assertIsExcavationAction(player, player.popWaitingFor());
+    runAllActions(game);
+    assertIsExcavationAction(player, player.popWaitingFor());
     runAllActions(game);
     expect(player.popWaitingFor()).is.undefined;
   });

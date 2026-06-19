@@ -26,6 +26,20 @@ describe('GiantIceAsteroid', () => {
     card.play(player);
     runAllActions(game);
 
+    // The plant-removal attack now resolves BEFORE the two ocean placements (elevated
+    // to Priority.PLAY_CARD_PLANT_REMOVAL so the play modal can pre-collect the target
+    // before confirm); the oceans then ride the post-confirm PlacementBanner. The
+    // effects are independent — only the prompt order changed.
+    const orOptions = cast(player.popWaitingFor(), OrOptions);
+    expect(orOptions.options).has.lengthOf(3);
+
+    orOptions.options[0].cb();
+    expect(player2.plants).to.eq(0);
+
+    orOptions.options[1].cb();
+    expect(player3.plants).to.eq(0);
+
+    runAllActions(game);
     const firstOcean = cast(player.popWaitingFor(), SelectSpace);
     firstOcean.cb(firstOcean.spaces[0]);
 
@@ -35,14 +49,6 @@ describe('GiantIceAsteroid', () => {
     secondOcean.cb(secondOcean.spaces[1]);
 
     runAllActions(game);
-    const orOptions = cast(player.popWaitingFor(), OrOptions);
-    expect(orOptions.options).has.lengthOf(3);
-
-    orOptions.options[0].cb();
-    expect(player2.plants).to.eq(0);
-
-    orOptions.options[1].cb();
-    expect(player3.plants).to.eq(0);
 
     expect(game.getTemperature()).to.eq(-26);
     expect(player.terraformRating).to.eq(24);
