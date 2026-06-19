@@ -7,8 +7,9 @@ import {CreateGameModel} from './CreateGameModel';
 /*
  * vize1215 fork — defaults are tuned to the exact JSON template the
  * owner uploads on every match (2 players: Victor green + Nastya pink,
- * Corporate Era + Promo + Venus + Colonies + Prelude, draft on with
- * prelude draft, random first player, hidden timers). Lets the form
+ * Corporate Era + Promo + Venus + Colonies + Prelude + Delta Project,
+ * alt Venus board, draft on with prelude draft, random first player,
+ * hidden timers). Lets the form
  * open in a ready-to-create state with no JSON upload step.
  *
  * Tweak this file (NOT DEFAULT_EXPANSIONS in common/) when the regular
@@ -35,6 +36,7 @@ export function defaultCreateGameModel(): CreateGameModel {
       venus: true,
       colonies: true,
       prelude: true,
+      deltaProject: true,
     },
     draftVariant: true,
     initialDraft: false,
@@ -75,7 +77,7 @@ export function defaultCreateGameModel(): CreateGameModel {
     requiresMoonTrackCompletion: false,
     moonStandardProjectVariant: false,
     moonStandardProjectVariant1: false,
-    altVenusBoard: false,
+    altVenusBoard: true,
     escapeVelocityMode: false,
     escapeVelocityThreshold: constants.DEFAULT_ESCAPE_VELOCITY_THRESHOLD,
     escapeVelocityBonusSeconds: constants.DEFAULT_ESCAPE_VELOCITY_BONUS_SECONDS,

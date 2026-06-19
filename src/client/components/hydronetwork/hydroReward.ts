@@ -26,6 +26,8 @@ export type HydroDeltaLine = {
   resource?: Resource; // a standard resource / production icon
   production?: boolean;
   special?: 'jovian-tag' | 'animals'; // a tag / card-resource icon
+  /** English i18n key naming what changes, e.g. 'M€ production' / 'Steel'. */
+  labelKey?: string;
   before: number;
   after: number;
   delta: number;
@@ -77,33 +79,33 @@ export function buildRewardView(opts: {
       return {lines: [], rawChips: [], needsChoiceFirst: true};
     }
     return opts.rewardChoice === 0 ?
-      line({resource: Resource.STEEL, before: s.steel, after: s.steel + 2, delta: 2}) :
-      line({resource: Resource.PLANTS, before: s.plants, after: s.plants + 2, delta: 2});
+      line({resource: Resource.STEEL, labelKey: 'Steel', before: s.steel, after: s.steel + 2, delta: 2}) :
+      line({resource: Resource.PLANTS, labelKey: 'Plants', before: s.plants, after: s.plants + 2, delta: 2});
   case 2: // +1 energy OR +1 heat production
     if (opts.rewardChoice === undefined) {
       return {lines: [], rawChips: [], needsChoiceFirst: true};
     }
     return opts.rewardChoice === 0 ?
-      line({resource: Resource.ENERGY, production: true, before: s.prod.energy, after: s.prod.energy + 1, delta: 1}) :
-      line({resource: Resource.HEAT, production: true, before: s.prod.heat, after: s.prod.heat + 1, delta: 1});
+      line({resource: Resource.ENERGY, production: true, labelKey: 'Energy production', before: s.prod.energy, after: s.prod.energy + 1, delta: 1}) :
+      line({resource: Resource.HEAT, production: true, labelKey: 'Heat production', before: s.prod.heat, after: s.prod.heat + 1, delta: 1});
   case 3: // +2 M€ production
-    return line({resource: Resource.MEGACREDITS, production: true, before: s.prod.megacredits, after: s.prod.megacredits + 2, delta: 2});
+    return line({resource: Resource.MEGACREDITS, production: true, labelKey: 'M€ production', before: s.prod.megacredits, after: s.prod.megacredits + 2, delta: 2});
   case 4: // +1 titanium production
-    return line({resource: Resource.TITANIUM, production: true, before: s.prod.titanium, after: s.prod.titanium + 1, delta: 1});
+    return line({resource: Resource.TITANIUM, production: true, labelKey: 'Titanium production', before: s.prod.titanium, after: s.prod.titanium + 1, delta: 1});
   case 5: // look at 4, keep 2
     return {lines: [], rawChips: [{special: 'draw-4-keep-2'}], followUpKey: FOLLOWUP.draw, needsChoiceFirst: false};
   case 6: // +1 plant per plant tag — the KEY computed amount
     return {
-      lines: [{resource: Resource.PLANTS, before: s.plants, after: s.plants + s.plantTags, delta: s.plantTags, noteKey: 'Plant tags', noteValue: s.plantTags}],
+      lines: [{resource: Resource.PLANTS, labelKey: 'Plants', before: s.plants, after: s.plants + s.plantTags, delta: s.plantTags, noteKey: 'Plant tags', noteValue: s.plantTags}],
       rawChips: [], needsChoiceFirst: false,
     };
   case 7: // reuse a used blue card action
     return {lines: [], rawChips: [{special: 'reuse-blue-action'}], followUpKey: FOLLOWUP.reuse, needsChoiceFirst: false};
   case 8: // +1 Jovian tag
-    return line({special: 'jovian-tag', before: s.jovianTags, after: s.jovianTags + 1, delta: 1});
+    return line({special: 'jovian-tag', labelKey: 'Jovian tags', before: s.jovianTags, after: s.jovianTags + 1, delta: 1});
   case 9: // add 2 animals to a card
     if (opts.animalTargetCurrent !== undefined) {
-      return line({special: 'animals', before: opts.animalTargetCurrent, after: opts.animalTargetCurrent + 2, delta: 2, cardName: opts.animalTargetCardName});
+      return line({special: 'animals', labelKey: 'Animals on card', before: opts.animalTargetCurrent, after: opts.animalTargetCurrent + 2, delta: 2, cardName: opts.animalTargetCardName});
     }
     return {lines: [], rawChips: [{special: 'add-2-animals'}], followUpKey: FOLLOWUP.animals, needsChoiceFirst: false};
   case 10:

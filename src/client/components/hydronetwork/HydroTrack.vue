@@ -8,18 +8,28 @@
     the route (bottom-right), not under the start. A measured SVG draws the two
     NON-straight conduits: the rounded elbow that wraps row 1 → row 2 (exits the
     right of stage 5, sweeps left, drops into stage 6) and the entry conduit
-    9 → finish-zone; both carry a direction arrowhead and light up when the
-    planned move travels through them. The straight in-row links stay CSS bars.
+    9 → finish-zone. ROUTE LANGUAGE: a conduit reads as SOLID when established
+    (already travelled), DASHED + glow when it is the previewed path to the
+    selected target, and quiet when idle. A turn-NODE marks each bend so the
+    "down then continue" of the serpentine is unmistakable; arrowheads show the
+    direction of travel. The straight in-row links use the same solid/dashed CSS.
   -->
   <div ref="root" class="hydro-track hydro-track--composed" role="list">
     <svg v-if="svgW > 0" class="hydro-track__snake" :viewBox="`0 0 ${svgW} ${svgH}`"
          :width="svgW" :height="svgH" preserveAspectRatio="none" aria-hidden="true">
       <path v-if="returnPathD" class="hydro-track__snake-base" :d="returnPathD" />
       <path v-if="enterPathD" class="hydro-track__snake-base" :d="enterPathD" />
-      <path v-if="returnPathD" class="hydro-track__snake-flow" :class="{'is-bright': returnBright}" :d="returnPathD" />
-      <path v-if="enterPathD" class="hydro-track__snake-flow" :class="{'is-bright': enterBright}" :d="enterPathD" />
-      <polygon v-if="returnArrow" class="hydro-track__snake-arrow" :class="{'is-bright': returnBright}" :points="returnArrow" />
-      <polygon v-if="enterArrow" class="hydro-track__snake-arrow" :class="{'is-bright': enterBright}" :points="enterArrow" />
+      <path v-if="returnPathD && returnState !== 'base'" class="hydro-track__snake-flow"
+            :class="'hydro-track__snake-flow--' + returnState" :d="returnPathD" />
+      <path v-if="enterPathD && enterState !== 'base'" class="hydro-track__snake-flow"
+            :class="'hydro-track__snake-flow--' + enterState" :d="enterPathD" />
+      <!-- Bend nodes: emphasize the "turn down" of the serpentine return. -->
+      <circle v-for="(n, i) in returnNodes" :key="'rn' + i" class="hydro-track__snake-node"
+              :class="'hydro-track__snake-node--' + returnState" :cx="n.x" :cy="n.y" r="3.5" />
+      <polygon v-if="returnArrow" class="hydro-track__snake-arrow"
+               :class="'hydro-track__snake-arrow--' + returnState" :points="returnArrow" />
+      <polygon v-if="enterArrow" class="hydro-track__snake-arrow"
+               :class="'hydro-track__snake-arrow--' + enterState" :points="enterArrow" />
     </svg>
 
     <div class="hydro-track__row hydro-track__row--top">
@@ -100,6 +110,7 @@ export default defineComponent({
       svgH: 0,
       returnPathD: '',
       returnArrow: '',
+      returnNodes: [] as Array<{x: number; y: number}>,
       enterPathD: '',
       enterArrow: '',
       _ro: undefined as ResizeObserver | undefined,
@@ -116,13 +127,30 @@ export default defineComponent({
     finishStages(): ReadonlyArray<HydroStageVM> {
       return this.stages.slice(10, 12); // 10 (2 VP) · 11 (5 VP)
     },
-    returnBright(): boolean {
-      const s = this.stages[6];
-      return s !== undefined && (s.state === 'route' || s.state === 'target' || s.state === 'completed' || s.state === 'current');
+    // Route language: a conduit is ESTABLISHED (solid) once travelled, PREVIEW
+    // (dashed + glow) while it is on the planned path to the selected target,
+    // else BASE (quiet). Derived purely from the stage states.
+    returnState(): 'established' | 'preview' | 'base' {
+      const s6 = this.stages[6];
+      if (s6 !== undefined && (s6.state === 'completed' || s6.state === 'current')) {
+        return 'established';
+      }
+      const previewIntoRow2 = this.stages.slice(6).some((s) => s.state === 'route' || s.state === 'target');
+      return previewIntoRow2 ? 'preview' : 'base';
     },
-    enterBright(): boolean {
-      const s = this.stages[10];
-      return s !== undefined && (s.state === 'route' || s.state === 'target' || s.state === 'completed' || s.state === 'current');
+    enterState(): 'established' | 'preview' | 'base' {
+      const established = [10, 11].some((p) => {
+        const s = this.stages[p];
+        return s !== undefined && (s.state === 'completed' || s.state === 'current');
+      });
+      if (established) {
+        return 'established';
+      }
+      const preview = [10, 11].some((p) => {
+        const s = this.stages[p];
+        return s !== undefined && (s.state === 'route' || s.state === 'target');
+      });
+      return preview ? 'preview' : 'base';
     },
   },
   watch: {
@@ -200,9 +228,13 @@ export default defineComponent({
         this.returnPathD = roundedPath(pts, 13);
         // Arrow points DOWN into stage 6.
         this.returnArrow = `${x6c - 4.5},${y6t - 7} ${x6c + 4.5},${y6t - 7} ${x6c},${y6t}`;
+        // Turn-nodes on the two mid-line bends so the "turn down then continue"
+        // of the serpentine return reads instantly.
+        this.returnNodes = [{x: xR, y: yMid}, {x: x6c, y: yMid}];
       } else {
         this.returnPathD = '';
         this.returnArrow = '';
+        this.returnNodes = [];
       }
 
       // Entry conduit 9 → finish-zone (same row): straight, with a right arrow.

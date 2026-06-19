@@ -71,12 +71,13 @@
         </button>
         <button type="button"
                 class="venus-bonus__tab"
-                :class="{'venus-bonus__tab--active': wildTab === 'card'}"
+                :class="{'venus-bonus__tab--active': wildTab === 'card', 'venus-bonus__tab--disabled': !hasCardBranch}"
                 :aria-selected="wildTab === 'card'"
-                :disabled="wildCardCandidates.length === 0"
+                :aria-disabled="!hasCardBranch"
+                :data-hint="hasCardBranch ? '' : cardTabDisabledHint"
                 role="tab"
                 data-test="venus-tab-card"
-                @click="wildTab = 'card'">
+                @click="selectCardTab()">
           <span v-i18n>Resource on a card</span>
         </button>
       </div>
@@ -193,6 +194,15 @@ export default defineComponent({
     showBaseSection(): boolean {
       return this.baseCount > 0;
     },
+    // Whether the server built an on-card branch (the player owns a card that can
+    // host the wild). When false the "resource on a card" tab is disabled (the
+    // wild is taken as a standard resource) — but it is NEVER lost.
+    hasCardBranch(): boolean {
+      return (this.meta.wildCardTargets ?? []).length > 0;
+    },
+    cardTabDisabledHint(): string {
+      return translateText('No card can hold this resource');
+    },
     resources(): ReadonlyArray<ResourceDescriptor> {
       return Units.keys.map((key) => ({key, label: translateText(key)}));
     },
@@ -298,6 +308,13 @@ export default defineComponent({
     onWildCardChange(response: SelectCardResponse): void {
       this.wildCard = response.cards[0];
     },
+    selectCardTab(): void {
+      // The on-card tab is disabled when no card can host the wild; the player
+      // keeps the wild as a standard resource on the other tab.
+      if (this.hasCardBranch) {
+        this.wildTab = 'card';
+      }
+    },
     confirm(): void {
       if (!this.canConfirm) {
         return;
@@ -308,7 +325,7 @@ export default defineComponent({
           (this.wildStandard !== undefined ? {kind: 'standard', resource: this.wildStandard} : undefined) :
           (this.wildCard !== undefined ? {kind: 'card', card: this.wildCard} : undefined);
       }
-      this.onsave(buildVenusBonusResponse(this.isFinal, this.base, wild));
+      this.onsave(buildVenusBonusResponse(this.isFinal, this.base, wild, this.hasCardBranch));
     },
   },
 });
