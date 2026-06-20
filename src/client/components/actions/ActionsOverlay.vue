@@ -32,37 +32,22 @@
         </span>
         <button class="actions-board__close" @click="$emit('close')" :title="$t('Close')" data-test="actions-overlay-close">✕</button>
       </div>
+      <!-- PICK MODE strip — names the "choose an action to repeat" context + a
+           Cancel; the master-detail body + filters below are SHARED with the
+           normal mode (same layout, same details view). -->
+      <div v-if="pickMode" class="actions-board__pickstrip">
+        <span class="actions-board__pickstrip-dot" aria-hidden="true"></span>
+        <span class="actions-board__pickstrip-text">{{ pickTitle }}</span>
+        <button type="button" class="actions-board__pickstrip-cancel" @click="$emit('close')" v-i18n>Cancel</button>
+      </div>
       <ActionsFilters
-        v-if="!pickMode"
         :availabilityChips="availabilityChips"
         :activationChips="activationChips"
         @availability="setAvailability"
         @activation="setActivation" />
     </header>
 
-    <!-- PICK MODE — a lightweight "choose an action to repeat" grid: every action
-         SOURCE is rendered as a premium action card; only the candidates are
-         selectable (the rest dimmed for context). Clicking a candidate resolves
-         the pick + closes the overlay so the chosen action's confirm opens. -->
-    <div v-if="pickMode" class="actions-board__body actions-board__body--pick" ref="body">
-      <div class="actions-board__pickstrip">
-        <span class="actions-board__pickstrip-dot" aria-hidden="true"></span>
-        <span class="actions-board__pickstrip-text">{{ pickTitle }}</span>
-        <button type="button" class="actions-board__pickstrip-cancel" @click="$emit('close')" v-i18n>Cancel</button>
-      </div>
-      <div class="actions-board__pickgrid">
-        <ActionGroupCard v-for="e in entries"
-                         :key="e.cardName"
-                         :entry="e"
-                         :card="tableauByName.get(e.cardName)"
-                         :preview="previewFor(e.cardName)"
-                         :pickMode="true"
-                         :pickSelectable="pickSelectable(e.cardName)"
-                         @pick="onPickResolve" />
-      </div>
-    </div>
-
-    <div v-else class="actions-board__body" ref="body">
+    <div class="actions-board__body" ref="body">
       <div v-if="entries.length === 0" class="actions-board__empty">
         <span class="actions-board__empty-glyph" aria-hidden="true">⌁</span>
         <span class="actions-board__empty-text" v-i18n>No activatable actions</span>
@@ -81,6 +66,8 @@
                            :card="tableauByName.get(e.cardName)"
                            :preview="previewFor(e.cardName)"
                            :selectedKey="selectedKey"
+                           :pickMode="pickMode"
+                           :pickSelectable="!pickMode || pickSelectable(e.cardName)"
                            @select="onSelect"
                            @activate="$emit('activate', $event)" />
         </div>
@@ -96,7 +83,10 @@
                               :card="selectedCardModel"
                               :stat="selectedStat"
                               :loadingPreview="previewLoading"
+                              :pickMode="pickMode"
+                              :pickSelectable="selectedPickSelectable"
                               @activate="$emit('activate', $event)"
+                              @pick="onPickResolve"
                               @open="openFullscreen" />
         </div>
       </div>
@@ -248,6 +238,11 @@ export default defineComponent({
       return this.displayedPlayer.color === this.viewerColor;
     },
     filter(): ActionFilterState {
+      // Pick-mode keeps its OWN filters (default Activated + All) so a pick doesn't
+      // clobber the player's normal browse prefs.
+      if (this.pickMode) {
+        return {availability: actionsPickState.availability, activation: actionsPickState.activation};
+      }
       return {availability: actionsOverlayState.availability, activation: actionsOverlayState.activation};
     },
     entries(): ReadonlyArray<ActionEntry> {
@@ -339,6 +334,11 @@ export default defineComponent({
       const t = actionsPickState.title;
       return t === '' ? translateText('Choose an action to repeat') : (typeof t === 'string' ? translateText(t) : translateMessage(t));
     },
+    // Whether the currently-FOCUSED action is a valid repeat candidate — gates the
+    // details panel's «ВЫБРАТЬ» CTA in pick-mode.
+    selectedPickSelectable(): boolean {
+      return this.selectedCardName !== undefined && this.pickSelectable(this.selectedCardName);
+    },
   },
   watch: {
     previewCacheKey(): void {
@@ -377,26 +377,13 @@ export default defineComponent({
     },
   },
   mounted(): void {
-    // Pick mode is a lightweight selection surface — skip the master-detail
-    // selection/fit machinery; just prefetch the candidates' previews (for PER-BRANCH
-    // availability + reasons) and size the candidate grid.
-    if (this.pickMode) {
-      setActionPreviewScope(this.previewCacheKey);
-      for (const name of actionsPickState.selectable) {
-        this.fetchPreviewFor(name, true);
-      }
-      nextTick(() => this.fitPick());
-      window.addEventListener('keydown', this.onKeydown);
-      const rootEl = this.$refs.root as HTMLElement | undefined;
-      if (rootEl !== undefined && typeof ResizeObserver !== 'undefined') {
-        const ro = new ResizeObserver(() => this.fitPick());
-        ro.observe(rootEl);
-        this.resizeObserver = markRaw(ro);
-      }
-      window.addEventListener('resize', this.fitPick);
-      return;
+    // Pick mode reuses the FULL master-detail surface (filters + details view); the
+    // only differences are its own filters (defaults set in enterActionsPick) and
+    // the «ВЫБРАТЬ» CTA. So the setup is shared — just don't flag the NORMAL overlay
+    // as open (pick is a transient sub-flow, not the browse overlay).
+    if (!this.pickMode) {
+      actionsOverlayState.open = true;
     }
-    actionsOverlayState.open = true;
     setActionPreviewScope(this.previewCacheKey);
     setActionStatsScope(this.statsCacheKey);
     this.fetchActionStats();
@@ -419,29 +406,37 @@ export default defineComponent({
   beforeUnmount(): void {
     this.resizeObserver?.disconnect();
     window.removeEventListener('resize', this.scheduleFit);
-    window.removeEventListener('resize', this.fitPick);
     window.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
     setAvailability(value: AvailabilityFilter): void {
-      actionsOverlayState.availability = value;
+      if (this.pickMode) {
+        actionsPickState.availability = value;
+      } else {
+        actionsOverlayState.availability = value;
+      }
     },
     setActivation(value: ActivationFilter): void {
-      actionsOverlayState.activation = value;
+      if (this.pickMode) {
+        actionsPickState.activation = value;
+      } else {
+        actionsOverlayState.activation = value;
+      }
     },
     // Keep a valid selection: re-fetch the preview for the still-valid selection,
     // else auto-select the first AVAILABLE action (else the first), so the details
     // panel always has something to show.
     ensureSelection(): void {
-      if (this.pickMode) {
-        return;
-      }
       const current = this.selectedEntry;
       if (current !== undefined) {
         this.fetchPreviewFor(current.cardName);
         return;
       }
-      const first = this.filtered.find((e) => e.state.status === 'available') ?? this.filtered[0];
+      // Auto-focus the first sensible action so the details panel always has
+      // something: in pick-mode prefer a selectable CANDIDATE, else the first
+      // available, else the first shown.
+      const first = (this.pickMode ? this.filtered.find((e) => this.pickSelectable(e.cardName)) : undefined) ??
+        this.filtered.find((e) => e.state.status === 'available') ?? this.filtered[0];
       if (first !== undefined) {
         setActionSelection(actionRowKey(first.cardName, 0));
         this.fetchPreviewFor(first.cardName);
@@ -513,7 +508,12 @@ export default defineComponent({
     // need it to mark a single UNAVAILABLE branch (Rotator Impacts), and ALL of them
     // feed the height measurer (results add height) so the overlay opens pre-sized.
     prefetchBranchPreviews(): void {
+      // In pick-mode prefetch the repeat CANDIDATES (the details panel shows their
+      // result + the height measurer needs them); else the normally-available ones.
       if (this.pickMode) {
+        for (const name of actionsPickState.selectable) {
+          this.fetchPreviewFor(name, true);
+        }
         return;
       }
       for (const e of this.entries) {
@@ -547,7 +547,7 @@ export default defineComponent({
       root.style.setProperty('--actions-detail-min-h', Math.min(maxH, cap) + 'px');
     },
     scheduleMeasure(): void {
-      if (this.pickMode || this.measureScheduled) {
+      if (this.measureScheduled) {
         return;
       }
       this.measureScheduled = true;
@@ -567,10 +567,6 @@ export default defineComponent({
         } else {
           this.$emit('close');
         }
-        return;
-      }
-      // Pick mode has no row navigation — Escape (handled above) is the only key.
-      if (this.pickMode) {
         return;
       }
       const rows = this.flatRows;
@@ -608,17 +604,25 @@ export default defineComponent({
     },
     activateSelected(): void {
       const e = this.selectedEntry;
-      if (e === undefined || e.state.status !== 'available') {
+      if (e === undefined) {
+        return;
+      }
+      // PICK MODE: Enter resolves the pick on the focused candidate (the «ВЫБРАТЬ»
+      // CTA), if it's selectable.
+      if (this.pickMode) {
+        if (this.selectedPickSelectable) {
+          this.onPickResolve({cardName: e.cardName, nodeIndex: this.selectedNodeIndex});
+        }
+        return;
+      }
+      if (e.state.status !== 'available') {
         return;
       }
       this.$emit('activate', {cardName: e.cardName, nodeIndex: this.selectedNodeIndex});
     },
     // ─── Adaptive fit: a fixed compact master grid + a static detail column ───
+    // (shared by normal + pick mode — both render the master-detail split). ───
     fit(): void {
-      if (this.pickMode) {
-        this.fitPick();
-        return;
-      }
       const root = this.$refs.root as HTMLElement | undefined;
       const grid = this.$refs.grid as HTMLElement | undefined;
       const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -662,32 +666,15 @@ export default defineComponent({
     pickSelectable(name: CardName): boolean {
       return isActionsPickCandidate(name);
     },
-    // PICK MODE — a candidate action ROW (branch) was clicked: resolve the pick
-    // (delivers the card + chosen branch node back to the initiating modal via the
-    // bridge) and close the overlay so the suppressed modal re-appears + opens the
-    // chosen action's confirm ON THAT BRANCH.
+    // PICK MODE — the details panel's «ВЫБРАТЬ» CTA (or Enter) resolves the pick on
+    // the focused candidate, then closes the overlay; the activeOverlay watcher /
+    // initiating modal restores the originating surface + applies the choice.
     onPickResolve(payload: {cardName: CardName, nodeIndex: number}): void {
       if (!this.pickMode || !this.pickSelectable(payload.cardName)) {
         return;
       }
       resolveActionsPick(payload.cardName, payload.nodeIndex);
       this.$emit('close');
-    },
-    // Pick-mode width: no detail column, so size the overlay to a comfortable
-    // multi-column grid of the candidate tiles (capped to the viewport).
-    fitPick(): void {
-      const root = this.$refs.root as HTMLElement | undefined;
-      const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-      const availW = clamp(window.innerWidth - SIDE_MARGIN, MIN_W, FIT_MAX_W);
-      // Size the grid to the number of ACTION SOURCES shown (candidates + dimmed
-      // context cards), capped at 3 columns and the viewport.
-      const n = Math.max(1, this.entries.length);
-      const colsByWidth = Math.max(1, Math.floor((availW - BODY_PAD_X + GAP) / (MASTER_COL_MIN + GAP)));
-      const cols = clamp(Math.min(n, colsByWidth), 1, MAX_COLS);
-      const w = clamp(cols * MASTER_COL_MAX + (cols - 1) * GAP + BODY_PAD_X, MIN_W, availW);
-      root?.style.setProperty('--actions-overlay-width', Math.round(w) + 'px');
-      const grid = root?.querySelector('.actions-board__pickgrid') as HTMLElement | null;
-      grid?.style.setProperty('--actions-master-cols', String(cols));
     },
   },
 });

@@ -16,7 +16,7 @@
          {
            'action-group--corp': isCorporation,
            'action-group--disabled-card': isDisabled && !pickMode,
-           'action-group--selected': selectedWithin && !pickMode,
+           'action-group--selected': selectedWithin,
            'action-group--pick': pickMode,
            'action-group--pick-selectable': pickMode && pickSelectable,
            'action-group--pick-disabled': pickMode && !pickSelectable,
@@ -48,17 +48,17 @@
              branches): a slim deliberate "ИЛИ" divider conveys the alternation, so
              the per-row graphic stays clean (the leading OR is stripped, #4). -->
         <span v-if="i > 0" class="action-group__or" aria-hidden="true" v-i18n>OR</span>
-        <!-- In pick-mode EACH branch ROW is separately selectable (a split `or`
-             action = one row per branch, like the normal overlay). Per the "always
-             show both, never auto-select" rule an UNAVAILABLE branch stays VISIBLE —
-             red ('rules') + its reason tooltip — but is NOT clickable; only an
-             available branch (in a selectable group) hands off. -->
+        <!-- In pick-mode a row is FOCUSED on click (the details panel + its «ВЫБРАТЬ»
+             CTA resolve the pick) — exactly like the normal master-detail flow. A
+             NON-selectable (can't-repeat) action stays visible + clickable-to-focus
+             so its reason shows in the row tooltip AND the details panel; the CTA
+             there is the gate. -->
         <CompactActionCard :node="node"
                            :status="rowStatus(i)"
                            :reason="rowReason(i)"
-                           :interactive="pickMode ? (pickSelectable && rowStatus(i) === 'available') : true"
-                           :selected="!pickMode && selectedKey === rowKey(i)"
-                           :focusable="pickMode ? (pickSelectable && rowStatus(i) === 'available') : (selectedKey === rowKey(i))"
+                           :interactive="true"
+                           :selected="selectedKey === rowKey(i)"
+                           :focusable="pickMode ? true : (selectedKey === rowKey(i))"
                            :data-test="'action-row-' + cardName + '-' + i"
                            @select="select(i)"
                            @activate="activateRow(i)" />
@@ -119,7 +119,7 @@ export default defineComponent({
       default: false,
     },
   },
-  emits: ['select', 'activate', 'pick'],
+  emits: ['select', 'activate'],
   computed: {
     group(): ActionGroup {
       return this.entry.group;
@@ -205,7 +205,12 @@ export default defineComponent({
     // In PICK-mode the card-level 'activated' state is IGNORED (the repeat candidates
     // were ALL used this gen — that's the point); only per-branch availability matters.
     rowStatus(i: number): ActionStatus {
-      if (!this.pickMode && this.state.status !== 'available') {
+      // PICK MODE: a candidate is 'available' (it CAN be repeated); a non-candidate
+      // activated action is shown 'rules' (red) with a "can't repeat" reason.
+      if (this.pickMode) {
+        return this.pickSelectable ? 'available' : 'rules';
+      }
+      if (this.state.status !== 'available') {
         return this.state.status;
       }
       const branches = this.rowBranches(i);
@@ -217,7 +222,11 @@ export default defineComponent({
     // PER-ROW reason for the premium tooltip — card-level reason, else the branch's
     // own "why not", else empty (an available row shows no tooltip).
     rowReason(i: number): string {
-      if (!this.pickMode && this.state.status !== 'available') {
+      // PICK MODE: a non-candidate shows the "can't repeat" reason; a candidate none.
+      if (this.pickMode) {
+        return this.pickSelectable ? '' : translateText('This action cannot be repeated');
+      }
+      if (this.state.status !== 'available') {
         return this.reasonText;
       }
       const branches = this.rowBranches(i);
@@ -237,25 +246,18 @@ export default defineComponent({
       });
       return [...new Set(reasons)].join(' / ');
     },
-    // Selecting a row: in PICK MODE it PICKS that branch (cardName + nodeIndex) —
-    // a split `or` action's two rows are two distinct picks; otherwise it only
-    // FOCUSES the action (the details panel resolves the branch; nothing executes).
+    // Selecting a row FOCUSES the action — the details panel + its CTA take over
+    // (resolve the pick in pick-mode, open the confirm in normal mode). Nothing
+    // executes on select. A non-selectable pick row still focuses (to surface its
+    // "can't repeat" reason in the details panel).
     select(i: number): void {
-      if (this.pickMode) {
-        // Only an AVAILABLE branch of a selectable group hands off (an unavailable
-        // branch is shown red + reason but is inert).
-        if (this.pickSelectable && this.rowStatus(i) === 'available') {
-          this.$emit('pick', {cardName: this.cardName, nodeIndex: i});
-        }
-        return;
-      }
       this.$emit('select', {cardName: this.cardName, nodeIndex: i});
     },
     // Double-click quick-activate — ONLY for an AVAILABLE row (per-branch, so the
     // unavailable branch of a multi-action card can't open a modal either). An
     // unavailable action stays selected with its reason in the details + tooltip.
     activateRow(i: number): void {
-      // In pick-mode a double-click is just another pick (same as a single click).
+      // In pick-mode a double-click only focuses (the details CTA does the resolve).
       if (this.pickMode) {
         this.select(i);
         return;

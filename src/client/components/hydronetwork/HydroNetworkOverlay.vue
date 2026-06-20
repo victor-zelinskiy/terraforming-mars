@@ -40,7 +40,8 @@
         @spend="onSpend"
         @choice="onChoice"
         @plan="onPlan"
-        @select-card="onSelectCard"
+        @pick-action="$emit('pick-action', $event)"
+        @pick-played-card="$emit('pick-played-card', $event)"
         @confirm="onConfirm" />
     </div>
   </div>
@@ -82,7 +83,7 @@ export default defineComponent({
       default: '',
     },
   },
-  emits: ['close', 'confirm'],
+  emits: ['close', 'confirm', 'pick-action', 'pick-played-card'],
   computed: {
     viewerColor(): Color {
       return this.playerView.thisPlayer.color;
@@ -163,9 +164,6 @@ export default defineComponent({
       // A different destination stage invalidates a pending reward choice / card.
       hydroNetworkState.rewardChoice = undefined;
       hydroNetworkState.selectedCard = undefined;
-    },
-    onSelectCard(name: CardName): void {
-      hydroNetworkState.selectedCard = name;
     },
     onSpend(spend: number): void {
       this.onSelectPosition(this.model.currentPosition + spend);

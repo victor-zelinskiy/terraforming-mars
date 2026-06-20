@@ -23,9 +23,6 @@
             :class="'hydro-track__snake-flow--' + returnState" :d="returnPathD" />
       <path v-if="enterPathD && enterState !== 'base'" class="hydro-track__snake-flow"
             :class="'hydro-track__snake-flow--' + enterState" :d="enterPathD" />
-      <!-- Bend nodes: emphasize the "turn down" of the serpentine return. -->
-      <circle v-for="(n, i) in returnNodes" :key="'rn' + i" class="hydro-track__snake-node"
-              :class="'hydro-track__snake-node--' + returnState" :cx="n.x" :cy="n.y" r="3.5" />
       <polygon v-if="returnArrow" class="hydro-track__snake-arrow"
                :class="'hydro-track__snake-arrow--' + returnState" :points="returnArrow" />
       <polygon v-if="enterArrow" class="hydro-track__snake-arrow"
@@ -110,7 +107,6 @@ export default defineComponent({
       svgH: 0,
       returnPathD: '',
       returnArrow: '',
-      returnNodes: [] as Array<{x: number; y: number}>,
       enterPathD: '',
       enterArrow: '',
       _ro: undefined as ResizeObserver | undefined,
@@ -228,13 +224,9 @@ export default defineComponent({
         this.returnPathD = roundedPath(pts, 13);
         // Arrow points DOWN into stage 6.
         this.returnArrow = `${x6c - 4.5},${y6t - 7} ${x6c + 4.5},${y6t - 7} ${x6c},${y6t}`;
-        // Turn-nodes on the two mid-line bends so the "turn down then continue"
-        // of the serpentine return reads instantly.
-        this.returnNodes = [{x: xR, y: yMid}, {x: x6c, y: yMid}];
       } else {
         this.returnPathD = '';
         this.returnArrow = '';
-        this.returnNodes = [];
       }
 
       // Entry conduit 9 → finish-zone (same row): straight, with a right arrow.
