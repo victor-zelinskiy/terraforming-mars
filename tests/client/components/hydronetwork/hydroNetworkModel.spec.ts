@@ -169,6 +169,38 @@ describe('buildHydroModel (iteration 2)', () => {
     expect(m.canConfirm).eq(true);
   });
 
+  it('targetVisitors: surfaces reward-takers (stood / stopped & moved on) AND pass-throughs at the target', () => {
+    const m = buildHydroModel(input({
+      preview: fullPreview(3), // viewer at 0
+      players: [
+        viewer({position: 0}),
+        // Standing at 2 now (took the reward on landing, choice 1) → 'current'.
+        {color: 'blue', name: 'Blue', position: 2, isViewer: false, stops: [{position: 2, generation: 1, choice: 1}]},
+        // Stopped at 2 in gen 1 (choice 0), has since moved on to 4 → 'rewarded'.
+        {color: 'red', name: 'Red', position: 4, isViewer: false, stops: [{position: 2, generation: 1, choice: 0}, {position: 4, generation: 2}]},
+        // Leapt OVER 2 (no stop there), now at 5 → 'passed' (took no reward).
+        {color: 'green', name: 'Green', position: 5, isViewer: false, stops: [{position: 5, generation: 1}]},
+      ],
+      selectedPosition: 2, // plan target
+    }));
+    expect(m.mode).eq('plan');
+    const byColor = new Map(m.targetVisitors.map((v) => [v.color, v]));
+    expect(byColor.get('blue')).deep.include({status: 'current', choice: 1});
+    expect(byColor.get('red')).deep.include({status: 'rewarded', choice: 0});
+    expect(byColor.get('green')?.status).eq('passed');
+    // Reward-takers are listed before pass-throughs.
+    expect(m.targetVisitors[m.targetVisitors.length - 1].status).eq('passed');
+  });
+
+  it('targetVisitors is empty in details mode (own current / past cells use the full history)', () => {
+    const m = buildHydroModel(input({
+      players: [viewer({position: 0}), {color: 'blue', name: 'Blue', position: 0, isViewer: false, stops: []}],
+      selectedPosition: 0, // == current → details mode
+    }));
+    expect(m.mode).eq('details');
+    expect(m.targetVisitors.length).eq(0);
+  });
+
   it('gates confirm on a pos-9 animal target preselection', () => {
     const base = input({
       preview: fullPreview(1, {

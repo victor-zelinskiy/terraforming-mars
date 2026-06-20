@@ -69,6 +69,25 @@
         <span v-i18n>The occupied 2 VP position is leapt over to reach the 5 VP slot.</span>
       </div>
 
+      <!-- Who has ALREADY been through this stage + what they took — so a cell that
+           other players stopped at OR leapt over is never opaque. Reward-takers
+           (stood here / stopped & moved on) show their reward; pass-throughs (leapt
+           over without stopping) show "passed — no reward". -->
+      <div v-if="model.targetVisitors.length > 0" class="hydro-action__visitors">
+        <span class="hydro-action__visitors-label" v-i18n>Stage history</span>
+        <span v-for="v in model.targetVisitors" :key="v.color"
+              class="hydro-action__visitor" :class="{'hydro-action__visitor--passed': v.status === 'passed'}">
+          <span class="hydro-action__visitor-dot" :class="'player_bg_color_' + v.color" aria-hidden="true"></span>
+          <span class="hydro-action__visitor-name">{{ v.name }}</span>
+          <span class="hydro-action__visitor-took">
+            <span v-if="v.status === 'passed'" class="hydro-action__visitor-none" v-i18n>Passed through — no reward</span>
+            <HydroReward v-else-if="historyReward(v.choice).length > 0" :chips="historyReward(v.choice)" :compact="true" />
+            <span v-else-if="targetStage && targetStage.vp !== undefined" class="hydro-action__visitor-vp">{{ targetStage.vp }} <span v-i18n>VP</span></span>
+            <span v-else class="hydro-action__visitor-none" v-i18n>No reward</span>
+          </span>
+        </span>
+      </div>
+
       <!-- Preselection BEFORE confirm (pos 7 / 9): always via the dedicated premium
            pick-mode overlay — ДЕЙСТВИЯ for the reuse-action, РАЗЫГРАНО for the
            animal target. No inline tile grid (the >3 threshold is not used here). -->
@@ -395,9 +414,10 @@ export default defineComponent({
       return 'have';
     },
     // The reward a history entry actually received (the chosen alternative for a
-    // choice stage, else the single reward). Empty for VP-only stages.
+    // choice stage, else the single reward). Empty for VP-only stages. Works in
+    // BOTH modes — the selected stage is detailsStage (details) or targetStage (plan).
     historyReward(choice: number | undefined): ReadonlyArray<HydroRewardChip> {
-      const stage = this.detailsStage;
+      const stage = this.detailsStage ?? this.targetStage;
       if (stage === undefined || stage.rewardOptions.length === 0) {
         return [];
       }

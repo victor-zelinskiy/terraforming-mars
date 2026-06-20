@@ -1,0 +1,377 @@
+/*
+ * Rematch flow — the "offer / accept a rematch" prompt modal, the minimized
+ * pill, the "rematch ready" celebration, and the "declined" toast. Plus the
+ * extra endgame-overlay control states (Accept / Decline / Waiting). Dark-glass
+ * + cyan/mint/amber sci-fi language, matching the rest of the fork's overlays.
+ *
+ * Imported AFTER endgame.less so the `.eg-results__ctl--*` modifiers can layer
+ * onto that base control style.
+ */
+@rematch-z-modal: 3300;
+@rematch-z-pill: 3260;
+
+@rematch-cyan: #58d6e8;
+@rematch-mint: #5fe0a8;
+@rematch-amber: #ecc06a;
+@rematch-glass: rgba(10, 19, 28, 0.94);
+@rematch-glass-rim: rgba(120, 220, 240, 0.32);
+@rematch-ink: #eaf6fb;
+@rematch-ink-dim: rgba(212, 232, 240, 0.66);
+
+// ───────────────────────────── Modal ─────────────────────────────
+.rematch-modal {
+  position: fixed;
+  inset: 0;
+  z-index: @rematch-z-modal;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.rematch-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 120% at 50% 30%, rgba(4, 12, 20, 0.55), rgba(2, 6, 12, 0.82));
+  backdrop-filter: blur(3px);
+  animation: rematch-fade 220ms ease both;
+}
+
+.rematch-modal__card {
+  position: relative;
+  width: min(440px, 92vw);
+  padding: 26px 26px 24px;
+  background: @rematch-glass;
+  border: 1px solid @rematch-glass-rim;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  color: @rematch-ink;
+  animation: rematch-pop 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  // L-corner ticks for the HUD feel.
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 1px solid @rematch-cyan;
+    opacity: 0.5;
+  }
+  &::before {
+    top: 8px;
+    left: 8px;
+    border-right: none;
+    border-bottom: none;
+  }
+  &::after {
+    bottom: 8px;
+    right: 8px;
+    border-left: none;
+    border-top: none;
+  }
+}
+
+.rematch-modal__min {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: @rematch-ink-dim;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+  &:hover {
+    color: @rematch-ink;
+    border-color: @rematch-glass-rim;
+    background: rgba(120, 220, 240, 0.1);
+  }
+}
+
+.rematch-modal__kicker {
+  font-family: 'Prototype', 'Orbitron', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: @rematch-cyan;
+  margin-bottom: 6px;
+  &--ready {
+    color: @rematch-mint;
+  }
+}
+
+.rematch-modal__title {
+  margin: 0 0 14px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.rematch-modal__lead {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: @rematch-ink-dim;
+  &--center {
+    text-align: center;
+  }
+}
+
+.rematch-modal__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px 2px 6px;
+  border-radius: 999px;
+  margin-right: 4px;
+  font-weight: 600;
+  color: @rematch-ink;
+}
+
+.rematch-modal__chip-name {
+  font-size: 13px;
+}
+
+.rematch-modal__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.rematch-modal__votes {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+
+.rematch-modal__vote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.rematch-modal__vote-name {
+  flex: 1 1 auto;
+  color: @rematch-ink;
+}
+
+.rematch-modal__vote-status {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rematch-modal__vote--accepted {
+  .rematch-modal__vote-status { color: @rematch-mint; }
+}
+.rematch-modal__vote--declined {
+  .rematch-modal__vote-name { color: @rematch-ink-dim; }
+  .rematch-modal__vote-status { color: #ef7d7d; }
+}
+.rematch-modal__vote--pending {
+  .rematch-modal__vote-status { color: @rematch-ink-dim; }
+}
+
+.rematch-modal__actions {
+  display: flex;
+  gap: 10px;
+  &--center {
+    justify-content: center;
+  }
+}
+
+// ───────────────────────── Buttons (cab-rematch) ─────────────────────────
+.cab-rematch {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 16px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  font-family: 'Prototype', 'Orbitron', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease, filter 160ms ease;
+  &:disabled {
+    cursor: default;
+    filter: saturate(0.5) brightness(0.8);
+  }
+}
+
+.cab-rematch--accept {
+  background: linear-gradient(180deg, fade(@rematch-mint, 95%), fade(@rematch-mint, 78%));
+  border-color: fade(@rematch-mint, 80%);
+  color: #06231a;
+  box-shadow: 0 6px 22px fade(@rematch-mint, 28%);
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 9px 28px fade(@rematch-mint, 42%);
+  }
+}
+
+.cab-rematch--decline {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: fade(@rematch-amber, 50%);
+  color: @rematch-amber;
+  &:hover:not(:disabled) {
+    background: fade(@rematch-amber, 14%);
+    border-color: fade(@rematch-amber, 75%);
+  }
+}
+
+// ───────────────────────────── Pill ─────────────────────────────
+.rematch-pill {
+  position: fixed;
+  top: calc(var(--bottom-bar-button-height, 36px) + 70px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: @rematch-z-pill;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 16px;
+  background: @rematch-glass;
+  border: 1px solid @rematch-glass-rim;
+  border-radius: 999px;
+  color: @rematch-ink;
+  font-family: 'Prototype', 'Orbitron', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  animation: rematch-fade 220ms ease both;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+  &:hover {
+    border-color: @rematch-cyan;
+    box-shadow: 0 12px 36px fade(@rematch-cyan, 26%);
+  }
+}
+
+.rematch-pill__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: @rematch-cyan;
+  box-shadow: 0 0 8px @rematch-cyan;
+  animation: rematch-pulse 1.6s ease-in-out infinite;
+}
+
+// ───────────────────────────── Toast ─────────────────────────────
+.rematch-toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: @rematch-z-modal;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 14px;
+  background: @rematch-glass;
+  border: 1px solid rgba(239, 125, 125, 0.4);
+  border-radius: 10px;
+  color: @rematch-ink;
+  font-size: 13px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  animation: rematch-drop 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.rematch-toast__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.rematch-toast__name {
+  font-weight: 700;
+  margin-right: 5px;
+}
+
+.rematch-toast__close {
+  margin-left: 4px;
+  background: transparent;
+  border: none;
+  color: @rematch-ink-dim;
+  cursor: pointer;
+  font-size: 12px;
+  &:hover { color: @rematch-ink; }
+}
+
+// ─────────────────── Endgame overlay control states ───────────────────
+.eg-results__ctl--danger {
+  border-color: fade(@rematch-amber, 55%) !important;
+  color: @rematch-amber !important;
+  &:hover:not(:disabled) {
+    background: fade(@rematch-amber, 14%) !important;
+  }
+}
+
+.eg-results__ctl--wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+  color: @rematch-ink-dim !important;
+}
+
+.eg-results__wait-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: @rematch-cyan;
+  box-shadow: 0 0 8px @rematch-cyan;
+  animation: rematch-pulse 1.6s ease-in-out infinite;
+}
+
+.eg-results__wait-count {
+  font-weight: 700;
+  color: @rematch-cyan;
+}
+
+// ───────────────────────────── Keyframes ─────────────────────────────
+@keyframes rematch-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rematch-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes rematch-drop {
+  from { opacity: 0; transform: translate(-50%, -12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes rematch-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rematch-modal__card,
+  .rematch-modal__backdrop,
+  .rematch-pill,
+  .rematch-toast,
+  .rematch-pill__dot,
+  .eg-results__wait-dot {
+    animation: none !important;
+  }
+}

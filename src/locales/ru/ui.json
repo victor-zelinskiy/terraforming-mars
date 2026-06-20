@@ -1276,5 +1276,22 @@
     "Spend ${0} plants to place a greenery tile": "Потратить ${0} растений, чтобы разместить озеленение",
     "Spend ${0} heat to raise temperature by 1 step": "Потратить ${0} тепла, чтобы повысить температуру на 1",
     "Spend heat to raise temperature by 1 step": "Потратить тепло, чтобы повысить температуру на 1",
-    "Click a greenery space on the board": "Кликните по клетке для озеленения"
+    "Click a greenery space on the board": "Кликните по клетке для озеленения",
+
+    "Rematch": "Реванш",
+    "Offer rematch": "Предложить реванш",
+    "Accept rematch": "Принять реванш",
+    "Accept rematch?": "Принять реванш?",
+    "Decline": "Отказаться",
+    "Join rematch": "Присоединиться к реваншу",
+    "Watch rematch": "Смотреть реванш",
+    "Waiting for players": "Ожидание игроков",
+    "Later": "Позже",
+    "Rematch offered": "Предложен реванш",
+    "Rematch ready": "Реванш готов",
+    "Rematch offered — respond": "Предложен реванш — ответьте",
+    "offers a rematch with the same settings.": "предлагает реванш с теми же настройками.",
+    "The rematch is ready!": "Реванш готов!",
+    "A new game was created with the same settings.": "Создана новая партия с теми же настройками.",
+    "declined the rematch.": "отказался от реванша."
 }

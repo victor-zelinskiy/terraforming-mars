@@ -1,0 +1,192 @@
+import {expect} from 'chai';
+import {testGame} from '../TestGame';
+import {RematchManager} from '../../src/server/rematch/RematchManager';
+import {IGame} from '../../src/server/IGame';
+import {IGameLoader} from '../../src/server/database/IGameLoader';
+
+function fakeLoader(): {loader: IGameLoader, added: Array<IGame>} {
+  const added: Array<IGame> = [];
+  const loader = {
+    add: async (game: IGame) => {
+      added.push(game);
+    },
+  } as unknown as IGameLoader;
+  return {loader, added};
+}
+
+describe('RematchManager', () => {
+  beforeEach(() => {
+    RematchManager.reset();
+  });
+
+  it('initial model has no offer', () => {
+    const [game, player] = testGame(2);
+    const model = RematchManager.getInstance().getModel(game, player.id);
+    expect(model.status).to.eq('none');
+    expect(model.viewerIsPlayer).to.be.true;
+    expect(model.viewerColor).to.eq(player.color);
+    expect(model.viewerMustVote).to.be.false;
+    expect(model.votes).to.have.length(2);
+  });
+
+  it('offer seeds the offerer accepted and others pending', async () => {
+    const [game, p1, p2] = testGame(2);
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+
+    expect(added).to.have.length(0); // not all accepted yet
+    const offererView = manager.getModel(game, p1.id);
+    expect(offererView.status).to.eq('offered');
+    expect(offererView.offeredBy).to.eq(p1.color);
+    expect(offererView.viewerIsOfferer).to.be.true;
+    expect(offererView.viewerMustVote).to.be.false; // offerer is pre-accepted
+
+    const otherView = manager.getModel(game, p2.id);
+    expect(otherView.viewerMustVote).to.be.true;
+    expect(otherView.viewerIsOfferer).to.be.false;
+    const p2vote = otherView.votes.find((v) => v.color === p2.color);
+    expect(p2vote?.status).to.eq('pending');
+  });
+
+  it('creates the rematch game once everyone accepts, with the same settings', async () => {
+    const [game, p1, p2] = testGame(2);
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    await manager.accept(game, p2.color, loader);
+
+    expect(added).to.have.length(1);
+    const newGame = added[0];
+    expect(newGame.id).to.not.eq(game.id);
+    expect(newGame.gameOptions.boardName).to.eq(game.gameOptions.boardName);
+    // Same players (colour/name), brand-new ids.
+    expect(newGame.players.map((p) => p.color)).to.deep.eq(game.players.map((p) => p.color));
+    for (const p of newGame.players) {
+      const original = game.players.find((o) => o.color === p.color);
+      expect(p.id).to.not.eq(original?.id);
+      expect(p.name).to.eq(original?.name);
+    }
+    // First player preserved by colour.
+    expect(newGame.first.color).to.eq(game.first.color);
+
+    const created = manager.getModel(game, p1.id);
+    expect(created.status).to.eq('created');
+    expect(created.newGameId).to.eq(newGame.id);
+  });
+
+  it('delivers each player ONLY their own new-game join id', async () => {
+    const [game, p1, p2] = testGame(2);
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    await manager.accept(game, p2.color, loader);
+    const newGame = added[0];
+
+    const v1 = manager.getModel(game, p1.id);
+    const newP1 = newGame.players.find((p) => p.color === p1.color);
+    expect(v1.joinKind).to.eq('player');
+    expect(v1.joinId).to.eq(newP1?.id);
+
+    const v2 = manager.getModel(game, p2.id);
+    const newP2 = newGame.players.find((p) => p.color === p2.color);
+    expect(v2.joinId).to.eq(newP2?.id);
+    // p1 must never be told p2's new id (no impersonating in the live rematch).
+    expect(v1.joinId).to.not.eq(newP2?.id);
+  });
+
+  it('spectator gets the new spectator id, never a player id', async () => {
+    const [game, p1, p2] = testGame(2);
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    await manager.accept(game, p2.color, loader);
+    const newGame = added[0];
+
+    const spec = manager.getModel(game, game.spectatorId);
+    expect(spec.viewerIsPlayer).to.be.false;
+    expect(spec.status).to.eq('created');
+    expect(spec.joinKind).to.eq('spectator');
+    expect(spec.joinId).to.eq(newGame.spectatorId);
+  });
+
+  it('a decline kills the offer and records who declined', async () => {
+    const [game, p1, p2] = testGame(2);
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    manager.decline(game, p2.color);
+
+    expect(added).to.have.length(0);
+    const model = manager.getModel(game, p1.id);
+    expect(model.status).to.eq('declined');
+    expect(model.declinedBy).to.eq(p2.color);
+  });
+
+  it('a player can re-offer after a decline', async () => {
+    const [game, p1, p2] = testGame(2);
+    const {loader} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    manager.decline(game, p2.color);
+    await manager.offer(game, p2.color, loader);
+
+    const model = manager.getModel(game, p1.id);
+    expect(model.status).to.eq('offered');
+    expect(model.offeredBy).to.eq(p2.color);
+    expect(model.viewerMustVote).to.be.true; // p1 now owes a vote
+  });
+
+  it('the offerer can cancel their own offer', async () => {
+    const [game, p1] = testGame(2);
+    const {loader} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    manager.cancel(game, p1.color);
+
+    expect(manager.getModel(game, p1.id).status).to.eq('none');
+  });
+
+  it('a non-offerer cannot cancel the offer', async () => {
+    const [game, p1, p2] = testGame(2);
+    const {loader} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    manager.cancel(game, p2.color);
+
+    expect(manager.getModel(game, p1.id).status).to.eq('offered');
+  });
+
+  it('a solo offer creates the rematch immediately', async () => {
+    const [game, player] = testGame(1);
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, player.color, loader);
+
+    expect(added).to.have.length(1);
+    expect(manager.getModel(game, player.id).status).to.eq('created');
+  });
+
+  it('does not create a second game on a redundant accept', async () => {
+    const [game, p1, p2] = testGame(2);
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    await manager.accept(game, p2.color, loader);
+    await manager.accept(game, p2.color, loader); // late duplicate
+    await manager.offer(game, p1.color, loader); // offer after created is a no-op
+
+    expect(added).to.have.length(1);
+    expect(manager.getModel(game, p1.id).status).to.eq('created');
+  });
+});

@@ -112,6 +112,9 @@ export type HydroModel = {
   /** A card MUST be picked before confirm (a pick is needed AND candidates exist). */
   mustSelectCard: boolean;
   canConfirm: boolean;
+  /** OTHER players who ALREADY stopped at the planned target (so the viewer can
+   *  see who's been here + which reward they took). Plan mode only. */
+  targetVisitors: ReadonlyArray<HydroStageHistoryEntry>;
 
   // ── Details mode ───────────────────────────────────────────────────────
   detailsStage: HydroStage | undefined;
@@ -261,6 +264,28 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     choiceSatisfied &&
     cardSelectSatisfied;
 
+  // PLAN mode: OTHER players who have ALREADY been THROUGH the planned TARGET stage,
+  // so the viewer is never in the dark about it. Three relationships are surfaced:
+  //   'current'  — standing there now (took the reward on landing),
+  //   'rewarded' — stopped there in a past generation, since moved on (took reward),
+  //   'passed'   — leapt OVER it without stopping (no reward — shown as such).
+  // 'not-reached' players are omitted (noise). Reward-takers are listed before
+  // pass-throughs.
+  const targetVisitors: Array<HydroStageHistoryEntry> = [];
+  if (mode === 'plan') {
+    for (const p of input.players) {
+      if (p.isViewer) {
+        continue;
+      }
+      const s = statusFor(p, selectedPosition);
+      if (s.status === 'rewarded' || s.status === 'current' || s.status === 'passed') {
+        targetVisitors.push({color: p.color, name: p.name, isViewer: false, status: s.status, choice: s.choice, generation: s.generation});
+      }
+    }
+    // Reward-takers (current/rewarded) first, pass-throughs last.
+    targetVisitors.sort((a, b) => (a.status === 'passed' ? 1 : 0) - (b.status === 'passed' ? 1 : 0));
+  }
+
   // Details mode: per-stage history across all players.
   let detailsStage: HydroStage | undefined;
   let detailsHistory: Array<HydroStageHistoryEntry> = [];
@@ -303,6 +328,7 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     selectedCard,
     mustSelectCard,
     canConfirm,
+    targetVisitors,
     detailsStage,
     detailsHistory,
     viewerStatusAtDetails,
