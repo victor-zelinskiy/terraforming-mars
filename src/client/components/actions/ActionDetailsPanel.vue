@@ -303,9 +303,17 @@ export default defineComponent({
     },
     // The reason hosted on the disabled-CTA premium tooltip (empty when actionable).
     ctaDisabledReason(): string {
-      // PICK MODE: a non-candidate can't be repeated — give the clear reason.
+      // PICK MODE: a non-candidate can't be repeated; a candidate whose focused
+      // branch can't run now shows that branch's specific reason (same as the grid
+      // + the normal overlay), so the player sees WHY it's blocked.
       if (this.pickMode) {
-        return this.pickSelectable ? '' : translateText('This action cannot be repeated');
+        if (!this.pickSelectable) {
+          return translateText('This action cannot be repeated');
+        }
+        if (this.branchPreviewPending) {
+          return translateText('Loading action details');
+        }
+        return this.ctaEnabled ? '' : this.branchReasonText;
       }
       if (this.branchPreviewPending) {
         return translateText('Loading action details');
@@ -461,10 +469,21 @@ export default defineComponent({
       return 'Go to confirmation';
     },
     ctaEnabled(): boolean {
-      // PICK MODE: the gate is "is this a repeat candidate", NOT the normal can-act
-      // state (every candidate was already activated this generation).
+      // PICK MODE: a repeat candidate, AND its focused branch must be performable
+      // RIGHT NOW (the SAME per-branch availability the normal overlay enforces) —
+      // so an action that can't currently run (e.g. needs absent floaters/microbes)
+      // can't be selected even though it's an activated reuse candidate.
       if (this.pickMode) {
-        return this.pickSelectable;
+        if (!this.pickSelectable) {
+          return false;
+        }
+        if (this.branchPreviewPending) {
+          return false;
+        }
+        if (this.preview !== undefined && this.selectedBranches.length === 0) {
+          return false;
+        }
+        return this.selectedBranch === undefined || this.selectedBranch.available || this.preview === undefined;
       }
       if (this.state?.status !== 'available') {
         return false;

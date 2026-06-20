@@ -368,8 +368,11 @@ export default defineComponent({
       if (this.model.targetNeedsChoice && this.rewardChoice === undefined) {
         return $t('Choose a reward');
       }
+      // A pos 7/9 card pick is MANDATORY — name what to choose first (the reward
+      // can't be skipped per the rules, so the CTA stays blocked until picked).
       if (this.model.mustSelectCard && this.model.selectedCard === undefined) {
-        return this.model.needsCardSelect === 'reuse-action' ? $t('Choose an action') : $t('Choose a card');
+        return this.model.needsCardSelect === 'reuse-action' ?
+          $t('First choose which action to repeat') : $t('First choose a card for the animals');
       }
       return $t('You cannot advance the track right now.');
     },

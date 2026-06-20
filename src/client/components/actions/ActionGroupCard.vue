@@ -200,15 +200,33 @@ export default defineComponent({
         .map((p) => preview.branches[p])
         .filter((b) => b !== undefined);
     },
+    // ALL preview branches mapping to a render node — like rowBranches but WITHOUT
+    // the single-node skip, so pick-mode can validate a single-render-node action's
+    // availability too (the SAME per-branch `available` the normal overlay uses).
+    nodeBranches(i: number): ReadonlyArray<ActionPreviewBranch> {
+      const preview = this.preview;
+      if (preview === undefined) {
+        return [];
+      }
+      return branchPositionsForNode(this.group, preview.branches, i)
+        .map((p) => preview.branches[p])
+        .filter((b) => b !== undefined);
+    },
     // PER-ROW status: a card-level block applies to every row; otherwise a SINGLE
     // branch can be 'rules' (unavailable) while its sibling stays 'available'.
     // In PICK-mode the card-level 'activated' state is IGNORED (the repeat candidates
     // were ALL used this gen — that's the point); only per-branch availability matters.
     rowStatus(i: number): ActionStatus {
-      // PICK MODE: a candidate is 'available' (it CAN be repeated); a non-candidate
-      // activated action is shown 'rules' (red) with a "can't repeat" reason.
+      // PICK MODE: a NON-candidate (not a reuse target) is always 'rules'. A
+      // candidate is validated against the SAME per-branch availability the normal
+      // overlay uses — if every branch for this node can't be performed RIGHT NOW
+      // (e.g. needs floaters/microbes that aren't there), it's 'rules', not green.
       if (this.pickMode) {
-        return this.pickSelectable ? 'available' : 'rules';
+        if (!this.pickSelectable) {
+          return 'rules';
+        }
+        const pickBranches = this.nodeBranches(i);
+        return pickBranches.length > 0 && pickBranches.every((b) => b.available === false) ? 'rules' : 'available';
       }
       if (this.state.status !== 'available') {
         return this.state.status;
@@ -222,9 +240,25 @@ export default defineComponent({
     // PER-ROW reason for the premium tooltip — card-level reason, else the branch's
     // own "why not", else empty (an available row shows no tooltip).
     rowReason(i: number): string {
-      // PICK MODE: a non-candidate shows the "can't repeat" reason; a candidate none.
+      // PICK MODE: a non-candidate shows the "can't repeat" reason; a candidate whose
+      // focused branch can't be performed now shows the branch's specific reason
+      // (same source as the normal overlay), else no tooltip.
       if (this.pickMode) {
-        return this.pickSelectable ? '' : translateText('This action cannot be repeated');
+        if (!this.pickSelectable) {
+          return translateText('This action cannot be repeated');
+        }
+        const pickBranches = this.nodeBranches(i);
+        if (pickBranches.length === 0 || pickBranches.some((b) => b.available)) {
+          return '';
+        }
+        return [...new Set(pickBranches.map((b) => {
+          const r = b.unavailableReason;
+          if (r === undefined) {
+            return translateText('Cannot activate');
+          }
+          const msg = typeof r === 'string' ? r : r.message;
+          return translateTextWithParams(msg, [...(b.unavailableReasonParams ?? [])]);
+        }))].join(' / ');
       }
       if (this.state.status !== 'available') {
         return this.reasonText;

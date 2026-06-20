@@ -59,12 +59,14 @@ function input(overrides: Partial<HydroModelInput> = {}): HydroModelInput {
 }
 
 describe('buildHydroModel (iteration 2)', () => {
-  it('defaults the selection to the max-legal target', () => {
-    const m = buildHydroModel(input());
-    expect(m.defaultSpend).eq(3);
-    expect(m.selectedPosition).eq(3);
+  it('defaults the selection to a SINGLE step (nearest area, never auto-jumps)', () => {
+    const m = buildHydroModel(input()); // energy 3, maxLegal 3
+    expect(m.defaultSpend).eq(1);
+    expect(m.selectedPosition).eq(1);
     expect(m.mode).eq('plan');
-    expect(m.selectedSpend).eq(3);
+    expect(m.selectedSpend).eq(1);
+    // The player can still raise the spend up to the energy-bounded max.
+    expect(m.stepperMax).eq(3);
   });
 
   it('previews a distant stage beyond energy (click), confirm blocked', () => {
@@ -201,7 +203,7 @@ describe('buildHydroModel (iteration 2)', () => {
     expect(m.targetVisitors.length).eq(0);
   });
 
-  it('gates confirm on a pos-9 animal target preselection', () => {
+  it('gates confirm on a pos-9 animal target preselection (mandatory — no skip)', () => {
     const base = input({
       preview: fullPreview(1, {
         currentPosition: 8, maxLegalSteps: 1, maxEnergySteps: 1, maxPreviewSteps: 3,
@@ -214,6 +216,7 @@ describe('buildHydroModel (iteration 2)', () => {
     const without = buildHydroModel(base);
     expect(without.needsCardSelect).eq('animal-target');
     expect(without.mustSelectCard).eq(true);
+    // The reward can't be skipped (rules) → confirm is BLOCKED until a card is picked.
     expect(without.canConfirm).eq(false);
     const withCard = buildHydroModel({...base, selectedCard: 'Birds' as never});
     expect(withCard.selectedCard).eq('Birds');
