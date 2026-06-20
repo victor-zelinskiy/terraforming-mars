@@ -3,6 +3,8 @@ import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import {actionsPickState, enterActionsPick, exitActionsPick} from '@/client/components/actions/actionsPickState';
+import {setActionPreview, setActionPreviewScope, resetActionsOverlay} from '@/client/components/actions/actionsOverlayState';
+import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -32,7 +34,10 @@ function factory() {
 }
 
 describe('ActionsOverlay pick-mode', () => {
-  afterEach(() => exitActionsPick());
+  afterEach(() => {
+    exitActionsPick();
+    resetActionsOverlay();
+  });
 
   it('is the FULL master-detail surface (pick strip + filters + details) and starts on Activated/All', async () => {
     enterActionsPick({
@@ -72,6 +77,33 @@ describe('ActionsOverlay pick-mode', () => {
     await cta.trigger('click');
     expect(actionsPickState.active).is.false;
     expect(component.emitted('close')).is.not.undefined;
+  });
+
+  it('a candidate whose branch is UNAVAILABLE per the preview is NOT selectable (CTA disabled + reason)', async () => {
+    enterActionsPick({
+      title: 'Perform an action from a played card again',
+      selectable: [CardName.SEARCH_FOR_LIFE],
+      onResolve: () => { /* noop */ },
+    });
+    // Inject a preview whose only branch can't run now (e.g. the deck is empty) —
+    // the SAME per-branch availability the normal overlay would show.
+    setActionPreviewScope('red');
+    setActionPreview(CardName.SEARCH_FOR_LIFE, {
+      card: CardName.SEARCH_FOR_LIFE,
+      branches: [{
+        index: 0, title: 'Reveal', available: false,
+        unavailableReason: 'Deck is empty', renderKeys: [], effects: [], steps: [],
+      }],
+    } as unknown as ActionPreview, 'red');
+
+    const component = factory();
+    await component.vm.$nextTick();
+    await component.vm.$nextTick();
+
+    // The details CTA is DISABLED (the focused branch is unavailable).
+    const cta = component.find('.actions-board__detail [data-test="action-detail-cta"]');
+    expect(cta.exists()).is.true;
+    expect(cta.attributes('disabled')).is.not.undefined;
   });
 
   it('a non-candidate activated action stays visible but NOT selectable (inert + reason)', async () => {

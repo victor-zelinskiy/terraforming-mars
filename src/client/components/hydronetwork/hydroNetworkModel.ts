@@ -153,8 +153,10 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
   const availableEnergy = preview?.availableEnergy ?? 0;
   const maxSpend = preview?.maxPreviewSteps ?? 0;
   const stepperMax = preview?.maxEnergySteps ?? 0;
-  const maxLegal = preview?.maxLegalSteps ?? 0;
-  const defaultSpend = maxLegal > 0 ? maxLegal : (maxSpend > 0 ? 1 : 0);
+  // Default to a SINGLE step (the nearest area) when any advance is possible, so
+  // the player never AUTO-jumps past areas — they raise the spend deliberately
+  // (prevents accidentally skipping a stage's reward). 0 only when nothing reachable.
+  const defaultSpend = maxSpend > 0 ? 1 : 0;
   const defaultTarget = currentPosition + defaultSpend;
 
   // Resolve the selected position.
@@ -251,6 +253,8 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
   const mustSelectCard = needsCardSelect !== undefined && eligibleCardNames.length > 0;
   const selectedCard =
     input.selectedCard !== undefined && eligibleCardNames.includes(input.selectedCard) ? input.selectedCard : undefined;
+  // A pos 7/9 card pick is MANDATORY before confirm (the reward can't be skipped
+  // per the rules) — the CTA stays disabled with a "choose first" reason until picked.
   const cardSelectSatisfied = !mustSelectCard || selectedCard !== undefined;
 
   const choiceSatisfied = !targetNeedsChoice || input.rewardChoice !== undefined;
