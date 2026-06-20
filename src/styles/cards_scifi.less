@@ -1073,6 +1073,24 @@
             user-select: none;
         }
 
+        /*
+         * RU word operator («от / до / минимум / максимум»). A Cyrillic word is
+         * far wider than a ≥/≤ glyph, so it renders at a smaller, slightly
+         * muted type size to keep the compact requirement plate from growing —
+         * the numeric value (.card-req-value) stays the prominent 18px token.
+         * No baseline nudge (top: 0) since the word has no glyph drop.
+         */
+        .card-req-operator--word {
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.92);
+            letter-spacing: 0;
+            margin-right: 2px;
+            top: 0;
+            text-transform: none;
+            white-space: nowrap;
+        }
+
         .card-req-value {
             font-family: "Russo One", "Anton", Prototype, Ubuntu, sans-serif;
             font-size: 18px;
