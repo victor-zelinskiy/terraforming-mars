@@ -1,5 +1,3 @@
-import {RequirementType} from './RequirementType';
-
 /**
  * The comparison a requirement expresses against its numeric value.
  *
@@ -9,33 +7,6 @@ import {RequirementType} from './RequirementType';
  */
 export type ComparatorKind = 'min' | 'max' | 'gt' | 'lt' | 'eq';
 
-/**
- * How a requirement reads in plain Russian:
- * - `global` — a position on a scale / track (Venus, oxygen, temperature,
- *   oceans, TR, Moon rates) → «от / до».
- * - `quantity` — a count of objects you must have (tags, tiles, colonies,
- *   resources, production, …) → «минимум / максимум».
- */
-export type RequirementScale = 'global' | 'quantity';
-
-// Global-parameter / track requirements read naturally as "от / до" (a point
-// on a scale). Everything else is a count of things and reads as
-// "минимум / максимум" (an amount you must have).
-const GLOBAL_SCALE_TYPES: ReadonlySet<RequirementType> = new Set([
-  RequirementType.OXYGEN,
-  RequirementType.TEMPERATURE,
-  RequirementType.OCEANS,
-  RequirementType.VENUS,
-  RequirementType.TR,
-  RequirementType.HABITAT_RATE,
-  RequirementType.MINING_RATE,
-  RequirementType.LOGISTIC_RATE,
-]);
-
-export function requirementScale(type: RequirementType): RequirementScale {
-  return GLOBAL_SCALE_TYPES.has(type) ? 'global' : 'quantity';
-}
-
 const COMPARATOR_SYMBOLS: Readonly<Record<ComparatorKind, string>> = {
   min: '≥', // ≥
   max: '≤', // ≤
@@ -44,23 +15,42 @@ const COMPARATOR_SYMBOLS: Readonly<Record<ComparatorKind, string>> = {
   eq: '=',
 };
 
-const RU_COMPARATOR_WORDS: Readonly<Record<RequirementScale, Record<ComparatorKind, string>>> = {
-  global: {min: 'от', max: 'до', gt: 'больше', lt: 'меньше', eq: 'ровно'},
-  quantity: {min: 'минимум', max: 'максимум', gt: 'больше', lt: 'меньше', eq: 'ровно'},
+// Russian renders every requirement comparison as a short word. Inclusive
+// thresholds are uniform — «от» for "≥ N" and «до» for "≤ N" — regardless of
+// whether the requirement is a global parameter or an object count (the earlier
+// «минимум / максимум» split for counts was dropped: «от / до» is shorter and
+// reads consistently everywhere). Strict comparisons keep «больше / меньше» and
+// equality keeps «ровно».
+const RU_COMPARATOR_WORDS: Readonly<Record<ComparatorKind, string>> = {
+  min: 'от',
+  max: 'до',
+  gt: 'больше',
+  lt: 'меньше',
+  eq: 'ровно',
 };
+
+/**
+ * Whether a comparator renders as a short inclusive word («от» / «до»).
+ *
+ * Only meaningful for the RU locale; drives the larger, prominent type size on
+ * the requirement plate (the strict / equality words stay compact).
+ */
+export function isInclusiveComparator(kind: ComparatorKind): boolean {
+  return kind === 'min' || kind === 'max';
+}
 
 /**
  * Render-layer label for a requirement's comparison.
  *
- * Russian replaces the math glyphs with short words («от / до» for
- * global-parameter scales, «минимум / максимум» for counts) so the requirement
- * reads as plain language; every other locale keeps the compact ≥/≤/>/</=
- * glyphs. DISPLAY-ONLY — this never affects the numeric value, the requirement
- * model, or playability logic.
+ * Russian replaces the math glyphs with short words («от» = ≥, «до» = ≤,
+ * «больше» = >, «меньше» = <, «ровно» = =) so the requirement reads as plain
+ * language; every other locale keeps the compact ≥/≤/>/</= glyphs.
+ * DISPLAY-ONLY — this never affects the numeric value, the requirement model,
+ * or playability logic.
  */
-export function comparatorLabel(kind: ComparatorKind, scale: RequirementScale, lang: string): string {
+export function comparatorLabel(kind: ComparatorKind, lang: string): string {
   if (lang === 'ru') {
-    return RU_COMPARATOR_WORDS[scale][kind];
+    return RU_COMPARATOR_WORDS[kind];
   }
   return COMPARATOR_SYMBOLS[kind];
 }

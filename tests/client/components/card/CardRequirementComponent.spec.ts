@@ -76,13 +76,13 @@ describe('CardRequirementComponent', () => {
     });
   });
 
-  describe('RU locale replaces math glyphs with words (display only)', () => {
+  describe('RU locale replaces math glyphs with uniform «от / до» (display only)', () => {
     beforeEach(() => {
       PreferencesManager.resetForTest();
       PreferencesManager.INSTANCE.set('lang', 'ru');
     });
 
-    it('global-parameter minimum reads «от N» — no glyph, value unchanged', () => {
+    it('global-parameter minimum reads «от N» — no glyph, value unchanged, prominent operator', () => {
       const wrapper = shallowMount(CardRequirementComponent, {
         ...globalConfig,
         props: {
@@ -95,7 +95,8 @@ describe('CardRequirementComponent', () => {
       expect(text).to.not.include('≥');
       expect(text).to.not.include('≤');
       expect(wrapper.find('.card-venus--req').exists()).to.be.true;
-      expect(wrapper.find('.card-req-operator--word').exists()).to.be.true;
+      // Inclusive «от» gets the prominent modifier.
+      expect(wrapper.find('.card-req-operator--inclusive').exists()).to.be.true;
     });
 
     it('global-parameter maximum reads «до N»', () => {
@@ -111,7 +112,7 @@ describe('CardRequirementComponent', () => {
       expect(text).to.not.include('≤');
     });
 
-    it('oceans read as a global scale («от N»)', () => {
+    it('oceans read as «от N»', () => {
       const wrapper = shallowMount(CardRequirementComponent, {
         ...globalConfig,
         props: {
@@ -122,7 +123,7 @@ describe('CardRequirementComponent', () => {
       expect(wrapper.text()).to.include('3');
     });
 
-    it('quantity minimum (tag) reads «минимум N»', () => {
+    it('tag minimum reads «от N» (not «минимум N»)', () => {
       const wrapper = shallowMount(CardRequirementComponent, {
         ...globalConfig,
         props: {
@@ -130,12 +131,14 @@ describe('CardRequirementComponent', () => {
         },
       });
       const text = wrapper.text();
-      expect(text).to.include('минимум');
+      expect(text).to.include('от');
       expect(text).to.include('3');
+      expect(text).to.not.include('минимум');
       expect(text).to.not.include('≥');
+      expect(wrapper.find('.card-req-operator--inclusive').exists()).to.be.true;
     });
 
-    it('quantity maximum (cities) reads «максимум N»', () => {
+    it('cities maximum reads «до N» (not «максимум N»)', () => {
       const wrapper = shallowMount(CardRequirementComponent, {
         ...globalConfig,
         props: {
@@ -143,12 +146,13 @@ describe('CardRequirementComponent', () => {
         },
       });
       const text = wrapper.text();
-      expect(text).to.include('максимум');
+      expect(text).to.include('до');
       expect(text).to.include('1');
+      expect(text).to.not.include('максимум');
       expect(text).to.not.include('≤');
     });
 
-    it('production requirement reads «минимум N» with the production icon', () => {
+    it('production requirement reads «от N» with the production icon', () => {
       const wrapper = shallowMount(CardRequirementComponent, {
         ...globalConfig,
         props: {
@@ -156,8 +160,9 @@ describe('CardRequirementComponent', () => {
         },
       });
       const text = wrapper.text();
-      expect(text).to.include('минимум');
+      expect(text).to.include('от');
       expect(text).to.include('1');
+      expect(text).to.not.include('минимум');
       expect(wrapper.find('.card-production-box--req').exists()).to.be.true;
     });
   });

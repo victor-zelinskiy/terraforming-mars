@@ -17,7 +17,7 @@
               </div>
             </div>
           </div>
-          <span class="card-req-operator" :class="{'card-req-operator--word': wordOperator}">{{ operator }}</span>
+          <span class="card-req-operator" :class="operatorClasses">{{ operator }}</span>
           <span class="card-req-value">{{ count }}</span>
         </template>
         <!-- PARTY: specific party must rule / be allied — CardParty handles the visual, no threshold -->
@@ -27,7 +27,7 @@
         <!-- Standard countable: [icon] [≥/≤ | от/до/минимум/максимум] [value][suffix] -->
         <template v-else>
           <div :class="componentClasses"></div>
-          <span class="card-req-operator" :class="{'card-req-operator--word': wordOperator}">{{ operator }}</span>
+          <span class="card-req-operator" :class="operatorClasses">{{ operator }}</span>
           <span class="card-req-value">{{ amount }}{{ suffix }}</span>
         </template>
       </div>
@@ -39,7 +39,7 @@
 import {defineComponent} from 'vue';
 import {CardRequirementDescriptor, requirementType} from '@/common/cards/CardRequirementDescriptor';
 import {RequirementType} from '@/common/cards/RequirementType';
-import {comparatorLabel, requirementScale} from '@/common/cards/requirementComparator';
+import {ComparatorKind, comparatorLabel, isInclusiveComparator} from '@/common/cards/requirementComparator';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import CardParty from '@/client/components/card/CardParty.vue';
 import {PartyName} from '@/common/turmoil/PartyName';
@@ -73,20 +73,31 @@ export default defineComponent({
       }
       return this.requirement.count ?? 0;
     },
+    // The comparison kind. Card data only carries `max`, so on cards this is
+    // always 'min' (≥) or 'max' (≤).
+    comparatorKind(): ComparatorKind {
+      return this.requirement.max ? 'max' : 'min';
+    },
     // Threshold operator. English (and every non-RU locale) keeps the compact
-    // math glyphs (≥ for minimums, ≤ for maximums). Russian replaces them with
-    // short words — «от / до» for global-parameter scales, «минимум / максимум»
-    // for object counts — so the requirement reads as plain language while the
+    // math glyphs (≥ / ≤). Russian replaces them with short words — «от» (≥) /
+    // «до» (≤) uniformly — so the requirement reads as plain language while the
     // icon and the numeric value are untouched (display-only).
     // Binary types (REMOVED_PLANTS, PARTY, CHAIRMAN) are handled in the template separately.
     operator(): string {
-      const kind = this.requirement.max ? 'max' : 'min';
-      return comparatorLabel(kind, requirementScale(this.type), getPreferences().lang);
+      return comparatorLabel(this.comparatorKind, getPreferences().lang);
     },
-    // True when the operator is rendered as a word (RU) rather than a glyph —
-    // drives a smaller type size so a long word like «минимум» stays compact.
+    // True when the operator is rendered as a word (RU) rather than a glyph.
     wordOperator(): boolean {
       return getPreferences().lang === 'ru';
+    },
+    // CSS classes for the operator span. `--word` carries the base RU word
+    // styling; `--inclusive` additionally promotes the short «от / до» words to
+    // a prominent, value-sized token (the strict/equality words stay compact).
+    operatorClasses(): Record<string, boolean> {
+      return {
+        'card-req-operator--word': this.wordOperator,
+        'card-req-operator--inclusive': this.wordOperator && isInclusiveComparator(this.comparatorKind),
+      };
     },
     // Numeric threshold — always the raw count value.
     amount(): number {
