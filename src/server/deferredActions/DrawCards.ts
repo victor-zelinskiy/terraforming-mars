@@ -8,6 +8,32 @@ import {CardType} from '../../common/cards/CardType';
 import {ChooseCards, ChooseOptions, LogType, keep} from './ChooseCards';
 import {CardDrawRevealSource} from '../../common/models/CardDrawRevealModel';
 
+/**
+ * Best-effort attribution for the "you drew cards" reveal modal when the caller
+ * didn't pass an explicit `source`: derive it from the ACTIVE analytics scope
+ * (the card / corporation / standard-project / colony whose action or effect is
+ * running right now). This is the SAME context `recordCardsDrawn` resolves the
+ * draw against, so a card-action draw (Mars University, Factorum, Olympus
+ * Conference, …) — and any future one — names its source with no per-call-site
+ * change. An explicit `options.source` always wins; no scope → generic text.
+ */
+function revealSourceFromContext(player: IPlayer): CardDrawRevealSource | undefined {
+  const source = player.game?.events?.captureContext()?.source;
+  if (source === undefined) {
+    return undefined;
+  }
+  switch (source.kind) {
+  case 'card':
+  case 'corporation':
+  case 'standardProject':
+    return {type: 'card', cardName: source.card};
+  case 'colony':
+    return {type: 'colony', colonyName: source.name};
+  default:
+    return undefined;
+  }
+}
+
 export type DrawOptions = {
   tag?: Tag,
   resource?: CardResource,
@@ -74,8 +100,10 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       // This is exactly the "effect draws and keeps every card" path — the
       // player never sees a selection prompt, so surface the cards in the
       // reveal modal. keepSome / ChooseCards (research / buy / keep-some) go
-      // through their own SelectCard and never reach here.
-      player.enqueueCardDrawReveal(cards, options?.source);
+      // through their own SelectCard and never reach here. The source is the
+      // caller's explicit one, else the active scope's card/colony — so the
+      // modal ALWAYS names where the draw came from when it's known.
+      player.enqueueCardDrawReveal(cards, options?.source ?? revealSourceFromContext(player));
     });
   }
 

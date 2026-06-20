@@ -1,6 +1,9 @@
 <template>
     <div class="card-extra-content-container">
-      <div v-if="lifeFound()" class="little-green-men" />
+      <!-- The legacy "little green men" alien sprite (Search for Life with a
+           resource) was removed fork-wide: it covered the card art and read as an
+           out-of-place placeholder. The science-resource counter already conveys
+           "life found". -->
       <div v-if="isMiningTileOnSteel()" class="mined-metal mined-steel" />
       <div v-if="isMiningTileOnTitanium()" class="mined-metal mined-titanium" />
     </div>
@@ -27,9 +30,6 @@ export default defineComponent({
     },
     isMiningTileOnTitanium() {
       return this.card.name !== CardName.SPECIALIZED_SETTLEMENT && this.card.bonusResource?.includes(Resource.TITANIUM);
-    },
-    lifeFound() {
-      return this.card.name === CardName.SEARCH_FOR_LIFE && this.card.resources !== undefined && this.card.resources > 0;
     },
   },
 });

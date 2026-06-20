@@ -874,14 +874,12 @@
 .additional-resource-detail__progress--reached .additional-resource-detail__progress-fill { .vp-progress-fill-reached-style(); }
 .additional-resource-detail__progress--reached .additional-resource-detail__progress-text { .vp-progress-text-reached-style(); }
 
-/* Search-for-Life-style cards: drop the legacy on-card "alien" chrome in the
-   overlay — the premium status marker in the footer supersedes it. Covers the
-   `.little-green-men` martian sprite (CardExtraContent, shown once life is
-   found) AND the on-card resource counter / VP sprite. All are
-   position:absolute, so hiding leaves no gap; selectors out-specify their
-   top-level / `.card-container` bases. */
+/* Search-for-Life-style cards: drop the legacy on-card chrome in the overlay —
+   the premium status marker in the footer supersedes it. Covers the on-card
+   resource counter / VP sprite (the `.little-green-men` martian sprite was
+   removed fork-wide). Both are position:absolute, so hiding leaves no gap;
+   selectors out-specify their `.card-container` bases. */
 .additional-resource-detail__card--special {
-    .little-green-men,
     .card-container .card-resources-counter,
     .card-container .card-points {
         display: none;

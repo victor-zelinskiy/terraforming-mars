@@ -2138,6 +2138,61 @@
     text-transform: uppercase;
 }
 
+/* ─── Trade-offset block (Trade Agent / Trading Colony / Trade Envoys) ─────────
+   The colony track advances BEFORE the reward is read, so the "You receive" glyph
+   above is the HIGHER reward. A calm cyan callout makes that explicit: how far the
+   track moves (+N) and what the reward would have been without the advance — so the
+   bigger reward is understood, not a surprise. */
+.colony-trade-pay__track-offset {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+    padding: 7px 11px;
+    border-radius: 7px;
+    background: rgba(64, 156, 214, 0.10);
+    border: 1px solid rgba(96, 178, 230, 0.30);
+}
+.colony-trade-pay__track-offset-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    color: #aaccec;
+}
+.colony-trade-pay__track-offset-arrow {
+    color: #6ec1ff;
+    font-size: 12px;
+    line-height: 1;
+}
+.colony-trade-pay__track-offset-steps {
+    font-weight: 700;
+    color: #9ce0ff;
+    background: rgba(96, 178, 230, 0.20);
+    border-radius: 5px;
+    padding: 1px 7px;
+    font-size: 12px;
+}
+.colony-trade-pay__track-offset-base {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0.72;
+}
+.colony-trade-pay__track-offset-base-label {
+    font-size: 10px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #8197ac;
+}
+/* The without-advance reward reads as a muted "before" — smaller + dimmed so the
+   primary "You receive" (the actual reward) stays the focus. */
+.colony-trade-pay__track-offset-base .benefit-glyph {
+    filter: grayscale(0.35);
+    transform: scale(0.92);
+}
+
 /* ─── Secondary "who else gets the colony bonus" block ─────────────────────
    Deliberately quieter than the colony summary (smaller label, flat tinted
    inset, no amber title) so it informs without competing with the payment

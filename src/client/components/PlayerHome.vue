@@ -682,6 +682,7 @@
                                :options="pendingTradeColony.paymentOptions"
                                :disabledOptions="pendingTradeColony.disabledPayments"
                                :players="playerView.players"
+                               :tradeOffset="playerView.thisPlayer.colonyTradeOffset"
                                @select="onColonyTradePaymentSelected($event)"
                                @cancel="onColonyTradePaymentCancel" />
     </MandatoryInputModal>

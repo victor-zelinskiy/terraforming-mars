@@ -57,6 +57,41 @@ describe('ColonyTradePaymentModal — premium trade payment', () => {
     expect(w.find('[data-test="colony-trade-pay-opt-1"]').exists()).to.eq(false);
   });
 
+  it('shows the track-offset block (track +N) when the player has a trade offset', () => {
+    // IO's trade track has a different reward per position, so a +1 offset both
+    // advances the track AND changes the reward → the without-advance line shows.
+    const w = factory({
+      colony: {trackPosition: 0, colonies: []},
+      colonyName: ColonyName.IO,
+      options: [affordable],
+      tradeOffset: 1,
+    });
+    const block = w.find('[data-test="colony-trade-track-offset"]');
+    expect(block.exists()).to.eq(true);
+    expect(block.text()).to.include('+1');
+  });
+
+  it('no track-offset block when the player has no trade offset', () => {
+    const w = factory({
+      colony: {trackPosition: 0, colonies: []},
+      colonyName: ColonyName.IO,
+      options: [affordable],
+      tradeOffset: 0,
+    });
+    expect(w.find('[data-test="colony-trade-track-offset"]').exists()).to.eq(false);
+  });
+
+  it('caps the track advance at the track maximum (no over-advance shown)', () => {
+    // Already at the max track position → the offset can't advance it further.
+    const w = factory({
+      colony: {trackPosition: 6, colonies: []},
+      colonyName: ColonyName.IO,
+      options: [affordable],
+      tradeOffset: 2,
+    });
+    expect(w.find('[data-test="colony-trade-track-offset"]').exists()).to.eq(false);
+  });
+
   it('cancel emits without selecting', async () => {
     let cancelled = false;
     const w = factory({options: [affordable]}, () => {}, () => {

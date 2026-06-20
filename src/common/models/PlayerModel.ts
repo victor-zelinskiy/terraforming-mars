@@ -115,6 +115,11 @@ export type PublicPlayerModel = {
   titaniumProduction: number;
   titaniumValue: number;
   tradesThisGeneration: number;
+  // Total colony-track trade OFFSET this player has (Σ behavior.colonies.tradeOffset —
+  // Trade Agent / Trading Colony / Trade Envoys). When > 0 a trade FIRST advances the
+  // colony's track by this much, so the player gets the reward at the HIGHER position.
+  // Exposed so the trade-confirm modal can show "track +N → better reward".
+  colonyTradeOffset: number;
   underworldData: UnderworldPlayerData,
   victoryPointsBreakdown: VictoryPointsBreakdown;
   victoryPointsByGeneration: ReadonlyArray<number>;

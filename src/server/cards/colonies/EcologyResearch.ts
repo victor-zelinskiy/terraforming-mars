@@ -62,13 +62,20 @@ export class EcologyResearch extends Card implements IProjectCard {
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const extra: Array<ActionEffect> = [];
     const steps: Array<ActionPreviewStep | undefined> = [];
+    // For EACH addition: show the gain chip + target picker when an eligible card
+    // exists, else a WARNING that the resource is lost for lack of a target — never
+    // silently skip (mirrors the systemic no-silent-loss rule for declarative cards).
     if (player.getResourceCards(CardResource.ANIMAL).length > 0) {
       extra.push(actionPreviews.cardResourceGain(CardResource.ANIMAL, 1));
       steps.push(actionPreviews.addToCardStep(player, CardResource.ANIMAL, {count: 1}));
+    } else {
+      steps.push(actionPreviews.warningNote('No eligible card — this resource is not added.', CardResource.ANIMAL));
     }
     if (player.getResourceCards(CardResource.MICROBE).length > 0) {
       extra.push(actionPreviews.cardResourceGain(CardResource.MICROBE, 2));
       steps.push(actionPreviews.addToCardStep(player, CardResource.MICROBE, {count: 2}));
+    } else {
+      steps.push(actionPreviews.warningNote('No eligible card — this resource is not added.', CardResource.MICROBE));
     }
     return actionPreviews.playPreview(this, player, extra, steps);
   }

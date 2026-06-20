@@ -652,6 +652,19 @@ describe('cardPlayPreview', () => {
       expect(inputs[0].kind === 'input' && inputs[0].input.type).eq('card');
       expect(inputs[1].kind === 'input' && inputs[1].input.type).eq('card');
     });
+
+    it('EcologyResearch: no animal/microbe card → WARNING notes (no silent loss), no gain chips', () => {
+      const [/* game */, player] = testGame(2);
+      // No animal- or microbe-holding card in play — both additions would be lost.
+      const branch = new EcologyResearch().cardPlayPreview(player).branches[0];
+      // No misleading "to a card" gain chips.
+      expect(branch.effects.some((e) => e.note === 'to a card'), 'no fake gain chips').is.false;
+      // Two WARNING note steps naming the lost resources by their icon keys.
+      const warnings = branch.steps.filter((s) => s.kind === 'note' && s.noteKind === 'warning');
+      expect(warnings).has.length(2);
+      const resources = warnings.map((w) => (w as {resource?: string}).resource);
+      expect(resources).to.have.members(['animal', 'microbe']);
+    });
   });
 
   // Cards that override `play()` DIRECTLY (not `behavior`/`bespokePlay`) — the

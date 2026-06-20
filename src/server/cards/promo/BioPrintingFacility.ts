@@ -25,18 +25,22 @@ export class BioPrintingFacility extends Card implements IActionCard, IProjectCa
 
       metadata: {
         cardNumber: 'X36',
-        // TWO action boxes (not one box with an internal OR), so the ДЕЙСТВИЯ overlay
+        // TWO action boxes (not one box with an internal OR) STACKED VERTICALLY with
+        // an `or` divider between them (mirrors RegolithEaters), so the ДЕЙСТВИЯ overlay
         // renders the card as TWO separate, individually-selectable action rows (the
-        // fork's split-action model — like Rotator Impacts) instead of one row that
-        // forces a branch choice INSIDE the confirm modal. Each box maps to its own
-        // preview branch (per-row select → its own confirm + per-branch stats). The
-        // 2 energy cost is shown on BOTH boxes (each branch spends it).
+        // fork's split-action model) instead of one row that forces a branch choice
+        // INSIDE the confirm modal. Each box maps to its own preview branch (per-row
+        // select → its own confirm + per-branch stats). The 2 energy cost is shown on
+        // BOTH boxes (each branch spends it). The `.br` between boxes is load-bearing:
+        // without it the two boxes render SIDE BY SIDE and overflow the card width
+        // (their descriptions never wrap) — the bug this layout fixes.
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 2 energy to gain 2 plants.', (eb) => {
             eb.energy(2, {digit}).startAction.plants(2);
-          });
+          }).br;
+          b.or().br;
           b.action('Spend 2 energy to add 1 animal to ANOTHER card.', (eb) => {
-            eb.or().energy(2, {digit}).startAction.resource(CardResource.ANIMAL).asterix();
+            eb.energy(2, {digit}).startAction.resource(CardResource.ANIMAL).asterix();
           });
         }),
       },
