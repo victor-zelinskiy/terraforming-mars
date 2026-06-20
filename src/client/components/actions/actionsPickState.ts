@@ -1,6 +1,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
+import {AvailabilityFilter, ActivationFilter} from '@/client/components/actions/actionModel';
 
 /**
  * PICK MODE state for the ДЕЙСТВИЯ (Actions) overlay — the dedicated surface for
@@ -24,6 +25,11 @@ type ActionsPickState = {
   title: string | Message;
   // Bumped per distinct prompt so a watcher can tell a fresh pick from a re-enter.
   signature: string;
+  // Pick-mode's OWN faceted filters (kept separate from the normal overlay's
+  // persisted filters so a pick doesn't clobber the player's browse prefs). The
+  // pick is about ALREADY-USED actions, so it starts on Activated / All.
+  availability: AvailabilityFilter;
+  activation: ActivationFilter;
 };
 
 export const actionsPickState = reactive<ActionsPickState>({
@@ -31,6 +37,8 @@ export const actionsPickState = reactive<ActionsPickState>({
   selectable: [],
   title: '',
   signature: '',
+  availability: 'all',
+  activation: 'activated',
 });
 
 // The resolve callback is held OUTSIDE the reactive object (a function isn't
@@ -47,6 +55,9 @@ export function enterActionsPick(opts: {
   actionsPickState.title = opts.title;
   actionsPickState.selectable = [...opts.selectable];
   actionsPickState.signature = [...opts.selectable].sort().join(',');
+  // Reset to the pick defaults for every fresh pick (Activated + All).
+  actionsPickState.availability = 'all';
+  actionsPickState.activation = 'activated';
   resolveCb = opts.onResolve;
 }
 

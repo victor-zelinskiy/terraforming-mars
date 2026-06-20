@@ -19,6 +19,9 @@ export const hydroNetworkState = reactive<{
   rewardChoice: number | undefined;
   /** Pre-collected target card for a card-pick reward (pos 7 / pos 9). */
   selectedCard: CardName | undefined;
+  /** Set while a pos 7/9 pick is delegated to the ДЕЙСТВИЯ / РАЗЫГРАНО overlay,
+   *  so PlayerHome restores this overlay when the pick resolves or is abandoned. */
+  awaitingPick: 'reuse-action' | 'animal-target' | undefined;
   /** Cache scope key (generation + viewed colour) for the fetched preview. */
   previewScope: string | undefined;
   preview: DeltaTrackPreviewModel | undefined;
@@ -28,6 +31,7 @@ export const hydroNetworkState = reactive<{
   selectedPosition: -1,
   rewardChoice: undefined,
   selectedCard: undefined,
+  awaitingPick: undefined,
   previewScope: undefined,
   preview: undefined,
   previewColor: undefined,
@@ -38,4 +42,5 @@ export function resetHydroPlan(): void {
   hydroNetworkState.selectedPosition = -1;
   hydroNetworkState.rewardChoice = undefined;
   hydroNetworkState.selectedCard = undefined;
+  hydroNetworkState.awaitingPick = undefined;
 }

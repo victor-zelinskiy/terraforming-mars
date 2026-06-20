@@ -466,6 +466,8 @@
       :viewerId="playerView.id"
       :actionAvailable="hydroActionAvailable"
       :cacheKey="String(game.generation)"
+      @pick-action="onHydroPickAction"
+      @pick-played-card="onHydroPickPlayedCard"
       @confirm="submitHydroAdvance($event)"
       @close="activeOverlay = null" />
 
@@ -1086,8 +1088,12 @@ export default defineComponent({
       hydroNetworkState.open = newVal === 'hydronetwork';
       // Genuinely closing the Гидросеть overlay (not a polling remount, which
       // re-arms it) resets the plan so it snaps back to the max-legal default
-      // next time it opens.
-      if (oldVal === 'hydronetwork' && newVal !== 'hydronetwork') {
+      // next time it opens. EXCEPTION: when `awaitingPick` is set the player is
+      // only DELEGATING to a pick-overlay (ДЕЙСТВИЯ / РАЗЫГРАНО) and will return —
+      // resetting here would wipe `awaitingPick` (so the restore branch below could
+      // never fire) AND the in-progress plan (selectedPosition/selectedCard). The
+      // plan is reset only on a TRUE close (awaitingPick undefined).
+      if (oldVal === 'hydronetwork' && newVal !== 'hydronetwork' && hydroNetworkState.awaitingPick === undefined) {
         resetHydroPlan();
       }
       // Leaving the КАРТЫ В РУКЕ overlay (close, or switching to another
@@ -1126,6 +1132,17 @@ export default defineComponent({
       // activeOverlay, so this only fires on an ABANDONED pick.
       if (newVal !== 'actions' && actionsPickState.active) {
         cancelActionsPick();
+      }
+      // A Гидросеть-initiated pick (pos 7 action / pos 9 animal card) just ended.
+      // On RESOLVE its callback already cleared `awaitingPick` + reopened the
+      // Гидросеть overlay; on an ABANDONED pick the flag is still set and the pick
+      // state is now inactive — return the player to the Гидросеть overlay where
+      // they left off (its plan state survives in hydroNetworkState).
+      if (hydroNetworkState.awaitingPick !== undefined && !actionsPickState.active && !playedCardsPickState.active) {
+        hydroNetworkState.awaitingPick = undefined;
+        if (newVal !== 'hydronetwork') {
+          this.activeOverlay = 'hydronetwork';
+        }
       }
     },
     /*
@@ -2667,6 +2684,45 @@ export default defineComponent({
         onResolve: (card, nodeIndex) => deliverActionRepeatPick(card, nodeIndex),
       });
       this.activeOverlay = 'actions';
+    },
+    // The Гидросеть overlay's pos-7 reward (reuse a used blue-card action) — open
+    // the ДЕЙСТВИЯ overlay in pick-mode (the SAME surface as Viron), then return
+    // to the Гидросеть overlay with the chosen action card stored in state. The
+    // overlay restores on resolve here, and on an abandoned pick via the
+    // activeOverlay watcher's `awaitingPick` branch.
+    onHydroPickAction(req: {title: string | Message, selectable: ReadonlyArray<CardName>}): void {
+      this.selectedPlayerColor = undefined; // own seat — the actions are your own
+      hydroNetworkState.awaitingPick = 'reuse-action';
+      // The callback ONLY records the chosen card. The overlay then emits `close`
+      // (→ activeOverlay=null), and the activeOverlay watcher's `awaitingPick`
+      // branch restores the Гидросеть overlay — for BOTH resolve and cancel,
+      // uniformly. (Restoring activeOverlay HERE would be clobbered by that close.)
+      enterActionsPick({
+        title: req.title,
+        selectable: req.selectable,
+        onResolve: (card) => {
+          hydroNetworkState.selectedCard = card;
+        },
+      });
+      this.activeOverlay = 'actions';
+    },
+    // The Гидросеть overlay's pos-9 reward (add 2 animals to a card) — open the
+    // РАЗЫГРАНО overlay in pick-mode, then return to the Гидросеть overlay.
+    onHydroPickPlayedCard(req: {title: string | Message, selectable: ReadonlyArray<CardName>}): void {
+      this.selectedPlayerColor = undefined; // own seat — the cards are your own
+      hydroNetworkState.awaitingPick = 'animal-target';
+      // ONLY record the chosen card here; the overlay's `close` + the activeOverlay
+      // watcher's `awaitingPick` branch restore the Гидросеть overlay (resolve AND
+      // cancel) — see onHydroPickAction.
+      enterPlayedCardsPick({
+        title: req.title,
+        selectable: req.selectable,
+        reasonMode: 'resource',
+        onResolve: (card) => {
+          hydroNetworkState.selectedCard = card;
+        },
+      });
+      this.activeOverlay = 'played';
     },
     // The player chose an action X to repeat from the PLAY modal (ProjectInspection):
     // build the outer prefix [play ProjectInspection wrapped, {card:[X]}] and open

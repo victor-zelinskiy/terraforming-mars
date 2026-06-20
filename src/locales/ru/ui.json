@@ -782,6 +782,7 @@
     "Choose another card": "Выбрать другую карту",
     "Choose a card on your board": "Выберите карту на своём поле",
     "Choose an action to repeat": "Выберите действие для повтора",
+    "This action cannot be repeated": "Это действие нельзя выполнить повторно",
     "Choose": "Выбрать",
     "This card cannot hold resources": "Не хранит ресурсы",
     "This card holds a different resource": "Другой тип ресурса",

@@ -69,21 +69,36 @@
         <span v-i18n>The occupied 2 VP position is leapt over to reach the 5 VP slot.</span>
       </div>
 
-      <!-- Preselection: choose the target card / action BEFORE confirm (pos 7 / 9). -->
-      <div v-if="model.needsCardSelect && model.eligibleCardNames.length > 0" class="hydro-action__preselect">
+      <!-- Preselection BEFORE confirm (pos 7 / 9): always via the dedicated premium
+           pick-mode overlay — ДЕЙСТВИЯ for the reuse-action, РАЗЫГРАНО for the
+           animal target. No inline tile grid (the >3 threshold is not used here). -->
+      <div v-if="model.needsCardSelect" class="hydro-action__preselect">
         <span class="hydro-action__preselect-label" v-i18n>{{ preselectLabel }}</span>
-        <span class="hydro-action__preselect-cards">
-          <button v-for="c in eligibleCards" :key="c.name"
-                  type="button" class="hydro-action__pick"
-                  :class="{'hydro-action__pick--selected': model.selectedCard === c.name}"
-                  @click="$emit('select-card', c.name)">
-            <span class="hydro-action__pick-name" v-i18n>{{ c.name }}</span>
-            <span v-if="c.current !== undefined" class="hydro-action__pick-cur">
-              <span class="card-resource card-resource-animal" aria-hidden="true"></span>{{ c.current }}
+        <template v-if="model.eligibleCardNames.length > 0">
+          <span v-if="model.selectedCard !== undefined" class="hydro-action__picked">
+            <!-- The chosen action / card name is an interactive chip: hover → a
+                 card preview popover, click → fullscreen (the fork's universal
+                 JournalCardChip, reused outside the journal). -->
+            <JournalCardChip :name="model.selectedCard" />
+            <span v-if="selectedAnimalCurrent !== undefined" class="hydro-action__pick-cur">
+              <span class="card-resource card-resource-animal" aria-hidden="true"></span>{{ selectedAnimalCurrent }}
             </span>
-            <span class="hydro-action__pick-tick" aria-hidden="true">✓</span>
+            <span class="hydro-action__picked-tick" aria-hidden="true">✓</span>
+          </span>
+          <button type="button" class="hydro-action__pick-btn" @click="openPick">
+            <span v-i18n>{{ model.selectedCard !== undefined ? 'Change selection' : pickButtonLabel }}</span>
+          </button>
+        </template>
+        <span v-else class="hydro-action__pick-disabled" :data-hint="noCandidatesHint">
+          <button type="button" class="hydro-action__pick-btn" disabled>
+            <span v-i18n>{{ pickButtonLabel }}</span>
           </button>
         </span>
+      </div>
+      <!-- Nothing to pick → the bonus simply fizzles; the player may still advance. -->
+      <div v-if="model.needsCardSelect && model.eligibleCardNames.length === 0" class="hydro-action__hintline">
+        <span aria-hidden="true">⚑</span>
+        <span v-i18n>This reward will be skipped</span>
       </div>
 
       <!-- Row 3: reward summary (deltas / choice / vp) + confirm. -->
@@ -147,7 +162,13 @@
           <span class="hydro-action__details-pos">{{ model.selectedPosition }}</span>
         </div>
 
-        <div class="hydro-action__reward-block">
+        <!-- The start has no reward and no per-stage history — show only a note. -->
+        <div v-if="detailsStage.position === 0" class="hydro-action__note hydro-action__note--info">
+          <span aria-hidden="true">⚑</span>
+          <span v-i18n>The starting point of the Hydronetwork track.</span>
+        </div>
+
+        <div v-if="detailsStage.position > 0" class="hydro-action__reward-block">
           <div class="hydro-action__reward-label" v-i18n>Reward</div>
           <div class="hydro-action__reward">
             <template v-if="detailsStage.rewardOptions.length > 1">
@@ -164,8 +185,8 @@
           </div>
         </div>
 
-        <!-- Per-player history. -->
-        <div class="hydro-action__history">
+        <!-- Per-player history (not applicable to the start). -->
+        <div v-if="detailsStage.position > 0" class="hydro-action__history">
           <div class="hydro-action__history-label" v-i18n>Stage history</div>
           <div v-for="h in model.detailsHistory" :key="h.color" class="hydro-action__history-row" :class="{'hydro-action__history-row--viewer': h.isViewer}">
             <span class="hydro-action__history-player" :class="'player_translucent_bg_color_' + h.color">
@@ -200,12 +221,13 @@ import {HydroModel} from './hydroNetworkModel';
 import {HydroStage, HydroRewardChip} from './hydroStages';
 import {buildRewardView, HydroPlayerSnapshot, HydroDeltaLine, HydroRewardView} from './hydroReward';
 import HydroReward from './HydroReward.vue';
+import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 
 type EligibleCard = {name: CardName; current?: number};
 
 export default defineComponent({
   name: 'HydroActionZone',
-  components: {HydroReward},
+  components: {HydroReward, JournalCardChip},
   props: {
     model: {
       type: Object as () => HydroModel,
@@ -231,7 +253,7 @@ export default defineComponent({
       default: () => [],
     },
   },
-  emits: ['spend', 'choice', 'confirm', 'plan', 'select-card'],
+  emits: ['spend', 'choice', 'confirm', 'plan', 'pick-action', 'pick-played-card'],
   computed: {
     interactive(): boolean {
       return this.actionAvailable && !this.model.usedThisGeneration;
@@ -273,6 +295,20 @@ export default defineComponent({
     preselectLabel(): string {
       return this.model.needsCardSelect === 'reuse-action' ?
         'Choose a used blue card action' : 'Choose a card for the animals';
+    },
+    pickButtonLabel(): string {
+      return this.model.needsCardSelect === 'reuse-action' ? 'Choose an action' : 'Choose a card';
+    },
+    noCandidatesHint(): string {
+      return this.model.needsCardSelect === 'reuse-action' ?
+        $t('No used actions to repeat') : $t('No card can receive the animals');
+    },
+    // The animal count on the chosen pos-9 card (for the picked-chip preview).
+    selectedAnimalCurrent(): number | undefined {
+      if (this.model.needsCardSelect !== 'animal-target' || this.model.selectedCard === undefined) {
+        return undefined;
+      }
+      return this.eligibleCards.find((c) => c.name === this.model.selectedCard)?.current;
     },
     statusKind(): 'ready' | 'used' | 'waiting' | 'end' {
       if (this.model.usedThisGeneration) {
@@ -333,6 +369,17 @@ export default defineComponent({
     setSpend(value: number): void {
       const clamped = Math.max(this.model.minSpend, Math.min(this.model.maxSpend, value));
       this.$emit('spend', clamped);
+    },
+    // Open the dedicated premium pick-mode overlay: ДЕЙСТВИЯ for the reuse-action
+    // (pos 7, mirrors Viron/ProjectInspection), РАЗЫГРАНО for the animal target
+    // (pos 9). The chosen card returns into hydroNetworkState.selectedCard.
+    openPick(): void {
+      const req = {title: this.preselectLabel, selectable: this.model.eligibleCardNames};
+      if (this.model.needsCardSelect === 'reuse-action') {
+        this.$emit('pick-action', req);
+      } else if (this.model.needsCardSelect === 'animal-target') {
+        this.$emit('pick-played-card', req);
+      }
     },
     tagStatus(tag: Tag): 'have' | 'wild' | 'missing' {
       const dest = this.model.destination;

@@ -212,8 +212,20 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // PICK MODE — the panel is choosing an ACTION to repeat (reuse). The CTA reads
+    // «ВЫБРАТЬ» and resolves the pick (emits `pick`) instead of opening the confirm.
+    pickMode: {
+      type: Boolean,
+      default: false,
+    },
+    // Whether the focused action is a valid repeat candidate (gates the CTA; a
+    // non-candidate shows the "can't repeat" reason).
+    pickSelectable: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['activate', 'open'],
+  emits: ['activate', 'open', 'pick'],
   computed: {
     cardName(): CardName | undefined {
       return this.entry?.cardName;
@@ -291,6 +303,10 @@ export default defineComponent({
     },
     // The reason hosted on the disabled-CTA premium tooltip (empty when actionable).
     ctaDisabledReason(): string {
+      // PICK MODE: a non-candidate can't be repeated — give the clear reason.
+      if (this.pickMode) {
+        return this.pickSelectable ? '' : translateText('This action cannot be repeated');
+      }
       if (this.branchPreviewPending) {
         return translateText('Loading action details');
       }
@@ -419,6 +435,10 @@ export default defineComponent({
     // Context-aware CTA — names the NEXT step so the player knows the modal isn't a
     // second identical confirm. Falls back to a generic "go to confirmation".
     ctaLabel(): string {
+      // PICK MODE: this CTA SELECTS the action to repeat, not "go to confirm".
+      if (this.pickMode) {
+        return 'Select';
+      }
       const b = this.selectedBranch;
       if (b === undefined) {
         return 'Go to confirmation';
@@ -441,6 +461,11 @@ export default defineComponent({
       return 'Go to confirmation';
     },
     ctaEnabled(): boolean {
+      // PICK MODE: the gate is "is this a repeat candidate", NOT the normal can-act
+      // state (every candidate was already activated this generation).
+      if (this.pickMode) {
+        return this.pickSelectable;
+      }
       if (this.state?.status !== 'available') {
         return false;
       }
@@ -459,6 +484,11 @@ export default defineComponent({
     iconClassFor,
     activate(): void {
       if (this.cardName === undefined || !this.ctaEnabled) {
+        return;
+      }
+      // PICK MODE: resolve the repeat pick; normal mode opens the confirm modal.
+      if (this.pickMode) {
+        this.$emit('pick', {cardName: this.cardName, nodeIndex: this.nodeIndex});
         return;
       }
       this.$emit('activate', {cardName: this.cardName, nodeIndex: this.nodeIndex});
