@@ -4,6 +4,7 @@ import {Context} from './IHandler';
 import {Database} from '../database/Database';
 import {BoardName} from '../../common/boards/BoardName';
 import {RandomBoardOption} from '../../common/boards/RandomBoardOption';
+import {boardOptions as resolveBoardOptions, isRandomBoardOption} from '../boards/randomBoard';
 import {Cloner} from '../database/Cloner';
 import {Game} from '../Game';
 import {GameOptions} from '../game/GameOptions';
@@ -58,29 +59,11 @@ export class ApiCreateGame extends Handler {
     this.quotaHandler = new QuotaHandler(quotaConfig);
   }
 
-  // Maps temporarily excluded from the "Random (all)" pool: their space
-  // bonuses are tied to expansions this fork hasn't adapted yet. Drop an
-  // entry once that map's expansion-linked bonuses are adapted. They are
-  // still selectable explicitly — only the random-all pool skips them.
-  private static readonly RANDOM_ALL_EXCLUSIONS: ReadonlyArray<BoardName> = [
-    BoardName.VASTITAS_BOREALIS_NOVA,
-    BoardName.ARABIA_TERRA,
-  ];
-
+  // Board-pool resolution lives in `../boards/randomBoard` so the rematch flow
+  // can re-roll a random board exactly the way the create form does. This static
+  // is kept (delegating) because tests reference it.
   public static boardOptions(board: RandomBoardOption | BoardName): Array<BoardName> {
-    const allBoards = Object.values(BoardName);
-
-    if (board === RandomBoardOption.ALL) {
-      return allBoards.filter((name) => !ApiCreateGame.RANDOM_ALL_EXCLUSIONS.includes(name));
-    }
-    if (board === RandomBoardOption.OFFICIAL) {
-      return allBoards.filter((name) => {
-        return name === BoardName.THARSIS ||
-          name === BoardName.HELLAS ||
-          name === BoardName.ELYSIUM;
-      });
-    }
-    return [board];
+    return resolveBoardOptions(board);
   }
 
   // TODO(kberg): much of this code can be moved outside of handler, and that
@@ -119,7 +102,8 @@ export class ApiCreateGame extends Handler {
             }
           }
 
-          const boards = ApiCreateGame.boardOptions(gameReq.board);
+          const requestedBoard = gameReq.board;
+          const boards = ApiCreateGame.boardOptions(requestedBoard);
           gameReq.board = boards[Math.floor(Math.random() * boards.length)];
 
           const gameOptions: GameOptions = {
@@ -129,6 +113,12 @@ export class ApiCreateGame extends Handler {
             aresExtremeVariant: gameReq.aresExtremeVariant,
             bannedCards: gameReq.bannedCards,
             boardName: gameReq.board,
+            // Remember a RANDOM board request so a rematch re-rolls it (boardName
+            // above is already a concrete board); undefined for an explicit pick.
+            randomBoardOption: isRandomBoardOption(requestedBoard) ? requestedBoard : undefined,
+            // Remember "random first player" so a rematch re-randomizes it too (the
+            // form already resolved it into a concrete `first` flag).
+            randomFirstPlayer: gameReq.randomFirstPlayer === true,
             ceoExtension: gameReq.expansions.ceo,
             clonedGamedId: gameReq.clonedGamedId,
             coloniesExtension: gameReq.expansions.colonies,

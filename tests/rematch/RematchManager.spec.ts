@@ -3,6 +3,8 @@ import {testGame} from '../TestGame';
 import {RematchManager} from '../../src/server/rematch/RematchManager';
 import {IGame} from '../../src/server/IGame';
 import {IGameLoader} from '../../src/server/database/IGameLoader';
+import {BoardName} from '../../src/common/boards/BoardName';
+import {RandomBoardOption} from '../../src/common/boards/RandomBoardOption';
 
 function fakeLoader(): {loader: IGameLoader, added: Array<IGame>} {
   const added: Array<IGame> = [];
@@ -174,6 +176,58 @@ describe('RematchManager', () => {
 
     expect(added).to.have.length(1);
     expect(manager.getModel(game, player.id).status).to.eq('created');
+  });
+
+  it('re-rolls the board on the rematch when the original was random', async () => {
+    const [game, p1, p2] = testGame(2, {boardName: BoardName.HELLAS, randomBoardOption: RandomBoardOption.OFFICIAL});
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    await manager.accept(game, p2.color, loader);
+
+    const official = [BoardName.THARSIS, BoardName.HELLAS, BoardName.ELYSIUM];
+    expect(official).to.include(added[0].gameOptions.boardName);
+    // The random intent is preserved so a rematch-of-the-rematch keeps re-rolling.
+    expect(added[0].gameOptions.randomBoardOption).to.eq(RandomBoardOption.OFFICIAL);
+  });
+
+  it('preserves the random-first-player intent on the rematch', async () => {
+    const [game, p1, p2] = testGame(2, {randomFirstPlayer: true});
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    await manager.accept(game, p2.color, loader);
+
+    // The intent carries forward so a rematch-of-the-rematch also re-randomizes.
+    expect(added[0].gameOptions.randomFirstPlayer).to.eq(true);
+    // The first player is still one of the (same) players.
+    expect(game.players.map((p) => p.color)).to.include(added[0].first.color);
+  });
+
+  it('keeps the same first player when it was explicitly chosen', async () => {
+    const [game, p1, p2] = testGame(2); // randomFirstPlayer defaults to false
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    await manager.accept(game, p2.color, loader);
+
+    expect(added[0].gameOptions.randomFirstPlayer).to.eq(false);
+    expect(added[0].first.color).to.eq(game.first.color);
+  });
+
+  it('keeps the exact board on the rematch when one was explicitly chosen', async () => {
+    const [game, p1, p2] = testGame(2, {boardName: BoardName.HELLAS});
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, p1.color, loader);
+    await manager.accept(game, p2.color, loader);
+
+    expect(added[0].gameOptions.randomBoardOption).to.eq(undefined);
+    expect(added[0].gameOptions.boardName).to.eq(BoardName.HELLAS);
   });
 
   it('does not create a second game on a redundant accept', async () => {

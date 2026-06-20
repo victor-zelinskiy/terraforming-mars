@@ -86,4 +86,21 @@ describe('DirectedImpactors', () => {
 
     expect(card.canAct(player)).is.true;
   });
+
+  it('actionPreview stays consistent with canAct when temperature is maxed (the reuse contract)', () => {
+    player.playedCards.push(card);
+    card.resourceCount = 1;
+    player.megaCredits = 0; // can't afford the +asteroid branch
+    player.titanium = 0;
+    setTemperature(game, MAX_TEMPERATURE);
+
+    // canAct is true (you may still remove the asteroid even at max temperature) —
+    // so the preview MUST report at least one AVAILABLE branch, else the reuse
+    // pick-mode (and the normal overlay) would wrongly block a legal action.
+    expect(card.canAct(player)).is.true;
+    const preview = card.actionPreview(player);
+    expect(preview.branches.some((b) => b.available)).is.true;
+    expect(preview.branches[0].available).is.true; // the remove-asteroid branch
+    expect(preview.branches[1].available).is.false; // can't afford +asteroid
+  });
 });
