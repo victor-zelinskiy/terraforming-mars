@@ -1,5 +1,6 @@
 import * as constants from '../../common/constants';
 import {BoardName} from '../../common/boards/BoardName';
+import {RandomBoardOption} from '../../common/boards/RandomBoardOption';
 import {CardName} from '../../common/cards/CardName';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {GameId} from '../../common/Types';
@@ -10,6 +11,16 @@ import {EscapeVelocityOptions} from '../../common/game/NewGameConfig';
 
 export type GameOptions = {
   boardName: BoardName;
+  // The ORIGINAL board request when it was random (`random official` / `random all`),
+  // preserved so a rematch can re-roll the board the same way the create form would —
+  // `boardName` itself is already resolved to a concrete board. Undefined when the
+  // player picked a specific board (the rematch then keeps that exact board).
+  randomBoardOption?: RandomBoardOption;
+  // Whether "random first player" was checked. The create form resolves it client-side
+  // (it marks one player first), so the finished game can't tell a random first player
+  // from a deliberate one — this preserves the intent so a rematch re-randomizes the
+  // first player too (kept false → the rematch keeps the same first player).
+  randomFirstPlayer?: boolean;
   clonedGamedId: GameId | undefined;
 
   // Configuration
@@ -83,6 +94,8 @@ export const DEFAULT_GAME_OPTIONS: GameOptions = {
   aresHazards: true,
   aresExtremeVariant: false,
   boardName: BoardName.THARSIS,
+  randomBoardOption: undefined,
+  randomFirstPlayer: false,
   bannedCards: [],
   includedCards: [],
   ceoExtension: false,

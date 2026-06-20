@@ -66,14 +66,18 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
     const temperatureIsMaxed = player.game.getTemperature() === MAX_TEMPERATURE;
     return actionPreviews.orBranches(this, [
       {
-        available: this.resourceCount > 0 && !temperatureIsMaxed && player.canAfford({cost: 0, tr: {temperature: 1}}),
+        // MUST mirror canAct's disjuncts: with an asteroid you may always remove it
+        // when temperature is MAXED (the step is a capped no-op but the action is
+        // legal — action() falls through to spendResource), else when you can afford
+        // the Reds tax. (A stray `!temperatureIsMaxed` here made canAct=true while
+        // BOTH branches read unavailable — which wrongly blocked the action in the
+        // normal overlay AND the reuse pick-mode.)
+        available: this.resourceCount > 0 && (temperatureIsMaxed || player.canAfford({cost: 0, tr: {temperature: 1}})),
         title: 'Remove 1 asteroid to raise temperature 1 step',
         effects: [actionPreviews.cardCost(this, 1), actionPreviews.globalGain(player, 'temperature', 1)],
         unavailableReason: this.resourceCount === 0 ?
           actionReason.ruleReason('No asteroid on this card') :
-          temperatureIsMaxed ?
-            actionReason.ruleReason('Temperature is already maxed') :
-            actionReason.ruleReason('Can\'t afford the Reds tax'),
+          actionReason.ruleReason('Can\'t afford the Reds tax'),
       },
       {
         // The payment (titanium may be used) + asteroid target ride the follow-up routing.

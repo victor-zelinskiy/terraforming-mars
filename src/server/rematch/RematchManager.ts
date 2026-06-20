@@ -5,6 +5,7 @@ import {IGame} from '../IGame';
 import {IGameLoader} from '../database/IGameLoader';
 import {Game} from '../Game';
 import {Player} from '../Player';
+import {chooseBoard} from '../boards/randomBoard';
 import {generateRandomId} from '../utils/server-ids';
 
 type NewGameRef = {
@@ -208,11 +209,21 @@ async function createRematchGame(game: IGame, loader: IGameLoader): Promise<IGam
     p.handicap,
     safeCast(generateRandomId('p'), isPlayerId),
   ));
-  const firstColor = game.first.color;
-  const firstPlayer = players.find((p) => p.color === firstColor) ?? players[0];
+  // "Random first player" re-randomizes on the rematch (the create form resolves
+  // it client-side, so the finished game only records the INTENT); an explicit
+  // first player is kept by colour.
+  const firstPlayer = game.gameOptions.randomFirstPlayer === true ?
+    players[Math.floor(Math.random() * players.length)] :
+    (players.find((p) => p.color === game.first.color) ?? players[0]);
   // `Game.newInstance` rejects a clonedGamedId; clear it so a rematch of a
   // cloned game still works (we always build a fresh instance, never clone).
   const gameOptions = {...game.gameOptions, clonedGamedId: undefined};
+  // "Same settings" means a RANDOM board re-rolls (the finished game's boardName
+  // is already a concrete board). An explicit board is kept as-is. Preserve the
+  // randomBoardOption so subsequent rematches keep re-rolling.
+  if (gameOptions.randomBoardOption !== undefined) {
+    gameOptions.boardName = chooseBoard(gameOptions.randomBoardOption);
+  }
   const seed = Math.random();
   const newGame = Game.newInstance(newGameId, players, firstPlayer, spectatorId, gameOptions, seed);
   await loader.add(newGame);
