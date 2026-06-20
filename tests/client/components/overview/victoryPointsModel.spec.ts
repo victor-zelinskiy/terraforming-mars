@@ -93,6 +93,24 @@ describe('victoryPointsModel', () => {
     expect(penalty.total).eq(-8);
   });
 
+  it('includes a Delta Project ("Гидросеть") segment in the mca bar when it scored', () => {
+    const model = buildVictoryPointsModel(breakdown({deltaProject: 5}), NO_EXPANSIONS);
+    const mca = model.scales.find((s) => s.key === 'mca')!;
+    expect(mca.segments.map((s) => s.key)).to.include('mca.delta');
+    const delta = mca.segments.find((s) => s.key === 'mca.delta')!;
+    expect(delta.value).eq(5);
+    expect(delta.accent).eq('delta');
+    // The Delta VP joins milestones + awards in the bar total (the bug was it being
+    // counted in the total but missing as a segment / detail row).
+    expect(mca.positiveTotal).eq(5 + 7 + 5); // milestones + awards + delta
+  });
+
+  it('omits the Delta segment when no Delta VP was scored', () => {
+    const model = buildVictoryPointsModel(breakdown({deltaProject: 0}), NO_EXPANSIONS);
+    const mca = model.scales.find((s) => s.key === 'mca')!;
+    expect(mca.segments.map((s) => s.key)).to.not.include('mca.delta');
+  });
+
   it('shares one px-per-VP scale across bars (maxScalePositive)', () => {
     const model = buildVictoryPointsModel(breakdown(), NO_EXPANSIONS);
     // tr positive = 28 is the largest of {28, 0, 10, 12}.
