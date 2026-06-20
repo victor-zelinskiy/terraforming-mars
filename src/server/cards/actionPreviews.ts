@@ -160,6 +160,17 @@ export function noteStep(noteKind: 'colony' | 'board' | 'generic', text?: string
   return {kind: 'note', noteKind, text};
 }
 
+/**
+ * A `warning` note: an effect that WILL BE SKIPPED for lack of a valid target —
+ * e.g. "add 2 microbes to a card" with no microbe-holding card in play. Mirrors
+ * the systemic warning the DECLARATIVE preview builder emits, so a BESPOKE
+ * `addResourcesToAnyCard` (EcologyResearch, …) never silently drops the resource
+ * without telling the player. `resource` (the icon key) names the lost resource.
+ */
+export function warningNote(text: string | Message, resource?: CardResource): ActionPreviewStep {
+  return {kind: 'note', noteKind: 'warning', text, resource: resource !== undefined ? cardResourceIcon(resource) : undefined};
+}
+
 /** A "choose an amount" step (e.g. spend X floaters) — hosts the modern stepper. */
 export function amountStep(
   title: string | Message,

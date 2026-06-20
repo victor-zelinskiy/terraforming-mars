@@ -301,6 +301,7 @@
     "There is no room to place an ocean": "Нет места для размещения океана",
     "There was nobody to steal plants or animals from.": "Не у кого было украсть растения или животных.",
     "This game was a clone from game ${0}": "Эта игра — клон игры ${0}",
+    "You bought ${0}": "Вы купили ${0}",
     "You discarded ${0}": "Вы сбросили ${0}",
     "You drew and discarded ${0}": "Вы взяли и сбросили ${0}"
 }

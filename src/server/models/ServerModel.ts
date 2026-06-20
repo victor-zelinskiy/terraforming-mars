@@ -428,6 +428,7 @@ export class Server {
       titaniumProduction: player.production.titanium,
       titaniumValue: player.getTitaniumValue(),
       tradesThisGeneration: player.colonies.usedTradeFleets,
+      colonyTradeOffset: player.colonies.tradeOffset,
       underworldData: player.underworldData,
       victoryPointsBreakdown: {
         terraformRating: 0,

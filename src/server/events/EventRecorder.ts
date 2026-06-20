@@ -10,7 +10,7 @@ import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
 import {EventSource} from '../../common/events/EventSource';
 import {EventImpact} from '../../common/events/EventImpact';
-import {From} from '../logs/From';
+import {From, isFromPlayer} from '../logs/From';
 import {fromToEventSource} from './fromToEventSource';
 import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
@@ -300,8 +300,14 @@ export class EventRecorder {
       return;
     }
     const source = fromToEventSource(from, player.color);
+    // A cross-player LOSS inflicted via another player's `from` is always an
+    // attack the VICTIM must be told about (the "you were attacked" red card).
+    // Never drop it as loose bookkeeping even if the active scope was lost across
+    // an input boundary (e.g. a deferred attack resolved after a SelectPlayer) —
+    // the `target` below still attributes the attacker.
+    const crossPlayerAttack = amount < 0 && isFromPlayer(from) && from.player.color !== player.color;
     // Loose internal bookkeeping (no source, no active action/effect) is not analytics-meaningful.
-    if (source === undefined && !this.hasContext()) {
+    if (source === undefined && !this.hasContext() && !crossPlayerAttack) {
       return;
     }
     const impact: EventImpact = production ?

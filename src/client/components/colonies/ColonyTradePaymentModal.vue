@@ -31,6 +31,23 @@
           <span class="colony-trade-pay__colony-reward-label" v-i18n>You receive</span>
           <BenefitGlyph :benefit="tradeReward" :idx="0" :cardResource="cardResource" />
         </span>
+        <!--
+          Trade-offset (Trade Agent / Trading Colony / Trade Envoys): the colony
+          track ADVANCES first, so the reward above is read at the higher position.
+          Make this explicit — by how much the track moves, and what the reward
+          would have been WITHOUT the advance — so the bigger reward isn't a surprise.
+        -->
+        <div v-if="trackMoveSteps > 0" class="colony-trade-pay__track-offset" data-test="colony-trade-track-offset">
+          <span class="colony-trade-pay__track-offset-note">
+            <span class="colony-trade-pay__track-offset-arrow" aria-hidden="true">⬆</span>
+            <span v-i18n>The colony track advances first</span>
+            <span class="colony-trade-pay__track-offset-steps">+{{ trackMoveSteps }}</span>
+          </span>
+          <span v-if="showBaseReward && baseTradeReward !== undefined" class="colony-trade-pay__track-offset-base">
+            <span class="colony-trade-pay__track-offset-base-label" v-i18n>Without the advance</span>
+            <BenefitGlyph :benefit="baseTradeReward" :idx="0" :cardResource="cardResource" />
+          </span>
+        </div>
       </div>
     </div>
 
@@ -163,6 +180,14 @@ export default defineComponent({
       type: Array as () => ReadonlyArray<PublicPlayerModel>,
       default: () => [],
     },
+    // The trading player's standing colony-track trade OFFSET (Trade Agent /
+    // Trading Colony / Trade Envoys). When > 0 the track FIRST advances by this
+    // much, so the reward is read at the HIGHER position — the modal must show
+    // that (the track moves +N) and the actual vs. without-advance reward.
+    tradeOffset: {
+      type: Number,
+      default: 0,
+    },
   },
   emits: ['select', 'cancel'],
   data(): DataModel {
@@ -178,17 +203,44 @@ export default defineComponent({
     cardResource(): CardResource | undefined {
       return getColony(this.colonyName)?.cardResource;
     },
-    // The trade reward at this colony's CURRENT track position (what the player
-    // gets) — same construction ColonyDetailView feeds to BenefitGlyph.
+    // The track position the trade actually reads its reward at: the current
+    // position PLUS the player's standing offset (Trade Agent etc.), capped at the
+    // track max (6). Mirrors the server's `Colony.trade` math.
+    rewardTrackPosition(): number {
+      if (this.colony === undefined) {
+        return 0;
+      }
+      return Math.min(this.colony.trackPosition + Math.max(0, this.tradeOffset), 6);
+    },
+    // How many steps the track WILL advance before this trade (0 when the player
+    // has no offset, or the track is already maxed).
+    trackMoveSteps(): number {
+      if (this.colony === undefined) {
+        return 0;
+      }
+      return this.rewardTrackPosition - Math.min(this.colony.trackPosition, 6);
+    },
+    // The ACTUAL trade reward — read at the post-offset position, so a player with
+    // a trade-offset effect sees what they'll really get, not the lower base.
     tradeReward(): {type: ColonyBenefit, quantity: Array<number>, resource?: unknown} | undefined {
-      const meta = getColony(this.colonyName);
-      if (meta === undefined || this.colony === undefined) {
+      return this.rewardAtPosition(this.rewardTrackPosition);
+    },
+    // The reward the player WOULD get at the current position (no offset) — shown
+    // as a "without the advance" comparison only when the track actually moves.
+    baseTradeReward(): {type: ColonyBenefit, quantity: Array<number>, resource?: unknown} | undefined {
+      if (this.colony === undefined) {
         return undefined;
       }
-      const idx = Math.min(this.colony.trackPosition, 6);
-      const t = meta.trade;
-      const resource = Array.isArray(t.resource) ? t.resource[idx] : t.resource;
-      return {type: t.type, quantity: [t.quantity[idx] ?? 0], resource};
+      return this.rewardAtPosition(Math.min(this.colony.trackPosition, 6));
+    },
+    // Whether to show the without-advance comparison: the track moved AND the
+    // reward quantity actually differs (a track plateau yields the same reward, so
+    // the comparison would be noise — the "+N" note alone suffices then).
+    showBaseReward(): boolean {
+      if (this.trackMoveSteps <= 0 || this.baseTradeReward === undefined || this.tradeReward === undefined) {
+        return false;
+      }
+      return (this.baseTradeReward.quantity[0] ?? 0) !== (this.tradeReward.quantity[0] ?? 0);
     },
     // The FIXED colony bonus EVERY player with a colony on this tile receives
     // when a trade happens here — a SEPARATE, track-independent reward (e.g. Luna
@@ -223,6 +275,17 @@ export default defineComponent({
     },
   },
   methods: {
+    // The trade reward at a specific track position — same construction
+    // ColonyDetailView feeds to BenefitGlyph.
+    rewardAtPosition(idx: number): {type: ColonyBenefit, quantity: Array<number>, resource?: unknown} | undefined {
+      const meta = getColony(this.colonyName);
+      if (meta === undefined || this.colony === undefined) {
+        return undefined;
+      }
+      const t = meta.trade;
+      const resource = Array.isArray(t.resource) ? t.resource[idx] : t.resource;
+      return {type: t.type, quantity: [t.quantity[idx] ?? 0], resource};
+    },
     optionLabel(opt: SelectOptionModel | DisabledOptionModel): string {
       return typeof opt.title === 'string' ? translateText(opt.title) : translateMessage(opt.title);
     },

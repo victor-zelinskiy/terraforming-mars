@@ -30,11 +30,18 @@ export class Factorum extends CorporationCard implements ICorporationCard, IActi
         description: 'You start with 37 M€. Increase your steel production 1 step.',
         renderData: CardRenderer.builder((b) => {
           b.megacredits(37).nbsp.production((pb) => pb.steel(1));
+          // Two SEPARATE action() nodes (with an `or` divider) so the premium
+          // Actions overlay splits this into two distinct, individually-activatable
+          // rows — and the confirm modal opens directly on the chosen branch instead
+          // of falling back to the in-modal branch picker. Mirrors RegolithEaters.
           b.corpBox('action', (ce) => {
             ce.vSpace(Size.LARGE);
-            ce.action('Increase your energy production 1 step IF YOU HAVE NO ENERGY RESOURCES, or spend 3M€ to draw a building card.', (eb) => {
-              eb.empty().arrow().production((pb) => pb.energy(1)).asterix();
-              eb.or().megacredits(3).startAction.cards(1, {secondaryTag: Tag.BUILDING});
+            ce.action('Increase your energy production 1 step if you have no energy resources.', (eb) => {
+              eb.empty().startAction.production((pb) => pb.energy(1)).asterix();
+            }).br;
+            ce.or().br;
+            ce.action('Spend 3 M€ to draw a building card.', (eb) => {
+              eb.megacredits(3).startAction.cards(1, {secondaryTag: Tag.BUILDING});
             });
           });
         }),
