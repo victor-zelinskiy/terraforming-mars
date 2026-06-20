@@ -17,17 +17,17 @@
               </div>
             </div>
           </div>
-          <span class="card-req-operator">{{ operator }}</span>
+          <span class="card-req-operator" :class="{'card-req-operator--word': wordOperator}">{{ operator }}</span>
           <span class="card-req-value">{{ count }}</span>
         </template>
         <!-- PARTY: specific party must rule / be allied — CardParty handles the visual, no threshold -->
         <CardParty v-else-if="type === RequirementType.PARTY" :party="party" size="req" />
         <!-- CHAIRMAN: binary — you must be the chairman, no threshold -->
         <div v-else-if="type === RequirementType.CHAIRMAN" :class="componentClasses"></div>
-        <!-- Standard countable: [icon] [≥/≤] [value][suffix] -->
+        <!-- Standard countable: [icon] [≥/≤ | от/до/минимум/максимум] [value][suffix] -->
         <template v-else>
           <div :class="componentClasses"></div>
-          <span class="card-req-operator">{{ operator }}</span>
+          <span class="card-req-operator" :class="{'card-req-operator--word': wordOperator}">{{ operator }}</span>
           <span class="card-req-value">{{ amount }}{{ suffix }}</span>
         </template>
       </div>
@@ -39,6 +39,8 @@
 import {defineComponent} from 'vue';
 import {CardRequirementDescriptor, requirementType} from '@/common/cards/CardRequirementDescriptor';
 import {RequirementType} from '@/common/cards/RequirementType';
+import {comparatorLabel, requirementScale} from '@/common/cards/requirementComparator';
+import {getPreferences} from '@/client/utils/PreferencesManager';
 import CardParty from '@/client/components/card/CardParty.vue';
 import {PartyName} from '@/common/turmoil/PartyName';
 
@@ -71,10 +73,20 @@ export default defineComponent({
       }
       return this.requirement.count ?? 0;
     },
-    // Threshold operator: ≥ for minimums, ≤ for maximums.
-    // Binary types (REMOVED_PLANTS, PARTY, CHAIRMAN) return '' — handled in template separately.
+    // Threshold operator. English (and every non-RU locale) keeps the compact
+    // math glyphs (≥ for minimums, ≤ for maximums). Russian replaces them with
+    // short words — «от / до» for global-parameter scales, «минимум / максимум»
+    // for object counts — so the requirement reads as plain language while the
+    // icon and the numeric value are untouched (display-only).
+    // Binary types (REMOVED_PLANTS, PARTY, CHAIRMAN) are handled in the template separately.
     operator(): string {
-      return this.requirement.max ? '≤' : '≥';
+      const kind = this.requirement.max ? 'max' : 'min';
+      return comparatorLabel(kind, requirementScale(this.type), getPreferences().lang);
+    },
+    // True when the operator is rendered as a word (RU) rather than a glyph —
+    // drives a smaller type size so a long word like «минимум» stays compact.
+    wordOperator(): boolean {
+      return getPreferences().lang === 'ru';
     },
     // Numeric threshold — always the raw count value.
     amount(): number {
