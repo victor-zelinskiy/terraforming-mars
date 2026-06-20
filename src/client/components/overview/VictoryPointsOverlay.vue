@@ -150,6 +150,18 @@
                   </span>
                   <span class="vp-ma-row__vp" :class="vpSignClass(d.points)">{{ formatVp(d.points) }}</span>
                 </div>
+                <!-- Delta Project ("Гидросеть") end-game VP — the finish stage reached
+                     (Hydronetwork Architect / Engineering Contribution). Shares the
+                     'mca.delta' family so it cross-highlights with its bar segment. -->
+                <div v-if="deltaStageName !== undefined"
+                     class="vp-ma-row" :class="maRowClass('mca.delta')"
+                     v-on:mouseenter="hoverKey = 'mca.delta'" v-on:mouseleave="hoverKey = null">
+                  <span class="vp-source-chip vp-source-chip--delta">
+                    <span class="vp-source-chip__dot" aria-hidden="true"></span>
+                    <span class="vp-source-chip__label" v-i18n>{{ deltaStageName }}</span>
+                  </span>
+                  <span class="vp-ma-row__vp" :class="vpSignClass(breakdown.deltaProject)">{{ formatVp(breakdown.deltaProject) }}</span>
+                </div>
               </div>
             </div>
 
@@ -235,6 +247,7 @@ import {MilestoneName} from '@/common/ma/MilestoneName';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {buildVictoryPointsModel, VictoryPointsModel, VPScale, VPSegment} from '@/client/components/overview/victoryPointsModel';
+import {DELTA_STAGE_NAMES} from '@/common/delta/deltaStages';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 
 type TooltipContent = {name: string; description: string};
@@ -312,7 +325,18 @@ export default defineComponent({
     hasMaTracks(): boolean {
       return this.breakdown.detailsMilestones.length > 0 ||
         this.breakdown.detailsAwards.length > 0 ||
-        this.breakdown.detailsPlanetaryTracks.length > 0;
+        this.breakdown.detailsPlanetaryTracks.length > 0 ||
+        this.breakdown.deltaProject !== 0;
+    },
+    // The Delta Project ("Гидросеть") finish stage reached, derived from its
+    // end-game VP (pos 11 = 5 VP = Architect; pos 10 = 2 VP = Contribution).
+    // undefined when no Delta VP was scored (no row shown).
+    deltaStageName(): string | undefined {
+      const vp = this.breakdown.deltaProject;
+      if (vp === 0) {
+        return undefined;
+      }
+      return vp >= 5 ? DELTA_STAGE_NAMES[11] : DELTA_STAGE_NAMES[10];
     },
     tooltipStyle(): Record<string, string> {
       return {

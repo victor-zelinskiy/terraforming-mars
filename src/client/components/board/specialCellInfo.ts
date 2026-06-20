@@ -149,6 +149,110 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
     description: 'Hadriacus Mons is a shield volcano in the Mare Hadriacum region. This is a potential volcano spot, but any tile may be placed here.',
     placement: 'right',
   },
+  // ── Amazonis Planitia — named locations ────────────────────────────
+  // Legacy SVG text labels (Board.vue) replaced by hover markers. Names
+  // map to the map's volcanic cells, whose ids are preserved through map
+  // shuffling. Space IDs from the BoardBuilder row layout [5,6,7,8,9,8,7,6,5],
+  // idOffset=3: y=0 → 03–07 | y=1 → 08–13 | y=2 → 14–20 | y=3 → 21–28 |
+  //   y=4 → 29–37 | y=5 → 38–45 | y=6 → 46–52.
+  {
+    id: 'amazonis_albor_tholus',
+    boardName: BoardName.AMAZONIS,
+    spaceId: '09', // y=1, volcanic(MICROBE,MICROBE)
+    title: 'Albor Tholus',
+    description: 'Albor Tholus is a shield volcano in the Elysium region. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'top',
+  },
+  {
+    id: 'amazonis_anseris_mons',
+    boardName: BoardName.AMAZONIS,
+    spaceId: '35', // y=4, volcanic(PLANT,PLANT)
+    title: 'Anseris Mons',
+    description: 'Anseris Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'right',
+  },
+  {
+    id: 'amazonis_pindus_mons',
+    boardName: BoardName.AMAZONIS,
+    spaceId: '43', // y=5, volcanic(DRAW_CARD)
+    title: 'Pindus Mons',
+    description: 'Pindus Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'right',
+  },
+  {
+    id: 'amazonis_ulysses_tholus',
+    boardName: BoardName.AMAZONIS,
+    spaceId: '49', // y=6, volcanic(HEAT,PLANT)
+    title: 'Ulysses Tholus',
+    description: 'Ulysses Tholus is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'bottom',
+  },
+  // ── Vastitas Borealis — named locations ────────────────────────────
+  {
+    id: 'vastitas_elysium_mons',
+    boardName: BoardName.VASTITAS_BOREALIS,
+    spaceId: '07', // y=0, volcanic(TITANIUM,TITANIUM)
+    title: 'Elysium Mons',
+    description: 'Elysium Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'right',
+  },
+  {
+    id: 'vastitas_alba_fossae',
+    boardName: BoardName.VASTITAS_BOREALIS,
+    spaceId: '12', // y=1, volcanic(TITANIUM)
+    title: 'Alba Fossae',
+    description: 'Alba Fossae is a system of troughs on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'right',
+  },
+  {
+    id: 'vastitas_ceranius_fossae',
+    boardName: BoardName.VASTITAS_BOREALIS,
+    spaceId: '21', // y=3, volcanic(STEEL,TITANIUM)
+    title: 'Ceranius Fossae',
+    description: 'Ceranius Fossae is a system of troughs on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'left',
+  },
+  {
+    id: 'vastitas_alba_mons',
+    boardName: BoardName.VASTITAS_BOREALIS,
+    spaceId: '22', // y=3, volcanic(STEEL,DRAW_CARD)
+    title: 'Alba Mons',
+    description: 'Alba Mons is a mountain on the surface of Mars. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'left',
+  },
+  // ── Terra Cimmeria — named locations (same volcanoes as the Nova map) ─
+  {
+    id: 'terra_cimmeria_albor_tholus',
+    boardName: BoardName.TERRA_CIMMERIA,
+    spaceId: '05', // y=0, volcanic(STEEL)
+    title: 'Albor Tholus',
+    description: 'Albor Tholus is a shield volcano in the Elysium region. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'bottom',
+  },
+  {
+    id: 'terra_cimmeria_tyrrhenus_mons',
+    boardName: BoardName.TERRA_CIMMERIA,
+    spaceId: '21', // y=3, volcanic(STEEL,STEEL)
+    title: 'Tyrrhenus Mons',
+    description: 'Tyrrhenus Mons is a shield volcano in the Mare Tyrrhenum region. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'right',
+  },
+  {
+    id: 'terra_cimmeria_apollinaris_mons',
+    boardName: BoardName.TERRA_CIMMERIA,
+    spaceId: '27', // y=3, volcanic(DRAW_CARD)
+    title: 'Apollinaris Mons',
+    description: 'Apollinaris Mons is an extinct shield volcano. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'left',
+  },
+  {
+    id: 'terra_cimmeria_hadriacus_mons',
+    boardName: BoardName.TERRA_CIMMERIA,
+    spaceId: '38', // y=5, volcanic(DRAW_CARD,DRAW_CARD)
+    title: 'Hadriacus Mons',
+    description: 'Hadriacus Mons is a shield volcano in the Mare Hadriacum region. This is a potential volcano spot, but any tile may be placed here.',
+    placement: 'right',
+  },
   // ── Outer (off-Mars) special cells ─────────────────────────────────
   {
     id: 'ganymede_colony',
