@@ -33,7 +33,43 @@
         <button type="button" class="eg-results__ctl eg-results__ctl--min" :title="$t('Minimize')" @click="minimize">
           <span aria-hidden="true">↗</span><span class="eg-results__ctl-label" v-i18n>Minimize</span>
         </button>
-        <a class="eg-results__ctl eg-results__ctl--cta" :href="newGameHref">
+        <!--
+          Rematch control (replaces the legacy "New game" link). State-driven:
+          Offer rematch → Waiting N/M (+ Cancel for the offerer) → Join rematch.
+          A non-offering player who must vote gets Accept / Decline inline (the
+          App-level RematchLayer also shows them the prompt modal). Spectators
+          keep "New game", and join the created rematch as a watcher.
+        -->
+        <template v-if="rematch !== undefined && rematch.status === 'created'">
+          <a class="eg-results__ctl eg-results__ctl--cta" :href="rematchJoin">
+            <span v-if="viewerIsPlayer" class="eg-results__ctl-label" v-i18n>Join rematch</span>
+            <span v-else class="eg-results__ctl-label" v-i18n>Watch rematch</span>
+          </a>
+        </template>
+        <template v-else-if="viewerIsPlayer">
+          <template v-if="rematch !== undefined && rematch.status === 'offered' && rematch.viewerMustVote">
+            <button type="button" class="eg-results__ctl eg-results__ctl--cta" :disabled="rematchSubmitting" @click="acceptRematch">
+              <span class="eg-results__ctl-label" v-i18n>Accept rematch</span>
+            </button>
+            <button type="button" class="eg-results__ctl eg-results__ctl--danger" :disabled="rematchSubmitting" @click="declineRematch">
+              <span class="eg-results__ctl-label" v-i18n>Decline</span>
+            </button>
+          </template>
+          <template v-else-if="rematch !== undefined && rematch.status === 'offered'">
+            <span class="eg-results__ctl eg-results__ctl--wait">
+              <span class="eg-results__wait-dot" aria-hidden="true"></span>
+              <span v-i18n>Waiting for players</span>
+              <span class="eg-results__wait-count">{{ acceptedCount }}/{{ totalCount }}</span>
+            </span>
+            <button v-if="rematch.viewerIsOfferer" type="button" class="eg-results__ctl" :disabled="rematchSubmitting" @click="cancelRematch">
+              <span class="eg-results__ctl-label" v-i18n>Cancel</span>
+            </button>
+          </template>
+          <button v-else type="button" class="eg-results__ctl eg-results__ctl--cta" :disabled="rematchSubmitting" @click="offerRematch">
+            <span class="eg-results__ctl-label" v-i18n>Offer rematch</span>
+          </button>
+        </template>
+        <a v-else class="eg-results__ctl eg-results__ctl--cta" :href="newGameHref">
           <span class="eg-results__ctl-label" v-i18n>New game</span>
         </a>
         <a class="eg-results__ctl" href=".">
@@ -75,6 +111,8 @@ import {ViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {EndgameModel} from '@/client/components/endgame/endgameModel';
 import {endgameState, setEndgameTab, minimizeEndgameResults, EndgameTab, ENDGAME_TABS} from '@/client/components/endgame/endgameState';
+import {rematchState, submitRematch, rematchJoinHref} from '@/client/components/rematch/rematchState';
+import {RematchModel} from '@/common/models/RematchModel';
 import {paths} from '@/common/app/paths';
 import EndgameOverviewTab from '@/client/components/endgame/tabs/EndgameOverviewTab.vue';
 import EndgameScoreTab from '@/client/components/endgame/tabs/EndgameScoreTab.vue';
@@ -125,10 +163,46 @@ export default defineComponent({
     newGameHref(): string {
       return paths.NEW_GAME;
     },
+    rematch(): RematchModel | undefined {
+      return rematchState.model;
+    },
+    rematchSubmitting(): boolean {
+      return rematchState.submitting;
+    },
+    viewerIsPlayer(): boolean {
+      return this.view.thisPlayer !== undefined;
+    },
+    rematchJoin(): string | undefined {
+      return rematchJoinHref(this.rematch);
+    },
+    acceptedCount(): number {
+      return (this.rematch?.votes ?? []).filter((v) => v.status === 'accepted').length;
+    },
+    totalCount(): number {
+      return (this.rematch?.votes ?? []).length;
+    },
   },
   methods: {
     setTab(tab: EndgameTab): void {
       setEndgameTab(tab);
+    },
+    offerRematch(): void {
+      this.submitRematchAction('offer');
+    },
+    acceptRematch(): void {
+      this.submitRematchAction('accept');
+    },
+    declineRematch(): void {
+      this.submitRematchAction('decline');
+    },
+    cancelRematch(): void {
+      this.submitRematchAction('cancel');
+    },
+    submitRematchAction(action: 'offer' | 'accept' | 'decline' | 'cancel'): void {
+      const id = this.view.id;
+      if (id !== undefined && this.viewerIsPlayer) {
+        void submitRematch(id, action);
+      }
     },
     minimize(): void {
       minimizeEndgameResults();

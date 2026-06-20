@@ -701,6 +701,45 @@
 .hydro-action__delta-card { font-weight: 600; }
 .hydro-action__delta-note { font-size: 10.5px; color: @hydro-text-muted; }
 
+/* "Who already stopped here + what they took" — shown in PLAN mode for a target
+   cell that other players have already visited. */
+.hydro-action__visitors {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(120, 160, 175, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(120, 160, 175, 0.2);
+
+    &-label {
+        font-size: 10.5px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: @hydro-text-muted;
+        flex-shrink: 0;
+    }
+}
+.hydro-action__visitor {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px 2px 6px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.25);
+    font-size: 11.5px;
+
+    &-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4); }
+    &-name { color: @hydro-text; font-weight: 600; }
+    &-took { display: inline-flex; align-items: center; }
+    &-vp { color: #f0d281; font-weight: 700; }
+    &-none { color: @hydro-text-muted; }
+
+    // A pass-through (leapt over without stopping) reads quieter — they took nothing.
+    &--passed { opacity: 0.7; }
+}
+
 /* Pre-selection block (pos 7 reuse-action / pos 9 animal target). */
 .hydro-action__preselect {
     display: flex;

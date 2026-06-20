@@ -97,6 +97,16 @@
         v-if="screen === 'player-home' && playerView !== undefined"
         :player-view="playerView" />
       <!--
+        Rematch coordination layer. App-level (like the endgame experience) so it
+        survives the `:key="playerkey"` remount and keeps polling `/api/game/rematch`
+        while the game is over. Hosts the "accept rematch?" prompt + the "rematch
+        ready" / "declined" notices. Its own `v-if` (independent of the endgame
+        v-if/v-else-if screen chain below).
+      -->
+      <RematchLayer
+        v-if="endgameView !== undefined"
+        :view="endgameView" />
+      <!--
         Premium end-of-game experience. App-level (like DraftFlowOverlay) so the
         `:key="playerkey"` remount can't tear down the reveal / results overlay.
         Gated by `endgameView` (the active player/spectator view ONLY when the
@@ -198,6 +208,7 @@ const SpectatorHome = defineAsyncComponent(() => import(/* webpackChunkName: "sp
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
+import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
 import RevealResultOverlay from '@/client/components/actions/RevealResultOverlay.vue';
 // Premium end-of-game experience (winner reveal + full-screen results). Async
 // so its charts / tabs only download once a game actually ends.
@@ -329,6 +340,7 @@ export default defineComponent({
     DraftFlowOverlay,
     StartGameFlowOverlay,
     RevealResultOverlay,
+    RematchLayer,
     EndgameExperience,
     ModalInputPlayground,
     EffectsPlayground,
