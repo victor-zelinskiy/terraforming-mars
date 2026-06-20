@@ -58,11 +58,20 @@ export class ApiCreateGame extends Handler {
     this.quotaHandler = new QuotaHandler(quotaConfig);
   }
 
+  // Maps temporarily excluded from the "Random (all)" pool: their space
+  // bonuses are tied to expansions this fork hasn't adapted yet. Drop an
+  // entry once that map's expansion-linked bonuses are adapted. They are
+  // still selectable explicitly — only the random-all pool skips them.
+  private static readonly RANDOM_ALL_EXCLUSIONS: ReadonlyArray<BoardName> = [
+    BoardName.VASTITAS_BOREALIS_NOVA,
+    BoardName.ARABIA_TERRA,
+  ];
+
   public static boardOptions(board: RandomBoardOption | BoardName): Array<BoardName> {
     const allBoards = Object.values(BoardName);
 
     if (board === RandomBoardOption.ALL) {
-      return allBoards;
+      return allBoards.filter((name) => !ApiCreateGame.RANDOM_ALL_EXCLUSIONS.includes(name));
     }
     if (board === RandomBoardOption.OFFICIAL) {
       return allBoards.filter((name) => {

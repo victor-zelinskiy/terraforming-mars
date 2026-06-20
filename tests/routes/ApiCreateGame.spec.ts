@@ -25,15 +25,16 @@ describe('ApiCreateGame', () => {
   it('Official random boards do not include fan maps', () => {
     expect(ApiCreateGame.boardOptions(RandomBoardOption.OFFICIAL)).deep.eq([BoardName.THARSIS, BoardName.HELLAS, BoardName.ELYSIUM]);
   });
-  it('Fully random boards do include fan maps', () => {
+  it('Fully random boards include fan maps but exclude unadapted-bonus maps', () => {
+    // Vastitas Borealis Nova and Arabia Terra are temporarily excluded from the
+    // random-all pool (expansion-linked bonuses not adapted yet); see
+    // ApiCreateGame.RANDOM_ALL_EXCLUSIONS.
     expect(ApiCreateGame.boardOptions(RandomBoardOption.ALL)).deep.eq([
       BoardName.THARSIS,
       BoardName.HELLAS,
       BoardName.ELYSIUM,
       BoardName.UTOPIA_PLANITIA,
-      BoardName.VASTITAS_BOREALIS_NOVA,
       BoardName.TERRA_CIMMERIA_NOVA,
-      BoardName.ARABIA_TERRA,
       BoardName.VASTITAS_BOREALIS,
       BoardName.AMAZONIS,
       BoardName.TERRA_CIMMERIA,

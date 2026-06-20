@@ -1,5 +1,5 @@
 import * as constants from '@/common/constants';
-import {BoardName} from '@/common/boards/BoardName';
+import {RandomBoardOption} from '@/common/boards/RandomBoardOption';
 import {DEFAULT_EXPANSIONS} from '@/common/cards/GameModule';
 import {RandomMAOptionType} from '@/common/ma/RandomMAOptionType';
 import {CreateGameModel} from './CreateGameModel';
@@ -8,8 +8,9 @@ import {CreateGameModel} from './CreateGameModel';
  * vize1215 fork — defaults are tuned to the exact JSON template the
  * owner uploads on every match (2 players: Victor green + Nastya pink,
  * Corporate Era + Promo + Venus + Colonies + Prelude + Delta Project,
- * alt Venus board, draft on with prelude draft, random first player,
- * hidden timers). Lets the form
+ * random-all board with randomized tile locations, alt Venus board,
+ * full-pool random milestones/awards, draft on with prelude draft,
+ * random first player, hidden timers). Lets the form
  * open in a ready-to-create state with no JSON upload step.
  *
  * Tweak this file (NOT DEFAULT_EXPANSIONS in common/) when the regular
@@ -40,7 +41,7 @@ export function defaultCreateGameModel(): CreateGameModel {
     },
     draftVariant: true,
     initialDraft: false,
-    randomMA: RandomMAOptionType.NONE,
+    randomMA: RandomMAOptionType.ALL,
     modularMA: false,
     randomFirstPlayer: true,
     showOtherPlayersVP: true,
@@ -57,11 +58,11 @@ export function defaultCreateGameModel(): CreateGameModel {
     customPreludes: [],
     bannedCards: [],
     includedCards: [],
-    board: BoardName.THARSIS,
+    board: RandomBoardOption.ALL,
     seed: Math.random(),
     seededGame: false,
     solarPhaseOption: true,
-    shuffleMapOption: false,
+    shuffleMapOption: true,
     aresExtremeVariant: false,
     politicalAgendasExtension: 'Standard',
     undoOption: false,

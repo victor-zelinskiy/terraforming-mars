@@ -1074,11 +1074,13 @@
         }
 
         /*
-         * RU word operator («от / до / минимум / максимум»). A Cyrillic word is
-         * far wider than a ≥/≤ glyph, so it renders at a smaller, slightly
-         * muted type size to keep the compact requirement plate from growing —
-         * the numeric value (.card-req-value) stays the prominent 18px token.
-         * No baseline nudge (top: 0) since the word has no glyph drop.
+         * RU word operator. Base style for the longer strict / equality words
+         * («больше / меньше / ровно») — a Cyrillic word is far wider than a
+         * ≥/≤ glyph, so it stays at a smaller, slightly muted size to keep the
+         * plate compact. No baseline nudge (top: 0) since the word has no glyph
+         * drop. (These strict/equality words don't occur on current cards —
+         * card data only carries min/max — but the style is here for any path
+         * that renders them.)
          */
         .card-req-operator--word {
             font-size: 11px;
@@ -1089,6 +1091,24 @@
             top: 0;
             text-transform: none;
             white-space: nowrap;
+        }
+
+        /*
+         * Short inclusive words «от» (≥) and «до» (≤) — the common case, since
+         * cards only ever express min/max. Now that the word is just 2 glyphs
+         * it's promoted to ~1.8x the compact word size (20px) so «от 3» reads
+         * as one prominent, premium operator+value token rather than tiny
+         * service text. Full white + weight 700 to match the value's emphasis.
+         * Fits the 38px plate; the flex container's align-items:center keeps it
+         * aligned with the icon and the value, so the badge height is unchanged.
+         */
+        .card-req-operator--inclusive {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+            top: 0;
+            margin-right: 3px;
         }
 
         .card-req-value {
