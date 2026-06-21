@@ -7,7 +7,11 @@
     from the view and drives the reveal → results → pill flow via endgameState.
   -->
   <div class="eg-root">
-    <EndgameWinnerReveal v-if="state.revealActive" :model="model" />
+    <!-- Hidden-VP games earn the suspenseful category-by-category reveal;
+         every other game keeps the instant cinematic winner reveal. -->
+    <FinalScoringReveal v-if="state.revealActive && hiddenVpMode" :model="model" :player-order="playerOrder" />
+
+    <EndgameWinnerReveal v-else-if="state.revealActive" :model="model" />
 
     <EndgameResultsOverlay v-else-if="state.resultsOpen && !state.minimized"
                            :model="model" :view="view" :viewer-color="viewerColor" />
@@ -38,10 +42,11 @@ import {endgameState, beginEndgameReveal, restoreEndgameResults} from '@/client/
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import EndgameWinnerReveal from '@/client/components/endgame/EndgameWinnerReveal.vue';
 import EndgameResultsOverlay from '@/client/components/endgame/EndgameResultsOverlay.vue';
+import FinalScoringReveal from '@/client/components/endgame/FinalScoringReveal.vue';
 
 export default defineComponent({
   name: 'EndgameExperience',
-  components: {EndgameWinnerReveal, EndgameResultsOverlay},
+  components: {EndgameWinnerReveal, EndgameResultsOverlay, FinalScoringReveal},
   props: {
     view: {type: Object as () => ViewModel, required: true},
     viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
@@ -111,6 +116,17 @@ export default defineComponent({
     pillVars(): Record<string, string> {
       const hex = this.model.winner !== undefined ? endgamePlayerHex(this.model.winner.color) : '#6ab0e6';
       return {'--eg-pc': hex};
+    },
+    // Hidden-VP mode (other players' VP were hidden all game) — only meaningful
+    // with opponents to hide from, so solo is excluded. Drives the suspenseful
+    // final-scoring reveal in place of the instant winner cinematic.
+    hiddenVpMode(): boolean {
+      return this.view.game.gameOptions.showOtherPlayersVP === false && this.view.players.length > 1;
+    },
+    // Neutral lane order for the reveal (seating order) so the lanes don't spoil
+    // the result by ranking the winner first.
+    playerOrder(): ReadonlyArray<Color> {
+      return this.view.players.map((p) => p.color);
     },
   },
   methods: {

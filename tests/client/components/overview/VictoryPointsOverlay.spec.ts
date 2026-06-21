@@ -6,6 +6,7 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {GameModel} from '@/common/models/GameModel';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {RecursivePartial} from '@/common/utils/utils';
+import {Phase} from '@/common/Phase';
 
 function fullBreakdown(overrides: Partial<VictoryPointsBreakdown> = {}): VictoryPointsBreakdown {
   return {
@@ -86,10 +87,10 @@ describe('VictoryPointsOverlay', () => {
     expect(wrapper.find('.vp-scale__seg--penalty').exists()).is.true;
   });
 
-  it('hides detail for other players when the option is off', () => {
+  it('locks detail for other players when the option is off and the game is running', () => {
     const wrapper = mountOverlay(fullBreakdown(), false);
-    // displayedPlayer (blue) === thisPlayerColor (blue) → NOT hidden even off.
-    expect(wrapper.find('.vp-hidden').exists()).is.false;
+    // displayedPlayer (blue) === thisPlayerColor (blue) → NOT locked even off.
+    expect(wrapper.find('.vp-lock').exists()).is.false;
 
     const other: RecursivePartial<PublicPlayerModel> = {color: 'red', name: 'Other', victoryPointsBreakdown: fullBreakdown()};
     const game: RecursivePartial<GameModel> = {gameOptions: {showOtherPlayersVP: false}};
@@ -97,7 +98,20 @@ describe('VictoryPointsOverlay', () => {
       ...globalConfig,
       props: {displayedPlayer: other as PublicPlayerModel, game: game as GameModel, thisPlayerColor: 'blue'},
     });
-    expect(wrapper2.find('.vp-hidden').exists()).is.true;
+    expect(wrapper2.find('.vp-lock').exists()).is.true;
+    // The locked report shows no score bars (nothing leaks).
+    expect(wrapper2.find('.vp-dashboard').exists()).is.false;
+  });
+
+  it('shows the real report once the game has ended, even with the option off', () => {
+    const other: RecursivePartial<PublicPlayerModel> = {color: 'red', name: 'Other', victoryPointsBreakdown: fullBreakdown()};
+    const game: RecursivePartial<GameModel> = {gameOptions: {showOtherPlayersVP: false}, phase: Phase.END};
+    const wrapper = mount(VictoryPointsOverlay, {
+      ...globalConfig,
+      props: {displayedPlayer: other as PublicPlayerModel, game: game as GameModel, thisPlayerColor: 'blue'},
+    });
+    expect(wrapper.find('.vp-lock').exists()).is.false;
+    expect(wrapper.find('.vp-dashboard').exists()).is.true;
   });
 
   it('dims every non-matching source uniformly while one is hovered', async () => {

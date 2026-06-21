@@ -33,6 +33,10 @@
         <button type="button" class="eg-results__ctl eg-results__ctl--min" :title="$t('Minimize')" @click="minimize">
           <span aria-hidden="true">↗</span><span class="eg-results__ctl-label" v-i18n>Minimize</span>
         </button>
+        <!-- Hidden-VP games: replay the suspenseful category-by-category reveal on demand. -->
+        <button v-if="hiddenVpMode" type="button" class="eg-results__ctl eg-results__ctl--replay" :title="$t('Replay scoring')" @click="replayReveal">
+          <span aria-hidden="true">⟲</span><span class="eg-results__ctl-label" v-i18n>Replay scoring</span>
+        </button>
         <!--
           Rematch control (replaces the legacy "New game" link). State-driven:
           Offer rematch → Waiting N/M (+ Cancel for the offerer) → Join rematch.
@@ -110,7 +114,7 @@ import {defineComponent} from 'vue';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {EndgameModel} from '@/client/components/endgame/endgameModel';
-import {endgameState, setEndgameTab, minimizeEndgameResults, EndgameTab, ENDGAME_TABS} from '@/client/components/endgame/endgameState';
+import {endgameState, setEndgameTab, minimizeEndgameResults, replayEndgameReveal, EndgameTab, ENDGAME_TABS} from '@/client/components/endgame/endgameState';
 import {rematchState, submitRematch, rematchJoinHref} from '@/client/components/rematch/rematchState';
 import {RematchModel} from '@/common/models/RematchModel';
 import {paths} from '@/common/app/paths';
@@ -181,8 +185,15 @@ export default defineComponent({
     totalCount(): number {
       return (this.rematch?.votes ?? []).length;
     },
+    // Hidden-VP game → offer to replay the suspenseful final-scoring reveal.
+    hiddenVpMode(): boolean {
+      return this.view.game.gameOptions.showOtherPlayersVP === false && this.view.players.length > 1;
+    },
   },
   methods: {
+    replayReveal(): void {
+      replayEndgameReveal();
+    },
     setTab(tab: EndgameTab): void {
       setEndgameTab(tab);
     },
