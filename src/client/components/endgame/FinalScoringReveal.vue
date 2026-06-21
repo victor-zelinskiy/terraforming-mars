@@ -2,17 +2,20 @@
   <!--
     Premium FINAL SCORING REVEAL — the "reward" surface for hidden-VP games.
     Shown the moment a hidden-score game ends, BEFORE the detailed results
-    overlay: the score is revealed category by category, each player's running
-    total counting up and their lane bar racing, so the winner stays a mystery
-    until the last swingy categories land. Wingspan-style suspense, sci-fi skin.
+    overlay: the score is revealed category by category (TR split into its real
+    sub-parts), each player's running total counting up while their STACKED,
+    colour-segmented bar fills, so the winner stays a mystery until the swingy
+    categories land — then a winner SCAN sweeps the lanes and settles on them.
 
     Numbers come from the SAME endgame model the results screen uses (via the
     pure `finalScoringRevealModel` adapter) — no second source of truth. The
     final totals are NEVER in the DOM until the winner step; lanes only ever
-    render the running (revealed-so-far) total.
+    render the running (revealed-so-far) total, and a not-yet-revealed group's
+    value is never shown.
 
-    Choreography is a small timer-driven step machine + one rAF easing loop
-    (transform/opacity/width only). Skippable + speed-up; honours reduced motion.
+    Performance: the bars reveal with `transform: scaleX()` (compositor only, no
+    layout), the only per-frame work is easing 1 number per player; everything
+    else is CSS transitions on transform/opacity. Honours reduced motion.
   -->
   <div class="fsr" :class="{'fsr--done': phase === 'winner'}" tabindex="-1" ref="root" @keydown.esc.stop.prevent="onEsc">
     <div class="fsr__backdrop" aria-hidden="true"></div>
@@ -43,61 +46,126 @@
       <h2 class="fsr__title" v-i18n>Final scoring</h2>
       <p class="fsr__subtitle" v-i18n>Victory points were hidden. Revealing the result by category.</p>
 
-      <!-- Category progress rail. -->
-      <ol class="fsr__progress" aria-hidden="true">
-        <li v-for="(cat, i) in categories" :key="cat.key"
+      <!-- Group progress rail. Hover/focus a pill → highlight that group everywhere. -->
+      <ol class="fsr__progress" role="list">
+        <li v-for="g in reveal.groups" :key="g.key"
             class="fsr__progress-node"
-            :class="['fsr-cat--' + cat.key, {
-              'fsr__progress-node--active': activeCategory === i && phase === 'revealing',
-              'fsr__progress-node--done': revealedCount > i,
-            }]">
+            :class="['fsr-cat--' + g.accent, groupHlClass(g.key), {
+              'fsr__progress-node--active': activeGroupKey === g.key && phase === 'revealing',
+              'fsr__progress-node--done': groupDone(g.key),
+              'fsr__progress-node--upcoming': !groupStarted(g.key),
+              'fsr__progress-node--interactive': canHover(g.key),
+            }]"
+            :tabindex="canHover(g.key) ? 0 : -1"
+            @mouseenter="onPillHover(g.key, $event)" @mouseleave="clearHover"
+            @focus="onPillHover(g.key, $event)" @blur="clearHover">
           <span class="fsr__progress-dot" aria-hidden="true"></span>
-          <span class="fsr__progress-label" v-i18n>{{ cat.label }}</span>
+          <span class="fsr__progress-label" v-i18n>{{ g.label }}</span>
         </li>
         <li class="fsr__progress-node fsr__progress-node--final"
-            :class="{'fsr__progress-node--active': phase === 'tiebreak' || phase === 'winner'}">
+            :class="{'fsr__progress-node--active': phase === 'tiebreak' || phase === 'winnerScan' || phase === 'winner'}">
           <span class="fsr__progress-dot" aria-hidden="true"></span>
           <span class="fsr__progress-label" v-i18n>Winner</span>
         </li>
       </ol>
     </header>
 
+    <!-- Current-category stage block. -->
+    <transition name="fsr-fade">
+      <div v-if="phase === 'revealing' && activeStage !== undefined" class="fsr__stage" :class="'fsr-cat--' + activeStage.accent">
+        <span class="fsr__stage-bar" aria-hidden="true"></span>
+        <div class="fsr__stage-body">
+          <span class="fsr__stage-kicker" v-i18n>Revealing now</span>
+          <span class="fsr__stage-group" v-i18n>{{ activeStage.groupLabel }}</span>
+          <span v-if="activeStage.subLabel !== ''" class="fsr__stage-sub" v-i18n>{{ activeStage.subLabel }}</span>
+        </div>
+        <span class="fsr__stage-step" v-i18n="[String(activeStage.index), String(reveal.groups.length)]">Stage ${0} of ${1}</span>
+      </div>
+    </transition>
+
     <!-- Player lanes (neutral seating order — never ranked, so nothing spoils). -->
     <div class="fsr__lanes">
-      <div v-for="p in lanes" :key="p.color"
+      <div v-for="(lane, li) in lanes" :key="lane.color"
            class="fsr__lane"
            :class="{
-             'fsr__lane--winner': isWinnerLane(p.color),
-             'fsr__lane--dim': phase === 'winner' && !isWinnerLane(p.color),
+             'fsr__lane--winner': isWinnerLane(lane.color),
+             'fsr__lane--dim': phase === 'winner' && !isWinnerLane(lane.color),
+             'fsr__lane--hot': hoverLane === lane.color,
+             'fsr__lane--scan': phase === 'winnerScan' && scanIndex === li,
            }">
         <div class="fsr__lane-id">
-          <span v-if="isWinnerLane(p.color)" class="fsr__crown" aria-hidden="true">♔</span>
-          <span class="fsr__lane-dot" :class="'player_bg_color_' + p.color" aria-hidden="true"></span>
-          <span class="fsr__lane-name">{{ p.name }}</span>
-          <span v-if="p.corporation !== ''" class="fsr__lane-corp" v-i18n>{{ p.corporation }}</span>
+          <span v-if="isWinnerLane(lane.color)" class="fsr__crown" aria-hidden="true">♔</span>
+          <span class="fsr__lane-dot" :class="'player_bg_color_' + lane.color" aria-hidden="true"></span>
+          <span class="fsr__lane-name">{{ lane.name }}</span>
+          <span v-if="lane.corp !== ''" class="fsr__lane-corp" v-i18n>{{ lane.corp }}</span>
         </div>
 
+        <!-- STACKED segmented bar: absolutely-positioned segments, reveal via scaleX. -->
         <div class="fsr__lane-bar">
-          <div class="fsr__lane-fill" :style="{width: barPct(p.color) + '%'}">
-            <span class="fsr__lane-fill-glow" aria-hidden="true"></span>
-          </div>
+          <div v-for="seg in lane.segs" :key="seg.key"
+               class="fsr__seg"
+               :class="['fsr-cat--' + seg.key, segHlClass(seg.group), {
+                 'fsr__seg--revealed': seg.index < revealedSegments,
+                 'fsr__seg--penalty': seg.penalty,
+                 'fsr__seg--active': activeSegment === seg.index,
+               }]"
+               :style="{left: seg.leftPct + '%', width: seg.widthPct + '%'}"
+               @mouseenter="onSegHover(seg.group, lane.color, $event)" @mouseleave="clearHover"></div>
+          <span class="fsr__lane-bar-edge" aria-hidden="true"></span>
         </div>
 
         <div class="fsr__lane-total">
-          <span class="fsr__lane-total-num">{{ displayedTotal(p.color) }}</span>
+          <transition name="fsr-pop">
+            <span v-if="pendingFor(lane.color) !== 0" class="fsr__lane-pending"
+                  :class="{'fsr__lane-pending--neg': pendingFor(lane.color) < 0}">
+              {{ pendingFor(lane.color) > 0 ? '+' + pendingFor(lane.color) : pendingFor(lane.color) }}
+            </span>
+          </transition>
+          <span class="fsr__lane-total-num">{{ displayedTotal(lane.color) }}</span>
           <span class="fsr__lane-total-unit" v-i18n>VP</span>
         </div>
 
+        <!-- One chip per STARTED group (running value; TR accumulates as its sub-parts land). -->
         <transition-group tag="div" class="fsr__lane-chips" name="fsr-chip">
-          <span v-for="chip in revealedChipsFor(p.color)" :key="chip.key"
+          <span v-for="g in startedGroupsFor" :key="g.key"
                 class="fsr__chip"
-                :class="['fsr-cat--' + chip.key, {'fsr__chip--penalty': chip.value < 0, 'fsr__chip--zero': chip.value === 0}]">
-            <span class="fsr__chip-label" v-i18n>{{ chip.label }}</span>
-            <span class="fsr__chip-val">{{ chip.value >= 0 ? '+' + chip.value : chip.value }}</span>
+                :class="['fsr-cat--' + g.accent, groupHlClass(g.key), {
+                  'fsr__chip--penalty': groupValue(g.key, lane.color) < 0,
+                  'fsr__chip--active': groupActive(g.key),
+                  'fsr__chip--interactive': canHover(g.key),
+                }]"
+                :tabindex="canHover(g.key) ? 0 : -1"
+                @mouseenter="onChipHover(g.key, lane.color, $event)" @mouseleave="clearHover"
+                @focus="onChipHover(g.key, lane.color, $event)" @blur="clearHover">
+            <span class="fsr__chip-label" v-i18n>{{ g.label }}</span>
+            <span class="fsr__chip-val">{{ groupValue(g.key, lane.color) >= 0 ? '+' + groupValue(g.key, lane.color) : groupValue(g.key, lane.color) }}</span>
           </span>
         </transition-group>
       </div>
     </div>
+
+    <!-- Hover inspector popover (revealed groups only — never leaks future VP).
+         Teleported to body so `position: fixed` resolves against the viewport
+         (the .fsr backdrop-filter would otherwise be its containing block). -->
+    <Teleport to="body">
+      <transition name="fsr-fade">
+        <div v-if="inspector !== undefined" class="fsr__inspector" :class="'fsr-cat--' + inspector.accent"
+             :style="{top: inspector.top + 'px', left: inspector.left + 'px'}" aria-hidden="true">
+          <div class="fsr__inspector-head">
+            <span class="fsr__inspector-dot"></span>
+            <span class="fsr__inspector-name" v-i18n>{{ inspector.label }}</span>
+          </div>
+          <div class="fsr__inspector-desc" v-i18n>{{ inspector.description }}</div>
+          <div class="fsr__inspector-rows">
+            <div v-for="row in inspector.rows" :key="row.color" class="fsr__inspector-row" :class="{'fsr__inspector-row--hot': row.color === hoverLane}">
+              <span class="fsr__lane-dot" :class="'player_bg_color_' + row.color"></span>
+              <span class="fsr__inspector-row-name">{{ row.name }}</span>
+              <span class="fsr__inspector-row-val">{{ row.value >= 0 ? '+' + row.value : row.value }}</span>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
 
     <!-- Dedicated tie-break beat: equal total → decided on M€. -->
     <transition name="fsr-fade">
@@ -149,25 +217,32 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {EndgameModel} from '@/client/components/endgame/endgameModel';
-import {buildFinalScoringRevealModel, FinalScoringRevealModel} from '@/client/components/endgame/finalScoringRevealModel';
+import {buildFinalScoringRevealModel, FinalScoringRevealModel, RevealGroupKey} from '@/client/components/endgame/finalScoringRevealModel';
 import {openEndgameResults} from '@/client/components/endgame/endgameState';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 
 // Base step durations (ms). Fast mode scales them down; reduced motion snaps.
 const D = {
-  intro: 650,
-  highlight: 460,
-  count: 720,
-  between: 560,
+  intro: 620,
+  highlight: 360,
+  count: 640,
+  between: 460,
   tiebreak: 1300,
+  scanStep: 170,
+  scanSettle: 460,
 };
-const FAST_SCALE = 0.38;
+const FAST_SCALE = 0.4;
 // Per-frame easing fraction for the running-total count-up (higher = snappier).
 const EASE = 0.16;
 const EASE_FAST = 0.34;
 
-type Phase = 'intro' | 'revealing' | 'tiebreak' | 'winner';
-type RevealedChip = {key: string; label: string; value: number};
+type Phase = 'intro' | 'revealing' | 'tiebreak' | 'winnerScan' | 'winner';
+type LaneSeg = {index: number; key: string; group: RevealGroupKey; label: string; value: number; leftPct: number; widthPct: number; penalty: boolean};
+type Lane = {color: Color; name: string; corp: string; segs: Array<LaneSeg>};
+type Inspector = {group: RevealGroupKey; accent: string; label: string; description: string; top: number; left: number; rows: Array<{color: Color; name: string; value: number}>};
+
+// Minimum visible width of a tiny segment (the tooltip still shows the exact value).
+const MIN_SEG_PCT = 0.9;
 
 export default defineComponent({
   name: 'FinalScoringReveal',
@@ -179,15 +254,21 @@ export default defineComponent({
   data() {
     return {
       phase: 'intro' as Phase,
-      // How many categories have been applied to the running totals.
-      revealedCount: 0,
-      // The category index currently being highlighted (-1 = none / between).
-      activeCategory: -1,
+      // How many segments have been applied to the running totals.
+      revealedSegments: 0,
+      // The segment index currently being highlighted (-1 = none / between).
+      activeSegment: -1,
+      // Lane index currently lit by the winner scan (-1 = none).
+      scanIndex: -1,
       showTieBreak: false,
       fast: false,
       // Animated running totals + their targets, keyed by color.
       displayed: {} as Record<string, number>,
       targets: {} as Record<string, number>,
+      // Hover/focus state — drives cross-highlight + the inspector popover.
+      hoverGroup: null as RevealGroupKey | null,
+      hoverLane: null as Color | null,
+      inspector: undefined as Inspector | undefined,
       timers: [] as Array<number>,
       raf: undefined as number | undefined,
     };
@@ -196,11 +277,49 @@ export default defineComponent({
     reveal(): FinalScoringRevealModel {
       return buildFinalScoringRevealModel(this.model, this.playerOrder);
     },
-    lanes() {
-      return this.reveal.players;
+    // Precomputed lane layout (stable) — segment left/width as % of maxTotal,
+    // so the per-frame work is only the counters, never layout math.
+    lanes(): Array<Lane> {
+      const max = this.reveal.maxTotal;
+      return this.reveal.players.map((p) => {
+        let cum = 0;
+        const segs: Array<LaneSeg> = this.reveal.segments.map((seg) => {
+          const v = seg.values[p.color] ?? 0;
+          let leftPct: number;
+          if (v >= 0) {
+            leftPct = cum / max * 100;
+            cum += v;
+          } else {
+            cum += v;
+            leftPct = cum / max * 100;
+          }
+          const widthPct = Math.max(MIN_SEG_PCT, Math.abs(v) / max * 100);
+          return {index: seg.order, key: seg.key, group: seg.group, label: seg.label, value: v, leftPct, widthPct, penalty: seg.penalty || v < 0};
+        });
+        return {color: p.color, name: p.name, corp: p.corporation, segs};
+      });
     },
-    categories() {
-      return this.reveal.categories;
+    // Groups that have begun revealing — drive the lane chips.
+    startedGroupsFor() {
+      return this.reveal.groups.filter((g) => this.groupStarted(g.key));
+    },
+    activeGroupKey(): RevealGroupKey | undefined {
+      return this.activeSegment >= 0 ? this.reveal.segments[this.activeSegment]?.group : undefined;
+    },
+    // The current-stage block content (group label + sub-part + "Stage i of N").
+    activeStage(): {accent: string; groupLabel: string; subLabel: string; index: number} | undefined {
+      if (this.activeSegment < 0) {
+        return undefined;
+      }
+      const seg = this.reveal.segments[this.activeSegment];
+      const gi = this.reveal.groups.findIndex((g) => g.key === seg.group);
+      const group = this.reveal.groups[gi];
+      if (group === undefined) {
+        return undefined;
+      }
+      // Only show the sub-part line for a multi-segment group (TR).
+      const subLabel = group.segmentIndexes.length > 1 ? seg.label : '';
+      return {accent: group.accent, groupLabel: group.label, subLabel, index: gi + 1};
     },
     winnerNames(): string {
       return this.reveal.winners.map((c) => this.nameOf(c)).join(' · ');
@@ -213,25 +332,93 @@ export default defineComponent({
     displayedTotal(color: Color): number {
       return Math.round(this.displayed[color] ?? 0);
     },
-    barPct(color: Color): number {
-      const v = (this.displayed[color] ?? 0) / this.reveal.maxTotal * 100;
-      return Math.max(0, Math.min(100, v));
-    },
-    // The category chips already revealed for a lane (oldest → newest).
-    revealedChipsFor(color: Color): Array<RevealedChip> {
-      const out: Array<RevealedChip> = [];
-      for (let i = 0; i < this.revealedCount; i++) {
-        const cat = this.categories[i];
-        out.push({key: cat.key, label: cat.label, value: cat.values[color] ?? 0});
+    // Running revealed value of a group for a player (sum of its revealed segments).
+    groupValue(group: RevealGroupKey, color: Color): number {
+      const g = this.reveal.groups.find((x) => x.key === group);
+      if (g === undefined) {
+        return 0;
       }
-      return out;
+      let sum = 0;
+      for (const i of g.segmentIndexes) {
+        if (i < this.revealedSegments) {
+          sum += this.reveal.segments[i].values[color] ?? 0;
+        }
+      }
+      return sum;
+    },
+    groupStarted(group: RevealGroupKey): boolean {
+      const g = this.reveal.groups.find((x) => x.key === group);
+      return g !== undefined && g.segmentIndexes.some((i) => i < this.revealedSegments);
+    },
+    groupDone(group: RevealGroupKey): boolean {
+      const g = this.reveal.groups.find((x) => x.key === group);
+      return g !== undefined && g.segmentIndexes.every((i) => i < this.revealedSegments);
+    },
+    groupActive(group: RevealGroupKey): boolean {
+      return this.activeGroupKey === group;
+    },
+    // Hover only on fully-revealed groups — never implies a future value.
+    canHover(group: RevealGroupKey): boolean {
+      return this.groupDone(group);
+    },
+    groupHlClass(group: RevealGroupKey): string {
+      if (this.hoverGroup === null) {
+        return '';
+      }
+      return this.hoverGroup === group ? 'fsr-hl' : 'fsr-dim';
+    },
+    segHlClass(group: RevealGroupKey): string {
+      return this.groupHlClass(group);
+    },
+    pendingFor(color: Color): number {
+      if (this.phase !== 'revealing' || this.activeSegment < 0) {
+        return 0;
+      }
+      return this.reveal.segments[this.activeSegment]?.values[color] ?? 0;
     },
     isWinnerLane(color: Color): boolean {
       return this.phase === 'winner' && this.reveal.winners.includes(color);
     },
+    // ── Hover / inspector ──────────────────────────────────────────────
+    onPillHover(group: RevealGroupKey, evt: Event): void {
+      this.setHover(group, null, evt);
+    },
+    onChipHover(group: RevealGroupKey, color: Color, evt: Event): void {
+      this.setHover(group, color, evt);
+    },
+    onSegHover(group: RevealGroupKey, color: Color, evt: Event): void {
+      this.setHover(group, color, evt);
+    },
+    setHover(group: RevealGroupKey, color: Color | null, evt: Event): void {
+      if (!this.canHover(group)) {
+        return;
+      }
+      this.hoverGroup = group;
+      this.hoverLane = color;
+      const g = this.reveal.groups.find((x) => x.key === group);
+      const target = evt.currentTarget as HTMLElement | null;
+      if (g === undefined || target === null || typeof target.getBoundingClientRect !== 'function') {
+        return;
+      }
+      const r = target.getBoundingClientRect();
+      const rows = this.reveal.players.map((p) => ({color: p.color, name: p.name, value: g.values[p.color] ?? 0}));
+      // Anchor above the element, clamped to the viewport.
+      const width = 232;
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+      let left = r.left + r.width / 2 - width / 2;
+      left = Math.max(12, Math.min(left, vw - width - 12));
+      const top = Math.max(12, r.top - 14 - (74 + rows.length * 22));
+      this.inspector = {group, accent: g.accent, label: g.label, description: g.description, top, left, rows};
+    },
+    clearHover(): void {
+      this.hoverGroup = null;
+      this.hoverLane = null;
+      this.inspector = undefined;
+    },
+    // ── Controls ───────────────────────────────────────────────────────
     dur(base: number): number {
       if (prefersReducedMotion()) {
-        return Math.max(40, base * 0.16);
+        return Math.max(30, base * 0.14);
       }
       return this.fast ? base * FAST_SCALE : base;
     },
@@ -248,12 +435,11 @@ export default defineComponent({
     openResults(): void {
       openEndgameResults();
     },
-    // Recompute every lane's target to the running total through `count` categories.
     setTargets(count: number): void {
       for (const p of this.reveal.players) {
         let sum = 0;
         for (let i = 0; i < count; i++) {
-          sum += this.categories[i].values[p.color] ?? 0;
+          sum += this.reveal.segments[i].values[p.color] ?? 0;
         }
         this.targets[p.color] = sum;
       }
@@ -270,7 +456,7 @@ export default defineComponent({
           const tgt = this.targets[p.color] ?? 0;
           if (Math.abs(tgt - cur) > 0.4) {
             this.displayed[p.color] = cur + (tgt - cur) * ease;
-          } else {
+          } else if (cur !== tgt) {
             this.displayed[p.color] = tgt;
           }
         }
@@ -279,8 +465,7 @@ export default defineComponent({
       this.raf = requestAnimationFrame(tick);
     },
     later(fn: () => void, ms: number): void {
-      const id = window.setTimeout(fn, ms);
-      this.timers.push(id);
+      this.timers.push(window.setTimeout(fn, ms));
     },
     clearTimers(): void {
       for (const id of this.timers) {
@@ -288,47 +473,59 @@ export default defineComponent({
       }
       this.timers = [];
     },
-    // The step machine: intro → each category → (tie-break) → winner.
+    // ── The step machine: intro → segments → (tie-break) → winner scan → winner.
     runSequence(): void {
-      this.later(() => this.revealCategory(0), this.dur(D.intro));
+      this.later(() => this.revealSegment(0), this.dur(D.intro));
     },
-    revealCategory(index: number): void {
-      if (index >= this.categories.length) {
+    revealSegment(index: number): void {
+      if (index >= this.reveal.segments.length) {
         this.toFinish();
         return;
       }
       this.phase = 'revealing';
-      this.activeCategory = index;
-      // Highlight first, then drop the chip + count the totals up.
+      this.activeSegment = index;
+      // Highlight (pill + stage + pending +X), then grow the bar + count up.
       this.later(() => {
-        this.revealedCount = index + 1;
-        this.setTargets(this.revealedCount);
+        this.revealedSegments = index + 1;
+        this.setTargets(this.revealedSegments);
         this.later(() => {
-          this.activeCategory = -1;
-          this.revealCategory(index + 1);
+          this.activeSegment = -1;
+          this.revealSegment(index + 1);
         }, this.dur(D.count) + this.dur(D.between));
       }, this.dur(D.highlight));
     },
     toFinish(): void {
-      // Make sure the counters land exactly on the final totals.
-      this.setTargets(this.categories.length);
+      this.setTargets(this.reveal.segments.length);
       if (this.reveal.tieBreak !== undefined) {
         this.phase = 'tiebreak';
         this.showTieBreak = true;
-        this.later(() => this.toWinner(), this.dur(D.tiebreak));
+        this.later(() => this.startWinnerScan(), this.dur(D.tiebreak));
       } else {
-        this.toWinner();
+        this.startWinnerScan();
       }
     },
-    toWinner(): void {
-      this.phase = 'winner';
+    startWinnerScan(): void {
+      this.phase = 'winnerScan';
+      this.scanStep(0);
+    },
+    scanStep(i: number): void {
+      if (i >= this.lanes.length) {
+        this.scanIndex = -1;
+        this.later(() => {
+          this.phase = 'winner';
+        }, this.dur(D.scanSettle));
+        return;
+      }
+      this.scanIndex = i;
+      this.later(() => this.scanStep(i + 1), this.dur(D.scanStep));
     },
     // Skip the animation — snap to the finished state, keep the winner CTA.
     skipAnimation(): void {
       this.clearTimers();
-      this.revealedCount = this.categories.length;
-      this.activeCategory = -1;
-      this.setTargets(this.categories.length);
+      this.revealedSegments = this.reveal.segments.length;
+      this.activeSegment = -1;
+      this.scanIndex = -1;
+      this.setTargets(this.reveal.segments.length);
       for (const p of this.reveal.players) {
         this.displayed[p.color] = this.targets[p.color];
       }
@@ -344,10 +541,8 @@ export default defineComponent({
   },
   mounted(): void {
     this.startEaseLoop();
-    const el = this.$refs.root as HTMLElement | undefined;
-    el?.focus?.();
-    if (this.categories.length === 0) {
-      // Degenerate (no scoring categories) — go straight to the winner.
+    (this.$refs.root as HTMLElement | undefined)?.focus?.();
+    if (this.reveal.segments.length === 0) {
       this.skipAnimation();
       return;
     }
