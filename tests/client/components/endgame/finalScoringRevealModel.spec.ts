@@ -27,6 +27,10 @@ function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreak
     negativeVP: 0,
   };
   const merged = {...base, ...partial};
+  // Mirror production: base is the reconciling remainder so the TR sub-parts
+  // always sum to terraformRating.
+  const trb = merged.terraformRatingBreakdown;
+  merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards)};
   if (partial.total === undefined) {
     merged.total = merged.terraformRating + merged.milestones + merged.awards + merged.greenery +
       merged.city + merged.victoryPoints + merged.moonHabitats + merged.moonMines + merged.moonRoads +
@@ -60,38 +64,51 @@ describe('finalScoringRevealModel', () => {
     expect(reveal.players.map((p) => p.color).sort()).to.deep.eq(['blue', 'red']);
   });
 
-  it('per-player category sum equals the final total (no divergence)', () => {
+  it('per-player segment sum equals the final total (no divergence)', () => {
     const a = player('red', 'A', {
       terraformRating: 28, greenery: 4, city: 3, victoryPoints: 7, milestones: 5, awards: 2,
     }); // 49
     const reveal = buildFinalScoringRevealModel(model([a, player('blue', 'B', {terraformRating: 20})]), ['red', 'blue']);
-    const sum = reveal.categories.reduce((acc, c) => acc + (c.values['red'] ?? 0), 0);
+    const sum = reveal.segments.reduce((acc, s) => acc + (s.values['red'] ?? 0), 0);
     expect(sum).to.eq(49);
     expect(reveal.players.find((p) => p.color === 'red')?.finalTotal).to.eq(49);
   });
 
-  it('only includes categories that moved a score (TR always kept)', () => {
+  it('splits TR into its sub-parts (reusing terraformRatingBreakdown), grouped under "tr"', () => {
+    const a = player('red', 'A', {
+      terraformRating: 28,
+      terraformRatingBreakdown: {base: 20, temperature: 3, oxygen: 2, oceans: 2, venus: 0, cards: 1},
+    });
+    const reveal = buildFinalScoringRevealModel(model([a, player('blue', 'B', {terraformRating: 20})], {hasVenus: false}), ['red', 'blue']);
+    const trSegs = reveal.segments.filter((s) => s.group === 'tr').map((s) => s.key);
+    // base + the 4 non-zero raisers; venus is 0 → skipped.
+    expect(trSegs).to.deep.eq(['tr-base', 'tr-temperature', 'tr-oxygen', 'tr-oceans', 'tr-cards']);
+    const trGroup = reveal.groups.find((g) => g.key === 'tr');
+    expect(trGroup?.values['red']).to.eq(28); // sub-parts sum to TR
+    expect(trGroup?.segmentIndexes.length).to.eq(5);
+  });
+
+  it('only includes segments that moved a score (TR base always kept)', () => {
     const a = player('red', 'A', {terraformRating: 30, greenery: 5});
     const b = player('blue', 'B', {terraformRating: 25, greenery: 2});
     const reveal = buildFinalScoringRevealModel(model([a, b]), ['red', 'blue']);
-    const keys = reveal.categories.map((c) => c.key);
-    expect(keys).to.include('tr');
-    expect(keys).to.include('greenery');
-    // No city / cards / milestones / awards were scored → not revealed.
-    expect(keys).to.not.include('city');
-    expect(keys).to.not.include('milestones');
-    expect(keys).to.not.include('awards');
+    const groupKeys = reveal.groups.map((g) => g.key);
+    expect(groupKeys).to.include('tr');
+    expect(groupKeys).to.include('greenery');
+    expect(groupKeys).to.not.include('city');
+    expect(groupKeys).to.not.include('milestones');
+    expect(reveal.segments.some((s) => s.key === 'tr-base')).to.eq(true);
   });
 
-  it('orders categories for suspense — milestones/awards after the base, penalty last', () => {
+  it('orders segments for suspense — milestones/awards after the base, penalty last', () => {
     const a = player('red', 'A', {terraformRating: 25, greenery: 3, city: 2, victoryPoints: 4, milestones: 5, awards: 5, escapeVelocity: -2});
     const b = player('blue', 'B', {terraformRating: 20});
     const reveal = buildFinalScoringRevealModel(model([a, b]), ['red', 'blue']);
-    const keys = reveal.categories.map((c) => c.key);
-    expect(keys.indexOf('tr')).to.be.lessThan(keys.indexOf('milestones'));
+    const keys = reveal.segments.map((s) => s.key);
+    expect(keys.indexOf('tr-base')).to.be.lessThan(keys.indexOf('milestones'));
     expect(keys.indexOf('awards')).to.be.lessThan(keys.indexOf('penalty'));
     expect(keys[keys.length - 1]).to.eq('penalty');
-    expect(reveal.categories.find((c) => c.key === 'penalty')?.penalty).to.eq(true);
+    expect(reveal.segments.find((s) => s.key === 'penalty')?.penalty).to.eq(true);
   });
 
   it('emits a tie-break when the top total is shared, resolved on M€', () => {

@@ -15,6 +15,8 @@ function breakdown(p: Partial<VictoryPointsBreakdown>): VictoryPointsBreakdown {
     detailsCards: [], detailsMilestones: [], detailsAwards: [], detailsPlanetaryTracks: [], negativeVP: 0,
   };
   const merged = {...b, ...p};
+  const trb = merged.terraformRatingBreakdown;
+  merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards)};
   if (p.total === undefined) {
     merged.total = merged.terraformRating + merged.milestones + merged.awards + merged.greenery + merged.city + merged.victoryPoints;
   }
@@ -73,5 +75,39 @@ describe('FinalScoringReveal', () => {
     await wrapper.find('.fsr__cta').trigger('click');
     expect(endgameState.resultsOpen).is.true;
     expect(endgameState.revealActive).is.false;
+  });
+
+  it('starts with no chips and zero totals (nothing revealed yet)', () => {
+    const m = model([input('red', 'A', {terraformRating: 30, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    expect(wrapper.findAll('.fsr__chip')).to.have.length(0);
+    expect(wrapper.find('.fsr__lane-total-num').text()).to.eq('0');
+    // No segment is revealed at intro.
+    expect(wrapper.findAll('.fsr__seg--revealed')).to.have.length(0);
+  });
+
+  it('renders stacked bar segments and group chips after the reveal', async () => {
+    const m = model([input('red', 'A', {terraformRating: 30, greenery: 4, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    (wrapper.vm as unknown as {skipAnimation: () => void}).skipAnimation();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll('.fsr__seg--revealed').length).to.be.greaterThan(0);
+    // A chip per started group, in both lanes.
+    expect(wrapper.findAll('.fsr__chip').length).to.be.greaterThan(0);
+  });
+
+  it('hovering a revealed group sets the cross-highlight and inspector', async () => {
+    const m = model([input('red', 'A', {terraformRating: 35, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    (wrapper.vm as unknown as {skipAnimation: () => void}).skipAnimation();
+    await wrapper.vm.$nextTick();
+    const pill = wrapper.find('.fsr__progress-node--interactive');
+    expect(pill.exists()).is.true;
+    await pill.trigger('mouseenter');
+    const vm = wrapper.vm as unknown as {hoverGroup: string | null; inspector: unknown};
+    expect(vm.hoverGroup).to.not.eq(null);
+    expect(vm.inspector).to.not.eq(undefined);
+    await pill.trigger('mouseleave');
+    expect((wrapper.vm as unknown as {hoverGroup: string | null}).hoverGroup).to.eq(null);
   });
 });

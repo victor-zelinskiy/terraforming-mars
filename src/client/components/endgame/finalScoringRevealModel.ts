@@ -8,17 +8,24 @@
  * and the detailed results screen are driven by the SAME numbers — there is no
  * second source of truth and no risk of the totals diverging.
  *
- * Design notes:
+ * Two granularities, ONE set of numbers:
+ *   • `segments` — the FLAT reveal order. Terraform rating is split into the
+ *     SAME sub-parts the detailed score report shows
+ *     (`terraformRatingBreakdown`: base / temperature / oxygen / oceans /
+ *     venus / cards), reusing its exact labels + accents, so РТ never lands as
+ *     one big monolith and the reveal and the report can't disagree. Each
+ *     segment pulls EXACTLY one field that `VictoryPointsBreakdownBuilder`
+ *     sums, so the per-player segment sum always equals the real final total.
+ *   • `groups` — the GROUP level (TR / greenery / cities / cards / …) shown as
+ *     pills + chips. A group's value is the sum of its segments.
+ *
+ * Suspense rules:
  *   • Players are laid out in a NEUTRAL order (seating order passed by the
  *     caller), NOT ranked winner-first — ranking would spoil the reveal.
- *   • The categories are ordered for suspense (stable parameters first, the
- *     swingy milestones/awards near the end, penalties last) and pull EXACTLY
- *     the fields that `VictoryPointsBreakdownBuilder.updateTotal` sums, so the
- *     per-player category sum always lands on the real final total.
- *   • Only categories where at least one player scored a non-zero value are
- *     included (TR is always kept — everyone starts at a rating). Skipping an
- *     all-zero category cannot change a total (its contribution is 0).
- *   • The tie-break mirrors the engine: equal total → decided on M€.
+ *   • Segments are ordered for drama (the steady terraform/board base first,
+ *     the swingy milestones/awards near the end, penalties last).
+ *   • Only segments where at least one player scored a non-zero value are
+ *     included (the TR base is always kept — everyone starts at a rating).
  *
  * NO Vue / DOM / i18n here — labels are English i18n KEYS the component
  * translates (so this stays unit-testable; see finalScoringRevealModel.spec.ts).
@@ -27,50 +34,55 @@ import {Color} from '@/common/Color';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {EndgameMode, EndgameModel} from '@/client/components/endgame/endgameModel';
 
-// The categories revealed one-by-one. Each maps to a slice of the breakdown
-// total. `penalty` is the negative escape-velocity deduction (shown last).
-export type RevealCategoryKey =
+// The top-level scoring GROUPS shown as pills + lane chips.
+export type RevealGroupKey =
   | 'tr' | 'greenery' | 'city' | 'cards'
   | 'milestones' | 'awards' | 'moon' | 'tracks' | 'delta' | 'penalty';
 
-export type FinalScoringRevealCategory = {
-  key: RevealCategoryKey;
-  label: string; // i18n KEY
-  order: number;
-  // color -> points scored in this category (signed; negative for penalties)
+export type FinalScoringRevealSegment = {
+  // Unique colour/identity key — drives the `.fsr-cat--<key>` accent. For TR
+  // sub-parts this is 'tr-base' / 'tr-temperature' / … ; otherwise == group.
+  key: string;
+  group: RevealGroupKey;
+  label: string; // i18n KEY (the sub-part name, e.g. 'Temperature' / 'Cards')
+  order: number; // global reveal order
+  // color -> points scored in this segment (signed; negative for penalties)
   values: Record<string, number>;
-  // true for a deduction (escape velocity) — rendered in the penalty accent.
   penalty: boolean;
+};
+
+export type FinalScoringRevealGroup = {
+  key: RevealGroupKey;
+  label: string; // i18n KEY (group name, e.g. 'Terraform rating')
+  accent: string; // representative `.fsr-cat--<accent>` colour for pill/chip
+  description: string; // i18n KEY — short inspector description
+  order: number; // group order (index of its first segment)
+  // global reveal indices of this group's segments (into `segments`)
+  segmentIndexes: ReadonlyArray<number>;
+  // color -> group total (sum of its segments)
+  values: Record<string, number>;
 };
 
 export type FinalScoringRevealPlayer = {
   color: Color;
   name: string;
-  corporation: string; // first corporation name, or '' (i18n KEY-free, raw)
+  corporation: string;
   finalTotal: number;
 };
 
-// When the top total is shared, the win is decided on M€ (or stays a true tie).
 export type RevealTieBreak = {
-  // colors that tied on the top total, before the M€ comparison
   contenders: Array<Color>;
   metric: 'megacredits';
-  // megacredits per contender (the comparison the tie-break shows)
   values: Record<string, number>;
-  // single winner after the M€ comparison, or undefined for a genuine tie
   winner: Color | undefined;
 };
 
 export type FinalScoringRevealModel = {
-  // Neutral (seating) order — never ranked, so the lanes don't spoil the result.
   players: Array<FinalScoringRevealPlayer>;
-  // Ordered, only the categories that actually moved a score.
-  categories: Array<FinalScoringRevealCategory>;
-  // Single decisive winner after every tie-break (undefined = genuine shared win).
+  segments: Array<FinalScoringRevealSegment>;
+  groups: Array<FinalScoringRevealGroup>;
   winner: Color | undefined;
-  // Everyone sharing the win (1 normally; >1 only on a genuine total+M€ tie).
   winners: Array<Color>;
-  // Present only when the top total was shared (drives the dedicated tie-break step).
   tieBreak: RevealTieBreak | undefined;
   // Denominator for bar normalisation — the highest FINAL total (never shown as text).
   maxTotal: number;
@@ -78,20 +90,42 @@ export type FinalScoringRevealModel = {
   generation: number;
 };
 
-// Ordered for drama: the steady terraform/board base first, the swingy
-// milestones & awards near the end, expansion extras, penalty last.
-const CATEGORY_ORDER: ReadonlyArray<{key: RevealCategoryKey; label: string; penalty: boolean; value: (b: VictoryPointsBreakdown) => number; gate?: 'always'}> = [
-  {key: 'tr', label: 'Terraform rating', penalty: false, value: (b) => b.terraformRating, gate: 'always'},
-  {key: 'greenery', label: 'Greenery', penalty: false, value: (b) => b.greenery},
-  {key: 'city', label: 'Cities', penalty: false, value: (b) => b.city},
-  {key: 'cards', label: 'Cards', penalty: false, value: (b) => b.victoryPoints},
-  {key: 'milestones', label: 'Milestones', penalty: false, value: (b) => b.milestones},
-  {key: 'awards', label: 'Awards', penalty: false, value: (b) => b.awards},
-  {key: 'moon', label: 'Moon', penalty: false, value: (b) => b.moonHabitats + b.moonMines + b.moonRoads},
-  {key: 'tracks', label: 'Planetary tracks', penalty: false, value: (b) => b.planetaryTracks},
-  {key: 'delta', label: 'Hydronetwork', penalty: false, value: (b) => b.deltaProject},
-  {key: 'penalty', label: 'Penalty', penalty: true, value: (b) => b.escapeVelocity},
+type SegMeta = {key: string; group: RevealGroupKey; label: string; penalty: boolean; always?: boolean; value: (b: VictoryPointsBreakdown) => number};
+
+// Ordered for drama. TR is split into the SAME sub-parts (labels + accents) the
+// detailed VP report uses (`victoryPointsModel.trScale`) so the two never diverge.
+const SEGMENTS: ReadonlyArray<SegMeta> = [
+  {key: 'tr-base', group: 'tr', label: 'Starting rating', penalty: false, always: true, value: (b) => b.terraformRatingBreakdown.base},
+  {key: 'tr-temperature', group: 'tr', label: 'Temperature', penalty: false, value: (b) => b.terraformRatingBreakdown.temperature},
+  {key: 'tr-oxygen', group: 'tr', label: 'Oxygen', penalty: false, value: (b) => b.terraformRatingBreakdown.oxygen},
+  {key: 'tr-oceans', group: 'tr', label: 'Oceans', penalty: false, value: (b) => b.terraformRatingBreakdown.oceans},
+  {key: 'tr-venus', group: 'tr', label: 'Venus', penalty: false, value: (b) => b.terraformRatingBreakdown.venus},
+  {key: 'tr-cards', group: 'tr', label: 'Cards & effects', penalty: false, value: (b) => b.terraformRatingBreakdown.cards},
+  {key: 'greenery', group: 'greenery', label: 'Greenery', penalty: false, value: (b) => b.greenery},
+  {key: 'city', group: 'city', label: 'Cities', penalty: false, value: (b) => b.city},
+  {key: 'cards', group: 'cards', label: 'Cards', penalty: false, value: (b) => b.victoryPoints},
+  {key: 'milestones', group: 'milestones', label: 'Milestones', penalty: false, value: (b) => b.milestones},
+  {key: 'awards', group: 'awards', label: 'Awards', penalty: false, value: (b) => b.awards},
+  {key: 'moon', group: 'moon', label: 'Moon', penalty: false, value: (b) => b.moonHabitats + b.moonMines + b.moonRoads},
+  {key: 'tracks', group: 'tracks', label: 'Planetary tracks', penalty: false, value: (b) => b.planetaryTracks},
+  {key: 'delta', group: 'delta', label: 'Hydronetwork', penalty: false, value: (b) => b.deltaProject},
+  {key: 'penalty', group: 'penalty', label: 'Escape Velocity', penalty: true, value: (b) => b.escapeVelocity},
 ];
+
+const GROUP_META: Record<RevealGroupKey, {label: string; accent: string; description: string}> = {
+  tr: {label: 'Terraform rating', accent: 'tr-cards', description: 'Your terraform rating and what raised it'},
+  greenery: {label: 'Greenery', accent: 'greenery', description: 'VP from greenery tiles'},
+  city: {label: 'Cities', accent: 'city', description: 'VP from cities next to greeneries'},
+  cards: {label: 'Cards', accent: 'cards', description: 'VP printed on and stored by your cards'},
+  milestones: {label: 'Milestones', accent: 'milestones', description: 'Milestones you claimed'},
+  awards: {label: 'Awards', accent: 'awards', description: 'Awards you placed in'},
+  moon: {label: 'Moon', accent: 'moon', description: 'Lunar habitats, mines and roads'},
+  tracks: {label: 'Planetary tracks', accent: 'tracks', description: 'Planetary track positions'},
+  delta: {label: 'Hydronetwork', accent: 'delta', description: 'Hydronetwork end-game VP'},
+  penalty: {label: 'Escape Velocity', accent: 'penalty', description: 'Escape Velocity penalty'},
+};
+
+const GROUP_ORDER: ReadonlyArray<RevealGroupKey> = ['tr', 'greenery', 'city', 'cards', 'milestones', 'awards', 'moon', 'tracks', 'delta', 'penalty'];
 
 /**
  * Build the reveal model from the already-built endgame model.
@@ -100,8 +134,8 @@ const CATEGORY_ORDER: ReadonlyArray<{key: RevealCategoryKey; label: string; pena
  * @param playerOrder  neutral lane order (seating order); colors not listed go last
  */
 export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: ReadonlyArray<Color>): FinalScoringRevealModel {
-  // Lay lanes out in the caller's neutral order (seating), appending any
-  // straggler the order forgot so no player is silently dropped.
+  // Lay lanes out in the caller's neutral order, appending stragglers so no
+  // player is silently dropped.
   const byColor = new Map(model.players.map((p) => [p.color, p]));
   const orderedColors: Array<Color> = [];
   for (const c of playerOrder) {
@@ -129,10 +163,9 @@ export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: R
     });
   }
 
-  // Only keep categories that moved at least one score (TR always kept).
-  const categories: Array<FinalScoringRevealCategory> = [];
-  let order = 0;
-  for (const meta of CATEGORY_ORDER) {
+  // Flat reveal segments (only those that moved a score; TR base always kept).
+  const segments: Array<FinalScoringRevealSegment> = [];
+  for (const meta of SEGMENTS) {
     const values: Record<string, number> = {};
     let anyNonZero = false;
     for (const p of model.players) {
@@ -142,8 +175,30 @@ export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: R
         anyNonZero = true;
       }
     }
-    if (anyNonZero || meta.gate === 'always') {
-      categories.push({key: meta.key, label: meta.label, order: order++, values, penalty: meta.penalty});
+    if (anyNonZero || meta.always === true) {
+      segments.push({key: meta.key, group: meta.group, label: meta.label, order: segments.length, values, penalty: meta.penalty});
+    }
+  }
+
+  // Derive the groups present (in canonical order), each summing its segments.
+  const groups: Array<FinalScoringRevealGroup> = [];
+  for (const gkey of GROUP_ORDER) {
+    const segmentIndexes: Array<number> = [];
+    const values: Record<string, number> = {};
+    for (const p of model.players) {
+      values[p.color] = 0;
+    }
+    segments.forEach((seg, i) => {
+      if (seg.group === gkey) {
+        segmentIndexes.push(i);
+        for (const p of model.players) {
+          values[p.color] += seg.values[p.color] ?? 0;
+        }
+      }
+    });
+    if (segmentIndexes.length > 0) {
+      const m = GROUP_META[gkey];
+      groups.push({key: gkey, label: m.label, accent: m.accent, description: m.description, order: groups.length, segmentIndexes, values});
     }
   }
 
@@ -167,14 +222,14 @@ export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: R
     }
     tieBreak = {contenders: topByTotal.map((p) => p.color), metric: 'megacredits', values, winner};
   } else if (model.mode === 'solo') {
-    // Solo: the "winner" is the player only when the game was actually won.
     winner = model.soloWin ? model.players[0]?.color : undefined;
     winners = winner !== undefined ? [winner] : [];
   }
 
   return {
     players,
-    categories,
+    segments,
+    groups,
     winner,
     winners,
     tieBreak,
@@ -183,10 +238,3 @@ export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: R
     generation: model.generation,
   };
 }
-
-// Shared so the component and tests don't re-declare the ordered label list.
-export const REVEAL_CATEGORY_LABEL: Record<RevealCategoryKey, string> =
-  CATEGORY_ORDER.reduce((acc, m) => {
-    acc[m.key] = m.label;
-    return acc;
-  }, {} as Record<RevealCategoryKey, string>);
