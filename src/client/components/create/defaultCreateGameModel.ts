@@ -44,7 +44,10 @@ export function defaultCreateGameModel(): CreateGameModel {
     randomMA: RandomMAOptionType.ALL,
     modularMA: false,
     randomFirstPlayer: true,
-    showOtherPlayersVP: true,
+    // Default OFF → opponents' VP are hidden during the game and the premium
+    // final-scoring reveal plays at the end. Check "Show real-time VP" at
+    // creation to opt into live VP (and the classic instant winner screen).
+    showOtherPlayersVP: false,
     // beginnerOption: false,
     showCeosList: false,
     showColoniesList: false,

@@ -117,15 +117,12 @@ export default defineComponent({
       const hex = this.model.winner !== undefined ? endgamePlayerHex(this.model.winner.color) : '#6ab0e6';
       return {'--eg-pc': hex};
     },
-    // Hidden-VP mode (other players' VP were hidden all game) — only meaningful
-    // with opponents to hide from, so solo is excluded. Drives the suspenseful
+    // Hidden-VP mode (an OPT-IN: the game was created with "Show real-time VP"
+    // OFF, so opponents' VP were hidden all game). Only meaningful with
+    // opponents to hide from, so solo is excluded. Drives the suspenseful
     // final-scoring reveal in place of the instant winner cinematic.
     hiddenVpMode(): boolean {
-      // TEMP: forced ON for every multiplayer game so the final-scoring reveal
-      // can be previewed on already-finished games. REMOVE before production and
-      // restore the line below:
-      // return this.view.game.gameOptions.showOtherPlayersVP === false && this.view.players.length > 1;
-      return this.view.players.length > 1;
+      return this.view.game.gameOptions.showOtherPlayersVP === false && this.view.players.length > 1;
     },
     // Neutral lane order for the reveal (seating order) so the lanes don't spoil
     // the result by ranking the winner first.

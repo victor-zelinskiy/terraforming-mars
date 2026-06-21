@@ -185,11 +185,10 @@ export default defineComponent({
     totalCount(): number {
       return (this.rematch?.votes ?? []).length;
     },
-    // Hidden-VP game → offer to replay the suspenseful final-scoring reveal.
+    // Hidden-VP game (opt-in, "Show real-time VP" OFF) → offer to replay the
+    // suspenseful final-scoring reveal.
     hiddenVpMode(): boolean {
-      // TEMP: forced ON — see EndgameExperience.hiddenVpMode. REMOVE before production and
-      // restore: return this.view.game.gameOptions.showOtherPlayersVP === false && this.view.players.length > 1;
-      return this.view.players.length > 1;
+      return this.view.game.gameOptions.showOtherPlayersVP === false && this.view.players.length > 1;
     },
   },
   methods: {
