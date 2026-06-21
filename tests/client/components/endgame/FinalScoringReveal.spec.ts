@@ -189,7 +189,7 @@ describe('FinalScoringReveal', () => {
     expect(wrapper.find('.fsr__lane--winner').exists()).is.true;
   });
 
-  it('always shows a subchips rail (default TR); a top-level chip switches it without a popup', () => {
+  it('reserves PERMANENT TR + Cards breakdown rows; a top-level row-backed chip only highlights', () => {
     const m = model([
       input('red', 'A', {terraformRating: 20, victoryPoints: 9, detailsCards: [
         {cardName: 'F', victoryPoint: 5, kind: 'fixed'},
@@ -199,21 +199,32 @@ describe('FinalScoringReveal', () => {
     ]);
     const wrapper = mountReveal(m, ['red', 'blue']);
     const vm = wrapper.vm as unknown as {
-      hasSubs: (g: string) => boolean; skipAnimation: () => void; railGroupKey: string; railSubs: Array<unknown>;
-      onTopLevelHover: (g: string, c: string | null, e: Event) => void; pinnedRailGroup: string | null; inspector: unknown;
+      breakdownRows: Array<{group: string; subs: Array<unknown>}>; hasBreakdownRow: (g: string) => boolean;
+      onChipHover: (g: string, c: string, e: Event) => void; inspector: unknown;
     };
-    expect(vm.hasSubs('cards')).is.true; // fixed + conditional
-    expect(vm.hasSubs('greenery')).is.false; // single segment
+    // Both rows ALWAYS exist (per lane), regardless of reveal/hover state.
+    expect(vm.breakdownRows.map((r) => r.group)).to.deep.eq(['tr', 'cards']);
+    expect(vm.breakdownRows.find((r) => r.group === 'cards')?.subs.length).to.eq(2); // fixed + conditional
+    expect(wrapper.findAll('.fsr__brow--tr').length).to.eq(2); // one per lane
+    expect(wrapper.findAll('.fsr__brow--cards').length).to.eq(2);
+    expect(vm.hasBreakdownRow('tr')).is.true;
+    expect(vm.hasBreakdownRow('cards')).is.true;
+    expect(vm.hasBreakdownRow('greenery')).is.false;
+    // A row-backed top-level chip (Cards) only HIGHLIGHTS — never opens a popup.
     (wrapper.vm as unknown as {skipAnimation: () => void}).skipAnimation();
-    // Default rail is Terraform rating.
-    expect(vm.railGroupKey).to.eq('tr');
-    // Hovering the multi-sub "cards" chip SWITCHES the rail and opens NO popup.
     const fakeEvt = {currentTarget: {getBoundingClientRect: () => ({left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0})}} as unknown as Event;
-    vm.onTopLevelHover('cards', 'red', fakeEvt);
-    expect(vm.pinnedRailGroup).to.eq('cards');
-    expect(vm.railGroupKey).to.eq('cards');
-    expect(vm.railSubs.length).to.eq(2);
-    expect(vm.inspector).to.eq(undefined); // top-level multi-sub → no popup
+    vm.onChipHover('cards', 'red', fakeEvt);
+    expect((wrapper.vm as unknown as {hoverGroup: string | null}).hoverGroup).to.eq('cards');
+    expect(vm.inspector).to.eq(undefined); // row-backed top-level → no popup
+  });
+
+  it('does not reveal a future subchip value (ghost "?") before its reveal step', () => {
+    const m = model([input('red', 'A', {terraformRating: 30, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    // At intro nothing is revealed → the TR sub-chips are ghosts ("?"), no values.
+    const ghosts = wrapper.findAll('.fsr__subchip--ghost');
+    expect(ghosts.length).to.be.greaterThan(0);
+    expect(ghosts[0].text()).to.contain('?');
   });
 
   it('builds the Cards & effects (tr-cards) popup from the TR source entries', () => {
@@ -240,21 +251,23 @@ describe('FinalScoringReveal', () => {
     expect(c.sources[0].vp).to.eq(1);
   });
 
-  it('hovering a revealed group sets the cross-highlight and inspector', async () => {
+  it('a row-backed group highlights (no popup); a leaf group opens a scoped popup', async () => {
     const m = model([input('red', 'A', {terraformRating: 35, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
     const wrapper = mountReveal(m, ['red', 'blue']);
     (wrapper.vm as unknown as {skipAnimation: () => void}).skipAnimation();
     await wrapper.vm.$nextTick();
-    const pill = wrapper.find('.fsr__tl-node--interactive');
-    expect(pill.exists()).is.true;
-    await pill.trigger('mouseenter');
-    const vm = wrapper.vm as unknown as {hoverGroup: string | null; inspector: unknown; clearHover: () => void};
-    expect(vm.hoverGroup).to.not.eq(null);
+    const vm = wrapper.vm as unknown as {
+      onPillHover: (g: string, e: Event) => void; hoverGroup: string | null; inspector: unknown; clearHover: () => void;
+    };
+    const fakeEvt = {currentTarget: {getBoundingClientRect: () => ({left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0})}} as unknown as Event;
+    // TR is row-backed → highlight only, NO popup.
+    vm.onPillHover('tr', fakeEvt);
+    expect(vm.hoverGroup).to.eq('tr');
+    expect(vm.inspector).to.eq(undefined);
+    // Milestones is a leaf → opens a scoped popup.
+    vm.onPillHover('milestones', fakeEvt);
+    expect(vm.hoverGroup).to.eq('milestones');
     expect(vm.inspector).to.not.eq(undefined);
-    // mouseleave schedules a deferred close (the interactive bridge), so the
-    // panel does NOT vanish synchronously; clearHover is the hard close.
-    await pill.trigger('mouseleave');
-    expect(vm.hoverGroup).to.not.eq(null);
     vm.clearHover();
     expect(vm.hoverGroup).to.eq(null);
     expect(vm.inspector).to.eq(undefined);

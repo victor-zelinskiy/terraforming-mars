@@ -317,7 +317,7 @@
 .fsr__lane {
     display: grid;
     grid-template-columns: 220px 1fr auto;
-    grid-template-areas: "id bar total" "chips chips chips" "subs subs subs";
+    grid-template-areas: "id bar total" "chips chips chips" "trsubs trsubs trsubs" "cardsubs cardsubs cardsubs";
     align-items: center;
     gap: 6px 18px;
     padding: 12px 18px;
@@ -483,44 +483,52 @@
 .fsr__chip.fsr-dim { opacity: 0.34; }
 .fsr__chip-more { color: var(--fsr-acc); font-size: 9px; opacity: 0.7; margin-left: 1px; }
 
-// ALWAYS-VISIBLE subchips rail — reserved height (stable lanes) + a bracket
-// connector to its parent category.
-.fsr__lane-subchips {
-    grid-area: subs;
+// TWO PERMANENT breakdown rows (Terraform rating + Cards) — ALWAYS reserved so
+// the lane height never jumps. A leading bracket + label ties each to its parent.
+.fsr__brow {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
-    min-height: 22px;
-    margin-top: 2px;
-    padding: 3px 4px 1px 6px;
+    gap: 9px;
+    min-height: 24px;
+    margin-top: 3px;
+    padding: 3px 4px 2px 8px;
     border-top: 1px dashed rgba(106, 176, 230, 0.1);
     --fsr-acc: @fsr-cyan;
+    opacity: 0.92;
+    transition: opacity 240ms ease;
 }
-.fsr__subrail-tag {
+.fsr__brow--tr { grid-area: trsubs; }
+.fsr__brow--cards { grid-area: cardsubs; }
+.fsr__brow--active { opacity: 1; }
+.fsr__brow--settled { opacity: 1; }
+.fsr__brow-tag {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     flex: 0 0 auto;
+    min-width: 56px;
     padding-top: 1px;
 }
-.fsr__subrail-bracket {
-    width: 10px; height: 9px;
+.fsr__brow-bracket {
+    width: 11px; height: 10px;
     border-left: 2px solid var(--fsr-acc);
     border-bottom: 2px solid var(--fsr-acc);
     border-bottom-left-radius: 4px;
-    opacity: 0.7;
+    opacity: 0.65;
     flex: 0 0 auto;
 }
-.fsr__subrail-name {
+.fsr__brow-name {
     font-family: Prototype, Orbitron, sans-serif;
-    font-size: 9px;
+    font-size: 9.5px;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--fsr-acc);
-    filter: brightness(1.1);
+    filter: brightness(1.12);
     white-space: nowrap;
 }
-.fsr__subrail-chips { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; }
+.fsr__brow--active .fsr__brow-name { text-shadow: 0 0 8px var(--fsr-acc); }
+.fsr__brow-chips { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; align-content: flex-start; }
+.fsr__brow-empty { font-size: 11px; color: @fsr-text-muted; opacity: 0.5; }
 .fsr__subchip {
     display: inline-flex;
     align-items: center;
@@ -543,6 +551,17 @@
 .fsr__subchip--neg { border-color: fade(#d96a6a, 30%); .fsr__subchip-val { color: #e08a8a; } }
 .fsr__subchip.fsr-hl { box-shadow: 0 0 12px fade(#6ab0e6, 36%); border-style: solid; border-color: var(--fsr-acc); }
 .fsr__subchip.fsr-dim { opacity: 0.32; }
+// Not yet revealed — a calm "?" placeholder (no value leaks); not interactive.
+.fsr__subchip--ghost {
+    cursor: default;
+    opacity: 0.5;
+    .fsr__subchip-dot { opacity: 0.4; box-shadow: none; background: rgba(150, 175, 200, 0.5); }
+    .fsr__subchip-label { color: @fsr-text-muted; }
+    .fsr__subchip-val { color: @fsr-text-muted; filter: none; }
+    &:hover, &:focus-visible { transform: none; }
+}
+// The sub-segment currently revealing — a brief glow.
+.fsr__subchip--active { box-shadow: 0 0 12px var(--fsr-acc); border-style: solid; border-color: var(--fsr-acc); }
 
 // Smooth expand/collapse of the subchip row (no hard layout jump).
 .fsr-subexpand-enter-active, .fsr-subexpand-leave-active { transition: max-height 280ms @fsr-ease, opacity 220ms ease; overflow: hidden; }
@@ -839,11 +858,14 @@
 @media (max-width: 760px) {
     .fsr__lane {
         grid-template-columns: 1fr auto;
-        grid-template-areas: "id total" "bar bar" "chips chips" "subs subs";
+        grid-template-areas: "id total" "bar bar" "chips chips" "trsubs trsubs" "cardsubs cardsubs";
     }
     .fsr__title { font-size: 25px; }
     .fsr__stage { flex-wrap: wrap; }
     .fsr__timeline { justify-content: flex-start; }
+    // Keep the breakdown rows on ONE line each (compact, horizontal scroll) —
+    // never collapse back to a switchable rail.
+    .fsr__brow-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; &::-webkit-scrollbar { display: none; } }
 }
 
 /* ── Category accents (LAST so `.fsr-cat--<key>` wins the `--fsr-acc` cascade
