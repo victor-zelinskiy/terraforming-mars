@@ -26,27 +26,14 @@
 @fsr-z:          3200;
 @fsr-ease:       cubic-bezier(0.22, 1, 0.36, 1);
 
-// Category accent — keyed off `.fsr-cat--<key>`. Sets `--fsr-acc`, used by
-// pills / chips / bar segments / stage / inspector so a category's colour is
-// the SAME everywhere. TR sub-parts reuse the detailed report's palette.
+// Category accent mixin — keyed off `.fsr-cat--<key>`. Sets `--fsr-acc`, used
+// by pills / chips / bar segments / stage / inspector so a category's colour is
+// the SAME everywhere. TR sub-parts reuse the detailed report's palette. The
+// CALLS live at the END of this file so the per-category `--fsr-acc` wins the
+// equal-specificity cascade over the per-element `--fsr-acc` fallbacks below.
 .fsr-accent(@key, @color) {
     .fsr-cat--@{key} { --fsr-acc: @color; }
 }
-.fsr-accent(tr-cards,     #6ab0e6);
-.fsr-accent(tr-base,      #8aa0b8);
-.fsr-accent(tr-temperature, #e8743b);
-.fsr-accent(tr-oxygen,    #6fc46f);
-.fsr-accent(tr-oceans,    #4f9be0);
-.fsr-accent(tr-venus,     #d98ad0);
-.fsr-accent(greenery,     #7fc46f);
-.fsr-accent(city,         #d8b074);
-.fsr-accent(cards,        #43c4a0);
-.fsr-accent(milestones,   #ffcc64);
-.fsr-accent(awards,       #f0a850);
-.fsr-accent(moon,         #b9c4d0);
-.fsr-accent(tracks,       #a98ad0);
-.fsr-accent(delta,        #4fc9d8);
-.fsr-accent(penalty,      #d96a6a);
 
 .fsr {
     position: fixed;
@@ -620,3 +607,21 @@
     .fsr__title { font-size: 25px; }
     .fsr__stage { flex-wrap: wrap; }
 }
+
+/* ── Category accents (LAST so `.fsr-cat--<key>` wins the `--fsr-acc` cascade
+   over the per-element fallbacks). Same colours as the detailed VP report. ── */
+.fsr-accent(tr-cards,       #6ab0e6);
+.fsr-accent(tr-base,        #8aa0b8);
+.fsr-accent(tr-temperature, #e8743b);
+.fsr-accent(tr-oxygen,      #6fc46f);
+.fsr-accent(tr-oceans,      #4f9be0);
+.fsr-accent(tr-venus,       #d98ad0);
+.fsr-accent(greenery,       #7fc46f);
+.fsr-accent(city,           #d8b074);
+.fsr-accent(cards,          #43c4a0);
+.fsr-accent(milestones,     #ffcc64);
+.fsr-accent(awards,         #f0a850);
+.fsr-accent(moon,           #b9c4d0);
+.fsr-accent(tracks,         #a98ad0);
+.fsr-accent(delta,          #4fc9d8);
+.fsr-accent(penalty,        #d96a6a);
