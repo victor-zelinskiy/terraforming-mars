@@ -96,6 +96,24 @@ describe('FinalScoringReveal', () => {
     expect(wrapper.findAll('.fsr__chip').length).to.be.greaterThan(0);
   });
 
+  it('updates the stage number as later groups become active (not stuck at 1)', async () => {
+    const m = model([input('red', 'A', {terraformRating: 30, greenery: 4, city: 3, victoryPoints: 8, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    const vm = wrapper.vm as unknown as {
+      activeSegment: number; reveal: {segments: Array<{group: string}>; groups: Array<{key: string}>};
+      activeStage: {index: number; groupLabel: string} | undefined; stageStepText: string;
+    };
+    // Drive the active segment to the 'cards' group and check the stage index.
+    const cardsSeg = vm.reveal.segments.findIndex((s) => s.group === 'cards');
+    const cardsGroupPos = vm.reveal.groups.findIndex((g) => g.key === 'cards');
+    expect(cardsSeg).to.be.greaterThan(0);
+    vm.activeSegment = cardsSeg;
+    await wrapper.vm.$nextTick();
+    expect(vm.activeStage?.index).to.eq(cardsGroupPos + 1);
+    expect(vm.activeStage?.index).to.be.greaterThan(1);
+    expect(vm.stageStepText).to.contain(String(cardsGroupPos + 1));
+  });
+
   it('hovering a revealed group sets the cross-highlight and inspector', async () => {
     const m = model([input('red', 'A', {terraformRating: 35, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
     const wrapper = mountReveal(m, ['red', 'blue']);

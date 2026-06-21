@@ -79,7 +79,7 @@
           <span class="fsr__stage-group" v-i18n>{{ activeStage.groupLabel }}</span>
           <span v-if="activeStage.subLabel !== ''" class="fsr__stage-sub" v-i18n>{{ activeStage.subLabel }}</span>
         </div>
-        <span class="fsr__stage-step" v-i18n="[String(activeStage.index), String(reveal.groups.length)]">Stage ${0} of ${1}</span>
+        <span class="fsr__stage-step">{{ stageStepText }}</span>
       </div>
     </transition>
 
@@ -220,6 +220,7 @@ import {EndgameModel} from '@/client/components/endgame/endgameModel';
 import {buildFinalScoringRevealModel, FinalScoringRevealModel, RevealGroupKey} from '@/client/components/endgame/finalScoringRevealModel';
 import {openEndgameResults} from '@/client/components/endgame/endgameState';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
+import {translateTextWithParams} from '@/client/directives/i18n';
 
 // Base step durations (ms). Fast mode scales them down; reduced motion snaps.
 const D = {
@@ -323,6 +324,14 @@ export default defineComponent({
     },
     winnerNames(): string {
       return this.reveal.winners.map((c) => this.nameOf(c)).join(' · ');
+    },
+    // Translated + substituted here (NOT via v-i18n="[params]", which mutates the
+    // template text on first run and then sticks — "Stage 1 of N" forever).
+    stageStepText(): string {
+      if (this.activeStage === undefined) {
+        return '';
+      }
+      return translateTextWithParams('Stage ${0} of ${1}', [String(this.activeStage.index), String(this.reveal.groups.length)]);
     },
   },
   methods: {
