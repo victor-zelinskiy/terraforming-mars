@@ -35,46 +35,57 @@
     <header class="fsr__header">
       <div class="fsr__eyebrow">
         <span class="fsr__eyebrow-tick" aria-hidden="true"></span>
-        <span v-i18n>Hidden score mode is on</span>
+        <span v-i18n>Final reveal</span>
         <span class="fsr__eyebrow-sep">·</span>
         <span>{{ reveal.generation }} <span v-i18n>generations</span></span>
         <span class="fsr__eyebrow-tick" aria-hidden="true"></span>
       </div>
       <h2 class="fsr__title" v-i18n>Final scoring</h2>
-      <p class="fsr__subtitle" v-i18n>Victory points were hidden. Revealing the result by category.</p>
+      <p class="fsr__subtitle" v-i18n>Revealing the result by category.</p>
 
-      <!-- Group progress rail. Hover/focus a pill → highlight that group everywhere. -->
-      <ol class="fsr__progress" role="list">
-        <li v-for="g in reveal.groups" :key="g.key"
-            class="fsr__progress-node"
-            :class="['fsr-cat--' + g.accent, groupHlClass(g.key), {
-              'fsr__progress-node--active': activeGroupKey === g.key && phase === 'revealing',
-              'fsr__progress-node--done': groupDone(g.key),
-              'fsr__progress-node--upcoming': !groupStarted(g.key),
-              'fsr__progress-node--interactive': canHover(g.key),
-            }]"
-            :tabindex="canHover(g.key) ? 0 : -1"
-            @mouseenter="onPillHover(g.key, $event)" @mouseleave="scheduleClose"
-            @focus="onPillHover(g.key, $event)" @blur="scheduleClose">
-          <span class="fsr__progress-dot" aria-hidden="true"></span>
-          <span class="fsr__progress-label" v-i18n>{{ g.label }}</span>
-        </li>
-        <li class="fsr__progress-node fsr__progress-node--final"
-            :class="{'fsr__progress-node--active': phase === 'tiebreak' || phase === 'winnerScan' || phase === 'winner'}">
-          <span class="fsr__progress-dot" aria-hidden="true"></span>
-          <span class="fsr__progress-label" v-i18n>Winner</span>
+      <!-- Premium scoring timeline (single row, never wraps; Winner is the last
+           node). Hover/focus a node → highlight that group everywhere. -->
+      <ol class="fsr__timeline" role="list">
+        <template v-for="g in reveal.groups" :key="g.key">
+          <li class="fsr__tl-node"
+              :class="['fsr-cat--' + g.accent, hlClass(g.key), {
+                'fsr__tl-node--active': activeGroupKey === g.key && phase === 'revealing',
+                'fsr__tl-node--done': groupDone(g.key),
+                'fsr__tl-node--upcoming': !groupStarted(g.key),
+                'fsr__tl-node--interactive': canHover(g.key),
+              }]"
+              :tabindex="canHover(g.key) ? 0 : -1"
+              @mouseenter="onPillHover(g.key, $event)" @mouseleave="scheduleClose"
+              @focus="onPillHover(g.key, $event)" @blur="scheduleClose">
+            <span class="fsr__tl-dot" aria-hidden="true"></span>
+            <span class="fsr__tl-label" v-i18n>{{ g.label }}</span>
+          </li>
+          <li class="fsr__tl-link" :class="{'fsr__tl-link--filled': groupDone(g.key)}" aria-hidden="true"></li>
+        </template>
+        <li class="fsr__tl-node fsr__tl-node--final"
+            :class="{
+              'fsr__tl-node--active': phase === 'winner',
+              'fsr__tl-node--scanning': phase === 'tiebreak' || phase === 'winnerScan',
+              'fsr__tl-node--upcoming': phase === 'intro' || phase === 'revealing',
+            }">
+          <span class="fsr__tl-dot" aria-hidden="true"></span>
+          <span class="fsr__tl-label" v-i18n>Winner</span>
         </li>
       </ol>
     </header>
 
-    <!-- Current-category stage block. -->
+    <!-- Current-stage text: "Revealing: <group> · <subcategory>" + description. -->
     <transition name="fsr-fade">
       <div v-if="phase === 'revealing' && activeStage !== undefined" class="fsr__stage" :class="'fsr-cat--' + activeStage.accent">
         <span class="fsr__stage-bar" aria-hidden="true"></span>
         <div class="fsr__stage-body">
-          <span class="fsr__stage-kicker" v-i18n>Revealing now</span>
-          <span class="fsr__stage-group" v-i18n>{{ activeStage.groupLabel }}</span>
-          <span v-if="activeStage.subLabel !== ''" class="fsr__stage-sub" v-i18n>{{ activeStage.subLabel }}</span>
+          <div class="fsr__stage-line">
+            <span class="fsr__stage-kicker" v-i18n>Revealing:</span>
+            <span class="fsr__stage-group" v-i18n>{{ activeStage.groupLabel }}</span>
+            <span v-if="activeStage.subLabel !== ''" class="fsr__stage-sep" aria-hidden="true">·</span>
+            <span v-if="activeStage.subLabel !== ''" class="fsr__stage-sub" v-i18n>{{ activeStage.subLabel }}</span>
+          </div>
+          <span class="fsr__stage-desc" v-i18n>{{ activeStage.description }}</span>
         </div>
         <span class="fsr__stage-step">{{ stageStepText }}</span>
       </div>
@@ -86,12 +97,14 @@
            class="fsr__lane"
            :class="{
              'fsr__lane--winner': isWinnerLane(lane.color),
+             'fsr__lane--leader': isLeaderLane(lane.color),
              'fsr__lane--dim': phase === 'winner' && !isWinnerLane(lane.color),
              'fsr__lane--hot': hoverLane === lane.color,
              'fsr__lane--scan': phase === 'winnerScan' && scanIndex === li,
            }">
         <div class="fsr__lane-id">
           <span v-if="isWinnerLane(lane.color)" class="fsr__crown" aria-hidden="true">♔</span>
+          <span v-else-if="isLeaderLane(lane.color)" class="fsr__leadmark" aria-hidden="true">▲</span>
           <span class="fsr__lane-dot" :class="'player_bg_color_' + lane.color" aria-hidden="true"></span>
           <span class="fsr__lane-name">{{ lane.name }}</span>
           <span v-if="lane.corp !== ''" class="fsr__lane-corp" v-i18n>{{ lane.corp }}</span>
@@ -102,13 +115,13 @@
         <div class="fsr__lane-bar">
           <div v-for="seg in lane.segs" :key="seg.key"
                class="fsr__seg"
-               :class="['fsr-cat--' + seg.key, segHlClass(seg.group), {
+               :class="['fsr-cat--' + seg.key, hlClass(seg.group, seg.key), {
                  'fsr__seg--revealed': seg.index < revealedSegments,
                  'fsr__seg--sub': seg.subtractive,
                  'fsr__seg--active': activeSegment === seg.index,
                }]"
                :style="{left: seg.leftPct + '%', width: seg.widthPct + '%'}"
-               @mouseenter="onSegHover(seg.group, lane.color, $event)" @mouseleave="scheduleClose"></div>
+               @mouseenter="onSegHover(seg.group, seg.key, lane.color, $event)" @mouseleave="scheduleClose"></div>
           <span class="fsr__lane-bar-edge" aria-hidden="true"></span>
         </div>
 
@@ -123,13 +136,14 @@
           <span class="fsr__lane-total-unit" v-i18n>VP</span>
         </div>
 
-        <!-- One chip per STARTED group (running value; TR accumulates as its sub-parts land). -->
+        <!-- One chip per STARTED group (running value; a ▸ marks a group with
+             subcategories — hover to expand its subchips below). -->
         <transition-group tag="div" class="fsr__lane-chips" name="fsr-chip">
           <span v-for="g in startedGroupsFor" :key="g.key"
                 class="fsr__chip"
-                :class="['fsr-cat--' + g.accent, groupHlClass(g.key), {
+                :class="['fsr-cat--' + g.accent, hlClass(g.key), {
                   'fsr__chip--penalty': groupValue(g.key, lane.color) < 0,
-                  'fsr__chip--active': groupActive(g.key),
+                  'fsr__chip--active': groupActive(g.key) || expandedGroupKey === g.key,
                   'fsr__chip--interactive': canHover(g.key),
                 }]"
                 :tabindex="canHover(g.key) ? 0 : -1"
@@ -137,8 +151,26 @@
                 @focus="onChipHover(g.key, lane.color, $event)" @blur="scheduleClose">
             <span class="fsr__chip-label" v-i18n>{{ g.label }}</span>
             <span class="fsr__chip-val">{{ groupValue(g.key, lane.color) >= 0 ? '+' + groupValue(g.key, lane.color) : groupValue(g.key, lane.color) }}</span>
+            <span v-if="hasSubs(g.key)" class="fsr__chip-more" aria-hidden="true">▸</span>
           </span>
         </transition-group>
+
+        <!-- Secondary subchip row for the ACTIVE/expanded group only (kept off
+             until needed so the row never carries the full subcategory soup). -->
+        <transition name="fsr-subexpand">
+          <div v-if="expandedGroupKey !== null && expandedSubs.length > 0" class="fsr__lane-subchips">
+            <span v-for="sub in expandedSubs" :key="sub.key"
+                  class="fsr__subchip"
+                  :class="['fsr-cat--' + sub.accent, hlClass(sub.group, sub.key), {'fsr__subchip--neg': subValue(sub.index, lane.color) < 0}]"
+                  tabindex="0"
+                  @mouseenter="onSubchipHover(sub.group, sub.key, lane.color, $event)" @mouseleave="scheduleClose"
+                  @focus="onSubchipHover(sub.group, sub.key, lane.color, $event)" @blur="scheduleClose">
+              <span class="fsr__subchip-dot" aria-hidden="true"></span>
+              <span class="fsr__subchip-label" v-i18n>{{ sub.label }}</span>
+              <span class="fsr__subchip-val">{{ subValue(sub.index, lane.color) >= 0 ? '+' + subValue(sub.index, lane.color) : subValue(sub.index, lane.color) }}</span>
+            </span>
+          </div>
+        </transition>
       </div>
     </div>
 
@@ -174,30 +206,50 @@
       </div>
     </transition>
 
-    <!-- Winner banner + CTA into the detailed results. -->
-    <transition name="fsr-rise">
-      <div v-if="phase === 'winner'" class="fsr__finale">
-        <div class="fsr__finale-line" aria-hidden="true"></div>
-        <div class="fsr__winner">
-          <template v-if="reveal.winner !== undefined">
-            <span class="fsr__winner-label" v-i18n>Winner</span>
-            <span class="fsr__winner-name">
-              <span class="fsr__lane-dot" :class="'player_bg_color_' + reveal.winner" aria-hidden="true"></span>
-              {{ nameOf(reveal.winner) }}
-            </span>
-          </template>
-          <template v-else>
-            <span class="fsr__winner-label" v-i18n>Tie</span>
-            <span class="fsr__winner-name">{{ winnerNames }}</span>
-          </template>
+    <!-- Bottom panel: the CURRENT LEADER during the reveal (a neutral status),
+         which LOCKS IN to the gold winner only after every category. -->
+    <div v-if="phase !== 'intro'" class="fsr__leaderboard" :class="{'fsr__leaderboard--winner': phase === 'winner'}">
+      <div class="fsr__finale-line" aria-hidden="true"></div>
+      <transition name="fsr-rise" mode="out-in">
+        <!-- During reveal: current leader (neutral marker, never the crown). -->
+        <div v-if="phase !== 'winner'" key="leader" class="fsr__lead">
+          <span class="fsr__lead-label" v-i18n>{{ leaderTitleKey }}</span>
+          <transition name="fsr-leader" mode="out-in">
+            <div :key="leaderNames" class="fsr__lead-main">
+              <span class="fsr__leadmark fsr__leadmark--big" aria-hidden="true">▲</span>
+              <span v-if="leader.colors.length === 1" class="fsr__lane-dot" :class="'player_bg_color_' + leader.colors[0]" aria-hidden="true"></span>
+              <span class="fsr__lead-name">{{ leaderNames }}</span>
+              <span class="fsr__lead-total">{{ leader.total }} <span v-i18n>VP</span></span>
+            </div>
+          </transition>
+          <span v-if="leader.colors.length === 1 && leader.margin > 0" class="fsr__lead-sub">{{ leaderMarginText }}</span>
         </div>
-        <button type="button" class="fsr__cta" @click="openResults">
-          <span class="fsr__cta-sheen" aria-hidden="true"></span>
-          <span class="fsr__cta-label" v-i18n>Open detailed results</span>
-          <span class="fsr__cta-arrow" aria-hidden="true">→</span>
-        </button>
-      </div>
-    </transition>
+
+        <!-- After every category: the winner locks in (gold treatment + CTA). -->
+        <div v-else key="winner" class="fsr__finale">
+          <div class="fsr__winner">
+            <template v-if="reveal.winner !== undefined">
+              <span class="fsr__winner-label" v-i18n>Winner</span>
+              <span class="fsr__winner-name">
+                <span class="fsr__winner-crown" aria-hidden="true">♔</span>
+                <span class="fsr__lane-dot" :class="'player_bg_color_' + reveal.winner" aria-hidden="true"></span>
+                {{ nameOf(reveal.winner) }}
+                <span class="fsr__winner-total">{{ leader.total }} <span v-i18n>VP</span></span>
+              </span>
+            </template>
+            <template v-else>
+              <span class="fsr__winner-label" v-i18n>Tie</span>
+              <span class="fsr__winner-name">{{ winnerNames }}</span>
+            </template>
+          </div>
+          <button type="button" class="fsr__cta" @click="openResults">
+            <span class="fsr__cta-sheen" aria-hidden="true"></span>
+            <span class="fsr__cta-label" v-i18n>Open detailed results</span>
+            <span class="fsr__cta-arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
+      </transition>
+    </div>
   </div>
 </template>
 
@@ -241,6 +293,8 @@ const CARD_KIND_LABEL: Record<CardVictoryPointsKind, string> = {
 
 // Minimum visible width of a tiny segment (the tooltip still shows the exact value).
 const MIN_SEG_PCT = 0.7;
+// Group-level card list is capped; hover a subcategory for the full list.
+const MAX_GROUP_CARDS = 5;
 
 export default defineComponent({
   name: 'FinalScoringReveal',
@@ -266,8 +320,11 @@ export default defineComponent({
       // Animated running totals + their targets, keyed by color.
       displayed: {} as Record<string, number>,
       targets: {} as Record<string, number>,
-      // Hover/focus state — drives cross-highlight + the inspector panel.
+      // Unified interaction state — one selection drives timeline + chips +
+      // subchips + bar + popup. `hoverSub` (a segment key) scopes to a single
+      // subcategory; null means the whole group.
       hoverGroup: null as RevealGroupKey | null,
+      hoverSub: null as string | null,
       hoverLane: null as Color | null,
       inspector: undefined as (FinalScoringInspectorContent & {top: number; left: number}) | undefined,
       closeTimer: undefined as number | undefined,
@@ -316,8 +373,40 @@ export default defineComponent({
     activeGroupKey(): RevealGroupKey | undefined {
       return this.activeSegment >= 0 ? this.reveal.segments[this.activeSegment]?.group : undefined;
     },
+    // The group whose subchips are shown on the lanes: the hovered multi-sub
+    // group, else (during reveal) the active multi-sub group.
+    expandedGroupKey(): RevealGroupKey | null {
+      const multi = (k: RevealGroupKey | null | undefined): RevealGroupKey | null => {
+        if (k === null || k === undefined) {
+          return null;
+        }
+        const g = this.reveal.groups.find((x) => x.key === k);
+        return g !== undefined && g.segmentIndexes.length > 1 ? k : null;
+      };
+      return multi(this.hoverGroup) ?? (this.phase === 'revealing' ? multi(this.activeGroupKey) : null);
+    },
+    // The REVEALED sub-segments of the expanded group (drive the subchip row).
+    expandedSubs(): Array<{index: number; key: string; group: RevealGroupKey; label: string; accent: string}> {
+      const gk = this.expandedGroupKey;
+      if (gk === null) {
+        return [];
+      }
+      return this.reveal.segments
+        .filter((s) => s.group === gk && s.order < this.revealedSegments)
+        .map((s) => ({index: s.order, key: s.key, group: s.group, label: s.label, accent: s.key}));
+    },
+    // The current leader by the categories revealed SO FAR (running totals).
+    // Neutral mid-reveal status — NOT the final winner.
+    leader(): {colors: Array<Color>; total: number; margin: number} {
+      const totals = this.reveal.players.map((p) => this.targets[p.color] ?? 0);
+      const max = totals.length > 0 ? Math.max(...totals) : 0;
+      const colors = this.reveal.players.filter((p) => (this.targets[p.color] ?? 0) === max).map((p) => p.color);
+      const sorted = [...totals].sort((a, b) => b - a);
+      const margin = sorted.length > 1 ? sorted[0] - sorted[1] : 0;
+      return {colors, total: max, margin};
+    },
     // The current-stage block content (group label + sub-part + "Stage i of N").
-    activeStage(): {accent: string; groupLabel: string; subLabel: string; index: number} | undefined {
+    activeStage(): {accent: string; groupLabel: string; subLabel: string; description: string; index: number} | undefined {
       if (this.activeSegment < 0) {
         return undefined;
       }
@@ -327,12 +416,22 @@ export default defineComponent({
       if (group === undefined) {
         return undefined;
       }
-      // Only show the sub-part line for a multi-segment group (TR).
+      // Only show the sub-part line for a multi-segment group (TR / Cards / Penalties).
       const subLabel = group.segmentIndexes.length > 1 ? seg.label : '';
-      return {accent: group.accent, groupLabel: group.label, subLabel, index: gi + 1};
+      return {accent: group.accent, groupLabel: group.label, subLabel, description: group.description, index: gi + 1};
     },
     winnerNames(): string {
       return this.reveal.winners.map((c) => this.nameOf(c)).join(' · ');
+    },
+    // Leader-panel display text (mid-reveal) — single leader vs tie.
+    leaderTitleKey(): string {
+      return this.leader.colors.length > 1 ? 'Tie for the lead' : 'Leader after revealed categories';
+    },
+    leaderNames(): string {
+      return this.leader.colors.map((c) => this.nameOf(c)).join(' · ');
+    },
+    leaderMarginText(): string {
+      return translateTextWithParams('+${0} ahead of the runner-up', [String(this.leader.margin)]);
     },
     // Translated + substituted here (NOT via v-i18n="[params]", which mutates the
     // template text on first run and then sticks — "Stage 1 of N" forever).
@@ -375,18 +474,28 @@ export default defineComponent({
     groupActive(group: RevealGroupKey): boolean {
       return this.activeGroupKey === group;
     },
+    hasSubs(group: RevealGroupKey): boolean {
+      const g = this.reveal.groups.find((x) => x.key === group);
+      return g !== undefined && g.segmentIndexes.length > 1;
+    },
     // Hover only on fully-revealed groups — never implies a future value.
     canHover(group: RevealGroupKey): boolean {
       return this.groupDone(group);
     },
-    groupHlClass(group: RevealGroupKey): string {
+    // Unified highlight: one selection (group or sub-segment) lights up the
+    // matching timeline node / chip / subchip / bar segment, dims the rest.
+    // Pass (group) for a top-level element, (group, subKey) for a sub element.
+    hlClass(group: RevealGroupKey, subKey?: string): string {
+      if (this.hoverSub !== null) {
+        if (subKey !== undefined) {
+          return subKey === this.hoverSub ? 'fsr-hl' : 'fsr-dim';
+        }
+        return group === this.hoverGroup ? 'fsr-hl' : 'fsr-dim';
+      }
       if (this.hoverGroup === null) {
         return '';
       }
-      return this.hoverGroup === group ? 'fsr-hl' : 'fsr-dim';
-    },
-    segHlClass(group: RevealGroupKey): string {
-      return this.groupHlClass(group);
+      return group === this.hoverGroup ? 'fsr-hl' : 'fsr-dim';
     },
     pendingFor(color: Color): number {
       if (this.phase !== 'revealing' || this.activeSegment < 0) {
@@ -397,24 +506,40 @@ export default defineComponent({
     isWinnerLane(color: Color): boolean {
       return this.phase === 'winner' && this.reveal.winners.includes(color);
     },
+    // Mid-reveal leader lane — a NEUTRAL marker, never the gold winner treatment.
+    isLeaderLane(color: Color): boolean {
+      return (this.phase === 'revealing' || this.phase === 'tiebreak' || this.phase === 'winnerScan') &&
+        this.revealedSegments > 0 && this.leader.colors.length === 1 && this.leader.colors[0] === color;
+    },
+    // Running revealed value of a single sub-segment (for the subchips).
+    subValue(segIndex: number, color: Color): number {
+      return this.reveal.segments[segIndex]?.values[color] ?? 0;
+    },
     // ── Hover / inspector ──────────────────────────────────────────────
     onPillHover(group: RevealGroupKey, evt: Event): void {
-      this.setHover(group, null, evt);
+      this.setHover(group, null, null, evt);
     },
     onChipHover(group: RevealGroupKey, color: Color, evt: Event): void {
-      this.setHover(group, color, evt);
+      this.setHover(group, null, color, evt);
     },
-    onSegHover(group: RevealGroupKey, color: Color, evt: Event): void {
-      this.setHover(group, color, evt);
+    onSubchipHover(group: RevealGroupKey, subKey: string, color: Color, evt: Event): void {
+      this.setHover(group, subKey, color, evt);
     },
-    setHover(group: RevealGroupKey, color: Color | null, evt: Event): void {
+    // A bar segment IS a subcategory — scope to it (unless its group has one segment).
+    onSegHover(group: RevealGroupKey, subKey: string, color: Color, evt: Event): void {
+      const g = this.reveal.groups.find((x) => x.key === group);
+      const sub = g !== undefined && g.segmentIndexes.length > 1 ? subKey : null;
+      this.setHover(group, sub, color, evt);
+    },
+    setHover(group: RevealGroupKey, subKey: string | null, color: Color | null, evt: Event): void {
       if (!this.canHover(group)) {
         return;
       }
       this.cancelClose();
       this.hoverGroup = group;
+      this.hoverSub = subKey;
       this.hoverLane = color;
-      const content = this.buildInspectorContent(group, color);
+      const content = this.buildInspectorContent(group, subKey, color);
       const target = evt.currentTarget as HTMLElement | null;
       if (content === undefined || target === null || typeof target.getBoundingClientRect !== 'function') {
         return;
@@ -432,30 +557,62 @@ export default defineComponent({
       }
       this.inspector = {...content, top, left};
     },
-    // Build the rich per-player breakdown (or the cross-player comparison for a
-    // pill hover). Reads model.players[].breakdown — the SAME numbers the
-    // results screen uses; no recomputation.
-    buildInspectorContent(group: RevealGroupKey, color: Color | null): FinalScoringInspectorContent | undefined {
+    // Build the breakdown for a category (subKey === null) OR a SINGLE
+    // subcategory (subKey set → scoped: only that sub-part's data). Reads
+    // model.players[].breakdown — the SAME numbers the results screen uses.
+    buildInspectorContent(group: RevealGroupKey, subKey: string | null, color: Color | null): FinalScoringInspectorContent | undefined {
       const g = this.reveal.groups.find((x) => x.key === group);
       if (g === undefined) {
         return undefined;
       }
-      const base = {group, accent: g.accent, label: g.label, description: g.description};
+      const seg = subKey !== null ? this.reveal.segments.find((s) => s.key === subKey) : undefined;
+      const base = {
+        group,
+        accent: seg !== undefined ? seg.key : g.accent,
+        label: seg !== undefined ? seg.label : g.label,
+        description: g.description,
+      };
       if (color === null) {
+        // Pill hover → cross-player comparison.
         return {
           ...base, playerName: '', playerColor: undefined, total: 0,
-          subRows: [], cards: [], cardsLabel: '', sources: [], sourcesLabel: '',
+          subRows: [], cards: [], cardsLabel: '', hint: '', sources: [], sourcesLabel: '',
           compare: this.reveal.players.map((p) => ({color: p.color, name: p.name, value: g.values[p.color] ?? 0})),
         };
       }
       const b = this.model.players.find((p) => p.color === color)?.breakdown;
       const content: FinalScoringInspectorContent = {
-        ...base, playerName: this.nameOf(color), playerColor: color, total: g.values[color] ?? 0,
-        subRows: [], cards: [], cardsLabel: '', sources: [], sourcesLabel: '', compare: [],
+        ...base, playerName: this.nameOf(color), playerColor: color,
+        total: seg !== undefined ? (seg.values[color] ?? 0) : (g.values[color] ?? 0),
+        subRows: [], cards: [], cardsLabel: '', hint: '', sources: [], sourcesLabel: '', compare: [],
       };
       if (b === undefined) {
         return content;
       }
+      const cardOf = (d: {cardName: string; kind: CardVictoryPointsKind; victoryPoint: number}) =>
+        ({name: d.cardName as CardName, kindLabel: CARD_KIND_LABEL[d.kind], vp: d.victoryPoint, resourcesText: this.resourcesText(color, d.cardName)});
+
+      // ── SCOPED: a single subcategory ──────────────────────────────────
+      if (subKey !== null) {
+        const kindBySub: Partial<Record<string, CardVictoryPointsKind>> = {'cards-fixed': 'fixed', 'cards-conditional': 'conditional', 'cards-resource': 'resource'};
+        const kind = kindBySub[subKey];
+        if (kind !== undefined) {
+          content.cards = b.detailsCards.filter((d) => d.kind === kind && d.victoryPoint > 0)
+            .slice().sort((a, c) => c.victoryPoint - a.victoryPoint).map(cardOf);
+          content.cardsLabel = content.cards.length > 0 ? base.label : '';
+        } else if (subKey === 'penalty-cards') {
+          content.cards = b.detailsCards.filter((d) => d.kind === 'penalty' || d.victoryPoint < 0)
+            .slice().sort((a, c) => a.victoryPoint - c.victoryPoint).map(cardOf);
+          content.cardsLabel = content.cards.length > 0 ? 'Card penalties' : '';
+        } else if (subKey === 'penalty-ev' && b.escapeVelocity !== 0) {
+          content.sources = [{text: this.$t('Escape Velocity'), vp: b.escapeVelocity}];
+          content.sourcesLabel = 'Penalties';
+        }
+        // TR / moon sub-parts have no finer breakdown — the header total says it all.
+        return content;
+      }
+
+      // ── GROUP level: sub-breakdown + a CAPPED card list + a hint ───────
       if (group === 'tr') {
         const t = b.terraformRatingBreakdown;
         content.subRows = ([
@@ -472,11 +629,10 @@ export default defineComponent({
           {key: 'cards-conditional', label: 'Conditional cards', accent: 'cards-conditional', value: cardKindTotal(b, 'conditional')},
           {key: 'cards-resource', label: 'Resource cards', accent: 'cards-resource', value: cardKindTotal(b, 'resource')},
         ]).filter((r) => r.value !== 0);
-        content.cards = b.detailsCards
-          .filter((d) => d.kind !== 'penalty' && d.victoryPoint > 0)
-          .slice().sort((a, c) => c.victoryPoint - a.victoryPoint)
-          .map((d) => ({name: d.cardName as CardName, kindLabel: CARD_KIND_LABEL[d.kind], vp: d.victoryPoint, resourcesText: this.resourcesText(color, d.cardName as CardName)}));
-        content.cardsLabel = content.cards.length > 0 ? 'Cards that scored' : '';
+        const all = b.detailsCards.filter((d) => d.kind !== 'penalty' && d.victoryPoint > 0).slice().sort((a, c) => c.victoryPoint - a.victoryPoint);
+        content.cards = all.slice(0, MAX_GROUP_CARDS).map(cardOf);
+        content.cardsLabel = content.cards.length > 0 ? 'Top cards' : '';
+        content.hint = all.length > MAX_GROUP_CARDS ? 'Hover a subcategory for the full list' : '';
       } else if (group === 'milestones') {
         content.sources = b.detailsMilestones.map((m) => ({text: translateTextWithParams(m.message, m.messageArgs ?? []), vp: m.victoryPoint}));
         content.sourcesLabel = content.sources.length > 0 ? 'Milestones' : '';
@@ -484,15 +640,13 @@ export default defineComponent({
         content.sources = b.detailsAwards.map((m) => ({text: translateTextWithParams(m.message, m.messageArgs ?? []), vp: m.victoryPoint}));
         content.sourcesLabel = content.sources.length > 0 ? 'Awards' : '';
       } else if (group === 'penalty') {
-        content.cards = b.detailsCards
-          .filter((d) => d.kind === 'penalty' || d.victoryPoint < 0)
-          .slice().sort((a, c) => a.victoryPoint - c.victoryPoint)
-          .map((d) => ({name: d.cardName as CardName, kindLabel: CARD_KIND_LABEL.penalty, vp: d.victoryPoint}));
+        content.subRows = ([
+          {key: 'penalty-cards', label: 'Card penalties', accent: 'penalty-cards', value: cardKindTotal(b, 'penalty')},
+          {key: 'penalty-ev', label: 'Escape Velocity', accent: 'penalty-ev', value: b.escapeVelocity},
+        ]).filter((r) => r.value !== 0);
+        content.cards = b.detailsCards.filter((d) => d.kind === 'penalty' || d.victoryPoint < 0)
+          .slice().sort((a, c) => a.victoryPoint - c.victoryPoint).map(cardOf);
         content.cardsLabel = content.cards.length > 0 ? 'Card penalties' : '';
-        if (b.escapeVelocity !== 0) {
-          content.sources = [{text: this.$t('Escape Velocity'), vp: b.escapeVelocity}];
-          content.sourcesLabel = 'Penalties';
-        }
       } else if (group === 'moon') {
         content.subRows = ([
           {key: 'moon-hab', label: 'Habitats', accent: 'moon', value: b.moonHabitats},
@@ -522,6 +676,7 @@ export default defineComponent({
     clearHover(): void {
       this.cancelClose();
       this.hoverGroup = null;
+      this.hoverSub = null;
       this.hoverLane = null;
       this.inspector = undefined;
     },

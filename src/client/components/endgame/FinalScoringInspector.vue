@@ -52,6 +52,7 @@
           <span v-if="c.resourcesText !== undefined" class="fsr-insp__card-res">{{ c.resourcesText }}</span>
           <span class="fsr-insp__card-vp">{{ signed(c.vp) }}</span>
         </div>
+        <div v-if="content.hint !== ''" class="fsr-insp__hint" v-i18n>{{ content.hint }}</div>
       </div>
 
       <!-- Sources (milestones / awards / penalties / tracks). -->
