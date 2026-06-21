@@ -5,6 +5,7 @@ import {SerializedCard} from './SerializedCard';
 import {SerializedTimer} from '../common/SerializedTimer';
 import {AlliedParty} from '../common/turmoil/Types';
 import {GlobalParameter} from '../common/GlobalParameter';
+import {TRSourceEntry} from '../common/game/VictoryPointsBreakdown';
 import {DiscordId} from './server/auth/discord';
 import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
@@ -73,6 +74,7 @@ export interface SerializedPlayer extends DeprecatedFields{
   steelValue: number;
   terraformRating: number;
   terraformRatingFromCards?: number;
+  terraformRatingSources?: ReadonlyArray<TRSourceEntry>;
   timer: SerializedTimer;
   titanium: number;
   titaniumProduction: number;

@@ -61,7 +61,8 @@ import {CeoExtension} from './CeoExtension';
 import {ICeoCard, isCeoCard} from './cards/ceos/ICeoCard';
 import {message} from './logs/MessageBuilder';
 import {calculateVictoryPoints} from './game/calculateVictoryPoints';
-import {VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
+import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
+import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
 import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
@@ -87,6 +88,34 @@ import {From} from './logs/From';
 import {SelectStandardProjectToPlay} from './inputs/SelectStandardProjectToPlay';
 
 const THROW_STATE_ERRORS = Boolean(process.env.THROW_STATE_ERRORS);
+
+// Project an event source onto the TR-source attribution shown in the end-game
+// "Cards & effects" breakdown. The card NAME lets the client refine the type
+// (prelude / CEO / active) via the manifest, so we stay coarse here.
+function eventSourceToTrAttribution(source: EventSource | undefined): {sourceType: TRSourceType, sourceName: string, sourceCardId?: string} {
+  if (source === undefined) {
+    return {sourceType: 'other', sourceName: 'Other effect'};
+  }
+  switch (source.kind) {
+  case 'card':
+  case 'standardProject':
+    return {sourceType: 'card', sourceName: source.card, sourceCardId: source.card};
+  case 'corporation':
+    return {sourceType: 'corporation', sourceName: source.card, sourceCardId: source.card};
+  case 'globalEvent':
+    return {sourceType: 'globalEvent', sourceName: source.name};
+  case 'party':
+    return {sourceType: 'party', sourceName: source.name};
+  case 'milestone':
+  case 'award':
+    return {sourceType: 'other', sourceName: source.name};
+  case 'colony':
+    return {sourceType: 'other', sourceName: source.name};
+  default:
+    return {sourceType: 'other', sourceName: 'Other effect'};
+  }
+}
+
 const DEFAULT_GLOBAL_PARAMETER_STEPS = {
   [GlobalParameter.OCEANS]: 0,
   [GlobalParameter.OXYGEN]: 0,
@@ -124,6 +153,12 @@ export class Player implements IPlayer {
   // parameter, whose contribution is tracked in `globalParameterSteps`). Used
   // only for the end-of-game victory-point breakdown by reason.
   public terraformRatingFromCards: number = 0;
+  // Per-SOURCE attribution of `terraformRatingFromCards` for the end-game
+  // breakdown ("Cards & effects"). Each non-global TR increase records who
+  // raised it (the active card/corp/effect scope, or an explicit attribution).
+  // Σ amount === terraformRatingFromCards. Serialized so old in-progress games
+  // keep their detail; pre-feature saves simply have an empty list.
+  public terraformRatingSources: Array<TRSourceEntry> = [];
 
 
   // Resource values
@@ -342,7 +377,7 @@ export class Player implements IPlayer {
     }
   }
 
-  public increaseTerraformRating(steps: number = 1, opts: {log?: boolean, from?: From, global?: boolean} = {}) {
+  public increaseTerraformRating(steps: number = 1, opts: {log?: boolean, from?: From, global?: boolean, trAttribution?: {sourceType: TRSourceType, sourceName: string, sourceCardId?: string}} = {}) {
     if (this.preservationProgram === true && this.game.phase === Phase.ACTION) {
       steps--;
       this.game.log('${0} for ${1} is blocking 1 TR', (b) => b.cardName(CardName.PRESERVATION_PROGRAM).player(this));
@@ -358,6 +393,14 @@ export class Player implements IPlayer {
       // everything else is direct card / effect TR (for the score breakdown).
       if (opts.global !== true) {
         this.terraformRatingFromCards += steps;
+        if (steps !== 0) {
+          // Attribute to an explicit source, else the active scope (the card/corp/
+          // effect currently executing), else "other". Σ amount stays === the
+          // `terraformRatingFromCards` accumulator.
+          const attr = opts.trAttribution ??
+            eventSourceToTrAttribution(opts.from !== undefined ? fromToEventSource(opts.from, this.color) : this.game?.events?.currentSource());
+          this.terraformRatingSources.push({...attr, amount: steps, generation: this.game.generation});
+        }
       }
 
       if (opts.log === true) {
@@ -2114,6 +2157,7 @@ export class Player implements IPlayer {
       terraformRating: this.terraformRating,
       hasIncreasedTerraformRatingThisGeneration: this.hasIncreasedTerraformRatingThisGeneration,
       terraformRatingFromCards: this.terraformRatingFromCards,
+      terraformRatingSources: this.terraformRatingSources,
       // Resources
       megaCredits: this.megaCredits,
       megaCreditProduction: this.production.megacredits,
@@ -2248,6 +2292,7 @@ export class Player implements IPlayer {
     player.steelValue = d.steelValue;
     player.terraformRating = d.terraformRating;
     player.terraformRatingFromCards = d.terraformRatingFromCards ?? 0;
+    player.terraformRatingSources = d.terraformRatingSources !== undefined ? [...d.terraformRatingSources] : [];
     player.titanium = d.titanium;
     player.titaniumValue = d.titaniumValue;
     player.totalDelegatesPlaced = d.totalDelegatesPlaced;

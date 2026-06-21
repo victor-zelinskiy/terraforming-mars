@@ -43,7 +43,7 @@
 
       <!-- Cards that scored — each with a hover card preview, sorted by VP desc. -->
       <div v-if="content.cards.length > 0" class="fsr-insp__cards">
-        <div class="fsr-insp__section-head" v-i18n>{{ content.cardsLabel }}</div>
+        <div v-if="content.cardsLabel !== ''" class="fsr-insp__section-head" v-i18n>{{ content.cardsLabel }}</div>
         <div v-for="(c, i) in content.cards" :key="c.name + ':' + i"
              class="fsr-insp__card-row" :class="{'fsr-insp__card-row--neg': c.vp < 0}"
              @mouseenter="onCardEnter(c.name, $event)" @mouseleave="onCardLeave">
@@ -57,7 +57,7 @@
 
       <!-- Sources (milestones / awards / penalties / tracks). -->
       <div v-if="content.sources.length > 0" class="fsr-insp__sources">
-        <div class="fsr-insp__section-head" v-i18n>{{ content.sourcesLabel }}</div>
+        <div v-if="content.sourcesLabel !== ''" class="fsr-insp__section-head" v-i18n>{{ content.sourcesLabel }}</div>
         <div v-for="(s, i) in content.sources" :key="i" class="fsr-insp__src-row" :class="{'fsr-insp__src-row--neg': s.vp < 0}">
           <span class="fsr-insp__src-text">{{ s.text }}</span>
           <span class="fsr-insp__src-vp">{{ signed(s.vp) }}</span>

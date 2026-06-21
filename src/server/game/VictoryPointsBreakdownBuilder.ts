@@ -10,7 +10,7 @@ type Mutable<T> = {
 export class VictoryPointsBreakdownBuilder {
   private readonly points: Mutable<VictoryPointsBreakdown> = {
     terraformRating: 0,
-    terraformRatingBreakdown: {base: 0, temperature: 0, oxygen: 0, oceans: 0, venus: 0, cards: 0},
+    terraformRatingBreakdown: {base: 0, baseRating: 0, handicap: 0, temperature: 0, oxygen: 0, oceans: 0, venus: 0, cards: 0, cardEntries: []},
     milestones: 0,
     awards: 0,
     greenery: 0,

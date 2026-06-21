@@ -22,7 +22,7 @@ import {Tags} from './player/Tags';
 import {Colonies} from './player/Colonies';
 import {Production} from './player/Production';
 import {ICeoCard} from './cards/ceos/ICeoCard';
-import {VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
+import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
 import {Color} from '../common/Color';
 import {OrOptions} from './inputs/OrOptions';
 import {Stock} from './player/Stock';
@@ -96,6 +96,9 @@ export interface IPlayer {
   // TR gained directly from cards / effects (not from global parameters).
   // Used for the end-of-game victory-point breakdown by reason.
   terraformRatingFromCards: number;
+  // Per-source attribution of `terraformRatingFromCards` (the "Cards & effects"
+  // end-game breakdown). Σ amount === terraformRatingFromCards.
+  terraformRatingSources: Array<TRSourceEntry>;
 
   // Resources
   megaCredits: number;
@@ -225,7 +228,7 @@ export interface IPlayer {
   getSteelValue(): number;
   increaseSteelValue(): void;
   decreaseSteelValue(): void;
-  increaseTerraformRating(steps?: number, opts?: {log?: boolean, from?: From, global?: boolean}): void;
+  increaseTerraformRating(steps?: number, opts?: {log?: boolean, from?: From, global?: boolean, trAttribution?: {sourceType: TRSourceType, sourceName: string, sourceCardId?: string}}): void;
   decreaseTerraformRating(steps?: number, opts?: {log?: boolean}): void;
   setTerraformRating(value: number): void;
 

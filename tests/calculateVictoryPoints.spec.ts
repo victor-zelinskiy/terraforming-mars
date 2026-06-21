@@ -32,6 +32,39 @@ describe('calculateVictoryPoints', () => {
     expect(sum).eq(player.terraformRating);
   });
 
+  it('explicit base/handicap + cardEntries reconcile with the cards total', () => {
+    const [game, player] = testGame(2);
+    player.increaseTerraformRating(3); // direct card / effect TR
+    runAllActions(game);
+    const tr = player.getVictoryPoints().terraformRatingBreakdown;
+    expect(tr.baseRating).eq(20);
+    expect(tr.handicap).eq(0);
+    expect(tr.base).eq(20); // back-compat = baseRating + handicap
+    expect(tr.cards).eq(3);
+    // Σ cardEntries === cards.
+    expect(tr.cardEntries.reduce((a, e) => a + e.amount, 0)).eq(3);
+  });
+
+  it('puts the Venus 8% threshold TR bonus in Cards & effects, never the base', () => {
+    const [game, player] = testGame(2, {venusNextExtension: true});
+    // Raise Venus past 16% (the TR threshold). Max 3 increments per call → 3×3 = 18%.
+    game.increaseVenusScaleLevel(player, 3);
+    game.increaseVenusScaleLevel(player, 3);
+    game.increaseVenusScaleLevel(player, 3);
+    runAllActions(game);
+    const tr = player.getVictoryPoints().terraformRatingBreakdown;
+    // The base stays clean — the bonus did NOT leak into it.
+    expect(tr.baseRating).eq(20);
+    expect(tr.base).eq(20);
+    expect(tr.venus).eq(9); // the 9 parameter steps
+    expect(tr.cards).eq(1); // the +1 threshold bonus
+    const bonus = tr.cardEntries.find((e) => e.sourceType === 'venusTrackBonus');
+    expect(bonus?.amount).eq(1);
+    // Everything still reconciles to the displayed rating.
+    const sum = tr.base + tr.temperature + tr.oxygen + tr.oceans + tr.venus + tr.cards;
+    expect(sum).eq(player.terraformRating);
+  });
+
   it('does not attribute global-parameter TR to the cards bucket', () => {
     const [game, player] = testGame(2);
     game.increaseTemperature(player, 1);

@@ -295,6 +295,12 @@ export class EventRecorder {
     return this.current !== undefined;
   }
 
+  /** The source of the active action/effect scope, if any — used to attribute a
+   *  TR gain to the card/corp/effect currently executing (for the score breakdown). */
+  public currentSource(): EventSource | undefined {
+    return this.current?.source;
+  }
+
   public recordResourceDelta(player: IPlayer, resource: Resource | StandardResource, amount: number, production: boolean, from?: From, stealing?: boolean, after?: number): void {
     if (amount === 0) {
       return;

@@ -11,7 +11,72 @@ import {VictoryPointsBreakdownBuilder} from './VictoryPointsBreakdownBuilder';
 import {FundedAward} from '../awards/FundedAward';
 import {AwardScorer} from '../awards/AwardScorer';
 import {CardName} from '../../common/cards/CardName';
-import {CardVictoryPointsKind} from '../../common/game/VictoryPointsBreakdown';
+import {CardVictoryPointsKind, TerraformRatingBreakdown, TRSourceEntry} from '../../common/game/VictoryPointsBreakdown';
+
+// The clean standard starting terraform rating. NEVER a fallback bucket for
+// unclassified TR — any residual goes to a `legacyUnknown` source entry instead.
+const STARTING_TERRAFORM_RATING = 20;
+
+/**
+ * Source-aware terraform-rating breakdown.
+ *
+ * `baseRating`/`handicap` are EXPLICIT (the clean starting rating + any starting
+ * adjustment), NOT the old `terraformRating − Σparts` residual that silently
+ * swallowed Venus-bonus / mis-attributed TR. Parameter TR comes from
+ * `globalParameterSteps`; direct card/effect TR (`terraformRatingFromCards`) is
+ * itemised per source in `cardEntries`. Any leftover (e.g. an older save whose
+ * Venus 8% bonus predates per-source tracking) is surfaced as a `legacyUnknown`
+ * entry inside Cards & effects — so the base stays clean and the parts still sum
+ * to the displayed rating exactly.
+ */
+export function computeTerraformRatingBreakdown(player: IPlayer): TerraformRatingBreakdown {
+  const gp = player.globalParameterSteps;
+  const temperature = gp[GlobalParameter.TEMPERATURE];
+  const oxygen = gp[GlobalParameter.OXYGEN];
+  const oceans = gp[GlobalParameter.OCEANS];
+  const venus = gp[GlobalParameter.VENUS];
+
+  // Merge the per-source list into stable entries (one row per engine piece).
+  const byKey = new Map<string, TRSourceEntry & {sourceCardId?: string}>();
+  for (const s of player.terraformRatingSources) {
+    const key = `${s.sourceType}:${s.sourceName}:${s.sourceCardId ?? ''}`;
+    const existing = byKey.get(key);
+    if (existing === undefined) {
+      byKey.set(key, {...s});
+    } else {
+      existing.amount += s.amount;
+      if (s.generation !== undefined && (existing.generation === undefined || s.generation < existing.generation)) {
+        existing.generation = s.generation;
+      }
+    }
+  }
+  const cardEntries: Array<TRSourceEntry> = [...byKey.values()].filter((e) => e.amount !== 0);
+
+  let cards = player.terraformRatingFromCards;
+  const baseRating = STARTING_TERRAFORM_RATING;
+  const handicap = 0; // no starting-TR handicap mechanic in this build
+
+  // Reconcile: anything not explained by base/handicap/params/cards is a legacy
+  // unattributed source (old saves). Fold it INTO cards (NOT base) as a row.
+  const residual = player.terraformRating - baseRating - handicap - temperature - oxygen - oceans - venus - cards;
+  if (residual !== 0) {
+    cards += residual;
+    cardEntries.push({sourceType: 'legacyUnknown', sourceName: 'Other / untracked sources', amount: residual});
+  }
+  cardEntries.sort((a, b) => b.amount - a.amount);
+
+  return {
+    base: baseRating + handicap,
+    baseRating,
+    handicap,
+    temperature,
+    oxygen,
+    oceans,
+    venus,
+    cards,
+    cardEntries,
+  };
+}
 
 // Classify how a played card earns its victory points, for the "from cards"
 // breakdown families. A net-negative result is always a penalty regardless of
@@ -64,25 +129,7 @@ export function calculateVictoryPoints(player: IPlayer) {
 
   // Victory points from TR
   builder.setVictoryPoints('terraformRating', player.terraformRating);
-  // Attribution of TR by reason. Parameter steps each grant 1 TR (`from`-less
-  // global increases tracked in `globalParameterSteps`); direct card / effect
-  // TR is tracked in `terraformRatingFromCards`. `base` is the reconciling
-  // remainder (the starting rating + any untracked drift) so the parts sum to
-  // the displayed terraform rating exactly.
-  const gp = player.globalParameterSteps;
-  const trTemperature = gp[GlobalParameter.TEMPERATURE];
-  const trOxygen = gp[GlobalParameter.OXYGEN];
-  const trOceans = gp[GlobalParameter.OCEANS];
-  const trVenus = gp[GlobalParameter.VENUS];
-  const trCards = player.terraformRatingFromCards;
-  builder.setTerraformRatingBreakdown({
-    base: player.terraformRating - trTemperature - trOxygen - trOceans - trVenus - trCards,
-    temperature: trTemperature,
-    oxygen: trOxygen,
-    oceans: trOceans,
-    venus: trVenus,
-    cards: trCards,
-  });
+  builder.setTerraformRatingBreakdown(computeTerraformRatingBreakdown(player));
 
   // Victory points from awards
   giveAwards(player, builder);
