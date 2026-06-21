@@ -187,7 +187,9 @@ export default defineComponent({
     },
     // Hidden-VP game → offer to replay the suspenseful final-scoring reveal.
     hiddenVpMode(): boolean {
-      return this.view.game.gameOptions.showOtherPlayersVP === false && this.view.players.length > 1;
+      // TEMP forceReveal — see EndgameExperience.hiddenVpMode. REMOVE before production.
+      const forceReveal = typeof window !== 'undefined' && window.location.search.includes('forceReveal');
+      return (forceReveal || this.view.game.gameOptions.showOtherPlayersVP === false) && this.view.players.length > 1;
     },
   },
   methods: {
