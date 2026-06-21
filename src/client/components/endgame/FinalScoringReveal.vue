@@ -143,7 +143,7 @@
                 class="fsr__chip"
                 :class="['fsr-cat--' + g.accent, hlClass(g.key), {
                   'fsr__chip--penalty': groupValue(g.key, lane.color) < 0,
-                  'fsr__chip--active': groupActive(g.key) || railGroupKey === g.key,
+                  'fsr__chip--active': groupActive(g.key) || hoverGroup === g.key,
                   'fsr__chip--interactive': canHover(g.key),
                 }]"
                 :tabindex="canHover(g.key) ? 0 : -1"
@@ -155,27 +155,37 @@
           </span>
         </transition-group>
 
-        <!-- ALWAYS-VISIBLE subchips rail (default = Terraform rating). A
-             top-level chip switches which group's subchips it shows; hovering a
-             subchip opens that subcategory's scoped popup. Connected to its
-             parent by the bracket + the group label. Stable height (no jump). -->
-        <div class="fsr__lane-subchips" :class="'fsr-cat--' + railGroupKey">
-          <span class="fsr__subrail-tag" aria-hidden="true">
-            <span class="fsr__subrail-bracket"></span>
-            <span class="fsr__subrail-name" v-i18n>{{ railGroupLabel }}</span>
+        <!-- TWO PERMANENT breakdown rows (Terraform rating + Cards). Always
+             reserved (never display:none) so the lane height is rock-stable;
+             chips change STATE (ghost → revealed) rather than the row toggling.
+             A leading bracket + label ties each row to its parent category. -->
+        <div v-for="row in breakdownRows" :key="row.group"
+             class="fsr__brow"
+             :class="['fsr-cat--' + row.accent, 'fsr__brow--' + row.group, {
+               'fsr__brow--active': activeGroupKey === row.group && phase === 'revealing',
+               'fsr__brow--settled': groupDone(row.group),
+             }]">
+          <span class="fsr__brow-tag" aria-hidden="true">
+            <span class="fsr__brow-bracket"></span>
+            <span class="fsr__brow-name" v-i18n>{{ row.shortLabel }}</span>
           </span>
-          <transition-group tag="span" class="fsr__subrail-chips" name="fsr-chip">
-            <span v-for="sub in railSubs" :key="sub.key"
+          <div class="fsr__brow-chips">
+            <span v-for="sub in row.subs" :key="sub.key"
                   class="fsr__subchip"
-                  :class="['fsr-cat--' + sub.accent, hlClass(sub.group, sub.key), {'fsr__subchip--neg': subValue(sub.index, lane.color) < 0}]"
-                  tabindex="0"
+                  :class="['fsr-cat--' + sub.accent, hlClass(sub.group, sub.key), {
+                    'fsr__subchip--ghost': !subRevealed(sub.index),
+                    'fsr__subchip--active': activeSegment === sub.index,
+                    'fsr__subchip--neg': subRevealed(sub.index) && subValue(sub.index, lane.color) < 0,
+                  }]"
+                  :tabindex="subRevealed(sub.index) ? 0 : -1"
                   @mouseenter="onSubchipHover(sub.group, sub.key, lane.color, $event)" @mouseleave="scheduleClose"
                   @focus="onSubchipHover(sub.group, sub.key, lane.color, $event)" @blur="scheduleClose">
               <span class="fsr__subchip-dot" aria-hidden="true"></span>
               <span class="fsr__subchip-label" v-i18n>{{ sub.label }}</span>
-              <span class="fsr__subchip-val">{{ subValue(sub.index, lane.color) >= 0 ? '+' + subValue(sub.index, lane.color) : subValue(sub.index, lane.color) }}</span>
+              <span class="fsr__subchip-val">{{ subRevealed(sub.index) ? (subValue(sub.index, lane.color) >= 0 ? '+' + subValue(sub.index, lane.color) : subValue(sub.index, lane.color)) : '?' }}</span>
             </span>
-          </transition-group>
+            <span v-if="row.subs.length === 0" class="fsr__brow-empty" aria-hidden="true">—</span>
+          </div>
         </div>
       </div>
     </div>
@@ -334,9 +344,6 @@ export default defineComponent({
       hoverGroup: null as RevealGroupKey | null,
       hoverSub: null as string | null,
       hoverLane: null as Color | null,
-      // Top-level group pinned to the subchips rail (a multi-sub chip hover
-      // SWITCHES the rail instead of opening a popup). null = default TR.
-      pinnedRailGroup: null as RevealGroupKey | null,
       inspector: undefined as (FinalScoringInspectorContent & {top: number; left: number}) | undefined,
       closeTimer: undefined as number | undefined,
       timers: [] as Array<number>,
@@ -384,30 +391,18 @@ export default defineComponent({
     activeGroupKey(): RevealGroupKey | undefined {
       return this.activeSegment >= 0 ? this.reveal.segments[this.activeSegment]?.group : undefined;
     },
-    // The group whose subchips fill the ALWAYS-VISIBLE rail. During reveal it
-    // follows the active multi-sub group; otherwise the player's pinned choice;
-    // default is Terraform rating (the biggest, most complex category).
-    railGroupKey(): RevealGroupKey {
-      const multi = (k: RevealGroupKey | null | undefined): RevealGroupKey | null => {
-        if (k === null || k === undefined) {
-          return null;
-        }
-        const g = this.reveal.groups.find((x) => x.key === k);
-        return g !== undefined && g.segmentIndexes.length > 1 ? k : null;
-      };
-      const live = this.phase === 'revealing' ? multi(this.activeGroupKey) : null;
-      return live ?? multi(this.pinnedRailGroup) ?? 'tr';
-    },
-    // The REVEALED sub-segments of the rail group (drive the subchip row).
-    railSubs(): Array<{index: number; key: string; group: RevealGroupKey; label: string; accent: string}> {
-      const gk = this.railGroupKey;
-      return this.reveal.segments
-        .filter((s) => s.group === gk && s.order < this.revealedSegments)
+    // The TWO PERMANENT breakdown rows (Terraform rating + Cards). Each is
+    // ALWAYS reserved — its full set of sub-segments is fixed at build time, so
+    // the rows never appear/disappear and the lane height stays stable. Chips
+    // change STATE (ghost → revealed) instead of the row showing/hiding.
+    breakdownRows(): Array<{group: RevealGroupKey; accent: string; shortLabel: string; subs: Array<{index: number; key: string; group: RevealGroupKey; label: string; accent: string}>}> {
+      const subsFor = (g: RevealGroupKey) => this.reveal.segments
+        .filter((s) => s.group === g)
         .map((s) => ({index: s.order, key: s.key, group: s.group, label: s.label, accent: s.key}));
-    },
-    // The rail group's label (shown as the rail's connector header).
-    railGroupLabel(): string {
-      return this.reveal.groups.find((g) => g.key === this.railGroupKey)?.label ?? '';
+      return [
+        {group: 'tr', accent: 'tr-cards', shortLabel: 'TR', subs: subsFor('tr')},
+        {group: 'cards', accent: 'cards', shortLabel: 'Cards', subs: subsFor('cards')},
+      ];
     },
     // The current leader by the categories revealed SO FAR (running totals).
     // Neutral mid-reveal status — NOT the final winner.
@@ -529,27 +524,34 @@ export default defineComponent({
     subValue(segIndex: number, color: Color): number {
       return this.reveal.segments[segIndex]?.values[color] ?? 0;
     },
+    // The two groups that have a PERMANENT breakdown row — their detail lives in
+    // those rows, so their top-level chip only highlights (never opens a popup).
+    hasBreakdownRow(group: RevealGroupKey): boolean {
+      return group === 'tr' || group === 'cards';
+    },
+    subRevealed(segIndex: number): boolean {
+      return segIndex < this.revealedSegments;
+    },
     // ── Hover / inspector ──────────────────────────────────────────────
-    // A TOP-LEVEL category (pill or chip): a multi-sub group SWITCHES the
-    // subchips rail (and never opens a popup — its detail lives in the
-    // subchips); a single-segment group opens its own scoped popup directly.
+    // A TOP-LEVEL category (pill or chip): TR / Cards only HIGHLIGHT (their
+    // detail is the always-visible breakdown row); every other (leaf) category
+    // opens its own scoped popup directly.
     onPillHover(group: RevealGroupKey, evt: Event): void {
-      this.onTopLevelHover(group, null, evt);
+      if (this.hasBreakdownRow(group)) {
+        this.highlightOnly(group);
+      } else {
+        this.setHover(group, null, null, evt);
+      }
     },
     onChipHover(group: RevealGroupKey, color: Color, evt: Event): void {
-      this.onTopLevelHover(group, color, evt);
-    },
-    onTopLevelHover(group: RevealGroupKey, color: Color | null, evt: Event): void {
-      if (!this.canHover(group)) {
-        return;
-      }
-      if (this.hasSubs(group)) {
-        this.pinnedRailGroup = group;
+      if (this.hasBreakdownRow(group)) {
         this.highlightOnly(group);
       } else {
         this.setHover(group, null, color, evt);
       }
     },
+    // A subchip opens its subcategory popup (only once its group is revealed —
+    // setHover gates on canHover, so a ghost subchip never leaks a value).
     onSubchipHover(group: RevealGroupKey, subKey: string, color: Color, evt: Event): void {
       this.setHover(group, subKey, color, evt);
     },
