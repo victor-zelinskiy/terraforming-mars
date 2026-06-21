@@ -196,8 +196,8 @@
          containing block) and the cursor can travel into it. -->
     <Teleport to="body">
       <transition name="fsr-fade">
-        <div v-if="inspector !== undefined" class="fsr__inspector-wrap"
-             :style="{top: inspector.top + 'px', left: inspector.left + 'px'}">
+        <div v-if="inspector !== undefined" ref="inspectorWrap" class="fsr__inspector-wrap"
+             :style="{top: inspectorPos.top + 'px', left: inspectorPos.left + 'px'}">
           <FinalScoringInspector :content="inspector" @keep="cancelClose" @release="scheduleClose" />
         </div>
       </transition>
@@ -344,8 +344,15 @@ export default defineComponent({
       hoverGroup: null as RevealGroupKey | null,
       hoverSub: null as string | null,
       hoverLane: null as Color | null,
-      inspector: undefined as (FinalScoringInspectorContent & {top: number; left: number}) | undefined,
+      // The popup is anchor-DRIVEN: we keep the live anchor element and the
+      // content, and recompute the position from a FRESH rect on every open +
+      // resize / scroll / fullscreen change (never a cached coordinate).
+      inspector: undefined as FinalScoringInspectorContent | undefined,
+      inspectorAnchor: undefined as HTMLElement | undefined,
+      inspectorPos: {top: -9999, left: -9999} as {top: number; left: number},
       closeTimer: undefined as number | undefined,
+      repositionRaf: undefined as number | undefined,
+      popupObserver: undefined as ResizeObserver | undefined,
       timers: [] as Array<number>,
       raf: undefined as number | undefined,
     };
@@ -574,26 +581,82 @@ export default defineComponent({
         return;
       }
       this.cancelClose();
-      this.hoverGroup = group;
-      this.hoverSub = subKey;
-      this.hoverLane = color;
       const content = this.buildInspectorContent(group, subKey, color);
       const target = evt.currentTarget as HTMLElement | null;
       if (content === undefined || target === null || typeof target.getBoundingClientRect !== 'function') {
         return;
       }
-      const r = target.getBoundingClientRect();
-      // Approximate panel height for above/below placement + clamp to viewport.
-      const width = 318;
-      const estH = 92 + content.subRows.length * 20 + content.cards.length * 22 + content.sources.length * 20 + content.compare.length * 22;
-      const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
-      let left = r.left + r.width / 2 - width / 2;
-      left = Math.max(12, Math.min(left, vw - width - 12));
-      let top = r.top - 12 - estH;
-      if (top < 12) {
-        top = r.bottom + 12; // flip below when there's no room above
+      // Content + ANCHOR are set together (atomic): the popup is never showing
+      // new content at a stale position. Position is derived from the live anchor.
+      this.hoverGroup = group;
+      this.hoverSub = subKey;
+      this.hoverLane = color;
+      this.inspector = content;
+      this.inspectorAnchor = target;
+      this.reposition(content); // rough now (estimated size)
+      // Refine once the popup is laid out (real width/height) + start observing it.
+      this.$nextTick(() => {
+        this.observePopup();
+        this.reposition();
+      });
+    },
+    // Recompute the popup position from a FRESH anchor rect + the popup's real
+    // size. Never uses cached coordinates. Closes if the anchor went away.
+    reposition(content?: FinalScoringInspectorContent): void {
+      const anchor = this.inspectorAnchor;
+      if (this.inspector === undefined || anchor === undefined) {
+        return;
       }
-      this.inspector = {...content, top, left};
+      if (anchor.isConnected === false || typeof anchor.getBoundingClientRect !== 'function') {
+        this.clearHover(); // anchor detached → close, never leave it orphaned
+        return;
+      }
+      const r = anchor.getBoundingClientRect();
+      const c = content ?? this.inspector;
+      const popup = this.$refs.inspectorWrap as HTMLElement | undefined;
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+      // Real measured size when the popup is laid out, else a content estimate.
+      const pw = popup?.offsetWidth ?? 0;
+      const ph = popup?.offsetHeight ?? 0;
+      const w = pw > 0 ? pw : 318;
+      const estH = 92 + c.subRows.length * 20 + c.cards.length * 22 + c.sources.length * 22 + c.compare.length * 22;
+      const h = ph > 0 ? ph : estH;
+      const GAP = 12;
+      // Horizontal: centre on the anchor, clamp to the viewport.
+      const left = Math.max(GAP, Math.min(r.left + r.width / 2 - w / 2, vw - w - GAP));
+      // Vertical: prefer above; flip below if it doesn't fit; clamp either way.
+      let top = r.top - GAP - h;
+      if (top < GAP) {
+        const below = r.bottom + GAP;
+        top = (below + h <= vh - GAP) ? below : Math.max(GAP, vh - h - GAP);
+      }
+      this.inspectorPos = {top, left};
+    },
+    // rAF-throttled reposition for high-frequency events (scroll/resize).
+    scheduleReposition(): void {
+      if (this.inspector === undefined || typeof requestAnimationFrame === 'undefined') {
+        return;
+      }
+      if (this.repositionRaf !== undefined) {
+        return;
+      }
+      this.repositionRaf = requestAnimationFrame(() => {
+        this.repositionRaf = undefined;
+        this.reposition();
+      });
+    },
+    observePopup(): void {
+      if (typeof ResizeObserver === 'undefined') {
+        return;
+      }
+      const popup = this.$refs.inspectorWrap as HTMLElement | undefined;
+      if (popup === undefined) {
+        return;
+      }
+      this.popupObserver?.disconnect();
+      this.popupObserver = new ResizeObserver(() => this.reposition());
+      this.popupObserver.observe(popup);
     },
     // Build the breakdown for a category (subKey === null) OR a SINGLE
     // subcategory (subKey set → scoped: only that sub-part's data). Reads
@@ -647,11 +710,13 @@ export default defineComponent({
             }
           }
         } else if (kind !== undefined) {
+          // Scoped to ONE card family — the title already names it, so the
+          // per-row kind label is redundant noise → drop it (keep resourcesText).
           content.cards = b.detailsCards.filter((d) => d.kind === kind && d.victoryPoint > 0)
-            .slice().sort((a, c) => c.victoryPoint - a.victoryPoint).map(cardOf);
+            .slice().sort((a, c) => c.victoryPoint - a.victoryPoint).map((d) => ({...cardOf(d), kindLabel: ''}));
         } else if (subKey === 'penalty-cards') {
           content.cards = b.detailsCards.filter((d) => d.kind === 'penalty' || d.victoryPoint < 0)
-            .slice().sort((a, c) => a.victoryPoint - c.victoryPoint).map(cardOf);
+            .slice().sort((a, c) => a.victoryPoint - c.victoryPoint).map((d) => ({...cardOf(d), kindLabel: ''}));
         } else if (subKey === 'penalty-ev' && b.escapeVelocity !== 0) {
           content.sources = [{text: this.$t('Escape Velocity'), vp: b.escapeVelocity}];
         }
@@ -755,6 +820,9 @@ export default defineComponent({
       this.hoverSub = null;
       this.hoverLane = null;
       this.inspector = undefined;
+      this.inspectorAnchor = undefined;
+      this.popupObserver?.disconnect();
+      this.popupObserver = undefined;
     },
     // ── Controls ───────────────────────────────────────────────────────
     dur(base: number): number {
@@ -879,6 +947,12 @@ export default defineComponent({
   mounted(): void {
     this.startEaseLoop();
     (this.$refs.root as HTMLElement | undefined)?.focus?.();
+    // Keep the open popup glued to its anchor through every viewport change.
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', this.scheduleReposition);
+      window.addEventListener('scroll', this.scheduleReposition, true); // capture → any scroll container
+      document.addEventListener('fullscreenchange', this.scheduleReposition);
+    }
     if (this.reveal.segments.length === 0) {
       this.skipAnimation();
       return;
@@ -888,6 +962,15 @@ export default defineComponent({
   beforeUnmount(): void {
     this.clearTimers();
     this.cancelClose();
+    this.popupObserver?.disconnect();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', this.scheduleReposition);
+      window.removeEventListener('scroll', this.scheduleReposition, true);
+      document.removeEventListener('fullscreenchange', this.scheduleReposition);
+    }
+    if (this.repositionRaf !== undefined && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(this.repositionRaf);
+    }
     if (this.raf !== undefined && typeof cancelAnimationFrame !== 'undefined') {
       cancelAnimationFrame(this.raf);
     }

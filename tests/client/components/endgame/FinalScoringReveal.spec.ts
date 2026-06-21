@@ -251,6 +251,31 @@ describe('FinalScoringReveal', () => {
     expect(c.sources[0].vp).to.eq(1);
   });
 
+  it('repositions from a FRESH anchor rect (never cached) and closes if the anchor detaches', async () => {
+    const m = model([input('red', 'A', {terraformRating: 30, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    (wrapper.vm as unknown as {skipAnimation: () => void}).skipAnimation();
+    await wrapper.vm.$nextTick();
+    const vm = wrapper.vm as unknown as {
+      setHover: (g: string, sub: string | null, c: string | null, e: Event) => void;
+      reposition: () => void; inspector: unknown; inspectorPos: {top: number; left: number};
+    };
+    let rect = {left: 100, top: 300, right: 140, bottom: 320, width: 40, height: 20};
+    const anchor = {isConnected: true, getBoundingClientRect: () => rect} as unknown as {isConnected: boolean; getBoundingClientRect: () => typeof rect};
+    const evt = {currentTarget: anchor} as unknown as Event;
+    vm.setHover('milestones', null, 'red', evt); // milestones is a leaf → opens a popup
+    expect(vm.inspector).to.not.eq(undefined);
+    const firstTop = vm.inspectorPos.top;
+    // Move the anchor (simulate scroll / resize / fullscreen) → a fresh reposition tracks it.
+    rect = {...rect, top: 560, bottom: 580};
+    vm.reposition();
+    expect(vm.inspectorPos.top).to.not.eq(firstTop); // recomputed from the NEW rect, not a cached value
+    // Detach the anchor → the popup closes (never orphaned).
+    anchor.isConnected = false;
+    vm.reposition();
+    expect(vm.inspector).to.eq(undefined);
+  });
+
   it('a row-backed group highlights (no popup); a leaf group opens a scoped popup', async () => {
     const m = model([input('red', 'A', {terraformRating: 35, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
     const wrapper = mountReveal(m, ['red', 'blue']);
