@@ -9,7 +9,7 @@
   <div class="eg-root">
     <!-- Hidden-VP games earn the suspenseful category-by-category reveal;
          every other game keeps the instant cinematic winner reveal. -->
-    <FinalScoringReveal v-if="state.revealActive && hiddenVpMode" :model="model" :player-order="playerOrder" />
+    <FinalScoringReveal v-if="state.revealActive && hiddenVpMode" :model="model" :player-order="playerOrder" :card-resources="cardResources" />
 
     <EndgameWinnerReveal v-else-if="state.revealActive" :model="model" />
 

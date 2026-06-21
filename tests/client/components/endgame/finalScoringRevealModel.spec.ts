@@ -31,6 +31,10 @@ function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreak
   // always sum to terraformRating.
   const trb = merged.terraformRatingBreakdown;
   merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards)};
+  // Mirror production: detailsCards sums to victoryPoints (cards derive from kinds).
+  if (merged.victoryPoints !== 0 && merged.detailsCards.length === 0) {
+    merged.detailsCards = [{cardName: 'TestFixed', victoryPoint: merged.victoryPoints, kind: 'fixed'}];
+  }
   if (partial.total === undefined) {
     merged.total = merged.terraformRating + merged.milestones + merged.awards + merged.greenery +
       merged.city + merged.victoryPoints + merged.moonHabitats + merged.moonMines + merged.moonRoads +
@@ -106,9 +110,30 @@ describe('finalScoringRevealModel', () => {
     const reveal = buildFinalScoringRevealModel(model([a, b]), ['red', 'blue']);
     const keys = reveal.segments.map((s) => s.key);
     expect(keys.indexOf('tr-base')).to.be.lessThan(keys.indexOf('milestones'));
-    expect(keys.indexOf('awards')).to.be.lessThan(keys.indexOf('penalty'));
-    expect(keys[keys.length - 1]).to.eq('penalty');
-    expect(reveal.segments.find((s) => s.key === 'penalty')?.penalty).to.eq(true);
+    expect(keys.indexOf('awards')).to.be.lessThan(keys.indexOf('penalty-ev'));
+    expect(keys[keys.length - 1]).to.eq('penalty-ev');
+    expect(reveal.segments.find((s) => s.key === 'penalty-ev')?.penalty).to.eq(true);
+  });
+
+  it('splits Cards into fixed/conditional/resource and pulls penalties into a separate group', () => {
+    const a = player('red', 'A', {
+      terraformRating: 20, victoryPoints: 9, escapeVelocity: -3,
+      detailsCards: [
+        {cardName: 'F', victoryPoint: 4, kind: 'fixed'},
+        {cardName: 'C', victoryPoint: 5, kind: 'conditional'},
+        {cardName: 'R', victoryPoint: 3, kind: 'resource'},
+        {cardName: 'P', victoryPoint: -3, kind: 'penalty'},
+      ],
+    }); // cards positive 12, card penalty -3 → victoryPoints 9; +ev -3 → total 20+9-3 = 26
+    const reveal = buildFinalScoringRevealModel(model([a, player('blue', 'B', {terraformRating: 20})]), ['red', 'blue']);
+    const cardsGroup = reveal.groups.find((g) => g.key === 'cards');
+    expect(cardsGroup?.values['red']).to.eq(12); // fixed+conditional+resource only
+    const penaltyGroup = reveal.groups.find((g) => g.key === 'penalty');
+    expect(penaltyGroup?.values['red']).to.eq(-6); // card penalty (-3) + escape velocity (-3)
+    // The whole thing still reconciles to the player's real total.
+    const sum = reveal.segments.reduce((acc, s) => acc + (s.values['red'] ?? 0), 0);
+    expect(sum).to.eq(26);
+    expect(reveal.players.find((p) => p.color === 'red')?.finalTotal).to.eq(26);
   });
 
   it('emits a tie-break when the top total is shared, resolved on M€', () => {

@@ -31,8 +31,46 @@
  * translates (so this stays unit-testable; see finalScoringRevealModel.spec.ts).
  */
 import {Color} from '@/common/Color';
-import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
+import {CardName} from '@/common/cards/CardName';
+import {CardVictoryPointsKind, VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {EndgameMode, EndgameModel} from '@/client/components/endgame/endgameModel';
+
+// ── Rich inspector content shapes (built by the component, with i18n) ──────
+// Kept here so the reveal component and the inspector child share one contract.
+export type InspectorSubRow = {key: string; label: string; accent: string; value: number};
+export type InspectorCardRow = {name: CardName; kindLabel: string; vp: number; resourcesText?: string};
+export type InspectorSource = {text: string; vp: number; cardName?: CardName};
+
+export type FinalScoringInspectorContent = {
+  group: RevealGroupKey;
+  accent: string;
+  label: string; // i18n KEY
+  description: string; // i18n KEY
+  // '' (+ undefined color) → "compare" mode (pill hover): cross-player totals.
+  // Otherwise → the rich per-player breakdown for that lane.
+  playerName: string;
+  playerColor: Color | undefined;
+  total: number;
+  subRows: ReadonlyArray<InspectorSubRow>;
+  cards: ReadonlyArray<InspectorCardRow>;
+  cardsLabel: string; // i18n KEY for the card-list heading ('' = no list)
+  sources: ReadonlyArray<InspectorSource>;
+  sourcesLabel: string; // i18n KEY for the sources heading ('' = no list)
+  compare: ReadonlyArray<{color: Color; name: string; value: number}>;
+};
+
+// Sum of card VP of a given family — reads the SERVER-assigned `kind` on each
+// detailsCards entry (the same classification the detailed score report uses),
+// so this is a projection, not a second source of truth.
+export function cardKindTotal(b: VictoryPointsBreakdown, kind: CardVictoryPointsKind): number {
+  let sum = 0;
+  for (const d of b.detailsCards) {
+    if (d.kind === kind) {
+      sum += d.victoryPoint;
+    }
+  }
+  return sum;
+}
 
 // The top-level scoring GROUPS shown as pills + lane chips.
 export type RevealGroupKey =
@@ -103,13 +141,19 @@ const SEGMENTS: ReadonlyArray<SegMeta> = [
   {key: 'tr-cards', group: 'tr', label: 'Cards & effects', penalty: false, value: (b) => b.terraformRatingBreakdown.cards},
   {key: 'greenery', group: 'greenery', label: 'Greenery', penalty: false, value: (b) => b.greenery},
   {key: 'city', group: 'city', label: 'Cities', penalty: false, value: (b) => b.city},
-  {key: 'cards', group: 'cards', label: 'Cards', penalty: false, value: (b) => b.victoryPoints},
+  // Cards split into its real families (same `kind` the score report uses). The
+  // penalty family is pulled OUT into the dedicated Penalties group below.
+  {key: 'cards-fixed', group: 'cards', label: 'Fixed VP cards', penalty: false, value: (b) => cardKindTotal(b, 'fixed')},
+  {key: 'cards-conditional', group: 'cards', label: 'Conditional cards', penalty: false, value: (b) => cardKindTotal(b, 'conditional')},
+  {key: 'cards-resource', group: 'cards', label: 'Resource cards', penalty: false, value: (b) => cardKindTotal(b, 'resource')},
   {key: 'milestones', group: 'milestones', label: 'Milestones', penalty: false, value: (b) => b.milestones},
   {key: 'awards', group: 'awards', label: 'Awards', penalty: false, value: (b) => b.awards},
   {key: 'moon', group: 'moon', label: 'Moon', penalty: false, value: (b) => b.moonHabitats + b.moonMines + b.moonRoads},
   {key: 'tracks', group: 'tracks', label: 'Planetary tracks', penalty: false, value: (b) => b.planetaryTracks},
   {key: 'delta', group: 'delta', label: 'Hydronetwork', penalty: false, value: (b) => b.deltaProject},
-  {key: 'penalty', group: 'penalty', label: 'Escape Velocity', penalty: true, value: (b) => b.escapeVelocity},
+  // Penalties (all negative) — a dedicated subtractive group, revealed last.
+  {key: 'penalty-cards', group: 'penalty', label: 'Card penalties', penalty: true, value: (b) => cardKindTotal(b, 'penalty')},
+  {key: 'penalty-ev', group: 'penalty', label: 'Escape Velocity', penalty: true, value: (b) => b.escapeVelocity},
 ];
 
 const GROUP_META: Record<RevealGroupKey, {label: string; accent: string; description: string}> = {
@@ -122,7 +166,7 @@ const GROUP_META: Record<RevealGroupKey, {label: string; accent: string; descrip
   moon: {label: 'Moon', accent: 'moon', description: 'Lunar habitats, mines and roads'},
   tracks: {label: 'Planetary tracks', accent: 'tracks', description: 'Planetary track positions'},
   delta: {label: 'Hydronetwork', accent: 'delta', description: 'Hydronetwork end-game VP'},
-  penalty: {label: 'Escape Velocity', accent: 'penalty', description: 'Escape Velocity penalty'},
+  penalty: {label: 'Penalties', accent: 'penalty', description: 'Negative VP — penalties and adjustments'},
 };
 
 const GROUP_ORDER: ReadonlyArray<RevealGroupKey> = ['tr', 'greenery', 'city', 'cards', 'milestones', 'awards', 'moon', 'tracks', 'delta', 'penalty'];
