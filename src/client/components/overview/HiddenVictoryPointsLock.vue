@@ -21,16 +21,16 @@
 
     <div class="vp-lock__kicker" aria-hidden="true">
       <span class="vp-lock__kicker-tick"></span>
-      <span class="vp-lock__kicker-text" v-i18n>Access restricted</span>
+      <span class="vp-lock__kicker-text" v-i18n>Score sealed</span>
       <span class="vp-lock__kicker-tick"></span>
     </div>
 
-    <h3 class="vp-lock__title" v-i18n>Victory points are hidden until final scoring</h3>
-    <p class="vp-lock__text" v-i18n>The final score is revealed after the game ends.</p>
+    <h3 class="vp-lock__title" v-i18n>The score is revealed at the end</h3>
+    <p class="vp-lock__text" v-i18n>Opponent victory points are revealed after the game ends.</p>
 
     <div class="vp-lock__mode">
       <span class="vp-lock__mode-dot" aria-hidden="true"></span>
-      <span v-i18n>Hidden score mode is on</span>
+      <span v-i18n>Right now only public game stats are visible: TR, resources, cities, greeneries and played cards.</span>
     </div>
 
     <button type="button" class="vp-lock__cta" @click="$emit('close')">

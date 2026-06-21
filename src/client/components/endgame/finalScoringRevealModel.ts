@@ -54,6 +54,8 @@ export type FinalScoringInspectorContent = {
   subRows: ReadonlyArray<InspectorSubRow>;
   cards: ReadonlyArray<InspectorCardRow>;
   cardsLabel: string; // i18n KEY for the card-list heading ('' = no list)
+  // i18n KEY shown under a TRUNCATED group-level card list ('' = none / full).
+  hint: string;
   sources: ReadonlyArray<InspectorSource>;
   sourcesLabel: string; // i18n KEY for the sources heading ('' = no list)
   compare: ReadonlyArray<{color: Color; name: string; value: number}>;

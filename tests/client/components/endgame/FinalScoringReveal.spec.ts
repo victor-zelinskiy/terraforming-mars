@@ -129,13 +129,19 @@ describe('FinalScoringReveal', () => {
       input('blue', 'B', {terraformRating: 20}),
     ]);
     const wrapper = mountReveal(m, ['red', 'blue']);
-    const vm = wrapper.vm as unknown as {buildInspectorContent: (g: string, c: string | null) => {playerName: string; total: number; subRows: Array<{key: string}>; cards: Array<{vp: number}>}};
-    const c = vm.buildInspectorContent('cards', 'red');
+    const vm = wrapper.vm as unknown as {buildInspectorContent: (g: string, sub: string | null, c: string | null) => {playerName: string; total: number; subRows: Array<{key: string}>; cards: Array<{vp: number}>; hint: string}};
+    const c = vm.buildInspectorContent('cards', null, 'red');
     expect(c.playerName).to.eq('A');
     expect(c.total).to.eq(12);
     expect(c.subRows.map((r) => r.key)).to.deep.eq(['cards-fixed', 'cards-conditional', 'cards-resource']);
     expect(c.cards.length).to.eq(3);
     expect(c.cards[0].vp).to.eq(5); // sorted by VP desc
+
+    // Scoped to a single subcategory → only that family's cards, no sub-rows.
+    const scoped = vm.buildInspectorContent('cards', 'cards-conditional', 'red');
+    expect(scoped.subRows.length).to.eq(0);
+    expect(scoped.cards.length).to.eq(1);
+    expect(scoped.cards[0].vp).to.eq(3);
   });
 
   it('builds a penalty breakdown (card penalties + escape velocity) and compares on a pill', () => {
@@ -146,15 +152,61 @@ describe('FinalScoringReveal', () => {
       input('blue', 'B', {terraformRating: 20}),
     ]);
     const wrapper = mountReveal(m, ['red', 'blue']);
-    const vm = wrapper.vm as unknown as {buildInspectorContent: (g: string, c: string | null) => {playerName: string; cards: Array<{vp: number}>; sources: Array<{vp: number}>; compare: Array<unknown>}};
-    const player = vm.buildInspectorContent('penalty', 'red');
+    const vm = wrapper.vm as unknown as {buildInspectorContent: (g: string, sub: string | null, c: string | null) => {playerName: string; cards: Array<{vp: number}>; sources: Array<{vp: number}>; compare: Array<unknown>}};
+    const player = vm.buildInspectorContent('penalty', null, 'red');
     expect(player.cards.length).to.eq(1); // the -2 card penalty
-    expect(player.sources.length).to.eq(1); // escape velocity -3
-    expect(player.sources[0].vp).to.eq(-3);
     // Pill hover (no player) → cross-player comparison.
-    const compare = vm.buildInspectorContent('penalty', null);
+    const compare = vm.buildInspectorContent('penalty', null, null);
     expect(compare.playerName).to.eq('');
     expect(compare.compare.length).to.eq(2);
+    // Scoped to escape velocity → only that source.
+    const ev = vm.buildInspectorContent('penalty', 'penalty-ev', 'red');
+    expect(ev.sources.length).to.eq(1);
+    expect(ev.sources[0].vp).to.eq(-3);
+  });
+
+  it('renders the timeline as one row with the Winner node + connectors', () => {
+    const m = model([input('red', 'A', {terraformRating: 30, greenery: 4, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    // Winner node lives in the SAME timeline list (not a separate row/button).
+    expect(wrapper.find('.fsr__timeline .fsr__tl-node--final').exists()).is.true;
+    // Connectors between nodes.
+    expect(wrapper.findAll('.fsr__tl-link').length).to.be.greaterThan(0);
+  });
+
+  it('shows the current leader during reveal and locks the winner only at the end', async () => {
+    const m = model([input('red', 'A', {terraformRating: 35, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    // Before the winner step, no gold winner lane yet.
+    expect(wrapper.find('.fsr__lane--winner').exists()).is.false;
+    const vm = wrapper.vm as unknown as {skipAnimation: () => void; leader: {colors: Array<string>; total: number; margin: number}};
+    (wrapper.vm as unknown as {skipAnimation: () => void}).skipAnimation();
+    await wrapper.vm.$nextTick();
+    // Leader is computed from the (now fully) revealed categories.
+    expect(vm.leader.colors).to.deep.eq(['red']);
+    expect(vm.leader.total).to.eq(40);
+    expect(vm.leader.margin).to.eq(18);
+    expect(wrapper.find('.fsr__lane--winner').exists()).is.true;
+  });
+
+  it('exposes subcategory expansion for multi-part groups only', () => {
+    const m = model([
+      input('red', 'A', {terraformRating: 20, victoryPoints: 9, detailsCards: [
+        {cardName: 'F', victoryPoint: 5, kind: 'fixed'},
+        {cardName: 'C', victoryPoint: 4, kind: 'conditional'},
+      ]}),
+      input('blue', 'B', {terraformRating: 20, greenery: 3}),
+    ]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    const vm = wrapper.vm as unknown as {hasSubs: (g: string) => boolean; hoverGroup: string | null; hoverSub: string | null; expandedGroupKey: string | null; expandedSubs: Array<unknown>; revealedSegments: number};
+    expect(vm.hasSubs('cards')).is.true; // fixed + conditional
+    expect(vm.hasSubs('greenery')).is.false; // single segment
+    // Reveal everything, then "hover" cards → its subchips expand.
+    vm.revealedSegments = m.players.length > 0 ? 99 : 0;
+    vm.hoverGroup = 'cards';
+    vm.hoverSub = null;
+    expect(vm.expandedGroupKey).to.eq('cards');
+    expect(vm.expandedSubs.length).to.eq(2);
   });
 
   it('hovering a revealed group sets the cross-highlight and inspector', async () => {
@@ -162,7 +214,7 @@ describe('FinalScoringReveal', () => {
     const wrapper = mountReveal(m, ['red', 'blue']);
     (wrapper.vm as unknown as {skipAnimation: () => void}).skipAnimation();
     await wrapper.vm.$nextTick();
-    const pill = wrapper.find('.fsr__progress-node--interactive');
+    const pill = wrapper.find('.fsr__tl-node--interactive');
     expect(pill.exists()).is.true;
     await pill.trigger('mouseenter');
     const vm = wrapper.vm as unknown as {hoverGroup: string | null; inspector: unknown; clearHover: () => void};
