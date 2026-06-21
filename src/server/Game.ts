@@ -1344,7 +1344,10 @@ export class Game implements IGame, Logger {
       }
       if (this.venusScaleLevel < constants.VENUS_LEVEL_FOR_TR_BONUS &&
         this.venusScaleLevel + steps * 2 >= constants.VENUS_LEVEL_FOR_TR_BONUS) {
-        player.increaseTerraformRating(1, {global: true});
+        // The Venus 8% threshold TR bonus is a one-time effect, NOT a parameter
+        // step — attribute it to "Cards & effects" (so it never leaks into the
+        // clean base rating), not `{global: true}`.
+        player.increaseTerraformRating(1, {trAttribution: {sourceType: 'venusTrackBonus', sourceName: 'Venus track bonus'}});
       }
       if (this.gameOptions.altVenusBoard) {
         const newValue = this.venusScaleLevel + steps * 2;

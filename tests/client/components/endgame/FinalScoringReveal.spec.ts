@@ -189,7 +189,7 @@ describe('FinalScoringReveal', () => {
     expect(wrapper.find('.fsr__lane--winner').exists()).is.true;
   });
 
-  it('exposes subcategory expansion for multi-part groups only', () => {
+  it('always shows a subchips rail (default TR); a top-level chip switches it without a popup', () => {
     const m = model([
       input('red', 'A', {terraformRating: 20, victoryPoints: 9, detailsCards: [
         {cardName: 'F', victoryPoint: 5, kind: 'fixed'},
@@ -198,15 +198,46 @@ describe('FinalScoringReveal', () => {
       input('blue', 'B', {terraformRating: 20, greenery: 3}),
     ]);
     const wrapper = mountReveal(m, ['red', 'blue']);
-    const vm = wrapper.vm as unknown as {hasSubs: (g: string) => boolean; hoverGroup: string | null; hoverSub: string | null; expandedGroupKey: string | null; expandedSubs: Array<unknown>; revealedSegments: number};
+    const vm = wrapper.vm as unknown as {
+      hasSubs: (g: string) => boolean; skipAnimation: () => void; railGroupKey: string; railSubs: Array<unknown>;
+      onTopLevelHover: (g: string, c: string | null, e: Event) => void; pinnedRailGroup: string | null; inspector: unknown;
+    };
     expect(vm.hasSubs('cards')).is.true; // fixed + conditional
     expect(vm.hasSubs('greenery')).is.false; // single segment
-    // Reveal everything, then "hover" cards → its subchips expand.
-    vm.revealedSegments = m.players.length > 0 ? 99 : 0;
-    vm.hoverGroup = 'cards';
-    vm.hoverSub = null;
-    expect(vm.expandedGroupKey).to.eq('cards');
-    expect(vm.expandedSubs.length).to.eq(2);
+    (wrapper.vm as unknown as {skipAnimation: () => void}).skipAnimation();
+    // Default rail is Terraform rating.
+    expect(vm.railGroupKey).to.eq('tr');
+    // Hovering the multi-sub "cards" chip SWITCHES the rail and opens NO popup.
+    const fakeEvt = {currentTarget: {getBoundingClientRect: () => ({left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0})}} as unknown as Event;
+    vm.onTopLevelHover('cards', 'red', fakeEvt);
+    expect(vm.pinnedRailGroup).to.eq('cards');
+    expect(vm.railGroupKey).to.eq('cards');
+    expect(vm.railSubs.length).to.eq(2);
+    expect(vm.inspector).to.eq(undefined); // top-level multi-sub → no popup
+  });
+
+  it('builds the Cards & effects (tr-cards) popup from the TR source entries', () => {
+    const m = model([
+      input('red', 'A', {
+        terraformRating: 23,
+        terraformRatingBreakdown: {
+          base: 20, baseRating: 20, handicap: 0, temperature: 0, oxygen: 0, oceans: 0, venus: 0, cards: 3,
+          cardEntries: [
+            {sourceType: 'card', sourceName: 'Ganymede Colony', sourceCardId: 'Ganymede Colony', amount: 2},
+            {sourceType: 'venusTrackBonus', sourceName: 'Venus track bonus', amount: 1},
+          ],
+        },
+      }),
+      input('blue', 'B', {terraformRating: 20}),
+    ]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    const vm = wrapper.vm as unknown as {buildInspectorContent: (g: string, sub: string | null, c: string | null) => {cards: Array<{name: string; vp: number}>; sources: Array<{vp: number}>; total: number}};
+    const c = vm.buildInspectorContent('tr', 'tr-cards', 'red');
+    expect(c.total).to.eq(3);
+    expect(c.cards.length).to.eq(1); // the card source (with preview)
+    expect(c.cards[0].name).to.eq('Ganymede Colony');
+    expect(c.sources.length).to.eq(1); // the Venus track bonus (no card)
+    expect(c.sources[0].vp).to.eq(1);
   });
 
   it('hovering a revealed group sets the cross-highlight and inspector', async () => {

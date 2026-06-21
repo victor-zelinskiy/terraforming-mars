@@ -143,7 +143,7 @@
                 class="fsr__chip"
                 :class="['fsr-cat--' + g.accent, hlClass(g.key), {
                   'fsr__chip--penalty': groupValue(g.key, lane.color) < 0,
-                  'fsr__chip--active': groupActive(g.key) || expandedGroupKey === g.key,
+                  'fsr__chip--active': groupActive(g.key) || railGroupKey === g.key,
                   'fsr__chip--interactive': canHover(g.key),
                 }]"
                 :tabindex="canHover(g.key) ? 0 : -1"
@@ -155,11 +155,17 @@
           </span>
         </transition-group>
 
-        <!-- Secondary subchip row for the ACTIVE/expanded group only (kept off
-             until needed so the row never carries the full subcategory soup). -->
-        <transition name="fsr-subexpand">
-          <div v-if="expandedGroupKey !== null && expandedSubs.length > 0" class="fsr__lane-subchips">
-            <span v-for="sub in expandedSubs" :key="sub.key"
+        <!-- ALWAYS-VISIBLE subchips rail (default = Terraform rating). A
+             top-level chip switches which group's subchips it shows; hovering a
+             subchip opens that subcategory's scoped popup. Connected to its
+             parent by the bracket + the group label. Stable height (no jump). -->
+        <div class="fsr__lane-subchips" :class="'fsr-cat--' + railGroupKey">
+          <span class="fsr__subrail-tag" aria-hidden="true">
+            <span class="fsr__subrail-bracket"></span>
+            <span class="fsr__subrail-name" v-i18n>{{ railGroupLabel }}</span>
+          </span>
+          <transition-group tag="span" class="fsr__subrail-chips" name="fsr-chip">
+            <span v-for="sub in railSubs" :key="sub.key"
                   class="fsr__subchip"
                   :class="['fsr-cat--' + sub.accent, hlClass(sub.group, sub.key), {'fsr__subchip--neg': subValue(sub.index, lane.color) < 0}]"
                   tabindex="0"
@@ -169,8 +175,8 @@
               <span class="fsr__subchip-label" v-i18n>{{ sub.label }}</span>
               <span class="fsr__subchip-val">{{ subValue(sub.index, lane.color) >= 0 ? '+' + subValue(sub.index, lane.color) : subValue(sub.index, lane.color) }}</span>
             </span>
-          </div>
-        </transition>
+          </transition-group>
+        </div>
       </div>
     </div>
 
@@ -257,7 +263,9 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
+import {CardType} from '@/common/cards/CardType';
 import {CardVictoryPointsKind} from '@/common/game/VictoryPointsBreakdown';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {EndgameModel} from '@/client/components/endgame/endgameModel';
 import {buildFinalScoringRevealModel, cardKindTotal, FinalScoringRevealModel, FinalScoringInspectorContent, RevealGroupKey} from '@/client/components/endgame/finalScoringRevealModel';
 import {openEndgameResults} from '@/client/components/endgame/endgameState';
@@ -326,6 +334,9 @@ export default defineComponent({
       hoverGroup: null as RevealGroupKey | null,
       hoverSub: null as string | null,
       hoverLane: null as Color | null,
+      // Top-level group pinned to the subchips rail (a multi-sub chip hover
+      // SWITCHES the rail instead of opening a popup). null = default TR.
+      pinnedRailGroup: null as RevealGroupKey | null,
       inspector: undefined as (FinalScoringInspectorContent & {top: number; left: number}) | undefined,
       closeTimer: undefined as number | undefined,
       timers: [] as Array<number>,
@@ -373,9 +384,10 @@ export default defineComponent({
     activeGroupKey(): RevealGroupKey | undefined {
       return this.activeSegment >= 0 ? this.reveal.segments[this.activeSegment]?.group : undefined;
     },
-    // The group whose subchips are shown on the lanes: the hovered multi-sub
-    // group, else (during reveal) the active multi-sub group.
-    expandedGroupKey(): RevealGroupKey | null {
+    // The group whose subchips fill the ALWAYS-VISIBLE rail. During reveal it
+    // follows the active multi-sub group; otherwise the player's pinned choice;
+    // default is Terraform rating (the biggest, most complex category).
+    railGroupKey(): RevealGroupKey {
       const multi = (k: RevealGroupKey | null | undefined): RevealGroupKey | null => {
         if (k === null || k === undefined) {
           return null;
@@ -383,17 +395,19 @@ export default defineComponent({
         const g = this.reveal.groups.find((x) => x.key === k);
         return g !== undefined && g.segmentIndexes.length > 1 ? k : null;
       };
-      return multi(this.hoverGroup) ?? (this.phase === 'revealing' ? multi(this.activeGroupKey) : null);
+      const live = this.phase === 'revealing' ? multi(this.activeGroupKey) : null;
+      return live ?? multi(this.pinnedRailGroup) ?? 'tr';
     },
-    // The REVEALED sub-segments of the expanded group (drive the subchip row).
-    expandedSubs(): Array<{index: number; key: string; group: RevealGroupKey; label: string; accent: string}> {
-      const gk = this.expandedGroupKey;
-      if (gk === null) {
-        return [];
-      }
+    // The REVEALED sub-segments of the rail group (drive the subchip row).
+    railSubs(): Array<{index: number; key: string; group: RevealGroupKey; label: string; accent: string}> {
+      const gk = this.railGroupKey;
       return this.reveal.segments
         .filter((s) => s.group === gk && s.order < this.revealedSegments)
         .map((s) => ({index: s.order, key: s.key, group: s.group, label: s.label, accent: s.key}));
+    },
+    // The rail group's label (shown as the rail's connector header).
+    railGroupLabel(): string {
+      return this.reveal.groups.find((g) => g.key === this.railGroupKey)?.label ?? '';
     },
     // The current leader by the categories revealed SO FAR (running totals).
     // Neutral mid-reveal status — NOT the final winner.
@@ -516,11 +530,25 @@ export default defineComponent({
       return this.reveal.segments[segIndex]?.values[color] ?? 0;
     },
     // ── Hover / inspector ──────────────────────────────────────────────
+    // A TOP-LEVEL category (pill or chip): a multi-sub group SWITCHES the
+    // subchips rail (and never opens a popup — its detail lives in the
+    // subchips); a single-segment group opens its own scoped popup directly.
     onPillHover(group: RevealGroupKey, evt: Event): void {
-      this.setHover(group, null, null, evt);
+      this.onTopLevelHover(group, null, evt);
     },
     onChipHover(group: RevealGroupKey, color: Color, evt: Event): void {
-      this.setHover(group, null, color, evt);
+      this.onTopLevelHover(group, color, evt);
+    },
+    onTopLevelHover(group: RevealGroupKey, color: Color | null, evt: Event): void {
+      if (!this.canHover(group)) {
+        return;
+      }
+      if (this.hasSubs(group)) {
+        this.pinnedRailGroup = group;
+        this.highlightOnly(group);
+      } else {
+        this.setHover(group, null, color, evt);
+      }
     },
     onSubchipHover(group: RevealGroupKey, subKey: string, color: Color, evt: Event): void {
       this.setHover(group, subKey, color, evt);
@@ -530,6 +558,14 @@ export default defineComponent({
       const g = this.reveal.groups.find((x) => x.key === group);
       const sub = g !== undefined && g.segmentIndexes.length > 1 ? subKey : null;
       this.setHover(group, sub, color, evt);
+    },
+    // Highlight a group everywhere WITHOUT opening a popup (top-level multi-sub).
+    highlightOnly(group: RevealGroupKey): void {
+      this.cancelClose();
+      this.hoverGroup = group;
+      this.hoverSub = null;
+      this.hoverLane = null;
+      this.inspector = undefined;
     },
     setHover(group: RevealGroupKey, subKey: string | null, color: Color | null, evt: Event): void {
       if (!this.canHover(group)) {
@@ -589,26 +625,36 @@ export default defineComponent({
       if (b === undefined) {
         return content;
       }
+      // Resources are only meaningful for RESOURCE cards (their VP = stored resources).
       const cardOf = (d: {cardName: string; kind: CardVictoryPointsKind; victoryPoint: number}) =>
-        ({name: d.cardName as CardName, kindLabel: CARD_KIND_LABEL[d.kind], vp: d.victoryPoint, resourcesText: this.resourcesText(color, d.cardName)});
+        ({name: d.cardName as CardName, kindLabel: CARD_KIND_LABEL[d.kind], vp: d.victoryPoint, resourcesText: d.kind === 'resource' ? this.resourcesText(color, d.cardName) : undefined});
 
       // ── SCOPED: a single subcategory ──────────────────────────────────
       if (subKey !== null) {
         const kindBySub: Partial<Record<string, CardVictoryPointsKind>> = {'cards-fixed': 'fixed', 'cards-conditional': 'conditional', 'cards-resource': 'resource'};
         const kind = kindBySub[subKey];
-        if (kind !== undefined) {
+        if (subKey === 'tr-cards') {
+          // The "Cards & effects" TR sub-part — itemise the per-source TR entries
+          // (card sources get a card preview; the rest are plain source rows).
+          content.description = 'TR gained from cards, bonuses and effects';
+          for (const e of [...b.terraformRatingBreakdown.cardEntries ?? []].sort((a, c) => c.amount - a.amount)) {
+            if (e.sourceCardId !== undefined) {
+              content.cards = [...content.cards, {name: e.sourceCardId as CardName, kindLabel: this.trSourceTypeLabel(e.sourceType, e.sourceCardId), vp: e.amount}];
+            } else {
+              content.sources = [...content.sources, {text: this.$t(e.sourceName), vp: e.amount}];
+            }
+          }
+        } else if (kind !== undefined) {
           content.cards = b.detailsCards.filter((d) => d.kind === kind && d.victoryPoint > 0)
             .slice().sort((a, c) => c.victoryPoint - a.victoryPoint).map(cardOf);
-          content.cardsLabel = content.cards.length > 0 ? base.label : '';
         } else if (subKey === 'penalty-cards') {
           content.cards = b.detailsCards.filter((d) => d.kind === 'penalty' || d.victoryPoint < 0)
             .slice().sort((a, c) => a.victoryPoint - c.victoryPoint).map(cardOf);
-          content.cardsLabel = content.cards.length > 0 ? 'Card penalties' : '';
         } else if (subKey === 'penalty-ev' && b.escapeVelocity !== 0) {
           content.sources = [{text: this.$t('Escape Velocity'), vp: b.escapeVelocity}];
-          content.sourcesLabel = 'Penalties';
         }
         // TR / moon sub-parts have no finer breakdown — the header total says it all.
+        // No section header (cardsLabel/sourcesLabel) — the title IS the category.
         return content;
       }
 
@@ -616,7 +662,8 @@ export default defineComponent({
       if (group === 'tr') {
         const t = b.terraformRatingBreakdown;
         content.subRows = ([
-          {key: 'tr-base', label: 'Starting rating', accent: 'tr-base', value: t.base},
+          {key: 'tr-base', label: 'Base rating', accent: 'tr-base', value: t.baseRating ?? t.base},
+          {key: 'tr-handicap', label: 'Handicap', accent: 'tr-base', value: t.handicap ?? 0},
           {key: 'tr-temperature', label: 'Temperature', accent: 'tr-temperature', value: t.temperature},
           {key: 'tr-oxygen', label: 'Oxygen', accent: 'tr-oxygen', value: t.oxygen},
           {key: 'tr-oceans', label: 'Oceans', accent: 'tr-oceans', value: t.oceans},
@@ -662,6 +709,33 @@ export default defineComponent({
         return undefined;
       }
       return translateTextWithParams('${0} res.', [String(n)]);
+    },
+    // A short "source type" label (i18n KEY — rendered via v-i18n) for a TR
+    // entry; refines a card source into prelude / CEO / corporation via the manifest.
+    trSourceTypeLabel(sourceType: string, cardId?: string): string {
+      if (sourceType === 'venusTrackBonus') {
+        return 'Track bonus';
+      }
+      if (sourceType === 'globalEvent') {
+        return 'Global event';
+      }
+      if (sourceType === 'party') {
+        return 'Party';
+      }
+      if (cardId !== undefined) {
+        const t = getCard(cardId as CardName)?.type;
+        if (t === CardType.PRELUDE) {
+          return 'Prelude';
+        }
+        if (t === CardType.CEO) {
+          return 'CEO';
+        }
+        if (t === CardType.CORPORATION || sourceType === 'corporation') {
+          return 'Corporation';
+        }
+        return 'Card';
+      }
+      return 'Effect';
     },
     scheduleClose(): void {
       this.cancelClose();

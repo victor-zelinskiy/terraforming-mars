@@ -483,15 +483,44 @@
 .fsr__chip.fsr-dim { opacity: 0.34; }
 .fsr__chip-more { color: var(--fsr-acc); font-size: 9px; opacity: 0.7; margin-left: 1px; }
 
-// Secondary subchip row (only for the active/expanded group).
+// ALWAYS-VISIBLE subchips rail — reserved height (stable lanes) + a bracket
+// connector to its parent category.
 .fsr__lane-subchips {
     grid-area: subs;
     display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    padding-left: 2px;
-    overflow: hidden;
+    align-items: flex-start;
+    gap: 8px;
+    min-height: 22px;
+    margin-top: 2px;
+    padding: 3px 4px 1px 6px;
+    border-top: 1px dashed rgba(106, 176, 230, 0.1);
+    --fsr-acc: @fsr-cyan;
 }
+.fsr__subrail-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding-top: 1px;
+}
+.fsr__subrail-bracket {
+    width: 10px; height: 9px;
+    border-left: 2px solid var(--fsr-acc);
+    border-bottom: 2px solid var(--fsr-acc);
+    border-bottom-left-radius: 4px;
+    opacity: 0.7;
+    flex: 0 0 auto;
+}
+.fsr__subrail-name {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--fsr-acc);
+    filter: brightness(1.1);
+    white-space: nowrap;
+}
+.fsr__subrail-chips { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; }
 .fsr__subchip {
     display: inline-flex;
     align-items: center;

@@ -15,21 +15,50 @@ export type CardVictoryPointsKind = 'resource' | 'conditional' | 'fixed' | 'pena
 export type CardVictoryPointsDetail = {cardName: string, victoryPoint: number, kind: CardVictoryPointsKind};
 
 /**
+ * The KIND of source that raised a player's terraform rating directly (i.e. NOT
+ * via a global-parameter step, which is attributed to temperature/oxygen/…).
+ * `card`/`corporation` carry a `sourceCardId` so the UI can show a card preview;
+ * the client refines `card` into prelude/CEO/active by the manifest. `venusTrackBonus`
+ * is the Venus 8% threshold TR bonus; `legacyUnknown` is the reconciling residual
+ * for games played before per-source TR attribution existed.
+ */
+export type TRSourceType =
+  | 'card' | 'corporation' | 'globalEvent' | 'party'
+  | 'venusTrackBonus' | 'legacyUnknown' | 'other';
+
+export type TRSourceEntry = {
+  sourceType: TRSourceType;
+  sourceName: string; // card name (an i18n key) or a descriptive i18n key
+  sourceCardId?: string; // CardName — for the card preview, when source is a card
+  amount: number;
+  generation?: number;
+};
+
+/**
  * Attribution of the terraform-rating VP by the reason the rating rose.
  *
- * `base` is the reconciling remainder (the starting rating, usually 20, plus
- * any untracked drift), computed as `terraformRating − temperature − oxygen −
- * oceans − venus − cards`, so the six fields ALWAYS sum to `terraformRating`.
- * The four parameter fields come from the player's `globalParameterSteps`
- * (each step is worth 1 TR); `cards` is the player's direct card / effect TR.
+ * `base` (= `baseRating` + `handicap`) is kept for back-compat. The four parameter
+ * fields come from `globalParameterSteps` (each step = 1 TR); `cards` is direct
+ * card / effect TR, broken down per source in `cardEntries`. `baseRating` is the
+ * CLEAN standard starting rating — it is NEVER a fallback for unclassified TR;
+ * any residual is surfaced as a `legacyUnknown` entry inside `cardEntries`.
+ *
+ * Invariant: baseRating + handicap + temperature + oxygen + oceans + venus +
+ * cards === terraformRating, and Σ cardEntries.amount === cards.
  */
 export type TerraformRatingBreakdown = {
-  base: number;
+  base: number; // = baseRating + handicap (back-compat)
+  // The fields below are written by the server; OPTIONAL so older serialized
+  // game models (and the many client test fixtures) stay valid — the client
+  // falls back to `base` / 0 / [] when absent.
+  baseRating?: number; // the clean standard starting rating (e.g. 20)
+  handicap?: number; // explicit starting adjustment (variant / house rule); 0 if none
   temperature: number;
   oxygen: number;
   oceans: number;
   venus: number;
-  cards: number;
+  cards: number; // direct card / effect TR; Σ cardEntries
+  cardEntries?: ReadonlyArray<TRSourceEntry>;
 };
 
 export type VictoryPointsBreakdown = {
