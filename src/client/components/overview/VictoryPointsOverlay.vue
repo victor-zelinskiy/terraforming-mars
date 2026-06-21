@@ -39,14 +39,9 @@
     </header>
 
     <div class="vp-board__body">
-      <!-- Hidden: other players' detailed VP isn't visible mid-game. -->
-      <div v-if="hidden" class="vp-hidden">
-        <div class="vp-hidden__icon" aria-hidden="true">?</div>
-        <div class="vp-hidden__text" v-i18n>
-          Detailed victory points for other players are hidden during the game.
-          Enable "Show other players' VP" in the game options, or wait until the game ends.
-        </div>
-      </div>
+      <!-- Hidden-VP mode, game still running: a premium secure lock in place of
+           the score report (other players' VP are revealed at final scoring). -->
+      <HiddenVictoryPointsLock v-if="locked" @close="$emit('close')" />
 
       <div v-else class="vp-dashboard">
         <!-- ── Hero band: the grand total ─────────────────────────────── -->
@@ -235,6 +230,7 @@ import {defineComponent} from 'vue';
 import {GameModel} from '@/common/models/GameModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
+import {Phase} from '@/common/Phase';
 import {MADetail, VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
@@ -249,6 +245,7 @@ import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackM
 import {buildVictoryPointsModel, VictoryPointsModel, VPScale, VPSegment} from '@/client/components/overview/victoryPointsModel';
 import {DELTA_STAGE_NAMES} from '@/common/delta/deltaStages';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
+import HiddenVictoryPointsLock from '@/client/components/overview/HiddenVictoryPointsLock.vue';
 
 type TooltipContent = {name: string; description: string};
 type TooltipPos = {top: number; left: number};
@@ -264,7 +261,7 @@ let lastAnimatedKey: string | undefined;
 
 export default defineComponent({
   name: 'VictoryPointsOverlay',
-  components: {JournalCardChip},
+  components: {JournalCardChip, HiddenVictoryPointsLock},
   props: {
     displayedPlayer: {
       type: Object as () => PublicPlayerModel,
@@ -302,6 +299,14 @@ export default defineComponent({
     hidden(): boolean {
       return !this.game.gameOptions.showOtherPlayersVP &&
         this.displayedPlayer.color !== this.thisPlayerColor;
+    },
+    gameEnded(): boolean {
+      return this.game.phase === Phase.END;
+    },
+    // The score report is sealed only WHILE the game runs — once it ends the
+    // server sends every player's VP and the report shows normally.
+    locked(): boolean {
+      return this.hidden && !this.gameEnded;
     },
     viewingOther(): boolean {
       return this.displayedPlayer.color !== this.thisPlayerColor;
@@ -345,7 +350,7 @@ export default defineComponent({
       };
     },
     heroKey(): string {
-      return `${this.displayedPlayer.color}:${this.hidden ? 'hidden' : this.breakdown.total}`;
+      return `${this.displayedPlayer.color}:${this.locked ? 'hidden' : this.breakdown.total}`;
     },
   },
   watch: {
@@ -508,11 +513,11 @@ export default defineComponent({
         cancelAnimationFrame(this.rafId);
         this.rafId = undefined;
       }
-      const target = this.hidden ? 0 : this.breakdown.total;
+      const target = this.locked ? 0 : this.breakdown.total;
       const key = `${this.displayedPlayer.color}:${target}`;
-      // Snap (no count-up) when hidden, reduced-motion, already-animated, or in
+      // Snap (no count-up) when locked, reduced-motion, already-animated, or in
       // a non-browser context (SSR / JSDOM tests where rAF is absent).
-      if (this.hidden || prefersReducedMotion() || lastAnimatedKey === key || typeof requestAnimationFrame === 'undefined') {
+      if (this.locked || prefersReducedMotion() || lastAnimatedKey === key || typeof requestAnimationFrame === 'undefined') {
         this.displayedTotal = target;
         lastAnimatedKey = key;
         return;

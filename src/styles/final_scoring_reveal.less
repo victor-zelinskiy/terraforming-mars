@@ -1,0 +1,470 @@
+/*
+ * ─────────────────────────────────────────────────────────────────────
+ *  final_scoring_reveal.less — premium "final scoring reveal" cinematic
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ *  Shown before the detailed results overlay in HIDDEN-VP games: the score
+ *  is revealed category by category, each player's running total counting up
+ *  and their lane bar racing. Sci-fi glass, shares the endgame palette /
+ *  z-layer (@eg-z-reveal). Motion respects prefers-reduced-motion.
+ *
+ *  See `src/client/components/endgame/FinalScoringReveal.vue` +
+ *  `finalScoringRevealModel.ts`.
+ */
+
+@fsr-cyan:       #6ab0e6;
+@fsr-text:       #e8f1fb;
+@fsr-text-dim:   #cdddf0;
+@fsr-text-muted: rgba(170, 195, 220, 0.7);
+@fsr-bg-1:       rgba(11, 17, 26, 0.97);
+@fsr-bg-2:       rgba(7, 11, 18, 0.99);
+@fsr-gold:       #ffcc64;
+@fsr-z:          3200;
+
+// Category accent — keyed off the lane/chip/progress class `.fsr-cat--<key>`.
+.fsr-accent(@key, @color) {
+    .fsr-cat--@{key} { --fsr-acc: @color; }
+}
+.fsr-accent(tr,         #6ab0e6);
+.fsr-accent(greenery,   #7fc46f);
+.fsr-accent(city,       #d8b074);
+.fsr-accent(cards,      #43c4a0);
+.fsr-accent(milestones, #ffcc64);
+.fsr-accent(awards,     #f0a850);
+.fsr-accent(moon,       #b9c4d0);
+.fsr-accent(tracks,     #a98ad0);
+.fsr-accent(delta,      #4fc9d8);
+.fsr-accent(penalty,    #d96a6a);
+
+.fsr {
+    position: fixed;
+    inset: 0;
+    z-index: @fsr-z;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    padding: 32px 28px;
+    box-sizing: border-box;
+    overflow: hidden;
+    outline: none;
+    color: @fsr-text;
+    background: radial-gradient(120% 90% at 50% 8%, @fsr-bg-1 0%, @fsr-bg-2 70%);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.fsr__backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(70% 50% at 50% 42%, rgba(106, 176, 230, 0.10), transparent 70%);
+    pointer-events: none;
+}
+.fsr__aurora {
+    position: absolute;
+    inset: -20% -10% auto -10%;
+    height: 60%;
+    background: radial-gradient(60% 100% at 30% 0%, rgba(106, 176, 230, 0.12), transparent 60%),
+               radial-gradient(50% 100% at 75% 0%, rgba(160, 130, 220, 0.10), transparent 60%);
+    filter: blur(10px);
+    pointer-events: none;
+    animation: fsr-aurora 9s ease-in-out infinite alternate;
+}
+.fsr__scan {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    top: 0;
+    background: linear-gradient(90deg, transparent, rgba(106, 176, 230, 0.5), transparent);
+    animation: fsr-scan 6s linear infinite;
+    pointer-events: none;
+}
+
+/* ── Controls (top-right) ─────────────────────────────────────────── */
+
+.fsr__controls {
+    position: absolute;
+    top: 18px;
+    right: 20px;
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+}
+.fsr__ctl {
+    padding: 6px 14px;
+    border-radius: 7px;
+    border: 1px solid rgba(106, 176, 230, 0.26);
+    background: rgba(16, 25, 38, 0.7);
+    color: @fsr-text-dim;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 11.5px;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: transform 130ms ease, border-color 130ms ease, color 130ms ease, background 130ms ease;
+    &:hover { transform: translateY(-1px); border-color: rgba(106, 176, 230, 0.6); color: @fsr-text; }
+    &--on { border-color: @fsr-cyan; color: @fsr-text; background: rgba(28, 46, 68, 0.85); }
+    &--ghost { border-color: rgba(150, 170, 195, 0.2); color: @fsr-text-muted; background: transparent; }
+}
+
+/* ── Header ───────────────────────────────────────────────────────── */
+
+.fsr__header {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    max-width: 880px;
+}
+.fsr__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: rgba(106, 176, 230, 0.78);
+}
+.fsr__eyebrow-tick {
+    width: 26px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(106, 176, 230, 0.6));
+    &:last-child { background: linear-gradient(270deg, transparent, rgba(106, 176, 230, 0.6)); }
+}
+.fsr__eyebrow-sep { opacity: 0.5; }
+.fsr__title {
+    margin: 0;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    background: linear-gradient(180deg, #ffffff, @fsr-cyan);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 26px rgba(106, 176, 230, 0.3);
+}
+.fsr__subtitle {
+    margin: 0;
+    font-size: 13.5px;
+    color: @fsr-text-muted;
+}
+
+/* progress rail */
+.fsr__progress {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 4px;
+}
+.fsr__progress-node {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(120, 150, 185, 0.18);
+    background: rgba(16, 25, 38, 0.5);
+    font-size: 11px;
+    color: @fsr-text-muted;
+    opacity: 0.6;
+    transition: opacity 240ms ease, color 240ms ease, border-color 240ms ease, box-shadow 240ms ease;
+    --fsr-acc: @fsr-cyan;
+}
+.fsr__progress-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--fsr-acc);
+    opacity: 0.5;
+}
+.fsr__progress-node--done {
+    opacity: 1;
+    color: @fsr-text-dim;
+    border-color: rgba(106, 176, 230, 0.3);
+    .fsr__progress-dot { opacity: 1; }
+}
+.fsr__progress-node--active {
+    opacity: 1;
+    color: @fsr-text;
+    border-color: var(--fsr-acc);
+    box-shadow: 0 0 14px fade(#6ab0e6, 28%);
+    .fsr__progress-dot { opacity: 1; box-shadow: 0 0 8px var(--fsr-acc); animation: fsr-dot 1.1s ease-in-out infinite; }
+}
+.fsr__progress-node--final { --fsr-acc: @fsr-gold; }
+
+/* ── Player lanes ─────────────────────────────────────────────────── */
+
+.fsr__lanes {
+    position: relative;
+    z-index: 2;
+    width: min(880px, 92vw);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 52vh;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.fsr__lane {
+    display: grid;
+    grid-template-columns: 200px 1fr auto;
+    grid-template-areas: "id bar total" "chips chips chips";
+    align-items: center;
+    gap: 6px 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(106, 176, 230, 0.1);
+    background: linear-gradient(180deg, rgba(18, 28, 42, 0.62), rgba(12, 19, 30, 0.66));
+    transition: border-color 300ms ease, box-shadow 300ms ease, opacity 300ms ease, transform 300ms ease;
+}
+.fsr__lane--winner {
+    border-color: fade(@fsr-gold, 60%);
+    box-shadow: 0 0 0 1px fade(@fsr-gold, 30%) inset, 0 10px 32px rgba(0, 0, 0, 0.45), 0 0 26px fade(@fsr-gold, 28%);
+    transform: translateY(-1px);
+    animation: fsr-win 1.3s ease-out 1;
+}
+.fsr__lane--dim { opacity: 0.5; }
+
+.fsr__lane-id {
+    grid-area: id;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+.fsr__crown { color: @fsr-gold; font-size: 16px; filter: drop-shadow(0 0 6px fade(@fsr-gold, 60%)); }
+.fsr__lane-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.fsr__lane-name {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 14px;
+    color: @fsr-text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.fsr__lane-corp {
+    font-size: 10.5px;
+    color: @fsr-text-muted;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 76px;
+}
+
+.fsr__lane-bar {
+    grid-area: bar;
+    position: relative;
+    height: 16px;
+    border-radius: 8px;
+    background: rgba(8, 13, 21, 0.7);
+    border: 1px solid rgba(106, 176, 230, 0.12);
+    overflow: hidden;
+}
+.fsr__lane-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    border-radius: 8px;
+    background: linear-gradient(90deg, rgba(106, 176, 230, 0.55), @fsr-cyan);
+    transition: width 320ms cubic-bezier(0.22, 0.8, 0.32, 1);
+    min-width: 2px;
+}
+.fsr__lane--winner .fsr__lane-fill {
+    background: linear-gradient(90deg, fade(@fsr-gold, 55%), @fsr-gold);
+}
+.fsr__lane-fill-glow {
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 18px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5));
+}
+
+.fsr__lane-total {
+    grid-area: total;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 64px;
+    justify-content: flex-end;
+}
+.fsr__lane-total-num {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: @fsr-text;
+    font-variant-numeric: tabular-nums;
+}
+.fsr__lane--winner .fsr__lane-total-num { color: @fsr-gold; text-shadow: 0 0 14px fade(@fsr-gold, 45%); }
+.fsr__lane-total-unit { font-size: 10px; color: @fsr-text-muted; letter-spacing: 0.08em; }
+
+.fsr__lane-chips {
+    grid-area: chips;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 2px;
+}
+.fsr__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(16, 25, 38, 0.7);
+    border: 1px solid fade(#6ab0e6, 18%);
+    border-left: 2px solid var(--fsr-acc);
+    font-size: 10.5px;
+    color: @fsr-text-dim;
+    --fsr-acc: @fsr-cyan;
+}
+.fsr__chip-label { color: @fsr-text-muted; }
+.fsr__chip-val { font-family: Prototype, Orbitron, sans-serif; color: var(--fsr-acc); font-weight: 600; }
+.fsr__chip--penalty { border-left-color: #d96a6a; .fsr__chip-val { color: #e08a8a; } }
+.fsr__chip--zero { opacity: 0.5; }
+
+// Newest chip pops in (transition-group).
+.fsr-chip-enter-active { transition: transform 320ms cubic-bezier(0.3, 1.3, 0.5, 1), opacity 320ms ease; }
+.fsr-chip-enter-from { opacity: 0; transform: translateY(6px) scale(0.8); }
+
+/* ── Tie-break ────────────────────────────────────────────────────── */
+
+.fsr__tiebreak {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 22px;
+    border-radius: 12px;
+    border: 1px solid fade(@fsr-gold, 38%);
+    background: rgba(20, 24, 22, 0.7);
+    box-shadow: 0 0 24px fade(@fsr-gold, 18%);
+}
+.fsr__tiebreak-head { text-align: center; }
+.fsr__tiebreak-kicker {
+    display: block;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: @fsr-gold;
+}
+.fsr__tiebreak-text { font-size: 13px; color: @fsr-text-dim; }
+.fsr__tiebreak-row { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.fsr__tiebreak-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(120, 150, 185, 0.2);
+    background: rgba(16, 25, 38, 0.6);
+    &--win { border-color: fade(@fsr-gold, 60%); box-shadow: 0 0 16px fade(@fsr-gold, 30%); }
+}
+.fsr__tiebreak-name { font-size: 13px; color: @fsr-text; }
+.fsr__tiebreak-mc { font-family: Prototype, Orbitron, sans-serif; font-size: 15px; color: @fsr-gold; }
+.fsr__tiebreak-mc-unit { font-size: 10px; opacity: 0.7; }
+
+/* ── Finale ───────────────────────────────────────────────────────── */
+
+.fsr__finale {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+.fsr__finale-line {
+    width: 220px; height: 1px;
+    background: linear-gradient(90deg, transparent, fade(@fsr-gold, 70%), transparent);
+}
+.fsr__winner { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.fsr__winner-label {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: @fsr-gold;
+}
+.fsr__winner-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: @fsr-text;
+    text-shadow: 0 0 22px fade(@fsr-gold, 35%);
+    .fsr__lane-dot { width: 16px; height: 16px; }
+}
+.fsr__cta {
+    position: relative;
+    overflow: hidden;
+    padding: 11px 30px;
+    border-radius: 9px;
+    border: 1px solid fade(@fsr-gold, 55%);
+    background: linear-gradient(180deg, fade(@fsr-gold, 22%), rgba(20, 18, 12, 0.92));
+    color: @fsr-text;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+    &:hover {
+        transform: translateY(-1px);
+        border-color: @fsr-gold;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45), 0 0 22px fade(@fsr-gold, 35%);
+    }
+}
+.fsr__cta-sheen {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.22) 50%, transparent 70%);
+    transform: translateX(-120%);
+    animation: fsr-sheen 3.2s ease-in-out 0.4s infinite;
+}
+.fsr__cta-arrow { font-size: 16px; }
+
+/* ── Transitions ──────────────────────────────────────────────────── */
+
+.fsr-fade-enter-active, .fsr-rise-enter-active { transition: opacity 420ms ease, transform 420ms cubic-bezier(0.22, 0.8, 0.32, 1); }
+.fsr-fade-enter-from { opacity: 0; }
+.fsr-rise-enter-from { opacity: 0; transform: translateY(16px); }
+
+@keyframes fsr-aurora { from { transform: translateX(-3%); } to { transform: translateX(3%); } }
+@keyframes fsr-scan { 0% { top: -2px; } 100% { top: 100%; } }
+@keyframes fsr-dot { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.6); } }
+@keyframes fsr-win { 0% { box-shadow: 0 0 0 1px fade(@fsr-gold, 30%) inset, 0 0 0 fade(@fsr-gold, 0%); } 40% { box-shadow: 0 0 0 1px fade(@fsr-gold, 30%) inset, 0 0 40px fade(@fsr-gold, 55%); } 100% { box-shadow: 0 0 0 1px fade(@fsr-gold, 30%) inset, 0 10px 32px rgba(0, 0, 0, 0.45), 0 0 26px fade(@fsr-gold, 28%); } }
+@keyframes fsr-sheen { 0%, 60% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .fsr__aurora, .fsr__scan, .fsr__cta-sheen,
+    .fsr__progress-node--active .fsr__progress-dot,
+    .fsr__lane--winner { animation: none; }
+    .fsr__lane-fill { transition: none; }
+    .fsr-chip-enter-active, .fsr-fade-enter-active, .fsr-rise-enter-active { transition: none; }
+}
+
+@media (max-width: 720px) {
+    .fsr__lane {
+        grid-template-columns: 1fr auto;
+        grid-template-areas: "id total" "bar bar" "chips chips";
+    }
+    .fsr__title { font-size: 26px; }
+}

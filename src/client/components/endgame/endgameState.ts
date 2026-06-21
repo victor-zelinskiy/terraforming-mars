@@ -86,6 +86,15 @@ export function restoreEndgameResults(): void {
   endgameState.revealActive = false;
 }
 
+// Results overlay "Replay scoring" → play the cinematic reveal again on demand
+// (hidden-VP mode only). Keeps `revealHandled` true so a server poll never
+// auto-replays; this is an explicit, user-driven re-run.
+export function replayEndgameReveal(): void {
+  endgameState.revealActive = true;
+  endgameState.resultsOpen = false;
+  endgameState.minimized = false;
+}
+
 export function setEndgameTab(tab: EndgameTab): void {
   endgameState.activeTab = tab;
 }
