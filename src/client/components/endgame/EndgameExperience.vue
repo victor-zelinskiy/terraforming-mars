@@ -121,11 +121,11 @@ export default defineComponent({
     // with opponents to hide from, so solo is excluded. Drives the suspenseful
     // final-scoring reveal in place of the instant winner cinematic.
     hiddenVpMode(): boolean {
-      // TEMP forceReveal — `?forceReveal` in the URL forces the reveal even for
-      // games played with real-time VP on, so an already-finished game can be
-      // opened to preview the reveal. REMOVE this clause before production.
-      const forceReveal = typeof window !== 'undefined' && window.location.search.includes('forceReveal');
-      return (forceReveal || this.view.game.gameOptions.showOtherPlayersVP === false) && this.view.players.length > 1;
+      // TEMP: forced ON for every multiplayer game so the final-scoring reveal
+      // can be previewed on already-finished games. REMOVE before production and
+      // restore the line below:
+      // return this.view.game.gameOptions.showOtherPlayersVP === false && this.view.players.length > 1;
+      return this.view.players.length > 1;
     },
     // Neutral lane order for the reveal (seating order) so the lanes don't spoil
     // the result by ranking the winner first.
