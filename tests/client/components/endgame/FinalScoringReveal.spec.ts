@@ -17,6 +17,9 @@ function breakdown(p: Partial<VictoryPointsBreakdown>): VictoryPointsBreakdown {
   const merged = {...b, ...p};
   const trb = merged.terraformRatingBreakdown;
   merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards)};
+  if (merged.victoryPoints !== 0 && merged.detailsCards.length === 0) {
+    merged.detailsCards = [{cardName: 'TestFixed', victoryPoint: merged.victoryPoints, kind: 'fixed'}];
+  }
   if (p.total === undefined) {
     merged.total = merged.terraformRating + merged.milestones + merged.awards + merged.greenery + merged.city + merged.victoryPoints;
   }
@@ -38,11 +41,13 @@ function mountReveal(m: EndgameModel, order: ReadonlyArray<Color>) {
 describe('FinalScoringReveal', () => {
   afterEach(() => resetEndgameState());
 
-  it('renders one lane per player in neutral order and the controls', () => {
+  it('renders one lane per player in neutral order and exactly two controls (no Speed up)', () => {
     const m = model([input('red', 'A', {terraformRating: 30, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
     const wrapper = mountReveal(m, ['red', 'blue']);
     expect(wrapper.findAll('.fsr__lane')).to.have.length(2);
-    expect(wrapper.findAll('.fsr__ctl').length).to.be.greaterThan(0);
+    // Skip animation + Open results now — the "Speed up" control was removed.
+    expect(wrapper.findAll('.fsr__ctl')).to.have.length(2);
+    expect(wrapper.text()).to.not.contain('Speed up');
     // Winner banner not shown yet.
     expect(wrapper.find('.fsr__finale').exists()).is.false;
   });
@@ -114,6 +119,44 @@ describe('FinalScoringReveal', () => {
     expect(vm.stageStepText).to.contain(String(cardsGroupPos + 1));
   });
 
+  it('builds a rich per-player card breakdown (families + sorted card list)', () => {
+    const m = model([
+      input('red', 'A', {terraformRating: 20, victoryPoints: 12, detailsCards: [
+        {cardName: 'Lichen', victoryPoint: 4, kind: 'fixed'},
+        {cardName: 'Search For Life', victoryPoint: 3, kind: 'conditional'},
+        {cardName: 'Tardigrades', victoryPoint: 5, kind: 'resource'},
+      ]}),
+      input('blue', 'B', {terraformRating: 20}),
+    ]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    const vm = wrapper.vm as unknown as {buildInspectorContent: (g: string, c: string | null) => {playerName: string; total: number; subRows: Array<{key: string}>; cards: Array<{vp: number}>}};
+    const c = vm.buildInspectorContent('cards', 'red');
+    expect(c.playerName).to.eq('A');
+    expect(c.total).to.eq(12);
+    expect(c.subRows.map((r) => r.key)).to.deep.eq(['cards-fixed', 'cards-conditional', 'cards-resource']);
+    expect(c.cards.length).to.eq(3);
+    expect(c.cards[0].vp).to.eq(5); // sorted by VP desc
+  });
+
+  it('builds a penalty breakdown (card penalties + escape velocity) and compares on a pill', () => {
+    const m = model([
+      input('red', 'A', {terraformRating: 20, victoryPoints: -2, escapeVelocity: -3, detailsCards: [
+        {cardName: 'Vermin', victoryPoint: -2, kind: 'penalty'},
+      ]}),
+      input('blue', 'B', {terraformRating: 20}),
+    ]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    const vm = wrapper.vm as unknown as {buildInspectorContent: (g: string, c: string | null) => {playerName: string; cards: Array<{vp: number}>; sources: Array<{vp: number}>; compare: Array<unknown>}};
+    const player = vm.buildInspectorContent('penalty', 'red');
+    expect(player.cards.length).to.eq(1); // the -2 card penalty
+    expect(player.sources.length).to.eq(1); // escape velocity -3
+    expect(player.sources[0].vp).to.eq(-3);
+    // Pill hover (no player) → cross-player comparison.
+    const compare = vm.buildInspectorContent('penalty', null);
+    expect(compare.playerName).to.eq('');
+    expect(compare.compare.length).to.eq(2);
+  });
+
   it('hovering a revealed group sets the cross-highlight and inspector', async () => {
     const m = model([input('red', 'A', {terraformRating: 35, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
     const wrapper = mountReveal(m, ['red', 'blue']);
@@ -122,10 +165,15 @@ describe('FinalScoringReveal', () => {
     const pill = wrapper.find('.fsr__progress-node--interactive');
     expect(pill.exists()).is.true;
     await pill.trigger('mouseenter');
-    const vm = wrapper.vm as unknown as {hoverGroup: string | null; inspector: unknown};
+    const vm = wrapper.vm as unknown as {hoverGroup: string | null; inspector: unknown; clearHover: () => void};
     expect(vm.hoverGroup).to.not.eq(null);
     expect(vm.inspector).to.not.eq(undefined);
+    // mouseleave schedules a deferred close (the interactive bridge), so the
+    // panel does NOT vanish synchronously; clearHover is the hard close.
     await pill.trigger('mouseleave');
-    expect((wrapper.vm as unknown as {hoverGroup: string | null}).hoverGroup).to.eq(null);
+    expect(vm.hoverGroup).to.not.eq(null);
+    vm.clearHover();
+    expect(vm.hoverGroup).to.eq(null);
+    expect(vm.inspector).to.eq(undefined);
   });
 });

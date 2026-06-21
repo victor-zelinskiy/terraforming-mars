@@ -24,9 +24,6 @@
 
     <!-- Replay controls (hidden once the reveal has finished). -->
     <div v-if="phase !== 'winner'" class="fsr__controls">
-      <button type="button" class="fsr__ctl" :class="{'fsr__ctl--on': fast}" @click="toggleFast">
-        <span v-i18n>Speed up</span>
-      </button>
       <button type="button" class="fsr__ctl" @click="skipAnimation">
         <span v-i18n>Skip animation</span>
       </button>
@@ -57,8 +54,8 @@
               'fsr__progress-node--interactive': canHover(g.key),
             }]"
             :tabindex="canHover(g.key) ? 0 : -1"
-            @mouseenter="onPillHover(g.key, $event)" @mouseleave="clearHover"
-            @focus="onPillHover(g.key, $event)" @blur="clearHover">
+            @mouseenter="onPillHover(g.key, $event)" @mouseleave="scheduleClose"
+            @focus="onPillHover(g.key, $event)" @blur="scheduleClose">
           <span class="fsr__progress-dot" aria-hidden="true"></span>
           <span class="fsr__progress-label" v-i18n>{{ g.label }}</span>
         </li>
@@ -100,17 +97,18 @@
           <span v-if="lane.corp !== ''" class="fsr__lane-corp" v-i18n>{{ lane.corp }}</span>
         </div>
 
-        <!-- STACKED segmented bar: absolutely-positioned segments, reveal via scaleX. -->
+        <!-- STACKED segmented bar: absolutely-positioned segments, reveal via scaleX.
+             Penalty segments overlay the tail and reveal from the RIGHT (subtractive). -->
         <div class="fsr__lane-bar">
           <div v-for="seg in lane.segs" :key="seg.key"
                class="fsr__seg"
                :class="['fsr-cat--' + seg.key, segHlClass(seg.group), {
                  'fsr__seg--revealed': seg.index < revealedSegments,
-                 'fsr__seg--penalty': seg.penalty,
+                 'fsr__seg--sub': seg.subtractive,
                  'fsr__seg--active': activeSegment === seg.index,
                }]"
                :style="{left: seg.leftPct + '%', width: seg.widthPct + '%'}"
-               @mouseenter="onSegHover(seg.group, lane.color, $event)" @mouseleave="clearHover"></div>
+               @mouseenter="onSegHover(seg.group, lane.color, $event)" @mouseleave="scheduleClose"></div>
           <span class="fsr__lane-bar-edge" aria-hidden="true"></span>
         </div>
 
@@ -135,8 +133,8 @@
                   'fsr__chip--interactive': canHover(g.key),
                 }]"
                 :tabindex="canHover(g.key) ? 0 : -1"
-                @mouseenter="onChipHover(g.key, lane.color, $event)" @mouseleave="clearHover"
-                @focus="onChipHover(g.key, lane.color, $event)" @blur="clearHover">
+                @mouseenter="onChipHover(g.key, lane.color, $event)" @mouseleave="scheduleClose"
+                @focus="onChipHover(g.key, lane.color, $event)" @blur="scheduleClose">
             <span class="fsr__chip-label" v-i18n>{{ g.label }}</span>
             <span class="fsr__chip-val">{{ groupValue(g.key, lane.color) >= 0 ? '+' + groupValue(g.key, lane.color) : groupValue(g.key, lane.color) }}</span>
           </span>
@@ -144,25 +142,15 @@
       </div>
     </div>
 
-    <!-- Hover inspector popover (revealed groups only — never leaks future VP).
-         Teleported to body so `position: fixed` resolves against the viewport
-         (the .fsr backdrop-filter would otherwise be its containing block). -->
+    <!-- Rich, interactive explainability panel (revealed groups only — never
+         leaks future VP). Teleported to body so `position: fixed` resolves
+         against the viewport (the .fsr backdrop-filter would otherwise be its
+         containing block) and the cursor can travel into it. -->
     <Teleport to="body">
       <transition name="fsr-fade">
-        <div v-if="inspector !== undefined" class="fsr__inspector" :class="'fsr-cat--' + inspector.accent"
-             :style="{top: inspector.top + 'px', left: inspector.left + 'px'}" aria-hidden="true">
-          <div class="fsr__inspector-head">
-            <span class="fsr__inspector-dot"></span>
-            <span class="fsr__inspector-name" v-i18n>{{ inspector.label }}</span>
-          </div>
-          <div class="fsr__inspector-desc" v-i18n>{{ inspector.description }}</div>
-          <div class="fsr__inspector-rows">
-            <div v-for="row in inspector.rows" :key="row.color" class="fsr__inspector-row" :class="{'fsr__inspector-row--hot': row.color === hoverLane}">
-              <span class="fsr__lane-dot" :class="'player_bg_color_' + row.color"></span>
-              <span class="fsr__inspector-row-name">{{ row.name }}</span>
-              <span class="fsr__inspector-row-val">{{ row.value >= 0 ? '+' + row.value : row.value }}</span>
-            </div>
-          </div>
+        <div v-if="inspector !== undefined" class="fsr__inspector-wrap"
+             :style="{top: inspector.top + 'px', left: inspector.left + 'px'}">
+          <FinalScoringInspector :content="inspector" @keep="cancelClose" @release="scheduleClose" />
         </div>
       </transition>
     </Teleport>
@@ -216,13 +204,16 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
+import {CardVictoryPointsKind} from '@/common/game/VictoryPointsBreakdown';
 import {EndgameModel} from '@/client/components/endgame/endgameModel';
-import {buildFinalScoringRevealModel, FinalScoringRevealModel, RevealGroupKey} from '@/client/components/endgame/finalScoringRevealModel';
+import {buildFinalScoringRevealModel, cardKindTotal, FinalScoringRevealModel, FinalScoringInspectorContent, RevealGroupKey} from '@/client/components/endgame/finalScoringRevealModel';
 import {openEndgameResults} from '@/client/components/endgame/endgameState';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import FinalScoringInspector from '@/client/components/endgame/FinalScoringInspector.vue';
 
-// Base step durations (ms). Fast mode scales them down; reduced motion snaps.
+// Base step durations (ms). Reduced motion snaps them.
 const D = {
   intro: 620,
   highlight: 360,
@@ -232,25 +223,35 @@ const D = {
   scanStep: 170,
   scanSettle: 460,
 };
-const FAST_SCALE = 0.4;
-// Per-frame easing fraction for the running-total count-up (higher = snappier).
+// Per-frame easing fraction for the running-total count-up.
 const EASE = 0.16;
-const EASE_FAST = 0.34;
+// Close-bridge delay so the cursor can travel from a trigger into the panel.
+const INSPECTOR_CLOSE_MS = 240;
 
 type Phase = 'intro' | 'revealing' | 'tiebreak' | 'winnerScan' | 'winner';
-type LaneSeg = {index: number; key: string; group: RevealGroupKey; label: string; value: number; leftPct: number; widthPct: number; penalty: boolean};
+type LaneSeg = {index: number; key: string; group: RevealGroupKey; label: string; value: number; leftPct: number; widthPct: number; subtractive: boolean};
 type Lane = {color: Color; name: string; corp: string; segs: Array<LaneSeg>};
-type Inspector = {group: RevealGroupKey; accent: string; label: string; description: string; top: number; left: number; rows: Array<{color: Color; name: string; value: number}>};
+
+const CARD_KIND_LABEL: Record<CardVictoryPointsKind, string> = {
+  resource: 'Resource cards',
+  conditional: 'Conditional cards',
+  fixed: 'Fixed VP cards',
+  penalty: 'Penalties',
+};
 
 // Minimum visible width of a tiny segment (the tooltip still shows the exact value).
-const MIN_SEG_PCT = 0.9;
+const MIN_SEG_PCT = 0.7;
 
 export default defineComponent({
   name: 'FinalScoringReveal',
+  components: {FinalScoringInspector},
   props: {
     model: {type: Object as () => EndgameModel, required: true},
     // Neutral lane order (seating order) so the lanes never spoil the result.
     playerOrder: {type: Array as () => ReadonlyArray<Color>, required: true},
+    // Resource counts on each player's cards (card name → units) — for the
+    // inspector's resource-card detail. Optional → absent rows just omit it.
+    cardResources: {type: Object as () => Partial<Record<Color, Partial<Record<CardName, number>>>> | undefined, default: undefined},
   },
   data() {
     return {
@@ -262,14 +263,14 @@ export default defineComponent({
       // Lane index currently lit by the winner scan (-1 = none).
       scanIndex: -1,
       showTieBreak: false,
-      fast: false,
       // Animated running totals + their targets, keyed by color.
       displayed: {} as Record<string, number>,
       targets: {} as Record<string, number>,
-      // Hover/focus state — drives cross-highlight + the inspector popover.
+      // Hover/focus state — drives cross-highlight + the inspector panel.
       hoverGroup: null as RevealGroupKey | null,
       hoverLane: null as Color | null,
-      inspector: undefined as Inspector | undefined,
+      inspector: undefined as (FinalScoringInspectorContent & {top: number; left: number}) | undefined,
+      closeTimer: undefined as number | undefined,
       timers: [] as Array<number>,
       raf: undefined as number | undefined,
     };
@@ -283,19 +284,27 @@ export default defineComponent({
     lanes(): Array<Lane> {
       const max = this.reveal.maxTotal;
       return this.reveal.players.map((p) => {
-        let cum = 0;
+        // Positives stack left→right; penalties are placed as overlays on the
+        // TAIL of the positive bar (they reveal from the right and "eat" length).
+        let posCum = 0;
+        let penCum: number | null = null;
         const segs: Array<LaneSeg> = this.reveal.segments.map((seg) => {
           const v = seg.values[p.color] ?? 0;
           let leftPct: number;
+          let subtractive = false;
           if (v >= 0) {
-            leftPct = cum / max * 100;
-            cum += v;
+            leftPct = posCum / max * 100;
+            posCum += v;
           } else {
-            cum += v;
-            leftPct = cum / max * 100;
+            if (penCum === null) {
+              penCum = posCum; // penalties begin at the positive end
+            }
+            penCum -= Math.abs(v);
+            leftPct = penCum / max * 100;
+            subtractive = true;
           }
           const widthPct = Math.max(MIN_SEG_PCT, Math.abs(v) / max * 100);
-          return {index: seg.order, key: seg.key, group: seg.group, label: seg.label, value: v, leftPct, widthPct, penalty: seg.penalty || v < 0};
+          return {index: seg.order, key: seg.key, group: seg.group, label: seg.label, value: v, leftPct, widthPct, subtractive};
         });
         return {color: p.color, name: p.name, corp: p.corporation, segs};
       });
@@ -402,24 +411,116 @@ export default defineComponent({
       if (!this.canHover(group)) {
         return;
       }
+      this.cancelClose();
       this.hoverGroup = group;
       this.hoverLane = color;
-      const g = this.reveal.groups.find((x) => x.key === group);
+      const content = this.buildInspectorContent(group, color);
       const target = evt.currentTarget as HTMLElement | null;
-      if (g === undefined || target === null || typeof target.getBoundingClientRect !== 'function') {
+      if (content === undefined || target === null || typeof target.getBoundingClientRect !== 'function') {
         return;
       }
       const r = target.getBoundingClientRect();
-      const rows = this.reveal.players.map((p) => ({color: p.color, name: p.name, value: g.values[p.color] ?? 0}));
-      // Anchor above the element, clamped to the viewport.
-      const width = 232;
+      // Approximate panel height for above/below placement + clamp to viewport.
+      const width = 318;
+      const estH = 92 + content.subRows.length * 20 + content.cards.length * 22 + content.sources.length * 20 + content.compare.length * 22;
       const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
       let left = r.left + r.width / 2 - width / 2;
       left = Math.max(12, Math.min(left, vw - width - 12));
-      const top = Math.max(12, r.top - 14 - (74 + rows.length * 22));
-      this.inspector = {group, accent: g.accent, label: g.label, description: g.description, top, left, rows};
+      let top = r.top - 12 - estH;
+      if (top < 12) {
+        top = r.bottom + 12; // flip below when there's no room above
+      }
+      this.inspector = {...content, top, left};
+    },
+    // Build the rich per-player breakdown (or the cross-player comparison for a
+    // pill hover). Reads model.players[].breakdown — the SAME numbers the
+    // results screen uses; no recomputation.
+    buildInspectorContent(group: RevealGroupKey, color: Color | null): FinalScoringInspectorContent | undefined {
+      const g = this.reveal.groups.find((x) => x.key === group);
+      if (g === undefined) {
+        return undefined;
+      }
+      const base = {group, accent: g.accent, label: g.label, description: g.description};
+      if (color === null) {
+        return {
+          ...base, playerName: '', playerColor: undefined, total: 0,
+          subRows: [], cards: [], cardsLabel: '', sources: [], sourcesLabel: '',
+          compare: this.reveal.players.map((p) => ({color: p.color, name: p.name, value: g.values[p.color] ?? 0})),
+        };
+      }
+      const b = this.model.players.find((p) => p.color === color)?.breakdown;
+      const content: FinalScoringInspectorContent = {
+        ...base, playerName: this.nameOf(color), playerColor: color, total: g.values[color] ?? 0,
+        subRows: [], cards: [], cardsLabel: '', sources: [], sourcesLabel: '', compare: [],
+      };
+      if (b === undefined) {
+        return content;
+      }
+      if (group === 'tr') {
+        const t = b.terraformRatingBreakdown;
+        content.subRows = ([
+          {key: 'tr-base', label: 'Starting rating', accent: 'tr-base', value: t.base},
+          {key: 'tr-temperature', label: 'Temperature', accent: 'tr-temperature', value: t.temperature},
+          {key: 'tr-oxygen', label: 'Oxygen', accent: 'tr-oxygen', value: t.oxygen},
+          {key: 'tr-oceans', label: 'Oceans', accent: 'tr-oceans', value: t.oceans},
+          {key: 'tr-venus', label: 'Venus', accent: 'tr-venus', value: t.venus},
+          {key: 'tr-cards', label: 'Cards & effects', accent: 'tr-cards', value: t.cards},
+        ]).filter((r) => r.value !== 0);
+      } else if (group === 'cards') {
+        content.subRows = ([
+          {key: 'cards-fixed', label: 'Fixed VP cards', accent: 'cards-fixed', value: cardKindTotal(b, 'fixed')},
+          {key: 'cards-conditional', label: 'Conditional cards', accent: 'cards-conditional', value: cardKindTotal(b, 'conditional')},
+          {key: 'cards-resource', label: 'Resource cards', accent: 'cards-resource', value: cardKindTotal(b, 'resource')},
+        ]).filter((r) => r.value !== 0);
+        content.cards = b.detailsCards
+          .filter((d) => d.kind !== 'penalty' && d.victoryPoint > 0)
+          .slice().sort((a, c) => c.victoryPoint - a.victoryPoint)
+          .map((d) => ({name: d.cardName as CardName, kindLabel: CARD_KIND_LABEL[d.kind], vp: d.victoryPoint, resourcesText: this.resourcesText(color, d.cardName as CardName)}));
+        content.cardsLabel = content.cards.length > 0 ? 'Cards that scored' : '';
+      } else if (group === 'milestones') {
+        content.sources = b.detailsMilestones.map((m) => ({text: translateTextWithParams(m.message, m.messageArgs ?? []), vp: m.victoryPoint}));
+        content.sourcesLabel = content.sources.length > 0 ? 'Milestones' : '';
+      } else if (group === 'awards') {
+        content.sources = b.detailsAwards.map((m) => ({text: translateTextWithParams(m.message, m.messageArgs ?? []), vp: m.victoryPoint}));
+        content.sourcesLabel = content.sources.length > 0 ? 'Awards' : '';
+      } else if (group === 'penalty') {
+        content.cards = b.detailsCards
+          .filter((d) => d.kind === 'penalty' || d.victoryPoint < 0)
+          .slice().sort((a, c) => a.victoryPoint - c.victoryPoint)
+          .map((d) => ({name: d.cardName as CardName, kindLabel: CARD_KIND_LABEL.penalty, vp: d.victoryPoint}));
+        content.cardsLabel = content.cards.length > 0 ? 'Card penalties' : '';
+        if (b.escapeVelocity !== 0) {
+          content.sources = [{text: this.$t('Escape Velocity'), vp: b.escapeVelocity}];
+          content.sourcesLabel = 'Penalties';
+        }
+      } else if (group === 'moon') {
+        content.subRows = ([
+          {key: 'moon-hab', label: 'Habitats', accent: 'moon', value: b.moonHabitats},
+          {key: 'moon-mine', label: 'Mines', accent: 'moon', value: b.moonMines},
+          {key: 'moon-road', label: 'Roads', accent: 'moon', value: b.moonRoads},
+        ]).filter((r) => r.value !== 0);
+      }
+      return content;
+    },
+    resourcesText(color: Color, cardName: string): string | undefined {
+      const n = this.cardResources?.[color]?.[cardName as CardName];
+      if (n === undefined || n <= 0) {
+        return undefined;
+      }
+      return translateTextWithParams('${0} res.', [String(n)]);
+    },
+    scheduleClose(): void {
+      this.cancelClose();
+      this.closeTimer = window.setTimeout(() => this.clearHover(), INSPECTOR_CLOSE_MS);
+    },
+    cancelClose(): void {
+      if (this.closeTimer !== undefined) {
+        window.clearTimeout(this.closeTimer);
+        this.closeTimer = undefined;
+      }
     },
     clearHover(): void {
+      this.cancelClose();
       this.hoverGroup = null;
       this.hoverLane = null;
       this.inspector = undefined;
@@ -429,10 +530,7 @@ export default defineComponent({
       if (prefersReducedMotion()) {
         return Math.max(30, base * 0.14);
       }
-      return this.fast ? base * FAST_SCALE : base;
-    },
-    toggleFast(): void {
-      this.fast = !this.fast;
+      return base;
     },
     onEsc(): void {
       if (this.phase === 'winner') {
@@ -459,12 +557,11 @@ export default defineComponent({
         return;
       }
       const tick = () => {
-        const ease = this.fast ? EASE_FAST : EASE;
         for (const p of this.reveal.players) {
           const cur = this.displayed[p.color] ?? 0;
           const tgt = this.targets[p.color] ?? 0;
           if (Math.abs(tgt - cur) > 0.4) {
-            this.displayed[p.color] = cur + (tgt - cur) * ease;
+            this.displayed[p.color] = cur + (tgt - cur) * EASE;
           } else if (cur !== tgt) {
             this.displayed[p.color] = tgt;
           }
@@ -559,6 +656,7 @@ export default defineComponent({
   },
   beforeUnmount(): void {
     this.clearTimers();
+    this.cancelClose();
     if (this.raf !== undefined && typeof cancelAnimationFrame !== 'undefined') {
       cancelAnimationFrame(this.raf);
     }
