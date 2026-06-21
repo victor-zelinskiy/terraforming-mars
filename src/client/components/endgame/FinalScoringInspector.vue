@@ -48,7 +48,7 @@
              class="fsr-insp__card-row" :class="{'fsr-insp__card-row--neg': c.vp < 0}"
              @mouseenter="onCardEnter(c.name, $event)" @mouseleave="onCardLeave">
           <span class="fsr-insp__card-name" v-i18n>{{ cardLabel(c.name) }}</span>
-          <span class="fsr-insp__card-kind" v-i18n>{{ c.kindLabel }}</span>
+          <span v-if="c.kindLabel !== ''" class="fsr-insp__card-kind" v-i18n>{{ c.kindLabel }}</span>
           <span v-if="c.resourcesText !== undefined" class="fsr-insp__card-res">{{ c.resourcesText }}</span>
           <span class="fsr-insp__card-vp">{{ signed(c.vp) }}</span>
         </div>
