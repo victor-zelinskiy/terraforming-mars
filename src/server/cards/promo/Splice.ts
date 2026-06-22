@@ -70,7 +70,7 @@ export class Splice extends CorporationCard implements ICorporationCard {
     const gainResource = new SelectOption('Add a microbe resource to this card', 'Add microbe')
       .withMetadata(addResourceToCard(CardResource.MICROBE))
       .andThen(() => {
-        cardPlayer.addResourceTo(card);
+        cardPlayer.addResourceTo(card, {log: true});
         return undefined;
       });
 
