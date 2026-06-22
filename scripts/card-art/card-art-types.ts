@@ -88,6 +88,8 @@ export interface ExtractionPlan {
   accent?: {hue: number; sat: number};
   /** Structural diagnostics (boundaries found), card-normalized. */
   diagnostics?: Record<string, number | string>;
+  /** HQ geometry candidate-comparison log (top×bottom boundary search). */
+  geometryLog?: GeometryLogEntry[];
   /** HQ bottom-boundary SWEEP: fixed top/sides + a range of candidate bottoms to
    *  try; the generator picks the lowest bottom with no text/code UI below it. */
   bottomSweep?: {fx0: number; fx1: number; artTop: number; bottomMin: number; bottomMax: number};
@@ -135,6 +137,8 @@ export interface CardArtEntry {
   diagnostics?: Record<string, number | string>;
   /** HQ candidate-comparison log (one entry per peel strength tried). */
   candidateLog?: CandidateLogEntry[];
+  /** Geometry candidate-comparison log (top×bottom boundary search). */
+  geometryLog?: GeometryLogEntry[];
 }
 
 export interface CandidateLogEntry {
@@ -146,6 +150,27 @@ export interface CandidateLogEntry {
   purity: QualityGrade;
   edgeCleanliness: QualityGrade;
   noHoles: QualityGrade;
+  chosen: boolean;
+}
+
+/** One geometry (top × bottom boundary) candidate considered by the detector. */
+export interface GeometryLogEntry {
+  /** short label, e.g. "top0/bot-curve". */
+  label: string;
+  /** art-top boundary (card-normalized y). */
+  artTop: number;
+  /** mean of the bottom curve (card-normalized y). */
+  bottomMean: number;
+  /** art purity just inside the top edge (1 = clean art, low = UI/action leak). */
+  topInsideArt: number;
+  /** art purity just inside the bottom edge (1 = clean art, low = separator leak). */
+  bottomInsideArt: number;
+  /** UI presence just below the bottom edge (1 = real art→UI cut, low = art was cut). */
+  bottomBelowUI: number;
+  /** kept-art height fraction (coverage — bigger is better, all else equal). */
+  coverage: number;
+  /** combined score. */
+  score: number;
   chosen: boolean;
 }
 
@@ -204,6 +229,7 @@ export interface ReportCard {
   warnings: string[];
   qualityChecks: QualityCheckResult[];
   diagnostics?: Record<string, number | string>;
+  geometryLog?: GeometryLogEntry[];
 }
 
 export interface Report {
