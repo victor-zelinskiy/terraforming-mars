@@ -719,6 +719,18 @@ export default defineComponent({
             .slice().sort((a, c) => a.victoryPoint - c.victoryPoint).map((d) => ({...cardOf(d), kindLabel: ''}));
         } else if (subKey === 'penalty-ev' && b.escapeVelocity !== 0) {
           content.sources = [{text: this.$t('Escape Velocity'), vp: b.escapeVelocity}];
+        } else if (subKey === 'tr-base') {
+          // "Base rating" = standard starting rating + the TR Boost. Surface the
+          // handicap ("Фора") as a sub-item INSIDE this popup (only when present).
+          const t = b.terraformRatingBreakdown;
+          const handicap = t.handicap ?? 0;
+          const baseRating = t.baseRating ?? (t.base - handicap);
+          if (handicap !== 0) {
+            content.subRows = [
+              {key: 'tr-base-standard', label: 'Starting rating', accent: 'tr-base', value: baseRating},
+              {key: 'tr-handicap', label: 'Handicap', accent: 'tr-base', value: handicap},
+            ];
+          }
         }
         // TR / moon sub-parts have no finer breakdown — the header total says it all.
         // No section header (cardsLabel/sourcesLabel) — the title IS the category.
@@ -729,8 +741,7 @@ export default defineComponent({
       if (group === 'tr') {
         const t = b.terraformRatingBreakdown;
         content.subRows = ([
-          {key: 'tr-base', label: 'Base rating', accent: 'tr-base', value: t.baseRating ?? t.base},
-          {key: 'tr-handicap', label: 'Handicap', accent: 'tr-base', value: t.handicap ?? 0},
+          {key: 'tr-base', label: 'Base rating', accent: 'tr-base', value: t.base}, // incl. handicap (detailed in its own popup)
           {key: 'tr-temperature', label: 'Temperature', accent: 'tr-temperature', value: t.temperature},
           {key: 'tr-oxygen', label: 'Oxygen', accent: 'tr-oxygen', value: t.oxygen},
           {key: 'tr-oceans', label: 'Oceans', accent: 'tr-oceans', value: t.oceans},

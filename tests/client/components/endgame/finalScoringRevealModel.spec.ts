@@ -92,7 +92,7 @@ describe('finalScoringRevealModel', () => {
     expect(trGroup?.segmentIndexes.length).to.eq(5);
   });
 
-  it('surfaces the Handicap (TR Boost) as its own TR sub-segment', () => {
+  it('folds the Handicap (TR Boost) INTO the Base rating segment (not a sibling sub-segment)', () => {
     const a = player('red', 'A', {
       terraformRating: 25,
       terraformRatingBreakdown: {base: 23, baseRating: 20, handicap: 3, temperature: 2, oxygen: 0, oceans: 0, venus: 0, cards: 0, cardEntries: []},
@@ -100,9 +100,9 @@ describe('finalScoringRevealModel', () => {
     const reveal = buildFinalScoringRevealModel(model([a, player('blue', 'B', {terraformRating: 20})]), ['red', 'blue']);
     const trKeys = reveal.segments.filter((s) => s.group === 'tr').map((s) => s.key);
     expect(trKeys).to.include('tr-base');
-    expect(trKeys).to.include('tr-handicap'); // the TR Boost shows as "Фора"
-    expect(reveal.segments.find((s) => s.key === 'tr-handicap')?.values['red']).to.eq(3);
-    expect(reveal.segments.find((s) => s.key === 'tr-base')?.values['red']).to.eq(20);
+    expect(trKeys).to.not.include('tr-handicap'); // handicap is nested inside Base rating, not a sibling
+    // Base rating segment = baseRating + handicap (20 + 3).
+    expect(reveal.segments.find((s) => s.key === 'tr-base')?.values['red']).to.eq(23);
   });
 
   it('only includes segments that moved a score (TR base always kept)', () => {

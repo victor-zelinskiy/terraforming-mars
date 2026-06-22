@@ -135,10 +135,10 @@ type SegMeta = {key: string; group: RevealGroupKey; label: string; penalty: bool
 // Ordered for drama. TR is split into the SAME sub-parts (labels + accents) the
 // detailed VP report uses (`victoryPointsModel.trScale`) so the two never diverge.
 const SEGMENTS: ReadonlyArray<SegMeta> = [
-  // The starting rating is now EXPLICIT — base rating + an optional handicap —
-  // never the old residual that swallowed mis-attributed TR.
-  {key: 'tr-base', group: 'tr', label: 'Base rating', penalty: false, always: true, value: (b) => b.terraformRatingBreakdown.baseRating ?? b.terraformRatingBreakdown.base},
-  {key: 'tr-handicap', group: 'tr', label: 'Handicap', penalty: false, value: (b) => b.terraformRatingBreakdown.handicap ?? 0},
+  // "Base rating" = the clean starting rating + the TR Boost handicap. The
+  // handicap is NOT a sibling sub-segment — it's surfaced as a sub-item INSIDE
+  // the Base rating popup. (base = baseRating + handicap; never the old residual.)
+  {key: 'tr-base', group: 'tr', label: 'Base rating', penalty: false, always: true, value: (b) => b.terraformRatingBreakdown.base},
   {key: 'tr-temperature', group: 'tr', label: 'Temperature', penalty: false, value: (b) => b.terraformRatingBreakdown.temperature},
   {key: 'tr-oxygen', group: 'tr', label: 'Oxygen', penalty: false, value: (b) => b.terraformRatingBreakdown.oxygen},
   {key: 'tr-oceans', group: 'tr', label: 'Oceans', penalty: false, value: (b) => b.terraformRatingBreakdown.oceans},
