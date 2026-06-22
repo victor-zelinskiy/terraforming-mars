@@ -20,6 +20,11 @@ pid
 tsconfig*.tsbuildinfo
 assets/locales
 
+# Card-art review artifacts: regenerable QA output (contact sheets, per-card
+# overlay thumbs, debug dumps). The durable deliverables — {code}-*.webp art
+# variants + manifest.json — stay committed; rebuild review with --review-only.
+assets/card-art/review/
+
 # Playwright (E2E) artifacts
 /test-results/
 /playwright-report/
@@ -32,3 +37,5 @@ node_modules/
 # misc
 .gitconfig
 ./logs/
+.venv-sam/
+assets/card-art-sam-spike/
