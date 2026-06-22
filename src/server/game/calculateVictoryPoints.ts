@@ -54,7 +54,10 @@ export function computeTerraformRatingBreakdown(player: IPlayer): TerraformRatin
 
   let cards = player.terraformRatingFromCards;
   const baseRating = STARTING_TERRAFORM_RATING;
-  const handicap = 0; // no starting-TR handicap mechanic in this build
+  // The "TR Boost" handicap chosen at game creation is added to the rating at
+  // setup via setTerraformRating (Game.ts), bypassing every bucket — surface it
+  // EXPLICITLY as the Handicap ("Фора") sub-part, not the unattributed residual.
+  const handicap = player.handicap;
 
   // Reconcile: anything not explained by base/handicap/params/cards is a legacy
   // unattributed source (old saves). Fold it INTO cards (NOT base) as a row.
