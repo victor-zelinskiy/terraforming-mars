@@ -65,6 +65,24 @@ describe('calculateVictoryPoints', () => {
     expect(sum).eq(player.terraformRating);
   });
 
+  it('puts the TR Boost handicap in the explicit Handicap part, not "Other"', () => {
+    const [game, player] = testGame(2);
+    player.handicap = 3;
+    player.setTerraformRating(player.terraformRating + 3); // setup applies the boost
+    player.increaseTerraformRating(2); // a normal card/effect TR
+    runAllActions(game);
+    const tr = player.getVictoryPoints().terraformRatingBreakdown;
+    expect(tr.baseRating).eq(20);
+    expect(tr.handicap).eq(3); // the TR Boost → Handicap ("Фора")
+    expect(tr.base).eq(23); // baseRating + handicap (back-compat)
+    expect(tr.cards).eq(2);
+    // No "Other / untracked sources" leak.
+    expect(tr.cardEntries.some((e) => e.sourceType === 'legacyUnknown')).eq(false);
+    // Reconciles to the displayed rating (20 + 3 + 2 = 25).
+    const sum = tr.baseRating + tr.handicap + tr.temperature + tr.oxygen + tr.oceans + tr.venus + tr.cards;
+    expect(sum).eq(player.terraformRating);
+  });
+
   it('does not attribute global-parameter TR to the cards bucket', () => {
     const [game, player] = testGame(2);
     game.increaseTemperature(player, 1);
