@@ -218,6 +218,24 @@ describe('FinalScoringReveal', () => {
     expect(vm.inspector).to.eq(undefined); // row-backed top-level → no popup
   });
 
+  it('nests the Handicap (Фора) inside the Base rating popup, not as a sibling chip', () => {
+    const m = model([
+      input('red', 'A', {
+        terraformRating: 25,
+        terraformRatingBreakdown: {base: 23, baseRating: 20, handicap: 3, temperature: 2, oxygen: 0, oceans: 0, venus: 0, cards: 0, cardEntries: []},
+      }),
+      input('blue', 'B', {terraformRating: 20}),
+    ]);
+    const wrapper = mountReveal(m, ['red', 'blue']);
+    const vm = wrapper.vm as unknown as {buildInspectorContent: (g: string, sub: string | null, c: string | null) => {total: number; subRows: Array<{key: string; value: number}>}};
+    const c = vm.buildInspectorContent('tr', 'tr-base', 'red');
+    expect(c.total).to.eq(23); // base rating incl. the TR Boost
+    // The popup breaks it into the standard rating + the handicap.
+    expect(c.subRows.map((r) => r.key)).to.deep.eq(['tr-base-standard', 'tr-handicap']);
+    expect(c.subRows.find((r) => r.key === 'tr-handicap')?.value).to.eq(3);
+    expect(c.subRows.find((r) => r.key === 'tr-base-standard')?.value).to.eq(20);
+  });
+
   it('does not reveal a future subchip value (ghost "?") before its reveal step', () => {
     const m = model([input('red', 'A', {terraformRating: 30, milestones: 5}), input('blue', 'B', {terraformRating: 22})]);
     const wrapper = mountReveal(m, ['red', 'blue']);
