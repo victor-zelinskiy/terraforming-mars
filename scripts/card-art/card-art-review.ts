@@ -89,8 +89,9 @@ export async function writeCardReview(card: ProcessedCard, reviewDir: string): P
     const ah = m.height ?? 1;
     const stripV = Math.max(8, Math.round(ah * 0.16));
     const stripH = Math.max(8, Math.round(aw * 0.16));
+    // 300% nearest-neighbour edge zoom — thin frame/separator slivers hide at 1×.
     const edge = async (region: {left: number; top: number; width: number; height: number}, name: string) => {
-      const piece = await sharp(card.artPng).extract(region).resize({width: region.width * 2, kernel: 'nearest'}).png().toBuffer();
+      const piece = await sharp(card.artPng).extract(region).resize({width: region.width * 3, kernel: 'nearest'}).png().toBuffer();
       await fs.writeFile(path.join(dir, name), await onBackground(piece, 'checker'));
     };
     await edge({left: 0, top: 0, width: aw, height: stripV}, 'edge-top.png');
@@ -134,7 +135,7 @@ export async function buildHtmlReport(report: Report, manifest: CardArtManifest,
   table.clog th { color:#7d8893; font-weight:600; }
 </style></head><body>
 <header>
-  <h1>Card Art Review — structural detector v3</h1>
+  <h1>Card Art Review — structural detector v4</h1>
   <div class="summary" id="summary"></div>
   <div class="controls">
     <button data-f="all" class="active">All</button>
@@ -162,7 +163,10 @@ export async function buildHtmlReport(report: Report, manifest: CardArtManifest,
   function grade(name, g){ const col=GC[g]||'#8b949e'; return '<span style="background:'+col+'22;color:'+col+'">'+name+': '+g+'</span>'; }
   function clog(c){ if(!c.candidateLog) return '';
     const rows=c.candidateLog.map(e=>'<tr'+(e.chosen?' style="color:#3fb950;font-weight:700"':'')+'><td>'+(e.chosen?'▶ ':'')+'s='+e.strength+'</td><td>cov '+(e.coverageRatio*100).toFixed(0)+'%</td><td>'+e.coverage+'</td><td>'+e.purity+'</td><td>'+e.edgeCleanliness+'</td><td>'+e.noHoles+'</td><td>holes '+e.holesRemaining+'</td></tr>').join('');
-    return '<table class="clog"><tr><th>peel</th><th>coverage</th><th>cov</th><th>purity</th><th>edge</th><th>holes</th><th>px</th></tr>'+rows+'</table>'; }
+    return '<div class="warn-line" style="color:#7d8893">cleanup peel sweep:</div><table class="clog"><tr><th>peel</th><th>coverage</th><th>cov</th><th>purity</th><th>edge</th><th>holes</th><th>px</th></tr>'+rows+'</table>'; }
+  function glog(c){ if(!c.geometryLog) return '';
+    const rows=c.geometryLog.map(e=>'<tr'+(e.chosen?' style="color:#3fb950;font-weight:700"':'')+'><td>'+(e.chosen?'▶ ':'')+esc(e.label)+'</td><td>top '+(e.artTop*100).toFixed(0)+'%</td><td>bot '+(e.bottomMean*100).toFixed(0)+'%</td><td>topArt '+e.topInsideArt.toFixed(2)+'</td><td>botArt '+e.bottomInsideArt.toFixed(2)+'</td><td>belowUI '+e.bottomBelowUI.toFixed(2)+'</td><td>cov '+(e.coverage*100).toFixed(0)+'%</td><td>'+e.score.toFixed(2)+'</td></tr>').join('');
+    return '<div class="warn-line" style="color:#7d8893">geometry top×bottom search:</div><table class="clog"><tr><th>candidate</th><th>top</th><th>bottom</th><th>top·art</th><th>bot·art</th><th>below·UI</th><th>coverage</th><th>score</th></tr>'+rows+'</table>'; }
   function render(){
     const cards = D.report.cards.filter(c=>filter==='all'||c.status===filter);
     list.innerHTML = cards.map(c=>{
@@ -184,12 +188,12 @@ export async function buildHtmlReport(report: Report, manifest: CardArtManifest,
           (m?panel('final · light', dir+'art-light.png'):'')+
         '</div>'+
         (m?'<div class="row">'+
-          panel('200% top', dir+'edge-top.png','zoom')+
-          panel('200% bottom', dir+'edge-bottom.png','zoom')+
-          panel('200% left', dir+'edge-left.png','zoom')+
-          panel('200% right', dir+'edge-right.png','zoom')+
+          panel('300% top', dir+'edge-top.png','zoom')+
+          panel('300% bottom', dir+'edge-bottom.png','zoom')+
+          panel('300% left', dir+'edge-left.png','zoom')+
+          panel('300% right', dir+'edge-right.png','zoom')+
         '</div>':'')+
-        '<div class="meta">'+sizes+grades+notes+dg+clog(c)+'</div></div>';
+        '<div class="meta">'+sizes+grades+notes+dg+glog(c)+clog(c)+'</div></div>';
     }).join('');
   }
   function esc(s){return (s||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}

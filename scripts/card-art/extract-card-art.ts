@@ -290,6 +290,7 @@ function toReportCard(entry: CardArtEntry): ReportCard {
     warnings: entry.warnings,
     qualityChecks: entry.qualityChecks,
     diagnostics: entry.diagnostics,
+    geometryLog: entry.geometryLog,
   };
 }
 
@@ -435,6 +436,7 @@ async function processCard(
     warnings: plan.warnings,
     diagnostics: plan.diagnostics,
     candidateLog: candidateLog.length ? candidateLog : undefined,
+    geometryLog: plan.geometryLog,
   };
 
   const norm = await normalizedCardPng(sourcePath, bounds, 360);
