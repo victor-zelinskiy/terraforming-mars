@@ -21,6 +21,7 @@ import type {EndgameFact} from '@/common/events/endgameFacts';
 import type {EndgameCategoryKey, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import type {EvidenceChip, InsightCandidate, InsightContext, InsightFamily} from '@/client/components/endgame/insightEngine';
 import {ARCHETYPE_LABEL, corporationProfile} from '@/client/components/endgame/corporationStories';
+import {ARCHETYPE_FAMILY, strategyLabel, type StrategyArchetype, type StrategyConfidence} from '@/client/components/endgame/strategyArchetypes';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -441,6 +442,105 @@ export function buildStyleDetail(ctx: InsightContext, color: Color, style: strin
     confidence: style === 'Economy Engine' || style === 'Colony Trader' ? 'measured' : 'exact',
     caveat: styleIsThin(evidence) ? 'This style is read from limited data — the main signal is shown above.' : undefined,
     accent: 'duelContrast',
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Strategy TERM explainability (Iteration 17 §5) — hover detail for an inline
+// strategy term ("Cities & greenery", "Animals", …) inside the narrative recap.
+// Reuses the SAME per-player detection (vpContribution / evidence / confidence)
+// so the popover numbers can't drift from the strategy profile.
+// ─────────────────────────────────────────────────────────────────────────
+
+const STRATEGY_TERM_EXPLANATION: Partial<Record<StrategyArchetype, {explanation: string; why?: string}>> = {
+  cityGreenery: {
+    explanation: 'This line scored on the board: city tiles, greenery and the adjacency bonuses between them at the final count.',
+    why: 'Board scoring is visible and hard to take away — and it raises oxygen along the way.',
+  },
+  globalParams: {
+    explanation: 'Terraform rating earned by pushing the global parameters — temperature, oxygen, oceans and Venus.',
+    why: 'Driving the planet is direct rating, but it is only one part of the final total.',
+  },
+  animals: {
+    explanation: 'Animal resources gathered on cards through the game and turned into victory points at scoring.',
+    why: 'An animal line is a patient build that only pays off if it survives to the finish.',
+  },
+  microbes: {
+    explanation: 'Microbes accumulated on cards, mostly feeding effects and tempo rather than direct points.',
+    why: 'Microbes are usually a support engine, not a scoreboard mover on their own.',
+  },
+  floaters: {
+    explanation: 'Floaters built up on cards and converted into points and parameters late in the game.',
+    why: 'A floater line is a long game that scores in the closing generations.',
+  },
+  colonyTrade: {
+    explanation: 'Colony trades fed resources into the plan generation after generation.',
+    why: 'Colonies are a steady, compounding source of tempo rather than a one-off bonus.',
+  },
+  jovian: {
+    explanation: 'Jovian tags were banked across the game and folded into a dense block of points at the end.',
+    why: 'Jovian scoring rewards committing to the tag early and stacking it.',
+  },
+  scienceDraw: {
+    explanation: 'Science tags and card draw fed the deck into the engine, surfacing the cards that mattered.',
+    why: 'Seeing more cards is a quiet edge — more options, a smoother engine.',
+  },
+  milestonesAwards: {
+    explanation: 'Milestones claimed and award placements — a race for points that never appears on the board.',
+    why: 'Laurels are a hidden, first-come source of points that is easy to under-count.',
+  },
+  spaceTitanium: {
+    explanation: 'Titanium and space tags funded expensive plays without losing tempo.',
+    why: 'Space and titanium buy tempo and reach more than they score directly.',
+  },
+  earthDiscounts: {
+    explanation: 'Earth tags and standing discounts lowered the cost of the whole plan.',
+    why: 'Discounts are funding — they free up the plays that actually score.',
+  },
+  standardProjects: {
+    explanation: 'Standard projects terraformed the planet directly instead of waiting on a card combo.',
+    why: 'Projects are dependable, repeatable points when the draw never delivers an engine.',
+  },
+  venus: {
+    explanation: 'Venus tags and the Venus track added a side line of points and parameters.',
+    why: 'Venus is often a second front the other players leave alone.',
+  },
+  cardResources: {
+    explanation: 'Animals, microbes and floaters together added up into one combined scoring line.',
+    why: 'Spread across several cards, resource scoring compounds into a real block by the finish.',
+  },
+};
+
+const STRATEGY_TERM_CONFIDENCE: Record<StrategyConfidence, ChipDetailConfidence> = {
+  high: 'measured', medium: 'partial', low: 'partial',
+};
+
+/** Build the hover detail for an inline STRATEGY term inside the narrative recap (§5). */
+export function buildStrategyTermDetail(ctx: InsightContext, color: Color, archetype: StrategyArchetype): ChipDetail {
+  const p = ctx.players.find((x) => x.color === color);
+  const det = p?.strategyProfile?.all.find((d) => d.archetype === archetype);
+  const meta = STRATEGY_TERM_EXPLANATION[archetype];
+  const rows: Array<DetailEvidenceRow> = [];
+  if (det !== undefined) {
+    for (const ch of det.evidence) {
+      rows.push({t: ch.t, v: ch.v, tone: ch.tone});
+      if (ch.label !== undefined && rows.length < 4) {
+        rows.push({t: 'i18n', v: ch.label, tone: 'neutral'});
+      }
+      if (rows.length >= 4) {
+        break;
+      }
+    }
+  }
+  return {
+    title: strategyLabel(archetype),
+    explanation: meta?.explanation ?? 'A scoring line in this game.',
+    whyItMatters: meta?.why,
+    evidence: rows.slice(0, 4),
+    confidence: det !== undefined ? STRATEGY_TERM_CONFIDENCE[det.confidence] : 'ruleOnly',
+    caveat: det !== undefined && det.confidence === 'low' ?
+      'This is an estimate from the card mix, not an exact breakdown.' : undefined,
+    accent: ARCHETYPE_FAMILY[archetype],
   };
 }
 

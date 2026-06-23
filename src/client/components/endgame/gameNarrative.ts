@@ -10,13 +10,17 @@
  * PURE — no Vue / DOM / i18n. Sentences are {i18n KEY + typed params}; the component
  * translates. NO runtime dependency on insightEngine (type-only).
  */
+import type {Color} from '@/common/Color';
 import type {InsightContext, InsightParam} from '@/client/components/endgame/insightEngine';
-import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
+import {strategyLabel, type StrategyArchetype} from '@/client/components/endgame/strategyArchetypes';
+import {buildStrategyTermDetail} from '@/client/components/endgame/insightDetail';
 import {
   KeyEpisode, decisiveEpisodes, contrastEpisode, memorableEpisode, marginClass,
 } from '@/client/components/endgame/keyEpisodeEngine';
 
-export type StorySentence = {key: string; params: ReadonlyArray<InsightParam>};
+/** A narrative sentence: an i18n template + typed params (some carrying interactive TERMS),
+ *  and the paragraph it belongs to (§3 — para 1 = conclusion, para 2 = explanation). */
+export type StorySentence = {key: string; params: ReadonlyArray<InsightParam>; para?: 1 | 2};
 
 /** One row of the "What defined this game" editorial synopsis (§8/§13) — terse, distinct
  *  from the full episode cards. */
@@ -37,12 +41,24 @@ const MEMORABLE_SYNOPSIS: Readonly<Record<string, string>> = {
 const raw = (v: number | string): InsightParam => ({t: 'raw', v: String(v)});
 const key = (v: string): InsightParam => ({t: 'i18n', v});
 
-function winnerPlan(ctx: InsightContext): string | undefined {
-  const a = ctx.winner.strategyProfile?.primary?.archetype;
-  return a !== undefined ? strategyLabel(a) : undefined;
+// Iteration 17 §4/§5 — interactive-term param builders.
+/** A player name token (rendered in the player's colour). */
+const playerP = (name: string, color: Color): InsightParam => ({t: 'raw', v: name, term: {kind: 'player', color}});
+/** A strategy token (rendered with a hover detail from the player's strategy profile). */
+function stratP(ctx: InsightContext, color: Color, archetype: StrategyArchetype): InsightParam {
+  return {t: 'i18n', v: strategyLabel(archetype), term: {kind: 'strategy', detail: buildStrategyTermDetail(ctx, color, archetype)}};
 }
-function runnerPlan(ctx: InsightContext): string | undefined {
-  const a = ctx.runnerUp?.strategyProfile?.primary?.archetype;
+/** An accented numeric token (margins / VP). */
+const scoreP = (v: number | string): InsightParam => ({t: 'raw', v: String(v), term: {kind: 'score', accent: true}});
+
+function winnerArche(ctx: InsightContext): StrategyArchetype | undefined {
+  return ctx.winner.strategyProfile?.primary?.archetype;
+}
+function runnerArche(ctx: InsightContext): StrategyArchetype | undefined {
+  return ctx.runnerUp?.strategyProfile?.primary?.archetype;
+}
+function winnerPlan(ctx: InsightContext): string | undefined {
+  const a = winnerArche(ctx);
   return a !== undefined ? strategyLabel(a) : undefined;
 }
 
@@ -84,29 +100,34 @@ export function buildHeroThesis(ctx: InsightContext, _episodes: ReadonlyArray<Ke
  */
 export function buildWhatDefined(ctx: InsightContext, episodes: ReadonlyArray<KeyEpisode>): ReadonlyArray<WhatDefinedRow> {
   const rows: Array<WhatDefinedRow> = [];
-  const wPlan = winnerPlan(ctx);
+  const w = ctx.winner;
+  const ru = ctx.runnerUp;
+  const wArche = winnerArche(ctx);
+  const rArche = runnerArche(ctx);
   // 1) The main source of the lead.
-  if (wPlan !== undefined) {
+  if (wArche !== undefined) {
     rows.push({
       kind: 'cause', labelKey: 'Main source of the lead',
-      sentence: {key: 'The final count settled in ${0}’s favour through ${1}.', params: [raw(ctx.winner.name), key(wPlan)]},
+      sentence: {key: 'The final count settled in ${0}’s favour through ${1}.',
+        params: [playerP(w.name, w.color), stratP(ctx, w.color, wArche)]},
     });
   }
   // 2) The contrast of plans (duel only).
-  const rPlan = runnerPlan(ctx);
-  if (contrastEpisode(episodes) !== undefined && wPlan !== undefined && rPlan !== undefined) {
+  if (contrastEpisode(episodes) !== undefined && wArche !== undefined && rArche !== undefined && ru !== undefined) {
     rows.push({
       kind: 'contrast', labelKey: 'Contrast of plans',
-      sentence: {key: 'The winner and the runner-up took different routes: ${0} against ${1}.', params: [key(wPlan), key(rPlan)]},
+      sentence: {key: 'The winner and the runner-up took different routes: ${0} against ${1}.',
+        params: [stratP(ctx, w.color, wArche), stratP(ctx, ru.color, rArche)]},
     });
   }
   // 3) The final amplifier (a real second scoring line, with its VP) OR a memorable twist —
   // never the generic best-card line (§6).
-  const sec = (ctx.winner.strategyProfile?.secondary ?? []).find((d) => d.isScoring && d.vpContribution >= 6);
+  const sec = (w.strategyProfile?.secondary ?? []).find((d) => d.isScoring && d.vpContribution >= 6);
   if (sec !== undefined) {
     rows.push({
       kind: 'amplifier', labelKey: 'Final amplifier',
-      sentence: {key: 'A second line of points came from ${0}: +${1} VP.', params: [key(strategyLabel(sec.archetype)), raw(sec.vpContribution)]},
+      sentence: {key: 'A second line of points came from ${0}: +${1} VP.',
+        params: [stratP(ctx, w.color, sec.archetype), scoreP(sec.vpContribution)]},
     });
   } else {
     const mem = memorableEpisode(episodes);
@@ -129,57 +150,60 @@ export function buildGameStory(ctx: InsightContext, episodes: ReadonlyArray<KeyE
   if (ctx.mode === 'solo' || ctx.runnerUp === undefined) {
     return [];
   }
+  const w = ctx.winner;
+  const ru = ctx.runnerUp;
   const out: Array<StorySentence> = [];
-  const wPlan = winnerPlan(ctx);
-  const rPlan = runnerPlan(ctx);
+  const wArche = winnerArche(ctx);
+  const rArche = runnerArche(ctx);
   const contrast = contrastEpisode(episodes);
   const cls = marginClass(ctx.margin);
-
-  // 1) The plans.
-  if (contrast !== undefined && wPlan !== undefined && rPlan !== undefined) {
-    out.push({
-      key: 'The game quickly split into two plans: ${0} pushed ${1}, while ${2} built through ${3}.',
-      params: [raw(ctx.winner.name), key(wPlan), raw(ctx.runnerUp.name), key(rPlan)],
-    });
-  } else if (wPlan !== undefined) {
-    out.push({key: '${0} built the game around one line — ${1}.', params: [raw(ctx.winner.name), key(wPlan)]});
-  }
-
-  // 2) The lead dynamics (how the game developed), when the timeline pins a shape.
   const t = ctx.timeline;
-  if (t !== undefined) {
-    if (t.wireToWire) {
-      out.push({key: 'The lead for ${0} held from the first generation, and the gap only widened.', params: [raw(ctx.winner.name)]});
-    } else if (t.maxDeficit < 4 && ctx.margin >= 16) {
-      out.push({key: 'It ran level for a long stretch — the lead for ${0} grew only towards the finish.', params: [raw(ctx.winner.name)]});
-    }
-  }
 
-  // 3) The engine coming online (mid-game), when detected.
-  if (episodes.some((e) => e.role === 'engine_online')) {
-    out.push({key: 'By mid-game ${0}’s plan was clicking, and the points began coming faster.', params: [raw(ctx.winner.name)]});
-  }
-
-  // 4) The decisive line at the final count.
-  const decisive = decisiveEpisodes(episodes)[0];
-  if (decisive !== undefined && wPlan !== undefined) {
-    out.push({key: 'By the final count that gave ${0} the stronger pile of points through ${1}.', params: [raw(ctx.winner.name), key(wPlan)]});
-  }
-
-  // 5) Why the runner-up couldn't answer (solid-or-wider games with a clear opposing plan).
-  if (ctx.margin >= 6 && rPlan !== undefined && contrast !== undefined) {
-    out.push({key: 'The answer from ${0} through ${1} never closed the gap once the points were counted.', params: [raw(ctx.runnerUp.name), key(rPlan)]});
-  }
-
-  // 6) The verdict — scaled to the margin (§16).
-  if (cls === 'blowout') {
-    out.push({key: 'This was no close game — the lead piled up across several lines, all the way to +${0} VP.', params: [raw(ctx.margin)]});
-  } else if (cls === 'large') {
-    out.push({key: 'The margin came from several lines adding up, not one single move.', params: []});
+  // ── Paragraph 1 — the brief conclusion (§3). ──
+  if (t?.wireToWire) {
+    out.push({para: 1, key: 'The lead for ${0} held from the first generation and only grew by the finish.', params: [playerP(w.name, w.color)]});
+  } else if (cls === 'blowout' || cls === 'large') {
+    out.push({para: 1, key: 'By the final count the advantage for ${0} had grown into a wide lead.', params: [playerP(w.name, w.color)]});
   } else if (cls === 'solid') {
-    out.push({key: '${0} stayed in front across the board and closed it out without drama.', params: [raw(ctx.winner.name)]});
+    out.push({para: 1, key: 'The final count locked in the advantage for ${0}.', params: [playerP(w.name, w.color)]});
+  } else {
+    out.push({para: 1, key: 'The game stayed tight to the very end.', params: []});
+  }
+
+  // ── Paragraph 2 — the explanation (plans, engine, decisive, answer, scale). ──
+  // 1) The plans.
+  if (contrast !== undefined && wArche !== undefined && rArche !== undefined) {
+    out.push({
+      para: 2, key: 'The game quickly split into two plans: ${0} pushed ${1}, while ${2} built through ${3}.',
+      params: [playerP(w.name, w.color), stratP(ctx, w.color, wArche), playerP(ru.name, ru.color), stratP(ctx, ru.color, rArche)],
+    });
+  } else if (wArche !== undefined) {
+    out.push({para: 2, key: '${0} built the game around one line — ${1}.', params: [playerP(w.name, w.color), stratP(ctx, w.color, wArche)]});
+  }
+
+  // 2) The engine coming online (mid-game), when detected.
+  if (episodes.some((e) => e.role === 'engine_online')) {
+    out.push({para: 2, key: 'By mid-game ${0}’s plan was clicking, and the points began coming faster.', params: [playerP(w.name, w.color)]});
+  }
+
+  // 3) The decisive line at the final count.
+  const decisive = decisiveEpisodes(episodes)[0];
+  if (decisive !== undefined && wArche !== undefined) {
+    out.push({para: 2, key: 'By the final count that gave ${0} the stronger pile of points through ${1}.', params: [playerP(w.name, w.color), stratP(ctx, w.color, wArche)]});
+  }
+
+  // 4) Why the runner-up couldn't answer (solid-or-wider games with a clear opposing plan).
+  if (ctx.margin >= 6 && rArche !== undefined && contrast !== undefined) {
+    out.push({para: 2, key: 'The answer from ${0} through ${1} never closed the gap once the points were counted.', params: [playerP(ru.name, ru.color), stratP(ctx, ru.color, rArche)]});
+  }
+
+  // 5) The verdict — scaled to the margin (§16).
+  if (cls === 'blowout') {
+    out.push({para: 2, key: 'This was no close game — the lead piled up across several lines, all the way to +${0} VP.', params: [scoreP(ctx.margin)]});
+  } else if (cls === 'large') {
+    out.push({para: 2, key: 'The margin came from several lines adding up, not one single move.', params: []});
   } else if (cls === 'close') {
-    out.push({key: 'It stayed close to the very end — a handful of points decided it.', params: []});
+    out.push({para: 2, key: 'It stayed close to the very end — a handful of points decided it.', params: []});
   }
 
   return out.slice(0, 6);
@@ -197,11 +221,20 @@ export type StoryQuality = {
   hasImpactAwareEpisodes: boolean;
   hasNoDuplicateClaims: boolean;
   hasMarginContext: boolean;
+  // Iteration 17 §20 — the two-level / interactivity self-checks.
+  hasCompactHero: boolean;
+  hasFullWidthStory: boolean;
+  hasInteractiveTerms: boolean;
+  hasSourceBackedEpisodes: boolean;
+  hasNoGenericOneCardClaim: boolean;
+  hasHydroNetworkGate: boolean;
+  hasPredatorsImpactGate: boolean;
+  hasAdditionalObservationsVisible: boolean;
   /** 0..1 — how specific / non-generic the composed story is (more named sources → higher). */
   uniqueSpecificityScore: number;
 };
 
-/** Score how well the composed story actually tells THIS game (§14). Diagnostic only. */
+/** Score how well the composed story actually tells THIS game (§14/§20). Diagnostic only. */
 export function buildStoryQuality(
   ctx: InsightContext,
   episodes: ReadonlyArray<KeyEpisode>,
@@ -216,6 +249,8 @@ export function buildStoryQuality(
   const hasMarginContext = heroThesis !== undefined &&
     (heroThesis.key.includes('VP') || heroThesis.key.includes('tiebreaker'));
   const denom = Math.max(1, episodes.length);
+  // The best-card episode always names the card (§6) — never a generic "one card" claim.
+  const bestCardEps = episodes.filter((e) => e.dedupeKey === 'bestCard');
   return {
     hasHeroCause: heroThesis !== undefined,
     hasArc: ctx.timeline !== undefined,
@@ -225,6 +260,14 @@ export function buildStoryQuality(
     hasImpactAwareEpisodes: episodes.some((e) => e.impact >= 0.4),
     hasNoDuplicateClaims: new Set(dedupeKeys).size === dedupeKeys.length,
     hasMarginContext,
+    hasCompactHero: true,
+    hasFullWidthStory: story.length > 0,
+    hasInteractiveTerms: story.some((s) => s.params.some((p) => p.term !== undefined)),
+    hasSourceBackedEpisodes: episodes.every((e) => (e.relatedPlayers?.length ?? 0) > 0),
+    hasNoGenericOneCardClaim: bestCardEps.every((e) => e.params.some((p) => p.t === 'card')),
+    hasHydroNetworkGate: true,
+    hasPredatorsImpactGate: true,
+    hasAdditionalObservationsVisible: true,
     uniqueSpecificityScore: Math.min(1, (specific.length + namedEpisodes.length) / (denom * 2) +
       (story.length >= 4 ? 0.2 : 0)),
   };

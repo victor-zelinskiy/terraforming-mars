@@ -47,13 +47,20 @@ describe('gameNarrative (rework Iteration 15, §8 + §16)', () => {
     expect(hero!.key).to.contain('final count settled it');
   });
 
-  it('the 30-second story is 3–5 sentences and opens with the plans', () => {
+  it('the 30-second story opens with a conclusion (para 1) then explains the plans (§3)', () => {
     const c = ctx([pl('red', 'Nastya', 100, det('cityGreenery', 28)), pl('blue', 'Victor', 78, det('globalParams', 0))], 22);
     const story = buildGameStory(c, buildKeyEpisodes(c));
-    expect(story.length).to.be.within(2, 5);
-    expect(story[0].key).to.contain('two plans');
+    expect(story.length).to.be.within(3, 6);
+    // §3 — the first sentence is the brief conclusion (paragraph 1).
+    expect(story[0].para).to.eq(1);
+    // The plans are explained in paragraph 2.
+    expect(story.some((s) => s.key.includes('two plans') && s.para === 2)).to.be.true;
     // A wide margin → the "added up" verdict, never "decided it by a handful".
     expect(story.some((s) => s.key.includes('several lines adding up'))).to.be.true;
+    // §4/§5 — strategy + player params carry interactive TERM metadata.
+    const plans = story.find((s) => s.key.includes('two plans'))!;
+    expect(plans.params.some((p) => p.term?.kind === 'player')).to.be.true;
+    expect(plans.params.some((p) => p.term?.kind === 'strategy' && p.term.detail !== undefined)).to.be.true;
   });
 
   it('a close game gets the "handful of points" verdict', () => {
