@@ -2058,24 +2058,39 @@
     text-shadow: 0 0 18px ~"color-mix(in srgb, var(--eg-pc) 40%, transparent)";
 }
 .eg-rhduel__unit { font-size: 14px; letter-spacing: 2px; color: var(--eg-pc); margin-left: 6px; }
-.eg-rhduel__style {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 11.5px; color: @eg-text-muted; letter-spacing: 0.3px;
+/* §1 — each player's main line, labelled (winner: "Main line", runner: "Answer"). */
+.eg-rhduel__line {
+    margin-top: 7px;
+    display: inline-flex; flex-direction: column; gap: 1px;
+    padding: 4px 9px; border-radius: 7px;
+    background: ~"color-mix(in srgb, var(--eg-pc) 8%, transparent)";
+    box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-pc) 32%, transparent)";
 }
-.eg-rhduel__player--right .eg-rhduel__style { flex-direction: row-reverse; }
-.eg-rhduel__style-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--eg-pc); box-shadow: 0 0 8px var(--eg-pc); }
-.eg-rhduel__center { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.eg-rhduel__vs { font-family: Prototype, Orbitron, sans-serif; font-size: 15px; letter-spacing: 3px; color: @eg-text-muted; opacity: 0.7; }
-.eg-rhduel__margin { display: flex; flex-direction: column; align-items: center; }
-.eg-rhduel__margin-val { font-family: Prototype, Orbitron, sans-serif; font-size: 36px; font-weight: 700; color: @eg-gold; text-shadow: 0 0 14px rgba(255, 204, 100, 0.4); line-height: 1; }
-.eg-rhduel__margin-lbl { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: @eg-text-muted; margin-top: 3px; }
-.eg-rhduel__margin--tie .eg-rhduel__margin-lbl { color: @eg-text-dim; }
+.eg-rhduel__player--right .eg-rhduel__line { align-items: flex-end; }
+.eg-rhduel__line-lbl { font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; color: @eg-text-muted; }
+.eg-rhduel__line-val { font-size: 13px; font-weight: 600; color: ~"color-mix(in srgb, var(--eg-pc) 55%, #eaf3fb)"; }
+/* §1 — the CENTRAL margin: the focal element of the duel. */
+.eg-rhduel__center {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 0 6px;
+}
+.eg-rhduel__vs { font-family: Prototype, Orbitron, sans-serif; font-size: 13px; letter-spacing: 4px; color: @eg-text-muted; opacity: 0.55; }
+.eg-rhduel__margin {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 16px; border-radius: 12px;
+    background: radial-gradient(circle at 50% 35%, rgba(255, 204, 100, 0.14), transparent 72%);
+    box-shadow: inset 0 0 0 1px rgba(255, 204, 100, 0.28);
+}
+.eg-rhduel__margin-val { font-family: Prototype, Orbitron, sans-serif; font-size: 46px; font-weight: 700; color: @eg-gold; text-shadow: 0 0 18px rgba(255, 204, 100, 0.45); line-height: 1; font-variant-numeric: tabular-nums; }
+.eg-rhduel__margin-lbl { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: @eg-text-muted; margin-top: 4px; }
+.eg-rhduel__margin--tie { padding: 14px 18px; }
+.eg-rhduel__margin--tie .eg-rhduel__margin-lbl { color: @eg-text-dim; font-size: 12px; }
 .eg-rhduel__thesis {
     position: relative;
     margin: 18px auto 0;
-    max-width: 760px;
+    max-width: 64ch;
     text-align: center;
-    font-size: 15px; line-height: 1.5; color: @eg-text-dim;
+    font-size: 15px; line-height: 1.55; color: @eg-text-dim;
 }
 
 /* ── Multiplayer result block ── */
@@ -2150,8 +2165,8 @@
     .eg-rhduel__row { grid-template-columns: 1fr; }
     .eg-rhduel__center { order: -1; flex-direction: row; gap: 14px; }
     .eg-rhduel__player--right { align-items: flex-start; text-align: left; }
-    .eg-rhduel__player--right .eg-rhduel__pname,
-    .eg-rhduel__player--right .eg-rhduel__style { flex-direction: row; }
+    .eg-rhduel__player--right .eg-rhduel__pname { flex-direction: row; }
+    .eg-rhduel__player--right .eg-rhduel__line { align-items: flex-start; }
     .eg-rhmulti__head { grid-template-columns: 1fr; }
 }
 
@@ -2173,7 +2188,7 @@
     font-family: Prototype, Orbitron, sans-serif;
     font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: @eg-text-muted;
 }
-.eg-story30__body { margin: 0; font-size: 15.5px; line-height: 1.62; color: @eg-text; }
+.eg-story30__body { margin: 0; max-width: 78ch; font-size: 15.5px; line-height: 1.66; color: @eg-text; }
 
 /* §13 — editorial "what defined this game": cause / contrast / memorable turn. */
 .eg-defined { margin-bottom: 20px; }
@@ -2197,6 +2212,8 @@
 .eg-defined__row--cause { --eg-row-accent: ~"color-mix(in srgb, var(--eg-pc) 70%, #8fd8ad)"; }
 .eg-defined__row--contrast { --eg-row-accent: #9bb3cc; }
 .eg-defined__row--episode { --eg-row-accent: @eg-gold; }
+.eg-defined__row--amplifier { --eg-row-accent: @eg-gold; }
+.eg-defined__text { line-height: 1.5; }
 .eg-defined__label {
     font-family: Prototype, Ubuntu, sans-serif;
     font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase;
@@ -2279,9 +2296,31 @@
 .eg-rhduel__thesis, .eg-rhmulti__thesis { margin-top: 12px; font-size: 14px; }
 .eg-rhduel__pname, .eg-rhmulti__wname { font-size: 20px; }
 
-/* §8/§21 — additional observations grid (residual, deduped). */
-.eg-storysec--extra { margin-top: 8px; opacity: 0.92; }
+/* §8/§12/§21/§22.8 — additional observations: COLLAPSED by default, no cryptic labels. */
+.eg-storysec--extra { margin-top: 14px; }
 .eg-storysec--extra .eg-storysec__head { color: @eg-text-muted; }
+.eg-extra__toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12.5px; letter-spacing: 0.4px; color: @eg-text-dim;
+    background: ~"color-mix(in srgb, @eg-cyan 6%, transparent)";
+    border: none;
+    box-shadow: inset 0 0 0 1px @eg-card-rim;
+    transition: color 160ms ease, box-shadow 160ms ease;
+    &:hover { color: @eg-text; box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, @eg-cyan 36%, transparent)"; }
+}
+.eg-extra__chevron { display: inline-block; transition: transform 180ms ease; color: @eg-text-muted; }
+.eg-extra__chevron--open { transform: rotate(90deg); }
+.eg-extra__count {
+    font-family: Prototype, Orbitron, sans-serif; font-size: 11px; font-variant-numeric: tabular-nums;
+    color: @eg-text-muted; padding: 1px 7px; border-radius: 999px;
+    box-shadow: inset 0 0 0 1px @eg-card-rim;
+}
+.eg-storysec--extra .eg-insights__compact { margin-top: 10px; }
+@media (prefers-reduced-motion: reduce) {
+    .eg-extra__chevron { transition: none; }
+}
 
 @media (max-width: 980px) {
     .eg-cols { grid-template-columns: 1fr; gap: 16px; }

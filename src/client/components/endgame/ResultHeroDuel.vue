@@ -7,22 +7,21 @@
   -->
   <section class="eg-rhduel" :class="'eg-theme--' + theme.motif" :style="{'--eg-theme': theme.accent}">
     <span class="eg-rhduel__motif eg-motif" aria-hidden="true"></span>
+    <!-- §1 — a true head-to-head: winner | CENTRAL margin | runner-up. -->
     <div class="eg-rhduel__row">
-      <article v-for="(p, side) in sides" :key="p.color"
-               class="eg-rhduel__player"
-               :class="['eg-rhduel__player--' + (side === 0 ? 'left' : 'right'), {'eg-rhduel__player--winner': p.isWinner}]"
-               :style="{'--eg-pc': hex(p.color)}">
-        <div v-if="p.isWinner" class="eg-rhduel__crown" aria-hidden="true">♛</div>
+      <article class="eg-rhduel__player eg-rhduel__player--left eg-rhduel__player--winner"
+               :style="{'--eg-pc': hex(winnerSide.color)}">
+        <div class="eg-rhduel__crown" aria-hidden="true">♛</div>
         <div class="eg-rhduel__pname">
-          <span class="eg-rhduel__dot" :class="'player_bg_color_' + p.color"></span>
-          <span class="eg-rhduel__name">{{ p.name }}</span>
-          <span v-if="isViewer(p.color)" class="eg-rhduel__you" v-i18n>You</span>
+          <span class="eg-rhduel__dot" :class="'player_bg_color_' + winnerSide.color"></span>
+          <span class="eg-rhduel__name">{{ winnerSide.name }}</span>
+          <span v-if="isViewer(winnerSide.color)" class="eg-rhduel__you" v-i18n>You</span>
         </div>
-        <div v-if="corp(p) !== ''" class="eg-rhduel__corp" v-i18n>{{ corp(p) }}</div>
-        <div class="eg-rhduel__total">{{ p.total }}<span class="eg-rhduel__unit" v-i18n>VP</span></div>
-        <div v-if="p.style !== undefined" class="eg-rhduel__style">
-          <span class="eg-rhduel__style-dot" aria-hidden="true"></span>
-          <span v-i18n>{{ p.style }}</span>
+        <div v-if="corp(winnerSide) !== ''" class="eg-rhduel__corp" v-i18n>{{ corp(winnerSide) }}</div>
+        <div class="eg-rhduel__total">{{ winnerSide.total }}<span class="eg-rhduel__unit" v-i18n>VP</span></div>
+        <div v-if="winnerSide.style !== undefined" class="eg-rhduel__line">
+          <span class="eg-rhduel__line-lbl" v-i18n>Main line</span>
+          <span class="eg-rhduel__line-val" v-i18n>{{ winnerSide.style }}</span>
         </div>
       </article>
 
@@ -36,6 +35,21 @@
           <span class="eg-rhduel__margin-lbl" v-i18n>Decided on M€</span>
         </div>
       </div>
+
+      <article class="eg-rhduel__player eg-rhduel__player--right"
+               :style="{'--eg-pc': hex(runnerSide.color)}">
+        <div class="eg-rhduel__pname">
+          <span class="eg-rhduel__dot" :class="'player_bg_color_' + runnerSide.color"></span>
+          <span class="eg-rhduel__name">{{ runnerSide.name }}</span>
+          <span v-if="isViewer(runnerSide.color)" class="eg-rhduel__you" v-i18n>You</span>
+        </div>
+        <div v-if="corp(runnerSide) !== ''" class="eg-rhduel__corp" v-i18n>{{ corp(runnerSide) }}</div>
+        <div class="eg-rhduel__total">{{ runnerSide.total }}<span class="eg-rhduel__unit" v-i18n>VP</span></div>
+        <div v-if="runnerSide.style !== undefined" class="eg-rhduel__line">
+          <span class="eg-rhduel__line-lbl" v-i18n>Answer</span>
+          <span class="eg-rhduel__line-val" v-i18n>{{ runnerSide.style }}</span>
+        </div>
+      </article>
     </div>
 
     <p v-if="thesis !== ''" class="eg-rhduel__thesis">{{ thesis }}</p>
@@ -61,11 +75,17 @@ export default defineComponent({
     thesis: {type: String, required: false, default: ''},
   },
   computed: {
-    // Winner on the LEFT for a stable, readable head-to-head.
+    // Winner on the LEFT, runner-up on the RIGHT, the margin between them (§1).
     sides(): Array<DuelSide> {
       const [a, b] = this.model.players;
       const ordered = a.isWinner ? [a, b] : [b, a];
       return ordered.map((p) => ({...p, style: this.styleOf(p)}));
+    },
+    winnerSide(): DuelSide {
+      return this.sides[0];
+    },
+    runnerSide(): DuelSide {
+      return this.sides[1];
     },
     theme(): StrategyVisualTheme {
       return themeForArchetype(this.model.winner?.strategyProfile?.primary?.archetype);

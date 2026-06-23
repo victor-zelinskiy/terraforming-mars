@@ -15,9 +15,7 @@
     <!-- ── §8 — The story of the game in 30 seconds (narrative prose). ── -->
     <section v-if="storyView.length > 0" class="eg-story30">
       <h3 class="eg-story30__head" v-i18n>The story of this game</h3>
-      <p class="eg-story30__body">
-        <span v-for="(s, si) in storyView" :key="si">{{ s }} </span>
-      </p>
+      <p class="eg-story30__body">{{ storyText }}</p>
     </section>
 
     <!-- ── §6/§24 — TWO COLUMNS: "what defined" (editorial) + the key-episode timeline. ── -->
@@ -134,18 +132,25 @@
         </div>
       </section>
 
-      <!-- §8/§21 — ADDITIONAL OBSERVATIONS: the residual analysis, deduped against the
-           story surfaces above (no "show more" toggle, no repeats). -->
+      <!-- §8/§12/§21/§22.8 — ADDITIONAL OBSERVATIONS: the residual analysis, COLLAPSED by
+           default and rendered WITHOUT the cryptic corner labels (readable prose only). -->
       <section v-if="additionalLines.length > 0" class="eg-storysec eg-storysec--extra">
-        <h3 class="eg-storysec__head" v-i18n>Additional observations</h3>
-        <div class="eg-insights__compact">
+        <button type="button" class="eg-extra__toggle" :aria-expanded="showExtra ? 'true' : 'false'" @click="showExtra = !showExtra">
+          <span class="eg-extra__chevron" :class="{'eg-extra__chevron--open': showExtra}" aria-hidden="true">▸</span>
+          <span v-if="!showExtra" v-i18n>Additional observations</span>
+          <span v-else v-i18n>Hide additional observations</span>
+          <span class="eg-extra__count">{{ additionalLines.length }}</span>
+        </button>
+        <div v-if="showExtra" class="eg-insights__compact">
           <article v-for="(line, i) in additionalLines" :key="line.id"
                    class="eg-insight eg-insight--compact" :class="familyClass(line)"
                    :style="insightStyle(line, i)">
             <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
             <div class="eg-insight__body">
-              <ExplainableBadge :label="line.badge" :detail="line.detail" />
               <span class="eg-insight__text">{{ line.text }}</span>
+              <div v-if="line.chips.length > 0" class="eg-insight__chips">
+                <span v-for="(ch, ci) in line.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
+              </div>
             </div>
           </article>
         </div>
@@ -168,7 +173,15 @@
       </div>
       <!-- Iteration 15 — episode / story diagnostics (§18). -->
       <div class="eg-dnadebug__reasons">hero thesis: {{ model.heroThesis !== undefined ? model.heroThesis.key : '— (none)' }}</div>
-      <div class="eg-dnadebug__reasons">story sentences: {{ model.story.length }}</div>
+      <div class="eg-dnadebug__reasons">story sentences: {{ model.story.length }} · margin class: {{ marginClassLabel }}</div>
+      <!-- §14 — story quality self-check. -->
+      <div v-if="model.storyQuality !== undefined" class="eg-dnadebug__reasons">
+        story quality — specificity {{ round2(model.storyQuality.uniqueSpecificityScore) }} ·
+        heroCause {{ flag(model.storyQuality.hasHeroCause) }} · arc {{ flag(model.storyQuality.hasArc) }} ·
+        timeline {{ flag(model.storyQuality.hasTimeline) }} · sources {{ flag(model.storyQuality.hasSpecificSources) }} ·
+        impact {{ flag(model.storyQuality.hasImpactAwareEpisodes) }} · noDupes {{ flag(model.storyQuality.hasNoDuplicateClaims) }} ·
+        margin {{ flag(model.storyQuality.hasMarginContext) }}
+      </div>
       <div class="eg-dnadebug__reasons" v-if="model.keyEpisodes.length === 0">⚠ no key episodes (insufficient data / quiet game)</div>
       <table class="eg-dnadebug__table" v-if="model.keyEpisodes.length > 0">
         <thead><tr><th>episode</th><th>role</th><th>phase</th><th>gen</th><th>impact</th><th>conf</th></tr></thead>
@@ -200,9 +213,8 @@ import {EndgameInsightView, InsightIcon} from '@/client/components/endgame/insig
 import type {ChipDetail} from '@/client/components/endgame/insightDetail';
 import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
 import {
-  type KeyEpisode, type EpisodePhase, timelineEpisodes, unusualEpisodes, decisiveEpisodes,
+  type KeyEpisode, type EpisodePhase, timelineEpisodes, unusualEpisodes, decisiveEpisodes, marginClass,
 } from '@/client/components/endgame/keyEpisodeEngine';
-import type {StorySentence} from '@/client/components/endgame/gameNarrative';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import ExplainableBadge from '@/client/components/endgame/ExplainableBadge.vue';
 import ResultHeroDuel from '@/client/components/endgame/ResultHeroDuel.vue';
@@ -253,8 +265,8 @@ type EpisodeLine = {
   color?: Color;
   chips: Array<EvidenceChipView>;
 };
-// One row of the "What defined this game" editorial synopsis (§13) — terse, no chips.
-type DefinedRow = {kind: 'cause' | 'contrast' | 'episode'; label: string; text: string};
+// One row of the "What defined this game" editorial synopsis (§8/§13) — terse, no chips.
+type DefinedRow = {kind: 'cause' | 'contrast' | 'amplifier'; label: string; text: string};
 type InsightLine = {
   id: string;
   severity: string;
@@ -301,7 +313,7 @@ export default defineComponent({
     viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
   },
   data() {
-    return {debug: false};
+    return {debug: false, showExtra: false};
   },
   mounted() {
     // Dev-only Story DNA debug panel — calibration visibility (?egDebug).
@@ -327,6 +339,10 @@ export default defineComponent({
     storyView(): Array<string> {
       return this.model.story.map((s) => translateTextWithParams(s.key, s.params.map((p) => p.t === 'raw' ? p.v : $t(p.v))));
     },
+    // §15 — one well-spaced paragraph (join keeps a single space between sentences).
+    storyText(): string {
+      return this.storyView.join(' ');
+    },
     // §9 — the chronological key-episode timeline.
     timelineView(): Array<EpisodeLine> {
       return timelineEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
@@ -339,26 +355,14 @@ export default defineComponent({
     unusualView(): Array<EpisodeLine> {
       return unusualEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
     },
-    // §13 — the editorial "what defined this game" synopsis (terse, distinct from the
-    // full episode cards — no verbatim repeat across surfaces, §7).
+    // §8/§13 — the editorial "what defined this game" synopsis (terse, distinct from the
+    // full episode cards — no verbatim repeat across surfaces, §7; never generic, §6).
     whatDefinedRows(): Array<DefinedRow> {
-      const wd = this.model.whatDefined;
-      const rows: Array<DefinedRow> = [];
-      const sentence = (s: StorySentence | undefined): string | undefined =>
-        s === undefined ? undefined : translateTextWithParams(s.key, s.params.map((p) => p.t === 'raw' ? p.v : $t(p.v)));
-      const cause = sentence(wd.cause);
-      if (cause !== undefined) {
-        rows.push({kind: 'cause', label: 'Main line', text: cause});
-      }
-      const contrast = sentence(wd.contrast);
-      if (contrast !== undefined) {
-        rows.push({kind: 'contrast', label: 'Contrast', text: contrast});
-      }
-      const memorable = sentence(wd.memorable);
-      if (memorable !== undefined) {
-        rows.push({kind: 'episode', label: 'Memorable turn', text: memorable});
-      }
-      return rows;
+      return this.model.whatDefined.map((r) => ({
+        kind: r.kind,
+        label: r.labelKey,
+        text: translateTextWithParams(r.sentence.key, r.sentence.params.map((p) => p.t === 'raw' ? p.v : $t(p.v))),
+      }));
     },
     // §8/§21 — the deduped residual analysis (already filtered upstream to non-episode clusters).
     additionalLines(): Array<InsightLine> {
@@ -408,6 +412,10 @@ export default defineComponent({
     insightLines(): Array<InsightLine> {
       return this.model.insights.map((ins) => this.composeInsight(ins));
     },
+    // §16 — the margin SCALE (debug visibility only).
+    marginClassLabel(): string {
+      return marginClass(this.model.margin);
+    },
   },
   methods: {
     hex(color: Color): string {
@@ -415,6 +423,9 @@ export default defineComponent({
     },
     round2(v: number | undefined): string {
       return v === undefined ? '—' : (Math.round(v * 100) / 100).toString();
+    },
+    flag(b: boolean): string {
+      return b ? '✓' : '✗';
     },
     // The dedup identity, mirroring insightEngine.evidenceKeyOf (debug visibility).
     evKey(ins: EndgameInsightView): string {

@@ -40,10 +40,33 @@ export type EpisodeRole =
   | 'late_scoring' // a line that paid off near the end
   | 'tempo_shift' // a surge / burst that moved the pace
   | 'engine_online' // the moment the scoring engine started working
+  | 'final_scoring' // the closing beat — what the final count settled (§5)
   | 'missed_conversion' // resources/economy that never became points
   | 'flavor_only'; // memorable, but not part of the causal chain
 
 export type EpisodePhase = 'early' | 'mid' | 'late' | 'scoring';
+
+/**
+ * The SCALE of the result (§16) — close / solid / large / blowout (+ the 0-VP tie).
+ * Drives the narrative wording so a +42 game never reads as if one 5-VP beat decided it.
+ * Thresholds: close 1–5, solid 6–15, large 16–30, blowout 31+ (§16).
+ */
+export type MarginClass = 'tie' | 'close' | 'solid' | 'large' | 'blowout';
+export function marginClass(margin: number): MarginClass {
+  if (margin <= 0) {
+    return 'tie';
+  }
+  if (margin <= 5) {
+    return 'close';
+  }
+  if (margin <= 15) {
+    return 'solid';
+  }
+  if (margin <= 30) {
+    return 'large';
+  }
+  return 'blowout';
+}
 
 export type KeyEpisode = {
   id: string;
@@ -281,11 +304,15 @@ const episodeTempo: Gen = (ctx, finalGen) => {
     return [];
   }
   const phase = phaseOf(burst.generation, finalGen);
+  // §5 — phase-aware wording: a surge in gen 2 is an early ENGINE, not a "late surge".
+  const early = phase === 'early' || phase === 'mid';
   return [{
     id: 'episode.tempo', role: 'tempo_shift',
     phase, generation: burst.generation, order: orderOf(phase, burst.generation),
-    color: burst.player, badge: 'Late surge',
-    textKey: '${0} hit a late economic surge — a burst of resources right when it mattered.',
+    color: burst.player, badge: 'Economic surge',
+    textKey: early ?
+      '${0} hit an economic spike — a burst of resources that funded the plan from here on.' :
+      '${0} hit a late economic surge — a burst of resources right when it mattered.',
     params: [raw(nameOf(ctx, burst.player))],
     evidenceChips: [valChip(`+${m(burst, 'savedMegacredits')}`, 'M€', 'good')],
     impact: 0.25, confidence: 'medium', relatedPlayers: [burst.player], dedupeKey: 'tempo',
@@ -370,7 +397,7 @@ const episodeSignature: Gen = (ctx) => {
   if (topV !== undefined && topV[1] >= 8) {
     out.push({
       id: 'episode.pressure', role: 'signature_moment', phase: 'mid', generation: undefined, order: orderOf('mid', undefined) + 2,
-      color: topV[0], badge: 'Under fire',
+      color: topV[0], badge: 'Under pressure',
       textKey: '${0} spent the game under pressure, losing resources to opponents’ attacks.',
       params: [raw(nameOf(ctx, topV[0]))],
       evidenceChips: [valChip(`−${topV[1]}`, '', 'bad')],
@@ -432,20 +459,61 @@ const episodeHydronetwork: Gen = (ctx) => {
   if (!someoneZero && top.dp - second < 3) {
     return [];
   }
+  // §7 — honest wording: only claim "the rest didn't share" when someone really got ZERO;
+  // when others also scored (just less), say it was the LARGEST bonus, and rank it lower.
   return [{
     id: 'episode.hydronetwork', role: 'signature_moment', phase: 'scoring', generation: undefined, order: orderOf('scoring', undefined) + 4,
     color: top.color, badge: 'Hydronetwork',
-    textKey: 'The Hydronetwork handed ${0} a finishing bonus the rest didn’t share.',
+    textKey: someoneZero ?
+      'The Hydronetwork handed ${0} a finishing bonus the rest didn’t share.' :
+      'The Hydronetwork gave ${0} the largest finishing bonus, though others scored from it too.',
     params: [raw(top.name)],
     evidenceChips: [vpChip(top.dp)],
-    impact: impactVsMargin(top.dp, ctx.margin), confidence: 'high', relatedPlayers: [top.color], dedupeKey: 'hydronetwork',
+    impact: someoneZero ? impactVsMargin(top.dp, ctx.margin) : impactVsMargin(top.dp - second, ctx.margin),
+    confidence: 'high', relatedPlayers: [top.color], dedupeKey: 'hydronetwork',
+  }];
+};
+
+// 10) The closing FINAL-SCORING beat — the timeline always ends with what the count
+// settled, scaled to the margin (§16). Source = the final count + the winner's main line.
+const episodeFinalScoring: Gen = (ctx) => {
+  if (ctx.runnerUp === undefined) {
+    return [];
+  }
+  const cls = marginClass(ctx.margin);
+  const prim = ctx.winner.strategyProfile?.primary;
+  const lineLabel = prim !== undefined ? strategyLabel(prim.archetype) : undefined;
+  const params: Array<InsightParam> = [raw(ctx.winner.name)];
+  let textKey: string;
+  if (cls === 'blowout' || cls === 'large') {
+    textKey = lineLabel !== undefined ?
+      'Final scoring pulled the players apart: ${0} banked the lead across several lines, led by ${1}.' :
+      'Final scoring pulled the players apart: ${0} banked the lead across several lines.';
+  } else if (cls === 'solid') {
+    textKey = lineLabel !== undefined ?
+      'The final count settled it for ${0}, carried by ${1}.' :
+      'The final count settled it for ${0}.';
+  } else {
+    textKey = 'The final count decided a tight game in ${0}’s favour.';
+  }
+  if (lineLabel !== undefined && cls !== 'tie' && cls !== 'close') {
+    params.push(key(lineLabel));
+  }
+  return [{
+    id: 'episode.finalScoring', role: 'final_scoring', phase: 'scoring',
+    generation: undefined, order: orderOf('scoring', undefined) + 6,
+    color: ctx.winner.color, badge: 'Final scoring',
+    textKey, params,
+    evidenceChips: [valChip(`+${ctx.margin}`, 'VP', ctx.margin > 0 ? 'good' : 'neutral')],
+    impact: 0.3, confidence: 'high', relatedPlayers: [ctx.winner.color], dedupeKey: 'finalScoring',
+    coveredClusters: ['verdict'],
   }];
 };
 
 const GENERATORS: ReadonlyArray<Gen> = [
   episodeWinnerDriver, episodeSecondaryScoring, episodeBestCard, episodeContrast,
   episodeEngineOnline, episodeTurningPoint, episodeTempo, episodeAward,
-  episodeSignature, episodeHydronetwork, episodeRunnerUp,
+  episodeSignature, episodeHydronetwork, episodeRunnerUp, episodeFinalScoring,
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -479,7 +547,7 @@ export function buildKeyEpisodes(ctx: InsightContext): Array<KeyEpisode> {
 // surface (no cross-surface repeats). The timeline is the JOURNEY (mid-game beats); the
 // decisive drivers are "why the winner won"; the contrast is the editorial "what defined".
 const TIMELINE_ROLES: ReadonlyArray<EpisodeRole> = [
-  'engine_online', 'tempo_shift', 'turning_point',
+  'engine_online', 'tempo_shift', 'turning_point', 'final_scoring',
 ];
 const UNUSUAL_ROLES: ReadonlyArray<EpisodeRole> = [
   'ironic_twist', 'signature_moment', 'near_miss', 'missed_conversion', 'flavor_only',
