@@ -75,6 +75,13 @@ describe('EndgameOverviewTab', () => {
     // §4/§6 — player names are coloured tokens; a strategy is an interactive (hoverable) term.
     expect(wrapper.find('.eg-term--player').exists(), 'coloured player token').to.eq(true);
     expect(wrapper.find('.eg-xbadge.eg-term').exists(), 'interactive strategy term').to.eq(true);
+    // Iteration 19 §9 — the COMPOSED story text has no glued sentences within a paragraph
+    // (the renderer separates sentence spans), and no "?" marker leaks into the prose.
+    for (const para of wrapper.findAll('.eg-story30__body')) {
+      expect(para.text()).to.not.match(/\S\.[A-Za-zА-ЯЁа-яё]/, 'glued ". Capital" within a paragraph');
+      expect(para.text()).to.not.match(/»[A-Za-zА-ЯЁа-яё]/, 'glued "»Capital" within a paragraph');
+      expect(para.text()).to.not.contain('?', 'no "?" marker in story prose');
+    }
     // Iteration 10: the player-arcs section renders both players' arcs in a duel.
     expect(wrapper.find('.eg-storysec--arcs').exists(), 'player arcs section').to.eq(true);
     expect(wrapper.findAll('.eg-arc').length, 'an arc card per player').to.eq(2);

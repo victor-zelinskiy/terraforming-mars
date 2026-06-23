@@ -18,13 +18,13 @@
       <h3 class="eg-story30__head" v-i18n>The story of this game</h3>
       <div class="eg-story30__prose">
         <p v-for="(para, pi) in storyParagraphs" :key="pi" class="eg-story30__body">
-          <span v-for="(s, si) in para" :key="si" class="eg-story30__sentence"><EndgameRichText :template="s.template" :params="s.params" /> </span>
+          <template v-for="(s, si) in para" :key="si"><span class="eg-story30__sentence"><EndgameRichText :template="s.template" :params="s.params" /></span>{{ si < para.length - 1 ? ' ' : '' }}</template>
         </p>
       </div>
     </section>
 
     <!-- ── §6/§24 — TWO COLUMNS: "what defined" (editorial) + the key-episode timeline. ── -->
-    <div v-if="whatDefinedRows.length > 0 || timelineView.length > 0" class="eg-cols">
+    <div v-if="whatDefinedRows.length > 0 || showTimeline" class="eg-cols">
       <!-- §13 — What defined the game: cause / contrast / memorable turn (terse editorial). -->
       <section v-if="whatDefinedRows.length > 0" class="eg-defined">
         <h3 class="eg-defined__head" v-i18n>What defined this game</h3>
@@ -36,8 +36,9 @@
         </div>
       </section>
 
-      <!-- §9 — Key episodes timeline (the chronological thread of how it played out). -->
-      <section v-if="timelineView.length > 0" class="eg-tl">
+      <!-- §9/§10 — Key episodes timeline: shown only with ≥2 source-backed beats (a lone
+           final-scoring beat is covered by the verdict + "why won", so no big block for one). -->
+      <section v-if="showTimeline" class="eg-tl">
         <h3 class="eg-tl__head" v-i18n>Key episodes of the game</h3>
         <ol class="eg-tl__list">
           <li v-for="ep in timelineView" :key="ep.id" class="eg-tl__item" :class="'eg-tl__item--' + ep.role"
@@ -176,14 +177,19 @@
       </div>
       <!-- Iteration 15 — episode / story diagnostics (§18). -->
       <div class="eg-dnadebug__reasons">
-        finish verdict: {{ model.finishVerdict !== undefined ? model.finishVerdict.type : '— (none)' }}
-        <span v-if="model.finishVerdict !== undefined">[{{ model.finishVerdict.tier }}] · {{ model.finishVerdict.reason }}</span>
+        finish verdict:
+        <span v-if="model.finishVerdict !== undefined">{{ model.finishVerdict.scale }} / {{ model.finishVerdict.pattern }} / {{ model.finishVerdict.rarity }} · {{ model.finishVerdict.reason }}</span>
+        <span v-else>— (none)</span>
       </div>
-      <div v-if="model.finishVerdict !== undefined && model.finishVerdict.rejected.length > 0" class="eg-dnadebug__reasons">
-        rare rejected: {{ model.finishVerdict.rejected.join(' | ') }}
+      <div v-for="(rc, i) in (model.finishVerdict ? model.finishVerdict.rareCandidates : [])" :key="'rc' + i" class="eg-dnadebug__reasons">
+        · rare {{ rc.type }}: {{ rc.accepted ? 'ACCEPTED' : 'rejected' }} — {{ rc.reason }}
       </div>
-      <div class="eg-dnadebug__reasons" :class="{}">
+      <div class="eg-dnadebug__reasons">
         key episodes without source: {{ episodesWithoutSource.length === 0 ? 'none ✓' : episodesWithoutSource.join(', ') }}
+      </div>
+      <!-- §11 — "Money to spare" decision per player (spendable vs end cash vs median). -->
+      <div v-for="m in moneyDebug" :key="'mn' + m.color" class="eg-dnadebug__reasons">
+        money {{ m.color }}: {{ m.shown ? 'TAG ✓' : 'hidden' }} — spendable {{ m.spendable }} (end {{ m.endCash }}, excl. final prod {{ m.finalProductionExcluded }}), median {{ m.median }}, need ≥{{ m.threshold }} & ≥median+15
       </div>
       <div class="eg-dnadebug__reasons">hero thesis: {{ model.heroThesis !== undefined ? model.heroThesis.key : '— (none)' }}</div>
       <div class="eg-dnadebug__reasons">story sentences: {{ model.story.length }} · margin class: {{ marginClassLabel }}</div>
@@ -368,6 +374,10 @@ export default defineComponent({
     timelineView(): Array<EpisodeLine> {
       return timelineEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
     },
+    // §10 — only show the timeline block when there are ≥2 source-backed beats.
+    showTimeline(): boolean {
+      return this.timelineView.length >= 2;
+    },
     // §11 — the decisive drivers (why the winner won) — evidence-backed, 2–3.
     decisiveView(): Array<EpisodeLine> {
       return decisiveEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
@@ -443,6 +453,20 @@ export default defineComponent({
       return this.model.keyEpisodes
         .filter((e) => (e.relatedPlayers?.length ?? 0) === 0 && e.evidenceChips.length === 0)
         .map((e) => e.id);
+    },
+    // §11 — the "Money to spare" decision per player (mirrors gameStoryDna's gate).
+    moneyDebug(): Array<{color: Color; shown: boolean; spendable: number; endCash: number; finalProductionExcluded: number; median: number; threshold: number}> {
+      const spendableOf = (p: EndgamePlayerScore) => p.megacredits - Math.max(0, p.production?.megacredits ?? 0);
+      const all = this.model.players.map(spendableOf).sort((a, b) => a - b);
+      const median = all.length === 0 ? 0 : (all.length % 2 === 1 ? all[(all.length - 1) / 2] : (all[all.length / 2 - 1] + all[all.length / 2]) / 2);
+      return this.model.players.map((p) => {
+        const spendable = spendableOf(p);
+        return {
+          color: p.color, spendable, endCash: p.megacredits,
+          finalProductionExcluded: Math.max(0, p.production?.megacredits ?? 0),
+          median, threshold: 28, shown: spendable >= 28 && spendable >= median + 15,
+        };
+      });
     },
     // §11/§19/§20 — per-strategy evidence breakdown with sourceType + confidence (debug).
     strategyEvidenceDebug(): Array<string> {
