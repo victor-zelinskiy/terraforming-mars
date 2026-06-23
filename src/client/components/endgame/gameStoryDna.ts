@@ -50,6 +50,7 @@ export type StoryType =
   | 'engine_not_converted' // resources/engine that never became points
   | 'merger_story' // a rare double corporation (Merger) defined the game
   | 'corporation_identity' // the corporation itself was the plan, and it delivered
+  | 'strategy_engine' // the winner ran one clear strategy archetype (animals / jovian / …)
   | 'balanced_control'; // a clean, all-round win — no single defining beat
 
 export type StoryTitleKind = 'clash' | 'comeback' | 'domination' | 'upset' | 'duel' | 'pressure' | 'quiet';
@@ -313,6 +314,17 @@ const DETECTORS: ReadonlyArray<StoryDetector> = [
       'unused-potential cluster present' : undefined,
   },
   {
+    // The winner ran ONE clear strategy archetype (animals / jovian / colonies / …).
+    // heroCluster undefined → resolved to the winner's primary archetype cluster below.
+    type: 'strategy_engine', titleKind: 'domination', heroCluster: undefined,
+    primaryFamilies: ['cardStory', 'colony', 'boardStory', 'globalParameter', 'standardProject', 'reveal', 'economy'],
+    headlineKey: 'One clear plan carried the game.',
+    test: ({ctx}) => {
+      const prim = ctx.winner.strategyProfile?.primary;
+      return prim !== undefined && prim.score >= 0.4 ? `winner ran a clear ${prim.archetype} plan` : undefined;
+    },
+  },
+  {
     type: 'runaway', titleKind: 'domination', heroCluster: 'verdict',
     primaryFamilies: ['verdict', 'economy', 'cardStory'],
     headlineKey: 'Never in doubt — a commanding, wire-to-wire win.',
@@ -554,7 +566,7 @@ export function buildGameStoryDna(
     attack_pressure: 0.8, rare_card_drama: 0.95, category_counterplay: 0.7,
     card_flow_advantage: 0.65, colony_engine: 0.65, standard_project_plan: 0.6,
     engine_not_converted: 0.75, merger_story: 0.9, corporation_identity: 0.62,
-    balanced_control: 0.2,
+    strategy_engine: 0.6, balanced_control: 0.2,
   };
   const sigCands = candidates.filter((c) => signatureCandidateIds.includes(c.id));
   const maxOf = (k: 'rarity' | 'drama') => sigCands.reduce((m, c) => Math.max(m, c.scores?.[k] ?? 0), 0);

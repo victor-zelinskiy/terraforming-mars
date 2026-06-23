@@ -34,10 +34,13 @@ import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
+import {CardResource} from '@/common/CardResource';
 import {paths} from '@/common/app/paths';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildEndgameModel, EndgameModel, EndgamePlayerInput} from '@/client/components/endgame/endgameModel';
+import {decomposePlayerCardVp, type CardDecl} from '@/client/components/endgame/cardScoreContribution';
+import type {StrategyInput, ResourceTotals} from '@/client/components/endgame/strategyArchetypes';
 import {endgameState, beginEndgameReveal, restoreEndgameResults} from '@/client/components/endgame/endgameState';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import EndgameWinnerReveal from '@/client/components/endgame/EndgameWinnerReveal.vue';
@@ -101,6 +104,8 @@ export default defineComponent({
             megacredits: p.megacreditProduction, steel: p.steelProduction, titanium: p.titaniumProduction,
             plants: p.plantProduction, energy: p.energyProduction, heat: p.heatProduction,
           },
+          // Rework §4–§20 — the strategy-archetype raw inputs (needs the card manifest).
+          strategyInput: this.strategyInputFor(p),
         }));
       return buildEndgameModel(inputs, {
         hasMoon: game.moon !== undefined,
@@ -135,6 +140,38 @@ export default defineComponent({
       return p.tableau
         .filter((card) => getCard(card.name)?.type === CardType.CORPORATION)
         .map((card) => card.name);
+    },
+    // The minimal manifest declaration the VP decomposition needs (injected, keeps the
+    // pure module manifest-free).
+    cardDecl(name: string): CardDecl | undefined {
+      const c = getCard(name as CardName);
+      if (c === undefined) {
+        return undefined;
+      }
+      return {victoryPoints: c.victoryPoints, resourceType: c.resourceType, tags: c.tags, type: c.type};
+    },
+    // Build the per-player strategy-archetype inputs from the view + the card manifest
+    // (rework §4–§20): tag counts (already on the model), colonies owned, the best-effort
+    // card-VP decomposition, and accumulated card resources by type.
+    strategyInputFor(p: PublicPlayerModel): StrategyInput {
+      const totals: ResourceTotals = {animals: 0, microbes: 0, floaters: 0, animalCards: 0, microbeCards: 0, floaterCards: 0};
+      for (const card of p.tableau) {
+        const def = getCard(card.name);
+        const n = card.resources ?? 0;
+        if (def?.resourceType === CardResource.ANIMAL) {
+          totals.animalCards++; totals.animals += n;
+        } else if (def?.resourceType === CardResource.MICROBE) {
+          totals.microbeCards++; totals.microbes += n;
+        } else if (def?.resourceType === CardResource.FLOATER) {
+          totals.floaterCards++; totals.floaters += n;
+        }
+      }
+      const coloniesOwned = (this.view.game.colonies ?? [])
+        .filter((c) => c.colonies.includes(p.color))
+        .map((c) => c.name);
+      const details = p.victoryPointsBreakdown?.detailsCards ?? [];
+      const {bySource} = decomposePlayerCardVp(details, this.cardResources[p.color] ?? {}, (name) => this.cardDecl(name));
+      return {tags: p.tags ?? {}, coloniesOwned, cardVp: bySource, resourceTotals: totals};
     },
     restore(): void {
       restoreEndgameResults();
