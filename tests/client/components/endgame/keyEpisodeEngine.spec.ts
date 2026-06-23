@@ -116,10 +116,36 @@ describe('keyEpisodeEngine (rework Iteration 15)', () => {
     const eps = buildKeyEpisodes(c);
     const orders = eps.map((e) => e.order);
     expect(orders).to.deep.equal([...orders].sort((a, b) => a - b));
-    // The structural contrast / turning point are timeline beats; the award is unusual.
-    expect(timelineEpisodes(eps).some((e) => e.role === 'structural_contrast')).to.be.true;
+    // Iteration 16 §7 — each episode lives on ONE surface: the turning point is a timeline
+    // beat; the contrast is NOT in the timeline (it's the editorial "what defined"); the
+    // decisive driver is NOT in the timeline (it's "why won"); the award is "unusual" only.
+    expect(timelineEpisodes(eps).some((e) => e.role === 'turning_point')).to.be.true;
+    expect(timelineEpisodes(eps).some((e) => e.role === 'structural_contrast'), 'contrast not in timeline').to.be.false;
+    expect(timelineEpisodes(eps).some((e) => e.role === 'decisive_driver'), 'decisive not in timeline').to.be.false;
+    expect(contrastEpisode(eps), 'contrast available for the editorial').to.not.be.undefined;
     expect(unusualEpisodes(eps).some((e) => e.dedupeKey === 'award')).to.be.true;
     expect(timelineEpisodes(eps).some((e) => e.dedupeKey === 'award')).to.be.false;
+  });
+
+  it('Hydronetwork: a skewed Delta Project finish becomes a signature episode (§16)', () => {
+    const w = pl('red', 'Nastya', 90, {primary: det('cityGreenery', 24)});
+    (w.breakdown as any).deltaProject = 5;
+    const r = pl('blue', 'Victor', 80);
+    (r.breakdown as any).deltaProject = 0;
+    const eps = buildKeyEpisodes(ctx([w, r], {margin: 10}));
+    const hn = eps.find((e) => e.dedupeKey === 'hydronetwork');
+    expect(hn, 'hydronetwork episode').to.not.be.undefined;
+    expect(hn!.role).to.eq('signature_moment');
+    expect(unusualEpisodes(eps).some((e) => e.dedupeKey === 'hydronetwork')).to.be.true;
+  });
+
+  it('Hydronetwork: an even split is NOT a story', () => {
+    const w = pl('red', 'Nastya', 90, {primary: det('cityGreenery', 24)});
+    (w.breakdown as any).deltaProject = 4;
+    const r = pl('blue', 'Victor', 80);
+    (r.breakdown as any).deltaProject = 4;
+    const eps = buildKeyEpisodes(ctx([w, r], {margin: 10}));
+    expect(eps.some((e) => e.dedupeKey === 'hydronetwork')).to.be.false;
   });
 
   it('solo games produce no episodes', () => {

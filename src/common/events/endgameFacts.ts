@@ -417,6 +417,17 @@ function maFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
 
 // ── Standard projects (infrastructure strategy) ────────────────────────────────
 
+// Convert Heat / Convert Plants share the 'standard-project' journal category, but they are
+// standard ACTIONS (resource conversions), NOT standard projects — they must not inflate the
+// standard-project strategy count (Iteration 16 §13). Their parameter steps still count in the
+// player's overall globalParameter fact (temperature / oxygen), so the conversion is credited
+// to the planet, not to infrastructure.
+const CONVERSION_STANDARD_ACTIONS: ReadonlySet<CardName> = new Set([CardName.CONVERT_HEAT, CardName.CONVERT_PLANTS]);
+function isConversionAction(s: EventSource | undefined): boolean {
+  const card = sourceCardOf(s);
+  return card !== undefined && CONVERSION_STANDARD_ACTIONS.has(card);
+}
+
 function standardProjectFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
   const byId = new Map<number, GameEvent>();
   for (const e of events) {
@@ -425,16 +436,16 @@ function standardProjectFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFa
   // Per player: how many standard projects they ran + the parameter steps those drove.
   const byPlayer = new Map<Color, {count: number; paramSteps: number; ids: Array<number>}>();
   for (const e of events) {
-    if (e.category === 'standard-project' && e.player !== undefined) {
+    if (e.category === 'standard-project' && e.player !== undefined && !isConversionAction(e.source)) {
       const p = byPlayer.get(e.player) ?? {count: 0, paramSteps: 0, ids: []};
       p.count += 1;
       p.ids.push(e.id);
       byPlayer.set(e.player, p);
     }
-    // Parameter steps under a standard-project root.
+    // Parameter steps under a (genuine) standard-project root — conversions excluded.
     if (e.type === 'global-parameter-changed' && e.impact.globalParameter !== undefined && e.player !== undefined) {
       const root = byId.get(e.correlationId);
-      if (root?.category === 'standard-project') {
+      if (root?.category === 'standard-project' && !isConversionAction(root.source)) {
         const p = byPlayer.get(e.player) ?? {count: 0, paramSteps: 0, ids: []};
         p.paramSteps += e.impact.globalParameter.steps;
         byPlayer.set(e.player, p);

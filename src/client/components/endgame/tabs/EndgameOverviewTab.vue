@@ -20,38 +20,37 @@
       </p>
     </section>
 
-    <!-- ── §13 — What defined the game: cause / contrast / memorable turn (editorial). ── -->
-    <section v-if="defined.length > 0" class="eg-defined">
-      <h3 class="eg-defined__head" v-i18n>What defined this game</h3>
-      <div class="eg-defined__rows">
-        <div v-for="row in defined" :key="row.kind" class="eg-defined__row" :class="'eg-defined__row--' + row.kind"
-             :style="row.color !== undefined ? {'--eg-pc': hex(row.color)} : {}">
-          <span class="eg-defined__label" v-i18n>{{ row.label }}</span>
-          <span class="eg-defined__text">{{ row.text }}</span>
-          <div v-if="row.chips.length > 0" class="eg-defined__chips">
-            <span v-for="(ch, ci) in row.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
+    <!-- ── §6/§24 — TWO COLUMNS: "what defined" (editorial) + the key-episode timeline. ── -->
+    <div v-if="whatDefinedRows.length > 0 || timelineView.length > 0" class="eg-cols">
+      <!-- §13 — What defined the game: cause / contrast / memorable turn (terse editorial). -->
+      <section v-if="whatDefinedRows.length > 0" class="eg-defined">
+        <h3 class="eg-defined__head" v-i18n>What defined this game</h3>
+        <div class="eg-defined__rows">
+          <div v-for="row in whatDefinedRows" :key="row.kind" class="eg-defined__row" :class="'eg-defined__row--' + row.kind">
+            <span class="eg-defined__label" v-i18n>{{ row.label }}</span>
+            <span class="eg-defined__text">{{ row.text }}</span>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- ── §9 — Key episodes timeline (the thread of how it played out). ── -->
-    <section v-if="timelineView.length > 0" class="eg-tl">
-      <h3 class="eg-tl__head" v-i18n>Key episodes of the game</h3>
-      <ol class="eg-tl__list">
-        <li v-for="ep in timelineView" :key="ep.id" class="eg-tl__item" :class="'eg-tl__item--' + ep.role"
-            :style="ep.color !== undefined ? {'--eg-pc': hex(ep.color)} : {}">
-          <span class="eg-tl__node" aria-hidden="true"></span>
-          <div class="eg-tl__card">
-            <span class="eg-tl__phase">{{ ep.phaseLabel }}</span>
-            <span class="eg-tl__text">{{ ep.text }}</span>
-            <div v-if="ep.chips.length > 0" class="eg-tl__chips">
-              <span v-for="(ch, ci) in ep.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
+      <!-- §9 — Key episodes timeline (the chronological thread of how it played out). -->
+      <section v-if="timelineView.length > 0" class="eg-tl">
+        <h3 class="eg-tl__head" v-i18n>Key episodes of the game</h3>
+        <ol class="eg-tl__list">
+          <li v-for="ep in timelineView" :key="ep.id" class="eg-tl__item" :class="'eg-tl__item--' + ep.role"
+              :style="ep.color !== undefined ? {'--eg-pc': hex(ep.color)} : {}">
+            <span class="eg-tl__node" aria-hidden="true"></span>
+            <div class="eg-tl__card">
+              <span class="eg-tl__phase">{{ ep.phaseLabel }}</span>
+              <span class="eg-tl__text">{{ ep.text }}</span>
+              <div v-if="ep.chips.length > 0" class="eg-tl__chips">
+                <span v-for="(ch, ci) in ep.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
+              </div>
             </div>
-          </div>
-        </li>
-      </ol>
-    </section>
+          </li>
+        </ol>
+      </section>
+    </div>
 
     <!-- ── §11 — Why the winner won (decisive drivers only, evidence-backed). ── -->
     <section v-if="decisiveView.length > 0" class="eg-storysec eg-storysec--won">
@@ -71,6 +70,23 @@
     </section>
 
     <section class="eg-insights">
+      <!-- §10 — THE MOST UNUSUAL EPISODES (above player profiles — more engaging). -->
+      <section v-if="unusualView.length > 0" class="eg-storysec eg-storysec--highlights">
+        <h3 class="eg-storysec__head" v-i18n>The most unusual episodes</h3>
+        <div class="eg-insights__grid">
+          <article v-for="ep in unusualView" :key="ep.id" class="eg-insight eg-insight--normal eg-insight--fam-rareEvent"
+                   :style="ep.color !== undefined ? {'--eg-pc': hex(ep.color)} : {}">
+            <div class="eg-insight__body">
+              <span class="eg-insight__badge" v-i18n>{{ ep.badge }}</span>
+              <span class="eg-insight__text">{{ ep.text }}</span>
+              <div v-if="ep.chips.length > 0" class="eg-insight__chips">
+                <span v-for="(ch, ci) in ep.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <!-- PLAYER ARCS — how each player played. -->
       <section v-if="playerArcViews.length >= 2" class="eg-storysec eg-storysec--arcs">
         <h3 class="eg-storysec__head" v-i18n>How the players played</h3>
@@ -118,38 +134,22 @@
         </div>
       </section>
 
-      <!-- §10 — THE MOST UNUSUAL EPISODES (memorable, kept separate from the timeline). -->
-      <section v-if="unusualView.length > 0" class="eg-storysec eg-storysec--highlights">
-        <h3 class="eg-storysec__head" v-i18n>The most unusual episodes</h3>
-        <div class="eg-insights__grid">
-          <article v-for="ep in unusualView" :key="ep.id" class="eg-insight eg-insight--normal eg-insight--fam-rareEvent"
-                   :style="ep.color !== undefined ? {'--eg-pc': hex(ep.color)} : {}">
+      <!-- §8/§21 — ADDITIONAL OBSERVATIONS: the residual analysis, deduped against the
+           story surfaces above (no "show more" toggle, no repeats). -->
+      <section v-if="additionalLines.length > 0" class="eg-storysec eg-storysec--extra">
+        <h3 class="eg-storysec__head" v-i18n>Additional observations</h3>
+        <div class="eg-insights__compact">
+          <article v-for="(line, i) in additionalLines" :key="line.id"
+                   class="eg-insight eg-insight--compact" :class="familyClass(line)"
+                   :style="insightStyle(line, i)">
+            <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
             <div class="eg-insight__body">
-              <span class="eg-insight__badge" v-i18n>{{ ep.badge }}</span>
-              <span class="eg-insight__text">{{ ep.text }}</span>
-              <div v-if="ep.chips.length > 0" class="eg-insight__chips">
-                <span v-for="(ch, ci) in ep.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
-              </div>
+              <ExplainableBadge :label="line.badge" :detail="line.detail" />
+              <span class="eg-insight__text">{{ line.text }}</span>
             </div>
           </article>
         </div>
       </section>
-
-      <!-- SHOW MORE — the full analytical read (every analyzer insight). -->
-      <button v-if="insightLines.length > 0" type="button" class="eg-insights__more" @click="showMore = !showMore">
-        <span v-i18n>{{ showMore ? 'Show less' : 'Show more analysis' }}</span>
-      </button>
-      <div v-if="showMore && insightLines.length > 0" class="eg-insights__compact eg-insights__compact--extra">
-        <article v-for="(line, i) in insightLines" :key="line.id"
-                 class="eg-insight eg-insight--compact" :class="familyClass(line)"
-                 :style="insightStyle(line, i)">
-          <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
-          <div class="eg-insight__body">
-            <ExplainableBadge :label="line.badge" :detail="line.detail" />
-            <span class="eg-insight__text">{{ line.text }}</span>
-          </div>
-        </article>
-      </div>
     </section>
 
     <!-- ── DEV: Story DNA debug panel (?egDebug) — calibration visibility only ── -->
@@ -200,8 +200,9 @@ import {EndgameInsightView, InsightIcon} from '@/client/components/endgame/insig
 import type {ChipDetail} from '@/client/components/endgame/insightDetail';
 import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
 import {
-  type KeyEpisode, type EpisodePhase, timelineEpisodes, unusualEpisodes, decisiveEpisodes, contrastEpisode, memorableEpisode,
+  type KeyEpisode, type EpisodePhase, timelineEpisodes, unusualEpisodes, decisiveEpisodes,
 } from '@/client/components/endgame/keyEpisodeEngine';
+import type {StorySentence} from '@/client/components/endgame/gameNarrative';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import ExplainableBadge from '@/client/components/endgame/ExplainableBadge.vue';
 import ResultHeroDuel from '@/client/components/endgame/ResultHeroDuel.vue';
@@ -252,8 +253,8 @@ type EpisodeLine = {
   color?: Color;
   chips: Array<EvidenceChipView>;
 };
-// One row of the "What defined this game" editorial (§13).
-type DefinedRow = {kind: 'cause' | 'contrast' | 'episode'; label: string; text: string; color?: Color; chips: Array<EvidenceChipView>};
+// One row of the "What defined this game" editorial synopsis (§13) — terse, no chips.
+type DefinedRow = {kind: 'cause' | 'contrast' | 'episode'; label: string; text: string};
 type InsightLine = {
   id: string;
   severity: string;
@@ -300,7 +301,7 @@ export default defineComponent({
     viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
   },
   data() {
-    return {showMore: false, debug: false};
+    return {debug: false};
   },
   mounted() {
     // Dev-only Story DNA debug panel — calibration visibility (?egDebug).
@@ -338,26 +339,30 @@ export default defineComponent({
     unusualView(): Array<EpisodeLine> {
       return unusualEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
     },
-    // §13 — the editorial "what defined this game": cause / contrast / memorable turn.
-    defined(): Array<DefinedRow> {
-      const eps = this.model.keyEpisodes;
+    // §13 — the editorial "what defined this game" synopsis (terse, distinct from the
+    // full episode cards — no verbatim repeat across surfaces, §7).
+    whatDefinedRows(): Array<DefinedRow> {
+      const wd = this.model.whatDefined;
       const rows: Array<DefinedRow> = [];
-      const cause = decisiveEpisodes(eps)[0];
+      const sentence = (s: StorySentence | undefined): string | undefined =>
+        s === undefined ? undefined : translateTextWithParams(s.key, s.params.map((p) => p.t === 'raw' ? p.v : $t(p.v)));
+      const cause = sentence(wd.cause);
       if (cause !== undefined) {
-        const l = this.composeEpisode(cause);
-        rows.push({kind: 'cause', label: 'Main line', text: l.text, color: l.color, chips: l.chips});
+        rows.push({kind: 'cause', label: 'Main line', text: cause});
       }
-      const contrast = contrastEpisode(eps);
+      const contrast = sentence(wd.contrast);
       if (contrast !== undefined) {
-        const l = this.composeEpisode(contrast);
-        rows.push({kind: 'contrast', label: 'Contrast', text: l.text, color: l.color, chips: l.chips});
+        rows.push({kind: 'contrast', label: 'Contrast', text: contrast});
       }
-      const mem = memorableEpisode(eps);
-      if (mem !== undefined && mem.id !== cause?.id && mem.id !== contrast?.id) {
-        const l = this.composeEpisode(mem);
-        rows.push({kind: 'episode', label: 'Memorable turn', text: l.text, color: l.color, chips: l.chips});
+      const memorable = sentence(wd.memorable);
+      if (memorable !== undefined) {
+        rows.push({kind: 'episode', label: 'Memorable turn', text: memorable});
       }
       return rows;
+    },
+    // §8/§21 — the deduped residual analysis (already filtered upstream to non-episode clusters).
+    additionalLines(): Array<InsightLine> {
+      return this.model.additionalInsights.map((ins) => this.composeInsight(ins));
     },
     // The composed insights with their raw scoring fields — for the ?egDebug table.
     debugInsights(): Array<EndgameInsightView> {

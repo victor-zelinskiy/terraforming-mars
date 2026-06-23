@@ -2254,3 +2254,36 @@
 @media (prefers-reduced-motion: reduce) {
     .eg-story30, .eg-defined, .eg-tl { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Iteration 16 — two-column composition, compact hero, additional analysis.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* §6/§24 — "What defined" + "Key episodes" side by side on a wide screen. */
+.eg-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: 22px;
+    align-items: start;
+    margin-bottom: 22px;
+}
+.eg-cols > .eg-defined,
+.eg-cols > .eg-tl { margin-bottom: 0; }
+
+/* §3 — compact result hero (less vertical air, smaller score type). */
+.eg-rhduel, .eg-rhmulti { padding: 16px 20px; margin-bottom: 14px; }
+.eg-rhduel__player, .eg-rhmulti__winner { padding: 12px 14px; gap: 4px; }
+.eg-rhduel__total { font-size: 40px; margin-top: 2px; }
+.eg-rhmulti__total { font-size: 42px; margin-top: 2px; }
+.eg-rhduel__margin-val { font-size: 30px; }
+.eg-rhduel__thesis, .eg-rhmulti__thesis { margin-top: 12px; font-size: 14px; }
+.eg-rhduel__pname, .eg-rhmulti__wname { font-size: 20px; }
+
+/* §8/§21 — additional observations grid (residual, deduped). */
+.eg-storysec--extra { margin-top: 8px; opacity: 0.92; }
+.eg-storysec--extra .eg-storysec__head { color: @eg-text-muted; }
+
+@media (max-width: 980px) {
+    .eg-cols { grid-template-columns: 1fr; gap: 16px; }
+    .eg-cols > .eg-defined { margin-bottom: 4px; }
+}

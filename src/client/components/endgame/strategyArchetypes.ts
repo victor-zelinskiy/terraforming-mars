@@ -292,6 +292,11 @@ const detectCityGreenery: Detector = (p, _si, ctx) => {
   };
 };
 
+// Rework §14 — raise the abstract "global parameters" into the concrete parameters driven.
+const PARAM_CHIP_LABEL: Partial<Record<GlobalParameter, string>> = {
+  [GlobalParameter.TEMPERATURE]: 'Temperature', [GlobalParameter.OXYGEN]: 'Oxygen',
+  [GlobalParameter.OCEANS]: 'Oceans', [GlobalParameter.VENUS]: 'Venus',
+};
 const detectGlobalParams: Detector = (p, _si, _ctx) => {
   const steps = paramSteps(p);
   const trVp = categoryVp(p, 'tr');
@@ -300,9 +305,21 @@ const detectGlobalParams: Detector = (p, _si, _ctx) => {
   }
   // TR is structurally large (≈20 base); the SIGNAL is the steps the player drove.
   const score = clamp01(0.55 * clamp01(steps / 22) + 0.3 * clamp01((trVp - 20) / 30));
+  // §14 — name the dominant parameters (temperature / oxygen / oceans / Venus), not just "steps".
+  const topParams = Object.entries(p.globalSteps)
+    .filter(([k, v]) => (v ?? 0) > 0 && PARAM_CHIP_LABEL[k as GlobalParameter] !== undefined)
+    .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+    .slice(0, 2);
+  const evidence: Array<EvidenceChip> = [val(`${trVp}`, 'TR')];
+  for (const [k, v] of topParams) {
+    evidence.push(val(`${v}`, PARAM_CHIP_LABEL[k as GlobalParameter] as string));
+  }
+  if (topParams.length === 0) {
+    evidence.push(val(`${steps}`, 'parameter steps', 'good'));
+  }
   return {
     archetype: 'globalParams', score, vpContribution: Math.max(0, trVp - 20), isScoring: true,
-    evidence: [val(`${trVp}`, 'TR'), val(`${steps}`, 'parameter steps', 'good')],
+    evidence,
     confidence: 'high',
   };
 };
