@@ -2178,25 +2178,42 @@
 .eg-fv {
     --eg-fv: @eg-cyan;
     position: relative;
+    overflow: hidden;
     display: flex; align-items: center; gap: 14px;
-    margin: 16px auto 0; max-width: 760px;
-    padding: 11px 16px; border-radius: 11px;
+    margin: 14px auto 0; max-width: 820px;
+    padding: 12px 18px; border-radius: 12px;
     background: linear-gradient(100deg, ~"color-mix(in srgb, var(--eg-fv) 14%, transparent)", transparent 78%);
     box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-fv) 38%, transparent)";
 }
+/* a very subtle diagonal motif so the banner never reads as an empty strip (§1B). */
+.eg-fv__motif {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+    background:
+        repeating-linear-gradient(115deg, ~"color-mix(in srgb, var(--eg-fv) 9%, transparent)" 0 1px, transparent 1px 16px);
+    mask-image: linear-gradient(90deg, transparent, #000 60%);
+}
 .eg-fv__glyph {
-    flex: 0 0 auto;
-    font-size: 22px; line-height: 1; color: var(--eg-fv);
+    position: relative; flex: 0 0 auto;
+    font-size: 24px; line-height: 1; color: var(--eg-fv);
     text-shadow: 0 0 12px ~"color-mix(in srgb, var(--eg-fv) 55%, transparent)";
 }
-.eg-fv__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.eg-fv__body { position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.eg-fv__title-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .eg-fv__title {
     font-family: Prototype, Orbitron, sans-serif;
     font-size: 14px; letter-spacing: 0.6px; text-transform: uppercase;
     color: ~"color-mix(in srgb, var(--eg-fv) 55%, #ffffff)";
 }
+.eg-fv__tier {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--eg-fv);
+    padding: 1px 8px; border-radius: 999px;
+    box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-fv) 55%, transparent)";
+}
 .eg-fv__line { font-size: 13.5px; line-height: 1.5; color: @eg-text-dim; }
-/* per-tier accent. */
+.eg-fv__chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+/* per-type accent. */
 .eg-fv--photo_finish { --eg-fv: #7fd0e6; }
 .eg-fv--close_finish { --eg-fv: #6ab0e6; }
 .eg-fv--solid_win { --eg-fv: #8fd8ad; }
@@ -2204,10 +2221,28 @@
 .eg-fv--blowout { --eg-fv: @eg-gold; }
 .eg-fv--comeback { --eg-fv: #c79af0; }
 .eg-fv--late_breakaway { --eg-fv: #d7a8f0; }
+.eg-fv--low_terraforming_big_win { --eg-fv: #f0b46a; }
+.eg-fv--single_card_decider { --eg-fv: #7fd0e6; }
+.eg-fv--award_decider { --eg-fv: #e7c463; }
+.eg-fv--resource_card_finish { --eg-fv: #8fd8ad; }
+.eg-fv--jovian_reveal { --eg-fv: #c79af0; }
+.eg-fv--colony_trade_finish { --eg-fv: #6fb6d8; }
+/* tier emphasis — rare/legendary read clearly stronger than a routine margin verdict. */
+.eg-fv--tier-rare, .eg-fv--tier-legendary {
+    padding: 14px 20px;
+    background: linear-gradient(100deg, ~"color-mix(in srgb, var(--eg-fv) 20%, transparent)", transparent 80%);
+    box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-fv) 55%, transparent)", 0 0 26px -10px ~"color-mix(in srgb, var(--eg-fv) 55%, transparent)";
+}
+.eg-fv--tier-rare .eg-fv__glyph, .eg-fv--tier-legendary .eg-fv__glyph { font-size: 28px; }
+.eg-fv--tier-legendary { animation: eg-fv-in 360ms ease both, eg-fv-glow 2600ms ease-in-out 360ms 1; }
 .eg-fv { animation: eg-fv-in 360ms ease both; }
 @keyframes eg-fv-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes eg-fv-glow {
+    0%, 100% { box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-fv) 55%, transparent)", 0 0 26px -10px ~"color-mix(in srgb, var(--eg-fv) 55%, transparent)"; }
+    50% { box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-fv) 75%, transparent)", 0 0 40px -6px ~"color-mix(in srgb, var(--eg-fv) 70%, transparent)"; }
+}
 @media (prefers-reduced-motion: reduce) {
-    .eg-fv { animation: none; }
+    .eg-fv, .eg-fv--tier-legendary { animation: none; }
 }
 
 /* §20 — the player-arc supporting-strategy chips. */
@@ -2247,30 +2282,40 @@
 .eg-story30__body:last-child { margin-bottom: 0; }
 .eg-story30__sentence { /* inline run; the trailing space separates sentences */ }
 
-/* ── §4 — inline interactive narrative terms (rich-text layer). ── */
+/* ── §4/§6/§7 — inline interactive narrative terms (rich-text layer), premium per-kind
+   accent. A term reads as interactive from its accent colour + underline (no stray "?"). ── */
 .eg-richtext { /* inline wrapper */ }
-.eg-term { --eg-pc: @eg-cyan; }
-.eg-term--player { color: var(--eg-pc); font-weight: 700; }
+.eg-term {
+    --eg-pc: @eg-cyan;
+    --eg-term-accent: @eg-cyan;
+}
+/* per-kind accent. */
+.eg-term--player { --eg-term-accent: var(--eg-pc); color: var(--eg-term-accent); font-weight: 700; }
+.eg-term--strategy { --eg-term-accent: #7fd0e6; }
+.eg-term--card { --eg-term-accent: #cfe0ef; }
+.eg-term--award { --eg-term-accent: @eg-gold; }
+.eg-term--milestone { --eg-term-accent: #d7a8f0; }
+.eg-term--colony { --eg-term-accent: #6fb6d8; }
 .eg-term--score, .eg-term--accent { font-weight: 700; color: #f0f6ff; }
 /* a hoverable term (strategy / card / …) reuses ExplainableBadge but renders inline. */
 .eg-xbadge.eg-term {
     display: inline; padding: 0; margin: 0; border: none; background: none; box-shadow: none;
-    color: ~"color-mix(in srgb, @eg-cyan 40%, #eaf3fb)";
-    font-weight: 600;
-    border-bottom: 1px dotted ~"color-mix(in srgb, @eg-cyan 60%, transparent)";
+    color: ~"color-mix(in srgb, var(--eg-term-accent) 55%, #eaf3fb)";
+    font-weight: 700;
+    border-bottom: 1px dotted ~"color-mix(in srgb, var(--eg-term-accent) 60%, transparent)";
     cursor: help;
-    transition: color 140ms ease, border-color 140ms ease;
+    transition: color 140ms ease, border-color 140ms ease, text-shadow 140ms ease;
 }
 .eg-xbadge.eg-term:hover,
 .eg-xbadge.eg-term:focus-visible {
-    color: ~"color-mix(in srgb, @eg-cyan 65%, #ffffff)";
-    border-bottom-color: @eg-cyan;
+    color: ~"color-mix(in srgb, var(--eg-term-accent) 80%, #ffffff)";
+    border-bottom-style: solid;
+    border-bottom-color: var(--eg-term-accent);
+    text-shadow: 0 0 10px ~"color-mix(in srgb, var(--eg-term-accent) 45%, transparent)";
     outline: none;
 }
-.eg-xbadge.eg-term .eg-xbadge__mark {
-    font-size: 8px; vertical-align: super; margin-left: 1px; opacity: 0.55;
-    border: none; background: none; padding: 0; width: auto; height: auto;
-}
+.eg-xbadge.eg-term:focus-visible { border-radius: 3px; box-shadow: 0 0 0 2px ~"color-mix(in srgb, var(--eg-term-accent) 45%, transparent)"; }
+/* inline terms carry NO "?" marker — markless; the accent + underline is the affordance. */
 @media (prefers-reduced-motion: reduce) {
     .eg-xbadge.eg-term { transition: none; }
 }

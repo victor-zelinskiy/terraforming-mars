@@ -158,6 +158,20 @@ function lossMagnitude(f: EndgameFact): number {
 }
 const ATTACK_FACT_TYPES: ReadonlyArray<EndgameFact['type']> = ['negativeInteraction', 'cardAttack'];
 
+// §9 — SPENDABLE money excludes the final-generation production income (which could never be
+// spent). The "Money to spare" tag must reflect a real, relative surplus, not end-of-game M€.
+function spendableMoney(p: {megacredits: number; production?: {megacredits: number}}): number {
+  return p.megacredits - Math.max(0, p.production?.megacredits ?? 0);
+}
+function median(nums: ReadonlyArray<number>): number {
+  if (nums.length === 0) {
+    return 0;
+  }
+  const s = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
 const GENERIC_THEME_CLUSTERS: ReadonlyArray<string> = ['verdict', 'race', 'profile', 'categorySecondary'];
 
 /** A clusterKey for a candidate (mirrors insightEngine.clusterOf without importing it). */
@@ -434,6 +448,7 @@ export function buildGameStoryDna(
 
   // 4) Player arcs.
   const playerArcs: Partial<Record<Color, PlayerArc>> = {};
+  const medianSpendable = median(ctx.players.map(spendableMoney));
   for (const p of ctx.players) {
     const familiesSet = new Set<InsightFamily>();
     for (const c of candidates) {
@@ -452,10 +467,14 @@ export function buildGameStoryDna(
     const gens = p.vpByGeneration;
     const lateMomentum = gens.length >= 3 ? Math.max(0, gens[gens.length - 1] - gens[gens.length - 3]) : 0;
     const tags: Array<string> = [style];
-    if (received >= 6) {
+    // §10 — a meaningful amount of pressure, not the routine odd resource lost (was ≥6).
+    if (received >= 9) {
       tags.push('Under pressure');
     }
-    if (p.megacredits >= 25) {
+    // §9 — only a genuine, RELATIVE surplus of spendable money (well above the table median,
+    // excluding unspendable final income) earns the tag — not the routine end-of-game pile.
+    const spendable = spendableMoney(p);
+    if (spendable >= 28 && spendable >= medianSpendable + 15) {
       tags.push('Money to spare');
     }
     // Iteration 13 — the corporation identity for this player's arc.

@@ -14,7 +14,7 @@
     @keydown.escape="close"
     ref="anchor">
     <span v-i18n>{{ label }}</span>
-    <span v-if="detail !== undefined && !markless" class="eg-xbadge__mark" aria-hidden="true">?</span>
+    <span v-if="detail !== undefined && !markless" class="eg-xbadge__mark" aria-hidden="true">✦</span>
 
     <Teleport to="body">
       <div v-if="open && detail !== undefined" class="eg-detail" :class="accentClass" :style="popStyle" role="tooltip">
