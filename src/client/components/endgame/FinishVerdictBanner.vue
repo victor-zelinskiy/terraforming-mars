@@ -4,11 +4,20 @@
     a short rich-text line), replacing the flat hero thesis string. The accent/glyph come
     from the verdict TYPE; the line uses the shared rich-text layer (hoverable terms).
   -->
-  <div v-if="verdict !== undefined" class="eg-fv" :class="'eg-fv--' + verdict.type">
+  <div v-if="verdict !== undefined" class="eg-fv" :class="['eg-fv--' + verdict.type, 'eg-fv--tier-' + verdict.tier]">
+    <span class="eg-fv__motif" aria-hidden="true"></span>
     <span class="eg-fv__glyph" aria-hidden="true">{{ verdict.glyph }}</span>
     <div class="eg-fv__body">
-      <span class="eg-fv__title" v-i18n>{{ verdict.titleKey }}</span>
+      <span class="eg-fv__title-row">
+        <span class="eg-fv__title" v-i18n>{{ verdict.titleKey }}</span>
+        <span v-if="verdict.tier === 'rare' || verdict.tier === 'legendary'" class="eg-fv__tier" v-i18n>Rare finish</span>
+      </span>
       <span class="eg-fv__line"><EndgameRichText :template="lineTemplate" :params="lineParams" /></span>
+      <div v-if="verdict.chips.length > 0" class="eg-fv__chips">
+        <span v-for="(ch, i) in verdict.chips" :key="i" class="eg-chip" :class="'eg-chip--' + (ch.tone || 'neutral')">
+          <template v-if="ch.t === 'raw'">{{ ch.v }}</template><span v-else v-i18n>{{ ch.v }}</span><span v-if="ch.label !== undefined"> <span v-i18n>{{ ch.label }}</span></span>
+        </span>
+      </div>
     </div>
   </div>
 </template>

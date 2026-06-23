@@ -725,5 +725,24 @@
     "The final count pulled the players far apart: the lead for ${0} reached +${1} VP.": "Финальный подсчёт развёл игроков далеко: отрыв ${0} достиг +${1} ПО.",
     "The lead for ${0} reached +${1} VP — no longer a fight over details, but a wide final gap.": "Отрыв ${0} достиг +${1} ПО — это уже не борьба за детали, а крупный финальный разрыв.",
     "By the final count the hidden points came out and swung the lead to ${0} after trailing.": "К финальному подсчёту скрытые очки раскрылись и вывели ${0} вперёд после отставания.",
-    "It ran close, then the final count sharply pulled ${0} clear: +${1} VP.": "Партия держалась рядом, но финальный подсчёт резко вывел ${0} вперёд: +${1} ПО."
+    "It ran close, then the final count sharply pulled ${0} clear: +${1} VP.": "Партия держалась рядом, но финальный подсчёт резко вывел ${0} вперёд: +${1} ПО.",
+
+    "Rare finish": "Редкий финиш",
+    "A rare wide finish": "Редкий крупный финиш",
+    "Won without the parameter race": "Победа без гонки за параметры",
+    "One card decided it": "Одна карта решила финиш",
+    "An award decided it": "Награда решила финиш",
+    "The animal line came good": "Животная линия раскрылась",
+    "The microbe line came good": "Микробная линия раскрылась",
+    "The floater line came good": "Линия аэростатов раскрылась",
+    "A card-resource finish": "Финиш на ресурсах карт",
+    "A Jovian finish": "Юпитерианский финал",
+    "A colony-trade finish": "Финиш на торговом темпе",
+    "Behind on terraforming, ${0} still took the game on the final count through ${1}: +${2} VP.": "Несмотря на отставание в терраформировании, итог по финальному счёту остался за ${0} — через ${1}: +${2} ПО.",
+    "Behind on terraforming, ${0} still finished with the stronger count: +${1} VP.": "Несмотря на отставание в терраформировании, итог по финальному счёту остался за ${0}: +${1} ПО.",
+    "In a tight game, ${0}’s ${1} alone was worth more than the final gap.": "В плотной партии карта ${1} принесла ${0} больше, чем итоговый разрыв.",
+    "The award points were the difference for ${0}: +${1} VP, more than the final gap.": "Очки за награду стали разницей для ${0}: +${1} ПО — больше итогового разрыва.",
+    "Resources stored on cards opened up at scoring and gave ${0} a big block through ${1}: +${2} VP.": "Накопленные на картах ресурсы раскрылись при подсчёте и дали ${0} крупный блок через ${1}: +${2} ПО.",
+    "The Jovian tags banked all game folded into a dense block of points for ${0}: +${1} VP.": "Юпитерианские теги, копившиеся всю партию, сложились в плотный блок очков для ${0}: +${1} ПО.",
+    "A colony trade engine fed ${0}’s scoring plays all game.": "Колониальный торговый движок питал очковые ходы ${0} всю партию."
 }

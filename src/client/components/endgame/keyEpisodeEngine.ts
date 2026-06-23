@@ -308,28 +308,11 @@ const episodeTurningPoint: Gen = (ctx) => {
   }];
 };
 
-// 5) Tempo shift — a late economic surge (the burst notable carries a generation).
-const episodeTempo: Gen = (ctx, finalGen) => {
-  const burst = factsByType(ctx, 'notableEvent').find((f) => f.id === 'notable:economyBurst');
-  if (burst === undefined || m(burst, 'savedMegacredits') < 14 || burst.generation === undefined) {
-    return [];
-  }
-  const phase = phaseOf(burst.generation, finalGen);
-  // §5 — phase-aware wording: a surge in gen 2 is an early ENGINE, not a "late surge".
-  const early = phase === 'early' || phase === 'mid';
-  return [{
-    id: 'episode.tempo', role: 'tempo_shift',
-    phase, generation: burst.generation, order: orderOf(phase, burst.generation),
-    color: burst.player, badge: 'Economic surge',
-    textKey: early ?
-      '${0} hit an economic spike — a burst of resources that funded the plan from here on.' :
-      '${0} hit a late economic surge — a burst of resources right when it mattered.',
-    params: [playerP(nameOf(ctx, burst.player), burst.player)],
-    evidenceChips: [valChip(`+${m(burst, 'savedMegacredits')}`, 'M€', 'good')],
-    impact: 0.25, confidence: 'medium', relatedPlayers: [burst.player], dedupeKey: 'tempo',
-    coveredClusters: ['economyBurst'],
-  }];
-};
+// NOTE (§11): a "late economic surge" (+M€ from the economyBurst notable) was REMOVED as a
+// key episode — the event stream gives no concrete SOURCE for the money (which card / action /
+// production produced it), and a key episode must name its source. The economy story still
+// surfaces in "Additional observations" via the economy / notable-moment analyzers. Re-add a
+// tempo episode only once the server attributes the burst to a source.
 
 // 6) Award sponsor-lost — IMPACT-AWARE (twist when small vs the margin, decisive when it covers it).
 function awardSponsorLost(ctx: InsightContext): {funder: string; winner: Color; winnerName: string; award: string; points: number; generation?: number} | undefined {
@@ -548,7 +531,7 @@ const episodeFinalScoring: Gen = (ctx) => {
 
 const GENERATORS: ReadonlyArray<Gen> = [
   episodeWinnerDriver, episodeSecondaryScoring, episodeBestCard, episodeContrast,
-  episodeEngineOnline, episodeTurningPoint, episodeTempo, episodeAward,
+  episodeEngineOnline, episodeTurningPoint, episodeAward,
   episodeSignature, episodePredators, episodeHydronetwork, episodeRunnerUp, episodeFinalScoring,
 ];
 

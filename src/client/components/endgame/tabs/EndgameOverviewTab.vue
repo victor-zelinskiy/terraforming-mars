@@ -177,7 +177,13 @@
       <!-- Iteration 15 — episode / story diagnostics (§18). -->
       <div class="eg-dnadebug__reasons">
         finish verdict: {{ model.finishVerdict !== undefined ? model.finishVerdict.type : '— (none)' }}
-        <span v-if="model.finishVerdict !== undefined">· {{ model.finishVerdict.reason }}</span>
+        <span v-if="model.finishVerdict !== undefined">[{{ model.finishVerdict.tier }}] · {{ model.finishVerdict.reason }}</span>
+      </div>
+      <div v-if="model.finishVerdict !== undefined && model.finishVerdict.rejected.length > 0" class="eg-dnadebug__reasons">
+        rare rejected: {{ model.finishVerdict.rejected.join(' | ') }}
+      </div>
+      <div class="eg-dnadebug__reasons" :class="{}">
+        key episodes without source: {{ episodesWithoutSource.length === 0 ? 'none ✓' : episodesWithoutSource.join(', ') }}
       </div>
       <div class="eg-dnadebug__reasons">hero thesis: {{ model.heroThesis !== undefined ? model.heroThesis.key : '— (none)' }}</div>
       <div class="eg-dnadebug__reasons">story sentences: {{ model.story.length }} · margin class: {{ marginClassLabel }}</div>
@@ -431,6 +437,12 @@ export default defineComponent({
     // §16 — the margin SCALE (debug visibility only).
     marginClassLabel(): string {
       return marginClass(this.model.margin);
+    },
+    // §11/§14 — key episodes that lack a concrete source (must be empty after the audit).
+    episodesWithoutSource(): Array<string> {
+      return this.model.keyEpisodes
+        .filter((e) => (e.relatedPlayers?.length ?? 0) === 0 && e.evidenceChips.length === 0)
+        .map((e) => e.id);
     },
     // §11/§19/§20 — per-strategy evidence breakdown with sourceType + confidence (debug).
     strategyEvidenceDebug(): Array<string> {
