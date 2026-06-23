@@ -2154,3 +2154,103 @@
     .eg-rhduel__player--right .eg-rhduel__style { flex-direction: row; }
     .eg-rhmulti__head { grid-template-columns: 1fr; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Iteration 15 — directed story layer: 30-second story, editorial "what
+   defined", and the key-episode TIMELINE.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* §8 — the story of the game in 30 seconds (narrative prose). */
+.eg-story30 {
+    position: relative;
+    margin-bottom: 18px;
+    padding: 18px 20px;
+    .eg-card-base();
+    box-shadow: inset 0 0 0 1px @eg-card-rim, inset 2px 0 0 ~"color-mix(in srgb, @eg-cyan 40%, transparent)";
+}
+.eg-story30__head {
+    margin: 0 0 8px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: @eg-text-muted;
+}
+.eg-story30__body { margin: 0; font-size: 15.5px; line-height: 1.62; color: @eg-text; }
+
+/* §13 — editorial "what defined this game": cause / contrast / memorable turn. */
+.eg-defined { margin-bottom: 20px; }
+.eg-defined__head {
+    margin: 0 0 10px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 15px; letter-spacing: 0.4px; color: @eg-text;
+}
+.eg-defined__rows { display: flex; flex-direction: column; gap: 8px; }
+.eg-defined__row {
+    --eg-pc: @eg-cyan;
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 12px;
+    align-items: baseline;
+    padding: 11px 14px;
+    border-radius: 9px;
+    .eg-card-base();
+    box-shadow: inset 0 0 0 1px @eg-card-rim, inset 2px 0 0 var(--eg-row-accent, @eg-cyan);
+}
+.eg-defined__row--cause { --eg-row-accent: ~"color-mix(in srgb, var(--eg-pc) 70%, #8fd8ad)"; }
+.eg-defined__row--contrast { --eg-row-accent: #9bb3cc; }
+.eg-defined__row--episode { --eg-row-accent: @eg-gold; }
+.eg-defined__label {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--eg-row-accent, @eg-text-muted);
+}
+.eg-defined__text { font-size: 14px; line-height: 1.5; color: @eg-text-dim; }
+.eg-defined__chips { grid-column: 2; display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+
+/* §9 — the key-episode TIMELINE (a vertical thread of how the game played out). */
+.eg-tl { margin-bottom: 22px; }
+.eg-tl__head {
+    margin: 0 0 12px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 15px; letter-spacing: 0.4px; color: @eg-text;
+}
+.eg-tl__list { list-style: none; margin: 0; padding: 0; position: relative; }
+/* the spine */
+.eg-tl__list::before {
+    content: ''; position: absolute; left: 7px; top: 6px; bottom: 6px; width: 2px;
+    background: linear-gradient(180deg, transparent, @eg-rim 12%, @eg-rim 88%, transparent);
+}
+.eg-tl__item {
+    --eg-pc: @eg-cyan;
+    position: relative;
+    display: grid; grid-template-columns: 22px 1fr; gap: 12px; align-items: start;
+    padding-bottom: 12px;
+}
+.eg-tl__item:last-child { padding-bottom: 0; }
+.eg-tl__node {
+    position: relative; z-index: 1; margin-top: 5px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: ~"color-mix(in srgb, var(--eg-pc) 80%, #0a121e)";
+    box-shadow: 0 0 0 3px @eg-bg-1, 0 0 10px ~"color-mix(in srgb, var(--eg-pc) 55%, transparent)";
+}
+.eg-tl__item--turning_point .eg-tl__node,
+.eg-tl__item--decisive_driver .eg-tl__node { box-shadow: 0 0 0 3px @eg-bg-1, 0 0 14px ~"color-mix(in srgb, var(--eg-pc) 80%, transparent)"; }
+.eg-tl__card {
+    padding: 10px 13px; border-radius: 9px;
+    .eg-card-base();
+    box-shadow: inset 0 0 0 1px @eg-card-rim, inset 2px 0 0 ~"color-mix(in srgb, var(--eg-pc) 45%, transparent)";
+}
+.eg-tl__phase {
+    display: block;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--eg-pc);
+    margin-bottom: 3px;
+}
+.eg-tl__text { font-size: 14px; line-height: 1.5; color: @eg-text; }
+.eg-tl__chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+
+@media (max-width: 720px) {
+    .eg-defined__row { grid-template-columns: 1fr; gap: 4px; }
+    .eg-defined__chips { grid-column: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .eg-story30, .eg-defined, .eg-tl { animation: none; }
+}
