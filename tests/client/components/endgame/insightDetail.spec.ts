@@ -116,6 +116,16 @@ describe('Editorial guard — no banned / debug phrasing in ru/endgame.json (Ite
 // subject of a gendered past-tense verb ("${0} победил/играл/…"), and a strategy placeholder
 // must never be the subject of a gendered verb ("${1} дала/добавила") — those break for
 // female names and compound strategies ("Города и озеленение дала").
+// Iteration 17 §7 — no stray combining diacritics (e.g. the acute "бо́льшая") in the
+// user-facing endgame strings: they render as odd marks in the UI.
+describe('Typography guard — no combining diacritical marks in ru/endgame.json (Iteration 17)', () => {
+  const values = Object.values(ruEndgame as Record<string, string>);
+  it('no ru value contains a combining mark (U+0300–U+036F)', () => {
+    const hit = values.find((v) => /[̀-ͯ]/.test(v));
+    expect(hit, `found a combining diacritic in: ${hit}`).to.be.undefined;
+  });
+});
+
 describe('Grammar guard — no gendered subject-verb with a name/strategy placeholder (Iteration 16)', () => {
   const values = Object.values(ruEndgame as Record<string, string>);
   const GENDERED_VERBS = ['победил', 'проиграл', 'играл', 'строил', 'давил', 'поймал', 'провёл',

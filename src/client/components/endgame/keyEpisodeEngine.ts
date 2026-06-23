@@ -21,6 +21,7 @@
  *   • NO runtime dependency on insightEngine (type-only imports) → no module cycle.
  */
 import type {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import type {EndgameFact, FactType} from '@/common/events/endgameFacts';
 import type {InsightContext, InsightParam, EvidenceChip} from '@/client/components/endgame/insightEngine';
 import type {EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
@@ -453,24 +454,50 @@ const episodeHydronetwork: Gen = (ctx) => {
   if (top === undefined || top.dp < 3) {
     return [];
   }
-  const second = scored[1]?.dp ?? 0;
-  const someoneZero = ctx.players.some((p) => p.color !== top.color && (p.breakdown.deltaProject ?? 0) === 0);
-  // Only a story on a clear skew (someone got nothing, or a big lead) — not even splits.
-  if (!someoneZero && top.dp - second < 3) {
+  // §10 — a UNIQUE finishing bonus is a story episode ONLY when every other player scored
+  // ZERO from the Hydronetwork. A shared bonus (others scored too) is NOT unusual — it
+  // becomes a soft "additional observation" insight instead (insightEngine.analyzeHydronetwork).
+  const allOthersZero = ctx.players.every((p) => p.color === top.color || (p.breakdown.deltaProject ?? 0) === 0);
+  if (!allOthersZero || top.dp < 3) {
     return [];
   }
-  // §7 — honest wording: only claim "the rest didn't share" when someone really got ZERO;
-  // when others also scored (just less), say it was the LARGEST bonus, and rank it lower.
   return [{
     id: 'episode.hydronetwork', role: 'signature_moment', phase: 'scoring', generation: undefined, order: orderOf('scoring', undefined) + 4,
     color: top.color, badge: 'Hydronetwork',
-    textKey: someoneZero ?
-      'The Hydronetwork handed ${0} a finishing bonus the rest didn’t share.' :
-      'The Hydronetwork gave ${0} the largest finishing bonus, though others scored from it too.',
+    textKey: 'The Hydronetwork handed ${0} a finishing bonus the rest didn’t share.',
     params: [raw(top.name)],
     evidenceChips: [vpChip(top.dp)],
-    impact: someoneZero ? impactVsMargin(top.dp, ctx.margin) : impactVsMargin(top.dp - second, ctx.margin),
+    impact: impactVsMargin(top.dp, ctx.margin),
     confidence: 'high', relatedPlayers: [top.color], dedupeKey: 'hydronetwork',
+    coveredClusters: ['hydronetwork'],
+  }];
+};
+
+// 9b) Predators — IMPACT-AWARE (§11/§12): a memorable cross-player raid lands in the
+// "unusual episodes" ONLY when the hunt was sizeable (≥5 animals); a small nibble stays a
+// secondary "additional observation" insight (insightEngine), never inflated here.
+const episodePredators: Gen = (ctx) => {
+  const owns = (color: Color | undefined): boolean =>
+    color !== undefined && (ctx.playerCards?.[color] ?? []).includes(CardName.PREDATORS);
+  const hit = factsByType(ctx, 'negativeInteraction')
+    .filter((f) => m(f, 'Animal') >= 5 && owns(f.player))
+    .sort((a, b) => m(b, 'Animal') - m(a, 'Animal'))[0];
+  if (hit === undefined) {
+    return [];
+  }
+  const animals = m(hit, 'Animal');
+  const big = animals >= 8;
+  return [{
+    id: 'episode.predators', role: 'signature_moment', phase: 'mid', generation: undefined, order: orderOf('mid', undefined) + 3,
+    color: hit.player, badge: 'Predators',
+    textKey: big ?
+      'Predators gutted ${1}’s animal line: ${2} animals went to ${0}, and it told at the finish.' :
+      'Predators were a notable clash: ${2} animals were taken from ${1} for ${0}.',
+    params: [raw(nameOf(ctx, hit.player)), raw(nameOf(ctx, hit.targetPlayer)), raw(animals)],
+    evidenceChips: [valChip(`${animals}`, 'Animals', 'bad')],
+    impact: clamp01(animals / 12), confidence: 'high',
+    relatedPlayers: [hit.player, ...(hit.targetPlayer !== undefined ? [hit.targetPlayer] : [])],
+    dedupeKey: 'predators', coveredClusters: ['predators'],
   }];
 };
 
@@ -513,7 +540,7 @@ const episodeFinalScoring: Gen = (ctx) => {
 const GENERATORS: ReadonlyArray<Gen> = [
   episodeWinnerDriver, episodeSecondaryScoring, episodeBestCard, episodeContrast,
   episodeEngineOnline, episodeTurningPoint, episodeTempo, episodeAward,
-  episodeSignature, episodeHydronetwork, episodeRunnerUp, episodeFinalScoring,
+  episodeSignature, episodePredators, episodeHydronetwork, episodeRunnerUp, episodeFinalScoring,
 ];
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -2004,33 +2004,38 @@
     --eg-theme: @eg-cyan;
     position: relative;
     overflow: hidden;
-    padding: 24px;
-    margin-bottom: 20px;
+    padding: 18px 22px;
+    margin-bottom: 18px;
     .eg-card-base();
     box-shadow: inset 0 0 0 1px @eg-card-rim, inset 0 2px 0 ~"color-mix(in srgb, var(--eg-theme) 26%, transparent)";
 }
+/* §1 — a compact, centred scoreboard (not two cards stranded in a wide empty band). */
 .eg-rhduel__row {
     position: relative;
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    gap: 18px;
+    gap: 14px;
+    max-width: 920px;
+    margin: 0 auto;
 }
 .eg-rhduel__player {
     --eg-pc: @eg-cyan;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 16px;
+    gap: 5px;
+    padding: 12px 14px;
     border-radius: 10px;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 
     &--left { align-items: flex-start; text-align: left; }
     &--right { align-items: flex-end; text-align: right; }
     &--winner {
-        background: ~"color-mix(in srgb, var(--eg-pc) 10%, transparent)";
-        box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-pc) 46%, transparent)", 0 0 26px -6px ~"color-mix(in srgb, var(--eg-pc) 34%, transparent)";
+        background: ~"color-mix(in srgb, var(--eg-pc) 11%, transparent)";
+        box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-pc) 46%, transparent)", 0 0 24px -8px ~"color-mix(in srgb, var(--eg-pc) 34%, transparent)";
     }
+    /* the runner-up still reads as a real participant, not an empty panel. */
+    &--right { background: ~"color-mix(in srgb, var(--eg-pc) 5%, transparent)"; }
 }
 .eg-rhduel__crown { color: @eg-gold; font-size: 17px; text-shadow: 0 0 10px rgba(255, 204, 100, 0.5); }
 .eg-rhduel__pname {
@@ -2051,9 +2056,9 @@
 }
 .eg-rhduel__corp { font-size: 12.5px; color: @eg-text-dim; }
 .eg-rhduel__total {
-    margin-top: 4px;
+    margin-top: 2px;
     font-family: Prototype, Orbitron, sans-serif;
-    font-size: 48px; font-weight: 700; line-height: 0.9; color: #eaf4ff;
+    font-size: 40px; font-weight: 700; line-height: 0.92; color: #eaf4ff;
     font-variant-numeric: tabular-nums;
     text-shadow: 0 0 18px ~"color-mix(in srgb, var(--eg-pc) 40%, transparent)";
 }
@@ -2188,7 +2193,39 @@
     font-family: Prototype, Orbitron, sans-serif;
     font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: @eg-text-muted;
 }
-.eg-story30__body { margin: 0; max-width: 78ch; font-size: 15.5px; line-height: 1.66; color: @eg-text; }
+/* §3 — full-width editorial recap; internal max-width keeps lines readable. */
+.eg-story30__prose { max-width: 88ch; }
+.eg-story30__body { margin: 0 0 11px; font-size: 15.5px; line-height: 1.68; color: @eg-text; }
+.eg-story30__body:last-child { margin-bottom: 0; }
+.eg-story30__sentence { /* inline run; the trailing space separates sentences */ }
+
+/* ── §4 — inline interactive narrative terms (rich-text layer). ── */
+.eg-richtext { /* inline wrapper */ }
+.eg-term { --eg-pc: @eg-cyan; }
+.eg-term--player { color: var(--eg-pc); font-weight: 700; }
+.eg-term--score, .eg-term--accent { font-weight: 700; color: #f0f6ff; }
+/* a hoverable term (strategy / card / …) reuses ExplainableBadge but renders inline. */
+.eg-xbadge.eg-term {
+    display: inline; padding: 0; margin: 0; border: none; background: none; box-shadow: none;
+    color: ~"color-mix(in srgb, @eg-cyan 40%, #eaf3fb)";
+    font-weight: 600;
+    border-bottom: 1px dotted ~"color-mix(in srgb, @eg-cyan 60%, transparent)";
+    cursor: help;
+    transition: color 140ms ease, border-color 140ms ease;
+}
+.eg-xbadge.eg-term:hover,
+.eg-xbadge.eg-term:focus-visible {
+    color: ~"color-mix(in srgb, @eg-cyan 65%, #ffffff)";
+    border-bottom-color: @eg-cyan;
+    outline: none;
+}
+.eg-xbadge.eg-term .eg-xbadge__mark {
+    font-size: 8px; vertical-align: super; margin-left: 1px; opacity: 0.55;
+    border: none; background: none; padding: 0; width: auto; height: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+    .eg-xbadge.eg-term { transition: none; }
+}
 
 /* §13 — editorial "what defined this game": cause / contrast / memorable turn. */
 .eg-defined { margin-bottom: 20px; }
@@ -2296,31 +2333,19 @@
 .eg-rhduel__thesis, .eg-rhmulti__thesis { margin-top: 12px; font-size: 14px; }
 .eg-rhduel__pname, .eg-rhmulti__wname { font-size: 20px; }
 
-/* §8/§12/§21/§22.8 — additional observations: COLLAPSED by default, no cryptic labels. */
-.eg-storysec--extra { margin-top: 14px; }
-.eg-storysec--extra .eg-storysec__head { color: @eg-text-muted; }
-.eg-extra__toggle {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 8px 14px; border-radius: 8px; cursor: pointer;
-    font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 12.5px; letter-spacing: 0.4px; color: @eg-text-dim;
-    background: ~"color-mix(in srgb, @eg-cyan 6%, transparent)";
-    border: none;
-    box-shadow: inset 0 0 0 1px @eg-card-rim;
-    transition: color 160ms ease, box-shadow 160ms ease;
-    &:hover { color: @eg-text; box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, @eg-cyan 36%, transparent)"; }
+/* §8/§9/§22 — additional observations: VISIBLE secondary layer (lower weight than story). */
+.eg-storysec--extra {
+    margin-top: 26px;
+    padding-top: 16px;
+    border-top: 1px solid @eg-card-rim;
+    opacity: 0.9;
 }
-.eg-extra__chevron { display: inline-block; transition: transform 180ms ease; color: @eg-text-muted; }
-.eg-extra__chevron--open { transform: rotate(90deg); }
-.eg-extra__count {
-    font-family: Prototype, Orbitron, sans-serif; font-size: 11px; font-variant-numeric: tabular-nums;
-    color: @eg-text-muted; padding: 1px 7px; border-radius: 999px;
-    box-shadow: inset 0 0 0 1px @eg-card-rim;
+.eg-storysec--extra .eg-storysec__head { color: @eg-text-muted; font-size: 14px; }
+.eg-storysec__sub {
+    margin: 2px 0 12px;
+    font-size: 12px; color: @eg-text-muted; letter-spacing: 0.2px;
 }
-.eg-storysec--extra .eg-insights__compact { margin-top: 10px; }
-@media (prefers-reduced-motion: reduce) {
-    .eg-extra__chevron { transition: none; }
-}
+.eg-storysec--extra .eg-insights__compact { margin-top: 4px; }
 
 @media (max-width: 980px) {
     .eg-cols { grid-template-columns: 1fr; gap: 16px; }

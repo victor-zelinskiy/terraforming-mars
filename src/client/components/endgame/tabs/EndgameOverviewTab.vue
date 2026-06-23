@@ -12,10 +12,15 @@
       </div>
     </section>
 
-    <!-- ── §8 — The story of the game in 30 seconds (narrative prose). ── -->
-    <section v-if="storyView.length > 0" class="eg-story30">
+    <!-- ── §3/§8 — The story of the game: a full-width editorial recap, 2 paragraphs,
+         player names in colour, hoverable strategy terms, accented numbers. ── -->
+    <section v-if="storyParagraphs.length > 0" class="eg-story30">
       <h3 class="eg-story30__head" v-i18n>The story of this game</h3>
-      <p class="eg-story30__body">{{ storyText }}</p>
+      <div class="eg-story30__prose">
+        <p v-for="(para, pi) in storyParagraphs" :key="pi" class="eg-story30__body">
+          <span v-for="(s, si) in para" :key="si" class="eg-story30__sentence"><EndgameRichText :template="s.template" :params="s.params" /> </span>
+        </p>
+      </div>
     </section>
 
     <!-- ── §6/§24 — TWO COLUMNS: "what defined" (editorial) + the key-episode timeline. ── -->
@@ -26,7 +31,7 @@
         <div class="eg-defined__rows">
           <div v-for="row in whatDefinedRows" :key="row.kind" class="eg-defined__row" :class="'eg-defined__row--' + row.kind">
             <span class="eg-defined__label" v-i18n>{{ row.label }}</span>
-            <span class="eg-defined__text">{{ row.text }}</span>
+            <span class="eg-defined__text"><EndgameRichText :template="row.template" :params="row.params" /></span>
           </div>
         </div>
       </section>
@@ -132,21 +137,19 @@
         </div>
       </section>
 
-      <!-- §8/§12/§21/§22.8 — ADDITIONAL OBSERVATIONS: the residual analysis, COLLAPSED by
-           default and rendered WITHOUT the cryptic corner labels (readable prose only). -->
+      <!-- §8/§9/§22 — ADDITIONAL OBSERVATIONS: the secondary analytics layer. VISIBLE by
+           default, lower visual weight than the curated story; old secondary badges live
+           here (with hover/explanation), never in the hero / story / decisive sections. -->
       <section v-if="additionalLines.length > 0" class="eg-storysec eg-storysec--extra">
-        <button type="button" class="eg-extra__toggle" :aria-expanded="showExtra ? 'true' : 'false'" @click="showExtra = !showExtra">
-          <span class="eg-extra__chevron" :class="{'eg-extra__chevron--open': showExtra}" aria-hidden="true">▸</span>
-          <span v-if="!showExtra" v-i18n>Additional observations</span>
-          <span v-else v-i18n>Hide additional observations</span>
-          <span class="eg-extra__count">{{ additionalLines.length }}</span>
-        </button>
-        <div v-if="showExtra" class="eg-insights__compact">
+        <h3 class="eg-storysec__head" v-i18n>Additional observations</h3>
+        <p class="eg-storysec__sub" v-i18n>Secondary facts and details of the game</p>
+        <div class="eg-insights__compact">
           <article v-for="(line, i) in additionalLines" :key="line.id"
                    class="eg-insight eg-insight--compact" :class="familyClass(line)"
                    :style="insightStyle(line, i)">
             <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
             <div class="eg-insight__body">
+              <ExplainableBadge :label="line.badge" :detail="line.detail" />
               <span class="eg-insight__text">{{ line.text }}</span>
               <div v-if="line.chips.length > 0" class="eg-insight__chips">
                 <span v-for="(ch, ci) in line.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
@@ -182,6 +185,12 @@
         impact {{ flag(model.storyQuality.hasImpactAwareEpisodes) }} · noDupes {{ flag(model.storyQuality.hasNoDuplicateClaims) }} ·
         margin {{ flag(model.storyQuality.hasMarginContext) }}
       </div>
+      <div v-if="model.storyQuality !== undefined" class="eg-dnadebug__reasons">
+        UX — compactHero {{ flag(model.storyQuality.hasCompactHero) }} · fullWidthStory {{ flag(model.storyQuality.hasFullWidthStory) }} ·
+        interactiveTerms {{ flag(model.storyQuality.hasInteractiveTerms) }} · sourceBackedEps {{ flag(model.storyQuality.hasSourceBackedEpisodes) }} ·
+        noGenericCard {{ flag(model.storyQuality.hasNoGenericOneCardClaim) }} · hydroGate {{ flag(model.storyQuality.hasHydroNetworkGate) }} ·
+        predatorsGate {{ flag(model.storyQuality.hasPredatorsImpactGate) }} · extraVisible {{ flag(model.storyQuality.hasAdditionalObservationsVisible) }}
+      </div>
       <div class="eg-dnadebug__reasons" v-if="model.keyEpisodes.length === 0">⚠ no key episodes (insufficient data / quiet game)</div>
       <table class="eg-dnadebug__table" v-if="model.keyEpisodes.length > 0">
         <thead><tr><th>episode</th><th>role</th><th>phase</th><th>gen</th><th>impact</th><th>conf</th></tr></thead>
@@ -209,8 +218,10 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {EndgameModel, EndgameCategoryKey, EndgamePlayerScore, ENDGAME_CATEGORY_LABEL} from '@/client/components/endgame/endgameModel';
-import {EndgameInsightView, InsightIcon} from '@/client/components/endgame/insightEngine';
+import {EndgameInsightView, InsightIcon, InsightParam} from '@/client/components/endgame/insightEngine';
 import type {ChipDetail} from '@/client/components/endgame/insightDetail';
+import type {RichParam} from '@/client/components/endgame/endgameRichText';
+import EndgameRichText from '@/client/components/endgame/EndgameRichText.vue';
 import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
 import {
   type KeyEpisode, type EpisodePhase, timelineEpisodes, unusualEpisodes, decisiveEpisodes, marginClass,
@@ -265,8 +276,10 @@ type EpisodeLine = {
   color?: Color;
   chips: Array<EvidenceChipView>;
 };
-// One row of the "What defined this game" editorial synopsis (§8/§13) — terse, no chips.
-type DefinedRow = {kind: 'cause' | 'contrast' | 'amplifier'; label: string; text: string};
+// One row of the "What defined this game" editorial synopsis (§8/§13) — rich-text body.
+type DefinedRow = {kind: 'cause' | 'contrast' | 'amplifier'; label: string; template: string; params: Array<RichParam>};
+// One rendered narrative sentence (rich-text template + params).
+type RichSentence = {template: string; params: Array<RichParam>};
 type InsightLine = {
   id: string;
   severity: string;
@@ -304,7 +317,7 @@ type ArcView = {
 
 export default defineComponent({
   name: 'EndgameOverviewTab',
-  components: {ExplainableBadge, ResultHeroDuel, ResultHeroMultiplayer},
+  components: {ExplainableBadge, ResultHeroDuel, ResultHeroMultiplayer, EndgameRichText},
   props: {
     model: {type: Object as () => EndgameModel, required: true},
     // Declared so the shell's shared <component :is> props don't fall through
@@ -313,7 +326,7 @@ export default defineComponent({
     viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
   },
   data() {
-    return {debug: false, showExtra: false};
+    return {debug: false};
   },
   mounted() {
     // Dev-only Story DNA debug panel — calibration visibility (?egDebug).
@@ -335,13 +348,16 @@ export default defineComponent({
       }
       return this.model.storyDna !== undefined ? $t(this.model.storyDna.headlineKey) : '';
     },
-    // §8 — the 30-second story sentences (translated, in order).
-    storyView(): Array<string> {
-      return this.model.story.map((s) => translateTextWithParams(s.key, s.params.map((p) => p.t === 'raw' ? p.v : $t(p.v))));
-    },
-    // §15 — one well-spaced paragraph (join keeps a single space between sentences).
-    storyText(): string {
-      return this.storyView.join(' ');
+    // §3/§8 — the story as TWO paragraphs of rich-text sentences (para 1 = conclusion,
+    // para 2 = explanation). Each sentence becomes a translated template + rich params.
+    storyParagraphs(): Array<Array<RichSentence>> {
+      const p1: Array<RichSentence> = [];
+      const p2: Array<RichSentence> = [];
+      for (const s of this.model.story) {
+        const item: RichSentence = {template: $t(s.key), params: this.richParamsOf(s.params)};
+        (s.para === 1 ? p1 : p2).push(item);
+      }
+      return [p1, p2].filter((g) => g.length > 0);
     },
     // §9 — the chronological key-episode timeline.
     timelineView(): Array<EpisodeLine> {
@@ -361,7 +377,8 @@ export default defineComponent({
       return this.model.whatDefined.map((r) => ({
         kind: r.kind,
         label: r.labelKey,
-        text: translateTextWithParams(r.sentence.key, r.sentence.params.map((p) => p.t === 'raw' ? p.v : $t(p.v))),
+        template: $t(r.sentence.key),
+        params: this.richParamsOf(r.sentence.params),
       }));
     },
     // §8/§21 — the deduped residual analysis (already filtered upstream to non-episode clusters).
@@ -426,6 +443,16 @@ export default defineComponent({
     },
     flag(b: boolean): string {
       return b ? '✓' : '✗';
+    },
+    // §4/§5 — translate each narrative param + carry its interactive term metadata.
+    richParamsOf(params: ReadonlyArray<InsightParam>): Array<RichParam> {
+      return params.map((p) => ({
+        text: p.t === 'raw' ? p.v : $t(p.v),
+        kind: p.term?.kind,
+        color: p.term?.color,
+        detail: p.term?.detail,
+        accent: p.term?.accent,
+      }));
     },
     // The dedup identity, mirroring insightEngine.evidenceKeyOf (debug visibility).
     evKey(ins: EndgameInsightView): string {

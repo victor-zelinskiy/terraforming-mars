@@ -85,7 +85,21 @@ export type InsightIcon =
 // `raw` — final text (names, numbers); `i18n` — an English key the component
 // translates (category/parameter labels); `card` — a card name ($t translates
 // card names by exact match too).
-export type InsightParam = {t: 'raw' | 'i18n' | 'card'; v: string};
+//
+// Iteration 17 §4/§5 — a param can carry an INTERACTIVE TERM ref so the rich-text
+// renderer makes the value hoverable/focusable (player colour, strategy/card hover
+// detail, accented numbers). Optional → a bare param renders as plain text.
+export type NarrativeTermKind = 'player' | 'strategy' | 'card' | 'award' | 'milestone' | 'colony' | 'score';
+export type NarrativeTermRef = {
+  kind: NarrativeTermKind;
+  /** Player accent colour (for player tokens). */
+  color?: Color;
+  /** The hover/focus explanation (for strategy / card / score terms). */
+  detail?: ChipDetail;
+  /** Visually emphasize the value (numbers / margins). */
+  accent?: boolean;
+};
+export type InsightParam = {t: 'raw' | 'i18n' | 'card'; v: string; term?: NarrativeTermRef};
 
 /**
  * The STORY family an insight belongs to — a finer classification than `group`
@@ -1549,6 +1563,32 @@ const analyzeColonyFacts: Analyzer = (ctx) => {
   return out;
 };
 
+// ── Hydronetwork (Delta Project) — the SHARED-bonus case (§10) ──────────────
+// A UNIQUE bonus (the winner scored, everyone else 0) is told as a signature EPISODE
+// (keyEpisodeEngine). When others ALSO scored from the Hydronetwork it is NOT unusual —
+// it becomes this soft, secondary observation so the overview stays honest.
+const analyzeHydronetwork: Analyzer = (ctx) => {
+  const scored = ctx.players
+    .map((p) => ({color: p.color, name: p.name, dp: p.breakdown.deltaProject ?? 0}))
+    .filter((x) => x.dp > 0)
+    .sort((a, b) => b.dp - a.dp);
+  const top = scored[0];
+  // Only the SHARED case here (≥2 players scored) — the unique case is the episode.
+  if (top === undefined || scored.length < 2) {
+    return [];
+  }
+  return [{
+    id: 'fact.hydronetwork.shared', group: 'parameters', priority: 28, severity: 'minor', icon: 'globe',
+    badge: 'Hydronetwork', color: top.color,
+    textKey: 'The Hydronetwork gave ${0} the largest finishing bonus, though others scored from it too.',
+    params: [raw(top.name)],
+    family: 'globalParameter', uiVariant: 'compact', storyCluster: 'hydronetwork',
+    evidenceChips: [chipN(`+${top.dp}`, 'good')],
+    scores: {confidence: 1, relevance: 0.3},
+    relatedPlayers: [top.color],
+  }];
+};
+
 // ═════════════════════════════════════════════════════════════════════════
 // Iteration 13: CORPORATION IMPACT — the identity layer.
 // A corporation is read APART from ordinary cards: it sets the start, may carry a
@@ -2412,6 +2452,7 @@ const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeGlobalParameterFacts,
   analyzeRevealFacts,
   analyzeColonyFacts,
+  analyzeHydronetwork,
   // Iteration 6 — deep story expansion.
   analyzeRunnerUpStory,
   analyzeCategoryStructure,

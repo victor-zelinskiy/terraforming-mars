@@ -68,6 +68,12 @@ describe('EndgameOverviewTab', () => {
     expect(wrapper.find('.eg-storyhead').exists(), 'old storyhead removed').to.eq(false);
     expect(wrapper.find('.eg-story30').exists(), '30-second story').to.eq(true);
     expect(wrapper.find('.eg-defined').exists(), 'what-defined editorial').to.eq(true);
+    // Iteration 17 — full-width editorial recap (§3) rendered through the rich-text layer (§4).
+    expect(wrapper.find('.eg-story30__prose').exists(), 'full-width story prose').to.eq(true);
+    expect(wrapper.find('.eg-richtext').exists(), 'rich-text renderer').to.eq(true);
+    // §4/§6 — player names are coloured tokens; a strategy is an interactive (hoverable) term.
+    expect(wrapper.find('.eg-term--player').exists(), 'coloured player token').to.eq(true);
+    expect(wrapper.find('.eg-xbadge.eg-term').exists(), 'interactive strategy term').to.eq(true);
     // Iteration 10: the player-arcs section renders both players' arcs in a duel.
     expect(wrapper.find('.eg-storysec--arcs').exists(), 'player arcs section').to.eq(true);
     expect(wrapper.findAll('.eg-arc').length, 'an arc card per player').to.eq(2);

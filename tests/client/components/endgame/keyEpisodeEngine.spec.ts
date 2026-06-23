@@ -7,6 +7,7 @@ import {EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import {PlayerStrategyProfile, StrategyArchetype, StrategyDetection} from '@/client/components/endgame/strategyArchetypes';
 import {EndgameFact, FactType} from '@/common/events/endgameFacts';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 
 type MA = {messageArgs?: Array<string>; victoryPoint: number};
 
@@ -137,6 +138,32 @@ describe('keyEpisodeEngine (rework Iteration 15)', () => {
     expect(hn, 'hydronetwork episode').to.not.be.undefined;
     expect(hn!.role).to.eq('signature_moment');
     expect(unusualEpisodes(eps).some((e) => e.dedupeKey === 'hydronetwork')).to.be.true;
+  });
+
+  // §11 — Predators is impact-aware: a sizeable hunt is an unusual episode, a nibble is not.
+  it('Predators: a sizeable hunt (≥5 animals) → an unusual episode', () => {
+    const c = ctx([pl('red', 'Nastya', 90, {primary: det('animals', 20)}), pl('blue', 'Victor', 80)],
+      {margin: 10, facts: [fact('negativeInteraction', 'red', {Animal: 6}, {targetPlayer: 'blue'})]});
+    (c as {playerCards?: unknown}).playerCards = {red: [CardName.PREDATORS]};
+    const eps = buildKeyEpisodes(c);
+    expect(eps.some((e) => e.dedupeKey === 'predators'), 'predators episode').to.be.true;
+    expect(unusualEpisodes(eps).some((e) => e.dedupeKey === 'predators')).to.be.true;
+  });
+
+  it('Predators: a small nibble (<5 animals) is NOT an episode (stays additional)', () => {
+    const c = ctx([pl('red', 'Nastya', 90, {primary: det('animals', 20)}), pl('blue', 'Victor', 80)],
+      {margin: 10, facts: [fact('negativeInteraction', 'red', {Animal: 3}, {targetPlayer: 'blue'})]});
+    (c as {playerCards?: unknown}).playerCards = {red: [CardName.PREDATORS]};
+    expect(buildKeyEpisodes(c).some((e) => e.dedupeKey === 'predators')).to.be.false;
+  });
+
+  // §10 — Hydronetwork is a unique-bonus story ONLY when everyone else scored ZERO.
+  it('Hydronetwork: a SHARED bonus (others also scored) is NOT a story episode', () => {
+    const w = pl('red', 'Nastya', 90, {primary: det('cityGreenery', 24)});
+    (w.breakdown as {deltaProject?: number}).deltaProject = 5;
+    const r = pl('blue', 'Victor', 80);
+    (r.breakdown as {deltaProject?: number}).deltaProject = 2;
+    expect(buildKeyEpisodes(ctx([w, r], {margin: 10})).some((e) => e.dedupeKey === 'hydronetwork')).to.be.false;
   });
 
   it('Hydronetwork: an even split is NOT a story', () => {
