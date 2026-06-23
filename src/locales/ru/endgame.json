@@ -639,5 +639,37 @@
     "The most distinctive touch: one player spent the game under attack.": "Самый заметный штрих: один из игроков провёл партию под атаками.",
     "The sharpest turn: a late change of the lead.": "Самый резкий поворот: поздняя смена лидера.",
 
-    "The Hydronetwork handed ${0} a finishing bonus the rest didn’t share.": "Гидросеть дала ${0} финишный бонус, которого не получили остальные."
+    "The Hydronetwork handed ${0} a finishing bonus the rest didn’t share.": "Гидросеть дала ${0} финишный бонус, которого не получили остальные.",
+    "The Hydronetwork gave ${0} the largest finishing bonus, though others scored from it too.": "Гидросеть дала ${0} крупнейший финишный бонус, хотя очки за неё получили и остальные.",
+
+    "Economic surge": "Экономический рывок",
+    "${0} hit an economic spike — a burst of resources that funded the plan from here on.": "К ${0} пришёл экономический всплеск — запас ресурсов, который дальше финансировал план.",
+
+    "Final scoring pulled the players apart: ${0} banked the lead across several lines, led by ${1}.": "Финальный подсчёт развёл игроков: отрыв ${0} сложился сразу из нескольких линий, главная — «${1}».",
+    "Final scoring pulled the players apart: ${0} banked the lead across several lines.": "Финальный подсчёт развёл игроков: отрыв ${0} сложился сразу из нескольких линий.",
+    "The final count settled it for ${0}, carried by ${1}.": "Финальный счёт решил партию в пользу ${0}, главная линия — «${1}».",
+    "The final count settled it for ${0}.": "Финальный счёт решил партию в пользу ${0}.",
+    "The final count decided a tight game in ${0}’s favour.": "Финальный счёт решил плотную партию в пользу ${0}.",
+
+    "Level on points — the title was settled on the M€ tiebreaker.": "Равенство по очкам — титул решил тай-брейк по M€.",
+    "A tight finish — the lead for ${0} was just +${1} VP.": "Плотная концовка — перевес ${0} составил всего +${1} ПО.",
+    "The final count settled it for ${0}, carried by ${2} — a +${1} VP lead.": "Финальный счёт решил партию в пользу ${0}: основа — «${2}», отрыв +${1} ПО.",
+    "The final count settled it for ${0} — a +${1} VP lead.": "Финальный счёт решил партию в пользу ${0} — отрыв +${1} ПО.",
+    "A commanding finish — the lead for ${0} reached +${1} VP.": "Уверенная концовка — перевес ${0} достиг +${1} ПО.",
+    "A runaway finish — the lead for ${0} grew all the way to +${1} VP.": "Разгромная концовка — отрыв ${0} вырос до +${1} ПО.",
+
+    "Main source of the lead": "Главный источник отрыва",
+    "Contrast of plans": "Контраст планов",
+    "Final amplifier": "Финальный усилитель",
+    "Answer": "Ответ",
+    "A second line of points came from ${0}: +${1} VP.": "Вторую линию очков дало направление «${0}»: +${1} ПО.",
+    "A distinctive finish: the Hydronetwork bonus skewed one player’s way.": "Заметный штрих финала: бонус Гидросети достался в основном одному игроку.",
+
+    "The lead for ${0} held from the first generation, and the gap only widened.": "Лидерство ${0} держалось с первого поколения, и разрыв только рос.",
+    "It ran level for a long stretch — the lead for ${0} grew only towards the finish.": "Долго шло вровень — отрыв ${0} вырос только к финалу.",
+    "The answer from ${0} through ${1} never closed the gap once the points were counted.": "Ответ ${0} через «${1}» не закрыл разрыв на финальном подсчёте.",
+    "This was no close game — the lead piled up across several lines, all the way to +${0} VP.": "Это была не близкая партия — отрыв сложился сразу из нескольких линий и дорос до +${0} ПО.",
+    "${0} stayed in front across the board and closed it out without drama.": "Преимущество ${0} держалось по всем фронтам, и партия завершилась без интриги.",
+
+    "Hide additional observations": "Скрыть дополнительные наблюдения"
 }

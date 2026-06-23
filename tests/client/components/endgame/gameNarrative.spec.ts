@@ -27,7 +27,7 @@ function ctx(players: Array<EndgamePlayerScore>, margin: number): InsightContext
 }
 
 describe('gameNarrative (rework Iteration 15, §8 + §16)', () => {
-  it('hero thesis is the decisive + contrast — never a low-impact award twist (§16)', () => {
+  it('hero thesis is a SCALE verdict at a wide margin — never a low-impact award twist (§1/§16)', () => {
     const c = ctx([
       pl('red', 'Nastya', 120, det('cityGreenery', 30), [{messageArgs: ['1st', 'Banker', 'Victor'], victoryPoint: 5}]),
       pl('blue', 'Victor', 78, det('globalParams', 0), [{messageArgs: ['2nd', 'Banker', 'Victor'], victoryPoint: 0}]),
@@ -35,15 +35,16 @@ describe('gameNarrative (rework Iteration 15, §8 + §16)', () => {
     const eps = buildKeyEpisodes(c);
     const hero = buildHeroThesis(c, eps);
     expect(hero, 'hero thesis').to.not.be.undefined;
-    // The decisive contrast thesis, not the award phrasing.
-    expect(hero!.key).to.contain('won it at the final count');
+    // A blowout (+42) reads as a runaway finish, not the award phrasing nor the two plans.
+    expect(hero!.key).to.contain('runaway finish');
     expect(hero!.key.toLowerCase()).to.not.contain('award');
+    expect(hero!.key.toLowerCase()).to.not.contain('two plans');
   });
 
-  it('hero thesis falls back to the decisive line when there is no contrast', () => {
+  it('hero thesis names the carrying line on a solid margin (§16)', () => {
     const c = ctx([pl('red', 'Nastya', 90, det('cityGreenery', 26)), pl('blue', 'Victor', 80, det('cityGreenery', 18))], 10);
     const hero = buildHeroThesis(c, buildKeyEpisodes(c));
-    expect(hero!.key).to.contain('one clear line');
+    expect(hero!.key).to.contain('final count settled it');
   });
 
   it('the 30-second story is 3–5 sentences and opens with the plans', () => {
