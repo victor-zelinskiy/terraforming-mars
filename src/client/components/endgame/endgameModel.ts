@@ -34,6 +34,8 @@ import {
 } from '@/client/components/endgame/insightEngine';
 import type {GameStoryDNA} from '@/client/components/endgame/gameStoryDna';
 import {buildStrategyProfiles, type StrategyInput, type PlayerStrategyProfile} from '@/client/components/endgame/strategyArchetypes';
+import {buildKeyEpisodes, type KeyEpisode} from '@/client/components/endgame/keyEpisodeEngine';
+import {buildGameStory, buildHeroThesis, type StorySentence} from '@/client/components/endgame/gameNarrative';
 
 // What the builder needs from each player — a thin, pure projection of
 // PublicPlayerModel (the component maps it before calling the builder).
@@ -144,6 +146,11 @@ export type EndgameModel = {
   parameters: Array<EndgameParameter>;
   // Selected analytical story lines from the insight engine (3–6, deduped).
   insights: Array<EndgameInsightView>;
+  // Iteration 15 — the directed story layer: classified, impact-graded, ordered episodes
+  // (§3–§5); the 30-second narrative (§8); and the impact-correct hero thesis (§16).
+  keyEpisodes: ReadonlyArray<KeyEpisode>;
+  story: ReadonlyArray<StorySentence>;
+  heroThesis: StorySentence | undefined;
   // Iteration 9: the Game Story DNA — the meta-classification (storyType, main
   // conflict, twists, player arcs) that drives the "why this game was special"
   // headline + the composer. undefined for solo / when no winner.
@@ -421,6 +428,9 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
   const profile = winner !== undefined ? buildVictoryProfile(winner) : undefined;
   const bestCard = findBestCard(players);
   let composed: {dna: GameStoryDNA | undefined; insights: Array<EndgameInsightView>} = {dna: undefined, insights: []};
+  let keyEpisodes: ReadonlyArray<KeyEpisode> = [];
+  let story: ReadonlyArray<StorySentence> = [];
+  let heroThesis: StorySentence | undefined;
   if (winner !== undefined) {
     const ctx = {
       mode,
@@ -445,6 +455,10 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
       p.strategyProfile = profiles[p.color];
     }
     composed = composeStory(ctx);
+    // Iteration 15 — the directed story layer (episodes → narrative → hero thesis).
+    keyEpisodes = buildKeyEpisodes(ctx);
+    story = buildGameStory(ctx, keyEpisodes);
+    heroThesis = buildHeroThesis(ctx, keyEpisodes);
   }
 
   return {
@@ -457,6 +471,9 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     parameters,
     insights: composed.insights,
     storyDna: composed.dna,
+    keyEpisodes,
+    story,
+    heroThesis,
     timeline,
     profile,
     bestCard,

@@ -49,7 +49,6 @@ import {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endg
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {themeForArchetype, StrategyVisualTheme} from '@/client/components/endgame/strategyVisualThemes';
 import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
-import {$t} from '@/client/directives/i18n';
 
 type DuelSide = EndgamePlayerScore & {style?: string};
 
@@ -58,6 +57,8 @@ export default defineComponent({
   props: {
     model: {type: Object as () => EndgameModel, required: true},
     viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
+    // Iteration 15 — the impact-correct hero thesis (composed upstream, already translated).
+    thesis: {type: String, required: false, default: ''},
   },
   computed: {
     // Winner on the LEFT for a stable, readable head-to-head.
@@ -68,10 +69,6 @@ export default defineComponent({
     },
     theme(): StrategyVisualTheme {
       return themeForArchetype(this.model.winner?.strategyProfile?.primary?.archetype);
-    },
-    thesis(): string {
-      const dna = this.model.storyDna;
-      return dna !== undefined ? $t(dna.headlineKey) : '';
     },
   },
   methods: {

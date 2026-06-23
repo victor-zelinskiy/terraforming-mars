@@ -1,8 +1,8 @@
 <template>
   <div class="eg-tab eg-overview">
     <!-- ── Result block — duel / multiplayer (§2). No category bars (§1). ── -->
-    <ResultHeroDuel v-if="mode === 'duel'" :model="model" :viewer-color="viewerColor" />
-    <ResultHeroMultiplayer v-else-if="mode === 'standings'" :model="model" :viewer-color="viewerColor" />
+    <ResultHeroDuel v-if="mode === 'duel'" :model="model" :viewer-color="viewerColor" :thesis="heroThesisText" />
+    <ResultHeroMultiplayer v-else-if="mode === 'standings'" :model="model" :viewer-color="viewerColor" :thesis="heroThesisText" />
 
     <!-- ── SOLO ──────────────────────────────────────────────────────── -->
     <section v-else class="eg-overview__solo">
@@ -12,99 +12,65 @@
       </div>
     </section>
 
-    <!-- ── Match facts: the headline numbers of THIS game ─────────────── -->
-    <section v-if="facts.length > 0" class="eg-facts">
-      <div v-for="f in facts" :key="f.key" class="eg-fact"
-           :style="f.color !== undefined ? {'--eg-pc': hex(f.color)} : {}">
-        <span class="eg-fact__icon" aria-hidden="true">{{ f.glyph }}</span>
-        <div class="eg-fact__main">
-          <span class="eg-fact__label" v-i18n>{{ f.label }}</span>
-          <span v-if="f.kind === 'card' && f.cardName !== undefined" class="eg-fact__value eg-fact__value--card">
-            <JournalCardChip v-if="isCard(f.cardName)" :name="asCardName(f.cardName)" />
-            <span v-else v-i18n>{{ f.cardName }}</span>
-            <span class="eg-fact__vp">+{{ f.vp }}</span>
-          </span>
-          <span v-else class="eg-fact__value">{{ f.value }}</span>
+    <!-- ── §8 — The story of the game in 30 seconds (narrative prose). ── -->
+    <section v-if="storyView.length > 0" class="eg-story30">
+      <h3 class="eg-story30__head" v-i18n>The story of this game</h3>
+      <p class="eg-story30__body">
+        <span v-for="(s, si) in storyView" :key="si">{{ s }} </span>
+      </p>
+    </section>
+
+    <!-- ── §13 — What defined the game: cause / contrast / memorable turn (editorial). ── -->
+    <section v-if="defined.length > 0" class="eg-defined">
+      <h3 class="eg-defined__head" v-i18n>What defined this game</h3>
+      <div class="eg-defined__rows">
+        <div v-for="row in defined" :key="row.kind" class="eg-defined__row" :class="'eg-defined__row--' + row.kind"
+             :style="row.color !== undefined ? {'--eg-pc': hex(row.color)} : {}">
+          <span class="eg-defined__label" v-i18n>{{ row.label }}</span>
+          <span class="eg-defined__text">{{ row.text }}</span>
+          <div v-if="row.chips.length > 0" class="eg-defined__chips">
+            <span v-for="(ch, ci) in row.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- ── Insights: the analysts' read of the game (premium hierarchy) ── -->
-    <section v-if="insightLines.length > 0" class="eg-insights">
-      <!-- §31 block 2 — "the defining story". The one-line DNA headline is the result-block
-           thesis now; here the kicker + story-shape chips introduce the detailed hero card. -->
-      <header v-if="storyHeadline !== undefined" class="eg-storyhead" :class="'eg-storyhead--' + storyHeadline.titleKind">
-        <span class="eg-storyhead__kicker" v-i18n>What defined this game</span>
-        <div v-if="storyHeadline.chips.length > 0" class="eg-storyhead__chips">
-          <span v-for="chip in storyHeadline.chips" :key="chip" class="eg-storyhead__chip">{{ chip }}</span>
-        </div>
-      </header>
-      <h2 v-else class="eg-section-title" v-i18n>How it was decided</h2>
-
-      <!-- HERO — the single defining story of the game. -->
-      <article v-if="heroInsight !== undefined" class="eg-insight eg-insight--hero"
-               :class="[familyClass(heroInsight), 'eg-insight--var-' + (heroInsight.uiVariant || 'hero')]"
-               :style="insightStyle(heroInsight, 0)">
-        <span class="eg-insight__glow" aria-hidden="true"></span>
-        <span class="eg-insight__icon" aria-hidden="true">{{ heroInsight.glyph }}</span>
-        <div class="eg-insight__body">
-          <ExplainableBadge :label="heroInsight.badge" :detail="heroInsight.detail" />
-          <span class="eg-insight__text">{{ heroInsight.text }}</span>
-          <!-- Evidence chips: the numbers + meaning behind the headline. -->
-          <div v-if="heroInsight.chips.length > 0" class="eg-insight__chips">
-            <span v-for="(ch, ci) in heroInsight.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
-          </div>
-          <!-- DUEL rivalry row: the two players the contrast is between. -->
-          <div v-if="rivalDots(heroInsight).length === 2" class="eg-insight__rivals">
-            <span class="eg-insight__rival" :style="{'--eg-pc': hex(rivalDots(heroInsight)[0].color)}">
-              <span class="eg-insight__rival-dot" :class="'player_bg_color_' + rivalDots(heroInsight)[0].color"></span>{{ rivalDots(heroInsight)[0].name }}
-            </span>
-            <span class="eg-insight__rival-vs">VS</span>
-            <span class="eg-insight__rival" :style="{'--eg-pc': hex(rivalDots(heroInsight)[1].color)}">
-              <span class="eg-insight__rival-dot" :class="'player_bg_color_' + rivalDots(heroInsight)[1].color"></span>{{ rivalDots(heroInsight)[1].name }}
-            </span>
-          </div>
-        </div>
-      </article>
-
-      <!-- WHY THE WINNER WON. -->
-      <section v-if="winnerInsights.length > 0" class="eg-storysec eg-storysec--won">
-        <h3 class="eg-storysec__head" v-i18n>Why the winner won</h3>
-        <div class="eg-insights__grid">
-          <article v-for="(line, i) in winnerInsights" :key="line.id"
-                   class="eg-insight" :class="['eg-insight--' + line.severity, familyClass(line)]"
-                   :style="insightStyle(line, i)">
-            <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
-            <div class="eg-insight__body">
-              <ExplainableBadge :label="line.badge" :detail="line.detail" />
-              <span class="eg-insight__text">{{ line.text }}</span>
-              <div v-if="line.chips.length > 0" class="eg-insight__chips">
-                <span v-for="(ch, ci) in line.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
-              </div>
+    <!-- ── §9 — Key episodes timeline (the thread of how it played out). ── -->
+    <section v-if="timelineView.length > 0" class="eg-tl">
+      <h3 class="eg-tl__head" v-i18n>Key episodes of the game</h3>
+      <ol class="eg-tl__list">
+        <li v-for="ep in timelineView" :key="ep.id" class="eg-tl__item" :class="'eg-tl__item--' + ep.role"
+            :style="ep.color !== undefined ? {'--eg-pc': hex(ep.color)} : {}">
+          <span class="eg-tl__node" aria-hidden="true"></span>
+          <div class="eg-tl__card">
+            <span class="eg-tl__phase">{{ ep.phaseLabel }}</span>
+            <span class="eg-tl__text">{{ ep.text }}</span>
+            <div v-if="ep.chips.length > 0" class="eg-tl__chips">
+              <span v-for="(ch, ci) in ep.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
             </div>
-          </article>
-        </div>
-      </section>
+          </div>
+        </li>
+      </ol>
+    </section>
 
-      <!-- WHY THE RUNNER-UP FELL SHORT. -->
-      <section v-if="runnerLostInsights.length > 0" class="eg-storysec eg-storysec--lost">
-        <h3 class="eg-storysec__head" v-i18n>Why the runner-up fell short</h3>
-        <div class="eg-insights__grid">
-          <article v-for="(line, i) in runnerLostInsights" :key="line.id"
-                   class="eg-insight" :class="['eg-insight--' + line.severity, familyClass(line)]"
-                   :style="insightStyle(line, i)">
-            <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
-            <div class="eg-insight__body">
-              <ExplainableBadge :label="line.badge" :detail="line.detail" />
-              <span class="eg-insight__text">{{ line.text }}</span>
-              <div v-if="line.chips.length > 0" class="eg-insight__chips">
-                <span v-for="(ch, ci) in line.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
-              </div>
+    <!-- ── §11 — Why the winner won (decisive drivers only, evidence-backed). ── -->
+    <section v-if="decisiveView.length > 0" class="eg-storysec eg-storysec--won">
+      <h3 class="eg-storysec__head" v-i18n>Why the winner won</h3>
+      <div class="eg-insights__grid">
+        <article v-for="ep in decisiveView" :key="ep.id" class="eg-insight eg-insight--major eg-insight--fam-cardStory"
+                 :style="ep.color !== undefined ? {'--eg-pc': hex(ep.color)} : {}">
+          <div class="eg-insight__body">
+            <span class="eg-insight__badge" v-i18n>{{ ep.badge }}</span>
+            <span class="eg-insight__text">{{ ep.text }}</span>
+            <div v-if="ep.chips.length > 0" class="eg-insight__chips">
+              <span v-for="(ch, ci) in ep.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
             </div>
-          </article>
-        </div>
-      </section>
+          </div>
+        </article>
+      </div>
+    </section>
 
+    <section class="eg-insights">
       <!-- PLAYER ARCS — how each player played. -->
       <section v-if="playerArcViews.length >= 2" class="eg-storysec eg-storysec--arcs">
         <h3 class="eg-storysec__head" v-i18n>How the players played</h3>
@@ -152,44 +118,29 @@
         </div>
       </section>
 
-      <!-- THE MOST UNUSUAL EPISODES. -->
-      <section v-if="highlightInsights.length > 0" class="eg-storysec eg-storysec--highlights">
+      <!-- §10 — THE MOST UNUSUAL EPISODES (memorable, kept separate from the timeline). -->
+      <section v-if="unusualView.length > 0" class="eg-storysec eg-storysec--highlights">
         <h3 class="eg-storysec__head" v-i18n>The most unusual episodes</h3>
         <div class="eg-insights__grid">
-          <article v-for="(line, i) in highlightInsights" :key="line.id"
-                   class="eg-insight" :class="['eg-insight--' + line.severity, familyClass(line)]"
-                   :style="insightStyle(line, i)">
-            <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
+          <article v-for="ep in unusualView" :key="ep.id" class="eg-insight eg-insight--normal eg-insight--fam-rareEvent"
+                   :style="ep.color !== undefined ? {'--eg-pc': hex(ep.color)} : {}">
             <div class="eg-insight__body">
-              <ExplainableBadge :label="line.badge" :detail="line.detail" />
-              <span class="eg-insight__text">{{ line.text }}</span>
-              <div v-if="line.chips.length > 0" class="eg-insight__chips">
-                <span v-for="(ch, ci) in line.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
+              <span class="eg-insight__badge" v-i18n>{{ ep.badge }}</span>
+              <span class="eg-insight__text">{{ ep.text }}</span>
+              <div v-if="ep.chips.length > 0" class="eg-insight__chips">
+                <span v-for="(ch, ci) in ep.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
               </div>
             </div>
           </article>
         </div>
       </section>
 
-      <!-- SUPPORTING DETAILS — compact. -->
-      <div v-if="detailInsights.length > 0" class="eg-insights__compact">
-        <article v-for="(line, i) in detailInsights" :key="line.id"
-                 class="eg-insight eg-insight--compact" :class="familyClass(line)"
-                 :style="insightStyle(line, i)">
-          <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
-          <div class="eg-insight__body">
-            <ExplainableBadge :label="line.badge" :detail="line.detail" />
-            <span class="eg-insight__text">{{ line.text }}</span>
-          </div>
-        </article>
-      </div>
-
-      <!-- SHOW MORE — the rest of the analysis. -->
-      <button v-if="hiddenInsights.length > 0" type="button" class="eg-insights__more" @click="showMore = !showMore">
+      <!-- SHOW MORE — the full analytical read (every analyzer insight). -->
+      <button v-if="insightLines.length > 0" type="button" class="eg-insights__more" @click="showMore = !showMore">
         <span v-i18n>{{ showMore ? 'Show less' : 'Show more analysis' }}</span>
       </button>
-      <div v-if="showMore && hiddenInsights.length > 0" class="eg-insights__compact eg-insights__compact--extra">
-        <article v-for="(line, i) in hiddenInsights" :key="line.id"
+      <div v-if="showMore && insightLines.length > 0" class="eg-insights__compact eg-insights__compact--extra">
+        <article v-for="(line, i) in insightLines" :key="line.id"
                  class="eg-insight eg-insight--compact" :class="familyClass(line)"
                  :style="insightStyle(line, i)">
           <span class="eg-insight__icon" aria-hidden="true">{{ line.glyph }}</span>
@@ -215,6 +166,19 @@
       <div v-if="model.storyDna.twists.length > 0" class="eg-dnadebug__reasons">
         twists: {{ model.storyDna.twists.map((t) => t.kind).join(', ') }}
       </div>
+      <!-- Iteration 15 — episode / story diagnostics (§18). -->
+      <div class="eg-dnadebug__reasons">hero thesis: {{ model.heroThesis !== undefined ? model.heroThesis.key : '— (none)' }}</div>
+      <div class="eg-dnadebug__reasons">story sentences: {{ model.story.length }}</div>
+      <div class="eg-dnadebug__reasons" v-if="model.keyEpisodes.length === 0">⚠ no key episodes (insufficient data / quiet game)</div>
+      <table class="eg-dnadebug__table" v-if="model.keyEpisodes.length > 0">
+        <thead><tr><th>episode</th><th>role</th><th>phase</th><th>gen</th><th>impact</th><th>conf</th></tr></thead>
+        <tbody>
+          <tr v-for="ep in model.keyEpisodes" :key="ep.id">
+            <td>{{ ep.id }}</td><td>{{ ep.role }}</td><td>{{ ep.phase }}</td>
+            <td>{{ ep.generation !== undefined ? ep.generation : '—' }}</td><td>{{ round2(ep.impact) }}</td><td>{{ ep.confidence }}</td>
+          </tr>
+        </tbody>
+      </table>
       <table class="eg-dnadebug__table">
         <thead><tr><th>id</th><th>icon</th><th>role</th><th>section</th><th>band</th><th>evidence</th><th>boost</th><th>score</th></tr></thead>
         <tbody>
@@ -231,15 +195,14 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
-import {CardName} from '@/common/cards/CardName';
 import {EndgameModel, EndgameCategoryKey, EndgamePlayerScore, ENDGAME_CATEGORY_LABEL} from '@/client/components/endgame/endgameModel';
 import {EndgameInsightView, InsightIcon} from '@/client/components/endgame/insightEngine';
-import type {StoryType, StoryTwistKind} from '@/client/components/endgame/gameStoryDna';
 import type {ChipDetail} from '@/client/components/endgame/insightDetail';
 import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
+import {
+  type KeyEpisode, type EpisodePhase, timelineEpisodes, unusualEpisodes, decisiveEpisodes, contrastEpisode, memorableEpisode,
+} from '@/client/components/endgame/keyEpisodeEngine';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
-import {getCard} from '@/client/cards/ClientCardManifest';
-import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import ExplainableBadge from '@/client/components/endgame/ExplainableBadge.vue';
 import ResultHeroDuel from '@/client/components/endgame/ResultHeroDuel.vue';
 import ResultHeroMultiplayer from '@/client/components/endgame/ResultHeroMultiplayer.vue';
@@ -273,37 +236,24 @@ const ICON_GLYPH: Record<InsightIcon, string> = {
   corp: '◈', // Iteration 13 — corporation identity
 };
 
-// Story-type → short chip label (English i18n key, translated for the headline chips).
-const STORY_TYPE_LABEL: Record<StoryType, string> = {
-  photo_finish: 'Photo finish',
-  late_comeback: 'Late comeback',
-  runaway: 'Runaway win',
-  duel_styles: 'Duel of styles',
-  economy_upset: 'Economy upset',
-  terraforming_vs_cards: 'Planet vs cards',
-  award_betrayal: 'Award betrayal',
-  attack_pressure: 'Attack pressure',
-  rare_card_drama: 'Rare-card drama',
-  category_counterplay: 'Counterplay',
-  card_flow_advantage: 'Card flow',
-  colony_engine: 'Colony engine',
-  standard_project_plan: 'Standard projects',
-  engine_not_converted: 'Unconverted engine',
-  merger_story: 'Double corporation',
-  corporation_identity: 'Corporation engine',
-  strategy_engine: 'One clear plan',
-  balanced_control: 'All-round win',
-};
-const TWIST_LABEL: Record<StoryTwistKind, string> = {
-  weakerEconomyWon: 'Won with less economy',
-  lessTerraformingWon: 'Won with less terraforming',
-  bestCardLost: 'Best card, still lost',
-  ledMostLost: 'Led most, lost',
-  moneyNoConversion: 'Money, no points',
-  sponsorLostAward: 'Award backfired',
+// Phase → soft label (i18n key), used when no generation pins a beat (§9).
+const PHASE_LABEL: Record<EpisodePhase, string> = {
+  early: 'Early plan', mid: 'Mid-game', late: 'Before the finish', scoring: 'Final scoring',
 };
 
 type EvidenceChipView = {text: string; tone: string};
+// Iteration 15 — one composed timeline / episode card (translated).
+type EpisodeLine = {
+  id: string;
+  role: string;
+  phaseLabel: string; // i18n key
+  badge: string; // i18n key
+  text: string; // fully composed + translated
+  color?: Color;
+  chips: Array<EvidenceChipView>;
+};
+// One row of the "What defined this game" editorial (§13).
+type DefinedRow = {kind: 'cause' | 'contrast' | 'episode'; label: string; text: string; color?: Color; chips: Array<EvidenceChipView>};
 type InsightLine = {
   id: string;
   severity: string;
@@ -339,20 +289,9 @@ type ArcView = {
   corporation?: {name: string; archetypeLabel: string; realized: string; detail?: ChipDetail};
 };
 
-type Fact = {
-  key: string;
-  kind: 'text' | 'card';
-  label: string; // i18n key
-  glyph: string;
-  value: string;
-  color?: Color;
-  cardName?: string;
-  vp?: number;
-};
-
 export default defineComponent({
   name: 'EndgameOverviewTab',
-  components: {JournalCardChip, ExplainableBadge, ResultHeroDuel, ResultHeroMultiplayer},
+  components: {ExplainableBadge, ResultHeroDuel, ResultHeroMultiplayer},
   props: {
     model: {type: Object as () => EndgameModel, required: true},
     // Declared so the shell's shared <component :is> props don't fall through
@@ -375,55 +314,54 @@ export default defineComponent({
     mode(): string {
       return this.model.mode;
     },
-    // Iteration 9: the composed "why this game was special" headline from the Story DNA.
-    storyHeadline(): {title: string; titleKind: string; chips: Array<string>} | undefined {
-      const dna = this.model.storyDna;
-      if (dna === undefined) {
-        return undefined;
+    // Iteration 15 — the impact-correct hero thesis (composed upstream §16), translated.
+    heroThesisText(): string {
+      const h = this.model.heroThesis;
+      if (h !== undefined) {
+        return translateTextWithParams(h.key, h.params.map((p) => p.t === 'raw' ? p.v : $t(p.v)));
       }
-      const chips: Array<string> = [$t(STORY_TYPE_LABEL[dna.storyType])];
-      for (const tw of dna.twists.slice(0, 2)) {
-        chips.push($t(TWIST_LABEL[tw.kind]));
+      return this.model.storyDna !== undefined ? $t(this.model.storyDna.headlineKey) : '';
+    },
+    // §8 — the 30-second story sentences (translated, in order).
+    storyView(): Array<string> {
+      return this.model.story.map((s) => translateTextWithParams(s.key, s.params.map((p) => p.t === 'raw' ? p.v : $t(p.v))));
+    },
+    // §9 — the chronological key-episode timeline.
+    timelineView(): Array<EpisodeLine> {
+      return timelineEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
+    },
+    // §11 — the decisive drivers (why the winner won) — evidence-backed, 2–3.
+    decisiveView(): Array<EpisodeLine> {
+      return decisiveEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
+    },
+    // §10 — the memorable-but-not-decisive episodes (kept separate from the timeline).
+    unusualView(): Array<EpisodeLine> {
+      return unusualEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
+    },
+    // §13 — the editorial "what defined this game": cause / contrast / memorable turn.
+    defined(): Array<DefinedRow> {
+      const eps = this.model.keyEpisodes;
+      const rows: Array<DefinedRow> = [];
+      const cause = decisiveEpisodes(eps)[0];
+      if (cause !== undefined) {
+        const l = this.composeEpisode(cause);
+        rows.push({kind: 'cause', label: 'Main line', text: l.text, color: l.color, chips: l.chips});
       }
-      return {title: $t(dna.headlineKey), titleKind: dna.titleKind, chips};
+      const contrast = contrastEpisode(eps);
+      if (contrast !== undefined) {
+        const l = this.composeEpisode(contrast);
+        rows.push({kind: 'contrast', label: 'Contrast', text: l.text, color: l.color, chips: l.chips});
+      }
+      const mem = memorableEpisode(eps);
+      if (mem !== undefined && mem.id !== cause?.id && mem.id !== contrast?.id) {
+        const l = this.composeEpisode(mem);
+        rows.push({kind: 'episode', label: 'Memorable turn', text: l.text, color: l.color, chips: l.chips});
+      }
+      return rows;
     },
     // The composed insights with their raw scoring fields — for the ?egDebug table.
     debugInsights(): Array<EndgameInsightView> {
       return this.model.insights;
-    },
-    heroInsight(): InsightLine | undefined {
-      return this.insightLines.find((l) => l.rankSection === 'hero');
-    },
-    // The VISIBLE (non-hero, non-hidden) insights, ready to be grouped into sections.
-    visibleInsights(): Array<InsightLine> {
-      return this.insightLines.filter((l) =>
-        l.rankSection !== 'hero' && l.rankSection !== 'hidden');
-    },
-    // Iteration 10: section-grouped report. A line with no storySection (legacy/no DNA)
-    // falls back into "whyWinnerWon" so it's never dropped.
-    winnerInsights(): Array<InsightLine> {
-      // §23 — at most 2–3 decisive reasons, never a wall of cards. The selector already
-      // ranked them strongest-first, so the slice keeps the best.
-      return this.visibleInsights
-        .filter((l) => l.storySection === 'whyWinnerWon' || (l.storySection === undefined && l.rankSection === 'primary'))
-        .slice(0, 3);
-    },
-    runnerLostInsights(): Array<InsightLine> {
-      return this.visibleInsights.filter((l) => l.storySection === 'whyRunnerLost').slice(0, 2);
-    },
-    highlightInsights(): Array<InsightLine> {
-      // §31 — 3–4 memorable episodes maximum.
-      return this.visibleInsights
-        .filter((l) => l.storySection === 'highlights' || l.storySection === 'mainStory' && l.rankSection !== 'hero')
-        .slice(0, 4);
-    },
-    detailInsights(): Array<InsightLine> {
-      // Visible "details" + any legacy secondary line with no section.
-      return this.visibleInsights.filter((l) =>
-        l.storySection === 'details' || (l.storySection === undefined && l.rankSection === 'secondary'));
-    },
-    hiddenInsights(): Array<InsightLine> {
-      return this.insightLines.filter((l) => l.rankSection === 'hidden');
     },
     // Iteration 10: per-player ARC views (duel: both; else winner + runner-up).
     playerArcViews(): Array<ArcView> {
@@ -465,34 +403,6 @@ export default defineComponent({
     insightLines(): Array<InsightLine> {
       return this.model.insights.map((ins) => this.composeInsight(ins));
     },
-    // The headline NUMBERS of this game (the margin lives in the result block now; the
-    // vague "Victory profile" and "Entire game" fillers are gone — §28). Only a REAL key
-    // moment (a clear generation the lead changed for good) is shown.
-    facts(): Array<Fact> {
-      const out: Array<Fact> = [];
-      const m = this.model;
-      const t = m.timeline;
-      if (m.mode !== 'solo' && t !== undefined && t.winnerTookLeadGen !== undefined) {
-        const isComeback = t.maxDeficit >= 5 && t.winnerTookLeadGen >= Math.max(2, m.generation - 1);
-        out.push({
-          key: 'moment', kind: 'text', label: isComeback ? 'Took the lead in gen' : 'Decisive moment', glyph: isComeback ? '⇄' : '⚑',
-          value: $t('Generation') + ' ' + t.winnerTookLeadGen, color: m.winner?.color,
-        });
-      }
-      if (t !== undefined && t.leadChanges >= 2) {
-        out.push({
-          key: 'leadChanges', kind: 'text', label: 'Lead changes', glyph: '⇄',
-          value: String(t.leadChanges),
-        });
-      }
-      if (m.bestCard !== undefined) {
-        out.push({
-          key: 'bestCard', kind: 'card', label: 'Best card', glyph: '▤',
-          value: '', color: m.bestCard.color, cardName: m.bestCard.cardName, vp: m.bestCard.victoryPoint,
-        });
-      }
-      return out;
-    },
   },
   methods: {
     hex(color: Color): string {
@@ -508,20 +418,24 @@ export default defineComponent({
     isViewer(color: Color): boolean {
       return this.viewerColor === color;
     },
-    nameOf(color: Color): string {
-      return this.model.players.find((p) => p.color === color)?.name ?? '';
-    },
-    corp(p: EndgamePlayerScore): string {
-      return p.corporations.join(' / ');
-    },
     categoryLabel(key: EndgameCategoryKey | undefined): string {
       return key === undefined ? '' : ENDGAME_CATEGORY_LABEL[key];
     },
-    isCard(name: string): boolean {
-      return getCard(name as CardName) !== undefined;
-    },
-    asCardName(name: string): CardName {
-      return name as CardName;
+    // Iteration 15 — turn a key episode into a render line (translate template + chips, +
+    // the phase label: a generation when pinned, else a soft phase).
+    composeEpisode(ep: KeyEpisode): EpisodeLine {
+      const params = ep.params.map((p) => p.t === 'raw' ? p.v : $t(p.v));
+      return {
+        id: ep.id, role: ep.role,
+        phaseLabel: ep.generation !== undefined ? `${$t('Generation')} ${ep.generation}` : $t(PHASE_LABEL[ep.phase]),
+        badge: ep.badge,
+        text: translateTextWithParams(ep.textKey, params),
+        color: ep.color,
+        chips: ep.evidenceChips.map((ch) => ({
+          text: (ch.t === 'raw' ? ch.v : $t(ch.v)) + (ch.label !== undefined ? ' ' + $t(ch.label) : ''),
+          tone: ch.tone ?? 'neutral',
+        })),
+      };
     },
     // Turn an engine insight into a render line: translate the template and
     // each typed param (`raw` stays, `i18n`/`card` run through the translator).
@@ -546,13 +460,6 @@ export default defineComponent({
         detail: ins.detail,
         relatedPlayers: ins.relatedPlayers,
       };
-    },
-    // The two rivals of a duel-contrast insight (winner + runner-up), for the VS row.
-    rivalDots(line: InsightLine): Array<{color: Color; name: string}> {
-      if (line.family !== 'duelContrast' || (line.relatedPlayers?.length ?? 0) < 2) {
-        return [];
-      }
-      return (line.relatedPlayers ?? []).slice(0, 2).map((c) => ({color: c, name: this.nameOf(c)}));
     },
     // Premium accent class by story family (styled in endgame.less).
     familyClass(line: InsightLine): string {

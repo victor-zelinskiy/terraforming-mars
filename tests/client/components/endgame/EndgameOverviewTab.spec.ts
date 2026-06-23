@@ -23,8 +23,21 @@ function breakdown(p: Partial<VictoryPointsBreakdown>): VictoryPointsBreakdown {
   return merged;
 }
 
-function input(color: Color, name: string, b: Partial<VictoryPointsBreakdown>, mc = 0): EndgamePlayerInput {
-  return {color, name, corporations: ['Helion'], megacredits: mc, breakdown: breakdown(b), vpByGeneration: [10, 20, 30], globalSteps: {}};
+import {StrategyInput} from '@/client/components/endgame/strategyArchetypes';
+import {CARD_VP_SOURCES, CardVpSource} from '@/client/components/endgame/cardScoreContribution';
+
+function emptyCardVp() {
+  const base = {} as Record<CardVpSource, number>;
+  for (const s of CARD_VP_SOURCES) {
+    base[s] = 0;
+  }
+  return {...base, total: 0, penalties: 0, confidence: 'high' as const};
+}
+function strategyInput(): StrategyInput {
+  return {tags: {}, coloniesOwned: [], cardVp: emptyCardVp(), resourceTotals: {animals: 0, microbes: 0, floaters: 0, animalCards: 0, microbeCards: 0, floaterCards: 0}};
+}
+function input(color: Color, name: string, b: Partial<VictoryPointsBreakdown>, mc = 0, si?: StrategyInput): EndgamePlayerInput {
+  return {color, name, corporations: ['Helion'], megacredits: mc, breakdown: breakdown(b), vpByGeneration: [10, 20, 30], globalSteps: {}, strategyInput: si};
 }
 
 function model(inputs: Array<EndgamePlayerInput>): EndgameModel {
@@ -33,9 +46,11 @@ function model(inputs: Array<EndgamePlayerInput>): EndgameModel {
 
 describe('EndgameOverviewTab', () => {
   it('renders the duel head-to-head for two players', () => {
+    // Winner runs cities & greenery (board scoring), runner-up the global parameters —
+    // a real two-plan game so the Iteration-15 directed-story layer produces episodes.
     const m = model([
-      input('red', 'Victor', {terraformRating: 35, milestones: 5}),
-      input('blue', 'Nastya', {terraformRating: 30, awards: 8}),
+      input('red', 'Victor', {terraformRating: 35, greenery: 18, city: 8}, 0, strategyInput()),
+      input('blue', 'Nastya', {terraformRating: 44}, 0, strategyInput()),
     ]);
     const wrapper = mount(EndgameOverviewTab, {...globalConfig, props: {model: m, viewerColor: 'red' as Color}});
     const html = wrapper.html();
@@ -46,10 +61,13 @@ describe('EndgameOverviewTab', () => {
     expect(html).to.include('Nastya');
     // The winner (Victor) is placed on the left.
     expect(wrapper.find('.eg-rhduel__player--left').text()).to.include('Victor');
-    // A short thesis (the Story DNA headline) sits under the result block.
+    // A short thesis (the composed hero thesis) sits under the result block (§16).
     expect(wrapper.find('.eg-rhduel__thesis').exists(), 'result thesis').to.eq(true);
-    // Iteration 9: the composed "what defined this game" headline band still renders.
-    expect(wrapper.find('.eg-storyhead').exists(), 'story headline band').to.eq(true);
+    // Iteration 15 — the directed story layer: the 30-second story + the editorial
+    // "what defined this game" replace the old storyhead chips (§8/§13).
+    expect(wrapper.find('.eg-storyhead').exists(), 'old storyhead removed').to.eq(false);
+    expect(wrapper.find('.eg-story30').exists(), '30-second story').to.eq(true);
+    expect(wrapper.find('.eg-defined').exists(), 'what-defined editorial').to.eq(true);
     // Iteration 10: the player-arcs section renders both players' arcs in a duel.
     expect(wrapper.find('.eg-storysec--arcs').exists(), 'player arcs section').to.eq(true);
     expect(wrapper.findAll('.eg-arc').length, 'an arc card per player').to.eq(2);
