@@ -2283,18 +2283,6 @@
 .eg-story30__body { margin: 0 0 11px; font-size: 15.5px; line-height: 1.68; color: @eg-text; }
 .eg-story30__body:last-child { margin-bottom: 0; }
 .eg-story30__sentence { /* inline run; the trailing space separates sentences */ }
-/* §13 — AI story loading skeleton (calm, no spinner). */
-.eg-story30__loading { display: flex; flex-direction: column; gap: 9px; }
-.eg-story30__loadlbl { font-size: 13px; color: @eg-text-muted; letter-spacing: 0.3px; margin-bottom: 2px; }
-.eg-story30__skel {
-    height: 12px; border-radius: 6px; max-width: 88ch;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, ~"color-mix(in srgb, @eg-cyan 16%, transparent)" 50%, rgba(255, 255, 255, 0.04) 75%);
-    background-size: 200% 100%;
-    animation: eg-skel 1.4s ease-in-out infinite;
-}
-.eg-story30__skel--short { max-width: 52ch; }
-@keyframes eg-skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) { .eg-story30__skel { animation: none; } }
 
 /* ── §4/§6/§7 — inline interactive narrative terms (rich-text layer), premium per-kind
    accent. A term reads as interactive from its accent colour + underline (no stray "?"). ── */
