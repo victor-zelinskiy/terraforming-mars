@@ -587,11 +587,32 @@ export function buildStrategyTermDetail(players: ReadonlyArray<EndgamePlayerScor
 // archetype + starting capital, so the player-arc corp chip explains itself honestly.
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Build the hover detail for a player-arc CORPORATION chip. */
+/** Build the hover detail for a player-arc CORPORATION chip. Iteration 17 — prefers the
+ *  formal `CorporationImpact` (metrics + achievements + caveats) when available; degrades
+ *  to the raw `corporationImpact` fact for callers without the engine (old games). */
 export function buildCorporationDetail(ctx: InsightContext, color: Color, corp: CardName): ChipDetail {
   const profile = corporationProfile(corp);
-  const f = facts(ctx).find((x) => x.type === 'corporationImpact' && x.player === color && x.sourceCard === corp);
+  const impact = (ctx.corporationImpacts ?? []).find((i) => i.color === color && (i.corporationName === corp || i.mergedWith === corp));
   const rows: Array<DetailEvidenceRow> = [];
+  if (impact !== undefined) {
+    for (const mm of impact.metrics.slice(0, 3)) {
+      rows.push(rawRow(`${mm.value}`, mm.role === 'primary' ? 'good' : 'metric'), i18nRow(mm.label, 'neutral'));
+    }
+    if (impact.achievements.length > 0) {
+      rows.push(i18nRow(impact.achievements[0].title, 'good'));
+    }
+    return {
+      title: impact.title,
+      explanation: CLUSTER_DETAIL.corporation.explanation,
+      whyItMatters: CLUSTER_DETAIL.corporation.why,
+      evidence: rows.slice(0, 4),
+      confidence: 'partial',
+      caveat: impact.caveats !== undefined && impact.caveats.length > 0 ? impact.caveats[0] : undefined,
+      accent: 'corporationImpact',
+    };
+  }
+  // Fallback — the raw fact (no engine output threaded).
+  const f = facts(ctx).find((x) => x.type === 'corporationImpact' && x.player === color && x.sourceCard === corp);
   if (f !== undefined) {
     const act = m(f, 'actionActivations');
     const saved = m(f, 'passiveSaved');

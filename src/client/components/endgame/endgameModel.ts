@@ -31,6 +31,7 @@ import {
   computeTimelineStats,
   gameSeed,
   composeStory,
+  type InsightContext,
 } from '@/client/components/endgame/insightEngine';
 import type {GameStoryDNA} from '@/client/components/endgame/gameStoryDna';
 import {buildStrategyProfiles, type StrategyInput, type PlayerStrategyProfile} from '@/client/components/endgame/strategyArchetypes';
@@ -40,6 +41,7 @@ import {
   type StorySentence, type WhatDefinedRow, type StoryQuality,
 } from '@/client/components/endgame/gameNarrative';
 import {buildFinishVerdict, type FinishVerdict} from '@/client/components/endgame/finishVerdict';
+import {buildCorporationImpacts, type CorporationImpact} from '@/client/components/endgame/corporationImpactEngine';
 
 // What the builder needs from each player — a thin, pure projection of
 // PublicPlayerModel (the component maps it before calling the builder).
@@ -167,6 +169,9 @@ export type EndgameModel = {
   // conflict, twists, player arcs) that drives the "why this game was special"
   // headline + the composer. undefined for solo / when no winner.
   storyDna: GameStoryDNA | undefined;
+  // Iteration 17 — the per-player corporation impact (also embedded in the player arcs);
+  // carried here for the ?egDebug coverage panel. Empty for solo / no winner.
+  corporationImpacts: ReadonlyArray<CorporationImpact>;
   // Timeline shape (lead changes, comeback depth, final surge…) — also feeds
   // the chart annotations and the overview "match facts".
   timeline: TimelineStats | undefined;
@@ -447,8 +452,9 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
   let whatDefined: ReadonlyArray<WhatDefinedRow> = [];
   let storyQuality: StoryQuality | undefined;
   let additionalInsights: ReadonlyArray<EndgameInsightView> = [];
+  let corporationImpacts: ReadonlyArray<CorporationImpact> = [];
   if (winner !== undefined) {
-    const ctx = {
+    const ctx: InsightContext = {
       mode,
       generation: opts.generation,
       players,
@@ -470,6 +476,11 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     for (const p of players) {
       p.strategyProfile = profiles[p.color];
     }
+    // Iteration 17 — the per-corporation impact (reads the corp fact + the now-attached
+    // strategy profiles + scoring categories). Computed ONCE here so the analyzers, the
+    // player arcs (gameStoryDna) and the corp episode (keyEpisodeEngine) all read one truth.
+    ctx.corporationImpacts = buildCorporationImpacts(ctx);
+    corporationImpacts = ctx.corporationImpacts;
     composed = composeStory(ctx);
     // Iteration 15 — the directed story layer (episodes → narrative → hero thesis).
     keyEpisodes = buildKeyEpisodes(ctx);
@@ -502,6 +513,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     parameters,
     insights: composed.insights,
     storyDna: composed.dna,
+    corporationImpacts,
     keyEpisodes,
     story,
     heroThesis,

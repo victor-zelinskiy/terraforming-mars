@@ -494,6 +494,39 @@ const episodePredators: Gen = (ctx) => {
   }];
 };
 
+// 9c) CORPORATION — the identity layer (Iteration 17). A gold-achievement corporation lands
+// in the "unusual episodes"; a platinum / decisive one becomes a "why the winner won" driver.
+// Reads the pre-built impacts (ctx.corporationImpacts); coveredClusters dedups the corp insight.
+const episodeCorporation: Gen = (ctx) => {
+  const impacts = (ctx.corporationImpacts ?? [])
+    .filter((i) => i.placement === 'unusual_episode' || i.placement === 'why_winner_won' || i.placement === 'what_defined_game')
+    .sort((a, b) => (b.color === ctx.winner.color ? 1 : 0) - (a.color === ctx.winner.color ? 1 : 0));
+  const out: Array<KeyEpisode> = [];
+  for (const i of impacts.slice(0, 2)) {
+    const decisive = i.placement === 'why_winner_won' || i.placement === 'what_defined_game';
+    const cluster = i.realized === 'start' ? 'corporationStart' :
+      i.realized === 'underused' ? 'corporationUnused' : i.realized === 'merged' ? 'merger' : 'corporation';
+    const tierImpact = {missed: 0.15, minor: 0.25, solid: 0.4, strong: 0.6, exceptional: 0.8, signature: 1}[i.efficiencyTier];
+    const chips: Array<EvidenceChip> = i.metrics
+      .filter((mm) => mm.role === 'primary')
+      .slice(0, 2)
+      .map((mm) => ({t: 'raw', v: String(mm.value), tone: 'metric', label: mm.label}));
+    out.push({
+      id: `episode.corporation.${i.color}`,
+      role: decisive ? 'decisive_driver' : 'signature_moment',
+      phase: decisive ? 'scoring' : 'mid',
+      generation: undefined,
+      order: orderOf(decisive ? 'scoring' : 'mid', undefined) + 4,
+      color: i.color, badge: i.realized === 'merged' ? 'Merger' : 'Corporation',
+      textKey: i.summary.key, params: i.summary.params.map((p) => ({...p})),
+      evidenceChips: chips.length > 0 ? chips : [labelChip(i.archetypeLabel, 'neutral')],
+      impact: clamp01(tierImpact), confidence: i.confidence === 'high' ? 'high' : i.confidence === 'medium' ? 'medium' : 'low',
+      relatedPlayers: [i.color], dedupeKey: `corporation:${i.color}`, coveredClusters: [cluster],
+    });
+  }
+  return out;
+};
+
 // 10) The closing FINAL-SCORING beat — the timeline always ends with what the count
 // settled, scaled to the margin (§16). Source = the final count + the winner's main line.
 const episodeFinalScoring: Gen = (ctx) => {
@@ -532,7 +565,7 @@ const episodeFinalScoring: Gen = (ctx) => {
 const GENERATORS: ReadonlyArray<Gen> = [
   episodeWinnerDriver, episodeSecondaryScoring, episodeBestCard, episodeContrast,
   episodeEngineOnline, episodeTurningPoint, episodeAward,
-  episodeSignature, episodePredators, episodeHydronetwork, episodeRunnerUp, episodeFinalScoring,
+  episodeSignature, episodePredators, episodeHydronetwork, episodeCorporation, episodeRunnerUp, episodeFinalScoring,
 ];
 
 // ─────────────────────────────────────────────────────────────────────────

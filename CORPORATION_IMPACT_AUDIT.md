@@ -124,3 +124,62 @@ corp story replaces (evidence-key collapse); `cap` = starting M€ (verified vs.
   measurable signal — they'd need a dedicated server signal to tell a richer story.
 - **Expansion scope** — widen `CORPORATION_REGISTRY` (and the coverage test's `IN_SCOPE`
   list) when Turmoil / Moon / Pathfinders / CEOs / etc. enter scope.
+
+# ═══════════════════════════════════════════════════════════════════
+# ITERATION 17 — Corporation Impact 2.0 (formal model + 5-section routing)
+# ═══════════════════════════════════════════════════════════════════
+
+Iteration 13 fired a corp insight ONLY when the corporation "mattered", so MOST corps had
+an empty profile. Iteration 17 turns the corp layer into a **formal, always-on analysis**:
+a deterministic engine produces ONE `CorporationImpact` per player (even when nothing
+measurable happened), tiered + placed by how fully the corporation was realised, and the
+report shows it across **5 sections** by tier.
+
+## Architecture
+- **Engine** `src/client/components/endgame/corporationImpactEngine.ts` (PURE, type-only
+  engine imports → no cycle). `buildCorporationImpacts(ctx) → CorporationImpact[]`:
+  per-corp `archetype / efficiencyTier (missed…signature) / placement / confidence /
+  realized / title / playerProfileSummary / worked / missed / metrics / achievements /
+  caveats / ruleStatus`. Computed ONCE in `buildEndgameModel` (after strategy profiles,
+  before episodes/compose) → `ctx.corporationImpacts`. **No server bridge** — reads the
+  existing `corporationImpact` FACT + the player's scoring categories/strategyProfile.
+- **Generic + override**: a generic archetype path covers every corp (family support
+  templates interpolate the corp NAME so they read bespoke); `CORP_RULE_OVERRIDES` adds
+  bespoke `signal`/`achievements` for marquee corps (Ecoline/Tharsis board, Credicor
+  rebates, Saturn cards, Poseidon tracks, PointLuna draws, Vitor awards). A corp without an
+  override is honestly `ruleStatus: 'generic'` (not "missing"); an out-of-scope corp is
+  `'missing'` and capped at an observation / suppressed with no data.
+- **Tiers/achievements/placement**: tier from a 0..1 signal + §8 conversion check (strong
+  start without conversion stays solid/strong, never decisive); generic + bespoke
+  achievements with tiers (bronze/silver → additional observation, gold → unusual episode,
+  platinum → why-winner-won; signature winner → what-defined). **Anti-overclaim (§19):** a
+  winner with a ≤solid corp can't reach a main section. **Loser analysed (§20):** a strong
+  corp that didn't convert is an observation, never why-winner-won.
+
+## 5-section routing
+| Section | How the corp reaches it |
+| --- | --- |
+| «Как играли игроки» (ALWAYS) | `gameStoryDna.PlayerArc.corporation` enriched from the engine (tier + 1–2 metrics + worked/missed + achievements + hover detail). |
+| «Дополнительные наблюдения» | the rewritten `analyzeCorporationImpact` (thin consumer of `ctx.corporationImpacts`) emits a candidate for bronze/silver → `additionalInsights`. |
+| «Самые необычные эпизоды» | NEW `episodeCorporation` generator (keyEpisodeEngine) → `signature_moment` for gold. |
+| «Почему победитель выиграл» | same generator → `decisive_driver` for platinum/winner. |
+| «Что определило эту партию» | the `corporation_identity` DNA detector, now GATED on a why-winner-won/what-defined placement. |
+
+## Coverage / debug / tests
+- `buildCorporationAudit()` (scope + specific/generic per corp) + `buildCorporationDebug(ctx)`
+  surfaced in `?egDebug` (coverage counts + per-player placement/tier/confidence/achievements).
+- Guards: `corporationImpactEngine.spec.ts` (15 — tiers/placement, always-render, anti-
+  overclaim, loser, underused, merger, signature what-defined, out-of-scope, audit) +
+  the rewritten `corporationInsights.spec.ts` (analyzer routing + dedup). `corporationFacts`/
+  `corporationStories`/`EndgameOverviewTab`/`gameStoryDna`/`factInsights`/`insightDetail`
+  (typography+grammar guards over the new ru strings) all green.
+- i18n: ~53 new `ru/endgame.json` keys (English text as key, reusing the Iter13 archetype/
+  engine/merger/underused strings + `M€`/`VP`/`cards`/`activations`/`triggers`).
+
+## Remaining frontier (Iteration 18+)
+- A few marquee corps still share a family support template (corp name interpolated) rather
+  than a dedicated bespoke line.
+- Flag-only corps (Inventrix/Manutech/Morning Star) stay honestly low-confidence — a
+  dedicated server signal (requirement-flex / immediate-resource) would let them tell more.
+- `corporationActionStats.availableGenerations` is an honest upper bound (gen 1 → final);
+  a conditionally-unlocking action's true availability would refine the use-rate.

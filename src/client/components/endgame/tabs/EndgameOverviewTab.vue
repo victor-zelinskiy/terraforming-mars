@@ -104,13 +104,33 @@
               <span v-if="arc.isWinner" class="eg-arc__crown" aria-hidden="true">♛</span>
             </div>
             <ExplainableBadge badge-class="eg-arc__style" :label="arc.style" :detail="arc.styleDetail" />
-            <!-- Iteration 13 — the corporation identity (archetype badge + corp name). -->
+            <!-- Iteration 13/17 — the corporation identity + impact readout. -->
             <div v-if="arc.corporation !== undefined" class="eg-arc__corp" :class="'eg-arc__corp--' + arc.corporation.realized">
-              <span class="eg-arc__corp-icon" aria-hidden="true">◈</span>
-              <span class="eg-arc__corp-name" v-i18n>{{ arc.corporation.name }}</span>
-              <ExplainableBadge badge-class="eg-arc__corp-badge" :label="arc.corporation.archetypeLabel" :detail="arc.corporation.detail" />
-              <span v-if="arc.corporation.realized === 'merged'" class="eg-arc__corp-tag eg-arc__corp-tag--merged" v-i18n>Merger</span>
-              <span v-else-if="arc.corporation.realized === 'underused'" class="eg-arc__corp-tag eg-arc__corp-tag--untapped" v-i18n>Untapped</span>
+              <div class="eg-arc__corp-head">
+                <span class="eg-arc__corp-icon" aria-hidden="true">◈</span>
+                <span class="eg-arc__corp-name" v-i18n>{{ arc.corporation.name }}</span>
+                <ExplainableBadge badge-class="eg-arc__corp-badge" :label="arc.corporation.archetypeLabel" :detail="arc.corporation.detail" />
+                <span class="eg-arc__corp-tier" :class="'eg-arc__corp-tier--' + arc.corporation.tier" v-i18n>{{ corpTierLabel(arc.corporation.tier) }}</span>
+                <span v-if="arc.corporation.realized === 'merged'" class="eg-arc__corp-tag eg-arc__corp-tag--merged" v-i18n>Merger</span>
+                <span v-else-if="arc.corporation.realized === 'underused'" class="eg-arc__corp-tag eg-arc__corp-tag--untapped" v-i18n>Untapped</span>
+              </div>
+              <p class="eg-arc__corp-summary">
+                <EndgameRichText :template="corpSummary(arc.corporation).template" :params="corpSummary(arc.corporation).params" />
+              </p>
+              <div v-if="arc.corporation.metrics.length > 0" class="eg-arc__corp-metrics">
+                <span v-for="(mm, mi) in arc.corporation.metrics" :key="mi" class="eg-chip eg-chip--metric">
+                  <b>{{ mm.value }}</b> <span v-i18n>{{ mm.label }}</span>
+                </span>
+              </div>
+              <div v-if="corpFacets(arc.corporation).length > 0" class="eg-arc__corp-facets">
+                <span v-for="(wm, wi) in corpFacets(arc.corporation)" :key="wi" class="eg-arc__corp-facet" :class="'eg-arc__corp-facet--' + wm.kind">
+                  <span class="eg-arc__corp-facet-lbl" v-i18n>{{ wm.kind === 'good' ? 'Worked' : 'Fell short' }}</span>
+                  <span v-i18n>{{ wm.key }}</span>
+                </span>
+              </div>
+              <div v-if="arc.corporation.achievements.length > 0" class="eg-arc__corp-achs">
+                <span v-for="(a, ai) in arc.corporation.achievements" :key="ai" class="eg-arc__corp-ach" :class="'eg-arc__corp-ach--' + a.tier" v-i18n>{{ a.title }}</span>
+              </div>
             </div>
             <div v-if="arc.tags.length > 0" class="eg-arc__tags">
               <span v-for="(tg, ti) in arc.tags" :key="ti" class="eg-chip eg-chip--neutral" v-i18n>{{ tg }}</span>
@@ -228,6 +248,23 @@
           </tr>
         </tbody>
       </table>
+      <!-- Iteration 17 — corporation impact coverage + per-player placement (§23). -->
+      <div class="eg-dnadebug__reasons">
+        corporation coverage — in scope {{ corpDebug.coverage.totalInScope }} · specific {{ corpDebug.coverage.specific }} · generic {{ corpDebug.coverage.generic }}
+      </div>
+      <table class="eg-dnadebug__table" v-if="corpDebug.byPlayer.length > 0">
+        <thead><tr><th>player</th><th>corp</th><th>archetype</th><th>tier</th><th>placement</th><th>conf</th><th>rule</th><th>ach</th></tr></thead>
+        <tbody>
+          <tr v-for="(c, i) in corpDebug.byPlayer" :key="'corp' + i">
+            <td>{{ c.color }}</td><td>{{ c.corporationName }}</td><td>{{ c.archetype }}</td><td>{{ c.tier }}</td>
+            <td>{{ c.placement }}</td><td>{{ c.confidence }}</td><td>{{ c.ruleStatus }}</td>
+            <td>{{ c.achievements.map((a) => a.id + ':' + a.tier).join(', ') || '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="eg-dnadebug__reasons" v-if="corpDebug.suppressed.length > 0">
+        suppressed: {{ corpDebug.suppressed.map((s) => s.color + '/' + s.corporationName).join(', ') }}
+      </div>
     </section>
   </div>
 </template>
@@ -238,6 +275,7 @@ import {Color} from '@/common/Color';
 import {EndgameModel, EndgameCategoryKey, EndgamePlayerScore, ENDGAME_CATEGORY_LABEL} from '@/client/components/endgame/endgameModel';
 import {EndgameInsightView, InsightIcon, InsightParam} from '@/client/components/endgame/insightEngine';
 import {buildStrategyTermDetail, type ChipDetail} from '@/client/components/endgame/insightDetail';
+import {buildCorporationAudit} from '@/client/components/endgame/corporationImpactEngine';
 import type {RichParam} from '@/client/components/endgame/endgameRichText';
 import EndgameRichText from '@/client/components/endgame/EndgameRichText.vue';
 import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
@@ -330,8 +368,15 @@ type ArcView = {
   // Rework §20 — the supporting strategy lines (i18n labels) + the strongest SCORING line.
   supportLines: Array<string>; // i18n keys (secondary archetype labels)
   scoringLine?: string; // i18n key — the strongest line that actually scored
-  // Iteration 13 — the player's corporation identity (name + archetype + how realized).
-  corporation?: {name: string; archetypeLabel: string; realized: string; detail?: ChipDetail};
+  // Iteration 13/17 — the player's corporation identity + impact readout.
+  corporation?: {
+    name: string; archetypeLabel: string; realized: string; tier: string;
+    summary: {key: string; params: ReadonlyArray<InsightParam>};
+    worked?: string; missed?: string;
+    metrics: ReadonlyArray<{label: string; value: number | string; unit?: string}>;
+    achievements: ReadonlyArray<{title: string; tier: string}>;
+    detail?: ChipDetail;
+  };
 };
 
 export default defineComponent({
@@ -403,6 +448,28 @@ export default defineComponent({
     // The composed insights with their raw scoring fields — for the ?egDebug table.
     debugInsights(): Array<EndgameInsightView> {
       return this.model.insights;
+    },
+    // Iteration 17 — corporation impact coverage + per-player placement (?egDebug §23).
+    corpDebug(): {
+      coverage: {totalInScope: number; specific: number; generic: number};
+      byPlayer: Array<{color: Color; corporationName: string; archetype: string; tier: string; placement: string; confidence: string; ruleStatus: string; achievements: Array<{id: string; tier: string}>}>;
+      suppressed: Array<{color: Color; corporationName: string}>;
+      } {
+      const audit = buildCorporationAudit();
+      const impacts = this.model.corporationImpacts;
+      return {
+        coverage: {
+          totalInScope: audit.length,
+          specific: audit.filter((a) => a.ruleStatus === 'specific').length,
+          generic: audit.filter((a) => a.ruleStatus === 'generic').length,
+        },
+        byPlayer: impacts.map((i) => ({
+          color: i.color, corporationName: i.corporationName, archetype: i.archetype,
+          tier: i.efficiencyTier, placement: i.placement, confidence: i.confidence, ruleStatus: i.ruleStatus,
+          achievements: i.achievements.map((a) => ({id: a.id, tier: a.tier})),
+        })),
+        suppressed: impacts.filter((i) => i.placement === 'suppress').map((i) => ({color: i.color, corporationName: i.corporationName})),
+      };
     },
     // Iteration 10: per-player ARC views (duel: both; else winner + runner-up).
     playerArcViews(): Array<ArcView> {
@@ -511,6 +578,27 @@ export default defineComponent({
     },
     categoryLabel(key: EndgameCategoryKey | undefined): string {
       return key === undefined ? '' : ENDGAME_CATEGORY_LABEL[key];
+    },
+    // Iteration 17 — corporation readout helpers.
+    corpTierLabel(tier: string): string {
+      const labels: Record<string, string> = {
+        missed: 'Untapped', minor: 'Background', solid: 'Support role',
+        strong: 'Engine', exceptional: 'Key engine', signature: 'Defining',
+      };
+      return labels[tier] ?? tier;
+    },
+    corpSummary(corp: NonNullable<ArcView['corporation']>): {template: string; params: Array<RichParam>} {
+      return {template: $t(corp.summary.key), params: this.richParamsOf(corp.summary.params)};
+    },
+    corpFacets(corp: NonNullable<ArcView['corporation']>): Array<{kind: 'good' | 'bad'; key: string}> {
+      const out: Array<{kind: 'good' | 'bad'; key: string}> = [];
+      if (corp.worked !== undefined) {
+        out.push({kind: 'good', key: corp.worked});
+      }
+      if (corp.missed !== undefined) {
+        out.push({kind: 'bad', key: corp.missed});
+      }
+      return out;
     },
     // Iteration 15 — turn a key episode into a render line (translate template + chips, +
     // the phase label: a generation when pinned, else a soft phase).

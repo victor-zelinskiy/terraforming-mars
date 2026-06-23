@@ -27,6 +27,7 @@ import type {EndgameCategoryKey} from '@/client/components/endgame/endgameModel'
 import type {InsightCandidate, InsightContext, InsightFamily} from '@/client/components/endgame/insightEngine';
 import {buildStyleDetail, buildCorporationDetail, type ChipDetail} from '@/client/components/endgame/insightDetail';
 import {ARCHETYPE_LABEL, corporationProfile} from '@/client/components/endgame/corporationStories';
+import {corporationImpactFor, type EfficiencyTier, type CorporationLine} from '@/client/components/endgame/corporationImpactEngine';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -95,7 +96,8 @@ export type PlayerArc = {
   shortSummaryTags: ReadonlyArray<string>;
   /** Iteration 12 — the "why this style" explainability detail for the style chip. */
   styleDetail?: ChipDetail;
-  /** Iteration 13 — the player's CORPORATION identity (name + archetype + how realized). */
+  /** Iteration 13/17 — the player's CORPORATION identity + impact readout (ALWAYS present
+   *  for an in-scope corp, §5: even a corp that did nothing measurable gets a readout). */
   corporation?: {
     /** The (primary) corporation card name. */
     name: string;
@@ -103,6 +105,17 @@ export type PlayerArc = {
     archetypeLabel: string;
     /** How the corporation played out this game. */
     realized: 'carried' | 'start' | 'underused' | 'merged' | 'present';
+    /** Iteration 17 — how fully the player realised the corporation's power. */
+    tier: EfficiencyTier;
+    /** Iteration 17 — the ALWAYS-shown profile readout (i18n key + params). */
+    summary: CorporationLine;
+    /** Iteration 17 — short i18n keys: what worked / fell short for this corporation. */
+    worked?: string;
+    missed?: string;
+    /** Iteration 17 — up to 2 key measured metrics (label i18n key + value + unit). */
+    metrics: ReadonlyArray<{label: string; value: number | string; unit?: string}>;
+    /** Iteration 17 — earned achievement badges (title i18n key + tier). */
+    achievements: ReadonlyArray<{title: string; tier: string}>;
     /** The hover detail (what the corporation did) for the arc chip. */
     detail?: ChipDetail;
   };
@@ -306,7 +319,11 @@ const DETECTORS: ReadonlyArray<StoryDetector> = [
     type: 'corporation_identity', titleKind: 'domination', heroCluster: 'corporation',
     primaryFamilies: ['corporationImpact', 'economy', 'cardStory'],
     headlineKey: 'The corporation was the plan — and it delivered.',
-    test: ({hasCluster}) => hasCluster('corporation') ? 'corporation engine cluster present' : undefined,
+    // Iteration 17 — only headline the corporation when it was genuinely DECISIVE (a
+    // signature/platinum impact reaching why-winner-won / what-defined), not for any engine corp.
+    test: ({ctx}) => (ctx.corporationImpacts ?? []).some((i) =>
+      i.placement === 'what_defined_game' || i.placement === 'why_winner_won') ?
+      'corporation was decisive (placement)' : undefined,
   },
   {
     type: 'colony_engine', titleKind: 'domination', heroCluster: 'colony',
@@ -477,32 +494,43 @@ export function buildGameStoryDna(
     if (spendable >= 28 && spendable >= medianSpendable + 15) {
       tags.push('Money to spare');
     }
-    // Iteration 13 — the corporation identity for this player's arc.
+    // Iteration 13/17 — the corporation identity + impact readout for this player's arc.
+    // The engine ALWAYS returns one impact per in-scope corp (§5), so the player profile is
+    // never empty; the readout (tier / metrics / worked-missed / achievements) is rendered
+    // in "How the players played".
     let corporation: PlayerArc['corporation'];
-    const corpName = p.corporations[0];
-    if (corpName !== undefined) {
-      const profile = corporationProfile(corpName as CardName);
-      const corpInsight = candidates.find((c) => c.family === 'corporationImpact' && (c.relatedPlayers ?? []).includes(p.color));
-      let realized: NonNullable<PlayerArc['corporation']>['realized'] = 'present';
-      if (corpInsight !== undefined) {
-        if (corpInsight.id.startsWith('corp.merger')) {
-          realized = 'merged';
-        } else if (corpInsight.id.startsWith('corp.underused')) {
-          realized = 'underused';
-        } else if (corpInsight.id.startsWith('corp.start')) {
-          realized = 'start';
-        } else {
-          realized = 'carried';
-        }
-      } else if (p.corporations.length >= 2) {
-        realized = 'merged';
-      }
+    const impact = corporationImpactFor(ctx, p.color);
+    if (impact !== undefined) {
       corporation = {
-        name: corpName,
-        archetypeLabel: profile !== undefined ? ARCHETYPE_LABEL[profile.archetype] : 'Corporation',
-        realized,
-        detail: buildCorporationDetail(ctx, p.color, corpName as CardName),
+        name: impact.corporationName,
+        archetypeLabel: impact.archetypeLabel,
+        realized: impact.realized,
+        tier: impact.efficiencyTier,
+        summary: impact.playerProfileSummary,
+        worked: impact.worked,
+        missed: impact.missed,
+        metrics: impact.metrics
+          .filter((mm) => mm.role !== 'context')
+          .slice(0, 2)
+          .map((mm) => ({label: mm.label, value: mm.value, unit: mm.unit})),
+        achievements: impact.achievements.map((a) => ({title: a.title, tier: a.tier})),
+        detail: buildCorporationDetail(ctx, p.color, impact.corporationName as CardName),
       };
+    } else {
+      const corpName = p.corporations[0];
+      if (corpName !== undefined) {
+        const profile = corporationProfile(corpName as CardName);
+        corporation = {
+          name: corpName,
+          archetypeLabel: profile !== undefined ? ARCHETYPE_LABEL[profile.archetype] : 'Corporation',
+          realized: p.corporations.length >= 2 ? 'merged' : 'present',
+          tier: 'minor',
+          summary: {key: 'The ${1} corporation was central to ${0}’s game.', params: [{t: 'raw', v: p.name}, {t: 'card', v: corpName}]},
+          metrics: [],
+          achievements: [],
+          detail: buildCorporationDetail(ctx, p.color, corpName as CardName),
+        };
+      }
     }
     playerArcs[p.color] = {
       color: p.color,
