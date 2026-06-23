@@ -910,6 +910,18 @@
 .eg-detail__conf--ruleOnly { color: #9fb6cc; }
 .eg-detail__explain { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: #cfddec; }
 .eg-detail__evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+/* §10 — per-card breakdown list inside a detail popover. */
+.eg-detail__breakdown { margin: 2px 0 9px; padding-top: 7px; border-top: 1px solid @eg-card-rim; }
+.eg-detail__bd-head {
+    display: block; margin-bottom: 5px;
+    font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; color: @eg-text-muted;
+}
+.eg-detail__bd-row {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    padding: 2px 0; font-size: 12.5px;
+}
+.eg-detail__bd-label { color: @eg-text-dim; }
+.eg-detail__bd-val { font-family: Prototype, Orbitron, sans-serif; font-weight: 700; color: ~"color-mix(in srgb, @eg-cyan 45%, #eaf4ff)"; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .eg-detail__why {
     margin: 0;
     font-size: 11.5px;
@@ -2161,6 +2173,42 @@
 .eg-rhmulti__rstyle { font-size: 11px; color: @eg-text-muted; letter-spacing: 0.3px; }
 .eg-rhmulti__rtotal { font-family: Prototype, Orbitron, sans-serif; font-weight: 700; color: #eaf4ff; font-variant-numeric: tabular-nums; }
 .eg-rhmulti__thesis { position: relative; margin: 18px auto 0; max-width: 760px; text-align: center; font-size: 15px; line-height: 1.5; color: @eg-text-dim; }
+
+/* ── §3 — finish VERDICT banner (the hero's verdict tier, replaces the flat thesis). ── */
+.eg-fv {
+    --eg-fv: @eg-cyan;
+    position: relative;
+    display: flex; align-items: center; gap: 14px;
+    margin: 16px auto 0; max-width: 760px;
+    padding: 11px 16px; border-radius: 11px;
+    background: linear-gradient(100deg, ~"color-mix(in srgb, var(--eg-fv) 14%, transparent)", transparent 78%);
+    box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-fv) 38%, transparent)";
+}
+.eg-fv__glyph {
+    flex: 0 0 auto;
+    font-size: 22px; line-height: 1; color: var(--eg-fv);
+    text-shadow: 0 0 12px ~"color-mix(in srgb, var(--eg-fv) 55%, transparent)";
+}
+.eg-fv__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.eg-fv__title {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 14px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: ~"color-mix(in srgb, var(--eg-fv) 55%, #ffffff)";
+}
+.eg-fv__line { font-size: 13.5px; line-height: 1.5; color: @eg-text-dim; }
+/* per-tier accent. */
+.eg-fv--photo_finish { --eg-fv: #7fd0e6; }
+.eg-fv--close_finish { --eg-fv: #6ab0e6; }
+.eg-fv--solid_win { --eg-fv: #8fd8ad; }
+.eg-fv--large_win { --eg-fv: #f3c969; }
+.eg-fv--blowout { --eg-fv: @eg-gold; }
+.eg-fv--comeback { --eg-fv: #c79af0; }
+.eg-fv--late_breakaway { --eg-fv: #d7a8f0; }
+.eg-fv { animation: eg-fv-in 360ms ease both; }
+@keyframes eg-fv-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+    .eg-fv { animation: none; }
+}
 
 /* §20 — the player-arc supporting-strategy chips. */
 .eg-arc__support { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 9px; }

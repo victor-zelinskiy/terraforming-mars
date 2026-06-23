@@ -14,7 +14,7 @@
     @keydown.escape="close"
     ref="anchor">
     <span v-i18n>{{ label }}</span>
-    <span v-if="detail !== undefined" class="eg-xbadge__mark" aria-hidden="true">?</span>
+    <span v-if="detail !== undefined && !markless" class="eg-xbadge__mark" aria-hidden="true">?</span>
 
     <Teleport to="body">
       <div v-if="open && detail !== undefined" class="eg-detail" :class="accentClass" :style="popStyle" role="tooltip">
@@ -30,6 +30,14 @@
             <template v-if="row.t === 'raw'">{{ row.v }}</template>
             <span v-else v-i18n>{{ row.v }}</span>
           </span>
+        </div>
+        <!-- §10 — per-card breakdown list (e.g. the cards backing a resource line). -->
+        <div v-if="detail.breakdown !== undefined && detail.breakdown.length > 0" class="eg-detail__breakdown">
+          <span class="eg-detail__bd-head" v-i18n>Key cards</span>
+          <div v-for="(row, i) in detail.breakdown" :key="'b' + i" class="eg-detail__bd-row">
+            <span class="eg-detail__bd-label" v-i18n>{{ row.label }}</span>
+            <span class="eg-detail__bd-val">{{ row.value }} <span v-i18n>VP</span></span>
+          </div>
         </div>
         <p v-if="detail.whyItMatters !== undefined" class="eg-detail__why">
           <span class="eg-detail__why-lbl" v-i18n>Why it matters</span>
@@ -60,6 +68,9 @@ export default defineComponent({
     label: {type: String, required: true}, // i18n key (the visible badge text)
     detail: {type: Object as () => ChipDetail | undefined, required: false, default: undefined},
     badgeClass: {type: String, required: false, default: 'eg-insight__badge'},
+    // Inline narrative terms (§6) suppress the "?" marker — the underline IS the affordance,
+    // so the marker never lands inside a «…» quoted name.
+    markless: {type: Boolean, required: false, default: false},
   },
   data() {
     return {open: false, popStyle: {} as Record<string, string>, closeTimer: 0};

@@ -39,6 +39,7 @@ import {
   buildGameStory, buildHeroThesis, buildWhatDefined, buildStoryQuality,
   type StorySentence, type WhatDefinedRow, type StoryQuality,
 } from '@/client/components/endgame/gameNarrative';
+import {buildFinishVerdict, type FinishVerdict} from '@/client/components/endgame/finishVerdict';
 
 // What the builder needs from each player — a thin, pure projection of
 // PublicPlayerModel (the component maps it before calling the builder).
@@ -154,6 +155,8 @@ export type EndgameModel = {
   keyEpisodes: ReadonlyArray<KeyEpisode>;
   story: ReadonlyArray<StorySentence>;
   heroThesis: StorySentence | undefined;
+  // Iteration 17 — the finish VERDICT for the hero banner (tier + glyph + rich-text line).
+  finishVerdict: FinishVerdict | undefined;
   // Iteration 16 — the editorial "what defined this game" synopsis (§8/§13) + the deduped
   // residual analysis (§8/§21: every insight whose cluster is NOT already an episode).
   whatDefined: ReadonlyArray<WhatDefinedRow>;
@@ -440,6 +443,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
   let keyEpisodes: ReadonlyArray<KeyEpisode> = [];
   let story: ReadonlyArray<StorySentence> = [];
   let heroThesis: StorySentence | undefined;
+  let finishVerdict: FinishVerdict | undefined;
   let whatDefined: ReadonlyArray<WhatDefinedRow> = [];
   let storyQuality: StoryQuality | undefined;
   let additionalInsights: ReadonlyArray<EndgameInsightView> = [];
@@ -471,6 +475,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     keyEpisodes = buildKeyEpisodes(ctx);
     story = buildGameStory(ctx, keyEpisodes);
     heroThesis = buildHeroThesis(ctx, keyEpisodes);
+    finishVerdict = buildFinishVerdict(ctx);
     whatDefined = buildWhatDefined(ctx, keyEpisodes);
     storyQuality = buildStoryQuality(ctx, keyEpisodes, story, heroThesis);
     // Iteration 16 §8/§21 — the residual analysis: every insight whose semantic cluster is
@@ -500,6 +505,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     keyEpisodes,
     story,
     heroThesis,
+    finishVerdict,
     whatDefined,
     storyQuality,
     additionalInsights,

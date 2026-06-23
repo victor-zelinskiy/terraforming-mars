@@ -1,8 +1,8 @@
 <template>
   <div class="eg-tab eg-overview">
     <!-- ── Result block — duel / multiplayer (§2). No category bars (§1). ── -->
-    <ResultHeroDuel v-if="mode === 'duel'" :model="model" :viewer-color="viewerColor" :thesis="heroThesisText" />
-    <ResultHeroMultiplayer v-else-if="mode === 'standings'" :model="model" :viewer-color="viewerColor" :thesis="heroThesisText" />
+    <ResultHeroDuel v-if="mode === 'duel'" :model="model" :viewer-color="viewerColor" />
+    <ResultHeroMultiplayer v-else-if="mode === 'standings'" :model="model" :viewer-color="viewerColor" />
 
     <!-- ── SOLO ──────────────────────────────────────────────────────── -->
     <section v-else class="eg-overview__solo">
@@ -45,7 +45,7 @@
             <span class="eg-tl__node" aria-hidden="true"></span>
             <div class="eg-tl__card">
               <span class="eg-tl__phase">{{ ep.phaseLabel }}</span>
-              <span class="eg-tl__text">{{ ep.text }}</span>
+              <span class="eg-tl__text"><EndgameRichText :template="ep.template" :params="ep.params" /></span>
               <div v-if="ep.chips.length > 0" class="eg-tl__chips">
                 <span v-for="(ch, ci) in ep.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
               </div>
@@ -63,7 +63,7 @@
                  :style="ep.color !== undefined ? {'--eg-pc': hex(ep.color)} : {}">
           <div class="eg-insight__body">
             <span class="eg-insight__badge" v-i18n>{{ ep.badge }}</span>
-            <span class="eg-insight__text">{{ ep.text }}</span>
+            <span class="eg-insight__text"><EndgameRichText :template="ep.template" :params="ep.params" /></span>
             <div v-if="ep.chips.length > 0" class="eg-insight__chips">
               <span v-for="(ch, ci) in ep.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
             </div>
@@ -81,7 +81,7 @@
                    :style="ep.color !== undefined ? {'--eg-pc': hex(ep.color)} : {}">
             <div class="eg-insight__body">
               <span class="eg-insight__badge" v-i18n>{{ ep.badge }}</span>
-              <span class="eg-insight__text">{{ ep.text }}</span>
+              <span class="eg-insight__text"><EndgameRichText :template="ep.template" :params="ep.params" /></span>
               <div v-if="ep.chips.length > 0" class="eg-insight__chips">
                 <span v-for="(ch, ci) in ep.chips" :key="ci" class="eg-chip" :class="'eg-chip--' + ch.tone">{{ ch.text }}</span>
               </div>
@@ -175,6 +175,10 @@
         twists: {{ model.storyDna.twists.map((t) => t.kind).join(', ') }}
       </div>
       <!-- Iteration 15 — episode / story diagnostics (§18). -->
+      <div class="eg-dnadebug__reasons">
+        finish verdict: {{ model.finishVerdict !== undefined ? model.finishVerdict.type : '— (none)' }}
+        <span v-if="model.finishVerdict !== undefined">· {{ model.finishVerdict.reason }}</span>
+      </div>
       <div class="eg-dnadebug__reasons">hero thesis: {{ model.heroThesis !== undefined ? model.heroThesis.key : '— (none)' }}</div>
       <div class="eg-dnadebug__reasons">story sentences: {{ model.story.length }} · margin class: {{ marginClassLabel }}</div>
       <!-- §14 — story quality self-check. -->
@@ -185,6 +189,8 @@
         impact {{ flag(model.storyQuality.hasImpactAwareEpisodes) }} · noDupes {{ flag(model.storyQuality.hasNoDuplicateClaims) }} ·
         margin {{ flag(model.storyQuality.hasMarginContext) }}
       </div>
+      <div v-if="strategyEvidenceDebug.length > 0" class="eg-dnadebug__reasons">strategy evidence (sourceType/confidence):</div>
+      <div v-for="(line, i) in strategyEvidenceDebug" :key="'se' + i" class="eg-dnadebug__reasons">· {{ line }}</div>
       <div v-if="model.storyQuality !== undefined" class="eg-dnadebug__reasons">
         UX — compactHero {{ flag(model.storyQuality.hasCompactHero) }} · fullWidthStory {{ flag(model.storyQuality.hasFullWidthStory) }} ·
         interactiveTerms {{ flag(model.storyQuality.hasInteractiveTerms) }} · sourceBackedEps {{ flag(model.storyQuality.hasSourceBackedEpisodes) }} ·
@@ -219,7 +225,7 @@ import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {EndgameModel, EndgameCategoryKey, EndgamePlayerScore, ENDGAME_CATEGORY_LABEL} from '@/client/components/endgame/endgameModel';
 import {EndgameInsightView, InsightIcon, InsightParam} from '@/client/components/endgame/insightEngine';
-import type {ChipDetail} from '@/client/components/endgame/insightDetail';
+import {buildStrategyTermDetail, type ChipDetail} from '@/client/components/endgame/insightDetail';
 import type {RichParam} from '@/client/components/endgame/endgameRichText';
 import EndgameRichText from '@/client/components/endgame/EndgameRichText.vue';
 import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
@@ -272,7 +278,8 @@ type EpisodeLine = {
   role: string;
   phaseLabel: string; // i18n key
   badge: string; // i18n key
-  text: string; // fully composed + translated
+  template: string; // translated i18n template (rich-text)
+  params: Array<RichParam>; // rich-text params (interactive terms)
   color?: Color;
   chips: Array<EvidenceChipView>;
 };
@@ -339,14 +346,6 @@ export default defineComponent({
   computed: {
     mode(): string {
       return this.model.mode;
-    },
-    // Iteration 15 — the impact-correct hero thesis (composed upstream §16), translated.
-    heroThesisText(): string {
-      const h = this.model.heroThesis;
-      if (h !== undefined) {
-        return translateTextWithParams(h.key, h.params.map((p) => p.t === 'raw' ? p.v : $t(p.v)));
-      }
-      return this.model.storyDna !== undefined ? $t(this.model.storyDna.headlineKey) : '';
     },
     // §3/§8 — the story as TWO paragraphs of rich-text sentences (para 1 = conclusion,
     // para 2 = explanation). Each sentence becomes a translated template + rich params.
@@ -433,6 +432,19 @@ export default defineComponent({
     marginClassLabel(): string {
       return marginClass(this.model.margin);
     },
+    // §11/§19/§20 — per-strategy evidence breakdown with sourceType + confidence (debug).
+    strategyEvidenceDebug(): Array<string> {
+      const w = this.model.winner;
+      if (w === undefined || w.strategyProfile === undefined) {
+        return [];
+      }
+      return w.strategyProfile.all.slice(0, 5).map((d) => {
+        const det = buildStrategyTermDetail(this.model.players, w.color, d.archetype);
+        const bd = (det.breakdown ?? [])
+          .map((b) => `${b.label} ${b.value} [${b.sourceType ?? '?'}/${b.confidence ?? '?'}]`).join(', ');
+        return `${d.archetype} (${det.confidence}): ${bd || '—'}`;
+      });
+    },
   },
   methods: {
     hex(color: Color): string {
@@ -467,12 +479,12 @@ export default defineComponent({
     // Iteration 15 — turn a key episode into a render line (translate template + chips, +
     // the phase label: a generation when pinned, else a soft phase).
     composeEpisode(ep: KeyEpisode): EpisodeLine {
-      const params = ep.params.map((p) => p.t === 'raw' ? p.v : $t(p.v));
       return {
         id: ep.id, role: ep.role,
         phaseLabel: ep.generation !== undefined ? `${$t('Generation')} ${ep.generation}` : $t(PHASE_LABEL[ep.phase]),
         badge: ep.badge,
-        text: translateTextWithParams(ep.textKey, params),
+        template: $t(ep.textKey),
+        params: this.richParamsOf(ep.params),
         color: ep.color,
         chips: ep.evidenceChips.map((ch) => ({
           text: (ch.t === 'raw' ? ch.v : $t(ch.v)) + (ch.label !== undefined ? ' ' + $t(ch.label) : ''),

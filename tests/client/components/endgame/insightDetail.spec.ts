@@ -118,12 +118,21 @@ describe('Editorial guard — no banned / debug phrasing in ru/endgame.json (Ite
 // female names and compound strategies ("Города и озеленение дала").
 // Iteration 17 §7 — no stray combining diacritics (e.g. the acute "бо́льшая") in the
 // user-facing endgame strings: they render as odd marks in the UI.
-describe('Typography guard — no combining diacritical marks in ru/endgame.json (Iteration 17)', () => {
+describe('Typography guard — clean ru/endgame.json strings (Iteration 17 §7)', () => {
   const values = Object.values(ruEndgame as Record<string, string>);
-  it('no ru value contains a combining mark (U+0300–U+036F)', () => {
-    const hit = values.find((v) => /[̀-ͯ]/.test(v));
-    expect(hit, `found a combining diacritic in: ${hit}`).to.be.undefined;
-  });
+  const cases: Array<{name: string; re: RegExp}> = [
+    {name: 'combining diacritic (U+0300–U+036F)', re: /[̀-ͯ]/},
+    {name: 'glued sentence — period + uppercase (".Это")', re: /\.[А-ЯЁA-Z]/},
+    {name: 'glued sentence — quote + uppercase ("».К")', re: /»[А-ЯЁA-Z]/},
+    {name: 'question mark inside a quoted name ("?»")', re: /\?»/},
+    {name: 'double space', re: / {2}/},
+  ];
+  for (const c of cases) {
+    it(`no ru value has a ${c.name}`, () => {
+      const hit = values.find((v) => c.re.test(v));
+      expect(hit, `found "${c.name}" in: ${hit}`).to.be.undefined;
+    });
+  }
 });
 
 describe('Grammar guard — no gendered subject-verb with a name/strategy placeholder (Iteration 16)', () => {

@@ -24,7 +24,7 @@ import type {ColonyName} from '@/common/colonies/ColonyName';
 import type {EndgameFact, FactType} from '@/common/events/endgameFacts';
 import type {InsightContext, InsightFamily, EvidenceChip} from '@/client/components/endgame/insightEngine';
 import type {EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
-import type {CardVpBySource} from '@/client/components/endgame/cardScoreContribution';
+import type {CardVpBySource, CardVpSource, VpConfidence} from '@/client/components/endgame/cardScoreContribution';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -52,12 +52,17 @@ export type ResourceTotals = {
   animalCards: number; microbeCards: number; floaterCards: number;
 };
 
+/** A thin per-card VP contribution (for the §10 hover breakdown). */
+export type CardVpContribution = {cardName: string; totalVp: number; source: CardVpSource; confidence: VpConfidence};
+
 /** Per-player raw inputs for archetype detection (computed client-side, threaded in). */
 export type StrategyInput = {
   tags: Partial<Record<Tag, number>>;
   coloniesOwned: ReadonlyArray<ColonyName>;
   cardVp: CardVpBySource;
   resourceTotals: ResourceTotals;
+  /** Iteration 17 §10 — per-card VP contributions for the hover breakdown (top cards of a line). */
+  cardContributions?: ReadonlyArray<CardVpContribution>;
 };
 
 export type StrategyConfidence = 'high' | 'medium' | 'low';

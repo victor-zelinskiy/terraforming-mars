@@ -61,8 +61,9 @@ describe('EndgameOverviewTab', () => {
     expect(html).to.include('Nastya');
     // The winner (Victor) is placed on the left.
     expect(wrapper.find('.eg-rhduel__player--left').text()).to.include('Victor');
-    // A short thesis (the composed hero thesis) sits under the result block (§16).
-    expect(wrapper.find('.eg-rhduel__thesis').exists(), 'result thesis').to.eq(true);
+    // Iteration 17 — a visual finish-verdict banner replaces the flat thesis string (§3).
+    expect(wrapper.find('.eg-fv').exists(), 'finish verdict banner').to.eq(true);
+    expect(wrapper.find('.eg-rhduel__thesis').exists(), 'flat thesis removed').to.eq(false);
     // Iteration 15 — the directed story layer: the 30-second story + the editorial
     // "what defined this game" replace the old storyhead chips (§8/§13).
     expect(wrapper.find('.eg-storyhead').exists(), 'old storyhead removed').to.eq(false);

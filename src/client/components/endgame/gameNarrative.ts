@@ -46,7 +46,7 @@ const key = (v: string): InsightParam => ({t: 'i18n', v});
 const playerP = (name: string, color: Color): InsightParam => ({t: 'raw', v: name, term: {kind: 'player', color}});
 /** A strategy token (rendered with a hover detail from the player's strategy profile). */
 function stratP(ctx: InsightContext, color: Color, archetype: StrategyArchetype): InsightParam {
-  return {t: 'i18n', v: strategyLabel(archetype), term: {kind: 'strategy', detail: buildStrategyTermDetail(ctx, color, archetype)}};
+  return {t: 'i18n', v: strategyLabel(archetype), term: {kind: 'strategy', detail: buildStrategyTermDetail(ctx.players, color, archetype)}};
 }
 /** An accented numeric token (margins / VP). */
 const scoreP = (v: number | string): InsightParam => ({t: 'raw', v: String(v), term: {kind: 'score', accent: true}});
