@@ -99,13 +99,15 @@ describe('finishVerdict — genuine rare finishes (§5)', () => {
     expect(v?.pattern).to.eq('award_swing');
     expect(v?.rarity).to.eq('rare');
   });
-  it('a big animal line (≥18) → resource_card_finish (rare); 16 is NOT enough', () => {
-    expect(buildFinishVerdict(ctx(pl('red', 'N', 110, {lines: [det('animals', 20)]}), pl('blue', 'V', 92), 18))?.pattern).to.eq('resource_card_finish');
-    expect(buildFinishVerdict(ctx(pl('red', 'N', 110, {lines: [det('animals', 16)]}), pl('blue', 'V', 92), 18))?.pattern).to.not.eq('resource_card_finish');
+  it('a DOMINANT ≥30-VP animal line covering the margin → resource_card_finish (rare)', () => {
+    const v = buildFinishVerdict(ctx(pl('red', 'N', 130, {lines: [det('animals', 32)]}), pl('blue', 'V', 100), 30));
+    expect(v?.pattern).to.eq('resource_card_finish');
+    expect(v?.rarity).to.eq('rare');
   });
-  it('a heavy Jovian combo (≥15) → jovian_finish (rare); 14 is NOT enough', () => {
-    expect(buildFinishVerdict(ctx(pl('red', 'N', 110, {jovianVp: 16}), pl('blue', 'V', 92), 18))?.pattern).to.eq('jovian_finish');
-    expect(buildFinishVerdict(ctx(pl('red', 'N', 110, {jovianVp: 14}), pl('blue', 'V', 92), 18))?.pattern).to.not.eq('jovian_finish');
+  it('a DOMINANT ≥25-VP Jovian block covering the margin → jovian_finish (rare)', () => {
+    const v = buildFinishVerdict(ctx(pl('red', 'N', 130, {jovianVp: 28}), pl('blue', 'V', 100), 30));
+    expect(v?.pattern).to.eq('jovian_finish');
+    expect(v?.rarity).to.eq('rare');
   });
   it('a finish-line comeback → comeback (rare)', () => {
     const v = buildFinishVerdict(ctx(pl('red', 'N', 90), pl('blue', 'V', 80), 10, tl({winnerTookLeadGen: 10, maxDeficit: 9})));
@@ -115,6 +117,39 @@ describe('finishVerdict — genuine rare finishes (§5)', () => {
   it('records rare candidates (accepted + rejected) for debug', () => {
     const v = buildFinishVerdict(ctx(pl('red', 'N', 100, {tr: 40}), pl('blue', 'V', 78, {tr: 42}), 22));
     expect((v?.rareCandidates.length ?? 0) >= 0).to.be.true;
+  });
+});
+
+describe('finishVerdict — Iteration 20: no over-claimed strategic finishes (§1–§4, §24)', () => {
+  it('+20 animals as the ONLY line → resource pattern but rarity NOTABLE (title = scale, no "finish")', () => {
+    const v = buildFinishVerdict(ctx(pl('red', 'Nastya', 110, {lines: [det('animals', 20)]}), pl('blue', 'Victor', 80), 30));
+    expect(v?.pattern).to.eq('resource_card_finish');
+    expect(v?.rarity).to.eq('notable');
+    // The banner TITLE stays the scale title, NOT "A card-resource finish".
+    expect(v?.titleKey).to.eq('A wide finish');
+  });
+
+  it('+20 animals as a SECONDARY line (board is primary) → pattern normal, NOT a resource finish (§8)', () => {
+    const v = buildFinishVerdict(ctx(
+      pl('red', 'Nastya', 120, {lines: [det('cityGreenery', 32), det('animals', 20)]}),
+      pl('blue', 'Victor', 84), 36));
+    expect(v?.pattern).to.eq('normal');
+    expect(v?.rarity).to.eq('common');
+    expect(v?.titleKey).to.eq('A runaway finish');
+  });
+
+  it('+18 Jovian block (not covering the margin) → jovian pattern but NOTABLE, not a finish', () => {
+    const v = buildFinishVerdict(ctx(pl('red', 'N', 110, {jovianVp: 18}), pl('blue', 'V', 90), 30));
+    expect(v?.pattern).to.eq('jovian_finish');
+    expect(v?.rarity).to.eq('notable');
+  });
+
+  it('a strategic finish NEVER overrides a close finish — strategy is flavour (§5)', () => {
+    // A close game (margin 3) won with a big animal line: the verdict is still the close
+    // finish (scale), not "a card-resource finish".
+    const v = buildFinishVerdict(ctx(pl('red', 'Nastya', 90, {lines: [det('animals', 24)]}), pl('blue', 'Victor', 87), 3));
+    expect(v?.pattern).to.not.eq('resource_card_finish');
+    expect(v?.scale).to.eq('photo_finish');
   });
 });
 

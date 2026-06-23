@@ -101,8 +101,12 @@ function scaleOf(margin: number): FinishScale {
 function trOf(p: {categories: {tr: number}}): number {
   return p.categories.tr ?? 0;
 }
-function scoringLines(ctx: InsightContext): number {
-  return (ctx.winner.strategyProfile?.all ?? []).filter((d) => d.isScoring && d.vpContribution >= 6).length;
+/** The winner's SCORING lines (≥6 VP), strongest first — for dominance comparisons. */
+function scoringLineList(ctx: InsightContext): Array<{archetype: StrategyArchetype; vp: number}> {
+  return (ctx.winner.strategyProfile?.all ?? [])
+    .filter((d) => d.isScoring && d.vpContribution >= 6)
+    .map((d) => ({archetype: d.archetype, vp: d.vpContribution}))
+    .sort((a, b) => b.vp - a.vp);
 }
 function mainArche(ctx: InsightContext): StrategyArchetype | undefined {
   return ctx.winner.strategyProfile?.primary?.archetype;
@@ -130,14 +134,35 @@ function scaleLine(ctx: InsightContext): FinishVerdictLine {
 
 type Detected = {pattern: FinishPattern; rarity: FinishRarity; line: FinishVerdictLine; chips: ReadonlyArray<EvidenceChip>; reason: string};
 
-/** Detect the win PATTERN + its RARITY (strong-evidence gated). Records every rare
- *  candidate considered into `records` for debug. Returns the chosen pattern. */
+// The "amplifier" line for a STRONG-but-not-dominant secondary scoring line (notable, not a finish).
+function normalLine(ctx: InsightContext, lines: ReadonlyArray<{archetype: StrategyArchetype; vp: number}>): FinishVerdictLine {
+  const w = ctx.winner;
+  const prim = w.strategyProfile?.primary?.archetype;
+  const sec = lines.find((l) => l.archetype !== prim);
+  const scale = scaleOf(ctx.margin);
+  // A wide win with a primary + a real secondary line → name both honestly (§8).
+  if ((scale === 'large' || scale === 'blowout') && prim !== undefined && sec !== undefined) {
+    return {key: 'A strong final count for ${0} through ${1}, with ${2} adding a second layer of points.',
+      params: [playerP(w.name, w.color), stratP(ctx, w.color, prim), stratP(ctx, w.color, sec.archetype)]};
+  }
+  return scaleLine(ctx);
+}
+
+/** Detect the win PATTERN + its RARITY. DRAMA (shape) outranks strategy; close games keep
+ *  the close verdict (strategy is flavour, not a "finish"); strategic finishes need real
+ *  DOMINANCE (share of total + margin, top/dominant line). Records candidates for debug. */
 function detectPattern(ctx: InsightContext, records: Array<RareCandidateRecord>): Detected {
   const w = ctx.winner;
   const m = ctx.margin;
   const t = ctx.timeline;
+  const total = Math.max(1, w.total);
+  const isClose = scaleOf(m) === 'photo_finish' || scaleOf(m) === 'close';
+  const lines = scoringLineList(ctx);
+  const topVp = lines[0]?.vp ?? 0;
+  const secondVp = lines[1]?.vp ?? 0;
   const note = (type: FinishPattern, accepted: boolean, reason: string) => records.push({type, accepted, reason});
 
+  // ── DRAMA first — the SHAPE of the game outranks any strategic pattern (§5). ──
   // 1) Finish-line comeback (trailed by a real gap, took the lead very late).
   const lateLead = t?.winnerTookLeadGen !== undefined && t.winnerTookLeadGen >= ctx.generation - 1;
   if (lateLead && (t?.maxDeficit ?? 0) >= 5) {
@@ -146,59 +171,7 @@ function detectPattern(ctx: InsightContext, records: Array<RareCandidateRecord>)
       line: {key: 'By the final count the hidden points came out and swung the lead to ${0} after trailing.', params: [playerP(w.name, w.color)]},
       chips: [valChip(`−${t?.maxDeficit}`, 'VP', 'bad'), vpChip(m)], reason: 'comeback'};
   }
-
-  // 2) A single card worth more than a tiny gap.
-  if (m >= 1 && m <= 5) {
-    const top = [...w.topCards].sort((a, b) => b.victoryPoint - a.victoryPoint)[0];
-    if (top !== undefined && top.victoryPoint >= m && top.victoryPoint >= 5) {
-      note('single_card_swing', true, `${top.cardName} ${top.victoryPoint} ≥ margin ${m}`);
-      return {pattern: 'single_card_swing', rarity: 'rare',
-        line: {key: 'In a tight game, ${0}’s ${1} alone was worth more than the final gap.', params: [playerP(w.name, w.color), cardP(top.cardName)]},
-        chips: [vpChip(top.victoryPoint), gapChip(m)], reason: 'single-card swing'};
-    }
-    note('single_card_swing', false, `best card ${top?.victoryPoint ?? 0} < margin ${m}`);
-  }
-
-  // 3) Award points larger than a close gap.
-  const awards = w.breakdown.awards ?? 0;
-  if (m >= 1 && m <= 7 && awards >= m && awards >= 5) {
-    note('award_swing', true, `awards ${awards} ≥ margin ${m}`);
-    return {pattern: 'award_swing', rarity: 'rare',
-      line: {key: 'The award points were the difference for ${0}: +${1} VP, more than the final gap.', params: [playerP(w.name, w.color), scoreP(awards)]},
-      chips: [valChip(`+${awards}`, 'VP', 'good'), gapChip(m)], reason: 'award swing'};
-  }
-  if (m >= 1 && m <= 7) {
-    note('award_swing', false, `awards ${awards} < margin ${m}`);
-  }
-
-  // 4) A heavy Jovian combo (≥15 VP).
-  const jov = w.strategyInput?.cardVp.jovian ?? 0;
-  if (jov >= 15) {
-    note('jovian_finish', true, `jovian ${jov} VP`);
-    return {pattern: 'jovian_finish', rarity: 'rare',
-      line: {key: 'The Jovian tags banked all game folded into a dense block of points for ${0}: +${1} VP.', params: [playerP(w.name, w.color), scoreP(jov)]},
-      chips: [vpChip(jov), lblChip('Jovian combo', 'good')], reason: 'Jovian finish'};
-  }
-  if (jov >= 8) {
-    note('jovian_finish', false, `jovian ${jov} VP < 15`);
-  }
-
-  // 5) A card-resource line (≥18 VP — strict, so it's genuinely a finish).
-  const resDet = (w.strategyProfile?.all ?? [])
-    .filter((d) => (d.archetype === 'animals' || d.archetype === 'microbes' || d.archetype === 'floaters') && d.isScoring)
-    .sort((a, b) => b.vpContribution - a.vpContribution)[0];
-  if (resDet !== undefined && resDet.vpContribution >= 18) {
-    note('resource_card_finish', true, `${resDet.archetype} ${resDet.vpContribution} VP`);
-    return {pattern: 'resource_card_finish', rarity: 'rare',
-      line: {key: 'Resources stored on cards opened up at scoring and gave ${0} a big block through ${1}: +${2} VP.',
-        params: [playerP(w.name, w.color), stratP(ctx, w.color, resDet.archetype), scoreP(resDet.vpContribution)]},
-      chips: [vpChip(resDet.vpContribution), lblChip(strategyLabel(resDet.archetype), 'good')], reason: 'card-resource finish'};
-  }
-  if (resDet !== undefined) {
-    note('resource_card_finish', false, `${resDet.archetype} ${resDet.vpContribution} VP < 18`);
-  }
-
-  // 6) Hidden scoring reveal — the winner was behind on the board at ~2/3 but won.
+  // 2) Hidden scoring reveal — the winner was behind at ~2/3 but won.
   if (t?.earlyGap !== undefined && t.earlyGap < 0 && m > 0) {
     const rarity: FinishRarity = m >= 10 ? 'rare' : 'notable';
     note('hidden_scoring_reveal', rarity !== 'notable', `behind at 2/3 (gap ${t.earlyGap}), won by ${m}`);
@@ -207,7 +180,81 @@ function detectPattern(ctx: InsightContext, records: Array<RareCandidateRecord>)
       chips: [vpChip(m), lblChip('then took the lead', 'good')], reason: 'hidden reveal'};
   }
 
-  // 7) Late breakaway — close at 2/3, then a wide finish (notable, not rare).
+  // ── CLOSE GAMES — the close verdict IS the story; only close DECIDERS can be rare (§5). ──
+  if (isClose) {
+    const top = [...w.topCards].sort((a, b) => b.victoryPoint - a.victoryPoint)[0];
+    if (top !== undefined && m >= 1 && top.victoryPoint >= m && top.victoryPoint >= 5) {
+      note('single_card_swing', true, `${top.cardName} ${top.victoryPoint} ≥ margin ${m}`);
+      return {pattern: 'single_card_swing', rarity: 'rare',
+        line: {key: 'In a tight game, ${0}’s ${1} alone was worth more than the final gap.', params: [playerP(w.name, w.color), cardP(top.cardName)]},
+        chips: [vpChip(top.victoryPoint), gapChip(m)], reason: 'single-card swing'};
+    }
+    note('single_card_swing', false, `best card ${top?.victoryPoint ?? 0} vs margin ${m}`);
+    const awards = w.breakdown.awards ?? 0;
+    if (m >= 1 && awards >= m && awards >= 5) {
+      note('award_swing', true, `awards ${awards} ≥ margin ${m}`);
+      return {pattern: 'award_swing', rarity: 'rare',
+        line: {key: 'The award points were the difference for ${0}: +${1} VP, more than the final gap.', params: [playerP(w.name, w.color), scoreP(awards)]},
+        chips: [valChip(`+${awards}`, 'VP', 'good'), gapChip(m)], reason: 'award swing'};
+    }
+    note('award_swing', false, `awards ${awards} vs margin ${m}`);
+    // A close finish — strategy is only flavour in the subtitle, never the verdict.
+    const src = lines[0];
+    return {pattern: 'normal', rarity: 'common',
+      line: src !== undefined ?
+        {key: 'A handful of points decided it — the decisive ones came from ${0}.', params: [stratP(ctx, w.color, src.archetype)]} :
+        scaleLine(ctx),
+      chips: m > 0 ? [gapChip(m)] : [], reason: 'close finish'};
+  }
+
+  // ── SOLID / LARGE / BLOWOUT — strategic finishes only on real DOMINANCE (§2–§4). ──
+  // 3) Card-resource finish: dominant resource line (rare needs ≥30 VP + 16% of total +
+  //    75% of margin); a strong-but-secondary line is a NOTABLE amplifier, not a finish.
+  const resLine = lines.find((l) => l.archetype === 'animals' || l.archetype === 'microbes' || l.archetype === 'floaters');
+  if (resLine !== undefined) {
+    const dominant = resLine.vp >= topVp * 0.9 || resLine.vp > secondVp + 5;
+    const shareTotal = resLine.vp / total;
+    const shareMargin = resLine.vp / Math.max(1, m);
+    if (resLine.vp >= 30 && shareTotal >= 0.16 && shareMargin >= 0.75 && dominant) {
+      note('resource_card_finish', true, `${resLine.archetype} ${resLine.vp} VP, total ${shareTotal.toFixed(2)}, margin ${shareMargin.toFixed(2)}, dominant`);
+      return {pattern: 'resource_card_finish', rarity: 'rare',
+        line: {key: 'Resources stored on cards opened up at scoring and gave ${0} a big block through ${1}: +${2} VP.',
+          params: [playerP(w.name, w.color), stratP(ctx, w.color, resLine.archetype), scoreP(resLine.vp)]},
+        chips: [vpChip(resLine.vp), lblChip(strategyLabel(resLine.archetype), 'good')], reason: 'card-resource finish'};
+    }
+    if (resLine.vp >= 18 && dominant) {
+      note('resource_card_finish', false, `${resLine.archetype} ${resLine.vp} VP — amplifier (rare needs ≥30 & ≥75% of margin)`);
+      return {pattern: 'resource_card_finish', rarity: 'notable',
+        line: {key: 'A second scoring line for ${0}: ${1} added +${2} VP.',
+          params: [playerP(w.name, w.color), stratP(ctx, w.color, resLine.archetype), scoreP(resLine.vp)]},
+        chips: [vpChip(resLine.vp)], reason: 'card-resource amplifier'};
+    }
+    if (resLine.vp >= 12) {
+      note('resource_card_finish', false, `${resLine.archetype} ${resLine.vp} VP — secondary contributor (not the verdict)`);
+    }
+  }
+
+  // 4) Jovian finish: dominant Jovian block (rare needs ≥25 VP + 75% of margin + dominant).
+  const jov = w.strategyInput?.cardVp.jovian ?? 0;
+  if (jov >= 15) {
+    const dominant = jov >= topVp * 0.9 || jov > secondVp + 5;
+    const shareMargin = jov / Math.max(1, m);
+    if (jov >= 25 && shareMargin >= 0.75 && dominant) {
+      note('jovian_finish', true, `jovian ${jov} VP, margin ${shareMargin.toFixed(2)}, dominant`);
+      return {pattern: 'jovian_finish', rarity: 'rare',
+        line: {key: 'The Jovian tags banked all game folded into a dense block of points for ${0}: +${1} VP.', params: [playerP(w.name, w.color), scoreP(jov)]},
+        chips: [vpChip(jov), lblChip('Jovian combo', 'good')], reason: 'Jovian finish'};
+    }
+    if (dominant) {
+      note('jovian_finish', false, `jovian ${jov} VP — important block (rare needs ≥25 & ≥75% of margin)`);
+      return {pattern: 'jovian_finish', rarity: 'notable',
+        line: {key: 'Jovian tags added an important block of points for ${0}: +${1} VP.', params: [playerP(w.name, w.color), scoreP(jov)]},
+        chips: [vpChip(jov)], reason: 'Jovian amplifier'};
+    }
+    note('jovian_finish', false, `jovian ${jov} VP — not the dominant line`);
+  }
+
+  // 5) Late breakaway — close at 2/3, then a wide finish (notable, not rare).
   if (!(t?.wireToWire ?? false) && m >= 16 && t?.earlyGap !== undefined && t.earlyGap >= 0 && t.earlyGap <= m / 3) {
     note('late_breakaway', false, 'notable, not rare');
     return {pattern: 'late_breakaway', rarity: 'notable',
@@ -215,19 +262,18 @@ function detectPattern(ctx: InsightContext, records: Array<RareCandidateRecord>)
       chips: [vpChip(m)], reason: 'late breakaway'};
   }
 
-  // 8) Won with less terraforming — a CONTRAST. Rare ONLY at a huge deficit + several lines.
+  // 6) Won with less terraforming — a CONTRAST. Rare ONLY at a huge deficit + 3 lines.
   const bestOtherTr = Math.max(0, ...ctx.players.filter((p) => p.color !== w.color).map(trOf));
   const trDeficit = bestOtherTr - trOf(w);
   if (trDeficit >= 8 && m >= 6) {
-    const lines = scoringLines(ctx);
     let rarity: FinishRarity = 'notable';
-    if (trDeficit >= 25 && m >= 30 && lines >= 3) {
+    if (trDeficit >= 25 && m >= 30 && lines.length >= 3) {
       rarity = 'legendary';
-    } else if (trDeficit >= 18 && m >= 22 && lines >= 3) {
+    } else if (trDeficit >= 18 && m >= 22 && lines.length >= 3) {
       rarity = 'rare';
     }
     note('lower_terraforming_win', rarity === 'rare' || rarity === 'legendary',
-      `trDeficit ${trDeficit}, margin ${m}, scoringLines ${lines}`);
+      `trDeficit ${trDeficit}, margin ${m}, scoringLines ${lines.length}`);
     const arche = mainArche(ctx);
     const chips: Array<EvidenceChip> = [valChip(`+${trDeficit}`, 'TR', 'neutral'), vpChip(m)];
     if (arche !== undefined) {
@@ -242,8 +288,8 @@ function detectPattern(ctx: InsightContext, records: Array<RareCandidateRecord>)
       chips, reason: `lower TR by ${trDeficit}`};
   }
 
-  // 9) Nothing special — a plain finish (the scale carries it).
-  return {pattern: 'normal', rarity: 'common', line: scaleLine(ctx), chips: [], reason: 'plain finish'};
+  // 7) Nothing dominant — a plain finish; name a real secondary line if there is one (§8).
+  return {pattern: 'normal', rarity: 'common', line: normalLine(ctx, lines), chips: m > 0 ? [vpChip(m)] : [], reason: 'plain finish'};
 }
 
 /** Classify + compose the finish verdict for the hero banner. */
@@ -258,11 +304,9 @@ export function buildFinishVerdict(ctx: InsightContext): FinishVerdict | undefin
   // common/notable → SCALE title (no "rare" wording); rare/legendary → pattern title.
   const titleKey = isRare ? (RARE_TITLE[d.pattern] ?? SCALE_TITLE[scale]) : SCALE_TITLE[scale];
   const glyph = isRare ? (PATTERN_GLYPH[d.pattern] ?? SCALE_GLYPH[scale]) : SCALE_GLYPH[scale];
-  // For a plain finish keep the scale chips (a single margin chip), else the pattern chips.
-  const chips = d.pattern === 'normal' && scale !== 'photo_finish' ? [vpChip(ctx.margin)] : d.chips;
   return {
     scale, pattern: d.pattern, rarity: d.rarity,
-    titleKey, line: d.line, glyph, chips,
+    titleKey, line: d.line, glyph, chips: d.chips,
     reason: `${scale} / ${d.pattern} / ${d.rarity} — ${d.reason}`,
     rareCandidates: records,
   };
