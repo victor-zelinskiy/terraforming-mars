@@ -34,7 +34,8 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import type {EndgameFact, FactType, FactTag} from '@/common/events/endgameFacts';
 import {analyzeSpecialCardStories} from '@/client/components/endgame/specialCardStories';
-import {ARCHETYPE_ENGINE_TEXT, ARCHETYPE_LABEL, corporationProfile, isCapitalArchetype} from '@/client/components/endgame/corporationStories';
+import {corporationProfile} from '@/client/components/endgame/corporationStories';
+import type {CorporationImpact} from '@/client/components/endgame/corporationImpactEngine';
 import {ARCHETYPE_FAMILY, archetypeCluster, strategyLabel, type StrategyArchetype} from '@/client/components/endgame/strategyArchetypes';
 import {explainEconomy, ECONOMY_CASE_TEXT} from '@/client/components/endgame/economyExplanation';
 import {buildGameStoryDna, type GameStoryDNA} from '@/client/components/endgame/gameStoryDna';
@@ -297,6 +298,9 @@ export type InsightContext = {
   /** Resource COUNT on a player's cards (card name → units) — lets Vermin 2.0 read the
    *  animals on Vermin (precision the facts don't carry). Optional → graceful. */
   cardResources?: Partial<Record<Color, Partial<Record<CardName, number>>>>;
+  /** Iteration 17 — the per-player corporation impact (built ONCE in buildEndgameModel,
+   *  read by the corp analyzer + the player-arc + the corp episode). Optional → graceful. */
+  corporationImpacts?: ReadonlyArray<CorporationImpact>;
 };
 
 // ── Fact selection helpers (the bridge for future fact-based analyzers) ──────────
@@ -1599,10 +1603,6 @@ const analyzeHydronetwork: Analyzer = (ctx) => {
 // "played corporation X". The Merger prelude (a second corporation) is the special case.
 // ═════════════════════════════════════════════════════════════════════════
 
-function corpFactFor(ctx: InsightContext, color: Color, corp: CardName): EndgameFact | undefined {
-  return factsByType(ctx, 'corporationImpact').find((f) => f.player === color && f.sourceCard === corp);
-}
-
 /** The dedup IDENTITY for a corp insight, so it REPLACES the redundant generic card —
  *  a colony-corp's story collapses the generic colony card, an economy-corp's the economy
  *  card, an action-corp's the blue-action card. */
@@ -1615,141 +1615,84 @@ function corpEvidenceKey(dedup: 'economy' | 'colony' | 'action' | undefined, own
   }
 }
 
-function corpEngineChips(archetype: string, f: EndgameFact, actionDriven: boolean, dedup?: string): Array<EvidenceChip> {
-  const chips: Array<EvidenceChip> = [chipL(ARCHETYPE_LABEL[archetype as keyof typeof ARCHETYPE_LABEL] ?? 'Corporation', 'neutral')];
-  if (actionDriven) {
-    chips.push(chipN(`×${metric(f, 'actionActivations')}`, 'good'));
-  } else if (dedup === 'economy' && metric(f, 'passiveSaved') > 0) {
-    chips.push(chipN(`+${metric(f, 'passiveSaved')}`, 'good'));
-  } else {
-    chips.push(chipN(`${metric(f, 'totalMeasuredValue')}`, 'metric'));
+/** The evidence chips for a corp insight — the archetype label + up to two measured metrics
+ *  (so the card SHOWS the number, not just prose). */
+function corpInsightChips(impact: CorporationImpact): Array<EvidenceChip> {
+  const chips: Array<EvidenceChip> = [chipL(impact.archetypeLabel, 'neutral')];
+  for (const mm of impact.metrics.filter((x) => x.role === 'primary').slice(0, 2)) {
+    chips.push({t: 'raw', v: String(mm.value), tone: 'metric', label: mm.label});
   }
   return chips;
 }
 
+/** Story scores scaled by the corp's tier + placement (so a platinum winner corp can be a
+ *  hero, a bronze observation stays small). Confidence scales the selector weight. */
+function corpInsightScores(impact: CorporationImpact, isWinner: boolean): InsightScores {
+  const tierScore = {missed: 0.2, minor: 0.3, solid: 0.45, strong: 0.6, exceptional: 0.8, signature: 1}[impact.efficiencyTier];
+  const conf = impact.confidence === 'high' ? 0.85 : impact.confidence === 'medium' ? 0.65 : 0.45;
+  const decisive = impact.placement === 'why_winner_won' || impact.placement === 'what_defined_game';
+  return {
+    impact: tierScore,
+    rarity: impact.placement === 'what_defined_game' ? 0.85 : impact.placement === 'unusual_episode' ? 0.6 : 0.45,
+    relevance: isWinner ? (decisive ? 0.85 : 0.6) : 0.5,
+    confidence: conf,
+  };
+}
+
+// The corporation analyzer is now a THIN consumer of the corporationImpactEngine: it turns
+// every impact whose placement reaches a section (additional observation / unusual episode /
+// why-winner-won / what-defined) into an insight candidate. `player_profile_only` / `suppress`
+// impacts carry NO card — the player arc shows their readout instead (§5/§7). The corp episode
+// (keyEpisodeEngine) renders gold/platinum in the episode sections; this candidate still feeds
+// dedup + the player-arc worked/failed badge + the composer hero path.
 const analyzeCorporationImpact: Analyzer = (ctx) => {
   const out: Array<InsightCandidate> = [];
-  if ((ctx.facts ?? []).length === 0) {
-    return out; // no measured data (old game / facts not fetched) → no corp story
-  }
-  for (const p of ctx.players) {
-    const corps = p.corporations;
-    if (corps.length === 0) {
+  for (const impact of ctx.corporationImpacts ?? []) {
+    if (impact.placement === 'player_profile_only' || impact.placement === 'suppress') {
       continue;
     }
-    const isWinner = p.color === ctx.winner.color;
+    const isWinner = impact.color === ctx.winner.color;
+    const corp = impact.corporationName as CardName;
+    const decisive = impact.placement === 'why_winner_won' || impact.placement === 'what_defined_game';
+    const params = impact.summary.params.map((p) => ({...p}));
+    const scores = corpInsightScores(impact, isWinner);
+    const chips = corpInsightChips(impact);
 
-    // ── MERGER — a player fused two corporations (the special high-priority case). ──
-    if (corps.length >= 2) {
-      const details = corps
-        .map((name) => {
-          const f = corpFactFor(ctx, p.color, name as CardName);
-          return {name, value: f !== undefined ? metric(f, 'totalMeasuredValue') : 0};
-        })
-        .sort((a, b) => b.value - a.value);
-      const [a0, a1] = details;
-      const both = a0.value >= 8 && a1.value >= 8;
-      // Only tell the Merger story when at least one corp genuinely contributed — two bare
-      // starting bonuses are not a story worth a headline.
-      if (a0.value >= 8) {
-        const big = both && isWinner;
-        out.push({
-          id: `corp.merger.${p.color}`, group: 'reason', priority: both ? 74 : 64,
-          severity: 'major', icon: 'split', badge: 'Merger', color: p.color,
-          textKey: both ?
-            'A double corporation paid off: ${0} fused ${1} and ${2}, and both pulled their weight.' :
-            '${0} merged into ${1} and ${2}, but only one of the two really carried the game.',
-          params: [raw(p.name), card(a0.name), card(a1.name)],
-          family: 'corporationImpact', uiVariant: big ? 'hero' : 'major', storyCluster: 'merger',
-          evidenceKey: `merger:${p.color}`,
-          evidenceChips: [chipL(a0.name, 'good'), chipN('+', 'neutral'), chipL(a1.name, 'neutral')],
-          scores: {rarity: 0.85, drama: both ? 0.65 : 0.5, relevance: 0.7, impact: Math.min(1, a0.value / 30), confidence: 0.7},
-          relatedPlayers: [p.color], relatedCards: [a0.name as CardName, a1.name as CardName],
-        });
-      }
-      continue; // the Merger card covers this player — skip the single-corp angles
-    }
-
-    // ── Single corporation. ──
-    const corp = corps[0];
-    const f = corpFactFor(ctx, p.color, corp as CardName);
-    if (f === undefined) {
-      continue; // played but produced no measured event (e.g. a flag-only corp) → no claim
-    }
-    const profile = corporationProfile(corp as CardName);
-    const total = metric(f, 'totalMeasuredValue');
-    const actAct = metric(f, 'actionActivations');
-    const passTrig = metric(f, 'passiveTriggers');
-    const passVal = metric(f, 'passiveValue');
-    const saved = metric(f, 'passiveSaved');
-    const earlyValue = metric(f, 'earlyValue');
-
-    // Unknown corporation (out of scope) — a generic measured insight if it was strong.
-    if (profile === undefined) {
-      if (total >= 20) {
-        out.push({
-          id: `corp.generic.${p.color}`, group: 'cards', priority: 54, severity: 'normal', icon: 'corp',
-          badge: 'Corporation', color: p.color,
-          textKey: 'The ${1} corporation was central to ${0}’s game.',
-          params: [raw(p.name), card(corp)],
-          family: 'corporationImpact', uiVariant: 'normal', storyCluster: 'corporation',
-          evidenceKey: `corporation:${p.color}`,
-          evidenceChips: [chipN(`${total}`, 'metric'), chipL('corporation engine')],
-          scores: {impact: Math.min(1, total / 30), rarity: 0.4, relevance: 0.6, confidence: 0.6},
-          relatedFactIds: [f.id], relatedPlayers: [p.color], relatedCards: [corp as CardName],
-        });
-      }
+    if (impact.realized === 'merged') {
+      out.push({
+        id: `corp.merger.${impact.color}`, group: 'reason', priority: decisive ? 74 : 64,
+        severity: 'major', icon: 'split', badge: 'Merger', color: impact.color,
+        textKey: impact.summary.key, params,
+        family: 'corporationImpact', uiVariant: decisive ? 'hero' : 'major', storyCluster: 'merger',
+        evidenceKey: `merger:${impact.color}`, evidenceChips: chips, scores,
+        relatedPlayers: [impact.color],
+        relatedCards: impact.mergedWith !== undefined ? [corp, impact.mergedWith as CardName] : [corp],
+      });
       continue;
     }
 
-    const actionDriven = profile.hasAction && actAct >= 4;
-    const passiveDriven = total >= 16 || (passTrig >= 8 && passVal >= 10) || saved >= 18;
-    const startDriven = isCapitalArchetype(profile.archetype) && earlyValue >= 12;
-
-    if (actionDriven || passiveDriven) {
-      const strong = actAct >= 6 || total >= 26 || saved >= 24;
-      out.push({
-        id: `corp.engine.${p.color}`, group: actionDriven ? 'cards' : 'reason',
-        priority: isWinner ? (strong ? 66 : 62) : (strong ? 61 : 58),
-        severity: strong ? 'major' : 'normal', icon: 'corp', badge: 'Corporation', color: p.color,
-        textKey: ARCHETYPE_ENGINE_TEXT[profile.archetype],
-        params: [raw(p.name), card(corp)],
-        family: 'corporationImpact', uiVariant: isWinner && strong ? 'hero' : (strong ? 'major' : 'normal'),
-        storyCluster: 'corporation',
-        evidenceKey: corpEvidenceKey(profile.dedup, p.color),
-        evidenceChips: corpEngineChips(profile.archetype, f, actionDriven, profile.dedup),
-        scores: {impact: Math.min(1, total / 30), rarity: 0.5, relevance: isWinner ? 0.75 : 0.55, confidence: 0.75},
-        relatedFactIds: [f.id], relatedPlayers: [p.color], relatedCards: [corp as CardName],
-      });
-    } else if (startDriven) {
-      // Start boost — backed by MEASURED early tempo (never a bare "had a big budget").
-      out.push({
-        id: `corp.start.${p.color}`, group: 'reason', priority: 52, severity: 'minor', icon: 'coin',
-        badge: 'Fast start', color: p.color,
-        textKey: 'A fast start by design: ${1} handed ${0} an opening budget that bought early tempo others had to wait for.',
-        params: [raw(p.name), card(corp)],
-        family: 'corporationImpact', uiVariant: 'compact', storyCluster: 'corporationStart',
-        evidenceKey: `corporation:${p.color}`,
-        evidenceChips: [chipN(`${profile.startingMegacredits} M€`, 'good'), chipL('opening budget'), chipN(`+${earlyValue}`, 'neutral')],
-        scores: {impact: 0.4, rarity: 0.4, relevance: 0.55, confidence: 0.7},
-        relatedFactIds: [f.id], relatedPlayers: [p.color], relatedCards: [corp as CardName],
-      });
-    } else if (profile.hasAction && actAct <= 1 && !isWinner && ctx.margin > 0 && ctx.margin <= 10) {
-      // Underused corporation — surfaced ONLY when it plausibly explains a near-loss (a
-      // non-winner who lost closely with a corporate action that never fired). Never a
-      // toxic "you misplayed" — it's framed as untapped potential tied to the result.
-      out.push({
-        id: `corp.underused.${p.color}`, group: 'cards', priority: 50, severity: 'minor', icon: 'lock',
-        badge: 'Untapped', color: p.color,
-        textKey: '${1} could have been an engine for ${0} — its corporate action sat unused while the game slipped away.',
-        params: [raw(p.name), card(corp)],
-        family: 'corporationImpact', uiVariant: 'compact', storyCluster: 'corporationUnused',
-        evidenceKey: `corporation:${p.color}`,
-        evidenceChips: [chipN(`×${actAct}`, 'bad'), chipL('action unused', 'bad')],
-        scores: {rarity: 0.45, drama: 0.4, relevance: 0.6, confidence: 0.8},
-        relatedFactIds: [f.id], relatedPlayers: [p.color], relatedCards: [corp as CardName],
-      });
-    }
+    const profile = corporationProfile(corp);
+    const cluster = impact.realized === 'start' ? 'corporationStart' : impact.realized === 'underused' ? 'corporationUnused' : 'corporation';
+    const idKind = impact.realized === 'underused' ? 'underused' : impact.realized === 'start' ? 'start' : 'engine';
+    const icon: InsightIcon = impact.realized === 'underused' ? 'lock' : impact.realized === 'start' ? 'coin' : 'corp';
+    const badge = impact.realized === 'underused' ? 'Untapped' : impact.realized === 'start' ? 'Fast start' : 'Corporation';
+    const uiVariant: InsightUiVariant =
+      impact.placement === 'what_defined_game' ? 'hero' :
+        impact.placement === 'why_winner_won' ? (isWinner ? 'hero' : 'major') :
+          impact.placement === 'unusual_episode' ? 'major' :
+            impact.realized === 'start' || impact.realized === 'underused' ? 'compact' : 'normal';
+    out.push({
+      id: `corp.${idKind}.${impact.color}`,
+      group: impact.realized === 'underused' || profile?.hasAction === true ? 'cards' : 'reason',
+      priority: decisive ? 70 : impact.placement === 'unusual_episode' ? 60 : 54,
+      severity: decisive || impact.placement === 'unusual_episode' ? 'major' : idKind === 'engine' ? 'normal' : 'minor',
+      icon, badge, color: impact.color,
+      textKey: impact.summary.key, params,
+      family: 'corporationImpact', uiVariant, storyCluster: cluster,
+      evidenceKey: idKind === 'engine' ? corpEvidenceKey(profile?.dedup, impact.color) : `corporation:${impact.color}`,
+      evidenceChips: chips, scores,
+      relatedPlayers: [impact.color], relatedCards: [corp],
+    });
   }
   return out;
 };
