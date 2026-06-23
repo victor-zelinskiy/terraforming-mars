@@ -35,6 +35,8 @@ import {CardName} from '@/common/cards/CardName';
 import type {EndgameFact, FactType, FactTag} from '@/common/events/endgameFacts';
 import {analyzeSpecialCardStories} from '@/client/components/endgame/specialCardStories';
 import {ARCHETYPE_ENGINE_TEXT, ARCHETYPE_LABEL, corporationProfile, isCapitalArchetype} from '@/client/components/endgame/corporationStories';
+import {ARCHETYPE_FAMILY, archetypeCluster, strategyLabel, type StrategyArchetype} from '@/client/components/endgame/strategyArchetypes';
+import {explainEconomy, ECONOMY_CASE_TEXT} from '@/client/components/endgame/economyExplanation';
 import {buildGameStoryDna, type GameStoryDNA} from '@/client/components/endgame/gameStoryDna';
 import {buildInsightDetail, type ChipDetail} from '@/client/components/endgame/insightDetail';
 import type {
@@ -142,7 +144,14 @@ export type StorySection =
  * text (a composed number like "−9 ПО"); `t:'i18n'` is an English label key the UI
  * translates ("скидки + бонусы оплаты"). `tone` drives the chip colour.
  */
-export type EvidenceChip = {t: 'raw' | 'i18n'; v: string; tone?: 'metric' | 'good' | 'bad' | 'neutral'};
+export type EvidenceChip = {
+  t: 'raw' | 'i18n';
+  v: string;
+  tone?: 'metric' | 'good' | 'bad' | 'neutral';
+  /** Optional i18n unit/descriptor rendered AFTER the value (e.g. "+14" + "VP" → "+14 ПО",
+   *  "6" + "Jovian tags" → "6 юпитерианских тегов"). Backward-compatible (absent → bare value). */
+  label?: string;
+};
 
 /**
  * The scoring components a fact-based analyzer can supply so the smart selector can
@@ -1025,29 +1034,9 @@ const analyzeRace: Analyzer = (ctx) => {
   return out;
 };
 
-// ── 9. Profile line (only in quiet games — heavily suppressed) ───────────
-const analyzeProfileLine: Analyzer = (ctx) => {
-  const out: Array<InsightCandidate> = [];
-  const p = ctx.profile;
-  if (p === undefined || p.kind === 'balanced') {
-    // The balanced thought is owned by reason.balanced; the hero chip shows
-    // the profile anyway.
-    return out;
-  }
-  const TEXT: Record<Exclude<VictoryProfileKind, 'balanced'>, string> = {
-    terraformer: '${0}\'s victory was built on terraforming: ${1}% of the score came from terraform rating.',
-    engine: 'A card-engine victory: ${1}% of ${0}\'s score came from cards.',
-    builder: '${0} won through the board: cities and greenery delivered ${1}% of the score.',
-    laurels: 'Milestones and awards carried ${0}: ${1}% of the final score.',
-  };
-  out.push({
-    id: 'profile.' + p.kind, group: 'profile', priority: 35, severity: 'minor', icon: 'hex',
-    badge: 'Victory profile', color: ctx.winner.color,
-    textKey: TEXT[p.kind],
-    params: [raw(ctx.winner.name), raw(p.share)],
-  });
-  return out;
-};
+// (Rework §28 — the old "Victory profile" line ["Профиль победы" / "Карточный движок"]
+// was a banned generic fallback. It is replaced by the contribution-graded strategy
+// archetypes [analyzeStrategyArchetypes], so it is no longer emitted.)
 
 // ─────────────────────────────────────────────────────────────────────────
 // Iteration 5: FACT-BASED analyzers — the real story of THIS game (ctx.facts).
@@ -1068,56 +1057,29 @@ function boardVp(ctx: InsightContext, color: Color): number {
   return ctx.categories.find((c) => c.key === 'board')?.values[color] ?? 0;
 }
 
-// What KIND of economy this was — for an honest source chip (don't blur everything
-// into one "+N"). Returns an i18n label key + whether it's exact M€ or measured value.
-function economySource(f: EndgameFact): {label: string; exact: boolean} {
-  const discount = metric(f, 'discountAndPaymentSaved');
-  const valueBonus = metric(f, 'paymentValueBonus');
-  const tradeDisc = metric(f, 'tradeDiscountMegacredits');
-  if (discount > 0 && valueBonus > 0) {
-    return {label: 'discounts + payment bonuses', exact: false};
-  }
-  if (valueBonus > 0 && discount === 0) {
-    return {label: 'steel & titanium value', exact: false};
-  }
-  if (tradeDisc > 0 && discount === 0 && valueBonus === 0) {
-    return {label: 'trade discounts', exact: false};
-  }
-  // Pure discounts / resource-as-payment are exact M€ savings.
-  return {label: 'card discounts', exact: valueBonus === 0 && tradeDisc === 0};
-}
-// "+N M€" for exact, "+N учтённой выгоды" for mixed/measured units.
-function economyValueChip(saved: number, exact: boolean): EvidenceChip {
-  return chipN(exact ? `+${saved} M€` : `+${saved}`, 'good');
-}
-
-// ── Economy engine (carried a player) + economy-underdog win ──
+// ── Economy as FUEL for a plan (rework §13 — no internal "value" metric) + underdog win ──
 const analyzeEconomyFacts: Analyzer = (ctx) => {
   const out: Array<InsightCandidate> = [];
   const econ = factsByType(ctx, 'economy');
   if (econ.length === 0) {
     return out;
   }
+  // Explain the strongest economy honestly: WHAT the money did (became points / funded
+  // colonies / a metal tempo / discounts / was left unspent), with real-number chips only.
   const top = [...econ].sort((a, b) => metric(b, 'savedMegacredits') - metric(a, 'savedMegacredits'))[0];
-  const saved = metric(top, 'savedMegacredits');
-  if (saved >= 12) {
-    const src = economySource(top);
-    const isWinner = top.player === ctx.winner.color;
-    const chips: Array<EvidenceChip> = [economyValueChip(saved, src.exact), chipL(src.label)];
-    chips.push(src.exact ? chipL('exact', 'good') : chipL('measured', 'neutral'));
+  const exp = explainEconomy(ctx, top.player);
+  if (exp !== undefined) {
+    const t = ECONOMY_CASE_TEXT[exp.case];
+    const conf = exp.confidence === 'high' ? 0.95 : exp.confidence === 'medium' ? 0.8 : 0.6;
     out.push({
-      id: 'fact.economy.engine', group: 'reason', priority: isWinner ? 60 : 56, severity: 'major', icon: 'spark',
-      badge: 'Economy engine', color: top.player,
-      // Carried-the-winner framing when it's the winner; otherwise a strong-economy note.
-      // (The SOURCE — discounts / payment bonuses — rides the chip, so the prose stays clean.)
-      textKey: isWinner ?
-        'Economy gave ${0} the headroom to win: ${1} of value fed the tempo that decided it.' :
-        'Economy did the work for ${0}: ${1} of value built up across the game.',
-      params: [raw(playerName(ctx, top.player)), raw(saved)],
-      family: 'economy', uiVariant: 'major', storyCluster: 'economy',
-      evidenceKey: `economy:${top.player}`, evidenceChips: chips,
-      scores: {impact: Math.min(1, saved / 40), confidence: src.exact ? 0.95 : 0.8, relevance: 0.7},
-      relatedFactIds: [top.id], relatedPlayers: [top.player],
+      id: 'fact.economy.engine', group: 'reason', priority: exp.isWinner ? 58 : 54, severity: 'normal', icon: 'coin',
+      badge: 'Economy', color: exp.color,
+      textKey: exp.isWinner ? t.winner : t.loser,
+      params: [raw(playerName(ctx, exp.color))],
+      family: 'economy', uiVariant: 'normal', storyCluster: 'economy',
+      evidenceKey: `economy:${exp.color}`, evidenceChips: [...exp.evidence],
+      scores: {impact: Math.min(1, exp.savedMegacredits / 40), confidence: conf, relevance: 0.65},
+      relatedFactIds: [top.id], relatedPlayers: [exp.color],
     });
   }
   // Underdog: the winner was out-economised yet still won (efficiency over economy).
@@ -1471,7 +1433,7 @@ const analyzeNotableMoments: Analyzer = (ctx) => {
     out.push({
       id: 'fact.notable.economyBurst', group: 'momentum', priority: 50, severity: 'minor', icon: 'surge',
       badge: 'Burst', color: burst.player,
-      textKey: 'A late surge of value: ${0} banked ${1} of measured economy in generation ${2}.',
+      textKey: 'A late economic surge: ${0} banked ${1} M€ of savings in generation ${2}.',
       params: [raw(playerName(ctx, burst.player)), raw(metric(burst, 'savedMegacredits')), raw(burst.generation ?? 0)],
       family: 'economy', uiVariant: 'compact', storyCluster: 'economyBurst',
       scores: {impact: Math.min(1, metric(burst, 'savedMegacredits') / 24), relevance: 0.45, confidence: 0.85},
@@ -1762,38 +1724,27 @@ function isDuel(ctx: InsightContext): boolean {
   return ctx.mode === 'duel' && ctx.runnerUp !== undefined;
 }
 
-/** A short STYLE label (i18n key) for a player, from their dominant signal. */
+/**
+ * A short STYLE label (i18n key) for a player. Aggression is a real STYLE that the
+ * archetype detector doesn't model, so it's checked first; otherwise the player's
+ * detected strategy archetype IS their style (rework §4 — real archetypes, not 5 loose
+ * labels). Falls back to the strongest VP category when nothing was detected.
+ */
 function duelStyle(ctx: InsightContext, p: EndgamePlayerScore): string {
-  const econ = factsByType(ctx, 'economy').find((f) => f.player === p.color);
-  const action = factsByType(ctx, 'actionUsage').filter((f) => f.player === p.color);
-  const colony = factsByType(ctx, 'colony').find((f) => f.player === p.color);
-  const sp = factsByType(ctx, 'standardProject').find((f) => f.player === p.color);
-  const reveal = factsByType(ctx, 'reveal').find((f) => f.player === p.color);
   const attacks = factsByType(ctx, 'negativeInteraction').filter((f) => f.player === p.color);
   if (attacks.reduce((s, f) => s + metric(f, 'totalLost'), 0) >= 8) {
     return 'Disruptor';
   }
-  if (sp !== undefined && metric(sp, 'projects') >= 5) {
-    return 'Standard Project Builder';
-  }
-  if (colony !== undefined && metric(colony, 'trades') >= 5) {
-    return 'Colony Trader';
-  }
-  if (action.reduce((s, f) => s + metric(f, 'activations'), 0) >= 6) {
-    return 'Blue Action Engine';
-  }
-  if (econ !== undefined && metric(econ, 'savedMegacredits') >= 18) {
-    return 'Economy Engine';
-  }
-  if (reveal !== undefined && (metric(reveal, 'revealed') + metric(reveal, 'shown')) >= 6) {
-    return 'Card Flow';
+  const primary = p.strategyProfile?.primary;
+  if (primary !== undefined) {
+    return strategyLabel(primary.archetype);
   }
   // Fall back to the player's strongest VP category.
   switch (p.strongestCategory) {
-  case 'tr': return 'Terraformer';
-  case 'cards': return 'Card Engine';
-  case 'board': return 'Board Builder';
-  case 'mca': return 'Award Hunter';
+  case 'tr': return 'Global parameters';
+  case 'cards': return 'Resources on cards';
+  case 'board': return 'Cities & greenery';
+  case 'mca': return 'Milestones & awards';
   default: return 'Balanced';
   }
 }
@@ -2142,7 +2093,7 @@ const analyzeEconomyConversionMismatch: Analyzer = (ctx) => {
     out.push({
       id: `xfact.econConv.${best.p.color}`, group: 'reason', priority: 58, severity: 'normal', icon: 'spark',
       badge: 'Tempo, not points', color: best.p.color,
-      textKey: '${0} built the strongest economy — about ${1} of measured value — but it bought tempo, not the points that decide the game.',
+      textKey: '${0} built the strongest economy — about ${1} M€ saved — but it bought tempo, not the points that decide the game.',
       params: [raw(best.p.name), raw(best.saved)],
       family: 'economy', uiVariant: 'normal', storyCluster: 'economyConversion',
       evidenceKey: `economy:${best.p.color}`,
@@ -2304,7 +2255,156 @@ const analyzeProjectCardStarvation: Analyzer = (ctx) => {
   return out;
 };
 
+// ═════════════════════════════════════════════════════════════════════════
+// Rework §4–§20: STRATEGY ARCHETYPE insights.
+// The strategy profile (detected in strategyArchetypes, attached per player) names the
+// player's REAL plan — Jovian combo, animals, microbes, floaters, colony trade, …. This
+// analyzer turns the winner's / runner-up's defining line into a premium insight, plus one
+// supporting line for the winner. Numbers ride the evidence chips; the prose stays clean.
+// ═════════════════════════════════════════════════════════════════════════
+
+type ArchetypeText = {win: string; lost: string; support: string};
+
+// Premium, archetype-specific text (i18n KEYS). ${0} = player name; numbers ride the chips.
+const ARCHETYPE_INSIGHT_TEXT: Readonly<Record<StrategyArchetype, ArchetypeText>> = {
+  jovian: {
+    win: 'The Jovian combo came together late for ${0}: the tags were banked early, then folded into a dense stack of points.',
+    lost: '${0} built a strong Jovian combo, but the points it brought weren’t quite enough.',
+    support: 'Jovian tags added a layer of points to ${0}’s finish.',
+  },
+  animals: {
+    win: 'Animals were a scoring line of their own for ${0}: resources gathered on cards all game and became a real share of the final points.',
+    lost: 'Animals gave ${0} a steady stack of points — just not enough to catch the winner.',
+    support: 'Animals added a quiet layer of points to ${0}’s finish.',
+  },
+  microbes: {
+    win: 'Microbes were a patient line for ${0}: small additions all game added up to a meaningful stack by the finish.',
+    lost: '${0} grew a microbe line, but it stayed more of a support engine than a scoreboard mover.',
+    support: 'Microbes kept ${0}’s tempo going — feeding effects more than scoring directly.',
+  },
+  floaters: {
+    win: 'Floaters were a long game for ${0}: resources gathered on cards and steadily turned into points by the end.',
+    lost: '${0} developed a floater line that paid off late, but not enough to win.',
+    support: 'Floaters added a slow-building layer to ${0}’s score.',
+  },
+  scienceDraw: {
+    win: 'Science opened up the deck for ${0}: seeing more cards meant more chances to find the scoring combos that mattered.',
+    lost: '${0} saw plenty of cards, but the draws never came together into a winning score.',
+    support: 'Card flow gave ${0} options — a quiet edge in finding the right plays.',
+  },
+  colonyTrade: {
+    win: 'Colonies were a steady source of tempo for ${0}: trading fed resources right where the plan needed them.',
+    lost: '${0} kept the colonies turning, but the trades never quite became the winning points.',
+    support: 'Colony trades supported ${0}’s plan with a regular flow of resources.',
+  },
+  cityGreenery: {
+    win: 'Cities and greenery worked as one for ${0}: board presence scored through adjacency and the final count.',
+    lost: '${0} built on the board, but the city-and-greenery network came up short on points.',
+    support: 'A growing board added solid, visible points to ${0}’s game.',
+  },
+  globalParams: {
+    win: '${0} pushed the planet hard: terraform rating from temperature, oxygen and oceans was a steady base of points.',
+    lost: '${0} did the most terraforming, but a race for parameters alone wasn’t enough against a stronger final score.',
+    support: 'Steady terraforming gave ${0} a reliable base of rating.',
+  },
+  spaceTitanium: {
+    win: 'Titanium powered ${0}’s tempo: space cards turned metal into parameters and points without losing pace.',
+    lost: '${0} leaned on space and titanium for tempo, but it didn’t translate into the winning score.',
+    support: 'Titanium funded ${0}’s expensive space plays — tempo more than direct points.',
+  },
+  earthDiscounts: {
+    win: 'Earth tags and discounts lowered the cost of everything for ${0} — the funding that let the expensive plan come together.',
+    lost: '${0} played cheaply on Earth discounts, but the savings never became the winning points.',
+    support: 'Discounts kept ${0}’s plan affordable, freeing up the plays that scored.',
+  },
+  standardProjects: {
+    win: 'Standard projects were the plan for ${0}: direct control of the board and parameters instead of waiting on cards.',
+    lost: '${0} leaned on standard projects, but buying tempo directly wasn’t enough to win.',
+    support: 'Standard projects were ${0}’s plan B — direct points when the cards didn’t deliver.',
+  },
+  milestonesAwards: {
+    win: 'Milestones and awards carried real weight for ${0}: a hidden race that delivered a solid block of points.',
+    lost: '${0} chased the laurels hard, but milestones and awards alone didn’t decide it.',
+    support: 'Milestones and awards added a useful block of points to ${0}’s total.',
+  },
+  venus: {
+    win: 'Venus was ${0}’s second front: tags and parameters there added points the others left alone.',
+    lost: '${0} invested in Venus, but it didn’t bring enough to close the gap.',
+    support: 'Venus added a side layer of points and parameters for ${0}.',
+  },
+  cardResources: {
+    win: 'Resources on cards added up for ${0}: animals, microbes and floaters together became a real scoring line.',
+    lost: '${0} grew resources across several cards, but together they fell short of the win.',
+    support: 'Resources on cards gave ${0} an extra layer of points.',
+  },
+};
+
+// Dedup with the generic lines telling the SAME thought (match their derived evidence key).
+function strategyEvidenceKey(a: StrategyArchetype, color: Color): string {
+  switch (a) {
+  case 'globalParams': return `terraform|${color}`;
+  case 'colonyTrade': return 'colony';
+  case 'scienceDraw': return `reveal|${color}`;
+  case 'earthDiscounts': return `economy:${color}`;
+  default: return `strategy:${a}:${color}`;
+  }
+}
+
+const STRATEGY_SUPPRESSES: Partial<Record<StrategyArchetype, ReadonlyArray<string>>> = {
+  standardProjects: ['fact.standardProject.strategy'],
+  globalParams: ['fact.global.driver'],
+  scienceDraw: ['fact.reveal.flow'],
+};
+
+const analyzeStrategyArchetypes: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  for (const p of ctx.players) {
+    const prof = p.strategyProfile;
+    if (prof?.primary === undefined) {
+      continue;
+    }
+    const det = prof.primary;
+    const isWinner = p.color === ctx.winner.color;
+    const isRunnerUp = ctx.runnerUp !== undefined && p.color === ctx.runnerUp.color;
+    const text = ARCHETYPE_INSIGHT_TEXT[det.archetype];
+    const textKey = isWinner ? text.win : isRunnerUp ? text.lost : text.support;
+    const conf = det.confidence === 'high' ? 1 : det.confidence === 'medium' ? 0.8 : 0.6;
+    out.push({
+      id: `strategy.${det.archetype}.${p.color}`,
+      group: 'reason', priority: isWinner ? 62 : isRunnerUp ? 52 : 46,
+      severity: isWinner && det.score >= 0.5 ? 'major' : 'normal',
+      icon: 'cards', badge: strategyLabel(det.archetype), color: p.color,
+      textKey, params: [raw(p.name)],
+      family: ARCHETYPE_FAMILY[det.archetype], uiVariant: isWinner ? 'major' : 'compact',
+      storyCluster: archetypeCluster(det.archetype),
+      evidenceKey: strategyEvidenceKey(det.archetype, p.color),
+      evidenceChips: [...det.evidence],
+      suppresses: isWinner ? STRATEGY_SUPPRESSES[det.archetype] : undefined,
+      scores: {impact: det.score, rarity: det.isScoring ? 0.3 : 0.12, relevance: isWinner ? 0.82 : 0.55, confidence: conf},
+      relatedPlayers: [p.color],
+    });
+    // One SUPPORTING line for the winner (avoids spam) — a secondary plan that helped.
+    if (isWinner && prof.secondary.length > 0) {
+      const sec = prof.secondary[0];
+      out.push({
+        id: `strategy.support.${sec.archetype}.${p.color}`,
+        group: 'cards', priority: 42, severity: 'minor', icon: 'cards',
+        badge: strategyLabel(sec.archetype), color: p.color,
+        textKey: ARCHETYPE_INSIGHT_TEXT[sec.archetype].support, params: [raw(p.name)],
+        family: ARCHETYPE_FAMILY[sec.archetype], uiVariant: 'compact',
+        storyCluster: archetypeCluster(sec.archetype),
+        evidenceKey: strategyEvidenceKey(sec.archetype, p.color),
+        evidenceChips: [...sec.evidence],
+        scores: {impact: sec.score * 0.6, relevance: 0.45, confidence: conf},
+        relatedPlayers: [p.color],
+      });
+    }
+  }
+  return out;
+};
+
 const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
+  analyzeStrategyArchetypes,
   analyzeEconomyFacts,
   analyzeBlueActionFacts,
   analyzeNegativeDramaFacts,
@@ -2351,7 +2451,6 @@ const ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeParameters,
   analyzeCards,
   analyzeRace,
-  analyzeProfileLine,
 ];
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -33,6 +33,7 @@ import {
   composeStory,
 } from '@/client/components/endgame/insightEngine';
 import type {GameStoryDNA} from '@/client/components/endgame/gameStoryDna';
+import {buildStrategyProfiles, type StrategyInput, type PlayerStrategyProfile} from '@/client/components/endgame/strategyArchetypes';
 
 // What the builder needs from each player — a thin, pure projection of
 // PublicPlayerModel (the component maps it before calling the builder).
@@ -52,6 +53,9 @@ export type EndgamePlayerInput = {
   globalSteps: Partial<Record<GlobalParameter, number>>;
   leftover?: ResourceInventory;
   production?: ProductionProfile;
+  // Rework §4–§20 — strategy-archetype raw inputs (tags / colonies / card-VP-by-source /
+  // accumulated card resources), computed client-side (needs the card manifest).
+  strategyInput?: StrategyInput;
 };
 
 export type EndgameModelOptions = {
@@ -119,6 +123,10 @@ export type EndgamePlayerScore = {
   // Iteration 11 — leftover stock + production profile (optional → absent on old games).
   leftover?: ResourceInventory;
   production?: ProductionProfile;
+  // Rework §4–§20 — the strategy-archetype raw inputs (threaded from the client) + the
+  // detected profile (computed in buildEndgameModel, read by the UI player-profile section).
+  strategyInput?: StrategyInput;
+  strategyProfile?: PlayerStrategyProfile;
 };
 
 export type EndgameMode = 'solo' | 'duel' | 'standings';
@@ -351,6 +359,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
       strongestCategory: strongestCategoryOf(categories, presentCategories),
       leftover: p.leftover,
       production: p.production,
+      strategyInput: p.strategyInput,
     };
   });
 
@@ -411,22 +420,32 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     computeTimelineStats(players, winner, opts.generation, winnerTookLeadGen) : undefined;
   const profile = winner !== undefined ? buildVictoryProfile(winner) : undefined;
   const bestCard = findBestCard(players);
-  const composed = winner !== undefined ? composeStory({
-    mode,
-    generation: opts.generation,
-    players,
-    winner,
-    runnerUp,
-    margin,
-    categories,
-    parameters,
-    timeline,
-    profile,
-    seed: gameSeed(players, opts.generation),
-    facts: opts.facts,
-    playerCards: opts.playerCards,
-    cardResources: opts.cardResources,
-  }) : {dna: undefined, insights: []};
+  let composed: {dna: GameStoryDNA | undefined; insights: Array<EndgameInsightView>} = {dna: undefined, insights: []};
+  if (winner !== undefined) {
+    const ctx = {
+      mode,
+      generation: opts.generation,
+      players,
+      winner,
+      runnerUp,
+      margin,
+      categories,
+      parameters,
+      timeline,
+      profile,
+      seed: gameSeed(players, opts.generation),
+      facts: opts.facts,
+      playerCards: opts.playerCards,
+      cardResources: opts.cardResources,
+    };
+    // Detect each player's strategy archetype profile and attach it to the player object
+    // (same reference the analyzers read via ctx.players) BEFORE composing the story.
+    const profiles = buildStrategyProfiles(ctx);
+    for (const p of players) {
+      p.strategyProfile = profiles[p.color];
+    }
+    composed = composeStory(ctx);
+  }
 
   return {
     mode,

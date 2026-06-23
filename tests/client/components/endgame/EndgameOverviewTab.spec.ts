@@ -39,17 +39,17 @@ describe('EndgameOverviewTab', () => {
     ]);
     const wrapper = mount(EndgameOverviewTab, {...globalConfig, props: {model: m, viewerColor: 'red' as Color}});
     const html = wrapper.html();
-    expect(wrapper.find('.eg-duel').exists()).to.eq(true);
+    // Rework §2 — the premium duel result block (no category bars, §1).
+    expect(wrapper.find('.eg-rhduel').exists()).to.eq(true);
+    expect(wrapper.find('.eg-catwin').exists(), 'category bars removed from the overview').to.eq(false);
     expect(html).to.include('Victor');
     expect(html).to.include('Nastya');
     // The winner (Victor) is placed on the left.
-    expect(wrapper.find('.eg-duel__side--left').text()).to.include('Victor');
-    // Category mirror rows render for each present category.
-    expect(wrapper.findAll('.eg-catwin').length).to.be.greaterThan(0);
-    // Iteration 9: the composed "why this game was special" headline band renders
-    // (the model carries a Story DNA), replacing the bare section title.
+    expect(wrapper.find('.eg-rhduel__player--left').text()).to.include('Victor');
+    // A short thesis (the Story DNA headline) sits under the result block.
+    expect(wrapper.find('.eg-rhduel__thesis').exists(), 'result thesis').to.eq(true);
+    // Iteration 9: the composed "what defined this game" headline band still renders.
     expect(wrapper.find('.eg-storyhead').exists(), 'story headline band').to.eq(true);
-    expect(wrapper.find('.eg-storyhead__title').text().length).to.be.greaterThan(0);
     // Iteration 10: the player-arcs section renders both players' arcs in a duel.
     expect(wrapper.find('.eg-storysec--arcs').exists(), 'player arcs section').to.eq(true);
     expect(wrapper.findAll('.eg-arc').length, 'an arc card per player').to.eq(2);
@@ -69,9 +69,11 @@ describe('EndgameOverviewTab', () => {
       input('green', 'Igor', {terraformRating: 22}),
     ]);
     const wrapper = mount(EndgameOverviewTab, {...globalConfig, props: {model: m, viewerColor: 'green' as Color}});
-    expect(wrapper.find('.eg-podium').exists()).to.eq(true);
-    expect(wrapper.findAll('.eg-lbrow').length).to.eq(3);
-    expect(wrapper.find('.eg-duel').exists()).to.eq(false);
+    // Rework §2.2 — the multiplayer result block (winner + top-3 board), not a duel.
+    expect(wrapper.find('.eg-rhmulti').exists()).to.eq(true);
+    expect(wrapper.findAll('.eg-rhmulti__row').length).to.eq(3);
+    expect(wrapper.find('.eg-rhduel').exists()).to.eq(false);
+    expect(wrapper.find('.eg-catchip').exists(), 'category chips removed from the overview').to.eq(false);
   });
 });
 
@@ -100,7 +102,7 @@ describe('EndgameResultsOverlay', () => {
     expect(wrapper.findAll('.eg-results__tab').length).to.eq(6);
     // Winner chip shows the winner.
     expect(wrapper.find('.eg-results__winner-chip').text()).to.include('Victor');
-    // The default tab is Overview, so the duel renders.
-    expect(wrapper.find('.eg-duel').exists()).to.eq(true);
+    // The default tab is Overview, so the duel result block renders.
+    expect(wrapper.find('.eg-rhduel').exists()).to.eq(true);
   });
 });

@@ -392,24 +392,43 @@ describe('fact-based endgame insights (Iteration 5)', () => {
       expect(all.length).to.be.greaterThan(1);
     });
 
-    it('economy carried the winner: a winner-framed engine card with chips', () => {
+    it('economy carried the winner: a winner-framed engine card with real-number chips (§13)', () => {
       const c = ctx({players: duo(), margin: 10, facts: [
         fact('economy', {id: 'economy:red', player: 'red', metrics: {savedMegacredits: 30, discountAndPaymentSaved: 30}}),
       ]});
       const eng = find(c, 'fact.economy.engine');
       expect(eng, 'economy engine').to.not.be.undefined;
       expect(eng!.evidenceKey).to.eq('economy:red');
-      expect((eng!.evidenceChips ?? []).length, 'has evidence chips').to.be.greaterThan(0);
-      // Pure discounts → an EXACT M€ claim.
-      expect((eng!.evidenceChips ?? []).some((ch) => ch.v === 'exact'), 'exact phrasing').to.be.true;
+      expect(eng!.color, 'winner-coloured').to.eq('red');
+      // Real numbers only — the M€ saved is shown, never an internal "value" metric (§13).
+      expect((eng!.evidenceChips ?? []).some((ch) => ch.v.includes('M€')), 'shows M€ saved').to.be.true;
+      expect((eng!.evidenceChips ?? []).every((ch) => ch.v !== 'exact' && ch.v !== 'measured'), 'no obsolete exact/measured chips').to.be.true;
     });
 
-    it('economy with payment-value bonus reads as MEASURED, not exact M€', () => {
+    it('economy via steel/titanium value reads as a metal-building tempo with real chips (§13)', () => {
       const c = ctx({players: duo(), margin: 10, facts: [
-        fact('economy', {id: 'economy:red', player: 'red', metrics: {savedMegacredits: 24, paymentValueBonus: 24}}),
+        fact('economy', {id: 'economy:red', player: 'red', metrics: {savedMegacredits: 24, paymentValueBonus: 24, paymentValueBonusSteel: 7, paymentValueBonusTitanium: 5}}),
       ]});
       const eng = find(c, 'fact.economy.engine');
-      expect((eng!.evidenceChips ?? []).some((ch) => ch.v === 'measured'), 'measured phrasing').to.be.true;
+      expect(eng, 'economy engine').to.not.be.undefined;
+      // The metal-engine case surfaces the steel/titanium SPENT, not a vague "value".
+      const chips = eng!.evidenceChips ?? [];
+      expect(chips.some((ch) => ch.label === 'steel spent' || ch.label === 'titanium spent'), 'steel/titanium chips').to.be.true;
+    });
+
+    it('§28 — no banned generic fallbacks are ever emitted (no profile line / "value" metric / "Entire game")', () => {
+      // A rich fixture exercising many analyzers at once.
+      const c = ctx({players: [pl('red', 'A', 95, {strongestCategory: 'cards'}), pl('blue', 'B', 80, {strongestCategory: 'tr'})], margin: 15, facts: [
+        fact('economy', {id: 'economy:red', player: 'red', metrics: {savedMegacredits: 26, paymentValueBonus: 26, paymentValueBonusSteel: 8, paymentValueBonusTitanium: 4}}),
+        fact('notableEvent', {id: 'notable:economyBurst', player: 'red', generation: 9, metrics: {savedMegacredits: 18}}),
+        fact('colony', {id: 'colony:red', player: 'red', metrics: {trades: 6}}),
+      ]});
+      for (const cand of buildInsightCandidates(c)) {
+        expect(cand.id, 'no victory-profile fallback').to.not.match(/^profile\./);
+        expect(cand.textKey, 'no internal "value" metric in prose').to.not.match(/of value|of measured value/);
+        expect(cand.badge, 'no "Victory profile" badge').to.not.eq('Victory profile');
+        expect(cand.textKey, 'no "Entire game" filler').to.not.contain('Entire game');
+      }
     });
 
     it('colony domination: one player traded far more → a domination card (not the plain engine)', () => {

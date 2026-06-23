@@ -1,91 +1,8 @@
 <template>
   <div class="eg-tab eg-overview">
-    <!-- ── DUEL: head-to-head ────────────────────────────────────────── -->
-    <section v-if="mode === 'duel'" class="eg-overview__duel">
-      <div class="eg-duel">
-        <div v-for="(p, side) in duelPlayers" :key="p.color"
-             class="eg-duel__side" :class="['eg-duel__side--' + (side === 0 ? 'left' : 'right'), {'eg-duel__side--winner': p.isWinner}]"
-             :style="{'--eg-pc': hex(p.color)}">
-          <div class="eg-duel__crown" v-if="p.isWinner" aria-hidden="true">♛</div>
-          <div class="eg-duel__name">
-            <span class="eg-duel__dot" :class="'player_bg_color_' + p.color"></span>
-            <span>{{ p.name }}</span>
-            <span v-if="isViewer(p.color)" class="eg-duel__you" v-i18n>You</span>
-          </div>
-          <div class="eg-duel__corp" v-if="corp(p) !== ''" v-i18n>{{ corp(p) }}</div>
-          <div class="eg-duel__total">{{ p.total }}<span class="eg-duel__total-unit" v-i18n>VP</span></div>
-        </div>
-        <div class="eg-duel__center">
-          <div class="eg-duel__vs">VS</div>
-          <div class="eg-duel__delta" v-if="model.margin > 0">
-            <span class="eg-duel__delta-val">+{{ model.margin }}</span>
-            <span class="eg-duel__delta-lbl" v-i18n>Lead</span>
-          </div>
-          <div class="eg-duel__delta eg-duel__delta--tie" v-else>
-            <span class="eg-duel__delta-lbl" v-i18n>Decided on M€</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- per-category who-won row -->
-      <div class="eg-catwins">
-        <div v-for="cat in model.categories" :key="cat.key" class="eg-catwin"
-             :class="catWinClass(cat)">
-          <span class="eg-catwin__label" v-i18n>{{ cat.label }}</span>
-          <div class="eg-catwin__bars">
-            <span class="eg-catwin__val eg-catwin__val--l">{{ cat.values[duelPlayers[0].color] || 0 }}</span>
-            <div class="eg-catwin__track">
-              <span class="eg-catwin__fill eg-catwin__fill--l" :style="mirrorStyle(cat, duelPlayers[0].color, 'l')"></span>
-              <span class="eg-catwin__fill eg-catwin__fill--r" :style="mirrorStyle(cat, duelPlayers[1].color, 'r')"></span>
-            </div>
-            <span class="eg-catwin__val eg-catwin__val--r">{{ cat.values[duelPlayers[1].color] || 0 }}</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── STANDINGS: podium + leaderboard ───────────────────────────── -->
-    <section v-else-if="mode === 'standings'" class="eg-overview__standings">
-      <div class="eg-podium">
-        <div v-for="p in podium" :key="p.color" class="eg-podium__slot" :class="'eg-podium__slot--' + p.place"
-             :style="{'--eg-pc': hex(p.color)}">
-          <div class="eg-podium__player">
-            <span class="eg-podium__dot" :class="'player_bg_color_' + p.color"></span>
-            <span class="eg-podium__name">{{ p.name }}</span>
-          </div>
-          <div class="eg-podium__vp">{{ p.total }}<span v-i18n>VP</span></div>
-          <div class="eg-podium__stand">
-            <span class="eg-podium__place">{{ p.place }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="eg-leaderboard">
-        <div v-for="p in model.players" :key="p.color" class="eg-lbrow" :class="{'eg-lbrow--winner': p.isWinner, 'eg-lbrow--you': isViewer(p.color)}"
-             :style="{'--eg-pc': hex(p.color)}">
-          <span class="eg-lbrow__place">{{ p.place }}</span>
-          <span class="eg-lbrow__dot" :class="'player_bg_color_' + p.color"></span>
-          <span class="eg-lbrow__name">{{ p.name }}<span v-if="isViewer(p.color)" class="eg-lbrow__you" v-i18n>You</span></span>
-          <span class="eg-lbrow__corp" v-if="corp(p) !== ''" v-i18n>{{ corp(p) }}</span>
-          <span class="eg-lbrow__strong" v-if="p.strongestCategory !== undefined">
-            <span class="eg-lbrow__strong-lbl" v-i18n>{{ categoryLabel(p.strongestCategory) }}</span>
-          </span>
-          <span class="eg-lbrow__total">{{ p.total }}<span class="eg-lbrow__total-unit" v-i18n>VP</span></span>
-        </div>
-      </div>
-
-      <!-- per-category who-won chips -->
-      <div class="eg-catchips">
-        <div v-for="cat in model.categories" :key="cat.key" class="eg-catchip">
-          <span class="eg-catchip__label" v-i18n>{{ cat.label }}</span>
-          <span v-if="cat.leaders.length === 1" class="eg-catchip__leader" :style="{'--eg-pc': hex(cat.leaders[0])}">
-            <span class="eg-catchip__dot" :class="'player_bg_color_' + cat.leaders[0]"></span>
-            <span class="eg-catchip__name">{{ nameOf(cat.leaders[0]) }}</span>
-          </span>
-          <span v-else class="eg-catchip__tie" v-i18n>Tie</span>
-        </div>
-      </div>
-    </section>
+    <!-- ── Result block — duel / multiplayer (§2). No category bars (§1). ── -->
+    <ResultHeroDuel v-if="mode === 'duel'" :model="model" :viewer-color="viewerColor" />
+    <ResultHeroMultiplayer v-else-if="mode === 'standings'" :model="model" :viewer-color="viewerColor" />
 
     <!-- ── SOLO ──────────────────────────────────────────────────────── -->
     <section v-else class="eg-overview__solo">
@@ -114,10 +31,10 @@
 
     <!-- ── Insights: the analysts' read of the game (premium hierarchy) ── -->
     <section v-if="insightLines.length > 0" class="eg-insights">
-      <!-- Iteration 9: the composed "why this game was special" headline (Story DNA). -->
+      <!-- §31 block 2 — "the defining story". The one-line DNA headline is the result-block
+           thesis now; here the kicker + story-shape chips introduce the detailed hero card. -->
       <header v-if="storyHeadline !== undefined" class="eg-storyhead" :class="'eg-storyhead--' + storyHeadline.titleKind">
-        <span class="eg-storyhead__kicker" v-i18n>Why this game was special</span>
-        <h2 class="eg-storyhead__title">{{ storyHeadline.title }}</h2>
+        <span class="eg-storyhead__kicker" v-i18n>What defined this game</span>
         <div v-if="storyHeadline.chips.length > 0" class="eg-storyhead__chips">
           <span v-for="chip in storyHeadline.chips" :key="chip" class="eg-storyhead__chip">{{ chip }}</span>
         </div>
@@ -212,6 +129,11 @@
             <div v-if="arc.tags.length > 0" class="eg-arc__tags">
               <span v-for="(tg, ti) in arc.tags" :key="ti" class="eg-chip eg-chip--neutral" v-i18n>{{ tg }}</span>
             </div>
+            <!-- §20 — the supporting strategy lines (what strengthened the plan). -->
+            <div v-if="arc.supportLines.length > 0" class="eg-arc__support">
+              <span class="eg-arc__support-lbl" v-i18n>Supported by</span>
+              <span v-for="(s, si) in arc.supportLines" :key="si" class="eg-chip eg-chip--neutral" v-i18n>{{ s }}</span>
+            </div>
             <div class="eg-arc__facets">
               <div v-if="arc.workedBadge !== undefined" class="eg-arc__facet eg-arc__facet--good">
                 <span class="eg-arc__facet-lbl" v-i18n>Worked</span>
@@ -221,9 +143,9 @@
                 <span class="eg-arc__facet-lbl" v-i18n>Fell short</span>
                 <span class="eg-arc__facet-val" v-i18n>{{ arc.failedBadge }}</span>
               </div>
-              <div v-if="arc.strongest !== undefined" class="eg-arc__facet">
-                <span class="eg-arc__facet-lbl" v-i18n>Strongest</span>
-                <span class="eg-arc__facet-val" v-i18n>{{ categoryLabel(arc.strongest) }}</span>
+              <div v-if="arc.scoringLine !== undefined || arc.strongest !== undefined" class="eg-arc__facet">
+                <span class="eg-arc__facet-lbl" v-i18n>Top scoring line</span>
+                <span class="eg-arc__facet-val" v-i18n>{{ arc.scoringLine !== undefined ? arc.scoringLine : categoryLabel(arc.strongest) }}</span>
               </div>
             </div>
           </article>
@@ -310,14 +232,17 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {EndgameModel, EndgameCategory, EndgameCategoryKey, EndgamePlayerScore, ENDGAME_CATEGORY_LABEL} from '@/client/components/endgame/endgameModel';
+import {EndgameModel, EndgameCategoryKey, EndgamePlayerScore, ENDGAME_CATEGORY_LABEL} from '@/client/components/endgame/endgameModel';
 import {EndgameInsightView, InsightIcon} from '@/client/components/endgame/insightEngine';
 import type {StoryType, StoryTwistKind} from '@/client/components/endgame/gameStoryDna';
 import type {ChipDetail} from '@/client/components/endgame/insightDetail';
+import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import ExplainableBadge from '@/client/components/endgame/ExplainableBadge.vue';
+import ResultHeroDuel from '@/client/components/endgame/ResultHeroDuel.vue';
+import ResultHeroMultiplayer from '@/client/components/endgame/ResultHeroMultiplayer.vue';
 import {translateTextWithParams, $t} from '@/client/directives/i18n';
 
 // Insight icons → text glyphs (deliberately NOT emoji — they stay in the
@@ -366,6 +291,7 @@ const STORY_TYPE_LABEL: Record<StoryType, string> = {
   engine_not_converted: 'Unconverted engine',
   merger_story: 'Double corporation',
   corporation_identity: 'Corporation engine',
+  strategy_engine: 'One clear plan',
   balanced_control: 'All-round win',
 };
 const TWIST_LABEL: Record<StoryTwistKind, string> = {
@@ -406,6 +332,9 @@ type ArcView = {
   workedBadge?: string; // i18n key — what worked (their strongest visible insight)
   failedBadge?: string; // i18n key — where it fell short
   styleDetail?: ChipDetail; // Iteration 12 — "why this style" explanation
+  // Rework §20 — the supporting strategy lines (i18n labels) + the strongest SCORING line.
+  supportLines: Array<string>; // i18n keys (secondary archetype labels)
+  scoringLine?: string; // i18n key — the strongest line that actually scored
   // Iteration 13 — the player's corporation identity (name + archetype + how realized).
   corporation?: {name: string; archetypeLabel: string; realized: string; detail?: ChipDetail};
 };
@@ -423,7 +352,7 @@ type Fact = {
 
 export default defineComponent({
   name: 'EndgameOverviewTab',
-  components: {JournalCardChip, ExplainableBadge},
+  components: {JournalCardChip, ExplainableBadge, ResultHeroDuel, ResultHeroMultiplayer},
   props: {
     model: {type: Object as () => EndgameModel, required: true},
     // Declared so the shell's shared <component :is> props don't fall through
@@ -473,14 +402,20 @@ export default defineComponent({
     // Iteration 10: section-grouped report. A line with no storySection (legacy/no DNA)
     // falls back into "whyWinnerWon" so it's never dropped.
     winnerInsights(): Array<InsightLine> {
-      return this.visibleInsights.filter((l) =>
-        l.storySection === 'whyWinnerWon' || (l.storySection === undefined && l.rankSection === 'primary'));
+      // §23 — at most 2–3 decisive reasons, never a wall of cards. The selector already
+      // ranked them strongest-first, so the slice keeps the best.
+      return this.visibleInsights
+        .filter((l) => l.storySection === 'whyWinnerWon' || (l.storySection === undefined && l.rankSection === 'primary'))
+        .slice(0, 3);
     },
     runnerLostInsights(): Array<InsightLine> {
-      return this.visibleInsights.filter((l) => l.storySection === 'whyRunnerLost');
+      return this.visibleInsights.filter((l) => l.storySection === 'whyRunnerLost').slice(0, 2);
     },
     highlightInsights(): Array<InsightLine> {
-      return this.visibleInsights.filter((l) => l.storySection === 'highlights' || l.storySection === 'mainStory' && l.rankSection !== 'hero');
+      // §31 — 3–4 memorable episodes maximum.
+      return this.visibleInsights
+        .filter((l) => l.storySection === 'highlights' || l.storySection === 'mainStory' && l.rankSection !== 'hero')
+        .slice(0, 4);
     },
     detailInsights(): Array<InsightLine> {
       // Visible "details" + any legacy secondary line with no section.
@@ -510,72 +445,38 @@ export default defineComponent({
         const worked = mine.find((l) =>
           l.storyRole === 'headline' || l.storyRole === 'whyWinnerWon' || l.storyRole === 'signatureMoment' || l.storyRole === 'contrast');
         const failed = mine.find((l) => l.storyRole === 'almost' || l.storyRole === 'whyRunnerLost');
+        // Rework §20 — supporting lines + the strongest line that actually scored points.
+        const prof = p.strategyProfile;
+        const supportLines = (prof?.secondary ?? []).map((d) => strategyLabel(d.archetype));
+        const scoringDet = prof?.all.find((d) => d.isScoring && d.vpContribution > 0);
         views.push({
           color: p.color, name: p.name, isWinner: p.isWinner,
           style: arc.style, tags: [...arc.shortSummaryTags],
           strongest: p.strongestCategory,
           workedBadge: worked?.badge, failedBadge: failed?.badge,
           styleDetail: arc.styleDetail,
+          supportLines,
+          scoringLine: scoringDet !== undefined ? strategyLabel(scoringDet.archetype) : undefined,
           corporation: arc.corporation,
         });
       }
       return views;
     },
-    duelPlayers(): Array<EndgamePlayerScore> {
-      // Winner on the left for a stable, readable head-to-head.
-      const [a, b] = this.model.players;
-      return a.isWinner ? [a, b] : [b, a];
-    },
-    podium(): Array<EndgamePlayerScore> {
-      // Arrange as 2nd · 1st · 3rd for the classic raised-center podium.
-      const top = this.model.players.slice(0, 3);
-      const first = top.find((p) => p.place === 1) ?? top[0];
-      const others = top.filter((p) => p !== first);
-      const result: Array<EndgamePlayerScore> = [];
-      if (others[0]) {
-        result.push(others[0]);
-      }
-      result.push(first);
-      if (others[1]) {
-        result.push(others[1]);
-      }
-      return result;
-    },
     insightLines(): Array<InsightLine> {
       return this.model.insights.map((ins) => this.composeInsight(ins));
     },
-    // The headline "match facts" strip: victory profile, the key moment, the
-    // margin, the most valuable card, lead changes. Each is derived from the
-    // analytical model — nothing is invented here.
+    // The headline NUMBERS of this game (the margin lives in the result block now; the
+    // vague "Victory profile" and "Entire game" fillers are gone — §28). Only a REAL key
+    // moment (a clear generation the lead changed for good) is shown.
     facts(): Array<Fact> {
       const out: Array<Fact> = [];
       const m = this.model;
       const t = m.timeline;
-      if (m.profile !== undefined) {
+      if (m.mode !== 'solo' && t !== undefined && t.winnerTookLeadGen !== undefined) {
+        const isComeback = t.maxDeficit >= 5 && t.winnerTookLeadGen >= Math.max(2, m.generation - 1);
         out.push({
-          key: 'profile', kind: 'text', label: 'Victory profile', glyph: '⬡',
-          value: $t(m.profile.label), color: m.winner?.color,
-        });
-      }
-      if (m.mode !== 'solo' && t !== undefined) {
-        if (t.winnerTookLeadGen !== undefined) {
-          const isComeback = t.maxDeficit >= 5 && t.winnerTookLeadGen >= Math.max(2, m.generation - 1);
-          out.push({
-            key: 'moment', kind: 'text', label: 'Key moment', glyph: isComeback ? '⇄' : '⚑',
-            value: $t('Generation') + ' ' + t.winnerTookLeadGen, color: m.winner?.color,
-          });
-        } else if (t.wireToWire) {
-          out.push({
-            key: 'moment', kind: 'text', label: 'Key moment', glyph: '♛',
-            value: $t('Entire game'), color: m.winner?.color,
-          });
-        }
-      }
-      if (m.mode !== 'solo' && m.runnerUp !== undefined) {
-        out.push({
-          key: 'margin', kind: 'text', label: 'Final margin', glyph: 'Ξ',
-          value: m.margin > 0 ? `+${m.margin} ${$t('VP')}` : $t('M€ tiebreaker'),
-          color: m.winner?.color,
+          key: 'moment', kind: 'text', label: isComeback ? 'Took the lead in gen' : 'Decisive moment', glyph: isComeback ? '⇄' : '⚑',
+          value: $t('Generation') + ' ' + t.winnerTookLeadGen, color: m.winner?.color,
         });
       }
       if (t !== undefined && t.leadChanges >= 2) {
@@ -613,28 +514,14 @@ export default defineComponent({
     corp(p: EndgamePlayerScore): string {
       return p.corporations.join(' / ');
     },
-    categoryLabel(key: EndgameCategoryKey): string {
-      return ENDGAME_CATEGORY_LABEL[key];
+    categoryLabel(key: EndgameCategoryKey | undefined): string {
+      return key === undefined ? '' : ENDGAME_CATEGORY_LABEL[key];
     },
     isCard(name: string): boolean {
       return getCard(name as CardName) !== undefined;
     },
     asCardName(name: string): CardName {
       return name as CardName;
-    },
-    catWinClass(cat: EndgameCategory): Record<string, boolean> {
-      const left = this.duelPlayers[0].color;
-      const right = this.duelPlayers[1].color;
-      return {
-        'eg-catwin--left': cat.leaders.length === 1 && cat.leaders[0] === left,
-        'eg-catwin--right': cat.leaders.length === 1 && cat.leaders[0] === right,
-        'eg-catwin--tie': cat.leaders.length !== 1,
-      };
-    },
-    mirrorStyle(cat: EndgameCategory, color: Color, side: 'l' | 'r'): Record<string, string> {
-      const v = cat.values[color] ?? 0;
-      const pct = cat.max > 0 ? (v / cat.max) * 100 : 0;
-      return {width: pct + '%', background: endgamePlayerHex(color), [side === 'l' ? 'marginLeft' : 'marginRight']: 'auto'};
     },
     // Turn an engine insight into a render line: translate the template and
     // each typed param (`raw` stays, `i18n`/`card` run through the translator).
@@ -652,7 +539,10 @@ export default defineComponent({
         rankSection: ins.rankSection,
         storyRole: ins.storyRole,
         storySection: ins.storySection,
-        chips: (ins.evidenceChips ?? []).map((ch) => ({text: ch.t === 'raw' ? ch.v : $t(ch.v), tone: ch.tone ?? 'neutral'})),
+        chips: (ins.evidenceChips ?? []).map((ch) => ({
+          text: (ch.t === 'raw' ? ch.v : $t(ch.v)) + (ch.label !== undefined ? ' ' + $t(ch.label) : ''),
+          tone: ch.tone ?? 'neutral',
+        })),
         detail: ins.detail,
         relatedPlayers: ins.relatedPlayers,
       };
