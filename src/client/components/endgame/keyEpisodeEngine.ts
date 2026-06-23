@@ -64,6 +64,9 @@ export type KeyEpisode = {
   relatedPlayers?: ReadonlyArray<Color>;
   /** Same-thought collapse key (e.g. 'award' — the two award phrasings never co-appear). */
   dedupeKey?: string;
+  /** The insight `storyCluster`s this episode SUBSUMES — so the residual "additional
+   *  analysis" grid (§8/§21) can drop any insight already told as an episode. */
+  coveredClusters?: ReadonlyArray<string>;
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -167,6 +170,7 @@ const episodeWinnerDriver: Gen = (ctx) => {
     params: [raw(ctx.winner.name), key(strategyLabel(det.archetype))],
     evidenceChips: [vpChip(det.vpContribution), ...det.evidence.slice(1, 2)],
     impact, confidence: confOf(det), relatedPlayers: [ctx.winner.color], dedupeKey: 'winnerDriver',
+    coveredClusters: [`strategy:${det.archetype}`],
   }];
 };
 
@@ -185,6 +189,7 @@ const episodeSecondaryScoring: Gen = (ctx) => {
     evidenceChips: [vpChip(sec.vpContribution)],
     impact: impactVsMargin(sec.vpContribution, ctx.margin), confidence: confOf(sec),
     relatedPlayers: [ctx.winner.color], dedupeKey: 'secondaryScoring',
+    coveredClusters: [`strategy:${sec.archetype}`],
   }];
 };
 
@@ -225,6 +230,7 @@ const episodeContrast: Gen = (ctx) => {
     evidenceChips: [labelChip(strategyLabel(w.archetype), 'good'), labelChip(strategyLabel(r.archetype), 'neutral')],
     impact: 0.2, confidence: 'high',
     relatedPlayers: [ctx.winner.color, ctx.runnerUp.color], dedupeKey: 'contrast',
+    coveredClusters: ['duelContrast'],
   }];
 };
 
@@ -264,6 +270,7 @@ const episodeTurningPoint: Gen = (ctx) => {
     params: [raw(ctx.winner.name)],
     evidenceChips: [valChip(`−${t.maxDeficit}`, 'VP', 'bad'), labelChip('then took the lead', 'good')],
     impact: clamp01(t.maxDeficit / 14), confidence: 'high', relatedPlayers: [ctx.winner.color], dedupeKey: 'turningPoint',
+    coveredClusters: ['turningPoint', 'verdict'],
   }];
 };
 
@@ -282,6 +289,7 @@ const episodeTempo: Gen = (ctx, finalGen) => {
     params: [raw(nameOf(ctx, burst.player))],
     evidenceChips: [valChip(`+${m(burst, 'savedMegacredits')}`, 'M€', 'good')],
     impact: 0.25, confidence: 'medium', relatedPlayers: [burst.player], dedupeKey: 'tempo',
+    coveredClusters: ['economyBurst'],
   }];
 };
 
@@ -329,6 +337,7 @@ const episodeAward: Gen = (ctx) => {
     params: [raw(nameOf(ctx, ctx.players.find((p) => p.name === a.funder)?.color)), key(a.award), raw(a.winnerName)],
     evidenceChips: [labelChip(a.award), vpChip(a.points)],
     impact, confidence: 'high', relatedPlayers: [a.winner], dedupeKey: 'award',
+    coveredClusters: ['awardRace'],
   }];
 };
 
@@ -347,6 +356,7 @@ const episodeSignature: Gen = (ctx) => {
       params: [raw(nameOf(ctx, topC.player))],
       evidenceChips: [valChip(`${m(topC, 'trades')}`, 'Trades', 'good')],
       impact: 0.25, confidence: 'medium', relatedPlayers: [topC.player], dedupeKey: 'colony',
+      coveredClusters: ['colony', 'colonyDomination'],
     });
   }
   // Most-targeted player (took the most direct pressure).
@@ -365,6 +375,7 @@ const episodeSignature: Gen = (ctx) => {
       params: [raw(nameOf(ctx, topV[0]))],
       evidenceChips: [valChip(`−${topV[1]}`, '', 'bad')],
       impact: 0.2, confidence: 'high', relatedPlayers: [topV[0]], dedupeKey: 'pressure',
+      coveredClusters: ['attackPressure', 'attackDamage'],
     });
   }
   return out;
@@ -387,6 +398,7 @@ const episodeRunnerUp: Gen = (ctx) => {
       params: [raw(ru.name)],
       evidenceChips: [valChip(`−${penalties}`, 'VP', 'bad')],
       impact: 0.5, confidence: 'high', relatedPlayers: [ru.color], dedupeKey: 'nearMiss',
+      coveredClusters: ['almostPenalty'],
     }];
   }
   if (leftover >= ctx.margin && leftover >= 12) {
@@ -397,15 +409,43 @@ const episodeRunnerUp: Gen = (ctx) => {
       params: [raw(ru.name)],
       evidenceChips: [valChip(`${leftover}`, 'M€', 'bad')],
       impact: 0.45, confidence: 'medium', relatedPlayers: [ru.color], dedupeKey: 'nearMiss',
+      coveredClusters: ['unusedMoney', 'almostMoney'],
     }];
   }
   return [];
 };
 
+// 9) Hydronetwork (Delta Project / «Гидросеть») — a finishing VP bonus that can skew one
+// player's way (rework §16). Reads the end-scoring `deltaProject` per player.
+const episodeHydronetwork: Gen = (ctx) => {
+  const scored = ctx.players
+    .map((p) => ({color: p.color, name: p.name, dp: p.breakdown.deltaProject ?? 0}))
+    .filter((x) => x.dp > 0)
+    .sort((a, b) => b.dp - a.dp);
+  const top = scored[0];
+  if (top === undefined || top.dp < 3) {
+    return [];
+  }
+  const second = scored[1]?.dp ?? 0;
+  const someoneZero = ctx.players.some((p) => p.color !== top.color && (p.breakdown.deltaProject ?? 0) === 0);
+  // Only a story on a clear skew (someone got nothing, or a big lead) — not even splits.
+  if (!someoneZero && top.dp - second < 3) {
+    return [];
+  }
+  return [{
+    id: 'episode.hydronetwork', role: 'signature_moment', phase: 'scoring', generation: undefined, order: orderOf('scoring', undefined) + 4,
+    color: top.color, badge: 'Hydronetwork',
+    textKey: 'The Hydronetwork handed ${0} a finishing bonus the rest didn’t share.',
+    params: [raw(top.name)],
+    evidenceChips: [vpChip(top.dp)],
+    impact: impactVsMargin(top.dp, ctx.margin), confidence: 'high', relatedPlayers: [top.color], dedupeKey: 'hydronetwork',
+  }];
+};
+
 const GENERATORS: ReadonlyArray<Gen> = [
   episodeWinnerDriver, episodeSecondaryScoring, episodeBestCard, episodeContrast,
   episodeEngineOnline, episodeTurningPoint, episodeTempo, episodeAward,
-  episodeSignature, episodeRunnerUp,
+  episodeSignature, episodeHydronetwork, episodeRunnerUp,
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -435,9 +475,11 @@ export function buildKeyEpisodes(ctx: InsightContext): Array<KeyEpisode> {
   return [...best.values()].sort((a, b) => a.order - b.order || b.impact - a.impact || a.id.localeCompare(b.id));
 }
 
-// Role groupings the UI consumes.
+// Role groupings the UI consumes — Iteration 16 §7/§9: each episode lives on exactly ONE
+// surface (no cross-surface repeats). The timeline is the JOURNEY (mid-game beats); the
+// decisive drivers are "why the winner won"; the contrast is the editorial "what defined".
 const TIMELINE_ROLES: ReadonlyArray<EpisodeRole> = [
-  'structural_contrast', 'engine_online', 'tempo_shift', 'turning_point', 'decisive_driver', 'late_scoring',
+  'engine_online', 'tempo_shift', 'turning_point',
 ];
 const UNUSUAL_ROLES: ReadonlyArray<EpisodeRole> = [
   'ironic_twist', 'signature_moment', 'near_miss', 'missed_conversion', 'flavor_only',
@@ -466,4 +508,16 @@ export function contrastEpisode(episodes: ReadonlyArray<KeyEpisode>): KeyEpisode
 export function memorableEpisode(episodes: ReadonlyArray<KeyEpisode>): KeyEpisode | undefined {
   return [...episodes].filter((e) => e.role === 'ironic_twist' || e.role === 'signature_moment' || e.role === 'turning_point')
     .sort((a, b) => b.impact - a.impact)[0];
+}
+
+/** The set of insight `storyCluster`s ALREADY told as episodes — so the residual
+ *  "additional analysis" grid drops anything already on a primary surface (§8/§21). */
+export function coveredInsightClusters(episodes: ReadonlyArray<KeyEpisode>): ReadonlySet<string> {
+  const set = new Set<string>();
+  for (const e of episodes) {
+    for (const c of e.coveredClusters ?? []) {
+      set.add(c);
+    }
+  }
+  return set;
 }

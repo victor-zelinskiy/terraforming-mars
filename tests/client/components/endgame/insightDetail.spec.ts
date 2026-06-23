@@ -111,3 +111,22 @@ describe('Editorial guard — no banned / debug phrasing in ru/endgame.json (Ite
     });
   }
 });
+
+// Iteration 16 §4/§5 — grammar safety: a player-name placeholder (${0}) must never be the
+// subject of a gendered past-tense verb ("${0} победил/играл/…"), and a strategy placeholder
+// must never be the subject of a gendered verb ("${1} дала/добавила") — those break for
+// female names and compound strategies ("Города и озеленение дала").
+describe('Grammar guard — no gendered subject-verb with a name/strategy placeholder (Iteration 16)', () => {
+  const values = Object.values(ruEndgame as Record<string, string>);
+  const GENDERED_VERBS = ['победил', 'проиграл', 'играл', 'строил', 'давил', 'поймал', 'провёл',
+    'закончил', 'держал', 'вышел', 'набрал', 'собрал', 'превратил', 'получил', 'дала', 'добавила', 'принёс'];
+  for (const verb of GENDERED_VERBS) {
+    // Whole-word match only: the verb must not be followed by another Cyrillic letter, so a
+    // correct reflexive/agreeing form (держалась / собралась) is NOT a false positive.
+    const re = new RegExp('\\$\\{[01]\\} ' + verb + '(?![а-яё])');
+    it(`no ru value has a gendered "\${0|1} ${verb}"`, () => {
+      const hit = values.find((v) => re.test(v));
+      expect(hit, `gendered subject-verb after a placeholder: ${hit}`).to.be.undefined;
+    });
+  }
+});

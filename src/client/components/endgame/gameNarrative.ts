@@ -18,6 +18,16 @@ import {
 
 export type StorySentence = {key: string; params: ReadonlyArray<InsightParam>};
 
+/** A short synopsis line for the "memorable turn" editorial row, keyed by the episode kind
+ *  (so the editorial summary doesn't repeat the full episode card text — §13). */
+const MEMORABLE_SYNOPSIS: Readonly<Record<string, string>> = {
+  award: 'The brightest turn: the award went to a player who didn’t fund it.',
+  bestCard: 'The brightest moment: one card brought a large block of points.',
+  colony: 'The most distinctive touch: the colonies leaned one player’s way.',
+  pressure: 'The most distinctive touch: one player spent the game under attack.',
+  turningPoint: 'The sharpest turn: a late change of the lead.',
+};
+
 const raw = (v: number | string): InsightParam => ({t: 'raw', v: String(v)});
 const key = (v: string): InsightParam => ({t: 'i18n', v});
 
@@ -58,6 +68,32 @@ export function buildHeroThesis(ctx: InsightContext, episodes: ReadonlyArray<Key
     key: '${0} won with a steady, all-round game rather than one decisive move.',
     params: [raw(ctx.winner.name)],
   };
+}
+
+/**
+ * The editorial "what defined this game" synopsis (§13): a SHORT cause / contrast /
+ * memorable line — distinct copy from the full episode cards, so the summary never repeats
+ * the detail verbatim (the dedup the screenshots showed as a triple). Grammar-safe (§5):
+ * the player is an object, the verb agrees with a neutral noun, the strategy is a name.
+ */
+export function buildWhatDefined(ctx: InsightContext, episodes: ReadonlyArray<KeyEpisode>): {
+  cause?: StorySentence; contrast?: StorySentence; memorable?: StorySentence;
+} {
+  const out: {cause?: StorySentence; contrast?: StorySentence; memorable?: StorySentence} = {};
+  const wPlan = winnerPlan(ctx);
+  if (wPlan !== undefined) {
+    out.cause = {key: 'The final count settled in ${0}’s favour through ${1}.', params: [raw(ctx.winner.name), key(wPlan)]};
+  }
+  const rPlan = runnerPlan(ctx);
+  if (contrastEpisode(episodes) !== undefined && wPlan !== undefined && rPlan !== undefined) {
+    out.contrast = {key: 'The winner and the runner-up took different routes: ${0} against ${1}.', params: [key(wPlan), key(rPlan)]};
+  }
+  const mem = memorableEpisode(episodes);
+  const synopsis = mem !== undefined ? MEMORABLE_SYNOPSIS[mem.dedupeKey ?? ''] : undefined;
+  if (synopsis !== undefined) {
+    out.memorable = {key: synopsis, params: []};
+  }
+  return out;
 }
 
 /**

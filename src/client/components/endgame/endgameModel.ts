@@ -34,8 +34,8 @@ import {
 } from '@/client/components/endgame/insightEngine';
 import type {GameStoryDNA} from '@/client/components/endgame/gameStoryDna';
 import {buildStrategyProfiles, type StrategyInput, type PlayerStrategyProfile} from '@/client/components/endgame/strategyArchetypes';
-import {buildKeyEpisodes, type KeyEpisode} from '@/client/components/endgame/keyEpisodeEngine';
-import {buildGameStory, buildHeroThesis, type StorySentence} from '@/client/components/endgame/gameNarrative';
+import {buildKeyEpisodes, coveredInsightClusters, type KeyEpisode} from '@/client/components/endgame/keyEpisodeEngine';
+import {buildGameStory, buildHeroThesis, buildWhatDefined, type StorySentence} from '@/client/components/endgame/gameNarrative';
 
 // What the builder needs from each player — a thin, pure projection of
 // PublicPlayerModel (the component maps it before calling the builder).
@@ -151,6 +151,10 @@ export type EndgameModel = {
   keyEpisodes: ReadonlyArray<KeyEpisode>;
   story: ReadonlyArray<StorySentence>;
   heroThesis: StorySentence | undefined;
+  // Iteration 16 — the editorial "what defined this game" synopsis (§13) + the deduped
+  // residual analysis (§8/§21: every insight whose cluster is NOT already an episode).
+  whatDefined: {cause?: StorySentence; contrast?: StorySentence; memorable?: StorySentence};
+  additionalInsights: ReadonlyArray<EndgameInsightView>;
   // Iteration 9: the Game Story DNA — the meta-classification (storyType, main
   // conflict, twists, player arcs) that drives the "why this game was special"
   // headline + the composer. undefined for solo / when no winner.
@@ -431,6 +435,8 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
   let keyEpisodes: ReadonlyArray<KeyEpisode> = [];
   let story: ReadonlyArray<StorySentence> = [];
   let heroThesis: StorySentence | undefined;
+  let whatDefined: {cause?: StorySentence; contrast?: StorySentence; memorable?: StorySentence} = {};
+  let additionalInsights: ReadonlyArray<EndgameInsightView> = [];
   if (winner !== undefined) {
     const ctx = {
       mode,
@@ -459,6 +465,19 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     keyEpisodes = buildKeyEpisodes(ctx);
     story = buildGameStory(ctx, keyEpisodes);
     heroThesis = buildHeroThesis(ctx, keyEpisodes);
+    whatDefined = buildWhatDefined(ctx, keyEpisodes);
+    // Iteration 16 §8/§21 — the residual analysis: every insight whose semantic cluster is
+    // NOT already told as an episode, deduped to one per cluster, capped.
+    const covered = coveredInsightClusters(keyEpisodes);
+    const seenCluster = new Set<string>();
+    additionalInsights = composed.insights.filter((i) => {
+      const cl = i.storyCluster ?? i.family ?? i.group;
+      if (covered.has(cl) || seenCluster.has(cl)) {
+        return false;
+      }
+      seenCluster.add(cl);
+      return true;
+    }).slice(0, 8);
   }
 
   return {
@@ -474,6 +493,8 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     keyEpisodes,
     story,
     heroThesis,
+    whatDefined,
+    additionalInsights,
     timeline,
     profile,
     bestCard,
