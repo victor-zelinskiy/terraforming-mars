@@ -4,13 +4,14 @@
     a short rich-text line), replacing the flat hero thesis string. The accent/glyph come
     from the verdict TYPE; the line uses the shared rich-text layer (hoverable terms).
   -->
-  <div v-if="verdict !== undefined" class="eg-fv" :class="['eg-fv--' + verdict.type, 'eg-fv--tier-' + verdict.tier]">
+  <div v-if="verdict !== undefined" class="eg-fv"
+       :class="['eg-fv--p-' + verdict.pattern, 'eg-fv--s-' + verdict.scale, 'eg-fv--r-' + verdict.rarity]">
     <span class="eg-fv__motif" aria-hidden="true"></span>
     <span class="eg-fv__glyph" aria-hidden="true">{{ verdict.glyph }}</span>
     <div class="eg-fv__body">
       <span class="eg-fv__title-row">
         <span class="eg-fv__title" v-i18n>{{ verdict.titleKey }}</span>
-        <span v-if="verdict.tier === 'rare' || verdict.tier === 'legendary'" class="eg-fv__tier" v-i18n>Rare finish</span>
+        <span v-if="isRare" class="eg-fv__tier" v-i18n>{{ verdict.rarity === 'legendary' ? 'Legendary finish' : 'Rare finish' }}</span>
       </span>
       <span class="eg-fv__line"><EndgameRichText :template="lineTemplate" :params="lineParams" /></span>
       <div v-if="verdict.chips.length > 0" class="eg-fv__chips">
@@ -36,6 +37,9 @@ export default defineComponent({
     verdict: {type: Object as () => FinishVerdict | undefined, required: false, default: undefined},
   },
   computed: {
+    isRare(): boolean {
+      return this.verdict?.rarity === 'rare' || this.verdict?.rarity === 'legendary';
+    },
     lineTemplate(): string {
       return this.verdict !== undefined ? $t(this.verdict.line.key) : '';
     },

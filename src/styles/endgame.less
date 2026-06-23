@@ -2213,28 +2213,30 @@
 }
 .eg-fv__line { font-size: 13.5px; line-height: 1.5; color: @eg-text-dim; }
 .eg-fv__chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
-/* per-type accent. */
-.eg-fv--photo_finish { --eg-fv: #7fd0e6; }
-.eg-fv--close_finish { --eg-fv: #6ab0e6; }
-.eg-fv--solid_win { --eg-fv: #8fd8ad; }
-.eg-fv--large_win { --eg-fv: #f3c969; }
-.eg-fv--blowout { --eg-fv: @eg-gold; }
-.eg-fv--comeback { --eg-fv: #c79af0; }
-.eg-fv--late_breakaway { --eg-fv: #d7a8f0; }
-.eg-fv--low_terraforming_big_win { --eg-fv: #f0b46a; }
-.eg-fv--single_card_decider { --eg-fv: #7fd0e6; }
-.eg-fv--award_decider { --eg-fv: #e7c463; }
-.eg-fv--resource_card_finish { --eg-fv: #8fd8ad; }
-.eg-fv--jovian_reveal { --eg-fv: #c79af0; }
-.eg-fv--colony_trade_finish { --eg-fv: #6fb6d8; }
-/* tier emphasis — rare/legendary read clearly stronger than a routine margin verdict. */
-.eg-fv--tier-rare, .eg-fv--tier-legendary {
+/* accent by SCALE (the baseline) — a pattern accent overrides it below when present. */
+.eg-fv--s-photo_finish { --eg-fv: #7fd0e6; }
+.eg-fv--s-close { --eg-fv: #6ab0e6; }
+.eg-fv--s-solid { --eg-fv: #8fd8ad; }
+.eg-fv--s-large { --eg-fv: #f3c969; }
+.eg-fv--s-blowout { --eg-fv: @eg-gold; }
+/* accent by PATTERN (wins over the scale accent — declared later = same specificity, later). */
+.eg-fv--p-comeback { --eg-fv: #c79af0; }
+.eg-fv--p-late_breakaway { --eg-fv: #d7a8f0; }
+.eg-fv--p-lower_terraforming_win { --eg-fv: #f0b46a; }
+.eg-fv--p-single_card_swing { --eg-fv: #7fd0e6; }
+.eg-fv--p-award_swing { --eg-fv: #e7c463; }
+.eg-fv--p-resource_card_finish { --eg-fv: #8fd8ad; }
+.eg-fv--p-jovian_finish { --eg-fv: #c79af0; }
+.eg-fv--p-hidden_scoring_reveal { --eg-fv: #6fb6d8; }
+.eg-fv--p-colony_supported_finish { --eg-fv: #6fb6d8; }
+/* RARITY emphasis — only rare/legendary read clearly stronger than a routine verdict. */
+.eg-fv--r-rare, .eg-fv--r-legendary {
     padding: 14px 20px;
     background: linear-gradient(100deg, ~"color-mix(in srgb, var(--eg-fv) 20%, transparent)", transparent 80%);
     box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-fv) 55%, transparent)", 0 0 26px -10px ~"color-mix(in srgb, var(--eg-fv) 55%, transparent)";
 }
-.eg-fv--tier-rare .eg-fv__glyph, .eg-fv--tier-legendary .eg-fv__glyph { font-size: 28px; }
-.eg-fv--tier-legendary { animation: eg-fv-in 360ms ease both, eg-fv-glow 2600ms ease-in-out 360ms 1; }
+.eg-fv--r-rare .eg-fv__glyph, .eg-fv--r-legendary .eg-fv__glyph { font-size: 28px; }
+.eg-fv--r-legendary { animation: eg-fv-in 360ms ease both, eg-fv-glow 2600ms ease-in-out 360ms 1; }
 .eg-fv { animation: eg-fv-in 360ms ease both; }
 @keyframes eg-fv-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes eg-fv-glow {
@@ -2242,7 +2244,7 @@
     50% { box-shadow: inset 0 0 0 1px ~"color-mix(in srgb, var(--eg-fv) 75%, transparent)", 0 0 40px -6px ~"color-mix(in srgb, var(--eg-fv) 70%, transparent)"; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .eg-fv, .eg-fv--tier-legendary { animation: none; }
+    .eg-fv, .eg-fv--r-legendary { animation: none; }
 }
 
 /* §20 — the player-arc supporting-strategy chips. */

@@ -715,7 +715,11 @@
     "Key cards": "Ключевые карты",
 
     "A close finish": "Близкая концовка",
-    "A wide finish": "Крупный отрыв",
+    "A wide finish": "Крупный финальный отрыв",
+    "A hidden finish": "Скрытый финиш",
+    "Legendary finish": "Легендарный финиш",
+    "A rare gap against terraforming": "Редкий разрыв вопреки РТ",
+    "It looked close before the final count, but the scoring opened a real gap for ${0}: +${1} VP.": "До финального подсчёта казалось близко, но очки раскрыли реальный отрыв ${0}: +${1} ПО.",
     "A runaway finish": "Разгромная концовка",
     "A finish-line comeback": "Камбэк в финале",
     "A late breakaway": "Поздний отрыв",
