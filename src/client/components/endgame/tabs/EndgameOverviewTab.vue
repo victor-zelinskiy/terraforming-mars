@@ -12,11 +12,24 @@
       </div>
     </section>
 
-    <!-- ── §3/§8 — The story of the game: a full-width editorial recap, 2 paragraphs,
-         player names in colour, hoverable strategy terms, accented numbers. ── -->
-    <section v-if="storyParagraphs.length > 0" class="eg-story30">
+    <!-- ── §3/§8/§10 — The story of the game: AI editorial recap when ready, a premium
+         loading state while it generates, else the deterministic story (full-width recap,
+         player names in colour, hoverable strategy terms, accented numbers). ── -->
+    <section v-if="storyParagraphs.length > 0 || aiStoryReady || aiStoryPending" class="eg-story30">
       <h3 class="eg-story30__head" v-i18n>The story of this game</h3>
-      <div class="eg-story30__prose">
+      <!-- AI story ready: render its paragraphs (already validated server-side). -->
+      <div v-if="aiStoryReady" class="eg-story30__prose">
+        <p v-for="(p, i) in aiStoryParagraphs" :key="i" class="eg-story30__body">{{ p }}</p>
+      </div>
+      <!-- AI story generating: a calm premium skeleton, never a spinner (§13). -->
+      <div v-else-if="aiStoryPending" class="eg-story30__loading" aria-busy="true">
+        <span class="eg-story30__loadlbl" v-i18n>Putting together the story of the game…</span>
+        <span class="eg-story30__skel"></span>
+        <span class="eg-story30__skel"></span>
+        <span class="eg-story30__skel eg-story30__skel--short"></span>
+      </div>
+      <!-- Deterministic fallback (the default). -->
+      <div v-else class="eg-story30__prose">
         <p v-for="(para, pi) in storyParagraphs" :key="pi" class="eg-story30__body">
           <template v-for="(s, si) in para" :key="si"><span class="eg-story30__sentence"><EndgameRichText :template="s.template" :params="s.params" /></span>{{ si < para.length - 1 ? ' ' : '' }}</template>
         </p>
@@ -187,6 +200,7 @@
       <div class="eg-dnadebug__reasons">
         key episodes without source: {{ episodesWithoutSource.length === 0 ? 'none ✓' : episodesWithoutSource.join(', ') }}
       </div>
+      <div class="eg-dnadebug__reasons">ai story: {{ aiStatusDebug }}</div>
       <!-- §11 — "Money to spare" decision per player (spendable vs end cash vs median). -->
       <div v-for="m in moneyDebug" :key="'mn' + m.color" class="eg-dnadebug__reasons">
         money {{ m.color }}: {{ m.shown ? 'TAG ✓' : 'hidden' }} — spendable {{ m.spendable }} (end {{ m.endCash }}, excl. final prod {{ m.finalProductionExcluded }}), median {{ m.median }}, need ≥{{ m.threshold }} & ≥median+15
@@ -245,6 +259,7 @@ import {
   type KeyEpisode, type EpisodePhase, timelineEpisodes, unusualEpisodes, decisiveEpisodes, marginClass,
 } from '@/client/components/endgame/keyEpisodeEngine';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
+import {endgameAiStoryState} from '@/client/components/endgame/endgameAiStoryState';
 import ExplainableBadge from '@/client/components/endgame/ExplainableBadge.vue';
 import ResultHeroDuel from '@/client/components/endgame/ResultHeroDuel.vue';
 import ResultHeroMultiplayer from '@/client/components/endgame/ResultHeroMultiplayer.vue';
@@ -358,6 +373,21 @@ export default defineComponent({
   computed: {
     mode(): string {
       return this.model.mode;
+    },
+    // §10/§17 — the AI editorial story (when the backend has produced + validated one).
+    aiStoryReady(): boolean {
+      return endgameAiStoryState.status === 'ready' &&
+        endgameAiStoryState.story !== undefined && endgameAiStoryState.story.paragraphs.length > 0;
+    },
+    aiStoryPending(): boolean {
+      return endgameAiStoryState.status === 'pending';
+    },
+    aiStoryParagraphs(): ReadonlyArray<string> {
+      return endgameAiStoryState.story?.paragraphs ?? [];
+    },
+    aiStatusDebug(): string {
+      const s = endgameAiStoryState;
+      return `${s.status}${s.story?.model !== undefined ? ' · ' + s.story.model : ''}${s.errorCode !== undefined ? ' · err ' + s.errorCode : ''}`;
     },
     // §3/§8 — the story as TWO paragraphs of rich-text sentences (para 1 = conclusion,
     // para 2 = explanation). Each sentence becomes a translated template + rich params.
