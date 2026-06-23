@@ -170,8 +170,12 @@ export default defineComponent({
         .filter((c) => c.colonies.includes(p.color))
         .map((c) => c.name);
       const details = p.victoryPointsBreakdown?.detailsCards ?? [];
-      const {bySource} = decomposePlayerCardVp(details, this.cardResources[p.color] ?? {}, (name) => this.cardDecl(name));
-      return {tags: p.tags ?? {}, coloniesOwned, cardVp: bySource, resourceTotals: totals};
+      const {bySource, contributions} = decomposePlayerCardVp(details, this.cardResources[p.color] ?? {}, (name) => this.cardDecl(name));
+      // §10 — keep the positive per-card contributions for the hover breakdown (top cards).
+      const cardContributions = contributions
+        .filter((c) => c.totalVp > 0)
+        .map((c) => ({cardName: c.cardName, totalVp: c.totalVp, source: c.source, confidence: c.confidence}));
+      return {tags: p.tags ?? {}, coloniesOwned, cardVp: bySource, resourceTotals: totals, cardContributions};
     },
     restore(): void {
       restoreEndgameResults();

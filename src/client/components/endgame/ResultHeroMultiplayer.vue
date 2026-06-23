@@ -36,7 +36,7 @@
       </ol>
     </div>
 
-    <p v-if="thesis !== ''" class="eg-rhmulti__thesis">{{ thesis }}</p>
+    <FinishVerdictBanner v-if="model.finishVerdict !== undefined" :verdict="model.finishVerdict" />
   </section>
 </template>
 
@@ -47,16 +47,16 @@ import {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endg
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {themeForArchetype, StrategyVisualTheme} from '@/client/components/endgame/strategyVisualThemes';
 import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
+import FinishVerdictBanner from '@/client/components/endgame/FinishVerdictBanner.vue';
 
 type BoardRow = EndgamePlayerScore & {style?: string};
 
 export default defineComponent({
   name: 'ResultHeroMultiplayer',
+  components: {FinishVerdictBanner},
   props: {
     model: {type: Object as () => EndgameModel, required: true},
     viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
-    // Iteration 15 — the impact-correct hero thesis (composed upstream, already translated).
-    thesis: {type: String, required: false, default: ''},
   },
   computed: {
     winner(): EndgamePlayerScore | undefined {

@@ -25,7 +25,8 @@ import {CardName} from '@/common/cards/CardName';
 import type {EndgameFact, FactType} from '@/common/events/endgameFacts';
 import type {InsightContext, InsightParam, EvidenceChip} from '@/client/components/endgame/insightEngine';
 import type {EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
-import {strategyLabel, type StrategyDetection} from '@/client/components/endgame/strategyArchetypes';
+import {strategyLabel, type StrategyArchetype, type StrategyDetection} from '@/client/components/endgame/strategyArchetypes';
+import {buildStrategyTermDetail} from '@/client/components/endgame/insightDetail';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -97,9 +98,17 @@ export type KeyEpisode = {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────
 
-const raw = (v: number | string): InsightParam => ({t: 'raw', v: String(v)});
 const key = (v: string): InsightParam => ({t: 'i18n', v});
 const cardP = (v: string): InsightParam => ({t: 'card', v});
+// Iteration 17 §5 — interactive-term params so episode text is hoverable like the story.
+const playerP = (name: string, color: Color | undefined): InsightParam =>
+  color !== undefined ? {t: 'raw', v: name, term: {kind: 'player', color}} : {t: 'raw', v: name};
+const stratP = (ctx: InsightContext, color: Color, archetype: StrategyArchetype): InsightParam =>
+  ({t: 'i18n', v: strategyLabel(archetype), term: {kind: 'strategy', detail: buildStrategyTermDetail(ctx.players, color, archetype)}});
+const scoreP = (v: number | string): InsightParam => ({t: 'raw', v: String(v), term: {kind: 'score', accent: true}});
+function colorOfName(ctx: InsightContext, name: string): Color | undefined {
+  return ctx.players.find((p) => p.name === name)?.color;
+}
 const vpChip = (n: number): EvidenceChip => ({t: 'raw', v: `+${n}`, label: 'VP', tone: 'good'});
 const labelChip = (k: string, tone: EvidenceChip['tone'] = 'neutral'): EvidenceChip => ({t: 'i18n', v: k, tone});
 const valChip = (v: string, label: string, tone: EvidenceChip['tone'] = 'metric'): EvidenceChip => ({t: 'raw', v, label, tone});
@@ -191,7 +200,7 @@ const episodeWinnerDriver: Gen = (ctx) => {
     textKey: decisive ?
       'The win was built at scoring: ${0}’s ${1} delivered the decisive block of points.' :
       'A line that paid off late: ${0}’s ${1} added points right at the finish.',
-    params: [raw(ctx.winner.name), key(strategyLabel(det.archetype))],
+    params: [playerP(ctx.winner.name, ctx.winner.color), stratP(ctx, ctx.winner.color, det.archetype)],
     evidenceChips: [vpChip(det.vpContribution), ...det.evidence.slice(1, 2)],
     impact, confidence: confOf(det), relatedPlayers: [ctx.winner.color], dedupeKey: 'winnerDriver',
     coveredClusters: [`strategy:${det.archetype}`],
@@ -209,7 +218,7 @@ const episodeSecondaryScoring: Gen = (ctx) => {
     phase: 'scoring', generation: undefined, order: orderOf('scoring', undefined) + 2,
     color: ctx.winner.color, badge: strategyLabel(sec.archetype),
     textKey: 'A second scoring line backed it up: ${0}’s ${1} added another block of points.',
-    params: [raw(ctx.winner.name), key(strategyLabel(sec.archetype))],
+    params: [playerP(ctx.winner.name, ctx.winner.color), stratP(ctx, ctx.winner.color, sec.archetype)],
     evidenceChips: [vpChip(sec.vpContribution)],
     impact: impactVsMargin(sec.vpContribution, ctx.margin), confidence: confOf(sec),
     relatedPlayers: [ctx.winner.color], dedupeKey: 'secondaryScoring',
@@ -229,7 +238,7 @@ const episodeBestCard: Gen = (ctx) => {
     phase: 'scoring', generation: undefined, order: orderOf('scoring', undefined) + 3,
     color: ctx.winner.color, badge: 'Best card',
     textKey: '${0}’s strongest card, ${1}, brought a big block of points on its own.',
-    params: [raw(ctx.winner.name), cardP(top.cardName)],
+    params: [playerP(ctx.winner.name, ctx.winner.color), cardP(top.cardName)],
     evidenceChips: [vpChip(top.victoryPoint)],
     impact, confidence: 'high', relatedPlayers: [ctx.winner.color], dedupeKey: 'bestCard',
   }];
@@ -250,7 +259,8 @@ const episodeContrast: Gen = (ctx) => {
     phase: 'early', generation: undefined, order: orderOf('early', undefined),
     color: ctx.winner.color, badge: 'Two plans',
     textKey: 'The game split into two plans: ${0} went for ${1}, ${2} for ${3}.',
-    params: [raw(ctx.winner.name), key(strategyLabel(w.archetype)), raw(ctx.runnerUp.name), key(strategyLabel(r.archetype))],
+    params: [playerP(ctx.winner.name, ctx.winner.color), stratP(ctx, ctx.winner.color, w.archetype),
+      playerP(ctx.runnerUp.name, ctx.runnerUp.color), stratP(ctx, ctx.runnerUp.color, r.archetype)],
     evidenceChips: [labelChip(strategyLabel(w.archetype), 'good'), labelChip(strategyLabel(r.archetype), 'neutral')],
     impact: 0.2, confidence: 'high',
     relatedPlayers: [ctx.winner.color, ctx.runnerUp.color], dedupeKey: 'contrast',
@@ -273,7 +283,7 @@ const episodeEngineOnline: Gen = (ctx, finalGen) => {
     phase, generation: acc.gen, order: orderOf(phase, acc.gen),
     color: ctx.winner.color, badge: 'Engine online',
     textKey: '${0}’s plan started clicking — the points began coming noticeably faster.',
-    params: [raw(ctx.winner.name)],
+    params: [playerP(ctx.winner.name, ctx.winner.color)],
     evidenceChips: [valChip(`+${acc.gain}`, 'VP', 'good')],
     impact: 0.35, confidence: 'medium', relatedPlayers: [ctx.winner.color], dedupeKey: 'engineOnline',
   }];
@@ -291,7 +301,7 @@ const episodeTurningPoint: Gen = (ctx) => {
     phase, generation: t.winnerTookLeadGen, order: orderOf(phase, t.winnerTookLeadGen),
     color: ctx.winner.color, badge: 'Took the lead',
     textKey: '${0} was behind, then pulled ahead for good and never gave the lead back.',
-    params: [raw(ctx.winner.name)],
+    params: [playerP(ctx.winner.name, ctx.winner.color)],
     evidenceChips: [valChip(`−${t.maxDeficit}`, 'VP', 'bad'), labelChip('then took the lead', 'good')],
     impact: clamp01(t.maxDeficit / 14), confidence: 'high', relatedPlayers: [ctx.winner.color], dedupeKey: 'turningPoint',
     coveredClusters: ['turningPoint', 'verdict'],
@@ -314,7 +324,7 @@ const episodeTempo: Gen = (ctx, finalGen) => {
     textKey: early ?
       '${0} hit an economic spike — a burst of resources that funded the plan from here on.' :
       '${0} hit a late economic surge — a burst of resources right when it mattered.',
-    params: [raw(nameOf(ctx, burst.player))],
+    params: [playerP(nameOf(ctx, burst.player), burst.player)],
     evidenceChips: [valChip(`+${m(burst, 'savedMegacredits')}`, 'M€', 'good')],
     impact: 0.25, confidence: 'medium', relatedPlayers: [burst.player], dedupeKey: 'tempo',
     coveredClusters: ['economyBurst'],
@@ -362,7 +372,7 @@ const episodeAward: Gen = (ctx) => {
     id: 'episode.award', role, phase: 'scoring', generation: a.generation, order: orderOf('scoring', a.generation),
     color: a.winner, badge: 'Award backfired',
     textKey: 'The award went to the wrong player: ${0} funded ${1}, but ${2} took the points for it.',
-    params: [raw(nameOf(ctx, ctx.players.find((p) => p.name === a.funder)?.color)), key(a.award), raw(a.winnerName)],
+    params: [playerP(a.funder, colorOfName(ctx, a.funder)), key(a.award), playerP(a.winnerName, a.winner)],
     evidenceChips: [labelChip(a.award), vpChip(a.points)],
     impact, confidence: 'high', relatedPlayers: [a.winner], dedupeKey: 'award',
     coveredClusters: ['awardRace'],
@@ -381,7 +391,7 @@ const episodeSignature: Gen = (ctx) => {
       id: 'episode.colony', role: 'signature_moment', phase: 'mid', generation: undefined, order: orderOf('mid', undefined) + 1,
       color: topC.player, badge: 'Colony control',
       textKey: 'Colonies ran one way: ${0} kept the trade routes turning far more than anyone else.',
-      params: [raw(nameOf(ctx, topC.player))],
+      params: [playerP(nameOf(ctx, topC.player), topC.player)],
       evidenceChips: [valChip(`${m(topC, 'trades')}`, 'Trades', 'good')],
       impact: 0.25, confidence: 'medium', relatedPlayers: [topC.player], dedupeKey: 'colony',
       coveredClusters: ['colony', 'colonyDomination'],
@@ -400,7 +410,7 @@ const episodeSignature: Gen = (ctx) => {
       id: 'episode.pressure', role: 'signature_moment', phase: 'mid', generation: undefined, order: orderOf('mid', undefined) + 2,
       color: topV[0], badge: 'Under pressure',
       textKey: '${0} spent the game under pressure, losing resources to opponents’ attacks.',
-      params: [raw(nameOf(ctx, topV[0]))],
+      params: [playerP(nameOf(ctx, topV[0]), topV[0])],
       evidenceChips: [valChip(`−${topV[1]}`, '', 'bad')],
       impact: 0.2, confidence: 'high', relatedPlayers: [topV[0]], dedupeKey: 'pressure',
       coveredClusters: ['attackPressure', 'attackDamage'],
@@ -423,7 +433,7 @@ const episodeRunnerUp: Gen = (ctx) => {
       id: 'episode.nearMiss.penalty', role: 'near_miss', phase: 'scoring', generation: undefined, order: orderOf('scoring', undefined) + 1,
       color: ru.color, badge: 'So close',
       textKey: 'It was that close for ${0}: the penalties cost more than the final gap.',
-      params: [raw(ru.name)],
+      params: [playerP(ru.name, ru.color)],
       evidenceChips: [valChip(`−${penalties}`, 'VP', 'bad')],
       impact: 0.5, confidence: 'high', relatedPlayers: [ru.color], dedupeKey: 'nearMiss',
       coveredClusters: ['almostPenalty'],
@@ -434,7 +444,7 @@ const episodeRunnerUp: Gen = (ctx) => {
       id: 'episode.nearMiss.money', role: 'missed_conversion', phase: 'scoring', generation: undefined, order: orderOf('scoring', undefined) + 1,
       color: ru.color, badge: 'On the table',
       textKey: '${0} finished with money still in the bank — more than the final gap.',
-      params: [raw(ru.name)],
+      params: [playerP(ru.name, ru.color)],
       evidenceChips: [valChip(`${leftover}`, 'M€', 'bad')],
       impact: 0.45, confidence: 'medium', relatedPlayers: [ru.color], dedupeKey: 'nearMiss',
       coveredClusters: ['unusedMoney', 'almostMoney'],
@@ -465,7 +475,7 @@ const episodeHydronetwork: Gen = (ctx) => {
     id: 'episode.hydronetwork', role: 'signature_moment', phase: 'scoring', generation: undefined, order: orderOf('scoring', undefined) + 4,
     color: top.color, badge: 'Hydronetwork',
     textKey: 'The Hydronetwork handed ${0} a finishing bonus the rest didn’t share.',
-    params: [raw(top.name)],
+    params: [playerP(top.name, top.color)],
     evidenceChips: [vpChip(top.dp)],
     impact: impactVsMargin(top.dp, ctx.margin),
     confidence: 'high', relatedPlayers: [top.color], dedupeKey: 'hydronetwork',
@@ -493,7 +503,7 @@ const episodePredators: Gen = (ctx) => {
     textKey: big ?
       'Predators gutted ${1}’s animal line: ${2} animals went to ${0}, and it told at the finish.' :
       'Predators were a notable clash: ${2} animals were taken from ${1} for ${0}.',
-    params: [raw(nameOf(ctx, hit.player)), raw(nameOf(ctx, hit.targetPlayer)), raw(animals)],
+    params: [playerP(nameOf(ctx, hit.player), hit.player), playerP(nameOf(ctx, hit.targetPlayer), hit.targetPlayer), scoreP(animals)],
     evidenceChips: [valChip(`${animals}`, 'Animals', 'bad')],
     impact: clamp01(animals / 12), confidence: 'high',
     relatedPlayers: [hit.player, ...(hit.targetPlayer !== undefined ? [hit.targetPlayer] : [])],
@@ -509,22 +519,21 @@ const episodeFinalScoring: Gen = (ctx) => {
   }
   const cls = marginClass(ctx.margin);
   const prim = ctx.winner.strategyProfile?.primary;
-  const lineLabel = prim !== undefined ? strategyLabel(prim.archetype) : undefined;
-  const params: Array<InsightParam> = [raw(ctx.winner.name)];
+  const params: Array<InsightParam> = [playerP(ctx.winner.name, ctx.winner.color)];
   let textKey: string;
   if (cls === 'blowout' || cls === 'large') {
-    textKey = lineLabel !== undefined ?
+    textKey = prim !== undefined ?
       'Final scoring pulled the players apart: ${0} banked the lead across several lines, led by ${1}.' :
       'Final scoring pulled the players apart: ${0} banked the lead across several lines.';
   } else if (cls === 'solid') {
-    textKey = lineLabel !== undefined ?
+    textKey = prim !== undefined ?
       'The final count settled it for ${0}, carried by ${1}.' :
       'The final count settled it for ${0}.';
   } else {
     textKey = 'The final count decided a tight game in ${0}’s favour.';
   }
-  if (lineLabel !== undefined && cls !== 'tie' && cls !== 'close') {
-    params.push(key(lineLabel));
+  if (prim !== undefined && cls !== 'tie' && cls !== 'close') {
+    params.push(stratP(ctx, ctx.winner.color, prim.archetype));
   }
   return [{
     id: 'episode.finalScoring', role: 'final_scoring', phase: 'scoring',

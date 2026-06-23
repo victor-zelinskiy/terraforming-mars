@@ -711,5 +711,19 @@
     "The lead for ${0} held from the first generation and only grew by the finish.": "Лидерство ${0} держалось с первого поколения и к финалу только росло.",
     "By the final count the advantage for ${0} had grown into a wide lead.": "К финальному подсчёту преимущество ${0} выросло в крупный отрыв.",
     "The final count locked in the advantage for ${0}.": "Финальный счёт закрепил преимущество ${0}.",
-    "The game stayed tight to the very end.": "Партия оставалась плотной до самого конца."
+    "The game stayed tight to the very end.": "Партия оставалась плотной до самого конца.",
+    "Key cards": "Ключевые карты",
+
+    "A close finish": "Близкая концовка",
+    "A wide finish": "Крупный отрыв",
+    "A runaway finish": "Разгромная концовка",
+    "A finish-line comeback": "Камбэк в финале",
+    "A late breakaway": "Поздний отрыв",
+    "The game came down to a handful of points at the final count.": "Партия решилась считанными очками в финальном подсчёте.",
+    "Just +${0} VP decided it — the details mattered.": "Всё решили +${0} ПО — важны были детали.",
+    "The advantage for ${0} held and was sealed at the final count: +${1} VP.": "Преимущество ${0} держалось и закрепилось на финальном подсчёте: +${1} ПО.",
+    "The final count pulled the players far apart: the lead for ${0} reached +${1} VP.": "Финальный подсчёт развёл игроков далеко: отрыв ${0} достиг +${1} ПО.",
+    "The lead for ${0} reached +${1} VP — no longer a fight over details, but a wide final gap.": "Отрыв ${0} достиг +${1} ПО — это уже не борьба за детали, а крупный финальный разрыв.",
+    "By the final count the hidden points came out and swung the lead to ${0} after trailing.": "К финальному подсчёту скрытые очки раскрылись и вывели ${0} вперёд после отставания.",
+    "It ran close, then the final count sharply pulled ${0} clear: +${1} VP.": "Партия держалась рядом, но финальный подсчёт резко вывел ${0} вперёд: +${1} ПО."
 }

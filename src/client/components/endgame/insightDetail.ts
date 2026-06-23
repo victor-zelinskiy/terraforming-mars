@@ -22,6 +22,8 @@ import type {EndgameCategoryKey, EndgamePlayerScore} from '@/client/components/e
 import type {EvidenceChip, InsightCandidate, InsightContext, InsightFamily} from '@/client/components/endgame/insightEngine';
 import {ARCHETYPE_LABEL, corporationProfile} from '@/client/components/endgame/corporationStories';
 import {ARCHETYPE_FAMILY, strategyLabel, type StrategyArchetype, type StrategyConfidence} from '@/client/components/endgame/strategyArchetypes';
+import type {CardVpSource, VpConfidence} from '@/client/components/endgame/cardScoreContribution';
+import {cardVpSourceToEvidence, type EvidenceSourceType, type EvidenceConfidence} from '@/client/components/endgame/storyEvidence';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -41,6 +43,10 @@ export type ChipDetail = {
   whyItMatters?: string;
   /** Up to ~3 evidence rows (the numbers that produced the verdict). */
   evidence: ReadonlyArray<DetailEvidenceRow>;
+  /** Iteration 17 §10/§11 — a labelled BREAKDOWN list (e.g. per-card VP for a resource line).
+   *  `label` is an i18n key / card name ($t translates by exact match); `value` is final text;
+   *  each row carries a typed evidence SOURCE + confidence (surfaced in ?egDebug, §19/§20). */
+  breakdown?: ReadonlyArray<{label: string; value: string; sourceType?: EvidenceSourceType; confidence?: EvidenceConfidence}>;
   /** How trustworthy the number is (drives a chip in the popover). */
   confidence?: ChipDetailConfidence;
   /** An honest caveat (i18n KEY) — e.g. "card draw is not converted to M€". */
@@ -515,9 +521,38 @@ const STRATEGY_TERM_CONFIDENCE: Record<StrategyConfidence, ChipDetailConfidence>
   high: 'measured', medium: 'partial', low: 'partial',
 };
 
-/** Build the hover detail for an inline STRATEGY term inside the narrative recap (§5). */
-export function buildStrategyTermDetail(ctx: InsightContext, color: Color, archetype: StrategyArchetype): ChipDetail {
-  const p = ctx.players.find((x) => x.color === color);
+// §10 — which card-VP sources back each archetype, so the hover can list the top cards.
+const ARCHETYPE_CARD_SOURCES: Partial<Record<StrategyArchetype, ReadonlyArray<CardVpSource>>> = {
+  animals: ['animal'],
+  microbes: ['microbe'],
+  floaters: ['floater'],
+  jovian: ['jovian'],
+  venus: ['floater'],
+  cardResources: ['animal', 'microbe', 'floater'],
+};
+
+const VP_TO_EVIDENCE_CONF: Record<VpConfidence, EvidenceConfidence> = {high: 'measured', medium: 'partial', low: 'low'};
+
+/** Top per-card VP contributions backing a strategy line (the §10/§11 hover breakdown). */
+function strategyCardBreakdown(players: ReadonlyArray<EndgamePlayerScore>, color: Color, archetype: StrategyArchetype):
+  Array<{label: string; value: string; sourceType?: EvidenceSourceType; confidence?: EvidenceConfidence}> {
+  const sources = ARCHETYPE_CARD_SOURCES[archetype];
+  if (sources === undefined) {
+    return [];
+  }
+  const p = players.find((x) => x.color === color);
+  const contributions = p?.strategyInput?.cardContributions ?? [];
+  return contributions
+    .filter((c) => sources.includes(c.source) && c.totalVp > 0)
+    .sort((a, b) => b.totalVp - a.totalVp)
+    .slice(0, 3)
+    .map((c) => ({label: c.cardName, value: `+${c.totalVp}`, sourceType: cardVpSourceToEvidence(c.source), confidence: VP_TO_EVIDENCE_CONF[c.confidence]}));
+}
+
+/** Build the hover detail for an inline STRATEGY term inside the narrative recap (§5/§10).
+ *  Takes the ranked players (not the full ctx) so the hero can reuse it without a context. */
+export function buildStrategyTermDetail(players: ReadonlyArray<EndgamePlayerScore>, color: Color, archetype: StrategyArchetype): ChipDetail {
+  const p = players.find((x) => x.color === color);
   const det = p?.strategyProfile?.all.find((d) => d.archetype === archetype);
   const meta = STRATEGY_TERM_EXPLANATION[archetype];
   const rows: Array<DetailEvidenceRow> = [];
@@ -532,11 +567,13 @@ export function buildStrategyTermDetail(ctx: InsightContext, color: Color, arche
       }
     }
   }
+  const breakdown = strategyCardBreakdown(players, color, archetype);
   return {
     title: strategyLabel(archetype),
     explanation: meta?.explanation ?? 'A scoring line in this game.',
     whyItMatters: meta?.why,
     evidence: rows.slice(0, 4),
+    breakdown: breakdown.length > 0 ? breakdown : undefined,
     confidence: det !== undefined ? STRATEGY_TERM_CONFIDENCE[det.confidence] : 'ruleOnly',
     caveat: det !== undefined && det.confidence === 'low' ?
       'This is an estimate from the card mix, not an exact breakdown.' : undefined,
