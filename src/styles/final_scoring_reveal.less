@@ -138,7 +138,10 @@
 .fsr__title {
     margin: 0;
     font-family: Prototype, Orbitron, sans-serif;
-    font-size: clamp(34px, 4.4vw, 60px);
+    // `min(vw, vh)`: at fullscreen the height term is large so the width term (or
+    // the 60px cap) wins — pixel-identical to before; on a short windowed viewport
+    // the height term takes over and the title shrinks to free vertical room.
+    font-size: clamp(30px, min(4.4vw, 7.4vh), 60px);
     font-weight: 700;
     letter-spacing: 0.05em;
     line-height: 1.04;
@@ -311,9 +314,23 @@
     display: flex;
     flex-direction: column;
     gap: clamp(10px, 1.6vh, 20px);
-    max-height: 64vh;
+    // The score bars are the centrepiece: they keep their full size and must NOT
+    // get a premature scrollbar. The old `max-height: 64vh` capped the stack at a
+    // FIXED fraction of the viewport regardless of how much room the chrome left
+    // free — so the bars scrolled even when space was available below. Instead the
+    // stack sizes to its content and only yields (flex-shrink) as an absolute last
+    // resort on genuinely tiny viewports; the surrounding chrome (title + winner
+    // plaque) shrinks first via the height-aware `min(vw, vh)` sizing below, so in
+    // every realistic window the bars fit with no scroll. `min-height: 0` lets the
+    // lane stack — never the always-visible chrome — be the one thing that yields.
+    flex: 0 1 auto;
+    min-height: 0;
     overflow-y: auto;
-    padding-right: 6px;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 176, 230, 0.35) transparent;
+    &::-webkit-scrollbar { width: 6px; }
+    &::-webkit-scrollbar-thumb { background: rgba(106, 176, 230, 0.3); border-radius: 3px; }
 }
 .fsr__lane {
     display: grid;
@@ -766,7 +783,10 @@
     flex-direction: column;
     align-items: center;
     gap: clamp(10px, 1.4vh, 16px);
-    min-height: clamp(96px, 12vh, 140px);
+    // Floor lowered (96 → 60) so the winner plaque can compact on a short windowed
+    // viewport instead of reserving a tall block that pushes the layout to overflow.
+    // At fullscreen 12vh dominates, so the reserved height is unchanged there.
+    min-height: clamp(60px, 12vh, 140px);
     justify-content: center;
 }
 .fsr__lead { display: flex; flex-direction: column; align-items: center; gap: clamp(5px, 0.7vh, 9px); }
@@ -782,7 +802,8 @@
     align-items: center;
     gap: clamp(9px, 0.9vw, 14px);
     font-family: Prototype, Orbitron, sans-serif;
-    font-size: clamp(24px, 2.8vw, 42px);
+    // Height-aware (see `.fsr__title`) — shrinks on short windows, unchanged at fullscreen.
+    font-size: clamp(20px, min(2.8vw, 5vh), 42px);
     font-weight: 700;
     color: @fsr-text;
     .fsr__lane-dot { width: clamp(13px, 1.2vw, 18px); height: clamp(13px, 1.2vw, 18px); }
@@ -834,24 +855,27 @@
 .fsr__winner { display: flex; flex-direction: column; align-items: center; gap: clamp(8px, 1vh, 14px); }
 .fsr__winner-label {
     font-family: Prototype, Orbitron, sans-serif;
-    font-size: clamp(13px, 1.2vw, 18px);
+    font-size: clamp(12px, min(1.2vw, 2.2vh), 18px);
     letter-spacing: 0.32em;
     text-transform: uppercase;
     color: @fsr-gold;
 }
+// The whole winner plaque uses height-aware `min(vw, vh)` clamps (see `.fsr__title`):
+// pixel-identical at fullscreen, compacts on a short windowed viewport so the plaque
+// never overflows / forces a scroll.
 .fsr__winner-name {
     display: inline-flex;
     align-items: center;
     gap: clamp(10px, 1vw, 16px);
     font-family: Prototype, Orbitron, sans-serif;
-    font-size: clamp(30px, 3.8vw, 60px);
+    font-size: clamp(24px, min(3.8vw, 6.6vh), 60px);
     font-weight: 700;
     color: @fsr-text;
     text-shadow: 0 0 30px fade(@fsr-gold, 45%);
     .fsr__lane-dot { width: clamp(16px, 1.6vw, 24px); height: clamp(16px, 1.6vw, 24px); }
 }
-.fsr__winner-crown { color: @fsr-gold; font-size: clamp(24px, 2.8vw, 42px); filter: drop-shadow(0 0 12px fade(@fsr-gold, 75%)); animation: fsr-crown 1.2s ease-out 1; }
-.fsr__winner-total { color: @fsr-gold; font-size: clamp(22px, 2.6vw, 40px); margin-left: 6px; span { font-size: clamp(11px, 1vw, 15px); color: fade(@fsr-gold, 75%); margin-left: 3px; } }
+.fsr__winner-crown { color: @fsr-gold; font-size: clamp(20px, min(2.8vw, 4.8vh), 42px); filter: drop-shadow(0 0 12px fade(@fsr-gold, 75%)); animation: fsr-crown 1.2s ease-out 1; }
+.fsr__winner-total { color: @fsr-gold; font-size: clamp(18px, min(2.6vw, 4.6vh), 40px); margin-left: 6px; span { font-size: clamp(11px, 1vw, 15px); color: fade(@fsr-gold, 75%); margin-left: 3px; } }
 @keyframes fsr-crown { 0% { opacity: 0; transform: translateY(-10px) scale(0.5); } 55% { transform: translateY(0) scale(1.25); } 100% { opacity: 1; transform: scale(1); } }
 .fsr__cta {
     position: relative;
@@ -862,7 +886,7 @@
     background: linear-gradient(180deg, fade(@fsr-gold, 22%), rgba(20, 18, 12, 0.92));
     color: @fsr-text;
     font-family: Prototype, Orbitron, sans-serif;
-    font-size: clamp(14px, 1.3vw, 19px);
+    font-size: clamp(13px, min(1.3vw, 2.4vh), 19px);
     letter-spacing: 0.06em;
     cursor: pointer;
     display: inline-flex;
