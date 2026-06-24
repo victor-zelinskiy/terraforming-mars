@@ -221,50 +221,84 @@ each(@players, {
 // ── Anchored idle hint (escalation step 2) ───────────────────────────────────
 // Not a toast, not in the notification stack, no "OK" button — anchored to the
 // local player's card, vanishes on any input.
+// A slim HUD tag attached to the RIGHT of the active local player's card,
+// level with the status chip. Deliberately NOT a notification-box: compact
+// height, calm hairline border + a card-facing accent tick, soft depth (no
+// glow halo), flat dark fill. The connector makes it read as part of the card.
 .turn-idle-anchor-hint {
     position: fixed;
     z-index: 104; // below bar-overlays (110) / pills (107), above the panel
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    max-width: 230px;
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid rgba(106, 176, 230, 0.45);
-    background: linear-gradient(180deg, rgba(16, 28, 44, 0.95), rgba(10, 18, 30, 0.95));
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 14px rgba(106, 176, 230, 0.18);
-    color: #dceafa;
+    height: 40px;                    // keep in sync with HINT_HEIGHT (TurnHandoffLayer)
+    max-width: 280px;
+    padding: 0 13px;
+    border-radius: 5px;
+    border: 1px solid rgba(106, 176, 230, 0.26);
+    border-left: 2px solid rgba(106, 176, 230, 0.62); // card-facing accent tick
+    background: rgba(11, 20, 33, 0.94);
+    box-shadow: 0 2px 9px rgba(0, 0, 0, 0.4); // soft depth, no glow
+    color: #cfe1f4;
     font-family: Prototype, Ubuntu, sans-serif;
     font-size: 11px;
     letter-spacing: 0.4px;
+    white-space: nowrap;
     pointer-events: none;
-    backdrop-filter: blur(4px);
+}
+
+// Connector — a thin line bridging the 8px gap from the card's right edge to
+// this pill's tick, with a small node at the card end. Turns the pill from a
+// floating toast into an attached extension of the player-card HUD.
+.turn-idle-anchor-hint__connector {
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    width: 8px;
+    height: 1.5px;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg, rgba(106, 176, 230, 0) 0%, rgba(106, 176, 230, 0.7) 100%);
+    pointer-events: none;
+
+    &::before {
+        content: '';
+        position: absolute;
+        left: -2px;
+        top: 50%;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        transform: translateY(-50%);
+        background: rgba(106, 176, 230, 0.85);
+        box-shadow: 0 0 4px rgba(106, 176, 230, 0.5);
+    }
 }
 
 .turn-idle-anchor-hint__dot {
     flex-shrink: 0;
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: #6ab0e6;
-    box-shadow: 0 0 6px rgba(106, 176, 230, 0.8);
+    box-shadow: 0 0 5px rgba(106, 176, 230, 0.6);
     animation: lpc-idle-hint-dot 1.8s ease-in-out infinite;
 }
 
-.turn-idle-anchor-hint__text { line-height: 1.2; }
+.turn-idle-anchor-hint__text { line-height: 1; }
 
 @keyframes lpc-idle-hint-dot {
     0%, 100% { opacity: 0.5; transform: scale(0.85); }
     50%      { opacity: 1;   transform: scale(1.1); }
 }
 
-// Hint enter/leave — soft, never abrupt.
+// Hint enter/leave — slides out of the card edge (translateX), never a toast drop.
 .turn-idle-hint-enter-active { transition: opacity 0.28s ease, transform 0.28s ease; }
-.turn-idle-hint-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+.turn-idle-hint-leave-active { transition: opacity 0.16s ease, transform 0.16s ease; }
 .turn-idle-hint-enter-from,
 .turn-idle-hint-leave-to {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateX(-6px);
 }
 
 // ── Handoff beam (optional) ──────────────────────────────────────────────────
