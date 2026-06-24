@@ -4,6 +4,7 @@
       :space="space"
       :aresExtension="aresExtension"
       :tileView="tileView"
+      :placementCleared="placementCleared"
     ></board-space-tile>
     <div class="board-space-text" v-if="text" v-i18n>{{ text }}</div>
     <bonus :bonus="space.bonus" v-if="showBonus"></bonus>
@@ -42,6 +43,7 @@ import {getPreferences} from '../utils/PreferencesManager';
 import {ClaimedToken} from '@/common/underworld/UnderworldPlayerData';
 import {getSpaceName} from '@/common/boards/spaces';
 import {SpaceType} from '@/common/boards/SpaceType';
+import {placementRenderState} from '@/client/components/board/placementRenderState';
 export default defineComponent({
   name: 'board-space',
   props: {
@@ -75,8 +77,13 @@ export default defineComponent({
       css += ' board-space-selectable';
       return css;
     },
+    // True while this occupied cell is a remove-and-replace placement target:
+    // its tile graphic is suppressed and its placement bonus is shown instead.
+    placementCleared(): boolean {
+      return placementRenderState.hiddenTiles.has(this.space.id);
+    },
     showBonus(): boolean {
-      return this.space.tileType === undefined || this.tileView === 'hide';
+      return this.space.tileType === undefined || this.tileView === 'hide' || this.placementCleared;
     },
     playerColorCss(): string {
       if (this.space.color === undefined) {

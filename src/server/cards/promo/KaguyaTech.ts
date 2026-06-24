@@ -59,7 +59,12 @@ export class KaguyaTech extends Card implements IProjectCard {
     //   - other-player greenery / wrong tile type → 'not-your-greenery'
     //   - empty cell → 'wrong-terrain' (not a greenery at all)
     //   - your greenery you can't afford bonus on → 'cannot-afford-bonus'
+    // hideExistingTile: the chosen greenery is physically removed before the
+    // city is placed, so during selection the doomed greenery graphic is
+    // hidden and the cell's placement bonus is shown instead (the player gains
+    // those bonuses "as usual" — that's the relevant info, not the lost tile).
     return createMarsSelectSpace(player, 'Select a greenery to convert to a city.', greeneries, {
+      hideExistingTile: true,
       customReasoner: (space) => {
         // Empty cell: not a greenery target → wrong-terrain reads OK.
         if (space.tile === undefined) {

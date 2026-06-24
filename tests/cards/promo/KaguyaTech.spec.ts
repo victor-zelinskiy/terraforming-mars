@@ -44,6 +44,23 @@ describe('KaguyaTech', () => {
     expect(game.getOxygenLevel()).eq(1);
   });
 
+  it('hides the doomed greenery during placement — remove-and-replace', () => {
+    const card = new KaguyaTech();
+    const [game, player] = testGame(2);
+    game.board = EmptyBoard.newInstance();
+
+    const greenerySpace = addGreenery(player);
+
+    const selectSpace = cast(card.play(player), SelectSpace);
+
+    // The greenery is physically removed before the city is placed, so its
+    // tile graphic is hidden during selection (the placement bonus shows
+    // instead). The target IS still selectable — only its rendering changes.
+    expect(selectSpace.spaces.map((s) => s.id)).to.include(greenerySpace.id);
+    expect(selectSpace.hiddenTiles).to.include(greenerySpace.id);
+    expect(selectSpace.toModel().hiddenTiles).to.include(greenerySpace.id);
+  });
+
   it('compatible with ocean bonus', () => {
     const card = new KaguyaTech();
     const [game, player] = testGame(2, {boardName: BoardName.HELLAS});

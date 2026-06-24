@@ -32,6 +32,7 @@ import {PlacementIllegalSpace} from '@/common/inputs/PlacementIllegalReason';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import PlacementReasonPopover from '@/client/components/board/PlacementReasonPopover.vue';
 import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
+import {setPlacementHiddenTiles, clearPlacementHiddenTiles} from '@/client/components/board/placementRenderState';
 
 /**
  * Marker attribute on cells we annotated with an illegal-reason tooltip.
@@ -258,6 +259,9 @@ export default defineComponent({
     },
   },
   mounted() {
+    // Tell the board which occupied targets are remove-and-replace cells so
+    // their doomed tile graphic is hidden + the placement bonus is shown.
+    setPlacementHiddenTiles(this.playerinput.hiddenTiles);
     this.disableAnimation();
     const tiles = this.getSelectableSpaces();
     this.animateSpaces(tiles);
@@ -285,6 +289,7 @@ export default defineComponent({
   // Safe to run on every unmount because `disableAnimation` is idempotent
   // and clearing `onclick` on an already-cleared tile is a no-op.
   beforeUnmount() {
+    clearPlacementHiddenTiles();
     this.disableAnimation();
     const tiles = this.getSelectableSpaces();
     for (const tile of tiles) {

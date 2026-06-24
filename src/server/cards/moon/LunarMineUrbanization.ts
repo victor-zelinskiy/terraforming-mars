@@ -46,7 +46,12 @@ export class LunarMineUrbanization extends Card implements IProjectCard {
 
   public override bespokePlay(player: IPlayer) {
     const spaces = MoonExpansion.spaces(player.game, TileType.MOON_MINE, {ownedBy: player, upgradedTiles: false});
-    return new SelectSpace('Select one of your mines to upgrade', spaces)
+    const selectSpace = new SelectSpace('Select one of your mines to upgrade', spaces);
+    // The chosen mine tile is removed before the urbanization tile is placed,
+    // so hide the doomed mine graphic during selection and show the placement
+    // bonus instead — same treatment as KaguyaTech on Mars.
+    selectSpace.hiddenTiles = spaces.map((space) => space.id);
+    return selectSpace
       .andThen((space) => {
         if (space.tile === undefined) {
           throw new Error(`Space ${space.id} should have a tile, how doesn't it?`);
