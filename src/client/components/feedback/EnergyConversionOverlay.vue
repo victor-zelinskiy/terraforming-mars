@@ -4,31 +4,36 @@
          class="resource-conversion-layer"
          aria-hidden="true">
       <!--
-        Premium directional arrow between the energy icon (source) and the heat
-        icon (target). Positioned from the live cell rects so it tracks any
-        board scale / fullscreen / narrow layout. Skipped gracefully when the
-        cells aren't on screen (e.g. the viewer is inspecting an opponent) — the
+        Premium sci-fi transfer glyph, anchored STRICTLY in the free space
+        between the energy ICON and the heat ICON (their bounding rects, not the
+        whole row), rotated to the energy→heat vector and scaled to the gap so it
+        never overlaps the icons or the counters. Skipped gracefully when the
+        icons aren't on screen (e.g. the viewer is inspecting an opponent) — the
         panel counter animation + the gate still run.
       -->
-      <div v-if="anchored"
+      <div v-if="arrow !== undefined"
            class="energy-to-heat-arrow"
-           :class="{'energy-to-heat-arrow--reduced': state.reducedMotion}"
-           :style="arrowStyle">
-        <span class="energy-to-heat-arrow__line"></span>
-        <span class="energy-to-heat-arrow__chevron"></span>
-        <span v-if="!state.reducedMotion" class="energy-to-heat-arrow__pulse"></span>
+           :class="[arrow.dirClass, {
+             'energy-to-heat-arrow--compact': arrow.compact,
+             'energy-to-heat-arrow--reduced': state.reducedMotion,
+           }]"
+           :style="arrow.style">
+        <span class="energy-to-heat-arrow__glow"></span>
+        <span class="energy-to-heat-arrow__body"></span>
+        <span class="energy-to-heat-arrow__triangle"></span>
+        <span v-if="!state.reducedMotion" class="energy-to-heat-arrow__inner-pulse"></span>
       </div>
 
       <!-- Paired delta chips — reuse the existing DeltaChip visual language. -->
       <transition name="energy-conversion-chip">
-        <div v-if="anchored && state.showChips"
+        <div v-if="chipsAnchored && state.showChips"
              class="energy-to-heat-chip energy-to-heat-chip--source"
              :style="sourceChipStyle">
           <DeltaChip :amount="-state.amount" variant="resource-stock" />
         </div>
       </transition>
       <transition name="energy-conversion-chip">
-        <div v-if="anchored && state.showChips"
+        <div v-if="chipsAnchored && state.showChips"
              class="energy-to-heat-chip energy-to-heat-chip--target"
              :style="targetChipStyle">
           <DeltaChip :amount="state.amount" variant="resource-stock" />
@@ -45,6 +50,22 @@ import DeltaChip from '@/client/components/feedback/DeltaChip.vue';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 
 type Rect = {top: number, left: number, right: number, bottom: number, width: number, height: number};
+type ArrowGeometry = {
+  style: Record<string, string>,
+  dirClass: string,
+  compact: boolean,
+};
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+// Distance from a box centre to its edge along the unit vector (ux, uy).
+function rayBoxExit(halfW: number, halfH: number, ux: number, uy: number): number {
+  const tx = Math.abs(ux) > 1e-4 ? halfW / Math.abs(ux) : Infinity;
+  const ty = Math.abs(uy) > 1e-4 ? halfH / Math.abs(uy) : Infinity;
+  return Math.min(tx, ty);
+}
 
 export default defineComponent({
   name: 'EnergyConversionOverlay',
@@ -52,44 +73,82 @@ export default defineComponent({
   data() {
     return {
       state: energyConversionState,
-      energyRect: undefined as Rect | undefined,
-      heatRect: undefined as Rect | undefined,
+      energyIconRect: undefined as Rect | undefined,
+      heatIconRect: undefined as Rect | undefined,
+      energyCellRect: undefined as Rect | undefined,
+      heatCellRect: undefined as Rect | undefined,
       scheduled: false,
       onReposition: undefined as (() => void) | undefined,
     };
   },
   computed: {
-    // Only draw the anchored visuals when BOTH cells were found and they're
-    // stacked sensibly (energy above heat). Otherwise the panel counter
-    // animation carries the story on its own.
-    anchored(): boolean {
-      if (this.energyRect === undefined || this.heatRect === undefined) {
-        return false;
-      }
-      return this.heatRect.top + this.heatRect.height / 2 > this.energyRect.top + this.energyRect.height / 2;
-    },
-    arrowStyle(): Record<string, string> {
-      const e = this.energyRect;
-      const h = this.heatRect;
+    // The transfer-glyph geometry, derived from the two ICON rects. Undefined
+    // when the icons aren't measurable or are effectively touching (no room).
+    arrow(): ArrowGeometry | undefined {
+      const e = this.energyIconRect;
+      const h = this.heatIconRect;
       if (e === undefined || h === undefined) {
-        return {display: 'none'};
+        return undefined;
       }
-      // Anchor over the icon column so the arrow visibly links the energy icon
-      // to the heat icon. Run from energy icon centre to heat icon centre.
-      const x = e.left + Math.min(18, e.width / 2);
-      const y1 = e.top + e.height / 2;
-      const y2 = h.top + h.height / 2;
+      const ecx = e.left + e.width / 2;
+      const ecy = e.top + e.height / 2;
+      const hcx = h.left + h.width / 2;
+      const hcy = h.top + h.height / 2;
+      const dx = hcx - ecx;
+      const dy = hcy - ecy;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 1) {
+        return undefined;
+      }
+      const ux = dx / dist;
+      const uy = dy / dist;
+      // Edge-to-edge gap between the two icons along the transfer direction.
+      const tE = rayBoxExit(e.width / 2, e.height / 2, ux, uy);
+      const tH = rayBoxExit(h.width / 2, h.height / 2, ux, uy);
+      const rawGap = dist - tE - tH;
+      if (rawGap < 3) {
+        // Icons all but touching — no honest room for a glyph between them.
+        return undefined;
+      }
+      // Adaptive safe clearance: the spec wants ~4-6px from each icon, but the
+      // single-screen panel packs the rows tight (~10px between icon edges), so
+      // we take the largest clearance the gap affords and shrink toward 1.5px.
+      const safe = clamp((rawGap - 5) / 2, 1.5, 5);
+      const along = clamp(rawGap - safe * 2, 4, 16); // glyph depth along the direction
+      const startD = tE + (rawGap - along) / 2;
+      const midD = startD + along / 2;
+      const cx = ecx + ux * midD;
+      const cy = ecy + uy * midD;
+      const vertical = Math.abs(uy) >= Math.abs(ux);
+      // Generous cross-axis girth, but inside the icon's cross extent so the
+      // glyph never reaches the counter to the side of the icon.
+      const crossExtent = vertical ? Math.min(e.width, h.width) : Math.min(e.height, h.height);
+      const scale = clamp(along / 11, 0.5, 1);
+      const girth = clamp(crossExtent * 0.82, 16, 30) * (0.72 + 0.28 * scale);
+      const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI; // energy→heat
+      // Glyph is authored pointing DOWN in its local frame → rotate from down.
+      const rot = angleDeg - 90;
       return {
-        left: `${Math.round(x)}px`,
-        top: `${Math.round(y1)}px`,
-        height: `${Math.max(8, Math.round(y2 - y1))}px`,
+        style: {
+          'left': `${Math.round(cx)}px`,
+          'top': `${Math.round(cy)}px`,
+          'width': `${Math.round(girth)}px`,
+          'height': `${Math.round(Math.max(along, 5))}px`,
+          'transform': `translate(-50%, -50%) rotate(${rot.toFixed(2)}deg)`,
+          '--ec-arrow-scale': scale.toFixed(3),
+        },
+        dirClass: vertical ? 'energy-to-heat-arrow--vertical' : 'energy-to-heat-arrow--horizontal',
+        compact: along < 7,
       };
     },
+    chipsAnchored(): boolean {
+      return this.energyCellRect !== undefined && this.heatCellRect !== undefined;
+    },
     sourceChipStyle(): Record<string, string> {
-      return this.chipStyle(this.energyRect);
+      return this.chipStyle(this.energyCellRect);
     },
     targetChipStyle(): Record<string, string> {
-      return this.chipStyle(this.heatRect);
+      return this.chipStyle(this.heatCellRect);
     },
   },
   watch: {
@@ -145,16 +204,16 @@ export default defineComponent({
       }
     },
     measure(): void {
-      const energy = this.queryCell('energy');
-      const heat = this.queryCell('heat');
-      this.energyRect = energy;
-      this.heatRect = heat;
+      this.energyIconRect = this.queryRect('[data-conversion-icon="energy"]');
+      this.heatIconRect = this.queryRect('[data-conversion-icon="heat"]');
+      this.energyCellRect = this.queryRect('[data-conversion-cell="energy"]');
+      this.heatCellRect = this.queryRect('[data-conversion-cell="heat"]');
     },
-    queryCell(which: 'energy' | 'heat'): Rect | undefined {
+    queryRect(selector: string): Rect | undefined {
       if (typeof document === 'undefined') {
         return undefined;
       }
-      const el = document.querySelector(`[data-conversion-cell="${which}"]`);
+      const el = document.querySelector(selector);
       if (el === null) {
         return undefined;
       }

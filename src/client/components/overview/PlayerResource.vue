@@ -1,7 +1,7 @@
 <template>
   <div class="resource_item" :class="mainCSS">
       <div class="resource_item_stock" :data-conversion-cell="conversionAnchor">
-          <i class="resource_icon tooltip tooltip-bottom" :class="iconCSS" :data-tooltip="resourceTypeTooltip"></i>
+          <i class="resource_icon tooltip tooltip-bottom" :class="iconCSS" :data-tooltip="resourceTypeTooltip" :data-conversion-icon="conversionAnchor"></i>
           <div class="resource_item_stock_count" data-test="stock-count">{{ displayCount }}</div>
           <AnimatedMetricValue
             v-if="scopeKey !== ''"
