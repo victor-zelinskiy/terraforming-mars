@@ -44,7 +44,9 @@ export class TychoMagnetics extends CorporationCard implements ICorporationCard 
   public actionPreview(player: IPlayer) {
     const max = Math.min(player.energy, player.game.projectDeck.size());
     return actionPreviews.singleBranch(this, player, [
-      actionPreviews.amountStep('Select amount of energy to spend', 'OK', 1, max, {icon: 'energy', maxByDefault: false}),
+      actionPreviews.amountStep('Select amount of energy to spend', 'OK', 1, max, {
+        icon: 'energy', maxByDefault: false, result: {icon: 'cards', perUnit: 1, label: 'Cards drawn'},
+      }),
     ], [
       actionPreviews.drawGain(1),
     ], {unavailableReason: energyForCardsUnavailableReason(player)});

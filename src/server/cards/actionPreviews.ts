@@ -8,7 +8,7 @@ import {Message} from '../../common/logs/Message';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor} from '../../common/models/ActionPreviewModel';
-import {AmountConversionModel, PlayerInputModel} from '../../common/models/PlayerInputModel';
+import {AmountConversionModel, AmountResultModel, PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {effectsForBehavior, copiedProductionUnits} from '../models/actionPreview';
 import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
@@ -197,7 +197,7 @@ export function amountStep(
   label: string,
   min: number,
   max: number,
-  opts?: {icon?: string, unit?: string, maxByDefault?: boolean, conversion?: AmountConversionModel},
+  opts?: {icon?: string, unit?: string, maxByDefault?: boolean, conversion?: AmountConversionModel, result?: AmountResultModel},
 ): ActionPreviewStep {
   return {kind: 'input', input: amountInput(title, label, min, max, opts)};
 }
@@ -212,9 +212,9 @@ export function amountInput(
   label: string,
   min: number,
   max: number,
-  opts?: {icon?: string, unit?: string, maxByDefault?: boolean, conversion?: AmountConversionModel},
+  opts?: {icon?: string, unit?: string, maxByDefault?: boolean, conversion?: AmountConversionModel, result?: AmountResultModel},
 ): PlayerInputModel {
-  return new SelectAmount(title, label, min, max, opts?.maxByDefault ?? true, {icon: opts?.icon, unit: opts?.unit, conversion: opts?.conversion}).toModel();
+  return new SelectAmount(title, label, min, max, opts?.maxByDefault ?? true, {icon: opts?.icon, unit: opts?.unit, conversion: opts?.conversion, result: opts?.result}).toModel();
 }
 
 /**

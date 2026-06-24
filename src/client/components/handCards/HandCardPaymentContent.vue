@@ -331,7 +331,14 @@
                                       :playerView="playerView"
                                       :playerinput="step.input"
                                       :onsave="captureStep(i)" />
-                  <ModalInputHost v-else :playerView="playerView" :playerinput="step.input" :onsave="captureStep(i)" />
+                  <!-- SelectAmount / SelectResource / … step, CONTROLLED: no inner
+                       confirm; captured live via @change, committed by РАЗЫГРАТЬ. -->
+                  <ModalInputHost v-else
+                                  :controlled="true"
+                                  :playerView="playerView"
+                                  :playerinput="step.input"
+                                  :onsave="captureStep(i)"
+                                  @change="captureStep(i)($event)" />
                 </div>
               </template>
         </div>
@@ -976,8 +983,14 @@ export default defineComponent({
         this.capturedPre[i] = out;
       };
     },
-    captureStep(i: number): (out: InputResponse) => void {
-      return (out: InputResponse) => {
+    captureStep(i: number): (out: InputResponse | undefined) => void {
+      return (out: InputResponse | undefined) => {
+        // A controlled input emits `undefined` while its choice is incomplete —
+        // clear the capture so the РАЗЫГРАТЬ gate stays closed until it's valid.
+        if (out === undefined) {
+          delete this.captured[i];
+          return;
+        }
         this.captured[i] = out;
         // Keep cross-step NO-DUPLICATE picks consistent: if a LATER card step
         // de-dupes against THIS one and had already picked the same card, clear it

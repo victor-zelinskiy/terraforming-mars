@@ -26,7 +26,7 @@
       </button>
     </div>
 
-    <div class="modal-input__actions">
+    <div v-if="!controlled" class="modal-input__actions">
       <button class="modal-input__primary-btn"
               :disabled="selected === undefined"
               @click="confirm"
@@ -64,7 +64,15 @@ export default defineComponent({
       type: Function as unknown as () => (out: SelectResourceResponse) => void,
       required: true,
     },
+    // CONTROLLED mode: hide the inner confirm; the chosen resource is captured
+    // live (emitted via @change — `undefined` until a pick, so the host's confirm
+    // stays gated) and committed by the host modal's own confirm.
+    controlled: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['change'],
   data(): DataModel {
     return {
       selected: undefined,
@@ -77,6 +85,15 @@ export default defineComponent({
     },
     buttonText(): string {
       return translateText(this.playerinput.buttonLabel);
+    },
+  },
+  watch: {
+    // Controlled: keep the host in sync — a chosen resource is a valid response,
+    // no choice yet emits `undefined` (host gates its confirm).
+    selected(): void {
+      if (this.controlled) {
+        this.$emit('change', this.selected === undefined ? undefined : {type: 'resource', resource: this.selected});
+      }
     },
   },
   methods: {

@@ -18,7 +18,7 @@
       <warnings-component :warnings="playerinput.warnings"></warnings-component>
     </div>
 
-    <div class="modal-input__actions">
+    <div v-if="!controlled" class="modal-input__actions">
       <button class="modal-input__primary-btn"
               @click="confirm"
               data-test="modern-confirm">
@@ -52,7 +52,15 @@ export default defineComponent({
       type: Function as unknown as () => (out: SelectOptionResponse) => void,
       required: true,
     },
+    // CONTROLLED mode: hide the inner confirm; the (single) acknowledgement is
+    // captured live and committed by the host modal's own confirm. See
+    // ModernAmountSelector for the rationale.
+    controlled: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['change'],
   computed: {
     titleText(): string {
       const t = this.playerinput.title;
@@ -64,6 +72,13 @@ export default defineComponent({
     hasWarnings(): boolean {
       return this.playerinput.warnings !== undefined && this.playerinput.warnings.length > 0;
     },
+  },
+  mounted(): void {
+    // A single-option confirm has nothing to choose — in controlled mode it's
+    // satisfied immediately, so seed the host with the response on mount.
+    if (this.controlled) {
+      this.$emit('change', {type: 'option'});
+    }
   },
   methods: {
     confirm(): void {

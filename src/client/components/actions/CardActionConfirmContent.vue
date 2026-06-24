@@ -220,7 +220,15 @@
                               :input="selected.optionInput"
                               :selectedName="capturedOptionCardName"
                               @change="captureOption" />
-            <ModalInputHost v-else :playerView="playerView" :playerinput="selected.optionInput" :onsave="captureOption" />
+            <!-- The branch's own SelectAmount / SelectResource / … is CONTROLLED:
+                 no inner confirm button, the value is captured live via @change and
+                 committed by the modal's single ВЫПОЛНИТЬ. -->
+            <ModalInputHost v-else
+                            :controlled="true"
+                            :playerView="playerView"
+                            :playerinput="selected.optionInput"
+                            :onsave="captureOption"
+                            @change="captureOption" />
           </div>
         </div>
 
@@ -372,7 +380,15 @@
                                   :playerView="playerView"
                                   :playerinput="step.input"
                                   :onsave="captureStep(i)" />
-              <ModalInputHost v-else :playerView="playerView" :playerinput="step.input" :onsave="captureStep(i)" />
+              <!-- SelectAmount / SelectResource / … step, CONTROLLED: no inner
+                   confirm; the value is captured live via @change and committed by
+                   the modal's single ВЫПОЛНИТЬ. -->
+              <ModalInputHost v-else
+                              :controlled="true"
+                              :playerView="playerView"
+                              :playerinput="step.input"
+                              :onsave="captureStep(i)"
+                              @change="captureStep(i)($event)" />
             </div>
           </template>
         </div>
@@ -1188,9 +1204,16 @@ export default defineComponent({
       this.captured = {}; // steps are branch-specific — reset captured responses.
       this.capturedOption = undefined;
     },
-    captureStep(i: number): (out: InputResponse) => void {
-      return (out: InputResponse) => {
-        this.captured[i] = out;
+    captureStep(i: number): (out: InputResponse | undefined) => void {
+      return (out: InputResponse | undefined) => {
+        // A controlled input emits `undefined` while its choice is incomplete
+        // (e.g. a distribution not yet at the exact total) — clear the capture so
+        // the modal's confirm stays gated until the value is valid again.
+        if (out === undefined) {
+          delete this.captured[i];
+        } else {
+          this.captured[i] = out;
+        }
       };
     },
     // Capture a PRE-branch step response (the heat-source payment). The controlled
@@ -1204,7 +1227,8 @@ export default defineComponent({
     asAndOptions(input: PlayerInputModel): AndOptionsModel {
       return input as AndOptionsModel;
     },
-    captureOption(out: InputResponse): void {
+    captureOption(out: InputResponse | undefined): void {
+      // `undefined` from a controlled input clears the capture (confirm re-gated).
       this.capturedOption = out;
     },
     noop(): void {
