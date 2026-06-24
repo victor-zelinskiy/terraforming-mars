@@ -177,6 +177,18 @@
         :player-view="playerView" />
 
       <!--
+        TurnHandoff presentation layer. App-level (like NotificationLayer) so it
+        survives the `:key="playerkey"` remount. Drives the start-of-turn
+        "command activation" on the active player's card (cube ignition +
+        command brackets + a transient status burst), the inactivity-only idle
+        reminder, and the optional handoff beam — the start of a turn becomes a
+        change of interface STATE, not another toast.
+      -->
+      <TurnHandoffLayer
+        v-if="screen === 'player-home' && playerView !== undefined"
+        :player-view="playerView" />
+
+      <!--
         Read-only viewer for PUBLICLY revealed / shown cards (opened from a
         reveal notification's «Посмотреть» CTA or a journal reveal row). App-level
         so it survives the playerkey remount; driven by module-level
@@ -235,6 +247,7 @@ const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName:
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
+import TurnHandoffLayer from '@/client/components/overview/TurnHandoffLayer.vue';
 import RevealedCardsModal from '@/client/components/notifications/RevealedCardsModal.vue';
 import EffectDetailOverlay from '@/client/components/notifications/EffectDetailOverlay.vue';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
@@ -364,6 +377,7 @@ export default defineComponent({
     ActionsPlayground,
     JournalPanel,
     NotificationLayer,
+    TurnHandoffLayer,
     RevealedCardsModal,
     EffectDetailOverlay,
     DrawCardRevealFlow,

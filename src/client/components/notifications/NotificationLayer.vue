@@ -56,6 +56,7 @@ import {
   buildScaleBonusClaimNotification,
 } from '@/client/components/notifications/notificationModel';
 import {scaleBonusRewardKey} from '@/client/components/board/scaleBonusZones';
+import {isPlayerPanelVisible} from '@/client/components/overview/turnHandoffState';
 import {openRevealViewer} from '@/client/components/notifications/revealViewerState';
 import {
   notificationState,
@@ -158,7 +159,18 @@ export default defineComponent({
       const isFirstAction = waitingFor?.type === 'or' && this.titleText(waitingFor) === 'Take your first action';
       const freshTurn = isFirstAction && !this.isLonePlayer();
       if (notificationState.settings.showTurn) {
-        setTurn(buildTurnNotification(waitingFor, {generation: this.generation, createdAt: now, freshTurn}));
+        let turnModel = buildTurnNotification(waitingFor, {generation: this.generation, createdAt: now, freshTurn});
+        // Start-of-turn is now a change of interface STATE on the active
+        // player's CARD (TurnHandoffLayer), not a toast — suppress the
+        // `your-turn` card whenever that card can present it (desktop, panel
+        // on-screen, tab visible). It stays as a FALLBACK only when the player
+        // card can't be seen (panel hidden / narrow layout / inactive tab). The
+        // `action-required` card (a mandatory sub-prompt) is a different concern
+        // and always toasts.
+        if (turnModel?.kind === 'your-turn' && isPlayerPanelVisible()) {
+          turnModel = undefined;
+        }
+        setTurn(turnModel);
       } else {
         setTurn(undefined);
       }

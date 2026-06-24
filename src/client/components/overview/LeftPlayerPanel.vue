@@ -11,6 +11,7 @@
         :selected="isSelected(p)"
         :hideVp="hideVpFor(p)"
         :actionLabel="actionLabelFor(p)"
+        :turnOwner="isTurnOwnerFor(p)"
         :isViewer="isViewerFor(p)"
         :passAvailable="isViewerFor(p) && passAvailable"
         :endTurnAvailable="isViewerFor(p) && endTurnAvailable"
@@ -115,6 +116,7 @@ import AdditionalResourcesPanel from '@/client/components/additionalResources/Ad
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
 import {ActionLabel} from './ActionLabel';
 import {Color} from '@/common/Color';
+import {Phase} from '@/common/Phase';
 
 export default defineComponent({
   name: 'LeftPlayerPanel',
@@ -213,6 +215,15 @@ export default defineComponent({
     },
     isViewerFor(p: PublicPlayerModel): boolean {
       return p.color === this.playerView.thisPlayer?.color;
+    },
+    // The ACTION-phase turn owner = the single active player (server's
+    // `game.activePlayer`, projected onto `isActive`). Derived from the model,
+    // NOT the TurnHandoff controller, so the PERSISTENT "this card owns the
+    // turn" look (player-colour accent) never depends on animation timing.
+    // Outside the ACTION phase nobody "owns a turn" (research / draft / etc.
+    // keep their own simultaneous-pick statuses), so no card is the turn owner.
+    isTurnOwnerFor(p: PublicPlayerModel): boolean {
+      return this.playerView.game.phase === Phase.ACTION && p.isActive;
     },
     // 0-indexed позиция игрока в seating-order — это и есть порядок
     // хода в текущем поколении. playerView.players прибывает уже в
