@@ -11,6 +11,8 @@ import {SelectCard} from '../../inputs/SelectCard';
 import {Resource} from '../../../common/Resource';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class SoilEnrichment extends Card implements IProjectCard {
   constructor() {
@@ -36,6 +38,13 @@ export class SoilEnrichment extends Card implements IProjectCard {
 
   public override bespokeCanPlay(player: IPlayer) {
     return this.eligibleCards(player).length > 0;
+  }
+
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.eligibleCards(player).length === 0) {
+      return reason.targetReason('No card has a microbe to remove');
+    }
+    return undefined;
   }
 
   public override play(player: IPlayer) {

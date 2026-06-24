@@ -9,6 +9,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class ProjectInspection extends Card implements IProjectCard {
   constructor() {
@@ -49,6 +51,13 @@ export class ProjectInspection extends Card implements IProjectCard {
 
   public override bespokeCanPlay(player: IPlayer): boolean {
     return this.getActionCards(player).length > 0;
+  }
+
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.getActionCards(player).length === 0) {
+      return reason.targetReason('No card action used this generation to use again');
+    }
+    return undefined;
   }
 
   // The on-play preview: the SAME card picker `bespokePlay` builds — the player

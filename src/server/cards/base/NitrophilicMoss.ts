@@ -8,6 +8,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Resource} from '../../../common/Resource';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class NitrophilicMoss extends Card implements IProjectCard {
   constructor() {
@@ -43,6 +45,16 @@ export class NitrophilicMoss extends Card implements IProjectCard {
   public override bespokePlay(player: IPlayer) {
     player.plants -= 2;
     return undefined;
+  }
+
+  // The bespoke "lose 2 plants" cost isn't in `behavior`. Only surface it when
+  // plants are actually the blocker (Manutech / Viral Enhancers waive it).
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    const viralEnhancers = player.tableau.has(CardName.VIRAL_ENHANCERS);
+    if (player.plants >= 2 || player.tableau.has(CardName.MANUTECH) || (player.plants >= 1 && viralEnhancers)) {
+      return undefined;
+    }
+    return reason.notEnoughPlants(player);
   }
 
   // The on-play preview: `playPreview` auto-includes the declarative +2 plant

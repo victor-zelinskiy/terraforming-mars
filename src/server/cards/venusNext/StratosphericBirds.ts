@@ -9,6 +9,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {ActionCard} from '../ActionCard';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class StratosphericBirds extends ActionCard implements IActionCard {
   constructor() {
@@ -61,6 +63,26 @@ export class StratosphericBirds extends ActionCard implements IActionCard {
   }
   public override bespokePlay(player: IPlayer) {
     player.game.defer(new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false}));
+    return undefined;
+  }
+
+  // The hand overlay's "why can't I play this" reason. The Venus 12% requirement
+  // is auto-explained; the bespoke block is "you must spend 1 floater from a card"
+  // — name it instead of falling through to the generic "unmet conditions".
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    const cardsWithFloater = player.getCardsWithResources(CardResource.FLOATER);
+    if (cardsWithFloater.length === 0) {
+      return reason.notEnoughFloaters();
+    }
+    // The sole floater card is Dirigibles (its floaters double as 3 M€ toward Venus
+    // cards) and spending one still can't cover the cost — an affordability gap.
+    if (cardsWithFloater.length === 1 && cardsWithFloater[0].name === CardName.DIRIGIBLES) {
+      const cost = player.getCardCost(this);
+      const available = (cardsWithFloater[0].resourceCount - 1) * 3 + player.megaCredits;
+      if (available < cost) {
+        return {type: 'megacredits', message: 'Need ${0} more M€', params: [String(cost - available)]};
+      }
+    }
     return undefined;
   }
 

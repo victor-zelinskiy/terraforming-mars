@@ -52,10 +52,14 @@ export interface ICard {
   /**
    * Optional structured reason this card can't be played right now, for cards
    * whose block lives in bespoke `canPlay` / `bespokeCanPlay` logic the generic
-   * explainer can't introspect (e.g. Robotic Workforce: "no card to copy").
-   * Called by `src/server/models/unplayableReasons.ts` ONLY when the card is
-   * already known unplayable and no structured reason was derived. Return
-   * `undefined` to defer to the generic fallback.
+   * explainer can't introspect (e.g. Robotic Workforce: "no card to copy";
+   * Stratospheric Birds: "no floater to spend"; mining/city cards: a bespoke
+   * tile placement). Called by `src/server/models/unplayableReasons.ts` whenever
+   * the card is known unplayable — ALONGSIDE any requirement / affordability
+   * reasons, not only as a last resort (a card can be blocked by both at once).
+   * So a hook MUST return `undefined` when ITS OWN bespoke condition is actually
+   * satisfied (the block is something else, e.g. the oceans requirement), and
+   * the specific reason otherwise.
    */
   unplayableReason?(player: IPlayer): UnplayableReason | undefined;
   /**

@@ -13,6 +13,7 @@ import {Space} from '../../boards/Space';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 export class MarsNomads extends Card implements IActionCard {
   /*
    * A good page about this card: https://boardgamegeek.com/thread/3154812.
@@ -48,6 +49,15 @@ export class MarsNomads extends Card implements IActionCard {
   public override bespokeCanPlay(player: IPlayer) {
     const spaces = player.game.board.getNonReservedLandSpaces();
     return spaces.length > 0;
+  }
+
+  // The PLAY gate (placing the nomads) is distinct from the repeatable ACTION's
+  // `actionUnavailableReason` above. Name the "no land to place on" block.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.game.board.getNonReservedLandSpaces().length === 0) {
+      return actionReason.placementReason('No non-reserved land space to place the nomads');
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

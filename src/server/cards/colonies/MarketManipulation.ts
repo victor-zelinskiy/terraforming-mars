@@ -9,6 +9,8 @@ import {Size} from '../../../common/cards/render/Size';
 import {CardRenderer} from '../render/CardRenderer';
 import {SelectColony} from '../../inputs/SelectColony';
 import {LogHelper} from '../../LogHelper';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class MarketManipulation extends Card implements IProjectCard {
   constructor() {
@@ -50,6 +52,15 @@ export class MarketManipulation extends Card implements IProjectCard {
     }
 
     return true;
+  }
+
+  // Needs one colony track to raise AND a different one to lower — name it when
+  // that pairing isn't available (purely bespoke, no declarative behavior).
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (!this.bespokeCanPlay(player)) {
+      return reason.targetReason('No colony tile tracks available to adjust');
+    }
+    return undefined;
   }
 
   private getIncreasableColonies(game: IGame) {

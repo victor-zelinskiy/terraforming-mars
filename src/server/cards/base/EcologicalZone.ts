@@ -14,6 +14,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Phase} from '../../../common/Phase';
 import {Board} from '../../boards/Board';
 import {ICard} from '../ICard';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class EcologicalZone extends Card implements IProjectCard {
   constructor(
@@ -54,6 +56,15 @@ export class EcologicalZone extends Card implements IProjectCard {
   }
   public override bespokeCanPlay(player: IPlayer, canAffordOptions: CanAffordOptions): boolean {
     return this.getAvailableSpaces(player, canAffordOptions).length > 0;
+  }
+
+  // The greeneries requirement is auto-explained, but you can satisfy it and
+  // still have no empty LAND cell adjacent to a greenery to place this tile on.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.getAvailableSpaces(player).length === 0) {
+      return reason.placementReason('No space adjacent to a greenery');
+    }
+    return undefined;
   }
   public onCardPlayed(player: IPlayer, card: ICard): void {
     const qty = player.tags.cardTagCount(card, [Tag.ANIMAL, Tag.PLANT]);

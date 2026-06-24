@@ -10,6 +10,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {Board} from '../../boards/Board';
 import {AdjacencyBonus} from '../../ares/AdjacencyBonus';
 import {CardRenderer} from '../render/CardRenderer';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class IndustrialCenter extends ActionCard implements IProjectCard {
   constructor(
@@ -46,6 +48,15 @@ export class IndustrialCenter extends ActionCard implements IProjectCard {
   }
   public override bespokeCanPlay(player: IPlayer, canAffordOptions: CanAffordOptions): boolean {
     return this.getAvailableSpaces(player, canAffordOptions).length > 0;
+  }
+
+  // The bespoke tile placement (adjacent to a city) isn't declarative `behavior`,
+  // so name it instead of falling through to the generic "unmet conditions".
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.getAvailableSpaces(player).length === 0) {
+      return reason.placementReason('No space adjacent to a city');
+    }
+    return undefined;
   }
   public override bespokePlay(player: IPlayer) {
     const board = player.game.board;

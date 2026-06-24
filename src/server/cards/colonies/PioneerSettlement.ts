@@ -9,6 +9,8 @@ import {BuildColony} from '../../deferredActions/BuildColony';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {max} from '../Options';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class PioneerSettlement extends Card implements IProjectCard {
   constructor() {
@@ -66,6 +68,23 @@ export class PioneerSettlement extends Card implements IProjectCard {
     }
 
     return true;
+  }
+
+  // Neither the colony availability nor the M€-production floor is declarative, so
+  // name the precise blocker (the ≤1-colony requirement is auto-explained).
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.colonies.getPlayableColonies().length === 0) {
+      return reason.targetReason('No colony available to build on');
+    }
+    const mcProduction = player.production.megacredits;
+    if (mcProduction <= -4 && !(mcProduction === -4 && player.tableau.has(CardName.POSEIDON))) {
+      const lunaIsAvailable = player.game.colonies.some((colony) =>
+        colony.name === ColonyName.LUNA && colony.isFull() === false && colony.colonies.includes(player.id) === false);
+      if (!lunaIsAvailable) {
+        return reason.ruleReason('M€ production too low to build a colony');
+      }
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

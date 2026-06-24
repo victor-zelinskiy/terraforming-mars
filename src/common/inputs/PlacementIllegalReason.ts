@@ -31,6 +31,7 @@ export type PlacementIllegalReason =
   | 'wrong-terrain'
   | 'ocean-only' // a land tile (city/greenery/…) on an ocean reserve cell
   | 'needs-ocean-space' // an ocean tile on a non-ocean (land) cell
+  | 'requires-ocean-tile' // an upgradeable-ocean tile (Ocean City / New Holland) on a cell with no placed ocean tile to upgrade
   | 'not-ocean-reserve'
   | 'not-volcanic'
   | 'not-isolated'
@@ -84,6 +85,7 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
   'wrong-terrain': 'Wrong terrain type',
   'ocean-only': 'Only an ocean tile can go here',
   'needs-ocean-space': 'Oceans can only be placed on ocean spaces',
+  'requires-ocean-tile': 'Must be placed on an existing ocean tile',
   'not-ocean-reserve': 'Not an ocean reserve',
   'not-volcanic': 'Not a volcanic space',
   'not-isolated': 'Not isolated from other tiles',

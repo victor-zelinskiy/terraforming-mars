@@ -13,12 +13,18 @@ import {Tag} from '../../../common/cards/Tag';
 import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 import {TileType} from '../../../common/TileType';
 import {SelectResourceTypeDeferred} from '../../deferredActions/SelectResourceTypeDeferred';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export abstract class MiningCard extends Card implements IProjectCard {
   public bonusResource: Array<Resource> | undefined;
   protected abstract readonly title: string;
   protected readonly isAres: boolean = false;
   protected readonly placeTile: boolean = true;
+  // Hand-overlay "can't play" message when no qualifying space is left. The base
+  // (Mining Rights) just needs a steel/titanium-bonus cell; Mining Area overrides
+  // this to add the "adjacent to your tiles" clause.
+  protected readonly placementUnavailableMessage: string = 'No space with a steel or titanium bonus';
 
   constructor(
     name: CardName,
@@ -34,6 +40,16 @@ export abstract class MiningCard extends Card implements IProjectCard {
   }
   public override bespokeCanPlay(player: IPlayer, canAffordOptions: CanAffordOptions): boolean {
     return this.getAvailableSpaces(player, canAffordOptions).length > 0;
+  }
+
+  // The tile is placed bespoke (not declarative `behavior.tile`), so the generic
+  // explainer can't see the steel/titanium-bonus (and, for Mining Area, adjacency)
+  // requirement — name it instead of the generic "unmet conditions".
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.getAvailableSpaces(player).length === 0) {
+      return reason.placementReason(this.placementUnavailableMessage);
+    }
+    return undefined;
   }
 
   private getAdjacencyBonus(bonusType: SpaceBonus): AdjacencyBonus | undefined {

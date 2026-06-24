@@ -8,6 +8,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Resource} from '../../../common/Resource';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class Moss extends Card implements IProjectCard {
   constructor() {
@@ -41,6 +43,16 @@ export class Moss extends Card implements IProjectCard {
   public override bespokePlay(player: IPlayer) {
     player.plants--;
     return undefined;
+  }
+
+  // The bespoke "lose 1 plant" cost isn't in `behavior`, so the generic explainer
+  // can't see it. Only surface it when plants are actually the blocker (Manutech /
+  // Viral Enhancers waive it) — otherwise the oceans requirement is the real reason.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.plants >= 1 || player.tableau.has(CardName.VIRAL_ENHANCERS) || player.tableau.has(CardName.MANUTECH)) {
+      return undefined;
+    }
+    return reason.notEnoughPlants(player);
   }
 
   // The on-play preview: `playPreview` auto-includes the declarative +1 plant

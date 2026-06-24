@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
-import {setTemperature} from '../TestingUtils';
+import {setTemperature, addOcean} from '../TestingUtils';
 import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
 import {unplayableReasons} from '../../src/server/models/unplayableReasons';
@@ -9,6 +9,14 @@ import {ArchaeBacteria} from '../../src/server/cards/base/ArchaeBacteria';
 import {CloudSeeding} from '../../src/server/cards/base/CloudSeeding';
 import {RoboticWorkforce} from '../../src/server/cards/base/RoboticWorkforce';
 import {AerosportTournament} from '../../src/server/cards/venusNext/AerosportTournament';
+import {StratosphericBirds} from '../../src/server/cards/venusNext/StratosphericBirds';
+import {Moss} from '../../src/server/cards/base/Moss';
+import {Insulation} from '../../src/server/cards/base/Insulation';
+import {EcologicalZone} from '../../src/server/cards/base/EcologicalZone';
+import {IndustrialCenter} from '../../src/server/cards/base/IndustrialCenter';
+import {MiningRights} from '../../src/server/cards/base/MiningRights';
+import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
+import {TileType} from '../../src/common/TileType';
 
 describe('unplayableReasons', () => {
   it('returns no reasons for a playable card', () => {
@@ -83,5 +91,64 @@ describe('unplayableReasons', () => {
     expect(
       reasons.some((r) => r.message === 'No played card with the building symbol to copy production from'),
       'expected the copy-target reason alongside it').is.true;
+  });
+
+  it('explains Stratospheric Birds needs a floater to spend (bespoke hook)', () => {
+    const [/* game */, player] = testGame(2);
+    player.megaCredits = 50; // affordable; no card holds a floater
+    const reasons = unplayableReasons(player, new StratosphericBirds());
+    expect(reasons.some((r) => r.message === 'Not enough floaters'), 'expected the floater reason').is.true;
+  });
+
+  it('explains Moss needs plants to lose (not the generic fallback)', () => {
+    const [/* game */, player] = testGame(2);
+    addOcean(player);
+    addOcean(player);
+    addOcean(player); // oceans:3 requirement satisfied → plants are the only blocker
+    player.plants = 0;
+    player.megaCredits = 10;
+    const reasons = unplayableReasons(player, new Moss());
+    const r = reasons.find((x) => x.message === 'Not enough plants');
+    expect(r, 'expected the not-enough-plants reason').is.not.undefined;
+    expect(r?.resource).eq(Resource.PLANTS);
+    expect(r?.current).eq(0);
+    expect(reasons.some((x) => x.message === 'Card is unavailable due to unmet conditions'), 'no generic fallback').is.false;
+  });
+
+  it('explains Insulation needs heat production (bespoke hook)', () => {
+    const [/* game */, player] = testGame(2);
+    player.megaCredits = 10; // production.heat defaults to 0
+    const reasons = unplayableReasons(player, new Insulation());
+    expect(reasons.some((r) => r.message === 'No heat production'), 'expected the heat-production reason').is.true;
+  });
+
+  it('explains Ecological Zone has no space adjacent to a greenery (bespoke placement hook)', () => {
+    const [/* game */, player] = testGame(2);
+    player.megaCredits = 20;
+    const reasons = unplayableReasons(player, new EcologicalZone());
+    expect(reasons.some((r) => r.type === 'placement' && r.message === 'No space adjacent to a greenery'),
+      'expected the greenery-placement reason').is.true;
+  });
+
+  it('explains Industrial Center has no space adjacent to a city (bespoke placement hook)', () => {
+    const [/* game */, player] = testGame(2);
+    player.megaCredits = 20; // no cities on the board → nowhere to place
+    const reasons = unplayableReasons(player, new IndustrialCenter());
+    expect(reasons.some((r) => r.type === 'placement' && r.message === 'No space adjacent to a city'),
+      'expected the city-adjacency placement reason').is.true;
+  });
+
+  it('explains Mining Rights has no steel/titanium-bonus space (bespoke placement hook)', () => {
+    const [game, player] = testGame(2);
+    player.megaCredits = 20;
+    // Occupy every steel/titanium-bonus land cell so none remain available.
+    for (const space of game.board.spaces) {
+      if (space.tile === undefined && (space.bonus.includes(SpaceBonus.STEEL) || space.bonus.includes(SpaceBonus.TITANIUM))) {
+        space.tile = {tileType: TileType.CITY};
+      }
+    }
+    const reasons = unplayableReasons(player, new MiningRights());
+    expect(reasons.some((r) => r.type === 'placement' && r.message === 'No space with a steel or titanium bonus'),
+      'expected the bonus-space placement reason').is.true;
   });
 });

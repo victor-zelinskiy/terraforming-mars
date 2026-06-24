@@ -9,6 +9,8 @@ import {SelectCard} from '../../inputs/SelectCard';
 import {isSpecialTile} from '../../boards/Board';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class AstraMechanica extends Card implements IProjectCard {
   constructor() {
@@ -58,6 +60,13 @@ export class AstraMechanica extends Card implements IProjectCard {
       this.warnings.add('unusableEventsForAstraMechanica');
     }
     return this.getCards(player).length > 0;
+  }
+
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.getCards(player).length === 0) {
+      return reason.targetReason('No returnable event card in play');
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

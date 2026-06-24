@@ -12,6 +12,8 @@ import {LoseProduction} from '../../deferredActions/LoseProduction';
 import {Resource} from '../../../common/Resource';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {Units} from '../../../common/Units';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class UrbanizedArea extends Card implements IProjectCard {
   constructor() {
@@ -52,6 +54,19 @@ export class UrbanizedArea extends Card implements IProjectCard {
       return false;
     }
     return MarsBoard.hasEnergyCoverage(player, available);
+  }
+
+  // The bespoke block: a city placement that must sit next to ≥2 cities, gated by
+  // energy coverage. Name whichever is missing rather than the generic fallback.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    const spaces = this.getAvailableSpaces(player);
+    if (spaces.length === 0) {
+      return reason.placementReason('No space adjacent to at least 2 cities');
+    }
+    if (!MarsBoard.hasEnergyCoverage(player, spaces)) {
+      return reason.noEnergyProduction();
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

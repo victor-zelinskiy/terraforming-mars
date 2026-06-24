@@ -6,6 +6,7 @@ import {CardRenderer} from '../render/CardRenderer';
 
 export class MiningArea extends MiningCard {
   protected readonly title = 'Select a space with a steel or titanium bonus adjacent to one of your tiles';
+  protected override readonly placementUnavailableMessage = 'No space with a steel or titanium bonus adjacent to your tiles';
 
   constructor(
     name = CardName.MINING_AREA,

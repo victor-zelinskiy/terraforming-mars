@@ -8,6 +8,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Resource} from '../../../common/Resource';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class Potatoes extends Card implements IProjectCard {
   constructor() {
@@ -36,6 +38,16 @@ export class Potatoes extends Card implements IProjectCard {
     const hasEnoughPlants = player.plants >= 2 || player.plants >= 1 && viralEnhancers !== undefined;
 
     return hasEnoughPlants;
+  }
+
+  // The bespoke "lose 2 plants" cost isn't in `behavior`. Only surface it when
+  // plants are actually the blocker (Viral Enhancers lowers the threshold to 1).
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    const viralEnhancers = player.tableau.has(CardName.VIRAL_ENHANCERS);
+    if (player.plants >= 2 || (player.plants >= 1 && viralEnhancers)) {
+      return undefined;
+    }
+    return reason.notEnoughPlants(player);
   }
 
   public override bespokePlay(player: IPlayer) {

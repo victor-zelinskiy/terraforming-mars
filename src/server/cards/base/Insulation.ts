@@ -8,6 +8,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class Insulation extends Card implements IProjectCard {
   constructor() {
@@ -30,6 +32,12 @@ export class Insulation extends Card implements IProjectCard {
 
   public override bespokeCanPlay(player: IPlayer) {
     return player.production.heat >= 1;
+  }
+
+  // The sole block (no `requirements`, no `behavior`) is the bespoke "must have
+  // heat production to decrease" — name it instead of the generic fallback.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    return player.production.heat >= 1 ? undefined : reason.noHeatProduction();
   }
 
   // The conversion hint (heat production → M€ production) drives the modern

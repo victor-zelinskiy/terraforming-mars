@@ -5,6 +5,8 @@ import {CardType} from '../../../common/cards/CardType';
 import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class ArtificialLake extends Card implements IProjectCard {
   constructor() {
@@ -34,5 +36,15 @@ export class ArtificialLake extends Card implements IProjectCard {
       return true;
     } // Card is playable, it just has no effect.
     return player.game.board.getAvailableSpacesOnLand(player, canAffordOptions).length > 0;
+  }
+
+  // The ocean-on-land placement isn't covered by the generic explainer (it checks
+  // `behavior.tile`, not `behavior.ocean`). When oceans aren't maxed the only
+  // residual blocker is "no land space" — name it.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.game.canAddOcean() && player.game.board.getAvailableSpacesOnLand(player).length === 0) {
+      return reason.placementReason('No space available for the tile');
+    }
+    return undefined;
   }
 }
