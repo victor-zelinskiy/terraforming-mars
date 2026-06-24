@@ -1,5 +1,21 @@
 <template>
-  <div :class="cardClass" @click="$emit('select', player.color)">
+  <div :class="cardClass" :data-player-color="player.color" @click="$emit('select', player.color)">
+    <!--
+      TurnHandoff command brackets — the transient "system locked onto the
+      active player" frame. Rendered ONLY during the start-of-turn burst
+      (`isBursting`), in the player's OWN colour (var(--lpc-accent)), so it
+      reads as an internal command-layer activation distinct from the cyan
+      VIEWING selection border. A one-shot line sweeps the top/left edge. After
+      the burst the card settles back to the calm normal active state — the
+      brackets are NOT persistent (no permanent "ВАШ ХОД"). Decorative only.
+    -->
+    <div v-if="isBursting" class="left-panel-card-command" aria-hidden="true">
+      <span class="lpc-bracket lpc-bracket--tl"></span>
+      <span class="lpc-bracket lpc-bracket--tr"></span>
+      <span class="lpc-bracket lpc-bracket--bl"></span>
+      <span class="lpc-bracket lpc-bracket--br"></span>
+      <span class="lpc-sweep"></span>
+    </div>
     <div class="left-panel-card-row left-panel-card-row--top">
       <div :class="cubeClass"></div>
       <div class="left-panel-card-name" :class="playerNameShadowClass">{{ player.name }}</div>
@@ -79,12 +95,27 @@
       постоянной между переходами turn / waiting / passed / END.
     -->
     <div :class="chipClass">
-      <PlayerStatusGlyph v-if="presentation.glyph !== 'none'"
-                        :glyph="presentation.glyph" />
-      <span v-if="presentation.textKey" v-i18n>{{ presentation.textKey }}</span>
-      <span v-else>&nbsp;</span>
-      <span v-if="presentation.showCounter"
-            class="player-status-chip__counter">{{ actionCounterText }}</span>
+      <!--
+        During the local player's start-of-turn burst the chip swaps to the
+        transient "▶ ВАШ ХОД" command label (the same data, command framing).
+        It is NOT a permanent status: once the burst ends (≈1.5s) the chip
+        returns to the calm "● ДЕЙСТВИЕ X/Y" via the normal presenter — there
+        is no turn clock, so a sticky "ВАШ ХОД" would read as a false alarm.
+      -->
+      <template v-if="statusBurst">
+        <span class="player-status-chip__burst-glyph" aria-hidden="true">▶</span>
+        <span v-i18n>Your turn</span>
+        <span v-if="presentation.showCounter"
+              class="player-status-chip__counter">{{ actionCounterText }}</span>
+      </template>
+      <template v-else>
+        <PlayerStatusGlyph v-if="presentation.glyph !== 'none'"
+                          :glyph="presentation.glyph" />
+        <span v-if="presentation.textKey" v-i18n>{{ presentation.textKey }}</span>
+        <span v-else>&nbsp;</span>
+        <span v-if="presentation.showCounter"
+              class="player-status-chip__counter">{{ actionCounterText }}</span>
+      </template>
     </div>
     <!--
       Turn-control column: PASS on top, END TURN below. Rendered ONLY on
@@ -160,6 +191,7 @@ import PlayerStatusGlyph from './PlayerStatusGlyph.vue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
 import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
+import {turnHandoffState} from '@/client/components/overview/turnHandoffState';
 
 // Vanilla TM gives each player exactly 2 actions per turn. The server side
 // has an `availableActionsThisRound` field on Player.ts that anticipates
@@ -186,6 +218,15 @@ export default defineComponent({
     actionLabel: {
       type: String as () => ActionLabel,
       default: 'none',
+    },
+    // True iff this player is the ACTION-phase turn owner (the active player).
+    // Drives the PERSISTENT player-colour command accent (the internal "this
+    // card owns the turn" channel), distinct from the cyan VIEWING/--selected
+    // border. Derived from the model in LeftPlayerPanel (phase + isActive), so
+    // it never depends on the TurnHandoff animation controller.
+    turnOwner: {
+      type: Boolean,
+      default: false,
     },
     // True iff this card belongs to the viewer (the player using this
     // client). Controls whether the turn-control button row (Pass / End
@@ -239,6 +280,23 @@ export default defineComponent({
     privateMask(): boolean {
       return shouldMaskOwnPassiveVp(this.isViewer);
     },
+    // TurnHandoff transient state, read from the module-level controller. These
+    // drive the short start-of-turn "command activation" — they self-clear via
+    // the controller's timers, so the card returns to its calm normal state.
+    isBursting(): boolean {
+      return turnHandoffState.burstColor === this.player.color;
+    },
+    // The strong "▶ ВАШ ХОД" status swap is for the LOCAL player's own
+    // hand-off only; an opponent's hand-off gets the cube/bracket ignition but
+    // keeps their normal status label (a calmer active indication).
+    statusBurst(): boolean {
+      return this.isBursting && turnHandoffState.burstIsLocal;
+    },
+    // One-shot inactivity micro-pulse (escalation step 1) — fires only on the
+    // local player's card and only when they gave no input after the hand-off.
+    isIdlePulsing(): boolean {
+      return turnHandoffState.idlePulseColor === this.player.color;
+    },
     /*
      * Source of truth для всех «как именно показывать статус» решений
      * — единый presenter из `playerStatusPresenter.ts`. И этот компонент,
@@ -249,9 +307,28 @@ export default defineComponent({
       return presentPlayerStatus(this.actionLabel);
     },
     cardClass(): string {
-      const classes = ['left-panel-card'];
+      // Per-colour class exposes the player's colour as `--lpc-accent` (see the
+      // each(@players) loop in turn_handoff.less) so the turn command channel
+      // (accent bar, brackets, cube ignition) is tinted to the player, NOT the
+      // generic cyan used by the VIEWING/--active channels.
+      const classes = ['left-panel-card', `left-panel-card--color-${this.player.color}`];
       if (this.selected) {
         classes.push('left-panel-card--selected');
+      }
+      // TURN channel (player colour) — kept on a SEPARATE visual channel from
+      // the cyan VIEWING (--selected) channel so "who is acting" and "whose
+      // seat am I viewing" never collide.
+      if (this.turnOwner) {
+        classes.push('left-panel-card--turn-owner');
+        if (this.isViewer) {
+          classes.push('left-panel-card--local-turn');
+        }
+      }
+      if (this.isBursting) {
+        classes.push('left-panel-card--turn-burst');
+      }
+      if (this.isIdlePulsing) {
+        classes.push('left-panel-card--idle-pulse');
       }
       /*
        * --active = the SERVER is waiting on this player to act right
@@ -289,6 +366,12 @@ export default defineComponent({
           this.presentation.category === 'active') {
         classes.push('active');
       }
+      // Cube ignition — the primary carrier of the start-of-turn event: a brief
+      // spin-up + player-colour glow burst. Honours the same animated-sidebar
+      // preference as the steady spin.
+      if (this.isBursting && !getPreferences().hide_animated_sidebar) {
+        classes.push('left-panel-card-cube--ignition');
+      }
       return classes.join(' ');
     },
     playerNameShadowClass(): string {
@@ -319,6 +402,10 @@ export default defineComponent({
       // карточки, но визуально скрыт через --empty (visibility: hidden).
       if (this.presentation.category === 'none') {
         return `${base} ${modifier} ${base}--empty`;
+      }
+      // Burst command framing (player colour) layered over the active chip.
+      if (this.statusBurst) {
+        return `${base} ${modifier} ${base}--turn-burst`;
       }
       return `${base} ${modifier}`;
     },
