@@ -37,7 +37,7 @@
     -->
     <MandatoryInputModal v-if="useModalForCurrentInput"
                          :title="modalPillTitle"
-                         :suppressed="clientHandPickActive">
+                         :suppressed="clientHandPickActive || playedPickActive">
       <!--
         World Government Terraforming is hosted via a dedicated button-grid
         component instead of generic OrOptions radios — see CLAUDE.md
@@ -122,6 +122,7 @@ import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraf
 import {shouldPreserveSaleOverlay} from '@/client/components/handCards/sellPatentsState';
 import {handPlayPrompt} from '@/client/components/handCards/handPlayState';
 import {isClientHandPickActive} from '@/client/components/handCards/handSelectState';
+import {playedCardsPickState} from '@/client/components/playedCards/playedCardsPickState';
 import {standardProjectPlayPrompt} from '@/client/components/handCards/standardProjectPlayState';
 import {startFlowCorpPrompt, startGameFlowActive} from '@/client/components/startGameFlow/startGameFlowState';
 import {freeAwardFundingPrompt} from '@/client/components/awards/awardFundingState';
@@ -776,6 +777,12 @@ export default defineComponent({
     // hidden) so the overlay below its z-index is interactable, then re-show.
     clientHandPickActive(): boolean {
       return isClientHandPickActive();
+    },
+    // A РАЗЫГРАНО board pick (a >3-candidate card-target, e.g. the Venus bonus
+    // wild on-card pick) handed off to the played-cards overlay — suppress this
+    // modal (keep it mounted, hidden) so the board below is interactable.
+    playedPickActive(): boolean {
+      return playedCardsPickState.active;
     },
     useModalForCurrentInput(): boolean {
       /*

@@ -100,11 +100,32 @@
 
       <div v-else class="venus-bonus__wild-card">
         <p class="venus-bonus__section-hint" v-i18n>Pick a card to receive a resource</p>
-        <ActionTargetCard :input="wildCardInput"
+        <!-- Few candidates → an inline target picker. Many (> threshold) → a
+             "pick the card on your board" hand-off to the РАЗЫГРАНО overlay (a
+             cramped in-modal grid of 10+ cards is replaced by the board), mirroring
+             the play / action-confirm modals' >3-candidate routing. -->
+        <ActionTargetCard v-if="!useBoardPick"
+                          :input="wildCardInput"
                           :playerView="playerView"
                           :selectedName="wildCard"
                           :amount="1"
                           @change="onWildCardChange" />
+        <div v-else class="venus-bonus__board-pick">
+          <div v-if="wildCard !== undefined" class="venus-bonus__board-chosen">
+            <ActionTargetCard :input="chosenCardInput"
+                              :playerView="playerView"
+                              :selectedName="wildCard"
+                              :amount="1"
+                              :autoSelect="false" />
+          </div>
+          <button type="button"
+                  class="venus-bonus__board-pick-btn"
+                  data-test="venus-board-pick"
+                  @click="startBoardPick">
+            {{ boardPickButtonLabel }}
+          </button>
+          <p v-if="wildCard === undefined" class="venus-bonus__board-pick-hint">{{ boardPickCountHint }}</p>
+        </div>
       </div>
     </section>
 
@@ -144,6 +165,12 @@ import {sum} from '@/common/utils/utils';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {buildVenusBonusResponse, VenusWildChoice} from '@/client/components/modalInputs/venusBonusResponses';
+import {
+  enterPlayedCardsPick,
+  cancelPlayedCardsPick,
+  playedCardsPickState,
+  PLAYED_PICK_OVERLAY_THRESHOLD,
+} from '@/client/components/playedCards/playedCardsPickState';
 import {translateText} from '@/client/directives/i18n';
 import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
 
@@ -174,6 +201,13 @@ export default defineComponent({
       wildStandard: undefined as keyof Units | undefined,
       wildCard: undefined as CardName | undefined,
     };
+  },
+  beforeUnmount() {
+    // If the modal is torn down while a board pick is still open (e.g. the server
+    // moved on), cancel it so the player isn't left in a stale board pick mode.
+    if (playedCardsPickState.active) {
+      cancelPlayedCardsPick();
+    }
   },
   computed: {
     meta(): VenusBonusPromptMeta {
@@ -257,6 +291,26 @@ export default defineComponent({
         showSelectAll: false,
       };
     },
+    // Too many candidates for a comfortable in-modal grid → route the pick to the
+    // РАЗЫГРАНО board (same > threshold rule the play / action modals use).
+    useBoardPick(): boolean {
+      return this.wildCardCandidates.length > PLAYED_PICK_OVERLAY_THRESHOLD;
+    },
+    chosenCardModel(): CardModel | undefined {
+      return this.wildCardCandidates.find((c) => c.name === this.wildCard);
+    },
+    // A single-card SelectCardModel so the chosen board-pick card shows the same
+    // ActionTargetCard preview (count → resulting + VP delta) as the inline picker.
+    chosenCardInput(): SelectCardModel {
+      const model = this.chosenCardModel;
+      return {...this.wildCardInput, cards: model !== undefined ? [model] : []};
+    },
+    boardPickButtonLabel(): string {
+      return translateText(this.wildCard === undefined ? 'Choose a card on your board' : 'Choose a different card');
+    },
+    boardPickCountHint(): string {
+      return translateText('Eligible cards: ${0}').replace('${0}', String(this.wildCardCandidates.length));
+    },
     summaryChips(): ReadonlyArray<SummaryChip> {
       const byKey = new Map<keyof Units, number>();
       for (const key of Units.keys) {
@@ -314,6 +368,20 @@ export default defineComponent({
       if (this.hasCardBranch) {
         this.wildTab = 'card';
       }
+    },
+    // Hand off to the РАЗЫГРАНО board: enter pick mode (PlayerHome opens the
+    // overlay + suppresses this modal in response to the shared pick state), and
+    // capture the chosen card on resolve. The modal re-appears (un-suppressed)
+    // with the card set, or unchanged if the player abandons the pick.
+    startBoardPick(): void {
+      enterPlayedCardsPick({
+        title: translateText('Pick a card to receive a resource'),
+        selectable: this.wildCardCandidates.map((c) => c.name),
+        reasonMode: 'resource',
+        onResolve: (card) => {
+          this.wildCard = card;
+        },
+      });
     },
     confirm(): void {
       if (!this.canConfirm) {

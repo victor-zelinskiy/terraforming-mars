@@ -11,6 +11,8 @@
     "Pick a card to receive a resource": "Выберите карту для получения ресурса",
     "Take bonus": "Забрать бонус",
     "No card can hold this resource": "Нет карты, способной хранить этот ресурс",
+    "Choose a different card": "Выбрать другую карту",
+    "Eligible cards: ${0}": "Подходящих карт: ${0}",
     "Gain ${0} resource(s) for your Venus track bonus.": "Получите ресурсы за бонус шкалы Венеры: ${0}",
     "Choose your wild resource bonus.": "Выберите дополнительный бонус",
     "Choose your wild resource bonus, after which you will gain ${0} more distinct standard resources.": "Выберите дополнительный бонус, затем получите ещё базовых ресурсов: ${0}"
