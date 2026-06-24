@@ -29,18 +29,18 @@ function playerView(overrides: {
 describe('energyConversionModel', () => {
   describe('conversionDurationMs', () => {
     it('clamps to the min for a tiny conversion', () => {
-      expect(conversionDurationMs(1, false)).to.eq(CONVERSION_MIN_MS); // 745 → 800
-      expect(conversionDurationMs(2, false)).to.eq(CONVERSION_MIN_MS); // 790 → 800
+      expect(conversionDurationMs(1, false)).to.eq(CONVERSION_MIN_MS); // 1145 → 1200
+      expect(conversionDurationMs(2, false)).to.eq(CONVERSION_MIN_MS); // 1190 → 1200
     });
 
     it('scales in the readable middle band', () => {
-      expect(conversionDurationMs(3, false)).to.eq(700 + 3 * 45); // 835 (clears the floor)
-      expect(conversionDurationMs(8, false)).to.eq(700 + 8 * 45); // 1060
-      expect(conversionDurationMs(12, false)).to.eq(700 + 12 * 45); // 1240
+      expect(conversionDurationMs(3, false)).to.eq(1100 + 3 * 45); // 1235 (clears the floor)
+      expect(conversionDurationMs(8, false)).to.eq(1100 + 8 * 45); // 1460
+      expect(conversionDurationMs(12, false)).to.eq(1100 + 12 * 45); // 1640
     });
 
     it('caps at the max for a big battery dump', () => {
-      expect(conversionDurationMs(30, false)).to.eq(CONVERSION_MAX_MS);
+      expect(conversionDurationMs(30, false)).to.eq(CONVERSION_MAX_MS); // 2450 → 2200
       expect(conversionDurationMs(100, false)).to.eq(CONVERSION_MAX_MS);
     });
 

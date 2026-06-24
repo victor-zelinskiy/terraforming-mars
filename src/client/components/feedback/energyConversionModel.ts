@@ -43,15 +43,18 @@ export type EnergyConversionEvent = {
   readonly dedupeKey: string;
 };
 
-// Duration tuning. Short for a couple of energy, a touch longer for a big
-// battery dump, hard-capped so a 30-energy conversion never drags.
-//   duration = clamp(700 + amount * 45, 800, 1800)
-export const CONVERSION_BASE_MS = 700;
+// Duration tuning. Weighty enough to read as a premium beat, a touch longer for
+// a big battery dump, hard-capped so a 30-energy conversion never drags.
+//   duration = clamp(1100 + amount * 45, 1200, 2200)
+// (≈ +400 ms over the first pass — small reads ~1200, medium ~1400-1700, large
+// caps at 2200.)
+export const CONVERSION_BASE_MS = 1100;
 export const CONVERSION_PER_ENERGY_MS = 45;
-export const CONVERSION_MIN_MS = 800;
-export const CONVERSION_MAX_MS = 1800;
-// prefers-reduced-motion: a brief readable highlight, no long counter travel.
-export const CONVERSION_REDUCED_MS = 340;
+export const CONVERSION_MIN_MS = 1200;
+export const CONVERSION_MAX_MS = 2200;
+// prefers-reduced-motion: a brief readable highlight, no long counter travel —
+// still a clear beat, never instant.
+export const CONVERSION_REDUCED_MS = 480;
 
 export function conversionDurationMs(amount: number, reducedMotion: boolean): number {
   if (reducedMotion) {
