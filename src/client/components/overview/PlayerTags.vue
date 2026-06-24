@@ -1,7 +1,7 @@
 <template>
     <div class="player-tags">
         <div v-if="section === 'main' || section === 'both'" class="player-tags-main">
-            <tag-count tag="vp" :count="hideVpCount ? '?' : player.victoryPointsBreakdown.total" :size="'big'" :type="'main'" :scopeKey="player.color" :epoch="epoch" />
+            <tag-count tag="vp" :count="privateMaskVp ? '•••' : (hideVpCount ? '?' : player.victoryPointsBreakdown.total)" :size="'big'" :type="'main'" :scopeKey="player.color" :epoch="epoch" />
             <div v-if="isEscapeVelocityOn" :class="tooltipCss" :data-tooltip="$t('Escape Velocity penalty')">
               <tag-count tag="escape" :count="escapeVelocityPenalty" :size="'big'" :type="'main'" :showWhenZero="true"/>
             </div>
@@ -35,6 +35,7 @@
 
 import {defineComponent} from 'vue';
 import TagCount from '@/client/components/TagCount.vue';
+import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {GameModel} from '@/common/models/GameModel';
 import {Tag} from '@/common/cards/Tag';
@@ -255,6 +256,10 @@ export default defineComponent({
     },
     hideVpCount(): boolean {
       return !this.playerView.game.gameOptions.showOtherPlayersVP && !this.isThisPlayer;
+    },
+    // Local "private score": mask the viewer's OWN VP count on this passive tag row.
+    privateMaskVp(): boolean {
+      return shouldMaskOwnPassiveVp(this.isThisPlayer);
     },
     isEscapeVelocityOn(): boolean {
       return this.playerView.game.gameOptions.escapeVelocity !== undefined;

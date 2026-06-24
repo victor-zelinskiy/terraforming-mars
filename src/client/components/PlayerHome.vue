@@ -153,7 +153,7 @@
         </div>
         <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'victoryPoints'}" v-on:click="toggleOverlay('victoryPoints')">
           <BarButtonIcon name="victory-points" /><span class="bar-btn__label" v-i18n>Victory Points</span>
-          <span class="bar-btn__value">{{ displayedVictoryPoints }}<AnimatedMetricValue v-if="typeof displayedVictoryPoints === 'number'" class="bar-btn__feedback" :value="displayedVictoryPoints" metricKey="bar.vp" :scopeKey="displayedPlayer.color" variant="score" /></span>
+          <span class="bar-btn__value"><PrivateScoreMask v-if="ownVpMasked" compact /><template v-else>{{ displayedVictoryPoints }}<AnimatedMetricValue v-if="typeof displayedVictoryPoints === 'number'" class="bar-btn__feedback" :value="displayedVictoryPoints" metricKey="bar.vp" :scopeKey="displayedPlayer.color" variant="score" /></template></span>
         </div>
       </div>
       <!--
@@ -725,6 +725,8 @@ import StackedCards from '@/client/components/StackedCards.vue';
 import UndergroundTokens from '@/client/components/underworld/UndergroundTokens.vue';
 import KeyboardShortcuts from '@/client/components/KeyboardShortcuts.vue';
 import VictoryPointsOverlay from '@/client/components/overview/VictoryPointsOverlay.vue';
+import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
+import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 import MilestonesOverlay from '@/client/components/overview/MilestonesOverlay.vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
@@ -1626,6 +1628,11 @@ export default defineComponent({
         this.displayedPlayer.color !== this.thisPlayer.color;
       return hide ? '?' : this.displayedPlayer.victoryPointsBreakdown.total;
     },
+    // Local "private score": mask the VP entrypoint number when it shows the
+    // VIEWER'S OWN score. Never masks an opponent's value or the overlay itself.
+    ownVpMasked(): boolean {
+      return shouldMaskOwnPassiveVp(this.displayedPlayer.color === this.thisPlayer.color);
+    },
     // Tints the entire chrome (top bar buttons + bottom bar buttons) with
     // the selected player's colour so it's instantly obvious whose state
     // the UI is showing. Class is applied to #player-home so a single
@@ -2216,6 +2223,7 @@ export default defineComponent({
     UndergroundTokens,
     KeyboardShortcuts,
     VictoryPointsOverlay,
+    PrivateScoreMask,
     MilestonesOverlay,
     MilestoneClaimedBadge,
     AwardsOverlay,

@@ -16,17 +16,20 @@
          v-i18n="[turnOrderLabel]">Turn ${0}</div>
     <div v-if="corporationName" class="left-panel-card-corp" :title="corporationName" v-i18n>{{ corporationName }}</div>
     <div class="left-panel-card-row left-panel-card-row--stats">
-      <div class="left-panel-card-stat left-panel-card-stat--vp" :title="$t('Victory points')">
+      <div class="left-panel-card-stat left-panel-card-stat--vp" :title="privateMask ? '' : $t('Victory points')">
         <span class="left-panel-card-stat-label">ПО</span>
         <span class="left-panel-card-stat-value">
-          <span class="left-panel-card-stat-value__num">{{ hideVp ? '?' : vp }}</span>
-          <AnimatedMetricValue
-            v-if="!hideVp"
-            :value="vp"
-            metricKey="score.vp"
-            :scopeKey="player.color"
-            :epoch="epoch"
-            variant="score" />
+          <PrivateScoreMask v-if="privateMask" compact />
+          <template v-else>
+            <span class="left-panel-card-stat-value__num">{{ hideVp ? '?' : vp }}</span>
+            <AnimatedMetricValue
+              v-if="!hideVp"
+              :value="vp"
+              metricKey="score.vp"
+              :scopeKey="player.color"
+              :epoch="epoch"
+              variant="score" />
+          </template>
         </span>
       </div>
       <div class="left-panel-card-stat left-panel-card-stat--tr" :title="$t('Terraforming Rating')">
@@ -155,6 +158,8 @@ import {
 } from './playerStatusPresenter';
 import PlayerStatusGlyph from './PlayerStatusGlyph.vue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
+import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
+import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 
 // Vanilla TM gives each player exactly 2 actions per turn. The server side
 // has an `availableActionsThisRound` field on Player.ts that anticipates
@@ -226,8 +231,14 @@ export default defineComponent({
   components: {
     PlayerStatusGlyph,
     AnimatedMetricValue,
+    PrivateScoreMask,
   },
   computed: {
+    // Local "private score": mask THIS player's VP only when it's the viewer's
+    // own card (never an opponent's; the VP overlay stays unmasked).
+    privateMask(): boolean {
+      return shouldMaskOwnPassiveVp(this.isViewer);
+    },
     /*
      * Source of truth для всех «как именно показывать статус» решений
      * — единый presenter из `playerStatusPresenter.ts`. И этот компонент,

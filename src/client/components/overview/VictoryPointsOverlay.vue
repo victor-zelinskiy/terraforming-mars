@@ -35,7 +35,23 @@
           {{ displayedPlayer.name }}
         </span>
       </div>
-      <button type="button" class="vp-board__close" :aria-label="$t('Close')" @click="$emit('close')">✕</button>
+      <div class="vp-board__tools">
+        <!-- LOCAL privacy toggle: hide MY VP on passive surfaces (button / panel),
+             never inside this overlay. Only for a real player (not a spectator). -->
+        <button v-if="canPrivacy" type="button" class="vp-board__privacy"
+                :class="{'vp-board__privacy--on': privateOn}"
+                :aria-pressed="privateOn"
+                :title="privateOn ? $t('Your VP are hidden on the panel and the score button. They stay visible inside this overlay.') : $t('Hide your VP on the panel and the score button')"
+                @click="togglePrivacy">
+          <svg class="vp-board__privacy-eye" viewBox="0 0 24 16" aria-hidden="true" focusable="false">
+            <path d="M1 8s4-6 11-6 11 6 11 6-4 6-11 6S1 8 1 8z" fill="none" />
+            <circle cx="12" cy="8" r="2.4" />
+            <line v-if="privateOn" x1="3" y1="2.5" x2="21" y2="13.5" />
+          </svg>
+          <span class="vp-board__privacy-label" v-i18n>{{ privateOn ? 'Score hidden' : 'Private score' }}</span>
+        </button>
+        <button type="button" class="vp-board__close" :aria-label="$t('Close')" @click="$emit('close')">✕</button>
+      </div>
     </header>
 
     <div class="vp-board__body">
@@ -246,6 +262,7 @@ import {buildVictoryPointsModel, VictoryPointsModel, VPScale, VPSegment} from '@
 import {DELTA_STAGE_NAMES} from '@/common/delta/deltaStages';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import HiddenVictoryPointsLock from '@/client/components/overview/HiddenVictoryPointsLock.vue';
+import {privateScoreState, togglePrivateScore} from '@/client/components/overview/privateScoreState';
 
 type TooltipContent = {name: string; description: string};
 type TooltipPos = {top: number; left: number};
@@ -303,6 +320,16 @@ export default defineComponent({
     gameEnded(): boolean {
       return this.game.phase === Phase.END;
     },
+    // Local "private score" toggle — only offered to a real player (a spectator
+    // has no own VP to hide).
+    privateOn(): boolean {
+      return privateScoreState.enabled;
+    },
+    canPrivacy(): boolean {
+      // This overlay is only ever opened from a player's own screen (PlayerHome),
+      // so the viewer always has an own player; a spectator never reaches it.
+      return this.thisPlayerColor !== undefined;
+    },
     // The score report is sealed only WHILE the game runs — once it ends the
     // server sends every player's VP and the report shows normally.
     locked(): boolean {
@@ -359,6 +386,9 @@ export default defineComponent({
     },
   },
   methods: {
+    togglePrivacy(): void {
+      togglePrivateScore();
+    },
     scaleSegments(key: string): Array<VPSegment> {
       return this.model.scales.find((s) => s.key === key)?.segments ?? [];
     },

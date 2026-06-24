@@ -7,6 +7,7 @@ import {GameModel} from '@/common/models/GameModel';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {RecursivePartial} from '@/common/utils/utils';
 import {Phase} from '@/common/Phase';
+import {privateScoreState, setPrivateScore} from '@/client/components/overview/privateScoreState';
 
 function fullBreakdown(overrides: Partial<VictoryPointsBreakdown> = {}): VictoryPointsBreakdown {
   return {
@@ -64,6 +65,18 @@ describe('VictoryPointsOverlay', () => {
   it('renders the four core breakdown bars', () => {
     const wrapper = mountOverlay(fullBreakdown());
     expect(wrapper.findAll('.vp-scale')).to.have.length(4);
+  });
+
+  it('offers the local Private-score toggle; enabling it never masks the overlay itself', async () => {
+    const wrapper = mountOverlay(fullBreakdown());
+    const btn = wrapper.find('.vp-board__privacy');
+    expect(btn.exists()).is.true;
+    await btn.trigger('click');
+    expect(privateScoreState.enabled).is.true;
+    // The overlay's own breakdown stays fully visible (no mask inside the overlay).
+    expect(wrapper.find('.vp-dashboard').exists()).is.true;
+    expect(wrapper.find('.vp-private').exists()).is.false;
+    setPrivateScore(false); // cleanup the shared module state
   });
 
   it('renders card groups with penalties last', () => {
