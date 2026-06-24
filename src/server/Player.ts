@@ -75,6 +75,7 @@ import {DeltaProjectExpansion} from './delta/DeltaProjectExpansion';
 import {DeltaProjectInput} from './delta/DeltaProjectInput';
 import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
+import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
 import {Counter} from './behavior/Counter';
 import {TRSource} from '../common/cards/TRSource';
@@ -191,6 +192,10 @@ export class Player implements IPlayer {
   // Transient result of the most recent reveal/deck-check action (self-only,
   // cleared at the start of the next input). See IPlayer.lastReveal.
   public lastReveal: RevealResultModel | undefined = undefined;
+  // Transient snapshot of the energy→heat conversion that happened in this
+  // player's production phase (self-only, cleared at the start of the next
+  // input). See IPlayer.energyHeatConversion.
+  public energyHeatConversion: EnergyHeatConversionModel | undefined = undefined;
   public playedCards: PlayedCards = new PlayedCards();
   public draftedCards: Array<IProjectCard> = [];
   public draftHand: Array<IProjectCard> = [];
@@ -714,6 +719,18 @@ export class Player implements IPlayer {
     if (this.playedCards.has(CardName.SUPERCAPACITORS)) {
       Supercapacitors.onProduction(this);
     } else {
+      // Snapshot the energy→heat conversion for the premium paired transition
+      // animation BEFORE mutating the stocks. The client can't derive the
+      // amount itself — production income (added in finishProductionPhase right
+      // after) muddies both counters. Unset when there's nothing to convert.
+      if (this.energy > 0) {
+        this.energyHeatConversion = {
+          amount: this.energy,
+          energyBefore: this.energy,
+          heatBefore: this.heat,
+          generation: this.game.generation,
+        };
+      }
       this.heat += this.energy;
       this.energy = 0;
       this.finishProductionPhase();
@@ -2079,6 +2096,11 @@ export class Player implements IPlayer {
     // being processed now (if it's a reveal) sets a fresh one via recordReveal,
     // which survives because it runs AFTER this point.
     this.lastReveal = undefined;
+    // Likewise the energy→heat conversion snapshot is consumed by the client's
+    // one-shot transition animation; a new input means that moment has passed.
+    // (For Supercapacitors the conversion is APPLIED inside this very input's
+    // deferred callback, which runs after this line, so its snapshot survives.)
+    this.energyHeatConversion = undefined;
     const waitingFor = this.waitingFor;
     const waitingForCb = this.waitingForCb;
     const waitingForContext = this.waitingForContext;

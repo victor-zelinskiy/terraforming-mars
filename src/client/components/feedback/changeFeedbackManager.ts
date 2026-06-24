@@ -168,6 +168,36 @@ class ChangeFeedbackManager {
   }
 
   /**
+   * Force the baseline (last reported value) for a (scopeKey, metricKey)
+   * WITHOUT emitting a delta, and clear any active-delta window so the next
+   * change starts fresh.
+   *
+   * Used by the energy→heat conversion transition: after the paired
+   * "Energy −X → Heat +X" animation has told that story, the upcoming commit
+   * still carries production income on energy.stock / heat.stock. Re-baselining
+   * those two metrics to their POST-conversion values here means the
+   * AnimatedMetricValue chips that fire on the commit show only the production
+   * REMAINDER (e.g. +3 energy / +4 heat), instead of the full net delta vs the
+   * pre-conversion value — which would visually contradict the −X / +X chips
+   * the conversion just showed.
+   */
+  setBaseline(scopeKey: string, metricKey: string, value: number): void {
+    const key = this.key(scopeKey, metricKey);
+    const existing = this.entries.get(key);
+    if (existing === undefined) {
+      this.entries.set(key, {lastValue: value, activeDelta: 0, activeStartedAt: 0});
+    } else {
+      existing.lastValue = value;
+      existing.activeDelta = 0;
+      existing.activeStartedAt = 0;
+    }
+    // Keep this metric's "currently observed scope" pointed at the seeded scope
+    // so the next same-scope mount animates its remainder chip rather than
+    // suppressing it as a point-of-view switch.
+    this.lastObservedScope.set(metricKey, scopeKey);
+  }
+
+  /**
    * Drop every record for a specific scope. Useful when a scope is
    * known to be obsolete (e.g. a game has ended, an epoch changed)
    * to release memory and ensure any new scope re-baselines.

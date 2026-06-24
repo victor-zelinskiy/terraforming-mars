@@ -47,6 +47,17 @@ export class Supercapacitors extends Card implements IProjectCard {
       new SelectAmount('Select amount of energy to convert to heat', 'OK', 0, player.energy, true,
         {icon: 'energy', conversion: {from: 'energy', to: 'heat'}})
         .andThen((amount) => {
+          // Snapshot the player-chosen conversion for the premium paired
+          // "Energy −X → Heat +X" transition animation, BEFORE mutating the
+          // stocks. Skipped when the player opts to convert nothing.
+          if (amount > 0) {
+            player.energyHeatConversion = {
+              amount,
+              energyBefore: player.energy,
+              heatBefore: player.heat,
+              generation: player.game.generation,
+            };
+          }
           player.energy -= amount;
           player.heat += amount;
           player.game.log('${0} converted ${1} units of energy to heat', (b) => b.player(player).number(amount));

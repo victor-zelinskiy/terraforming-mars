@@ -10,7 +10,7 @@
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -93,7 +93,7 @@
 <script lang="ts">
 /* global RequestInit */
 
-import {defineComponent} from 'vue';
+import {defineComponent, nextTick} from 'vue';
 import * as constants from '@/common/constants';
 import raw_settings from '@/genfiles/settings.json';
 import {vueRoot} from '@/client/components/vueRoot';
@@ -133,6 +133,11 @@ import {
   placementHoldDurationMs,
   shouldHoldForTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
+import {
+  detectEnergyConversion,
+  endEnergyConversion,
+  runEnergyConversion,
+} from '@/client/components/feedback/energyConversionTransition';
 
 const WGT_TITLE = 'Select action for World Government Terraforming';
 
@@ -267,6 +272,15 @@ type DataModel = {
    */
   holdingForTilePlacement: boolean;
   /*
+   * Counterpart hold for the energy→heat conversion transition (end of
+   * generation). While true the next-phase modal is suppressed via the same
+   * empty-render branch, so the research / draft / endgame screen can't open
+   * over the paired "Energy −X → Heat +X" animation. Composed independently of
+   * the marker / tile holds. See
+   * src/client/components/feedback/energyConversionTransition.ts.
+   */
+  holdingForConversion: boolean;
+  /*
    * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
    * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
    * player on another tab/window would return to STALE state (e.g. an
@@ -309,6 +323,7 @@ export default defineComponent({
       savedPlayerView: undefined,
       holdingForMarker: false,
       holdingForTilePlacement: false,
+      holdingForConversion: false,
       onVisibilityChange: undefined,
     };
   },
@@ -497,6 +512,14 @@ export default defineComponent({
               this.playerView.game.spaces,
               newView.game.spaces,
             );
+            /*
+             * Energy→heat conversion hold (end of generation). Detect BEFORE
+             * the marker/tile previews mutate the displayed view; claims the
+             * dedup key so the poll path doesn't double-fire it. Runs as an
+             * independent hold AFTER the marker/tile previews (production never
+             * places tiles, so they don't co-occur in practice), then commits.
+             */
+            const conversionEvent = detectEnergyConversion(this.playerView, newView);
             if (markerHold || tileHold) {
               if (markerHold) {
                 this.applyGlobalParamPreview(newView);
@@ -533,7 +556,22 @@ export default defineComponent({
                 this.holdingForTilePlacement = false;
               }
             }
+            if (conversionEvent !== undefined) {
+              this.holdingForConversion = true;
+              // The override seeds the change-feedback baselines on completion,
+              // so committing right after shows the production REMAINDER chips,
+              // not the full pre-conversion delta. isServerSideRequestInProgress
+              // stays raised through the await (cleared in .finally).
+              await runEnergyConversion(conversionEvent);
+            }
             this.updatePlayerView(newView);
+            if (conversionEvent !== undefined) {
+              this.holdingForConversion = false;
+              // Clear the panel override on the next tick — AFTER the committed
+              // (possibly remounted) panel reads the canonical final values and
+              // fires the seeded production chips — so there's no value flash.
+              nextTick(() => endEnergyConversion());
+            }
             return;
           }
 
