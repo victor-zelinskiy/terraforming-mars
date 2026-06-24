@@ -1,8 +1,8 @@
 <template>
   <div class="resource_item" :class="mainCSS">
-      <div class="resource_item_stock">
+      <div class="resource_item_stock" :data-conversion-cell="conversionAnchor">
           <i class="resource_icon tooltip tooltip-bottom" :class="iconCSS" :data-tooltip="resourceTypeTooltip"></i>
-          <div class="resource_item_stock_count" data-test="stock-count">{{ count }}</div>
+          <div class="resource_item_stock_count" data-test="stock-count">{{ displayCount }}</div>
           <AnimatedMetricValue
             v-if="scopeKey !== ''"
             :value="count"
@@ -44,6 +44,7 @@ import {Resource} from '@/common/Resource';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {Protection} from '@/common/models/PlayerModel';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
+import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 
 export default defineComponent({
   name: 'PlayerResource',
@@ -111,8 +112,59 @@ export default defineComponent({
     },
   },
   computed: {
-    mainCSS(): string {
-      return 'resource_item--' + this.type;
+    /*
+     * During the energy→heat conversion transition the energy / heat rows of
+     * the converting player show an interpolated counter (driven by the
+     * controller's rAF) instead of the canonical stock, so the number visibly
+     * travels down (energy) / up (heat) in lock-step with the arrow + chips.
+     * Returns undefined for every other row / player / non-active state, so the
+     * normal `count` is shown. Rounded — counters read as integers.
+     *
+     * NOTE: AnimatedMetricValue below still binds `:value="count"` (canonical),
+     * NOT this override — its baseline/delta logic must track real game state.
+     * The override only swaps the displayed text.
+     */
+    conversionOverride(): number | undefined {
+      const s = energyConversionState;
+      if (!s.active || s.color === '' || s.color !== this.scopeKey) {
+        return undefined;
+      }
+      if (this.type === Resource.ENERGY) {
+        return Math.round(s.displayEnergy);
+      }
+      if (this.type === Resource.HEAT) {
+        return Math.round(s.displayHeat);
+      }
+      return undefined;
+    },
+    displayCount(): number {
+      return this.conversionOverride ?? this.count;
+    },
+    // 'source' for the energy row, 'target' for the heat row, '' otherwise —
+    // drives the cell highlight + the overlay's anchor lookup.
+    conversionRole(): '' | 'source' | 'target' {
+      if (this.conversionOverride === undefined) {
+        return '';
+      }
+      return this.type === Resource.ENERGY ? 'source' : 'target';
+    },
+    // Stable selector the App-level overlay queries to position the arrow +
+    // floating chips. Undefined (attribute omitted) when not converting.
+    conversionAnchor(): string | undefined {
+      if (this.conversionRole === 'source') {
+        return 'energy';
+      }
+      if (this.conversionRole === 'target') {
+        return 'heat';
+      }
+      return undefined;
+    },
+    mainCSS(): Array<string> {
+      const c = ['resource_item--' + this.type];
+      if (this.conversionRole !== '') {
+        c.push('resource_item--conversion-' + this.conversionRole);
+      }
+      return c;
     },
     iconCSS(): string {
       return 'resource_icon--' + this.type;

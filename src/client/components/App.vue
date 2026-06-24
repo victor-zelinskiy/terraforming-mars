@@ -87,6 +87,15 @@
         v-if="screen === 'player-home' && playerView !== undefined"
         :player-view="playerView" />
       <!--
+        End-of-generation Energy → Heat conversion transition. App-level (like
+        DraftFlowOverlay) so the `:key="playerkey"` remount can't tear down the
+        arrow / paired chips mid-animation. Self-gates via
+        energyConversionState.active; positions itself from the live energy /
+        heat resource-cell rects.
+      -->
+      <EnergyConversionOverlay
+        v-if="screen === 'player-home' && playerView !== undefined" />
+      <!--
         Detailed "additional resource" summary overlay. App-level (like the
         journal) so the `:key="playerkey"` remount can't tear it down while
         open. Driven entirely by module-level additionalResourcesState, which
@@ -191,7 +200,7 @@
 </template>
 
 <script lang="ts">
-import {defineAsyncComponent, defineComponent} from 'vue';
+import {defineAsyncComponent, defineComponent, nextTick} from 'vue';
 import * as constants from '@/common/constants';
 
 const AdminHome = defineAsyncComponent(() => import(/* webpackChunkName: "admin" */ '@/client/components/admin/AdminHome.vue'));
@@ -210,6 +219,13 @@ import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
 import RevealResultOverlay from '@/client/components/actions/RevealResultOverlay.vue';
+import EnergyConversionOverlay from '@/client/components/feedback/EnergyConversionOverlay.vue';
+import {
+  detectEnergyConversion,
+  endEnergyConversion,
+  isEnergyConversionActive,
+  runEnergyConversion,
+} from '@/client/components/feedback/energyConversionTransition';
 // Premium end-of-game experience (winner reveal + full-screen results). Async
 // so its charts / tabs only download once a game actually ends.
 const EndgameExperience = defineAsyncComponent(() => import(/* webpackChunkName: "endgame" */ '@/client/components/endgame/EndgameExperience.vue'));
@@ -340,6 +356,7 @@ export default defineComponent({
     DraftFlowOverlay,
     StartGameFlowOverlay,
     RevealResultOverlay,
+    EnergyConversionOverlay,
     RematchLayer,
     EndgameExperience,
     ModalInputPlayground,
@@ -463,6 +480,16 @@ export default defineComponent({
         })
         .then((model: ViewModel) => {
           /*
+           * Re-entrancy guard for the energy→heat conversion transition: while
+           * a conversion is animating we must NOT swap playerView (that would
+           * pop the panel to its final values mid-animation and open the
+           * next-phase modal over it). The poll loop keeps running, so the next
+           * poll after the animation finishes commits fresh state.
+           */
+          if (isEnergyConversionActive()) {
+            return;
+          }
+          /*
            * Same skip-remount logic as WaitingFor.updatePlayerView:
            * if we're continuing within a card-pick flow, swap
            * playerView reactively without bumping playerkey so the
@@ -512,35 +539,59 @@ export default defineComponent({
            * baseline rather than triggering N parallel impact rings.
            */
           const prevView = (path === paths.PLAYER ? app.playerView : app.spectator) as ViewModel | undefined;
-          if (prevView !== undefined &&
-              shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces)) {
-            armPlacementAnimations();
+
+          const commit = () => {
+            if (prevView !== undefined &&
+                shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces)) {
+              armPlacementAnimations();
+            }
+            if (path === paths.PLAYER) {
+              app.playerView = model as PlayerViewModel;
+              setTranslationContext(app.playerView);
+            } else if (path === paths.SPECTATOR) {
+              app.spectator = model as SpectatorModel;
+              setLiveCardResources(app.spectator);
+            }
+            if (!preserveCardPickModal && !preserveOpenOverlay) {
+              app.playerkey++;
+            }
+            // When the user navigated directly to /the-end, keep that screen.
+            if (currentPathname === paths.THE_END) {
+              app.screen = 'the-end';
+            } else if (path === paths.PLAYER) {
+              app.screen = 'player-home';
+            } else if (path === paths.SPECTATOR) {
+              app.screen = 'spectator-home';
+            }
+            if (currentPathname !== path && currentPathname !== paths.THE_END) {
+              window.history.replaceState(
+                model,
+                `${constants.APP_NAME} - Game`,
+                `${path}?id=${model.id}`,
+              );
+            }
+          };
+
+          /*
+           * Energy→heat conversion gate (poll path). When ANOTHER player's
+           * action advanced the game into production, the viewer's own
+           * conversion arrives via this poll. Play the paired animation and
+           * hold the commit (and therefore the research / draft / endgame
+           * screen, which all key off playerView) until it finishes. The
+           * re-entrancy guard above keeps a concurrent poll from committing
+           * mid-animation.
+           */
+          const conversionEvent = path === paths.PLAYER ?
+            detectEnergyConversion(prevView, model as PlayerViewModel) :
+            undefined;
+          if (conversionEvent !== undefined) {
+            runEnergyConversion(conversionEvent).then(() => {
+              commit();
+              nextTick(() => endEnergyConversion());
+            });
+            return;
           }
-          if (path === paths.PLAYER) {
-            app.playerView = model as PlayerViewModel;
-            setTranslationContext(app.playerView);
-          } else if (path === paths.SPECTATOR) {
-            app.spectator = model as SpectatorModel;
-            setLiveCardResources(app.spectator);
-          }
-          if (!preserveCardPickModal && !preserveOpenOverlay) {
-            app.playerkey++;
-          }
-          // When the user navigated directly to /the-end, keep that screen.
-          if (currentPathname === paths.THE_END) {
-            app.screen = 'the-end';
-          } else if (path === paths.PLAYER) {
-            app.screen = 'player-home';
-          } else if (path === paths.SPECTATOR) {
-            app.screen = 'spectator-home';
-          }
-          if (currentPathname !== path && currentPathname !== paths.THE_END) {
-            window.history.replaceState(
-              model,
-              `${constants.APP_NAME} - Game`,
-              `${path}?id=${model.id}`,
-            );
-          }
+          commit();
         })
         .catch((err) => {
           alert('Error getting game data');

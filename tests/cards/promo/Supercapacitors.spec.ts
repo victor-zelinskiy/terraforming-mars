@@ -31,6 +31,8 @@ describe('Supercapacitors', () => {
     // Production still occurs.
     expect(player.energy).eq(1);
     expect(player.heat).eq(2);
+    // Nothing was converted, so there is no transition snapshot.
+    expect(player.energyHeatConversion).to.be.undefined;
   });
 
 
@@ -50,6 +52,11 @@ describe('Supercapacitors', () => {
 
     expect(player.energy).eq(3); // 5 - 4 + 2 (production)
     expect(player.heat).eq(7); // 0 + 4 + 3 (production);
+
+    // The player-chosen conversion is snapshotted for the transition animation,
+    // capturing the stocks BEFORE the conversion (production income is added
+    // afterwards in finishProductionPhase, so the client can't derive it).
+    expect(player.energyHeatConversion).to.deep.include({amount: 4, energyBefore: 5, heatBefore: 0});
 
     // Select cards for next generation
     cast(player.popWaitingFor(), SelectCard);

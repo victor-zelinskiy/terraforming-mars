@@ -212,6 +212,10 @@ export class Server {
       // the result of the player's most recent reveal/deck-check action, for the
       // premium reveal-result overlay. Already a serialized RevealResultModel.
       lastReveal: player.lastReveal,
+      // Self-only + transient: the energy→heat conversion that just happened in
+      // this player's production phase, for the premium paired transition
+      // animation. Already a serialized EnergyHeatConversionModel (or undefined).
+      energyHeatConversion: player.energyHeatConversion,
     };
     return rv;
   }

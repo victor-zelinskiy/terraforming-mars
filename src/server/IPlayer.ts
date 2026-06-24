@@ -30,6 +30,7 @@ import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
 import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
+import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
 import {AlliedParty} from '../common/turmoil/Types';
 import {IParty} from './turmoil/parties/IParty';
 import {Message} from '../common/logs/Message';
@@ -142,6 +143,15 @@ export interface IPlayer {
    * (Player.process). Drives the premium reveal-result overlay.
    */
   lastReveal: RevealResultModel | undefined;
+  /**
+   * Transient (NOT serialized) snapshot of the energy→heat conversion that just
+   * happened in this player's production phase — set in `runProductionPhase` /
+   * `Supercapacitors.onProduction`, serialized self-only in the player model,
+   * and cleared at the start of the next input (Player.process). Drives the
+   * premium paired "Energy −X → Heat +X" transition animation. See
+   * EnergyHeatConversionModel.
+   */
+  energyHeatConversion: EnergyHeatConversionModel | undefined;
   playedCards: PlayedCards;
   cardCost: number;
   // This will eventually replace playedCards.

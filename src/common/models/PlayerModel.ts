@@ -15,6 +15,7 @@ import {GlobalParameter} from '../GlobalParameter';
 import {DeltaProjectPlayerModel} from './DeltaProjectPlayerModel';
 import {CardDrawRevealModel} from './CardDrawRevealModel';
 import {RevealResultModel} from './RevealResultModel';
+import {EnergyHeatConversionModel} from './EnergyHeatConversionModel';
 
 export interface ViewModel {
   game: GameModel;
@@ -156,4 +157,10 @@ export interface PlayerViewModel extends ViewModel {
   // fired + the reward. Self-only, transient (cleared on the next action). Drives
   // the premium reveal-result overlay. Absent in the common case. See RevealResultModel.
   lastReveal?: RevealResultModel;
+  // Self-only, transient (cleared on the next input): the energy→heat conversion
+  // that just happened during this player's production phase ("all energy turns
+  // into heat at the end of the generation", or the Supercapacitors chosen
+  // amount). Drives the premium paired "Energy −X → Heat +X" transition
+  // animation. Absent whenever no energy was converted. See EnergyHeatConversionModel.
+  energyHeatConversion?: EnergyHeatConversionModel;
 }

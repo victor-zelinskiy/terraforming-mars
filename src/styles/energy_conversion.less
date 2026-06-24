@@ -1,0 +1,208 @@
+/*
+ * Energy → Heat conversion transition (end of generation).
+ *
+ * A premium micro-interaction layered over the existing delta-chip language:
+ * the energy cell pulses electric-blue (source), the heat cell pulses warm
+ * (target), a glowing arrow + travelling chevron runs energy → heat, and the
+ * paired DeltaChips (−energy / +heat) float beside the cells. Driven by
+ * energyConversionState + EnergyConversionOverlay.vue; honours
+ * prefers-reduced-motion. No layout shift — every visual is an overlay / glow.
+ */
+
+@ec-source: rgb(120, 170, 255); // electric blue/violet (energy)
+@ec-source-soft: rgba(120, 170, 255, 0.55);
+@ec-target: rgb(255, 150, 90); // warm orange/red (heat)
+@ec-target-soft: rgba(255, 150, 90, 0.55);
+
+/* ── App-level overlay container ──────────────────────────────────────── */
+.resource-conversion-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  // Above the board + peripheral overlays. No mandatory modal is ever open
+  // during the conversion (the commit is gated), so it never fights one.
+  z-index: 9000;
+}
+
+.energy-conversion-layer-fade-enter-active {
+  transition: opacity 160ms ease-out;
+}
+.energy-conversion-layer-fade-leave-active {
+  transition: opacity 320ms ease-in;
+}
+.energy-conversion-layer-fade-enter-from,
+.energy-conversion-layer-fade-leave-to {
+  opacity: 0;
+}
+
+/* ── Resource-cell highlights (in the left panel) ─────────────────────── */
+// Steady rim + glow while converting, with a calm breathing pulse. The class
+// is present only for the animation window, so `infinite` self-terminates.
+.resource_item--conversion-source {
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 1px @ec-source-soft,
+    0 0 18px 1px rgba(90, 150, 255, 0.34);
+  animation: energy-conv-source-breathe 1100ms ease-in-out infinite;
+
+  .resource_icon {
+    filter: drop-shadow(0 0 7px rgba(120, 170, 255, 0.85));
+  }
+  .resource_item_stock_count {
+    color: #cfe0ff;
+    text-shadow: 0 0 11px rgba(120, 170, 255, 0.8);
+  }
+}
+
+.resource_item--conversion-target {
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 1px @ec-target-soft,
+    0 0 18px 1px rgba(255, 140, 80, 0.34);
+  animation: energy-conv-target-breathe 1100ms ease-in-out infinite;
+
+  .resource_icon {
+    filter: drop-shadow(0 0 7px rgba(255, 160, 100, 0.9));
+  }
+  .resource_item_stock_count {
+    color: #ffd9bd;
+    text-shadow: 0 0 11px rgba(255, 160, 100, 0.85);
+  }
+}
+
+@keyframes energy-conv-source-breathe {
+  0%, 100% { box-shadow: inset 0 0 0 1px @ec-source-soft, 0 0 14px 1px rgba(90, 150, 255, 0.28); }
+  50%      { box-shadow: inset 0 0 0 1px rgba(150, 190, 255, 0.75), 0 0 24px 3px rgba(110, 165, 255, 0.46); }
+}
+@keyframes energy-conv-target-breathe {
+  0%, 100% { box-shadow: inset 0 0 0 1px @ec-target-soft, 0 0 14px 1px rgba(255, 140, 80, 0.28); }
+  50%      { box-shadow: inset 0 0 0 1px rgba(255, 180, 130, 0.78), 0 0 24px 3px rgba(255, 150, 95, 0.48); }
+}
+
+/* ── The arrow ────────────────────────────────────────────────────────── */
+.energy-to-heat-arrow {
+  position: fixed; // left/top/height set inline from cell rects
+  width: 14px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.energy-to-heat-arrow__line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom,
+    rgba(120, 170, 255, 0.95) 0%,
+    rgba(175, 150, 255, 0.85) 48%,
+    rgba(255, 150, 90, 0.95) 100%);
+  background-size: 100% 220%;
+  box-shadow: 0 0 9px rgba(150, 170, 255, 0.6);
+  animation: energy-conv-flow 900ms linear infinite;
+}
+
+// Travelling chevron — moves from the energy end down to the heat end. `top`
+// is % of the parent (the arrow's pixel height), so it spans the full link.
+.energy-to-heat-arrow__chevron {
+  position: absolute;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  margin-top: -5px;
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 2px solid #ffd0a8;
+  border-bottom: 2px solid #ffd0a8;
+  filter: drop-shadow(0 0 5px rgba(255, 175, 115, 0.9));
+  animation: energy-conv-chevron 820ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+// A soft bloom that lands on the heat (target) end.
+.energy-to-heat-arrow__pulse {
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  width: 16px;
+  height: 16px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 160, 100, 0.6) 0%, rgba(255, 160, 100, 0) 70%);
+  animation: energy-conv-bloom 820ms ease-out infinite;
+}
+
+@keyframes energy-conv-flow {
+  from { background-position: 0 220%; }
+  to   { background-position: 0 0; }
+}
+@keyframes energy-conv-chevron {
+  0%   { top: 4%; opacity: 0; }
+  18%  { opacity: 1; }
+  82%  { opacity: 1; }
+  100% { top: 96%; opacity: 0; }
+}
+@keyframes energy-conv-bloom {
+  0%, 55% { opacity: 0; transform: translateX(-50%) scale(0.6); }
+  78%     { opacity: 0.9; transform: translateX(-50%) scale(1.05); }
+  100%    { opacity: 0; transform: translateX(-50%) scale(1.35); }
+}
+
+// Reduced motion: a static, readable link — no flow / chevron travel / bloom.
+.energy-to-heat-arrow--reduced {
+  .energy-to-heat-arrow__line { animation: none; }
+  .energy-to-heat-arrow__chevron { animation: none; top: 50%; }
+}
+
+/* ── Floating paired delta chips ──────────────────────────────────────── */
+.energy-to-heat-chip {
+  position: fixed; // left/top set inline from the cell rect
+  pointer-events: none;
+  // Float just above-right of the cell's top-right corner.
+  transform: translate(-2px, -100%);
+  z-index: 1;
+
+  .delta-chip {
+    // Slightly more luminous + larger than the resting stock chip, to read as a
+    // live "this is happening now" transition rather than a settled change.
+    transform: scale(1.12);
+    filter: drop-shadow(0 0 7px rgba(150, 200, 255, 0.5));
+  }
+}
+.energy-to-heat-chip--target .delta-chip {
+  filter: drop-shadow(0 0 8px rgba(255, 175, 120, 0.55));
+}
+
+.energy-conversion-chip-enter-active {
+  transition: opacity 200ms ease-out, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.energy-conversion-chip-leave-active {
+  transition: opacity 320ms ease-in, transform 320ms ease-in;
+}
+.energy-conversion-chip-enter-from {
+  opacity: 0;
+  transform: translate(-2px, -70%) scale(0.8);
+}
+.energy-conversion-chip-leave-to {
+  opacity: 0;
+  transform: translate(-2px, -130%) scale(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resource_item--conversion-source,
+  .resource_item--conversion-target {
+    animation: none;
+  }
+  .energy-to-heat-arrow__line,
+  .energy-to-heat-arrow__chevron,
+  .energy-to-heat-arrow__pulse {
+    animation: none;
+  }
+  .energy-conversion-layer-fade-enter-active,
+  .energy-conversion-layer-fade-leave-active,
+  .energy-conversion-chip-enter-active,
+  .energy-conversion-chip-leave-active {
+    transition-duration: 120ms;
+  }
+}
