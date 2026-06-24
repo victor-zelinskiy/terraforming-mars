@@ -98,6 +98,9 @@ export class AddResourcesToCard extends DeferredAction {
     }
 
     const qty = this.options.count ?? 1;
+    if (qty === 0) {
+      return undefined;
+    }
 
     // Apply instantly on a single match ONLY when the caller allows it
     // (default). The "add to ANY card" behavior passes autoSelect:false so the
