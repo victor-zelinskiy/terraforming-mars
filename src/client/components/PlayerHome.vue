@@ -1146,6 +1146,18 @@ export default defineComponent({
         }
       }
     },
+    // A РАЗЫГРАНО board pick became active from a modal that ISN'T hosted directly
+    // by PlayerHome (the Venus bonus modal — hosted via WaitingFor → ModalInputHost
+    // — picks a >3-candidate wild card-target on the board). Such a modal can't set
+    // `activeOverlay` itself, so open the board overlay here. Idempotent for the
+    // play / action-confirm modals (they call `enterPlayedCardsPick` AND set
+    // `activeOverlay='played'` explicitly → the guard makes this a no-op for them).
+    playedPickActive(active: boolean): void {
+      if (active && this.activeOverlay !== 'played') {
+        this.selectedPlayerColor = undefined; // own seat — the pick targets your tableau
+        this.activeOverlay = 'played';
+      }
+    },
     /*
      * Server-driven mandatory "select cards from your hand" prompt. When the
      * top-level waitingFor is a SelectCard whose candidates are all in the

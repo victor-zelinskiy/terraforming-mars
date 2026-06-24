@@ -79,10 +79,13 @@ function mockPlayer(color: string, name: string, corp: string, overrides: Record
 }
 const PLAYERS = [
   mockPlayer('red', 'Victor', 'Tharsis Republic', {energyProduction: 2, megacredits: 40,
-    // Two resource cards in the tableau so the Venus final-bonus "resource on a
-    // card" tab has real candidates to render (with the current→resulting + VP
-    // preview).
-    tableau: [{name: 'Tharsis Republic'}, {name: 'Tardigrades', resources: 4}, {name: 'Physics Complex', resources: 2}]}),
+    // Resource cards in the tableau so the Venus final-bonus "resource on a card"
+    // tab has real candidates (with the current→resulting + VP preview). Enough
+    // (> 3) to also exercise the board-pick hand-off scenario.
+    tableau: [{name: 'Tharsis Republic'},
+      {name: 'Tardigrades', resources: 4}, {name: 'Physics Complex', resources: 2},
+      {name: 'Birds', resources: 3}, {name: 'Ants', resources: 1},
+      {name: 'Fish', resources: 2}, {name: 'Decomposers', resources: 5}]}),
   mockPlayer('blue', 'Nastya', 'Ecoline', {energyProduction: 0, megacredits: 2, plants: 9}),
 ];
 
@@ -277,9 +280,15 @@ export default defineComponent({
             venusBonusPrompt: {kind: 'standard', baseCount: 3}},
         },
         {
-          label: 'Venus bonus — FINAL (base + wild: standard / on-card)',
+          label: 'Venus bonus — FINAL (base + wild: standard / on-card, ≤3 inline)',
           input: {type: 'or', title: 'Choose your wild resource bonus.', buttonLabel: '', options: [],
             venusBonusPrompt: {kind: 'final', baseCount: 1, wildCardTargets: ['Tardigrades', 'Physics Complex']}},
+        },
+        {
+          label: 'Venus bonus — FINAL, MANY card targets (board pick-mode)',
+          input: {type: 'or', title: 'Choose your wild resource bonus.', buttonLabel: '', options: [],
+            venusBonusPrompt: {kind: 'final', baseCount: 1,
+              wildCardTargets: ['Tardigrades', 'Physics Complex', 'Birds', 'Ants', 'Fish', 'Decomposers']}},
         },
         {
           label: 'Venus bonus — FINAL, NO card (on-card tab disabled, wild as standard)',
