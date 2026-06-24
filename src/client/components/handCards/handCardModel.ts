@@ -278,6 +278,13 @@ export type HandTypeChip = {
   active: boolean;
   /** Faceted count is 0 and the type isn't selected — render it muted. */
   muted: boolean;
+  /**
+   * Selected AND its faceted count is now 0 — the deliberate premium
+   * "filter on, no results left" state. The chip stays visible + clickable
+   * (so the player can always clear it) but renders ghosted. Distinct from
+   * `muted` (which is the unselected no-results state). See `buildTagChips`.
+   */
+  activeEmpty: boolean;
 };
 
 /**
@@ -285,10 +292,12 @@ export type HandTypeChip = {
  * tag chips: an unselected chip is neutral, a selected chip narrows the hand
  * to that type, and selecting one doesn't change the other chips' numbers
  * (the count keeps the availability + tag filters but EXCLUDES the type
- * dimension itself). A chip is rendered as long as the type exists ANYWHERE
- * in the hand (so the row never reflows); an unselected chip with a 0 faceted
- * count goes `muted`. Selected chips stay interactive at 0 so they can always
- * be cleared.
+ * dimension itself). A chip is rendered while the type exists ANYWHERE in the
+ * hand OR it's the active selection (so an active filter survives the last
+ * matching card leaving the hand — `visible = exists || active`); an
+ * unselected chip with a 0 faceted count goes `muted`, an active chip with a
+ * 0 faceted count goes `activeEmpty`. Selected chips stay interactive at 0 so
+ * they can always be cleared.
  */
 export function buildTypeChips(
   entries: ReadonlyArray<HandCardEntry>,
@@ -299,7 +308,7 @@ export function buildTypeChips(
   const activeTags = new Set(filter.activeTags);
   const base = entries.filter((e) => passAvailability(e, filter.availability, selectable) && passTags(e, activeTags));
   return HAND_TYPE_DEFS
-    .filter((def) => entries.some((e) => e.typeKey === def.key))
+    .filter((def) => entries.some((e) => e.typeKey === def.key) || active.has(def.key))
     .map((def) => {
       const count = base.filter((e) => e.typeKey === def.key).length;
       const isActive = active.has(def.key);
@@ -309,6 +318,7 @@ export function buildTypeChips(
         count,
         active: isActive,
         muted: count === 0 && !isActive,
+        activeEmpty: count === 0 && isActive,
       };
     });
 }
@@ -322,6 +332,15 @@ export type HandTagChip = {
   active: boolean;
   /** Faceted count is 0 and the tag isn't selected — render it muted. */
   muted: boolean;
+  /**
+   * Selected AND its faceted count is now 0 — the deliberate premium
+   * "filter on, no results left" state (the player narrowed to this tag and
+   * then played/removed the last matching card). The chip stays visible +
+   * clickable so the filter can be cleared directly; it renders ghosted to
+   * signal "no results", and clicking it clears the filter. Distinct from
+   * `muted`, which is the UNSELECTED no-results state.
+   */
+  activeEmpty: boolean;
 };
 
 // Tags worth offering as filters — printed gameplay tags. WILD / CLONE are
@@ -336,8 +355,13 @@ const FILTERABLE_TAGS: ReadonlyArray<Tag> = [
  * filters but EXCLUDES the tag dimension (the standard faceted rule for an
  * OR multi-select group), so each tag reads "how many cards carry it in the
  * current slice". A chip is rendered while the tag exists anywhere in the
- * hand; an unselected tag with a 0 faceted count is `muted`. Selected tags
- * stay interactive even at 0 so the player can always clear them.
+ * hand OR it's the active selection — so an active tag filter survives the
+ * last matching card leaving the hand (`visible = exists || active`, the
+ * premium "the filter stays directly clearable" rule). An unselected tag
+ * with a 0 faceted count is `muted`; an active tag with a 0 faceted count is
+ * `activeEmpty` (ghosted, still clickable). Selected tags stay interactive
+ * even at 0 so the player can always clear them. The chips keep the stable
+ * `FILTERABLE_TAGS` order, so an active-empty chip never jumps position.
  */
 export function buildTagChips(
   entries: ReadonlyArray<HandCardEntry>,
@@ -360,11 +384,11 @@ export function buildTagChips(
     }
   }
   return FILTERABLE_TAGS
-    .filter((tag) => (globalCounts.get(tag) ?? 0) > 0)
+    .filter((tag) => (globalCounts.get(tag) ?? 0) > 0 || active.has(tag))
     .map((tag) => {
       const count = facetCounts.get(tag) ?? 0;
       const isActive = active.has(tag);
-      return {tag, count, active: isActive, muted: count === 0 && !isActive};
+      return {tag, count, active: isActive, muted: count === 0 && !isActive, activeEmpty: count === 0 && isActive};
     });
 }
 

@@ -22,14 +22,17 @@
     <!-- Type chips (positive narrowing — select to keep only that type, same
          behaviour as the tag chips below). Faceted counts; an unselected type
          with no cards in the current slice goes muted instead of vanishing.
-         Selected types stay clickable at 0 so they can always be cleared. -->
-    <div class="hand-filters__chips">
+         An ACTIVE type whose result set has emptied stays visible + ghosted
+         (--active-empty) so the player can clear it directly. Selected types
+         stay clickable at 0 so they can always be cleared. The transition
+         group plays a short dissolve when a chip finally leaves the panel. -->
+    <transition-group tag="div" class="hand-filters__chips" name="hand-chip-pop">
       <button
         v-for="chip in typeChips"
         :key="chip.key"
         type="button"
         class="hand-filter-chip"
-        :class="['hand-filter-chip--' + chip.key, {'hand-filter-chip--selected': chip.active, 'hand-filter-chip--muted': chip.muted}]"
+        :class="['hand-filter-chip--' + chip.key, {'hand-filter-chip--selected': chip.active, 'hand-filter-chip--muted': chip.muted, 'hand-filter-chip--active-empty': chip.activeEmpty}]"
         :aria-pressed="chip.active"
         :aria-disabled="chip.muted ? 'true' : undefined"
         :aria-label="chip.muted ? mutedHint : undefined"
@@ -39,31 +42,33 @@
         <span class="hand-filter-chip__label" v-i18n>{{ chip.label }}</span>
         <span class="hand-filter-chip__count">{{ chip.count }}</span>
       </button>
-    </div>
+    </transition-group>
 
-    <template v-if="tagChips.length > 0">
-      <span class="hand-filters__divider" aria-hidden="true"></span>
-      <!-- Tag chips (positive narrowing — select to keep only matching).
-           Faceted counts; an unselected tag absent from the current slice
-           goes muted. Selected tags always stay clickable so they can be
-           cleared even at a 0 count. -->
-      <div class="hand-filters__tags">
-        <button
-          v-for="chip in tagChips"
-          :key="chip.tag"
-          type="button"
-          class="hand-tag-chip"
-          :class="{'hand-tag-chip--active': chip.active, 'hand-tag-chip--muted': chip.muted}"
-          :aria-pressed="chip.active"
-          :aria-disabled="chip.muted ? 'true' : undefined"
-          :aria-label="chip.muted ? chip.tag + ' — ' + mutedHint : chip.tag"
-          :data-hint="chip.muted ? mutedHint : null"
-          @click="onTag(chip)">
-          <span class="hand-tag-chip__icon card-tag" :class="'tag-' + chip.tag" aria-hidden="true"></span>
-          <span class="hand-tag-chip__count">{{ chip.count }}</span>
-        </button>
-      </div>
-    </template>
+    <span v-if="tagChips.length > 0" class="hand-filters__divider" aria-hidden="true"></span>
+    <!-- Tag chips (positive narrowing — select to keep only matching).
+         Faceted counts; an unselected tag absent from the current slice
+         goes muted. An ACTIVE tag whose result set has emptied (the last
+         matching card was played) stays visible + ghosted (--active-empty)
+         so it can be cleared directly. Selected tags always stay clickable
+         so they can be cleared even at a 0 count. The transition group is
+         kept mounted (the divider toggles, not the group) so a leaving chip
+         reliably plays its dissolve animation. -->
+    <transition-group tag="div" class="hand-filters__tags" name="hand-chip-pop">
+      <button
+        v-for="chip in tagChips"
+        :key="chip.tag"
+        type="button"
+        class="hand-tag-chip"
+        :class="{'hand-tag-chip--active': chip.active, 'hand-tag-chip--muted': chip.muted, 'hand-tag-chip--active-empty': chip.activeEmpty}"
+        :aria-pressed="chip.active"
+        :aria-disabled="chip.muted ? 'true' : undefined"
+        :aria-label="chip.muted ? chip.tag + ' — ' + mutedHint : chip.tag"
+        :data-hint="chip.muted ? mutedHint : null"
+        @click="onTag(chip)">
+        <span class="hand-tag-chip__icon card-tag" :class="'tag-' + chip.tag" aria-hidden="true"></span>
+        <span class="hand-tag-chip__count">{{ chip.count }}</span>
+      </button>
+    </transition-group>
 
     <!-- Sort dropdown (custom glass, no native select) + direction toggle. -->
     <div class="hand-filters__sort">
