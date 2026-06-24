@@ -75,7 +75,27 @@
         swallow :hover"). The click is a safe no-op for a non-candidate
         (`toggleHandSelectSelection` ignores names outside `selectable`).
       -->
-      <button v-if="saleMode"
+      <!--
+        Single-pick immediate mode (e.g. "discard exactly one card"): each
+        available card carries its OWN action button (labelled with the prompt
+        verb — «Сбросить») that submits this card right away, with no separate
+        top confirm step. A non-candidate card (filtered prompt) shows the same
+        button disabled with its reason. The label is pre-translated by the host.
+      -->
+      <button v-if="saleMode && immediateMode"
+              type="button"
+              class="hand-card-sell-btn hand-card-sell-btn--immediate"
+              :aria-disabled="selectDisabled"
+              @click.stop="onImmediateClick"
+              @mouseenter="selectDisabled && onReasonEnter('select')"
+              @mouseleave="selectDisabled && onReasonLeave()"
+              @focus="selectDisabled && onReasonEnter('select')"
+              @blur="selectDisabled && onReasonLeave()">
+        <span class="hand-card-sell-btn__glow" aria-hidden="true"></span>
+        <span class="hand-card-sell-btn__label">{{ immediateLabel }}</span>
+      </button>
+
+      <button v-else-if="saleMode"
               type="button"
               class="hand-card-sell-btn"
               :class="{'hand-card-sell-btn--selected': selected}"
@@ -240,6 +260,19 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    // Single-pick immediate mode (mandatory discard/reveal/keep of EXACTLY one
+    // card): show a per-card action button that submits this card immediately,
+    // instead of the select-then-confirm toggle.
+    immediateMode: {
+      type: Boolean,
+      default: false,
+    },
+    // The pre-translated verb shown on the immediate-action button (e.g.
+    // «Сбросить»). Only used when `immediateMode` is true.
+    immediateLabel: {
+      type: String,
+      default: '',
+    },
     // True while this sold card plays its exit (dissolve) animation, just
     // before the sale is submitted and it leaves the hand.
     dissolving: {
@@ -247,7 +280,7 @@ export default defineComponent({
       default: false,
     },
   },
-  emits: ['open', 'play', 'toggle-select'],
+  emits: ['open', 'play', 'toggle-select', 'immediate-select'],
   data() {
     return {
       showReason: false,
@@ -337,6 +370,15 @@ export default defineComponent({
         return;
       }
       this.$emit('toggle-select', this.entry.name);
+    },
+    // Immediate single-pick click — submit THIS card right away (no toggle, no
+    // top confirm). A no-op for a non-candidate card (the button is only
+    // aria-disabled so its hover/reason tooltip still works).
+    onImmediateClick(): void {
+      if (this.selectDisabled) {
+        return;
+      }
+      this.$emit('immediate-select', this.entry.name);
     },
     onReasonEnter(source: 'play' | 'select' = 'play'): void {
       this.reasonSource = source;

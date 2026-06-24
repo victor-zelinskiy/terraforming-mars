@@ -85,10 +85,17 @@
           <span class="hand-select-strip__glyph" aria-hidden="true"></span>
           <div class="hand-select-strip__text">
             <span class="hand-select-strip__title">{{ selectTitleText }}</span>
-            <span class="hand-select-strip__hint">{{ selectCounterLabel }}</span>
+            <!-- Single-pick immediate mode submits straight from each card's own
+                 button, so there is no running selection to count — the per-card
+                 action is the instruction. A multi-pick prompt keeps the
+                 "Выбрано N из M" counter. -->
+            <span v-if="!singleImmediateSelect" class="hand-select-strip__hint">{{ selectCounterLabel }}</span>
           </div>
         </div>
-        <div class="hand-select-strip__actions">
+        <!-- The top «confirm» button only exists for the select-then-confirm
+             (multi-card / optional) flow. In single-pick immediate mode the
+             per-card button IS the submit, so this is hidden. -->
+        <div v-if="!singleImmediateSelect" class="hand-select-strip__actions">
           <button
             type="button"
             class="hand-select-confirm-btn"
@@ -133,10 +140,13 @@
           :selected="isSelected(entry.name)"
           :selectDisabled="entrySelectDisabled(entry.name)"
           :selectReason="entrySelectReason(entry.name)"
+          :immediateMode="singleImmediateSelect"
+          :immediateLabel="immediateActionLabel"
           :dissolving="dissolving.includes(entry.name)"
           @open="openCard"
           @play="$emit('play', $event)"
-          @toggle-select="toggleSelect" />
+          @toggle-select="toggleSelect"
+          @immediate-select="immediateSelect" />
       </transition-group>
     </div>
 
@@ -149,8 +159,18 @@
                      @navigate="zoomCard = $event"
                      @close="zoomCard = undefined">
         <template #actions>
+          <!-- Single-pick immediate mode: the fullscreen button submits this
+               card right away (no toggle), mirroring the per-card grid button. -->
           <button
-            v-if="(saleActive || selectActive) && zoomCard !== undefined"
+            v-if="singleImmediateSelect && zoomCard !== undefined"
+            type="button"
+            class="card-zoom-actions__btn card-zoom-actions__btn--primary hand-zoom-sell"
+            :disabled="zoomCard !== undefined && entrySelectDisabled(zoomCard.name)"
+            @click="immediateSelectZoom">
+            {{ immediateActionLabel }}
+          </button>
+          <button
+            v-else-if="(saleActive || selectActive) && zoomCard !== undefined"
             type="button"
             class="card-zoom-actions__btn card-zoom-actions__btn--primary hand-zoom-sell"
             :class="{'hand-zoom-sell--selected': zoomSelected}"
@@ -225,6 +245,8 @@ import {
   toggleHandSelectSelection,
   isSelectedForHandSelect,
   isHandSelectable,
+  isSingleImmediateSelect,
+  selectSingleHandCard,
   handSelectReason,
 } from '@/client/components/handCards/handSelectState';
 import HandCardItem from '@/client/components/handCards/HandCardItem.vue';
@@ -467,6 +489,19 @@ export default defineComponent({
     selectCounterLabel(): string {
       return translateTextWithParams('Selected ${0} of ${1}', [String(this.selectSelectedCount), String(handSelectState.max)]);
     },
+    // The mandatory select prompt wants EXACTLY ONE card (e.g. "discard 1
+    // card"): drop the select-then-confirm two-step in favour of a per-card
+    // action button that submits immediately. A multi-card / optional / client
+    // pick keeps the toggle + top confirm.
+    singleImmediateSelect(): boolean {
+      return isSingleImmediateSelect();
+    },
+    // The pre-translated verb for the per-card immediate button (the prompt's
+    // own buttonLabel — «Сбросить» for discard, «Показать» for reveal, …),
+    // falling back to a generic «Выбрать».
+    immediateActionLabel(): string {
+      return handSelectState.buttonLabel !== '' ? translateText(handSelectState.buttonLabel) : translateText('Select');
+    },
   },
   watch: {
     // Decide BEFORE the grid re-renders whether the upcoming patch removes
@@ -580,6 +615,32 @@ export default defineComponent({
         return;
       }
       this.$emit('hand-select', [...handSelectState.selected]);
+    },
+    // Single-pick immediate submit (from a card's own action button). Bypasses
+    // the running selection + top confirm: the clicked card IS the answer. Valid
+    // in `singleImmediateSelect` mode (any exactly-one prompt — server discard /
+    // reveal / keep, OR a client pick such as Self-Replicating Robots linking).
+    // Setting the selection covers the client resolve path (which reads
+    // `handSelectState.selected`); the server path uses the emitted names. Both
+    // go through the same `hand-select` → PlayerHome.onHandSelect dispatch.
+    immediateSelect(name: CardName): void {
+      if (!this.singleImmediateSelect || !isHandSelectable(name)) {
+        return;
+      }
+      selectSingleHandCard(name);
+      this.$emit('hand-select', [name]);
+    },
+    // Same immediate submit, from the fullscreen viewer — close the viewer and
+    // submit this card.
+    immediateSelectZoom(): void {
+      const card = this.zoomCard;
+      if (card === undefined || !this.singleImmediateSelect || !isHandSelectable(card.name)) {
+        return;
+      }
+      (this.$refs as {zoomModal?: {close: () => void}}).zoomModal?.close();
+      this.zoomCard = undefined;
+      selectSingleHandCard(card.name);
+      this.$emit('hand-select', [card.name]);
     },
     // Toggle this card's sale / mandatory-select selection from the fullscreen
     // view and KEEP the fullscreen open. With in-viewer navigation the player
