@@ -99,6 +99,26 @@ describe('Predators', () => {
     expect(bioengineeringEnclosure.resourceCount).to.eq(1);
   });
 
+  // #8238/upstream 186b48f08: the owner CAN remove from their OWN Bioengineering
+  // Enclosure (its protection only stops *other* players), unlike Pets.
+  it('Can remove from own Bioengineering Enclosure', () => {
+    const bioengineeringEnclosure = new BioengineeringEnclosure();
+    player.playedCards.push(card, bioengineeringEnclosure);
+    player.addResourceTo(bioengineeringEnclosure, 2);
+
+    expect(card.canAct(player)).is.true;
+
+    card.action(player);
+    // Our fork always asks even with a single option: the enclosure is now offered.
+    const selectCard = cast(game.deferredActions.pop()!.execute(), SelectCard<ICard>);
+    expect(selectCard.cards).has.lengthOf(1);
+    selectCard.cb([bioengineeringEnclosure]);
+    game.deferredActions.pop()!.execute(); // Add animal to predators
+
+    expect(card.resourceCount).to.eq(1);
+    expect(bioengineeringEnclosure.resourceCount).to.eq(1);
+  });
+
   it('Respects protected habitats', () => {
     player.playedCards.push(card);
     const fish = new Fish();
