@@ -12,6 +12,7 @@ import {PartyHooks} from '../../turmoil/parties/PartyHooks';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {Card} from '../Card';
+import {LogHelper} from '../../LogHelper';
 import {globalParameter} from '../../inputs/optionMetadata';
 import {ActionPreview, ActionPreviewStep, ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {stepsForBehavior} from '../../models/actionPreview';
@@ -65,8 +66,10 @@ export class Atmoscoop extends Card implements IProjectCard {
 
     if (!this.temperatureIsMaxed(game) && this.venusIsMaxed(game)) {
       player.game.increaseTemperature(player, 2);
+      LogHelper.logTemperatureIncrease(player, 2);
     } else if (this.temperatureIsMaxed(game) && !this.venusIsMaxed(game)) {
       player.game.increaseVenusScaleLevel(player, 2);
+      LogHelper.logVenusIncrease(player, 2);
     } else {
       return this.buildParameterChoice(player);
     }
@@ -85,12 +88,14 @@ export class Atmoscoop extends Card implements IProjectCard {
       .withMetadata(globalParameter('temperature', 2, tempNow, Math.min(constants.MAX_TEMPERATURE, tempNow + 4), '°C'))
       .andThen(() => {
         game.increaseTemperature(player, 2);
+        LogHelper.logTemperatureIncrease(player, 2);
         return undefined;
       });
     const increaseVenus = new SelectOption('Raise Venus 2 steps', 'Raise Venus')
       .withMetadata(globalParameter('venus', 2, venusNow, Math.min(constants.MAX_VENUS_SCALE, venusNow + 4), '%'))
       .andThen(() => {
         game.increaseVenusScaleLevel(player, 2);
+        LogHelper.logVenusIncrease(player, 2);
         return undefined;
       });
     return new OrOptions(increaseTemp, increaseVenus)
