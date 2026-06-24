@@ -12,6 +12,8 @@ import {Resource} from '../../../common/Resource';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class NoctisCity extends Card implements IProjectCard {
   constructor() {
@@ -49,6 +51,23 @@ export class NoctisCity extends Card implements IProjectCard {
       return false;
     }
     return MarsBoard.hasEnergyCoverage(player, availableSpaces);
+  }
+
+  // The bespoke block is the city placement gated by energy coverage — neither is
+  // declarative, so name the precise blocker (no space, or no energy production).
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    const board = player.game.board;
+    if (board.noctisCitySpaceId !== undefined) {
+      return player.production.energy >= 1 ? undefined : reason.noEnergyProduction();
+    }
+    const spaces = board.getAvailableSpacesForCity(player);
+    if (spaces.length === 0) {
+      return reason.placementReason('No space available for the tile');
+    }
+    if (!MarsBoard.hasEnergyCoverage(player, spaces)) {
+      return reason.noEnergyProduction();
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

@@ -11,6 +11,8 @@ import {all, digit} from '../Options';
 import {IProjectCard} from '../IProjectCard';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class SponsoredAcademies extends Card implements IProjectCard {
   constructor() {
@@ -34,6 +36,14 @@ export class SponsoredAcademies extends Card implements IProjectCard {
   }
   public override bespokeCanPlay(player: IPlayer): boolean {
     return player.cardsInHand.length >= 2;
+  }
+
+  // Needs a second card (besides this one) to discard before drawing 3.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.cardsInHand.length < 2) {
+      return reason.ruleReason('No card in hand to discard');
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

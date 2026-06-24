@@ -125,6 +125,34 @@ describe('NewHolland', () => {
     expect(player.getVictoryPoints().city).eq(1);
   });
 
+  it('Illegal reasons: an ocean next to a city reports adjacent-to-city, not occupied', () => {
+    addCity(player);
+    addCity(player);
+    addCity(player);
+    addCity(player);
+
+    const oceanSpaces = game.board.getAvailableSpacesForOcean(player);
+    const [nextToCity, notNextToCity] = partition(oceanSpaces, (space) => {
+      return game.board.getAdjacentSpaces(space).filter((s) => Board.isCitySpace(s)).length > 0;
+    });
+    const cityAdjacentOcean = addOcean(player, nextToCity[0].id);
+    addOcean(player, notNextToCity[0].id); // a legal New Holland target
+
+    const legal = game.board.getAvailableSpacesForType(player, 'upgradeable-ocean-new-holland');
+    const illegal = game.board.computeIllegalReasons(player, 'upgradeable-ocean-new-holland', legal);
+
+    // The ocean next to a city is blocked by the city adjacency rule — NOT because
+    // the cell "already has a tile" (it must have an ocean tile to be a target).
+    const cityAdjacentEntry = illegal.find((e) => e.spaceId === cityAdjacentOcean.id);
+    expect(cityAdjacentEntry?.reason, 'next-to-city ocean should be adjacent-to-city').to.eq('adjacent-to-city');
+    expect(illegal.some((e) => e.spaceId === cityAdjacentOcean.id && e.reason === 'occupied')).is.false;
+
+    // A bare ocean reserve (no placed ocean tile) needs an ocean to upgrade.
+    const emptyOcean = game.board.getSpaces(SpaceType.OCEAN).find((s) => s.tile === undefined);
+    const emptyEntry = illegal.find((e) => e.spaceId === emptyOcean!.id);
+    expect(emptyEntry?.reason, 'empty ocean reserve should require an ocean tile').to.eq('requires-ocean-tile');
+  });
+
   it('Placing New Holland does not grant underlying space bonus', () => {
     const oceanSpace = game.board.spaces.filter((space) => {
       return space.bonus.length === 1 && space.bonus[0] === SpaceBonus.PLANT && space.spaceType === SpaceType.OCEAN;

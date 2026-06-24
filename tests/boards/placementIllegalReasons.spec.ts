@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
+import {addCity} from '../TestingUtils';
 import {BoardName} from '../../src/common/boards/BoardName';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {SpaceType} from '../../src/common/boards/SpaceType';
@@ -44,5 +45,17 @@ describe('placement illegal reasons', () => {
     // Placing an OCEAN: land cells say "oceans only go on ocean spaces".
     const oceanIllegal = game.board.computeIllegalReasons(player, 'ocean', game.board.getAvailableSpacesForOcean(player));
     expect(oceanIllegal.some((e) => e.reason === 'needs-ocean-space'), 'ocean on land → needs-ocean-space').is.true;
+  });
+
+  it('away-from-cities: a cell adjacent to a city reports adjacent-to-city (not generic unavailable)', () => {
+    const [game, player] = testGame(2);
+    const city = addCity(player);
+    const legal = game.board.getSpacesAwayFromCities(player);
+    const illegal = game.board.computeIllegalReasons(player, 'away-from-cities', legal);
+
+    const adjacentLand = game.board.getAdjacentSpaces(city)
+      .find((s) => s.tile === undefined && s.spaceType === SpaceType.LAND);
+    const entry = illegal.find((e) => e.spaceId === adjacentLand!.id);
+    expect(entry?.reason).to.eq('adjacent-to-city');
   });
 });

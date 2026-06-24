@@ -14,6 +14,8 @@ import {Board} from '../../boards/Board';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {MarsBoard} from '../../boards/MarsBoard';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class ImmigrantCity extends Card implements IProjectCard {
   constructor() {
@@ -43,6 +45,23 @@ export class ImmigrantCity extends Card implements IProjectCard {
     const canDecreaseMcProduction = player.production.megacredits >= -4 || player.tableau.has(CardName.THARSIS_REPUBLIC);
 
     return hasEnergyProduction && canDecreaseMcProduction && canPlaceCityOnMars;
+  }
+
+  // None of the three blocks are declarative `behavior`, so name the precise one:
+  // no city space, no energy production to cover the −1, or M€ production already
+  // at the −5 floor (waived by Tharsis Republic).
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    const spaces = player.game.board.getAvailableSpacesForCity(player);
+    if (spaces.length === 0) {
+      return reason.placementReason('No space available for the tile');
+    }
+    if (!MarsBoard.hasEnergyCoverage(player, spaces)) {
+      return reason.noEnergyProduction();
+    }
+    if (player.production.megacredits < -4 && !player.tableau.has(CardName.THARSIS_REPUBLIC)) {
+      return reason.cannotReduceMcProduction();
+    }
+    return undefined;
   }
 
   public onTilePlaced(cardOwner: IPlayer, activePlayer: IPlayer, space: Space) {

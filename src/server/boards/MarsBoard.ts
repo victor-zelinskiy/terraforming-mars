@@ -381,6 +381,30 @@ export class MarsBoard extends Board {
     placementType: PlacementType | undefined,
     space: Space,
     canAffordOptions?: CanAffordOptions): PlacementIllegalReason {
+    // Upgradeable-ocean placements (Ocean City / Ocean Farm / Ocean Sanctuary /
+    // New Venice, and New Holland) go ON TOP of an already-placed ocean tile, so
+    // a placed ocean tile is REQUIRED — it is NOT a blocker. Classify these BEFORE
+    // the generic "has a tile → occupied" check, otherwise a perfectly valid base
+    // ocean that's merely off-limits for ANOTHER reason (New Holland next to a
+    // city) would wrongly read as "already occupied".
+    if (placementType === 'upgradeable-ocean' || placementType === 'upgradeable-ocean-new-holland') {
+      // No ocean tile to build on: an empty ocean reserve, or a land / colony cell.
+      if (space.tile === undefined || !Board.isOceanSpace(space)) {
+        return 'requires-ocean-tile';
+      }
+      // The cell already carries an upgraded / special ocean tile (Ocean City,
+      // New Holland, Wetlands, …) — only a plain ocean tile can be upgraded.
+      if (space.tile.tileType !== TileType.OCEAN) {
+        return 'occupied';
+      }
+      // New Holland additionally follows normal city placement restrictions:
+      // it cannot be adjacent to a city.
+      if (placementType === 'upgradeable-ocean-new-holland' &&
+          this.getAdjacentSpaces(space).some((adj) => Board.isCitySpace(adj))) {
+        return 'adjacent-to-city';
+      }
+      return 'unavailable';
+    }
     // Already-placed tiles (special-case Ares protected hazards first).
     if (space.tile !== undefined) {
       if (AresHandler.hasHazardTile(space) && space.tile.protectedHazard === true) {
@@ -440,7 +464,9 @@ export class MarsBoard extends Board {
       return 'cannot-afford';
     }
 
-    if (placementType === 'city') {
+    if (placementType === 'city' || placementType === 'away-from-cities') {
+      // A city can't sit next to a city; an 'away-from-cities' tile (Deimos Down)
+      // likewise can't be adjacent to one.
       if (this.getAdjacentSpaces(space).some((adj) => Board.isCitySpace(adj))) {
         return 'adjacent-to-city';
       }

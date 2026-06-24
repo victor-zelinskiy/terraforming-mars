@@ -7,6 +7,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Board} from '../../boards/Board';
 import {nextTo} from '../Options';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class AqueductSystems extends Card implements IProjectCard {
   constructor() {
@@ -42,5 +44,19 @@ export class AqueductSystems extends Card implements IProjectCard {
         return Board.isCitySpace(space) && space.player === player;
       });
     });
+  }
+
+  // The city/ocean requirements are auto-explained, but the bespoke nuance is that
+  // the city must be YOURS (an opponent's city next to an ocean satisfies the
+  // requirement yet still can't be played). Only surface it when a city of yours
+  // and an ocean both exist, so the generic requirement reasons aren't duplicated.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    const board = player.game.board;
+    const ownsCity = board.getCities(player).length > 0;
+    const hasOcean = board.getOceanSpaces({upgradedOceans: true, wetlands: true}).length > 0;
+    if (ownsCity && hasOcean && !this.bespokeCanPlay(player)) {
+      return reason.targetReason('No city of yours next to an ocean');
+    }
+    return undefined;
   }
 }

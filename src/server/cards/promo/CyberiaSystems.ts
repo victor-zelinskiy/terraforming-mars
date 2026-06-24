@@ -9,6 +9,7 @@ import {ICard} from '../ICard';
 import {Priority} from '../../deferredActions/Priority';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 
 export class CyberiaSystems extends RoboticWorkforceBase {
   constructor() {
@@ -48,6 +49,15 @@ export class CyberiaSystems extends RoboticWorkforceBase {
 
   protected override getPlayableBuildingCards(player: IPlayer, canAfford: boolean = true): ReadonlyArray<ICard> {
     return super.getPlayableBuildingCards(player, canAfford).filter((c) => c.name !== CardName.CYBERIA_SYSTEMS);
+  }
+
+  // Override the base hook: Cyberia copies TWO building cards, so the base "no
+  // card to copy" (length === 0) message is wrong when exactly one exists.
+  public override unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.getPlayableBuildingCards(player, false).length < 2 || this.getPlayableBuildingCards(player, true).length < 1) {
+      return {type: 'target', message: 'Requires two played cards with the building symbol to copy production from', tag: Tag.BUILDING};
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

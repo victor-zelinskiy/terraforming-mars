@@ -7,6 +7,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class LandClaim extends Card implements IProjectCard {
   constructor() {
@@ -25,6 +27,13 @@ export class LandClaim extends Card implements IProjectCard {
   }
   public override bespokeCanPlay(player: IPlayer): boolean {
     return player.game.board.getNonReservedLandSpaces().length > 0;
+  }
+
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.game.board.getNonReservedLandSpaces().length === 0) {
+      return reason.placementReason('No space available for the tile');
+    }
+    return undefined;
   }
   public override bespokePlay(player: IPlayer) {
     // Land Claim marks any non-reserved land. Off-limits cells get their

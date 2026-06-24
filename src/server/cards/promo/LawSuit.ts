@@ -12,6 +12,8 @@ import {any} from '../render/DynamicVictoryPoints';
 import {all} from '../Options';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class LawSuit extends Card implements IProjectCard {
   constructor() {
@@ -39,6 +41,13 @@ export class LawSuit extends Card implements IProjectCard {
 
   public override bespokeCanPlay(player: IPlayer) {
     return this.targets(player).length > 0;
+  }
+
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.targets(player).length === 0) {
+      return reason.targetReason('No player removed your resources or reduced your production this generation');
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

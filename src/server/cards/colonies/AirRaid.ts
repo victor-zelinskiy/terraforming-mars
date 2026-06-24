@@ -12,6 +12,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class AirRaid extends Card implements IProjectCard {
   constructor() {
@@ -39,6 +41,17 @@ export class AirRaid extends Card implements IProjectCard {
       return true;
     }
     return StealResources.getCandidates(player, Resource.MEGACREDITS, 5, true).length > 0;
+  }
+
+  // Two bespoke blocks: a floater to lose, then (non-solo) a player to steal from.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.getResourceCount(CardResource.FLOATER) === 0) {
+      return reason.notEnoughFloaters();
+    }
+    if (!player.game.isSoloMode() && StealResources.getCandidates(player, Resource.MEGACREDITS, 5, true).length === 0) {
+      return reason.targetReason('No player to steal M€ from');
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

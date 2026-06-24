@@ -8,6 +8,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {TileType} from '../../../common/TileType';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {Board} from '../../boards/Board';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class KaguyaTech extends Card implements IProjectCard {
   constructor() {
@@ -48,6 +50,15 @@ export class KaguyaTech extends Card implements IProjectCard {
       this.warnings.add('kaguyaTech');
     }
     return availableSpaces.length > 0;
+  }
+
+  // The card converts one of YOUR OWN greenery tiles into a city; with no such
+  // (affordable) greenery there's nothing to convert — name it precisely.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.availableSpaces(player).length === 0) {
+      return reason.targetReason('No greenery tile of yours to convert into a city');
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

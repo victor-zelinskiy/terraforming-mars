@@ -7,6 +7,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {PlaceCityTile} from '../../deferredActions/PlaceCityTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {Space} from '../../boards/Space';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class LavaTubeSettlement extends Card implements IProjectCard {
   constructor() {
@@ -42,6 +44,17 @@ export class LavaTubeSettlement extends Card implements IProjectCard {
 
   public override bespokeCanPlay(player: IPlayer): boolean {
     return this.getSpacesForCity(player).length > 0 && player.production.energy >= 1;
+  }
+
+  // The −1 energy production block is auto-explained (declarative behavior). The
+  // bespoke volcanic-city placement isn't — name it (falls back to the normal city
+  // message on boards with no volcanic spaces).
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.getSpacesForCity(player).length === 0) {
+      const volcanicMode = player.game.board.volcanicSpaceIds.length > 0;
+      return reason.placementReason(volcanicMode ? 'No volcanic area available for the city' : 'No space available for the tile');
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {

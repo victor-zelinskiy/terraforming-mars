@@ -11,6 +11,8 @@ import {Space} from '../../boards/Space';
 import {PlaceTile} from '../../deferredActions/PlaceTile';
 import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {message} from '../../logs/MessageBuilder';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as reason from '../actionReasons';
 
 export class GreatDamPromo extends Card implements IProjectCard {
   constructor(
@@ -42,6 +44,15 @@ export class GreatDamPromo extends Card implements IProjectCard {
   }
   public override bespokeCanPlay(player: IPlayer, canAffordOptions: CanAffordOptions): boolean {
     return this.getAvailableSpaces(player, canAffordOptions).length > 0;
+  }
+
+  // The oceans requirement is auto-explained, but the bespoke tile placement
+  // (a land cell adjacent to an ocean) isn't — name it.
+  public unplayableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.getAvailableSpaces(player).length === 0) {
+      return reason.placementReason('No space adjacent to an ocean to place the tile');
+    }
+    return undefined;
   }
 
   public override bespokePlay(player: IPlayer) {
