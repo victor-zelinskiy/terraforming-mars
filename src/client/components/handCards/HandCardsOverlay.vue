@@ -124,7 +124,7 @@
       @sort-dir="setSortDir" />
 
     <div ref="body" class="hand-board__body">
-      <HandCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" :saleMode="saleActive" />
+      <HandCardsEmptyState v-if="emptyReason !== undefined" :reason="emptyReason" :saleMode="saleActive" @reset="resetFilters" />
       <transition-group
         v-else
         appear
@@ -217,6 +217,7 @@ import {
   buildTagChips,
   buildTypeChips,
   countPlayable,
+  DEFAULT_HAND_FILTER,
   filterHandEntries,
   HandCardEntry,
   HandFilterState,
@@ -561,6 +562,16 @@ export default defineComponent({
     },
     setSortDir(dir: HandSortDir): void {
       this.filter.sortDir = dir;
+    },
+    // Clear every NARROWING dimension (availability / type / tag) back to the
+    // default — invoked from the in-cards empty-state when the active filters
+    // produced an empty list. Sort/direction are deliberately preserved (they
+    // don't hide cards, and resetting them would reshuffle the returning list
+    // unexpectedly). The card grid returns via the normal reflow animation.
+    resetFilters(): void {
+      this.filter.availability = DEFAULT_HAND_FILTER.availability;
+      this.filter.activeTypes = [];
+      this.filter.activeTags = [];
     },
     // ── Sell-patents sale mode ──────────────────────────────────────────
     isSelected(name: CardName): boolean {

@@ -70,6 +70,62 @@
     to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+/* Premium "filter is on, but no results left" treatment for an ACTIVE chip
+   whose faceted count has dropped to 0 (shared by type + tag chips). Unlike
+   `.muted-chip()` (the UNSELECTED dead-end), this KEEPS the cyan selected
+   rim/glow — so it still reads as the active selection — but ghosts the fill
+   + count and adds a faint diagonal scanline so "no results" is unmistakable.
+   It stays fully interactive: a single click clears the filter. The cyan rim
+   is reasserted (the chips' --selected/--active rules above set it, but this
+   mixin is applied alongside them and must not lose the outline). */
+.active-empty-chip() {
+    opacity: 0.62;
+    filter: saturate(0.7);
+    /* Re-state the selected outline so the active state is never lost. */
+    border-color: fade(@hc-cyan, 55%);
+    background:
+        repeating-linear-gradient(135deg,
+            transparent 0, transparent 5px,
+            fade(@hc-cyan, 7%) 5px, fade(@hc-cyan, 7%) 7px),
+        rgba(106, 176, 230, 0.08);
+    box-shadow: 0 0 0 1px fade(@hc-cyan, 32%), inset 0 0 10px fade(@hc-cyan, 8%);
+    cursor: pointer;
+
+    &:hover {
+        opacity: 0.82;
+        transform: translateY(-1px);
+        border-color: fade(@hc-cyan, 70%);
+        box-shadow: 0 0 0 1px fade(@hc-cyan, 45%), 0 0 10px fade(@hc-cyan, 28%);
+    }
+
+    .hand-filter-chip__count,
+    .hand-tag-chip__count { color: @hc-text-muted; }
+}
+
+/* ── Filter-chip dissolve (active-empty → cleared) ─────────────────────
+   When the player clears an active chip and it has no cards left, it leaves
+   the panel. Instead of vanishing, it plays a short premium dissolve (scale
+   down + fade + a brief cyan scanline flash); the remaining chips reflow into
+   the gap via -move. Fast + elegant (~210ms), driven entirely by the chip's
+   transition-group keying, so rapid filter toggling can never corrupt state
+   (the reactive filter is the source of truth — these classes are visual). */
+.hand-chip-pop-move { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+.hand-chip-pop-enter-active { transition: opacity 180ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1); }
+.hand-chip-pop-enter-from { opacity: 0; transform: scale(0.85) translateY(-2px); }
+.hand-chip-pop-leave-active {
+    /* Out of flow so the row collapses (the "schлопывание" the spec asks for)
+       while the chip dissolves in place; stays at its static position. */
+    position: absolute;
+    pointer-events: none;
+    z-index: 1;
+    animation: hand-chip-dissolve 210ms cubic-bezier(0.4, 0, 0.9, 1) forwards;
+}
+@keyframes hand-chip-dissolve {
+    0%   { opacity: 1; transform: scale(1); filter: brightness(1); }
+    45%  { opacity: 0.7; transform: scale(0.94); filter: brightness(1.45) drop-shadow(0 0 6px fade(@hc-cyan, 55%)); }
+    100% { opacity: 0; transform: scale(0.6); filter: brightness(1); }
+}
+
 /* ── Overlay frame ────────────────────────────────────────────────── */
 
 .hand-board-overlay {
@@ -320,7 +376,16 @@
     display: inline-flex;
     flex-wrap: wrap;
     gap: 7px;
+    /* Containing block for a leaving chip (which goes position:absolute during
+       its dissolve so the remaining chips reflow into the gap via -move). */
+    position: relative;
 }
+/* Collapse the (always-mounted) group only once it has truly emptied — during
+   a chip's leave it still holds the leaving node, so :empty matches AFTER the
+   dissolve, never cutting it short. Keeps the group mounted for reliable leave
+   animation without leaving a stray flex gap behind. */
+.hand-filters__chips:empty,
+.hand-filters__tags:empty { display: none; }
 
 /* Type chips (positive narrowing — same model + visual language as the tag
    chips: neutral at rest, cyan highlight when selected, muted at 0-count). */
@@ -374,6 +439,13 @@
     /* Faceted count 0 and not selected — render muted (selected chips stay
        bright + clickable so they can always be cleared). */
     &--muted { .muted-chip(); }
+
+    /* Active filter, but the result set has emptied (the player narrowed to
+       this type and then played the last matching card). The deliberate
+       premium "filter on, no results left" state: it KEEPS the cyan selected
+       rim/glow (so it still reads as active) but ghosts the fill + count, and
+       stays fully clickable so a single click clears it. NOT disabled, no ×. */
+    &--active-empty { .active-empty-chip(); }
 }
 
 /* Tag chips (positive narrowing) */
@@ -418,6 +490,11 @@
     /* Faceted count 0 and not selected — render muted (selected tags stay
        bright + clickable so they can always be cleared). */
     &--muted { .muted-chip(); }
+
+    /* Active filter whose result set has emptied — see .hand-filter-chip's
+       --active-empty above. Keeps the cyan selected look, ghosts the rest,
+       stays clickable to clear directly. */
+    &--active-empty { .active-empty-chip(); }
 }
 
 /* Sort dropdown (custom glass) */
@@ -1066,6 +1143,12 @@
     gap: 14px;
     color: @hc-text-muted;
 }
+/* Filtered empty-state is compact (it carries the reset action and sits over
+   the cards area, so it must not feel like a full takeover). */
+.hand-board__empty--filtered {
+    padding: 34px 22px;
+    gap: 12px;
+}
 .hand-board__empty-glyph {
     width: 46px;
     height: 46px;
@@ -1073,11 +1156,45 @@
     border: 1px dashed rgba(106, 176, 230, 0.35);
     background: rgba(20, 32, 48, 0.4);
 }
+.hand-board__empty--filtered .hand-board__empty-glyph { width: 38px; height: 38px; }
 .hand-board__empty-text {
     font-family: Prototype, Orbitron, sans-serif;
     font-size: 13px;
     letter-spacing: 1px;
     text-transform: uppercase;
+}
+/* In-place "reset filters" — calm cyan glass, the only affordance the player
+   needs when the active filters emptied the list (no permanent top-bar reset
+   button, per spec). */
+.hand-board__empty-reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px 7px 11px;
+    border-radius: 999px;
+    border: 1px solid fade(@hc-cyan, 42%);
+    background: rgba(106, 176, 230, 0.12);
+    color: @hc-text;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 140ms, border-color 140ms, box-shadow 140ms, transform 120ms;
+
+    &:hover {
+        background: rgba(106, 176, 230, 0.2);
+        border-color: fade(@hc-cyan, 70%);
+        box-shadow: 0 0 0 1px fade(@hc-cyan, 35%), 0 0 12px fade(@hc-cyan, 28%);
+        transform: translateY(-1px);
+    }
+    &:active { transform: translateY(0); }
+}
+.hand-board__empty-reset-glyph {
+    font-size: 13px;
+    line-height: 1;
+    color: @hc-cyan;
 }
 
 /* ── Initial open: staggered rise (appear only) ────────────────────── */
@@ -1771,12 +1888,17 @@
     .hand-card-item--sale-selected .hand-card-item__card::after,
     .hand-card-item--sale-selected .hand-card-item__card::before,
     .hand-card-item--sale-selected .hand-card-item__action::before,
+    .hand-chip-pop-leave-active,
     .hand-card-item--dissolving { animation: none; }
     .hand-card-item__card,
     .hand-card-play-btn,
     .hand-card-sell-btn,
     .hand-sale-confirm-btn,
     .hand-tag-chip,
+    .hand-filter-chip,
+    .hand-board__empty-reset,
+    .hand-chip-pop-move,
+    .hand-chip-pop-enter-active,
     .hand-card-pop-appear-active,
     .hand-card-pop-move,
     .hand-card-pop-enter-active,
