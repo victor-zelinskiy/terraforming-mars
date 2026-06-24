@@ -1,5 +1,6 @@
 import {IPlayer} from '../IPlayer';
 import {ICard} from './ICard';
+import {Message} from '../../common/logs/Message';
 import {OrOptions} from '../inputs/OrOptions';
 import {SelectOption} from '../inputs/SelectOption';
 import {PlayerInput} from '../PlayerInput';
@@ -9,7 +10,14 @@ import {Priority} from '../deferredActions/Priority';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {ActionPreview, ActionEffect} from '../../common/models/ActionPreviewModel';
 import {effectsForBehavior, stepsForBehavior} from '../models/actionPreview';
+import {effectChoice} from '../inputs/choiceContext';
+import {chip, optionResult} from '../inputs/optionMetadata';
 import * as actionPreviews from './actionPreviews';
+
+/** Icon key for a card resource (lowercase, spaces→hyphens — `iconClassFor`). */
+function cardResourceIcon(resource: CardResource): string {
+  return String(resource).toLowerCase().replace(/ /g, '-');
+}
 
 /*
  * Shared, DRIFT-FREE builder for the on-play "gain <fallback resource> OR add
@@ -83,27 +91,44 @@ export function hasAddTarget(player: IPlayer, adds: ReadonlyArray<AddSpec>): boo
  * preview. The CALLER defers/returns it (Imported Hydrogen / Large Convoy defer it
  * at `PLAY_CARD_RESOURCE_CHOICE`; Local Heat Trapping returns it through spendHeat).
  */
-export function gainOrAddResourceChoice(player: IPlayer, gain: GainSpec, adds: ReadonlyArray<AddSpec>): OrOptions {
+export function gainOrAddResourceChoice(
+  player: IPlayer,
+  card: ICard,
+  gain: GainSpec,
+  adds: ReadonlyArray<AddSpec>,
+  opts: {trigger?: string | Message} = {},
+): OrOptions {
   const options: Array<PlayerInput> = [];
-  options.push(new SelectOption(gainTitle(gain.resource), gainTitle(gain.resource)).andThen(() => {
-    player.stock.add(gain.resource, gain.amount, {log: true});
-    return undefined;
-  }));
+  options.push(new SelectOption(gainTitle(gain.resource), gainTitle(gain.resource))
+    .withMetadata(optionResult({effects: [chip('gain', gain.resource, gain.amount)]}))
+    .andThen(() => {
+      player.stock.add(gain.resource, gain.amount, {log: true});
+      return undefined;
+    }));
   for (const add of adds) {
     if (player.getResourceCards(add.resource).length === 0) {
       continue;
     }
-    options.push(new SelectOption(addTitle(add.resource), addLabel(add.resource)).andThen(() => {
-      // Defer the target pick AT the play-choice priority (ahead of any tile the
-      // card queues) — overriding AddResourcesToCard's default GAIN priority, which
-      // would otherwise land AFTER the ocean and break the modal's batched pick.
-      const action = new AddResourcesToCard(player, add.resource, {count: add.amount, autoSelect: false, log: true});
-      action.priority = Priority.PLAY_CARD_RESOURCE_CHOICE;
-      player.game.defer(action);
-      return undefined;
-    }));
+    options.push(new SelectOption(addTitle(add.resource), addLabel(add.resource))
+      .withMetadata(optionResult({effects: [chip('gain', cardResourceIcon(add.resource), add.amount, {note: 'to a card'})]}))
+      .andThen(() => {
+        // Defer the target pick AT the play-choice priority (ahead of any tile the
+        // card queues) — overriding AddResourcesToCard's default GAIN priority, which
+        // would otherwise land AFTER the ocean and break the modal's batched pick.
+        const action = new AddResourcesToCard(player, add.resource, {count: add.amount, autoSelect: false, log: true});
+        action.priority = Priority.PLAY_CARD_RESOURCE_CHOICE;
+        player.game.defer(action);
+        return undefined;
+      }));
   }
-  return new OrOptions(...options);
+  // Mark the LIVE choice as a contextual effect-choice so, when it rides the
+  // follow-up (e.g. Local Heat Trapping with Stormcraft inserts a heat-source
+  // prompt first → the batch can't pre-collect it), it renders as the PREMIUM
+  // ContextualChoiceContent modal (source card + per-option result chips) instead
+  // of the bare ModernOptionPicker "choose an option" list. When the play modal
+  // DOES pre-collect it (the common case), the batch consumes it and this marker
+  // is never rendered — so it's harmless either way.
+  return new OrOptions(...options).markChoiceContext(effectChoice(card, opts.trigger));
 }
 
 /**

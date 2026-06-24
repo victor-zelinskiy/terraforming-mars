@@ -2627,7 +2627,7 @@ export default defineComponent({
       this.pendingCardAction = {cardName: payload.cardName, card, nodeIndex: payload.nodeIndex ?? 0};
       this.activeOverlay = null; // close the overlay behind the modal
     },
-    onCardActionConfirm(payload: {branchIndex: number, optionResponse?: unknown, stepResponses: ReadonlyArray<unknown>, reveal?: ActionRevealDescriptor}): void {
+    onCardActionConfirm(payload: {preStepResponses?: ReadonlyArray<unknown>, branchIndex: number, optionResponse?: unknown, stepResponses: ReadonlyArray<unknown>, reveal?: ActionRevealDescriptor}): void {
       if (this.pendingCardAction === undefined) {
         return;
       }
@@ -2638,14 +2638,15 @@ export default defineComponent({
       if (payload.reveal !== undefined) {
         beginReveal(cardName, payload.reveal);
       }
+      const preStepResponses = payload.preStepResponses ?? [];
       // A REPEATED action (ProjectInspection / Viron): submit the outer prefix
       // ([play/activate, {card:[X]}]) + X's own responses as ONE batch, instead of
       // the action-menu-rooted batch. Strictly gated on `repeatPrefix`.
       const repeatPrefix = this.pendingCardAction.repeatPrefix;
       if (repeatPrefix !== undefined) {
-        this.submitRepeatActionBatch(repeatPrefix, payload.branchIndex, payload.optionResponse, payload.stepResponses);
+        this.submitRepeatActionBatch(repeatPrefix, preStepResponses, payload.branchIndex, payload.optionResponse, payload.stepResponses);
       } else {
-        this.submitCardActionBatch(cardName, payload.branchIndex, payload.optionResponse, payload.stepResponses);
+        this.submitCardActionBatch(cardName, preStepResponses, payload.branchIndex, payload.optionResponse, payload.stepResponses);
       }
       this.pendingCardAction = undefined;
       this.repeatOuter = undefined;
@@ -2779,11 +2780,14 @@ export default defineComponent({
       this.pendingCardAction = {cardName: chosenCard, card, nodeIndex, repeatPrefix: prefix};
     },
     // Submit a REPEATED action: the outer prefix + X's own responses, in one batch.
-    submitRepeatActionBatch(prefix: ReadonlyArray<unknown>, branchIndex: number, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>): void {
+    submitRepeatActionBatch(prefix: ReadonlyArray<unknown>, preStepResponses: ReadonlyArray<unknown>, branchIndex: number, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
       const responses: Array<unknown> = [...prefix];
+      for (const r of preStepResponses) {
+        responses.push(r);
+      }
       if (branchIndex >= 0) {
         responses.push({type: 'or' as const, index: branchIndex, response: optionResponse ?? {type: 'option' as const}});
       } else if (optionResponse !== undefined) {
@@ -2853,7 +2857,7 @@ export default defineComponent({
     //       option is a SelectOption → `{type:'option'}`.
     //   [2..] each branch step's response (target/card/amount/…) that arrives as
     //       a SEPARATE follow-up prompt, collected in the confirmation modal.
-    submitCardActionBatch(cardName: CardName, branchIndex: number, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>): void {
+    submitCardActionBatch(cardName: CardName, preStepResponses: ReadonlyArray<unknown>, branchIndex: number, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
@@ -2867,6 +2871,11 @@ export default defineComponent({
         pick = {type: 'or' as const, index: action.path[i], response: pick};
       }
       const responses: Array<unknown> = [pick];
+      // PRE-branch responses (the Stormcraft heat-source payment) replay BEFORE the
+      // branch — the live action fires them before the effect resolves.
+      for (const r of preStepResponses) {
+        responses.push(r);
+      }
       if (branchIndex >= 0) {
         const branchResponse = optionResponse ?? {type: 'option' as const};
         responses.push({type: 'or' as const, index: branchIndex, response: branchResponse});
@@ -3807,6 +3816,11 @@ export default defineComponent({
         play = {type: 'or' as const, index: action.path[i], response: play};
       }
       const responses: Array<unknown> = [play];
+      // PRE-branch responses (the Stormcraft heat-source payment) replay BEFORE the
+      // branch — the live flow fires them between the play and the effect's choice.
+      for (const r of payload.preStepResponses) {
+        responses.push(r);
+      }
       if (payload.branchIndex >= 0) {
         responses.push({type: 'or' as const, index: payload.branchIndex, response: payload.optionResponse ?? {type: 'option' as const}});
       } else if (payload.optionResponse !== undefined) {

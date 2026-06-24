@@ -53,7 +53,7 @@ export class LargeConvoy extends Card implements IProjectCard {
     }
     // Resolve the choice ahead of the ocean so the play modal pre-collects it.
     player.defer(
-      gainOrAddResourceChoice(player, LargeConvoy.GAIN, LargeConvoy.ADDS),
+      gainOrAddResourceChoice(player, this, LargeConvoy.GAIN, LargeConvoy.ADDS),
       Priority.PLAY_CARD_RESOURCE_CHOICE);
     return undefined;
   }

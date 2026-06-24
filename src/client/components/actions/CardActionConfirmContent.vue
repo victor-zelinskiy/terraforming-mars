@@ -106,6 +106,19 @@
              specific branch (the overlay normally splits branches into their own
              buttons and passes the chosen one). Shows EVERY branch with its reason
              + context chips. -->
+        <!-- PRE-STEPS — sub-prompts the live flow fires BEFORE the action's effect,
+             pre-collected here (the Stormcraft heat-source payment) so everything is
+             decided in ONE confirm; the batch replays them before the branch. -->
+        <div v-if="preSteps.length > 0" class="action-confirm__steps action-confirm__presteps">
+          <template v-for="(step, i) in preSteps" :key="'pre' + i">
+            <SpendHeatContent v-if="step.kind === 'spendHeat'"
+                              :controlled="true"
+                              :playerView="playerView"
+                              :playerinput="asAndOptions(step.input)"
+                              :onsave="capturePre(i)" />
+          </template>
+        </div>
+
         <div v-if="showBranchList" class="action-confirm__branches">
           <span class="action-confirm__branches-label" v-i18n>Choose an option</span>
           <div class="action-confirm__branches-grid" role="radiogroup">
@@ -420,6 +433,7 @@ import CompactActionCard from '@/client/components/actions/CompactActionCard.vue
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPicker.vue';
 import ModernOptionPicker from '@/client/components/modalInputs/ModernOptionPicker.vue';
+import SpendHeatContent from '@/client/components/modalInputs/SpendHeatContent.vue';
 import SelectPaymentV2 from '@/client/components/SelectPaymentV2.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
@@ -429,7 +443,7 @@ import ActionResultsPreview from '@/client/components/actions/ActionResultsPrevi
 import ActionNextStepNotice from '@/client/components/actions/ActionNextStepNotice.vue';
 import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
-import {SelectCardModel} from '@/common/models/PlayerInputModel';
+import {SelectCardModel, PlayerInputModel, AndOptionsModel} from '@/common/models/PlayerInputModel';
 import {handActionPickResult} from '@/client/components/handCards/handActionPick';
 import {playedCardActionPickResult} from '@/client/components/playedCards/playedCardActionPick';
 import {actionRepeatPickResult} from '@/client/components/actions/actionRepeatPick';
@@ -447,12 +461,12 @@ export type HandPickRequest = {
   reasons: Record<string, string>;
 };
 
-type ConfirmPayload = {branchIndex: number, optionResponse: InputResponse | undefined, stepResponses: ReadonlyArray<InputResponse>, reveal?: ActionRevealDescriptor};
+type ConfirmPayload = {preStepResponses: ReadonlyArray<InputResponse>, branchIndex: number, optionResponse: InputResponse | undefined, stepResponses: ReadonlyArray<InputResponse>, reveal?: ActionRevealDescriptor};
 type GroupNode = ActionGroup['nodes'][number];
 
 export default defineComponent({
   name: 'CardActionConfirmContent',
-  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, CompactActionCard, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot, ActionResultsPreview, ActionNextStepNotice, RepeatActionPicker},
+  components: {Card, CardRenderEffectBoxComponent, CardRenderData, CardZoomModal, CompactActionCard, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, SpendHeatContent, SelectPaymentV2, ActionEffectChip, ActionTargetCard, ActionVpProgress, ActionRevealSlot, ActionResultsPreview, ActionNextStepNotice, RepeatActionPicker},
   directives: {stripActionPrefix},
   props: {
     cardName: {
@@ -504,6 +518,9 @@ export default defineComponent({
       loading: true,
       selected: undefined as ActionPreviewBranch | undefined,
       captured: {} as Record<number, InputResponse>,
+      // Pre-branch step responses (the Stormcraft heat-source payment) — replayed
+      // BEFORE the branch in the batch (the live flow fires them before the effect).
+      capturedPre: {} as Record<number, InputResponse>,
       // The response to the branch's own OrOptions input (optionInput), if any.
       capturedOption: undefined as InputResponse | undefined,
     };
@@ -525,6 +542,11 @@ export default defineComponent({
     },
     branches(): ReadonlyArray<ActionPreviewBranch> {
       return this.preview?.branches ?? [];
+    },
+    // Card-level steps collected BEFORE the action (the heat-source payment) — they
+    // replay first in the batch, between the activate and the action's effect.
+    preSteps(): ReadonlyArray<ActionPreviewStep> {
+      return this.preview?.preSteps ?? [];
     },
     // The preview branch position the selected NODE maps to (token-overlap match,
     // NOT positional) — undefined for a combined-node card → the picker fallback.
@@ -755,6 +777,10 @@ export default defineComponent({
     canConfirm(): boolean {
       const branch = this.selected;
       if (this.loading || branch === undefined || !branch.available) {
+        return false;
+      }
+      // Every pre-branch step (the heat-source payment) must be captured.
+      if (!this.preSteps.every((_step, i) => this.capturedPre[i] !== undefined)) {
         return false;
       }
       // The branch's own OrOptions input (optionInput) must be answered too.
@@ -1124,6 +1150,7 @@ export default defineComponent({
     },
     async fetchPreview(): Promise<void> {
       this.loading = true;
+      this.capturedPre = {}; // pre-branch responses belong to THIS preview — reset.
       try {
         const url = paths.API_ACTION_PREVIEW +
           '?id=' + encodeURIComponent(this.playerView.id) +
@@ -1166,6 +1193,17 @@ export default defineComponent({
         this.captured[i] = out;
       };
     },
+    // Capture a PRE-branch step response (the heat-source payment). The controlled
+    // SpendHeatContent calls this on mount + every change, replayed before the branch.
+    capturePre(i: number): (out: InputResponse) => void {
+      return (out: InputResponse) => {
+        this.capturedPre[i] = out;
+      };
+    },
+    // The AndOptions model of a `spendHeat` preStep (its input is always an AndOptions).
+    asAndOptions(input: PlayerInputModel): AndOptionsModel {
+      return input as AndOptionsModel;
+    },
     captureOption(out: InputResponse): void {
       this.capturedOption = out;
     },
@@ -1192,7 +1230,13 @@ export default defineComponent({
           stepResponses.push(this.captured[i]);
         }
       });
-      const payload: ConfirmPayload = {branchIndex: branch.index, optionResponse: this.capturedOption, stepResponses, reveal: branch.reveal};
+      const preStepResponses: Array<InputResponse> = [];
+      this.preSteps.forEach((_step, i) => {
+        if (this.capturedPre[i] !== undefined) {
+          preStepResponses.push(this.capturedPre[i]);
+        }
+      });
+      const payload: ConfirmPayload = {preStepResponses, branchIndex: branch.index, optionResponse: this.capturedOption, stepResponses, reveal: branch.reveal};
       this.$emit('confirm', payload);
     },
     openFullscreen(): void {

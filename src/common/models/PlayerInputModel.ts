@@ -105,6 +105,15 @@ export type VenusBonusPromptMeta = {
   wildCardTargets?: ReadonlyArray<CardName>;
 }
 
+/**
+ * Marks a "how to spend N heat" AndOptions (Stormcraft Incorporated: stock heat
+ * and/or floaters-as-heat). Routes the prompt to the premium SpendHeatContent
+ * modal instead of the legacy AndOptions widget. `amount` is the heat to cover.
+ */
+export type SpendHeatPromptMeta = {
+  amount: number;
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
@@ -116,6 +125,7 @@ export type BaseInputModel = {
   awardFundingPrompt?: AwardFundingPromptMeta;
   choiceContext?: ChoiceContext;
   venusBonusPrompt?: VenusBonusPromptMeta;
+  spendHeatPrompt?: SpendHeatPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

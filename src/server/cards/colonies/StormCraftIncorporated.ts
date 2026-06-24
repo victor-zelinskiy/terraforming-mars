@@ -75,6 +75,9 @@ export class StormCraftIncorporated extends ActiveCorporationCard {
       player.removeResourceFrom(this, floaterAmount);
       player.stock.deduct(Resource.HEAT, heatAmount);
       return cb();
-    }).setTitle(message('Select how to spend ${0} heat', (b) => b.number(targetAmount)));
+    }).setTitle(message('Select how to spend ${0} heat', (b) => b.number(targetAmount)))
+      // Route to the premium SpendHeatContent modal (heat + floaters distribution)
+      // instead of the legacy AndOptions-of-SelectAmount widget.
+      .markSpendHeatPrompt({amount: targetAmount});
   }
 }
