@@ -296,6 +296,20 @@ export type SelectSpaceModel = BaseInputModel & {
    * See `PlacementIllegalReason.ts` for the value space.
    */
   illegalSpaces?: ReadonlyArray<import('../inputs/PlacementIllegalReason').PlacementIllegalSpace>;
+  /**
+   * Target spaces whose CURRENT tile will be physically REMOVED before the
+   * new tile is placed (KaguyaTech removes a greenery → places a city;
+   * LunarMineUrbanization removes a mine → places its tile). During selection
+   * the client renders these cells WITHOUT the doomed tile graphic and WITH
+   * the placement bonus, so the player sees what they'll GAIN — not a tile
+   * that's about to disappear.
+   *
+   * Absent / empty → the existing tile on every occupied target stays
+   * VISIBLE (the default: an overlay marker like St. Joseph's cathedral, a
+   * place-over-hazard, picking an ocean to remove, etc. — the base tile is
+   * information the player needs).
+   */
+  hiddenTiles?: ReadonlyArray<SpaceId>;
 }
 
 /**

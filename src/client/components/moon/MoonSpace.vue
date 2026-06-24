@@ -4,9 +4,10 @@
       :space="space"
       :aresExtension="false"
       :tileView="tileView"
+      :placementCleared="placementCleared"
     ></board-space-tile>
     <div class="board-space-text" v-if="text" v-i18n>{{ text }}</div>
-    <bonus v-if="space.tileType === undefined || tileView === 'hide'" :bonus="space.bonus" />
+    <bonus v-if="space.tileType === undefined || tileView === 'hide' || placementCleared" :bonus="space.bonus" />
     <template v-if="tileView === 'coords'">
       <div class="board-space-coords">{{ getSpaceName(space.id) }}</div>
     </template>
@@ -24,6 +25,7 @@ import {TileView} from '../board/TileView';
 import BoardSpaceTile from '@/client/components/board/BoardSpaceTile.vue';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {getSpaceName} from '@/common/boards/spaces';
+import {placementRenderState} from '@/client/components/board/placementRenderState';
 
 export default defineComponent({
   name: 'MoonSpace',
@@ -71,6 +73,11 @@ export default defineComponent({
       }
       const css = 'board-cube-coOwner board-cube--' + this.space.coOwner;
       return getPreferences().symbol_overlay ? css + ' overlay' : css;
+    },
+    // True while this mine cell is a remove-and-replace target (Lunar Mine
+    // Urbanization): hide the doomed mine graphic and show its bonus instead.
+    placementCleared(): boolean {
+      return placementRenderState.hiddenTiles.has(this.space.id);
     },
     getSpaceName(): typeof getSpaceName {
       return getSpaceName;

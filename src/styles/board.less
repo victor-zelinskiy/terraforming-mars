@@ -386,7 +386,17 @@
 // the new amber double-outline reads cleanly — otherwise white + amber
 // stack into a muddy edge. Background-color (e.g. ocean blue tint, the
 // volcanic dark red) is preserved since we only zero `background-image`.
-.board-space.board-space--available > .board-space {
+//
+// SCOPED to the EMPTY-hex inner div (`board-space-type-{land|ocean|cove|…}`)
+// ONLY. An OCCUPIED target's inner div is `board-space-tile--{city|greenery|…}`
+// (carrying the real tile sprite) and must keep its `background-image` — else
+// the base tile vanishes during selection (St. Joseph's cathedral over a city,
+// picking an ocean to remove, placing over a hazard, …). The second selector
+// re-suppresses it ONLY for remove-and-replace targets (KaguyaTech / Lunar
+// Mine Urbanization), whose tile is about to be removed — there the bonus is
+// shown in its place (see `board-space-tile--placement-cleared` below).
+.board-space.board-space--available > [class*="board-space-type-"],
+.board-space.board-space--available > .board-space-tile--placement-cleared {
 	background-image: none;
 }
 
@@ -550,8 +560,8 @@
  * Performance: one extra background-image per placed cell, no
  * filter, no shadow. SVG parses once per cell.
  */
-.board [class*="board-space-tile--"]:not(.board-space-tile--placing):not(.board-hidden-tile)::after,
-.board-outer-spaces [class*="board-space-tile--"]:not(.board-space-tile--placing):not(.board-hidden-tile)::after {
+.board [class*="board-space-tile--"]:not(.board-space-tile--placing):not(.board-hidden-tile):not(.board-space-tile--placement-cleared)::after,
+.board-outer-spaces [class*="board-space-tile--"]:not(.board-space-tile--placing):not(.board-hidden-tile):not(.board-space-tile--placement-cleared)::after {
 	content: '';
 	position: absolute;
 	inset: 0;

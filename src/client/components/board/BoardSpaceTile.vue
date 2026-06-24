@@ -130,6 +130,13 @@ export default defineComponent({
       type: String as () => TileView,
       default: 'show',
     },
+    // True when this cell is a remove-and-replace placement target (its
+    // existing tile is about to be removed): suppress the tile graphic so the
+    // placement bonus shows through. See placementRenderState.ts.
+    placementCleared: {
+      type: Boolean,
+      default: false,
+    },
   },
   data(): Data {
     return {
@@ -170,6 +177,12 @@ export default defineComponent({
           cssClass += '-rotated';
         }
         css += ' board-space-tile--' + cssClass;
+        // Remove-and-replace target: hide the doomed tile graphic (the
+        // matching CSS rule zeroes background-image and drops the materiality
+        // rim) so the placement bonus underneath is what the player reads.
+        if (this.placementCleared) {
+          css += ' board-space-tile--placement-cleared';
+        }
       } else {
         switch (this.spaceType) {
         case SpaceType.OCEAN:

@@ -116,6 +116,20 @@ describe('LunarMineUrbanization', () => {
     expect(player.terraformRating).eq(21);
   });
 
+  it('hides the doomed mine tile during placement — remove-and-replace', () => {
+    const space = moonData.moon.getAvailableSpacesOnLand(player)[0];
+    space.tile = {tileType: TileType.MOON_MINE};
+    space.player = player;
+
+    const action = cast(card.play(player), SelectSpace);
+
+    // The mine is removed before the urbanization tile is placed, so its tile
+    // graphic is hidden during selection (placement bonus shown instead).
+    expect(action.spaces.map((s) => s.id)).to.include(space.id);
+    expect(action.hiddenTiles).to.include(space.id);
+    expect(action.toModel().hiddenTiles).to.include(space.id);
+  });
+
   it('computeVictoryPoints', () => {
     function computeVps() {
       const builder = new VictoryPointsBreakdownBuilder();

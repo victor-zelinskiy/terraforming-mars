@@ -6,6 +6,7 @@ import {BasePlayerInput} from '../PlayerInput';
 import {InputError} from './InputError';
 import {toID} from '../../common/utils/utils';
 import {PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
+import {SpaceId} from '../../common/Types';
 
 export class SelectSpace extends BasePlayerInput<Space> {
   /**
@@ -20,6 +21,20 @@ export class SelectSpace extends BasePlayerInput<Space> {
    * silent without breaking anything.
    */
   public illegalSpaces?: ReadonlyArray<PlacementIllegalSpace>;
+
+  /**
+   * Target spaces whose CURRENT tile will be REMOVED before the new tile is
+   * placed on the same cell (KaguyaTech, LunarMineUrbanization — the "remove
+   * your X, place a Y there regardless of placement rules" cards). The client
+   * hides the doomed tile graphic and shows the placement bonus instead, so
+   * the player reads what they GAIN rather than a tile that's about to vanish.
+   *
+   * Leave undefined for an OVERLAY placement (St. Joseph's cathedral over a
+   * city) or any "pick an existing tile" prompt — there the base tile must
+   * stay visible. Set via `createMarsSelectSpace({hideExistingTile: true})`
+   * or assigned directly.
+   */
+  public hiddenTiles?: ReadonlyArray<SpaceId>;
 
   constructor(
     title: string | Message,
@@ -39,6 +54,7 @@ export class SelectSpace extends BasePlayerInput<Space> {
       type: 'space',
       spaces: this.spaces.map(toID),
       illegalSpaces: this.illegalSpaces,
+      hiddenTiles: this.hiddenTiles,
     };
   }
 
