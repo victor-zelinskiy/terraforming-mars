@@ -40,6 +40,15 @@ describe('StormCraftIncorporated', () => {
     expect(floaterOption.max).to.eq(constants.HEAT_FOR_TEMPERATURE / 2);
   });
 
+  it('Marks the heat-source prompt so it routes to the premium SpendHeatContent modal', () => {
+    player.heat = 10;
+    card.resourceCount = 10;
+    const options = card.spendHeat(player, constants.HEAT_FOR_TEMPERATURE);
+    // The marker (vs the legacy AndOptions widget) — drives ModalInputHost to the
+    // premium heat-payment component instead of two bare SelectAmount steppers.
+    expect(options.spendHeatPrompt).to.deep.eq({amount: constants.HEAT_FOR_TEMPERATURE});
+  });
+
   it('Validates inputs', () => {
     player.heat = 10;
     card.resourceCount = 10;

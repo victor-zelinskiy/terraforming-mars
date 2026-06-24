@@ -353,6 +353,9 @@ export interface IPlayer {
   recordGreeneryDiscount(): void;
   availableHeat(): number;
   spendHeat(amount: number, cb?: () => (undefined | PlayerInput)) : PlayerInput | undefined;
+  /** READ-ONLY preview of the Stormcraft heat-source prompt (or undefined when no
+   *  prompt would show). Never deducts heat. See Player.spendHeatPreview. */
+  spendHeatPreview(amount: number) : PlayerInput | undefined;
 
   playCard(selectedCard: IProjectCard, payment?: Payment, cardAction?: CardAction): void;
   onCardPlayed(card: ICard): void;

@@ -139,6 +139,26 @@ export function paymentStep(player: IPlayer, amount: number, options?: SelectPay
 }
 
 /**
+ * A "spend N heat" PRE-step (Stormcraft: stock heat + floaters-as-heat) hosted
+ * INLINE by the premium SpendHeatContent. Returns `undefined` when the live
+ * `spendHeat` would NOT prompt (no Stormcraft floaters → heat is deducted directly)
+ * — so NO step, exactly matching the live behaviour. Built read-only via
+ * `player.spendHeatPreview` (never deducts heat); the `spendHeatPrompt` marker is
+ * re-attached to the model (toModel serializes markers centrally, so a directly-built
+ * model lacks it) so SpendHeatContent can read the target amount. Use as a `preStep`
+ * (it fires BEFORE the effect's own branch choice).
+ */
+export function spendHeatStep(player: IPlayer, amount: number): ActionPreviewStep | undefined {
+  const input = player.spendHeatPreview(amount);
+  if (input === undefined) {
+    return undefined;
+  }
+  const model = input.toModel(player);
+  model.spendHeatPrompt = input.spendHeatPrompt;
+  return {kind: 'spendHeat', input: model};
+}
+
+/**
  * An honest "you will place a tile on the board after confirming" note (the
  * board placement is inherently interactive and can't be pre-chosen in the
  * modal — the leftover `SelectSpace` hands off to `PlacementBanner` after the

@@ -13,6 +13,7 @@ import {collectActionBehaviorReasons} from './actionUnavailableReasons';
 import {DecreaseAnyProduction} from '../deferredActions/DecreaseAnyProduction';
 import {RemoveAnyPlants} from '../deferredActions/RemoveAnyPlants';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
+import * as actionPreviews from '../cards/actionPreviews';
 
 /**
  * READ-ONLY preview of an activatable action — the analog of
@@ -46,7 +47,13 @@ export function actionPreview(player: IPlayer, card: ICard & IActionCard): Actio
 
   const behavior = card.actionBehavior;
   if (behavior !== undefined) {
-    return {...base, kind: 'declarative', branches: deriveDeclarativeBranches(player, card, behavior)};
+    const preview: ActionPreview = {...base, kind: 'declarative', branches: deriveDeclarativeBranches(player, card, behavior)};
+    // A `spend.heat` action paid via Stormcraft floaters prompts a heat-SOURCE
+    // choice BEFORE the effect — pre-collect it as a preStep so the action-confirm
+    // modal hosts the heat payment + the effect in one pass (no follow-up).
+    const heat = behavior.spend?.heat;
+    const heatStep = typeof heat === 'number' && heat > 0 ? actionPreviews.spendHeatStep(player, heat) : undefined;
+    return heatStep !== undefined ? {...preview, preSteps: [heatStep]} : preview;
   }
 
   // Bespoke action with no hook yet: a single confirm-only branch. The action's

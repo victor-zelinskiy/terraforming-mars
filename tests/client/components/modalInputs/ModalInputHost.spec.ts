@@ -5,6 +5,7 @@ import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
 import ContextualChoiceContent from '@/client/components/modalInputs/ContextualChoiceContent.vue';
 import ModernOptionPicker from '@/client/components/modalInputs/ModernOptionPicker.vue';
+import SpendHeatContent from '@/client/components/modalInputs/SpendHeatContent.vue';
 
 // Heavy descendants of the premium card grid — stub them so the test is about
 // ModalInputHost's ROUTING decision, not card rendering / the fit engine.
@@ -65,6 +66,21 @@ describe('ModalInputHost — premium routing', () => {
       options: [{type: 'option', title: 'A', buttonLabel: ''}, {type: 'option', title: 'B', buttonLabel: ''}],
     });
     expect(component.findComponent(ContextualChoiceContent).exists()).to.eq(true);
+    expect(component.find('.legacy-factory-stub').exists()).to.eq(false);
+  });
+
+  it('routes a "spend N heat" AndOptions (spendHeatPrompt) to the premium SpendHeatContent, NOT the legacy AndOptions widget', () => {
+    const component = factory({
+      type: 'and',
+      title: 'Select how to spend 8 heat',
+      buttonLabel: 'Confirm',
+      spendHeatPrompt: {amount: 8},
+      options: [
+        {type: 'amount', title: 'Heat', buttonLabel: 'Spend heat', min: 0, max: 6, maxByDefault: false},
+        {type: 'amount', title: 'Floaters', buttonLabel: 'Spend floaters', min: 0, max: 10, maxByDefault: false},
+      ],
+    });
+    expect(component.findComponent(SpendHeatContent).exists()).to.eq(true);
     expect(component.find('.legacy-factory-stub').exists()).to.eq(false);
   });
 

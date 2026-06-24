@@ -43,6 +43,7 @@ import ModernResourcesPicker from '@/client/components/modalInputs/ModernResourc
 import ModernProductionToLose from '@/client/components/modalInputs/ModernProductionToLose.vue';
 import ContextualChoiceContent from '@/client/components/modalInputs/ContextualChoiceContent.vue';
 import VenusBonusContent from '@/client/components/modalInputs/VenusBonusContent.vue';
+import SpendHeatContent from '@/client/components/modalInputs/SpendHeatContent.vue';
 import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
 
 // Modern, premium-styled components for modal-hosted sub-prompts. Types absent
@@ -83,6 +84,7 @@ export default defineComponent({
     ModernProductionToLose,
     ContextualChoiceContent,
     VenusBonusContent,
+    SpendHeatContent,
     CardSelectionContent,
   },
   props: {
@@ -107,6 +109,12 @@ export default defineComponent({
       // 'or' → ModernOptionPicker).
       if (this.playerinput.venusBonusPrompt !== undefined) {
         return VenusBonusContent;
+      }
+      // A "spend N heat" AndOptions (Stormcraft: stock heat + floaters-as-heat)
+      // routes to the dedicated premium SpendHeatContent — checked before the
+      // type-based fallback ('and' → legacy AndOptions widget).
+      if (this.playerinput.spendHeatPrompt !== undefined) {
+        return SpendHeatContent;
       }
       // A top-level OrOptions carrying contextual metadata (a triggered effect /
       // on-play decision / deferred action) routes to the premium CONTEXTUAL modal

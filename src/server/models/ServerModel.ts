@@ -339,6 +339,11 @@ export class Server {
     if (waitingFor.venusBonusPrompt !== undefined) {
       model.venusBonusPrompt = waitingFor.venusBonusPrompt;
     }
+    // "Spend N heat" marker (Stormcraft) — routes the heat-source AndOptions to the
+    // premium SpendHeatContent modal instead of the legacy AndOptions widget.
+    if (waitingFor.spendHeatPrompt !== undefined) {
+      model.spendHeatPrompt = waitingFor.spendHeatPrompt;
+    }
     return model;
     // showReset: player.game.inputsThisRound > 0 && player.game.resettable === true && player.game.phase === Phase.ACTION,
   }

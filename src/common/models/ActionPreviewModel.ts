@@ -34,6 +34,17 @@ export type ActionPreview = {
   cardResource?: {type: CardResource, count: number};
   kind: 'declarative' | 'bespoke' | 'dynamic';
   branches: ReadonlyArray<ActionPreviewBranch>;
+  /**
+   * CARD-LEVEL steps the modal pre-collects BEFORE the branch choice — for a
+   * sub-prompt that the live flow fires between the play/activate and the branch,
+   * independent of which branch is chosen. The flagship case is the Stormcraft
+   * heat-source payment (`spend.heat` with floaters-as-heat): the live `spendHeat`
+   * prompts how to pay BEFORE the effect's own choice. Pre-collecting it here lets
+   * the modal host EVERYTHING in one pass — the batch replays
+   * `[play/activate, ...preSteps, branch, ...branch steps]` in the live prompt
+   * order. Empty/absent when there's no such pre-prompt (no Stormcraft).
+   */
+  preSteps?: ReadonlyArray<ActionPreviewStep>;
 };
 
 /**
@@ -235,6 +246,10 @@ export type ActionPreviewStep =
      */
     repeatAction?: boolean,
   }
+  /** A "spend N heat" payment hosted INLINE by the premium SpendHeatContent
+   *  (Stormcraft: stock heat + floaters-as-heat). `input` is the heat-source
+   *  AndOptions model (carrying its `spendHeatPrompt` marker). Used as a preStep. */
+  | {kind: 'spendHeat', input: PlayerInputModel}
   | {kind: 'boardPlacement', placementType: string}
   /** A `warning` note flags an effect that WILL BE SKIPPED for lack of a valid
    *  target (e.g. "add an animal" with no animal card) — shown as an orange block

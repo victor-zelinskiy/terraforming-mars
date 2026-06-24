@@ -74,7 +74,7 @@ export class LocalHeatTrapping extends Card implements IProjectCard {
   public override play(player: IPlayer) {
     // SIDE-EFFECT FREE to build (the mutations live in the option callbacks), so the
     // same choice drives `play` and the read-only `cardPlayPreview` without drifting.
-    const choice = gainOrAddResourceChoice(player, LocalHeatTrapping.GAIN, LocalHeatTrapping.ADDS);
+    const choice = gainOrAddResourceChoice(player, this, LocalHeatTrapping.GAIN, LocalHeatTrapping.ADDS, {trigger: 'You spent 5 heat.'});
     return player.spendHeat(5, () => {
       // With no animal card the only option is "gain 4 plants" → auto-resolve it.
       if (choice.options.length === 1) {
@@ -87,11 +87,14 @@ export class LocalHeatTrapping extends Card implements IProjectCard {
   // The on-play preview: the −5 heat the effect spends (prefix chip) PLUS the
   // "gain 4 plants / add 2 animals" branches — the add branch shown disabled-with-
   // reason when there's no animal card, so the alternative is never silently hidden.
-  // (With Stormcraft floaters as heat the live path inserts a heat-source prompt
-  // first; the batch's graceful fallback then lets the choice ride the follow-up — a
-  // rare, safe degrade.)
+  // With Stormcraft floaters-as-heat the live path inserts a heat-SOURCE prompt
+  // BEFORE the choice; it's pre-collected here as a `preStep` (SpendHeatContent),
+  // so the player resolves the heat payment AND the gain/add choice in ONE modal —
+  // the batch replays [play, heat-source, choice]. (No Stormcraft → no preStep.)
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const heatCost = actionPreviews.stockCost(player, Resource.HEAT, 5);
-    return gainOrAddResourceBranches(player, this, LocalHeatTrapping.GAIN, LocalHeatTrapping.ADDS, {prefixEffects: [heatCost]});
+    const preview = gainOrAddResourceBranches(player, this, LocalHeatTrapping.GAIN, LocalHeatTrapping.ADDS, {prefixEffects: [heatCost]});
+    const heatStep = actionPreviews.spendHeatStep(player, 5);
+    return heatStep !== undefined ? {...preview, preSteps: [heatStep]} : preview;
   }
 }

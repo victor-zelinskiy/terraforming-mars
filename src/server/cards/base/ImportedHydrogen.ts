@@ -58,7 +58,7 @@ export class ImportedHydrogen extends Card implements IProjectCard {
     // Defer the choice ahead of the ocean (PLAY_CARD_RESOURCE_CHOICE < PLACE_OCEAN_TILE)
     // so the play modal pre-collects it; the ocean then rides PlacementBanner.
     player.defer(
-      gainOrAddResourceChoice(player, ImportedHydrogen.GAIN, ImportedHydrogen.ADDS),
+      gainOrAddResourceChoice(player, this, ImportedHydrogen.GAIN, ImportedHydrogen.ADDS),
       Priority.PLAY_CARD_RESOURCE_CHOICE);
     return undefined;
   }

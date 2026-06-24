@@ -1342,6 +1342,22 @@ export class Player implements IPlayer {
     return cb();
   }
 
+  /**
+   * READ-ONLY preview of the heat-source prompt `spendHeat` would show — the
+   * Stormcraft AndOptions (stock heat + floaters) when the player has spendable
+   * floaters, else `undefined` (heat is deducted directly with no prompt). Building
+   * the AndOptions mutates nothing (its deduction lives in the `andThen`), so the
+   * premium play / action modal can PRE-COLLECT the heat payment as a step instead
+   * of it riding a follow-up. NEVER deducts heat (unlike `spendHeat`).
+   */
+  public spendHeatPreview(amount: number): PlayerInput | undefined {
+    const stormcraft = <StormCraftIncorporated> this.tableau.get(CardName.STORMCRAFT_INCORPORATED);
+    if (stormcraft?.resourceCount > 0) {
+      return stormcraft.spendHeat(this, amount);
+    }
+    return undefined;
+  }
+
   public claimableMilestones(): Array<IMilestone> {
     if (this.game.allMilestonesClaimed()) {
       return [];

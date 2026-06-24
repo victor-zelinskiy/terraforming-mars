@@ -47,6 +47,20 @@
                           :after="vpProgress.after" />
       </div>
 
+      <!-- PRE-STEPS — sub-prompts the live flow fires BEFORE the effect's own choice,
+           pre-collected here so everything is decided in ONE modal. Today: the
+           Stormcraft heat-source payment (stock heat + floaters) hosted by the
+           premium SpendHeatContent (controlled — its value rides the single CTA). -->
+      <div v-if="!loading && preSteps.length > 0" class="play-confirm__presteps">
+        <template v-for="(step, i) in preSteps" :key="'pre' + i">
+          <SpendHeatContent v-if="step.kind === 'spendHeat'"
+                            :controlled="true"
+                            :playerView="playerView"
+                            :playerinput="asAndOptions(step.input)"
+                            :onsave="capturePre(i)" />
+        </template>
+      </div>
+
       <!-- Preview loading skeleton. -->
       <div v-if="loading" class="play-confirm__loading">
         <span class="play-confirm__loading-dot" aria-hidden="true"></span>
@@ -305,7 +319,7 @@
                   <ActionTargetCard v-else-if="step.input.type === 'card'"
                                     :playerView="playerView"
                                     :input="stepCardInput(step)"
-                                    :amount="step.amount"
+                                    :amount="stepAmount(step)"
                                     :selectedName="capturedCardName(i)"
                                     @change="captureStep(i)($event)" />
                   <!-- A hosted OrOptions (e.g. Atmoscoop's temperature/Venus choice,
@@ -392,7 +406,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Message} from '@/common/logs/Message';
 import {InputResponse, SelectProjectCardToPlayResponse} from '@/common/inputs/InputResponse';
-import {SelectProjectCardToPlayModel, SelectCardModel} from '@/common/models/PlayerInputModel';
+import {SelectProjectCardToPlayModel, SelectCardModel, PlayerInputModel, AndOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import Card from '@/client/components/card/Card.vue';
@@ -410,6 +424,7 @@ import SelectProjectCardToPlay from '@/client/components/SelectProjectCardToPlay
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
 import ModernPlayerPicker from '@/client/components/modalInputs/ModernPlayerPicker.vue';
 import ModernOptionPicker from '@/client/components/modalInputs/ModernOptionPicker.vue';
+import SpendHeatContent from '@/client/components/modalInputs/SpendHeatContent.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
@@ -417,9 +432,12 @@ import TabbedRemovalPicker from '@/client/components/handCards/TabbedRemovalPick
 import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
 
 // The batch payload emitted on confirm: the play pick (projectCard + payment) +
-// the optional on-play `behavior.or` branch + the pre-collected step responses.
+// the PRE-branch responses (heat-source payment) + the optional on-play `behavior.or`
+// branch + the pre-collected step responses. Order in the batch:
+//   [play, ...preStepResponses, branch, ...stepResponses].
 export type PlayCardPayload = {
   playResponse: SelectProjectCardToPlayResponse;
+  preStepResponses: ReadonlyArray<InputResponse>;
   branchIndex: number;
   optionResponse: InputResponse | undefined;
   stepResponses: ReadonlyArray<InputResponse>;
@@ -446,7 +464,7 @@ function stepNeedsResponse(step: ActionPreviewStep): boolean {
  */
 export default defineComponent({
   name: 'HandCardPaymentContent',
-  components: {Card, CardZoomModal, PremiumCardWarnings, SelectProjectCardToPlay, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, ActionEffectChip, ActionTargetCard, ActionVpProgress, TabbedRemovalPicker, RepeatActionPicker},
+  components: {Card, CardZoomModal, PremiumCardWarnings, SelectProjectCardToPlay, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, SpendHeatContent, ActionEffectChip, ActionTargetCard, ActionVpProgress, TabbedRemovalPicker, RepeatActionPicker},
   props: {
     playerView: {
       type: Object as PropType<PlayerViewModel>,
@@ -469,6 +487,9 @@ export default defineComponent({
       loading: true,
       selected: undefined as ActionPreviewBranch | undefined,
       captured: {} as Record<number, InputResponse>,
+      // Pre-branch step responses (the Stormcraft heat-source payment), captured
+      // from the inline SpendHeatContent — replayed BEFORE the branch in the batch.
+      capturedPre: {} as Record<number, InputResponse>,
       // True between emitting `pick-action` (open the ДЕЙСТВИЯ overlay pick-mode for
       // a >=4-candidate repeat) and the chosen action arriving via the bridge.
       awaitingActionsPick: false,
@@ -498,6 +519,11 @@ export default defineComponent({
     },
     branches(): ReadonlyArray<ActionPreviewBranch> {
       return this.preview?.branches ?? [];
+    },
+    // Card-level steps collected BEFORE the branch (the heat-source payment). They
+    // replay first in the batch, between the play and the branch.
+    preSteps(): ReadonlyArray<ActionPreviewStep> {
+      return this.preview?.preSteps ?? [];
     },
     // The RESULT chips shown at the top — the branch's base effects, PLUS the
     // production COPIED from any answered "copy production box" step (Cyberia
@@ -599,7 +625,13 @@ export default defineComponent({
       if (this.loading || branch === undefined || !branch.available || !this.paymentValid) {
         return false;
       }
-      return this.stepsSatisfied(branch);
+      return this.preStepsSatisfied && this.stepsSatisfied(branch);
+    },
+    // Every pre-branch step (the heat-source payment) has a captured response. The
+    // controlled SpendHeatContent emits on mount, so this is satisfied as soon as it
+    // renders — but the gate keeps the CTA honest if a future preStep needs input.
+    preStepsSatisfied(): boolean {
+      return this.preSteps.every((_step, i) => this.capturedPre[i] !== undefined);
     },
     // Whether any step is an interactive picker (drives the "Choose targets" label;
     // a warning-only step set shows no label).
@@ -613,6 +645,9 @@ export default defineComponent({
       const branch = this.selected;
       if (branch === undefined) {
         return {ready: false, label: 'Choose an option'};
+      }
+      if (!this.preStepsSatisfied) {
+        return {ready: false, label: 'Choose how to spend heat'};
       }
       if (!this.stepsSatisfied(branch)) {
         return {ready: false, label: 'Choose a target'};
@@ -893,6 +928,7 @@ export default defineComponent({
     },
     async fetchPreview(): Promise<void> {
       this.loading = true;
+      this.capturedPre = {}; // pre-branch responses belong to THIS preview — reset.
       try {
         const url = paths.API_CARD_PLAY_PREVIEW +
           '?id=' + encodeURIComponent(this.playerView.id) +
@@ -932,6 +968,14 @@ export default defineComponent({
       this.selected = b;
       this.captured = {}; // steps are branch-specific — reset.
     },
+    // Capture a PRE-branch step response (the heat-source payment). Keyed by preStep
+    // index, replayed before the branch. The controlled SpendHeatContent calls this
+    // on mount + every change, so the latest valid response is always stored.
+    capturePre(i: number): (out: InputResponse) => void {
+      return (out: InputResponse) => {
+        this.capturedPre[i] = out;
+      };
+    },
     captureStep(i: number): (out: InputResponse) => void {
       return (out: InputResponse) => {
         this.captured[i] = out;
@@ -959,6 +1003,16 @@ export default defineComponent({
     // A card step's candidate list with any cards chosen in its `dedupeFromSteps`
     // removed — so the same card can't be picked twice across linked target slots
     // (e.g. Cyberia Systems copies TWO DIFFERENT building cards).
+    // The AndOptions model of a `spendHeat` preStep (the 'spendHeat' kind's input is
+    // always an AndOptions — the heat-source distribution SpendHeatContent renders).
+    asAndOptions(input: PlayerInputModel): AndOptionsModel {
+      return input as AndOptionsModel;
+    },
+    // The per-target resource delta of an `input` step (undefined for any other
+    // kind — 'spendHeat' never reaches the card-target branch at runtime).
+    stepAmount(step: ActionPreviewStep): number | undefined {
+      return 'amount' in step ? step.amount : undefined;
+    },
     stepCardInput(step: ActionPreviewStep): SelectCardModel {
       const input = (step as {input: SelectCardModel}).input;
       const dedupe = (step as {dedupeFromSteps?: ReadonlyArray<number>}).dedupeFromSteps;
@@ -1246,8 +1300,16 @@ export default defineComponent({
           }
         });
       }
+      // Pre-branch responses (the heat-source payment) replay first, in preStep order.
+      const preStepResponses: Array<InputResponse> = [];
+      this.preSteps.forEach((_step, i) => {
+        if (this.capturedPre[i] !== undefined) {
+          preStepResponses.push(this.capturedPre[i]);
+        }
+      });
       const payload: PlayCardPayload = {
         playResponse: this.capturedPlay,
+        preStepResponses,
         branchIndex: branch.index,
         optionResponse: undefined,
         stepResponses,
