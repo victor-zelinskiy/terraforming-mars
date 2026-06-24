@@ -320,6 +320,23 @@ export type AmountConversionModel = {
   ratio?: number;
 }
 
+/**
+ * OPTIONAL "what this amount produces" hint for the modern amount stepper. When
+ * set, the selector renders a compact SPEND → RESULT composition: the chosen
+ * `amount` of the spent resource (the model's `icon`) on the left, and
+ * `amount × perUnit` of `icon` (this descriptor) on the right — so the player
+ * sees the practical change live (e.g. "spend X energy → draw X cards"). Falls
+ * back cleanly: a model without it renders a bare stepper.
+ */
+export type AmountResultModel = {
+  /** Icon-key of the thing produced per unit selected (e.g. 'cards'). */
+  icon: string;
+  /** How many of `icon` per 1 unit selected (default 1). */
+  perUnit?: number;
+  /** OPTIONAL i18n label shown above the result figure (e.g. 'Cards drawn'). */
+  label?: string;
+}
+
 export type SelectAmountModel = BaseInputModel & {
   type: 'amount';
   min: number;
@@ -334,6 +351,10 @@ export type SelectAmountModel = BaseInputModel & {
   // OPTIONAL conversion context (see AmountConversionModel) — renders the
   // stepper as a rich "spend → receive" composition. Falls back cleanly.
   conversion?: AmountConversionModel;
+  // OPTIONAL "practical change" hint (see AmountResultModel) — renders a compact
+  // SPEND → RESULT composition (e.g. "spend X energy → draw X cards"). Falls
+  // back cleanly when absent.
+  amountResult?: AmountResultModel;
 }
 
 export type DeltaProjectInputModel = BaseInputModel & {

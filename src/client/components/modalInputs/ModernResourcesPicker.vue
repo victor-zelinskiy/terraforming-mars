@@ -42,7 +42,7 @@
       <span class="modal-input__dist-counter-text">{{ counterText }}</span>
     </div>
 
-    <div class="modal-input__actions">
+    <div v-if="!controlled" class="modal-input__actions">
       <button class="modal-input__primary-btn"
               :disabled="total !== playerinput.count"
               @click="confirm"
@@ -81,7 +81,15 @@ export default defineComponent({
       type: Function as unknown as () => (out: SelectResourcesResponse) => void,
       required: true,
     },
+    // CONTROLLED mode: hide the inner confirm; the distribution is captured live
+    // (emitted via @change only once EXACTLY `count` units are allocated, else
+    // `undefined` so the host's confirm stays gated) and committed by the host.
+    controlled: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['change'],
   data(): DataModel {
     return {
       units: {...Units.EMPTY},
@@ -105,6 +113,20 @@ export default defineComponent({
       return translateText('Selected ${0} of ${1}')
         .replace('${0}', String(this.total))
         .replace('${1}', String(this.playerinput.count));
+    },
+  },
+  watch: {
+    // Controlled: emit the response only when EXACTLY `count` units are allocated
+    // (a complete, valid distribution); otherwise emit `undefined` so the host
+    // clears its capture and keeps the confirm gated. Deep — the steppers mutate
+    // `units` in place.
+    units: {
+      deep: true,
+      handler(): void {
+        if (this.controlled) {
+          this.$emit('change', this.total === this.playerinput.count ? {type: 'resources', units: {...this.units}} : undefined);
+        }
+      },
     },
   },
   methods: {

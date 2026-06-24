@@ -19,7 +19,9 @@
              :is="premiumComponent"
              :playerView="playerView"
              :playerinput="playerinput"
-             :onsave="onsave" />
+             :controlled="controlled"
+             :onsave="onsave"
+             @change="$emit('change', $event)" />
   <player-input-factory v-else
              :playerView="playerView"
              :playerinput="playerinput"
@@ -100,7 +102,18 @@ export default defineComponent({
       type: Function as unknown as () => (out: InputResponse) => void,
       required: true,
     },
+    // CONTROLLED mode — set by a host modal that owns its OWN confirm button (the
+    // action / play confirmation modals). Forwarded to the premium component so it
+    // hides its internal confirm and instead emits the live value via `@change`
+    // (re-emitted here), which the host captures and commits with its single CTA.
+    // Default false: the generic MandatoryInputModal keeps the component's inner
+    // confirm (it IS the submit there).
+    controlled: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['change'],
   computed: {
     premiumComponent(): Component | undefined {
       // A Venus alt-track bonus prompt (a marked GainResources 'and' or the

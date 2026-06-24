@@ -47,7 +47,7 @@
       <span class="modal-input__dist-counter-text">{{ counterText }}</span>
     </div>
 
-    <div class="modal-input__actions">
+    <div v-if="!controlled" class="modal-input__actions">
       <button class="modal-input__primary-btn"
               :disabled="total !== cost"
               @click="confirm"
@@ -86,7 +86,15 @@ export default defineComponent({
       type: Function as unknown as () => (out: SelectProductionToLoseResponse) => void,
       required: true,
     },
+    // CONTROLLED mode: hide the inner confirm; the chosen production loss is
+    // captured live (emitted via @change only once EXACTLY `cost` units are
+    // allocated, else `undefined`) and committed by the host modal's own confirm.
+    controlled: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['change'],
   data(): DataModel {
     return {
       units: {...Units.EMPTY},
@@ -116,6 +124,19 @@ export default defineComponent({
       return translateText('Selected ${0} of ${1}')
         .replace('${0}', String(this.total))
         .replace('${1}', String(this.cost));
+    },
+  },
+  watch: {
+    // Controlled: emit the response only at EXACTLY `cost` units (a complete,
+    // valid choice), else `undefined` so the host gates its confirm. Deep — the
+    // steppers mutate `units` in place.
+    units: {
+      deep: true,
+      handler(): void {
+        if (this.controlled) {
+          this.$emit('change', this.total === this.cost ? {type: 'productionToLose', units: {...this.units}} : undefined);
+        }
+      },
     },
   },
   methods: {

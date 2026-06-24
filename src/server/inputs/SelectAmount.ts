@@ -1,7 +1,7 @@
 import {Message} from '../../common/logs/Message';
 import {BasePlayerInput} from '../PlayerInput';
 import {InputResponse, isSelectAmountResponse} from '../../common/inputs/InputResponse';
-import {SelectAmountModel, AmountConversionModel} from '../../common/models/PlayerInputModel';
+import {SelectAmountModel, AmountConversionModel, AmountResultModel} from '../../common/models/PlayerInputModel';
 import {InputError} from './InputError';
 
 export class SelectAmount extends BasePlayerInput<number> {
@@ -16,8 +16,10 @@ export class SelectAmount extends BasePlayerInput<number> {
     // OPTIONAL premium-UI hints for the modern stepper (see SelectAmountModel).
     // Purely cosmetic — backward-compatible, omit for a bare number stepper.
     // `conversion` marks a "spend X of FROM → receive X of TO" amount so the
-    // client renders the rich conversion composition + live preview.
-    public options?: {icon?: string, unit?: string, conversion?: AmountConversionModel},
+    // client renders the rich conversion composition + live preview. `result`
+    // marks a "spend X → produce X×perUnit of icon" amount (e.g. draw cards) so
+    // the client renders the live SPEND → RESULT composition + the practical change.
+    public options?: {icon?: string, unit?: string, conversion?: AmountConversionModel, result?: AmountResultModel},
   ) {
     super('amount', title);
     this.buttonLabel = buttonLabel;
@@ -34,6 +36,7 @@ export class SelectAmount extends BasePlayerInput<number> {
       icon: this.options?.icon,
       unit: this.options?.unit,
       conversion: this.options?.conversion,
+      amountResult: this.options?.result,
     };
   }
 
