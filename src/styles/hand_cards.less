@@ -1369,6 +1369,12 @@
     letter-spacing: 1.4px;
 
     &--selected { .cab-palette-deselect(); }
+    /* Single-pick immediate action (e.g. «Сбросить» under each card when the
+       prompt wants EXACTLY one): same calm neutral chassis as the select
+       toggle, but it commits on click rather than toggling — so it never enters
+       the selected/deselect state. The action verb on the label is what marks
+       it as "do it now". */
+    &--immediate { font-weight: 700; }
 }
 
 /* Selected card — the SHARED selected-state: cyan glow + cyan frame + the

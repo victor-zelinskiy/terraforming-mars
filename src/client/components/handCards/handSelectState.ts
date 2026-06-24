@@ -240,6 +240,37 @@ export function isHandSelectable(name: CardName): boolean {
   return handSelectState.selectable.includes(name);
 }
 
+/**
+ * The select mode is asking for EXACTLY ONE card (`min === max === 1`). In this
+ * case the overlay drops the select-then-confirm two-step: each available card
+ * gets its OWN action button (labelled with the prompt verb, e.g. «Сбросить» /
+ * «Выбрать») that submits that single card immediately — there is no separate
+ * top «confirm» button. This covers BOTH the server-driven prompts (discard 1,
+ * reveal 1, keep 1, …) AND the client-driven single picks (e.g. linking a card
+ * to play via Self-Replicating Robots). A multi-card prompt (`max > 1`) or an
+ * optional one (`min === 0`) keeps the select + confirm flow unchanged.
+ */
+export function isSingleImmediateSelect(): boolean {
+  return handSelectState.active &&
+    handSelectState.min === 1 &&
+    handSelectState.max === 1;
+}
+
+/**
+ * Force the selection to exactly this one card — used by the single-pick
+ * immediate submit (a per-card action button). There is no accumulation: the
+ * clicked card IS the answer. A CLIENT-driven pick resolves by reading
+ * `handSelectState.selected` (`resolveClientHandSelect`), so it MUST be set
+ * before resolving; the server path uses the submitted names directly, but
+ * setting it there too keeps the two paths uniform. No-op for a non-candidate.
+ */
+export function selectSingleHandCard(name: CardName): void {
+  if (!isHandSelectable(name)) {
+    return;
+  }
+  handSelectState.selected = [name];
+}
+
 export function isSelectedForHandSelect(name: CardName): boolean {
   return handSelectState.selected.includes(name);
 }

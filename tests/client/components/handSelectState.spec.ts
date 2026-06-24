@@ -6,9 +6,12 @@ import {
   handSelectSignature,
   enterHandSelect,
   exitHandSelect,
+  enterClientHandSelect,
   toggleHandSelectSelection,
   isSelectedForHandSelect,
   isHandSelectable,
+  isSingleImmediateSelect,
+  selectSingleHandCard,
 } from '@/client/components/handCards/handSelectState';
 import {handFilterState} from '@/client/components/handCards/handFilterState';
 
@@ -96,6 +99,69 @@ describe('handSelectState', () => {
       expect(handSelectState.active).to.be.false;
       expect(handSelectState.selected).to.deep.eq([]);
       expect(handSelectState.selectable).to.deep.eq([]);
+    });
+  });
+
+  // A mandatory server-driven prompt asking for EXACTLY one card (discard 1,
+  // reveal 1, keep 1, …) switches the overlay to per-card immediate submit.
+  describe('isSingleImmediateSelect', () => {
+    it('is false when no select mode is active', () => {
+      expect(isSingleImmediateSelect()).to.be.false;
+    });
+
+    it('is true for a server-driven exactly-one prompt (min === max === 1)', () => {
+      enterHandSelect(cardPrompt([A, B, C], 1, 1));
+      expect(isSingleImmediateSelect()).to.be.true;
+    });
+
+    it('is false for a multi-card prompt (max > 1)', () => {
+      enterHandSelect(cardPrompt([A, B, C], 1, 2));
+      expect(isSingleImmediateSelect()).to.be.false;
+    });
+
+    it('is false for an optional single prompt (min === 0)', () => {
+      enterHandSelect(cardPrompt([A, B], 0, 1));
+      expect(isSingleImmediateSelect()).to.be.false;
+    });
+
+    it('is TRUE for a CLIENT-driven single pick (e.g. Self-Replicating Robots)', () => {
+      enterClientHandSelect({
+        title: 'Link a card',
+        buttonLabel: 'Select',
+        selectable: [A, B],
+        reasons: {},
+        onResolve: () => {},
+      });
+      expect(handSelectState.min).to.eq(1);
+      expect(handSelectState.max).to.eq(1);
+      expect(isSingleImmediateSelect()).to.be.true;
+    });
+
+    it('is false for a CLIENT-driven MULTI pick (min 0)', () => {
+      enterClientHandSelect({
+        title: 'Reveal any number',
+        buttonLabel: 'Reveal',
+        selectable: [A, B, C],
+        reasons: {},
+        min: 0,
+        max: 3,
+        onResolve: () => {},
+      });
+      expect(isSingleImmediateSelect()).to.be.false;
+    });
+  });
+
+  describe('selectSingleHandCard', () => {
+    it('forces the selection to exactly the one (selectable) card', () => {
+      enterHandSelect(cardPrompt([A, B, C], 1, 1));
+      selectSingleHandCard(A);
+      expect(handSelectState.selected).to.deep.eq([A]);
+      // A different card REPLACES it (single pick, no accumulation).
+      selectSingleHandCard(B);
+      expect(handSelectState.selected).to.deep.eq([B]);
+      // A non-candidate is ignored.
+      selectSingleHandCard(Z);
+      expect(handSelectState.selected).to.deep.eq([B]);
     });
   });
 
