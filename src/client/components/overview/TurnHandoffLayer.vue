@@ -16,10 +16,11 @@
     </div>
 
     <!--
-      Anchored idle hint — shown ONLY when the local player gave NO input at all
-      after their turn started (escalation step 2). Not a toast, not in the
-      notification stack, no "OK" button — it vanishes on any input. Anchored to
-      the local player's card.
+      Anchored idle hint — a premium HUD tag ATTACHED to the active local
+      player's card (to its RIGHT, level with the status chip, with a connector
+      so it reads as part of the card HUD), NOT a toast over the player list.
+      Shown ONLY when the local player gave NO input at all after their turn
+      started (escalation step 2); no "OK" button — it vanishes on any input.
     -->
     <Transition name="turn-idle-hint">
       <div
@@ -27,8 +28,9 @@
         class="turn-idle-anchor-hint"
         :style="hintStyle"
         role="status">
+        <span class="turn-idle-anchor-hint__connector" aria-hidden="true"></span>
         <span class="turn-idle-anchor-hint__dot" aria-hidden="true"></span>
-        <span class="turn-idle-anchor-hint__text" v-i18n>Your turn — choose an action</span>
+        <span class="turn-idle-anchor-hint__text" v-i18n>Choose an action</span>
       </div>
     </Transition>
   </Teleport>
@@ -48,6 +50,10 @@ import {
 } from '@/client/components/overview/turnHandoffState';
 
 type BeamGeom = {top: number; left: number; height: number};
+
+// Idle-hint pill height (keep in sync with `.turn-idle-anchor-hint` height in
+// turn_handoff.less) — used to vertically centre the pill on the status chip.
+const HINT_HEIGHT = 40;
 
 type DataModel = {
   beamGeom: BeamGeom | undefined;
@@ -201,13 +207,28 @@ export default defineComponent({
         this.hintRect = undefined;
         return;
       }
-      const rect = this.cardRect(color);
-      if (rect === undefined) {
+      const card = document.querySelector(`.left-panel-card[data-player-color="${color}"]`);
+      if (!(card instanceof HTMLElement)) {
         this.hintRect = undefined;
         return;
       }
-      // Anchor just below the local player's card, aligned to its left edge.
-      this.hintRect = {top: rect.bottom + 6, left: rect.left};
+      const cardRect = card.getBoundingClientRect();
+      // Anchor to the RIGHT of the card (so it never overlaps the next player
+      // card), vertically centred on the status-chip row — the connector then
+      // points right at the "● ДЕЙСТВИЕ X/Y" capsule. Fall back to the lower
+      // third of the card if the chip isn't found.
+      const chip = card.querySelector('.player-status-chip');
+      let anchorY: number;
+      if (chip instanceof HTMLElement) {
+        const cr = chip.getBoundingClientRect();
+        anchorY = cr.top + cr.height / 2;
+      } else {
+        anchorY = cardRect.top + cardRect.height * 0.62;
+      }
+      this.hintRect = {
+        top: Math.max(8, Math.round(anchorY - HINT_HEIGHT / 2)),
+        left: Math.round(cardRect.right + 8),
+      };
     },
     onReposition(): void {
       // Keep the hint glued to the card across resize (debounced).
