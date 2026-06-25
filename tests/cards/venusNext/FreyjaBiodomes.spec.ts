@@ -10,6 +10,7 @@ import {TestPlayer} from '../../TestPlayer';
 import {setVenusScaleLevel} from '../../TestingUtils';
 import {testGame} from '../../TestGame';
 import {cast} from '@/common/utils/utils';
+import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 
 describe('FreyjaBiodomes', () => {
   let card: FreyjaBiodomes;
@@ -61,5 +62,33 @@ describe('FreyjaBiodomes', () => {
     expect(player.production.energy).to.eq(0);
     expect(player.production.megacredits).to.eq(2);
     expect(card2.resourceCount).to.eq(2);
+  });
+
+  it('Should play - no target (2 microbes/animals silently dropped)', () => {
+    player.production.add(Resource.ENERGY, 1);
+    setVenusScaleLevel(game, 10);
+    // No Venus card can hold the 2 resources → bespokePlay adds nothing; the
+    // production change still applies (the declarative behavior on play()).
+    cast(card.play(player), undefined);
+    expect(player.production.energy).to.eq(0);
+    expect(player.production.megacredits).to.eq(2);
+  });
+
+  it('cardPlayPreview: no eligible Venus card → a WARNING step (no silent loss)', () => {
+    player.production.add(Resource.ENERGY, 1);
+    setVenusScaleLevel(game, 10);
+    const branch = cardPlayPreview(player, card).branches[0];
+    expect(branch.steps).has.length(1);
+    expect(branch.steps[0].kind).eq('note');
+    expect((branch.steps[0] as {noteKind?: string}).noteKind).eq('warning');
+  });
+
+  it('cardPlayPreview: with an eligible Venus card → a target picker (no warning)', () => {
+    player.production.add(Resource.ENERGY, 1);
+    setVenusScaleLevel(game, 10);
+    player.playedCards.push(new VenusianAnimals());
+    const branch = cardPlayPreview(player, card).branches[0];
+    expect(branch.steps.some((s) => s.kind === 'input' && s.input.type === 'card')).is.true;
+    expect(branch.steps.some((s) => s.kind === 'note' && s.noteKind === 'warning')).is.false;
   });
 });

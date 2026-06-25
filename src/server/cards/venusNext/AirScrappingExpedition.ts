@@ -56,12 +56,17 @@ export class AirScrappingExpedition extends Card implements IProjectCard {
   // The declarative venus chip + the SAME target picker `bespokePlay` builds, so
   // the 3 floaters' destination is chosen inside the play modal. Per the
   // no-autoselect principle the picker shows whenever there's at least one
-  // eligible card (even a single candidate).
+  // eligible card (even a single candidate). With NO eligible Venus floater card
+  // the 3 floaters can't land anywhere — so SUPPRESS the "+3 floaters" gain chip
+  // (it would be a lie) and WARN instead (the no-silent-loss rule; the card is
+  // still played for Venus +1).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.floaterCards(player);
-    const step = cards.length >= 1 ?
+    const hasTarget = cards.length >= 1;
+    const extraEffects = hasTarget ? [actionPreviews.cardResourceGain(CardResource.FLOATER, 3)] : [];
+    const step = hasTarget ?
       actionPreviews.selectCardStep(player, 'Select card to add 3 floaters', 'Add floaters', cards, {amount: 3}) :
-      undefined;
-    return actionPreviews.playPreview(this, player, [actionPreviews.cardResourceGain(CardResource.FLOATER, 3)], [step]);
+      actionPreviews.warningNote('No eligible card — this resource is not added.', CardResource.FLOATER);
+    return actionPreviews.playPreview(this, player, extraEffects, [step]);
   }
 }
