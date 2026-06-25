@@ -1,12 +1,12 @@
 <template>
   <div class="board-fact" :class="'board-fact--' + fact.severity">
     <div class="board-fact__body">
-      <div class="board-fact__title" v-i18n>{{ fact.title }}</div>
+      <div v-if="fact.title" class="board-fact__title" v-i18n>{{ fact.title }}</div>
       <div v-if="fact.description !== undefined" class="board-fact__desc" v-i18n>{{ fact.description }}</div>
     </div>
     <div class="board-fact__value">
       <action-effect-chip v-if="deltaEffect !== undefined" :effect="deltaEffect" />
-      <span v-if="vpAmount !== undefined" class="board-fact__vp" :class="{'board-fact__vp--neg': vpAmount < 0}">
+      <span v-if="vpAmount !== undefined && vpAmount !== 0" class="board-fact__vp" :class="{'board-fact__vp--neg': vpAmount < 0}">
         <span class="board-fact__vp-amount">{{ vpSign }}{{ Math.abs(vpAmount) }}</span>
         <span class="board-fact__vp-label" v-i18n>VP</span>
       </span>

@@ -125,12 +125,18 @@ export type BoardCellStatus = {
   spaceTypeLabel?: string | Message;
   /** Why the cell can never host a normal placement. */
   reserved?: 'noctis' | 'colony' | 'restricted' | 'nomad';
+  /** The popover KICKER (i18n key): "Empty land" / "Land with a bonus" / "Ocean
+   *  area" / "Ocean" / "City" / "Special tile" / "Reserved area" / … */
+  header?: string | Message;
 };
 
 /** Hover info for a cell — no placement context (what IS here + the standing rules). */
 export type BoardCellInfo = {
   space: SpaceId;
   status: BoardCellStatus;
+  /** One-line passive description under the header (e.g. "This cell is occupied
+   *  by an ocean." / "A tile can be placed here when an action allows it."). */
+  description?: string | Message;
   facts: ReadonlyArray<BoardFact>;
 };
 
