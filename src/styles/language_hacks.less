@@ -35,13 +35,18 @@
     }
 }
 
-.language-ru {
-    // Selected-card "ВЫБРАНА" ribbon text (pure-CSS pseudo `content`). The
-    // ribbons read this var so the text is localized in ONE place instead of
-    // being hardcoded Russian per-stylesheet; every other language falls back
-    // to the English 'SELECTED' default (override here per language as needed).
-    --cab-selected-label: 'ВЫБРАНА';
+// Selected-card "ВЫБРАНА" ribbon text (pure-CSS pseudo `content`). Set on the
+// <html> element (via the `data-lang` attribute the PreferencesDialog stamps)
+// — NOT on the `.language-*` class, because that class lives on
+// `#ts-preferences-target`, which does NOT contain the body-teleported overlays
+// (the card-selection modal, fullscreen card viewer, …) where the ribbon also
+// renders. A custom property on <html> inherits to EVERYTHING, teleports
+// included. The ribbons read `var(--cab-selected-label, 'SELECTED')`, so the
+// text is localized in ONE place; every other language falls back to the
+// English 'SELECTED' default — add a line per language here.
+html[data-lang="ru"] { --cab-selected-label: 'ВЫБРАНА'; }
 
+.language-ru {
     .filterDiv {
         .card-requirements {
             font-size: 13px;
