@@ -634,7 +634,22 @@ export default defineComponent({
       const vueApp = this;
       const root = vueRoot(this);
       clearTimeout(ui_update_timeout_id);
+      // The game is over — there is nothing left to poll for. Stopping the
+      // chain here keeps the board (and the "Game over" banner) from being
+      // re-fetched / remounted every tick after END; the endgame screen
+      // already holds the final view. (`this.playerView` is reactive — see the
+      // `playerView.game.phase` watcher — so this is true once the END view has
+      // loaded, with or without a remount.)
+      if (this.playerView.game.phase === Phase.END) {
+        return;
+      }
       const askForUpdate = () => {
+        // Re-check at fire time: the phase can flip to END while this poll's
+        // timer is pending (e.g. another player's action ended the game), so
+        // bail without re-arming rather than firing one last needless refresh.
+        if (this.playerView.game.phase === Phase.END) {
+          return;
+        }
         const xhr = new XMLHttpRequest();
         xhr.open('GET', paths.API_WAITING_FOR + window.location.search + '&gameAge=' + this.playerView.game.gameAge + '&undoCount=' + this.playerView.game.undoCount);
         xhr.onerror = function() {

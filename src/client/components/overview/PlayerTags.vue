@@ -1,7 +1,8 @@
 <template>
     <div class="player-tags">
         <div v-if="section === 'main' || section === 'both'" class="player-tags-main">
-            <tag-count tag="vp" :count="privateMaskVp ? '•••' : (hideVpCount ? '?' : player.victoryPointsBreakdown.total)" :size="'big'" :type="'main'" :scopeKey="player.color" :epoch="epoch" />
+            <PrivateScoreMask v-if="privateMaskVp" compact />
+            <tag-count v-else tag="vp" :count="hideVpCount ? '?' : player.victoryPointsBreakdown.total" :size="'big'" :type="'main'" :scopeKey="player.color" :epoch="epoch" />
             <div v-if="isEscapeVelocityOn" :class="tooltipCss" :data-tooltip="$t('Escape Velocity penalty')">
               <tag-count tag="escape" :count="escapeVelocityPenalty" :size="'big'" :type="'main'" :showWhenZero="true"/>
             </div>
@@ -35,6 +36,7 @@
 
 import {defineComponent} from 'vue';
 import TagCount from '@/client/components/TagCount.vue';
+import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
 import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {GameModel} from '@/common/models/GameModel';
@@ -171,6 +173,7 @@ export default defineComponent({
   },
   components: {
     'tag-count': TagCount,
+    PrivateScoreMask,
     PlayerTagDiscount,
     PointsPerTag,
   },

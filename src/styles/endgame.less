@@ -1927,7 +1927,18 @@
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     pointer-events: none;
-    animation: eg-rise 320ms ease backwards;
+    /*
+     * Dedicated rise keyframe that KEEPS the `translateX(-50%)` centering.
+     * The shared `eg-rise` animates `transform` to a bare `translateY`, which
+     * overrides the base `transform: translateX(-50%)` for the 320ms run — the
+     * banner jumps right (left edge at 50%) then snaps back to centre. With the
+     * -50% baked into both keyframes it rises straight up, perfectly centred.
+     */
+    animation: game-over-banner-rise 320ms ease backwards;
+}
+@keyframes game-over-banner-rise {
+    from { opacity: 0; transform: translate(-50%, 14px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
 }
 .game-over-banner__pulse {
     width: 8px;
