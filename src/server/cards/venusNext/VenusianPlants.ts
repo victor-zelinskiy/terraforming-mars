@@ -68,12 +68,15 @@ export class VenusianPlants extends Card implements IProjectCard {
   // The on-play preview: the declarative venus chip + the SAME SelectCard target
   // picker `bespokePlay` builds, so the player picks WHERE the resource goes
   // inside the play modal. Per the no-autoselect principle the picker shows
-  // whenever there's at least one eligible card (even a single candidate).
+  // whenever there's at least one eligible card (even a single candidate). With
+  // NO eligible Venus card the microbe/animal is silently lost — so the modal
+  // WARNS (the no-silent-loss rule; the card is still played for Venus +1). The
+  // resource is intentionally unnamed (microbe OR animal — ambiguous here).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.getResCards(player);
     const step = cards.length >= 1 ?
       actionPreviews.selectCardStep(player, 'Select card to add 1 resource', 'Add resource', cards, {amount: 1}) :
-      undefined;
+      actionPreviews.warningNote('No eligible card — this resource is not added.');
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

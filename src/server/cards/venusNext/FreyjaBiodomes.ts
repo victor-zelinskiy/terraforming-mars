@@ -67,12 +67,15 @@ export class FreyjaBiodomes extends Card implements IProjectCard {
   // The declarative production chips + the SAME target picker `bespokePlay` builds,
   // so the 2 resources' destination is chosen inside the play modal. Per the
   // no-autoselect principle the picker shows whenever there's at least one
-  // eligible card (even a single candidate).
+  // eligible card (even a single candidate). With NO eligible Venus card the 2
+  // microbes/animals are silently lost — so the modal WARNS (the no-silent-loss
+  // rule; the card is still played for its production). The resource is
+  // intentionally unnamed (microbe OR animal — ambiguous here).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.getResCards(player);
     const step = cards.length >= 1 ?
       actionPreviews.selectCardStep(player, 'Select card to add 2 resources', 'Add resources', cards, {amount: 2}) :
-      undefined;
+      actionPreviews.warningNote('No eligible card — this resource is not added.');
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

@@ -11,6 +11,7 @@ import {ICard} from '../ICard';
 import {CardRenderer} from '../render/CardRenderer';
 import {ActionPreviewStep} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import * as actionReason from '../actionReasons';
 
 export class MoholeLake extends Card implements IActionCard, IProjectCard {
   constructor() {
@@ -40,8 +41,18 @@ export class MoholeLake extends Card implements IActionCard, IProjectCard {
     });
   }
 
-  public canAct(): boolean {
-    return true;
+  // The WHOLE action is "add a microbe/animal to ANOTHER card". When no card can
+  // hold one, taking the action would do NOTHING — and `playActionCard` would open
+  // an empty journal/action scope ("used Mohole Lake action" with no effect) and
+  // waste the player's action. So the action is UNAVAILABLE with a reason, mirroring
+  // Hospitals (no-disease) and the declarative `mustHaveCard` add-to-card actions.
+  // The on-play plants / temperature / ocean (the `behavior` above) are unaffected.
+  public canAct(player: IPlayer): boolean {
+    return this.availableCards(player).length > 0;
+  }
+
+  public actionUnavailableReason() {
+    return actionReason.targetReason('No card to add the resource to');
   }
 
   private availableCards(player: IPlayer): ReadonlyArray<ICard> {

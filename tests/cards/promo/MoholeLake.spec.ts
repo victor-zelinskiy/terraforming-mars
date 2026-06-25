@@ -32,9 +32,25 @@ describe('MoholeLake', () => {
     expect(player.plants).to.eq(3);
   });
 
-  it('Can act - no target', () => {
-    expect(card.canAct()).is.true;
+  it('Cannot act - no target (no empty action scope)', () => {
+    // The whole action is "add a microbe/animal to another card" — with no card
+    // able to hold one, the action is unavailable (it would otherwise do nothing
+    // and open an empty journal scope) and explains why.
+    expect(card.canAct(player)).is.false;
+    expect(card.actionUnavailableReason()).to.deep.eq({type: 'target', message: 'No card to add the resource to'});
+    // Defensive: even if invoked, the action resolves to nothing.
     expect(churn(card.action(player), player)).is.undefined;
+  });
+
+  it('No empty action scope: excluded from playable actions without a target, included with one', () => {
+    player.playedCards.push(card);
+    // No microbe/animal card → MoholeLake is NOT offered as a playable action, so
+    // playActionCard never opens an (empty) "used Mohole Lake action" journal scope.
+    expect(player.getPlayableActionCards()).does.not.include(card);
+
+    // With a card that can hold the resource it becomes a real, playable action.
+    player.playedCards.push(new Fish());
+    expect(player.getPlayableActionCards()).does.include(card);
   });
 
   it('Can act - single target', () => {
@@ -42,7 +58,7 @@ describe('MoholeLake', () => {
     player.playedCards.push(fish);
 
     card.play(player);
-    expect(card.canAct()).is.true;
+    expect(card.canAct(player)).is.true;
     // Always asks which card, even with a single target.
     const action = cast(card.action(player), SelectCard<ICard>);
     expect(action.cards).has.lengthOf(1);
@@ -56,7 +72,7 @@ describe('MoholeLake', () => {
     player.playedCards.push(fish, ants);
 
     card.play(player);
-    expect(card.canAct()).is.true;
+    expect(card.canAct(player)).is.true;
     const action = cast(card.action(player), SelectCard<ICard>);
 
     action.cb([ants]);
