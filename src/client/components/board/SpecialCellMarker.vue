@@ -46,13 +46,7 @@ import {defineComponent, PropType} from 'vue';
 import {BoardName} from '@/common/boards/BoardName';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {getSpecialCellInfo, SpecialCellInfo} from '@/client/components/board/specialCellInfo';
-import {
-  setActiveSpecialCell,
-  clearActiveSpecialCell,
-  registerSpecialCellMarker,
-  unregisterSpecialCellMarker,
-  specialCellHoverState,
-} from '@/client/components/board/specialCellHoverState';
+import {hoverBoardCell, clearBoardCellHover, boardInfoState} from '@/client/components/board/boardInfoState';
 
 /**
  * Compact sci-fi info marker mounted as a SIBLING of the actual
@@ -98,54 +92,19 @@ export default defineComponent({
       return `board-space-${this.space.id}`;
     },
     isActive(): boolean {
-      return this.info !== undefined && specialCellHoverState.activeId === this.info.id;
+      // The badge pops in sync with the unified BoardInformation popover.
+      return boardInfoState.spaceId === this.space.id;
     },
-  },
-  watch: {
-    // When this marker becomes the visible one (after mount or when
-    // tileType clears), register so the hex-wide delegate can find it.
-    isEmpty(empty: boolean) {
-      if (empty) {
-        this.registerIfPossible();
-      } else if (this.info !== undefined) {
-        unregisterSpecialCellMarker(this.space.id);
-      }
-    },
-  },
-  mounted() {
-    this.registerIfPossible();
-  },
-  beforeUnmount() {
-    if (this.info !== undefined) {
-      unregisterSpecialCellMarker(this.space.id);
-    }
   },
   methods: {
-    registerIfPossible(): void {
-      if (this.info === undefined) {
-        return;
-      }
-      const el = this.$refs.root as HTMLElement | undefined;
-      if (el === undefined) {
-        return;
-      }
-      registerSpecialCellMarker({id: this.info.id, spaceId: this.space.id, el});
-    },
+    // The badge is an extra affordance for the SAME general inspector the
+    // hex-wide hover drives — so hovering it shows the unified popover (lore +
+    // tile bonuses / owner / scoring), not a separate lore-only overlay.
     onActivate(): void {
-      if (this.info === undefined) {
-        return;
-      }
-      const el = this.$refs.root as HTMLElement | undefined;
-      if (el === undefined) {
-        return;
-      }
-      setActiveSpecialCell(this.info.id, this.space.id, el);
+      hoverBoardCell(this.space.id);
     },
     onDeactivate(): void {
-      if (this.info === undefined) {
-        return;
-      }
-      clearActiveSpecialCell(this.info.id);
+      clearBoardCellHover(this.space.id);
     },
   },
 });

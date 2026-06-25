@@ -9,6 +9,9 @@
         <span v-if="ownerName !== undefined" class="board-cell-popover__owner" v-i18n>{{ ownerName }}</span>
       </div>
 
+      <!-- Curated named-cell lore (flavour + the real placement rule). -->
+      <div v-if="loreInfo !== undefined" class="board-cell-popover__lore" v-i18n>{{ loreInfo.description }}</div>
+
       <!-- Passive one-liner (never "Вы получите" — this is hover, not an action). -->
       <div v-if="description !== undefined" class="board-cell-popover__desc" v-i18n>{{ description }}</div>
 
@@ -55,6 +58,7 @@ import {defineComponent} from 'vue';
 import {boardInfoState} from '@/client/components/board/boardInfoState';
 import {BoardCellInfo, BoardCellStatus, BoardFact} from '@/common/boards/BoardInformationFacts';
 import {Color} from '@/common/Color';
+import {getSpecialCellInfo, SpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
 import BoardFactRow from '@/client/components/board/BoardFactRow.vue';
 
@@ -129,7 +133,22 @@ export default defineComponent({
       const label = this.status.tileLabel;
       return typeof label === 'string' && label !== '' ? label : undefined;
     },
+    // Curated named-cell lore (volcanoes / Noctis / off-Mars colonies), folded
+    // into the unified inspector so a named cell shows BOTH its identity AND its
+    // tile bonuses / owner / scoring (instead of a separate lore-only overlay).
+    loreInfo(): SpecialCellInfo | undefined {
+      const spaceId = boardInfoState.spaceId;
+      const boardName = this.cfg.boardName;
+      if (spaceId === undefined || boardName === undefined) {
+        return undefined;
+      }
+      return getSpecialCellInfo(spaceId, boardName);
+    },
     headerTitle(): string {
+      // A named cell's curated title wins the header (e.g. "Гора Аполлинарис").
+      if (this.loreInfo !== undefined) {
+        return this.loreInfo.title;
+      }
       const h = this.status.header;
       if (typeof h === 'string' && h !== '') {
         return h;
@@ -242,6 +261,15 @@ export default defineComponent({
 .board-cell-popover__desc {
   font-size: 11.5px;
   color: rgba(200, 222, 240, 0.82);
+}
+.board-cell-popover__lore {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: rgba(206, 226, 242, 0.78);
+}
+.board-cell-popover__lore + .board-cell-popover__desc,
+.board-cell-popover__lore + .board-cell-popover__section {
+  margin-top: 7px;
 }
 .board-cell-popover__section {
   margin-top: 8px;
