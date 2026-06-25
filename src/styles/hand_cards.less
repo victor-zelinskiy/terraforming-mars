@@ -1528,7 +1528,7 @@
    fill:both) clobbered the centering transform and left the ribbon shifted to
    the right. */
 .hand-card-item--sale-selected .hand-card-item__card::before {
-    content: 'ВЫБРАНА';
+    content: var(--cab-selected-label, 'SELECTED');
     .cab-selected-ribbon();
     position: absolute;
     top: -12px;

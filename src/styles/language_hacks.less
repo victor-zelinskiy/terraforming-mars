@@ -36,6 +36,12 @@
 }
 
 .language-ru {
+    // Selected-card "ВЫБРАНА" ribbon text (pure-CSS pseudo `content`). The
+    // ribbons read this var so the text is localized in ONE place instead of
+    // being hardcoded Russian per-stylesheet; every other language falls back
+    // to the English 'SELECTED' default (override here per language as needed).
+    --cab-selected-label: 'ВЫБРАНА';
+
     .filterDiv {
         .card-requirements {
             font-size: 13px;

@@ -26,7 +26,7 @@
       type="button"
       class="games-overview-delete-btn"
       :disabled="deleting || bulkDeleting"
-      @click="deleteGame">УДАЛИТЬ</button>
+      @click="deleteGame" v-i18n>Delete</button>
   </td>
   </tr>
 </template>
@@ -35,6 +35,7 @@
 import {defineComponent} from 'vue';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {Phase} from '@/common/Phase';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 type Status = 'loading' | 'error' | 'done';
 
@@ -109,20 +110,20 @@ export default defineComponent({
       if (this.deleting) {
         return;
       }
-      if (!confirm(`Удалить игру «${this.gameName}» из базы данных? Это действие необратимо.`)) {
+      if (!confirm(translateTextWithParams('Delete game «${0}» from the database? This action cannot be undone.', [this.gameName]))) {
         return;
       }
       this.deleting = true;
       try {
         const response = await fetch(`api/game/delete?serverId=${encodeURIComponent(this.serverId)}&id=${encodeURIComponent(this.id)}`, {method: 'POST'});
         if (!response.ok) {
-          alert('Не удалось удалить игру');
+          alert(translateText('Failed to delete the game'));
           this.deleting = false;
           return;
         }
         this.$emit('deleted', this.id);
       } catch (error) {
-        alert('Ошибка при удалении игры');
+        alert(translateText('Error deleting the game'));
         this.deleting = false;
       }
     },

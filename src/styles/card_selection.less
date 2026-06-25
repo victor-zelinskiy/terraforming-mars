@@ -836,7 +836,7 @@
          */
         /* Shared "ВЫБРАНА" status pill (one source — see card_action_buttons). */
         &::after {
-            content: 'ВЫБРАНА';
+            content: var(--cab-selected-label, 'SELECTED');
             .cab-selected-ribbon();
             position: absolute;
             top: -14px;
