@@ -4,14 +4,48 @@
       <div class="board-cell-popover__head">
         <span class="board-cell-popover__status" :class="'board-cell-popover__status--' + status.content"></span>
         <span class="board-cell-popover__title" v-i18n>{{ headerTitle }}</span>
+        <span v-if="tileName !== undefined" class="board-cell-popover__name">: <span v-i18n>{{ tileName }}</span></span>
         <span v-if="ownerColor !== undefined" class="board-cell-popover__owner-dot" :class="'player_bg_color_' + ownerColor"></span>
         <span v-if="ownerName !== undefined" class="board-cell-popover__owner" v-i18n>{{ ownerName }}</span>
       </div>
+
+      <!-- Passive one-liner (never "Вы получите" — this is hover, not an action). -->
+      <div v-if="description !== undefined" class="board-cell-popover__desc" v-i18n>{{ description }}</div>
+
+      <!-- What placing a tile HERE would grant (passive). -->
+      <div v-if="placeHereFacts.length > 0" class="board-cell-popover__section">
+        <div class="board-cell-popover__section-head" v-i18n>When placing here</div>
+        <board-fact-row v-for="fact in placeHereFacts" :key="fact.id" :fact="fact" />
+      </div>
+
+      <!-- The neighbour rule (ocean adjacency — an adjacency SOURCE). -->
+      <div v-if="adjacentFacts.length > 0" class="board-cell-popover__section">
+        <div class="board-cell-popover__section-head" v-i18n>Adjacent placement</div>
+        <board-fact-row v-for="fact in adjacentFacts" :key="fact.id" :fact="fact" />
+      </div>
+
+      <!-- Endgame scoring, grouped by recipient (ВЫ / opponent name). -->
       <board-fact-groups
-        v-if="facts.length > 0"
-        :facts="facts"
+        v-if="scoringFacts.length > 0"
+        :facts="scoringFacts"
         :viewerColor="cfg.color"
         :players="cfg.players" />
+
+      <!-- Special map zones — Сейчас (status) + Эффект (rule). -->
+      <div v-for="fact in zoneFacts" :key="fact.id" class="board-cell-popover__zone">
+        <div class="board-cell-popover__zone-head" v-i18n>{{ fact.title }}</div>
+        <div v-if="fact.id === 'deflection-zone'" class="board-cell-popover__zone-now">
+          <span class="board-cell-popover__zone-label" v-i18n>Now</span>
+          <span v-i18n>Does not change placement here.</span>
+        </div>
+        <div v-if="fact.description !== undefined" class="board-cell-popover__zone-effect">
+          <span class="board-cell-popover__zone-label" v-i18n>Effect</span>
+          <span v-i18n>{{ fact.description }}</span>
+        </div>
+      </div>
+
+      <!-- Reserved / restricted — the plain rule line. -->
+      <div v-for="fact in reservedFacts" :key="fact.id" class="board-cell-popover__rule" v-i18n>{{ fact.description }}</div>
     </div>
   </teleport>
 </template>
@@ -22,10 +56,11 @@ import {boardInfoState} from '@/client/components/board/boardInfoState';
 import {BoardCellInfo, BoardCellStatus, BoardFact} from '@/common/boards/BoardInformationFacts';
 import {Color} from '@/common/Color';
 import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
+import BoardFactRow from '@/client/components/board/BoardFactRow.vue';
 
 export default defineComponent({
   name: 'BoardCellInfoPopover',
-  components: {BoardFactGroups},
+  components: {BoardFactGroups, BoardFactRow},
   data() {
     return {
       boardInfoState,
@@ -44,21 +79,38 @@ export default defineComponent({
     facts(): ReadonlyArray<BoardFact> {
       return this.info?.facts ?? [];
     },
+    description(): string | undefined {
+      const d = this.info?.description;
+      return typeof d === 'string' ? d : undefined;
+    },
+    // Section partitions — passive framing for placement hints, recipient
+    // grouping only for endgame scoring.
+    placeHereFacts(): ReadonlyArray<BoardFact> {
+      return this.facts.filter((f) => f.category === 'printed-placement-bonus' || f.category === 'placement-effect');
+    },
+    adjacentFacts(): ReadonlyArray<BoardFact> {
+      return this.facts.filter((f) => f.category === 'ocean-adjacency-bonus');
+    },
+    scoringFacts(): ReadonlyArray<BoardFact> {
+      return this.facts.filter((f) => f.category === 'city-greenery-scoring');
+    },
+    zoneFacts(): ReadonlyArray<BoardFact> {
+      return this.facts.filter((f) => f.category === 'map-special-zone');
+    },
+    reservedFacts(): ReadonlyArray<BoardFact> {
+      return this.facts.filter((f) => f.category === 'reserved-area' || f.category === 'restriction');
+    },
     shouldShow(): boolean {
-      const info = this.info;
-      if (info === undefined || boardInfoState.spaceId === undefined) {
+      if (this.info === undefined || boardInfoState.spaceId === undefined) {
         return false;
       }
-      // A tile-placement prompt owns whole-cell hover (SelectSpace's reason
-      // popover) — don't double up.
+      // A tile-placement prompt owns whole-cell hover (SelectSpace's reason /
+      // preview popovers) — don't double up.
       if (typeof document !== 'undefined' && document.querySelector('.board-space--available') !== null) {
         return false;
       }
-      const s = info.status;
-      return info.facts.length > 0 ||
-        s.content !== 'empty' ||
-        s.reserved !== undefined ||
-        s.ownerColor !== undefined;
+      // Every cell now carries a header → the inspector is always meaningful.
+      return true;
     },
     ownerColor(): Color | undefined {
       return this.status.ownerColor;
@@ -70,21 +122,19 @@ export default defineComponent({
       }
       return this.cfg.players.find((p) => p.color === color)?.name ?? color;
     },
+    tileName(): string | undefined {
+      if (this.status.content !== 'special-tile') {
+        return undefined;
+      }
+      const label = this.status.tileLabel;
+      return typeof label === 'string' && label !== '' ? label : undefined;
+    },
     headerTitle(): string {
-      const s = this.status;
-      if (s.reserved !== undefined && s.spaceTypeLabel !== undefined) {
-        return typeof s.spaceTypeLabel === 'string' ? s.spaceTypeLabel : '';
+      const h = this.status.header;
+      if (typeof h === 'string' && h !== '') {
+        return h;
       }
-      switch (s.content) {
-      case 'city': return 'City';
-      case 'greenery': return 'Greenery';
-      case 'ocean': return 'Ocean tile';
-      case 'special-tile': return 'Special tile';
-      case 'hazard': return 'Hazard';
-      case 'empty':
-      default:
-        return typeof s.spaceTypeLabel === 'string' ? s.spaceTypeLabel : 'Empty space';
-      }
+      return 'Empty space';
     },
     cellRect(): DOMRect | undefined {
       const spaceId = boardInfoState.spaceId;
@@ -120,7 +170,7 @@ export default defineComponent({
   z-index: 109;
   pointer-events: none;
   max-width: 320px;
-  min-width: 200px;
+  min-width: 190px;
   padding: 10px 12px;
   border-radius: 10px;
   background: linear-gradient(180deg, rgba(16, 26, 38, 0.97), rgba(12, 19, 30, 0.97));
@@ -146,6 +196,8 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 7px;
+}
+.board-cell-popover__head:not(:last-child) {
   padding-bottom: 7px;
   margin-bottom: 7px;
   border-bottom: 1px solid rgba(120, 200, 255, 0.18);
@@ -169,6 +221,12 @@ export default defineComponent({
   font-size: 12px;
   color: #eaf4fd;
 }
+.board-cell-popover__name {
+  font-size: 12px;
+  color: #cfe6fb;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
 .board-cell-popover__owner-dot {
   flex: 0 0 auto;
   width: 10px;
@@ -180,5 +238,53 @@ export default defineComponent({
 .board-cell-popover__owner {
   font-size: 11px;
   color: rgba(220, 236, 247, 0.78);
+}
+.board-cell-popover__desc {
+  font-size: 11.5px;
+  color: rgba(200, 222, 240, 0.82);
+}
+.board-cell-popover__section {
+  margin-top: 8px;
+}
+.board-cell-popover__section-head {
+  font-family: 'Prototype', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(150, 192, 224, 0.72);
+  margin-bottom: 3px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(120, 200, 255, 0.14);
+}
+.board-cell-popover__zone {
+  margin-top: 8px;
+}
+.board-cell-popover__zone-head {
+  font-family: 'Prototype', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(150, 192, 224, 0.72);
+  margin-bottom: 4px;
+}
+.board-cell-popover__zone-now,
+.board-cell-popover__zone-effect {
+  font-size: 11.5px;
+  color: rgba(200, 222, 240, 0.82);
+  margin-top: 2px;
+}
+.board-cell-popover__zone-label {
+  display: inline-block;
+  margin-right: 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(150, 192, 224, 0.85);
+  &::after { content: ':'; }
+}
+.board-cell-popover__rule {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: rgba(200, 222, 240, 0.82);
 }
 </style>

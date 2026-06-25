@@ -9,6 +9,8 @@ import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {BoardName} from '../../src/common/boards/BoardName';
 import {SpaceName} from '../../src/common/boards/SpaceName';
 import {Space} from '../../src/server/boards/Space';
+import {TileType} from '../../src/common/TileType';
+import {CardName} from '../../src/common/cards/CardName';
 
 describe('BoardInformationEngine', () => {
   let game: IGame;
@@ -124,7 +126,53 @@ describe('BoardInformationEngine', () => {
     const noctis = game.board.getSpaceOrThrow(SpaceName.NOCTIS_CITY);
     const info = boardCellInfo(player, noctis);
     expect(info.status.reserved).to.eq('noctis');
+    expect(info.status.header).to.eq('Reserved area');
     expect(info.facts.some((f) => f.category === 'reserved-area')).to.be.true;
+  });
+
+  it('every cell gets a header — empty land, land-with-bonus, ocean reserve', () => {
+    const plain = emptyLand((s) => s.bonus.length === 0);
+    expect(boardCellInfo(player, plain).status.header).to.eq('Empty land');
+    expect(boardCellInfo(player, plain).description).to.eq('A tile can be placed here when an action allows it.');
+
+    const withBonus = emptyLand((s) => s.bonus.includes(SpaceBonus.PLANT));
+    expect(boardCellInfo(player, withBonus).status.header).to.eq('Land with a bonus');
+
+    const oceanReserve = game.board.spaces.find((s) => s.spaceType === SpaceType.OCEAN && s.tile === undefined)!;
+    const info = boardCellInfo(player, oceanReserve);
+    expect(info.status.header).to.eq('Ocean area');
+    expect(info.description).to.eq('Only an ocean tile can be placed here.');
+  });
+
+  it('hovering an ocean tile explains it is an adjacency source', () => {
+    const oceanSpace = game.board.getAvailableSpacesForOcean(player)[0];
+    game.addOcean(player, oceanSpace);
+    const info = boardCellInfo(player, oceanSpace);
+    expect(info.status.header).to.eq('Ocean');
+    expect(info.description).to.eq('This cell is occupied by an ocean.');
+    const rule = info.facts.find((f) => f.category === 'ocean-adjacency-bonus');
+    expect(rule, 'ocean adjacency rule fact').to.not.be.undefined;
+    expect(rule!.delta?.amount).to.eq(player.oceanBonus);
+  });
+
+  it('special tile hover shows the source card name', () => {
+    const space = emptyLand(() => true);
+    space.tile = {tileType: TileType.COMMERCIAL_DISTRICT, card: CardName.COMMERCIAL_DISTRICT};
+    space.player = player;
+    const info = boardCellInfo(player, space);
+    expect(info.status.content).to.eq('special-tile');
+    expect(info.status.header).to.eq('Special tile');
+    expect(info.status.tileLabel).to.eq(CardName.COMMERCIAL_DISTRICT);
+  });
+
+  it('city placement with no adjacent greeneries shows a count line, NOT a +0 VP badge', () => {
+    const city = game.board.getAvailableSpacesForCity(player)
+      .find((s) => game.board.getAdjacentSpaces(s).filter((a) => a.tile?.tileType === TileType.GREENERY).length === 0)!;
+    const preview = boardCellPreview(player, city, 'city');
+    const fact = preview.futureScoringFacts.find((f) => f.id === 'place-city');
+    expect(fact, 'place-city fact').to.not.be.undefined;
+    expect(fact!.vp, 'no vp badge for 0 greeneries').to.be.undefined;
+    expect(fact!.description).to.not.be.undefined;
   });
 
   it('is read-only: deriving facts mutates no game state', () => {

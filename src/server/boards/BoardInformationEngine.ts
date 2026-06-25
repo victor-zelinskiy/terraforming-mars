@@ -53,15 +53,21 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
   if (Board.hasRealTile(space)) {
     // What's already here scores at endgame — show for whom.
     facts.push(...existingTileScoringFacts(player, space));
+    // Hovering an OCEAN tile: explain that it's an adjacency SOURCE (the base
+    // for the future Ares "source nearby" language).
+    if (Board.isOceanSpace(space)) {
+      facts.push(oceanNeighbourRuleFact(player));
+    }
   } else if (isPlaceable(space)) {
-    // An empty placeable cell: what placing ANY tile here would grant.
+    // An empty placeable cell: what placing ANY tile here would grant (PASSIVE —
+    // the popover frames these as "При размещении здесь", not "Вы получите").
     facts.push(...printedBonusFacts(space, false));
     const ocean = oceanAdjacencyFact(player, space);
     if (ocean !== undefined) {
       facts.push(ocean);
     }
   }
-  return {space: space.id, status, facts};
+  return {space: space.id, status, description: cellDescription(space, status), facts};
 }
 
 /** Active-placement preview — the consequences of placing `kind` on `space`. */
@@ -95,6 +101,55 @@ export function boardCellPreview(player: IPlayer, space: Space, kind: BoardPlace
 // ---------------------------------------------------------------------------
 
 function cellStatus(player: IPlayer, space: Space): BoardCellStatus {
+  const status = baseCellStatus(player, space);
+  status.header = headerFor(space, status);
+  return status;
+}
+
+/** The popover KICKER for a cell (distinct from the long zone descriptions). */
+function headerFor(space: Space, status: BoardCellStatus): string {
+  switch (status.reserved) {
+  case 'nomad': return 'Mars Nomads camp';
+  case 'noctis': return 'Reserved area';
+  case 'colony': return 'Colony space';
+  case 'restricted': return 'Restricted area';
+  }
+  switch (status.content) {
+  case 'ocean': return 'Ocean';
+  case 'city': return 'City';
+  case 'greenery': return 'Greenery';
+  case 'special-tile': return 'Special tile';
+  case 'hazard': return 'Hazard';
+  case 'empty':
+  default:
+    if (space.spaceType === SpaceType.OCEAN) return 'Ocean area';
+    if (space.spaceType === SpaceType.DEFLECTION_ZONE) return 'Deflection Zone';
+    if (space.spaceType === SpaceType.COVE) return 'Cove';
+    return hasPrintedBonus(space) ? 'Land with a bonus' : 'Empty land';
+  }
+}
+
+function hasPrintedBonus(space: Space): boolean {
+  return space.bonus.some((b) => b !== SpaceBonus._RESTRICTED);
+}
+
+/** A passive one-liner under the header — never says "Вы получите" (hover, no action). */
+function cellDescription(space: Space, status: BoardCellStatus): string | undefined {
+  if (status.content === 'ocean') {
+    return 'This cell is occupied by an ocean.';
+  }
+  if (status.content === 'empty' && status.reserved === undefined) {
+    if (space.spaceType === SpaceType.OCEAN) {
+      return 'Only an ocean tile can be placed here.';
+    }
+    if (space.spaceType !== SpaceType.DEFLECTION_ZONE && !hasPrintedBonus(space)) {
+      return 'A tile can be placed here when an action allows it.';
+    }
+  }
+  return undefined;
+}
+
+function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
   const board = player.game.board;
   if (space.id === player.game.nomadSpace) {
     return {content: 'special-tile', reserved: 'nomad', spaceTypeLabel: 'Mars Nomads camp'};
@@ -154,7 +209,7 @@ function specialZoneFacts(player: IPlayer, space: Space): Array<BoardFact> {
   } else if (space.spaceType === SpaceType.RESTRICTED) {
     out.push(rule('restricted', 'restriction', 'Restricted area', 'No tiles can ever be placed on this space.', 'nobody'));
   } else if (space.spaceType === SpaceType.DEFLECTION_ZONE) {
-    out.push(rule('deflection-zone', 'map-special-zone', 'Deflection Zone', 'A special stretch of land on the Hollandia map. Tiles place here exactly as on normal land; these cells keep their fixed position even when the map is randomized.', 'neutral'));
+    out.push(rule('deflection-zone', 'map-special-zone', 'Deflection Zone', 'On a randomized map these cells keep their fixed position; otherwise they behave as normal land.', 'neutral'));
   } else if (space.volcanic === true) {
     out.push(rule('volcanic', 'map-special-zone', 'Volcanic area', 'A volcanic space. Some cards may only place their tile on a volcanic space.', 'neutral'));
   }
@@ -252,6 +307,22 @@ function oceanAdjacencyFact(player: IPlayer, space: Space): BoardFact | undefine
   };
 }
 
+/** Passive rule shown when HOVERING an ocean tile — it is an adjacency SOURCE (the
+ *  base for the future Ares "source nearby" language). Not a gain to anyone yet. */
+function oceanNeighbourRuleFact(player: IPlayer): BoardFact {
+  return {
+    id: 'ocean-neighbour-rule',
+    category: 'ocean-adjacency-bonus',
+    timing: 'rule',
+    severity: 'info',
+    recipient: {kind: 'neutral'},
+    title: 'Adjacent placement',
+    description: 'A tile placed next to an ocean grants M€ to the player who places it.',
+    delta: {icon: 'megacredits', amount: player.oceanBonus, direction: 'gain'},
+    source: {type: 'global-rule', label: 'Ocean adjacency'},
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Placement's own global-parameter / TR effect
 // ---------------------------------------------------------------------------
@@ -287,9 +358,33 @@ function existingTileScoringFacts(player: IPlayer, space: Space): Array<BoardFac
   }
   if (Board.isCitySpace(space) && ownerColor !== undefined) {
     const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length;
-    out.push(vpFact('score-city', 'city-greenery-scoring', 'City scores for adjacent greeneries', recipientFor(player, ownerColor), 0, greeneries, 'Scores +1 VP per adjacent greenery at game end (currently counted above).'));
+    out.push(cityScoringFact('score-city', recipientFor(player, ownerColor), greeneries, false));
   }
   return out;
+}
+
+/**
+ * One city-scoring fact, recipient-aware. With ≥1 adjacent greenery it shows the
+ * `+N VP` endgame badge; with NONE it shows an honest count line — NEVER a "+0 VP"
+ * reward chip (which reads as a null bonus).
+ */
+function cityScoringFact(id: string, recipient: BoardFactRecipient, greeneries: number, future: boolean): BoardFact {
+  const title = future ? 'City will score for adjacent greeneries' : 'City scores for adjacent greeneries';
+  if (greeneries > 0) {
+    return vpFact(id, 'city-greenery-scoring', title, recipient, 0, greeneries,
+      future ?
+        'Scores +1 VP per adjacent greenery at game end (and any placed next to it later).' :
+        'Scores +1 VP per adjacent greenery at game end.');
+  }
+  return {
+    id,
+    category: 'city-greenery-scoring',
+    timing: 'endgame',
+    severity: 'info',
+    recipient,
+    title,
+    description: 'No adjacent greeneries yet.',
+  };
 }
 
 /** For a PLACEMENT preview: the endgame VP this placement creates, and for whom. */
@@ -316,13 +411,7 @@ function placementScoringFacts(player: IPlayer, space: Space, kind: BoardPlaceme
     }
   } else if (kind === 'city') {
     const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length;
-    out.push(vpFact(
-      'place-city',
-      'city-greenery-scoring',
-      'City will score for adjacent greeneries',
-      {kind: 'current-player'},
-      0, greeneries,
-      'Scores +1 VP per adjacent greenery at game end (and for any greenery placed next to it later).'));
+    out.push(cityScoringFact('place-city', {kind: 'current-player'}, greeneries, true));
   }
   return out;
 }
