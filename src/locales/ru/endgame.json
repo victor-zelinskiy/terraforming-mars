@@ -812,5 +812,11 @@
     "The award points were the difference for ${0}: +${1} VP, more than the final gap.": "Очки за награду стали разницей для ${0}: +${1} ПО — больше итогового разрыва.",
     "Resources stored on cards opened up at scoring and gave ${0} a big block through ${1}: +${2} VP.": "Накопленные на картах ресурсы раскрылись при подсчёте и дали ${0} крупный блок через ${1}: +${2} ПО.",
     "The Jovian tags banked all game folded into a dense block of points for ${0}: +${1} VP.": "Юпитерианские теги, копившиеся всю партию, сложились в плотный блок очков для ${0}: +${1} ПО.",
-    "A colony trade engine fed ${0}’s scoring plays all game.": "Колониальный торговый движок питал очковые ходы ${0} всю партию."
+    "A colony trade engine fed ${0}’s scoring plays all game.": "Колониальный торговый движок питал очковые ходы ${0} всю партию.",
+    "Economy": "Экономика",
+    "Unspent": "Остаток",
+    "One-track": "Однобокость",
+    "Enough everywhere": "Везде понемногу",
+    "Gen": "Пок.",
+    "Projects are dependable points when the draw never delivers an engine.": "Стандартные проекты — надёжные очки, когда колода так и не выдаёт движок."
 }

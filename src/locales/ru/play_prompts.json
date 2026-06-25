@@ -205,5 +205,6 @@
     "Select new space for ${0}": "Выберите новое место для ${0}",
     "Select space for ${0} to place an ocean": "Выберите место для ${0}, чтобы выложить океан",
     "Spend ${0} M€ instead of a second standard project": "Потратьте ${0} M€ вместо второго стандартного проекта",
-    "Select how to spend ${0} heat": "Выберите, как потратить тепло (${0})"
+    "Select how to spend ${0} heat": "Выберите, как потратить тепло (${0})",
+    "Select a resource to gain 1 unit of production": "Выберите ресурс, чтобы увеличить его производство на 1"
 }

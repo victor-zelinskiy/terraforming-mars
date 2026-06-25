@@ -53,6 +53,31 @@ export function gainResource(resource: Resource, amount: number): OptionMetadata
   return {kind: 'resourceGain', icon: RESOURCE_ICON[resource], amount};
 }
 
+/**
+ * "Gain N PRODUCTION of <resource>" — a self production increase. Shows the
+ * resource icon as the lead anchor + a mint production chip with the viewer's
+ * current → resulting production (note 'production'), so a "pick which production
+ * to raise" choice (e.g. the Mining Area / Mining Rights placement bonus that can
+ * land on a cell carrying BOTH a steel and a titanium bonus) reads premium —
+ * icons + before/after — instead of a bare resource name.
+ */
+export function gainProduction(player: IPlayer, resource: Resource, amount: number): OptionMetadata {
+  const current = player.production.get(resource);
+  return {
+    kind: 'resourceGain',
+    icon: RESOURCE_ICON[resource],
+    amount,
+    effects: [{
+      direction: 'gain',
+      icon: RESOURCE_ICON[resource],
+      amount,
+      current,
+      resulting: current + amount,
+      note: 'production',
+    }],
+  };
+}
+
 /** Raise a global parameter — `icon` is 'temperature' | 'venus' | 'oxygen' | 'oceans'. */
 export function globalParameter(icon: string, steps: number, current: number, resulting: number, unit?: string): OptionMetadata {
   return {kind: 'globalParameter', icon, amount: steps, global: {current, resulting, unit}};
