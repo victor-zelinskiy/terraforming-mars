@@ -714,6 +714,7 @@ import WaitingFor from '@/client/components/WaitingFor.vue';
 import Sidebar from '@/client/components/Sidebar.vue';
 import Colony from '@/client/components/colonies/Colony.vue';
 import {journalState} from '@/client/components/journal/journalState';
+import {configureBoardInfo} from '@/client/components/board/boardInfoState';
 import {untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import GameBoardView from '@/client/components/GameBoardView.vue';
 import {useBoardAutoScale} from '@/client/utils/useBoardAutoScale';
@@ -1067,6 +1068,10 @@ export default defineComponent({
      * The listener is attached on $nextTick so the click that opened the
      * overlay doesn't immediately close it.
      */
+    // Keep the BoardInformation hover inspector pointed at the viewer's id +
+    // the currently-DISPLAYED player's perspective (a seat switch re-points the
+    // "who gets what" facts without a server remount).
+    'displayedPlayer.color': 'syncBoardInfo',
     activeOverlay(newVal: OverlayId | null, oldVal: OverlayId | null) {
       if (newVal !== null && oldVal === null) {
         this.$nextTick(() => {
@@ -1390,6 +1395,7 @@ export default defineComponent({
     // it so the player can act. (A minimized generic modal restores itself via
     // its own listener; this covers the dedicated-overlay pills.)
     window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
+    this.syncBoardInfo();
   },
   beforeUnmount() {
     window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
@@ -2252,6 +2258,17 @@ export default defineComponent({
     isPlayerActing(playerView: PlayerViewModel) : boolean {
       // An optional prompt (draft re-pick) is not an active turn.
       return playerView.players.length > 1 && playerView.waitingFor !== undefined && playerView.waitingFor.optional !== true;
+    },
+    // Point the BoardInformation hover/preview engine at the viewer's id + the
+    // currently displayed player's perspective + the live player list (for
+    // recipient name labels). Runs on mount (every playerkey remount) and on a
+    // seat switch.
+    syncBoardInfo(): void {
+      configureBoardInfo({
+        participantId: this.playerView.id,
+        color: this.displayedPlayer.color,
+        players: this.playerView.players,
+      });
     },
     toggleOverlay(id: OverlayId): void {
       // Leaving an overlay that hosts a MANDATORY prompt via the bottom bar

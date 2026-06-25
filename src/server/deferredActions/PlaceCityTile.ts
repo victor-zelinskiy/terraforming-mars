@@ -6,6 +6,7 @@ import {PlacementType} from '../boards/PlacementType';
 import {Message} from '../../common/logs/Message';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
+import {PlacementContext} from '../../common/models/PlayerInputModel';
 
 export class PlaceCityTile extends DeferredAction<Space | undefined> {
   constructor(
@@ -17,6 +18,10 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       // Card-specific per-cell reason for cells excluded by a custom `spaces`
       // filter (e.g. UrbanizedArea's "2+ adjacent cities", LavaTube's volcanic).
       customReasoner?: (space: Space) => PlacementIllegalReason | undefined,
+      // Cancellability of this placement (pay-on-commit standard projects pass a
+      // cancellable marker + onCancel; cards leave it for the committed default).
+      placementContext?: PlacementContext,
+      onCancel?: () => void,
     }) {
     super(player, Priority.DEFAULT);
   }
@@ -30,7 +35,12 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       this.cb(undefined);
       return undefined;
     }
-    return createMarsSelectSpace(this.player, title, spaces, {placementType: type, customReasoner: this.options?.customReasoner})
+    return createMarsSelectSpace(this.player, title, spaces, {
+      placementType: type,
+      customReasoner: this.options?.customReasoner,
+      placementContext: this.options?.placementContext,
+      onCancel: this.options?.onCancel,
+    })
       .andThen((space) => {
         this.player.game.addCity(this.player, space);
         this.cb(space);

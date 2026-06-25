@@ -118,6 +118,9 @@ export interface IPlayer {
 
   // This generation / this round
   actionsTakenThisRound: number;
+  // Transient flag: a pay-on-commit placement (standard project) was cancelled,
+  // so the action loop re-presents the menu without counting the action.
+  pendingPlacementCancelled: boolean;
   lastCardPlayed: CardName | undefined;
   pendingInitialActions: Array<ICorporationCard>;
 

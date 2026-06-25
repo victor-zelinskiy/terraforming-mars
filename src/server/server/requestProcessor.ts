@@ -16,6 +16,7 @@ import {ApiGameEffectStats} from '../routes/ApiGameEffectStats';
 import {ApiGameActionStats} from '../routes/ApiGameActionStats';
 import {ApiGameEndgameFacts} from '../routes/ApiGameEndgameFacts';
 import {ApiGameDeltaPreview} from '../routes/ApiGameDeltaPreview';
+import {ApiGameBoardCellPreview} from '../routes/ApiGameBoardCellPreview';
 import {ApiGameRematch} from '../routes/ApiGameRematch';
 import {ApiGames} from '../routes/ApiGames';
 import {ApiIPs} from '../routes/ApiIPs';
@@ -88,6 +89,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_GAME_ACTION_STATS, ApiGameActionStats.INSTANCE],
     [paths.API_GAME_ENDGAME_FACTS, ApiGameEndgameFacts.INSTANCE],
     [paths.API_GAME_DELTA_PREVIEW, ApiGameDeltaPreview.INSTANCE],
+    [paths.API_GAME_BOARD_CELL_PREVIEW, ApiGameBoardCellPreview.INSTANCE],
     [paths.API_GAME_REMATCH, ApiGameRematch.INSTANCE],
     [paths.API_GAMES, ApiGames.INSTANCE],
     [paths.API_IPS, ApiIPs.INSTANCE],

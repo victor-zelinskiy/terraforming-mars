@@ -6,6 +6,7 @@ import {MAX_OXYGEN_LEVEL} from '../../../../common/constants';
 import {Units} from '../../../../common/Units';
 import {message} from '../../../logs/MessageBuilder';
 import {createMarsSelectSpace} from '../../../boards/marsSelectSpaceHelper';
+import {cancellablePlacement} from '../../../inputs/placementContext';
 
 
 export class ConvertPlants extends StandardActionCard {
@@ -47,7 +48,9 @@ export class ConvertPlants extends StandardActionCard {
       player,
       message('Convert ${0} plants into greenery', (b) => b.number(player.plantsNeededForGreenery)),
       player.game.board.getAvailableSpacesForGreenery(player),
-      {placementType: 'greenery'})
+      // Convert plants is a pre-commit picker: plants are spent in the andThen
+      // below, so the placement is genuinely cancellable before a space is chosen.
+      {placementType: 'greenery', placementContext: cancellablePlacement({kind: 'standardProject'})})
       .andThen((space) => {
         // Root the analytics chain at the conversion so the greenery placement,
         // oxygen rise and triggered effects group under it in the journal.

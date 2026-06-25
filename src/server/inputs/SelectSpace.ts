@@ -1,12 +1,13 @@
 import {Message} from '../../common/logs/Message';
 import {Space} from '../boards/Space';
-import {InputResponse, isSelectSpaceResponse} from '../../common/inputs/InputResponse';
+import {InputResponse, isCancelResponse, isSelectSpaceResponse} from '../../common/inputs/InputResponse';
 import {SelectSpaceModel} from '../../common/models/PlayerInputModel';
 import {BasePlayerInput} from '../PlayerInput';
 import {InputError} from './InputError';
 import {toID} from '../../common/utils/utils';
 import {PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
 import {SpaceId} from '../../common/Types';
+import {PlacementType} from '../boards/PlacementType';
 
 export class SelectSpace extends BasePlayerInput<Space> {
   /**
@@ -36,6 +37,24 @@ export class SelectSpace extends BasePlayerInput<Space> {
    */
   public hiddenTiles?: ReadonlyArray<SpaceId>;
 
+  /**
+   * The kind of placement this prompt represents (city / greenery / ocean / …).
+   * Set by `createMarsSelectSpace`. Lets the client fetch a kind-accurate
+   * {@link BoardPlacementPreview} (cost / gains / endgame VP / who-gets-what) for
+   * the hovered cell. Absent on custom SelectSpace paths → the client falls back
+   * to the kind-less cell info.
+   */
+  public placementType?: PlacementType;
+
+  /**
+   * Optional cancel handler for a CANCELLABLE placement (see `placementContext`).
+   * When the client submits a `CancelResponse` AND this prompt is cancellable,
+   * `process` invokes this instead of placing — the pay-on-commit standard
+   * projects set it to flag the action as cancelled (no cost applied, the player
+   * returns to the action menu). Absent → a cancel response is rejected.
+   */
+  public onCancel?: () => void;
+
   constructor(
     title: string | Message,
     public spaces: ReadonlyArray<Space>,
@@ -55,10 +74,21 @@ export class SelectSpace extends BasePlayerInput<Space> {
       spaces: this.spaces.map(toID),
       illegalSpaces: this.illegalSpaces,
       hiddenTiles: this.hiddenTiles,
+      placementType: this.placementType,
     };
   }
 
   public process(input: InputResponse) {
+    // Cancel a pending, not-yet-committed placement (pay-on-commit standard
+    // projects). Only honoured when the placement declared itself cancellable
+    // AND supplied a cancel handler; otherwise the placement is mandatory.
+    if (isCancelResponse(input)) {
+      if (this.placementContext?.cancellable === true && this.onCancel !== undefined) {
+        this.onCancel();
+        return undefined;
+      }
+      throw new InputError('This placement cannot be cancelled');
+    }
     if (!isSelectSpaceResponse(input)) {
       throw new InputError('Not a valid SelectSpaceResponse');
     }

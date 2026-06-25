@@ -1,7 +1,7 @@
 import {OCEAN_UPGRADE_TILES, TileType} from '../../common/TileType';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {CanAffordOptions, IPlayer} from '../IPlayer';
-import {Board} from './Board';
+import {Board, SpaceCosts} from './Board';
 import {Space} from './Space';
 import {PlacementType} from './PlacementType';
 import {AresHandler} from '../ares/AresHandler';
@@ -184,6 +184,48 @@ export class MarsBoard extends Board {
   public getAvailableSpacesForOcean(player: IPlayer): ReadonlyArray<Space> {
     return this.getSpaces(SpaceType.OCEAN)
       .filter((space) => space.tile === undefined && (space.player === undefined || space.player === player));
+  }
+
+  /**
+   * Pure, read-only: the M€ a player would gain from oceans ADJACENT to `space`
+   * (NOT applied). The single source of truth for the ocean-adjacency rule —
+   * called by BOTH the live grant path (`Game.grantPlacementBonuses`) and the
+   * read-only `BoardInformationEngine` preview, so the two can never drift.
+   */
+  public oceanAdjacencyBonus(player: IPlayer, space: Space): {oceans: number, megacredits: number} {
+    const oceans = this.getAdjacentSpaces(space).filter(Board.isOceanSpace).length;
+    return {oceans, megacredits: oceans * player.oceanBonus};
+  }
+
+  /**
+   * Read-only cost descriptor for placing on `space`: the tile's OWN additional
+   * costs (Ares hazard removal / `spaceCosts` overrides like Hellas ocean 6 M€ /
+   * Vastitas temperature 3 M€ / Ares adjacency `cost`), whether the player can
+   * afford it, and the honest M€ shortfall otherwise. Wraps the protected
+   * `computeAdditionalCosts` + `canAfford` + private `placementMegacreditDeficit`
+   * so `BoardInformationEngine` (a sibling module, not a subclass) can surface
+   * placement cost without re-implementing the rule.
+   */
+  public placementCostInfo(player: IPlayer, space: Space, canAffordOptions?: CanAffordOptions): {
+    megacredits: number, production: number, tr: SpaceCosts['tr'], affordable: boolean, deficit: number,
+  } {
+    const costs = this.computeAdditionalCosts(space, player.game.gameOptions.aresExtension, canAffordOptions?.bonusMultiplier);
+    const affordable = this.canAfford(player, space, canAffordOptions);
+    const deficit = affordable ? 0 : this.placementMegacreditDeficit(player, space, 'cannot-afford', canAffordOptions);
+    return {megacredits: costs.megacredits, production: costs.production, tr: costs.tr, affordable, deficit};
+  }
+
+  /**
+   * Public wrapper over the private `deriveIllegalReason` for a SINGLE cell — so
+   * the preview engine can explain ONE hovered illegal cell without re-walking
+   * every space via `computeIllegalReasons`.
+   */
+  public illegalReasonFor(
+    player: IPlayer,
+    placementType: PlacementType | undefined,
+    space: Space,
+    canAffordOptions?: CanAffordOptions): PlacementIllegalReason {
+    return this.deriveIllegalReason(player, placementType, space, canAffordOptions);
   }
 
   /**

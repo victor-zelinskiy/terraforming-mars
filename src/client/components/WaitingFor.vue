@@ -85,7 +85,9 @@
     -->
     <PlacementBanner v-if="topLevelSpaceInput !== undefined"
                      :title="topLevelSpaceInput.title"
-                     :cancellable="false" />
+                     :cancellable="topLevelSpaceInput.placementContext?.cancellable === true"
+                     :reason="topLevelSpaceInput.placementContext?.reason"
+                     @cancel="onPlacementCancel" />
     </div>
   </div>
 </template>
@@ -410,6 +412,12 @@ export default defineComponent({
           body: JSON.stringify({runId: this.playerView.runId, responses}),
         },
         false);
+    },
+    // Cancel a pending, cancellable tile placement (a pay-on-commit standard
+    // project). Submits a CancelResponse; the server discards the placement
+    // without charging and returns the player to the action menu.
+    onPlacementCancel() {
+      this.onsave({type: 'cancel'});
     },
     reset() {
       this.fetchPlayerInput(

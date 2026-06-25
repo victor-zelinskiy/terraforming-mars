@@ -3,6 +3,8 @@ import {CardName} from '../../../../common/cards/CardName';
 import {CardRenderer} from '../../render/CardRenderer';
 import {StandardProjectCard} from '../../StandardProjectCard';
 import {PlaceGreeneryTile} from '../../../deferredActions/PlaceGreeneryTile';
+import {StandardProjectPlacement} from '../../../deferredActions/StandardProjectPlacement';
+import {Payment} from '../../../../common/inputs/Payment';
 
 export class GreeneryStandardProject extends StandardProjectCard {
   constructor() {
@@ -37,7 +39,23 @@ export class GreeneryStandardProject extends StandardProjectCard {
     return super.canAct(player);
   }
 
+  // Legacy committed path.
   actionEssence(player: IPlayer): void {
     player.game.defer(new PlaceGreeneryTile(player));
+  }
+
+  // Pay on commit: present a CANCELLABLE greenery placement FIRST; the cost +
+  // oxygen/TR apply only once a space is chosen.
+  public override payAndExecute(player: IPlayer, payment: Payment): void {
+    const spaces = player.game.board.getAvailableSpacesForType(player, 'greenery');
+    player.game.defer(new StandardProjectPlacement(player, {
+      placementType: 'greenery',
+      title: 'Select space for greenery tile',
+      spaces,
+      commit: (space) => this.commitInScope(player, () => {
+        player.game.addGreenery(player, space);
+        this.commitCost(player, payment);
+      }),
+    }));
   }
 }

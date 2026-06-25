@@ -2,6 +2,9 @@
   <dialog ref="dialog">
     <form method="dialog">
       <p v-i18n class="newlines">{{ message }}</p>
+      <!-- Optional rich content (e.g. the placement preview) between the prompt
+           and the buttons. Empty for plain confirms — unchanged for them. -->
+      <div class="confirm-dialog__slot"><slot /></div>
       <menu class="dialog-menu centered-content">
         <button class="btn btn-lg btn-primary" v-on:click="accept()" v-i18n>Yes</button>
         <button class="btn btn-lg" v-on:click="dismiss()" v-i18n>No</button>

@@ -6,7 +6,13 @@
         ref="confirmation"
         v-on:accept="confirmPlacement"
         v-on:dismiss="cancelPlacement"
-        v-on:hide="hideDialog" />
+        v-on:hide="hideDialog">
+      <board-placement-preview-content
+        v-if="confirmPreview !== undefined"
+        :preview="confirmPreview"
+        :viewerColor="playerView.thisPlayer?.color"
+        :players="playerView.players ?? []" />
+    </confirm-dialog>
     <div v-if="showtitle" class="wf-select-space">
       {{ $t(playerinput.title) }}
       <go-to-map :playerinput="playerinput"></go-to-map>
@@ -16,6 +22,11 @@
       <go-to-map :playerinput="playerinput"></go-to-map>
     </div>
     <placement-reason-popover :reasons="hoverReasons" :anchor="hoverAnchor" />
+    <board-placement-preview-popover
+      :preview="previewData"
+      :anchor="previewAnchor"
+      :viewerColor="playerView.thisPlayer?.color"
+      :players="playerView.players ?? []" />
   </div>
 </template>
 
@@ -33,6 +44,10 @@ import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import PlacementReasonPopover from '@/client/components/board/PlacementReasonPopover.vue';
 import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
 import {setPlacementHiddenTiles, clearPlacementHiddenTiles} from '@/client/components/board/placementRenderState';
+import BoardPlacementPreviewPopover from '@/client/components/board/BoardPlacementPreviewPopover.vue';
+import BoardPlacementPreviewContent from '@/client/components/board/BoardPlacementPreviewContent.vue';
+import {fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
+import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 
 /**
  * Marker attribute on cells we annotated with an illegal-reason tooltip.
@@ -55,6 +70,14 @@ type DataModel = {
   hoverReasons: ReadonlyArray<UnplayableReason>;
   hoverAnchor: DOMRect | undefined;
   hoverSpaceId: SpaceId | undefined;
+  // Premium placement PREVIEW state for LEGAL cells (cost / gains / endgame VP).
+  previewData: BoardPlacementPreview | undefined;
+  previewAnchor: DOMRect | undefined;
+  previewSpaceId: SpaceId | undefined;
+  previewToken: number;
+  // Preview shown INSIDE the placement confirm dialog (the selected cell).
+  confirmPreview: BoardPlacementPreview | undefined;
+  confirmToken: number;
 };
 
 export default defineComponent({
@@ -90,12 +113,20 @@ export default defineComponent({
       hoverReasons: [],
       hoverAnchor: undefined,
       hoverSpaceId: undefined,
+      previewData: undefined,
+      previewAnchor: undefined,
+      previewSpaceId: undefined,
+      previewToken: 0,
+      confirmPreview: undefined,
+      confirmToken: 0,
     };
   },
   components: {
     'confirm-dialog': ConfirmDialog,
     GoToMap,
     'placement-reason-popover': PlacementReasonPopover,
+    'board-placement-preview-popover': BoardPlacementPreviewPopover,
+    'board-placement-preview-content': BoardPlacementPreviewContent,
   },
   computed: {
     typedRefs(): Refs {
@@ -159,34 +190,75 @@ export default defineComponent({
       });
       this.clearHover();
     },
-    // Show the premium reason popover when hovering an illegal cell. Delegated
-    // on document so it covers every board region without per-cell listeners.
+    // Delegated board hover (covers every board region without per-cell
+    // listeners). An ILLEGAL cell shows the premium reason popover; a LEGAL cell
+    // shows the placement PREVIEW (cost / gains / who-gets-what / endgame VP).
     onBoardMouseOver(e: MouseEvent) {
       const target = e.target as Element | null;
-      const cell = target?.closest?.('[' + DATA_ILLEGAL_MARKER + ']') as HTMLElement | null;
+      const cell = target?.closest?.('[data_space_id]') as HTMLElement | null;
       if (cell === null || cell === undefined) {
         this.clearHover();
         return;
       }
-      const spaceId = cell.getAttribute('data_space_id') as SpaceId;
-      if (spaceId === null || spaceId === this.hoverSpaceId) {
-        return;
-      }
-      const entry = this.illegalBySpace.get(spaceId);
-      if (entry === undefined) {
+      const spaceId = cell.getAttribute('data_space_id') as SpaceId | null;
+      if (spaceId === null) {
         this.clearHover();
         return;
       }
-      this.hoverSpaceId = spaceId;
-      this.hoverReasons = [placementReasonToUnplayable(entry.reason, entry.deficit)];
-      this.hoverAnchor = cell.getBoundingClientRect();
+      const illegal = this.illegalBySpace.get(spaceId);
+      if (illegal !== undefined) {
+        this.clearPreview();
+        if (spaceId !== this.hoverSpaceId) {
+          this.hoverSpaceId = spaceId;
+          this.hoverReasons = [placementReasonToUnplayable(illegal.reason, illegal.deficit)];
+          this.hoverAnchor = cell.getBoundingClientRect();
+        }
+        return;
+      }
+      if (this.spaces.has(spaceId)) {
+        this.clearReasonHover();
+        this.showPreview(spaceId, cell);
+        return;
+      }
+      this.clearHover();
     },
-    clearHover() {
+    showPreview(spaceId: SpaceId, cell: HTMLElement) {
+      if (spaceId === this.previewSpaceId) {
+        return;
+      }
+      const kind = this.playerinput.placementType;
+      this.previewSpaceId = spaceId;
+      this.previewAnchor = cell.getBoundingClientRect();
+      this.previewData = undefined;
+      // No placement kind (custom SelectSpace path) → highlight only, no preview.
+      if (kind === undefined) {
+        return;
+      }
+      const myToken = ++this.previewToken;
+      fetchBoardCellPreview(spaceId, kind).then((preview) => {
+        if (myToken === this.previewToken && this.previewSpaceId === spaceId) {
+          this.previewData = preview;
+        }
+      });
+    },
+    clearReasonHover() {
       this.hoverSpaceId = undefined;
       this.hoverReasons = [];
       this.hoverAnchor = undefined;
     },
+    clearPreview() {
+      this.previewSpaceId = undefined;
+      this.previewData = undefined;
+      this.previewAnchor = undefined;
+      this.previewToken++;
+    },
+    clearHover() {
+      this.clearReasonHover();
+      this.clearPreview();
+    },
     cancelPlacement() {
+      this.confirmPreview = undefined;
+      this.confirmToken++;
       if (this.selectedTile === undefined) {
         throw new Error('unexpected, no tile selected!');
       }
@@ -196,6 +268,8 @@ export default defineComponent({
       this.applyIllegalTooltips(tiles);
     },
     confirmPlacement() {
+      this.confirmPreview = undefined;
+      this.confirmToken++;
       const tiles = this.getSelectableSpaces();
       tiles.forEach((tile) => {
         tile.onclick = null;
@@ -241,14 +315,32 @@ export default defineComponent({
     onTileSelected(tile: HTMLElement) {
       this.selectedTile = tile;
       this.disableAnimation();
+      this.clearHover();
       this.animateSpace(tile, true);
       tile.classList.remove('board-space--available');
       const hideTileConfirmation = getPreferences().hide_tile_confirmation;
       if (hideTileConfirmation) {
         this.confirmPlacement();
       } else {
+        this.loadConfirmPreview(tile);
         this.typedRefs.confirmation.show();
       }
+    },
+    // Populate the confirm dialog with the SELECTED cell's preview so the player
+    // confirms against the SAME facts they saw on hover (usually cached → instant).
+    loadConfirmPreview(tile: HTMLElement) {
+      this.confirmPreview = undefined;
+      const spaceId = tile.getAttribute('data_space_id') as SpaceId | null;
+      const kind = this.playerinput.placementType;
+      if (spaceId === null || kind === undefined) {
+        return;
+      }
+      const myToken = ++this.confirmToken;
+      fetchBoardCellPreview(spaceId, kind).then((preview) => {
+        if (myToken === this.confirmToken) {
+          this.confirmPreview = preview;
+        }
+      });
     },
     saveData() {
       if (this.spaceId === undefined) {
