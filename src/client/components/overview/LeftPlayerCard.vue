@@ -33,7 +33,7 @@
     <div v-if="corporationName" class="left-panel-card-corp" :title="corporationName" v-i18n>{{ corporationName }}</div>
     <div class="left-panel-card-row left-panel-card-row--stats">
       <div class="left-panel-card-stat left-panel-card-stat--vp" :title="privateMask ? '' : $t('Victory points')">
-        <span class="left-panel-card-stat-label">ПО</span>
+        <span class="left-panel-card-stat-label" v-i18n>VP</span>
         <span class="left-panel-card-stat-value">
           <PrivateScoreMask v-if="privateMask" compact />
           <template v-else>
@@ -49,7 +49,7 @@
         </span>
       </div>
       <div class="left-panel-card-stat left-panel-card-stat--tr" :title="$t('Terraforming Rating')">
-        <span class="left-panel-card-stat-label">РТ</span>
+        <span class="left-panel-card-stat-label" v-i18n>TR</span>
         <span class="left-panel-card-stat-value">
           <span class="left-panel-card-stat-value__num">{{ tr }}</span>
           <AnimatedMetricValue

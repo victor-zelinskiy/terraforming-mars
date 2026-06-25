@@ -46,6 +46,7 @@
 
 import {defineComponent} from 'vue';
 import * as constants from '@/common/constants';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import GameOverview from '@/client/components/admin/GameOverview.vue';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {GameId, ParticipantId} from '@/common/Types';
@@ -152,7 +153,7 @@ export default defineComponent({
       if (ids.length === 0) {
         return;
       }
-      if (!confirm(`Удалить выбранные игры (${ids.length}) из базы данных? Это действие необратимо.`)) {
+      if (!confirm(translateTextWithParams('Delete the selected games (${0}) from the database? This action cannot be undone.', [String(ids.length)]))) {
         return;
       }
 
@@ -176,7 +177,7 @@ export default defineComponent({
       this.bulkDeleting = false;
       this.bulkDeletingGameIds = [];
       if (failed.length > 0) {
-        alert(`Не удалось удалить игр: ${failed.length}. Они остались в списке.`);
+        alert(translateTextWithParams('Failed to delete ${0} game(s). They remain in the list.', [String(failed.length)]));
       }
     },
   },
