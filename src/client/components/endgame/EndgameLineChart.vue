@@ -44,7 +44,7 @@
         <g class="eg-chart__xaxis">
           <text v-for="g in xTicks" :key="'x' + g.gen" :x="g.x" :y="height - padB + 18"
                 class="eg-chart__xtick" :class="{'eg-chart__xtick--hot': hoverIndex === g.gen - 1}">{{ g.gen }}</text>
-          <text :x="(padL + width - padR) / 2" :y="height - 2" class="eg-chart__axislabel">{{ xLabel }}</text>
+          <text :x="(padL + width - padR) / 2" :y="height - 2" class="eg-chart__axislabel" v-i18n>{{ xLabel }}</text>
         </g>
 
         <!-- annotations (decisive moments) -->
@@ -76,7 +76,7 @@
       </svg>
 
       <div v-if="hoverIndex !== null" class="eg-chart__tip" :style="tipStyle">
-        <div class="eg-chart__tip-head">{{ xLabel }} {{ hoverIndex + 1 }}</div>
+        <div class="eg-chart__tip-head"><span v-i18n>{{ xLabel }}</span> {{ hoverIndex + 1 }}</div>
         <div v-for="(row, ri) in tipRows" :key="row.label" class="eg-chart__tip-row" :class="{'eg-chart__tip-row--lead': ri === 0 && tipRows.length > 1}">
           <span class="eg-chart__tip-dot" :style="{background: hex(row.color)}"></span>
           <span class="eg-chart__tip-name">{{ row.label }}</span>

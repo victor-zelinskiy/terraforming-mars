@@ -10,18 +10,30 @@ import {Color} from '@/common/Color';
 type Context = {
   playerView: PlayerViewModel | undefined;
   players: Map<Color, string>;
+  // The set of player NAMES in the current game. A player name is user-supplied
+  // free text, NOT a translation key — but it routinely flows through
+  // `translateText` (e.g. a name rendered as a text node under a `v-i18n`
+  // ancestor, or a `messageArgs`/param that carries a funder/actor name, like the
+  // award/milestone scoring rows). Without this, every such render spams
+  // `please translate: "<name>"` to the console. We keep the names here so
+  // `translateText` can recognise a name and return it VERBATIM without warning —
+  // never translating a person's name.
+  playerNames: Set<string>;
 }
 
 const context: Context = {
   playerView: undefined,
   players: new Map(),
+  playerNames: new Set(),
 };
 
 export function setTranslationContext(playerView: PlayerViewModel) {
   context.playerView = playerView;
   context.players.clear();
+  context.playerNames.clear();
   for (const player of playerView.players) {
     context.players.set(player.color, player.name);
+    context.playerNames.add(player.name);
   }
 }
 
@@ -97,7 +109,7 @@ export function translateText(englishText: string): string {
         }
       }
     }
-    if (!translated.has(englishText)) {
+    if (!translated.has(englishText) && !context.playerNames.has(englishText)) {
       console.log(`${lang} - please translate: "${englishText}"`);
     }
   }
