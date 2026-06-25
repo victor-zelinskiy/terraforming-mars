@@ -226,7 +226,7 @@ describe('MilestoneAwardSelector', () => {
 
     it('includes fan and modular milestones (compatible, untagged) without the fan toggle', () => {
       const [milestones] = getCandidates({...DEFAULT_GAME_OPTIONS, randomMA: RandomMAOptionType.ALL, includeFanMA: false});
-      expect(milestones).to.include('Trader'); // genuinely-new modular milestone
+      expect(milestones).to.include('Producer'); // genuinely-new modular milestone (Trader is now a deprecated clone of Tradesman)
       expect(milestones).to.include('Economizer'); // fan-board milestone
     });
 

@@ -107,7 +107,10 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'Martian': {Factory: Martian, compatibility: 'pathfinders'},
     'Mayor': {Factory: Mayor, random: 'both'},
     'Merchant': {Factory: Merchant, random: 'modular'},
-    'Metallurgist': {Factory: Metallurgist, random: 'modular'},
+    // vize1215 fork: Metallurgist (6 steel+titanium production) is a threshold clone of Smith (7 of the
+    // same), which has a board home (Vastitas Borealis). Smith is the canonical version; Metallurgist is
+    // deprecated so it never enters the random pool (kept in the manifest for save compatibility).
+    'Metallurgist': {Factory: Metallurgist, deprecated: true},
     'Minimalist': {Factory: Minimalist},
     'Networker': {Factory: Networker, compatibility: 'ares'},
     'One Giant Step': {Factory: OneGiantStep, compatibility: 'moon'},
@@ -131,16 +134,27 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'Tactician': {Factory: Tactician},
     'Tactician4': {Factory: Tactician4, random: 'modular'},
     'Terra Pioneer': {Factory: TerraPioneer},
-    'Terraformer': {Factory: Terraformer},
+    // vize1215 fork: the classic Terraformer (35 TR / 26 with Turmoil) was replaced on Tharsis and in the
+    // unified pool by Terraformer29 (flat 29 TR). Left with no board home it slipped through the LIMITED
+    // candidate filter, so a random game could offer two terraform-rating milestones. Deprecated so it
+    // never enters the random pool; kept in the manifest for save compatibility.
+    'Terraformer': {Factory: Terraformer, deprecated: true},
     'Terraformer29': {Factory: Terraformer29, random: 'modular'},
     'Terran': {Factory: Terran},
     'Terran5': {Factory: Terran5, random: 'modular'},
     'Thawer': {Factory: Thawer, random: 'modular'},
-    'Trader': {Factory: Trader, random: 'modular'},
+    // vize1215 fork: Trader (3 different card-resource types) is an effect clone of Tradesman (the same,
+    // plus a corruption bonus), which has a board home (Vastitas Borealis). Tradesman is the canonical
+    // version; Trader is deprecated so it never enters the random pool (kept for save compatibility).
+    'Trader': {Factory: Trader, deprecated: true},
     'Tradesman': {Factory: Tradesman},
     'Tropicalist': {Factory: Tropicalist},
     'Tunneler': {Factory: Tunneler, compatibility: 'underworld'},
-    'Tycoon': {Factory: Tycoon},
+    // vize1215 fork: the classic Tycoon (15 project cards) was replaced on Elysium and in the unified pool
+    // by Tycoon10 (10 blue+green cards). Left with no board home it slipped through the LIMITED candidate
+    // filter, so a random game could offer two project-card milestones. Deprecated so it never enters the
+    // random pool; kept in the manifest for save compatibility.
+    'Tycoon': {Factory: Tycoon, deprecated: true},
     'Tycoon10': {Factory: Tycoon10, random: 'modular'},
     'V. Electrician': {Factory: VElectrician},
     'V. Spacefarer': {Factory: VSpacefarer},
