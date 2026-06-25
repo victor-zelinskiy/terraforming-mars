@@ -4,6 +4,7 @@ import {IColony} from '../colonies/IColony';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
+import {PlacementContext} from '../../common/models/PlayerInputModel';
 
 export class BuildColony extends DeferredAction<IColony> {
   constructor(
@@ -13,6 +14,14 @@ export class BuildColony extends DeferredAction<IColony> {
       title?: string,
       colonies?: Array<IColony>, // If not specified, will accept all playable colonies.
       giveBonusTwice?: boolean, // Custom for Vital Colony. Rewards the bonus when placing a colony a second time.
+      // Cancellability (pay-on-commit Build-Colony standard project). Cards leave
+      // these unset → the colony build is a committed effect (not cancellable).
+      placementContext?: PlacementContext,
+      onCancel?: () => void,
+      // When set, runs INSTEAD of the default `place()` on commit — the standard
+      // project uses it to pay + place inside one analytics scope. `place` builds
+      // the colony; call it from inside the closure.
+      commit?: (colony: IColony, place: () => void) => void,
     },
   ) {
     super(player, Priority.BUILD_COLONY);
@@ -27,6 +36,8 @@ export class BuildColony extends DeferredAction<IColony> {
 
     const title = this.options?.title ?? 'Select where to build a colony';
     const select = new SelectColony(title, 'Build', colonies);
+    select.placementContext = this.options?.placementContext;
+    select.onCancel = this.options?.onCancel;
 
     // Surface the OTHER in-play colonies the player can't build on right now as
     // DISABLED cards with a reason (full / already-owned / TR affordability),
@@ -39,7 +50,12 @@ export class BuildColony extends DeferredAction<IColony> {
 
     return select
       .andThen((colony: IColony) => {
-        colony.addColony(this.player, {giveBonusTwice: this.options?.giveBonusTwice ?? false});
+        const place = () => colony.addColony(this.player, {giveBonusTwice: this.options?.giveBonusTwice ?? false});
+        if (this.options?.commit !== undefined) {
+          this.options.commit(colony, place);
+        } else {
+          place();
+        }
         this.cb(colony);
         return undefined;
       });

@@ -14,7 +14,8 @@
           :viewer-color="viewerColor"
           @dismiss="onDismiss"
           @toggle="onToggle"
-          @cta="onCta" />
+          @cta="onCta"
+          @cancel="onCancel" />
       </Transition>
 
       <!-- Transient feed (normal / important / warning). -->
@@ -381,6 +382,12 @@ export default defineComponent({
         dismiss(notification.id);
         break;
       }
+    },
+    // The calm "Cancel" affordance on a cancellable pending placement. The actual
+    // cancel is submitted by PlayerHome (which owns the WaitingFor ref) — the card
+    // is NOT dismissed here; it clears when the server resolves the prompt.
+    onCancel(_notification: NotificationModel): void {
+      window.dispatchEvent(new CustomEvent('tm-notification-cancel'));
     },
   },
   mounted(): void {

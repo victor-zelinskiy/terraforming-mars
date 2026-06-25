@@ -1,7 +1,7 @@
 import {Message} from '../../common/logs/Message';
 import {BasePlayerInput} from '../PlayerInput';
 import {IColony} from '../colonies/IColony';
-import {InputResponse, isSelectColonyResponse} from '../../common/inputs/InputResponse';
+import {InputResponse, isCancelResponse, isSelectColonyResponse} from '../../common/inputs/InputResponse';
 import {SelectColonyModel} from '../../common/models/PlayerInputModel';
 import {coloniesToModel} from '../models/ModelUtils';
 import {IPlayer} from '../IPlayer';
@@ -20,6 +20,15 @@ export class SelectColony extends BasePlayerInput<IColony> {
   // Relevant-but-unpickable colonies shown DISABLED with a reason. Kept OUT of
   // `colonies` so `process()` rejects them for free.
   public disabledColonies: ReadonlyArray<{colony: IColony, reason: string | Message}> = [];
+
+  /**
+   * Optional cancel handler for a CANCELLABLE colony placement (pay-on-commit
+   * Build-Colony standard project). When the client submits a `CancelResponse`
+   * AND `placementContext.cancellable` is true, `process` invokes this instead of
+   * building — nothing is spent, no colony is placed, the player returns to the
+   * action menu. Absent → a cancel response is rejected (mandatory).
+   */
+  public onCancel?: () => void;
 
   constructor(
     title: string | Message,
@@ -45,6 +54,13 @@ export class SelectColony extends BasePlayerInput<IColony> {
   }
 
   public process(input: InputResponse) {
+    if (isCancelResponse(input)) {
+      if (this.placementContext?.cancellable === true && this.onCancel !== undefined) {
+        this.onCancel();
+        return undefined;
+      }
+      throw new InputError('This colony placement cannot be cancelled');
+    }
     if (!isSelectColonyResponse(input)) {
       throw new InputError('Not a valid SelectColonyResponse');
     }

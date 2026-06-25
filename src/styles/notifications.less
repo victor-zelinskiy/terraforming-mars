@@ -476,6 +476,23 @@ body:has(.hand-board-overlay .hand-sale-strip) {
                 color: var(--notif-accent);
             }
         }
+
+        // Calm secondary "Cancel" — a safe path back, NOT a destructive action:
+        // dark glass + a quiet rim, deliberately less loud than the primary CTA.
+        &--cancel {
+            color: #c4d6e4;
+            background: rgba(18, 30, 44, 0.85);
+            border: 1px solid rgba(150, 184, 210, 0.4);
+            box-shadow: none;
+
+            &:hover {
+                filter: none;
+                transform: none;
+                box-shadow: none;
+                color: #eaf4fd;
+                border-color: rgba(180, 214, 240, 0.7);
+            }
+        }
     }
     &__cta-arrow {
         font-size: 12px;

@@ -122,6 +122,7 @@ export type NotificationCtaAction =
   | 'focus-actions' // draw attention to the action area (your turn)
   | 'go-to-action' // best-effort: surface the pending mandatory prompt
   | 'view-reveal' // open the read-only viewer of the revealed/shown cards
+  | 'cancel' // cancel the pending, not-yet-committed action (cancellable placement)
   | 'dismiss';
 
 export type NotificationCta = {
@@ -192,6 +193,10 @@ export type NotificationModel = {
   ttl: number;
   persistent: boolean;
   cta?: NotificationCta;
+  /** SECONDARY cta — a calm "Cancel" affordance shown when the pending action is
+   *  cancellable before commit (a cancellable placement / colony build). Distinct
+   *  from `cta` (the primary "go to action") so the player has a clear path back. */
+  cancelCta?: NotificationCta;
   /** Epoch ms the model was minted (client clock). */
   createdAt: number;
 };

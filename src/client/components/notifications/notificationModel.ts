@@ -462,6 +462,10 @@ export function buildTurnNotification(
     };
   }
 
+  // A pending placement / colony build the server marked cancellable (pay-on-
+  // commit standard projects) gets a calm "Cancel" affordance right in the
+  // notification — the most visible signal that the game is waiting on input.
+  const cancelCta = cancelCtaFor(waitingFor);
   return {
     id: 'turn:action-required',
     kind: 'action-required',
@@ -476,8 +480,18 @@ export function buildTurnNotification(
     ttl: NOTIFICATION_TTL['action-required'],
     persistent: true,
     cta: {labelKey: 'Go to action', action: 'go-to-action'},
+    cancelCta,
     createdAt: opts.createdAt,
   };
+}
+
+/** The contextual "Cancel" CTA for a cancellable pending placement, else undefined. */
+function cancelCtaFor(waitingFor: PlayerInputModel): NotificationModel['cancelCta'] {
+  if (waitingFor.placementContext?.cancellable !== true) {
+    return undefined;
+  }
+  const labelKey = waitingFor.type === 'colony' ? 'Cancel construction' : 'Cancel placement';
+  return {labelKey, action: 'cancel'};
 }
 
 /** A "new generation" highlight (driven by the game.generation diff). */

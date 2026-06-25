@@ -3,6 +3,8 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {StandardProjectCard} from '../StandardProjectCard';
 import {BuildColony} from '../../deferredActions/BuildColony';
+import {Payment} from '../../../common/inputs/Payment';
+import {cancellablePlacement} from '../../inputs/placementContext';
 
 export class BuildColonyStandardProject extends StandardProjectCard {
   constructor() {
@@ -26,7 +28,32 @@ export class BuildColonyStandardProject extends StandardProjectCard {
       player.colonies.getPlayableColonies(/* allowDuplicate= */ false, canPlayOptions).length > 0;
   }
 
+  // Legacy committed path.
   actionEssence(player: IPlayer): void {
     player.game.defer(new BuildColony(player));
+  }
+
+  // Pay on commit: present a CANCELLABLE colony selection FIRST; the 17 M€ cost +
+  // the colony placement (bonuses / triggers) apply only once a colony is chosen.
+  // Cancelling before then spends nothing, builds nothing, and returns the player
+  // to the action menu without consuming the action.
+  public override payAndExecute(player: IPlayer, payment: Payment): void {
+    // Pre-filter the colony list with the project cost accounted for. Because pay
+    // happens on commit, the list is computed BEFORE the 17 M€ is spent — so we
+    // must pass `canPlayOptions` (which includes the cost) to exclude colonies the
+    // player could afford now but NOT after paying (e.g. a TR-costed colony under
+    // Reds). Mirrors the old "pay first, then compute the list" affordability.
+    const colonies = player.colonies.getPlayableColonies(/* allowDuplicate= */ false, this.canPlayOptions(player));
+    player.game.defer(new BuildColony(player, {
+      colonies,
+      placementContext: cancellablePlacement({kind: 'colony'}),
+      onCancel: () => {
+        player.pendingPlacementCancelled = true;
+      },
+      commit: (_colony, place) => this.commitInScope(player, () => {
+        this.commitCost(player, payment);
+        place();
+      }),
+    }));
   }
 }

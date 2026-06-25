@@ -395,6 +395,29 @@ describe('notificationModel (pure)', () => {
       expect(n?.persistent).to.eq(true);
       expect(n?.prompt).to.eq('Select a card to discard');
     });
+
+    it('surfaces a contextual Cancel CTA only for a cancellable placement', () => {
+      const space = buildTurnNotification(
+        input({type: 'space', title: 'Select space for city tile', placementContext: {cancellable: true}}),
+        {generation: 5, createdAt: 1, freshTurn: false});
+      expect(space?.cancelCta?.action).to.eq('cancel');
+      expect(space?.cancelCta?.labelKey).to.eq('Cancel placement');
+
+      const colony = buildTurnNotification(
+        input({type: 'colony', title: 'Select where to build a colony', placementContext: {cancellable: true}}),
+        {generation: 5, createdAt: 1, freshTurn: false});
+      expect(colony?.cancelCta?.labelKey).to.eq('Cancel construction');
+
+      // Committed placement → no cancel; ordinary mandatory prompt → no cancel.
+      const committed = buildTurnNotification(
+        input({type: 'space', title: 'Select space', placementContext: {cancellable: false}}),
+        {generation: 5, createdAt: 1, freshTurn: false});
+      expect(committed?.cancelCta).to.eq(undefined);
+      const discard = buildTurnNotification(
+        input({type: 'card', title: 'Select a card to discard'}),
+        {generation: 5, createdAt: 1, freshTurn: false});
+      expect(discard?.cancelCta).to.eq(undefined);
+    });
   });
 
   describe('highlight notifications', () => {

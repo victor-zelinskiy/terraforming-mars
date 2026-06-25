@@ -74,6 +74,20 @@
       </button>
 
       <!--
+        Cancel — a safe path back from a not-yet-committed colony build
+        (pay-on-commit standard project). Shown only when the server marked the
+        placement cancellable; submits a CancelResponse (nothing is spent).
+      -->
+      <button v-if="!dismissable && cancellable && !minimized"
+              class="colonies-overlay__cancel"
+              @click="$emit('cancel')"
+              :title="$t('Cancel construction')"
+              data-test="colonies-overlay-cancel">
+        <span class="colonies-overlay__minimize-glyph">×</span>
+        <span class="colonies-overlay__minimize-label" v-i18n>Cancel construction</span>
+      </button>
+
+      <!--
         Grid view — visible while no specific colony is open. ColonyTiles
         are positioned with auto-fit so 1..many colonies all read well.
         `@click.self` on the grid-stage catches clicks that land on EMPTY
@@ -274,6 +288,12 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    // True when the (build-mode) colony placement is a pay-on-commit standard
+    // project that hasn't committed yet → show a "Cancel construction" button.
+    cancellable: {
+      type: Boolean,
+      default: false,
+    },
     // Viewer colour — passed down to each ColonyTile so its visitor
     // tooltip can tell "your own fleet" apart from "someone else's
     // fleet" parked on a colony.
@@ -295,7 +315,7 @@ export default defineComponent({
       default: '',
     },
   },
-  emits: ['select', 'close'],
+  emits: ['select', 'close', 'cancel'],
   data(): DataModel {
     return {
       detailColonyName: undefined,
