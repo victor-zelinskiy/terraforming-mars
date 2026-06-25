@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -19,6 +19,9 @@ export interface PlayerInput {
     // Explicit contextual-choice marker (see ChoiceContext). Routes the prompt to
     // the premium ContextualChoiceContent modal. Serialized in getWaitingFor.
     choiceContext?: ChoiceContext;
+    // Explicit placement cancellability marker (see PlacementContext). Drives the
+    // PlacementBanner's "cancel"/honest-reason UI. Serialized in getWaitingFor.
+    placementContext?: PlacementContext;
     // Explicit Venus alt-track bonus marker (see VenusBonusPromptMeta). Routes the
     // prompt to the premium VenusBonusContent modal. Serialized in getWaitingFor.
     venusBonusPrompt?: VenusBonusPromptMeta;
@@ -75,6 +78,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public startGamePrompt: StartGamePromptMeta | undefined;
   public awardFundingPrompt: AwardFundingPromptMeta | undefined;
   public choiceContext: ChoiceContext | undefined;
+  public placementContext: PlacementContext | undefined;
   public venusBonusPrompt: VenusBonusPromptMeta | undefined;
   public spendHeatPrompt: SpendHeatPromptMeta | undefined;
 
@@ -136,6 +140,14 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  client renders a CONTEXTUAL modal instead of a bare option list (chainable). */
   public markChoiceContext(meta: ChoiceContext): this {
     this.choiceContext = meta;
+    return this;
+  }
+
+  /** Mark whether this tile-placement prompt can be cancelled before it commits
+   *  (chainable). The PlacementBanner reads it to show "cancel" or an honest
+   *  "can't cancel" reason. */
+  public markPlacementContext(meta: PlacementContext): this {
+    this.placementContext = meta;
     return this;
   }
 

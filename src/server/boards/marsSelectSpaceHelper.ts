@@ -4,6 +4,8 @@ import {Space} from './Space';
 import {SelectSpace} from '../inputs/SelectSpace';
 import {PlacementType} from './PlacementType';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
+import {PlacementContext} from '../../common/models/PlayerInputModel';
+import {committedPlacement} from '../inputs/placementContext';
 import {toID} from '../../common/utils/utils';
 
 /**
@@ -52,6 +54,17 @@ export function createMarsSelectSpace(
     placementType?: PlacementType,
     customReasoner?: (space: Space) => PlacementIllegalReason | undefined,
     hideExistingTile?: boolean,
+    /**
+     * Whether this placement can be cancelled before it commits (drives the
+     * PlacementBanner's cancel UI). DEFAULTS to a COMMITTED marker: by the time a
+     * placement reached through this helper is shown, the action that triggered it
+     * (a played card / a paid standard project) has already run, so the player
+     * can't take it back without undo. A flow that genuinely hasn't committed yet
+     * (the standard-project pay-on-commit refactor) passes `cancellablePlacement`.
+     */
+    placementContext?: PlacementContext,
+    /** Cancel handler for a cancellable placement (see SelectSpace.onCancel). */
+    onCancel?: () => void,
   },
 ): SelectSpace {
   const illegalSpaces = player.game.board.computeIllegalReasons(
@@ -60,6 +73,10 @@ export function createMarsSelectSpace(
     legalSpaces,
     {customReasoner: options?.customReasoner});
   const selectSpace = new SelectSpace(title, legalSpaces, illegalSpaces);
+  selectSpace.placementType = options?.placementType;
+  selectSpace.placementContext = options?.placementContext ??
+    committedPlacement('This placement is part of an action already underway and cannot be cancelled.');
+  selectSpace.onCancel = options?.onCancel;
   if (options?.hideExistingTile === true) {
     selectSpace.hiddenTiles = legalSpaces.map(toID);
   }

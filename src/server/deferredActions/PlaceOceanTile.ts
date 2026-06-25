@@ -7,6 +7,7 @@ import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
+import {PlacementContext} from '../../common/models/PlayerInputModel';
 
 type Options = {
   title?: string | Message,
@@ -17,6 +18,9 @@ type Options = {
   // Card-specific per-cell reason for cells excluded by a custom `spaces`
   // filter (e.g. PolderTech's "ocean must be adjacent to a greenery").
   customReasoner?: (space: Space) => PlacementIllegalReason | undefined,
+  // Cancellability (pay-on-commit Aquifer standard project).
+  placementContext?: PlacementContext,
+  onCancel?: () => void,
 };
 
 export class PlaceOceanTile extends DeferredAction<Space | undefined> {
@@ -52,7 +56,12 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
       placementType = on;
     }
 
-    return createMarsSelectSpace(this.player, title, availableSpaces, {placementType, customReasoner: this.options.customReasoner})
+    return createMarsSelectSpace(this.player, title, availableSpaces, {
+      placementType,
+      customReasoner: this.options.customReasoner,
+      placementContext: this.options.placementContext,
+      onCancel: this.options.onCancel,
+    })
       .andThen((space) => {
         this.creditedPlayer.game.addOcean(this.creditedPlayer, space);
         this.creditedPlayer.defer(this.cb(space));

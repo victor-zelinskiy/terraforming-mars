@@ -80,6 +80,23 @@ export type ChoiceContext = {
 }
 
 /**
+ * EXPLICIT marker describing whether a tile-placement prompt (`SelectSpace`) can
+ * be CANCELLED before it commits. Set server-side (CO-LOCATED in the deferred
+ * placement action via `BasePlayerInput.markPlacementContext`), serialized
+ * centrally in `ServerModel.getWaitingFor`. The client `PlacementBanner` reads
+ * `cancellable` to decide whether to show "Отменить размещение"; when it's false
+ * it shows the honest `reason` (e.g. "resources already spent"). Backward-
+ * compatible: a prompt without it keeps the previous client-hardcoded behaviour.
+ */
+export type PlacementContext = {
+  cancellable: boolean;
+  /** When `cancellable === false`, the honest reason (i18n text/Message). */
+  reason?: string | Message;
+  /** Where the placement came from, for the banner's source line. */
+  source?: ChoiceContextSource;
+}
+
+/**
  * EXPLICIT, translation-proof marker that a top-level prompt is a VENUS ALT-TRACK
  * bonus selection — the reward for crossing a bonus step on the Alternative Venus
  * Board. Routes the prompt to the premium VenusBonusContent modal (selectable
@@ -124,6 +141,7 @@ export type BaseInputModel = {
   startGamePrompt?: StartGamePromptMeta;
   awardFundingPrompt?: AwardFundingPromptMeta;
   choiceContext?: ChoiceContext;
+  placementContext?: PlacementContext;
   venusBonusPrompt?: VenusBonusPromptMeta;
   spendHeatPrompt?: SpendHeatPromptMeta;
 }
@@ -310,6 +328,12 @@ export type SelectSpaceModel = BaseInputModel & {
    * information the player needs).
    */
   hiddenTiles?: ReadonlyArray<SpaceId>;
+  /**
+   * The placement kind (city / greenery / ocean / …) when known — lets the
+   * client fetch a kind-accurate BoardPlacementPreview for the hovered cell.
+   * Mirrors `src/server/boards/PlacementType.ts`. Absent on custom paths.
+   */
+  placementType?: import('../boards/BoardInformationFacts').BoardPlacementKind;
 }
 
 /**

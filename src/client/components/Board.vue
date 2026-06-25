@@ -11,6 +11,11 @@
              on the page is hovered/focused. Lives inside Board.vue (rather
              than App) because it's coupled to the board UI feature set. -->
         <special-cell-info-overlay />
+        <!-- General BoardInformation hover inspector: for every cell WITHOUT a
+             curated special-cell entry (printed bonuses, ocean adjacency, who
+             scores at endgame, Deflection Zone / restricted rules). Driven by the
+             same hex-wide hover delegation below. -->
+        <board-cell-info-popover />
         <!--
           Outer (off-Mars) special cells. Persistent text labels removed —
           info is delivered via the hover-marker framework
@@ -223,6 +228,8 @@ import {
   activateSpecialCellBySpaceId,
   deactivateSpecialCellBySpaceId,
 } from '@/client/components/board/specialCellHoverState';
+import BoardCellInfoPopover from '@/client/components/board/BoardCellInfoPopover.vue';
+import {hoverBoardCell, clearBoardCellHover} from '@/client/components/board/boardInfoState';
 import {AresData} from '@/common/ares/AresData';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {SpaceType} from '@/common/boards/SpaceType';
@@ -295,6 +302,7 @@ export default defineComponent({
     BoardSpace,
     SpecialCellMarker,
     SpecialCellInfoOverlay,
+    BoardCellInfoPopover,
     AnimatedScaleMarker,
     BonusZone,
   },
@@ -344,7 +352,15 @@ export default defineComponent({
       if (spaceId === null) {
         return;
       }
-      activateSpecialCellBySpaceId(spaceId);
+      // A cell with a CURATED special-cell entry (named volcanoes / Noctis /
+      // colonies) keeps its lore overlay; every OTHER cell gets the general
+      // BoardInformation inspector (printed bonuses / ocean adjacency / scoring /
+      // Deflection Zone / restricted).
+      if (getSpecialCellInfo(spaceId, this.boardName) !== undefined) {
+        activateSpecialCellBySpaceId(spaceId);
+      } else {
+        hoverBoardCell(spaceId);
+      }
     },
     // True while a tile-placement prompt is on the board — SelectSpace marks
     // its legal cells with `.board-space--available`, which exists ONLY during
@@ -366,7 +382,11 @@ export default defineComponent({
       if (spaceId === null) {
         return;
       }
-      deactivateSpecialCellBySpaceId(spaceId);
+      if (getSpecialCellInfo(spaceId, this.boardName) !== undefined) {
+        deactivateSpecialCellBySpaceId(spaceId);
+      } else {
+        clearBoardCellHover(spaceId);
+      }
     },
     getAllSpacesOnMars(): Array<SpaceModel> {
       const boardSpaces: Array<SpaceModel> = [...this.spaces];

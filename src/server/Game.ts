@@ -1555,8 +1555,7 @@ export class Game implements IGame, Logger {
       this.events.withSource({kind: 'spaceBonus'}, () => this.grantSpaceBonuses(player, space));
     }
 
-    const adjacentOceanCount = this.board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length;
-    const oceanAdjacencyBonus = adjacentOceanCount * player.oceanBonus;
+    const {oceans: adjacentOceanCount, megacredits: oceanAdjacencyBonus} = this.board.oceanAdjacencyBonus(player, space);
     if (oceanAdjacencyBonus > 0) {
       this.events.withSource({kind: 'oceanBonus'}, () => {
         player.stock.add(Resource.MEGACREDITS, oceanAdjacencyBonus);

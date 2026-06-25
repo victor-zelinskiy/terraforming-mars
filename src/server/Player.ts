@@ -174,6 +174,11 @@ export class Player implements IPlayer {
 
   // This generation / this round
   public actionsTakenThisRound: number = 0;
+  // Transient: set when the player CANCELS a pending, not-yet-committed placement
+  // (a pay-on-commit standard project). The action loop reads it once to re-present
+  // the action menu WITHOUT counting the action, then clears it. Never persists
+  // across saves — it is set + consumed within a single input cycle.
+  public pendingPlacementCancelled: boolean = false;
   public actionsThisGeneration: Set<CardName> = new Set();
   public lastCardPlayed: CardName | undefined;
   public pendingInitialActions: Array<ICorporationCard> = [];
@@ -1928,6 +1933,13 @@ export class Player implements IPlayer {
     }
 
     this.setWaitingFor(this.getActions(), this.runWhenEmpty(() => {
+      // A cancelled pending placement (pay-on-commit standard project) returns the
+      // player to the menu without consuming the action — nothing was committed.
+      if (this.pendingPlacementCancelled) {
+        this.pendingPlacementCancelled = false;
+        this.takeAction();
+        return;
+      }
       this.incrementActionsTaken();
       this.takeAction();
     }));

@@ -98,7 +98,8 @@
 
         <p v-if="sourceMessage" class="placement-details__source">{{ $t(sourceMessage) }}</p>
 
-        <p v-if="!cancellable" class="placement-details__mandatory" v-i18n>
+        <p v-if="!cancellable && reasonText !== undefined" class="placement-details__mandatory">{{ reasonText }}</p>
+        <p v-else-if="!cancellable" class="placement-details__mandatory" v-i18n>
           This action is mandatory and cannot be cancelled.
         </p>
 
@@ -174,6 +175,14 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    // Optional honest reason (server `placementContext.reason`) shown when the
+    // placement is NOT cancellable — replaces the generic "mandatory" note with
+    // the specific cause (e.g. "resources already spent"). Accepts string | Message.
+    reason: {
+      type: [String, Object] as unknown as PropType<string | Message | undefined>,
+      required: false,
+      default: undefined,
+    },
   },
   emits: ['cancel'],
   data(): DataModel {
@@ -193,6 +202,13 @@ export default defineComponent({
         return translateText(t);
       }
       return translateMessage(t);
+    },
+    reasonText(): string | undefined {
+      const r = this.reason;
+      if (r === undefined || r === '') {
+        return undefined;
+      }
+      return typeof r === 'string' ? translateText(r) : translateMessage(r);
     },
   },
   watch: {

@@ -77,6 +77,20 @@ export function isSelectSpaceResponse(response: InputResponse): response is Sele
   return response.type === 'space' && matches(response, ['type', 'spaceId']);
 }
 
+/**
+ * Cancel a PENDING, not-yet-committed placement (a `SelectSpace` whose
+ * `placementContext.cancellable === true`). The server discards the placement
+ * WITHOUT applying its cost/effects and returns the player to the action menu
+ * (the action is not counted). Only valid on a cancellable placement prompt.
+ */
+export interface CancelResponse {
+  type: 'cancel',
+}
+
+export function isCancelResponse(response: InputResponse): response is CancelResponse {
+  return response.type === 'cancel' && Object.keys(response).length === 1;
+}
+
 export interface SelectPlayerResponse {
   type: 'player',
   player: ColorWithNeutral;
@@ -211,6 +225,7 @@ export function isDeltaProjectInputResponse(response: InputResponse): response i
 
 export type InputResponse =
   AndOptionsResponse |
+  CancelResponse |
   OrOptionsResponse |
   SelectInitialCardsResponse |
   SelectAmountResponse |

@@ -97,7 +97,24 @@ export abstract class StandardProjectCard extends Card implements IStandardProje
     }
   }
 
-  private payAndExecuteImpl(player: IPlayer, payment: Payment): void {
+  /**
+   * The default project execution: charge the player, then run the project's
+   * effect. Placement-bearing projects (City / Greenery / Aquifer) OVERRIDE this
+   * to PAY ON COMMIT — they defer a cancellable placement and call `commitCost`
+   * only once a space is chosen, so the player can cancel before anything is spent.
+   */
+  protected payAndExecuteImpl(player: IPlayer, payment: Payment): void {
+    this.commitCost(player, payment);
+    this.actionEssence(player);
+  }
+
+  /**
+   * Record discounts + payment, charge the player, and mark the project played
+   * (log + `standardProjectsThisGeneration` + `onStandardProject` triggers).
+   * Extracted so the pay-on-commit placement projects can invoke it from inside
+   * the placement callback (after a space is chosen) rather than up front.
+   */
+  protected commitCost(player: IPlayer, payment: Payment): void {
     const events = player.game?.events;
     if (events !== undefined) {
       // Discounts are recorded HERE (at pay time), never in getAdjustedCost —
@@ -116,7 +133,27 @@ export abstract class StandardProjectCard extends Card implements IStandardProje
       player.pay(payment);
     }
     this.projectPlayed(player);
-    this.actionEssence(player);
+  }
+
+  /**
+   * Run `commit` inside the standard-project analytics scope (so the tile
+   * placement, payment, and effects group under this project in the journal).
+   * Used by the pay-on-commit placement projects: the scope is opened ONLY when a
+   * space is actually chosen, so a cancelled placement emits no (empty) journal
+   * root.
+   */
+  protected commitInScope(player: IPlayer, commit: () => void): void {
+    const events = player.game?.events;
+    if (events === undefined) {
+      commit();
+      return;
+    }
+    events.beginAction(player, {kind: 'standardProject', card: this.name}, {category: 'standard-project'});
+    try {
+      commit();
+    } finally {
+      events.endScope();
+    }
   }
 
   protected projectPlayed(player: IPlayer) {
