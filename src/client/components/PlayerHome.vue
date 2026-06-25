@@ -663,9 +663,11 @@
                      :selectableNames="coloniesOverlaySelectable"
                      :disabledReasons="coloniesOverlayDisabledReasons"
                      :dismissable="coloniesOverlayDismissable"
+                     :cancellable="buildColonyContext?.cancellable === true"
                      :viewerColor="thisPlayer.color"
                      :forceDisabledReason="initialDraftActive ? 'Not available during draft' : ''"
                      @select="onColonySelected($event)"
+                     @cancel="onNotificationCancel"
                      @close="onCloseColoniesOverlay" />
 
     <!--
@@ -1395,10 +1397,12 @@ export default defineComponent({
     // it so the player can act. (A minimized generic modal restores itself via
     // its own listener; this covers the dedicated-overlay pills.)
     window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
+    window.addEventListener('tm-notification-cancel', this.onNotificationCancel);
     this.syncBoardInfo();
   },
   beforeUnmount() {
     window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
+    window.removeEventListener('tm-notification-cancel', this.onNotificationCancel);
     document.removeEventListener('click', this.handleOutsideOverlayClick);
     /* Defensive cleanup — if PlayerHome unmounts mid-placement (e.g.
      * navigation, game-over reroute), don't leave the lock state behind:
@@ -1797,6 +1801,7 @@ export default defineComponent({
       buttonLabel: string;
       purpose: 'selectExistingColony' | 'addNewColonyToGame';
       disabledReasons: Partial<Record<ColonyName, string>>;
+      cancellable: boolean;
     } | undefined {
       return this.findBuildColonyContext(this.playerView.waitingFor);
     },
@@ -3116,6 +3121,8 @@ export default defineComponent({
       // Server-derived per-colony reasons (rule failures the client can't
       // compute, e.g. TR affordability). Keyed by colony name.
       disabledReasons: Partial<Record<ColonyName, string>>;
+      // Pay-on-commit Build-Colony standard project → the placement is cancellable.
+      cancellable: boolean;
     } | undefined {
       if (!wf) {
         return undefined;
@@ -3133,6 +3140,7 @@ export default defineComponent({
           buttonLabel: select.buttonLabel,
           purpose: select.purpose ?? 'selectExistingColony',
           disabledReasons,
+          cancellable: select.placementContext?.cancellable === true,
         };
       }
       // Don't descend INTO the trade AndOptions — its child SelectColony
@@ -3745,6 +3753,15 @@ export default defineComponent({
       if (this.handPillVisible) {
         this.restoreHandPill();
       }
+    },
+    // Cancel a cancellable pending placement / colony build from the mandatory
+    // notification — submits a CancelResponse through the WaitingFor component
+    // (the same path the placement banner / colony overlay use). The server
+    // (SelectSpace / SelectColony) discards it without charging and re-presents
+    // the action menu.
+    onNotificationCancel(): void {
+      const wfRef = this.$refs.waitingFor as {onPlacementCancel?: () => void} | undefined;
+      wfRef?.onPlacementCancel?.();
     },
     restoreHandPill(): void {
       handSelectState.minimized = false;

@@ -201,7 +201,7 @@
     </Transition>
 
     <!-- ── Footer / CTA ──────────────────────────────────────────────────── -->
-    <footer v-if="notification.cta !== undefined || (canExpand && notification.expanded)" class="notification-card__foot">
+    <footer v-if="notification.cta !== undefined || notification.cancelCta !== undefined || (canExpand && notification.expanded)" class="notification-card__foot">
       <button v-if="canExpand && notification.expanded"
               type="button"
               class="notification-card__less"
@@ -210,6 +210,14 @@
         <span v-i18n>Collapse</span>
       </button>
       <span class="notification-card__foot-spacer"></span>
+      <!-- Calm secondary "Cancel" — a safe path back from a not-yet-committed
+           pending placement; deliberately quieter than the primary CTA. -->
+      <button v-if="notification.cancelCta !== undefined"
+              type="button"
+              class="notification-card__cta notification-card__cta--cancel"
+              @click.stop="$emit('cancel', notification)">
+        <span v-i18n>{{ notification.cancelCta.labelKey }}</span>
+      </button>
       <button v-if="notification.cta !== undefined"
               type="button"
               class="notification-card__cta"
@@ -302,7 +310,7 @@ export default defineComponent({
       default: undefined,
     },
   },
-  emits: ['dismiss', 'toggle', 'cta'],
+  emits: ['dismiss', 'toggle', 'cta', 'cancel'],
   data() {
     return {
       // Set once the player is active (only meaningful for the your-turn card).

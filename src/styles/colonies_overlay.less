@@ -195,6 +195,45 @@
 }
 
 /*
+ * Cancel button — a SAFE path back from a not-yet-committed colony build
+ * (pay-on-commit Build-Colony standard project). Anchors to the top-LEFT of the
+ * content (minimize sits top-right), styled calm (no bright accent) so it reads
+ * as a back-out, not a destructive action. Shown only when the server marked the
+ * colony placement cancellable.
+ */
+.colonies-overlay__cancel {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px 10px 16px;
+    border: 1px solid rgba(150, 184, 210, 0.42);
+    border-radius: 7px;
+    color: #d4e2ee;
+    cursor: pointer;
+    font-family: Prototype, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    line-height: 1;
+    background: rgba(16, 28, 42, 0.9);
+    transition: filter 150ms ease, transform 150ms ease, border-color 150ms ease;
+
+    &:hover {
+        filter: brightness(1.1);
+        transform: translateY(-1px);
+        border-color: rgba(180, 214, 240, 0.72);
+    }
+    &:active {
+        transform: translateY(0);
+    }
+}
+
+/*
  * Minimized state — the whole overlay collapses out of view. Backdrop
  * fades to transparent and becomes click-through so the player can
  * interact with the page underneath; the grid stage hides. The pill

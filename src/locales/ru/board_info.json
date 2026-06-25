@@ -70,5 +70,6 @@
   "A tile placed next to an ocean grants M€ to the player who places it.": "Тайл рядом с океаном приносит M€ тому, кто его ставит.",
   "On a randomized map these cells keep their fixed position; otherwise they behave as normal land.": "При случайной карте эти клетки сохраняют фиксированное положение; в остальном это обычная суша.",
   "No adjacent greeneries yet.": "Пока нет соседних озеленений.",
+  "Cancel construction": "Отменить строительство",
   "Scores +1 VP per adjacent greenery at game end (and any placed next to it later).": "+1 ПО за каждое соседнее озеленение в конце игры (и за размещённые рядом позже)."
 }
