@@ -177,6 +177,11 @@ export default defineComponent({
       if (!target.classList.contains('language-' + this.prefs.lang)) {
         target.classList.add('language-' + this.prefs.lang);
       }
+      // Also stamp the language on <html> so language-scoped CSS that must reach
+      // body-TELEPORTED overlays (e.g. the selected-card "ВЫБРАНА" ribbon, whose
+      // text comes from the `--cab-selected-label` custom property) resolves
+      // there too — `#ts-preferences-target` does not contain those teleports.
+      document.documentElement.setAttribute('data-lang', this.prefs.lang);
     },
     okClicked(): void {
       this.$emit('okButtonClicked');
