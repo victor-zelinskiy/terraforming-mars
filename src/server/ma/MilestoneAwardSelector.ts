@@ -10,6 +10,7 @@ import {AwardName, awardNames} from '../../common/ma/AwardName';
 import {synergies} from './MilestoneAwardSynergies';
 import {isCompatible, MAManifest} from './MAManifest';
 import {intersection} from '../../common/utils/utils';
+import {randomExclusionGroup} from './MilestoneAwardExclusions';
 
 type DrawnMilestonesAndAwards = {
   milestones: Array<MilestoneName>,
@@ -231,7 +232,11 @@ function getRandomMilestonesAndAwards(gameOptions: GameOptions,
   // didn't get past 3.
   // https://github.com/terraforming-mars/terraforming-mars/pull/1637#issuecomment-711411034
   // 2025-11-30: raised to 6.
-  const maxAttempts = 6;
+  // vize1215 fork: raised to 10 — the Accumulator now also rejects a candidate that shares a
+  // random-exclusion group with one already chosen (see MilestoneAwardExclusions), which thins a few
+  // shuffles; the larger budget keeps generation robust. The pool is far larger than the requested
+  // count, so in practice this still resolves on the first attempt.
+  const maxAttempts = 10;
   if (attempt > maxAttempts) {
     throw new Error('No limited synergy milestones and awards set was generated after ' + maxAttempts + ' attempts. Please try again.');
   }
@@ -307,6 +312,9 @@ class Accumulator {
 
   private accumulatedHighCount = 0;
   private accumulatedTotalSynergy = 0;
+  // vize1215 fork: scoring-vector groups already represented in this set. A random game offers at most
+  // one milestone/award per group, so two MAs that reward the same thing never appear together.
+  private readonly usedGroups: Set<string> = new Set();
 
   constructor(private constraints: Constraints) {
   }
@@ -321,6 +329,14 @@ class Accumulator {
   // Returns true when successful, false otherwise.
   //
   add(candidate: MilestoneName | AwardName, milestone: boolean): boolean {
+    // vize1215 fork: never accept a second milestone/award from the same scoring-vector group, so the
+    // random pool can't offer two MAs (or a milestone + award) that reward the identical thing. This
+    // applies to every random mode; the official fixed/NONE board sets bypass the Accumulator entirely.
+    const group = randomExclusionGroup(candidate);
+    if (group !== undefined && this.usedGroups.has(group)) {
+      return false;
+    }
+
     let totalSynergy = this.accumulatedTotalSynergy;
     let highCount = this.accumulatedHighCount;
     let max = 0;
@@ -346,6 +362,9 @@ class Accumulator {
       // Update the stats
       this.accumulatedHighCount = highCount;
       this.accumulatedTotalSynergy = totalSynergy;
+      if (group !== undefined) {
+        this.usedGroups.add(group);
+      }
       return true;
     } else {
       return false;
