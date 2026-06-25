@@ -224,12 +224,8 @@ import {scaleBonusZoneViews, ScaleBonusZoneView, ScaleBonusClaim, resolveScaleBo
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
-import {
-  activateSpecialCellBySpaceId,
-  deactivateSpecialCellBySpaceId,
-} from '@/client/components/board/specialCellHoverState';
 import BoardCellInfoPopover from '@/client/components/board/BoardCellInfoPopover.vue';
-import {hoverBoardCell, clearBoardCellHover} from '@/client/components/board/boardInfoState';
+import {hoverBoardCell, clearBoardCellHover, configureBoardInfo} from '@/client/components/board/boardInfoState';
 import {AresData} from '@/common/ares/AresData';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {SpaceType} from '@/common/boards/SpaceType';
@@ -322,6 +318,9 @@ export default defineComponent({
     // marker (= ordinary cell, or occupied special cell).
     this.$el.addEventListener('mouseover', this.onHexHoverEnter);
     this.$el.addEventListener('mouseout', this.onHexHoverLeave);
+    // Tell the BoardInformation layer which board this is, so the hover popover
+    // can fold in the curated special-cell lore (getSpecialCellInfo needs the board name).
+    configureBoardInfo({boardName: this.boardName});
   },
   beforeUnmount() {
     this.$el.removeEventListener('mouseover', this.onHexHoverEnter);
@@ -352,15 +351,12 @@ export default defineComponent({
       if (spaceId === null) {
         return;
       }
-      // A cell with a CURATED special-cell entry (named volcanoes / Noctis /
-      // colonies) keeps its lore overlay; every OTHER cell gets the general
-      // BoardInformation inspector (printed bonuses / ocean adjacency / scoring /
-      // Deflection Zone / restricted).
-      if (getSpecialCellInfo(spaceId, this.boardName) !== undefined) {
-        activateSpecialCellBySpaceId(spaceId);
-      } else {
-        hoverBoardCell(spaceId);
-      }
+      // EVERY cell — named special cells (volcanoes / Noctis / colonies) included
+      // — gets the general BoardInformation inspector. The curated lore is folded
+      // INTO that popover (BoardCellInfoPopover reads getSpecialCellInfo), so a
+      // named cell shows its lore AND its tile bonuses / owner / scoring, and an
+      // OCCUPIED named cell (where the lore marker isn't rendered) still informs.
+      hoverBoardCell(spaceId);
     },
     // True while a tile-placement prompt is on the board — SelectSpace marks
     // its legal cells with `.board-space--available`, which exists ONLY during
@@ -382,11 +378,7 @@ export default defineComponent({
       if (spaceId === null) {
         return;
       }
-      if (getSpecialCellInfo(spaceId, this.boardName) !== undefined) {
-        deactivateSpecialCellBySpaceId(spaceId);
-      } else {
-        clearBoardCellHover(spaceId);
-      }
+      clearBoardCellHover(spaceId);
     },
     getAllSpacesOnMars(): Array<SpaceModel> {
       const boardSpaces: Array<SpaceModel> = [...this.spaces];

@@ -43,12 +43,14 @@ let hoverToken = 0;
 
 export function configureBoardInfo(cfg: Partial<Config>): void {
   const c = boardInfoState.cfg;
-  if ((cfg.color !== undefined && cfg.color !== c.color) ||
-      (cfg.participantId !== undefined && cfg.participantId !== c.participantId)) {
-    // A different perspective / game invalidates the cached facts.
-    infoCache.clear();
-    previewCache.clear();
-  }
+  // ALWAYS drop the cached facts. `configureBoardInfo` runs on every playerView
+  // update (PlayerHome's playerkey remount → syncBoardInfo) and on a seat switch
+  // — i.e. exactly when the board state may have changed. Without this a re-hover
+  // would return STALE facts: a city's "+1 VP" after a 2nd greenery is placed
+  // next to it, or "Mars Nomads camp" on a cell the nomads already left. The
+  // facts are cheap + the fetch is debounced, so re-fetching on hover is fine.
+  infoCache.clear();
+  previewCache.clear();
   if (cfg.participantId !== undefined) c.participantId = cfg.participantId;
   if (cfg.color !== undefined) c.color = cfg.color;
   if (cfg.boardName !== undefined) c.boardName = cfg.boardName;
