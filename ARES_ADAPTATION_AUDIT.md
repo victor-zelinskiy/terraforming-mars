@@ -95,10 +95,16 @@ These have **NO auto-guard** — tracked manually here.
 
 - ✅ exist: `Ares`→Арес, hazard UI bits (`ui.json`), `board_info.json` hazard cost,
   awards/milestones hazard lines, "Massive Dust Storm" (turmoil).
-- ⬜ **26 Ares card names + descriptions** → `ru/cards.json` (or new `ru/ares_cards.json`).
-- ⬜ **4 hazard tile type names** (Mild/Severe Dust Storm, Mild/Severe Erosion).
-- ⬜ board-info hazard/adjacency facts, planetary-event tooltips, cleanup/penalty
-  prompts, hazard-cleanup TR label.
+- ✅ **Card names + descriptions** → new `ru/ares_cards.json`: 12 NEW cards (names + descriptions
+  + baked `Action:`/`Effect:` render texts, verified against the generated card render) + the 13
+  replacement cards' Ares-specific descriptions/vpText (the `:ares` NAME auto-strips to the base
+  via `CardTitle`). Canonical terms reused (volcano names, «участок … бонусом за размещение»). The
+  `make:json` audit reports 0 real gaps (only a concat-fragment false positive).
+- ✅ board-info hazard/adjacency facts, planetary-event tooltips, cleanup/penalty
+  prompts, hazard-cleanup TR label (Phases 2/3/4/5).
+- ⬜ (optional) **4 hazard tile type names** (Mild/Severe Dust Storm, Mild/Severe Erosion) — the
+  board-info hover already shows «Эрозия»/«Пылевая буря»; the raw `tileTypeToString` names are
+  only used in a couple of generic logs.
 - Canonical terms (reuse, do NOT coin): TR→**РТ**, VP→**ПО**, production→**производство**,
   tile→**тайл**, adjacency→**соседство**, hazard→**опасная зона**, erosion→**эрозия**,
   dust storm→**пылевая буря**. Severity: mild→**слабая**, severe→**сильная** (TBD vs canon).
@@ -129,7 +135,8 @@ No render gaps.
 - **Phase 6 — Cards: replacement parity audit + Desperate Measures/Solar Farm board UX** ⬜.
 - **Phase 7 — Journal/eventlog** ✅ for hazard events (folded into Phase 4); per-card play logs already covered by the generic journal.
 - **Phase 8 — Endgame stats** ⬜ (low priority).
-- **Phase 9 — Localization** ⬜.
+- **Phase 9 — Localization** ✅ (card names + descriptions + render texts in `ru/ares_cards.json`;
+  hazard/board/scale/journal strings done in their phases). 0 real gaps per the audit script.
 - **Phase 10 — Tests / QA / build / eslint** ⬜.
 
 ## 6. Open product decisions
@@ -139,6 +146,12 @@ No render gaps.
 
 ## 7. Changelog
 
+- **2026-06-26** — Phase 9: localization. New `ru/ares_cards.json` — 12 new Ares card names +
+  descriptions + baked `Action:`/`Effect:`/plate render texts (verified against the generated
+  `cardRender.json` so no card line silently shows English), plus the 13 replacement cards'
+  Ares-specific descriptions / vpText (the `:ares` NAME auto-strips to the base via `CardTitle`).
+  Canonical terms reused (volcano names «Купол Фарсида»…, «участок … бонусом за размещение»,
+  РТ/ПО/опасная зона/эрозия/пылевая буря). A repeatable audit script confirms 0 real gaps.
 - **2026-06-26** — Phase 4/7: journal + notification coverage of planetary events. New
   `JournalActionCategory`/`NotificationVariant` `planetary-event`; each event (erosions appear,
   hazards intensify, dust storms recede) wrapped in `events.beginAction(player, {kind:'system'},
