@@ -93,7 +93,10 @@ export type ScaleEventMarkerView = {
   reached: boolean;
 };
 
-const CHIP = 18;
+// Match the standard scale-bonus markers (scaleBonusZones.ts): size 25, gap 2,
+// connector 7 — so events read the SAME size + distance as the reward bonuses on
+// every scale (only the cramped Venus row uses a smaller chip, and it has no events).
+const CHIP = 25;
 const GAP = 2;
 const CONNECTOR = 7;
 

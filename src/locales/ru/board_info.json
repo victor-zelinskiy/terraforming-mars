@@ -1,4 +1,11 @@
 {
+  "Reduce production by ${0}": "Снизить производство на ${0}",
+  "You must reduce a production of your choice (adjacent hazard).": "Нужно снизить одно производство на ваш выбор (соседняя опасная зона).",
+  "Adjacency bonus": "Бонус за соседство",
+  "Bonus to an adjacent tile": "Бонус соседнему тайлу",
+  "Granted to whoever places a tile next to this.": "Получает тот, кто разместит тайл рядом.",
+  "Bonus to the owner": "Бонус владельцу",
+  "The owner gains M€ when a tile is placed next to this.": "Владелец получает M€, когда рядом размещают тайл.",
   "Hazard zone": "Опасная зона",
   "Severe hazard zone": "Сильная опасная зона",
   "Erosion": "Эрозия",

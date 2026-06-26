@@ -43,6 +43,13 @@
         <board-fact-row v-for="fact in hazardFacts" :key="fact.id" :fact="fact" />
       </div>
 
+      <!-- Ares adjacency SOURCE — what a neighbour + this tile's owner earn when
+           a tile is placed next to it. -->
+      <div v-if="adjacencyBonusFacts.length > 0" class="board-cell-popover__section board-cell-popover__section--adjacency">
+        <div class="board-cell-popover__section-head" v-i18n>Adjacency bonus</div>
+        <board-fact-row v-for="fact in adjacencyBonusFacts" :key="fact.id" :fact="fact" />
+      </div>
+
       <!-- What placing a tile HERE would grant (passive). -->
       <div v-if="placeHereFacts.length > 0" class="board-cell-popover__section">
         <div class="board-cell-popover__section-head" v-i18n>When placing here</div>
@@ -144,6 +151,10 @@ export default defineComponent({
     // Ares hazard facts (identity / cleanup / adjacency penalty) — own section.
     hazardFacts(): ReadonlyArray<BoardFact> {
       return this.facts.filter((f) => f.category === 'hazard-penalty' || f.category === 'hazard-cleanup');
+    },
+    // Ares adjacency-SOURCE facts (what neighbours / the owner earn) — own section.
+    adjacencyBonusFacts(): ReadonlyArray<BoardFact> {
+      return this.facts.filter((f) => f.category === 'ares-adjacency-bonus' || f.category === 'tile-owner-benefit');
     },
     shouldShow(): boolean {
       if (this.info === undefined || boardInfoState.spaceId === undefined) {
@@ -387,6 +398,10 @@ export default defineComponent({
 .board-cell-popover__section--hazard .board-cell-popover__section-head {
   color: #f0a085;
   border-bottom-color: rgba(224, 106, 74, 0.3);
+}
+.board-cell-popover__section--adjacency .board-cell-popover__section-head {
+  color: #7fe0c4;
+  border-bottom-color: rgba(95, 214, 180, 0.3);
 }
 .board-cell-popover__section-head {
   font-family: 'Prototype', sans-serif;

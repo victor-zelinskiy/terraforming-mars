@@ -112,6 +112,10 @@ export type BoardFact = {
   recipient: BoardFactRecipient;
   title: string | Message;
   description?: string | Message;
+  // Optional i18n substitution params for the title / description text (when the
+  // text carries `${0}` placeholders, e.g. a dynamic amount). The client binds
+  // them via `v-i18n` so the number is localized + substituted, not baked.
+  params?: ReadonlyArray<string>;
   source?: BoardFactSource;
   delta?: BoardFactDelta;
   vp?: {from: number, to: number};

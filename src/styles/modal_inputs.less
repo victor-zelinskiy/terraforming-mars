@@ -1540,3 +1540,42 @@
         }
     }
 }
+
+/* ── Production-to-lose SINGLE-PICK tiles (cost === 1, no steppers) ────────── */
+.modal-input__prod-picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin: 4px 0 2px;
+}
+.modal-input__prod-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px 8px 10px;
+    border: 1px solid #294a6c;
+    border-radius: 9px;
+    background: linear-gradient(180deg, rgba(20, 30, 44, 0.78), rgba(12, 20, 30, 0.78));
+    color: #d8e6f4;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+
+    .modal-input__dist-name { font-size: 13px; font-weight: 600; letter-spacing: 0.3px; }
+    .modal-input__prod-frame .resource_icon { width: 24px; height: 24px; }
+
+    &:hover { border-color: rgba(127, 212, 255, 0.5); }
+    &--active {
+        border-color: rgba(127, 212, 255, 0.65);
+        background: linear-gradient(180deg, rgba(22, 42, 62, 0.9), rgba(14, 28, 44, 0.9));
+        box-shadow: inset 0 0 0 1px rgba(127, 212, 255, 0.45), 0 0 14px -6px rgba(127, 212, 255, 0.7);
+    }
+}
+.modal-input__prod-pick-mark {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 13px;
+    color: rgba(190, 212, 232, 0.5);
+}
+.modal-input__prod-pick--active .modal-input__prod-pick-mark {
+    color: #9fe6ff;
+    text-shadow: 0 0 9px rgba(127, 212, 255, 0.55);
+}

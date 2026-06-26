@@ -54,6 +54,9 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
 
   // Standing special-zone / reserved / restricted rules.
   facts.push(...specialZoneFacts(player, space));
+  // If THIS tile is an Ares adjacency SOURCE, explain what neighbours + its owner
+  // get (so hovering e.g. a Metallic Asteroid shows its adjacency bonus, not just lore).
+  facts.push(...aresAdjacencySourceFacts(player, space));
 
   if (isHazard(space)) {
     // A hazard tile is NOT a "real tile" and the cell isn't placeable, so it
@@ -602,6 +605,55 @@ function aresAdjacencyFacts(player: IPlayer, space: Space): Array<BoardFact> {
   return out;
 }
 
+/**
+ * HOVER facts for a tile that IS an Ares adjacency SOURCE — what a tile placed
+ * next to it earns (the adjacency bonus) and what its OWNER earns (1/2 M€). The
+ * mirror of `aresAdjacencyFacts` (which is the placer's view during placement);
+ * here the source tile explains itself on hover. Read-only, aresExtension-gated.
+ */
+function aresAdjacencySourceFacts(player: IPlayer, space: Space): Array<BoardFact> {
+  if (player.game.gameOptions.aresExtension !== true) {
+    return [];
+  }
+  const adjacency = space.adjacency;
+  if (adjacency === undefined || adjacency.bonus.length === 0) {
+    return [];
+  }
+  const out: Array<BoardFact> = [];
+  const concrete = adjacency.bonus.filter((b): b is SpaceBonus => b !== 'callback');
+  for (const [bonus, count] of countBonuses(concrete)) {
+    const d = describeSpaceBonus(bonus, count);
+    if (d.delta === undefined) {
+      continue;
+    }
+    out.push({
+      id: `ares-src-${bonus}`,
+      category: 'ares-adjacency-bonus',
+      timing: 'rule',
+      severity: 'positive',
+      recipient: {kind: 'neutral'},
+      title: 'Bonus to an adjacent tile',
+      description: 'Granted to whoever places a tile next to this.',
+      delta: d.delta,
+    });
+  }
+  const ownerColor = space.player?.color;
+  if (ownerColor !== undefined) {
+    const ownerBonus = space.player?.tableau.has(CardName.MARKETING_EXPERTS) === true ? 2 : 1;
+    out.push({
+      id: 'ares-src-owner',
+      category: 'tile-owner-benefit',
+      timing: 'rule',
+      severity: 'positive',
+      recipient: recipientFor(player, ownerColor),
+      title: 'Bonus to the owner',
+      description: 'The owner gains M€ when a tile is placed next to this.',
+      delta: {icon: 'megacredits', amount: ownerBonus, direction: 'gain'},
+    });
+  }
+  return out;
+}
+
 /** Whether a hazard tile (dust storm / erosion) occupies the cell. */
 function isHazard(space: Space): boolean {
   return space.tile !== undefined && HAZARD_TILES.has(space.tile.tileType);
@@ -757,14 +809,17 @@ function placementCostFacts(player: IPlayer, space: Space): Array<BoardFact> {
     });
   }
   if (info.production > 0) {
+    // A FORCED negative: placing next to a hazard makes you reduce production —
+    // surface the EXACT amount + that it's your choice, BEFORE confirming.
     out.push({
       id: 'cost-production',
       category: 'placement-penalty',
       timing: 'cost',
-      severity: 'warning',
+      severity: 'danger',
       recipient: {kind: 'current-player'},
-      title: 'Production cost',
-      description: 'Placing here costs production (adjacent hazard).',
+      title: 'Reduce production by ${0}',
+      description: 'You must reduce a production of your choice (adjacent hazard).',
+      params: [String(info.production)],
       source: {type: 'map-rule', label: 'Hazard adjacency'},
     });
   }

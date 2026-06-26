@@ -96,6 +96,36 @@ describe('BoardInformationEngine — Ares', () => {
     expect(facts.some((f) => f.category === 'ares-adjacency-bonus' || f.category === 'tile-owner-benefit')).to.be.false;
   });
 
+  it('placing next to a hazard surfaces the FORCED production-loss amount (with params)', () => {
+    [game, player] = testGame(2, {aresExtension: true});
+    const hz = emptyLand();
+    hz.tile = {tileType: TileType.EROSION_SEVERE, protectedHazard: false}; // severe → 2 production
+    const place = game.board.getAdjacentSpaces(hz).find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined)!;
+
+    const prod = boardCellPreview(player, place, 'city').costFacts.find((f) => f.id === 'cost-production');
+    expect(prod, 'forced production-loss cost fact').to.not.be.undefined;
+    expect(prod!.title).to.eq('Reduce production by ${0}');
+    expect(prod!.params).to.deep.eq(['2']); // severe adjacent hazard
+    expect(prod!.severity).to.eq('danger');
+  });
+
+  it('hovering an adjacency-SOURCE tile explains the neighbour bonus AND the owner benefit', () => {
+    [game, player, player2] = testGame(2, {aresExtension: true});
+    const src = emptyLand();
+    src.tile = {tileType: TileType.NATURAL_PRESERVE, card: undefined};
+    src.player = player2;
+    src.adjacency = {bonus: [SpaceBonus.MEGACREDITS]};
+
+    const facts = boardCellInfo(player, src).facts;
+    const neighbour = facts.find((f) => f.category === 'ares-adjacency-bonus');
+    expect(neighbour, 'neighbour adjacency-bonus fact').to.not.be.undefined;
+    expect(neighbour!.delta?.icon).to.eq('megacredits');
+    const owner = facts.find((f) => f.category === 'tile-owner-benefit');
+    expect(owner, 'owner benefit fact').to.not.be.undefined;
+    expect(owner!.recipient).to.deep.eq({kind: 'tile-owner', color: player2.color});
+    expect(owner!.delta?.amount).to.eq(1);
+  });
+
   it('is READ-ONLY: hover + preview on hazard/adjacency cells mutate nothing', () => {
     [game, player, player2] = testGame(2, {aresExtension: true});
     const adj = emptyLand();
