@@ -241,6 +241,7 @@ import ArcScale from '@/client/components/board/ArcScale.vue';
 import ScaleEventMarker from '@/client/components/board/ScaleEventMarker.vue';
 import {aresThresholdMarkers, aresDynamicMarkerView, ScaleEventMarkerView} from '@/client/components/board/aresThresholdMarkers';
 import {GlobalParameterThresholdMarker} from '@/client/components/board/oceanThresholdMarkers';
+import {glidedThreshold} from '@/client/components/board/aresMarkerGlide';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import {OXYGEN_ARC, TEMPERATURE_ARC, VENUS_ARC} from '@/client/components/board/arcScaleConfigs';
 import BonusZone from '@/client/components/board/BonusZone.vue';
@@ -516,12 +517,12 @@ export default defineComponent({
     temperatureEventMarkers(): ReadonlyArray<ScaleEventMarkerView> {
       return this.aresMarkers
         .filter((m) => m.parameter === 'temperature')
-        .map((m) => aresDynamicMarkerView(m, this.temperature));
+        .map((m) => aresDynamicMarkerView(m, this.temperature, glidedThreshold(m.id, m.value)));
     },
     oxygenEventMarkers(): ReadonlyArray<ScaleEventMarkerView> {
       return this.aresMarkers
         .filter((m) => m.parameter === 'oxygen')
-        .map((m) => aresDynamicMarkerView(m, this.oxygen_level));
+        .map((m) => aresDynamicMarkerView(m, this.oxygen_level, glidedThreshold(m.id, m.value)));
     },
     /**
      * Mars-surface cells (non-colony) for which a special-cell info entry

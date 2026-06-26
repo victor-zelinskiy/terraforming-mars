@@ -131,18 +131,22 @@ function digitAngle(cfg: DynamicArcConfig, value: number): number {
 export function aresDynamicMarkerView(
   marker: GlobalParameterThresholdMarker,
   currentValue: number,
+  // The value to POSITION at — defaults to the threshold, but the caller passes a
+  // glided value so the marker animates along the arc when the threshold shifts
+  // (Butterfly Effect). `reached` always uses the REAL threshold (marker.value).
+  positionValue: number = marker.value,
 ): ScaleEventMarkerView {
   const cfg = marker.parameter === 'temperature' ? TEMPERATURE_ARC : OXYGEN_ARC;
   const pl = placeArcMarker({
     center: cfg.center,
-    thresholdAngle: digitAngle(cfg, marker.value),
+    thresholdAngle: digitAngle(cfg, positionValue),
     bandRadius: cfg.bandRadius,
     bandWidth: cfg.bandWidth,
     side: 'outside',
     gap: GAP,
     pointer: CONNECTOR,
     size: CHIP,
-    value: marker.value,
+    value: positionValue,
   });
   return {
     marker,

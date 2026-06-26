@@ -34,6 +34,7 @@ import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import {OCEAN_ARC} from '@/client/components/board/arcScaleConfigs';
 import {ArcScaleConfig, markerChip} from '@/client/components/board/arcScaleGeometry';
 import {GlobalParameterThresholdMarker, oceanThresholdMarkers} from '@/client/components/board/oceanThresholdMarkers';
+import {glidedThreshold} from '@/client/components/board/aresMarkerGlide';
 
 // Geometry — must match OCEAN_ARC so the event chips line up with the band.
 const CENTER = {x: 300, y: 301};
@@ -90,8 +91,9 @@ export default defineComponent({
     eventMarkers(): ReadonlyArray<EventMarkerView> {
       return this.sourceMarkers.map((marker) => {
         // INSIDE the band (toward the planet) — above the bottom arc — pointer
-        // aiming down at the threshold. Mirror of the Venus chips.
-        const chip = markerChip(CFG, marker.value, 'inside', {
+        // aiming down at the threshold. Mirror of the Venus chips. Position uses
+        // the GLIDED threshold so a Butterfly-Effect shift animates along the arc.
+        const chip = markerChip(CFG, glidedThreshold(marker.id, marker.value), 'inside', {
           bandInner: INNER_R, bandOuter: OUTER_R, gap: MARKER_GAP, pointer: MARKER_POINTER, size: CHIP,
         });
         return {
