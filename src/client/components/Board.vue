@@ -16,6 +16,9 @@
              scores at endgame, Deflection Zone / restricted rules). Driven by the
              same hex-wide hover delegation below. -->
         <board-cell-info-popover />
+        <!-- Unified scale-HUD tooltip host (rail / identity / indicator / marker
+             chips all route through it). Teleports to body; one instance. -->
+        <scale-tooltip />
         <!--
           Outer (off-Mars) special cells. Persistent text labels removed —
           info is delivered via the hover-marker framework
@@ -249,6 +252,7 @@ import {Color} from '@/common/Color';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import BoardCellInfoPopover from '@/client/components/board/BoardCellInfoPopover.vue';
 import {hoverBoardCell, clearBoardCellHover, configureBoardInfo} from '@/client/components/board/boardInfoState';
+import ScaleTooltip from '@/client/components/board/ScaleTooltip.vue';
 import {AresData} from '@/common/ares/AresData';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {SpaceType} from '@/common/boards/SpaceType';
@@ -320,6 +324,7 @@ export default defineComponent({
     OceanArcScale,
     ArcScale,
     BonusZone,
+    ScaleTooltip,
   },
   data() {
     return {

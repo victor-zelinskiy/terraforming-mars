@@ -3,20 +3,16 @@
  *  OCEAN ARC SCALE — ocean-SPECIFIC overlays  (ocean_arc_scale.less)
  * ════════════════════════════════════════════════════════════════════════
  *
- *  The ocean scale's premium BAND + identity badge are now the shared ArcScale
- *  component (arc_scale.less) — one visual family with O₂ / temperature / Venus.
- *  This file keeps ONLY the ocean-specific overlays that ride on that band:
- *    • the 1–9 digits (future / visited / current states),
- *    • the forward-looking planetary-event chips at 3 / 6 (gated; reuse the
- *      bonus-zone glass language + a richer diegetic tooltip).
+ *  The ocean scale's premium BAND + identity badge + digits + indicator are now
+ *  the shared ArcScale component (arc_scale.less) — one visual family with
+ *  O₂ / temperature / Venus. The reward / event hover tooltips are the UNIFIED
+ *  teleported ScaleTooltip (scale_tooltip.less). This file now keeps ONLY the
+ *  ocean-specific bits that have no shared home:
+ *    • the `.global-numbers-oceans` positioning container,
+ *    • the inline hazard glyph for the no-reward planetary event (step 3).
  *
  *  See OceanArcScale.vue (wrapper) / ArcScale.vue (band) / arcScaleTheme.ts.
  */
-
-// ── Ocean palette (event tooltip) ──────────────────────────────────────────
-// (Digits + indicator + the chip halo/tint are the shared ArcScale /
-// bonus-zone language now; only the event tooltip kicker is ocean-local.)
-@ocean-bright:      #7fdcf6; // sunlit highlight (tooltip kicker)
 
 .global-numbers-oceans {
   // Abs with AUTO offsets, like the other scale containers → lands at the
@@ -26,107 +22,12 @@
   pointer-events: none;
 }
 
-// ── Future planetary-event chips ──────────────────────────────────────────
-// Reuse the bonus-zone glass frame / halo / pointer language + a water tint and
-// a richer, diegetic tooltip. Hidden in a normal game (oceanThresholdMarkers.ts).
-// (The ocean surface tint + the `reached` highlight are now centralised in the
-// unified marker chip — bonus_zones.less `bonus-zone--surface-oceans` /
-// `bonus-zone--reached`. This file keeps only the ocean-specific event TOOLTIP
-// + the hazard glyph.)
-
 // Hazard glyph for the no-reward planetary event (step 3) — a neutral amber
-// warning mark drawn inline (no expansion art, no add-on name).
+// warning mark drawn inline (no expansion art, no add-on name). The event chip
+// itself is the unified ArcScaleMarkerChip; its surface tint / reached highlight
+// live in bonus_zones.less and its tooltip in scale_tooltip.less.
 .ocean-event-icon--hazard {
   background:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 3 L22 21 L2 21 Z' fill='none' stroke='%23ffd28a' stroke-width='2.4' stroke-linejoin='round'/><line x1='12' y1='10' x2='12' y2='15' stroke='%23ffd28a' stroke-width='2.4' stroke-linecap='round'/><circle cx='12' cy='18' r='1.25' fill='%23ffd28a'/></svg>")
     center / contain no-repeat;
-}
-
-// ── Rich tooltip (premium dark glass, above the chip) ─────────────────────
-.ocean-event__tip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  min-width: 150px;
-  max-width: 220px;
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  border-radius: 7px;
-  background: linear-gradient(160deg, rgba(12, 26, 40, 0.97), rgba(6, 16, 26, 0.97));
-  border: 1px solid rgba(96, 184, 230, 0.45);
-  box-shadow:
-    0 6px 18px rgba(0, 0, 0, 0.55),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 140ms ease, transform 140ms ease;
-  pointer-events: none;
-  z-index: 30;
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 6px solid transparent;
-    border-top-color: rgba(10, 22, 34, 0.97);
-  }
-}
-
-.ocean-event:hover .ocean-event__tip,
-.ocean-event:focus-within .ocean-event__tip {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(-50%) translateY(0);
-}
-
-.ocean-event__tip-kind {
-  font-family: Prototype, sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: @ocean-bright;
-}
-
-.ocean-event__tip-desc {
-  font-size: 11.5px;
-  line-height: 1.32;
-  color: #d7e6f2;
-}
-
-.ocean-event__tip-noreward {
-  font-size: 11px;
-  color: #93a7b6;
-  font-style: italic;
-}
-
-.ocean-event__tip-reward {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-top: 2px;
-  padding-top: 5px;
-  border-top: 1px solid rgba(120, 170, 205, 0.22);
-}
-
-.ocean-event__tip-reward-label {
-  font-size: 10.5px;
-  color: #9fb4c4;
-}
-
-.ocean-event__tip-reward-value {
-  font-family: Prototype, sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  color: #ffe6a6; // TR-gold, matching the +TR reward
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ocean-event__tip {
-    transition: opacity 140ms linear;
-  }
 }

@@ -1,10 +1,11 @@
 <template>
   <!--
-    Scale REWARD bonus (Venus / O₂ / temperature). Now a thin wrapper over the
-    unified ArcScaleMarkerChip — it only supplies the reward + claim TOOLTIP and
-    forwards the claim props; the chip is the shared premium chassis (one visual
-    language with the ocean event chips). Positioning (`:style`) and the surface
-    tint flow through to the chip's root.
+    Scale REWARD bonus (Venus / O₂ / temperature). A thin wrapper over the
+    unified ArcScaleMarkerChip — it only builds the reward + claim TOOLTIP
+    content and forwards the claim props; the chip is the shared premium chassis
+    (one visual language with the ocean event chips) and routes the hover through
+    the unified ScaleTooltip. Positioning (`:style`) + the surface tint flow
+    through to the chip's root.
   -->
   <arc-scale-marker-chip
     variant="standard-bonus"
@@ -16,23 +17,16 @@
     :pointerDist="pointerDist"
     :icon="icon"
     :claimColor="claimColor"
-    :claimKey="claimKey">
-    <div v-if="reward !== ''" class="bonus-zone__tip" role="tooltip">
-      <span class="bonus-zone__tip-reward" v-i18n>{{ reward }}</span>
-      <!-- Who took the bonus: a player (their colour) or the world government. -->
-      <span v-if="state === 'claimed'" class="bonus-zone__tip-claim">
-        <span class="bonus-zone__tip-dot" :style="{background: claimColor}"></span>
-        <span v-i18n>Taken by</span>&nbsp;{{ claimedBy }}
-      </span>
-      <span v-else-if="state === 'government'" class="bonus-zone__tip-claim bonus-zone__tip-claim--gov" v-i18n>Taken via world government</span>
-    </div>
-  </arc-scale-marker-chip>
+    :claimKey="claimKey"
+    :tooltip="tooltipContent" />
 </template>
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import ArcScaleMarkerChip from '@/client/components/board/ArcScaleMarkerChip.vue';
 import {BonusZoneTier, BonusZoneState} from '@/client/components/board/scaleBonusZones';
+import {ScaleTooltipContent, ScaleTooltipRow, ScaleTooltipAccent} from '@/client/components/board/scaleTooltipState';
+import {translateText} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'BonusZone',
@@ -56,6 +50,24 @@ export default defineComponent({
     claimKey: {type: String, default: ''},
     // Which scale this bonus lives on (per-scale colour tint).
     surface: {type: String, default: 'venus'},
+  },
+  computed: {
+    tooltipContent(): ScaleTooltipContent | null {
+      if (this.reward === '') {
+        return null;
+      }
+      const rows: Array<ScaleTooltipRow> = [{text: translateText(this.reward), tone: 'reward'}];
+      if (this.state === 'claimed') {
+        rows.push({text: `${translateText('Taken by')} ${this.claimedBy}`, tone: 'claim', dot: this.claimColor});
+      } else if (this.state === 'government') {
+        rows.push({text: translateText('Taken via world government'), tone: 'claim'});
+      }
+      return {
+        accent: this.surface as ScaleTooltipAccent,
+        kicker: translateText('Bonus'),
+        rows,
+      };
+    },
   },
 });
 </script>
