@@ -276,3 +276,17 @@ logic is test-covered.
   RU: board_info («Соседство», Adjacency/Total placement cost, …) + ui (production-loss strings)
   + ares_cards (Butterfly Effect). vue-tsc + make:css + eslint (0 new) green; board-info server
   regression 34 passing.
+
+- **2026-06-27** — Polish: hide STALE terrain info on an OCCUPIED cell. Once a tile
+  covers a cell, the terrain lore (curated `getSpecialCellInfo` flavour) and the
+  PLACEMENT-restriction zone rules (volcanic / colony-reserve / restricted / Noctis —
+  "what may be placed here") no longer affect anything, so the hover inspector drops
+  them. `specialZoneFacts` gained `{includePlacementRules}` — the hover passes
+  `space.tile === undefined` (so an occupied cell omits those facts) while the placement
+  PREVIEW still passes them (there you ARE deciding to place on the cell). The Deflection
+  Zone is the explicit exception (an ONGOING plant-protection rule) — always emitted,
+  occupied or not. Client: `BoardCellInfoPopover` gained an `occupied` computed
+  (`status.content !== 'empty'`) gating the lore paragraph; the cell keeps its NAME in the
+  header for location identity. Generic — every volcanic / reserved / lore cell across all
+  maps, not just the screenshot's case. BoardInformationEngine.spec +4 (38 passing).
+  build:server + vue-tsc green, eslint 0 new.

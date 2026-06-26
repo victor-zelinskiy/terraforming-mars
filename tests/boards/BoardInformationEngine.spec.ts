@@ -130,6 +130,36 @@ describe('BoardInformationEngine', () => {
     expect(info.facts.some((f) => f.category === 'reserved-area')).to.be.true;
   });
 
+  it('volcanic placement rule shows on an EMPTY volcanic cell, suppressed once a tile covers it', () => {
+    const volcanic = game.board.getSpaceOrThrow(game.board.volcanicSpaceIds[0]);
+    expect(volcanic.tile, 'precondition: empty volcanic cell').to.be.undefined;
+    expect(boardCellInfo(player, volcanic).facts.some((f) => f.id === 'volcanic'),
+      'empty volcanic cell shows the placement rule').to.be.true;
+
+    // Cover it with a tile — the "only volcanic cards can place here" rule is now stale.
+    volcanic.tile = {tileType: TileType.GREENERY};
+    volcanic.player = player;
+    expect(boardCellInfo(player, volcanic).facts.some((f) => f.id === 'volcanic'),
+      'occupied volcanic cell hides the stale placement rule').to.be.false;
+  });
+
+  it('volcanic rule still shows in the placement preview (you are deciding to place here)', () => {
+    const volcanic = game.board.getSpaceOrThrow(game.board.volcanicSpaceIds[0]);
+    expect(allFacts(boardCellPreview(player, volcanic, 'greenery')).some((f) => f.id === 'volcanic'),
+      'placement preview keeps the volcanic rule').to.be.true;
+  });
+
+  it('reserved-area rule is suppressed once the reserved cell is occupied', () => {
+    const noctis = game.board.getSpaceOrThrow(SpaceName.NOCTIS_CITY);
+    expect(boardCellInfo(player, noctis).facts.some((f) => f.category === 'reserved-area'),
+      'empty reserved cell shows the rule').to.be.true;
+
+    noctis.tile = {tileType: TileType.CITY, card: CardName.NOCTIS_CITY};
+    noctis.player = player;
+    expect(boardCellInfo(player, noctis).facts.some((f) => f.category === 'reserved-area'),
+      'occupied reserved cell hides the stale rule').to.be.false;
+  });
+
   it('every cell gets a header — empty land, land-with-bonus, ocean reserve', () => {
     const plain = emptyLand((s) => s.bonus.length === 0);
     expect(boardCellInfo(player, plain).status.header).to.eq('Empty land');
@@ -274,6 +304,16 @@ describe('BoardInformationEngine', () => {
       expect(rule!.description).to.eq('Protects you from plant destruction while ALL your tiles are inside this zone.');
       // The wrong "random map / fixed position" rule is gone.
       expect(JSON.stringify(rule)).to.not.match(/randomized|fixed position/i);
+    });
+
+    it('the ongoing deflection rule SURVIVES an occupied zone cell (not a stale placement rule)', () => {
+      const zone = zones()[0];
+      zone.tile = {tileType: TileType.GREENERY};
+      zone.player = hP1;
+      // Unlike volcanic / reserved, the deflection zone is an ONGOING protection
+      // rule, so it stays even when the cell holds a tile.
+      expect(boardCellInfo(hP1, zone).facts.some((f) => f.id === 'deflection-zone'),
+        'occupied deflection cell keeps the ongoing rule').to.be.true;
     });
 
     it('hover reports per-player protection status (active / no-tiles / tiles-outside)', () => {

@@ -22,10 +22,12 @@
         </span>
       </div>
 
-      <!-- Curated named-cell lore (flavour + the real placement rule). Hidden for
-           an OCCUPIED off-Mars slot — its "only X can be placed here" text is
-           stale once the tile is down; the external-area note explains it. -->
-      <div v-if="loreInfo !== undefined && status.external !== true" class="board-cell-popover__lore" v-i18n>{{ loreInfo.description }}</div>
+      <!-- Curated named-cell lore (flavour + the real placement rule). Hidden once
+           a tile covers the cell — the terrain flavour + "only X can be placed
+           here" rule is stale and no longer affects anything (the cell keeps its
+           NAME in the header for location identity). Also hidden for an off-Mars
+           slot (the external-area note explains it). -->
+      <div v-if="loreInfo !== undefined && status.external !== true && !occupied" class="board-cell-popover__lore" v-i18n>{{ loreInfo.description }}</div>
 
       <!-- Off the Mars surface: why normal adjacency/scoring doesn't apply. -->
       <div v-for="fact in externalFacts" :key="fact.id" class="board-cell-popover__external">
@@ -120,6 +122,12 @@ export default defineComponent({
     },
     status(): BoardCellStatus {
       return this.info?.status ?? {content: 'empty'};
+    },
+    // A tile (real or hazard) covers the cell — terrain lore / placement-restriction
+    // rules are stale once occupied (the engine already drops the zone facts; this
+    // gates the client-only curated lore the same way).
+    occupied(): boolean {
+      return this.status.content !== 'empty';
     },
     facts(): ReadonlyArray<BoardFact> {
       return this.info?.facts ?? [];

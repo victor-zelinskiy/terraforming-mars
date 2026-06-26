@@ -52,8 +52,11 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
   const facts: Array<BoardFact> = [];
   const status = cellStatus(player, space);
 
-  // Standing special-zone / reserved / restricted rules.
-  facts.push(...specialZoneFacts(player, space));
+  // Standing special-zone / reserved / restricted rules. Placement restrictions
+  // (volcanic / reserved / restricted — "what may be placed here") are stale once
+  // a tile covers the cell, so suppress them for an occupied cell; only the
+  // ongoing Deflection-Zone rule survives.
+  facts.push(...specialZoneFacts(player, space, {includePlacementRules: space.tile === undefined}));
   // If THIS tile is an Ares adjacency SOURCE, explain what neighbours + its owner
   // get (so hovering e.g. a Metallic Asteroid shows its adjacency bonus, not just lore).
   facts.push(...aresAdjacencySourceFacts(player, space));
@@ -291,20 +294,36 @@ function spaceTypeLabel(spaceType: SpaceType): string {
 // Special zones / reserved / restricted (standing rules)
 // ---------------------------------------------------------------------------
 
-function specialZoneFacts(player: IPlayer, space: Space): Array<BoardFact> {
+/**
+ * Standing map-zone rules for a cell. Two distinct kinds:
+ *  - The Deflection Zone is an ONGOING rule (plant protection via
+ *    `player.plantsAreProtected`) — relevant whether or not the cell holds a
+ *    tile, so it is ALWAYS emitted.
+ *  - Everything else (Noctis / colony reserve / restricted / volcanic) is a
+ *    PLACEMENT restriction — what may (not) be placed here. Once a tile covers
+ *    the cell those rules are stale and no longer affect anything, so the hover
+ *    passes `includePlacementRules: false` to drop them. The placement PREVIEW
+ *    keeps them (there the player is actively deciding to place on this cell).
+ */
+function specialZoneFacts(
+  player: IPlayer,
+  space: Space,
+  options: {includePlacementRules: boolean} = {includePlacementRules: true}): Array<BoardFact> {
   const out: Array<BoardFact> = [];
   const board = player.game.board;
+  if (space.spaceType === SpaceType.DEFLECTION_ZONE) {
+    out.push(rule('deflection-zone', 'map-special-zone', 'Deflection Zone', 'Protects you from plant destruction while ALL your tiles are inside this zone.', 'neutral'));
+    return out;
+  }
+  if (!options.includePlacementRules) {
+    return out;
+  }
   if (space.id === board.noctisCitySpaceId) {
     out.push(rule('reserved-noctis', 'reserved-area', 'Reserved for Noctis City', 'This space is permanently reserved for the Noctis City card and cannot host any other tile.', 'nobody'));
   } else if (space.spaceType === SpaceType.COLONY) {
     out.push(rule('reserved-colony', 'reserved-area', 'Colony space', 'A reserved colony location — tiles cannot be placed here.', 'nobody'));
   } else if (space.spaceType === SpaceType.RESTRICTED) {
     out.push(rule('restricted', 'restriction', 'Restricted area', 'No tiles can ever be placed on this space.', 'nobody'));
-  } else if (space.spaceType === SpaceType.DEFLECTION_ZONE) {
-    // The REAL Hollandia rule (implemented via player.withinDeflectionZone /
-    // plantsAreProtected): protection from plant destruction while ALL your tiles
-    // are inside the zone. NOT a "fixed position on a random map" layout note.
-    out.push(rule('deflection-zone', 'map-special-zone', 'Deflection Zone', 'Protects you from plant destruction while ALL your tiles are inside this zone.', 'neutral'));
   } else if (space.volcanic === true) {
     out.push(rule('volcanic', 'map-special-zone', 'Volcanic area', 'A volcanic space. Some cards may only place their tile on a volcanic space.', 'neutral'));
   }
