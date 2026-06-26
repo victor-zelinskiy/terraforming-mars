@@ -65,7 +65,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
       '--arc-rail': 'rgba(2, 10, 20, 0.6)', '--arc-channel': 'rgba(9, 40, 64, 0.84)',
       '--arc-edge': 'rgba(120, 216, 244, 0.5)', '--arc-rim': 'rgba(170, 228, 250, 0.66)',
       '--arc-cap': 'rgba(150, 224, 250, 0.95)', '--arc-tick': 'rgba(140, 192, 224, 0.32)',
-      '--arc-accent': '#74d8f4', '--arc-digit': '#bcd8ea', '--arc-digit-on': '#eef9ff',
+      '--arc-accent': '#74d8f4', '--arc-digit': '#bcd8ea', '--arc-digit-on': '#eef9ff', '--arc-divider': 'rgba(4, 18, 30, 0.62)',
     },
   },
   // Airy, dry luminous cyan — lighter / cleaner than oceans (atmosphere, not water).
@@ -81,7 +81,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
       '--arc-rail': 'rgba(8, 20, 30, 0.4)', '--arc-channel': 'rgba(40, 70, 90, 0.58)',
       '--arc-edge': 'rgba(214, 248, 255, 0.6)', '--arc-rim': 'rgba(234, 252, 255, 0.68)',
       '--arc-cap': 'rgba(220, 250, 255, 0.95)', '--arc-tick': 'rgba(200, 232, 246, 0.36)',
-      '--arc-accent': '#dffaff', '--arc-digit': '#bcd6e6', '--arc-digit-on': '#f4fcff',
+      '--arc-accent': '#dffaff', '--arc-digit': '#bcd6e6', '--arc-digit-on': '#f4fcff', '--arc-divider': 'rgba(14, 30, 42, 0.5)',
     },
   },
   // Thermal gradient — cold blue-violet → warm ember (Mars heating up).
@@ -98,7 +98,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
       '--arc-rail': 'rgba(12, 10, 28, 0.58)', '--arc-channel': 'rgba(26, 28, 56, 0.82)',
       '--arc-edge': 'rgba(255, 192, 150, 0.44)', '--arc-rim': 'rgba(210, 200, 240, 0.5)',
       '--arc-cap': 'rgba(255, 180, 138, 0.92)', '--arc-tick': 'rgba(190, 182, 214, 0.32)',
-      '--arc-accent': '#f4926a', '--arc-digit': '#c9c2dc', '--arc-digit-on': '#ffe6d8',
+      '--arc-accent': '#f4926a', '--arc-digit': '#c9c2dc', '--arc-digit-on': '#ffe6d8', '--arc-divider': 'rgba(12, 10, 28, 0.58)',
     },
   },
   // Warm atmospheric gold — dense, sunlit, denser than the others.
@@ -114,7 +114,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
       '--arc-rail': 'rgba(22, 14, 4, 0.58)', '--arc-channel': 'rgba(54, 38, 14, 0.82)',
       '--arc-edge': 'rgba(255, 228, 158, 0.5)', '--arc-rim': 'rgba(255, 238, 190, 0.64)',
       '--arc-cap': 'rgba(255, 226, 150, 0.95)', '--arc-tick': 'rgba(230, 200, 148, 0.34)',
-      '--arc-accent': '#ffe6a6', '--arc-digit': '#ddccaa', '--arc-digit-on': '#fff3d8',
+      '--arc-accent': '#ffe6a6', '--arc-digit': '#ddccaa', '--arc-digit-on': '#fff3d8', '--arc-divider': 'rgba(22, 14, 4, 0.58)',
     },
   },
 };
