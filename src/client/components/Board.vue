@@ -50,19 +50,17 @@
 
         <div class="global-numbers">
             <!--
-              DYNAMIC SCALES PREVIEW (?dynamicScales). The O₂ / temperature /
-              Venus colour bands are still baked into mars.png; behind this flag
-              we draw the code band (ArcScale) over them so the whole HUD can be
-              evaluated in the new premium language before the PNG arcs are
-              retired. The bands paint FIRST (behind the existing digits /
-              indicator / bonus chips, which are already dynamic). Ocean is
-              already fully code-rendered below (OceanArcScale), so it's always on.
+              DYNAMIC global-parameter bands (DEFAULT). The colour arcs are no
+              longer baked into mars.png — these render O₂ / temperature / Venus
+              in code in the unified premium language. They paint FIRST (behind
+              the existing digits / indicator / bonus chips, which are already
+              dynamic). Venus only renders with the expansion (the planet PNG is
+              now venus-agnostic; the Venus arc is purely dynamic). Ocean is
+              fully code-rendered below (OceanArcScale).
             -->
-            <template v-if="dynamicScales">
-                <arc-scale :theme="arcThemes.temperature" :config="temperatureArc" :value="temperature" />
-                <arc-scale :theme="arcThemes.oxygen" :config="oxygenArc" :value="oxygen_level" />
-                <arc-scale v-if="expansions.venus" :theme="arcThemes.venus" :config="venusArc" :value="venusScaleLevel" />
-            </template>
+            <arc-scale :theme="arcThemes.temperature" :config="temperatureArc" :value="temperature" />
+            <arc-scale :theme="arcThemes.oxygen" :config="oxygenArc" :value="oxygen_level" />
+            <arc-scale v-if="expansions.venus" :theme="arcThemes.venus" :config="venusArc" :value="venusScaleLevel" />
             <!--
               Each scale container hosts (1) the legacy `.global-numbers-value.val-N`
               anchors — kept as the SOURCE OF TRUTH for arc coordinates / rotations
@@ -334,8 +332,8 @@ export default defineComponent({
     return {
       constants,
       spaceMap: new Map<string, SpaceModel>(this.spaces.map((s) => [s.id, s])),
-      // Dynamic-scales preview (?dynamicScales) — themed code bands for the
-      // still-PNG O₂ / temperature / Venus scales. Configs/themes are constants.
+      // Dynamic global-parameter bands (default) — themed code bands for the
+      // O₂ / temperature / Venus scales (mars.png is now planet-only). Constants.
       arcThemes: ARC_SCALE_THEMES,
       oxygenArc: OXYGEN_ARC,
       temperatureArc: TEMPERATURE_ARC,
@@ -485,7 +483,12 @@ export default defineComponent({
       return css;
     },
     getGameBoardClassName(): string {
-      return this.expansions.venus ? 'board-cont board-with-venus' : 'board-cont board-without-venus';
+      // mars.png is now PLANET-ONLY (the parameter arcs are rendered in code,
+      // see the ArcScale / OceanArcScale bands), so the planet image is the same
+      // whether or not Venus is in play — the Venus SCALE is toggled dynamically
+      // by `expansions.venus` on its <arc-scale> + digit container. The legacy
+      // `board-without-venus` (mars-without-venus.png) variant is retired.
+      return 'board-cont board-with-venus';
     },
     // The full BonusZone prop set for a scale-bonus view (bound via v-bind so
     // the same markup serves all three scale containers). The return type is
@@ -508,14 +511,6 @@ export default defineComponent({
     },
   },
   computed: {
-    /**
-     * Dev/preview flag (`?dynamicScales`): render the O₂ / temperature / Venus
-     * code bands over the PNG so the whole HUD can be judged in the new premium
-     * language. Off in a normal game — the PNG scales render as today.
-     */
-    dynamicScales(): boolean {
-      return typeof window !== 'undefined' && window.location.search.includes('dynamicScales');
-    },
     /**
      * Sorted, colony-filtered Mars surface cells for the main `<board-space>`
      * v-for. Cached as a computed (depends only on `this.spaces`) so an
