@@ -8,21 +8,17 @@
     as ONE system. All geometry is computed by arcScaleGeometry.ts; nothing is
     hand-placed.
 
-    Structure mirrors the existing scales (continuous band + tick graduations +
-    digits + a gliding cursor), so it feels native:
-      • SVG band  — a dim channel + a bright WATER fill that grows from 1 toward
-                    the current count (revealed via stroke-dashoffset, so the
-                    fill end lands exactly under the indicator) + sheen + ticks.
-      • digits    — 1–9 labels; these double as the anchors the shared
-                    AnimatedScaleMarker glides between (identical cursor + motion
-                    to the other dials).
-      • indicator — the gliding current-value cursor.
-      • markers   — future planetary-event chips at 3 & 6, hidden in a normal
-                    game (see oceanThresholdMarkers.ts).
+    This component is the PILOT for migrating the remaining scales off the PNG.
+    It deliberately separates THREE visual roles that must never be confused:
+      1. IDENTITY emblem (a water droplet badge) — "this scale is oceans".
+      2. INDICATOR (the gliding glass cursor) — "the count is N right now".
+      3. EVENT chips at 3 / 6 — "a planetary event may fire here" (gated, hidden
+         in a normal game).
 
-    This component is the PILOT for migrating the remaining scales off the PNG:
-    the geometry helper + this render approach generalise to O₂ / temperature /
-    Venus when that work is taken on.
+    Material build (back → front): recessed rail · dim channel · water fill
+    (grows via stroke-dashoffset so its edge lands under the cursor) · segment
+    dividers · outer rim highlight · inner glass sheen · graduation ticks · end
+    caps. Digits sit in the band with future / visited / current states.
   -->
   <div class="global-numbers-oceans ocean-arc" :class="{'ocean-arc--empty': value <= 0}" aria-hidden="true">
     <svg class="ocean-arc__svg" :viewBox="`0 0 ${SVG_W} ${SVG_H}`" :width="SVG_W" :height="SVG_H">
@@ -34,7 +30,9 @@
           <stop offset="100%" class="ocean-arc__grad-deep" />
         </linearGradient>
       </defs>
-      <!-- dim full-length channel (the empty track) -->
+      <!-- recessed backing rail — the carved groove the gauge sits in -->
+      <path class="ocean-arc__rail" :d="bandPath" />
+      <!-- dim full-length channel (the empty / not-yet-reached track) -->
       <path class="ocean-arc__channel" :d="bandPath" />
       <!-- water fill: same path, revealed from value 1 up to the current count
            via stroke-dashoffset so its leading edge sits under the indicator -->
@@ -44,22 +42,50 @@
         :d="bandPath"
         :stroke="gradStroke"
         :style="fillStyle" />
-      <!-- precision graduation ticks just outside the band -->
+      <!-- segment dividers — cut the band into the 9 ocean slots -->
+      <line
+        v-for="d in dividers"
+        :key="'div-' + d.key"
+        class="ocean-arc__divider"
+        :x1="d.x1" :y1="d.y1" :x2="d.x2" :y2="d.y2" />
+      <!-- outer rim highlight (edge light) -->
+      <path class="ocean-arc__edge" :d="edgePath" />
+      <!-- inner glass sheen -->
+      <path class="ocean-arc__sheen" :d="sheenPath" />
+      <!-- graduation ticks just outside the band; visited ones light up -->
       <line
         v-for="t in ticks"
         :key="'tick-' + t.value"
         class="ocean-arc__tick"
+        :class="{'ocean-arc__tick--visited': t.value <= value}"
         :x1="t.x1" :y1="t.y1" :x2="t.x2" :y2="t.y2" />
-      <!-- glass sheen along the inner edge -->
-      <path class="ocean-arc__sheen" :d="sheenPath" />
+      <!-- premium end-cap nodes (the gauge terminals) -->
+      <circle class="ocean-arc__cap" :cx="capStart.x" :cy="capStart.y" r="3.2" />
+      <circle class="ocean-arc__cap" :cx="capEnd.x" :cy="capEnd.y" r="3.2" />
     </svg>
 
-    <!-- digit labels = AnimatedScaleMarker anchors (same as the other scales) -->
+    <!-- digit labels = AnimatedScaleMarker anchors (same as the other scales).
+         future (>count) dim · visited (<count) brighter · current = val-is-active -->
     <div
       v-for="d in digits"
       :key="'digit-' + d.value"
-      :class="['global-numbers-value', 'val-' + d.value, {'val-is-active': d.value === value}]"
+      :class="['global-numbers-value', 'val-' + d.value, {
+        'val-is-active': d.value === value,
+        'ocean-arc__digit--visited': d.value < value,
+      }]"
       :style="{left: d.left + 'px', top: d.top + 'px'}">{{ d.value }}</div>
+
+    <!-- SCALE IDENTITY — a compact water droplet badge (NOT a bonus/event chip:
+         flat HUD label, no pointer, no reward glow). Names the parameter without
+         a big text label. Hover shows the current count + a short description. -->
+    <div class="ocean-arc__identity" :style="identityStyle" role="img" :aria-label="identityAria">
+      <span class="ocean-arc__identity-glyph"></span>
+      <div class="ocean-arc__identity-tip" role="tooltip">
+        <span class="ocean-arc__identity-tip-title" v-i18n>Ocean scale</span>
+        <span class="ocean-arc__identity-tip-count"><span v-i18n>Oceans</span>: {{ value }}/{{ OCEAN_STEPS }}</span>
+        <span class="ocean-arc__identity-tip-desc" v-i18n>Shows the number of oceans placed.</span>
+      </div>
+    </div>
 
     <!-- gliding current-value cursor (shared dial component, ocean accent) -->
     <animated-scale-marker accent="oceans" :value="value" />
@@ -85,7 +111,8 @@ import OceanEventMarker from '@/client/components/board/OceanEventMarker.vue';
 import {
   ArcScaleConfig,
   pointForValue,
-  pointerRotationForValue,
+  pointAtAngle,
+  markerChip,
   bandPath,
   tick,
 } from '@/client/components/board/arcScaleGeometry';
@@ -104,15 +131,19 @@ const END_ANGLE = 64; // value 9 (down-right)
 const OCEAN_STEPS = 9;
 const BAND = 18; // radial band thickness (px)
 const DIGIT = 22; // digit box (px)
-const CHIP = 20; // event-marker chip box (px)
-const POINTER = 8; // event-marker pointer length (px)
-const GAP = 2; // gap between band edge and pointer base
+const CHIP = 18; // event-marker chip box (px)
+const MARKER_POINTER = 7; // event-marker pointer length (px)
+const MARKER_GAP = 4; // gap between band edge and pointer base / indicator clearance
 
 const OUTER_R = RADIUS + BAND / 2;
 const INNER_R = RADIUS - BAND / 2;
-// Chip body sits just OUTSIDE the band, pointer aiming back at it.
-const CHIP_R = OUTER_R + GAP + POINTER + CHIP / 2;
-const CHIP_POINTER_DIST = CHIP / 2 + GAP + POINTER / 2;
+
+// Identity droplet — a flat HUD badge just outside the START of the arc (in the
+// rim gap, clear of the O₂ digits). Radially aligned with value 1 so it reads
+// as the gauge's start label.
+const IDENTITY_SIZE = 22;
+const IDENTITY_R = OUTER_R + 16;
+const IDENTITY_ANGLE = START_ANGLE;
 
 const CFG: ArcScaleConfig = {
   center: CENTER,
@@ -175,8 +206,12 @@ export default defineComponent({
     },
   },
   data() {
+    const capStart = pointForValue(CFG, 1);
+    const capEnd = pointForValue(CFG, OCEAN_STEPS);
+    const ident = pointAtAngle(CENTER, IDENTITY_R, IDENTITY_ANGLE);
     return {
       cfg: CFG,
+      OCEAN_STEPS,
       // The count the FILL is currently drawn at — seeded from the cross-remount
       // baseline so it can animate from the previous value to the current one.
       displayValue: oceanFillBaseline ?? this.value,
@@ -188,10 +223,25 @@ export default defineComponent({
       gradStroke: `url(#${GRAD_ID})`,
       // Static geometry — the config is constant, so these never change.
       bandPath: bandPath(CFG),
+      edgePath: bandPath(CFG, OUTER_R - 0.6),
       sheenPath: bandPath(CFG, INNER_R + 1.6),
+      capStart: {x: Math.round(capStart.x * 100) / 100, y: Math.round(capStart.y * 100) / 100},
+      capEnd: {x: Math.round(capEnd.x * 100) / 100, y: Math.round(capEnd.y * 100) / 100},
+      identityStyle: {
+        left: `${Math.round(ident.x - IDENTITY_SIZE / 2)}px`,
+        top: `${Math.round(ident.y - IDENTITY_SIZE / 2)}px`,
+        width: `${IDENTITY_SIZE}px`,
+        height: `${IDENTITY_SIZE}px`,
+      },
       ticks: Array.from({length: OCEAN_STEPS}, (_, i) => {
         const v = i + 1;
-        return {value: v, ...tick(CFG, v, OUTER_R + 1, OUTER_R + 4.5)};
+        return {value: v, ...tick(CFG, v, OUTER_R + 2, OUTER_R + 5.5)};
+      }),
+      // Segment dividers at the boundaries between values (1.5 … 8.5), drawn
+      // across the band so the continuous water reads as 9 distinct ocean slots.
+      dividers: Array.from({length: OCEAN_STEPS - 1}, (_, i) => {
+        const b = i + 1.5;
+        return {key: b, ...tick(CFG, b, INNER_R + 1.5, OUTER_R - 1.5)};
       }),
       digits: Array.from({length: OCEAN_STEPS}, (_, i) => {
         const v = i + 1;
@@ -237,18 +287,30 @@ export default defineComponent({
         'stroke-dashoffset': `${ARC_LENGTH * (1 - this.fillFraction)}`,
       };
     },
+    identityAria(): string {
+      return `Oceans: ${this.value}/${OCEAN_STEPS}`;
+    },
     eventMarkers(): ReadonlyArray<EventMarkerView> {
       return oceanThresholdMarkers({planetaryEvents: this.planetaryEvents})
         .filter((m) => m.visible)
         .map((marker) => {
-          const c = pointForValue(this.cfg, marker.value, CHIP_R);
+          // INSIDE the band (toward the planet) — i.e. ABOVE the bottom arc —
+          // with the pointer aiming down at the threshold. Mirror of the Venus
+          // chips on the top arc; keeps the chips out of the bottom-bar zone.
+          const chip = markerChip(this.cfg, marker.value, 'inside', {
+            bandInner: INNER_R,
+            bandOuter: OUTER_R,
+            gap: MARKER_GAP,
+            pointer: MARKER_POINTER,
+            size: CHIP,
+          });
           return {
             marker,
-            top: Math.round(c.y - CHIP / 2),
-            left: Math.round(c.x - CHIP / 2),
+            top: Math.round(chip.y - CHIP / 2),
+            left: Math.round(chip.x - CHIP / 2),
             size: CHIP,
-            point: pointerRotationForValue(this.cfg, marker.value, 'outer'),
-            pointerDist: CHIP_POINTER_DIST,
+            point: chip.point,
+            pointerDist: chip.pointerDist,
           };
         });
     },

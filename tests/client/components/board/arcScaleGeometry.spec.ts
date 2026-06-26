@@ -10,6 +10,7 @@ import {
   arcPath,
   segments,
   tick,
+  markerChip,
 } from '@/client/components/board/arcScaleGeometry';
 
 // The ocean arc the component ships with: concentric with the board scales,
@@ -110,6 +111,28 @@ describe('arcScaleGeometry', () => {
     expect(dist({x: t.x2, y: t.y2}, CFG.center)).to.be.closeTo(272, 0.5);
     expect(t.x1).to.be.closeTo(300, 0.5); // straight down at the bottom centre
     expect(t.x2).to.be.closeTo(300, 0.5);
+  });
+
+  it('places an INSIDE marker chip toward the planet (above the bottom arc), pointer aiming at the band', () => {
+    const opts = {bandInner: 255, bandOuter: 273, gap: 4, pointer: 7, size: 18};
+    const inside = markerChip(CFG, 6, 'inside', opts);
+    const outside = markerChip(CFG, 6, 'outside', opts);
+    // Inside chip sits at a SMALLER radius than the band (closer to centre),
+    // outside chip at a LARGER radius (further from centre).
+    expect(dist(inside, CFG.center)).to.be.lessThan(255);
+    expect(dist(outside, CFG.center)).to.be.greaterThan(273);
+    // And the inside chip is therefore ABOVE the outside chip on the bottom arc.
+    expect(inside.y).to.be.lessThan(outside.y);
+    // Pointer push distance is symmetric (depends only on size/gap/pointer).
+    expect(inside.pointerDist).to.eq(outside.pointerDist);
+  });
+
+  it('rotates an INSIDE bottom-arc chip pointer to aim back DOWN at the band', () => {
+    const opts = {bandInner: 255, bandOuter: 273, gap: 4, pointer: 7, size: 18};
+    // At the bottom centre an inside chip (above the band) must point its
+    // triangle downward (180°) at the band; an outside chip points up (0°).
+    expect(Math.abs(markerChip(CFG, 5, 'inside', opts).point)).to.eq(180);
+    expect(markerChip(CFG, 5, 'outside', opts).point).to.eq(0);
   });
 
   it('pointAtAngle matches the cos/sin definition', () => {

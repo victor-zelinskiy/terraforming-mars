@@ -1364,5 +1364,7 @@
     "Dust storms recede when the 6th ocean is placed.": "Когда размещён 6-й океан, пылевые бури отступают.",
     "No reward to players.": "Награда игрокам: нет.",
     "Reward to the player reaching the threshold:": "Получит игрок, достигший порога:",
-    "+1 TR": "+1 РТ"
+    "+1 TR": "+1 РТ",
+    "Ocean scale": "Шкала океанов",
+    "Shows the number of oceans placed.": "Показывает количество размещённых океанов."
 }
