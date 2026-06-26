@@ -37,6 +37,9 @@ export class PlaceTile extends DeferredAction<Space> {
 
     return createMarsSelectSpace(this.player, title, availableSpaces, {
       placementType: typeof on === 'string' ? on : this.options.placementType,
+      // The concrete tile lets the preview show a composite over-ocean tile's
+      // city VP (Ocean City / New Holland) — the placement type alone can't.
+      tileType: this.options.tile.tileType,
       customReasoner: this.options.customReasoner,
     })
       .andThen((space: Space) => {

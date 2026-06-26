@@ -8,6 +8,7 @@ import {toID} from '../../common/utils/utils';
 import {PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
 import {SpaceId} from '../../common/Types';
 import {PlacementType} from '../boards/PlacementType';
+import {TileType} from '../../common/TileType';
 
 export class SelectSpace extends BasePlayerInput<Space> {
   /**
@@ -47,6 +48,17 @@ export class SelectSpace extends BasePlayerInput<Space> {
   public placementType?: PlacementType;
 
   /**
+   * The TileType being placed, when known. Lets the client preview show a
+   * composite over-ocean tile's identity-based scoring (Ocean City / New Holland
+   * count as a CITY → "+VP per adjacent greenery"; Ocean Farm / Ocean Sanctuary
+   * do not). The placement `placementType` alone can't tell them apart (they
+   * share `upgradeable-ocean`). Absent → the preview uses the kind-derived
+   * scoring. Set by `createMarsSelectSpace({tileType})` (PlaceTile threads it
+   * from `behavior.tile.type`).
+   */
+  public tileType?: TileType;
+
+  /**
    * Optional cancel handler for a CANCELLABLE placement (see `placementContext`).
    * When the client submits a `CancelResponse` AND this prompt is cancellable,
    * `process` invokes this instead of placing — the pay-on-commit standard
@@ -75,6 +87,7 @@ export class SelectSpace extends BasePlayerInput<Space> {
       illegalSpaces: this.illegalSpaces,
       hiddenTiles: this.hiddenTiles,
       placementType: this.placementType,
+      tileType: this.tileType,
     };
   }
 

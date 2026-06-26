@@ -109,7 +109,7 @@ export function boardCellPreview(
   player: IPlayer,
   space: Space,
   kind: BoardPlacementKind,
-  options?: {cleared?: boolean}): BoardPlacementPreview {
+  options?: {cleared?: boolean, tileType?: TileType}): BoardPlacementPreview {
   const board = player.game.board;
   const cleared = options?.cleared === true;
   const legalSpaces = cleared ? [] : legalSpacesForKind(player, kind);
@@ -129,7 +129,7 @@ export function boardCellPreview(
     if (ocean !== undefined) {
       facts.push(ocean);
     }
-    facts.push(...placementScoringFacts(player, space, kind));
+    facts.push(...placementScoringFacts(player, space, kind, options?.tileType));
   }
   facts.push(...aresAdjacencyFacts(player, space));
   const deflection = deflectionPlacementFact(player, space);
@@ -542,10 +542,25 @@ function cityScoringFact(id: string, recipient: BoardFactRecipient, greeneries: 
   };
 }
 
-/** For a PLACEMENT preview: the endgame VP this placement creates, and for whom. */
-function placementScoringFacts(player: IPlayer, space: Space, kind: BoardPlacementKind): Array<BoardFact> {
+/**
+ * For a PLACEMENT preview: the endgame VP this placement creates, and for whom.
+ * `tileType` (when known) identifies a COMPOSITE tile whose scoring its placement
+ * `kind` can't convey — an `upgradeable-ocean` placement is Ocean City (counts as
+ * a CITY → scores for adjacent greeneries) OR Ocean Farm / Ocean Sanctuary (do
+ * not). New Holland (its own kind) likewise counts as a city.
+ */
+function placementScoringFacts(player: IPlayer, space: Space, kind: BoardPlacementKind, tileType?: TileType): Array<BoardFact> {
   const board = player.game.board;
   const out: Array<BoardFact> = [];
+  // A composite over-ocean tile that counts as a CITY scores for adjacent
+  // greeneries, exactly like a city placement — derive it from the real tile
+  // identity (the placement kind alone can't tell Ocean City from Ocean Farm).
+  const overOceanCity = (kind === 'upgradeable-ocean' || kind === 'upgradeable-ocean-new-holland') &&
+    tileType !== undefined && CITY_TILES.has(tileType);
+  if (kind === 'city' || overOceanCity) {
+    const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length;
+    out.push(cityScoringFact('place-city', {kind: 'current-player'}, greeneries, true));
+  }
   if (kind === 'greenery') {
     // The greenery itself scores +1 VP for the placing player.
     out.push(vpFact('place-greenery-self', 'city-greenery-scoring', 'Greenery scores at game end', {kind: 'current-player'}, 0, 1, '+1 VP at game end.'));
@@ -564,9 +579,6 @@ function placementScoringFacts(player: IPlayer, space: Space, kind: BoardPlaceme
         }
       }
     }
-  } else if (kind === 'city') {
-    const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length;
-    out.push(cityScoringFact('place-city', {kind: 'current-player'}, greeneries, true));
   }
   return out;
 }

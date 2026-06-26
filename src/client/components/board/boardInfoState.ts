@@ -57,11 +57,11 @@ export function configureBoardInfo(cfg: Partial<Config>): void {
   if (cfg.players !== undefined) c.players = cfg.players;
 }
 
-function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false): string {
-  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}`;
+function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number): string {
+  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}`;
 }
 
-function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false): string | undefined {
+function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number): string | undefined {
   const cfg = boardInfoState.cfg;
   if (cfg.participantId === undefined) {
     return undefined;
@@ -77,6 +77,10 @@ function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false):
   // preview grants the cell bonus + treats the cell as a legal placement.
   if (cleared) {
     params.set('cleared', '1');
+  }
+  // The concrete tile being placed → a composite over-ocean tile's city VP.
+  if (tileType !== undefined) {
+    params.set('tile', String(tileType));
   }
   return `${paths.API_GAME_BOARD_CELL_PREVIEW}?${params.toString()}`;
 }
@@ -137,13 +141,13 @@ export function clearBoardCellHover(spaceId: SpaceId): void {
  * Cached per (color, space, kind). Returns undefined under JSDOM / before
  * configuration; the caller falls back to no preview.
  */
-export function fetchBoardCellPreview(spaceId: SpaceId, kind: BoardPlacementKind, cleared = false): Promise<BoardPlacementPreview | undefined> {
-  const key = cacheKey(spaceId, kind, cleared);
+export function fetchBoardCellPreview(spaceId: SpaceId, kind: BoardPlacementKind, cleared = false, tileType?: number): Promise<BoardPlacementPreview | undefined> {
+  const key = cacheKey(spaceId, kind, cleared, tileType);
   const cached = previewCache.get(key);
   if (cached !== undefined) {
     return Promise.resolve(cached);
   }
-  const url = buildUrl(spaceId, kind, cleared);
+  const url = buildUrl(spaceId, kind, cleared, tileType);
   if (url === undefined || typeof fetch === 'undefined') {
     return Promise.resolve(undefined);
   }
