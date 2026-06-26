@@ -230,3 +230,39 @@
 .ares-global-parameter-option {
 	padding-right: 16px;
 }
+
+/* ── Hazard intensified (mild → severe) — a one-shot premium pulse ─────────── */
+/* The negative `--hazard-intensify-delay` (set by BoardSpaceTile from the module
+   tracker) keeps the keyframe continuous across the board remount, so it plays
+   exactly once. The keyframe starts AND ends at the resting state, so a lingering
+   class (until the next remount clears it) shows nothing. */
+.board-space-tile--intensifying {
+	animation: hazard-intensify 1.4s ease-out var(--hazard-intensify-delay, 0ms) 1;
+	transform-origin: center center;
+	z-index: 3;
+}
+
+@keyframes hazard-intensify {
+	0% {
+		filter: brightness(1);
+		transform: scale(1);
+	}
+	16% {
+		filter: brightness(1.55) drop-shadow(0 0 11px rgba(255, 110, 60, 0.92));
+		transform: scale(1.16);
+	}
+	50% {
+		filter: brightness(1.18) drop-shadow(0 0 7px rgba(255, 110, 60, 0.55));
+		transform: scale(1.05);
+	}
+	100% {
+		filter: brightness(1);
+		transform: scale(1);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.board-space-tile--intensifying {
+		animation: none;
+	}
+}
