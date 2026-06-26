@@ -4,6 +4,7 @@ import type {ActionEffect} from './ActionPreviewModel';
 import {CardName} from '../cards/CardName';
 import {Color, ColorWithNeutral} from '../Color';
 import {PayProductionModel} from './PayProductionUnitsModel';
+import {ProductionLossSource} from './ProductionLossSource';
 import {AresData} from '../ares/AresData';
 import {Message} from '../logs/Message';
 import {PartyName} from '../turmoil/PartyName';
@@ -413,6 +414,8 @@ export type SelectPartyModel = BaseInputModel & {
 export type SelectProductionToLoseModel = BaseInputModel & {
   type: 'productionToLose';
   payProduction: PayProductionModel;
+  /** What forces the reduction (hazard / a card) — shown as a source chip. */
+  source?: ProductionLossSource;
 }
 
 export type ShiftAresGlobalParametersModel = BaseInputModel & {

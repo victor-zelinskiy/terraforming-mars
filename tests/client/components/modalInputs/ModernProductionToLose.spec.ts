@@ -5,13 +5,15 @@ import ModernProductionToLose from '@/client/components/modalInputs/ModernProduc
 import {SelectProductionToLoseModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Units} from '@/common/Units';
+import {ProductionLossSource} from '@/common/models/ProductionLossSource';
 
-function model(cost: number, prod: Partial<Units>): SelectProductionToLoseModel {
+function model(cost: number, prod: Partial<Units>, source?: ProductionLossSource): SelectProductionToLoseModel {
   return {
     title: `Choose ${cost} unit(s) of production to lose`,
     buttonLabel: 'Save',
     type: 'productionToLose',
     payProduction: {cost, units: {...Units.EMPTY, ...prod}},
+    source,
   };
 }
 
@@ -69,5 +71,23 @@ describe('ModernProductionToLose', () => {
   it('builds a clean diegetic title from cost (bypasses the baked server title)', () => {
     expect((mountWith(model(1, {steel: 1})).vm as any).titleText).to.eq('Reduce a production');
     expect((mountWith(model(3, {steel: 3})).vm as any).titleText).to.eq('Reduce production by 3');
+  });
+
+  it('shows the SOURCE: a hazard chip (with a premium tooltip) when forced by an adjacent hazard', () => {
+    const w = mountWith(model(1, {steel: 1}, {type: 'hazard'}));
+    const chip = w.find('.modal-input__src-hazard');
+    expect(chip.exists()).to.be.true;
+    expect(chip.attributes('data-hint')).to.be.a('string').and.not.empty;
+  });
+
+  it('shows the SOURCE: a hoverable card chip when forced by a card (Caesar)', () => {
+    const w = mountWith(model(1, {steel: 1}, {type: 'card', card: 'Caesar' as any}));
+    expect(w.find('.modal-input__src').exists()).to.be.true;
+    expect(w.findComponent({name: 'JournalCardChip'}).exists()).to.be.true;
+    expect(w.find('.modal-input__src-hazard').exists()).to.be.false; // not the hazard variant
+  });
+
+  it('shows NO source row when the cause is unattributed', () => {
+    expect(mountWith(model(1, {steel: 1})).find('.modal-input__src').exists()).to.be.false;
   });
 });

@@ -21,6 +21,21 @@
       <h3 class="modal-input__title">{{ titleText }}</h3>
     </header>
 
+    <!-- SOURCE — what forces the reduction, so the player sees WHY. A card source
+         is a hoverable chip (mini-card popover + fullscreen); a hazard source is a
+         chip with a premium tooltip explaining the rule. -->
+    <div v-if="sourceCard !== undefined" class="modal-input__src">
+      <span class="modal-input__src-label" v-i18n>Source</span>
+      <JournalCardChip :name="sourceCard" />
+    </div>
+    <div v-else-if="isHazardSource" class="modal-input__src">
+      <span class="modal-input__src-label" v-i18n>Source</span>
+      <span class="modal-input__src-hazard" :data-hint="hazardHint">
+        <span class="modal-input__src-hazard-glyph" aria-hidden="true">⚠</span>
+        <span v-i18n>Hazard zone</span>
+      </span>
+    </div>
+
     <div class="modal-input__subtitle" v-i18n>Which resource production would you prefer to decrease?</div>
 
     <!-- SINGLE-PICK: selectable resource tiles (no steppers). -->
@@ -88,9 +103,11 @@ import {defineComponent} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectProductionToLoseModel} from '@/common/models/PlayerInputModel';
 import {SelectProductionToLoseResponse} from '@/common/inputs/InputResponse';
+import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
 import {sum} from '@/common/utils/utils';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 
 type DataModel = {
   units: Units;
@@ -98,6 +115,7 @@ type DataModel = {
 
 export default defineComponent({
   name: 'ModernProductionToLose',
+  components: {JournalCardChip},
   props: {
     playerView: {
       type: Object as () => PlayerViewModel,
@@ -128,6 +146,17 @@ export default defineComponent({
   computed: {
     cost(): number {
       return this.playerinput.payProduction.cost;
+    },
+    // WHAT forces the reduction — a card (hoverable chip) or an Ares hazard zone.
+    sourceCard(): CardName | undefined {
+      const s = this.playerinput.source;
+      return s?.type === 'card' ? s.card : undefined;
+    },
+    isHazardSource(): boolean {
+      return this.playerinput.source?.type === 'hazard';
+    },
+    hazardHint(): string {
+      return translateText('Placing a tile next to a hazard zone forces you to reduce production.');
     },
     // One reduction → a clean single-pick UI (no steppers / no "N of M" counter).
     singlePick(): boolean {

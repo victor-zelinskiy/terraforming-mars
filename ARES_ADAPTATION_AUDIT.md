@@ -171,6 +171,13 @@ logic is test-covered.
 
 ## 7. Changelog
 
+- **2026-06-27** — Production-loss SOURCE attribution. The "decrease your production" modal now shows
+  WHAT forces it (mirrors the drawn-cards source): new `ProductionLossSource` (`card` / `hazard` /
+  `other`) threaded `SelectProductionToLoseDeferred → SelectProductionToLose → SelectProductionToLoseModel`;
+  AresHandler passes `{type:'hazard'}` (placing next to a hazard) and Caesar passes `{type:'card', card}`.
+  `ModernProductionToLose` renders a card source as a hoverable `JournalCardChip` (mini-card + fullscreen)
+  and a hazard source as a chip with a premium tooltip («Размещение тайла рядом с опасной зоной…»).
+  1 RU key; spec +3 (7). Full suite 7453, vue-tsc, make:json, make:css green; eslint 0 new.
 - **2026-06-27** — UI/UX polish pass (3 reported gaps):
   (1) **Full pre-placement info.** The hazard-adjacency penalty now shows the EXACT forced amount
   («Снизить производство на N» + «на ваш выбор», severity danger) — added a `params` field to
