@@ -1,26 +1,22 @@
 <template>
   <!--
-    A compact premium "event chip" pinned to an ocean threshold. Reuses the
-    board's bonus-zone visual language (octagon glass frame + halo + pointer +
-    icon) so it reads as part of the same scale-bonus family as the Venus / O₂ /
-    temperature chips, but carries a RICHER, diegetic tooltip describing the
-    in-world planetary event (no expansion name is ever shown).
-
-    The pointer aims UP at the band (the chip body sits just outside the arc,
-    toward space), mirroring how the Venus chips point at their division.
+    A compact planetary-EVENT chip pinned to an ocean threshold. Now a thin
+    wrapper over the unified ArcScaleMarkerChip (one visual language with the
+    scale reward bonuses) — it only supplies the richer, diegetic tooltip and
+    the ocean surface tint / event variant. Hidden in a normal game (gated in
+    oceanThresholdMarkers.ts); no expansion name is ever shown.
   -->
-  <div
-    class="ocean-event bonus-zone bonus-zone--regular bonus-zone--surface-oceans"
-    :class="{'ocean-event--reached': reached, 'ocean-event--reward': hasReward}"
+  <arc-scale-marker-chip
+    class="ocean-event"
+    :variant="marker.kind"
+    surface="oceans"
+    :reached="reached"
+    :point="point"
+    :pointerDist="pointerDist"
+    :icon="marker.icon"
     :style="nodeStyle"
     role="img"
     :aria-label="ariaLabel">
-    <div class="bonus-zone__pointer" :style="pointerStyle"></div>
-    <div class="bonus-zone__rot">
-      <div class="bonus-zone__halo"></div>
-      <div class="bonus-zone__frame"></div>
-      <div class="bonus-zone__icon" :class="marker.icon"></div>
-    </div>
     <div class="ocean-event__tip" role="tooltip">
       <span class="ocean-event__tip-kind" v-i18n>{{ marker.title }}</span>
       <span v-if="marker.description" class="ocean-event__tip-desc" v-i18n>{{ marker.description }}</span>
@@ -30,20 +26,19 @@
         <span class="ocean-event__tip-reward-value" v-i18n>{{ marker.rewardLabel }}</span>
       </span>
     </div>
-  </div>
+  </arc-scale-marker-chip>
 </template>
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import ArcScaleMarkerChip from '@/client/components/board/ArcScaleMarkerChip.vue';
 import {GlobalParameterThresholdMarker} from '@/client/components/board/oceanThresholdMarkers';
 
 export default defineComponent({
   name: 'OceanEventMarker',
+  components: {ArcScaleMarkerChip},
   props: {
-    marker: {
-      type: Object as PropType<GlobalParameterThresholdMarker>,
-      required: true,
-    },
+    marker: {type: Object as PropType<GlobalParameterThresholdMarker>, required: true},
     /** Marker top-left margin (`.global-numbers` space) + box size. */
     top: {type: Number, required: true},
     left: {type: Number, required: true},
@@ -63,14 +58,8 @@ export default defineComponent({
         'height': `${this.size}px`,
       };
     },
-    pointerStyle(): Record<string, string> {
-      return {transform: `rotate(${this.point}deg) translateY(${-this.pointerDist}px)`};
-    },
     rewardRecipient(): string {
       return this.marker.reward?.recipient ?? 'none';
-    },
-    hasReward(): boolean {
-      return this.rewardRecipient === 'triggering-player';
     },
     ariaLabel(): string {
       return this.marker.title;

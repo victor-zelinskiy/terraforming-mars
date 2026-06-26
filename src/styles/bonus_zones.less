@@ -289,6 +289,46 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+ *  PER-SCALE TINT  (the unified marker chip takes its host scale's colour)
+ * ════════════════════════════════════════════════════════════════════════ */
+// One mixin recolours the rim / halo / pointer to a scale's accent (the dark
+// glass body + sheen stay scale-agnostic). Applied via `bonus-zone--surface-*`
+// (set by ArcScaleMarkerChip). Placed BEFORE the FINAL / claimed / government
+// blocks so those higher-priority states still override an available chip.
+.marker-surface-tint(@rim, @rim-soft, @glow, @pointer-top) {
+  .bonus-zone__frame {
+    background: linear-gradient(150deg, @rim 0%, @rim-soft 48%, fade(@rim, 18%) 100%);
+    box-shadow:
+      0 0 7px fade(@glow, 60%),
+      0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .bonus-zone__halo {
+    background: radial-gradient(circle at 50% 46%,
+      @glow 0%, fade(@glow, 22%) 38%, fade(@glow, 0%) 72%);
+  }
+  .bonus-zone__pointer {
+    background: linear-gradient(180deg, @pointer-top 0%, @rim 46%, fade(@rim, 26%) 100%);
+    filter: drop-shadow(0 0 3px fade(@glow, 55%));
+  }
+}
+
+.bonus-zone--surface-venus       { .marker-surface-tint(@bonus-rim-gold, @bonus-rim-gold-soft, @bonus-glow-gold, #fff1cc); }
+.bonus-zone--surface-temperature { .marker-surface-tint(rgba(242, 152, 112, 0.92), rgba(242, 152, 112, 0.5), rgba(242, 132, 92, 0.6), #ffe4d2); }
+.bonus-zone--surface-oxygen      { .marker-surface-tint(rgba(152, 226, 250, 0.92), rgba(152, 226, 250, 0.5), rgba(152, 226, 250, 0.55), #eafcff); }
+.bonus-zone--surface-oceans      { .marker-surface-tint(rgba(96, 206, 238, 0.92), rgba(96, 206, 238, 0.5), rgba(64, 190, 240, 0.62), #dcf3ff); }
+
+// VARIANT: hazard-event — a world hazard (e.g. ocean-3 erosions). Amber warning
+// rim, overriding the host scale tint so it reads as "danger", not a reward.
+.arc-marker--hazard-event        { .marker-surface-tint(rgba(255, 190, 120, 0.92), rgba(255, 190, 120, 0.5), rgba(255, 170, 90, 0.62), #fff0d8); }
+
+// REACHED — an event threshold the parameter has passed: brighten the halo +
+// a steady glow so it reads "active" (the event chips' analog of a claim).
+.bonus-zone--reached {
+  .bonus-zone__halo { opacity: 0.9; }
+  .bonus-zone__frame { box-shadow: 0 0 10px fade(@bonus-glow-cyan, 70%), 0 1px 2px rgba(0, 0, 0, 0.5); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
  *  TIER: REGULAR  (calm cyan/silver — the default above)
  * ════════════════════════════════════════════════════════════════════════ */
 // (regular IS the base look defined above — no overrides needed)
