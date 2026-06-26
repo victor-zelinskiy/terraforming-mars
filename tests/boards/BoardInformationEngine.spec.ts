@@ -189,14 +189,41 @@ describe('BoardInformationEngine', () => {
     expect(info.facts.some((f) => f.id === 'score-city'), 'separate city scoring').to.be.true;
   });
 
-  it('a composite tile (New Holland) counts as BOTH city and ocean', () => {
-    const land = emptyLand(() => true);
+  it('a composite tile (New Holland) ON the Mars grid keeps countsAs AND real scoring', () => {
+    const land = emptyLand((s) => game.board.getAdjacentSpaces(s).some((a) => a.spaceType === SpaceType.LAND && a.tile === undefined));
+    const adj = game.board.getAdjacentSpaces(land).find((a) => a.spaceType === SpaceType.LAND && a.tile === undefined)!;
+    game.addGreenery(player, adj);
     land.tile = {tileType: TileType.NEW_HOLLAND, card: CardName.NEW_HOLLAND};
     land.player = player;
-    const status = boardCellInfo(player, land).status;
-    expect(status.special).to.be.true;
-    expect(status.header).to.eq('Special city');
-    expect(status.countsAs).to.have.members(['city', 'ocean']);
+
+    const info = boardCellInfo(player, land);
+    expect(info.status.special).to.be.true;
+    expect(info.status.external, 'on the Mars grid').to.not.be.true;
+    expect(info.status.header).to.eq('Special city');
+    expect(info.status.countsAs).to.have.members(['city', 'ocean']);
+    // On-grid → REAL city-greenery scoring is shown (NOT suppressed); no external note.
+    expect(info.facts.some((f) => f.id === 'score-city'), 'city scoring present on-grid').to.be.true;
+    expect(info.facts.some((f) => f.category === 'external-area'), 'no external note on-grid').to.be.false;
+  });
+
+  it('an OFF-Mars city (no Mars adjacency) shows NO false city-greenery scoring', () => {
+    const offMars = game.board.spaces.find((s) => s.spaceType === SpaceType.COLONY);
+    expect(offMars, 'off-Mars colony space exists').to.not.be.undefined;
+    expect(game.board.getAdjacentSpaces(offMars!).length, 'off-grid: no adjacency').to.eq(0);
+    // Maxwell Base / Ganymede Colony place an ordinary CITY tile OFF the grid.
+    offMars!.tile = {tileType: TileType.CITY, card: CardName.GANYMEDE_COLONY};
+    offMars!.player = player;
+
+    const info = boardCellInfo(player, offMars!);
+    expect(info.status.external, 'flagged external').to.be.true;
+    expect(info.status.special, 'an external city is special, not ordinary').to.be.true;
+    expect(info.status.content).to.eq('city');
+    expect(info.status.countsAs).to.include('city');
+    expect(info.status.tileLabel).to.eq(CardName.GANYMEDE_COLONY);
+    // countsAs a city, but NO false Mars city-greenery scoring...
+    expect(info.facts.some((f) => f.category === 'city-greenery-scoring'), 'no false city scoring').to.be.false;
+    // ...instead an honest "external area" note.
+    expect(info.facts.some((f) => f.category === 'external-area'), 'external-area note').to.be.true;
   });
 
   it('city placement with no adjacent greeneries shows a count line, NOT a +0 VP badge', () => {

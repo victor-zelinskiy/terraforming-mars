@@ -215,14 +215,20 @@ function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
   if (space.id === player.game.nomadSpace) {
     return {content: 'special-tile', reserved: 'nomad', spaceTypeLabel: 'Mars Nomads camp'};
   }
-  if (space.id === board.noctisCitySpaceId) {
-    return {content: 'empty', reserved: 'noctis', spaceTypeLabel: 'Reserved for Noctis City'};
-  }
-  if (space.spaceType === SpaceType.COLONY) {
-    return {content: 'empty', reserved: 'colony', spaceTypeLabel: 'Colony space'};
-  }
-  if (space.spaceType === SpaceType.RESTRICTED) {
-    return {content: 'empty', reserved: 'restricted', spaceTypeLabel: 'Restricted area'};
+  // "Reserved" describes an EMPTY reserved cell. Once a tile is placed (an
+  // off-Mars city slot like Maxwell Base / Ganymede Colony, or Noctis City),
+  // the OCCUPIED cell flows to the tile branch below, which shows the real tile
+  // identity (and, for off-grid slots, marks it external instead of "reserved").
+  if (space.tile === undefined) {
+    if (space.id === board.noctisCitySpaceId) {
+      return {content: 'empty', reserved: 'noctis', spaceTypeLabel: 'Reserved for Noctis City'};
+    }
+    if (space.spaceType === SpaceType.COLONY) {
+      return {content: 'empty', reserved: 'colony', spaceTypeLabel: 'Colony space'};
+    }
+    if (space.spaceType === SpaceType.RESTRICTED) {
+      return {content: 'empty', reserved: 'restricted', spaceTypeLabel: 'Restricted area'};
+    }
   }
   if (space.tile !== undefined) {
     const ownerColor = space.player?.color ?? space.coOwner?.color;
