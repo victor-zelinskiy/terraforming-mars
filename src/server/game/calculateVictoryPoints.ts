@@ -50,18 +50,30 @@ export function computeTerraformRatingBreakdown(player: IPlayer): TerraformRatin
       }
     }
   }
-  const cardEntries: Array<TRSourceEntry> = [...byKey.values()].filter((e) => e.amount !== 0);
+  // Ares hazard-clearing TR is split OUT of `cards` into its own segment.
+  let hazards = 0;
+  const cardEntries: Array<TRSourceEntry> = [];
+  for (const e of byKey.values()) {
+    if (e.amount === 0) {
+      continue;
+    }
+    if (e.sourceType === 'ares-hazard') {
+      hazards += e.amount;
+    } else {
+      cardEntries.push(e);
+    }
+  }
 
-  let cards = player.terraformRatingFromCards;
+  let cards = player.terraformRatingFromCards - hazards;
   const baseRating = STARTING_TERRAFORM_RATING;
   // The "TR Boost" handicap chosen at game creation is added to the rating at
   // setup via setTerraformRating (Game.ts), bypassing every bucket — surface it
   // EXPLICITLY as the Handicap ("Фора") sub-part, not the unattributed residual.
   const handicap = player.handicap;
 
-  // Reconcile: anything not explained by base/handicap/params/cards is a legacy
-  // unattributed source (old saves). Fold it INTO cards (NOT base) as a row.
-  const residual = player.terraformRating - baseRating - handicap - temperature - oxygen - oceans - venus - cards;
+  // Reconcile: anything not explained by base/handicap/params/cards/hazards is a
+  // legacy unattributed source (old saves). Fold it INTO cards (NOT base) as a row.
+  const residual = player.terraformRating - baseRating - handicap - temperature - oxygen - oceans - venus - cards - hazards;
   if (residual !== 0) {
     cards += residual;
     cardEntries.push({sourceType: 'legacyUnknown', sourceName: 'Other / untracked sources', amount: residual});
@@ -78,6 +90,7 @@ export function computeTerraformRatingBreakdown(player: IPlayer): TerraformRatin
     venus,
     cards,
     cardEntries,
+    hazards,
   };
 }
 

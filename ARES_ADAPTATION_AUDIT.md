@@ -83,7 +83,7 @@ These have **NO auto-guard** — tracked manually here.
 | **Special-tile adjacency bonuses** (placer gain + tile-owner income) | BoardInformation hover + active-placement preview; recipient clarity (me vs owner); journal | `BoardInformationEngine.aresAdjacencyFacts()` (stub → populate); categories `ares-adjacency-bonus` / `tile-owner-benefit` already declared | ⬜ |
 | **Hazard tiles** (dust storm / erosion, mild/severe) hover + placement penalty/cleanup preview | BoardInformation `hazard-penalty` / `hazard-cleanup` facts; diegetic RU labels | hazard COST already flows via `computeAdditionalCosts`; add facts + cell status lore | ⬜ |
 | **Scale threshold "planetary events"** (ocean 3 → erosions; temp −4 → severe erosion; oxy 5 → severe dust storm; ocean 6 → remove dust storms +1 TR) | Arc-scale markers via `ArcScaleMarkerChip` (`planetary-event` / `hazard-event`); tooltips; reached-highlight; journal | `oceanThresholdMarkers.ts` (placeholders exist, HIDDEN behind `?oceanMarkers`); markers for temp/oxy scales to add; gate to Ares games | ⛔ decision: enable now |
-| **Hazard cleanup TR attribution** | new TR bucket, diegetic label «Очистка опасных зон»; VP-overlay segment | `Player.increaseTerraformRating(..., {trAttribution})` + `TRSourceType`; `victoryPointsModel.trScale` | ⬜ |
+| **Hazard cleanup TR attribution** | new TR bucket, diegetic label «Очистка опасных зон»; VP-overlay segment | `Player.increaseTerraformRating(..., {trAttribution})` + `TRSourceType`; `victoryPointsModel.trScale` | ✅ (`ares-hazard` bucket → `TerraformRatingBreakdown.hazards` → own `tr.hazards` segment; cleanup-by-build + ocean-6 removal attributed; no-leak guarded) |
 | **Journal / eventlog** for every Ares board event (place/strengthen/remove/cleanup/penalty/adjacency-bonus) | root events w/ `correlationId` + new `JournalActionCategory` (e.g. `planetary-event`, `hazard-cleanup`) | `events.beginAction(...)` + `endScope()` (milestone/award recipe) | ⬜ |
 | **Notifications** for planetary events / hazard cleanup / adjacency income | variant + mapper | `notificationModel.rootVariant` | ⬜ |
 | **Random hazard placement** (initial + threshold) — NO player picker, server-driven, logged + board-highlighted | confirm logged + presented honestly (random, not "player chose") | `AresHazards.randomlyPlaceHazard` (exists); add journal + client highlight | ⬜ |
@@ -118,8 +118,8 @@ No render gaps.
 ## 5. Phased plan (maps to brief §27)
 
 - **Phase 1 — Audit** ✅ (this doc + scope widening + card-coverage cleared).
-- **Phase 2 — Core state verify + TR attribution** ⬜ (rules exist; add hazard-cleanup
-  TR bucket + no-leak verification test).
+- **Phase 2 — Core state verify + TR attribution** ✅ (hazard-cleanup/removal TR bucket
+  end-to-end into the VP overlay; no-leak verification test green).
 - **Phase 3 — Scale planetary-event markers** ⛔ (decision: enable for Ares games).
 - **Phase 4 — Hazard board mechanics journal/notification coverage** ⬜.
 - **Phase 5 — BoardInformation: `aresAdjacencyFacts` + hazard facts + placement preview** ⬜.
@@ -138,6 +138,11 @@ No render gaps.
 
 ## 7. Changelog
 
+- **2026-06-26** — Phase 2: hazard-clearing TR attribution. New `ares-hazard` `TRSourceType`
+  → `TerraformRatingBreakdown.hazards` (split out of `cards`) → own diegetic VP segment
+  «Очистка опасных зон» (`tr.hazards`, ochre accent). Cleanup-by-build
+  (`grantBonusForRemovingHazard`) + the ocean-6 dust-storm-removal event attributed;
+  `tests/ares/AresHazardTr.spec.ts` (3 tests incl. no-leak). build:server + make:json green.
 - **2026-06-26** — Phase 1: widened all 5 SCOPE sets to `ares`; cleared the play/action
   guard worklist (Bioengineering Enclosure reason hook; ACCEPTED_DYNAMIC for the 5
   placement cards + Desperate Measures; BEHAVIOR_BESPOKE_NO_HIDDEN_RESULT for Great
