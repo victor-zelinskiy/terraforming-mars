@@ -15,6 +15,7 @@
     :rot="rot"
     :point="point"
     :pointerDist="pointerDist"
+    :pointerLen="pointerLen"
     :icon="icon"
     :claimColor="claimColor"
     :claimKey="claimKey"
@@ -42,6 +43,8 @@ export default defineComponent({
     point: {type: Number, default: 0},
     // How far (px) to push the pointer out so its tip reaches the band edge.
     pointerDist: {type: Number, default: 16},
+    // Connector visible length (px) — chip edge → rail edge.
+    pointerLen: {type: Number, default: 9},
     // Owner colour painted on a claimed node ('' when available / government).
     claimColor: {type: String, default: ''},
     // Owner display name for the hover ('' when none).
