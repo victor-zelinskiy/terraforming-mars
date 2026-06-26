@@ -249,3 +249,30 @@ logic is test-covered.
   guard worklist (Bioengineering Enclosure reason hook; ACCEPTED_DYNAMIC for the 5
   placement cards + Desperate Measures; BEHAVIOR_BESPOKE_NO_HIDDEN_RESULT for Great
   Dam:ares + Butterfly Effect); added 2 RU reason keys. Guards + `make:json` green.
+
+- **2026-06-27** — Polish pass (4 UX issues from gameplay screenshots, generic — not Nuclear
+  Zone / Deimos Down specific):
+  1. **Butterfly Effect marker glide.** Scale event markers used to JUMP a division in one
+     frame after a Butterfly-Effect shift. New module-level `aresMarkerGlide.ts`
+     (`glidedThreshold(id, target)`) tweens each marker's POSITION value over ~1.5s via an
+     rAF loop bumping a reactive frame; the REACHED state still keys off the real value.
+     Module-level so the glide survives the board remount that delivers the new threshold;
+     first sighting / reduced-motion / no-rAF snap. Ocean (OceanArcScale) + temperature/oxygen
+     (Board.vue via `aresDynamicMarkerView(..., glidedThreshold(...))`). `aresMarkerGlide.spec` (4).
+  2. **Variant tile names.** Centralized `baseCardName(name)` in `common/cards/CardName.ts`
+     (strips the `:ares`/`:promo`/… suffix); `BoardInformationEngine.tileLabel` uses it so EVERY
+     variant special tile (Nuclear Zone, Deimos Down, …) reads the localized base name, no suffix.
+  3. **Composed placement cost.** When the final M€ differs from base, the board-info preview /
+     hazard hover now shows the total + a per-factor breakdown (`megacreditCostFactors`:
+     cleanup 8×steps, per-adjacent `adjacency.cost` named by `baseCardName`, base = reconciling
+     remainder). One labeled line for ≤1 factor, else a «Полная стоимость размещения» header +
+     per-factor facts. BoardInformationAres.spec extended.
+  4. **Hazard intensify pulse.** A planetary event upgrading a hazard mild→severe snapped to the
+     severe sprite. New `hazardIntensifyState.ts` (`hazardIntensifyElapsed(spaceId, tileType)`)
+     remembers each cell's severity and, on a real STRENGTHENING (was already a hazard, NOT a
+     0→hazard appearance), returns the elapsed ms of a ~1.4s pulse; BoardSpaceTile feeds it into
+     a scoped negative `animation-delay` so the `@keyframes hazard-intensify` (brightness +
+     glow + scale pop) stays continuous across remounts and plays once. `hazardIntensifyState.spec` (4).
+  RU: board_info («Соседство», Adjacency/Total placement cost, …) + ui (production-loss strings)
+  + ares_cards (Butterfly Effect). vue-tsc + make:css + eslint (0 new) green; board-info server
+  regression 34 passing.
