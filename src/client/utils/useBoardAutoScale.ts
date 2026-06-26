@@ -81,13 +81,6 @@ const BOARD_NATURAL_HEIGHT = 624;
 const MIN_SCALE = 0.8;
 const MAX_SCALE = 4.0;
 
-// Below this viewport height the board is tightly height-limited and its bottom
-// rim — where the OCEAN ARC lives — crowds the bottom UI. We reserve extra
-// bottom room there so the whole board lifts to a safe gap. MUST match the
-// `@media (max-height)` breakpoint for `.player_home_block--board` in
-// player_home.less so the centring box and the scale target agree.
-const COMPACT_VIEWPORT_HEIGHT = 900;
-
 // Vertical chrome reservation in pixels — top: bottom-bar-button + 20
 // (matches `padding-top: calc(var(--bottom-bar-button-height) + 20px)`
 // on `#player-home`). Bottom: bottom-bar-button. The legacy `+80`
@@ -105,12 +98,13 @@ function readVerticalReserved(cs: CSSStyleDeclaration): number {
   // small safety gap here instead of the full bar height. Keep this in
   // lockstep with `.player_home_block--board { bottom }` in
   // player_home.less so the centring box and the scale target agree.
-  // On SHORT viewports lift the board so the ocean arc (board bottom rim) +
-  // its inside event chips keep a safe gap from the bottom UI; on taller ones
-  // the board is width-limited / has natural slack, so keep the small 8px gap.
-  // Kept in lockstep with `.player_home_block--board { bottom }` (player_home.less).
-  const compact = window.innerHeight <= COMPACT_VIEWPORT_HEIGHT;
-  const bottomPadding = compact ? buttonH + 16 : 8;
+  // Reserve the bottom button-bar height (+16 breather) so the OCEAN ARC at the
+  // board's bottom rim never slips under the corner button rails — including in
+  // fullscreen, where the board is height-limited and would otherwise drop to
+  // the very bottom edge. ALWAYS reserved (not just on short viewports): the
+  // bar lives at `bottom: 0` at every height. Kept in lockstep with
+  // `.player_home_block--board { bottom }` (player_home.less).
+  const bottomPadding = buttonH + 16;
   // Minimal 4px safety so the bottom edge of the board doesn't touch
   // the bottom button bar at maximum scale.
   return topPadding + bottomPadding + 4;

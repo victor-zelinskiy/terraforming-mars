@@ -76,21 +76,21 @@
               (scaleBonusZones.ts) pixel-accurate relative to each division —
               a separate container would carry a per-scale origin offset.
             -->
+            <!--
+              The colour band, the 1–N digits, the gliding indicator and the
+              identity badge are all rendered by the dynamic <arc-scale> above.
+              These per-scale containers now host ONLY the bonus reward chips
+              (BonusZone), which keep their existing scaleBonusZones positioning.
+            -->
             <div class="global-numbers-temperature">
-                <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in temperatureValues" :key="idx">{{ lvl.strValue }}</div>
-                <animated-scale-marker accent="temperature" :value="temperature" />
                 <bonus-zone v-for="zone in temperatureZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
             </div>
 
             <div class="global-numbers-oxygen">
-                <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in oxygenValues" :key="idx">{{ lvl.strValue }}</div>
-                <animated-scale-marker accent="oxygen" :value="oxygen_level" />
                 <bonus-zone v-for="zone in oxygenZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
             </div>
 
             <div class="global-numbers-venus" v-if="expansions.venus">
-                <div :class="getScaleCSS(lvl)" v-for="(lvl, idx) in venusValues" :key="idx">{{ lvl.strValue }}</div>
-                <animated-scale-marker accent="venus" :value="venusScaleLevel" />
                 <bonus-zone v-for="zone in venusZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
             </div>
 
@@ -238,7 +238,6 @@ import * as constants from '@/common/constants';
 import BoardSpace from '@/client/components/BoardSpace.vue';
 import SpecialCellMarker from '@/client/components/board/SpecialCellMarker.vue';
 import SpecialCellInfoOverlay from '@/client/components/board/SpecialCellInfoOverlay.vue';
-import AnimatedScaleMarker from '@/client/components/board/AnimatedScaleMarker.vue';
 import OceanArcScale from '@/client/components/board/OceanArcScale.vue';
 import ArcScale from '@/client/components/board/ArcScale.vue';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
@@ -259,11 +258,6 @@ import {BoardName} from '@/common/boards/BoardName';
 import {LEGENDS} from '@/client/components/Legends';
 import {Expansion} from '@/common/cards/GameModule';
 import {SpaceName} from '@/common/boards/SpaceName';
-
-class GlobalParamLevel {
-  constructor(public value: number, public isActive: boolean, public strValue: string) {
-  }
-}
 
 export default defineComponent({
   name: 'board',
@@ -323,7 +317,6 @@ export default defineComponent({
     SpecialCellMarker,
     SpecialCellInfoOverlay,
     BoardCellInfoPopover,
-    AnimatedScaleMarker,
     OceanArcScale,
     ArcScale,
     BonusZone,
@@ -436,52 +429,6 @@ export default defineComponent({
       }
       return space;
     },
-    getValuesForParameter(targetParameter: string): Array<GlobalParamLevel> {
-      const values = [];
-      let startValue: number;
-      let endValue: number;
-      let step: number;
-      let curValue: number;
-      let strValue: string;
-
-      switch (targetParameter) {
-      case 'oxygen':
-        startValue = constants.MIN_OXYGEN_LEVEL;
-        endValue = constants.MAX_OXYGEN_LEVEL;
-        step = 1;
-        curValue = this.oxygen_level;
-        break;
-      case 'temperature':
-        startValue = constants.MIN_TEMPERATURE;
-        endValue = constants.MAX_TEMPERATURE;
-        step = 2;
-        curValue = this.temperature;
-        break;
-      case 'venus':
-        startValue = constants.MIN_VENUS_SCALE;
-        endValue = constants.MAX_VENUS_SCALE;
-        step = 2;
-        curValue = this.venusScaleLevel;
-        break;
-      default:
-        throw new Error('Wrong parameter to get values from: ' + targetParameter);
-      }
-
-      for (let value = endValue; value >= startValue; value -= step) {
-        strValue = (targetParameter === 'temperature' && value > 0) ? '+'+value : value.toString();
-        values.push(
-          new GlobalParamLevel(value, value === curValue, strValue),
-        );
-      }
-      return values;
-    },
-    getScaleCSS(paramLevel: GlobalParamLevel): string {
-      let css = 'global-numbers-value val-' + paramLevel.value + ' ';
-      if (paramLevel.isActive) {
-        css += 'val-is-active';
-      }
-      return css;
-    },
     getGameBoardClassName(): string {
       // mars.png is now PLANET-ONLY (the parameter arcs are rendered in code,
       // see the ArcScale / OceanArcScale bands), so the planet image is the same
@@ -521,20 +468,6 @@ export default defineComponent({
      */
     spacesOnMars(): Array<SpaceModel> {
       return this.getAllSpacesOnMars();
-    },
-    /**
-     * Scale-anchor levels per global parameter, cached as computeds so each
-     * only rebuilds when its own parameter changes — moving the temperature
-     * marker no longer rebuilds the oxygen / venus anchor arrays. (perf B11)
-     */
-    temperatureValues(): Array<GlobalParamLevel> {
-      return this.getValuesForParameter('temperature');
-    },
-    oxygenValues(): Array<GlobalParamLevel> {
-      return this.getValuesForParameter('oxygen');
-    },
-    venusValues(): Array<GlobalParamLevel> {
-      return this.getValuesForParameter('venus');
     },
     /**
      * Render-ready global-parameter scale reward zones, filtered to the active

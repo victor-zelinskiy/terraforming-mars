@@ -104,6 +104,41 @@
   filter: drop-shadow(0 0 3px var(--arc-glow));
 }
 
+// ── Unified digit layer (replaces the legacy globs `.val-N` per scale) ─────
+// Upright, compact, one family across all scales. future = dim, visited =
+// brighter, current = strongest + accent glow. Overrides the 26px globs base
+// (same specificity, imported later → wins).
+.arc-scale .global-numbers-value {
+  position: absolute;
+  width: 19px;
+  height: 19px;
+  line-height: 19px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--arc-digit);
+  opacity: 0.6;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 0 5px rgba(6, 16, 26, 0.9);
+  pointer-events: none;
+  z-index: 1;
+  transition: color 320ms ease, opacity 320ms ease;
+}
+.arc-scale .arc-scale__digit--visited {
+  color: var(--arc-digit-on);
+  opacity: 1;
+}
+.arc-scale .arc-scale__digit--current {
+  color: var(--arc-digit-on);
+  font-weight: 700;
+  opacity: 1;
+  z-index: 2;
+  text-shadow:
+    0 0 4px var(--arc-glow),
+    0 0 10px var(--arc-glow-soft),
+    0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
 // ── Identity badge — flat HUD scale-TYPE label (mirrors the ocean identity) ─
 .arc-scale__identity {
   position: absolute;

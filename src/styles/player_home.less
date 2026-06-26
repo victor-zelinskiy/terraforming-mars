@@ -1091,33 +1091,19 @@ each(@players, {
     left: calc(var(--left-panel-width) + 20px);
     right: calc(var(--right-sidebar-width) + 20px);
     /*
-     * Bottom centre is free now (bottom bar split into corner rails), so
-     * the centring box extends almost to the screen bottom. Because the
-     * top reserve stays at bar+20 while the bottom drops to 8px, the
-     * flex-centred planet settles LOWER, and the taller box lets the
-     * auto-scale grow it. Keep this `8px` in lockstep with
-     * `readVerticalReserved()` in useBoardAutoScale.ts.
+     * Reserve the bottom button-bar height (+16 breather) so the dynamic OCEAN
+     * ARC at the board's bottom rim never slips under the corner button rails,
+     * including in fullscreen (the bar is fixed at `bottom: 0` at every height,
+     * and the board is height-limited there so it would otherwise drop to the
+     * very edge). Kept in lockstep with `readVerticalReserved()` in
+     * useBoardAutoScale.ts.
      */
-    bottom: 8px;
+    bottom: calc(var(--bottom-bar-button-height) + 16px);
     display: flex;
     align-items: center;
     justify-content: center;
     pointer-events: none;
     z-index: 1;
-}
-
-/*
- * Compact-height safe area for the OCEAN ARC. On short viewports the board is
- * height-limited and its bottom rim — where OceanArcScale is drawn, with its
- * inside event chips reaching toward the planet — crowds the bottom UI. Lift
- * the centring box bottom so the whole board (and the arc) settles higher with
- * a safe gap. MUST stay in lockstep with `COMPACT_VIEWPORT_HEIGHT` +
- * `readVerticalReserved()` in useBoardAutoScale.ts (same breakpoint + value).
- */
-@media (max-height: 900px) {
-    .player_home_block--board {
-        bottom: calc(var(--bottom-bar-button-height) + 16px);
-    }
 }
 
 .player_home_block--board > * {
