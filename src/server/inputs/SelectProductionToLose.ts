@@ -5,9 +5,13 @@ import {Units} from '../../common/Units';
 import {InputResponse, isSelectProductionToLoseResponse} from '../../common/inputs/InputResponse';
 import {sum} from '../../common/utils/utils';
 import {SelectProductionToLoseModel} from '../../common/models/PlayerInputModel';
+import {ProductionLossSource} from '../../common/models/ProductionLossSource';
 import {InputError} from './InputError';
 
 export class SelectProductionToLose extends BasePlayerInput<Units> {
+  /** What forces this reduction — surfaced to the player as a source chip. */
+  public source: ProductionLossSource | undefined = undefined;
+
   constructor(
     title: string | Message,
     public unitsToLose: number,
@@ -27,6 +31,7 @@ export class SelectProductionToLose extends BasePlayerInput<Units> {
         cost: this.unitsToLose,
         units: this.player.production.asUnits(),
       },
+      source: this.source,
     };
   }
   // TODO(kberg): Could merge this with SelectResources, though it

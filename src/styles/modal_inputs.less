@@ -1579,3 +1579,35 @@
     color: #9fe6ff;
     text-shadow: 0 0 9px rgba(127, 212, 255, 0.55);
 }
+
+/* ── Production-loss SOURCE chip (what forces the reduction) ───────────────── */
+.modal-input__src {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: -6px 0 12px;
+    font-size: 12px;
+}
+.modal-input__src-label {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(150, 192, 224, 0.7);
+}
+.modal-input__src-hazard {
+    .premium-tooltip(260px);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 7px;
+    border: 1px solid rgba(224, 106, 74, 0.45);
+    background: rgba(60, 30, 22, 0.5);
+    color: #f0b49a;
+    font-weight: 600;
+    cursor: help;
+}
+.modal-input__src-hazard-glyph {
+    color: #f0a085;
+}

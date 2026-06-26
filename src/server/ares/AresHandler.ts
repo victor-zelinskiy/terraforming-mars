@@ -222,7 +222,7 @@ export class AresHandler {
 
     if (cost.production > 0) {
       // TODO(kberg): don't send interrupt if total is available.
-      player.game.defer(new SelectProductionToLoseDeferred(player, cost.production));
+      player.game.defer(new SelectProductionToLoseDeferred(player, cost.production, {type: 'hazard'}));
     }
     if (cost.megacredits > 0) {
       player.game.log('${0} placing a tile here costs ${1} M€', (b) => b.player(player).number(cost.megacredits));
