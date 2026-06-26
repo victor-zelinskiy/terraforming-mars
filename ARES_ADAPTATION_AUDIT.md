@@ -142,7 +142,25 @@ No render gaps.
   (optional, avoid overclaim — the hazard events are in the event stream for a future analyzer).
 - **Phase 9 — Localization** ✅ (card names + descriptions + render texts in `ru/ares_cards.json`;
   hazard/board/scale/journal strings done in their phases). 0 real gaps per the audit script.
-- **Phase 10 — Tests / QA / build / eslint** ⬜.
+- **Phase 10 — Tests / QA / build / eslint** ✅ — full server suite **7450 passing**; `build:server`,
+  `vue-tsc`, `make:json`, `make:css`, `make:cards` all green; eslint adds **0 new errors** (8 pre-existing
+  baseline issues in `BoardInformationEngine.ts` are upstream style, untouched by this work); client
+  component specs (Board / WaitingFor / notifications / overview / board markers) green. New Ares specs:
+  `AresHazardTr`, `aresThresholdMarkers`, `BoardInformationAres`, `planetaryEventJournal`.
+
+## Done-criteria status (brief §30)
+
+✅ all Ares cards audited · ✅ new cards work (guards) · ✅ replacement cards preserve premium behavior ·
+✅ hazards (TR + board info + journal) · ✅ special-tile adjacency bonuses (board info) · ✅ scale
+threshold events (premium markers) · ✅ BoardInformation explains hazards/adjacency · ✅ PlacementPreview
+shows costs/bonuses/penalties/cleanup · ✅ scale markers use `ArcScaleMarkerChip` · ✅ no legacy modal
+(Butterfly Effect routed) · ✅ no unsafe autoSelect · ✅ meaningful choices premium · ✅ journal/eventlog
+covers planetary events + adjacency gains · ✅ localization complete (0 real gaps) · ✅ hazard-cleanup TR
+attributed · ✅ endgame TR breakdown shows hazard TR · ✅ Ares-disabled games unaffected (no leak, full
+suite green) · ✅ tests/typecheck/build pass.
+◑ Endgame narrative INSIGHTS (§20.2) deferred (optional). ◑ Bespoke premium ShiftAresGlobalParameters
+widget (frontier, like ModernAndOptions). ◑ Manual QA (§26) needs a live UI eyeball — logic is
+test-covered.
 
 ## 6. Open product decisions
 
@@ -151,6 +169,9 @@ No render gaps.
 
 ## 7. Changelog
 
+- **2026-06-26** — Phase 10: full QA. Server suite 7450 passing; build:server / vue-tsc / make:json /
+  make:css / make:cards green; eslint 0 new errors; client component specs green. Adaptation complete
+  (see done-criteria above).
 - **2026-06-26** — Phase 6: routed Butterfly Effect's `aresGlobalParameters` input into
   `MODAL_INPUT_TYPES` so it shows in the premium MandatoryInputModal (factory-hosted) instead of
   the hidden legacy `.legacy-ui-overlay`. Contextual-choice triage of `src/server/cards/ares`:
