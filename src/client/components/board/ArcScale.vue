@@ -48,10 +48,6 @@
         :key="'dv-' + d.key"
         class="arc-scale__divider"
         :x1="d.x1" :y1="d.y1" :x2="d.x2" :y2="d.y2" />
-      <!-- end-cap terminals — sit BEYOND the first/last digit (band lead-in/out)
-           so they never wash out the endpoint numbers -->
-      <circle class="arc-scale__cap" :cx="capStart.x" :cy="capStart.y" r="3" />
-      <circle class="arc-scale__cap" :cx="capEnd.x" :cy="capEnd.y" r="3" />
     </svg>
 
     <!-- UNIFIED digit layer (upright, future/visited/current states) — also the
@@ -154,26 +150,22 @@ export default defineComponent({
     innerR(): number {
       return this.config.bandRadius - this.config.bandWidth / 2;
     },
-    // Channel / rail / edge / sheen extend a small PAD beyond the first/last
-    // DIGIT so the end-cap nodes sit past the numbers (not on top of them) —
-    // this is the endpoint-readability fix (ocean `9` etc.).
-    bandPad(): {start: number; end: number} {
-      const dir = Math.sign(this.config.endAngle - this.config.startAngle) || 1;
-      const PAD = 4.5;
-      return {start: this.config.startAngle - dir * PAD, end: this.config.endAngle + dir * PAD};
-    },
+    // The band spans exactly the DIGIT range; its ROUND line-caps add a small
+    // dark rounded lead-out past the end digits (no separate bright cap node,
+    // which used to wash out the endpoint numbers). Keeping the span tight here
+    // is also what preserves the gaps BETWEEN neighbouring scales — extending it
+    // is what caused the overlap.
     channelPathD(): string {
-      return arcPath(this.center, this.config.bandRadius, this.bandPad.start, this.bandPad.end);
+      return arcPath(this.center, this.config.bandRadius, this.config.startAngle, this.config.endAngle);
     },
-    // Fill spans only the DIGIT range (value start → current) so progress is exact.
     fillPathD(): string {
       return arcPath(this.center, this.config.bandRadius, this.config.startAngle, this.config.endAngle);
     },
     edgePathD(): string {
-      return arcPath(this.center, this.outerR - 0.8, this.bandPad.start, this.bandPad.end);
+      return arcPath(this.center, this.outerR - 0.8, this.config.startAngle, this.config.endAngle);
     },
     sheenPathD(): string {
-      return arcPath(this.center, this.innerR + 1.8, this.bandPad.start, this.bandPad.end);
+      return arcPath(this.center, this.innerR + 1.8, this.config.startAngle, this.config.endAngle);
     },
     arcLength(): number {
       return this.config.bandRadius * Math.abs(this.config.endAngle - this.config.startAngle) * Math.PI / 180;
@@ -183,14 +175,6 @@ export default defineComponent({
     },
     gradTo(): {x: number; y: number} {
       return pointAtAngle(this.center, this.config.bandRadius, this.config.endAngle);
-    },
-    capStart(): {x: number; y: number} {
-      const p = pointAtAngle(this.center, this.config.bandRadius, this.bandPad.start);
-      return {x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100};
-    },
-    capEnd(): {x: number; y: number} {
-      const p = pointAtAngle(this.center, this.config.bandRadius, this.bandPad.end);
-      return {x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100};
     },
     // Boundary dividers between consecutive values — the unified segment-tick
     // layer across EVERY scale (per-scale `--arc-divider` tint). Dense scales
