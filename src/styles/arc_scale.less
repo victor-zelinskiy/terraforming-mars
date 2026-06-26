@@ -32,11 +32,12 @@
   pointer-events: none;
 }
 
-// 1) recessed backing rail
+// 1) recessed backing rail. +4 (not +7) so its rounded ends don't eat the gap
+// to the neighbouring scale at the tight junctions.
 .arc-scale__rail {
   fill: none;
   stroke: var(--arc-rail);
-  stroke-width: calc(var(--arc-band-width) + 7px);
+  stroke-width: calc(var(--arc-band-width) + 4px);
   stroke-linecap: round;
   filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.5));
 }
@@ -88,13 +89,8 @@
   stroke-linecap: round;
 }
 
-// 7) end-cap terminals
-.arc-scale__cap {
-  fill: var(--arc-cap);
-  stroke: rgba(8, 20, 30, 0.7);
-  stroke-width: 0.8px;
-  filter: drop-shadow(0 0 3px var(--arc-glow));
-}
+// (End terminals are the band's own ROUND line-caps + the edge highlight's
+// rounded end — no separate bright node, which used to wash out endpoint digits.)
 
 // ── Unified digit layer (replaces the legacy globs `.val-N` per scale) ─────
 // Upright, compact, one family across all scales. future = dim, visited =

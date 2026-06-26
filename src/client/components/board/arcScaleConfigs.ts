@@ -118,10 +118,11 @@ export function buildLinearArcConfig(name: ArcScaleName, opts: {
   return {name, center: CENTER, bandRadius: radius, bandWidth, startValue, endValue, startAngle, endAngle, digits};
 }
 
-// Band thickness is uniform across all scales now that the bands no longer have
-// to COVER a baked-in PNG arc (mars.png is planet-only) — a thin, elegant band
-// matching the ocean reference (BAND_WIDTH) keeps the family consistent.
-const BAND_WIDTH = 18;
+// Band thickness — a slim sci-fi PANEL (not a line): wide enough that the 19px
+// digits sit comfortably INSIDE the rail (especially on the vertical O₂ /
+// temperature arcs, where a thinner band left the numbers perched on the edge),
+// but not the heavy old PNG arc. Radial only — doesn't change angular gaps.
+const BAND_WIDTH = 22;
 
 export const OXYGEN_ARC = buildConfig('oxygen', OXYGEN_VALS, {bandWidth: BAND_WIDTH});
 export const TEMPERATURE_ARC = buildConfig('temperature', TEMPERATURE_VALS, {bandWidth: BAND_WIDTH});
