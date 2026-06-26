@@ -59,6 +59,10 @@ describe('KaguyaTech', () => {
     expect(selectSpace.spaces.map((s) => s.id)).to.include(greenerySpace.id);
     expect(selectSpace.hiddenTiles).to.include(greenerySpace.id);
     expect(selectSpace.toModel().hiddenTiles).to.include(greenerySpace.id);
+    // A city is placed → the prompt declares its placement kind so the client
+    // fetches the premium placement preview (what you gain) for the target.
+    expect(selectSpace.placementType).to.eq('city');
+    expect(selectSpace.toModel().placementType).to.eq('city');
   });
 
   it('compatible with ocean bonus', () => {

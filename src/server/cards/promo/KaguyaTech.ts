@@ -75,6 +75,11 @@ export class KaguyaTech extends Card implements IProjectCard {
     // hidden and the cell's placement bonus is shown instead (the player gains
     // those bonuses "as usual" — that's the relevant info, not the lost tile).
     return createMarsSelectSpace(player, 'Select a greenery to convert to a city.', greeneries, {
+      // A city is placed here — drives the premium placement preview (cost / the
+      // cell bonus gained "as usual" / +VP for adjacent greeneries). The cell is
+      // a remove-and-replace target (hideExistingTile), so the preview grants the
+      // bonus instead of reading the doomed greenery as a covering "no bonus".
+      placementType: 'city',
       hideExistingTile: true,
       customReasoner: (space) => {
         // Empty cell: not a greenery target → wrong-terrain reads OK.
