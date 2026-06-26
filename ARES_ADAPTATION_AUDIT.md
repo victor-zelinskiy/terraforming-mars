@@ -80,8 +80,8 @@ These have **NO auto-guard** — tracked manually here.
 
 | Mechanic | Premium target | Extension point | Status |
 | --- | --- | --- | --- |
-| **Special-tile adjacency bonuses** (placer gain + tile-owner income) | BoardInformation hover + active-placement preview; recipient clarity (me vs owner); journal | `BoardInformationEngine.aresAdjacencyFacts()` (stub → populate); categories `ares-adjacency-bonus` / `tile-owner-benefit` already declared | ⬜ |
-| **Hazard tiles** (dust storm / erosion, mild/severe) hover + placement penalty/cleanup preview | BoardInformation `hazard-penalty` / `hazard-cleanup` facts; diegetic RU labels | hazard COST already flows via `computeAdditionalCosts`; add facts + cell status lore | ⬜ |
+| **Special-tile adjacency bonuses** (placer gain + tile-owner income) | BoardInformation hover + active-placement preview; recipient clarity (me vs owner); journal | `BoardInformationEngine.aresAdjacencyFacts()` (stub → populate); categories `ares-adjacency-bonus` / `tile-owner-benefit` already declared | ✅ engine facts (placer gain + owner M€, Marketing-Experts-aware, recipient-grouped) in the placement preview; journal of the grant is Phase 4 |
+| **Hazard tiles** (dust storm / erosion, mild/severe) hover + placement penalty/cleanup preview | BoardInformation `hazard-penalty` / `hazard-cleanup` facts; diegetic RU labels | hazard COST already flows via `computeAdditionalCosts`; add facts + cell status lore | ✅ hover (severity-aware header + identity + cleanup +TR/cost + adjacency penalty) + placement-cleanup-reward fact; popover hazard section; diegetic RU («Опасная зона») |
 | **Scale threshold "planetary events"** (ocean 3 → erosions; temp −4 → severe erosion; oxy 5 → severe dust storm; ocean 6 → remove dust storms +1 TR) | Arc-scale markers via `ArcScaleMarkerChip` (`planetary-event` / `hazard-event`); tooltips; reached-highlight; journal | `aresThresholdMarkers.ts` (live thresholds from `aresData.hazardData`); `ScaleEventMarker.vue` (generalized from OceanEventMarker, per-scale surface); `OceanArcScale` + `Board.vue` mount on ocean/temp/oxy; legacy `global-ares-*` PNG markers removed | ✅ (markers + tooltips + reached state; gated to Ares games; extreme-variant safe; journal of the events is Phase 4) |
 | **Hazard cleanup TR attribution** | new TR bucket, diegetic label «Очистка опасных зон»; VP-overlay segment | `Player.increaseTerraformRating(..., {trAttribution})` + `TRSourceType`; `victoryPointsModel.trScale` | ✅ (`ares-hazard` bucket → `TerraformRatingBreakdown.hazards` → own `tr.hazards` segment; cleanup-by-build + ocean-6 removal attributed; no-leak guarded) |
 | **Journal / eventlog** for every Ares board event (place/strengthen/remove/cleanup/penalty/adjacency-bonus) | root events w/ `correlationId` + new `JournalActionCategory` (e.g. `planetary-event`, `hazard-cleanup`) | `events.beginAction(...)` + `endScope()` (milestone/award recipe) | ⬜ |
@@ -123,7 +123,8 @@ No render gaps.
 - **Phase 3 — Scale planetary-event markers** ✅ (premium `ArcScaleMarkerChip` markers on
   ocean/temperature/oxygen from live thresholds; legacy PNG markers removed; gated to Ares).
 - **Phase 4 — Hazard board mechanics journal/notification coverage** ⬜.
-- **Phase 5 — BoardInformation: `aresAdjacencyFacts` + hazard facts + placement preview** ⬜.
+- **Phase 5 — BoardInformation: `aresAdjacencyFacts` + hazard facts + placement preview** ✅
+  (engine facts + hover popover hazard section + recipient-grouped adjacency; read-only-guarded).
 - **Phase 6 — Cards: replacement parity audit + Desperate Measures/Solar Farm board UX** ⬜.
 - **Phase 7 — Journal/eventlog** ⬜.
 - **Phase 8 — Endgame stats** ⬜ (low priority).
@@ -137,6 +138,16 @@ No render gaps.
 
 ## 7. Changelog
 
+- **2026-06-26** — Phase 5: BoardInformation hazard + adjacency explainability.
+  `aresAdjacencyFacts` (was a stub) now emits, in the active-placement preview, the
+  `ares-adjacency-bonus` (placer gain, per neighbour `space.adjacency.bonus`, reusing
+  `describeSpaceBonus`) + `tile-owner-benefit` (owner +1/+2 M€, Marketing-Experts-aware,
+  recipient-grouped) + the `hazard-cleanup` +TR reward when covering a hazard (cost still
+  via `placementCostFacts`). Hover on a hazard cell now shows a dedicated section (identity
+  erosion/dust storm, severity-aware header «Опасная зона»/«Сильная опасная зона», cleanup
+  +TR/−M€, adjacency production penalty) via `hazardHoverFacts` + a `BoardCellInfoPopover`
+  hazard section. Gated on `aresExtension` (no leak), read-only (purity-guarded). 15 RU
+  board_info keys. `tests/boards/BoardInformationAres.spec.ts` (6). build:server + vue-tsc + make:json green.
 - **2026-06-26** — Phase 3: premium scale planetary-event markers. `aresThresholdMarkers.ts`
   builds the 4 markers from the LIVE `aresData.hazardData` thresholds (extreme-variant safe);
   `OceanEventMarker` generalized to `ScaleEventMarker` (per-scale surface/accent); rendered on
