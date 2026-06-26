@@ -33,6 +33,7 @@
 @notif-reveal-deck: #5fb8d8; // cards revealed from the deck (calm blue-cyan)
 @notif-reveal-hand: #9a9cf0; // cards shown from hand (soft blue-purple, public info)
 @notif-aqua: #4fc9d8; // Delta Project / Гидросеть advance (engineering water-cyan)
+@notif-planet: #d99a52; // Ares planetary event (dusty ochre — hazards appear / intensify / recede)
 
 .notifications-layer {
     position: fixed;
@@ -534,6 +535,7 @@ body:has(.hand-board-overlay .hand-sale-strip) {
 .notification-card--variant-standard-project { --notif-accent: @notif-steel; }
 .notification-card--variant-colony { --notif-accent: @notif-violet; }
 .notification-card--variant-hydronetwork { --notif-accent: @notif-aqua; }
+.notification-card--variant-planetary-event { --notif-accent: @notif-planet; }
 .notification-card--variant-generation { --notif-accent: @notif-ice; }
 .notification-card--variant-pass { --notif-accent: @notif-mute; }
 .notification-card--variant-your-turn { --notif-accent: @notif-mint; }

@@ -84,8 +84,8 @@ These have **NO auto-guard** — tracked manually here.
 | **Hazard tiles** (dust storm / erosion, mild/severe) hover + placement penalty/cleanup preview | BoardInformation `hazard-penalty` / `hazard-cleanup` facts; diegetic RU labels | hazard COST already flows via `computeAdditionalCosts`; add facts + cell status lore | ✅ hover (severity-aware header + identity + cleanup +TR/cost + adjacency penalty) + placement-cleanup-reward fact; popover hazard section; diegetic RU («Опасная зона») |
 | **Scale threshold "planetary events"** (ocean 3 → erosions; temp −4 → severe erosion; oxy 5 → severe dust storm; ocean 6 → remove dust storms +1 TR) | Arc-scale markers via `ArcScaleMarkerChip` (`planetary-event` / `hazard-event`); tooltips; reached-highlight; journal | `aresThresholdMarkers.ts` (live thresholds from `aresData.hazardData`); `ScaleEventMarker.vue` (generalized from OceanEventMarker, per-scale surface); `OceanArcScale` + `Board.vue` mount on ocean/temp/oxy; legacy `global-ares-*` PNG markers removed | ✅ (markers + tooltips + reached state; gated to Ares games; extreme-variant safe; journal of the events is Phase 4) |
 | **Hazard cleanup TR attribution** | new TR bucket, diegetic label «Очистка опасных зон»; VP-overlay segment | `Player.increaseTerraformRating(..., {trAttribution})` + `TRSourceType`; `victoryPointsModel.trScale` | ✅ (`ares-hazard` bucket → `TerraformRatingBreakdown.hazards` → own `tr.hazards` segment; cleanup-by-build + ocean-6 removal attributed; no-leak guarded) |
-| **Journal / eventlog** for every Ares board event (place/strengthen/remove/cleanup/penalty/adjacency-bonus) | root events w/ `correlationId` + new `JournalActionCategory` (e.g. `planetary-event`, `hazard-cleanup`) | `events.beginAction(...)` + `endScope()` (milestone/award recipe) | ⬜ |
-| **Notifications** for planetary events / hazard cleanup / adjacency income | variant + mapper | `notificationModel.rootVariant` | ⬜ |
+| **Journal / eventlog** for every Ares board event (place/strengthen/remove/cleanup/penalty/adjacency-bonus) | root events w/ `correlationId` + new `JournalActionCategory` | `events.beginAction(...)` + `endScope()` (milestone/award recipe) | ✅ planetary events (appear / intensify / recede) are `planetary-event` roots (player threaded through `onTemperatureChange`/`onOxygenChange`); removal +TR grouped under it; cleanup-by-build TR already attributed (Phase 2); adjacency M€/energy now via `stock.add` (was direct mutation → invisible). Empty-threshold = no journal noise |
+| **Notifications** for planetary events / hazard cleanup / adjacency income | variant + mapper | `notificationModel.rootVariant` | ✅ `planetary-event` variant (kind `important`, ochre accent ◬) shown even with journal open |
 | **Random hazard placement** (initial + threshold) — NO player picker, server-driven, logged + board-highlighted | confirm logged + presented honestly (random, not "player chose") | `AresHazards.randomlyPlaceHazard` (exists); add journal + client highlight | ⬜ |
 | **Endgame stats** (optional, honest) — TR from cleanup; tiles-adjacent-to-hazards | endgame facts/insights | `endgameFacts.ts` (opt-in) | ⬜ (low priority) |
 
@@ -122,11 +122,12 @@ No render gaps.
   end-to-end into the VP overlay; no-leak verification test green).
 - **Phase 3 — Scale planetary-event markers** ✅ (premium `ArcScaleMarkerChip` markers on
   ocean/temperature/oxygen from live thresholds; legacy PNG markers removed; gated to Ares).
-- **Phase 4 — Hazard board mechanics journal/notification coverage** ⬜.
+- **Phase 4 — Hazard board mechanics journal/notification coverage** ✅ (planetary events as
+  journal roots + notification variant; adjacency M€/energy routed through the event stream).
 - **Phase 5 — BoardInformation: `aresAdjacencyFacts` + hazard facts + placement preview** ✅
   (engine facts + hover popover hazard section + recipient-grouped adjacency; read-only-guarded).
 - **Phase 6 — Cards: replacement parity audit + Desperate Measures/Solar Farm board UX** ⬜.
-- **Phase 7 — Journal/eventlog** ⬜.
+- **Phase 7 — Journal/eventlog** ✅ for hazard events (folded into Phase 4); per-card play logs already covered by the generic journal.
 - **Phase 8 — Endgame stats** ⬜ (low priority).
 - **Phase 9 — Localization** ⬜.
 - **Phase 10 — Tests / QA / build / eslint** ⬜.
@@ -138,6 +139,16 @@ No render gaps.
 
 ## 7. Changelog
 
+- **2026-06-26** — Phase 4/7: journal + notification coverage of planetary events. New
+  `JournalActionCategory`/`NotificationVariant` `planetary-event`; each event (erosions appear,
+  hazards intensify, dust storms recede) wrapped in `events.beginAction(player, {kind:'system'},
+  {category:'planetary-event'})` via a `planetaryEvent` helper (player threaded through
+  `onTemperatureChange`/`onOxygenChange` + `ShiftAresGlobalParametersDeferred`); the removal +TR
+  groups under it; `makeSevere` returns a count so a consumed-but-empty threshold makes no journal
+  noise. Adjacency M€/energy routed through `stock.add` (was `player.megaCredits++` → invisible to
+  the journal). Notification variant (important, ochre ◬). 5 RU log keys (+ filled a pre-existing
+  untranslated dust-storm TR log). `tests/events/planetaryEventJournal.spec.ts` (4).
+  build:server + vue-tsc + make:json + make:css green.
 - **2026-06-26** — Phase 5: BoardInformation hazard + adjacency explainability.
   `aresAdjacencyFacts` (was a stub) now emits, in the active-placement preview, the
   `ares-adjacency-bonus` (placer gain, per neighbour `space.adjacency.bonus`, reusing

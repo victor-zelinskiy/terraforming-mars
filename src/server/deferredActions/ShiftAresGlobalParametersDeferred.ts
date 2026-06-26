@@ -33,10 +33,10 @@ export class ShiftAresGlobalParametersDeferred extends DeferredAction {
           // first reduces the visual impact on players when this action simultaneously
           // reveals erosions and makes them severe.
           if (response.temperatureDelta !== 0) {
-            AresHandler.onTemperatureChange(this.player.game, aresData);
+            AresHandler.onTemperatureChange(this.player.game, aresData, this.player);
           }
           if (response.oxygenDelta !== 0) {
-            AresHandler.onOxygenChange(this.player.game, aresData);
+            AresHandler.onOxygenChange(this.player.game, aresData, this.player);
           }
           if (response.lowOceanDelta !== 0 || response.highOceanDelta !== 0) {
             AresHandler.onOceanPlaced(aresData, this.player);

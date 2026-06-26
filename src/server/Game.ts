@@ -1315,7 +1315,7 @@ export class Game implements IGame, Logger {
     this.maybeLogMarsIsTerraformed();
 
     AresHandler.ifAres(this, (aresData) => {
-      AresHandler.onOxygenChange(this, aresData);
+      AresHandler.onOxygenChange(this, aresData, player);
     });
   }
 
@@ -1445,7 +1445,7 @@ export class Game implements IGame, Logger {
     this.maybeLogMarsIsTerraformed();
 
     AresHandler.ifAres(this, (aresData) => {
-      AresHandler.onTemperatureChange(this, aresData);
+      AresHandler.onTemperatureChange(this, aresData, player);
     });
     UnderworldExpansion.onTemperatureChange(this, steps);
     return undefined;
