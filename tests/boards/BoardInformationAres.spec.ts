@@ -8,6 +8,7 @@ import {SpaceType} from '../../src/common/boards/SpaceType';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {Space} from '../../src/server/boards/Space';
 import {TileType} from '../../src/common/TileType';
+import {CardName} from '../../src/common/cards/CardName';
 import {MarketingExperts} from '../../src/server/cards/ares/MarketingExperts';
 
 describe('BoardInformationEngine — Ares', () => {
@@ -139,6 +140,33 @@ describe('BoardInformationEngine — Ares', () => {
     expect(cost!.delta).to.deep.include({icon: 'megacredits', amount: 2, direction: 'cost'});
     // No bonus → no owner benefit (mirrors earnAdjacencyBonus skipping an empty bonus).
     expect(facts.some((f) => f.category === 'tile-owner-benefit')).to.be.false;
+  });
+
+  it('a :variant tile label is stripped to its base name (no expansion suffix)', () => {
+    [game, player, player2] = testGame(2, {aresExtension: true});
+    const nz = emptyLand();
+    nz.tile = {tileType: TileType.NUCLEAR_ZONE, card: CardName.NUCLEAR_ZONE_ARES};
+    nz.player = player2;
+    expect(boardCellInfo(player, nz).status.tileLabel).to.eq('Nuclear Zone'); // not "Nuclear Zone:ares"
+  });
+
+  it('cost breakdown: a hazard adjacent to a Nuclear Zone explains the composed cleanup price', () => {
+    [game, player, player2] = testGame(2, {aresExtension: true});
+    const hz = emptyLand();
+    hz.tile = {tileType: TileType.DUST_STORM_MILD, protectedHazard: false};
+    const nz = game.board.getAdjacentSpaces(hz).find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined)!;
+    nz.tile = {tileType: TileType.NUCLEAR_ZONE, card: CardName.NUCLEAR_ZONE_ARES};
+    nz.player = player2;
+    nz.adjacency = {bonus: [], cost: 2};
+
+    const facts = boardCellInfo(player, hz).facts;
+    const total = facts.find((f) => f.id === 'cost-mc-total');
+    expect(total, 'total cost fact').to.not.be.undefined;
+    expect(total!.delta?.amount).to.eq(10); // cleanup 8 + Nuclear Zone +2
+    expect(facts.find((f) => f.id === 'mc-cleanup')?.delta?.amount).to.eq(8);
+    const adj = facts.find((f) => f.id.startsWith('mc-adj-'));
+    expect(adj?.delta?.amount).to.eq(2);
+    expect(adj?.title).to.eq('Nuclear Zone'); // the factor is NAMED (stripped) + translated client-side
   });
 
   it('is READ-ONLY: hover + preview on hazard/adjacency cells mutate nothing', () => {
