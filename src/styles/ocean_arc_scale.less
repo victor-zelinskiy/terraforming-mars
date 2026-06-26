@@ -30,25 +30,10 @@
 // ── Future planetary-event chips ──────────────────────────────────────────
 // Reuse the bonus-zone glass frame / halo / pointer language + a water tint and
 // a richer, diegetic tooltip. Hidden in a normal game (oceanThresholdMarkers.ts).
-.ocean-event {
-  pointer-events: auto; // hoverable for the tooltip
-}
-
-.ocean-event.bonus-zone--surface-oceans .bonus-zone__halo {
-  background: radial-gradient(circle at 50% 46%,
-    @ocean-glow 0%,
-    @ocean-glow-soft 38%,
-    fade(@ocean-glow, 0%) 72%);
-}
-
-.ocean-event--reached .bonus-zone__frame {
-  box-shadow:
-    0 0 9px @ocean-glow,
-    0 1px 2px rgba(0, 0, 0, 0.5);
-}
-.ocean-event--reached .bonus-zone__halo {
-  opacity: 0.85;
-}
+// (The ocean surface tint + the `reached` highlight are now centralised in the
+// unified marker chip — bonus_zones.less `bonus-zone--surface-oceans` /
+// `bonus-zone--reached`. This file keeps only the ocean-specific event TOOLTIP
+// + the hazard glyph.)
 
 // Hazard glyph for the no-reward planetary event (step 3) — a neutral amber
 // warning mark drawn inline (no expansion art, no add-on name).
