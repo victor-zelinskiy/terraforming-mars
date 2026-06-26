@@ -74,7 +74,11 @@ export class ApiGameBoardCellPreview extends Handler {
 
     const kindParam = ctx.url.searchParams.get('kind');
     if (kindParam !== null && PLACEMENT_KINDS.includes(kindParam as BoardPlacementKind)) {
-      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind));
+      // `cleared=1` → a remove-and-replace placement (KaguyaTech): the cell's
+      // existing tile is removed before the new tile is placed, so the preview
+      // grants the cell bonus + is shown as legal (see boardCellPreview).
+      const cleared = ctx.url.searchParams.get('cleared') === '1';
+      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared}));
     } else {
       responses.writeJson(res, ctx, boardCellInfo(player, space));
     }

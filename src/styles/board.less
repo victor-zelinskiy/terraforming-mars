@@ -397,12 +397,21 @@
 // ONLY. An OCCUPIED target's inner div is `board-space-tile--{city|greenery|…}`
 // (carrying the real tile sprite) and must keep its `background-image` — else
 // the base tile vanishes during selection (St. Joseph's cathedral over a city,
-// picking an ocean to remove, placing over a hazard, …). The second selector
-// re-suppresses it ONLY for remove-and-replace targets (KaguyaTech / Lunar
-// Mine Urbanization), whose tile is about to be removed — there the bonus is
-// shown in its place (see `board-space-tile--placement-cleared` below).
-.board-space.board-space--available > [class*="board-space-type-"],
-.board-space.board-space--available > .board-space-tile--placement-cleared {
+// picking an ocean to remove, placing over a hazard, …).
+.board-space.board-space--available > [class*="board-space-type-"] {
+	background-image: none;
+}
+
+// Remove-and-replace targets (KaguyaTech / Lunar Mine Urbanization): the doomed
+// tile is about to be removed, so its sprite is suppressed and the placement
+// bonus shows in its place. Keyed PURELY on the `--placement-cleared` marker
+// (NOT also on `--available`): the marker only ever lives during that card's
+// SelectSpace (set on mount, cleared on unmount — see placementRenderState.ts),
+// so the doomed greenery/city is hidden the instant the prompt opens, even
+// before the async `.board-space--available` highlight class lands on the
+// wrapper. Without this independence the old tile could flash through (the
+// "city over greenery" overlap) on the frame before the highlight is applied.
+.board-space > .board-space-tile--placement-cleared {
 	background-image: none;
 }
 

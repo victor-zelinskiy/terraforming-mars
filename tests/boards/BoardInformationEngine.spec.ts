@@ -130,6 +130,31 @@ describe('BoardInformationEngine', () => {
     expect(info.facts.some((f) => f.category === 'reserved-area')).to.be.true;
   });
 
+  it('remove-and-replace city preview (cleared) grants the cell bonus + is legal', () => {
+    const land = emptyLand((s) => s.bonus.includes(SpaceBonus.PLANT));
+    land.tile = {tileType: TileType.GREENERY};
+    land.player = player;
+
+    // Without `cleared`: placing over the existing greenery reads as a covering
+    // placement → "No placement bonus" + the occupied cell is illegal for a city.
+    const covering = boardCellPreview(player, land, 'city');
+    expect(covering.legal, 'covering placement is illegal').to.be.false;
+    expect(allFacts(covering).some((f) => f.id === 'cover-no-bonus'), 'covering → "no bonus" fact').to.be.true;
+    expect(allFacts(covering).some((f) => f.category === 'printed-placement-bonus'), 'covering → no printed bonus').to.be.false;
+
+    // With `cleared` (KaguyaTech): the greenery is removed first → grant the cell
+    // bonus "as usual", shown as a legal placement (it bypasses placement rules).
+    const cleared = boardCellPreview(player, land, 'city', {cleared: true});
+    expect(cleared.legal, 'cleared placement is legal').to.be.true;
+    expect(cleared.illegalReason, 'no illegal reason when cleared').to.be.undefined;
+    expect(allFacts(cleared).some((f) => f.id === 'cover-no-bonus'), 'cleared drops the "no bonus" fact').to.be.false;
+    const bonus = allFacts(cleared).find((f) => f.category === 'printed-placement-bonus');
+    expect(bonus, 'cleared → the cell bonus is shown').to.not.be.undefined;
+    expect(bonus!.delta?.icon).to.eq('plants');
+    // The placed city scores for adjacent greeneries at game end.
+    expect(allFacts(cleared).some((f) => f.id === 'place-city'), 'city scoring fact present').to.be.true;
+  });
+
   it('volcanic placement rule shows on an EMPTY volcanic cell, suppressed once a tile covers it', () => {
     const volcanic = game.board.getSpaceOrThrow(game.board.volcanicSpaceIds[0]);
     expect(volcanic.tile, 'precondition: empty volcanic cell').to.be.undefined;

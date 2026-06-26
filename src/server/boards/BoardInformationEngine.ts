@@ -94,12 +94,29 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
   return {space: space.id, status, description: cellDescription(space, status), zoneProtection, facts};
 }
 
-/** Active-placement preview — the consequences of placing `kind` on `space`. */
-export function boardCellPreview(player: IPlayer, space: Space, kind: BoardPlacementKind): BoardPlacementPreview {
+/**
+ * Active-placement preview — the consequences of placing `kind` on `space`.
+ *
+ * `options.cleared` marks a REMOVE-AND-REPLACE placement (KaguyaTech "remove a
+ * greenery, place a city regardless of placement rules", LunarMineUrbanization):
+ * the cell's existing tile is removed BEFORE the new tile is placed, so unlike an
+ * overlay it is NOT a covering placement — the player DOES gain the cell's printed
+ * bonus + normal adjacency scoring, "as usual". Such a placement also bypasses the
+ * normal legality rules (the card already chose this exact target), so it is shown
+ * as legal with the full reward, never a stale "No placement bonus" / "occupied".
+ */
+export function boardCellPreview(
+  player: IPlayer,
+  space: Space,
+  kind: BoardPlacementKind,
+  options?: {cleared?: boolean}): BoardPlacementPreview {
   const board = player.game.board;
-  const legalSpaces = legalSpacesForKind(player, kind);
-  const legal = legalSpaces.some((s) => s.id === space.id);
-  const covering = Board.hasRealTile(space);
+  const cleared = options?.cleared === true;
+  const legalSpaces = cleared ? [] : legalSpacesForKind(player, kind);
+  const legal = cleared || legalSpaces.some((s) => s.id === space.id);
+  // A cleared cell's tile is removed first → treat as an empty cell (grant the
+  // bonus), NOT a covering placement (which suppresses it).
+  const covering = Board.hasRealTile(space) && !cleared;
 
   const facts: Array<BoardFact> = [];
   facts.push(...placementCostFacts(player, space));
@@ -119,7 +136,10 @@ export function boardCellPreview(player: IPlayer, space: Space, kind: BoardPlace
   if (deflection !== undefined) {
     facts.push(deflection);
   }
-  facts.push(...specialZoneFacts(player, space));
+  // A remove-and-replace placement ignores the cell's placement-restriction rules
+  // (it places "regardless of placement rules"), so don't surface volcanic /
+  // reserved / restricted notes that no longer apply.
+  facts.push(...specialZoneFacts(player, space, {includePlacementRules: !cleared}));
 
   const preview = classifyPlacementFacts(facts, player, space.id, kind, legal);
   if (!legal) {

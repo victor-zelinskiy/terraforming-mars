@@ -222,6 +222,12 @@ export default defineComponent({
       }
       this.clearHover();
     },
+    // A "remove-and-replace" target (KaguyaTech): its existing tile is removed
+    // before the new tile is placed, so the preview must grant the cell bonus +
+    // treat the cell as a legal placement (not "occupied / no bonus").
+    isClearedTarget(spaceId: SpaceId): boolean {
+      return (this.playerinput.hiddenTiles ?? []).includes(spaceId);
+    },
     showPreview(spaceId: SpaceId, cell: HTMLElement) {
       if (spaceId === this.previewSpaceId) {
         return;
@@ -235,7 +241,7 @@ export default defineComponent({
         return;
       }
       const myToken = ++this.previewToken;
-      fetchBoardCellPreview(spaceId, kind).then((preview) => {
+      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId)).then((preview) => {
         if (myToken === this.previewToken && this.previewSpaceId === spaceId) {
           this.previewData = preview;
         }
@@ -336,7 +342,7 @@ export default defineComponent({
         return;
       }
       const myToken = ++this.confirmToken;
-      fetchBoardCellPreview(spaceId, kind).then((preview) => {
+      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId)).then((preview) => {
         if (myToken === this.confirmToken) {
           this.confirmPreview = preview;
         }
