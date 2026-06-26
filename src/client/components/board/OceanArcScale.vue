@@ -132,8 +132,8 @@ const OCEAN_STEPS = 9;
 const BAND = 18; // radial band thickness (px)
 const DIGIT = 22; // digit box (px)
 const CHIP = 18; // event-marker chip box (px)
-const MARKER_POINTER = 7; // event-marker pointer length (px)
-const MARKER_GAP = 4; // gap between band edge and pointer base / indicator clearance
+const MARKER_POINTER = 9; // event-marker pointer length (px) — a slightly longer connector
+const MARKER_GAP = 9; // clearance between the band edge and the chip — lifts the chips clear of the rail
 
 const OUTER_R = RADIUS + BAND / 2;
 const INNER_R = RADIUS - BAND / 2;
