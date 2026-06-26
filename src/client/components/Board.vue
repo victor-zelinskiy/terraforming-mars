@@ -82,6 +82,14 @@
                 <bonus-zone v-for="zone in venusZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
             </div>
 
+            <!--
+              OCEANS — the first scale drawn entirely in code (no PNG band).
+              A compact premium arc in the free bottom window, concentric with
+              the scales above. See OceanArcScale.vue / arcScaleGeometry.ts.
+            -->
+            <ocean-arc-scale :value="oceans_count" />
+
+
 <div v-if="expansions.ares && aresData !== undefined">
                 <div v-if="aresData.hazardData.erosionOceanCount.available">
                     <div class="global-ares-erosions-icon"></div>
@@ -219,6 +227,7 @@ import BoardSpace from '@/client/components/BoardSpace.vue';
 import SpecialCellMarker from '@/client/components/board/SpecialCellMarker.vue';
 import SpecialCellInfoOverlay from '@/client/components/board/SpecialCellInfoOverlay.vue';
 import AnimatedScaleMarker from '@/client/components/board/AnimatedScaleMarker.vue';
+import OceanArcScale from '@/client/components/board/OceanArcScale.vue';
 import BonusZone from '@/client/components/board/BonusZone.vue';
 import {scaleBonusZoneViews, ScaleBonusZoneView, ScaleBonusClaim, resolveScaleBonusClaim} from '@/client/components/board/scaleBonusZones';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -300,6 +309,7 @@ export default defineComponent({
     SpecialCellInfoOverlay,
     BoardCellInfoPopover,
     AnimatedScaleMarker,
+    OceanArcScale,
     BonusZone,
   },
   data() {
