@@ -11,6 +11,8 @@ import {
   segments,
   tick,
   markerChip,
+  placeArcMarker,
+  spreadValues,
 } from '@/client/components/board/arcScaleGeometry';
 
 // The ocean arc the component ships with: concentric with the board scales,
@@ -142,5 +144,84 @@ describe('arcScaleGeometry', () => {
     const p2 = pointAtAngle({x: 0, y: 0}, 10, 90);
     expect(p2.x).to.be.closeTo(0, 1e-9);
     expect(p2.y).to.be.closeTo(10, 1e-9);
+  });
+});
+
+describe('placeArcMarker', () => {
+  const center = {x: 300, y: 301};
+  const bandRadius = 267;
+  const bandWidth = 22;
+  const base = {center, bandRadius, bandWidth, gap: 2, pointer: 8, size: 18};
+
+  function dist(a: {x: number; y: number}, b: {x: number; y: number}): number {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  it('lands the connector tip EXACTLY on the band edge facing the chip (inside)', () => {
+    const p = placeArcMarker({...base, thresholdAngle: -60, side: 'inside'});
+    // The rail edge the connector touches is the INNER band edge.
+    expect(dist(p.railEdgePoint, center)).to.be.closeTo(bandRadius - bandWidth / 2, 0.02);
+    // pointerEnd IS the rail edge — the pointer physically reaches the rail.
+    expect(p.pointerEnd.x).to.eq(p.railEdgePoint.x);
+    expect(p.pointerEnd.y).to.eq(p.railEdgePoint.y);
+  });
+
+  it('lands the connector tip on the OUTER band edge for an outside chip', () => {
+    const p = placeArcMarker({...base, thresholdAngle: 130, side: 'outside'});
+    expect(dist(p.railEdgePoint, center)).to.be.closeTo(bandRadius + bandWidth / 2, 0.02);
+  });
+
+  it('puts the chip beyond the band edge (inside = smaller radius, toward the planet)', () => {
+    const inside = placeArcMarker({...base, thresholdAngle: -60, side: 'inside'});
+    const outside = placeArcMarker({...base, thresholdAngle: -60, side: 'outside'});
+    expect(dist(inside.chipCenter, center)).to.be.lessThan(bandRadius - bandWidth / 2);
+    expect(dist(outside.chipCenter, center)).to.be.greaterThan(bandRadius + bandWidth / 2);
+  });
+
+  it('keeps the connector touching the TRUE threshold rail point even when fanned along the arc', () => {
+    const thresholdAngle = -60;
+    const radial = placeArcMarker({...base, thresholdAngle, side: 'inside'});
+    const fanned = placeArcMarker({...base, thresholdAngle, chipAngle: thresholdAngle + 6, side: 'inside'});
+    // The rail anchor must NOT move — the connector still points at the value.
+    expect(fanned.railEdgePoint.x).to.be.closeTo(radial.railEdgePoint.x, 0.02);
+    expect(fanned.railEdgePoint.y).to.be.closeTo(radial.railEdgePoint.y, 0.02);
+    // The chip itself moved (fanned out), and the connector lengthened to reach.
+    expect(dist(fanned.chipCenter, radial.chipCenter)).to.be.greaterThan(5);
+    expect(fanned.pointerLen).to.be.greaterThan(radial.pointerLen);
+  });
+
+  it('reports an axis-aligned chip bounds matching the size', () => {
+    const p = placeArcMarker({...base, thresholdAngle: 90, side: 'inside'});
+    expect(p.collisionBounds.w).to.eq(18);
+    expect(p.collisionBounds.h).to.eq(18);
+    expect(p.collisionBounds.x).to.be.closeTo(p.chipCenter.x - 9, 1e-6);
+  });
+});
+
+describe('spreadValues (fan-out relaxation)', () => {
+  it('leaves an already-spaced row untouched', () => {
+    expect(spreadValues([0, 10, 20], 5)).to.deep.eq([0, 10, 20]);
+  });
+
+  it('pushes a cramped row apart to the minimum gap, centred on the original midpoint', () => {
+    const out = spreadValues([0, 1, 2], 4);
+    // Consecutive gaps are now >= 4.
+    expect(out[1] - out[0]).to.be.closeTo(4, 1e-9);
+    expect(out[2] - out[1]).to.be.closeTo(4, 1e-9);
+    // Midpoint preserved (original mid = 1).
+    expect((out[0] + out[2]) / 2).to.be.closeTo(1, 1e-9);
+  });
+
+  it('returns positions in the ORIGINAL input order (not sorted)', () => {
+    const out = spreadValues([2, 0, 1], 4);
+    expect(out.length).to.eq(3);
+    // Input[0]=2 was the largest → should be the largest output.
+    expect(out[0]).to.be.greaterThan(out[2]);
+    expect(out[2]).to.be.greaterThan(out[1]);
+  });
+
+  it('handles 0 / 1 element gracefully', () => {
+    expect(spreadValues([], 4)).to.deep.eq([]);
+    expect(spreadValues([7], 4)).to.deep.eq([7]);
   });
 });

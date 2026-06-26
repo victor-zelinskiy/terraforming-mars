@@ -54,41 +54,64 @@
   transform-origin: center;
 }
 
-/* ── Stylized pointer — aims the bonus at its scale division ────────────── */
-// A sleek premium arrowhead between the node and the band. Rotated (inline)
-// to the division's radial line + pushed just past the node edge, so it is
-// unmistakable which tick the bonus belongs to. Lives on the node ROOT, so it
-// is oriented purely by `point` (independent of the node's tangent tilt).
+/* ── Luminous connector — physically links the chip to its rail threshold ── */
+// NOT a hanging triangle: a thin luminous STEM from the chip edge to the band
+// edge + a small rail ANCHOR DOT exactly on the threshold. Its LENGTH is set
+// inline (`pointerLen`, the geometric chip-edge→rail distance from placeArc
+// Marker) and it is rotated by `point` + pushed by `pointerDist` so the tip
+// lands ON the rail by construction. `translate(-50%,-50%)` (in the inline
+// transform) centres it regardless of length, so a fanned chip's longer,
+// angled connector still meets the band. Lives on the node ROOT, oriented
+// purely by `point` (independent of any tangent tilt of the visuals).
 .bonus-zone__pointer {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 9px;
-  height: 10px;
-  margin: -5px 0 0 -4.5px;
+  width: 2.4px;
+  margin-left: -1.2px; // half the width → horizontally centred on the chip
+  // height + margin-top (−½ height) + transform come inline (variable length).
   z-index: 1;
   pointer-events: none;
   transform-origin: center;
-  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
-  background: linear-gradient(180deg,
-    #dcf3ff 0%,
-    @bonus-rim-cyan 46%,
-    fade(@bonus-rim-cyan, 26%) 100%);
-  filter: drop-shadow(0 0 3px fade(@bonus-glow-cyan, 55%));
+  border-radius: 2px;
+  // Brightest at the rail end (TOP after the transform), fading toward the chip.
+  background: linear-gradient(to top,
+    fade(@bonus-rim-cyan, 12%) 0%,
+    @bonus-rim-cyan 64%,
+    #dcf3ff 100%);
+  filter: drop-shadow(0 0 3px fade(@bonus-glow-cyan, 48%));
+
+  // Rail ANCHOR DOT — a tiny illuminated point exactly where the connector
+  // meets the band edge (the value's threshold). Reads the connection at a
+  // glance, especially in the dense Venus row.
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: #eaf7ff;
+    box-shadow: 0 0 4px fade(@bonus-glow-cyan, 80%);
+  }
 }
 
 /* ── Ambient bloom ─────────────────────────────────────────────────────── */
 .bonus-zone__halo {
   position: absolute;
-  inset: -6px;
+  // Slightly tighter + calmer than before so a DENSE row (Venus) reads as
+  // distinct chips, not one bloom — the spec's "no strong glow when many".
+  inset: -5px;
   border-radius: 50%;
   z-index: -1;
   pointer-events: none;
   background: radial-gradient(circle at 50% 46%,
     @bonus-glow-cyan 0%,
-    fade(@bonus-glow-cyan, 22%) 38%,
-    fade(@bonus-glow-cyan, 0%) 72%);
-  opacity: 0.5;
+    fade(@bonus-glow-cyan, 20%) 36%,
+    fade(@bonus-glow-cyan, 0%) 70%);
+  opacity: 0.42;
 }
 
 /* ── Glassmorphic chip + holographic rim ───────────────────────────────── */
@@ -256,8 +279,13 @@
       @glow 0%, fade(@glow, 22%) 38%, fade(@glow, 0%) 72%);
   }
   .bonus-zone__pointer {
-    background: linear-gradient(180deg, @pointer-top 0%, @rim 46%, fade(@rim, 26%) 100%);
-    filter: drop-shadow(0 0 3px fade(@glow, 55%));
+    background: linear-gradient(to top, fade(@rim, 12%) 0%, @rim 64%, @pointer-top 100%);
+    filter: drop-shadow(0 0 3px fade(@glow, 48%));
+
+    &::after {
+      background: @pointer-top;
+      box-shadow: 0 0 4px fade(@glow, 80%);
+    }
   }
 }
 
@@ -392,15 +420,20 @@
   100% { filter: brightness(1); }
 }
 
-// Gold pointer for the legendary final bonus (the tooltip is the unified
-// ScaleTooltip now — its venus/gold accent is set in scale_tooltip.less).
+// Gold connector + rail anchor dot for the legendary final bonus (the tooltip
+// is the unified ScaleTooltip — its venus/gold accent is in scale_tooltip.less).
 .bonus-zone--final {
   .bonus-zone__pointer {
-    background: linear-gradient(180deg,
-      #fff1cc 0%,
-      @bonus-rim-gold 46%,
-      fade(@bonus-rim-gold, 26%) 100%);
-    filter: drop-shadow(0 0 3px fade(@bonus-glow-gold, 55%));
+    background: linear-gradient(to top,
+      fade(@bonus-rim-gold, 12%) 0%,
+      @bonus-rim-gold 64%,
+      #fff1cc 100%);
+    filter: drop-shadow(0 0 3px fade(@bonus-glow-gold, 52%));
+
+    &::after {
+      background: #fff1cc;
+      box-shadow: 0 0 4px fade(@bonus-glow-gold, 80%);
+    }
   }
 }
 

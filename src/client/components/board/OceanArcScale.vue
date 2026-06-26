@@ -19,6 +19,7 @@
       :size="m.size"
       :point="m.point"
       :pointerDist="m.pointerDist"
+      :pointerLen="m.pointerLen"
       :reached="value >= m.marker.value" />
   </div>
 </template>
@@ -52,7 +53,7 @@ const CFG: ArcScaleConfig = {
 
 type EventMarkerView = {
   marker: GlobalParameterThresholdMarker;
-  top: number; left: number; size: number; point: number; pointerDist: number;
+  top: number; left: number; size: number; point: number; pointerDist: number; pointerLen: number;
 };
 
 export default defineComponent({
@@ -87,6 +88,7 @@ export default defineComponent({
             size: CHIP,
             point: chip.point,
             pointerDist: chip.pointerDist,
+            pointerLen: chip.pointerLen,
           };
         });
     },

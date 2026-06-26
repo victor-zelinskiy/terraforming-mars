@@ -10,27 +10,30 @@
  *   • Oxygen   8%  → raise temperature
  *   • Temp     -24°C / -20°C → +1 heat production   • Temp 0°C → place an ocean
  *
- * ── POSITIONING — proper anchor geometry, NOT eyeballed ───────────────────
- * The three tracks are concentric arcs (circle-fit of the globs.less number
- * anchors → shared centre ≈ (287, 288), in `.global-numbers` space). For each
- * bonus we take the EXACT number-centre coordinate of its division (`VALS`),
- * walk OUTWARD from the scale (toward the planet for Venus' inner bonuses, into
- * space for the others), and place:
+ * ── POSITIONING — derived from the LIVE band geometry, never eyeballed ──────
+ * The colour band each scale is drawn at is the dynamic ArcScale band — a known
+ * circle (`arcScaleConfigs`: centre, `bandRadius`, `bandWidth`). For every bonus
+ * we take its value's EXACT angle (the config digit's measured angle) and run
+ * the shared `placeArcMarker` geometry: the chip body sits just beyond the band
+ * edge facing it, and its luminous connector spans from the chip edge to the
+ * rail edge and PHYSICALLY TOUCHES it (the tip == the rail-edge point). This is
+ * the same geometry the ocean event chips use, so the pointer-to-rail connection
+ * is correct on every scale by construction — no per-scale magic offsets.
  *
- *     number centre ─[BAND_HALF]─ band edge ═[POINTER_LEN]═▷ tip
- *                                  (pointer tip TOUCHES the band edge)
- *     ... ─[MARKER_GAP]─ marker edge ─[size/2]─ marker centre
+ *     planet ← [chip] ═connector═▷ rail edge ── band ── (digit ring)
  *
- * So the triangle pointer's tip lands exactly on the band edge + aims dead at
- * the division's number, and the marker sits cleanly BEHIND it, never on the
- * scale or the digits. Everything below derives from `anchorNode`; the four
- * constants are the only knobs (BAND_HALF = the scale's half thickness).
+ * Dense rows (the Venus cluster) FAN OUT: `scaleBonusZoneViews` spreads the
+ * VISIBLE chips' angles so they don't overlap, while each connector re-aims at
+ * its TRUE threshold rail point — a fanned chip never detaches from its value.
  *
  * ── PHASE-2 (claimed-by-colour) ──────────────────────────────────────────
  * Each node is OCCUPIABLE; the claim mechanic paints the node in the owner's
  * colour (neutral grey for a governmental-support claim). BonusZone.vue carries
  * the `state` + `claimColor` + surfaces the owner on hover.
  */
+
+import {OXYGEN_ARC, TEMPERATURE_ARC, VENUS_ARC, DynamicArcConfig} from '@/client/components/board/arcScaleConfigs';
+import {placeArcMarker, spreadValues, MarkerSide} from '@/client/components/board/arcScaleGeometry';
 
 export type BonusZoneTier = 'regular' | 'final';
 
@@ -45,43 +48,22 @@ export type BonusZoneRequires = 'always' | 'venus' | 'altVenus';
 /** Which side of the band the marker sits on. */
 type BonusSide = 'inner' | 'outer';
 
-// ── Scale geometry (the only positioning knobs) ────────────────────────────
-// The three tracks are CONCENTRIC arcs. CENTER is the centre of the circle
-// through the NUMBER CENTRES — verified with Playwright against the live render
-// (the digits' measured centres fit it to ~0°). The `@*-vals` anchors are the
-// digits' MARGIN (top-left) corner, so we add NUMBER_HALF (half the 26px digit
-// box) to reach the digit centre before doing any radial maths — anchoring to
-// the corner instead drifts the angle progressively along the arc.
-const CENTER = {x: 300, y: 301};
-/** Half the rendered digit box (`.global-numbers-value` is 26px). */
-const NUMBER_HALF = 13;
-/**
- * Distance (px, @vals) from a digit's centre to the coloured band edge FACING
- * the marker — i.e. how far out the pointer tip must reach to touch the scale.
- * PER-SCALE because the printed bands aren't concentric with the digits and the
- * digit sits at a different spot in each band (verified by sampling mars.png +
- * the live Playwright crops): the Venus digits sit near the band's OUTER edge
- * (so the inner edge the markers face is ~18 in), the Oxygen digit sits AT its
- * band's outer edge (~4), and the Temperature band extends well outward (~25).
- */
-const BAND_EDGE: Record<BonusScale, number> = {venus: 18, oxygen: 14, temperature: 16};
-/** Length of the triangle pointer (must match `.bonus-zone__pointer` height). */
-const POINTER_LEN = 10;
-/** Small gap between the pointer base and the marker edge. */
-const MARKER_GAP = 2;
-
-// Number-centre coordinates ({x: margin-left, y: margin-top}) of each bonus's
-// division, copied from the globs.less `@*-vals` arrays (the exact anchors the
-// client renders the digits at).
-const VALS: Record<BonusScale, Record<number, {x: number; y: number}>> = {
-  venus: {
-    8: {x: 197, y: 36}, 16: {x: 301, y: 20},
-    18: {x: 327, y: 23}, 20: {x: 352, y: 28}, 22: {x: 377, y: 36},
-    24: {x: 401, y: 46}, 26: {x: 425, y: 58}, 28: {x: 446, y: 72}, 30: {x: 466, y: 88},
-  },
-  oxygen: {8: {x: 20, y: 295}},
-  temperature: {[-24]: {x: 490, y: 461}, [-20]: {x: 517, y: 423}, 0: {x: 540, y: 199}},
+// The live band geometry per scale (centre / bandRadius / bandWidth / digits).
+const CONFIG: Record<BonusScale, DynamicArcConfig> = {
+  venus: VENUS_ARC,
+  oxygen: OXYGEN_ARC,
+  temperature: TEMPERATURE_ARC,
 };
+
+// ── Marker knobs (the only positioning constants) ──────────────────────────
+// Both small: the chip hugs the band (CLAUDE goal — native, not a floating
+// jeton) and the connector is a short luminous stem ending in a rail anchor dot.
+/** Gap (px) between the chip edge and the connector base. */
+const GAP = 2;
+/** Base connector length (px) for a radial chip; fan-out lengthens it. */
+const CONNECTOR = 7;
+/** Extra breathing room (px) added to the chip size for the fan-out min-gap. */
+const FAN_BREATHING = 4;
 
 type AnchorDef = {
   key: string;
@@ -93,85 +75,86 @@ type AnchorDef = {
   tier: BonusZoneTier;
   requires: BonusZoneRequires;
   size: number;
-  /** Tangent tilt of the node visuals (the crystals follow the arc). */
-  rot: number;
-  /** Per-bonus band-edge override (else BAND_EDGE[scale]) — for spots where
-   *  the printed band sits at a different distance from the digit than its
-   *  neighbours (the Temperature ocean@0 band is thinner than the heat bands). */
-  bandEdge?: number;
 };
 
 const WILD = 'Gain a standard resource of your choice';
-const RES = (key: string, step: number, rot: number): AnchorDef => ({
+const res = (key: string, step: number): AnchorDef => ({
   key, scale: 'venus', step, side: 'inner', icon: 'bonus-zone-icon--wild', reward: WILD,
-  tier: 'regular', requires: 'altVenus', size: 18, rot,
+  tier: 'regular', requires: 'altVenus', size: 18,
 });
 
 const ANCHOR_DEFS: ReadonlyArray<AnchorDef> = [
   // Temperature track (base game) — OUTSIDE the band.
-  {key: 't-heat-24', scale: 'temperature', step: -24, side: 'outer', icon: 'bonus-zone-icon--heat', reward: 'Gain 1 heat production', tier: 'regular', requires: 'always', size: 25, rot: 0},
-  {key: 't-heat-20', scale: 'temperature', step: -20, side: 'outer', icon: 'bonus-zone-icon--heat', reward: 'Gain 1 heat production', tier: 'regular', requires: 'always', size: 25, rot: 0},
-  {key: 't-ocean-0', scale: 'temperature', step: 0, side: 'outer', icon: 'bonus-zone-icon--ocean', reward: 'Place an ocean', tier: 'regular', requires: 'always', size: 25, rot: 0, bandEdge: 12},
+  {key: 't-heat-24', scale: 'temperature', step: -24, side: 'outer', icon: 'bonus-zone-icon--heat', reward: 'Gain 1 heat production', tier: 'regular', requires: 'always', size: 25},
+  {key: 't-heat-20', scale: 'temperature', step: -20, side: 'outer', icon: 'bonus-zone-icon--heat', reward: 'Gain 1 heat production', tier: 'regular', requires: 'always', size: 25},
+  {key: 't-ocean-0', scale: 'temperature', step: 0, side: 'outer', icon: 'bonus-zone-icon--ocean', reward: 'Place an ocean', tier: 'regular', requires: 'always', size: 25},
   // Oxygen track (base game) — OUTSIDE the band.
-  {key: 'o-temp-8', scale: 'oxygen', step: 8, side: 'outer', icon: 'bonus-zone-icon--temperature', reward: 'Raise temperature 1 step', tier: 'regular', requires: 'always', size: 25, rot: 0},
-  // Venus base bonuses (Venus expansion) — BELOW the band, same size/system as
-  // the alt resources so the whole Venus scale reads as ONE mechanism.
-  {key: 'v-card-8', scale: 'venus', step: 8, side: 'inner', icon: 'bonus-zone-icon--card', reward: 'Draw a card', tier: 'regular', requires: 'venus', size: 18, rot: 0},
-  {key: 'v-tr-16', scale: 'venus', step: 16, side: 'inner', icon: 'bonus-zone-icon--tr', reward: 'Gain 1 TR', tier: 'regular', requires: 'venus', size: 18, rot: 0},
+  {key: 'o-temp-8', scale: 'oxygen', step: 8, side: 'outer', icon: 'bonus-zone-icon--temperature', reward: 'Raise temperature 1 step', tier: 'regular', requires: 'always', size: 25},
+  // Venus base bonuses (Venus expansion) — INSIDE (toward the planet), same
+  // size/system as the alt resources so the whole Venus scale reads as ONE row.
+  {key: 'v-card-8', scale: 'venus', step: 8, side: 'inner', icon: 'bonus-zone-icon--card', reward: 'Draw a card', tier: 'regular', requires: 'venus', size: 18},
+  {key: 'v-tr-16', scale: 'venus', step: 16, side: 'inner', icon: 'bonus-zone-icon--tr', reward: 'Gain 1 TR', tier: 'regular', requires: 'venus', size: 18},
   // Venus Alternative Board resources (steps 18–28) — INSIDE the band.
-  RES('v18', 18, 7.8), RES('v20', 20, 13.6), RES('v22', 22, 19.6),
-  RES('v24', 24, 25.25), RES('v26', 26, 30.65), RES('v28', 28, 36.46),
+  res('v18', 18), res('v20', 20), res('v22', 22),
+  res('v24', 24), res('v26', 26), res('v28', 28),
   // Venus Alternative Board FINAL bonus — ONE gold cube anchored to 30%.
-  {key: 'v30-final', scale: 'venus', step: 30, side: 'inner', icon: 'bonus-zone-icon--gold-cube', reward: 'Gain a standard resource and a wild resource', tier: 'final', requires: 'altVenus', size: 18, rot: 0},
+  {key: 'v30-final', scale: 'venus', step: 30, side: 'inner', icon: 'bonus-zone-icon--gold-cube', reward: 'Gain a standard resource and a wild resource', tier: 'final', requires: 'altVenus', size: 18},
 ];
 
 export type ScaleBonusZoneDef = AnchorDef & {
   /** Margin (top/left) of the marker in `.global-numbers` space. */
   top: number;
   left: number;
-  /** Rotation (deg) of the triangle pointer so it aims at the division. */
+  /** Rotation (deg) of the connector so it aims at the division. */
   point: number;
-  /** How far (px) to push the pointer out from the marker centre toward the band. */
+  /** How far (px) to push the connector out from the marker centre toward the band. */
   pointerDist: number;
+  /** Connector visible length (px) — chip edge → rail edge. */
+  pointerLen: number;
 };
 
-/**
- * Anchor a marker + pointer to a division. Returns the marker margin, the
- * pointer rotation (aimed at the number) and how far to push the pointer so its
- * TIP lands on the band edge.
- */
-function anchorNode(d: AnchorDef): ScaleBonusZoneDef {
-  const p = VALS[d.scale][d.step];
-  // The digit CENTRE (the @vals anchor is its top-left margin corner).
-  const nx = p.x + NUMBER_HALF;
-  const ny = p.y + NUMBER_HALF;
-  const ux = nx - CENTER.x;
-  const uy = ny - CENTER.y;
-  const m = Math.hypot(ux, uy);
-  const sign = d.side === 'inner' ? -1 : 1; // unit pointing toward the marker
-  const ox = (sign * ux) / m;
-  const oy = (sign * uy) / m;
-  // Marker centre: out past the band edge, the pointer and a small gap. The
-  // pointer tip then lands exactly on the band edge (BAND_EDGE from the digit).
-  const bandEdge = d.bandEdge ?? BAND_EDGE[d.scale];
-  const dist = bandEdge + POINTER_LEN + MARKER_GAP + d.size / 2;
-  const cx = nx + ox * dist;
-  const cy = ny + oy * dist;
-  // Pointer rotation: an up-triangle rotated by `point` aims at the number
-  // (direction -out): (sin, -cos) = -out → point = atan2(-ox, oy).
-  const point = Math.round((Math.atan2(-ox, oy) * 180) / Math.PI);
-  // Push the pointer box out so its tip reaches the band edge.
-  const pointerDist = d.size / 2 + MARKER_GAP + POINTER_LEN / 2;
+function sideOf(d: AnchorDef): MarkerSide {
+  return d.side === 'inner' ? 'inside' : 'outside';
+}
+
+/** Exact clock angle (deg) of a value, from the live config digit ring. */
+function angleFor(scale: BonusScale, step: number): number {
+  return CONFIG[scale].digits.find((x) => x.value === step)?.angle ?? 0;
+}
+
+/** Place one marker (radial unless `chipAngle` fans it off its threshold). */
+function place(d: AnchorDef, chipAngle?: number) {
+  const cfg = CONFIG[d.scale];
+  return placeArcMarker({
+    center: cfg.center,
+    thresholdAngle: angleFor(d.scale, d.step),
+    chipAngle,
+    bandRadius: cfg.bandRadius,
+    bandWidth: cfg.bandWidth,
+    side: sideOf(d),
+    gap: GAP,
+    pointer: CONNECTOR,
+    size: d.size,
+    value: d.step,
+  });
+}
+
+function toDef(d: AnchorDef): ScaleBonusZoneDef {
+  const pl = place(d);
   return {
     ...d,
-    top: Math.round(cy - d.size / 2),
-    left: Math.round(cx - d.size / 2),
-    point,
-    pointerDist,
+    top: Math.round(pl.chipCenter.y - d.size / 2),
+    left: Math.round(pl.chipCenter.x - d.size / 2),
+    point: pl.rotation,
+    pointerDist: pl.pointerDist,
+    pointerLen: pl.pointerLen,
   };
 }
 
-export const SCALE_BONUS_ZONES: ReadonlyArray<ScaleBonusZoneDef> = ANCHOR_DEFS.map(anchorNode);
+// Static RADIAL placement (every zone, no fan-out) — the source of truth for
+// the reward-key lookup + the geometry tests. The live render fans the dense
+// rows in `scaleBonusZoneViews`.
+export const SCALE_BONUS_ZONES: ReadonlyArray<ScaleBonusZoneDef> = ANCHOR_DEFS.map(toDef);
 
 export type ScaleBonusZoneView = ScaleBonusZoneDef & {
   /** Inline style positioning + sizing the node. */
@@ -226,7 +209,7 @@ export function resolveScaleBonusClaim(
 
 export type ScaleBonusVisibility = {venus: boolean; altVenus: boolean};
 
-function isVisible(zone: ScaleBonusZoneDef, v: ScaleBonusVisibility): boolean {
+function isVisible(zone: AnchorDef, v: ScaleBonusVisibility): boolean {
   switch (zone.requires) {
   case 'always': return true;
   case 'venus': return v.venus;
@@ -239,14 +222,48 @@ export function scaleBonusRewardKey(claimKey: string): string {
   return SCALE_BONUS_ZONES.find((z) => `${z.scale}-${z.step}` === claimKey)?.reward ?? '';
 }
 
-/** Project the static defs to render-ready view models. */
-export function scaleBonusZoneViews(v: ScaleBonusVisibility): ReadonlyArray<ScaleBonusZoneView> {
-  return SCALE_BONUS_ZONES.filter((z) => isVisible(z, v)).map((z) => ({
-    ...z,
+function viewFrom(d: AnchorDef, chipAngle: number): ScaleBonusZoneView {
+  const pl = place(d, chipAngle);
+  const top = Math.round(pl.chipCenter.y - d.size / 2);
+  const left = Math.round(pl.chipCenter.x - d.size / 2);
+  return {
+    ...d,
+    top,
+    left,
+    point: pl.rotation,
+    pointerDist: pl.pointerDist,
+    pointerLen: pl.pointerLen,
     style: {
-      'margin': `${z.top}px 0 0 ${z.left}px`,
-      'width': `${z.size}px`,
-      'height': `${z.size}px`,
+      'margin': `${top}px 0 0 ${left}px`,
+      'width': `${d.size}px`,
+      'height': `${d.size}px`,
     },
-  }));
+  };
+}
+
+/**
+ * Project the static defs to render-ready view models for the ACTIVE expansions.
+ * Per scale, the VISIBLE chips are fanned out so a dense row never overlaps: we
+ * spread their chip ANGLES to a minimum angular gap (derived from the chip size
+ * + the chip radius), then re-place each chip at its spread angle — the
+ * connector re-aims at the true threshold so the value link is preserved.
+ */
+export function scaleBonusZoneViews(v: ScaleBonusVisibility): ReadonlyArray<ScaleBonusZoneView> {
+  const out: Array<ScaleBonusZoneView> = [];
+  for (const scale of ['venus', 'oxygen', 'temperature'] as ReadonlyArray<BonusScale>) {
+    const group = ANCHOR_DEFS.filter((d) => d.scale === scale && isVisible(d, v));
+    if (group.length === 0) {
+      continue;
+    }
+    const cfg = CONFIG[scale];
+    const maxSize = Math.max(...group.map((d) => d.size));
+    const half = cfg.bandWidth / 2;
+    const off = GAP + CONNECTOR + maxSize / 2;
+    // Approx chip radius on this scale's side → the angular gap the chips need.
+    const chipRadius = group[0].side === 'inner' ? cfg.bandRadius - half - off : cfg.bandRadius + half + off;
+    const minGapDeg = ((maxSize + FAN_BREATHING) / chipRadius) * (180 / Math.PI);
+    const fanned = spreadValues(group.map((d) => angleFor(scale, d.step)), minGapDeg);
+    group.forEach((d, i) => out.push(viewFrom(d, fanned[i])));
+  }
+  return out;
 }

@@ -174,34 +174,187 @@ export function segments(cfg: ArcScaleConfig, radius = cfg.radius, fill = 0.84):
 
 export type MarkerSide = 'inside' | 'outside';
 
+export type Rect = {x: number; y: number; w: number; h: number};
+
 /**
- * Placement of a threshold-marker CHIP relative to the band, computed from the
- * arc geometry (never eyeballed). `side` decides which way the chip sits:
- *   • 'outside' — the chip body is beyond the band's OUTER edge (toward space);
- *                 its pointer aims INWARD at the band.
- *   • 'inside'  — the chip body is beyond the band's INNER edge (toward the
- *                 PLANET); its pointer aims OUTWARD at the band.
+ * FULL geometric placement of a threshold-marker CHIP relative to a scale band.
+ * Everything the chip + its connector need, derived from the band geometry — so
+ * the connector PHYSICALLY reaches the rail edge by construction (never an
+ * eyeballed offset). This is the single model behind every scale's markers
+ * (Venus / O₂ / temperature reward chips + the ocean event chips).
+ */
+export type ArcScaleMarkerPlacement = {
+  /** The value this marker is pinned to. */
+  value: number;
+  /** Clock angle (deg) of the threshold the connector points at. */
+  angle: number;
+  /** Point on the band centreline at the threshold (the value's true spot). */
+  thresholdPoint: Point;
+  /** Point on the band EDGE facing the chip — the connector tip lands here. */
+  railEdgePoint: Point;
+  /** Outward unit normal at the threshold. */
+  normal: Vec;
+  /** Unit tangent at the threshold (increasing-value direction). */
+  tangent: Vec;
+  side: MarkerSide;
+  /** Chip CENTRE in `.global-numbers` space. */
+  chipCenter: Point;
+  /** Connector base (at the chip edge). */
+  pointerStart: Point;
+  /** Connector tip — equals `railEdgePoint`. */
+  pointerEnd: Point;
+  /** Connector rotation (deg) for the CSS up-axis → aims chip → rail. */
+  rotation: number;
+  /** CSS translateY push (px) from the chip centre along the rotated up-axis. */
+  pointerDist: number;
+  /** Connector visible length (px) — chip edge → rail edge. */
+  pointerLen: number;
+  /** Axis-aligned chip bounds (for the collision pass). */
+  collisionBounds: Rect;
+};
+
+const MIN_POINTER_LEN = 4;
+
+/**
+ * Place a marker chip against a band, computed purely from geometry. The chip
+ * body sits `gap + pointer + size/2` beyond the band edge on `side`; the
+ * connector then spans from the chip edge to the rail edge and ALWAYS touches
+ * it. `chipAngle` lets a dense cluster FAN OUT (the chip slides to a spread
+ * angle) while the connector still re-aims at the TRUE `thresholdAngle` rail
+ * point — so a fanned chip never visually detaches from its value.
  *
- * For the BOTTOM ocean arc, 'inside' puts the chip ABOVE the arc (between the
- * arc and the planet) with the pointer aiming down at the threshold — the
- * mirror of the Venus chips on the top arc. Returns the chip CENTRE plus the
- * pointer rotation + push distance (so the triangle tip lands on the band edge).
- * Reusable for every scale's markers.
+ *   • 'outside' — chip beyond the OUTER edge (toward space), connector inward.
+ *   • 'inside'  — chip beyond the INNER edge (toward the PLANET), connector out.
+ */
+export function placeArcMarker(opts: {
+  center: Point;
+  /** Exact angle of the value (where the rail anchor / connector tip lands). */
+  thresholdAngle: number;
+  /** Angle the chip body sits at (defaults to thresholdAngle = radial). */
+  chipAngle?: number;
+  bandRadius: number;
+  bandWidth: number;
+  side: MarkerSide;
+  gap: number;
+  pointer: number;
+  size: number;
+  value?: number;
+}): ArcScaleMarkerPlacement {
+  const {center, thresholdAngle, bandRadius, bandWidth, side, gap, pointer, size} = opts;
+  const chipAngle = opts.chipAngle ?? thresholdAngle;
+  const bandInner = bandRadius - bandWidth / 2;
+  const bandOuter = bandRadius + bandWidth / 2;
+
+  // Rail anchor: on the band edge facing the chip, at the TRUE threshold angle.
+  const nThresh = {x: Math.cos(toRad(thresholdAngle)), y: Math.sin(toRad(thresholdAngle))};
+  const railR = side === 'outside' ? bandOuter : bandInner;
+  const railEdgePoint = {x: center.x + nThresh.x * railR, y: center.y + nThresh.y * railR};
+  const thresholdPoint = {x: center.x + nThresh.x * bandRadius, y: center.y + nThresh.y * bandRadius};
+
+  // Chip centre: radially out past the band edge + connector + gap, at chipAngle.
+  const nChip = {x: Math.cos(toRad(chipAngle)), y: Math.sin(toRad(chipAngle))};
+  const chipR = side === 'outside' ?
+    bandOuter + gap + pointer + size / 2 :
+    bandInner - gap - pointer - size / 2;
+  const chipCenter = {x: center.x + nChip.x * chipR, y: center.y + nChip.y * chipR};
+
+  // Connector chip → rail (re-aimed when the chip is fanned off its threshold).
+  const dx = railEdgePoint.x - chipCenter.x;
+  const dy = railEdgePoint.y - chipCenter.y;
+  const L = Math.hypot(dx, dy);
+  const ux = L === 0 ? 0 : dx / L;
+  const uy = L === 0 ? 0 : dy / L;
+  // CSS up-axis (0,-1) rotated by θ → (sinθ,-cosθ) must equal (ux,uy).
+  const rotation = Math.round((Math.atan2(ux, -uy) * 180) / Math.PI);
+  const pointerLen = Math.max(L - size / 2, MIN_POINTER_LEN);
+  const pointerDist = Math.round((L - pointerLen / 2) * 100) / 100;
+  const pointerStart = {x: chipCenter.x + ux * (size / 2), y: chipCenter.y + uy * (size / 2)};
+
+  // Tangent at the threshold (= normal rotated +90°).
+  const tangent = {x: -nThresh.y, y: nThresh.x};
+
+  return {
+    value: opts.value ?? 0,
+    angle: thresholdAngle,
+    thresholdPoint: {x: round(thresholdPoint.x), y: round(thresholdPoint.y)},
+    railEdgePoint: {x: round(railEdgePoint.x), y: round(railEdgePoint.y)},
+    normal: nThresh,
+    tangent,
+    side,
+    chipCenter: {x: round(chipCenter.x), y: round(chipCenter.y)},
+    pointerStart: {x: round(pointerStart.x), y: round(pointerStart.y)},
+    pointerEnd: {x: round(railEdgePoint.x), y: round(railEdgePoint.y)},
+    rotation,
+    pointerDist,
+    pointerLen: Math.round(pointerLen * 100) / 100,
+    collisionBounds: {x: round(chipCenter.x - size / 2), y: round(chipCenter.y - size / 2), w: size, h: size},
+  };
+}
+
+/**
+ * 1-D collision relaxation: given sorted scalar positions (e.g. chip angles, or
+ * arc-length positions), push neighbours apart so consecutive entries differ by
+ * at least `minGap`, while keeping the cluster CENTRED (minimal total movement).
+ * Used to FAN OUT a dense marker row (Venus) without detaching chips from their
+ * thresholds (the connector re-aims). Pure — returns NEW positions in input order.
+ */
+export function spreadValues(positions: ReadonlyArray<number>, minGap: number): Array<number> {
+  const n = positions.length;
+  if (n <= 1) {
+    return [...positions];
+  }
+  // Sort with original indices so we can return in input order.
+  const order = positions.map((p, i) => ({p, i})).sort((a, b) => a.p - b.p);
+  const out = order.map((o) => o.p);
+  // Forward pass — enforce the minimum gap, accumulating rightward.
+  for (let k = 1; k < n; k++) {
+    if (out[k] - out[k - 1] < minGap) {
+      out[k] = out[k - 1] + minGap;
+    }
+  }
+  // Re-centre: shift the whole spread so its midpoint matches the original
+  // midpoint (so the row grows symmetrically, not only rightward).
+  const origMid = (order[0].p + order[n - 1].p) / 2;
+  const newMid = (out[0] + out[n - 1]) / 2;
+  const shift = origMid - newMid;
+  const result = new Array<number>(n);
+  for (let k = 0; k < n; k++) {
+    result[order[k].i] = out[k] + shift;
+  }
+  return result;
+}
+
+/**
+ * Back-compat thin wrapper (ocean scale): the original `markerChip` shape, now
+ * computed via `placeArcMarker`. Also surfaces `pointerLen` so the ocean event
+ * chips draw the same luminous connector as the reward chips.
  */
 export function markerChip(
   cfg: ArcScaleConfig,
   value: number,
   side: MarkerSide,
   opts: {bandInner: number; bandOuter: number; gap: number; pointer: number; size: number},
-): {x: number; y: number; point: number; pointerDist: number} {
-  const {bandInner, bandOuter, gap, pointer, size} = opts;
-  const radius = side === 'outside' ?
-    bandOuter + gap + pointer + size / 2 :
-    bandInner - gap - pointer - size / 2;
-  const p = pointForValue(cfg, value, radius);
-  const point = pointerRotationForValue(cfg, value, side === 'outside' ? 'outer' : 'inner');
-  const pointerDist = size / 2 + gap + pointer / 2;
-  return {x: p.x, y: p.y, point, pointerDist};
+): {x: number; y: number; point: number; pointerDist: number; pointerLen: number} {
+  const bandWidth = opts.bandOuter - opts.bandInner;
+  const bandRadius = (opts.bandOuter + opts.bandInner) / 2;
+  const placement = placeArcMarker({
+    center: cfg.center,
+    thresholdAngle: angleForValue(cfg, value),
+    bandRadius,
+    bandWidth,
+    side,
+    gap: opts.gap,
+    pointer: opts.pointer,
+    size: opts.size,
+    value,
+  });
+  return {
+    x: placement.chipCenter.x,
+    y: placement.chipCenter.y,
+    point: placement.rotation,
+    pointerDist: placement.pointerDist,
+    pointerLen: placement.pointerLen,
+  };
 }
 
 /** A short radial tick line crossing the band at a value (inner → outer point). */

@@ -14,6 +14,7 @@
     :reached="reached"
     :point="point"
     :pointerDist="pointerDist"
+    :pointerLen="pointerLen"
     :icon="marker.icon"
     :tooltip="tooltipContent"
     :style="nodeStyle"
@@ -41,6 +42,8 @@ export default defineComponent({
     point: {type: Number, default: 0},
     /** How far (px) to push the pointer toward the band edge. */
     pointerDist: {type: Number, default: 16},
+    /** Connector visible length (px) — chip edge → rail edge. */
+    pointerLen: {type: Number, default: 9},
     /** True once the ocean count has reached this threshold (highlight state). */
     reached: {type: Boolean, default: false},
   },

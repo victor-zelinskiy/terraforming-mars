@@ -59,10 +59,12 @@ export default defineComponent({
     icon: {type: String, required: true},
     /** Degrees the node visuals follow the arc tangent (pointer/tooltip stay upright). */
     rot: {type: Number, default: 0},
-    /** Degrees the triangle pointer is rotated to aim at the scale division. */
+    /** Degrees the connector is rotated to aim at the scale division. */
     point: {type: Number, default: 0},
-    /** How far (px) to push the pointer out so its tip reaches the band edge. */
+    /** How far (px) to push the connector out so its tip reaches the band edge. */
     pointerDist: {type: Number, default: 16},
+    /** Connector visible length (px) — chip edge → rail edge. */
+    pointerLen: {type: Number, default: 9},
     /** Owner colour for a claimed reward ('' otherwise). */
     claimColor: {type: String, default: ''},
     /** Stable id (`<scale>-<step>`) for the one-shot claim animation tracking. */
@@ -94,9 +96,17 @@ export default defineComponent({
       return this.rot === 0 ? {} : {transform: `rotate(${this.rot}deg)`};
     },
     pointerStyle(): Record<string, string> {
-      // Rotate to aim at the division, then push the triangle out so its tip
-      // reaches the band edge ("up" is the tip direction in the rotated frame).
-      return {transform: `rotate(${this.point}deg) translateY(${-this.pointerDist}px)`};
+      // The connector is a luminous STEM of length `pointerLen`. It is CENTRED on
+      // the chip via negative margins (half its own size — the proven idiom, so
+      // `transform-origin: center` pivots exactly on the chip centre), then
+      // rotated to aim at the division and pushed out (`translateY`) so its TIP
+      // (the rail-anchor end) lands exactly on the band edge. The variable height
+      // is what lets a fanned chip's longer connector still reach the rail.
+      return {
+        height: `${this.pointerLen}px`,
+        marginTop: `${-this.pointerLen / 2}px`,
+        transform: `rotate(${this.point}deg) translateY(${-this.pointerDist}px)`,
+      };
     },
     rootStyle(): Record<string, string> {
       return this.claimColor === '' ? {} : {'--bonus-claim-color': this.claimColor};
