@@ -64,7 +64,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
       '--arc-rail': 'rgba(3, 12, 22, 0.55)', '--arc-channel': 'rgba(12, 44, 68, 0.78)',
       '--arc-edge': 'rgba(126, 220, 246, 0.42)', '--arc-rim': 'rgba(170, 226, 250, 0.6)',
       '--arc-cap': 'rgba(150, 224, 250, 0.92)', '--arc-tick': 'rgba(150, 196, 226, 0.30)',
-      '--arc-accent': '#7fdcf6',
+      '--arc-accent': '#7fdcf6', '--arc-digit': '#c2dbec', '--arc-digit-on': '#eef9ff',
     },
   },
   // Airy, dry luminous cyan — lighter / cleaner than oceans (atmosphere, not water).
@@ -77,7 +77,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
       '--arc-rail': 'rgba(6, 16, 26, 0.5)', '--arc-channel': 'rgba(18, 44, 60, 0.78)',
       '--arc-edge': 'rgba(206, 244, 255, 0.5)', '--arc-rim': 'rgba(224, 248, 255, 0.62)',
       '--arc-cap': 'rgba(206, 244, 255, 0.92)', '--arc-tick': 'rgba(186, 222, 240, 0.32)',
-      '--arc-accent': '#cdf2ff',
+      '--arc-accent': '#cdf2ff', '--arc-digit': '#bcd6e6', '--arc-digit-on': '#eef9ff',
     },
   },
   // Thermal gradient — cold blue-violet → warm ember (Mars heating up).
@@ -90,7 +90,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
       '--arc-rail': 'rgba(14, 8, 20, 0.55)', '--arc-channel': 'rgba(30, 22, 40, 0.78)',
       '--arc-edge': 'rgba(255, 196, 150, 0.42)', '--arc-rim': 'rgba(255, 214, 196, 0.55)',
       '--arc-cap': 'rgba(255, 184, 140, 0.92)', '--arc-tick': 'rgba(214, 170, 180, 0.3)',
-      '--arc-accent': '#f0a07a',
+      '--arc-accent': '#f0a07a', '--arc-digit': '#d6c2cc', '--arc-digit-on': '#ffe9dc',
     },
   },
   // Warm atmospheric gold — dense, sunlit, denser than the others.
@@ -103,7 +103,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
       '--arc-rail': 'rgba(20, 12, 4, 0.55)', '--arc-channel': 'rgba(44, 32, 12, 0.78)',
       '--arc-edge': 'rgba(255, 224, 150, 0.45)', '--arc-rim': 'rgba(255, 234, 180, 0.6)',
       '--arc-cap': 'rgba(255, 224, 150, 0.92)', '--arc-tick': 'rgba(226, 196, 140, 0.32)',
-      '--arc-accent': '#ffe6a6',
+      '--arc-accent': '#ffe6a6', '--arc-digit': '#ddccaa', '--arc-digit-on': '#fff3d8',
     },
   },
 };

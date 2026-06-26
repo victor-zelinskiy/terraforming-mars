@@ -13,57 +13,18 @@
  *  See OceanArcScale.vue (wrapper) / ArcScale.vue (band) / arcScaleTheme.ts.
  */
 
-// ── Ocean palette (digits + event chips) ──────────────────────────────────
+// ── Ocean palette (event chips) ────────────────────────────────────────────
+// (Digits + indicator are the shared ArcScale now — styled in arc_scale.less.)
 @ocean-bright:      #7fdcf6; // sunlit highlight (tooltip kicker)
 @ocean-glow:        rgba(70, 196, 240, 0.62);
 @ocean-glow-soft:   rgba(70, 196, 240, 0.30);
-@ocean-digit:       #c2dbec; // future (not-yet-reached) digit
-@ocean-digit-on:    #eef9ff; // visited (reached) digit
 
 .global-numbers-oceans {
   // Abs with AUTO offsets, like the other scale containers → lands at the
-  // `.global-numbers` content origin (the shared (300, 301) coordinate space)
-  // and is the offsetParent the digit anchors + the ArcScale band measure against.
+  // `.global-numbers` content origin (the shared (300, 301) coordinate space);
+  // the offsetParent the ArcScale band + its digit anchors measure against.
   position: absolute;
   pointer-events: none;
-}
-
-// ── Digit labels (also the AnimatedScaleMarker anchors) ───────────────────
-// Compact (overrides the shared 26px `.global-numbers-value` box from globs.less).
-.global-numbers-oceans .global-numbers-value {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  line-height: 22px;
-  font-size: 13px;
-  text-align: center;
-  // Default = FUTURE (not yet reached): dimmer so the gauge reads as progress.
-  color: @ocean-digit;
-  opacity: 0.62;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.85),
-    0 0 5px rgba(6, 20, 32, 0.9);
-  pointer-events: none;
-  z-index: 1;
-  transition: color 320ms ease, opacity 320ms ease;
-}
-
-// VISITED (reached) digits — brighter, fully opaque.
-.global-numbers-oceans .ocean-arc__digit--visited {
-  color: @ocean-digit-on;
-  opacity: 1;
-}
-
-// Active digit — luminous water white (mirrors the per-scale `.val-is-active`).
-.global-numbers-oceans .val-is-active {
-  color: #f1fbff;
-  font-weight: 700;
-  opacity: 1;
-  z-index: 2;
-  text-shadow:
-    0 0 4px rgba(96, 204, 240, 0.6),
-    0 0 10px rgba(96, 204, 240, 0.36),
-    0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
 // ── Future planetary-event chips ──────────────────────────────────────────

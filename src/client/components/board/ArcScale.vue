@@ -58,6 +58,21 @@
       <circle class="arc-scale__cap" :cx="capEnd.x" :cy="capEnd.y" r="3.2" />
     </svg>
 
+    <!-- UNIFIED digit layer (upright, future/visited/current states) — also the
+         anchors the shared indicator glides between. Replaces the legacy globs
+         `.val-N` digits for every scale. -->
+    <div
+      v-for="d in digitViews"
+      :key="'num-' + d.value"
+      :class="['global-numbers-value', 'val-' + d.value, 'arc-scale__digit', {
+        'arc-scale__digit--visited': d.visited,
+        'arc-scale__digit--current': d.current,
+      }]"
+      :style="{left: d.left + 'px', top: d.top + 'px'}">{{ d.label }}</div>
+
+    <!-- gliding current-value cursor (shared dial, per-scale accent) -->
+    <animated-scale-marker :accent="theme.accent" :value="value" />
+
     <!-- SCALE IDENTITY badge — a flat HUD scale-TYPE label (NOT a bonus chip). -->
     <div class="arc-scale__identity" :style="identityStyle" role="img" :aria-label="ariaLabel">
       <span class="arc-scale__identity-glyph" :style="{backgroundImage: theme.glyph}"></span>
@@ -72,12 +87,16 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import AnimatedScaleMarker from '@/client/components/board/AnimatedScaleMarker.vue';
 import {ArcScaleName, ArcScaleTheme} from '@/client/components/board/arcScaleTheme';
 import {DynamicArcConfig, arcFillFraction} from '@/client/components/board/arcScaleConfigs';
 import {pointAtAngle, arcPath} from '@/client/components/board/arcScaleGeometry';
 
 const SVG_W = 600;
 const SVG_H = 600;
+// Uniform digit box across every scale (kept small enough for the dense
+// temperature track — 20 values — not to overlap).
+const ARC_DIGIT = 19;
 
 /**
  * Cross-remount fill baseline per scale (survives the `<player-home :key>`
@@ -88,6 +107,7 @@ const arcFillBaseline: Partial<Record<ArcScaleName, number>> = {};
 
 export default defineComponent({
   name: 'ArcScale',
+  components: {AnimatedScaleMarker},
   props: {
     theme: {type: Object as PropType<ArcScaleTheme>, required: true},
     config: {type: Object as PropType<DynamicArcConfig>, required: true},
@@ -197,6 +217,22 @@ export default defineComponent({
           value: d.value,
           x1: Math.round(a.x * 100) / 100, y1: Math.round(a.y * 100) / 100,
           x2: Math.round(b.x * 100) / 100, y2: Math.round(b.y * 100) / 100,
+        };
+      });
+    },
+    // Unified digit layer — upright, at the band radius, one per config value.
+    // future (> current): dim · visited (< current): brighter · current: strongest.
+    digitViews(): ReadonlyArray<{value: number; left: number; top: number; label: string; visited: boolean; current: boolean}> {
+      return this.config.digits.map((d) => {
+        const p = pointAtAngle(this.center, this.config.bandRadius, d.angle);
+        const label = this.theme.name === 'temperature' && d.value > 0 ? '+' + d.value : String(d.value);
+        return {
+          value: d.value,
+          left: Math.round(p.x - ARC_DIGIT / 2),
+          top: Math.round(p.y - ARC_DIGIT / 2),
+          label,
+          visited: d.value < this.value,
+          current: d.value === this.value,
         };
       });
     },
