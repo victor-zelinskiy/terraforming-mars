@@ -3,7 +3,7 @@
     ArcScale — the GENERIC dynamic band for a global-parameter scale (O₂ /
     temperature / Venus). It draws the premium code band that REPLACES the arc
     baked into mars.png: recessed rail · channel · themed progress fill · edge
-    light · sheen · graduation ticks · end caps · identity badge.
+    light · sheen · segment dividers · end caps · identity badge.
 
     It deliberately renders ONLY the band + identity. The DIGITS, the moving
     INDICATOR (AnimatedScaleMarker) and the BONUS chips for these three scales
@@ -25,37 +25,33 @@
         </linearGradient>
       </defs>
       <!-- recessed backing rail -->
-      <path class="arc-scale__rail" :d="bandPathD" />
-      <!-- empty / not-reached channel -->
-      <path class="arc-scale__channel" :d="bandPathD" />
-      <!-- themed progress fill (revealed start → current via dashoffset) -->
+      <path class="arc-scale__rail" :d="channelPathD" />
+      <!-- empty / not-reached channel (extends a touch past the end digits) -->
+      <path class="arc-scale__channel" :d="channelPathD" />
+      <!-- themed progress fill — spans only the DIGIT range (value start→current)
+           via dashoffset, so the channel's lead-in/out margin stays empty -->
       <path
         v-if="fillFraction > 0"
         class="arc-scale__fill"
-        :d="bandPathD"
+        :d="fillPathD"
         :stroke="`url(#${gradId})`"
         :style="fillStyle" />
       <!-- outer rim highlight -->
       <path class="arc-scale__edge" :d="edgePathD" />
       <!-- inner glass sheen -->
       <path class="arc-scale__sheen" :d="sheenPathD" />
-      <!-- segment dividers — only for low-value scales (e.g. oceans 1–9), where
-           they read as distinct slots; busier scales (15–20 ticks) skip them -->
+      <!-- segment dividers between values — unified across every scale (per-scale
+           tint). Over the bright fill they read as lit cells, over the dim
+           channel they recede, so progress reads for free. -->
       <line
         v-for="d in dividers"
         :key="'dv-' + d.key"
         class="arc-scale__divider"
         :x1="d.x1" :y1="d.y1" :x2="d.x2" :y2="d.y2" />
-      <!-- graduation ticks; visited (reached) ones light up -->
-      <line
-        v-for="t in ticks"
-        :key="'t-' + t.value"
-        class="arc-scale__tick"
-        :class="{'arc-scale__tick--visited': t.value <= value}"
-        :x1="t.x1" :y1="t.y1" :x2="t.x2" :y2="t.y2" />
-      <!-- end-cap terminals -->
-      <circle class="arc-scale__cap" :cx="capStart.x" :cy="capStart.y" r="3.2" />
-      <circle class="arc-scale__cap" :cx="capEnd.x" :cy="capEnd.y" r="3.2" />
+      <!-- end-cap terminals — sit BEYOND the first/last digit (band lead-in/out)
+           so they never wash out the endpoint numbers -->
+      <circle class="arc-scale__cap" :cx="capStart.x" :cy="capStart.y" r="3" />
+      <circle class="arc-scale__cap" :cx="capEnd.x" :cy="capEnd.y" r="3" />
     </svg>
 
     <!-- UNIFIED digit layer (upright, future/visited/current states) — also the
@@ -158,14 +154,26 @@ export default defineComponent({
     innerR(): number {
       return this.config.bandRadius - this.config.bandWidth / 2;
     },
-    bandPathD(): string {
+    // Channel / rail / edge / sheen extend a small PAD beyond the first/last
+    // DIGIT so the end-cap nodes sit past the numbers (not on top of them) —
+    // this is the endpoint-readability fix (ocean `9` etc.).
+    bandPad(): {start: number; end: number} {
+      const dir = Math.sign(this.config.endAngle - this.config.startAngle) || 1;
+      const PAD = 4.5;
+      return {start: this.config.startAngle - dir * PAD, end: this.config.endAngle + dir * PAD};
+    },
+    channelPathD(): string {
+      return arcPath(this.center, this.config.bandRadius, this.bandPad.start, this.bandPad.end);
+    },
+    // Fill spans only the DIGIT range (value start → current) so progress is exact.
+    fillPathD(): string {
       return arcPath(this.center, this.config.bandRadius, this.config.startAngle, this.config.endAngle);
     },
     edgePathD(): string {
-      return arcPath(this.center, this.outerR - 0.8, this.config.startAngle, this.config.endAngle);
+      return arcPath(this.center, this.outerR - 0.8, this.bandPad.start, this.bandPad.end);
     },
     sheenPathD(): string {
-      return arcPath(this.center, this.innerR + 1.8, this.config.startAngle, this.config.endAngle);
+      return arcPath(this.center, this.innerR + 1.8, this.bandPad.start, this.bandPad.end);
     },
     arcLength(): number {
       return this.config.bandRadius * Math.abs(this.config.endAngle - this.config.startAngle) * Math.PI / 180;
@@ -177,21 +185,19 @@ export default defineComponent({
       return pointAtAngle(this.center, this.config.bandRadius, this.config.endAngle);
     },
     capStart(): {x: number; y: number} {
-      const p = pointAtAngle(this.center, this.config.bandRadius, this.config.startAngle);
+      const p = pointAtAngle(this.center, this.config.bandRadius, this.bandPad.start);
       return {x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100};
     },
     capEnd(): {x: number; y: number} {
-      const p = pointAtAngle(this.center, this.config.bandRadius, this.config.endAngle);
+      const p = pointAtAngle(this.center, this.config.bandRadius, this.bandPad.end);
       return {x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100};
     },
-    // Boundary dividers between consecutive values — segment the band into
-    // discrete slots. Only for compact scales (≤10 values); the dense O₂ /
-    // temperature / Venus scales would look cluttered, so they get none.
+    // Boundary dividers between consecutive values — the unified segment-tick
+    // layer across EVERY scale (per-scale `--arc-divider` tint). Dense scales
+    // (15–20 values) read as a fine graduation; few-value scales (oceans) as
+    // distinct cells.
     dividers(): ReadonlyArray<{key: number; x1: number; y1: number; x2: number; y2: number}> {
       const d = this.config.digits;
-      if (d.length > 10) {
-        return [];
-      }
       const r1 = this.innerR + 1.5;
       const r2 = this.outerR - 1.5;
       const out: Array<{key: number; x1: number; y1: number; x2: number; y2: number}> = [];
@@ -206,19 +212,6 @@ export default defineComponent({
         });
       }
       return out;
-    },
-    ticks(): ReadonlyArray<{value: number; x1: number; y1: number; x2: number; y2: number}> {
-      const r1 = this.outerR + 2;
-      const r2 = this.outerR + 5.5;
-      return this.config.digits.map((d) => {
-        const a = pointAtAngle(this.center, r1, d.angle);
-        const b = pointAtAngle(this.center, r2, d.angle);
-        return {
-          value: d.value,
-          x1: Math.round(a.x * 100) / 100, y1: Math.round(a.y * 100) / 100,
-          x2: Math.round(b.x * 100) / 100, y2: Math.round(b.y * 100) / 100,
-        };
-      });
     },
     // Unified digit layer — upright, at the band radius, one per config value.
     // future (> current): dim · visited (< current): brighter · current: strongest.

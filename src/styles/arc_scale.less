@@ -78,22 +78,14 @@
   opacity: 0.6;
 }
 
-// 5b) segment dividers — thin radial cuts between slots (compact scales only)
+// 5b) segment dividers — the UNIFIED segment-tick layer on every scale. A thin
+// per-scale-tinted radial cut between consecutive values: over the bright fill
+// it reads as a lit cell boundary, over the dim channel it recedes (so the
+// filled progress segments itself for free).
 .arc-scale__divider {
-  stroke: rgba(4, 14, 24, 0.6);
-  stroke-width: 1.4px;
+  stroke: var(--arc-divider);
+  stroke-width: 1.3px;
   stroke-linecap: round;
-}
-
-// 6) graduation ticks; visited (reached) ones light up
-.arc-scale__tick {
-  stroke: var(--arc-tick);
-  stroke-width: 1px;
-  stroke-linecap: round;
-  transition: stroke 340ms ease;
-}
-.arc-scale__tick--visited {
-  stroke: var(--arc-edge);
 }
 
 // 7) end-cap terminals
