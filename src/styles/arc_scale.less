@@ -173,9 +173,15 @@
   }
 }
 
-.arc-scale__identity-glyph {
-  width: 64%;
-  height: 64%;
+// The glyph REUSES the right-sidebar metric icon assets (the `*-tile` classes in
+// cards.less supply only `background-image`). Those tile classes also hard-set
+// `width` / `height` / `background-size` in px for the sidebar; we override them
+// here at a higher specificity (`.arc-scale .arc-scale__identity-glyph` = (0,2,0)
+// beats `.temperature-tile` = (0,1,0)) so the icon scales CONTAINED inside the
+// small scale badge instead of the sidebar's fixed size.
+.arc-scale .arc-scale__identity-glyph {
+  width: 72%;
+  height: 72%;
   background-position: center;
   background-size: contain;
   background-repeat: no-repeat;

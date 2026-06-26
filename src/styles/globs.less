@@ -178,6 +178,17 @@
 	// is rotated to follow the curve printed on the board. The .pin-and-rotate
 	// mixin emits a .val-<n> rule for each tuple; .global-numbers-<track> applies
 	// the appropriate list.
+	//
+	// TODO(scale-hud-cleanup): the .pin-and-rotate EMISSION is now dead — the
+	// dynamic <arc-scale> renders the 1–N digits as direct children of
+	// .global-numbers (NOT inside these .global-numbers-<track> containers) and
+	// positions each digit with INLINE left/top from arcScaleConfigs.ts, so the
+	// `.global-numbers-<track> .val-N { margin; rotate }` rules below no longer
+	// match any element. The @venus-vals / @oxygen-vals / @temperature-vals DATA
+	// lists are DELIBERATELY KEPT: they are the documented geometry source that
+	// arcScaleConfigs.ts MIRRORS (see its header — "keep in sync"). Removing the
+	// emission is safe but low-value; the data must stay as the reference. Do not
+	// delete the lists without first inlining that geometry as the TS source.
 
 	// Emit a .val-<val> rule positioning the marker at (@top, @left) and
 	// rotating it by @rot. @v is a 4-element list: <val> <margin-top>
