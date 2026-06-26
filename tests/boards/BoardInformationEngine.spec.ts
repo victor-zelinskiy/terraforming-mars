@@ -155,6 +155,34 @@ describe('BoardInformationEngine', () => {
     expect(allFacts(cleared).some((f) => f.id === 'place-city'), 'city scoring fact present').to.be.true;
   });
 
+  it('over-ocean overlay preview: ocean kept (no re-granted bonus) + city VP only when the tile counts as a city', () => {
+    const ocean = game.board.spaces.find((s) =>
+      s.spaceType === SpaceType.OCEAN && s.tile === undefined &&
+      game.board.getAdjacentSpaces(s).some((a) => a.spaceType === SpaceType.LAND && a.tile === undefined))!;
+    ocean.tile = {tileType: TileType.OCEAN};
+    const adj = game.board.getAdjacentSpaces(ocean).find((a) => a.spaceType === SpaceType.LAND && a.tile === undefined)!;
+    adj.tile = {tileType: TileType.GREENERY};
+    adj.player = player;
+
+    // The ocean is NOT removed (overlay, tile.covers) → covering → no re-granted bonus.
+    const newHolland = boardCellPreview(player, ocean, 'upgradeable-ocean-new-holland', {tileType: TileType.NEW_HOLLAND});
+    expect(allFacts(newHolland).some((f) => f.id === 'cover-no-bonus'), 'overlay keeps the ocean → no re-granted bonus').to.be.true;
+    // New Holland counts as a CITY → +VP per adjacent greenery shown.
+    expect(allFacts(newHolland).some((f) => f.id === 'place-city'), 'New Holland city VP shown').to.be.true;
+
+    // Ocean City shares the `upgradeable-ocean` kind but ALSO counts as a city.
+    const oceanCity = boardCellPreview(player, ocean, 'upgradeable-ocean', {tileType: TileType.OCEAN_CITY});
+    expect(allFacts(oceanCity).some((f) => f.id === 'place-city'), 'Ocean City city VP shown').to.be.true;
+
+    // Ocean Farm shares the SAME kind but does NOT count as a city → no city VP.
+    const oceanFarm = boardCellPreview(player, ocean, 'upgradeable-ocean', {tileType: TileType.OCEAN_FARM});
+    expect(allFacts(oceanFarm).some((f) => f.id === 'place-city'), 'Ocean Farm shows no city VP').to.be.false;
+
+    // No tile type given → the kind alone can't decide → no composite city VP.
+    const noTile = boardCellPreview(player, ocean, 'upgradeable-ocean-new-holland');
+    expect(allFacts(noTile).some((f) => f.id === 'place-city'), 'without tileType → no composite city VP').to.be.false;
+  });
+
   it('volcanic placement rule shows on an EMPTY volcanic cell, suppressed once a tile covers it', () => {
     const volcanic = game.board.getSpaceOrThrow(game.board.volcanicSpaceIds[0]);
     expect(volcanic.tile, 'precondition: empty volcanic cell').to.be.undefined;

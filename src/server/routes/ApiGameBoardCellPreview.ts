@@ -7,6 +7,7 @@ import {Response} from '../Response';
 import {Color, PLAYER_COLORS} from '../../common/Color';
 import {boardCellInfo, boardCellPreview} from '../boards/BoardInformationEngine';
 import {BoardPlacementKind} from '../../common/boards/BoardInformationFacts';
+import {TileType} from '../../common/TileType';
 
 const PLACEMENT_KINDS: ReadonlyArray<BoardPlacementKind> = [
   'land', 'ocean', 'greenery', 'city', 'away-from-cities', 'isolated',
@@ -78,7 +79,13 @@ export class ApiGameBoardCellPreview extends Handler {
       // existing tile is removed before the new tile is placed, so the preview
       // grants the cell bonus + is shown as legal (see boardCellPreview).
       const cleared = ctx.url.searchParams.get('cleared') === '1';
-      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared}));
+      // `tile=<TileType>` → the concrete tile, so a composite over-ocean tile's
+      // city VP can be shown (the placement kind alone can't identify it).
+      const tileParam = ctx.url.searchParams.get('tile');
+      const tileNum = tileParam === null ? NaN : Number(tileParam);
+      const tileType = Number.isInteger(tileNum) && TileType[tileNum] !== undefined ?
+        tileNum as TileType : undefined;
+      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType}));
     } else {
       responses.writeJson(res, ctx, boardCellInfo(player, space));
     }

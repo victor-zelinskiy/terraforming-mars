@@ -241,7 +241,7 @@ export default defineComponent({
         return;
       }
       const myToken = ++this.previewToken;
-      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId)).then((preview) => {
+      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType).then((preview) => {
         if (myToken === this.previewToken && this.previewSpaceId === spaceId) {
           this.previewData = preview;
         }
@@ -342,7 +342,7 @@ export default defineComponent({
         return;
       }
       const myToken = ++this.confirmToken;
-      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId)).then((preview) => {
+      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType).then((preview) => {
         if (myToken === this.confirmToken) {
           this.confirmPreview = preview;
         }

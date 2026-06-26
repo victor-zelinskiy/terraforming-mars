@@ -3,6 +3,7 @@ import {Message} from '../../common/logs/Message';
 import {Space} from './Space';
 import {SelectSpace} from '../inputs/SelectSpace';
 import {PlacementType} from './PlacementType';
+import {TileType} from '../../common/TileType';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
 import {committedPlacement} from '../inputs/placementContext';
@@ -55,6 +56,13 @@ export function createMarsSelectSpace(
     customReasoner?: (space: Space) => PlacementIllegalReason | undefined,
     hideExistingTile?: boolean,
     /**
+     * The TileType being placed. Lets the premium preview show a composite
+     * over-ocean tile's identity-based city VP (Ocean City / New Holland count
+     * as a city; Ocean Farm / Ocean Sanctuary do not — the placement type alone
+     * can't tell them apart). Optional; absent → kind-derived scoring.
+     */
+    tileType?: TileType,
+    /**
      * Whether this placement can be cancelled before it commits (drives the
      * PlacementBanner's cancel UI). DEFAULTS to a COMMITTED marker: by the time a
      * placement reached through this helper is shown, the action that triggered it
@@ -74,6 +82,7 @@ export function createMarsSelectSpace(
     {customReasoner: options?.customReasoner});
   const selectSpace = new SelectSpace(title, legalSpaces, illegalSpaces);
   selectSpace.placementType = options?.placementType;
+  selectSpace.tileType = options?.tileType;
   selectSpace.placementContext = options?.placementContext ??
     committedPlacement('This placement is part of an action already underway and cannot be cancelled.');
   selectSpace.onCancel = options?.onCancel;

@@ -335,6 +335,15 @@ export type SelectSpaceModel = BaseInputModel & {
    * Mirrors `src/server/boards/PlacementType.ts`. Absent on custom paths.
    */
   placementType?: import('../boards/BoardInformationFacts').BoardPlacementKind;
+  /**
+   * The TileType being placed, when known. The placement KIND alone can't always
+   * identify the tile's scoring identity — an `upgradeable-ocean` placement is
+   * shared by Ocean City (counts as a CITY) and Ocean Farm / Ocean Sanctuary
+   * (do NOT). Passing the concrete tile lets the preview show a composite
+   * over-ocean tile's city VP ("+VP per adjacent greenery"). Absent → the
+   * preview falls back to the kind-derived scoring.
+   */
+  tileType?: import('../TileType').TileType;
 }
 
 /**
