@@ -42,9 +42,11 @@ const START_ANGLE = 116;
 const END_ANGLE = 64;
 const OCEAN_STEPS = 9;
 const BAND = 22; // matches OCEAN_ARC.bandWidth so the event chips hug the band
-const CHIP = 18;
-const MARKER_POINTER = 10;
-const MARKER_GAP = 12; // a touch more clearance above the rail
+// Match the standard scale-bonus markers (scaleBonusZones.ts): size 25, gap 2,
+// connector 7 — one unified size + distance for events AND reward bonuses.
+const CHIP = 25;
+const MARKER_POINTER = 7;
+const MARKER_GAP = 2;
 
 const OUTER_R = RADIUS + BAND / 2;
 const INNER_R = RADIUS - BAND / 2;

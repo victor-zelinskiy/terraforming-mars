@@ -171,6 +171,21 @@ logic is test-covered.
 
 ## 7. Changelog
 
+- **2026-06-27** — UI/UX polish pass (3 reported gaps):
+  (1) **Full pre-placement info.** The hazard-adjacency penalty now shows the EXACT forced amount
+  («Снизить производство на N» + «на ваш выбор», severity danger) — added a `params` field to
+  `BoardFact` (+ `v-i18n` binding in `BoardFactRow`) so dynamic amounts localize instead of baking.
+  Hovering an adjacency-SOURCE tile (Metallic Asteroid etc.) now shows a «Бонус за соседство» section
+  (neighbour bonus + owner M€) via the new `aresAdjacencySourceFacts` + a popover section — closes the
+  "hover shows lore but not the adjacency bonus" gap.
+  (2) **Production-loss modal.** `ModernProductionToLose`: when only 1 reduction is needed it's now a
+  clean SINGLE-PICK (selectable resource tiles, no ± steppers, no "N of M" counter; a lone option is
+  pre-selected); cost>1 keeps the steppers. Title built diegetically from `cost` (fixes the
+  untranslated baked "Choose 1 unit(s)…"). New `prod-pick` styles.
+  (3) **Scale markers.** Ares event markers aligned to the standard scale-bonus size + distance
+  (size 25, gap 2, connector 7) on ocean/temperature/oxygen — were small (18) and far (gap 12).
+  8 RU keys; `BoardInformationAres.spec` +2, `ModernProductionToLose.spec` (4). Full server suite 7452,
+  vue-tsc, make:json, make:css green; eslint 0 new.
 - **2026-06-26** — Premium Butterfly Effect widget: `ModernShiftAresGlobalParameters.vue` replaces
   the legacy radio form in the modal (registered in `ModalInputHost.PREMIUM_COMPONENTS` for
   `aresGlobalParameters`). One row per AVAILABLE planetary threshold — diegetic icon + label, a live

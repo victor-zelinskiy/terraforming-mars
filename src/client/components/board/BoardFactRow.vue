@@ -1,8 +1,8 @@
 <template>
   <div class="board-fact" :class="'board-fact--' + fact.severity">
     <div class="board-fact__body">
-      <div v-if="fact.title" class="board-fact__title" v-i18n>{{ fact.title }}</div>
-      <div v-if="fact.description !== undefined" class="board-fact__desc" v-i18n>{{ fact.description }}</div>
+      <div v-if="fact.title" class="board-fact__title" v-i18n="fact.params">{{ fact.title }}</div>
+      <div v-if="fact.description !== undefined" class="board-fact__desc" v-i18n="fact.params">{{ fact.description }}</div>
     </div>
     <div class="board-fact__value">
       <action-effect-chip v-if="deltaEffect !== undefined" :effect="deltaEffect" />
