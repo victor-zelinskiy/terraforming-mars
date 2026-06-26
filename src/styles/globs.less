@@ -64,100 +64,11 @@
 			0 0 10px rgba(245, 214, 116, 0.38),
 			0 1px 2px rgba(0, 0, 0, 0.85);
 	}
-.global-ares-erosions-icon {
-		background: url(./assets/erosion.png) no-repeat;
-		position: absolute;
-		margin: 529px 0 0 206px;
-		transform: scale(.5, .5);
-		height: 34px;
-		width: 30px;
-	}
-
-	.global-ares-erosions-val {
-		position: absolute;
-		font-size: 15px;
-		margin: 535px 0 0 230px;
-
-		text-align: left;
-		color: #3682b4;
-		font-family: Prototype;
-	}
-
-	.global-ares-remove-dust-storms-icon {
-		background: url(./assets/remove-dust-storms.png) no-repeat;
-		position: absolute;
-		margin: 436px 0 0 276px;
-		transform: scale(.12, .12);
-		height: 218px;
-		width: 175px;
-	}
-
-	.global-ares-remove-dust-storms-val {
-		position: absolute;
-		font-size: 15px;
-		margin: 535px 0 0 381px;
-
-		text-align: left;
-		color: #3682b4;
-		font-family: Prototype;
-	}
-
-	.global-ares-severe-erosions {
-		background: url(./assets/severe-erosion.png) no-repeat;
-		position: absolute;
-		margin: 222px 0 0 570px;
-
-		height: 60px;
-		width: 54px;
-	}
-
-	// Each entry: <suffix> <margin-top> <margin-left> <rotation>.
-	// Boundary values (0 and -8) are reachable only when Odyssey replays Butterfly Effect.
-	@severe-erosion-vals:
-		 0 164px 587px -17deg,
-		-2 195px 571px -14deg,
-		-4 222px 577px -11deg,
-		-6 247px 581px  -3deg,
-		-8 276px 580px  -3deg;
-
-	each(@severe-erosion-vals, .(@v) {
-		@val: extract(@v, 1);
-		@top: extract(@v, 2);
-		@left: extract(@v, 3);
-		@rot: extract(@v, 4);
-		.global-ares-severe-erosions-@{val} {
-			margin: @top 0 0 @left;
-			transform: rotate(@rot) scale(.4, .4);
-		}
-	});
-
-	.global-ares-severe-dust-storms {
-		background: url(./assets/severe-dust-storm.png) no-repeat;
-		position: absolute;
-		margin: 100px 0 0 250px;
-		height: 60px;
-		width: 54px;
-	}
-
-	// Each entry: <suffix> <margin-top> <margin-left> <rotation>.
-	// Boundary values (3 and 7) are reachable only when Odyssey (Pathfinders) replays Butterfly Effect (Ares).
-	@severe-dust-storm-vals:
-		3 436px  22px -38deg,
-		4 407px   5px -30deg,
-		5 378px  -9px -22deg,
-		6 346px -18px -15deg,
-		7 314px -24px  -8deg;
-
-	each(@severe-dust-storm-vals, .(@v) {
-		@val: extract(@v, 1);
-		@top: extract(@v, 2);
-		@left: extract(@v, 3);
-		@rot: extract(@v, 4);
-		.global-ares-severe-dust-storms-@{val} {
-			margin: @top 0 0 @left;
-			transform: rotate(@rot) scale(.4, .4);
-		}
-	});
+	// Ares planetary-event markers (erosions / dust storms appearing, intensifying
+	// or receding at parameter thresholds) are now premium, data-driven nodes —
+	// see ScaleEventMarker.vue + aresThresholdMarkers.ts (positioning, from the
+	// live hazard thresholds) and the unified ArcScaleMarkerChip visual language.
+	// The legacy PNG-jeton `.global-ares-*` markers that lived here were removed.
 
 
 	// Global-parameter SCALE bonuses (Venus / Oxygen / Temperature) are now

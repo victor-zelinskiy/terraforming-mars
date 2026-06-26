@@ -82,7 +82,7 @@ These have **NO auto-guard** — tracked manually here.
 | --- | --- | --- | --- |
 | **Special-tile adjacency bonuses** (placer gain + tile-owner income) | BoardInformation hover + active-placement preview; recipient clarity (me vs owner); journal | `BoardInformationEngine.aresAdjacencyFacts()` (stub → populate); categories `ares-adjacency-bonus` / `tile-owner-benefit` already declared | ⬜ |
 | **Hazard tiles** (dust storm / erosion, mild/severe) hover + placement penalty/cleanup preview | BoardInformation `hazard-penalty` / `hazard-cleanup` facts; diegetic RU labels | hazard COST already flows via `computeAdditionalCosts`; add facts + cell status lore | ⬜ |
-| **Scale threshold "planetary events"** (ocean 3 → erosions; temp −4 → severe erosion; oxy 5 → severe dust storm; ocean 6 → remove dust storms +1 TR) | Arc-scale markers via `ArcScaleMarkerChip` (`planetary-event` / `hazard-event`); tooltips; reached-highlight; journal | `oceanThresholdMarkers.ts` (placeholders exist, HIDDEN behind `?oceanMarkers`); markers for temp/oxy scales to add; gate to Ares games | ⛔ decision: enable now |
+| **Scale threshold "planetary events"** (ocean 3 → erosions; temp −4 → severe erosion; oxy 5 → severe dust storm; ocean 6 → remove dust storms +1 TR) | Arc-scale markers via `ArcScaleMarkerChip` (`planetary-event` / `hazard-event`); tooltips; reached-highlight; journal | `aresThresholdMarkers.ts` (live thresholds from `aresData.hazardData`); `ScaleEventMarker.vue` (generalized from OceanEventMarker, per-scale surface); `OceanArcScale` + `Board.vue` mount on ocean/temp/oxy; legacy `global-ares-*` PNG markers removed | ✅ (markers + tooltips + reached state; gated to Ares games; extreme-variant safe; journal of the events is Phase 4) |
 | **Hazard cleanup TR attribution** | new TR bucket, diegetic label «Очистка опасных зон»; VP-overlay segment | `Player.increaseTerraformRating(..., {trAttribution})` + `TRSourceType`; `victoryPointsModel.trScale` | ✅ (`ares-hazard` bucket → `TerraformRatingBreakdown.hazards` → own `tr.hazards` segment; cleanup-by-build + ocean-6 removal attributed; no-leak guarded) |
 | **Journal / eventlog** for every Ares board event (place/strengthen/remove/cleanup/penalty/adjacency-bonus) | root events w/ `correlationId` + new `JournalActionCategory` (e.g. `planetary-event`, `hazard-cleanup`) | `events.beginAction(...)` + `endScope()` (milestone/award recipe) | ⬜ |
 | **Notifications** for planetary events / hazard cleanup / adjacency income | variant + mapper | `notificationModel.rootVariant` | ⬜ |
@@ -120,7 +120,8 @@ No render gaps.
 - **Phase 1 — Audit** ✅ (this doc + scope widening + card-coverage cleared).
 - **Phase 2 — Core state verify + TR attribution** ✅ (hazard-cleanup/removal TR bucket
   end-to-end into the VP overlay; no-leak verification test green).
-- **Phase 3 — Scale planetary-event markers** ⛔ (decision: enable for Ares games).
+- **Phase 3 — Scale planetary-event markers** ✅ (premium `ArcScaleMarkerChip` markers on
+  ocean/temperature/oxygen from live thresholds; legacy PNG markers removed; gated to Ares).
 - **Phase 4 — Hazard board mechanics journal/notification coverage** ⬜.
 - **Phase 5 — BoardInformation: `aresAdjacencyFacts` + hazard facts + placement preview** ⬜.
 - **Phase 6 — Cards: replacement parity audit + Desperate Measures/Solar Farm board UX** ⬜.
@@ -131,13 +132,17 @@ No render gaps.
 
 ## 6. Open product decisions
 
-1. **Scale planetary-event markers** (brief §13) — enable for Ares games now (recommended,
-   the framework + placeholders exist) vs. defer.
-2. **Cadence** — reviewable vertical slices (recommended, per "quality over speed") vs.
-   straight-through.
+1. ~~**Scale planetary-event markers**~~ — RESOLVED: enabled for Ares games (Phase 3).
+2. ~~**Cadence**~~ — RESOLVED: autonomous straight-through (commit per phase).
 
 ## 7. Changelog
 
+- **2026-06-26** — Phase 3: premium scale planetary-event markers. `aresThresholdMarkers.ts`
+  builds the 4 markers from the LIVE `aresData.hazardData` thresholds (extreme-variant safe);
+  `OceanEventMarker` generalized to `ScaleEventMarker` (per-scale surface/accent); rendered on
+  ocean (OceanArcScale `aresMarkers`) + temperature/oxygen (Board.vue, dynamic-config geometry);
+  legacy `global-ares-*` template block + globs.less PNG markers REMOVED; 4 RU description keys;
+  `tests/client/components/board/aresThresholdMarkers.spec.ts`. vue-tsc + make:json + make:css green.
 - **2026-06-26** — Phase 2: hazard-clearing TR attribution. New `ares-hazard` `TRSourceType`
   → `TerraformRatingBreakdown.hazards` (split out of `cards`) → own diegetic VP segment
   «Очистка опасных зон» (`tr.hazards`, ochre accent). Cleanup-by-build
