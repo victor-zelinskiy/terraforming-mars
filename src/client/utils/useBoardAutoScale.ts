@@ -62,7 +62,13 @@ import {onMounted, onBeforeUnmount} from 'vue';
 //     coords) keeps ~30-50 px clearance from the top button bar even at
 //     the largest scales we hit (3.0+).
 const BOARD_NATURAL_WIDTH = 670;
-const BOARD_NATURAL_HEIGHT = 610;
+// HEIGHT = 624: planet 600 + a small bottom reserve for the OCEAN ARC SCALE
+// (OceanArcScale.vue) which is drawn in code just below the planet's lower rim,
+// plus its indicator settle-ping and (when enabled) the planetary-event chips.
+// Bumping the natural height a hair shrinks the whole board ~2% so the arc +
+// its glow never clip the bottom — the planet does NOT move (it stays centred),
+// it just scales fractionally. Was 610 before the ocean arc landed.
+const BOARD_NATURAL_HEIGHT = 624;
 
 // Hard limits so the auto-scale never goes absurd on edge viewports.
 // MIN_SCALE: at narrower-than-default laptops, the board may visually

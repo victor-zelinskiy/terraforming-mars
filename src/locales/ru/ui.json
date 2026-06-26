@@ -1358,5 +1358,11 @@
     "offers a rematch with the same settings.": "предлагает реванш с теми же настройками.",
     "The rematch is ready!": "Реванш готов!",
     "A new game was created with the same settings.": "Создана новая партия с теми же настройками.",
-    "declined the rematch.": "отказался от реванша."
+    "declined the rematch.": "отказался от реванша.",
+    "Planetary event": "Планетарное событие",
+    "Erosions appear on the surface when the 3rd ocean is placed.": "Когда размещён 3-й океан, на поверхности появляются эрозии.",
+    "Dust storms recede when the 6th ocean is placed.": "Когда размещён 6-й океан, пылевые бури отступают.",
+    "No reward to players.": "Награда игрокам: нет.",
+    "Reward to the player reaching the threshold:": "Получит игрок, достигший порога:",
+    "+1 TR": "+1 РТ"
 }

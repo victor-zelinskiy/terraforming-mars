@@ -49,7 +49,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 
-type AccentName = 'temperature' | 'oxygen' | 'venus';
+type AccentName = 'temperature' | 'oxygen' | 'venus' | 'oceans';
 
 type Anchor = {
   value: number;
@@ -116,6 +116,7 @@ const accentBaseline: Record<AccentName, AccentState> = {
   temperature: {lastValue: undefined},
   oxygen: {lastValue: undefined},
   venus: {lastValue: undefined},
+  oceans: {lastValue: undefined},
 };
 
 /**
