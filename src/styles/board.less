@@ -107,13 +107,19 @@
  * Replacement workflow: overwrite the PNG with a 2×/3×/4× upscale, no
  * code changes needed. WebP/AVIF can be added later via image-set().
  */
-.board-with-venus {
-	background: url(./assets/board/mars.png) no-repeat;
-	background-size: 620px 600px;
-}
-
+/*
+ * mars.png is now PLANET-ONLY — the global-parameter arcs (O₂ / temperature /
+ * Venus / oceans) are rendered dynamically in code (ArcScale / OceanArcScale),
+ * not baked into the image. So the planet background is the SAME regardless of
+ * Venus: `getGameBoardClassName()` always returns `board-with-venus`, and the
+ * Venus SCALE is toggled by the expansion on its dynamic band. The legacy
+ * `mars-without-venus.png` is retired; `.board-without-venus` is kept only as a
+ * defensive alias to the same planet image so no code path can reference the
+ * old asset.
+ */
+.board-with-venus,
 .board-without-venus {
-	background: url(./assets/board/mars-without-venus.png) no-repeat;
+	background: url(./assets/board/mars.png) no-repeat;
 	background-size: 620px 600px;
 }
 
