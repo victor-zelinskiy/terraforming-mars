@@ -74,7 +74,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
     gradient: [{offset: 0, color: '#3a93b4'}, {offset: 55, color: '#7fd4ee'}, {offset: 100, color: '#dffaff'}],
     vars: {
       '--arc-deep': '#3a93b4', '--arc-glow': 'rgba(170, 232, 252, 0.55)', '--arc-glow-soft': 'rgba(170, 232, 252, 0.26)',
-      '--arc-rail': 'rgba(6, 16, 26, 0.5)', '--arc-channel': 'rgba(20, 46, 62, 0.93)',
+      '--arc-rail': 'rgba(6, 16, 26, 0.5)', '--arc-channel': 'rgba(18, 44, 60, 0.78)',
       '--arc-edge': 'rgba(206, 244, 255, 0.5)', '--arc-rim': 'rgba(224, 248, 255, 0.62)',
       '--arc-cap': 'rgba(206, 244, 255, 0.92)', '--arc-tick': 'rgba(186, 222, 240, 0.32)',
       '--arc-accent': '#cdf2ff',
@@ -87,7 +87,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
     gradient: [{offset: 0, color: '#7b74d6'}, {offset: 38, color: '#b85a9e'}, {offset: 72, color: '#e0664e'}, {offset: 100, color: '#f3953e'}],
     vars: {
       '--arc-deep': '#5a4a86', '--arc-glow': 'rgba(232, 120, 96, 0.5)', '--arc-glow-soft': 'rgba(232, 120, 96, 0.24)',
-      '--arc-rail': 'rgba(14, 8, 20, 0.55)', '--arc-channel': 'rgba(32, 22, 42, 0.93)',
+      '--arc-rail': 'rgba(14, 8, 20, 0.55)', '--arc-channel': 'rgba(30, 22, 40, 0.78)',
       '--arc-edge': 'rgba(255, 196, 150, 0.42)', '--arc-rim': 'rgba(255, 214, 196, 0.55)',
       '--arc-cap': 'rgba(255, 184, 140, 0.92)', '--arc-tick': 'rgba(214, 170, 180, 0.3)',
       '--arc-accent': '#f0a07a',
@@ -100,7 +100,7 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
     gradient: [{offset: 0, color: '#9a6a1e'}, {offset: 55, color: '#e0a83a'}, {offset: 100, color: '#ffe6a6'}],
     vars: {
       '--arc-deep': '#9a6a1e', '--arc-glow': 'rgba(245, 206, 110, 0.55)', '--arc-glow-soft': 'rgba(245, 206, 110, 0.26)',
-      '--arc-rail': 'rgba(20, 12, 4, 0.55)', '--arc-channel': 'rgba(46, 32, 10, 0.93)',
+      '--arc-rail': 'rgba(20, 12, 4, 0.55)', '--arc-channel': 'rgba(44, 32, 12, 0.78)',
       '--arc-edge': 'rgba(255, 224, 150, 0.45)', '--arc-rim': 'rgba(255, 234, 180, 0.6)',
       '--arc-cap': 'rgba(255, 224, 150, 0.92)', '--arc-tick': 'rgba(226, 196, 140, 0.32)',
       '--arc-accent': '#ffe6a6',

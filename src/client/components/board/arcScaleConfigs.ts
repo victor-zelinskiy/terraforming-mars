@@ -100,9 +100,37 @@ function buildConfig(name: ArcScaleName, vals: ReadonlyArray<Val>, opts: {bandWi
   };
 }
 
-export const OXYGEN_ARC = buildConfig('oxygen', OXYGEN_VALS, {bandWidth: 34});
-export const TEMPERATURE_ARC = buildConfig('temperature', TEMPERATURE_VALS, {bandWidth: 36});
-export const VENUS_ARC = buildConfig('venus', VENUS_VALS, {bandWidth: 32});
+/**
+ * Build a config for a scale whose values are EVENLY spaced along the arc
+ * (no hand-tuned digit table) — i.e. the oceans scale, which is fully code-
+ * rendered. Lets OceanArcScale feed the SAME generic ArcScale band as the others.
+ */
+export function buildLinearArcConfig(name: ArcScaleName, opts: {
+  startValue: number; endValue: number; startAngle: number; endAngle: number; radius: number; bandWidth: number;
+}): DynamicArcConfig {
+  const {startValue, endValue, startAngle, endAngle, radius, bandWidth} = opts;
+  const span = endValue - startValue;
+  const digits: Array<ArcDigit> = [];
+  for (let v = startValue; v <= endValue; v++) {
+    const t = span === 0 ? 0 : (v - startValue) / span;
+    digits.push({value: v, angle: startAngle + t * (endAngle - startAngle), radius});
+  }
+  return {name, center: CENTER, bandRadius: radius, bandWidth, startValue, endValue, startAngle, endAngle, digits};
+}
+
+// Band thickness is uniform across all scales now that the bands no longer have
+// to COVER a baked-in PNG arc (mars.png is planet-only) — a thin, elegant band
+// matching the ocean reference (BAND_WIDTH) keeps the family consistent.
+const BAND_WIDTH = 18;
+
+export const OXYGEN_ARC = buildConfig('oxygen', OXYGEN_VALS, {bandWidth: BAND_WIDTH});
+export const TEMPERATURE_ARC = buildConfig('temperature', TEMPERATURE_VALS, {bandWidth: BAND_WIDTH});
+export const VENUS_ARC = buildConfig('venus', VENUS_VALS, {bandWidth: BAND_WIDTH});
+// Oceans — evenly spaced 1–9 across the free bottom window (matches the values
+// OceanArcScale has used since the pilot). Same band as the others.
+export const OCEAN_ARC = buildLinearArcConfig('oceans', {
+  startValue: 1, endValue: 9, startAngle: 116, endAngle: 64, radius: 264, bandWidth: BAND_WIDTH,
+});
 
 /** Angle (deg) of a value, or the nearest tick's angle when between ticks. */
 export function arcAngleForValue(config: DynamicArcConfig, value: number): number {

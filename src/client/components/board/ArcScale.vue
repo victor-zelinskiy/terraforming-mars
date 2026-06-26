@@ -39,6 +39,13 @@
       <path class="arc-scale__edge" :d="edgePathD" />
       <!-- inner glass sheen -->
       <path class="arc-scale__sheen" :d="sheenPathD" />
+      <!-- segment dividers — only for low-value scales (e.g. oceans 1–9), where
+           they read as distinct slots; busier scales (15–20 ticks) skip them -->
+      <line
+        v-for="d in dividers"
+        :key="'dv-' + d.key"
+        class="arc-scale__divider"
+        :x1="d.x1" :y1="d.y1" :x2="d.x2" :y2="d.y2" />
       <!-- graduation ticks; visited (reached) ones light up -->
       <line
         v-for="t in ticks"
@@ -156,6 +163,29 @@ export default defineComponent({
     capEnd(): {x: number; y: number} {
       const p = pointAtAngle(this.center, this.config.bandRadius, this.config.endAngle);
       return {x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100};
+    },
+    // Boundary dividers between consecutive values — segment the band into
+    // discrete slots. Only for compact scales (≤10 values); the dense O₂ /
+    // temperature / Venus scales would look cluttered, so they get none.
+    dividers(): ReadonlyArray<{key: number; x1: number; y1: number; x2: number; y2: number}> {
+      const d = this.config.digits;
+      if (d.length > 10) {
+        return [];
+      }
+      const r1 = this.innerR + 1.5;
+      const r2 = this.outerR - 1.5;
+      const out: Array<{key: number; x1: number; y1: number; x2: number; y2: number}> = [];
+      for (let i = 0; i < d.length - 1; i++) {
+        const a = (d[i].angle + d[i + 1].angle) / 2;
+        const p1 = pointAtAngle(this.center, r1, a);
+        const p2 = pointAtAngle(this.center, r2, a);
+        out.push({
+          key: i,
+          x1: Math.round(p1.x * 100) / 100, y1: Math.round(p1.y * 100) / 100,
+          x2: Math.round(p2.x * 100) / 100, y2: Math.round(p2.y * 100) / 100,
+        });
+      }
+      return out;
     },
     ticks(): ReadonlyArray<{value: number; x1: number; y1: number; x2: number; y2: number}> {
       const r1 = this.outerR + 2;
