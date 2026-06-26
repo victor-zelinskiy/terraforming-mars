@@ -1066,3 +1066,14 @@ export enum CardName {
   HACKERS_UNDERWORLD = 'Hackers:u',
   HIRED_RAIDERS_UNDERWORLD = 'Hired Raiders:u',
 }
+
+/**
+ * The base card name WITHOUT a `:variant` suffix (`Nuclear Zone:ares` →
+ * `Nuclear Zone`, `Deimos Down:promo` → `Deimos Down`). For DISPLAY only: a
+ * variant card/tile must never show the expansion suffix, and the base name is
+ * the translation key. Mirrors CardTitle's `title.split(':')[0]`; centralised so
+ * every name surface (board info, …) stays consistent for ALL variant cards.
+ */
+export function baseCardName(name: string): string {
+  return name.split(':')[0];
+}

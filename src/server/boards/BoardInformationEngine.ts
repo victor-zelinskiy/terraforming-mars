@@ -5,7 +5,7 @@ import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {CITY_TILES, OCEAN_TILES, GREENERY_TILES, HAZARD_TILES, TileType, tileTypeToString} from '../../common/TileType';
 import {HAZARD_STEPS, hazardSeverity} from '../../common/AresTileType';
-import {CardName} from '../../common/cards/CardName';
+import {CardName, baseCardName} from '../../common/cards/CardName';
 import {PlacementType} from './PlacementType';
 import * as constants from '../../common/constants';
 import {
@@ -260,7 +260,11 @@ function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
     // the generic 'city'/'ocean'/'greenery' pseudo-names (an ordinary CITY tile
     // off-grid — Maxwell Base — is named only by its source card). Ordinary
     // on-grid tiles keep their placing card but never SHOW it (special !== true).
-    const tileLabel = space.tile.card ?? (isSpecialTile(tileType) ? tileTypeToString[tileType] : undefined);
+    // The card name is stripped to its base (Nuclear Zone:ares → Nuclear Zone) so
+    // the UI never shows the expansion suffix / an untranslated variant id.
+    const tileLabel = space.tile.card !== undefined ?
+      baseCardName(space.tile.card) :
+      (isSpecialTile(tileType) ? tileTypeToString[tileType] : undefined);
     // City wins the dot/content for a COMPOSITE (New Holland / Ocean City count
     // as both) — they read as city-like, not plain ocean.
     const content = Board.isCitySpace(space) ? 'city' :
@@ -710,17 +714,9 @@ function hazardHoverFacts(player: IPlayer, space: Space): Array<BoardFact> {
     description: 'Building a tile here removes the hazard.',
     delta: {icon: 'tr', amount: steps, direction: 'gain'},
   });
-  if (cleanupCost > 0) {
-    out.push({
-      id: 'hazard-cleanup-cost',
-      category: 'hazard-cleanup',
-      timing: 'cost',
-      severity: 'warning',
-      recipient: {kind: 'current-player'},
-      title: 'Cleanup cost',
-      delta: {icon: 'megacredits', amount: cleanupCost, direction: 'cost'},
-    });
-  }
+  // The build cost (hazard cleanup + any adjacency surcharge) — broken down when
+  // composed, so a price changed by an adjacent Nuclear Zone is explained.
+  out.push(...megacreditCostFacts(player, space, cleanupCost, 'hazard-cleanup', true));
   out.push({
     id: 'hazard-adjacency',
     category: 'hazard-penalty',
@@ -812,21 +808,108 @@ function zoneImpact(timing: 'warning' | 'rule', description: string): BoardFact 
 // Placement cost
 // ---------------------------------------------------------------------------
 
+// Per-step hazard cleanup M€ (mild = 1 step = 8 M€, severe = 2 steps = 16 M€).
+// Mirrors Board.computeAdditionalCosts.
+const HAZARD_MEGACREDITS_PER_STEP = 8;
+
+type McCostFactor = {id: string, kind: 'cleanup' | 'adjacency' | 'base', amount: number, cardName?: string};
+
+/**
+ * Decompose the M€ placement cost into its explainable factors — hazard cleanup
+ * (placing ON a hazard), each adjacent tile's surcharge (Nuclear Zone), and the
+ * printed cell cost — so the player sees WHY the price differs from the base. The
+ * TOTAL is authoritative (`placementCostInfo`); `base` is the reconciling remainder,
+ * so the factors always sum to the total. Generic: works for ANY adjacency-cost tile.
+ */
+function megacreditCostFactors(player: IPlayer, space: Space, total: number): ReadonlyArray<McCostFactor> {
+  const board = player.game.board;
+  const factors: Array<McCostFactor> = [];
+  const cleanupSteps = HAZARD_STEPS[hazardSeverity(space.tile?.tileType)];
+  if (cleanupSteps > 0) {
+    factors.push({id: 'mc-cleanup', kind: 'cleanup', amount: cleanupSteps * HAZARD_MEGACREDITS_PER_STEP});
+  }
+  for (const adj of board.getAdjacentSpaces(space)) {
+    const adjCost = adj.adjacency?.cost ?? 0;
+    if (adjCost > 0) {
+      const cardName = adj.tile?.card !== undefined ?
+        baseCardName(adj.tile.card) :
+        (adj.tile !== undefined ? tileTypeToString[adj.tile.tileType] : undefined);
+      factors.push({id: `mc-adj-${adj.id}`, kind: 'adjacency', amount: adjCost, cardName});
+    }
+  }
+  const accounted = factors.reduce((sum, f) => sum + f.amount, 0);
+  const base = total - accounted;
+  if (base > 0) {
+    factors.unshift({id: 'mc-base', kind: 'base', amount: base});
+  }
+  return factors;
+}
+
+function mcFactorTitle(f: McCostFactor): string {
+  switch (f.kind) {
+  case 'cleanup': return 'Cleanup cost';
+  case 'adjacency': return f.cardName ?? 'Adjacent tile';
+  case 'base': return 'Placement cost';
+  }
+}
+
+/**
+ * The M€ placement cost as premium facts: a SINGLE labelled line when one factor
+ * makes up the price, else a "Total placement cost" header + the contributing
+ * factors — so a price bumped by an adjacent Nuclear Zone / a hazard cleanup is
+ * EXPLAINED, not silently shown. `category` lets the same breakdown render in the
+ * placement-preview cost section OR the hover hazard section.
+ */
+function megacreditCostFacts(player: IPlayer, space: Space, total: number, category: BoardFact['category'], affordable: boolean): Array<BoardFact> {
+  if (total <= 0) {
+    return [];
+  }
+  const factors = megacreditCostFactors(player, space, total);
+  const headSeverity = affordable ? 'warning' : 'danger';
+  if (factors.length <= 1) {
+    const f = factors[0];
+    return [{
+      id: 'cost-mc',
+      category,
+      timing: 'cost',
+      severity: headSeverity,
+      recipient: {kind: 'current-player'},
+      title: f === undefined ? 'Placement cost' : mcFactorTitle(f),
+      description: f?.kind === 'adjacency' ? 'Adjacency cost' : undefined,
+      delta: {icon: 'megacredits', amount: total, direction: 'cost'},
+      source: {type: 'map-rule', label: 'Placement cost'},
+    }];
+  }
+  const out: Array<BoardFact> = [{
+    id: 'cost-mc-total',
+    category,
+    timing: 'cost',
+    severity: headSeverity,
+    recipient: {kind: 'current-player'},
+    title: 'Total placement cost',
+    description: 'Adjusted by the factors below.',
+    delta: {icon: 'megacredits', amount: total, direction: 'cost'},
+    source: {type: 'map-rule', label: 'Placement cost'},
+  }];
+  for (const f of factors) {
+    out.push({
+      id: f.id,
+      category,
+      timing: 'cost',
+      severity: 'info',
+      recipient: {kind: 'current-player'},
+      title: mcFactorTitle(f),
+      description: f.kind === 'adjacency' ? 'Adjacency cost' : undefined,
+      delta: {icon: 'megacredits', amount: f.amount, direction: 'cost'},
+    });
+  }
+  return out;
+}
+
 function placementCostFacts(player: IPlayer, space: Space): Array<BoardFact> {
   const info = player.game.board.placementCostInfo(player, space);
   const out: Array<BoardFact> = [];
-  if (info.megacredits > 0) {
-    out.push({
-      id: 'cost-mc',
-      category: 'placement-cost',
-      timing: 'cost',
-      severity: info.affordable ? 'warning' : 'danger',
-      recipient: {kind: 'current-player'},
-      title: 'Placement cost',
-      delta: {icon: 'megacredits', amount: info.megacredits, direction: 'cost'},
-      source: {type: 'map-rule', label: 'Placement cost'},
-    });
-  }
+  out.push(...megacreditCostFacts(player, space, info.megacredits, 'placement-cost', info.affordable));
   if (info.production > 0) {
     // A FORCED negative: placing next to a hazard makes you reduce production —
     // surface the EXACT amount + that it's your choice, BEFORE confirming.
