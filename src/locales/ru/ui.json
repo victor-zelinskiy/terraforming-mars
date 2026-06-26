@@ -669,6 +669,8 @@
     "No card to add the resource to": "Нет карты для добавления ресурса",
     "No card has a microbe to remove": "Нет карты с бактерией для удаления",
     "No card has an animal to remove": "Нет карты с животным для удаления",
+    "No animals on this card to move": "На этой карте нет животных для перемещения",
+    "No other card to receive an animal": "Нет другой карты, чтобы добавить животное",
     "No disease resources to remove": "Нет жетонов болезни для удаления",
     "No card to place resources on": "Нет карты для размещения ресурсов",
     "No other action card to copy": "Нет другого действия для копирования",

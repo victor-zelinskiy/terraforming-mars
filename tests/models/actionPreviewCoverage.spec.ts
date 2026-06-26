@@ -5,7 +5,7 @@ import {GameModule} from '../../src/common/cards/GameModule';
 import {testGame} from '../TestGame';
 import {actionPreview} from '../../src/server/models/actionPreview';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
 
 /**
  * Every in-scope action card must produce a VALID, NON-THROWING preview (the
