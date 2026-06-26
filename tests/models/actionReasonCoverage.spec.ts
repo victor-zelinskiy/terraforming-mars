@@ -3,7 +3,7 @@ import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {isIActionCard, ICard} from '../../src/server/cards/ICard';
 import {GameModule} from '../../src/common/cards/GameModule';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
 
 // A card whose canAct is literally `return true` can never be unavailable, so it
 // never needs a reason. Detect by source (despaced) ending in `return true}`.

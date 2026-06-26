@@ -9,6 +9,7 @@ import {SelectCardDeferred} from '../../deferredActions/SelectCardDeferred';
 import {CardRenderer} from '../render/CardRenderer';
 import {IPlayer} from '../../IPlayer';
 import {LogHelper} from '../../LogHelper';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 
 export class BioengineeringEnclosure extends Card implements IProjectCard, IActionCard {
   constructor() {
@@ -44,6 +45,18 @@ export class BioengineeringEnclosure extends Card implements IProjectCard, IActi
 
   public canAct(player: IPlayer): boolean {
     return this.resourceCount > 0 && this.availableCards(player).length > 0;
+  }
+
+  // Co-located reason (next to `canAct`) for the ДЕЙСТВИЯ overlay's "why can't I
+  // activate" popover. Name the ONE concrete blocker, never an "X or Y" combo.
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    if (this.resourceCount === 0) {
+      return {type: 'count', message: 'No animals on this card to move'};
+    }
+    if (this.availableCards(player).length === 0) {
+      return {type: 'target', message: 'No other card to receive an animal'};
+    }
+    return undefined;
   }
 
   public action(player: IPlayer) {
