@@ -81,7 +81,8 @@ export type JournalActionCategory =
   | 'milestone'
   | 'award'
   | 'delta-project' // an advance on the Delta Project ("Гидросеть") track
-  | 'vp-pressure'; // a VP-pressure effect activated (Vermin reached 10 animals)
+  | 'vp-pressure' // a VP-pressure effect activated (Vermin reached 10 animals)
+  | 'planetary-event'; // an Ares planetary event (hazards appear / intensify / recede)
 
 /**
  * `journal` — meaningful to the player / the game's story (may later be shown

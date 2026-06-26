@@ -4,6 +4,7 @@ import {SelectCard} from '../inputs/SelectCard';
 import {Space} from '../boards/Space';
 import {IPlayer} from '../IPlayer';
 import {CardResource} from '../../common/CardResource';
+import {Resource} from '../../common/Resource';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {HAZARD_STEPS, HazardSeverity, hazardSeverity} from '../../common/AresTileType';
 import {TileType, tileTypeToString} from '../../common/TileType';
@@ -91,11 +92,14 @@ export class AresHandler {
           break;
 
         case SpaceBonus.MEGACREDITS:
-          player.megaCredits++;
+          // Route through stock.add (NOT player.megaCredits++) so the adjacency
+          // gain reaches the event stream / premium journal. log:false keeps the
+          // single summary log below (no double-logging).
+          player.stock.add(Resource.MEGACREDITS, 1, {log: false});
           break;
 
         case SpaceBonus.ENERGY:
-          player.energy++;
+          player.stock.add(Resource.ENERGY, 1, {log: false});
           break;
 
         case SpaceBonus.MICROBE:
@@ -121,7 +125,7 @@ export class AresHandler {
         ownerBonus = 2;
       }
 
-      adjacentPlayer.megaCredits += ownerBonus;
+      adjacentPlayer.stock.add(Resource.MEGACREDITS, ownerBonus, {log: false});
       player.game.log('${0} gains ${1} M€ for a tile placed next to ${2}', (b) => b.player(adjacentPlayer).number(ownerBonus).string(tileText));
     }
   }
@@ -226,16 +230,16 @@ export class AresHandler {
     }
   }
 
-  public static onTemperatureChange(game: IGame, aresData: AresData) {
-    AresHazards.onTemperatureChange(game, aresData);
+  public static onTemperatureChange(game: IGame, aresData: AresData, player: IPlayer) {
+    AresHazards.onTemperatureChange(game, aresData, player);
   }
 
   public static onOceanPlaced(aresData: AresData, player: IPlayer) {
     AresHazards.onOceanPlaced(aresData, player);
   }
 
-  public static onOxygenChange(game: IGame, aresData: AresData) {
-    AresHazards.onOxygenChange(game, aresData);
+  public static onOxygenChange(game: IGame, aresData: AresData, player: IPlayer) {
+    AresHazards.onOxygenChange(game, aresData, player);
   }
 
   public static grantBonusForRemovingHazard(player: IPlayer, initialTileType: TileType) {

@@ -27,26 +27,48 @@ export class AresHazards {
     return space;
   }
 
-  public static makeSevere(game: IGame, from: TileType, to: TileType) {
+  // Upgrade every mild hazard of a type to its severe form; returns how many were
+  // upgraded. The log is emitted by the caller (inside the planetary-event scope)
+  // ONLY when something actually changed — so a consumed-but-empty threshold makes
+  // no journal noise.
+  public static makeSevere(game: IGame, from: TileType, to: TileType): number {
+    let count = 0;
     game.board.spaces
       .filter((s) => s.tile?.tileType === from)
       .forEach((s) => {
         if (s.tile !== undefined) {
           s.tile.tileType = to;
+          count++;
         }
       });
-
-    game.log('${0} have upgraded to ${1}', (b) => b.tileType(from).tileType(to));
+    return count;
   }
 
-  public static onTemperatureChange(game: IGame, aresData: AresData) {
+  // Wrap an Ares PLANETARY EVENT in its own journal root scope so it groups under
+  // a single "Planetary event" entry (correlationId + category) and surfaces as a
+  // premium notification — never an attribution-less bare log.
+  private static planetaryEvent(player: IPlayer, fn: () => void): void {
+    player.game.events.beginAction(player, {kind: 'system'}, {category: 'planetary-event'});
+    try {
+      fn();
+    } finally {
+      player.game.events.endScope();
+    }
+  }
+
+  public static onTemperatureChange(game: IGame, aresData: AresData, player: IPlayer) {
     // This will have no effect if the erosions don't exist, but that's OK --
     // the check for placing erosions will take this into account.
     this.testConstraint(
       aresData.hazardData.severeErosionTemperature,
       game.getTemperature(),
       () => {
-        this.makeSevere(game, TileType.EROSION_MILD, TileType.EROSION_SEVERE);
+        const count = this.makeSevere(game, TileType.EROSION_MILD, TileType.EROSION_SEVERE);
+        if (count > 0) {
+          this.planetaryEvent(player, () => {
+            game.log('Planetary event: erosions intensify into severe hazards. Affected: ${0}', (b) => b.number(count));
+          });
+        }
       },
     );
   }
@@ -56,9 +78,14 @@ export class AresHazards {
     this.testToRemoveDustStorms(aresData, player);
   }
 
-  public static onOxygenChange(game: IGame, aresData: AresData) {
+  public static onOxygenChange(game: IGame, aresData: AresData, player: IPlayer) {
     this.testConstraint(aresData.hazardData.severeDustStormOxygen, game.getOxygenLevel(), () => {
-      this.makeSevere(game, TileType.DUST_STORM_MILD, TileType.DUST_STORM_SEVERE);
+      const count = this.makeSevere(game, TileType.DUST_STORM_MILD, TileType.DUST_STORM_SEVERE);
+      if (count > 0) {
+        this.planetaryEvent(player, () => {
+          game.log('Planetary event: dust storms intensify into severe hazards. Affected: ${0}', (b) => b.number(count));
+        });
+      }
     });
   }
 
@@ -71,15 +98,18 @@ export class AresHazards {
       aresData.hazardData.erosionOceanCount,
       player.game.board.getOceanSpaces().length,
       () => {
-        let type = TileType.EROSION_MILD;
-        if (aresData.hazardData.severeErosionTemperature.available !== true) {
-          type = TileType.EROSION_SEVERE;
-        }
+        this.planetaryEvent(player, () => {
+          player.game.log('Planetary event: erosions appear on the surface.');
+          let type = TileType.EROSION_MILD;
+          if (aresData.hazardData.severeErosionTemperature.available !== true) {
+            type = TileType.EROSION_SEVERE;
+          }
 
-        const space1 = this.randomlyPlaceHazard(player.game, type, 'top');
-        const space2 = this.randomlyPlaceHazard(player.game, type, 'bottom');
-        [space1, space2].forEach((space) => {
-          LogHelper.logTilePlacement(player, space, type);
+          const space1 = this.randomlyPlaceHazard(player.game, type, 'top');
+          const space2 = this.randomlyPlaceHazard(player.game, type, 'bottom');
+          [space1, space2].forEach((space) => {
+            LogHelper.logTilePlacement(player, space, type);
+          });
         });
       },
     );
@@ -90,20 +120,23 @@ export class AresHazards {
       aresData.hazardData.removeDustStormsOceanCount,
       player.game.board.getOceanSpaces().length,
       () => {
-        player.game.board.spaces.forEach((space) => {
-          if (space.tile?.tileType === TileType.DUST_STORM_MILD || space.tile?.tileType === TileType.DUST_STORM_SEVERE) {
-            if (space.tile.protectedHazard !== true) {
-              space.tile = undefined;
+        this.planetaryEvent(player, () => {
+          player.game.board.spaces.forEach((space) => {
+            if (space.tile?.tileType === TileType.DUST_STORM_MILD || space.tile?.tileType === TileType.DUST_STORM_SEVERE) {
+              if (space.tile.protectedHazard !== true) {
+                space.tile = undefined;
+              }
             }
+          });
+          player.game.log('Planetary event: dust storms recede across the surface.');
+
+          if (player.game.phase !== Phase.SOLAR) {
+            // Attribute to the hazard-clearing VP segment, NOT whatever card/scope
+            // happened to be active when the ocean crossed the threshold.
+            player.increaseTerraformRating(1, {trAttribution: {sourceType: 'ares-hazard', sourceName: 'Hazard cleanup'}});
+            player.game.log('${0}\'s TR increases 1 step for eliminating dust storms.', (b) => b.player(player));
           }
         });
-
-        if (player.game.phase !== Phase.SOLAR) {
-          // Attribute to the hazard-clearing VP segment, NOT whatever card/scope
-          // happened to be active when the ocean crossed the threshold.
-          player.increaseTerraformRating(1, {trAttribution: {sourceType: 'ares-hazard', sourceName: 'Hazard cleanup'}});
-          player.game.log('${0}\'s TR increases 1 step for eliminating dust storms.', (b) => b.player(player));
-        }
       },
     );
   }

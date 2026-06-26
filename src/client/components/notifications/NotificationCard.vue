@@ -421,6 +421,7 @@ export default defineComponent({
       case 'standard-project': return '⬡';
       case 'colony': return '◉';
       case 'hydronetwork': return '≈';
+      case 'planetary-event': return '◬';
       case 'blue-action': return '⟳';
       case 'passive-effect': return '✦';
       case 'destroy': return '✖';

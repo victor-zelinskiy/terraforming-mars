@@ -97,6 +97,7 @@ export type NotificationVariant =
   | 'reveal-hand' // cards were shown from a player's hand (PublicPlans)
   | 'colony' // a colony was traded with / built
   | 'hydronetwork' // an advance on the Delta Project ("Гидросеть") track
+  | 'planetary-event' // an Ares planetary event (hazards appear / intensify / recede)
   | 'milestone' // an achievement was claimed
   | 'award' // an award was funded
   | 'generation' // a new generation began
