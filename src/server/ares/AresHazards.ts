@@ -99,7 +99,9 @@ export class AresHazards {
         });
 
         if (player.game.phase !== Phase.SOLAR) {
-          player.increaseTerraformRating();
+          // Attribute to the hazard-clearing VP segment, NOT whatever card/scope
+          // happened to be active when the ocean crossed the threshold.
+          player.increaseTerraformRating(1, {trAttribution: {sourceType: 'ares-hazard', sourceName: 'Hazard cleanup'}});
           player.game.log('${0}\'s TR increases 1 step for eliminating dust storms.', (b) => b.player(player));
         }
       },

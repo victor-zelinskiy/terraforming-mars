@@ -244,7 +244,9 @@ export class AresHandler {
     }
     const steps = HAZARD_STEPS[hazardSeverity(initialTileType)];
     if (steps > 0) {
-      player.increaseTerraformRating(steps);
+      // Attribute to the hazard-clearing VP segment, NOT the card/action whose
+      // tile placement happened to cover the hazard.
+      player.increaseTerraformRating(steps, {trAttribution: {sourceType: 'ares-hazard', sourceName: 'Hazard cleanup'}});
       player.game.log('${0}\'s TR increases ${1} step(s) for removing ${2}', (b) => b.player(player).number(steps).tileType(initialTileType));
     }
   }

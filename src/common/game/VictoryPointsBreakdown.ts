@@ -24,7 +24,10 @@ export type CardVictoryPointsDetail = {cardName: string, victoryPoint: number, k
  */
 export type TRSourceType =
   | 'card' | 'corporation' | 'globalEvent' | 'party'
-  | 'venusTrackBonus' | 'legacyUnknown' | 'other';
+  | 'venusTrackBonus' | 'legacyUnknown' | 'other'
+  // TR from clearing a hazard zone (cleanup-by-building + the planetary
+  // dust-storm-removal event) — its OWN diegetic VP segment, never expansion-named.
+  | 'ares-hazard';
 
 export type TRSourceEntry = {
   sourceType: TRSourceType;
@@ -43,8 +46,11 @@ export type TRSourceEntry = {
  * CLEAN standard starting rating — it is NEVER a fallback for unclassified TR;
  * any residual is surfaced as a `legacyUnknown` entry inside `cardEntries`.
  *
+ * `hazards` is TR from clearing hazard zones (Ares) — split OUT of `cards` into
+ * its own segment so it reads as a distinct, diegetic source.
+ *
  * Invariant: baseRating + handicap + temperature + oxygen + oceans + venus +
- * cards === terraformRating, and Σ cardEntries.amount === cards.
+ * cards + hazards === terraformRating, and Σ cardEntries.amount === cards.
  */
 export type TerraformRatingBreakdown = {
   base: number; // = baseRating + handicap (back-compat)
@@ -59,6 +65,7 @@ export type TerraformRatingBreakdown = {
   venus: number;
   cards: number; // direct card / effect TR; Σ cardEntries
   cardEntries?: ReadonlyArray<TRSourceEntry>;
+  hazards?: number; // Ares — TR from clearing hazard zones (own segment; 0/absent when no Ares)
 };
 
 export type VictoryPointsBreakdown = {

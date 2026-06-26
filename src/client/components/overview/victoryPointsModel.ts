@@ -112,6 +112,8 @@ function trScale(b: VictoryPointsBreakdown): VPScale {
     {key: 'tr.oxygen', accent: 'oxygen', label: 'Oxygen', value: tr.oxygen},
     {key: 'tr.oceans', accent: 'oceans', label: 'Oceans', value: tr.oceans},
     {key: 'tr.venus', accent: 'venus', label: 'Venus', value: tr.venus},
+    // Ares — diegetic, never expansion-named («Очистка опасных зон»). 0/absent → filtered.
+    {key: 'tr.hazards', accent: 'tr-hazards', label: 'Hazard cleanup', value: tr.hazards ?? 0},
     {key: 'tr.cards', accent: 'tr-cards', label: 'Cards & effects', value: tr.cards},
   ]);
   // base can fall slightly negative on heavy TR loss — clamp the SEGMENT for
