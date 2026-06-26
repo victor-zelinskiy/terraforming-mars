@@ -43,6 +43,7 @@ import ModernAmountSelector from '@/client/components/modalInputs/ModernAmountSe
 import ModernResourcePicker from '@/client/components/modalInputs/ModernResourcePicker.vue';
 import ModernResourcesPicker from '@/client/components/modalInputs/ModernResourcesPicker.vue';
 import ModernProductionToLose from '@/client/components/modalInputs/ModernProductionToLose.vue';
+import ModernShiftAresGlobalParameters from '@/client/components/modalInputs/ModernShiftAresGlobalParameters.vue';
 import ContextualChoiceContent from '@/client/components/modalInputs/ContextualChoiceContent.vue';
 import VenusBonusContent from '@/client/components/modalInputs/VenusBonusContent.vue';
 import SpendHeatContent from '@/client/components/modalInputs/SpendHeatContent.vue';
@@ -71,6 +72,8 @@ const PREMIUM_COMPONENTS: Partial<Record<PlayerInputModel['type'], Component>> =
   'resources': ModernResourcesPicker,
   'productionToLose': ModernProductionToLose,
   'card': CardSelectionContent,
+  // Butterfly Effect (Ares) — shift the planetary event thresholds.
+  'aresGlobalParameters': ModernShiftAresGlobalParameters,
 };
 
 export default defineComponent({
@@ -84,6 +87,7 @@ export default defineComponent({
     ModernResourcePicker,
     ModernResourcesPicker,
     ModernProductionToLose,
+    ModernShiftAresGlobalParameters,
     ContextualChoiceContent,
     VenusBonusContent,
     SpendHeatContent,
