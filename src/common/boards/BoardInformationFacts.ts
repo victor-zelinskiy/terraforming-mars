@@ -56,6 +56,10 @@ export type BoardFactCategory =
   | 'city-greenery-scoring'
   | 'future-scoring'
   | 'map-special-zone'
+  // The tile/cell is OFF the normal Mars adjacency grid (a reserved off-Mars
+  // city slot — Maxwell Base / Ganymede Colony / …). Explains WHY normal
+  // city-greenery / ocean-adjacency facts do not apply here.
+  | 'external-area'
   | 'restriction'
   | 'reserved-area'
   | 'tile-owner-benefit'
@@ -135,6 +139,12 @@ export type BoardCellStatus = {
   /** What the tile counts AS for rules/scoring (a composite tile can be several).
    *  Drives a "Counts as: city, ocean" line. Empty for an ordinary tile. */
   countsAs?: ReadonlyArray<'city' | 'ocean' | 'greenery'>;
+  /** True when the cell is OFF the normal Mars adjacency grid (a reserved
+   *  off-Mars city slot — Maxwell Base / Ganymede Colony / Dawn City / …).
+   *  Such a tile does NOT participate in Mars city-greenery / ocean-adjacency
+   *  scoring even when it `countsAs` a city/ocean; the UI suppresses those facts
+   *  and shows an "external area" note instead. (`countsAs` ≠ "scores".) */
+  external?: boolean;
 };
 
 /** One player's Asteroid-Deflection-Zone plant-protection status. */

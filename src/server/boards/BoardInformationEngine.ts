@@ -54,12 +54,19 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
   facts.push(...specialZoneFacts(player, space));
 
   if (Board.hasRealTile(space)) {
-    // What's already here scores at endgame — show for whom.
-    facts.push(...existingTileScoringFacts(player, space));
-    // Hovering an OCEAN tile: explain that it's an adjacency SOURCE (the base
-    // for the future Ares "source nearby" language).
-    if (Board.isOceanSpace(space)) {
-      facts.push(oceanNeighbourRuleFact(player));
+    if (status.external === true) {
+      // Off the Mars grid (reserved off-Mars city slot): no Mars adjacency, so
+      // NEVER the city-greenery / ocean-adjacency facts — `countsAs` is shown
+      // separately by the client; here we explain why scoring doesn't apply.
+      facts.push(externalAreaFact());
+    } else {
+      // What's already here scores at endgame — show for whom.
+      facts.push(...existingTileScoringFacts(player, space));
+      // Hovering an OCEAN tile: explain that it's an adjacency SOURCE (the base
+      // for the future Ares "source nearby" language).
+      if (Board.isOceanSpace(space)) {
+        facts.push(oceanNeighbourRuleFact(player));
+      }
     }
   } else if (isPlaceable(space)) {
     // An empty placeable cell: what placing ANY tile here would grant (PASSIVE —
@@ -85,12 +92,16 @@ export function boardCellPreview(player: IPlayer, space: Space, kind: BoardPlace
   const facts: Array<BoardFact> = [];
   facts.push(...placementCostFacts(player, space));
   facts.push(...printedBonusFacts(space, covering));
-  const ocean = oceanAdjacencyFact(player, space);
-  if (ocean !== undefined) {
-    facts.push(ocean);
-  }
   facts.push(...placementEffectFacts(player, kind));
-  facts.push(...placementScoringFacts(player, space, kind));
+  // Adjacency-dependent facts (ocean M€ + city-greenery scoring) apply ONLY on
+  // the Mars hex grid — an off-grid reserved slot scores 0 for adjacency.
+  if (onMarsGrid(board, space)) {
+    const ocean = oceanAdjacencyFact(player, space);
+    if (ocean !== undefined) {
+      facts.push(ocean);
+    }
+    facts.push(...placementScoringFacts(player, space, kind));
+  }
   facts.push(...aresAdjacencyFacts(player, space));
   const deflection = deflectionPlacementFact(player, space);
   if (deflection !== undefined) {
@@ -156,6 +167,33 @@ function countsAsFor(tileType: TileType): Array<'city' | 'ocean' | 'greenery'> {
   return out;
 }
 
+/**
+ * Whether the cell participates in the normal Mars hex adjacency graph. The REAL
+ * source of truth for scoring/adjacency — mirrors `getAdjacentSpaces`, which
+ * returns `[]` for off-grid `COLONY` slots (the reserved off-Mars city spaces:
+ * Maxwell Base, Ganymede Colony, the Venus city slots). So a tile that
+ * `countsAs` a city/ocean but sits off-grid scores 0 for adjacency — we suppress
+ * the misleading "city scores for greeneries" / "ocean adjacency" facts for it.
+ * This is the gate that keeps `countsAs` SEPARATE from actual scoring.
+ */
+function onMarsGrid(board: Board, space: Space): boolean {
+  return board.getAdjacentSpaces(space).length > 0;
+}
+
+/** A neutral "this tile is off the Mars surface" explainer (replaces the false
+ *  Mars-adjacency facts for an occupied off-grid city). */
+function externalAreaFact(): BoardFact {
+  return {
+    id: 'external-area',
+    category: 'external-area',
+    timing: 'rule',
+    severity: 'info',
+    recipient: {kind: 'neutral'},
+    title: 'External area',
+    description: 'This tile is outside the normal Mars surface. Normal Mars adjacency does not apply.',
+  };
+}
+
 /** A passive one-liner under the header — never says "Вы получите" (hover, no action). */
 function cellDescription(space: Space, status: BoardCellStatus): string | undefined {
   if (status.content === 'ocean') {
@@ -192,19 +230,25 @@ function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
       return {content: 'hazard', spaceTypeLabel: spaceTypeLabel(space.spaceType)};
     }
     const tileType = space.tile.tileType;
-    const special = isSpecialTile(tileType);
+    // OFF the Mars adjacency grid? A reserved off-Mars city slot (Maxwell Base,
+    // Ganymede Colony, the Venus city slots) has no adjacency, so it never scores
+    // for greeneries / grants ocean M€ even though it `countsAs` a city. Such a
+    // tile is inherently SPECIAL even when its TileType is a plain CITY.
+    const external = !onMarsGrid(board, space);
+    const special = isSpecialTile(tileType) || external;
     const countsAs = countsAsFor(tileType);
-    // A known special tile ALWAYS has a name (`tileTypeToString` covers every
-    // TileType — it IS the source card for card-placed tiles); fall back to the
-    // recorded source card only if somehow unmapped. Ordinary tiles keep the
-    // placing card (if any) but never SHOW it (special !== true → nameless).
-    const tileLabel = special ? (tileTypeToString[tileType] ?? space.tile.card) : space.tile.card;
+    // Prefer the recorded SOURCE card (set by `behavior.city`/`behavior.tile`);
+    // fall back to the canonical tile-type name for a special TileType, but NEVER
+    // the generic 'city'/'ocean'/'greenery' pseudo-names (an ordinary CITY tile
+    // off-grid — Maxwell Base — is named only by its source card). Ordinary
+    // on-grid tiles keep their placing card but never SHOW it (special !== true).
+    const tileLabel = space.tile.card ?? (isSpecialTile(tileType) ? tileTypeToString[tileType] : undefined);
     // City wins the dot/content for a COMPOSITE (New Holland / Ocean City count
     // as both) — they read as city-like, not plain ocean.
     const content = Board.isCitySpace(space) ? 'city' :
       Board.isOceanSpace(space) ? 'ocean' :
       Board.isGreenerySpace(space) ? 'greenery' : 'special-tile';
-    return {content, ownerColor, tileLabel, special, countsAs};
+    return {content, ownerColor, tileLabel, special, countsAs, external};
   }
   return {content: 'empty', spaceTypeLabel: spaceTypeLabel(space.spaceType)};
 }
