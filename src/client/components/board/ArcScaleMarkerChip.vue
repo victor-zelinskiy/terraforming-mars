@@ -3,8 +3,8 @@
     ArcScaleMarkerChip — the UNIFIED marker chip for every global-parameter
     scale. The single premium chassis (pointer + halo + glass frame + icon +
     cube-slot) behind BOTH the scale REWARD bonuses (BonusZone: Venus / O₂ /
-    temperature) and the OCEAN planetary-EVENT chips (OceanEventMarker). Each
-    caller passes its own tooltip via the default <slot>.
+    temperature) and the planetary-EVENT chips (ScaleEventMarker: oceans /
+    temperature / oxygen). Each caller passes its own tooltip via the default <slot>.
 
     Reuses the proven `.bonus-zone__*` visual language (bonus_zones.less); the
     `variant` (reward / standard-bonus / planetary-event / hazard-event) and the

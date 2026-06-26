@@ -87,10 +87,26 @@
             -->
             <div class="global-numbers-temperature">
                 <bonus-zone v-for="zone in temperatureZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
+                <scale-event-marker
+                  v-for="m in temperatureEventMarkers"
+                  :key="m.marker.id"
+                  :marker="m.marker"
+                  surface="temperature"
+                  :top="m.top" :left="m.left" :size="m.size"
+                  :point="m.point" :pointerDist="m.pointerDist" :pointerLen="m.pointerLen"
+                  :reached="m.reached" />
             </div>
 
             <div class="global-numbers-oxygen">
                 <bonus-zone v-for="zone in oxygenZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
+                <scale-event-marker
+                  v-for="m in oxygenEventMarkers"
+                  :key="m.marker.id"
+                  :marker="m.marker"
+                  surface="oxygen"
+                  :top="m.top" :left="m.left" :size="m.size"
+                  :point="m.point" :pointerDist="m.pointerDist" :pointerLen="m.pointerLen"
+                  :reached="m.reached" />
             </div>
 
             <div class="global-numbers-venus" v-if="expansions.venus">
@@ -102,28 +118,7 @@
               A compact premium arc in the free bottom window, concentric with
               the scales above. See OceanArcScale.vue / arcScaleGeometry.ts.
             -->
-            <ocean-arc-scale :value="oceans_count" />
-
-
-<div v-if="expansions.ares && aresData !== undefined">
-                <div v-if="aresData.hazardData.erosionOceanCount.available">
-                    <div class="global-ares-erosions-icon"></div>
-                    <div class="global-ares-erosions-val">{{aresData.hazardData.erosionOceanCount.threshold}}</div>
-                </div>
-                <div v-if="aresData.hazardData.removeDustStormsOceanCount.available">
-                    <div class="global-ares-remove-dust-storms-icon"></div>
-                    <div class="global-ares-remove-dust-storms-val">{{aresData.hazardData.removeDustStormsOceanCount.threshold}}</div>
-                </div>
-                <div v-if="aresData.hazardData.severeErosionTemperature.available">
-                    <div class="global-ares-severe-erosions"
-                    :class="'global-ares-severe-erosions-'+aresData.hazardData.severeErosionTemperature.threshold"></div>
-                </div>
-                <div v-if="aresData.hazardData.severeDustStormOxygen.available">
-                    <div class="global-ares-severe-dust-storms"
-                    :class="'global-ares-severe-dust-storms-'+aresData.hazardData.severeDustStormOxygen.threshold"></div>
-                </div>
-            </div>
-
+            <ocean-arc-scale :value="oceans_count" :aresMarkers="oceanAresMarkers" />
         </div>
 
         <div class="board" id="main_board">
@@ -243,6 +238,9 @@ import SpecialCellMarker from '@/client/components/board/SpecialCellMarker.vue';
 import SpecialCellInfoOverlay from '@/client/components/board/SpecialCellInfoOverlay.vue';
 import OceanArcScale from '@/client/components/board/OceanArcScale.vue';
 import ArcScale from '@/client/components/board/ArcScale.vue';
+import ScaleEventMarker from '@/client/components/board/ScaleEventMarker.vue';
+import {aresThresholdMarkers, aresDynamicMarkerView, ScaleEventMarkerView} from '@/client/components/board/aresThresholdMarkers';
+import {GlobalParameterThresholdMarker} from '@/client/components/board/oceanThresholdMarkers';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import {OXYGEN_ARC, TEMPERATURE_ARC, VENUS_ARC} from '@/client/components/board/arcScaleConfigs';
 import BonusZone from '@/client/components/board/BonusZone.vue';
@@ -323,6 +321,7 @@ export default defineComponent({
     BoardCellInfoPopover,
     OceanArcScale,
     ArcScale,
+    ScaleEventMarker,
     BonusZone,
     ScaleTooltip,
   },
@@ -499,6 +498,30 @@ export default defineComponent({
     },
     temperatureZones(): ReadonlyArray<ScaleBonusZoneView & ScaleBonusClaim> {
       return this.scaleBonusZones.filter((z) => z.scale === 'temperature');
+    },
+    /**
+     * Premium PLANETARY-EVENT markers (Ares) — built from the LIVE hazard
+     * thresholds so they sit on the real digit (extreme-variant safe). Empty
+     * (so nothing renders) outside an Ares game — no leak.
+     */
+    aresMarkers(): ReadonlyArray<GlobalParameterThresholdMarker> {
+      if (this.expansions.ares !== true || this.aresData === undefined) {
+        return [];
+      }
+      return aresThresholdMarkers(this.aresData);
+    },
+    oceanAresMarkers(): ReadonlyArray<GlobalParameterThresholdMarker> {
+      return this.aresMarkers.filter((m) => m.parameter === 'oceans');
+    },
+    temperatureEventMarkers(): ReadonlyArray<ScaleEventMarkerView> {
+      return this.aresMarkers
+        .filter((m) => m.parameter === 'temperature')
+        .map((m) => aresDynamicMarkerView(m, this.temperature));
+    },
+    oxygenEventMarkers(): ReadonlyArray<ScaleEventMarkerView> {
+      return this.aresMarkers
+        .filter((m) => m.parameter === 'oxygen')
+        .map((m) => aresDynamicMarkerView(m, this.oxygen_level));
     },
     /**
      * Mars-surface cells (non-colony) for which a special-cell info entry
