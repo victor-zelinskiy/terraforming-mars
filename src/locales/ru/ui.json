@@ -1366,5 +1366,11 @@
     "Reward to the player reaching the threshold:": "Получит игрок, достигший порога:",
     "+1 TR": "+1 РТ",
     "Ocean scale": "Шкала океанов",
-    "Shows the number of oceans placed.": "Показывает количество размещённых океанов."
+    "Shows the number of oceans placed.": "Показывает количество размещённых океанов.",
+    "Oxygen scale": "Шкала кислорода",
+    "Shows the atmospheric oxygen level.": "Показывает уровень кислорода в атмосфере.",
+    "Temperature scale": "Шкала температуры",
+    "Shows the planet temperature.": "Показывает температуру планеты.",
+    "Venus scale": "Шкала Венеры",
+    "Shows the Venus terraforming level.": "Показывает уровень терраформирования Венеры."
 }

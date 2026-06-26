@@ -50,6 +50,20 @@
 
         <div class="global-numbers">
             <!--
+              DYNAMIC SCALES PREVIEW (?dynamicScales). The O₂ / temperature /
+              Venus colour bands are still baked into mars.png; behind this flag
+              we draw the code band (ArcScale) over them so the whole HUD can be
+              evaluated in the new premium language before the PNG arcs are
+              retired. The bands paint FIRST (behind the existing digits /
+              indicator / bonus chips, which are already dynamic). Ocean is
+              already fully code-rendered below (OceanArcScale), so it's always on.
+            -->
+            <template v-if="dynamicScales">
+                <arc-scale :theme="arcThemes.temperature" :config="temperatureArc" :value="temperature" />
+                <arc-scale :theme="arcThemes.oxygen" :config="oxygenArc" :value="oxygen_level" />
+                <arc-scale v-if="expansions.venus" :theme="arcThemes.venus" :config="venusArc" :value="venusScaleLevel" />
+            </template>
+            <!--
               Each scale container hosts (1) the legacy `.global-numbers-value.val-N`
               anchors — kept as the SOURCE OF TRUTH for arc coordinates / rotations
               so we don't duplicate that geometry on the client — and (2) one
@@ -228,6 +242,9 @@ import SpecialCellMarker from '@/client/components/board/SpecialCellMarker.vue';
 import SpecialCellInfoOverlay from '@/client/components/board/SpecialCellInfoOverlay.vue';
 import AnimatedScaleMarker from '@/client/components/board/AnimatedScaleMarker.vue';
 import OceanArcScale from '@/client/components/board/OceanArcScale.vue';
+import ArcScale from '@/client/components/board/ArcScale.vue';
+import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
+import {OXYGEN_ARC, TEMPERATURE_ARC, VENUS_ARC} from '@/client/components/board/arcScaleConfigs';
 import BonusZone from '@/client/components/board/BonusZone.vue';
 import {scaleBonusZoneViews, ScaleBonusZoneView, ScaleBonusClaim, resolveScaleBonusClaim} from '@/client/components/board/scaleBonusZones';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -310,12 +327,19 @@ export default defineComponent({
     BoardCellInfoPopover,
     AnimatedScaleMarker,
     OceanArcScale,
+    ArcScale,
     BonusZone,
   },
   data() {
     return {
       constants,
       spaceMap: new Map<string, SpaceModel>(this.spaces.map((s) => [s.id, s])),
+      // Dynamic-scales preview (?dynamicScales) — themed code bands for the
+      // still-PNG O₂ / temperature / Venus scales. Configs/themes are constants.
+      arcThemes: ARC_SCALE_THEMES,
+      oxygenArc: OXYGEN_ARC,
+      temperatureArc: TEMPERATURE_ARC,
+      venusArc: VENUS_ARC,
     };
   },
   mounted() {
@@ -484,6 +508,14 @@ export default defineComponent({
     },
   },
   computed: {
+    /**
+     * Dev/preview flag (`?dynamicScales`): render the O₂ / temperature / Venus
+     * code bands over the PNG so the whole HUD can be judged in the new premium
+     * language. Off in a normal game — the PNG scales render as today.
+     */
+    dynamicScales(): boolean {
+      return typeof window !== 'undefined' && window.location.search.includes('dynamicScales');
+    },
     /**
      * Sorted, colony-filtered Mars surface cells for the main `<board-space>`
      * v-for. Cached as a computed (depends only on `this.spaces`) so an
