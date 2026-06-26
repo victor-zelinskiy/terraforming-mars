@@ -1,8 +1,9 @@
 import {IPlayer} from '../IPlayer';
 import {Space} from './Space';
-import {Board} from './Board';
+import {Board, isSpecialTile} from './Board';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {SpaceType} from '../../common/boards/SpaceType';
+import {CITY_TILES, OCEAN_TILES, GREENERY_TILES, TileType, tileTypeToString} from '../../common/TileType';
 import {PlacementType} from './PlacementType';
 import * as constants from '../../common/constants';
 import {
@@ -13,6 +14,8 @@ import {
   BoardFactRecipient,
   BoardPlacementKind,
   BoardPlacementPreview,
+  ZoneProtection,
+  ZonePlayerProtection,
 } from '../../common/boards/BoardInformationFacts';
 import {Color} from '../../common/Color';
 
@@ -67,7 +70,9 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
       facts.push(ocean);
     }
   }
-  return {space: space.id, status, description: cellDescription(space, status), facts};
+  const zoneProtection = space.spaceType === SpaceType.DEFLECTION_ZONE ?
+    buildZoneProtection(player) : undefined;
+  return {space: space.id, status, description: cellDescription(space, status), zoneProtection, facts};
 }
 
 /** Active-placement preview — the consequences of placing `kind` on `space`. */
@@ -87,6 +92,10 @@ export function boardCellPreview(player: IPlayer, space: Space, kind: BoardPlace
   facts.push(...placementEffectFacts(player, kind));
   facts.push(...placementScoringFacts(player, space, kind));
   facts.push(...aresAdjacencyFacts(player, space));
+  const deflection = deflectionPlacementFact(player, space);
+  if (deflection !== undefined) {
+    facts.push(deflection);
+  }
   facts.push(...specialZoneFacts(player, space));
 
   const preview = classifyPlacementFacts(facts, player, space.id, kind, legal);
@@ -114,6 +123,11 @@ function headerFor(space: Space, status: BoardCellStatus): string {
   case 'colony': return 'Colony space';
   case 'restricted': return 'Restricted area';
   }
+  // A SPECIAL / composite tile never degrades to "City"/"Ocean" — it reads as a
+  // special (city) tile, with its NAME shown beside the header.
+  if (status.special === true) {
+    return status.countsAs?.includes('city') === true ? 'Special city' : 'Special tile';
+  }
   switch (status.content) {
   case 'ocean': return 'Ocean';
   case 'city': return 'City';
@@ -131,6 +145,15 @@ function headerFor(space: Space, status: BoardCellStatus): string {
 
 function hasPrintedBonus(space: Space): boolean {
   return space.bonus.some((b) => b !== SpaceBonus._RESTRICTED);
+}
+
+/** What a tile counts AS for rules/scoring (a composite tile is several). */
+function countsAsFor(tileType: TileType): Array<'city' | 'ocean' | 'greenery'> {
+  const out: Array<'city' | 'ocean' | 'greenery'> = [];
+  if (CITY_TILES.has(tileType)) out.push('city');
+  if (OCEAN_TILES.has(tileType)) out.push('ocean');
+  if (GREENERY_TILES.has(tileType)) out.push('greenery');
+  return out;
 }
 
 /** A passive one-liner under the header — never says "Вы получите" (hover, no action). */
@@ -165,20 +188,23 @@ function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
   }
   if (space.tile !== undefined) {
     const ownerColor = space.player?.color ?? space.coOwner?.color;
-    const tileLabel = space.tile.card;
     if (!Board.hasRealTile(space)) {
       return {content: 'hazard', spaceTypeLabel: spaceTypeLabel(space.spaceType)};
     }
-    if (Board.isOceanSpace(space)) {
-      return {content: 'ocean', ownerColor, tileLabel};
-    }
-    if (Board.isCitySpace(space)) {
-      return {content: 'city', ownerColor, tileLabel};
-    }
-    if (Board.isGreenerySpace(space)) {
-      return {content: 'greenery', ownerColor, tileLabel};
-    }
-    return {content: 'special-tile', ownerColor, tileLabel};
+    const tileType = space.tile.tileType;
+    const special = isSpecialTile(tileType);
+    const countsAs = countsAsFor(tileType);
+    // A known special tile ALWAYS has a name (`tileTypeToString` covers every
+    // TileType — it IS the source card for card-placed tiles); fall back to the
+    // recorded source card only if somehow unmapped. Ordinary tiles keep the
+    // placing card (if any) but never SHOW it (special !== true → nameless).
+    const tileLabel = special ? (tileTypeToString[tileType] ?? space.tile.card) : space.tile.card;
+    // City wins the dot/content for a COMPOSITE (New Holland / Ocean City count
+    // as both) — they read as city-like, not plain ocean.
+    const content = Board.isCitySpace(space) ? 'city' :
+      Board.isOceanSpace(space) ? 'ocean' :
+      Board.isGreenerySpace(space) ? 'greenery' : 'special-tile';
+    return {content, ownerColor, tileLabel, special, countsAs};
   }
   return {content: 'empty', spaceTypeLabel: spaceTypeLabel(space.spaceType)};
 }
@@ -209,7 +235,10 @@ function specialZoneFacts(player: IPlayer, space: Space): Array<BoardFact> {
   } else if (space.spaceType === SpaceType.RESTRICTED) {
     out.push(rule('restricted', 'restriction', 'Restricted area', 'No tiles can ever be placed on this space.', 'nobody'));
   } else if (space.spaceType === SpaceType.DEFLECTION_ZONE) {
-    out.push(rule('deflection-zone', 'map-special-zone', 'Deflection Zone', 'On a randomized map these cells keep their fixed position; otherwise they behave as normal land.', 'neutral'));
+    // The REAL Hollandia rule (implemented via player.withinDeflectionZone /
+    // plantsAreProtected): protection from plant destruction while ALL your tiles
+    // are inside the zone. NOT a "fixed position on a random map" layout note.
+    out.push(rule('deflection-zone', 'map-special-zone', 'Deflection Zone', 'Protects you from plant destruction while ALL your tiles are inside this zone.', 'neutral'));
   } else if (space.volcanic === true) {
     out.push(rule('volcanic', 'map-special-zone', 'Volcanic area', 'A volcanic space. Some cards may only place their tile on a volcanic space.', 'neutral'));
   }
@@ -360,7 +389,28 @@ function existingTileScoringFacts(player: IPlayer, space: Space): Array<BoardFac
     const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length;
     out.push(cityScoringFact('score-city', recipientFor(player, ownerColor), greeneries, false));
   }
+  // Special-tile own scoring — shown SEPARATELY from (and in addition to) the
+  // city-greenery rule above. Capital ALSO counts as a city, so it gets BOTH.
+  const tt = space.tile?.tileType;
+  if (tt === TileType.CAPITAL && ownerColor !== undefined) {
+    const oceans = board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length;
+    out.push(adjacencyVpFact('score-capital', recipientFor(player, ownerColor), oceans,
+      'Capital scores for adjacent oceans', 'Scores +1 VP per adjacent ocean at game end.', 'No adjacent oceans yet.'));
+  }
+  if (tt === TileType.COMMERCIAL_DISTRICT && ownerColor !== undefined) {
+    const cities = board.getAdjacentSpaces(space).filter(Board.isCitySpace).length;
+    out.push(adjacencyVpFact('score-commercial', recipientFor(player, ownerColor), cities,
+      'Commercial District scores for adjacent cities', 'Scores +1 VP per adjacent city at game end.', 'No adjacent cities yet.'));
+  }
   return out;
+}
+
+/** A generic "+N VP per adjacent X" endgame fact (no +0 badge when the count is 0). */
+function adjacencyVpFact(id: string, recipient: BoardFactRecipient, count: number, title: string, descWith: string, descNone: string): BoardFact {
+  if (count > 0) {
+    return vpFact(id, 'future-scoring', title, recipient, 0, count, descWith);
+  }
+  return {id, category: 'future-scoring', timing: 'endgame', severity: 'info', recipient, title, description: descNone};
 }
 
 /**
@@ -435,6 +485,79 @@ function placementScoringFacts(player: IPlayer, space: Space, kind: BoardPlaceme
 function aresAdjacencyFacts(_player: IPlayer, _space: Space): Array<BoardFact> {
   // TODO(ares): populate from neighbour `space.adjacency` once Ares is in scope.
   return [];
+}
+
+// ---------------------------------------------------------------------------
+// Hollandia Asteroid Deflection Zone — plant-destruction protection
+// ---------------------------------------------------------------------------
+// Mirrors the REAL rule (`Game.ts` sets `player.withinDeflectionZone`, consumed by
+// `Player.plantsAreProtected`): a player is protected from plant destruction while
+// ALL their owned tiles are inside the zone.
+
+function deflectionCounts(p: IPlayer): {inside: number, outside: number} {
+  let inside = 0;
+  let outside = 0;
+  for (const space of p.game.board.spaces) {
+    if (!Board.spaceOwnedBy(space, p)) {
+      continue;
+    }
+    if (space.spaceType === SpaceType.DEFLECTION_ZONE) {
+      inside++;
+    } else {
+      outside++;
+    }
+  }
+  return {inside, outside};
+}
+
+function deflectionStatusOf(p: IPlayer): ZonePlayerProtection['status'] {
+  const {inside, outside} = deflectionCounts(p);
+  if (inside > 0 && outside === 0) {
+    return 'active';
+  }
+  if (inside === 0) {
+    return 'inactive-no-zone-tiles';
+  }
+  return 'inactive-has-tiles-outside';
+}
+
+/** Per-player deflection-zone protection status, the viewing player first. */
+function buildZoneProtection(player: IPlayer): ZoneProtection {
+  const players = [...player.game.players];
+  players.sort((a, b) => (a.id === player.id ? -1 : b.id === player.id ? 1 : 0));
+  const statuses: Array<ZonePlayerProtection> = players.map((p) => ({color: p.color, status: deflectionStatusOf(p)}));
+  return {zoneName: 'Deflection Zone', statuses};
+}
+
+/** The impact of placing on `space` on the CURRENT player's deflection protection. */
+function deflectionPlacementFact(player: IPlayer, space: Space): BoardFact | undefined {
+  if (space.spaceType === SpaceType.DEFLECTION_ZONE) {
+    const {inside, outside} = deflectionCounts(player);
+    if (outside > 0) {
+      return zoneImpact('warning', 'Plant protection will not be restored — you have tiles outside the zone.');
+    }
+    if (inside > 0) {
+      return zoneImpact('rule', 'Keeps your protection from plant destruction.');
+    }
+    return zoneImpact('rule', 'Activates protection from plant destruction (while all your tiles stay in the zone).');
+  }
+  // Placing OUTSIDE the zone while currently protected by it loses the protection.
+  if (player.withinDeflectionZone === true) {
+    return zoneImpact('warning', 'Disables your protection from plant destruction (a tile outside the zone).');
+  }
+  return undefined;
+}
+
+function zoneImpact(timing: 'warning' | 'rule', description: string): BoardFact {
+  return {
+    id: 'deflection-impact',
+    category: 'map-special-zone',
+    timing,
+    severity: timing === 'warning' ? 'warning' : 'info',
+    recipient: {kind: 'current-player'},
+    title: 'Deflection Zone',
+    description,
+  };
 }
 
 // ---------------------------------------------------------------------------

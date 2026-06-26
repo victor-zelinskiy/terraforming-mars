@@ -44,28 +44,33 @@
                         @change="onAnimalChange" />
     </div>
 
-    <!-- Plants — rich player target rows. -->
+    <!-- Plants — rich player target rows. A PROTECTED player is shown as a greyed,
+         non-selectable row with its reason (never hidden), so the attacker sees it. -->
     <div v-else-if="activeTab === 'plant' && model.plant" class="virus-tabs__panel virus-tabs__plants">
       <button v-for="t in model.plant.targets"
-              :key="t.optionIndex"
+              :key="t.color"
               type="button"
               class="virus-plant"
-              :class="{'virus-plant--selected': selectedPlantIndex === t.optionIndex}"
-              @click="selectPlant(t.optionIndex)">
+              :class="{'virus-plant--selected': !t.disabled && selectedPlantIndex === t.optionIndex, 'virus-plant--disabled': t.disabled}"
+              :disabled="t.disabled === true"
+              @click="t.disabled ? undefined : selectPlant(t.optionIndex)">
         <span class="virus-plant__id">
           <span class="virus-plant__dot" :class="'player_bg_color_' + t.color" aria-hidden="true"></span>
           <span class="virus-plant__name">{{ t.name }}</span>
         </span>
-        <span class="virus-plant__impact">
-          <span class="virus-plant__icon" :class="iconClass(model.plant.icon)" aria-hidden="true"></span>
-          <span class="virus-plant__cur">{{ t.current }}</span>
-          <span class="virus-plant__arrow" aria-hidden="true">→</span>
-          <span class="virus-plant__res">{{ t.resulting }}</span>
-        </span>
-        <span class="virus-plant__pick" :class="{'virus-plant__pick--on': selectedPlantIndex === t.optionIndex}">
-          <span v-if="selectedPlantIndex === t.optionIndex" class="virus-plant__tick" aria-hidden="true">✓</span>
-          <span v-i18n>{{ selectedPlantIndex === t.optionIndex ? 'Selected' : 'Select' }}</span>
-        </span>
+        <span v-if="t.disabled" class="virus-plant__reason" v-i18n>{{ text(t.reason ?? '') }}</span>
+        <template v-else>
+          <span class="virus-plant__impact">
+            <span class="virus-plant__icon" :class="iconClass(model.plant.icon)" aria-hidden="true"></span>
+            <span class="virus-plant__cur">{{ t.current }}</span>
+            <span class="virus-plant__arrow" aria-hidden="true">→</span>
+            <span class="virus-plant__res">{{ t.resulting }}</span>
+          </span>
+          <span class="virus-plant__pick" :class="{'virus-plant__pick--on': selectedPlantIndex === t.optionIndex}">
+            <span v-if="selectedPlantIndex === t.optionIndex" class="virus-plant__tick" aria-hidden="true">✓</span>
+            <span v-i18n>{{ selectedPlantIndex === t.optionIndex ? 'Selected' : 'Select' }}</span>
+          </span>
+        </template>
       </button>
     </div>
   </div>
@@ -243,6 +248,25 @@ export default defineComponent({
     background: rgba(30, 70, 100, 0.68);
     box-shadow: 0 0 0 1px rgba(120, 230, 255, 0.5), 0 0 16px rgba(80, 200, 255, 0.2);
   }
+  // A protected (non-selectable) opponent — shown for information, greyed + inert.
+  &--disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    filter: saturate(0.5);
+    border-style: dashed;
+    border-color: rgba(150, 170, 190, 0.3);
+    background: rgba(20, 28, 38, 0.45);
+    &:hover { border-color: rgba(150, 170, 190, 0.3); background: rgba(20, 28, 38, 0.45); }
+  }
+}
+// The "can't target" reason on a disabled row (e.g. plants are protected).
+.virus-plant__reason {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(214, 226, 238, 0.7);
+  text-transform: uppercase;
 }
 .virus-plant__id {
   display: inline-flex;

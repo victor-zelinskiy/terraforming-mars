@@ -161,8 +161,42 @@ describe('BoardInformationEngine', () => {
     space.player = player;
     const info = boardCellInfo(player, space);
     expect(info.status.content).to.eq('special-tile');
+    expect(info.status.special).to.be.true;
     expect(info.status.header).to.eq('Special tile');
     expect(info.status.tileLabel).to.eq(CardName.COMMERCIAL_DISTRICT);
+    expect(info.status.countsAs).to.deep.eq([]);
+  });
+
+  it('a SPECIAL CITY (Capital) never degrades to "City" — name + own ocean scoring', () => {
+    const land = emptyLand((s) => game.board.getAdjacentSpaces(s).some((a) => a.spaceType === SpaceType.OCEAN && a.tile === undefined));
+    const ocean = game.board.getAdjacentSpaces(land).find((a) => a.spaceType === SpaceType.OCEAN && a.tile === undefined)!;
+    game.addOcean(player, ocean);
+    land.tile = {tileType: TileType.CAPITAL, card: CardName.CAPITAL};
+    land.player = player;
+
+    const info = boardCellInfo(player, land);
+    expect(info.status.special, 'is special').to.be.true;
+    expect(info.status.content, 'counts as a city').to.eq('city');
+    expect(info.status.countsAs).to.include('city');
+    expect(info.status.header).to.eq('Special city');
+    expect(info.status.tileLabel).to.eq(CardName.CAPITAL);
+
+    const cap = info.facts.find((f) => f.id === 'score-capital');
+    expect(cap, 'capital ocean-scoring fact').to.not.be.undefined;
+    expect(cap!.category).to.eq('future-scoring');
+    expect(cap!.vp).to.deep.eq({from: 0, to: 1});
+    // the ordinary city-greenery scoring is shown SEPARATELY (own row), not merged.
+    expect(info.facts.some((f) => f.id === 'score-city'), 'separate city scoring').to.be.true;
+  });
+
+  it('a composite tile (New Holland) counts as BOTH city and ocean', () => {
+    const land = emptyLand(() => true);
+    land.tile = {tileType: TileType.NEW_HOLLAND, card: CardName.NEW_HOLLAND};
+    land.player = player;
+    const status = boardCellInfo(player, land).status;
+    expect(status.special).to.be.true;
+    expect(status.header).to.eq('Special city');
+    expect(status.countsAs).to.have.members(['city', 'ocean']);
   });
 
   it('city placement with no adjacent greeneries shows a count line, NOT a +0 VP badge', () => {
@@ -190,6 +224,70 @@ describe('BoardInformationEngine', () => {
     expect(JSON.stringify(game.board.serialize())).to.eq(before);
     expect(player.megaCredits).to.eq(mc);
     expect(game.deferredActions.length).to.eq(deferred);
+  });
+
+  describe('Asteroid Deflection Zone (Hollandia)', () => {
+    let hGame: IGame;
+    let hP1: TestPlayer;
+    let hP2: TestPlayer;
+
+    beforeEach(() => {
+      [hGame, hP1, hP2] = testGame(2, {boardName: BoardName.HOLLANDIA});
+    });
+
+    function zones(empty = true): ReadonlyArray<Space> {
+      return hGame.board.spaces.filter((s) => s.spaceType === SpaceType.DEFLECTION_ZONE && (!empty || s.tile === undefined));
+    }
+
+    it('hover shows the REAL plant-protection rule (not a random-map note)', () => {
+      const info = boardCellInfo(hP1, zones()[0]);
+      expect(info.status.header).to.eq('Deflection Zone');
+      const rule = info.facts.find((f) => f.id === 'deflection-zone');
+      expect(rule, 'deflection rule fact').to.not.be.undefined;
+      expect(rule!.description).to.eq('Protects you from plant destruction while ALL your tiles are inside this zone.');
+      // The wrong "random map / fixed position" rule is gone.
+      expect(JSON.stringify(rule)).to.not.match(/randomized|fixed position/i);
+    });
+
+    it('hover reports per-player protection status (active / no-tiles / tiles-outside)', () => {
+      const z = zones();
+      // hP1 owns a tile INSIDE the zone (and nothing else) → protected.
+      z[0].tile = {tileType: TileType.GREENERY};
+      z[0].player = hP1;
+
+      const byColor = (p: TestPlayer) => {
+        const info = boardCellInfo(p, z[1]);
+        expect(info.zoneProtection, 'zoneProtection present').to.not.be.undefined;
+        return new Map(info.zoneProtection!.statuses.map((s) => [s.color, s.status]));
+      };
+      let map = byColor(hP1);
+      expect(map.get(hP1.color)).to.eq('active');
+      expect(map.get(hP2.color)).to.eq('inactive-no-zone-tiles');
+
+      // give hP1 a tile OUTSIDE the zone → protection drops.
+      const outside = hGame.board.spaces.find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined)!;
+      outside.tile = {tileType: TileType.GREENERY};
+      outside.player = hP1;
+      map = byColor(hP1);
+      expect(map.get(hP1.color)).to.eq('inactive-has-tiles-outside');
+
+      // the viewing player is listed first.
+      expect(boardCellInfo(hP1, z[1]).zoneProtection!.statuses[0].color).to.eq(hP1.color);
+    });
+
+    it('placement preview: placing in the zone reports a protection impact', () => {
+      const preview = boardCellPreview(hP1, zones()[0], 'greenery');
+      const impact = allFacts(preview).find((f) => f.id === 'deflection-impact');
+      expect(impact, 'in-zone protection impact').to.not.be.undefined;
+    });
+
+    it('placement preview: placing OUTSIDE while protected warns it disables protection', () => {
+      hP1.withinDeflectionZone = true;
+      const land = hGame.board.spaces.find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined)!;
+      const warn = allFacts(boardCellPreview(hP1, land, 'greenery')).find((f) => f.id === 'deflection-impact');
+      expect(warn, 'off-zone disables-protection warning').to.not.be.undefined;
+      expect(warn!.timing).to.eq('warning');
+    });
   });
 
   describe('groupFactsByRecipient', () => {

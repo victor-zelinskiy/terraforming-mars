@@ -126,8 +126,28 @@ export type BoardCellStatus = {
   /** Why the cell can never host a normal placement. */
   reserved?: 'noctis' | 'colony' | 'restricted' | 'nomad';
   /** The popover KICKER (i18n key): "Empty land" / "Land with a bonus" / "Ocean
-   *  area" / "Ocean" / "City" / "Special tile" / "Reserved area" / … */
+   *  area" / "Ocean" / "City" / "Special city" / "Special tile" / … */
   header?: string | Message;
+  /** True for a SPECIAL / composite tile (Capital, New Holland, Lava Flows, …) —
+   *  it does NOT degrade to an ordinary city/ocean/greenery in the UI; its NAME
+   *  (`tileLabel`) is shown next to the header. */
+  special?: boolean;
+  /** What the tile counts AS for rules/scoring (a composite tile can be several).
+   *  Drives a "Counts as: city, ocean" line. Empty for an ordinary tile. */
+  countsAs?: ReadonlyArray<'city' | 'ocean' | 'greenery'>;
+};
+
+/** One player's Asteroid-Deflection-Zone plant-protection status. */
+export type ZonePlayerProtection = {
+  color: Color;
+  /** active = all their tiles are in the zone; the two `inactive-*` say WHY not. */
+  status: 'active' | 'inactive-no-zone-tiles' | 'inactive-has-tiles-outside';
+};
+
+/** Per-player protection status for a map special zone (Hollandia deflection zone). */
+export type ZoneProtection = {
+  zoneName: string | Message;
+  statuses: ReadonlyArray<ZonePlayerProtection>;
 };
 
 /** Hover info for a cell — no placement context (what IS here + the standing rules). */
@@ -137,6 +157,8 @@ export type BoardCellInfo = {
   /** One-line passive description under the header (e.g. "This cell is occupied
    *  by an ocean." / "A tile can be placed here when an action allows it."). */
   description?: string | Message;
+  /** For a map special zone (deflection zone) — the per-player protection status. */
+  zoneProtection?: ZoneProtection;
   facts: ReadonlyArray<BoardFact>;
 };
 

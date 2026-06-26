@@ -7,6 +7,7 @@ import {Priority} from './Priority';
 import {CardName} from '../../common/cards/CardName';
 import {MessageBuilder, message} from '../logs/MessageBuilder';
 import {Message} from '../../common/logs/Message';
+import {DisabledOptionModel} from '../../common/models/PlayerInputModel';
 import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../inputs/optionMetadata';
 export class RemoveAnyPlants extends DeferredAction {
   private title: string | Message;
@@ -82,26 +83,60 @@ export class RemoveAnyPlants extends DeferredAction {
   }
 
   /**
+   * The ACTIONABLE opponent plant-removal options — one `SelectOption` per opponent
+   * whose plants can actually be taken (NOT protected, has plants). NO skip / own /
+   * disabled entries. Side-effect-free (each attack lives in its `andThen`). Exposed
+   * so consumers that compose their own picker (Virus's two-tab Animals/Plants modal)
+   * get exactly the live opponent options WITHOUT having to slice them out of the
+   * full prompt — which silently broke when the prompt's tail wasn't `skip`.
+   */
+  public opponentOptions(): Array<SelectOption> {
+    return this.player.opponents
+      .filter((p) => !p.plantsAreProtected() && p.plants > 0)
+      .map((target) => this.createOption(target));
+  }
+
+  /**
+   * Opponents shown as greyed, NON-selectable targets (with a reason) — a PROTECTED
+   * opponent, or one with no plants. Surfaced so a protected opponent is never hidden
+   * / silently auto-skipped: the attacker must SEE why those plants can't be taken
+   * (and so can't mistakenly target themselves). Protection wins the reason when both
+   * apply.
+   */
+  public disabledOpponents(): Array<DisabledOptionModel> {
+    return this.player.opponents
+      .filter((p) => p.plantsAreProtected() || p.plants === 0)
+      .map((p) => disabledPlayerTarget(p, 'plants', p.plantsAreProtected() ? 'Plants are protected' : 'No plants to remove'));
+  }
+
+  /**
    * SIDE-EFFECT-FREE construction of the (multiplayer) plant-removal OrOptions —
    * each option's attack lives in its `andThen`, so BUILDING it mutates nothing.
    * Shared by `execute()` and the read-only preview (`previewOptions`) so the live
    * prompt and the pre-collected play-modal step can't drift (the StealResources
    * pattern). The option ORDER (opponents, skip, self) is load-bearing: the play
    * modal captures the chosen INDEX and replays it against this same OrOptions
-   * built live, so the two must enumerate identically. Returns `undefined` when no
-   * opponent has removable plants (no prompt — the player never removes ONLY their
-   * own plants).
+   * built live, so the two must enumerate identically.
+   *
+   * Returns `undefined` ONLY when there's nothing to ACT ON and nothing to INFORM
+   * about — i.e. no opponent has removable plants AND none is protected. When an
+   * opponent IS protected, the prompt is STILL shown (with the protected opponent as
+   * a greyed, non-selectable target) instead of being silently skipped — so the
+   * attacker learns the plants are protected rather than the effect vanishing without
+   * a trace. An opponent that merely has 0 plants (and nobody is protected) stays a
+   * silent no-op (an expected, non-informative situation — no modal spam every time
+   * an opponent happens to be out of plants).
    */
   public buildOptions(): OrOptions | undefined {
     const player = this.player;
-    const candidates = player.opponents.filter((p) => !p.plantsAreProtected() && p.plants > 0);
-    const removalOptions: Array<SelectOption> = candidates.map((target) => this.createOption(target));
+    const opponentOptions = this.opponentOptions();
+    const hasProtectedOpponent = player.opponents.some((p) => p.plantsAreProtected());
 
-    removalOptions.push(this.skipOption());
-
-    if (removalOptions.length === 1) {
+    if (opponentOptions.length === 0 && !hasProtectedOpponent) {
       return undefined;
     }
+
+    const removalOptions: Array<SelectOption> = [...opponentOptions, this.skipOption()];
 
     if (player.plants > 0) {
       const ownOption = this.createOption(player);
@@ -109,12 +144,9 @@ export class RemoveAnyPlants extends DeferredAction {
       removalOptions.push(ownOption);
     }
 
-    // Surface opponents we can't take plants from as greyed cards with a reason.
-    const disabled = player.opponents
-      .filter((p) => p.plants === 0 || p.plantsAreProtected())
-      .map((p) => disabledPlayerTarget(p, 'plants', p.plantsAreProtected() ? 'Plants are protected' : 'No plants to remove'));
-
-    return new OrOptions(...removalOptions).setTitle(this.title).setDisabledOptions(disabled);
+    return new OrOptions(...removalOptions)
+      .setTitle(this.title)
+      .setDisabledOptions(this.disabledOpponents());
   }
 
   /** READ-ONLY preview of the plant-removal OrOptions (no solo-mode mutation) — lets
