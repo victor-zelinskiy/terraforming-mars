@@ -9,7 +9,8 @@
 
 import {defineComponent} from 'vue';
 import {SpaceType} from '@/common/boards/SpaceType';
-import {TileType, tileTypeToString} from '@/common/TileType';
+import {TileType, tileTypeToString, HAZARD_TILES} from '@/common/TileType';
+import {hazardIntensifyElapsed} from '@/client/components/board/hazardIntensifyState';
 import {SpaceHighlight, SpaceModel} from '@/common/models/SpaceModel';
 import {TileView} from '@/client/components/board/TileView';
 import {
@@ -183,6 +184,10 @@ export default defineComponent({
         if (this.placementCleared) {
           css += ' board-space-tile--placement-cleared';
         }
+        // A hazard that just intensified (mild → severe) plays a one-shot pulse.
+        if (this.intensifyElapsed >= 0) {
+          css += ' board-space-tile--intensifying';
+        }
       } else {
         switch (this.spaceType) {
         case SpaceType.OCEAN:
@@ -232,14 +237,25 @@ export default defineComponent({
      * animation starts already partway through, matching the visual
      * the player was seeing pre-remount.
      */
-    placementStyle(): Record<string, string> {
-      if (this.placementKind === null) {
-        return {};
+    // Elapsed ms of an active hazard-intensify pulse for THIS cell (mild → severe),
+    // or -1. Module-tracked so the one-shot survives the board remount.
+    intensifyElapsed(): number {
+      if (this.tileType === undefined || !HAZARD_TILES.has(this.tileType)) {
+        return -1;
       }
-      return {
-        '--placement-duration': `${this.placementDurationMs}ms`,
-        '--placement-delay': `${this.placementDelayMs}ms`,
-      };
+      return hazardIntensifyElapsed(this.space.id, this.tileType);
+    },
+    placementStyle(): Record<string, string> {
+      const style: Record<string, string> = {};
+      if (this.placementKind !== null) {
+        style['--placement-duration'] = `${this.placementDurationMs}ms`;
+        style['--placement-delay'] = `${this.placementDelayMs}ms`;
+      }
+      // Negative delay keeps the intensify keyframe continuous across remounts.
+      if (this.intensifyElapsed >= 0) {
+        style['--hazard-intensify-delay'] = `-${Math.round(this.intensifyElapsed)}ms`;
+      }
+      return style;
     },
   },
   watch: {
