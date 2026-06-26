@@ -87,5 +87,8 @@
   "Plant protection will not be restored — you have tiles outside the zone.": "Защита растений не восстановится — у вас есть тайлы вне зоны.",
   "Keeps your protection from plant destruction.": "Сохраняет вашу защиту от уничтожения растений.",
   "Activates protection from plant destruction (while all your tiles stay in the zone).": "Включает защиту от уничтожения растений (пока все ваши тайлы остаются в зоне).",
-  "Disables your protection from plant destruction (a tile outside the zone).": "Отключает вашу защиту от уничтожения растений (тайл вне зоны)."
+  "Disables your protection from plant destruction (a tile outside the zone).": "Отключает вашу защиту от уничтожения растений (тайл вне зоны).",
+
+  "External area": "Внешняя область",
+  "This tile is outside the normal Mars surface. Normal Mars adjacency does not apply.": "Этот тайл находится вне обычной поверхности Марса. Обычное соседство на Марсе не применяется."
 }

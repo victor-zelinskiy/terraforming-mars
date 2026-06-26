@@ -1,12 +1,17 @@
 <template>
   <teleport to="body">
     <div v-if="shouldShow" class="board-cell-popover" :class="{'board-cell-popover--below': below}" :style="popoverStyle">
-      <div class="board-cell-popover__head">
-        <span class="board-cell-popover__status" :class="'board-cell-popover__status--' + status.content"></span>
-        <span class="board-cell-popover__title" v-i18n>{{ headerTitle }}</span>
-        <span v-if="tileName !== undefined" class="board-cell-popover__name">: <span v-i18n>{{ tileName }}</span></span>
-        <span v-if="ownerColor !== undefined" class="board-cell-popover__owner-dot" :class="'player_bg_color_' + ownerColor"></span>
-        <span v-if="ownerName !== undefined" class="board-cell-popover__owner" v-i18n>{{ ownerName }}</span>
+      <!-- Header: a compact TYPE badge + owner on the top row, the NAME on its
+           own line below (named special/composite tiles) — never a colon that
+           can orphan-wrap. Ordinary cells keep the single-row look. -->
+      <div class="board-cell-popover__head" :class="{'board-cell-popover__head--named': tileName !== undefined}">
+        <div class="board-cell-popover__head-top">
+          <span class="board-cell-popover__status" :class="'board-cell-popover__status--' + status.content"></span>
+          <span class="board-cell-popover__title" v-i18n>{{ headerTitle }}</span>
+          <span v-if="ownerColor !== undefined" class="board-cell-popover__owner-dot" :class="'player_bg_color_' + ownerColor"></span>
+          <span v-if="ownerName !== undefined" class="board-cell-popover__owner" v-i18n>{{ ownerName }}</span>
+        </div>
+        <div v-if="tileName !== undefined" class="board-cell-popover__name" v-i18n>{{ tileName }}</div>
       </div>
 
       <!-- Composite-tile rules tag (Capital → city; New Holland → city + ocean). -->
@@ -17,8 +22,16 @@
         </span>
       </div>
 
-      <!-- Curated named-cell lore (flavour + the real placement rule). -->
-      <div v-if="loreInfo !== undefined" class="board-cell-popover__lore" v-i18n>{{ loreInfo.description }}</div>
+      <!-- Curated named-cell lore (flavour + the real placement rule). Hidden for
+           an OCCUPIED off-Mars slot — its "only X can be placed here" text is
+           stale once the tile is down; the external-area note explains it. -->
+      <div v-if="loreInfo !== undefined && status.external !== true" class="board-cell-popover__lore" v-i18n>{{ loreInfo.description }}</div>
+
+      <!-- Off the Mars surface: why normal adjacency/scoring doesn't apply. -->
+      <div v-for="fact in externalFacts" :key="fact.id" class="board-cell-popover__external">
+        <div class="board-cell-popover__external-head" v-i18n>{{ fact.title }}</div>
+        <div v-if="fact.description !== undefined" class="board-cell-popover__external-desc" v-i18n>{{ fact.description }}</div>
+      </div>
 
       <!-- Passive one-liner (never "Вы получите" — this is hover, not an action). -->
       <div v-if="description !== undefined" class="board-cell-popover__desc" v-i18n>{{ description }}</div>
@@ -115,6 +128,9 @@ export default defineComponent({
     zoneFacts(): ReadonlyArray<BoardFact> {
       return this.facts.filter((f) => f.category === 'map-special-zone');
     },
+    externalFacts(): ReadonlyArray<BoardFact> {
+      return this.facts.filter((f) => f.category === 'external-area');
+    },
     reservedFacts(): ReadonlyArray<BoardFact> {
       return this.facts.filter((f) => f.category === 'reserved-area' || f.category === 'restriction');
     },
@@ -172,8 +188,10 @@ export default defineComponent({
       return getSpecialCellInfo(spaceId, boardName);
     },
     headerTitle(): string {
-      // A named cell's curated title wins the header (e.g. "Гора Аполлинарис").
-      if (this.loreInfo !== undefined) {
+      // A named cell's curated title wins the header (e.g. "Гора Аполлинарис") —
+      // EXCEPT an OCCUPIED off-Mars slot, where the tile identity (kind badge +
+      // name line) replaces the empty-cell "only X can be placed here" lore.
+      if (this.loreInfo !== undefined && this.status.external !== true) {
         return this.loreInfo.title;
       }
       const h = this.status.header;
@@ -257,13 +275,18 @@ export default defineComponent({
 
 .board-cell-popover__head {
   display: flex;
-  align-items: center;
-  gap: 7px;
+  flex-direction: column;
+  gap: 3px;
 }
 .board-cell-popover__head:not(:last-child) {
   padding-bottom: 7px;
   margin-bottom: 7px;
   border-bottom: 1px solid rgba(120, 200, 255, 0.18);
+}
+.board-cell-popover__head-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 .board-cell-popover__status {
   flex: 0 0 auto;
@@ -284,11 +307,23 @@ export default defineComponent({
   font-size: 12px;
   color: #eaf4fd;
 }
-.board-cell-popover__name {
-  font-size: 12px;
+// Named special/composite tile: the type label reads as a compact BADGE, the
+// name lives on its own line below (wraps cleanly, no orphan colon).
+.board-cell-popover__head--named .board-cell-popover__title {
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: rgba(120, 200, 255, 0.12);
+  border: 1px solid rgba(120, 200, 255, 0.22);
   color: #cfe6fb;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+}
+.board-cell-popover__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.18;
+  color: #eaf4fd;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
 }
 .board-cell-popover__owner-dot {
   flex: 0 0 auto;
@@ -314,6 +349,26 @@ export default defineComponent({
 .board-cell-popover__lore + .board-cell-popover__desc,
 .board-cell-popover__lore + .board-cell-popover__section {
   margin-top: 7px;
+}
+.board-cell-popover__external {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: rgba(150, 180, 200, 0.08);
+  border: 1px solid rgba(150, 180, 200, 0.18);
+}
+.board-cell-popover__external-head {
+  font-family: 'Prototype', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(170, 200, 224, 0.82);
+  margin-bottom: 2px;
+}
+.board-cell-popover__external-desc {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: rgba(200, 222, 240, 0.8);
 }
 .board-cell-popover__section {
   margin-top: 8px;

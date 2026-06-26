@@ -55,6 +55,47 @@ a dedicated "Источник: карта «…»" line is intentionally omitted
 When Ares lands, a tile placed by a non-eponymous effect would be the first real Class-E case —
 thread the placing source onto the tile then.
 
+## Iteration 2 — off-Mars / external tiles (location ≠ countsAs)
+
+Problem: `countsAs: city/ocean` was treated as "participates in Mars city-greenery / ocean
+scoring". An off-Mars reserved city slot (Maxwell Base etc.) is an ordinary `CITY` tile placed
+on a `COLONY` space — it `countsAs` a city but has NO Mars adjacency, so showing
+"city scores for greeneries: 0" + a "city" tooltip was false/noise.
+
+**Architectural fix (no per-tile hardcode):** the engine now derives a `BoardCellStatus.external`
+flag from the REAL adjacency graph — `onMarsGrid(board, space) = getAdjacentSpaces(space).length > 0`
+(mirrors `calculateVictoryPoints`, which scores cities via `getAdjacentSpaces`; a `COLONY` slot
+returns `[]`). City-greenery scoring + ocean-adjacency facts are gated on `onMarsGrid`; an occupied
+off-grid tile instead gets a neutral `external-area` fact ("Внешняя область — обычное соседство на
+Марсе не применяется"). `countsAs` is still shown (separately) — it is NOT scoring.
+An off-grid tile is also marked `special` even if its `TileType` is a plain `CITY` (so it reads as
+a special city, not "ГОРОД"), and named from its source card (`space.tile.card`, set by `behavior.city`).
+Reserved-cell checks (`COLONY`/`RESTRICTED`/Noctis) now fire only when EMPTY — an occupied reserved
+slot flows to the tile branch (real identity), so the stale empty-cell lore no longer shows over a placed tile.
+
+Classification this iteration: **A** normal Mars surface · **B** special Mars surface · **C** composite
+Mars surface · **D** off-Mars special tile · **E** reserved external (empty) · **F** colony/Venus slot · **G** data ambiguous.
+
+| Tile / slot | Source | Location | countsAs | Was | Now | Class |
+| --- | --- | --- | --- | --- | --- | --- |
+| **New Holland** | New Holland · promo | Mars surface (covers an ocean, on-grid) | city + ocean | city scoring + ocean adj (CORRECT) | unchanged + clean 2-row header | **C** (verified on-grid — NOT external) |
+| Capital | Capital · base | Mars surface | city | special city + ocean VP | unchanged | C |
+| Industrial Center / Mining Area (Горнопром. р-н) | base/corpera | Mars surface | — | "ОСОБЫЙ ТАЙЛ :" colon-wrap | clean 2-row header, name, owner | B (header fix) |
+| **Maxwell Base** | Maxwell Base · venus | `COLONY` off-grid (reserved) | city | "ГОРОД" + false 0-VP city scoring + stale "reserved colony" lore | **ОСОБЫЙ ГОРОД / Maxwell Base** + owner + **external-area note**, NO false scoring | **D** (fixed) |
+| Ganymede Colony / Phobos Space Haven | base | `COLONY` off-grid | city | same false scoring | external special city, no false scoring | **D** (fixed) |
+| Stanford Torus / Luna Metropolis / Dawn City / Stratopolis | corpera/venus | `COLONY` off-grid | city | same | external special city, no false scoring | **D** (fixed) |
+| Empty Maxwell/Ganymede/… reserved slot | — | `COLONY` off-grid, no tile | — | lore + "reserved colony" | unchanged (lore: "only X can be placed here" + reserved fact) | **E** |
+| Colony tiles (Colonies expansion) | colonies | separate `ColonyTile` UI, NOT board spaces | — | n/a (not board hexes) | n/a — handled by the Colonies overlay, not BoardInformation | **F** (out of board-hex scope) |
+
+**Class G (none in scope).** Every off-grid city records its source card via `behavior.city`
+(`space.tile.card`), so the name is always available; `getAdjacentSpaces` is the unambiguous
+location signal. When Ares adds tiles placed by non-eponymous effects, thread the placing source
+onto the tile (the only future Class-G case).
+
+**Ordinary Mars city is NOT regressed:** `special` is false for an on-grid plain `CITY`
+(`isSpecialTile(CITY)` false + `external` false) → header "City", normal greenery scoring — exactly
+as before (regression-guarded by the New Holland on-grid test + the existing city tests).
+
 ## Asteroid Deflection Zone (Hollandia) — fixed
 
 The old tooltip ("при случайной карте эти клетки сохраняют фиксированное положение") was the
