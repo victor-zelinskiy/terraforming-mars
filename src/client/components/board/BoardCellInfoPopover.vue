@@ -46,7 +46,7 @@
       <!-- Ares adjacency SOURCE — what a neighbour + this tile's owner earn when
            a tile is placed next to it. -->
       <div v-if="adjacencyBonusFacts.length > 0" class="board-cell-popover__section board-cell-popover__section--adjacency">
-        <div class="board-cell-popover__section-head" v-i18n>Adjacency bonus</div>
+        <div class="board-cell-popover__section-head" v-i18n>Adjacency</div>
         <board-fact-row v-for="fact in adjacencyBonusFacts" :key="fact.id" :fact="fact" />
       </div>
 

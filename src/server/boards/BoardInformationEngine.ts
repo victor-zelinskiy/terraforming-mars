@@ -616,39 +616,58 @@ function aresAdjacencySourceFacts(player: IPlayer, space: Space): Array<BoardFac
     return [];
   }
   const adjacency = space.adjacency;
-  if (adjacency === undefined || adjacency.bonus.length === 0) {
+  if (adjacency === undefined) {
     return [];
   }
   const out: Array<BoardFact> = [];
   const concrete = adjacency.bonus.filter((b): b is SpaceBonus => b !== 'callback');
-  for (const [bonus, count] of countBonuses(concrete)) {
-    const d = describeSpaceBonus(bonus, count);
-    if (d.delta === undefined) {
-      continue;
+  // A neighbour earns the adjacency bonus + the OWNER earns M€ — but ONLY when
+  // there is a bonus (mirrors `AresHandler.earnAdjacencyBonus`, which skips an
+  // empty bonus, so a cost-only tile like Nuclear Zone pays its owner nothing).
+  if (concrete.length > 0) {
+    for (const [bonus, count] of countBonuses(concrete)) {
+      const d = describeSpaceBonus(bonus, count);
+      if (d.delta === undefined) {
+        continue;
+      }
+      out.push({
+        id: `ares-src-${bonus}`,
+        category: 'ares-adjacency-bonus',
+        timing: 'rule',
+        severity: 'positive',
+        recipient: {kind: 'neutral'},
+        title: 'Bonus to an adjacent tile',
+        description: 'Granted to whoever places a tile next to this.',
+        delta: d.delta,
+      });
     }
+    const ownerColor = space.player?.color;
+    if (ownerColor !== undefined) {
+      const ownerBonus = space.player?.tableau.has(CardName.MARKETING_EXPERTS) === true ? 2 : 1;
+      out.push({
+        id: 'ares-src-owner',
+        category: 'tile-owner-benefit',
+        timing: 'rule',
+        severity: 'positive',
+        recipient: recipientFor(player, ownerColor),
+        title: 'Bonus to the owner',
+        description: 'The owner gains M€ when a tile is placed next to this.',
+        delta: {icon: 'megacredits', amount: ownerBonus, direction: 'gain'},
+      });
+    }
+  }
+  // A neighbour PAYS extra to place next to this (Nuclear Zone: adjacency.cost).
+  const adjacencyCost = adjacency.cost ?? 0;
+  if (adjacencyCost > 0) {
     out.push({
-      id: `ares-src-${bonus}`,
+      id: 'ares-src-cost',
       category: 'ares-adjacency-bonus',
       timing: 'rule',
-      severity: 'positive',
+      severity: 'warning',
       recipient: {kind: 'neutral'},
-      title: 'Bonus to an adjacent tile',
-      description: 'Granted to whoever places a tile next to this.',
-      delta: d.delta,
-    });
-  }
-  const ownerColor = space.player?.color;
-  if (ownerColor !== undefined) {
-    const ownerBonus = space.player?.tableau.has(CardName.MARKETING_EXPERTS) === true ? 2 : 1;
-    out.push({
-      id: 'ares-src-owner',
-      category: 'tile-owner-benefit',
-      timing: 'rule',
-      severity: 'positive',
-      recipient: recipientFor(player, ownerColor),
-      title: 'Bonus to the owner',
-      description: 'The owner gains M€ when a tile is placed next to this.',
-      delta: {icon: 'megacredits', amount: ownerBonus, direction: 'gain'},
+      title: 'Adjacency cost',
+      description: 'Placing a tile next to this costs extra M€.',
+      delta: {icon: 'megacredits', amount: adjacencyCost, direction: 'cost'},
     });
   }
   return out;

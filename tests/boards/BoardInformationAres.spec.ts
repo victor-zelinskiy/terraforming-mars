@@ -126,6 +126,21 @@ describe('BoardInformationEngine — Ares', () => {
     expect(owner!.delta?.amount).to.eq(1);
   });
 
+  it('hovering a cost-only adjacency tile (Nuclear Zone) warns about the placement cost, no owner bonus', () => {
+    [game, player, player2] = testGame(2, {aresExtension: true});
+    const nz = emptyLand();
+    nz.tile = {tileType: TileType.NUCLEAR_ZONE, card: undefined};
+    nz.player = player2;
+    nz.adjacency = {bonus: [], cost: 2}; // Nuclear Zone — costs to build next to, no bonus
+
+    const facts = boardCellInfo(player, nz).facts;
+    const cost = facts.find((f) => f.id === 'ares-src-cost');
+    expect(cost, 'adjacency cost fact').to.not.be.undefined;
+    expect(cost!.delta).to.deep.include({icon: 'megacredits', amount: 2, direction: 'cost'});
+    // No bonus → no owner benefit (mirrors earnAdjacencyBonus skipping an empty bonus).
+    expect(facts.some((f) => f.category === 'tile-owner-benefit')).to.be.false;
+  });
+
   it('is READ-ONLY: hover + preview on hazard/adjacency cells mutate nothing', () => {
     [game, player, player2] = testGame(2, {aresExtension: true});
     const adj = emptyLand();
