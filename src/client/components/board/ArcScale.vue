@@ -67,7 +67,7 @@
 
     <!-- SCALE IDENTITY badge — a flat HUD scale-TYPE label (NOT a bonus chip). -->
     <div class="arc-scale__identity" :style="identityStyle" role="img" :aria-label="ariaLabel">
-      <span class="arc-scale__identity-glyph" :style="{backgroundImage: theme.glyph}"></span>
+      <span class="arc-scale__identity-glyph" :class="theme.glyphClass"></span>
       <div class="arc-scale__identity-tip" role="tooltip">
         <span class="arc-scale__identity-tip-title" v-i18n>{{ theme.title }}</span>
         <span class="arc-scale__identity-tip-count"><span v-i18n>{{ theme.noun }}</span>: {{ value }}{{ theme.unit }}</span>

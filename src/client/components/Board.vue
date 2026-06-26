@@ -62,12 +62,12 @@
             <arc-scale :theme="arcThemes.oxygen" :config="oxygenArc" :value="oxygen_level" />
             <arc-scale v-if="expansions.venus" :theme="arcThemes.venus" :config="venusArc" :value="venusScaleLevel" />
             <!--
-              Each scale container hosts (1) the legacy `.global-numbers-value.val-N`
-              anchors — kept as the SOURCE OF TRUTH for arc coordinates / rotations
-              so we don't duplicate that geometry on the client — and (2) one
-              <AnimatedScaleMarker>. The marker walks the anchors via WAAPI so the
-              current value glides along the arc instead of teleporting between
-              `val-is-active` swaps. See AnimatedScaleMarker.vue for the contract.
+              The 1–N digit anchors (`.global-numbers-value.val-N`) and the
+              gliding <AnimatedScaleMarker> are rendered INSIDE each <arc-scale>
+              above (as its own children), positioned from arcScaleConfigs.ts. The
+              marker walks those anchors via WAAPI so the current value glides
+              along the arc. The per-scale containers below host ONLY the bonus
+              reward chips. See AnimatedScaleMarker.vue / ArcScale.vue.
             -->
             <!--
               SCALE reward zones are rendered INSIDE each scale's number
