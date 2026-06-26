@@ -232,61 +232,10 @@
   pointer-events: none;
 }
 
-/* ── Premium hover tooltip — "what this bonus gives" ────────────────────── */
-// Lives on the node ROOT (outside __rot), so it stays upright on the tilted
-// arc nodes. Sits above the node; the board container shows overflow so even
-// the topmost nodes' tooltips aren't clipped.
-.bonus-zone__tip {
-  position: absolute;
-  bottom: calc(100% + 7px);
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 5px 11px;
-  white-space: nowrap;
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(14, 24, 38, 0.97), rgba(8, 14, 24, 0.97));
-  border: 1px solid @bonus-rim-cyan-soft;
-  box-shadow:
-    0 5px 16px rgba(0, 0, 0, 0.55),
-    0 0 10px fade(@bonus-glow-cyan, 24%);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 140ms ease, transform 140ms ease;
-
-  // Caret pointing down at the node.
-  &::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: rgba(10, 18, 30, 0.97);
-  }
-}
-.bonus-zone:hover .bonus-zone__tip {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(-50%) translateY(0);
-}
-.bonus-zone__tip-reward {
-  font-family: Prototype, Ubuntu, sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.3px;
-  color: #e2effc;
-}
-.bonus-zone__tip-claim {
-  font-family: Prototype, Ubuntu, sans-serif;
-  font-size: 10px;
-  letter-spacing: 0.3px;
-  color: #a6bdd6;
-}
+// The reward / claim hover tooltip is now the UNIFIED, teleported ScaleTooltip
+// (scale_tooltip.less) — built by BonusZone from the reward/claim props and
+// routed through ArcScaleMarkerChip. No node-local tooltip CSS lives here
+// anymore (it couldn't viewport-clamp / dodge the bottom toolbar + sidebars).
 
 /* ════════════════════════════════════════════════════════════════════════
  *  PER-SCALE TINT  (the unified marker chip takes its host scale's colour)
@@ -443,19 +392,8 @@
   100% { filter: brightness(1); }
 }
 
-// Tooltip owner row: a colour dot + the player's name (or the grey gov note).
-.bonus-zone__tip-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 4px;
-  vertical-align: middle;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 4px rgba(0, 0, 0, 0.5);
-}
-.bonus-zone__tip-claim--gov { color: #b8bcc4; }
-
-// Gold pointer + tooltip for the legendary final bonus.
+// Gold pointer for the legendary final bonus (the tooltip is the unified
+// ScaleTooltip now — its venus/gold accent is set in scale_tooltip.less).
 .bonus-zone--final {
   .bonus-zone__pointer {
     background: linear-gradient(180deg,
@@ -463,12 +401,6 @@
       @bonus-rim-gold 46%,
       fade(@bonus-rim-gold, 26%) 100%);
     filter: drop-shadow(0 0 3px fade(@bonus-glow-gold, 55%));
-  }
-  .bonus-zone__tip {
-    border-color: @bonus-rim-gold-soft;
-    box-shadow:
-      0 5px 16px rgba(0, 0, 0, 0.55),
-      0 0 10px fade(@bonus-glow-gold, 28%);
   }
 }
 

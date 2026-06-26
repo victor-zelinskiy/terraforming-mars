@@ -48,6 +48,15 @@
         :key="'dv-' + d.key"
         class="arc-scale__divider"
         :x1="d.x1" :y1="d.y1" :x2="d.x2" :y2="d.y2" />
+      <!-- transparent RAIL hit-area: hovering anywhere on the band shows the
+           scale overview tooltip (no dead zones between digits). pointer-events
+           ride only the stroke so it never blocks the board hexes inside. -->
+      <path
+        class="arc-scale__hit"
+        :d="channelPathD"
+        @mouseenter="onRail"
+        @mousemove="onRail"
+        @mouseleave="onLeave" />
     </svg>
 
     <!-- UNIFIED digit layer (upright, future/visited/current states) — also the
@@ -60,19 +69,23 @@
         'arc-scale__digit--visited': d.visited,
         'arc-scale__digit--current': d.current,
       }]"
-      :style="{left: d.left + 'px', top: d.top + 'px'}">{{ d.label }}</div>
+      :style="{left: d.left + 'px', top: d.top + 'px'}"
+      @mouseenter="onDigit($event, d)"
+      @mouseleave="onLeave">{{ d.label }}</div>
 
     <!-- gliding current-value cursor (shared dial, per-scale accent) -->
     <animated-scale-marker :accent="theme.accent" :value="value" />
 
-    <!-- SCALE IDENTITY badge — a flat HUD scale-TYPE label (NOT a bonus chip). -->
-    <div class="arc-scale__identity" :style="identityStyle" role="img" :aria-label="ariaLabel">
+    <!-- SCALE IDENTITY badge — a flat HUD scale-TYPE label (NOT a bonus chip).
+         Hovering it shows the unified scale-overview tooltip. -->
+    <div
+      class="arc-scale__identity"
+      :style="identityStyle"
+      role="img"
+      :aria-label="ariaLabel"
+      @mouseenter="onIdentity"
+      @mouseleave="onLeave">
       <span class="arc-scale__identity-glyph" :class="theme.glyphClass"></span>
-      <div class="arc-scale__identity-tip" role="tooltip">
-        <span class="arc-scale__identity-tip-title" v-i18n>{{ theme.title }}</span>
-        <span class="arc-scale__identity-tip-count"><span v-i18n>{{ theme.noun }}</span>: {{ value }}{{ theme.unit }}</span>
-        <span class="arc-scale__identity-tip-desc" v-i18n>{{ theme.description }}</span>
-      </div>
     </div>
   </div>
 </template>
@@ -83,6 +96,8 @@ import AnimatedScaleMarker from '@/client/components/board/AnimatedScaleMarker.v
 import {ArcScaleName, ArcScaleTheme} from '@/client/components/board/arcScaleTheme';
 import {DynamicArcConfig, arcFillFraction} from '@/client/components/board/arcScaleConfigs';
 import {pointAtAngle, arcPath} from '@/client/components/board/arcScaleGeometry';
+import {translateText} from '@/client/directives/i18n';
+import {ScaleTooltipContent, showScaleTooltip, showScaleTooltipAt, hideScaleTooltip} from '@/client/components/board/scaleTooltipState';
 
 const SVG_W = 600;
 const SVG_H = 600;
@@ -234,6 +249,45 @@ export default defineComponent({
     },
     ariaLabel(): string {
       return `${this.theme.noun}: ${this.value}${this.theme.unit}`;
+    },
+    // The scale-overview tooltip shared by the rail (band) hover and the identity
+    // badge — name + current value + what the scale is.
+    overviewContent(): ScaleTooltipContent {
+      const t = this.theme;
+      return {
+        accent: t.accent,
+        kicker: translateText(t.title),
+        rows: [
+          {text: `${translateText(t.noun)}: ${this.value}${t.unit}`, tone: 'value'},
+          {text: translateText(t.description), tone: 'desc'},
+        ],
+      };
+    },
+  },
+  beforeUnmount(): void {
+    hideScaleTooltip();
+  },
+  methods: {
+    onRail(ev: MouseEvent): void {
+      // Band/rail hover follows the cursor along the arc.
+      showScaleTooltipAt(ev.clientX, ev.clientY, this.overviewContent);
+    },
+    onIdentity(ev: MouseEvent): void {
+      showScaleTooltip(ev.currentTarget as HTMLElement, this.overviewContent);
+    },
+    onDigit(ev: MouseEvent, d: {label: string; current: boolean}): void {
+      // Only the CURRENT digit is hoverable (pointer-events in arc_scale.less);
+      // it is the literal current-value indicator. The kicker calls it out.
+      const t = this.theme;
+      const content: ScaleTooltipContent = {
+        accent: t.accent,
+        kicker: d.current ? translateText('Current') : translateText(t.title),
+        rows: [{text: `${translateText(t.noun)}: ${d.label}${t.unit}`, tone: 'value'}],
+      };
+      showScaleTooltip(ev.currentTarget as HTMLElement, content);
+    },
+    onLeave(): void {
+      hideScaleTooltip();
     },
   },
 });

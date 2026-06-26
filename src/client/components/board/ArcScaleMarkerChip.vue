@@ -20,7 +20,9 @@
       `arc-marker--${variant}`,
       {'bonus-zone--reached': reached, 'bonus-zone--just-claimed': justClaimed},
     ]"
-    :style="rootStyle">
+    :style="rootStyle"
+    @mouseenter="onEnter"
+    @mouseleave="onLeave">
     <div class="bonus-zone__pointer" :style="pointerStyle"></div>
     <div class="bonus-zone__rot" :style="rotStyle">
       <div class="bonus-zone__halo"></div>
@@ -36,6 +38,7 @@
 import {defineComponent, PropType} from 'vue';
 import {BonusZoneTier, BonusZoneState} from '@/client/components/board/scaleBonusZones';
 import {consumeNewScaleBonusClaim} from '@/client/components/board/scaleBonusClaimState';
+import {ScaleTooltipContent, showScaleTooltip, hideScaleTooltip} from '@/client/components/board/scaleTooltipState';
 
 export type ArcScaleMarkerVariant = 'reward' | 'standard-bonus' | 'planetary-event' | 'hazard-event' | 'custom';
 
@@ -64,6 +67,8 @@ export default defineComponent({
     claimColor: {type: String, default: ''},
     /** Stable id (`<scale>-<step>`) for the one-shot claim animation tracking. */
     claimKey: {type: String, default: ''},
+    /** Unified hover tooltip content (reward / event). Null → no tooltip. */
+    tooltip: {type: Object as PropType<ScaleTooltipContent | null>, default: null},
   },
   data() {
     return {
@@ -95,6 +100,19 @@ export default defineComponent({
     },
     rootStyle(): Record<string, string> {
       return this.claimColor === '' ? {} : {'--bonus-claim-color': this.claimColor};
+    },
+  },
+  beforeUnmount() {
+    hideScaleTooltip();
+  },
+  methods: {
+    onEnter(ev: MouseEvent): void {
+      if (this.tooltip !== null) {
+        showScaleTooltip(ev.currentTarget as HTMLElement, this.tooltip);
+      }
+    },
+    onLeave(): void {
+      hideScaleTooltip();
     },
   },
 });

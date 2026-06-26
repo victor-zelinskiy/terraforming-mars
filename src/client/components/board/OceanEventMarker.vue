@@ -1,10 +1,11 @@
 <template>
   <!--
-    A compact planetary-EVENT chip pinned to an ocean threshold. Now a thin
-    wrapper over the unified ArcScaleMarkerChip (one visual language with the
-    scale reward bonuses) — it only supplies the richer, diegetic tooltip and
-    the ocean surface tint / event variant. Hidden in a normal game (gated in
-    oceanThresholdMarkers.ts); no expansion name is ever shown.
+    A compact planetary-EVENT chip pinned to an ocean threshold. A thin wrapper
+    over the unified ArcScaleMarkerChip (one visual language with the scale
+    reward bonuses) — it only builds the richer, diegetic event TOOLTIP content
+    (routed through the unified ScaleTooltip) and the ocean surface tint / event
+    variant. Hidden in a normal game (gated in oceanThresholdMarkers.ts); no
+    expansion name is ever shown.
   -->
   <arc-scale-marker-chip
     class="ocean-event"
@@ -14,25 +15,18 @@
     :point="point"
     :pointerDist="pointerDist"
     :icon="marker.icon"
+    :tooltip="tooltipContent"
     :style="nodeStyle"
     role="img"
-    :aria-label="ariaLabel">
-    <div class="ocean-event__tip" role="tooltip">
-      <span class="ocean-event__tip-kind" v-i18n>{{ marker.title }}</span>
-      <span v-if="marker.description" class="ocean-event__tip-desc" v-i18n>{{ marker.description }}</span>
-      <span v-if="rewardRecipient === 'none'" class="ocean-event__tip-noreward" v-i18n>No reward to players.</span>
-      <span v-else-if="rewardRecipient === 'triggering-player'" class="ocean-event__tip-reward">
-        <span class="ocean-event__tip-reward-label" v-i18n>Reward to the player reaching the threshold:</span>
-        <span class="ocean-event__tip-reward-value" v-i18n>{{ marker.rewardLabel }}</span>
-      </span>
-    </div>
-  </arc-scale-marker-chip>
+    :aria-label="ariaLabel" />
 </template>
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import ArcScaleMarkerChip from '@/client/components/board/ArcScaleMarkerChip.vue';
 import {GlobalParameterThresholdMarker} from '@/client/components/board/oceanThresholdMarkers';
+import {ScaleTooltipContent, ScaleTooltipRow} from '@/client/components/board/scaleTooltipState';
+import {translateText} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'OceanEventMarker',
@@ -63,6 +57,23 @@ export default defineComponent({
     },
     ariaLabel(): string {
       return this.marker.title;
+    },
+    tooltipContent(): ScaleTooltipContent {
+      const rows: Array<ScaleTooltipRow> = [];
+      if (this.marker.description) {
+        rows.push({text: translateText(this.marker.description), tone: 'desc'});
+      }
+      if (this.rewardRecipient === 'none') {
+        rows.push({text: translateText('No reward to players.'), tone: 'note'});
+      } else if (this.rewardRecipient === 'triggering-player') {
+        rows.push({text: translateText('Reward to the player reaching the threshold:'), tone: 'desc'});
+        rows.push({text: translateText(this.marker.rewardLabel ?? ''), tone: 'reward'});
+      }
+      return {
+        accent: 'oceans',
+        kicker: translateText(this.marker.title),
+        rows,
+      };
     },
   },
 });
