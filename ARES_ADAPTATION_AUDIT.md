@@ -158,9 +158,11 @@ shows costs/bonuses/penalties/cleanup · ✅ scale markers use `ArcScaleMarkerCh
 covers planetary events + adjacency gains · ✅ localization complete (0 real gaps) · ✅ hazard-cleanup TR
 attributed · ✅ endgame TR breakdown shows hazard TR · ✅ Ares-disabled games unaffected (no leak, full
 suite green) · ✅ tests/typecheck/build pass.
-◑ Endgame narrative INSIGHTS (§20.2) deferred (optional). ◑ Bespoke premium ShiftAresGlobalParameters
-widget (frontier, like ModernAndOptions). ◑ Manual QA (§26) needs a live UI eyeball — logic is
-test-covered.
+✅ Butterfly Effect now uses a bespoke PREMIUM `ModernShiftAresGlobalParameters` widget (per-marker
+row: icon + diegetic label + live `current → resulting` threshold preview + −1/0/+1 segmented control),
+hosted in MandatoryInputModal via ModalInputHost — the legacy radio widget is no longer reachable.
+◑ Endgame narrative INSIGHTS (§20.2) deferred (optional). ◑ Manual QA (§26) needs a live UI eyeball —
+logic is test-covered.
 
 ## 6. Open product decisions
 
@@ -169,6 +171,13 @@ test-covered.
 
 ## 7. Changelog
 
+- **2026-06-26** — Premium Butterfly Effect widget: `ModernShiftAresGlobalParameters.vue` replaces
+  the legacy radio form in the modal (registered in `ModalInputHost.PREMIUM_COMPONENTS` for
+  `aresGlobalParameters`). One row per AVAILABLE planetary threshold — diegetic icon + label, a live
+  `current → resulting` preview (temperature shifts in 2°C steps), and a −1/0/+1 segmented control;
+  submits the byte-identical `{type:'aresGlobalParameters', response:{…}}` and supports controlled
+  mode (`@change`). Styles in `modal_inputs.less`; 6 RU keys; `ModernShiftAresGlobalParameters.spec.ts`
+  (5). vue-tsc + make:json + make:css + ModalInputHost spec green.
 - **2026-06-26** — Phase 10: full QA. Server suite 7450 passing; build:server / vue-tsc / make:json /
   make:css / make:cards green; eslint 0 new errors; client component specs green. Adaptation complete
   (see done-criteria above).
