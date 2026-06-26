@@ -74,4 +74,20 @@ describe('TabbedRemovalPicker', () => {
     expect(c.findAll('.virus-tabs__tab').length).to.eq(1);
     expect(c.find('.virus-plant').exists()).is.true; // opens straight on plants
   });
+
+  it('renders a protected (disabled) target as a greyed, non-selectable row with its reason', async () => {
+    const withProtected = {kind: 'tabbedTargets', plant: {label: 'Plants', icon: 'plants', amount: 5, targets: [
+      {color: 'red', name: 'Red', current: 8, resulting: 3, optionIndex: 1},
+      {color: 'blue', name: 'Blue', current: 6, resulting: 6, optionIndex: -1, disabled: true, reason: 'Plants are protected'},
+    ]}};
+    const c = factory(withProtected);
+    expect(c.findAll('.virus-plant').length).to.eq(2);
+    const disabledRow = c.find('.virus-plant--disabled');
+    expect(disabledRow.exists(), 'a disabled row is rendered').is.true;
+    expect(disabledRow.attributes('disabled'), 'the row is a disabled button').is.not.undefined;
+    expect(c.find('.virus-plant__reason').text()).to.contain('Plants are protected');
+    // The disabled row never emits a selection.
+    await disabledRow.trigger('click');
+    expect(c.emitted('select'), 'no select from a disabled row').is.undefined;
+  });
 });

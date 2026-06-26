@@ -62,12 +62,13 @@ export class Virus extends Card implements IProjectCard {
       orOptionsAnimals.options[0] :
       undefined;
 
-    const orOptionsPlants = new RemoveAnyPlants(player, 5).execute();
-    const removePlants = orOptionsPlants !== undefined ?
-      orOptionsPlants.options.slice(0, -1) :
-      undefined;
+    // The ACTIONABLE opponent plant-removal options directly (no skip/own/disabled to
+    // slice off): this keeps the structure EXACTLY [animal?, ...opponent plants, skip]
+    // so the pre-collected tab indices line up, and is immune to how the shared
+    // RemoveAnyPlants prompt surfaces protected opponents (which is handled below).
+    const removePlants = new RemoveAnyPlants(player, 5).opponentOptions();
 
-    if (removeAnimals === undefined && removePlants === undefined) {
+    if (removeAnimals === undefined && removePlants.length === 0) {
       return undefined;
     }
 
@@ -75,12 +76,20 @@ export class Virus extends Card implements IProjectCard {
     if (removeAnimals !== undefined) {
       orOptions.options.push(removeAnimals);
     }
-    if (removePlants !== undefined) {
-      orOptions.options.push(...removePlants);
-    }
+    orOptions.options.push(...removePlants);
     orOptions.options.push(new SelectOption('Skip removal'));
 
     return orOptions;
+  }
+
+  /** Opponents whose plants are PROTECTED — shown as greyed, non-selectable rows in
+   *  the plant tab so the player SEES the protection rather than the opponent silently
+   *  missing from the list (mirrors the standard plant-attack modal's disabled
+   *  targets). They carry no `optionIndex` (never submitted). */
+  private protectedPlantTargets(player: IPlayer): Array<TabbedPlantTarget> {
+    return player.opponents
+      .filter((p) => p.plantsAreProtected())
+      .map((p) => ({color: p.color, name: p.name, current: p.plants, resulting: p.plants, optionIndex: -1, disabled: true, reason: 'Plants are protected'}));
   }
 
   // PRE-COLLECT the removal choice IN the play modal as a TWO-TAB picker (Animals /
@@ -92,8 +101,16 @@ export class Virus extends Card implements IProjectCard {
   // byte-for-byte. Built read-only.
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const orOptions = this.buildRemovalOptions(player);
+    const protectedTargets = this.protectedPlantTargets(player);
     if (orOptions === undefined) {
-      return actionPreviews.playPreview(this, player);
+      // Nothing actionable. If an opponent's plants are PROTECTED, say so with a
+      // warning (a mandatory tab can't be all-disabled, and a silent no-op would
+      // leave the player wondering why nothing happened); otherwise nobody had
+      // anything to take and the play is just blank.
+      const steps = protectedTargets.length > 0 ?
+        [actionPreviews.warningNote('Plants are protected')] :
+        [];
+      return actionPreviews.playPreview(this, player, [], steps);
     }
     const step: TabbedTargetsStep = {kind: 'tabbedTargets'};
     const plantTargets: Array<TabbedPlantTarget> = [];
@@ -114,6 +131,11 @@ export class Virus extends Card implements IProjectCard {
         });
       }
     });
+    // Append PROTECTED opponents as greyed, non-selectable rows, so the player sees
+    // them (and won't wonder where a known opponent went / mistarget). The tab still
+    // has at least one selectable target (an actionable plant opponent or — via the
+    // animal tab — a card), so the mandatory step is always satisfiable.
+    plantTargets.push(...protectedTargets);
     if (plantTargets.length > 0) {
       step.plant = {label: 'Plants', icon: 'plants', amount: 5, targets: plantTargets};
     }

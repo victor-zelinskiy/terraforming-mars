@@ -50,11 +50,48 @@ describe('RemoveAnyPlants', () => {
     });
   }
 
-  it('Protected Habitats', () => {
+  it('Protected Habitats — protected opponent is SHOWN as a disabled target, not silently skipped', () => {
     target.plants = 10;
     target.playedCards.push(new ProtectedHabitats());
-    cast(new RemoveAnyPlants(player, 4).execute(), undefined);
+    // The prompt is no longer silently skipped: it shows the protected opponent as a
+    // non-selectable target with a reason, so the attacker isn't left wondering why
+    // nothing happened (and can't mistakenly target themselves).
+    const orOptions = cast(new RemoveAnyPlants(player, 4).execute(), OrOptions);
+    // Player has no plants, no valid opponent → only the skip option is selectable.
+    expect(orOptions.options).has.length(1);
+    expect(formatMessage(orOptions.options[0].title)).eq('Skip removing plants');
+    // The protected opponent appears in the disabled list with the protection reason.
+    expect(orOptions.disabledOptions.some((d) => d.reason === 'Plants are protected')).is.true;
+    // Skipping changes nothing.
+    orOptions.options[0].cb();
     expect(target.plants).eq(10);
+  });
+
+  it('2-player: protected opponent shown disabled; attacker can still skip / self-target, opponent untouched', () => {
+    const [/* g */, p1, p2] = testGame(2);
+    p2.plants = 8;
+    p2.playedCards.push(new ProtectedHabitats());
+    p1.plants = 4;
+    const orOptions = cast(new RemoveAnyPlants(p1, 4).execute(), OrOptions);
+    // The protected opponent is a greyed, non-selectable target (never hidden / auto-skipped).
+    expect(orOptions.disabledOptions.some((d) => d.reason === 'Plants are protected')).is.true;
+    // Selectable options are ONLY skip + the attacker's own plants (clearly warned),
+    // never the protected opponent.
+    expect(orOptions.options).has.length(2);
+    expect(formatMessage(orOptions.options[0].title)).eq('Skip removing plants');
+    const ownOption = cast(orOptions.options[1], SelectOption);
+    expect(ownOption.warnings).contains('removeOwnPlants');
+    orOptions.options[0].cb();
+    expect(p2.plants).eq(8);
+  });
+
+  it('2-player: opponent merely out of plants (not protected) → silent no-op (no modal spam)', () => {
+    const [/* g */, p1, p2] = testGame(2);
+    p2.plants = 0;
+    p1.plants = 4;
+    // Nobody is protected and no opponent has plants — an expected, non-informative
+    // situation, so no prompt is raised (unlike the protection case above).
+    cast(new RemoveAnyPlants(p1, 4).execute(), undefined);
   });
 
   it('Botanical Experience', () => {

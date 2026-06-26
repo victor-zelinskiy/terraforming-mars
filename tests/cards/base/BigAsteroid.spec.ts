@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {BigAsteroid} from '../../../src/server/cards/base/BigAsteroid';
+import {ProtectedHabitats} from '../../../src/server/cards/base/ProtectedHabitats';
 import {IGame} from '../../../src/server/IGame';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {TestPlayer} from '../../TestPlayer';
@@ -29,6 +30,25 @@ describe('BigAsteroid', () => {
 
     orOptions.options[0].cb(); // remove plants
     expect(player2.plants).to.eq(1);
+    expect(game.getTemperature()).to.eq(-26);
+    expect(player.titanium).to.eq(4);
+  });
+
+  it('Protected opponent is shown as a disabled target instead of the prompt vanishing', () => {
+    player2.plants = 8;
+    player2.playedCards.push(new ProtectedHabitats());
+    card.play(player);
+    runAllActions(game);
+
+    // The plant-removal prompt is STILL raised (not silently skipped), showing the
+    // protected opponent as a non-selectable target so the attacker sees the protection
+    // rather than wondering why nothing happened.
+    const orOptions = cast(player.getWaitingFor(), OrOptions);
+    expect(orOptions.disabledOptions.some((d) => d.reason === 'Plants are protected')).is.true;
+    // The protected opponent is not selectable; skipping leaves their plants intact.
+    orOptions.options[0].cb();
+    expect(player2.plants).to.eq(8);
+    // The rest of the card still resolved.
     expect(game.getTemperature()).to.eq(-26);
     expect(player.titanium).to.eq(4);
   });

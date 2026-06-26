@@ -9,6 +9,14 @@
         <span v-if="ownerName !== undefined" class="board-cell-popover__owner" v-i18n>{{ ownerName }}</span>
       </div>
 
+      <!-- Composite-tile rules tag (Capital → city; New Holland → city + ocean). -->
+      <div v-if="countsAsLabels.length > 0" class="board-cell-popover__countsas">
+        <span class="board-cell-popover__countsas-label" v-i18n>Counts as</span>
+        <span v-for="(c, i) in countsAsLabels" :key="c" class="board-cell-popover__countsas-tag">
+          <span v-i18n>{{ c }}</span><span v-if="i < countsAsLabels.length - 1">, </span>
+        </span>
+      </div>
+
       <!-- Curated named-cell lore (flavour + the real placement rule). -->
       <div v-if="loreInfo !== undefined" class="board-cell-popover__lore" v-i18n>{{ loreInfo.description }}</div>
 
@@ -34,16 +42,22 @@
         :viewerColor="cfg.color"
         :players="cfg.players" />
 
-      <!-- Special map zones — Сейчас (status) + Эффект (rule). -->
+      <!-- Special map zones — the standing rule (+ deflection status block below). -->
       <div v-for="fact in zoneFacts" :key="fact.id" class="board-cell-popover__zone">
         <div class="board-cell-popover__zone-head" v-i18n>{{ fact.title }}</div>
-        <div v-if="fact.id === 'deflection-zone'" class="board-cell-popover__zone-now">
-          <span class="board-cell-popover__zone-label" v-i18n>Now</span>
-          <span v-i18n>Does not change placement here.</span>
-        </div>
         <div v-if="fact.description !== undefined" class="board-cell-popover__zone-effect">
           <span class="board-cell-popover__zone-label" v-i18n>Effect</span>
           <span v-i18n>{{ fact.description }}</span>
+        </div>
+      </div>
+
+      <!-- Asteroid Deflection Zone — who is currently protected from plant loss. -->
+      <div v-if="zoneProtection !== undefined" class="board-cell-popover__section">
+        <div class="board-cell-popover__section-head" v-i18n>Plant protection</div>
+        <div v-for="s in zoneProtection.statuses" :key="s.color" class="board-cell-popover__zone-player">
+          <span class="board-cell-popover__owner-dot board-cell-popover__zone-dot" :class="'player_bg_color_' + s.color"></span>
+          <span class="board-cell-popover__zone-name" v-i18n>{{ playerName(s.color) }}</span>
+          <span class="board-cell-popover__zone-badge" :class="statusClass(s.status)" v-i18n>{{ statusLabel(s.status) }}</span>
         </div>
       </div>
 
@@ -96,7 +110,7 @@ export default defineComponent({
       return this.facts.filter((f) => f.category === 'ocean-adjacency-bonus');
     },
     scoringFacts(): ReadonlyArray<BoardFact> {
-      return this.facts.filter((f) => f.category === 'city-greenery-scoring');
+      return this.facts.filter((f) => f.category === 'city-greenery-scoring' || f.category === 'future-scoring');
     },
     zoneFacts(): ReadonlyArray<BoardFact> {
       return this.facts.filter((f) => f.category === 'map-special-zone');
@@ -127,11 +141,24 @@ export default defineComponent({
       return this.cfg.players.find((p) => p.color === color)?.name ?? color;
     },
     tileName(): string | undefined {
-      if (this.status.content !== 'special-tile') {
+      // Name a SPECIAL / composite tile (Capital, New Holland, volcanoes, …) or a
+      // standalone special-tile cell. An ORDINARY city/ocean/greenery (special !==
+      // true) stays nameless so the city tooltip reads exactly as before.
+      if (this.status.special !== true && this.status.content !== 'special-tile') {
         return undefined;
       }
       const label = this.status.tileLabel;
       return typeof label === 'string' && label !== '' ? label : undefined;
+    },
+    // What a composite tile counts AS for rules/scoring (Capital → city; New
+    // Holland → city + ocean). Empty for an ordinary tile → no "Counts as" line.
+    countsAsLabels(): ReadonlyArray<string> {
+      const map: Record<string, string> = {city: 'City', ocean: 'Ocean', greenery: 'Greenery'};
+      return (this.status.countsAs ?? []).map((c) => map[c]).filter((s) => s !== undefined);
+    },
+    // Per-player Asteroid-Deflection-Zone plant-protection status.
+    zoneProtection() {
+      return this.info?.zoneProtection;
     },
     // Curated named-cell lore (volcanoes / Noctis / off-Mars colonies), folded
     // into the unified inspector so a named cell shows BOTH its identity AND its
@@ -178,6 +205,23 @@ export default defineComponent({
         return {left: `${cx}px`, top: `${rect.bottom + 10}px`, transform: 'translate(-50%, 0)'};
       }
       return {left: `${cx}px`, top: `${rect.top - 10}px`, transform: 'translate(-50%, -100%)'};
+    },
+  },
+  methods: {
+    playerName(color: Color): string {
+      return this.cfg.players.find((p) => p.color === color)?.name ?? color;
+    },
+    statusLabel(status: string): string {
+      switch (status) {
+      case 'active': return 'Protected';
+      case 'inactive-has-tiles-outside': return 'Tiles outside the zone';
+      default: return 'No tiles in the zone';
+      }
+    },
+    statusClass(status: string): string {
+      return status === 'active' ?
+        'board-cell-popover__zone-badge--active' :
+        'board-cell-popover__zone-badge--inactive';
     },
   },
 });
@@ -314,5 +358,54 @@ export default defineComponent({
   margin-top: 6px;
   font-size: 11.5px;
   color: rgba(200, 222, 240, 0.82);
+}
+.board-cell-popover__countsas {
+  margin-top: 5px;
+  font-size: 11px;
+  color: rgba(206, 226, 242, 0.82);
+}
+.board-cell-popover__countsas-label {
+  margin-right: 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(150, 192, 224, 0.85);
+  &::after { content: ':'; }
+}
+.board-cell-popover__countsas-tag {
+  color: #cfe6fb;
+}
+.board-cell-popover__zone-player {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+.board-cell-popover__zone-dot {
+  margin-left: 0;
+  width: 9px;
+  height: 9px;
+}
+.board-cell-popover__zone-name {
+  font-size: 11.5px;
+  color: rgba(220, 236, 247, 0.86);
+}
+.board-cell-popover__zone-badge {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 9px;
+  &--active {
+    color: #bff7c4;
+    background: rgba(95, 191, 87, 0.18);
+    border: 1px solid rgba(95, 191, 87, 0.4);
+  }
+  &--inactive {
+    color: rgba(200, 222, 240, 0.6);
+    background: rgba(150, 180, 200, 0.1);
+    border: 1px solid rgba(150, 180, 200, 0.22);
+  }
 }
 </style>

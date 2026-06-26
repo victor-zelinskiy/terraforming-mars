@@ -22,6 +22,14 @@ declare global {
 async function bootstrap() {
   const lang = getPreferences().lang;
 
+  // Stamp the active language on <html> at bootstrap (guaranteed to run before
+  // anything renders). Language-scoped CSS that must reach body-TELEPORTED
+  // overlays — e.g. the selected-card "ВЫБРАНА" ribbon, whose text comes from
+  // the `--cab-selected-label` custom property set on `html[data-lang="ru"]` —
+  // resolves through this, because the `.language-*` class only lives on
+  // `#ts-preferences-target`, which does NOT contain those teleports.
+  document.documentElement.setAttribute('data-lang', lang);
+
   if (lang !== 'en') {
     try {
       window._translations = await fetch(`assets/locales/${lang}.json`).then((res) => res.json());

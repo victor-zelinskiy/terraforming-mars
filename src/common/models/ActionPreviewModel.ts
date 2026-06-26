@@ -272,8 +272,13 @@ export type TabbedPlantTarget = {
   current: number;
   resulting: number;
   /** The OrOptions index of this player's plant-removal option — the submit is
-   *  `{type:'or', index, response:{type:'option'}}`. */
+   *  `{type:'or', index, response:{type:'option'}}`. Ignored when `disabled`. */
   optionIndex: number;
+  /** A non-selectable target shown greyed for INFORMATION only (e.g. a player whose
+   *  plants are protected) — rendered with `reason`, never submitted. So a protected
+   *  opponent is SHOWN in the picker rather than silently missing from the list. */
+  disabled?: boolean;
+  reason?: string | Message;
 };
 
 /**
