@@ -17,15 +17,19 @@
  */
 
 // ── Deep-water palette (single source of truth) ───────────────────────────
-@ocean-deep:        #11567f; // shadowed depths
-@ocean-mid:         #2f9fd6; // body of the water
-@ocean-bright:      #6fd2f2; // sunlit surface highlight
-@ocean-glow:        rgba(64, 184, 236, 0.62);
-@ocean-glow-soft:   rgba(64, 184, 236, 0.30);
-@ocean-channel:     rgba(10, 38, 60, 0.62);   // empty-track casing
-@ocean-cell-empty:  rgba(118, 174, 208, 0.30); // dim, unfilled cell
-@ocean-rim:         rgba(150, 214, 246, 0.55); // glass sheen
-@ocean-digit:       #dcf2ff;
+@ocean-deep:        #0f5a86; // shadowed depths
+@ocean-mid:         #2fa6dd; // body of the water
+@ocean-bright:      #7fdcf6; // sunlit surface highlight
+@ocean-glow:        rgba(70, 196, 240, 0.62);
+@ocean-glow-soft:   rgba(70, 196, 240, 0.30);
+@ocean-rail:        rgba(3, 12, 22, 0.55);    // recessed groove backing
+@ocean-channel:     rgba(12, 44, 68, 0.78);   // empty / not-reached track (deep navy)
+@ocean-divider:     rgba(4, 18, 30, 0.62);    // segment cut between ocean slots
+@ocean-edge:        rgba(126, 220, 246, 0.42); // outer rim light
+@ocean-rim:         rgba(170, 226, 250, 0.6);  // inner glass sheen
+@ocean-cap:         rgba(150, 224, 250, 0.92); // gauge end terminals
+@ocean-digit:       #c2dbec; // future (not-yet-reached) digit
+@ocean-digit-on:    #eef9ff; // visited (reached) digit
 
 .global-numbers-oceans {
   // MUST be abs with AUTO offsets (no top/left), exactly like
@@ -42,7 +46,7 @@
   pointer-events: none;
 }
 
-// ── SVG band (channel + segmented water cells + sheen) ─────────────────────
+// ── SVG band — a layered, material gauge (not a flat stroke) ───────────────
 .ocean-arc__svg {
   position: absolute;
   top: 0;
@@ -51,48 +55,87 @@
   pointer-events: none;
 }
 
-// The empty track — a dim carved channel spanning the whole arc, behind the
-// water fill, so unfilled progress still reads as part of one continuous gauge.
+// 1) Recessed backing rail — a soft dark groove a touch wider than the channel,
+//    so the gauge reads as carved INTO the rim rather than painted on top.
+.ocean-arc__rail {
+  fill: none;
+  stroke: @ocean-rail;
+  stroke-width: 24px;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.5));
+}
+
+// 2) The empty track — a deep navy channel spanning the whole arc, behind the
+//    water fill, so the not-yet-reached portion still reads as one gauge.
 .ocean-arc__channel {
   fill: none;
   stroke: @ocean-channel;
-  stroke-width: 18px;
+  stroke-width: 17px;
   stroke-linecap: round;
 }
 
-// The water fill — the SAME band path, revealed from value 1 toward the current
-// count via stroke-dashoffset (set inline). Stroke is the depth gradient; a
-// soft outward glow + a smooth dashoffset transition make oceans "pour in" as
-// the indicator glides. (`@ocean-cell-empty` kept as a hook for a future per-
-// slot variant.)
+// 3) The water fill — the SAME band path, revealed from value 1 toward the
+//    current count via stroke-dashoffset (set inline). Stroke is the depth
+//    gradient; a soft outward glow + a smooth dashoffset transition make oceans
+//    "pour in" as the indicator glides.
 .ocean-arc__fill {
   fill: none;
   // `stroke` is set inline to url(#oceanArcWater) (the depth gradient).
-  stroke-width: 14px;
+  stroke-width: 13px;
   stroke-linecap: round;
   filter:
     drop-shadow(0 0 3px @ocean-glow)
-    drop-shadow(0 0 7px @ocean-glow-soft);
-  transition: stroke-dashoffset 360ms cubic-bezier(0.22, 1, 0.36, 1);
+    drop-shadow(0 0 8px @ocean-glow-soft);
+  transition: stroke-dashoffset 380ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-// Precision graduation ticks just outside the band.
-.ocean-arc__tick {
-  stroke: rgba(160, 212, 240, 0.34);
-  stroke-width: 1px;
+// 4) Segment dividers — thin radial cuts at the slot boundaries so the
+//    continuous water reads as 9 distinct ocean cells.
+.ocean-arc__divider {
+  stroke: @ocean-divider;
+  stroke-width: 1.4px;
   stroke-linecap: round;
 }
 
-// Thin glass highlight hugging the inner edge — the "catching light" sheen.
+// 5) Outer rim highlight — a thin lit edge hugging the band's outer arc.
+.ocean-arc__edge {
+  fill: none;
+  stroke: @ocean-edge;
+  stroke-width: 1.2px;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+
+// 6) Inner glass sheen — the "catching light" highlight on the inner edge.
 .ocean-arc__sheen {
   fill: none;
   stroke: @ocean-rim;
-  stroke-width: 1.4px;
+  stroke-width: 1.3px;
   stroke-linecap: round;
-  opacity: 0.7;
+  opacity: 0.65;
 }
 
-// Gradient stops (referenced by the filled cells).
+// 7) Graduation ticks just outside the band; visited ones light up to water-cyan.
+.ocean-arc__tick {
+  stroke: rgba(150, 196, 226, 0.30);
+  stroke-width: 1px;
+  stroke-linecap: round;
+  transition: stroke 340ms ease;
+}
+.ocean-arc__tick--visited {
+  stroke: @ocean-edge;
+}
+
+// 8) End-cap terminals — small glowing nodes at the gauge ends, so the arc
+//    finishes deliberately instead of looking like a cut-off stroke.
+.ocean-arc__cap {
+  fill: @ocean-cap;
+  stroke: rgba(8, 26, 40, 0.7);
+  stroke-width: 0.8px;
+  filter: drop-shadow(0 0 3px @ocean-glow);
+}
+
+// Gradient stops (referenced by the water fill).
 .ocean-arc__grad-bright { stop-color: @ocean-bright; }
 .ocean-arc__grad-mid { stop-color: @ocean-mid; }
 .ocean-arc__grad-deep { stop-color: @ocean-deep; }
@@ -107,7 +150,9 @@
   line-height: 22px;
   font-size: 13px;
   text-align: center;
+  // Default = FUTURE (not yet reached): dimmer so the gauge reads as progress.
   color: @ocean-digit;
+  opacity: 0.62;
   // Strong dark casing so the digit reads on both lit water + dim glass.
   text-shadow:
     0 1px 2px rgba(0, 0, 0, 0.85),
@@ -115,11 +160,19 @@
   pointer-events: none;
   // Above the SVG band; the active digit lifts above the indicator disc.
   z-index: 1;
+  transition: color 320ms ease, opacity 320ms ease;
+}
+
+// VISITED (reached) digits — brighter water-white, fully opaque.
+.global-numbers-oceans .ocean-arc__digit--visited {
+  color: @ocean-digit-on;
+  opacity: 1;
 }
 
 // Active digit — luminous water white, matching the indicator accent (mirrors
 // the per-scale `.val-is-active` treatment in globs.less).
 .global-numbers-oceans .val-is-active {
+  opacity: 1;
   color: #f1fbff;
   font-weight: 700;
   z-index: 2;
@@ -133,6 +186,106 @@
 // channel a touch dimmer so the first placed ocean clearly "lights up".
 .ocean-arc--empty .ocean-arc__channel {
   opacity: 0.8;
+}
+
+// ── Scale IDENTITY emblem (the water droplet) ─────────────────────────────
+// A compact HUD LABEL for the parameter — deliberately a DIFFERENT visual
+// language from the bonus / event chips (which are octagon glass + a pointer +
+// a reward halo). The identity badge is a calm flat-glass ROUNDED tab with a
+// water droplet, NO pointer, NO reward glow — so it never reads as "claim this".
+.ocean-arc__identity {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  pointer-events: auto;
+  z-index: 3;
+  background: linear-gradient(155deg, rgba(16, 42, 62, 0.92), rgba(7, 22, 36, 0.94));
+  border: 1px solid rgba(110, 196, 234, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.5);
+  cursor: default;
+
+  &:hover,
+  &:focus-visible {
+    border-color: rgba(150, 220, 248, 0.8);
+    outline: none;
+  }
+}
+
+.ocean-arc__identity-glyph {
+  width: 64%;
+  height: 64%;
+  // Water droplet — the parameter's emblem (distinct from any reward icon).
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><linearGradient id='d' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23a6ecff'/><stop offset='60%25' stop-color='%2348b6e6'/><stop offset='100%25' stop-color='%231f7fb8'/></linearGradient></defs><path d='M12 2.5 C12 2.5 5 10.5 5 15.4 a7 7 0 0 0 14 0 C19 10.5 12 2.5 12 2.5 Z' fill='url(%23d)' stroke='%23cdf2ff' stroke-width='0.7'/><ellipse cx='9.6' cy='14.4' rx='1.5' ry='2.4' fill='%23ffffff' opacity='0.5'/></svg>")
+    center / contain no-repeat;
+  filter: drop-shadow(0 0 2px @ocean-glow-soft);
+}
+
+// Identity tooltip — same dark-glass language as the event tooltip, above the badge.
+.ocean-arc__identity-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  min-width: 150px;
+  max-width: 220px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-radius: 7px;
+  background: linear-gradient(160deg, rgba(12, 26, 40, 0.97), rgba(6, 16, 26, 0.97));
+  border: 1px solid rgba(96, 184, 230, 0.45);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 140ms ease, transform 140ms ease;
+  pointer-events: none;
+  z-index: 30;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: rgba(10, 22, 34, 0.97);
+  }
+}
+
+.ocean-arc__identity:hover .ocean-arc__identity-tip,
+.ocean-arc__identity:focus-within .ocean-arc__identity-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.ocean-arc__identity-tip-title {
+  font-family: Prototype, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: @ocean-bright;
+}
+
+.ocean-arc__identity-tip-count {
+  font-family: Prototype, sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #eef9ff;
+}
+
+.ocean-arc__identity-tip-desc {
+  font-size: 11px;
+  line-height: 1.3;
+  color: #9fb4c4;
 }
 
 // ── Future planetary-event chips ──────────────────────────────────────────

@@ -1106,6 +1106,20 @@ each(@players, {
     z-index: 1;
 }
 
+/*
+ * Compact-height safe area for the OCEAN ARC. On short viewports the board is
+ * height-limited and its bottom rim — where OceanArcScale is drawn, with its
+ * inside event chips reaching toward the planet — crowds the bottom UI. Lift
+ * the centring box bottom so the whole board (and the arc) settles higher with
+ * a safe gap. MUST stay in lockstep with `COMPACT_VIEWPORT_HEIGHT` +
+ * `readVerticalReserved()` in useBoardAutoScale.ts (same breakpoint + value).
+ */
+@media (max-height: 900px) {
+    .player_home_block--board {
+        bottom: calc(var(--bottom-bar-button-height) + 16px);
+    }
+}
+
 .player_home_block--board > * {
     pointer-events: auto;
 }

@@ -172,6 +172,38 @@ export function segments(cfg: ArcScaleConfig, radius = cfg.radius, fill = 0.84):
   return out;
 }
 
+export type MarkerSide = 'inside' | 'outside';
+
+/**
+ * Placement of a threshold-marker CHIP relative to the band, computed from the
+ * arc geometry (never eyeballed). `side` decides which way the chip sits:
+ *   • 'outside' — the chip body is beyond the band's OUTER edge (toward space);
+ *                 its pointer aims INWARD at the band.
+ *   • 'inside'  — the chip body is beyond the band's INNER edge (toward the
+ *                 PLANET); its pointer aims OUTWARD at the band.
+ *
+ * For the BOTTOM ocean arc, 'inside' puts the chip ABOVE the arc (between the
+ * arc and the planet) with the pointer aiming down at the threshold — the
+ * mirror of the Venus chips on the top arc. Returns the chip CENTRE plus the
+ * pointer rotation + push distance (so the triangle tip lands on the band edge).
+ * Reusable for every scale's markers.
+ */
+export function markerChip(
+  cfg: ArcScaleConfig,
+  value: number,
+  side: MarkerSide,
+  opts: {bandInner: number; bandOuter: number; gap: number; pointer: number; size: number},
+): {x: number; y: number; point: number; pointerDist: number} {
+  const {bandInner, bandOuter, gap, pointer, size} = opts;
+  const radius = side === 'outside' ?
+    bandOuter + gap + pointer + size / 2 :
+    bandInner - gap - pointer - size / 2;
+  const p = pointForValue(cfg, value, radius);
+  const point = pointerRotationForValue(cfg, value, side === 'outside' ? 'outer' : 'inner');
+  const pointerDist = size / 2 + gap + pointer / 2;
+  return {x: p.x, y: p.y, point, pointerDist};
+}
+
 /** A short radial tick line crossing the band at a value (inner → outer point). */
 export function tick(cfg: ArcScaleConfig, value: number, innerR: number, outerR: number): {x1: number; y1: number; x2: number; y2: number} {
   const a = angleForValue(cfg, value);
