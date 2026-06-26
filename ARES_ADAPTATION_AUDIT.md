@@ -86,8 +86,8 @@ These have **NO auto-guard** — tracked manually here.
 | **Hazard cleanup TR attribution** | new TR bucket, diegetic label «Очистка опасных зон»; VP-overlay segment | `Player.increaseTerraformRating(..., {trAttribution})` + `TRSourceType`; `victoryPointsModel.trScale` | ✅ (`ares-hazard` bucket → `TerraformRatingBreakdown.hazards` → own `tr.hazards` segment; cleanup-by-build + ocean-6 removal attributed; no-leak guarded) |
 | **Journal / eventlog** for every Ares board event (place/strengthen/remove/cleanup/penalty/adjacency-bonus) | root events w/ `correlationId` + new `JournalActionCategory` | `events.beginAction(...)` + `endScope()` (milestone/award recipe) | ✅ planetary events (appear / intensify / recede) are `planetary-event` roots (player threaded through `onTemperatureChange`/`onOxygenChange`); removal +TR grouped under it; cleanup-by-build TR already attributed (Phase 2); adjacency M€/energy now via `stock.add` (was direct mutation → invisible). Empty-threshold = no journal noise |
 | **Notifications** for planetary events / hazard cleanup / adjacency income | variant + mapper | `notificationModel.rootVariant` | ✅ `planetary-event` variant (kind `important`, ochre accent ◬) shown even with journal open |
-| **Random hazard placement** (initial + threshold) — NO player picker, server-driven, logged + board-highlighted | confirm logged + presented honestly (random, not "player chose") | `AresHazards.randomlyPlaceHazard` (exists); add journal + client highlight | ⬜ |
-| **Endgame stats** (optional, honest) — TR from cleanup; tiles-adjacent-to-hazards | endgame facts/insights | `endgameFacts.ts` (opt-in) | ⬜ (low priority) |
+| **Random hazard placement** (initial + threshold) — NO player picker, server-driven, logged + board-highlighted | confirm logged + presented honestly (random, not "player chose") | `AresHazards.randomlyPlaceHazard` (exists); add journal + client highlight | ✅ server-driven (no picker); the threshold placement is a `planetary-event` journal root «появляются эрозии» (never implies the player chose), tiles render via the existing hazard sprites |
+| **Endgame stats** (optional, honest) — TR from cleanup; tiles-adjacent-to-hazards | endgame facts/insights | `endgameFacts.ts` (opt-in) | ◑ §20.1 (TR breakdown segment «Очистка опасных зон») DONE in Phase 2; §20.2 narrative insights deliberately DEFERRED (optional + "avoid overclaim") — the hazard-cleanup events are in the stream, an insight analyzer can be added later |
 
 ---
 
@@ -132,9 +132,14 @@ No render gaps.
   journal roots + notification variant; adjacency M€/energy routed through the event stream).
 - **Phase 5 — BoardInformation: `aresAdjacencyFacts` + hazard facts + placement preview** ✅
   (engine facts + hover popover hazard section + recipient-grouped adjacency; read-only-guarded).
-- **Phase 6 — Cards: replacement parity audit + Desperate Measures/Solar Farm board UX** ⬜.
+- **Phase 6 — Cards: replacement parity + legacy-modal removal** ✅ (guards cleared in Phase 1;
+  effects/actions overlays auto-cover every Ares card; Butterfly Effect's `aresGlobalParameters`
+  input routed to the premium modal — was buried in the hidden legacy stack; contextual-choice
+  triage of the Ares dir = no bespoke `OrOptions` → nothing to mark; Desperate Measures / Solar Farm
+  board UX via Phase 5).
 - **Phase 7 — Journal/eventlog** ✅ for hazard events (folded into Phase 4); per-card play logs already covered by the generic journal.
-- **Phase 8 — Endgame stats** ⬜ (low priority).
+- **Phase 8 — Endgame stats** ◑ TR breakdown segment done (Phase 2); narrative insights deferred
+  (optional, avoid overclaim — the hazard events are in the event stream for a future analyzer).
 - **Phase 9 — Localization** ✅ (card names + descriptions + render texts in `ru/ares_cards.json`;
   hazard/board/scale/journal strings done in their phases). 0 real gaps per the audit script.
 - **Phase 10 — Tests / QA / build / eslint** ⬜.
@@ -146,6 +151,11 @@ No render gaps.
 
 ## 7. Changelog
 
+- **2026-06-26** — Phase 6: routed Butterfly Effect's `aresGlobalParameters` input into
+  `MODAL_INPUT_TYPES` so it shows in the premium MandatoryInputModal (factory-hosted) instead of
+  the hidden legacy `.legacy-ui-overlay`. Contextual-choice triage of `src/server/cards/ares`:
+  no bespoke `OrOptions`/`SelectOption` → nothing to `markChoiceContext`. (A bespoke premium
+  ShiftAresGlobalParameters widget remains a documented frontier, like ModernAndOptions.)
 - **2026-06-26** — Phase 9: localization. New `ru/ares_cards.json` — 12 new Ares card names +
   descriptions + baked `Action:`/`Effect:`/plate render texts (verified against the generated
   `cardRender.json` so no card line silently shows English), plus the 13 replacement cards'

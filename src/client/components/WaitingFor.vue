@@ -200,6 +200,11 @@ const MODAL_INPUT_TYPES: ReadonlySet<PlayerInputModel['type']> = new Set([
   // form inside ModalInputHost's factory fallback) instead of buried in the
   // hidden legacy overlay.
   'projectCard',
+  // Butterfly Effect (Ares) — shift the hazard-constraint thresholds. A bespoke
+  // top-level input; route it to the modal so it's VISIBLE (hosted via the
+  // ShiftAresGlobalParameters factory fallback inside ModalInputHost) instead of
+  // buried in the hidden legacy overlay. A bespoke premium widget is a frontier.
+  'aresGlobalParameters',
 ]);
 
 function titleText(title: string | Message | undefined): string | undefined {
