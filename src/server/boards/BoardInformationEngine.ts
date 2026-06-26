@@ -3,7 +3,9 @@ import {Space} from './Space';
 import {Board, isSpecialTile} from './Board';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {SpaceType} from '../../common/boards/SpaceType';
-import {CITY_TILES, OCEAN_TILES, GREENERY_TILES, TileType, tileTypeToString} from '../../common/TileType';
+import {CITY_TILES, OCEAN_TILES, GREENERY_TILES, HAZARD_TILES, TileType, tileTypeToString} from '../../common/TileType';
+import {HAZARD_STEPS, hazardSeverity} from '../../common/AresTileType';
+import {CardName} from '../../common/cards/CardName';
 import {PlacementType} from './PlacementType';
 import * as constants from '../../common/constants';
 import {
@@ -53,7 +55,11 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
   // Standing special-zone / reserved / restricted rules.
   facts.push(...specialZoneFacts(player, space));
 
-  if (Board.hasRealTile(space)) {
+  if (isHazard(space)) {
+    // A hazard tile is NOT a "real tile" and the cell isn't placeable, so it
+    // falls through both branches below — explain the hazard explicitly.
+    facts.push(...hazardHoverFacts(player, space));
+  } else if (Board.hasRealTile(space)) {
     if (status.external === true) {
       // Off the Mars grid (reserved off-Mars city slot): no Mars adjacency, so
       // NEVER the city-greenery / ocean-adjacency facts — `countsAs` is shown
@@ -144,7 +150,10 @@ function headerFor(space: Space, status: BoardCellStatus): string {
   case 'city': return 'City';
   case 'greenery': return 'Greenery';
   case 'special-tile': return 'Special tile';
-  case 'hazard': return 'Hazard';
+  case 'hazard': {
+    const tt = space.tile?.tileType;
+    return (tt === TileType.EROSION_SEVERE || tt === TileType.DUST_STORM_SEVERE) ? 'Severe hazard zone' : 'Hazard zone';
+  }
   case 'empty':
   default:
     if (space.spaceType === SpaceType.OCEAN) return 'Ocean area';
@@ -521,20 +530,138 @@ function placementScoringFacts(player: IPlayer, space: Space, kind: BoardPlaceme
 // ---------------------------------------------------------------------------
 
 /**
- * Where a future Ares adaptation surfaces ADJACENCY facts. Today returns no
- * facts. When Ares is adapted, read each neighbour's GENERIC `space.adjacency`
- * metadata (NOT a hardcoded "special tile = source" rule) and emit:
- *   - `ares-adjacency-bonus` for what the PLACING player gains from an adjacent
- *     Ares tile's `adjacency.bonus` (recipient `current-player`), and
- *   - `tile-owner-benefit` for the income the adjacent tile's OWNER earns when a
- *     tile is placed next to their Ares tile (recipient `tile-owner`, their colour).
- * The hazard PENALTY (cost) already flows through `placementCostFacts` →
- * `MarsBoard.placementCostInfo` → `Board.computeAdditionalCosts` (which handles
- * `aresExtension`); `hazard-cleanup` / `ocean-upgrade` facts would be added here too.
+ * Ares ADJACENCY + hazard-cleanup facts for an active PLACEMENT preview. Reads
+ * each neighbour's GENERIC `space.adjacency` metadata (NOT a hardcoded "special
+ * tile = source" rule), mirroring `AresHandler.earnAdjacencyBonus`:
+ *   - `ares-adjacency-bonus` — what the PLACING player gains from an adjacent
+ *     tile's `adjacency.bonus` (recipient `current-player`), and
+ *   - `tile-owner-benefit` — the M€ the adjacent tile's OWNER earns when a tile is
+ *     placed next to it (1, or 2 with Marketing Experts; recipient `tile-owner`).
+ * When the placement COVERS a hazard, the cleanup TR REWARD is surfaced here
+ * (the M€ cost already flows through `placementCostFacts`). Read-only.
  */
-function aresAdjacencyFacts(_player: IPlayer, _space: Space): Array<BoardFact> {
-  // TODO(ares): populate from neighbour `space.adjacency` once Ares is in scope.
-  return [];
+function aresAdjacencyFacts(player: IPlayer, space: Space): Array<BoardFact> {
+  if (player.game.gameOptions.aresExtension !== true) {
+    return [];
+  }
+  const board = player.game.board;
+  const out: Array<BoardFact> = [];
+
+  // Building on a hazard clears it → +N TR (cost is in placementCostFacts).
+  if (isHazard(space)) {
+    const steps = HAZARD_STEPS[hazardSeverity(space.tile?.tileType)];
+    if (steps > 0) {
+      out.push(gainFact('hazard-cleanup-tr', 'hazard-cleanup', 'Clears the hazard', {icon: 'tr', amount: steps, direction: 'gain'}));
+    }
+  }
+
+  for (const adj of board.getAdjacentSpaces(space)) {
+    const adjacency = adj.adjacency;
+    if (adjacency === undefined || adjacency.bonus.length === 0) {
+      continue;
+    }
+    const ownerColor = adj.player?.color;
+    const tileLabel = adj.tile?.card ?? (adj.tile !== undefined ? tileTypeToString[adj.tile.tileType] : undefined);
+    const src: BoardFact['source'] = {type: 'adjacent-tile', id: adj.id, label: tileLabel, ownerColor};
+
+    // What the PLACING player gains (the adjacency bonus). 'callback' bonuses
+    // (Crashlanding) are dynamic and out of scope — skip them.
+    const concrete = adjacency.bonus.filter((b): b is SpaceBonus => b !== 'callback');
+    for (const [bonus, count] of countBonuses(concrete)) {
+      const d = describeSpaceBonus(bonus, count);
+      if (d.delta === undefined) {
+        continue;
+      }
+      out.push({
+        id: `ares-adj-${adj.id}-${bonus}`,
+        category: 'ares-adjacency-bonus',
+        timing: 'immediate',
+        severity: 'positive',
+        recipient: {kind: 'current-player'},
+        title: 'Adjacent tile bonus',
+        delta: d.delta,
+        source: src,
+      });
+    }
+
+    // What the adjacent tile's OWNER gains (1 M€, or 2 with Marketing Experts).
+    if (ownerColor !== undefined) {
+      const ownerBonus = adj.player?.tableau.has(CardName.MARKETING_EXPERTS) === true ? 2 : 1;
+      out.push({
+        id: `ares-adj-owner-${adj.id}`,
+        category: 'tile-owner-benefit',
+        timing: 'immediate',
+        severity: 'positive',
+        recipient: recipientFor(player, ownerColor),
+        title: 'Tile owner gains M€',
+        delta: {icon: 'megacredits', amount: ownerBonus, direction: 'gain'},
+        source: src,
+      });
+    }
+  }
+  return out;
+}
+
+/** Whether a hazard tile (dust storm / erosion) occupies the cell. */
+function isHazard(space: Space): boolean {
+  return space.tile !== undefined && HAZARD_TILES.has(space.tile.tileType);
+}
+
+/**
+ * Hover facts for a hazard cell: identity (erosion / dust storm), how building
+ * here clears it (+N TR, − M€ cleanup cost), and the adjacent-placement
+ * production penalty. The M€ cost reuses the REAL `placementCostInfo` source.
+ */
+function hazardHoverFacts(player: IPlayer, space: Space): Array<BoardFact> {
+  const tt = space.tile?.tileType;
+  const severe = tt === TileType.EROSION_SEVERE || tt === TileType.DUST_STORM_SEVERE;
+  const erosion = tt === TileType.EROSION_MILD || tt === TileType.EROSION_SEVERE;
+  const steps = HAZARD_STEPS[hazardSeverity(tt)];
+  const cleanupCost = player.game.board.placementCostInfo(player, space).megacredits;
+  const out: Array<BoardFact> = [];
+
+  out.push({
+    id: 'hazard-identity',
+    category: 'hazard-penalty',
+    timing: 'rule',
+    severity: 'warning',
+    recipient: {kind: 'neutral'},
+    title: erosion ? 'Erosion' : 'Dust storm',
+    description: severe ? 'A severe hazard zone.' : 'A hazard zone.',
+  });
+  out.push({
+    id: 'hazard-cleanup-reward',
+    category: 'hazard-cleanup',
+    timing: 'rule',
+    severity: 'positive',
+    recipient: {kind: 'current-player'},
+    title: 'Build here to clear it',
+    description: 'Building a tile here removes the hazard.',
+    delta: {icon: 'tr', amount: steps, direction: 'gain'},
+  });
+  if (cleanupCost > 0) {
+    out.push({
+      id: 'hazard-cleanup-cost',
+      category: 'hazard-cleanup',
+      timing: 'cost',
+      severity: 'warning',
+      recipient: {kind: 'current-player'},
+      title: 'Cleanup cost',
+      delta: {icon: 'megacredits', amount: cleanupCost, direction: 'cost'},
+    });
+  }
+  out.push({
+    id: 'hazard-adjacency',
+    category: 'hazard-penalty',
+    timing: 'rule',
+    severity: 'warning',
+    recipient: {kind: 'neutral'},
+    title: 'Placing adjacent costs production',
+    description: severe ?
+      'Placing a tile next to this hazard costs 2 production of your choice.' :
+      'Placing a tile next to this hazard costs 1 production of your choice.',
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------------------

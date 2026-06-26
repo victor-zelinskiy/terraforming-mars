@@ -36,6 +36,13 @@
       <!-- Passive one-liner (never "Вы получите" — this is hover, not an action). -->
       <div v-if="description !== undefined" class="board-cell-popover__desc" v-i18n>{{ description }}</div>
 
+      <!-- Hazard zone — identity (erosion / dust storm), how to clear it (+TR,
+           cleanup cost) and the adjacent-placement production penalty. -->
+      <div v-if="hazardFacts.length > 0" class="board-cell-popover__section board-cell-popover__section--hazard">
+        <div class="board-cell-popover__section-head" v-i18n>Hazard zone</div>
+        <board-fact-row v-for="fact in hazardFacts" :key="fact.id" :fact="fact" />
+      </div>
+
       <!-- What placing a tile HERE would grant (passive). -->
       <div v-if="placeHereFacts.length > 0" class="board-cell-popover__section">
         <div class="board-cell-popover__section-head" v-i18n>When placing here</div>
@@ -133,6 +140,10 @@ export default defineComponent({
     },
     reservedFacts(): ReadonlyArray<BoardFact> {
       return this.facts.filter((f) => f.category === 'reserved-area' || f.category === 'restriction');
+    },
+    // Ares hazard facts (identity / cleanup / adjacency penalty) — own section.
+    hazardFacts(): ReadonlyArray<BoardFact> {
+      return this.facts.filter((f) => f.category === 'hazard-penalty' || f.category === 'hazard-cleanup');
     },
     shouldShow(): boolean {
       if (this.info === undefined || boardInfoState.spaceId === undefined) {
@@ -372,6 +383,10 @@ export default defineComponent({
 }
 .board-cell-popover__section {
   margin-top: 8px;
+}
+.board-cell-popover__section--hazard .board-cell-popover__section-head {
+  color: #f0a085;
+  border-bottom-color: rgba(224, 106, 74, 0.3);
 }
 .board-cell-popover__section-head {
   font-family: 'Prototype', sans-serif;
