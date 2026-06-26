@@ -58,51 +58,62 @@ export const ARC_SCALE_THEMES: Record<ArcScaleName, ArcScaleTheme> = {
     name: 'oceans', accent: 'oceans', title: 'Ocean scale', noun: 'Oceans', description: 'Shows the number of oceans placed.', unit: '',
     glyph: DROPLET,
     // Gradient runs LOW value → HIGH value along the arc (deep → bright).
-    gradient: [{offset: 0, color: '#0f5a86'}, {offset: 55, color: '#2fa6dd'}, {offset: 100, color: '#7fdcf6'}],
+    // Deep, saturated water — heaviest glow + darkest channel of the blues.
+    gradient: [{offset: 0, color: '#0c5280'}, {offset: 52, color: '#2aa6dd'}, {offset: 100, color: '#74d8f4'}],
     vars: {
-      '--arc-deep': '#0f5a86', '--arc-glow': 'rgba(70, 196, 240, 0.62)', '--arc-glow-soft': 'rgba(70, 196, 240, 0.30)',
-      '--arc-rail': 'rgba(3, 12, 22, 0.55)', '--arc-channel': 'rgba(12, 44, 68, 0.78)',
-      '--arc-edge': 'rgba(126, 220, 246, 0.42)', '--arc-rim': 'rgba(170, 226, 250, 0.6)',
-      '--arc-cap': 'rgba(150, 224, 250, 0.92)', '--arc-tick': 'rgba(150, 196, 226, 0.30)',
-      '--arc-accent': '#7fdcf6', '--arc-digit': '#c2dbec', '--arc-digit-on': '#eef9ff',
+      '--arc-deep': '#0c5280', '--arc-glow': 'rgba(58, 188, 240, 0.7)', '--arc-glow-soft': 'rgba(58, 188, 240, 0.34)',
+      '--arc-rail': 'rgba(2, 10, 20, 0.6)', '--arc-channel': 'rgba(9, 40, 64, 0.84)',
+      '--arc-edge': 'rgba(120, 216, 244, 0.5)', '--arc-rim': 'rgba(170, 228, 250, 0.66)',
+      '--arc-cap': 'rgba(150, 224, 250, 0.95)', '--arc-tick': 'rgba(140, 192, 224, 0.32)',
+      '--arc-accent': '#74d8f4', '--arc-digit': '#bcd8ea', '--arc-digit-on': '#eef9ff',
     },
   },
   // Airy, dry luminous cyan — lighter / cleaner than oceans (atmosphere, not water).
   oxygen: {
     name: 'oxygen', accent: 'oxygen', title: 'Oxygen scale', noun: 'Oxygen', description: 'Shows the atmospheric oxygen level.', unit: '%',
     glyph: O2_MOLECULE,
-    gradient: [{offset: 0, color: '#3a93b4'}, {offset: 55, color: '#7fd4ee'}, {offset: 100, color: '#dffaff'}],
+    // Airy / dry: lighter + MORE TRANSPARENT channel (atmosphere, not water),
+    // a crisp near-white cyan fill, a clean edge — deliberately less glassy
+    // depth + less glow than oceans so the two blues never read alike.
+    gradient: [{offset: 0, color: '#4aa6c8'}, {offset: 55, color: '#8fe0f6'}, {offset: 100, color: '#eafcff'}],
     vars: {
-      '--arc-deep': '#3a93b4', '--arc-glow': 'rgba(170, 232, 252, 0.55)', '--arc-glow-soft': 'rgba(170, 232, 252, 0.26)',
-      '--arc-rail': 'rgba(6, 16, 26, 0.5)', '--arc-channel': 'rgba(18, 44, 60, 0.78)',
-      '--arc-edge': 'rgba(206, 244, 255, 0.5)', '--arc-rim': 'rgba(224, 248, 255, 0.62)',
-      '--arc-cap': 'rgba(206, 244, 255, 0.92)', '--arc-tick': 'rgba(186, 222, 240, 0.32)',
-      '--arc-accent': '#cdf2ff', '--arc-digit': '#bcd6e6', '--arc-digit-on': '#eef9ff',
+      '--arc-deep': '#4aa6c8', '--arc-glow': 'rgba(168, 234, 252, 0.46)', '--arc-glow-soft': 'rgba(168, 234, 252, 0.2)',
+      '--arc-rail': 'rgba(8, 20, 30, 0.4)', '--arc-channel': 'rgba(40, 70, 90, 0.58)',
+      '--arc-edge': 'rgba(214, 248, 255, 0.6)', '--arc-rim': 'rgba(234, 252, 255, 0.68)',
+      '--arc-cap': 'rgba(220, 250, 255, 0.95)', '--arc-tick': 'rgba(200, 232, 246, 0.36)',
+      '--arc-accent': '#dffaff', '--arc-digit': '#bcd6e6', '--arc-digit-on': '#f4fcff',
     },
   },
   // Thermal gradient — cold blue-violet → warm ember (Mars heating up).
   temperature: {
     name: 'temperature', accent: 'temperature', title: 'Temperature scale', noun: 'Temperature', description: 'Shows the planet temperature.', unit: '°C',
     glyph: THERMOMETER,
-    gradient: [{offset: 0, color: '#7b74d6'}, {offset: 38, color: '#b85a9e'}, {offset: 72, color: '#e0664e'}, {offset: 100, color: '#f3953e'}],
+    // The most expressive scale: a real thermal journey along the fill — icy
+    // blue-violet (cold, -30) → magenta-rose (mid) → ember-orange (hot, +8).
+    // The inactive channel is a COLD dark blue-violet so the not-yet-warmed end
+    // reads frozen; the warm glow lives on the filled (heated) portion.
+    gradient: [{offset: 0, color: '#5566df'}, {offset: 34, color: '#9a55c2'}, {offset: 64, color: '#dc5448'}, {offset: 100, color: '#ff8a36'}],
     vars: {
-      '--arc-deep': '#5a4a86', '--arc-glow': 'rgba(232, 120, 96, 0.5)', '--arc-glow-soft': 'rgba(232, 120, 96, 0.24)',
-      '--arc-rail': 'rgba(14, 8, 20, 0.55)', '--arc-channel': 'rgba(30, 22, 40, 0.78)',
-      '--arc-edge': 'rgba(255, 196, 150, 0.42)', '--arc-rim': 'rgba(255, 214, 196, 0.55)',
-      '--arc-cap': 'rgba(255, 184, 140, 0.92)', '--arc-tick': 'rgba(214, 170, 180, 0.3)',
-      '--arc-accent': '#f0a07a', '--arc-digit': '#d6c2cc', '--arc-digit-on': '#ffe9dc',
+      '--arc-deep': '#5566df', '--arc-glow': 'rgba(244, 122, 70, 0.58)', '--arc-glow-soft': 'rgba(244, 122, 70, 0.28)',
+      '--arc-rail': 'rgba(12, 10, 28, 0.58)', '--arc-channel': 'rgba(26, 28, 56, 0.82)',
+      '--arc-edge': 'rgba(255, 192, 150, 0.44)', '--arc-rim': 'rgba(210, 200, 240, 0.5)',
+      '--arc-cap': 'rgba(255, 180, 138, 0.92)', '--arc-tick': 'rgba(190, 182, 214, 0.32)',
+      '--arc-accent': '#f4926a', '--arc-digit': '#c9c2dc', '--arc-digit-on': '#ffe6d8',
     },
   },
   // Warm atmospheric gold — dense, sunlit, denser than the others.
   venus: {
     name: 'venus', accent: 'venus', title: 'Venus scale', noun: 'Venus', description: 'Shows the Venus terraforming level.', unit: '%',
     glyph: VENUS_SYMBOL,
-    gradient: [{offset: 0, color: '#9a6a1e'}, {offset: 55, color: '#e0a83a'}, {offset: 100, color: '#ffe6a6'}],
+    // Dense golden ATMOSPHERE (not fire): warm amber channel, sunlit-gold fill,
+    // a strong soft gold HAZE around it. Warm but never red/ember — that's
+    // temperature's lane.
+    gradient: [{offset: 0, color: '#9c6c1c'}, {offset: 55, color: '#e8ad3a'}, {offset: 100, color: '#ffe8ac'}],
     vars: {
-      '--arc-deep': '#9a6a1e', '--arc-glow': 'rgba(245, 206, 110, 0.55)', '--arc-glow-soft': 'rgba(245, 206, 110, 0.26)',
-      '--arc-rail': 'rgba(20, 12, 4, 0.55)', '--arc-channel': 'rgba(44, 32, 12, 0.78)',
-      '--arc-edge': 'rgba(255, 224, 150, 0.45)', '--arc-rim': 'rgba(255, 234, 180, 0.6)',
-      '--arc-cap': 'rgba(255, 224, 150, 0.92)', '--arc-tick': 'rgba(226, 196, 140, 0.32)',
+      '--arc-deep': '#9c6c1c', '--arc-glow': 'rgba(250, 212, 112, 0.66)', '--arc-glow-soft': 'rgba(250, 206, 120, 0.36)',
+      '--arc-rail': 'rgba(22, 14, 4, 0.58)', '--arc-channel': 'rgba(54, 38, 14, 0.82)',
+      '--arc-edge': 'rgba(255, 228, 158, 0.5)', '--arc-rim': 'rgba(255, 238, 190, 0.64)',
+      '--arc-cap': 'rgba(255, 226, 150, 0.95)', '--arc-tick': 'rgba(230, 200, 148, 0.34)',
       '--arc-accent': '#ffe6a6', '--arc-digit': '#ddccaa', '--arc-digit-on': '#fff3d8',
     },
   },
