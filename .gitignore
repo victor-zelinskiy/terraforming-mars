@@ -39,3 +39,5 @@ node_modules/
 ./logs/
 .venv-sam/
 assets/card-art-sam-spike/
+
+/assets/generated/
