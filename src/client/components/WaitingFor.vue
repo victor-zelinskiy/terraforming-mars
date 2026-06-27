@@ -10,7 +10,7 @@
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -140,6 +140,12 @@ import {
   endEnergyConversion,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
+import {
+  applyHazardTileSwap,
+  detectHazardCleanup,
+  endHazardCleanup,
+  runHazardCleanup,
+} from '@/client/components/feedback/hazardCleanupTransition';
 
 const WGT_TITLE = 'Select action for World Government Terraforming';
 
@@ -288,6 +294,14 @@ type DataModel = {
    */
   holdingForConversion: boolean;
   /*
+   * Counterpart hold for the hazard-cleanup sequence (building over an erosion /
+   * dust storm). While true the follow-up modal is suppressed via the same
+   * empty-render branch, so a post-placement choice can't open over the cleanup
+   * animation. Composed independently of the other holds. See
+   * src/client/components/feedback/hazardCleanupTransition.ts.
+   */
+  holdingForHazardCleanup: boolean;
+  /*
    * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
    * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
    * player on another tab/window would return to STALE state (e.g. an
@@ -331,6 +345,7 @@ export default defineComponent({
       holdingForMarker: false,
       holdingForTilePlacement: false,
       holdingForConversion: false,
+      holdingForHazardCleanup: false,
       onVisibilityChange: undefined,
     };
   },
@@ -533,6 +548,13 @@ export default defineComponent({
              * places tiles, so they don't co-occur in practice), then commits.
              */
             const conversionEvent = detectEnergyConversion(this.playerView, newView);
+            // Building over a hazard zone (erosion / dust storm): play the premium
+            // cleanup sequence (hazard dissolves → tile materialises → cost/TR
+            // feedback) and hold the follow-up modal until it ends. Detected here
+            // (a hazard→tile swap is NOT an `undefined→tile` placement, so the
+            // tile-placement hold above never fires for it). Mutually exclusive
+            // with the conversion in practice (placement vs production phase).
+            const hazardCleanups = detectHazardCleanup(this.playerView, newView);
             if (markerHold || tileHold) {
               if (markerHold) {
                 this.applyGlobalParamPreview(newView);
@@ -569,6 +591,17 @@ export default defineComponent({
                 this.holdingForTilePlacement = false;
               }
             }
+            if (hazardCleanups.length > 0) {
+              this.holdingForHazardCleanup = true;
+              // The swap callback fires mid-sequence (after the hazard dissolves)
+              // to reveal the new tile on the STILL-DISPLAYED old view; the full
+              // view commits below. isServerSideRequestInProgress stays raised
+              // through the await, so nothing else can submit during the sequence.
+              await runHazardCleanup(
+                hazardCleanups,
+                () => applyHazardTileSwap(this.playerView.game.spaces, newView.game.spaces, hazardCleanups),
+              );
+            }
             if (conversionEvent !== undefined) {
               this.holdingForConversion = true;
               // The override seeds the change-feedback baselines on completion,
@@ -578,6 +611,10 @@ export default defineComponent({
               await runEnergyConversion(conversionEvent);
             }
             this.updatePlayerView(newView);
+            if (hazardCleanups.length > 0) {
+              this.holdingForHazardCleanup = false;
+              nextTick(() => endHazardCleanup());
+            }
             if (conversionEvent !== undefined) {
               this.holdingForConversion = false;
               // Clear the panel override on the next tick — AFTER the committed

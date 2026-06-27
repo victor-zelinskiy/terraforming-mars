@@ -96,6 +96,13 @@
       <EnergyConversionOverlay
         v-if="screen === 'player-home' && playerView !== undefined" />
       <!--
+        Hazard-cleanup sequence overlay. App-level so it survives the playerkey
+        remount; self-gates via hazardCleanupState.active; positions itself over
+        the cleared board hex. Visible for own AND opponent cleanups (poll path).
+      -->
+      <HazardCleanupOverlay
+        v-if="screen === 'player-home' || screen === 'spectator-home'" />
+      <!--
         Detailed "additional resource" summary overlay. App-level (like the
         journal) so the `:key="playerkey"` remount can't tear it down while
         open. Driven entirely by module-level additionalResourcesState, which
@@ -232,12 +239,20 @@ import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlo
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
 import RevealResultOverlay from '@/client/components/actions/RevealResultOverlay.vue';
 import EnergyConversionOverlay from '@/client/components/feedback/EnergyConversionOverlay.vue';
+import HazardCleanupOverlay from '@/client/components/feedback/HazardCleanupOverlay.vue';
 import {
   detectEnergyConversion,
   endEnergyConversion,
   isEnergyConversionActive,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
+import {
+  applyHazardTileSwap,
+  detectHazardCleanup,
+  endHazardCleanup,
+  isHazardCleanupActive,
+  runHazardCleanup,
+} from '@/client/components/feedback/hazardCleanupTransition';
 // Premium end-of-game experience (winner reveal + full-screen results). Async
 // so its charts / tabs only download once a game actually ends.
 const EndgameExperience = defineAsyncComponent(() => import(/* webpackChunkName: "endgame" */ '@/client/components/endgame/EndgameExperience.vue'));
@@ -370,6 +385,7 @@ export default defineComponent({
     StartGameFlowOverlay,
     RevealResultOverlay,
     EnergyConversionOverlay,
+    HazardCleanupOverlay,
     RematchLayer,
     EndgameExperience,
     ModalInputPlayground,
@@ -500,7 +516,7 @@ export default defineComponent({
            * next-phase modal over it). The poll loop keeps running, so the next
            * poll after the animation finishes commits fresh state.
            */
-          if (isEnergyConversionActive()) {
+          if (isEnergyConversionActive() || isHazardCleanupActive()) {
             return;
           }
           /*
@@ -602,6 +618,25 @@ export default defineComponent({
             runEnergyConversion(conversionEvent).then(() => {
               commit();
               nextTick(() => endEnergyConversion());
+            });
+            return;
+          }
+          /*
+           * Hazard-cleanup gate (poll path). When ANOTHER player builds over a
+           * hazard, the viewer (or a spectator) sees it via this poll — play the
+           * cleanup sequence and hold the commit until it finishes, so the
+           * opponent's cleanup is just as legible as the viewer's own. The
+           * re-entrancy guard above stops a concurrent poll committing mid-run;
+           * the shared dedup set stops a double-run with the viewer's own submit.
+           */
+          const hazardCleanups = detectHazardCleanup(prevView, model as ViewModel);
+          if (hazardCleanups.length > 0 && prevView !== undefined) {
+            runHazardCleanup(
+              hazardCleanups,
+              () => applyHazardTileSwap(prevView.game.spaces, model.game.spaces, hazardCleanups),
+            ).then(() => {
+              commit();
+              nextTick(() => endHazardCleanup());
             });
             return;
           }

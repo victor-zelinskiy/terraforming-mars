@@ -310,3 +310,30 @@ logic is test-covered.
   Tests: aresThresholdMarkers.spec (lifecycle + resolveScaleEventState, 10) +
   AresHandler.spec (`triggeredByColor` recorded). build:server + vue-tsc + make:json +
   make:css green; eslint 0; 27 Ares + 14 model/setup specs pass.
+
+- **2026-06-27** — Premium HAZARD-CLEANUP sequence (building over an erosion / dust
+  storm). Replaces the instant "hazard vanishes, tile pops in" with a one-shot
+  staged board animation: focus → the hazard DISSOLVES (fades out + kind-specific
+  burst) → the new tile MATERIALISES (player-accent glow) → cost/TR feedback chips.
+  100% client-derived from the board diff (no server payload): a cell that goes
+  hazard→non-hazard real tile, severity → cost (8/16) + TR (+1/+2). Architecture
+  mirrors the energy→heat conversion gate:
+  • PURE `hazardCleanupModel.ts` (detect / severity / cost / TR / duration [weak
+    ~860 / strong ~1120 / reduced 440] / phase + fx maths) — unit-tested (10).
+  • Controller `hazardCleanupTransition.ts` (reactive state, rAF timeline, dedup
+    seen-set, the mid-sequence tile SWAP at TILE_SWAP_FRACTION so the tile appears
+    only AFTER the hazard dissolves, gate Promise, safety timer) — tested (5).
+  • `HazardCleanupOverlay.vue` (App-level, teleport, measures the cleared hex,
+    feeds CSS vars; reward cluster reuses the existing DeltaChip) + `hazard_cleanup.less`.
+  • `BoardSpaceTile` fades the real hazard tile (hazardCleanupOpacity) before the swap.
+  • Gate wired into BOTH `WaitingFor` (own submit — holds the follow-up modal via
+    `holdingForHazardCleanup`) AND `App.update` poll (opponent / spectator cleanups,
+    re-entrancy + dedup guarded). TR attribution (`ares-hazard` → VP segment) +
+    the removal/TR journal log already existed from the Ares adaptation.
+  • Reduced motion: short fade path (no transforms). 2 RU keys.
+  Done-criteria met (instant → staged; hazard clears before the tile; weak/strong
+  intensity; cost/TR in the premium chip language; opponent view; reduced motion;
+  ordinary placement un-regressed). vue-tsc + webpack + make:json/make:css green;
+  eslint 0; 15 new + BoardSpaceTile/energy/placement/intensify regression green.
+  Frontier: a dedicated journal SUB-cluster header (today the removal + TR log in
+  the placement cluster) + a per-cell cost line.

@@ -11,6 +11,8 @@ import {defineComponent} from 'vue';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {TileType, tileTypeToString, HAZARD_TILES} from '@/common/TileType';
 import {hazardIntensifyElapsed} from '@/client/components/board/hazardIntensifyState';
+import {hazardCleanupState} from '@/client/components/feedback/hazardCleanupTransition';
+import {hazardFxAt} from '@/client/components/feedback/hazardCleanupModel';
 import {SpaceHighlight, SpaceModel} from '@/common/models/SpaceModel';
 import {TileView} from '@/client/components/board/TileView';
 import {
@@ -245,6 +247,20 @@ export default defineComponent({
       }
       return hazardIntensifyElapsed(this.space.id, this.tileType);
     },
+    // While a hazard-cleanup sequence is clearing THIS cell (before the tile
+    // swap), the real hazard tile fades out so the player sees it dissolve — the
+    // new tile then materialises (the overlay drives the glow). 1 (no fade)
+    // otherwise. See hazardCleanupTransition / HazardCleanupOverlay.
+    hazardCleanupOpacity(): number {
+      const st = hazardCleanupState;
+      if (!st.active || st.swapped) {
+        return 1;
+      }
+      if (!st.events.some((e) => e.spaceId === this.space.id)) {
+        return 1;
+      }
+      return hazardFxAt(st.progress).hazardOpacity;
+    },
     placementStyle(): Record<string, string> {
       const style: Record<string, string> = {};
       if (this.placementKind !== null) {
@@ -254,6 +270,10 @@ export default defineComponent({
       // Negative delay keeps the intensify keyframe continuous across remounts.
       if (this.intensifyElapsed >= 0) {
         style['--hazard-intensify-delay'] = `-${Math.round(this.intensifyElapsed)}ms`;
+      }
+      // Fade the doomed hazard tile out as the cleanup sequence dissolves it.
+      if (this.hazardCleanupOpacity < 1) {
+        style['opacity'] = this.hazardCleanupOpacity.toFixed(3);
       }
       return style;
     },

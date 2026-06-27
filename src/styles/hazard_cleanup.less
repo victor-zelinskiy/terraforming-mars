@@ -1,0 +1,189 @@
+/*
+ * Hazard-cleanup sequence — premium board FX for building over a hazard zone.
+ *
+ * The whole sequence is rendered from CSS VARS fed by HazardCleanupOverlay.vue
+ * (`--hc-warning` / `--hc-dissolve` / `--hc-materialize` / `--hc-player`, plus
+ * the kind / severity / reduced-motion classes). Frame-accurate: the overlay
+ * binds the vars from the controller's 0..1 progress, so the visuals never drift
+ * from the JS timeline. The actual hazard TILE fades out via BoardSpaceTile;
+ * this layer adds the warning ring, the kind-specific dissolve, the cyan
+ * stabilization wave, the materialise glow, and the cost/TR reward cluster.
+ *
+ * Sci-fi, restrained: opacity/transform only, no particles spam, no shake.
+ */
+
+@hc-z: 140;
+
+.hazard-cleanup-layer {
+  position: fixed;
+  inset: 0;
+  z-index: @hc-z;
+  pointer-events: none;
+}
+
+.hazard-cleanup-fx {
+  position: fixed;
+  pointer-events: none;
+  // Per-kind accents (overridden by the severity bump below).
+  --hc-warn-glow: rgba(255, 150, 70, 0.7);
+  --hc-warn-rim: rgba(255, 184, 120, 0.9);
+
+  > div {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    will-change: opacity, transform;
+  }
+}
+
+.hazard-cleanup-fx--kind-erosion {
+  --hc-warn-glow: rgba(255, 150, 70, 0.72);
+  --hc-warn-rim: rgba(255, 190, 130, 0.9);
+}
+.hazard-cleanup-fx--kind-dust-storm {
+  --hc-warn-glow: rgba(232, 104, 64, 0.72);
+  --hc-warn-rim: rgba(255, 150, 110, 0.9);
+}
+.hazard-cleanup-fx--severe {
+  --hc-warn-glow: rgba(255, 86, 54, 0.9);
+  --hc-warn-rim: rgba(255, 150, 110, 1);
+}
+
+// ── Focus backshade — a soft local vignette so the eye locks onto the cell ──
+.hazard-cleanup-fx__backshade {
+  inset: -55%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(3, 6, 12, 0) 36%,
+    rgba(3, 6, 12, 0.34) 66%, rgba(3, 6, 12, 0) 100%);
+  opacity: var(--hc-warning, 0);
+}
+
+// ── Warning ring — the hazard is flagged (focus → cleanup-start) ──
+.hazard-cleanup-fx__warning {
+  border-radius: 22%;
+  border: 2px solid var(--hc-warn-rim);
+  box-shadow:
+    0 0 calc(8px + 16px * var(--hc-warning, 0)) var(--hc-warn-glow),
+    inset 0 0 calc(5px + 11px * var(--hc-warning, 0)) var(--hc-warn-glow);
+  opacity: var(--hc-warning, 0);
+  transform: scale(calc(0.9 + 0.1 * var(--hc-warning, 0)));
+}
+.hazard-cleanup-fx--severe .hazard-cleanup-fx__warning {
+  border-width: 2.5px;
+}
+
+// ── Dissolve burst — the hazard is consumed (cleanup-resolve). A bell curve
+//    (peaks mid-dissolve) so it reads as a transient event, not a static fill.
+.hazard-cleanup-fx__dissolve {
+  opacity: calc(var(--hc-dissolve, 0) * (1 - var(--hc-dissolve, 0)) * 4);
+  border-radius: 46%;
+  mix-blend-mode: screen;
+}
+// Dust storm: a warm conic swirl scattering outward + rotating.
+.hazard-cleanup-fx--kind-dust-storm .hazard-cleanup-fx__dissolve {
+  background: conic-gradient(from 0deg,
+    rgba(255, 160, 96, 0) 0deg, rgba(232, 104, 64, 0.6) 60deg,
+    rgba(255, 160, 96, 0) 150deg, rgba(232, 104, 64, 0.6) 240deg,
+    rgba(255, 160, 96, 0) 330deg, rgba(255, 160, 96, 0) 360deg);
+  border-radius: 50%;
+  filter: blur(1px);
+  transform: scale(calc(0.65 + var(--hc-dissolve, 0) * 0.85)) rotate(calc(var(--hc-dissolve, 0) * 170deg));
+}
+// Erosion: amber crack rays bursting outward from the hex centre.
+.hazard-cleanup-fx--kind-erosion .hazard-cleanup-fx__dissolve {
+  background: repeating-conic-gradient(from 8deg,
+    rgba(255, 170, 90, 0) 0deg 20deg, rgba(255, 120, 56, 0.55) 20deg 24deg);
+  border-radius: 38%;
+  transform: scale(calc(0.55 + var(--hc-dissolve, 0) * 0.75));
+}
+
+// ── Stabilization wave — a cyan ring sweeps out as the surface settles
+//    (between the dissolve finishing and the tile materialising).
+.hazard-cleanup-fx__wave {
+  border-radius: 50%;
+  border: 2px solid rgba(132, 222, 255, 0.85);
+  box-shadow: 0 0 16px rgba(96, 202, 255, 0.65), inset 0 0 12px rgba(132, 222, 255, 0.45);
+  opacity: calc(var(--hc-dissolve, 0) * (1 - var(--hc-materialize, 0)));
+  transform: scale(calc(0.45 + var(--hc-materialize, 0) * 1.05));
+}
+
+// ── Materialise glow — the new tile arrives, accented in the placer's colour.
+.hazard-cleanup-fx__materialize {
+  border-radius: 26%;
+  background: radial-gradient(circle at 50% 46%,
+    rgba(255, 255, 255, 0.55) 0%, var(--hc-player, rgba(120, 200, 255, 0.9)) 32%, transparent 70%);
+  box-shadow: 0 0 calc(7px + 16px * var(--hc-materialize, 0)) var(--hc-player, rgba(120, 200, 255, 0.8));
+  opacity: calc(var(--hc-materialize, 0) * (1.4 - var(--hc-materialize, 0)));
+  transform: scale(calc(1.3 - var(--hc-materialize, 0) * 0.3));
+}
+
+// ── Reward cluster — cost / TR in the existing DeltaChip language ──
+.hazard-cleanup-reward {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 10px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(15, 23, 33, 0.97), rgba(10, 16, 25, 0.97));
+  border: 1px solid rgba(255, 180, 110, 0.34);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+.hazard-cleanup-reward__label {
+  font-family: 'Prototype', sans-serif;
+  text-transform: uppercase;
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  color: #ffce8e;
+}
+.hazard-cleanup-reward__chips {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.hazard-cleanup-reward__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  .resource_icon {
+    width: 15px;
+    height: 15px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+}
+
+.hazard-cleanup-reward-enter-active {
+  transition: opacity 220ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.hazard-cleanup-reward-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(7px) scale(0.94);
+}
+
+// ── Reduced motion — opacity/fade only, no transforms / rotations ──
+.hazard-cleanup-fx--reduced {
+  .hazard-cleanup-fx__warning,
+  .hazard-cleanup-fx__dissolve,
+  .hazard-cleanup-fx__wave,
+  .hazard-cleanup-fx__materialize {
+    transform: none !important;
+    filter: none !important;
+    animation: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hazard-cleanup-fx__warning,
+  .hazard-cleanup-fx__dissolve,
+  .hazard-cleanup-fx__wave,
+  .hazard-cleanup-fx__materialize {
+    transform: none !important;
+    filter: none !important;
+  }
+}
