@@ -23,23 +23,11 @@
         <div class="hazard-cleanup-fx__dissolve"></div>
         <div class="hazard-cleanup-fx__wave"></div>
         <div class="hazard-cleanup-fx__materialize"></div>
-
-        <!-- Cost / TR feedback — the existing premium DeltaChip language. -->
-        <transition name="hazard-cleanup-reward">
-          <div v-if="fx.rewardVisible" class="hazard-cleanup-reward">
-            <div class="hazard-cleanup-reward__label" v-i18n>{{ rewardLabel(ev.event.severity) }}</div>
-            <div class="hazard-cleanup-reward__chips">
-              <span class="hazard-cleanup-reward__row">
-                <span class="resource_icon resource_icon--megacredits"></span>
-                <delta-chip :amount="-ev.event.cost" variant="resource-stock" />
-              </span>
-              <span class="hazard-cleanup-reward__row">
-                <span class="resource_icon resource_icon--rating"></span>
-                <delta-chip :amount="ev.event.trReward" variant="global-parameter" />
-              </span>
-            </div>
-          </div>
-        </transition>
+        <!--
+          No cost/TR chips here on purpose: the panel resource delta-chips (M€ /
+          TR counters) + the journal already report the cleanup cost + reward.
+          This overlay is purely the board transition.
+        -->
       </div>
     </div>
   </teleport>
@@ -47,7 +35,6 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
-import DeltaChip from '@/client/components/feedback/DeltaChip.vue';
 import {hazardCleanupState} from '@/client/components/feedback/hazardCleanupTransition';
 import {HazardCleanupEvent, HazardCleanupFx, hazardFxAt} from '@/client/components/feedback/hazardCleanupModel';
 import {CLAIM_COLOR_HEX} from '@/client/components/board/scaleBonusZones';
@@ -63,7 +50,6 @@ type Data = {
 
 export default defineComponent({
   name: 'HazardCleanupOverlay',
-  components: {DeltaChip},
   data(): Data {
     return {rects: {}, scheduled: false, onReposition: undefined};
   },
@@ -104,10 +90,6 @@ export default defineComponent({
     this.detachListeners();
   },
   methods: {
-    rewardLabel(severity: string): string {
-      // English keys → v-i18n renders the localized label (ru/ui.json).
-      return severity === 'severe' ? 'Severe hazard zone cleared' : 'Hazard zone cleared';
-    },
     fxStyle(ev: EventView): Record<string, string> {
       const f = this.fx;
       const player = CLAIM_COLOR_HEX[ev.event.color] ?? 'rgba(120, 200, 255, 0.9)';

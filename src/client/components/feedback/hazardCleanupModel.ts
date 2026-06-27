@@ -44,7 +44,6 @@ export type HazardCleanupPhase =
   | 'cleanup-start'
   | 'cleanup-resolve'
   | 'tile-materialize'
-  | 'reward-feedback'
   | 'done';
 
 /** Extra M€ charged per hazard step (mild = 1 step → 8, severe = 2 → 16). */
@@ -107,30 +106,27 @@ export function detectHazardCleanups(
 }
 
 /**
- * Animation length. Premium but brisk (the brief: weak ~800–900 ms, strong
- * ~1000–1150 ms). Reduced motion collapses to a short readable beat.
+ * Animation length. The cost/TR feedback is NOT shown on the board (the panel
+ * delta-chips + the journal own that), so the time goes into a longer, more
+ * satisfying tile-to-tile TRANSITION — the hazard dissolving and the new tile
+ * materialising. Reduced motion collapses to a short readable beat.
  */
 export function cleanupDurationMs(severity: HazardCleanupSeverity, reduced: boolean): number {
   if (reduced) {
-    return 440;
+    return 520;
   }
-  return severity === 'severe' ? 1120 : 860;
+  return severity === 'severe' ? 1600 : 1200;
 }
 
 // Phase boundaries as fractions of the duration. The hazard fully dissolves
 // BEFORE the new tile materialises — the load-bearing ordering of the feature.
-const FOCUS_END = 0.16;
-const CLEANUP_START_END = 0.34;
-const CLEANUP_RESOLVE_END = 0.58;
-const MATERIALIZE_END = 0.80;
-/** The new tile is swapped into the board at this progress (cleanup is done). */
+// The materialise gets the whole back half so the new tile grows in slowly.
+const FOCUS_END = 0.12;
+const CLEANUP_START_END = 0.30;
+const CLEANUP_RESOLVE_END = 0.52;
+const MATERIALIZE_END = 1.0;
+/** The new tile is swapped into the board at this progress (the hazard is gone). */
 export const TILE_SWAP_FRACTION = CLEANUP_RESOLVE_END;
-/**
- * The cost / TR chips appear with the materialising tile and STAY through commit
- * — i.e. for the back ~42% of the sequence (~360 ms mild / ~470 ms severe), a
- * clear read window without lengthening the dissolve.
- */
-const REWARD_VISIBLE_FROM = CLEANUP_RESOLVE_END;
 
 /** The discrete phase at a 0..1 progress. */
 export function phaseAt(progress: number): HazardCleanupPhase {
@@ -146,13 +142,10 @@ export function phaseAt(progress: number): HazardCleanupPhase {
   if (progress < CLEANUP_RESOLVE_END) {
     return 'cleanup-resolve';
   }
-  if (progress < MATERIALIZE_END) {
-    return 'tile-materialize';
-  }
-  return 'reward-feedback';
+  return 'tile-materialize';
 }
 
-/** Per-element intensities for the overlay (frame-accurate, synced to progress). */
+/** Per-element intensities for the overlay + the board tile (synced to progress). */
 export type HazardCleanupFx = {
   /** Warning-ring intensity (rises through focus, fades as the dissolve takes over). */
   warning: number;
@@ -160,10 +153,8 @@ export type HazardCleanupFx = {
   dissolve: number;
   /** Remaining hazard-tile opacity (1 → 0 as it dissolves). */
   hazardOpacity: number;
-  /** New-tile materialisation (0 → 1 across the materialize window). */
+  /** New-tile materialisation, eased (0 → 1 across the back half of the sequence). */
   materialize: number;
-  /** The cost / TR delta cluster is shown. */
-  rewardVisible: boolean;
 };
 
 function clamp01(x: number): number {
@@ -172,6 +163,10 @@ function clamp01(x: number): number {
 /** Map [a,b] of `x` to 0..1 (0 below a, 1 above b). */
 function ramp(x: number, a: number, b: number): number {
   return b <= a ? (x >= b ? 1 : 0) : clamp01((x - a) / (b - a));
+}
+/** Smoothstep ease (calm in/out) for the materialise so the tile settles, not pops. */
+function smooth(x: number): number {
+  return x * x * (3 - 2 * x);
 }
 
 export function hazardFxAt(progress: number): HazardCleanupFx {
@@ -184,8 +179,6 @@ export function hazardFxAt(progress: number): HazardCleanupFx {
     warning,
     dissolve,
     hazardOpacity: 1 - dissolve,
-    materialize: ramp(progress, CLEANUP_RESOLVE_END, MATERIALIZE_END),
-    // The chips land WITH the materialising tile and stay through commit.
-    rewardVisible: progress >= REWARD_VISIBLE_FROM,
+    materialize: smooth(ramp(progress, CLEANUP_RESOLVE_END, MATERIALIZE_END)),
   };
 }
