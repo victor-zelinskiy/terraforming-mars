@@ -30,7 +30,7 @@ function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreak
   // Mirror production: base is the reconciling remainder so the TR sub-parts
   // always sum to terraformRating.
   const trb = merged.terraformRatingBreakdown;
-  merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards)};
+  merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards + (trb.hazards ?? 0))};
   // Mirror production: detailsCards sums to victoryPoints (cards derive from kinds).
   if (merged.victoryPoints !== 0 && merged.detailsCards.length === 0) {
     merged.detailsCards = [{cardName: 'TestFixed', victoryPoint: merged.victoryPoints, kind: 'fixed'}];
@@ -76,6 +76,26 @@ describe('finalScoringRevealModel', () => {
     const sum = reveal.segments.reduce((acc, s) => acc + (s.values['red'] ?? 0), 0);
     expect(sum).to.eq(49);
     expect(reveal.players.find((p) => p.color === 'red')?.finalTotal).to.eq(49);
+  });
+
+  it('includes Ares hazard-cleanup TR so the segment sum still equals the authoritative total', () => {
+    // Regression: the reveal sums per-category SEGMENTS, while the overlay /
+    // engine use `breakdown.total`. The TR segment list once omitted the Ares
+    // `hazards` sub-part, so an Ares player's reveal total under-counted by their
+    // hazard-cleanup TR (the screens disagreed — 154 vs the real 157).
+    const a = player('red', 'A', {
+      terraformRating: 28,
+      terraformRatingBreakdown: {base: 20, temperature: 2, oxygen: 0, oceans: 0, venus: 0, cards: 3, hazards: 3},
+      greenery: 4, victoryPoints: 7,
+    }); // TR 28 (20 base + 2 temp + 3 cards + 3 hazards) + 4 greenery + 7 cards = 39
+    const reveal = buildFinalScoringRevealModel(model([a, player('blue', 'B', {terraformRating: 20})]), ['red', 'blue']);
+    const trKeys = reveal.segments.filter((s) => s.group === 'tr').map((s) => s.key);
+    expect(trKeys).to.include('tr-hazards');
+    const trGroup = reveal.groups.find((g) => g.key === 'tr');
+    expect(trGroup?.values['red']).to.eq(28); // sub-parts (incl. hazards) sum to the full TR
+    const sum = reveal.segments.reduce((acc, s) => acc + (s.values['red'] ?? 0), 0);
+    expect(sum).to.eq(39);
+    expect(reveal.players.find((p) => p.color === 'red')?.finalTotal).to.eq(39);
   });
 
   it('splits TR into its sub-parts (reusing terraformRatingBreakdown), grouped under "tr"', () => {
