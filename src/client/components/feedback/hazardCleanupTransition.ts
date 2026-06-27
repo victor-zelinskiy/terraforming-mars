@@ -155,10 +155,9 @@ export function runHazardCleanup(
 
   if (reduced || typeof requestAnimationFrame !== 'function') {
     // Reduced motion (or no rAF, e.g. tests): swap promptly to the END state
-    // (hazard gone + tile placed + cost/TR chips shown), hold a short readable
-    // beat, then resolve. progress 0.95 keeps the chips + materialise visible.
+    // (hazard gone, new tile materialised), hold a short readable beat, resolve.
     doSwap();
-    hazardCleanupState.phase = 'reward-feedback';
+    hazardCleanupState.phase = 'tile-materialize';
     hazardCleanupState.progress = 0.95;
     safetyTimerId = window.setTimeout(finish, duration) as unknown as number;
   } else {

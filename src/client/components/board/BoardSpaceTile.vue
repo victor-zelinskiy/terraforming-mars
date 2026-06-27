@@ -247,19 +247,22 @@ export default defineComponent({
       }
       return hazardIntensifyElapsed(this.space.id, this.tileType);
     },
-    // While a hazard-cleanup sequence is clearing THIS cell (before the tile
-    // swap), the real hazard tile fades out so the player sees it dissolve — the
-    // new tile then materialises (the overlay drives the glow). 1 (no fade)
-    // otherwise. See hazardCleanupTransition / HazardCleanupOverlay.
-    hazardCleanupOpacity(): number {
+    // The tile-to-tile TRANSITION for a hazard-cleanup on THIS cell, applied to
+    // the real board tile: BEFORE the swap the hazard fades + recedes (dissolve);
+    // AFTER the swap the new tile grows + fades IN (materialise). `undefined`
+    // when this cell isn't in an active cleanup. See hazardCleanupTransition.
+    hazardCleanupTileFx(): {opacity: number, scale: number} | undefined {
       const st = hazardCleanupState;
-      if (!st.active || st.swapped) {
-        return 1;
+      if (!st.active || !st.events.some((e) => e.spaceId === this.space.id)) {
+        return undefined;
       }
-      if (!st.events.some((e) => e.spaceId === this.space.id)) {
-        return 1;
+      const fx = hazardFxAt(st.progress);
+      if (!st.swapped) {
+        // The doomed hazard fades out and recedes slightly as it dissolves.
+        return {opacity: fx.hazardOpacity, scale: 1 - fx.dissolve * 0.14};
       }
-      return hazardFxAt(st.progress).hazardOpacity;
+      // The new tile materialises: grows from 0.74 → 1 and fades in.
+      return {opacity: Math.min(1, fx.materialize * 1.25), scale: 0.74 + fx.materialize * 0.26};
     },
     placementStyle(): Record<string, string> {
       const style: Record<string, string> = {};
@@ -271,9 +274,13 @@ export default defineComponent({
       if (this.intensifyElapsed >= 0) {
         style['--hazard-intensify-delay'] = `-${Math.round(this.intensifyElapsed)}ms`;
       }
-      // Fade the doomed hazard tile out as the cleanup sequence dissolves it.
-      if (this.hazardCleanupOpacity < 1) {
-        style['opacity'] = this.hazardCleanupOpacity.toFixed(3);
+      // Tile-to-tile transition for a hazard cleanup: fade/recede the doomed
+      // hazard out, then grow/fade the new tile in.
+      const hcFx = this.hazardCleanupTileFx;
+      if (hcFx !== undefined) {
+        style['opacity'] = hcFx.opacity.toFixed(3);
+        style['transform'] = `${style['transform'] ?? ''} scale(${hcFx.scale.toFixed(3)})`.trim();
+        style['transform-origin'] = 'center center';
       }
       return style;
     },

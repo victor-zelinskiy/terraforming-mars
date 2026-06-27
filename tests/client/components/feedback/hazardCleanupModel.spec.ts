@@ -71,27 +71,27 @@ describe('hazardCleanupModel', () => {
   });
 
   describe('cleanupDurationMs', () => {
-    it('strong > weak, both under the brief ceilings; reduced motion is the shortest', () => {
+    it('strong > weak (a longer, more satisfying transition); reduced motion is the shortest', () => {
       const weak = cleanupDurationMs('mild', false);
       const strong = cleanupDurationMs('severe', false);
-      expect(weak).to.be.greaterThan(800).and.lessThan(900);
-      expect(strong).to.be.greaterThan(1000).and.lessThan(1150);
+      expect(weak).to.be.greaterThan(1100).and.lessThan(1300);
+      expect(strong).to.be.greaterThan(1500).and.lessThan(1700);
       expect(strong).to.be.greaterThan(weak);
       expect(cleanupDurationMs('severe', true)).to.be.lessThan(weak);
     });
   });
 
   describe('phaseAt / fx ordering', () => {
-    it('walks the phases in order and ends on done', () => {
+    it('walks the phases in order and ends on done (the materialise owns the back half)', () => {
       expect(phaseAt(0)).to.eq('focus');
       expect(phaseAt(0.2)).to.eq('cleanup-start');
       expect(phaseAt(0.45)).to.eq('cleanup-resolve');
       expect(phaseAt(0.7)).to.eq('tile-materialize');
-      expect(phaseAt(0.9)).to.eq('reward-feedback');
+      expect(phaseAt(0.9)).to.eq('tile-materialize');
       expect(phaseAt(1)).to.eq('done');
     });
 
-    it('the tile swaps only AFTER the hazard has fully dissolved', () => {
+    it('the tile swaps only AFTER the hazard has fully dissolved, then materialises in', () => {
       // At the swap mark the hazard is gone (opacity 0) but the tile has not yet materialised.
       const atSwap = hazardFxAt(TILE_SWAP_FRACTION);
       expect(atSwap.hazardOpacity).to.be.closeTo(0, 0.001);
@@ -102,11 +102,9 @@ describe('hazardCleanupModel', () => {
       expect(early.hazardOpacity).to.eq(1);
       expect(early.dissolve).to.eq(0);
       expect(early.materialize).to.eq(0);
-      expect(early.rewardVisible).to.be.false;
-      // Late: tile materialised + the cost/TR chips are shown.
-      const late = hazardFxAt(0.95);
-      expect(late.materialize).to.eq(1);
-      expect(late.rewardVisible).to.be.true;
+      // Materialise rises monotonically across the back half and completes at the end.
+      expect(hazardFxAt(0.75).materialize).to.be.greaterThan(0).and.lessThan(1);
+      expect(hazardFxAt(1).materialize).to.be.closeTo(1, 0.001);
     });
   });
 });
