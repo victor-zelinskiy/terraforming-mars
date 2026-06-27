@@ -94,7 +94,7 @@
                   surface="temperature"
                   :top="m.top" :left="m.left" :size="m.size"
                   :point="m.point" :pointerDist="m.pointerDist" :pointerLen="m.pointerLen"
-                  :reached="m.reached" />
+                  :reached="m.reached" :players="players" />
             </div>
 
             <div class="global-numbers-oxygen">
@@ -106,7 +106,7 @@
                   surface="oxygen"
                   :top="m.top" :left="m.left" :size="m.size"
                   :point="m.point" :pointerDist="m.pointerDist" :pointerLen="m.pointerLen"
-                  :reached="m.reached" />
+                  :reached="m.reached" :players="players" />
             </div>
 
             <div class="global-numbers-venus" v-if="expansions.venus">
@@ -118,7 +118,7 @@
               A compact premium arc in the free bottom window, concentric with
               the scales above. See OceanArcScale.vue / arcScaleGeometry.ts.
             -->
-            <ocean-arc-scale :value="oceans_count" :aresMarkers="oceanAresMarkers" />
+            <ocean-arc-scale :value="oceans_count" :aresMarkers="oceanAresMarkers" :players="players" />
         </div>
 
         <div class="board" id="main_board">

@@ -347,6 +347,13 @@ describe('Hazard tests', () => {
     expect(tiles.get(TileType.DUST_STORM_MILD)).is.undefined;
     expect(tiles.get(TileType.DUST_STORM_SEVERE)).is.undefined;
     expect(player.terraformRating).eq(prior + 2); // One for the ocean, once for the dust storm event.
+
+    // The fired event records WHO crossed the threshold, so the premium scale
+    // marker can paint this rewarding planetary event in the triggering player's
+    // colour (a claimed-style marker that stays a "Planetary event").
+    const constraint = game.aresData!.hazardData.removeDustStormsOceanCount;
+    expect(constraint.available).is.false;
+    expect(constraint.triggeredByColor).eq(player.color);
   });
 
   it('dust storms disappear after the sixth ocean, desperate measures changes that', () => {

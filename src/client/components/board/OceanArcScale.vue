@@ -22,7 +22,8 @@
       :point="m.point"
       :pointerDist="m.pointerDist"
       :pointerLen="m.pointerLen"
-      :reached="m.reached" />
+      :reached="m.reached"
+      :players="players" />
   </div>
 </template>
 
@@ -74,6 +75,8 @@ export default defineComponent({
      * provided, these REPLACE the dev markers — a real Ares game shows them.
      */
     aresMarkers: {type: Array as PropType<ReadonlyArray<GlobalParameterThresholdMarker>>, default: undefined},
+    /** Players (colour + name) — passed to the event markers to name a claimer. */
+    players: {type: Array as PropType<ReadonlyArray<{color: string, name: string}>>, default: () => []},
   },
   data() {
     return {

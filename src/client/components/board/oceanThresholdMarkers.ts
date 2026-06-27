@@ -58,6 +58,20 @@ export type GlobalParameterThresholdMarker = {
   enabled: boolean;
   /** Whether the marker is shown at all (false ⇒ infrastructure only). */
   visible: boolean;
+  /**
+   * LIFECYCLE (live game): has this planetary event already FIRED? Sourced from
+   * the server `HazardConstraint.available === false`. Drives the marker's
+   * resolved / claimed state (vs the forward-looking "upcoming" look). Undefined
+   * for the forward-looking dev markers — the resolver falls back to `reached`.
+   */
+  fired?: boolean;
+  /**
+   * The COLOUR of the player who crossed the threshold (server
+   * `HazardConstraint.triggeredByColor`). Only painted for an event that REWARDS
+   * the triggering player (`reward.recipient === 'triggering-player'`); a
+   * no-reward hazard event stays neutral even if this is set.
+   */
+  claimedByColor?: string;
 };
 
 /**

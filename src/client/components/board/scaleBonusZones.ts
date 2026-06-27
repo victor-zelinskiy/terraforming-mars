@@ -37,8 +37,16 @@ import {placeArcMarker, spreadValues, MarkerSide} from '@/client/components/boar
 
 export type BonusZoneTier = 'regular' | 'final';
 
-/** Claim state of a reward zone. */
-export type BonusZoneState = 'available' | 'claimed' | 'government';
+/**
+ * Claim / lifecycle state of a scale marker chip.
+ *  - `available`  — unclaimed reward / an upcoming event (default look).
+ *  - `claimed`    — painted in an owner's colour (`--bonus-claim-color`).
+ *  - `government` — taken via World Government (neutral grey, dimmed).
+ *  - `resolved`   — a planetary EVENT that has fired with NO personal reward:
+ *                   neutral "this happened / settled" look (no player colour, not
+ *                   the active "reached" glow). Event chips only.
+ */
+export type BonusZoneState = 'available' | 'claimed' | 'government' | 'resolved';
 
 export type BonusScale = 'venus' | 'oxygen' | 'temperature';
 
@@ -164,7 +172,9 @@ export type ScaleBonusZoneView = ScaleBonusZoneDef & {
 // ── Claim resolution (phase 2, live) ──────────────────────────────────────
 // Player colours for tinting a claimed node (slightly brightened from the
 // canonical variables.less colours so they read on the small dark chip).
-const CLAIM_COLOR_HEX: Record<string, string> = {
+// Exported so the planetary-event markers paint a triggering-player reward in
+// the SAME palette as the reward-bonus claims (one unified claimed look).
+export const CLAIM_COLOR_HEX: Record<string, string> = {
   red: 'rgb(204, 56, 34)',
   green: 'rgb(38, 176, 38)',
   yellow: 'rgb(198, 198, 44)',

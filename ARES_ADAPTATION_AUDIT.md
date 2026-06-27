@@ -290,3 +290,23 @@ logic is test-covered.
   header for location identity. Generic — every volcanic / reserved / lore cell across all
   maps, not just the screenshot's case. BoardInformationEngine.spec +4 (38 passing).
   build:server + vue-tsc green, eslint 0 new.
+
+- **2026-06-27** — Scale planetary-event markers: unified premium STATE language
+  after a threshold fires (lifecycle `upcoming` → `resolved` / `claimed`).
+  • Server: `HazardConstraint.triggeredByColor?: Color` — `AresHazards.testConstraint`
+    records WHO crossed the threshold (the colour, public + client-usable) when the
+    event fires (`available → false`). Generic across all 4 thresholds.
+  • Client: `aresThresholdMarkers` reads `available`/`triggeredByColor` → marker
+    `fired`/`claimedByColor`; the pure `resolveScaleEventState(marker, reached, players)`
+    maps to a chip state — NOT fired → `available` (upcoming); fired + no payout
+    (every hazard event) → NEW neutral `resolved` state (settled, no glow, no player
+    colour); fired + rewards the trigger (ocean-6 "dust storms recede", +1 TR) →
+    `claimed` painted in the triggering player's colour (reuses the scale-bonus claim
+    palette + one-shot capture animation), but the variant/tooltip stay "Planetary
+    event". `BonusZoneState` gained `resolved`; `CLAIM_COLOR_HEX` exported + reused.
+  • Wiring: `players` threaded Board.vue → OceanArcScale / temp+oxygen ScaleEventMarker
+    (to name the claimer). `.bonus-zone--resolved` in bonus_zones.less. 5 RU keys.
+  • Old saves degrade gracefully (a fired reward event with no recorded colour → resolved).
+  Tests: aresThresholdMarkers.spec (lifecycle + resolveScaleEventState, 10) +
+  AresHandler.spec (`triggeredByColor` recorded). build:server + vue-tsc + make:json +
+  make:css green; eslint 0; 27 Ares + 14 model/setup specs pass.

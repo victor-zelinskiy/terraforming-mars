@@ -394,6 +394,23 @@
   .bonus-zone__halo { opacity: 0.18; }
 }
 
+// RESOLVED — a planetary EVENT that has FIRED with no personal reward (every
+// hazard event: erosions appear / intensify, dust storms intensify). It happened
+// and is now part of the board, so it reads as SETTLED — not an active / pending
+// threshold: the "reached" cyan glow is removed, the chrome calms, the icon
+// desaturates. Distinct from `government` ("spent, unclaimed") and from the
+// player-coloured `claimed`. Defined AFTER `reached` so it wins the shared props.
+.bonus-zone--resolved {
+  opacity: 0.9;
+  .bonus-zone__halo { opacity: 0.16; }
+  .bonus-zone__frame {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    &::before { filter: saturate(0.72); }
+  }
+  .bonus-zone__icon { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6)) saturate(0.74) brightness(0.86); }
+  .bonus-zone__pointer { opacity: 0.55; filter: saturate(0.7); }
+}
+
 // CAPTURE — a one-shot premium ring + flash the FIRST time a claim is observed
 // (gated in JS so the board's per-response remount never replays it).
 .bonus-zone--just-claimed::after {
