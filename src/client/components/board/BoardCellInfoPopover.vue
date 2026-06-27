@@ -196,9 +196,14 @@ export default defineComponent({
       const label = this.status.tileLabel;
       return typeof label === 'string' && label !== '' ? label : undefined;
     },
-    // What a composite tile counts AS for rules/scoring (Capital → city; New
-    // Holland → city + ocean). Empty for an ordinary tile → no "Counts as" line.
+    // What a SPECIAL / composite tile counts AS for rules/scoring (Capital → city;
+    // New Holland → city + ocean). An ORDINARY tile — a plain city/ocean/greenery,
+    // INCLUDING one built over a lore cell (a city on "Гора Аполлинарис") — is just
+    // itself: "counts as: City" on a City is redundant noise, so gate on `special`.
     countsAsLabels(): ReadonlyArray<string> {
+      if (this.status.special !== true) {
+        return [];
+      }
       const map: Record<string, string> = {city: 'City', ocean: 'Ocean', greenery: 'Greenery'};
       return (this.status.countsAs ?? []).map((c) => map[c]).filter((s) => s !== undefined);
     },
@@ -218,10 +223,13 @@ export default defineComponent({
       return getSpecialCellInfo(spaceId, boardName);
     },
     headerTitle(): string {
-      // A named cell's curated title wins the header (e.g. "Гора Аполлинарис") —
-      // EXCEPT an OCCUPIED off-Mars slot, where the tile identity (kind badge +
-      // name line) replaces the empty-cell "only X can be placed here" lore.
-      if (this.loreInfo !== undefined && this.status.external !== true) {
+      // A named cell's curated LORE title (e.g. "Гора Аполлинарис") wins the
+      // header ONLY while the cell is EMPTY — the geographic identity matters when
+      // you're deciding to build there. Once ANY tile COVERS it the cell is just
+      // that tile (a plain city, …), so fall back to the ordinary tile header.
+      // A genuine composite special tile (New Holland / Capital) carries its own
+      // name via `tileName` (it has no loreInfo) and is unaffected.
+      if (this.loreInfo !== undefined && this.status.external !== true && !this.occupied) {
         return this.loreInfo.title;
       }
       const h = this.status.header;
