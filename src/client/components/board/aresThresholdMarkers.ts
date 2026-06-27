@@ -18,10 +18,17 @@
  * configs (mirroring scaleBonusZones), since their digit angles are non-linear.
  */
 
-import {AresData} from '@/common/ares/AresData';
+import {AresData, HazardConstraint} from '@/common/ares/AresData';
 import {OXYGEN_ARC, TEMPERATURE_ARC, DynamicArcConfig} from '@/client/components/board/arcScaleConfigs';
 import {placeArcMarker} from '@/client/components/board/arcScaleGeometry';
 import {GlobalParameterThresholdMarker} from '@/client/components/board/oceanThresholdMarkers';
+import {BonusZoneState, CLAIM_COLOR_HEX} from '@/client/components/board/scaleBonusZones';
+
+// A fired threshold flips `available` to false; the triggering player's colour
+// is then recorded. So the lifecycle is read straight off the live hazard data.
+function lifecycleOf(c: HazardConstraint): {fired: boolean, claimedByColor?: string} {
+  return {fired: c.available === false, claimedByColor: c.triggeredByColor};
+}
 
 /** The 4 planetary-event markers built from the live hazard thresholds. */
 export function aresThresholdMarkers(aresData: AresData): ReadonlyArray<GlobalParameterThresholdMarker> {
@@ -41,6 +48,7 @@ export function aresThresholdMarkers(aresData: AresData): ReadonlyArray<GlobalPa
       reward: {recipient: 'none', deltas: []},
       enabled: true,
       visible: true,
+      ...lifecycleOf(h.erosionOceanCount),
     },
     {
       id: 'ares-remove-dust-storms',
@@ -54,6 +62,7 @@ export function aresThresholdMarkers(aresData: AresData): ReadonlyArray<GlobalPa
       rewardLabel: '+1 TR',
       enabled: true,
       visible: true,
+      ...lifecycleOf(h.removeDustStormsOceanCount),
     },
     {
       id: 'ares-severe-erosions',
@@ -66,6 +75,7 @@ export function aresThresholdMarkers(aresData: AresData): ReadonlyArray<GlobalPa
       reward: {recipient: 'none', deltas: []},
       enabled: true,
       visible: true,
+      ...lifecycleOf(h.severeErosionTemperature),
     },
     {
       id: 'ares-severe-dust-storms',
@@ -78,8 +88,59 @@ export function aresThresholdMarkers(aresData: AresData): ReadonlyArray<GlobalPa
       reward: {recipient: 'none', deltas: []},
       enabled: true,
       visible: true,
+      ...lifecycleOf(h.severeDustStormOxygen),
     },
   ];
+}
+
+export type ScaleEventLifecycle = 'upcoming' | 'resolved' | 'claimed';
+
+/** The resolved render-state of a planetary-event marker (lifecycle → chip props). */
+export type ScaleEventState = {
+  lifecycle: ScaleEventLifecycle;
+  /** The chip claim-state (`available` = upcoming; `resolved`/`claimed` = fired). */
+  chipState: BonusZoneState;
+  /** CSS colour to paint a claimed event ('' for upcoming / resolved). */
+  claimColor: string;
+  /** One-shot capture-animation key ('' unless freshly claimed). */
+  claimKey: string;
+  /** Display name of the player who triggered a rewarded event ('' otherwise). */
+  claimedByName: string;
+};
+
+/**
+ * Map a planetary-event marker to its premium STATE — the single source of truth
+ * for "how is this chip painted now":
+ *  - NOT fired               → `upcoming`  (default look).
+ *  - fired, no player reward  → `resolved`  (neutral "this happened").
+ *  - fired, rewards the trigger → `claimed`  (painted in the triggering player's
+ *    colour, like a claimed scale bonus — but it stays a "Planetary event").
+ *
+ * `fired` is the server's authoritative signal (`marker.fired`); it falls back to
+ * `reached` (current ≥ threshold) for the forward-looking dev markers that carry
+ * no live hazard data.
+ */
+export function resolveScaleEventState(
+  marker: GlobalParameterThresholdMarker,
+  reached: boolean,
+  players: ReadonlyArray<{color: string, name: string}> = [],
+): ScaleEventState {
+  const fired = marker.fired ?? reached;
+  if (!fired) {
+    return {lifecycle: 'upcoming', chipState: 'available', claimColor: '', claimKey: '', claimedByName: ''};
+  }
+  const rewardsTrigger = marker.reward?.recipient === 'triggering-player';
+  if (rewardsTrigger && marker.claimedByColor !== undefined) {
+    return {
+      lifecycle: 'claimed',
+      chipState: 'claimed',
+      claimColor: CLAIM_COLOR_HEX[marker.claimedByColor] ?? '',
+      claimKey: marker.id,
+      claimedByName: players.find((p) => p.color === marker.claimedByColor)?.name ?? '',
+    };
+  }
+  // Fired but with no personal payout (every hazard event) → neutral resolved.
+  return {lifecycle: 'resolved', chipState: 'resolved', claimColor: '', claimKey: '', claimedByName: ''};
 }
 
 export type ScaleEventMarkerView = {

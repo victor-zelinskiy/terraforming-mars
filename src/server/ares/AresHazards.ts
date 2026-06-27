@@ -62,6 +62,7 @@ export class AresHazards {
     this.testConstraint(
       aresData.hazardData.severeErosionTemperature,
       game.getTemperature(),
+      player,
       () => {
         const count = this.makeSevere(game, TileType.EROSION_MILD, TileType.EROSION_SEVERE);
         if (count > 0) {
@@ -79,7 +80,7 @@ export class AresHazards {
   }
 
   public static onOxygenChange(game: IGame, aresData: AresData, player: IPlayer) {
-    this.testConstraint(aresData.hazardData.severeDustStormOxygen, game.getOxygenLevel(), () => {
+    this.testConstraint(aresData.hazardData.severeDustStormOxygen, game.getOxygenLevel(), player, () => {
       const count = this.makeSevere(game, TileType.DUST_STORM_MILD, TileType.DUST_STORM_SEVERE);
       if (count > 0) {
         this.planetaryEvent(player, () => {
@@ -97,6 +98,7 @@ export class AresHazards {
     this.testConstraint(
       aresData.hazardData.erosionOceanCount,
       player.game.board.getOceanSpaces().length,
+      player,
       () => {
         this.planetaryEvent(player, () => {
           player.game.log('Planetary event: erosions appear on the surface.');
@@ -119,6 +121,7 @@ export class AresHazards {
     this.testConstraint(
       aresData.hazardData.removeDustStormsOceanCount,
       player.game.board.getOceanSpaces().length,
+      player,
       () => {
         this.planetaryEvent(player, () => {
           player.game.board.spaces.forEach((space) => {
@@ -141,13 +144,18 @@ export class AresHazards {
     );
   }
 
-  private static testConstraint(constraint: HazardConstraint, testValue: number, cb: () => void) {
+  private static testConstraint(constraint: HazardConstraint, testValue: number, player: IPlayer, cb: () => void) {
     if (!constraint.available) {
       return;
     }
     if (testValue >= constraint.threshold) {
       cb();
       constraint.available = false;
+      // Record WHO crossed the threshold (the player whose action raised the
+      // parameter), so a reward-bearing planetary event can be painted in their
+      // colour on the scale marker. Stored as the colour — the client never gets
+      // other players' ids.
+      constraint.triggeredByColor = player.color;
     }
   }
 }
