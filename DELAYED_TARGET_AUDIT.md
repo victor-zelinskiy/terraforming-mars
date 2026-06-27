@@ -1,5 +1,46 @@
 # Delayed-target audit — pre-collecting on-play target choices in the play modal
 
+## UPDATE (auto-select-single): `decreaseAnyProduction` (+ the asteroid cards) NEVER auto-target
+
+**Reported bug — Cloud Seeding (Засев облаков).** The player has NO heat production, one
+opponent has it. The play modal showed the M€/plant result but NOT the heat-production
+attack: no target, no `current → resulting`. Confirming silently reduced the lone
+opponent's heat production. That's a HIDDEN OPPONENT TARGET via the auto-select-single
+anti-pattern the fork forbids.
+
+**Root cause — why prior audits missed it.** The earlier audit (table below) recorded
+`decreaseAnyProduction` as "already pre-collected via `previewSelectPlayer` — a step only
+when a CHOICE exists; **auto-target when single**." That parenthetical WAS the bug:
+`DecreaseAnyProduction.execute()` and `previewSelectPlayer()` both had
+`if (targets.length > 1 || targets[0] === self) { show picker } else { auto-attack }`.
+A single non-self opponent → silent auto-attack + the preview returned `undefined` (no
+step). The audit treated "one target = no choice = auto" as acceptable; the fork's rule
+is NEVER auto-select — ALWAYS show the target + its `current → resulting`.
+
+**Fix.** `DecreaseAnyProduction.execute()` + `previewSelectPlayer()` now ALWAYS present
+the `SelectPlayer` for ≥1 target (single opponent included). `SelectPlayer` never
+auto-resolves, so the pre-collected pick replays byte-for-byte. Solo (no opponent) still
+shows nothing. **Guard:** `cardPlayPreviewCoverage.spec.ts` — "every in-scope declarative
+`decreaseAnyProduction` card pre-collects the target (even a single opponent)" FAILS if
+any production-attack card regresses to the silent auto-attack. ~14 card specs updated
+(they relied on the single-target auto-attack).
+
+**Same anti-pattern, also fixed — the asteroid cards (promo): Comet Aiming, Asteroid
+Rights, Directed Impactors.** Each "add an asteroid to ANY card" bespoke action
+AUTO-ADDED to the card ITSELF when it was the only candidate
+(`if (asteroidCards.length === 1) addToSelf()`), so the modal showed "+1 asteroid" but
+never WHICH card / its `current → resulting`. Now they ALWAYS build the `SelectCard`
+(even one candidate); Comet Aiming / Asteroid Rights also pre-collect it
+(`pickTarget = length >= 1`). `SelectCard` never auto-resolves.
+
+**Out-of-scope, same pattern, DOCUMENTED (not fixed — those modules aren't in the premium
+scope; fix when they enter it):** `FloaterUrbanism` / `CassiniStation` (pathfinders),
+`DarksideObservatory` (moon) auto-add a card resource to a single candidate.
+
+**NOT the bug (kept):** `OrOptions.reduce()` auto-resolving the only available OR BRANCH
+is a different concept (no hidden target — the single branch's effect is what the player
+sees); `AddResourcesToCard`'s `autoSelect` is already forced `false` fork-wide.
+
 ## UPDATE (follow-up fix): the "attack + placement" cards now PRE-COLLECT the plant target
 
 The original audit (below) left **Comet / Giant Ice Asteroid / Deimos Down promo** as

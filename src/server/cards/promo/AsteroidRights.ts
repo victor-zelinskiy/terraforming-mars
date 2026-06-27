@@ -61,10 +61,10 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
   public actionPreview(player: IPlayer) {
     const hasAsteroids = this.resourceCount > 0;
     const asteroidCards = player.getResourceCards(CardResource.ASTEROID);
-    // With several asteroid-holding cards, action() builds a SelectCard for the
-    // target DIRECTLY (a bare return, or as the OrOptions option) — pre-collect it
-    // as the branch's optionInput. A single candidate auto-adds to this card.
-    const pickTarget = asteroidCards.length > 1;
+    // action() ALWAYS builds a SelectCard for the target (a bare return, or the
+    // OrOptions option) — pre-collect it whenever there's a candidate (even one, this
+    // card itself); never auto-add silently.
+    const pickTarget = asteroidCards.length >= 1;
     return actionPreviews.orBranches(this, [
       {
         available: hasAsteroids,
@@ -112,13 +112,9 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
       return undefined;
     });
 
-    const addAsteroidToSelf = new SelectOption('Add 1 asteroid to this card', 'Add asteroid').andThen(() => {
-      player.game.defer(new SelectPaymentDeferred(player, 1, {title: 'Select how to pay for asteroid'}));
-      player.addResourceTo(this, {log: true});
-
-      return undefined;
-    });
-
+    // ALWAYS a SelectCard — even a single candidate (this card itself) — so the
+    // player SEES where the asteroid goes + its current → resulting (no silent
+    // auto-add-to-self; fork-wide no-autoselect rule). SelectCard never auto-resolves.
     const addAsteroidOption = new SelectCard('Select card to add 1 asteroid', 'Add asteroid', asteroidCards)
       .andThen(([card]) => {
         player.game.defer(new SelectPaymentDeferred(player, 1, {title: 'Select how to pay for asteroid'}));
@@ -134,16 +130,13 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
 
     // Add asteroid to any card
     if (!hasAsteroids) {
-      if (asteroidCards.length === 1) {
-        return addAsteroidToSelf.cb(undefined);
-      }
       return addAsteroidOption;
     }
 
     const opts = [];
     opts.push(gainTitaniumOption);
     opts.push(increaseMcProdOption);
-    asteroidCards.length === 1 ? opts.push(addAsteroidToSelf) : opts.push(addAsteroidOption);
+    opts.push(addAsteroidOption);
 
     return new OrOptions(...opts);
   }

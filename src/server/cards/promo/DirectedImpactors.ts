@@ -117,11 +117,9 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
   private addResource(player: IPlayer, asteroidCards: ICard[]) {
     player.game.defer(new SelectPaymentDeferred(player, 6, {canUseTitanium: true, title: TITLES.payForCardAction(this.name)}));
 
-    if (asteroidCards.length === 1) {
-      player.addResourceTo(this, {log: true});
-      return undefined;
-    }
-
+    // ALWAYS ask which card — even a single candidate (which is this card itself) —
+    // so the player SEES where the asteroid goes + its current → resulting (no silent
+    // auto-add-to-self; fork-wide no-autoselect rule).
     return new SelectCard(
       'Select card to add 1 asteroid',
       'Add asteroid',

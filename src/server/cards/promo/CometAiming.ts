@@ -63,9 +63,9 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
   // asteroid is here and the ocean is affordable), add-asteroid second.
   public actionPreview(player: IPlayer) {
     const asteroidCards = player.getResourceCards(CardResource.ASTEROID);
-    // Several asteroid-holding cards → action() builds a SelectCard for the
-    // target directly; pre-collect it. A single candidate auto-adds to it.
-    const pickTarget = asteroidCards.length > 1;
+    // action() ALWAYS builds a SelectCard for the target (even a single candidate),
+    // so pre-collect it whenever there's a candidate — never auto-add silently.
+    const pickTarget = asteroidCards.length >= 1;
     return actionPreviews.orBranches(this, [
       {
         // The ocean is placed on the board after submit (no pre-collectable step).
@@ -91,12 +91,9 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
   public action(player: IPlayer) {
     const asteroidCards = player.getResourceCards(CardResource.ASTEROID);
 
-    const addAsteroidToSelf = function() {
-      player.pay(Payment.of({titanium: 1}));
-      player.addResourceTo(asteroidCards[0], {log: true});
-      return undefined;
-    };
-
+    // ALWAYS a SelectCard — even a single candidate (this card itself) — so the
+    // player SEES where the asteroid goes + its current → resulting (no silent
+    // auto-add-to-self; fork-wide no-autoselect rule). SelectCard never auto-resolves.
     const addAsteroidToCard = new SelectCard(
       'Select card to add 1 asteroid',
       'Add asteroid',
@@ -115,7 +112,7 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
     };
 
     if (this.resourceCount === 0) {
-      return asteroidCards.length === 1 ? addAsteroidToSelf() : addAsteroidToCard;
+      return addAsteroidToCard;
     }
 
     if (player.titanium === 0) {
@@ -132,11 +129,7 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
       availableActions.push(placeOceanOption);
     }
 
-    if (asteroidCards.length === 1) {
-      availableActions.push(new SelectOption('Spend 1 titanium to gain 1 asteroid resource', 'Spend titanium').andThen(addAsteroidToSelf));
-    } else {
-      availableActions.push(addAsteroidToCard);
-    }
+    availableActions.push(addAsteroidToCard);
 
     if (availableActions.length === 1) {
       const action = availableActions[0];

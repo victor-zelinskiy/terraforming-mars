@@ -63,11 +63,17 @@ describe('ForestMoon', () => {
     cast(card.play(player), undefined);
 
     runAllActions(game);
+    // The single energy target is STILL shown (no auto-select) before the animal pick.
+    const selectPlayer = cast(player.popWaitingFor(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player3]);
+    selectPlayer.cb(player3);
+    expect(player3.production.energy).eq(0);
+
+    runAllActions(game);
     const selectCard = cast(player.popWaitingFor(), SelectCard);
     selectCard.cb([fish]);
     runAllActions(game);
 
-    expect(player3.production.energy).eq(0);
     expect(fish.resourceCount).eq(1);
   });
 });

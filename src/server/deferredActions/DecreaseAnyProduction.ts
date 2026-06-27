@@ -40,27 +40,25 @@ export class DecreaseAnyProduction extends DeferredAction<boolean> {
     if (this.player.game.isSoloMode()) {
       this.player.resolveInsuranceInSoloGame();
       this.cb(true);
-    } else {
-      const targets = this.player.game.players.filter((p) => p.canHaveProductionReduced(this.resource, this.options.count, this.player));
-
-      if (targets.length === 0) {
-        this.cb(false);
-        return undefined;
-      }
-      if (targets.length > 0) {
-        if (targets.length > 1 || targets[0] === this.player) {
-          return this.buildSelectPlayer(targets)
-            .andThen((candidate) => {
-              this.attack(candidate);
-              return undefined;
-            });
-        } else {
-          this.attack(targets[0]);
-        }
-      }
+      return undefined;
     }
+    const targets = this.player.game.players.filter((p) => p.canHaveProductionReduced(this.resource, this.options.count, this.player));
 
-    return undefined;
+    if (targets.length === 0) {
+      this.cb(false);
+      return undefined;
+    }
+    // ALWAYS ask which player — EVEN a single opponent — so the player SEES the
+    // target and its production `current → resulting` before committing. The old
+    // "single non-self target → auto-attack" was a silent auto-select (the legacy
+    // anti-pattern this fork removed everywhere — see AddResourcesToCard). The
+    // premium play / action modal pre-collects this SelectPlayer; the legacy path
+    // shows it live.
+    return this.buildSelectPlayer(targets)
+      .andThen((candidate) => {
+        this.attack(candidate);
+        return undefined;
+      });
   }
 
   /**
@@ -81,9 +79,11 @@ export class DecreaseAnyProduction extends DeferredAction<boolean> {
 
   /**
    * READ-ONLY: the `SelectPlayerModel` the live path WOULD present, or `undefined`
-   * when no choice is offered (solo mode, no valid target, or a single non-self
-   * target the server auto-attacks). Used by the action-preview builder to host
-   * the target picker INSIDE the confirmation modal — no mutation.
+   * ONLY when there is genuinely NO choice (solo mode, or no valid target). A single
+   * opponent is STILL shown (no auto-attack) so the modal always reveals WHO loses
+   * production and its `current → resulting`. Used by the action-preview builder to
+   * host the target picker INSIDE the confirmation modal — no mutation. Mirrors
+   * `execute` exactly so the pre-collected pick replays byte-for-byte.
    */
   public previewSelectPlayer(): SelectPlayerModel | undefined {
     if (this.player.game.isSoloMode()) {
@@ -93,10 +93,7 @@ export class DecreaseAnyProduction extends DeferredAction<boolean> {
     if (targets.length === 0) {
       return undefined;
     }
-    if (targets.length > 1 || targets[0] === this.player) {
-      return this.buildSelectPlayer(targets).toModel();
-    }
-    return undefined;
+    return this.buildSelectPlayer(targets).toModel();
   }
 
   /** Opponents who are relevant but can't have this production reduced, with a

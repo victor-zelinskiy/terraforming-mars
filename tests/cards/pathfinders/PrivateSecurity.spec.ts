@@ -32,8 +32,10 @@ describe('PrivateSecurity', () => {
     // Opponent 2 has Private Security
     opponent2.playedCards.push(card);
     fish.play(player);
-    // Options for only one opponent.
-    expect(player.game.deferredActions.pop()?.execute()).is.undefined;
+    // Only one opponent is a valid target now — but it's STILL shown (no auto-select).
+    const action2 = cast(player.game.deferredActions.pop()?.execute(), SelectPlayer);
+    expect(action2.players).deep.eq([opponent1]);
+    action2.cb(opponent1);
     // And it's the one without Private Security.
     expect(opponent1.production.plants).to.eq(1);
   });

@@ -30,7 +30,7 @@ describe('Herbivores', () => {
     expect(card.canPlay(player)).is.not.true;
   });
 
-  it('Should play - auto select if single target', () => {
+  it('Should play - a single target is STILL shown (no auto-select)', () => {
     setOxygenLevel(game, 8);
     player2.production.add(Resource.PLANTS, 1);
     expect(card.canPlay(player)).is.true;
@@ -39,8 +39,9 @@ describe('Herbivores', () => {
     runAllActions(game);
     expect(card.resourceCount).to.eq(1);
 
-    const input = runNextAction(game);
-    expect(input).is.undefined;
+    const selectPlayer = cast(player.popWaitingFor(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
     expect(player2.production.plants).to.eq(0);
   });
 

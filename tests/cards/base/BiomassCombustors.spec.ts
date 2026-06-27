@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {BiomassCombustors} from '../../../src/server/cards/base/BiomassCombustors';
 import {IGame} from '../../../src/server/IGame';
+import {SelectPlayer} from '../../../src/server/inputs/SelectPlayer';
 import {TestPlayer} from '../../TestPlayer';
 import {Resource} from '../../../src/common/Resource';
 import {runAllActions, setOxygenLevel} from '../../TestingUtils';
@@ -41,7 +42,10 @@ describe('BiomassCombustors', () => {
 
     card.play(player);
     runAllActions(game);
-    cast(player.popWaitingFor(), undefined);
+    const selectPlayer = cast(player.popWaitingFor(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
+    runAllActions(game); // the +2 own energy is deferred AFTER the decrease
     expect(player.production.energy).to.eq(2);
     expect(player2.production.plants).to.eq(0);
 

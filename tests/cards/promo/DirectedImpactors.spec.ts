@@ -34,8 +34,10 @@ describe('DirectedImpactors', () => {
     player.titanium = 1;
     expect(card.canAct(player)).is.true;
 
-    // can add resource to itself
-    card.action(player);
+    // can add resource — the single candidate (this card) is STILL shown (no auto-self).
+    const selectCard = cast(card.action(player), SelectCard);
+    expect(selectCard.cards).deep.eq([card]);
+    selectCard.cb([card]);
     expect(game.deferredActions).has.lengthOf(1);
     const selectPayment = cast(game.deferredActions.peek()!.execute(), SelectPayment);
     selectPayment.cb({...Payment.EMPTY, titanium: 1, megacredits: 3});

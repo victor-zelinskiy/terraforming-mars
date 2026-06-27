@@ -26,13 +26,15 @@ describe('DecreaseAnyProduction', () => {
     cast(player.popWaitingFor(), undefined);
   });
 
-  it('automatically if single target', () => {
+  it('shows the picker even for a single target (no auto-select)', () => {
     player2.production.add(Resource.TITANIUM, 5);
 
-    expect(decreaseAnyProduction.execute()).is.undefined;
-    runAllActions(game);
+    // A single opponent is STILL shown — the player sees WHO loses production and its
+    // current → resulting (no silent auto-attack; fork-wide no-autoselect rule).
+    const selectPlayer = cast(decreaseAnyProduction.execute(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
 
-    cast(player.popWaitingFor(), undefined);
     expect(player.production.titanium).to.eq(0);
     expect(player2.production.titanium).to.eq(3);
     expect(player3.production.titanium).to.eq(0);

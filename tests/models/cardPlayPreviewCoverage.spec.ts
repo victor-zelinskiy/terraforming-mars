@@ -240,6 +240,39 @@ describe('card-play-preview coverage', () => {
     expect(checked, 'in-scope declarative removeAnyPlants cards inspected').to.be.greaterThan(3);
   });
 
+  // GUARD: EVERY in-scope declarative `decreaseAnyProduction` card pre-collects the
+  // target player in the play modal — EVEN when there is exactly ONE valid opponent.
+  // This is the class of bug Cloud Seeding exhibited: `DecreaseAnyProduction` used to
+  // AUTO-ATTACK a single non-self opponent (no prompt) and `previewSelectPlayer`
+  // returned `undefined` for it, so the modal showed nothing — the player never saw
+  // WHO loses production or its `current → resulting`. The fork's rule is NEVER
+  // auto-select: the fix makes both `execute` and `previewSelectPlayer` ALWAYS present
+  // the SelectPlayer for ≥1 target. This guard FAILS if any declarative
+  // production-attack card regresses to the silent single-target auto-attack.
+  it('every in-scope declarative decreaseAnyProduction card pre-collects the target (even a single opponent)', () => {
+    const [/* game */, player, opponent] = testGame(2);
+    const gaps: Array<string> = [];
+    let checked = 0;
+    forEachInScopeProjectCard((card, module) => {
+      const behavior = (card as {behavior?: Behavior}).behavior;
+      const dap = behavior?.decreaseAnyProduction;
+      if (behavior === undefined || dap === undefined) {
+        return;
+      }
+      checked++;
+      // Give the SINGLE opponent enough of that production to be a valid (only) target
+      // — the exact scenario that used to auto-attack silently.
+      opponent.production.override({[dap.type]: 8});
+      const hasPlayerStep = stepsForBehavior(player, card, behavior)
+        .some((s) => s.kind === 'input' && s.input.type === 'player');
+      if (!hasPlayerStep) {
+        gaps.push(`${card.name} [${module}]`);
+      }
+    });
+    expect(gaps, `declarative decreaseAnyProduction cards NOT pre-collecting the target (they would auto-attack the single opponent silently / show a delayed picker):\n  ${gaps.join('\n  ')}`).to.have.length(0);
+    expect(checked, 'in-scope declarative decreaseAnyProduction cards inspected').to.be.greaterThan(3);
+  });
+
   // GUARD: a card that HOLDS the resource its on-play `addResourcesToAnyCard` adds
   // can target ITSELF (Jovian Lanterns / Atmo Collectors / Titan Floating Launch-pad
   // add floaters and hold them — usually the optimal target, it scores VP "here").

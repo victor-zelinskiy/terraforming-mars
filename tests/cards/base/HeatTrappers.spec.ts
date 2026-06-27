@@ -30,14 +30,15 @@ describe('HeatTrappers', () => {
     expect(player.production.energy).to.eq(1); // Incremented
   });
 
-  it('Should play - auto select if single target', () => {
+  it('Should play - a single target is STILL shown (no auto-select)', () => {
     player2.production.add(Resource.HEAT, 7);
     expect(card.canPlay(player)).is.true;
     card.play(player);
     expect(player.production.energy).to.eq(1);
 
-    const input = game.deferredActions.peek()!.execute();
-    expect(input).is.undefined;
+    const selectPlayer = cast(game.deferredActions.peek()!.execute(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
     expect(player2.production.heat).to.eq(5);
   });
 
