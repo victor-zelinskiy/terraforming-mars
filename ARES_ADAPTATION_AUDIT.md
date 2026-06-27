@@ -354,3 +354,17 @@ logic is test-covered.
     for own + opponent placements (the placement gate already arms on both paths).
     Intensify keeps its existing red pulse (hazardIntensifyState). kindFor spec (3).
   vue-tsc + make:css + webpack green; eslint 0.
+
+- **2026-06-27** — Board info: a lore cell's identity is EMPTY-ONLY. A named lore
+  cell (getSpecialCellInfo — "Гора Аполлинарис"/Apollinaris Mons, the volcanoes,
+  Noctis, …) covered by an ORDINARY tile (a plain city) used to keep showing its
+  geographic NAME in the header AND a redundant "Counts as: City". Once a tile
+  covers it, the cell is just that tile — the mountain identity only matters while
+  it's uncovered (you're deciding to build there). Fix (client popover, 2 computeds):
+  `headerTitle` uses `loreInfo.title` only when NOT occupied (else the ordinary
+  tile header); `countsAsLabels` gated on `status.special === true` (a plain
+  city/ocean/greenery never shows the redundant "counts as: X"). A genuine
+  composite SPECIAL tile (New Holland / Capital — its own `tileLabel`, no loreInfo,
+  special=true) keeps its name + counts-as, unaffected. The lore PARAGRAPH was
+  already empty-only. BoardCellInfoPopover.spec (3). vue-tsc + eslint green;
+  engine status unchanged (29 engine specs green).
