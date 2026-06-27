@@ -746,6 +746,7 @@ export default defineComponent({
           {key: 'tr-oxygen', label: 'Oxygen', accent: 'tr-oxygen', value: t.oxygen},
           {key: 'tr-oceans', label: 'Oceans', accent: 'tr-oceans', value: t.oceans},
           {key: 'tr-venus', label: 'Venus', accent: 'tr-venus', value: t.venus},
+          {key: 'tr-hazards', label: 'Hazard cleanup', accent: 'tr-hazards', value: t.hazards ?? 0},
           {key: 'tr-cards', label: 'Cards & effects', accent: 'tr-cards', value: t.cards},
         ]).filter((r) => r.value !== 0);
       } else if (group === 'cards') {

@@ -143,6 +143,11 @@ const SEGMENTS: ReadonlyArray<SegMeta> = [
   {key: 'tr-oxygen', group: 'tr', label: 'Oxygen', penalty: false, value: (b) => b.terraformRatingBreakdown.oxygen},
   {key: 'tr-oceans', group: 'tr', label: 'Oceans', penalty: false, value: (b) => b.terraformRatingBreakdown.oceans},
   {key: 'tr-venus', group: 'tr', label: 'Venus', penalty: false, value: (b) => b.terraformRatingBreakdown.venus},
+  // Ares — TR from clearing hazard zones. Its own diegetic sub-part (never
+  // expansion-named), mirroring the detailed VP report's `tr.hazards` segment.
+  // Omitting it made the reveal's TR (and total) under-count by this amount in
+  // Ares games — diverging from the authoritative `breakdown.total`.
+  {key: 'tr-hazards', group: 'tr', label: 'Hazard cleanup', penalty: false, value: (b) => b.terraformRatingBreakdown.hazards ?? 0},
   {key: 'tr-cards', group: 'tr', label: 'Cards & effects', penalty: false, value: (b) => b.terraformRatingBreakdown.cards},
   {key: 'greenery', group: 'greenery', label: 'Greenery', penalty: false, value: (b) => b.greenery},
   {key: 'city', group: 'city', label: 'Cities', penalty: false, value: (b) => b.city},
