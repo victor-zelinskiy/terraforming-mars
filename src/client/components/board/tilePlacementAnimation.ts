@@ -34,10 +34,10 @@
 
 import {SpaceId} from '@/common/Types';
 import {SpaceModel} from '@/common/models/SpaceModel';
-import {TileType} from '@/common/TileType';
+import {TileType, HAZARD_TILES} from '@/common/TileType';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 
-export type PlacementKind = 'ocean' | 'greenery' | 'city' | 'special';
+export type PlacementKind = 'ocean' | 'greenery' | 'city' | 'special' | 'hazard';
 
 /*
  * Length of the "hold the rest of the UI" window. By the end of the
@@ -65,6 +65,12 @@ export const PLACEMENT_HOLD_REDUCED_MS = 100;
  */
 export const PLACEMENT_ANIMATION_MS = 720;
 export const PLACEMENT_ANIMATION_REDUCED_MS = 280;
+/**
+ * A hazard APPEARING is a little heavier + slower than a calm tile placement —
+ * an ominous "danger materialises" beat that matches the weight of the cleanup
+ * sequence (and is distinct from a routine build).
+ */
+export const HAZARD_PLACEMENT_ANIMATION_MS = 940;
 
 /*
  * Per-tile-type accent class. `special` covers everything that isn't
@@ -92,7 +98,13 @@ const CITY_KIND: ReadonlySet<TileType> = new Set([
   TileType.NEW_HOLLAND,
 ]);
 
-function kindFor(tileType: TileType): PlacementKind {
+export function kindFor(tileType: TileType): PlacementKind {
+  // A hazard APPEARING (erosion / dust storm — planetary event or a card) gets a
+  // dedicated red/amber "danger materialises" entrance, so the hazard lifecycle
+  // (appear → intensify → cleanup) reads as one premium language. Checked first.
+  if (HAZARD_TILES.has(tileType)) {
+    return 'hazard';
+  }
   if (OCEAN_KIND.has(tileType)) {
     return 'ocean';
   }
@@ -249,7 +261,9 @@ export function observeTilePlacement(space: SpaceModel): ObservationResult | nul
   }
 
   const kind = kindFor(incoming);
-  const duration = prefersReducedMotion() ? PLACEMENT_ANIMATION_REDUCED_MS : PLACEMENT_ANIMATION_MS;
+  const duration = prefersReducedMotion() ?
+    PLACEMENT_ANIMATION_REDUCED_MS :
+    (kind === 'hazard' ? HAZARD_PLACEMENT_ANIMATION_MS : PLACEMENT_ANIMATION_MS);
   activePlacements.set(space.id, {startedAt: now(), duration, kind});
   return {kind, durationMs: duration, delayMs: 0};
 }
