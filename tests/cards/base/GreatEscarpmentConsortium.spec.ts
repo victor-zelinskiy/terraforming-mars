@@ -28,13 +28,16 @@ describe('GreatEscarpmentConsortium', () => {
     expect(card.canPlay(player)).is.true;
   });
 
-  it('Should play - auto select if single target', () => {
+  it('Should play - a single target is STILL shown (no auto-select)', () => {
     player2.production.add(Resource.STEEL, 1);
 
     card.play(player);
     runAllActions(game);
 
-    cast(player.popWaitingFor(), undefined);
+    const selectPlayer = cast(player.popWaitingFor(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
+    runAllActions(game); // the +1 own steel is deferred AFTER the decrease
     expect(player.production.steel).to.eq(1);
     expect(player2.production.steel).to.eq(0);
   });

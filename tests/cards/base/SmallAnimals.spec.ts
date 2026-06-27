@@ -2,9 +2,11 @@ import {expect} from 'chai';
 import {SmallAnimals} from '../../../src/server/cards/base/SmallAnimals';
 import {IGame} from '../../../src/server/IGame';
 import {Resource} from '../../../src/common/Resource';
+import {SelectPlayer} from '../../../src/server/inputs/SelectPlayer';
 import {TestPlayer} from '../../TestPlayer';
 import {runAllActions, setOxygenLevel} from '../../TestingUtils';
 import {testGame} from '../../TestGame';
+import {cast} from '../../../src/common/utils/utils';
 
 describe('SmallAnimals', () => {
   let card: SmallAnimals;
@@ -42,8 +44,9 @@ describe('SmallAnimals', () => {
 
     player.playedCards.push(card);
     card.play(player);
-    const input = game.deferredActions.peek()!.execute();
-    expect(input).is.undefined;
+    const selectPlayer = cast(game.deferredActions.peek()!.execute(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
     expect(player2.production.plants).to.eq(0);
   });
 

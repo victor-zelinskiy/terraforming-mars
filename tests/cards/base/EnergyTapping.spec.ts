@@ -37,13 +37,16 @@ describe('EnergyTapping', () => {
     expect(player2.production.energy).to.eq(0);
   });
 
-  it('play - auto select if single target', () => {
+  it('play - a single target is STILL shown (no auto-select)', () => {
     player2.production.override({energy: 1});
 
     card.play(player);
 
     runAllActions(game);
-    cast(player.popWaitingFor(), undefined);
+    const selectPlayer = cast(player.popWaitingFor(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
+    runAllActions(game); // the +1 own energy is deferred AFTER the decrease
     expect(player.production.energy).to.eq(1);
     expect(player2.production.energy).to.eq(0);
   });

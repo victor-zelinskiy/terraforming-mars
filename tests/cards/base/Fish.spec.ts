@@ -29,15 +29,16 @@ describe('Fish', () => {
     expect(card.resourceCount).to.eq(1);
   });
 
-  it('Should play - auto select if single target', () => {
+  it('Should play - a single target is STILL shown (no auto-select)', () => {
     setTemperature(game, 2);
     player2.production.add(Resource.PLANTS, 1);
 
     expect(card.canPlay(player)).is.true;
     card.play(player);
 
-    const input = game.deferredActions.peek()!.execute();
-    expect(input).is.undefined;
+    const selectPlayer = cast(game.deferredActions.peek()!.execute(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
     expect(player2.production.plants).to.eq(0);
   });
 

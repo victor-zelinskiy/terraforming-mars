@@ -12,7 +12,6 @@ import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {max} from '../Options';
-import {message} from '../../logs/MessageBuilder';
 import * as actionPreviews from '../actionPreviews';
 import * as actionReason from '../actionReasons';
 
@@ -44,16 +43,19 @@ export class ExtremeColdFungus extends Card implements IActionCard, IProjectCard
     return true;
   }
   // Branch order MUST match action(): add-2-microbes (only when a microbe card
-  // exists) pushed first, gain-1-plant second. The microbe target set is bespoke
-  // (cards already holding microbes), so the picker step is omitted (effect only).
+  // exists) pushed first, gain-1-plant second. The microbe target is PRE-COLLECTED
+  // via the branch's optionInput (the same SelectCard action() builds) so the player
+  // picks/sees the destination card in the modal — even for a single candidate.
   public actionPreview(player: IPlayer) {
-    const hasMicrobeCard = player.getResourceCards(CardResource.MICROBE).length > 0;
+    const microbeCards = player.getResourceCards(CardResource.MICROBE);
+    const hasMicrobeCard = microbeCards.length > 0;
     return actionPreviews.orBranches(this, [
       {
         available: hasMicrobeCard,
         title: 'Add 2 microbes to another card',
         unavailableReason: actionReason.targetReason('No card to add microbes to'),
         effects: [actionPreviews.cardResourceGain(CardResource.MICROBE, 2)],
+        optionInput: hasMicrobeCard ? actionPreviews.cardInput(player, 'Select card to add 2 microbes', 'Add microbes', microbeCards) : undefined,
       },
       {
         available: true,
@@ -75,18 +77,9 @@ export class ExtremeColdFungus extends Card implements IActionCard, IProjectCard
       return undefined;
     });
 
-    if (otherMicrobeCards.length === 1) {
-      const targetCard = otherMicrobeCards[0];
-
-      return new OrOptions(
-        new SelectOption(message('Add ${0} microbes to ${1}', (b) => b.number(2).card(targetCard)), 'Add microbes').andThen(() => {
-          player.addResourceTo(targetCard, {qty: 2, log: true});
-          return undefined;
-        }),
-        gainPlantOption,
-      );
-    }
-
+    // ALWAYS a SelectCard for the microbe target — even a single candidate — so the
+    // player SEES which card gets the microbes + its current → resulting (no silent
+    // single-target apply; fork-wide no-autoselect rule). SelectCard never auto-resolves.
     return new OrOptions(
       new SelectCard(
         'Select card to add 2 microbes',

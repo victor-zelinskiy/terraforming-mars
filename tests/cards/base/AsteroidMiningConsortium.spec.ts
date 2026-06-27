@@ -30,7 +30,7 @@ describe('AsteroidMiningConsortium', () => {
     expect(card.warnings).to.have.key('selfTarget');
   });
 
-  it('Should play - auto select if single target', () => {
+  it('Should play - a single target is STILL shown (no auto-select)', () => {
     player2.production.add(Resource.TITANIUM, 1);
 
     expect(card.warnings).to.not.have.key('selfTarget');
@@ -39,9 +39,10 @@ describe('AsteroidMiningConsortium', () => {
 
     card.play(player); // can decrease own production
     runAllActions(game);
-    const input = player.popWaitingFor();
-
-    expect(input).is.undefined;
+    const selectPlayer = cast(player.popWaitingFor(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
+    runAllActions(game); // the +1 own titanium is deferred AFTER the decrease
     expect(player.production.titanium).to.eq(1);
     expect(player2.production.titanium).to.eq(0);
   });

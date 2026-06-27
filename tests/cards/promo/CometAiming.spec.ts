@@ -4,6 +4,7 @@ import {RotatorImpacts} from '../../../src/server/cards/venusNext/RotatorImpacts
 import {testGame} from '../../TestGame';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {TestPlayer} from '../../TestPlayer';
 import {maxOutOceans, runAllActions} from '../../TestingUtils';
 import {IGame} from '../../../src/server/IGame';
@@ -34,7 +35,10 @@ describe('CometAiming', () => {
     player.titanium = 1;
     expect(card.canAct(player)).is.true;
 
-    card.action(player);
+    // resourceCount 0 → add asteroid; the single candidate (this card) is STILL shown.
+    const selectCard = cast(card.action(player), SelectCard);
+    expect(selectCard.cards).deep.eq([card]);
+    selectCard.cb([card]);
     expect(player.titanium).to.eq(0);
     expect(card.resourceCount).to.eq(1);
 

@@ -6,7 +6,6 @@ import {CometAiming} from '../../../src/server/cards/promo/CometAiming';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {TestPlayer} from '../../TestPlayer';
-import {SelectOption} from '../../../src/server/inputs/SelectOption';
 import {cast} from '../../../src/common/utils/utils';
 
 describe('Astrodrill', () => {
@@ -36,13 +35,14 @@ describe('Astrodrill', () => {
     expect(player.game.deferredActions).has.lengthOf(0);
   });
 
-  it('Should play - can add asteroid resource to self', () => {
+  it('Should play - the single candidate (self) is STILL shown (no auto-select)', () => {
     const action = cast(card.action(player), OrOptions);
     expect(action.options).has.lengthOf(3);
 
-    // add asteroid resource and gain standard resource
-    const addAsteroidOption = cast(action.options[1], SelectOption);
-    const result = addAsteroidOption.cb(undefined);
+    // Even with one candidate (this card), the player picks it via the SelectCard.
+    const addAsteroidOption = cast(action.options[1], SelectCard<ICard>);
+    expect(addAsteroidOption.cards).deep.eq([card]);
+    const result = addAsteroidOption.cb([card]);
     expect(card.resourceCount).to.eq(4);
     expect(result).is.undefined;
   });

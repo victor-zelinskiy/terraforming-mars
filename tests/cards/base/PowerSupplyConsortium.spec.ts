@@ -45,7 +45,7 @@ describe('PowerSupplyConsortium', () => {
     expect(player2.production.energy).to.eq(0);
   });
 
-  it('Can play - single target', () => {
+  it('Can play - a single target is STILL shown (no auto-select)', () => {
     player2.production.override({energy: 1});
     player.tagsForTest = {power: 2};
     expect(card.canPlay(player)).is.true;
@@ -53,7 +53,10 @@ describe('PowerSupplyConsortium', () => {
     card.play(player);
     runAllActions(game);
 
-    cast(player.popWaitingFor(), undefined);
+    const selectPlayer = cast(player.popWaitingFor(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
+    runAllActions(game); // the +1 own energy is deferred AFTER the decrease
     expect(player.production.energy).to.eq(1);
     expect(player2.production.energy).to.eq(0);
   });

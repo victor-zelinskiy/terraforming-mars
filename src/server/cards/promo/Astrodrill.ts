@@ -58,9 +58,9 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
   // returns an OrOptions (add + gain are always offered), so disable auto-resolve.
   public actionPreview(player: IPlayer) {
     const asteroidCards = player.getResourceCards(CardResource.ASTEROID);
-    // Several asteroid-holding cards → action() builds a SelectCard for the
-    // target directly; pre-collect it. A single candidate auto-adds to this card.
-    const pickTarget = asteroidCards.length > 1;
+    // action() ALWAYS builds a SelectCard for the target (even one candidate, this
+    // card) — pre-collect it whenever there's a candidate; never auto-add silently.
+    const pickTarget = asteroidCards.length >= 1;
     return actionPreviews.orBranches(this, [
       {
         available: this.resourceCount > 0,
@@ -69,9 +69,9 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
         unavailableReason: actionReason.noResourcesHere(),
       },
       {
-        // Target card pre-collected via optionInput (when several candidates).
+        // Target card pre-collected via optionInput (always — even a single candidate).
         available: true,
-        title: 'Add 1 asteroid to this card',
+        title: 'Add 1 asteroid to a card',
         effects: [actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
         optionInput: pickTarget ? actionPreviews.cardInput(player, 'Select card to add 1 asteroid', 'Add asteroid', asteroidCards) : undefined,
       },
@@ -117,12 +117,6 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
       );
     });
 
-    const addResourceToSelf = new SelectOption('Add 1 asteroid to this card', 'Add asteroid').andThen(() => {
-      player.addResourceTo(this, {log: true});
-
-      return undefined;
-    });
-
     const addResource = new SelectCard(
       'Select card to add 1 asteroid',
       'Add asteroid',
@@ -146,7 +140,9 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
     if (this.resourceCount > 0) {
       opts.push(spendResource);
     }
-    asteroidCards.length === 1 ? opts.push(addResourceToSelf) : opts.push(addResource);
+    // ALWAYS a SelectCard for the asteroid target — even a single candidate (this
+    // card) — so the player SEES where it goes (no silent auto-add-to-self).
+    opts.push(addResource);
     opts.push(gainStandardResource);
 
     return new OrOptions(...opts);

@@ -44,7 +44,8 @@ describe('ExtremeColdFungus', () => {
     const action = cast(churn(card.action(player), player), OrOptions);
     expect(action.options).has.lengthOf(2);
 
-    action.options[0].cb();
+    // The single microbe target is STILL shown via a SelectCard (no auto-select).
+    action.options[0].cb([tardigrades]);
     expect(tardigrades.resourceCount).to.eq(2);
 
     action.options[1].cb();

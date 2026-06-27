@@ -71,12 +71,15 @@ describe('AsteroidRights', () => {
     expect(player.titanium).to.eq(2);
   });
 
-  it('Should play - can auto add asteroid resource to self', () => {
+  it('Should play - the single candidate (self) is STILL shown (no auto-select)', () => {
     player.megaCredits = 1;
     card.resourceCount = 0;
 
-    card.action(player);
-    player.game.deferredActions.peek()!.execute();
+    // Even with one candidate (this card), the player picks it — no silent auto-add.
+    const action = cast(card.action(player), SelectCard<ICard>);
+    expect(action.cards).deep.eq([card]);
+    action.cb([card]);
+    runAllActions(player.game); // resolve the 1 M€ payment (deferred)
     expect(player.megaCredits).to.eq(0);
     expect(card.resourceCount).to.eq(1);
   });

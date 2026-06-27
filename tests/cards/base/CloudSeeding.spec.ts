@@ -43,7 +43,7 @@ describe('CloudSeeding', () => {
     expect(card.canPlay(player)).is.true;
   });
 
-  it('Should play - auto select if single target', () => {
+  it('Should play - a single target is STILL shown (no auto-select)', () => {
     // Meet requirements
     player2.production.add(Resource.HEAT, 1);
     maxOutOceans(player, 3);
@@ -53,8 +53,11 @@ describe('CloudSeeding', () => {
     expect(player.production.megacredits).to.eq(-1);
     expect(player.production.plants).to.eq(2);
 
-    const input = game.deferredActions.peek()!.execute();
-    expect(input).is.undefined;
+    // Even with one valid opponent, the player picks them (sees heat 1 → 0); the
+    // heat-production attack is never auto-applied silently.
+    const selectPlayer = cast(game.deferredActions.peek()!.execute(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
     expect(player2.production.heat).to.eq(0);
   });
 

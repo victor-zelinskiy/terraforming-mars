@@ -28,6 +28,7 @@ import {isICorporationCard} from '../../../src/server/cards/corporation/ICorpora
 import {isIProjectCard} from '../../../src/server/cards/IProjectCard';
 import {ResearchNetwork} from '../../../src/server/cards/prelude/ResearchNetwork';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {SelectPlayer} from '../../../src/server/inputs/SelectPlayer';
 import {CardManifest} from '../../../src/server/cards/ModuleManifest';
 import {HeatTrappers} from '../../../src/server/cards/base/HeatTrappers';
 import {testGame} from '../../TestGame';
@@ -227,6 +228,12 @@ describe('RoboticWorkforce', () => {
 
     selectCard.cb([heatTrappers]);
     runAllActions(game);
+
+    // Copying Heat Trappers' −2 heat attack: player2 is the only valid target (player
+    // has just 1 heat production), but it's STILL shown (no auto-select).
+    const selectPlayer = cast(player.popWaitingFor(), SelectPlayer);
+    expect(selectPlayer.players).deep.eq([player2]);
+    selectPlayer.cb(player2);
 
     expect(player.production.asUnits()).deep.eq(Units.of({heat: 1, energy: 1}));
     expect(player2.production.asUnits()).deep.eq(Units.EMPTY);
