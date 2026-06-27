@@ -337,3 +337,20 @@ logic is test-covered.
   eslint 0; 15 new + BoardSpaceTile/energy/placement/intensify regression green.
   Frontier: a dedicated journal SUB-cluster header (today the removal + TR log in
   the placement cluster) + a per-cell cost line.
+
+- **2026-06-27** — Hazard animation polish (follow-up on the cleanup sequence):
+  • Cleanup: REMOVED the on-board cost/TR reward chips (the panel resource
+    delta-chips + the journal already report them) and reinvested the time into a
+    longer, richer tile-to-tile TRANSITION — duration up (weak 1200 / strong 1600),
+    the real board tile fades+recedes as the hazard dissolves, then the new tile
+    GROWS (0.74→1) + fades in with a smoothstep ease (BoardSpaceTile.hazardCleanupTileFx),
+    the materialise owning the whole back half. (commit 7c7169f4d)
+  • APPEARANCE: a hazard materialising (erosion / dust storm — planetary event or
+    a card) now gets a dedicated premium DANGER entrance, so the hazard lifecycle
+    (appear → intensify → cleanup) is one language. Reuses the existing placement
+    gate: `tilePlacementAnimation.kindFor` returns a new `hazard` kind for hazard
+    tiles + `HAZARD_PLACEMENT_ANIMATION_MS` (940, heavier than the routine 720) +
+    a red/amber `--placing-hazard` accent in board_placement_animation.less. Works
+    for own + opponent placements (the placement gate already arms on both paths).
+    Intensify keeps its existing red pulse (hazardIntensifyState). kindFor spec (3).
+  vue-tsc + make:css + webpack green; eslint 0.

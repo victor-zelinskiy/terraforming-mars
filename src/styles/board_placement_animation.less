@@ -169,6 +169,26 @@
 }
 
 /*
+ * Hazard APPEARING (erosion / dust storm). A red/amber "danger materialises"
+ * entrance — the same warm-danger palette the cleanup sequence uses, so the
+ * hazard lifecycle reads as one premium language. Paired with the heavier
+ * HAZARD_PLACEMENT_ANIMATION_MS so the threat lands with weight, not a routine
+ * pop. A stronger ring glow underlines that this is a warning, not a build.
+ */
+.board-space-tile--placing-hazard {
+    --placement-accent:       #ff7a44;
+    --placement-accent-soft:  rgba(255, 110, 60, 0.7);
+    --placement-accent-faint: rgba(255, 96, 48, 0.26);
+
+    &::before {
+        border-width: 2px;
+        box-shadow:
+            0 0 18px var(--placement-accent-soft),
+            inset 0 0 12px var(--placement-accent-faint);
+    }
+}
+
+/*
  * Tile body keyframes. Same visual trajectory as the original 5-stop
  * version (scale 0.55 → 0.78 → 1.10 → 0.98 → 1.0, with brightness
  * + saturate fading from peak warmth to neutral); the extra
