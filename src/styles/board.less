@@ -881,17 +881,23 @@
 	background-size: 630px 150px;
 }
 
+// Ocean uses a dedicated hi-res PNG (assets/custom_tiles/tile_ocean.png —
+// 368×408 = 8× the 46×51 hex), same approach as city/greenery below.
 .board-space-tile--ocean {
-	.board-icons-sprite(-79px, -29px);
-	width: 46px;
+	background: url(./assets/custom_tiles/tile_ocean.png) center / 100% 100% no-repeat;
 }
 
+// City / Greenery use dedicated hi-res PNGs (assets/custom_tiles/tile_city.png,
+// assets/custom_tiles/tile_greenery.png — 368×408 = 8× the 46×51 hex).
+// Authored to fill the hex edge-to-edge at the exact hex aspect, so
+// `100% 100%` scales without distortion. The premium rim (::after) +
+// bloom/shadow (filter: drop-shadow, follows the PNG alpha) keep working.
 .board-space-tile--city {
-	.board-icons-sprite(-29px, -29px);
+	background: url(./assets/custom_tiles/tile_city.png) center / 100% 100% no-repeat;
 }
 
 .board-space-tile--greenery {
-	.board-icons-sprite(-129px, -29px);
+	background: url(./assets/custom_tiles/tile_greenery.png) center / 100% 100% no-repeat;
 }
 
 .board-space-tile--capital {
