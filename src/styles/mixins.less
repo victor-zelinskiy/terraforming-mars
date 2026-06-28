@@ -8,6 +8,35 @@
     border-right: @width solid rgb(137, 137, 137);
 }
 
+/*
+ * Premium "production" surface — the warm kraft-brown plate behind production
+ * resources on cards. CSS-only (no asset): a lit cardboard/bronze gradient +
+ * a faint embedded SVG grain (feTurbulence, soft-light blended) + an embossed
+ * edge. Keeps the brown identity so PRODUCTION stays instantly distinct from
+ * STOCK resources, while replacing production.png — which was `cover`-stretched
+ * (and blurred) on variable-width / fullscreen boxes. Mid-tone + low-contrast
+ * so the dark production digits/icons on top stay readable. No animation.
+ *
+ * Apply to a production BOX (it sets border + box-shadow + background); the
+ * tiny fixed production marks (mined badge, protection shield) keep the PNG.
+ */
+.production-surface() {
+    border: 1px solid rgba(58, 38, 18, 0.78);
+    border-radius: 3px;
+    background-color: #a87a4e;
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='pn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23pn)'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #cb9e6f 0%, #ae7f52 46%, #87603b 100%);
+    background-size: 90px 90px, 100% 100%;
+    background-blend-mode: soft-light, normal;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 238, 208, 0.45),
+        inset 0 -1px 0 rgba(40, 24, 10, 0.50),
+        inset 0 0 8px rgba(60, 38, 18, 0.22),
+        0 1px 1px rgba(0, 0, 0, 0.35),
+        0 2px 6px rgba(0, 0, 0, 0.30);
+}
+
 // 16x16 circular badge used for per-expansion icons on card titles.
 // Callers override border / size / fill / glyph as needed.
 .expansion-icon-base() {

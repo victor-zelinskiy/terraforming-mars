@@ -1431,11 +1431,20 @@ input[type="radio"]:checked + .filterDiv::after {
     }
     // Vermin penalty: recognisably gold (keeps its red-outline) but cooler so
     // it reads as the "watch out" plate rather than a reward.
+    //
+    // Vermin carries BOTH `card-points-normal` + `card-points-vermin`, and its
+    // content is a DENSE compound expression ("10 [animal] : -1/ [city] *").
+    // Restore the original text metrics here (18px / normal weight / no extra
+    // letter-spacing) so the `-big`/`-normal` premium type bump can't overflow
+    // the 128×42 plate (the "-1/" spilling out below was this regression).
     .card-points-vermin {
         background:
             linear-gradient(118deg,
                 rgba(255, 255, 255, 0) 41%, rgba(255, 255, 255, 0.20) 50%, rgba(255, 255, 255, 0) 59%),
             linear-gradient(180deg, #efcd83 0%, #cc973a 47%, #8d5c16 100%);
+        font-size: 18px;
+        font-weight: normal;
+        letter-spacing: normal;
     }
 }
 
