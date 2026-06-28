@@ -1,0 +1,94 @@
+/*
+ * Premium self-contained tag badges.
+ *
+ * The tag PNGs in assets/tags/<x>.png are being upgraded to fully
+ * self-contained badges: each ships its OWN polished ring, bevel, face and
+ * shadow baked into the image. The legacy CSS tag chrome (white disc +
+ * .raised-bevel() grey ring + @outline-shadow / sci-fi multi-ring + an
+ * OVERSIZED background-size that the circular clip then crops) was there to
+ * turn a FLAT glyph into a badge — with self-contained art it instead FIGHTS
+ * the asset: it crops the badge's own outer rim, paints a second grey ring on
+ * top of it, bleeds a white halo, and wraps yet another ring around it.
+ *
+ * This file strips that chrome and shows the asset WHOLE for every real
+ * gameplay tag (ALL_TAGS — src/common/cards/Tag.ts), in BOTH render paths:
+ *   A. header tags        — `.card-tag.tag-<x>` (CardTag.vue)
+ *   B. inline / secondary — `.card-resource-tag.card-tag-<x>` (CardRenderItemComponent)
+ *
+ * Scope is the canonical tag set ONLY. Synthetic / non-image "tags" are left
+ * untouched on purpose (they still need the CSS chrome or have no badge art):
+ *   diverse (gradient), no-tags / none / empty (placeholders),
+ *   floater / wild-resource (square, from assets/resources), and the
+ *   turmoil / ares / req / blue / no_planetary_tag modifiers.
+ *
+ * Imported AFTER cards_scifi.less so the selectors below win the
+ * `.card-tags .card-tag` cascade in BOTH the base and the sci-fi theme.
+ */
+
+@premium-tags: building, space, science, power, earth, jovian, venus,
+               plant, microbe, animal, city, moon, mars, crime, wild,
+               event, clone;
+
+/*
+ * `!important` is deliberate. The chrome lives across several rules at
+ * widely different specificities — the highest being the sci-fi halo
+ * `.card-container.filterDiv:not(.colony-card):not(.card-standard-project)
+ *  .card-tags .card-tag` (0,6,0), which a sane tag-scoped selector can't
+ * out-specify. The intent here is absolute ("a self-contained badge NEVER
+ * gets CSS chrome"), so `!important` expresses it directly and stays immune
+ * to future specificity creep in the themes, instead of mirroring a brittle
+ * parent selector.
+ */
+.premium-tag-asset() {
+    background-color: transparent !important; // no white disc behind the badge
+    border: none !important;                  // kill .raised-bevel() grey ring
+    box-shadow: none !important;              // kill @outline-shadow / sci-fi ring
+    background-size: contain !important;      // show the whole badge, uncropped
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    // Calm premium lift so the badge floats on the coloured header; follows
+    // the PNG alpha (round) instead of drawing a competing ring.
+    filter:
+        drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5))
+        drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35)) !important;
+}
+
+each(@premium-tags, {
+    // A. header tags (CardTag.vue → `card-tag tag-<x>`). The 3-class
+    //    specificity (0,3,0) beats the cards_v2 + cards_scifi
+    //    `.card-tags .card-tag` rules (0,2,0); the bare `.card-tag.tag-<x>`
+    //    fallback covers any header tag rendered outside `.card-tags`.
+    .card-tags .card-tag.tag-@{value},
+    .card-tag.tag-@{value} {
+        .premium-tag-asset();
+    }
+    // B. inline / secondary tags (CardRenderItemComponent →
+    //    `card-resource-tag card-tag-<x> [card-tag-size--S]`). Box size is
+    //    left to the size class; `background-size: contain` fills it at any
+    //    scale, so the same rule serves the full-size and --S variants.
+    .card-resource-tag.card-tag-@{value} {
+        .premium-tag-asset();
+    }
+});
+
+/*
+ * Larger header badges, now that the art is hi-res. Match the megacredit cost
+ * chip (`.card-cost` = 50×50) so the top-row reads as one premium HUD layer.
+ *
+ * Scoped to the card HEADER (`.card-cost-and-tags`) ONLY — the OtherPlayer
+ * tableau row and the inline / secondary tags keep their own sizes. The header
+ * row is a single no-wrap flex line (cost left, tags right, justify
+ * space-between), so 4-tag cards (the max before CardTags collapses to one
+ * asterisk) scale down a touch to avoid overflowing into the cost cluster
+ * (worst case = cost + effective-cost token ≈ 110px on a 300px card). All
+ * header tags are real gameplay tags (= every entry in @premium-tags), so this
+ * sizes uniformly; `background-size: contain` grows the badge with the box.
+ */
+.card-cost-and-tags .card-tags .card-tag {
+    width: 50px !important;
+    height: 50px !important;
+}
+.card-cost-and-tags .card-tags:has(> .card-tag:nth-child(4)) .card-tag {
+    width: 44px !important;
+    height: 44px !important;
+}
