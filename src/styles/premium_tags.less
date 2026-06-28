@@ -1,88 +1,157 @@
 /*
- * Premium self-contained tag badges.
+ * ─────────────────────────────────────────────────────────────────────────
+ *  UNIFIED PREMIUM TAG SYSTEM
+ * ─────────────────────────────────────────────────────────────────────────
  *
- * The tag PNGs in assets/tags/<x>.png are being upgraded to fully
- * self-contained badges: each ships its OWN polished ring, bevel, face and
- * shadow baked into the image. The legacy CSS tag chrome (white disc +
- * .raised-bevel() grey ring + @outline-shadow / sci-fi multi-ring + an
- * OVERSIZED background-size that the circular clip then crops) was there to
- * turn a FLAT glyph into a badge — with self-contained art it instead FIGHTS
- * the asset: it crops the badge's own outer rim, paints a second grey ring on
- * top of it, bleeds a white halo, and wraps yet another ring around it.
+ *  Goal: every card TAG reads as one premium "category medallion" from a
+ *  single UI kit. The RIM / DEPTH / HIGHLIGHT / SHADOW are owned by CSS and
+ *  are IDENTICAL for every tag; the PNG provides only the inner FACE — the
+ *  symbol + the tag's colour/material identity.
  *
- * This file strips that chrome and shows the asset WHOLE for every real
- * gameplay tag (ALL_TAGS — src/common/cards/Tag.ts), in BOTH render paths:
- *   A. header tags        — `.card-tag.tag-<x>` (CardTag.vue)
- *   B. inline / secondary — `.card-resource-tag.card-tag-<x>` (CardRenderItemComponent)
+ *  This deliberately replaces the old "each PNG ships its own ring" look
+ *  (which gave every tag a slightly different rim thickness / metal). The
+ *  PNG's own rim, if any, is pushed under the unified CSS rim via a small
+ *  face zoom (`--tag-face-scale`) AND covered by the masked rim ring, so
+ *  there is never a double border and old/new assets normalise to one shell.
  *
- * Scope is the canonical tag set ONLY. Synthetic / non-image "tags" are left
- * untouched on purpose (they still need the CSS chrome or have no badge art):
- *   diverse (gradient), no-tags / none / empty (placeholders),
- *   floater / wild-resource (square, from assets/resources), and the
- *   turmoil / ares / req / blue / no_planetary_tag modifiers.
+ *  Surfaces covered (all go through the SAME shell):
+ *    A. card header tags     `.card-tags .card-tag.tag-<x>`        (CardTag.vue)
+ *    B. inline / body / reqs `.card-resource-tag.card-tag-<x>`     (CardRenderItemComponent)
+ *  Both render on every <Card>, so card-top, card-body, hand/played/zoom
+ *  overlays are all covered by one definition.
  *
- * Imported AFTER cards_scifi.less so the selectors below win the
- * `.card-tags .card-tag` cascade in BOTH the base and the sci-fi theme.
+ *  NOT touched (different surfaces, on purpose — these are counters/chips,
+ *  not card medallions): the player-panel tag counters (`tag-count tag-<x>`),
+ *  the hand/played filter chips (`hand-filter-chip--<x>`), help iconography,
+ *  and the synthetic non-image "tags" (none / empty / diverse / no-tags /
+ *  floater / wild-resource / turmoil / ares / req / blue / no_planetary_tag).
+ *
+ *  Imported AFTER cards_scifi.less so the shell wins the
+ *  `.card-container.filterDiv:not(...) .card-tags .card-tag` cascade (0,6,0)
+ *  via `!important` on the chrome-defining properties.
+ *
+ *  EXTENDING: to onboard a new tag, add it to @tag-accents (name + accent).
+ *  It automatically inherits the full premium shell — no per-tag rim art.
  */
 
-@premium-tags: building, space, science, power, earth, jovian, venus,
-               plant, microbe, animal, city, moon, mars, crime, wild,
-               event, clone;
+// Canonical gameplay tags (ALL_TAGS — src/common/cards/Tag.ts) + a restrained
+// semantic accent per family, loosely aligned with the premium resource/tile
+// palette. The accent is used ONLY for a faint outer glow + a kiss in the rim —
+// the strong colour identity stays in the PNG face, so nothing reads as
+// oversaturated. name → accent.
+@tag-accents:
+    science  #7fb7d8,   // cool silver / cyan
+    city     #c8ced6,   // platinum / graphite
+    plant    #36a85f,   // noble emerald
+    microbe  #9cbf45,   // bio-lime / olive
+    animal   #5f8f43,   // deep moss / forest
+    power    #9b73e0,   // violet energy
+    building #b78a5a,   // industrial steel-brown
+    earth    #4a8fd8,   // planetary blue
+    space    #7480c4,   // cosmic navy
+    jovian   #d8a24a,   // gas-giant ochre
+    venus    #e0a84e,   // atmospheric amber
+    mars     #c8693f,   // rust red
+    moon     #9fb0c8,   // lunar silver-blue
+    crime    #b3565b,   // muted alert red
+    wild     #c8ced6,   // neutral platinum
+    event    #d4663f,   // special-event amber-red
+    clone    #56b8a6;   // bio teal
 
 /*
- * `!important` is deliberate. The chrome lives across several rules at
- * widely different specificities — the highest being the sci-fi halo
- * `.card-container.filterDiv:not(.colony-card):not(.card-standard-project)
- *  .card-tags .card-tag` (0,6,0), which a sane tag-scoped selector can't
- * out-specify. The intent here is absolute ("a self-contained badge NEVER
- * gets CSS chrome"), so `!important` expresses it directly and stays immune
- * to future specificity creep in the themes, instead of mirroring a brittle
- * parent selector.
+ * The shell. Applied to a tag element; reads context vars with safe fallbacks
+ * so the SAME mixin serves the big header badge and the small inline badge.
+ *   --tag-face-scale : PNG zoom to slide its own rim under the CSS rim
+ *   --tag-rim-width  : unified metallic rim thickness
+ *   --tag-gloss      : top-highlight strength
+ *   --tag-accent     : per-tag semantic accent (faint glow + rim kiss)
  */
-.premium-tag-asset() {
-    background-color: transparent !important; // no white disc behind the badge
-    border: none !important;                  // kill .raised-bevel() grey ring
-    box-shadow: none !important;              // kill @outline-shadow / sci-fi ring
-    background-size: contain !important;      // show the whole badge, uncropped
-    background-position: center !important;
+.tag-premium-shell() {
+    position: relative;
+    box-sizing: border-box;
+    border: none !important;                 // kill any .raised-bevel() ring
+    background-color: transparent !important; // no white disc behind the face
     background-repeat: no-repeat !important;
-    // Calm premium lift so the badge floats on the coloured header; follows
-    // the PNG alpha (round) instead of drawing a competing ring.
-    filter:
-        drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5))
-        drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35)) !important;
+    background-position: center !important;
+    border-radius: 50%;
+    // FACE: zoom slightly so the PNG's own rim is pushed under the CSS rim.
+    background-size: calc(100% * var(--tag-face-scale, 1.1)) !important;
+    // Unified depth: seat the face into the rim (inset), contact + lift drop,
+    // crisp outer edge, and a faint per-tag accent halo. One language for all.
+    box-shadow:
+        inset 0 0 1px 0.5px rgba(0, 0, 0, 0.30),
+        0 1px 1px rgba(0, 0, 0, 0.50),
+        0 2px 5px rgba(0, 0, 0, 0.30),
+        0 0 0 0.5px rgba(0, 0, 0, 0.45),
+        0 0 5px -1px var(--tag-accent, transparent) !important;
+    filter: none !important;                 // drop the legacy brightness(0.9)
+
+    // Unified top gloss — the "light catching the dome". Subtle, top-weighted,
+    // so the central symbol stays fully readable.
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 1;
+        background: radial-gradient(125% 95% at 50% -14%,
+            rgba(255, 255, 255, var(--tag-gloss, 0.5)),
+            rgba(255, 255, 255, 0) 56%);
+    }
+    // Unified metallic rim — a masked conic sheen covering the outer band, so
+    // EVERY tag has the exact same ring regardless of its PNG. A faint accent
+    // tint rides the lower arc; the bulk stays neutral premium metal.
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 2;
+        background:
+            conic-gradient(from 216deg,
+                #f6f8fa, #aab2bb, #ffffff, #8c949d, #cfd6dc, #99a1a9, #f6f8fa);
+        -webkit-mask: radial-gradient(closest-side, #0000 calc(100% - var(--tag-rim-width, 3px)), #000 calc(100% - var(--tag-rim-width, 3px)));
+                mask: radial-gradient(closest-side, #0000 calc(100% - var(--tag-rim-width, 3px)), #000 calc(100% - var(--tag-rim-width, 3px)));
+    }
 }
 
-each(@premium-tags, {
-    // A. header tags (CardTag.vue → `card-tag tag-<x>`). The 3-class
-    //    specificity (0,3,0) beats the cards_v2 + cards_scifi
-    //    `.card-tags .card-tag` rules (0,2,0); the bare `.card-tag.tag-<x>`
-    //    fallback covers any header tag rendered outside `.card-tags`.
-    .card-tags .card-tag.tag-@{value},
-    .card-tag.tag-@{value} {
-        .premium-tag-asset();
-    }
-    // B. inline / secondary tags (CardRenderItemComponent →
-    //    `card-resource-tag card-tag-<x> [card-tag-size--S]`). Box size is
-    //    left to the size class; `background-size: contain` fills it at any
-    //    scale, so the same rule serves the full-size and --S variants.
-    .card-resource-tag.card-tag-@{value} {
-        .premium-tag-asset();
+// ── Context tuning (sizes already normalised elsewhere) ───────────────────
+// Header badges: big + a fuller rim/gloss (they read as the hero medallions).
+.card-tags .card-tag {
+    --tag-rim-width: 3.5px;
+    --tag-face-scale: 1.12;
+    --tag-gloss: 0.5;
+}
+// Inline / body / requirement badges: lighter + thinner rim (calmer in text).
+.card-resource-tag {
+    --tag-rim-width: 2.25px;
+    --tag-face-scale: 1.08;
+    --tag-gloss: 0.34;
+}
+.card-resource-tag.card-tag-size--S {
+    --tag-rim-width: 1.75px;
+}
+
+// ── Apply the shell + accent to every real tag, in BOTH render paths ──────
+// Explicitly per tag (only the 17 ALL_TAGS) so synthetic / non-image tags are
+// never wrapped in a circular medallion by accident.
+each(@tag-accents, {
+    @name: extract(@value, 1);
+    @accent: extract(@value, 2);
+    .card-tags .card-tag.tag-@{name},
+    .card-resource-tag.card-tag-@{name} {
+        --tag-accent: @accent;
+        .tag-premium-shell();
     }
 });
 
 /*
- * Larger header badges, now that the art is hi-res. Match the megacredit cost
- * chip (`.card-cost` = 50×50) so the top-row reads as one premium HUD layer.
- *
- * Scoped to the card HEADER (`.card-cost-and-tags`) ONLY — the OtherPlayer
- * tableau row and the inline / secondary tags keep their own sizes. The header
- * row is a single no-wrap flex line (cost left, tags right, justify
- * space-between), so 4-tag cards (the max before CardTags collapses to one
- * asterisk) scale down a touch to avoid overflowing into the cost cluster
- * (worst case = cost + effective-cost token ≈ 110px on a 300px card). All
- * header tags are real gameplay tags (= every entry in @premium-tags), so this
- * sizes uniformly; `background-size: contain` grows the badge with the box.
+ * Header sizing — match the megacredit cost chip (`.card-cost` = 50×50) so the
+ * top row reads as one premium HUD layer. Scoped to the card HEADER only; the
+ * single no-wrap flex row means 4-tag cards (the max before CardTags collapses
+ * to one asterisk) scale down so they never overflow into the cost cluster.
  */
 .card-cost-and-tags .card-tags .card-tag {
     width: 50px !important;
