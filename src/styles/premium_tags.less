@@ -148,16 +148,17 @@ each(@tag-accents, {
 });
 
 /*
- * Header sizing — match the megacredit cost chip (`.card-cost` = 50×50) so the
- * top row reads as one premium HUD layer. Scoped to the card HEADER only; the
+ * Header sizing — a touch larger than the legacy 40px tag, but deliberately
+ * SMALLER than the megacredit cost chip (`.card-cost` = 50×50) so the cost
+ * stays the dominant top-left anchor. Scoped to the card HEADER only; the
  * single no-wrap flex row means 4-tag cards (the max before CardTags collapses
- * to one asterisk) scale down so they never overflow into the cost cluster.
+ * to one asterisk) drop back to the legacy 40px so they never crowd the row.
  */
 .card-cost-and-tags .card-tags .card-tag {
-    width: 50px !important;
-    height: 50px !important;
-}
-.card-cost-and-tags .card-tags:has(> .card-tag:nth-child(4)) .card-tag {
     width: 44px !important;
     height: 44px !important;
+}
+.card-cost-and-tags .card-tags:has(> .card-tag:nth-child(4)) .card-tag {
+    width: 40px !important;
+    height: 40px !important;
 }
