@@ -17,6 +17,12 @@
 .card-tile-capital-ares {
   .board-space-tile--capital-ares();
   .card-tile-ares();
+  // capital-ares now uses a STANDALONE PNG (assets/custom_tiles/tile_capital_ares.png),
+  // not the Ares sprite — so undo .card-tile-ares()'s sprite-grid
+  // `background-size: 630px 240px !important` (which scaled the PNG huge and
+  // showed an empty centre slice = the dark square) and render the whole tile.
+  background-size: 100% 100% !important;
+  background-position: center !important;
 }
 
 .card-tile-commercial-district-ares {
