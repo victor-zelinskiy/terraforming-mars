@@ -1380,13 +1380,62 @@ input[type="radio"]:checked + .filterDiv::after {
 }
 
 /*
- * ─── 13. VP polish ────────────────────────────────────────────────────
+ * ─── 13. VP plate — premium gold medallion (CSS-only, static) ─────────
+ *
+ * The bottom-right VP zone is the critical scoring read, so it gets a full
+ * premium pass — entirely in CSS (no asset, NO animation). A metallic gold
+ * PLATE: a fixed diagonal glint over a vertical sheen (both as BACKGROUND
+ * layers, so the digit always stays on top), an embossed edge (inset
+ * highlight + shadow), a floating-chip elevation, and stamped typography.
+ * Geometry (80×42 / vermin 128) is UNCHANGED so the §16 footer reservation
+ * + layout hold.
+ *
+ * `red-outline` (anyPlayer / vermin) supplies its own red `filter` glow, so
+ * we deliberately set NO `filter` on the plate — depth/glow ride box-shadow
+ * instead, and the two coexist.
  */
 .card-container.filterDiv:not(.colony-card):not(.card-standard-project) {
     .card-points {
+        border: 1px solid rgba(58, 36, 0, 0.85);
+        border-radius: 11px;
+        background:
+            linear-gradient(118deg,
+                rgba(255, 255, 255, 0) 41%,
+                rgba(255, 255, 255, 0.28) 50%,
+                rgba(255, 255, 255, 0) 59%),
+            linear-gradient(180deg,
+                #ffe7a3 0%, #f7c95a 16%, #dca025 47%, #a86c0a 77%, #7a4d05 100%);
         box-shadow:
-            @outline-shadow,
-            0 2px 8px rgba(0, 0, 0, 0.45);
+            inset 0 1px 0 rgba(255, 248, 216, 0.85),
+            inset 0 -1px 0 rgba(64, 38, 0, 0.55),
+            inset 0 0 7px rgba(120, 72, 0, 0.26),
+            0 1px 1px rgba(0, 0, 0, 0.45),
+            0 3px 9px rgba(0, 0, 0, 0.40);
+        color: #382300;
+        font-weight: bold;
+        letter-spacing: 0.4px;
+        text-shadow:
+            0 1px 0 rgba(255, 238, 178, 0.70),
+            0 -1px 1px rgba(0, 0, 0, 0.30);
+    }
+    // Hierarchy: the fixed-VP / any-player digit reads strongest.
+    .card-points-big {
+        font-size: 34px;
+        text-shadow:
+            0 1px 0 rgba(255, 240, 186, 0.70),
+            0 0 9px rgba(255, 170, 40, 0.42),
+            0 -1px 1px rgba(0, 0, 0, 0.32);
+    }
+    .card-points-normal {
+        font-size: 26px;
+    }
+    // Vermin penalty: recognisably gold (keeps its red-outline) but cooler so
+    // it reads as the "watch out" plate rather than a reward.
+    .card-points-vermin {
+        background:
+            linear-gradient(118deg,
+                rgba(255, 255, 255, 0) 41%, rgba(255, 255, 255, 0.20) 50%, rgba(255, 255, 255, 0) 59%),
+            linear-gradient(180deg, #efcd83 0%, #cc973a 47%, #8d5c16 100%);
     }
 }
 
