@@ -720,8 +720,9 @@ input[type="radio"]:checked + .filterDiv::after {
     margin-top: 2px;
     padding-bottom: 4px;
     line-height: 32px;
-    background-image: url(./assets/misc/production.png);
-    background-size: cover;
+    // Premium CSS production surface (replaces the production.png cover);
+    // its border + box-shadow override the .raised-bevel() set above.
+    .production-surface();
 
     div {
         display: inline-block;
