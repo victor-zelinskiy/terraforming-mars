@@ -177,7 +177,7 @@
 // — 368×408 = 8× the 46×51 hex). Reused on the board AND in card render
 // (via the .card-tile-capital-ares mixin above), same as the base tiles.
 .board-space-tile--capital-ares {
-	background: url(./assets/custom_tiles/tile_capital_ares.png) center / 100% 100% no-repeat;
+	background: url(./assets/custom_tiles/tile_capital_ares.png) center / calc(100% - 3px) calc(100% - 3px) no-repeat;
 }
 
 .board-space-tile--solar-farm {
@@ -200,11 +200,11 @@
 }
 
 .board-space-tile--dust-storm-mild {
-	.board-icons-ares-sprite(-438px, -83px);
+	background: url(./assets/custom_tiles/ares_dust_storn.png) center / calc(100% - 3px) calc(100% - 3px) no-repeat;
 }
 
 .board-space-tile--dust-storm-severe {
-	.board-icons-ares-sprite(-486px, -83px);
+	background: url(./assets/custom_tiles/ares_severe_dust_storn.png) center / calc(100% - 3px) calc(100% - 3px) no-repeat;
 }
 
 .board-space-tile--erosion-mild {
