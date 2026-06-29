@@ -38,10 +38,10 @@ import {GlobalParameterThresholdMarker, oceanThresholdMarkers} from '@/client/co
 import {glidedThreshold} from '@/client/components/board/aresMarkerGlide';
 
 // Geometry — must match OCEAN_ARC so the event chips line up with the band.
-// RADIUS 246 (was 264): the arc is pulled in toward the planet to free vertical
+// RADIUS 242 (was 264): the arc is pulled in toward the planet to free vertical
 // space below it so the board can scale up. MUST match OCEAN_ARC `radius`.
 const CENTER = {x: 300, y: 301};
-const RADIUS = 246;
+const RADIUS = 242;
 const START_ANGLE = 116;
 const END_ANGLE = 64;
 const OCEAN_STEPS = 9;
