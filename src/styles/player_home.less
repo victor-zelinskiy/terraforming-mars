@@ -73,16 +73,16 @@
      * just wasted vertical space — especially noticeable on 4K
      * monitors where the auto-scale system needs every pixel to fill
      * the central area. 20px is enough so the top-row outer cells
-     * (Maxwell Base @ margin-top: -13px) clear the button bar with
-     * comfortable visual breathing. Trimmed 20 → 8 to reclaim vertical
-     * space so the board scales up (bigger, more readable hex tiles) —
-     * the top-row outer cells still clear the bar.
+     * The top-row outer cells (Maxwell Base / Stanford Torus / Dawn City)
+     * were relocated to the side colony rows, so nothing pokes above the
+     * planet's top rim — the breather is trimmed to +2 so the Venus scale
+     * rises flush to the bar (bigger, more readable board).
      *
      * KEEP IN SYNC with `useBoardAutoScale.ts` `readVerticalReserved`
      * — the JS scale calculation uses the same formula to know how
      * much height is available for the board.
      */
-    padding-top: calc(var(--bottom-bar-button-height) + 8px);
+    padding-top: calc(var(--bottom-bar-button-height) + 2px);
     padding-bottom: var(--bottom-bar-button-height);
     /*
      * Background previously lived here as `linear-gradient(transparent,
@@ -1089,7 +1089,7 @@ each(@players, {
  */
 .player_home_block--board {
     position: fixed;
-    top: calc(var(--bottom-bar-button-height) + 8px);
+    top: calc(var(--bottom-bar-button-height) + 2px);
     left: calc(var(--left-panel-width) + 20px);
     right: calc(var(--right-sidebar-width) + 20px);
     /*
