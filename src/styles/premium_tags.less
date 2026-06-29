@@ -3,15 +3,12 @@
  *  UNIFIED PREMIUM TAG SYSTEM  ·  v3 — "seat, don't re-frame"
  * ─────────────────────────────────────────────────────────────────────────
  *
- *  KEY REALISATION (why v2 was wrong): the tag PNGs are ALREADY complete
+ *  KEY REALISATION (why v1/v2 were wrong): the tag PNGs are ALREADY complete
  *  premium medallions — a coloured inner face + their OWN baked silver metal
- *  ring + a dome highlight. They are self-consistent across the whole set.
- *
- *  So any CSS that paints a SECOND concentric ring (v1's bright conic, v2's
- *  titanium bezel) — or a second top gloss — stacks a ring on a ring / a shine
- *  on a shine. That is the "двойное кольцо" defect: a frame fighting the icon's
- *  own frame. (The legacy look had the same flaw, uglier: a hard black
- *  `@outline-shadow` hairline sitting just outside the PNG's silver ring.)
+ *  ring + a dome highlight. So any CSS that paints a SECOND concentric ring
+ *  (v1's bright conic, v2's titanium bezel) — or a second top gloss — stacks a
+ *  ring on a ring: the "двойное кольцо" defect. (The legacy look had the same
+ *  flaw, uglier: a hard black `@outline-shadow` hairline outside the PNG ring.)
  *
  *  RULE: never re-frame an already-framed object. The PNG's ring IS the fascia.
  *  CSS only provides PHYSICAL SEATING so the finished token reads as a chip
@@ -20,48 +17,55 @@
  *    2. a tuned drop shadow     — lift + contact, the real "physical" cue
  *    3. a 1px dark cut-out edge — clean separation from a busy card/panel bg
  *       (a shadow-thin line, NOT a metal ring)
- *  No bezel, no gloss, no accent glow — the icons stay the hero; unification
- *  comes from ONE consistent shadow language, tuned only for DENSITY per
- *  surface (header > sidebar > inline). The face is zoomed just enough
- *  (`--tag-face-scale`) that the PNG's own ring sits flush at the box edge —
- *  no transparent gap, no cropping of the ring.
+ *  No bezel, no gloss, no accent glow — the icons stay the hero; unification is
+ *  ONE consistent shadow language, tuned only for DENSITY per surface.
  *
- *  Surfaces (all share the same seating, different density):
+ *  ── Per-tag FILL scale (the seating fix) ──────────────────────────────────
+ *  The 17 PNGs are NOT normalised: each has a different amount of transparent
+ *  margin, so a single zoom seats them inconsistently. Measured (640/bbox of
+ *  each PNG's solid content) `@tag-fill` zooms each so its OWN silver ring
+ *  lands flush at the box edge on EVERY surface. venus/earth carry the most
+ *  margin (ring floated inside the box with a gap = "doesn't sit in the
+ *  circle"); plant/animal/city/microbe are full-bleed (a uniform zoom CLIPPED
+ *  their ring). A small safety keeps the ring at the edge (under-fill = a
+ *  visible gap; a hair of over-fill is invisible). This is surface-independent
+ *  — the same value fills the header, sidebar and inline box. If a future PNG
+ *  seats wrong, measure 640/bbox and add a `@tag-fill` entry — NO PNG editing.
+ *
+ *  Surfaces (all share the seating + per-tag fill, different shadow density):
  *    A. card header tags     `.card-tags .card-tag`              (CardTag.vue)
  *    B. inline / body / reqs `.card-resource-tag.card-tag-<x>`   (the 17 tags)
  *    C. player-panel "МЕТКИ"  `.player-tags-secondary .tag-count.tag-<x>`
  *
- *  NOT touched (not circular medallions — excluded by NOT being a real tag):
+ *  NOT touched (not circular medallions — excluded by not being a real tag):
  *  the display-only panel counters (vp / tr / cards / handicap / escape /
  *  city-count / colony-count / influence / corruption / negative-vp), the
  *  hand/played filter chips, help iconography, and the synthetic non-image
  *  "tags" (none / empty / diverse / no-tags / floater / wild-resource /
- *  turmoil / ares / req / blue). Card-top can be styled broadly because
- *  CardTags only ever renders real tags (+ the asterisk medallion); inline +
- *  sidebar are matched per real-tag name so the synthetic ones are left alone.
+ *  turmoil / ares / req / blue). Card-top is styled broadly (CardTags only ever
+ *  renders real tags + the asterisk medallion); inline + sidebar match per
+ *  real-tag name so the synthetic ones keep their own shape.
  *
- *  Imported AFTER cards_scifi.less so seating wins the
- *  `.card-container.filterDiv … .card-tags .card-tag` cascade via `!important`
- *  on the chrome props. The sidebar block (C) wins on SPECIFICITY (0,3,0),
- *  independent of import order.
- *
- *  EXTENDING: a new gameplay tag needs nothing on card-top (broad rule). For
- *  inline + sidebar, add its name to @tag-names. If a specific PNG shows a hair
- *  of transparent gap (ring not at the edge) or a sliver of crop, nudge
- *  `--tag-face-scale` for that surface — that is the ONLY tuning lever.
+ *  Imported AFTER cards_scifi.less so seating wins the card cascade via
+ *  `!important` on the chrome props; the sidebar block (C) wins on SPECIFICITY
+ *  (0,3,0), independent of import order.
  */
 
-// The 17 gameplay tags (ALL_TAGS — src/common/cards/Tag.ts). Used purely to
-// TARGET the real medallion PNGs on the inline + sidebar surfaces, so the
-// synthetic / display-only counters are never wrapped.
-@tag-names: science, city, plant, microbe, animal, power, building, earth,
-    space, jovian, venus, mars, moon, crime, wild, event, clone;
+// Per-tag fill scale — `name zoom`. zoom = 640 / (solid-content bbox of the
+// PNG), so the PNG's own silver ring lands at the box edge. Covers all 17
+// ALL_TAGS (src/common/cards/Tag.ts); doubles as the loop's name list.
+@tag-fill:
+    venus 1.22, earth 1.20,
+    science 1.15, space 1.15, wild 1.15, event 1.15,
+    jovian 1.13, building 1.12,
+    power 1.08, clone 1.04,
+    plant 1.0, animal 1.0, city 1.0, microbe 1.0, mars 1.0, moon 1.0, crime 1.0;
 
 /*
- * SEATING — the whole holder, now reduced to "make the finished PNG token sit
- * physically on the surface". Pure box-shadow (no pseudo-element): a clean dark
- * cut-out edge + a density-tuned lift/contact. @density: header (hero) >
- * sidebar (compact) > inline (calm, text-friendly).
+ * SEATING — make the finished PNG token sit physically on the surface. Pure
+ * box-shadow (no pseudo-element): a clean dark cut-out edge + a density-tuned
+ * lift/contact. @density: header (hero) > sidebar (compact) > inline (calm).
+ * `--tag-face-scale` (set per tag below) zooms the face so its ring is flush.
  */
 .tag-seat(@density: header) {
     position: relative;
@@ -70,8 +74,7 @@
     background-color: transparent !important;    // no white disc / halo
     background-repeat: no-repeat !important;
     background-position: center !important;
-    // zoom the PNG just enough that ITS OWN ring lands at the box edge.
-    background-size: calc(100% * var(--tag-face-scale, 1.12)) !important;
+    background-size: calc(100% * var(--tag-face-scale, 1.13)) !important;
     border-radius: 50%;
     filter: none !important;                      // drop the legacy brightness(0.9)
 
@@ -94,19 +97,22 @@
 }
 
 // ── A. Card HEADER tags — the hero medallions (strongest lift) ──────────────
-// CardTags only ever renders real tags (+ the asterisk overflow medallion),
-// so we can seat the whole group in one rule — no per-tag list needed.
+// CardTags only ever renders real tags (+ the asterisk overflow medallion), so
+// seat the whole group in one rule; the per-tag fill scale rides on top.
 .card-tags .card-tag {
-    --tag-face-scale: 1.13;
     .tag-seat(header);
 }
+each(@tag-fill, {
+    @n: extract(@value, 1);
+    @s: extract(@value, 2);
+    .card-tags .card-tag.tag-@{n} { --tag-face-scale: @s; }
+});
 
 /*
  * Header sizing — a touch larger than the legacy 40px tag, but deliberately
  * SMALLER than the megacredit cost chip (`.card-cost` = 50×50) so the cost
- * stays the dominant top-left anchor. Scoped to the card HEADER only; the
- * single no-wrap flex row drops 4-tag cards back to 40px so they never crowd,
- * and every tag in a row reads at the same scale.
+ * stays the dominant top-left anchor. The single no-wrap flex row drops 4-tag
+ * cards back to 40px so they never crowd, and every tag reads at one scale.
  */
 .card-cost-and-tags .card-tags .card-tag {
     width: 44px !important;
@@ -120,15 +126,14 @@
 // ── B. Inline / body / requirement tags — calm in text ─────────────────────
 // Matched per real-tag name so synthetic `.card-resource-tag` variants
 // (floater / wild-resource / diverse / no-tags) keep their own shape.
-each(@tag-names, {
-    .card-resource-tag.card-tag-@{value} {
-        --tag-face-scale: 1.10;
+each(@tag-fill, {
+    @n: extract(@value, 1);
+    @s: extract(@value, 2);
+    .card-resource-tag.card-tag-@{n} {
+        --tag-face-scale: @s;
         .tag-seat(inline);
     }
 });
-.card-resource-tag.card-tag-size--S {
-    --tag-face-scale: 1.08;
-}
 
 /*
  * ── C. Player-panel tag counters — the "МЕТКИ" sidebar ─────────────────────
@@ -140,9 +145,11 @@ each(@tag-names, {
  * on `.tag-count`) is untouched.
  */
 .player-tags-secondary {
-    each(@tag-names, {
-        .tag-count.tag-@{value} {
-            --tag-face-scale: 1.12;
+    each(@tag-fill, {
+        @n: extract(@value, 1);
+        @s: extract(@value, 2);
+        .tag-count.tag-@{n} {
+            --tag-face-scale: @s;
             .tag-seat(sidebar);
         }
     });
