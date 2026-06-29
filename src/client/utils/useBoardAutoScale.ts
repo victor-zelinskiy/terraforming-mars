@@ -62,15 +62,13 @@ import {onMounted, onBeforeUnmount} from 'vue';
 //     coords) keeps ~30-50 px clearance from the top button bar even at
 //     the largest scales we hit (3.0+).
 const BOARD_NATURAL_WIDTH = 670;
-// HEIGHT = 608: planet 600 + a small bottom reserve for the OCEAN ARC SCALE
-// (OceanArcScale.vue) which is drawn in code just below the planet's lower rim,
-// plus its indicator settle-ping and (when enabled) the planetary-event chips.
-// The ocean arc was pulled IN (radius 264 → 252 in arcScaleConfigs.ts /
-// OceanArcScale.vue) so it no longer reaches as far below the planet rim —
-// which lets this reserve shrink (624 → 608). Smaller natural height → the
-// auto-scale fits the planet LARGER into the same viewport, so hex tiles read
-// bigger. The planet does NOT move (it stays centred), it just scales up.
-const BOARD_NATURAL_HEIGHT = 608;
+// HEIGHT = 600: the ocean arc was pulled fully IN (radius 264 → 246) so its
+// deepest point (+chip) sits ABOVE the planet's 600px lower rim — the below-
+// planet reserve is no longer needed, so the natural height equals the planet
+// itself. Smaller natural height → the auto-scale fits the planet LARGER into
+// the same viewport, so hex tiles read bigger. The planet stays centred and
+// just scales up.
+const BOARD_NATURAL_HEIGHT = 600;
 
 // Hard limits so the auto-scale never goes absurd on edge viewports.
 // MIN_SCALE: at narrower-than-default laptops, the board may visually
@@ -93,11 +91,13 @@ const MAX_SCALE = 4.0;
 // -13px) clear of the top button bar with comfortable breathing room.
 function readVerticalReserved(cs: CSSStyleDeclaration): number {
   const buttonH = parsePx(cs.getPropertyValue('--bottom-bar-button-height')) || 36;
-  // Top breather trimmed 20 → 8: the topmost outer cells (Maxwell Base, margin-
-  // top -13px) still clear the top button bar, and the reclaimed vertical space
-  // lets the board scale up so hex tiles read bigger. Keep in lockstep with
+  // Top breather trimmed to +2: the three topmost outer cells (Maxwell Base,
+  // Stanford Torus, Dawn City — formerly at top -13..17) were RELOCATED down to
+  // the side colony rows (board_items_positions.less), so nothing pokes above
+  // the planet's top rim anymore. With the top cleared, the Venus scale (top of
+  // the planet) can rise flush against the top button bar. Keep in lockstep with
   // `#player-home { padding-top }` + `.player_home_block--board { top }`.
-  const topPadding = buttonH + 8;
+  const topPadding = buttonH + 2;
   // The bottom CENTRE is now free — the bottom bar was split into two
   // corner rails (left = player-scoped, right = global), so the planet
   // can drop lower and scale up into the vacated centre. Reserve only a
