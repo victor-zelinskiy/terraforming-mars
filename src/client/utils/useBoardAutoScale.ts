@@ -62,13 +62,15 @@ import {onMounted, onBeforeUnmount} from 'vue';
 //     coords) keeps ~30-50 px clearance from the top button bar even at
 //     the largest scales we hit (3.0+).
 const BOARD_NATURAL_WIDTH = 670;
-// HEIGHT = 624: planet 600 + a small bottom reserve for the OCEAN ARC SCALE
+// HEIGHT = 608: planet 600 + a small bottom reserve for the OCEAN ARC SCALE
 // (OceanArcScale.vue) which is drawn in code just below the planet's lower rim,
 // plus its indicator settle-ping and (when enabled) the planetary-event chips.
-// Bumping the natural height a hair shrinks the whole board ~2% so the arc +
-// its glow never clip the bottom — the planet does NOT move (it stays centred),
-// it just scales fractionally. Was 610 before the ocean arc landed.
-const BOARD_NATURAL_HEIGHT = 624;
+// The ocean arc was pulled IN (radius 264 → 252 in arcScaleConfigs.ts /
+// OceanArcScale.vue) so it no longer reaches as far below the planet rim —
+// which lets this reserve shrink (624 → 608). Smaller natural height → the
+// auto-scale fits the planet LARGER into the same viewport, so hex tiles read
+// bigger. The planet does NOT move (it stays centred), it just scales up.
+const BOARD_NATURAL_HEIGHT = 608;
 
 // Hard limits so the auto-scale never goes absurd on edge viewports.
 // MIN_SCALE: at narrower-than-default laptops, the board may visually
@@ -91,20 +93,25 @@ const MAX_SCALE = 4.0;
 // -13px) clear of the top button bar with comfortable breathing room.
 function readVerticalReserved(cs: CSSStyleDeclaration): number {
   const buttonH = parsePx(cs.getPropertyValue('--bottom-bar-button-height')) || 36;
-  const topPadding = buttonH + 20;
+  // Top breather trimmed 20 → 8: the topmost outer cells (Maxwell Base, margin-
+  // top -13px) still clear the top button bar, and the reclaimed vertical space
+  // lets the board scale up so hex tiles read bigger. Keep in lockstep with
+  // `#player-home { padding-top }` + `.player_home_block--board { top }`.
+  const topPadding = buttonH + 8;
   // The bottom CENTRE is now free — the bottom bar was split into two
   // corner rails (left = player-scoped, right = global), so the planet
   // can drop lower and scale up into the vacated centre. Reserve only a
   // small safety gap here instead of the full bar height. Keep this in
   // lockstep with `.player_home_block--board { bottom }` in
   // player_home.less so the centring box and the scale target agree.
-  // Reserve the bottom button-bar height (+16 breather) so the OCEAN ARC at the
-  // board's bottom rim never slips under the corner button rails — including in
-  // fullscreen, where the board is height-limited and would otherwise drop to
-  // the very bottom edge. ALWAYS reserved (not just on short viewports): the
-  // bar lives at `bottom: 0` at every height. Kept in lockstep with
-  // `.player_home_block--board { bottom }` (player_home.less).
-  const bottomPadding = buttonH + 16;
+  // The bottom CENTRE is free (the bottom bar is two CORNER rails), and the
+  // ocean arc's DEEPEST point is at the bottom-centre (its lateral ends curve
+  // UP toward the sides, away from the corner rails) — so the planet can drop
+  // into the vacated centre without the arc slipping under a rail. Dropped from
+  // the full bar height (buttonH + 16 ≈ 52) to a flat 16px safety gap, which
+  // reclaims ~36px of vertical space so the board scales up (bigger tiles).
+  // Kept in lockstep with `.player_home_block--board { bottom }` (player_home.less).
+  const bottomPadding = 16;
   // Minimal 4px safety so the bottom edge of the board doesn't touch
   // the bottom button bar at maximum scale.
   return topPadding + bottomPadding + 4;
