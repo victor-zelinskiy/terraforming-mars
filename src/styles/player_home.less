@@ -74,13 +74,15 @@
      * monitors where the auto-scale system needs every pixel to fill
      * the central area. 20px is enough so the top-row outer cells
      * (Maxwell Base @ margin-top: -13px) clear the button bar with
-     * comfortable visual breathing.
+     * comfortable visual breathing. Trimmed 20 → 8 to reclaim vertical
+     * space so the board scales up (bigger, more readable hex tiles) —
+     * the top-row outer cells still clear the bar.
      *
      * KEEP IN SYNC with `useBoardAutoScale.ts` `readVerticalReserved`
      * — the JS scale calculation uses the same formula to know how
      * much height is available for the board.
      */
-    padding-top: calc(var(--bottom-bar-button-height) + 20px);
+    padding-top: calc(var(--bottom-bar-button-height) + 8px);
     padding-bottom: var(--bottom-bar-button-height);
     /*
      * Background previously lived here as `linear-gradient(transparent,
@@ -1087,18 +1089,19 @@ each(@players, {
  */
 .player_home_block--board {
     position: fixed;
-    top: calc(var(--bottom-bar-button-height) + 20px);
+    top: calc(var(--bottom-bar-button-height) + 8px);
     left: calc(var(--left-panel-width) + 20px);
     right: calc(var(--right-sidebar-width) + 20px);
     /*
-     * Reserve the bottom button-bar height (+16 breather) so the dynamic OCEAN
-     * ARC at the board's bottom rim never slips under the corner button rails,
-     * including in fullscreen (the bar is fixed at `bottom: 0` at every height,
-     * and the board is height-limited there so it would otherwise drop to the
-     * very edge). Kept in lockstep with `readVerticalReserved()` in
-     * useBoardAutoScale.ts.
+     * The bottom CENTRE is free (the bottom bar is two corner rails), and the
+     * ocean arc's deepest point sits at the bottom-centre while its lateral ends
+     * curve up toward the sides — so the planet can drop into the vacated centre
+     * without the arc slipping under a corner rail. Dropped from the full bar
+     * height (+16 ≈ 52px) to a flat 16px safety gap to reclaim vertical space so
+     * the board scales up (bigger, more readable hex tiles). Kept in lockstep
+     * with `readVerticalReserved()` in useBoardAutoScale.ts.
      */
-    bottom: calc(var(--bottom-bar-button-height) + 16px);
+    bottom: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
