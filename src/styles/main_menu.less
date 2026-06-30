@@ -473,27 +473,6 @@
     flex-wrap: wrap;
     justify-content: center;
 }
-.pmm-footer__legacy {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: @pmm-text-dim;
-    text-decoration: none;
-    font-family: Prototype, Orbitron, sans-serif;
-    font-size: clamp(11px, 1vw, 14px);
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    transition: color 0.18s ease, gap 0.18s ease;
-    &:hover, &:visited, &:active, &:focus { text-decoration: none; }
-    &:hover { color: @pmm-text; gap: 9px; }
-}
-.pmm-footer__legacy-chevron {
-    width: 13px;
-    height: 13px;
-    display: inline-flex;
-    opacity: 0.65;
-    svg { display: block; width: 100%; height: 100%; }
-}
 .pmm-footer__version {
     display: inline-flex;
     align-items: baseline;
@@ -661,7 +640,7 @@
 @media (prefers-reduced-motion: reduce) {
     .pmm__bg { animation: none; }
     .pmm-btn, .pmm-btn__frame, .pmm-btn__icon-cell, .pmm-btn__chevron,
-    .pmm-footer__legacy, .pmm-lang__chip {
+    .pmm-lang__chip {
         transition: none;
     }
     .pmm-btn:hover { transform: none; }

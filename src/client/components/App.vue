@@ -119,6 +119,14 @@
         v-if="screen === 'player-home' && playerView !== undefined"
         :player-view="playerView" />
       <!--
+        Persistent "exit to main menu" corner button. App-level so it survives
+        the playerkey remount AND is available during the initial draft (where
+        the right sidebar isn't present). Hidden once the game is over — the
+        endgame screen provides its own "to main menu" control then.
+      -->
+      <GameExitButton
+        v-if="(screen === 'player-home' || screen === 'spectator-home') && endgameView === undefined" />
+      <!--
         Rematch coordination layer. App-level (like the endgame experience) so it
         survives the `:key="playerkey"` remount and keeps polling `/api/game/rematch`
         while the game is over. Hosts the "accept rematch?" prompt + the "rematch
@@ -249,6 +257,7 @@ const PremiumCreateGame = defineAsyncComponent(() => import(/* webpackChunkName:
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
+import GameExitButton from '@/client/components/GameExitButton.vue';
 import RevealResultOverlay from '@/client/components/actions/RevealResultOverlay.vue';
 import EnergyConversionOverlay from '@/client/components/feedback/EnergyConversionOverlay.vue';
 import HazardCleanupOverlay from '@/client/components/feedback/HazardCleanupOverlay.vue';
@@ -404,6 +413,7 @@ export default defineComponent({
     EnergyConversionOverlay,
     HazardCleanupOverlay,
     RematchLayer,
+    GameExitButton,
     EndgameExperience,
     ModalInputPlayground,
     EffectsPlayground,

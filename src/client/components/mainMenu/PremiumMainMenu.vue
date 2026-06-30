@@ -43,12 +43,12 @@
           label="Cards list"
           icon="cards"
           variant="secondary"
-          href="cards" />
+          @activate="openStub('Cards list')" />
         <premium-main-menu-button
           label="How to play"
           icon="book"
           variant="secondary"
-          href="help" />
+          @activate="openStub('How to play')" />
       </nav>
 
       <premium-menu-footer @edit-identity="openIdentityModal" />
@@ -66,6 +66,11 @@
       @close="joinPanelOpen = false"
       @edit-identity="openIdentityModal"
       @create-game="goCreate" />
+
+    <premium-stub-modal
+      v-if="stubFeature !== undefined"
+      :feature="stubFeature"
+      @close="stubFeature = undefined" />
   </div>
 </template>
 
@@ -76,6 +81,7 @@ import {paths} from '@/common/app/paths';
 import PremiumMainMenuButton from '@/client/components/mainMenu/PremiumMainMenuButton.vue';
 import PremiumMenuFooter from '@/client/components/mainMenu/PremiumMenuFooter.vue';
 import PremiumIdentityModal from '@/client/components/mainMenu/PremiumIdentityModal.vue';
+import PremiumStubModal from '@/client/components/mainMenu/PremiumStubModal.vue';
 import JoinGamePanel from '@/client/components/mainMenu/JoinGamePanel.vue';
 import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/components/mainMenu/identity/identityState';
 import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
@@ -88,12 +94,17 @@ export default defineComponent({
     PremiumMainMenuButton,
     PremiumMenuFooter,
     PremiumIdentityModal,
+    PremiumStubModal,
     JoinGamePanel,
   },
   data() {
     return {
       identityModalOpen: false,
       joinPanelOpen: false,
+      // The feature name shown by the "not implemented yet" stub modal, or
+      // undefined when it's closed. Cards list / How to play open it because
+      // those screens are not part of the self-contained premium client yet.
+      stubFeature: undefined as string | undefined,
       // What to resume after the player saves an identity they didn't have yet.
       pendingAction: undefined as PendingAction,
     };
@@ -123,6 +134,12 @@ export default defineComponent({
       } else {
         this.requireIdentity('join');
       }
+    },
+    // Open the "not implemented yet" stub for a feature that doesn't have a
+    // self-contained premium screen yet (the old non-premium pages are no
+    // longer linked, so the Electron client never depends on them).
+    openStub(feature: string): void {
+      this.stubFeature = feature;
     },
     // Open the identity modal because an action needs an identity first; the
     // action resumes once the player saves.
