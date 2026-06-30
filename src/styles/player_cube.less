@@ -77,12 +77,19 @@
 	&__shadow {
 		position: absolute;
 		left: 50%;
-		bottom: calc(var(--pc-size) * -0.02);
-		width: calc(var(--pc-size) * 0.86);
-		height: calc(var(--pc-size) * 0.3);
+		// Compact, ANCHORED two-tier contact shadow — a DENSE dark core right
+		// under the bottom edge (top gradient layer, near the cube base) over a
+		// soft, narrow ambient halo. The core is what makes the cube read as
+		// PLACED on the tile, not pasted onto it; the gradients carry their own
+		// soft falloff so almost no blur is needed (no big drop-shadow blob).
+		bottom: calc(var(--pc-size) * 0.04);
+		width: calc(var(--pc-size) * 0.74);
+		height: calc(var(--pc-size) * 0.24);
 		transform: translateX(-50%);
-		background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.34) 42%, transparent 72%);
-		filter: blur(1.2px);
+		background:
+			radial-gradient(ellipse 46% 60% at 50% 30%, rgba(0, 0, 0, 0.92), rgba(0, 0, 0, 0.5) 42%, transparent 66%),
+			radial-gradient(ellipse at 50% 46%, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.18) 50%, transparent 78%);
+		filter: blur(0.4px);
 		opacity: 1;
 		z-index: 0;
 		pointer-events: none;
@@ -171,13 +178,27 @@
 		fill: var(--pc-face);
 	}
 
-	// Crisp machined-edge highlight along the lit edges of each face — gives
-	// the cube a clean chamfered "moulded resin" edge instead of a flat join.
+	// Chamfer highlight along the LIT edges of each face — a material-tinted
+	// (NOT white) catch of light reading as a moulded satin-acrylic edge. Higher
+	// CONTRAST (not width) is what lets it survive at real board scale where a
+	// thin stroke is sub-pixel: paired with `__bevel-lo` (dark shadow edge) it
+	// gives the edge a light-side/dark-side read that holds at 18–28px without
+	// becoming a contour.
 	&__bevel {
 		fill: none;
 		stroke: var(--pc-edge-hi);
-		stroke-width: 2;
-		opacity: 0.72;
+		stroke-width: 1.8;
+		opacity: 0.68;
+		stroke-linecap: round;
+	}
+
+	// Shadow-side edge transition (lower / right local edges only — never a full
+	// outline). A soft dark facet that defines the cube's thickness and keeps
+	// the silhouette legible when small.
+	&__bevel-lo {
+		fill: none;
+		stroke: rgba(0, 0, 0, 0.3);
+		stroke-width: 1.6;
 		stroke-linecap: round;
 	}
 
