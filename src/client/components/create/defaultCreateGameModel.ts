@@ -7,7 +7,7 @@ import {CreateGameModel} from './CreateGameModel';
 /*
  * vize1215 fork — defaults are tuned to the exact JSON template the
  * owner uploads on every match (2 players: Victor green + Nastya pink,
- * Corporate Era + Promo + Venus + Colonies + Prelude + Delta Project,
+ * Corporate Era + Promo + Venus + Colonies + Prelude + Ares + Delta Project,
  * random-all board with randomized tile locations, alt Venus board,
  * full-pool random milestones/awards, draft on with prelude draft,
  * random first player, hidden timers). Lets the form
@@ -37,6 +37,7 @@ export function defaultCreateGameModel(): CreateGameModel {
       venus: true,
       colonies: true,
       prelude: true,
+      ares: true,
       deltaProject: true,
     },
     draftVariant: true,
