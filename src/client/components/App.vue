@@ -30,6 +30,9 @@
     </section>
     <div class="main-container">
       <premium-main-menu v-if="screen === 'main-menu'"></premium-main-menu>
+      <premium-create-game
+        v-else-if="screen === 'premium-create-game'"
+      ></premium-create-game>
       <start-screen v-else-if="screen === 'start-screen'"></start-screen>
       <create-game-form
         v-else-if="screen === 'create-game-form'"
@@ -241,6 +244,8 @@ const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "star
 // StartScreen lives on at '/legacy'. Async so its background/assets only load
 // when the menu is actually shown.
 const PremiumMainMenu = defineAsyncComponent(() => import(/* webpackChunkName: "main-menu" */ '@/client/components/mainMenu/PremiumMainMenu.vue'));
+// Premium "Mission Control" create-game screen — opened from the premium menu.
+const PremiumCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "premium-create-game" */ '@/client/components/create/premium/PremiumCreateGame.vue'));
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
@@ -308,6 +313,7 @@ type Screen = 'admin' |
             'load' |
             'login-home' |
             'main-menu' |
+            'premium-create-game' |
             'player-home' |
             'spectator-home' |
             'start-screen' |
@@ -379,6 +385,7 @@ export default defineComponent({
   },
   components: {
     'premium-main-menu': PremiumMainMenu,
+    'premium-create-game': PremiumCreateGame,
     'start-screen': StartScreen,
     'create-game-form': CreateGameForm,
     'load-game-form': LoadGameForm,
@@ -723,6 +730,8 @@ export default defineComponent({
       app.screen = 'games-overview';
     } else if (currentPathname === paths.NEW_GAME) {
       app.screen = 'create-game-form';
+    } else if (currentPathname === paths.NEW_GAME_PREMIUM) {
+      app.screen = 'premium-create-game';
     } else if (currentPathname === paths.LOAD) {
       app.screen = 'load';
     } else if (currentPathname === paths.CARDS) {

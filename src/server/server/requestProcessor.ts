@@ -125,6 +125,7 @@ const handlers: Map<string, IHandler> = new Map(
     ['vendors.js.map', ServeAsset.INSTANCE],
     [paths.AUTH_DISCORD_CALLBACK, DiscordAuth.INSTANCE],
     [paths.NEW_GAME, ServeApp.INSTANCE],
+    [paths.NEW_GAME_PREMIUM, ServeApp.INSTANCE],
     [paths.PLAYER, ServeApp.INSTANCE],
     [paths.PLAYER_INPUT, PlayerInput.INSTANCE],
     [paths.PLAYER_INPUT_BATCH, PlayerInputBatch.INSTANCE],
