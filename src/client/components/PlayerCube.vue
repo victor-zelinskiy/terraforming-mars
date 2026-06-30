@@ -4,19 +4,29 @@
          can't collide). Lifted out of the 3D scene; never lays out. -->
     <svg class="player-cube__defs" width="0" height="0" aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient :id="sheenId" x1="0%" y1="0%" x2="78%" y2="100%">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.42" />
-          <stop offset="45%" stop-color="#ffffff" stop-opacity="0.08" />
-          <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+        <!-- Per-face acrylic DEPTH: lighter at the lit (top) edge → richer and
+             darker toward the base. This vertical body gradient is the core of
+             the "solid satin acrylic" read — it turns each flat fill into a
+             material with internal light falloff. Colour-agnostic (white/black
+             alpha) so it layers over any player colour. -->
+        <linearGradient :id="depthId" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.17" />
+          <stop offset="34%" stop-color="#ffffff" stop-opacity="0.03" />
+          <stop offset="60%" stop-color="#000000" stop-opacity="0.05" />
+          <stop offset="100%" stop-color="#000000" stop-opacity="0.30" />
         </linearGradient>
-        <radialGradient :id="aoId" cx="86%" cy="92%" r="95%">
-          <stop offset="34%" stop-color="#000000" stop-opacity="0" />
-          <stop offset="100%" stop-color="#000000" stop-opacity="0.34" />
-        </radialGradient>
-        <radialGradient :id="glossId" cx="30%" cy="24%" r="48%">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.72" />
-          <stop offset="58%" stop-color="#ffffff" stop-opacity="0.12" />
+        <!-- Top-face SATIN sheen: a soft, broad, off-centre catch of light — a
+             controlled semi-gloss, NOT a wet glossy hotspot. -->
+        <radialGradient :id="sheenId" cx="34%" cy="26%" r="66%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.34" />
+          <stop offset="46%" stop-color="#ffffff" stop-opacity="0.08" />
           <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+        </radialGradient>
+        <!-- Side-face ambient occlusion: deepen the lower-outer corner so the
+             form reads as mass, not a flat panel. -->
+        <radialGradient :id="aoId" cx="62%" cy="100%" r="96%">
+          <stop offset="42%" stop-color="#000000" stop-opacity="0" />
+          <stop offset="100%" stop-color="#000000" stop-opacity="0.24" />
         </radialGradient>
       </defs>
     </svg>
@@ -25,31 +35,34 @@
 
     <span class="player-cube__scene">
       <span class="player-cube__cube">
-        <!-- right (darkest) -->
+        <!-- right (deep shadow side): colour → depth → AO → lit-edge bevel -->
         <span class="player-cube__face player-cube__face--right">
           <svg class="player-cube__svg" viewBox="0 0 64 64" preserveAspectRatio="none">
             <rect class="player-cube__base" width="64" height="64" />
-            <rect width="64" height="64" :fill="fillUrl(sheenId)" />
+            <rect width="64" height="64" :fill="fillUrl(depthId)" />
             <rect width="64" height="64" :fill="fillUrl(aoId)" />
-            <path class="player-cube__bevel" d="M0.7 0 V64 M0 0.7 H64" />
+            <path class="player-cube__bevel" d="M0.9 0 V64 M0 0.9 H64" />
+            <path class="player-cube__bevel-lo" d="M0 63.1 H64 M63.1 0 V64" />
           </svg>
         </span>
-        <!-- left (mid) -->
+        <!-- left (mid side) -->
         <span class="player-cube__face player-cube__face--left">
           <svg class="player-cube__svg" viewBox="0 0 64 64" preserveAspectRatio="none">
             <rect class="player-cube__base" width="64" height="64" />
-            <rect width="64" height="64" :fill="fillUrl(sheenId)" />
+            <rect width="64" height="64" :fill="fillUrl(depthId)" />
             <rect width="64" height="64" :fill="fillUrl(aoId)" />
-            <path class="player-cube__bevel" d="M0.7 0 V64 M0 0.7 H64" />
+            <path class="player-cube__bevel" d="M0.9 0 V64 M0 0.9 H64" />
+            <path class="player-cube__bevel-lo" d="M0 63.1 H64 M63.1 0 V64" />
           </svg>
         </span>
-        <!-- top (lit, glossy) -->
+        <!-- top (lit satin face): colour → depth → satin sheen → bevel -->
         <span class="player-cube__face player-cube__face--top">
           <svg class="player-cube__svg" viewBox="0 0 64 64" preserveAspectRatio="none">
             <rect class="player-cube__base" width="64" height="64" />
+            <rect width="64" height="64" :fill="fillUrl(depthId)" />
             <rect width="64" height="64" :fill="fillUrl(sheenId)" />
-            <rect width="64" height="64" :fill="fillUrl(glossId)" />
-            <path class="player-cube__bevel" d="M0.7 0 V64 M0 0.7 H64 M63.3 0 V64 M0 63.3 H64" />
+            <path class="player-cube__bevel" d="M0.9 0 V64 M0 0.9 H64" />
+            <path class="player-cube__bevel-lo" d="M0 63.1 H64 M63.1 0 V64" />
           </svg>
         </span>
       </span>
@@ -82,7 +95,10 @@ const BASE_RGB: Record<Color, RGB> = {
   black: [86, 90, 98],
   purple: [140, 0, 255],
   orange: [236, 113, 12],
-  pink: [245, 116, 187],
+  // Pink deepened from the flat UI value (245,116,187) into a richer satin
+  // rose so the cube reads as lacquered acrylic, not a candy sticker — still
+  // unmistakably the pink player.
+  pink: [240, 100, 174],
   bronze: [176, 121, 71],
   neutral: [176, 121, 71],
 };
@@ -170,10 +186,18 @@ export default defineComponent({
     },
     styleVars(): Record<string, string> {
       const base = this.base;
-      const top = mixWhite(base, 0.20); // lit face — brightened without clipping
-      const left = scaleRgb(base, 0.86); // mid shade (hue preserved)
-      const right = scaleRgb(base, 0.56); // deep shade
-      const edgeHi = mixWhite(base, 0.66); // machined bevel highlight
+      // Keep the body RICH — the per-face depth gradient + satin sheen supply
+      // the lighting, so the base shades stay saturated (not washed toward
+      // white). DEEPER sides (esp. the right/shadow face) give clear physical
+      // thickness at real board scale (18–28px). The top lift is ADAPTIVE: an
+      // already-light body (pink / yellow) gets barely any whitening so it
+      // reads as deep satin acrylic, not a milky candy chip; a dark body gets a
+      // touch more lift to read as the lit face.
+      const lightBody = luma(base) > 140;
+      const top = mixWhite(base, lightBody ? 0.05 : 0.13);
+      const left = scaleRgb(base, 0.80); // mid side
+      const right = scaleRgb(base, 0.50); // deep shadow side — physical thickness
+      const edgeHi = mixWhite(base, 0.55);
       const symbol = luma(top) > 150 ? 'rgba(20, 18, 14, 0.92)' : 'rgba(255, 255, 255, 0.95)';
       return {
         '--pc-size': `${this.size}px`,
@@ -191,14 +215,14 @@ export default defineComponent({
         'player-cube--animate-in': this.animateIn === true,
       };
     },
+    depthId(): string {
+      return 'pc-depth-' + this.uid;
+    },
     sheenId(): string {
       return 'pc-sheen-' + this.uid;
     },
     aoId(): string {
       return 'pc-ao-' + this.uid;
-    },
-    glossId(): string {
-      return 'pc-gloss-' + this.uid;
     },
     showSymbol(): boolean {
       if (this.overlaySymbol === undefined) {
