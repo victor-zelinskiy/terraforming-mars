@@ -30,6 +30,7 @@ export const paths = {
   GAME: 'game',
   GAMES_OVERVIEW: 'games-overview',
   HELP: 'help',
+  LEGACY: 'legacy',
   LOAD: 'load',
   LOAD_GAME: 'load_game',
   LOGIN: 'login',

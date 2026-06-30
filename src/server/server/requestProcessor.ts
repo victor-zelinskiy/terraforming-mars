@@ -106,6 +106,10 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.GAME, GameHandler.INSTANCE],
     [paths.GAMES_OVERVIEW, GamesOverview.INSTANCE],
     [paths.HELP, ServeApp.INSTANCE],
+    // The legacy landing page is preserved at /legacy (the premium main menu is
+    // the new default at '/'). Both serve the same SPA shell; App.vue picks the
+    // screen from the path segment.
+    [paths.LEGACY, ServeApp.INSTANCE],
     [paths.LOAD, Load.INSTANCE],
     [paths.LOAD_GAME, LoadGame.INSTANCE],
     [paths.LOGIN, Login.INSTANCE],
