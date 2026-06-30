@@ -33,27 +33,37 @@
         </section>
 
         <section class="pc-section">
+          <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Game rules</h2></div>
+          <game-rules />
+        </section>
+
+        <section class="pc-section">
           <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Expansions</h2></div>
           <expansion-module-grid />
         </section>
 
         <section class="pc-section">
           <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Map</h2></div>
-          <map-selection />
+          <map-compact-card />
         </section>
-
-        <section class="pc-section">
-          <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Game rules</h2></div>
-          <game-rules />
-        </section>
-
-        <create-info-panel />
       </div>
 
       <div class="pc-deck__summary">
-        <party-briefing @create="onCreate" @back="onBack" @reset="onReset" />
+        <aside class="briefing">
+          <span class="briefing__corner briefing__corner--tl" aria-hidden="true"></span>
+          <span class="briefing__corner briefing__corner--tr" aria-hidden="true"></span>
+          <h2 class="briefing__title" v-i18n>Party briefing</h2>
+          <div class="briefing__scroll">
+            <party-briefing />
+            <div class="briefing__sep" aria-hidden="true"></div>
+            <create-info-panel />
+          </div>
+          <briefing-actions @create="onCreate" @back="onBack" @reset="onReset" />
+        </aside>
       </div>
     </div>
+
+    <map-picker-overlay v-if="mapPickerOpen" />
 
     <premium-identity-modal
       v-if="modalOpen"
@@ -75,11 +85,13 @@ import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/compone
 import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
 import PlayerCountSelector from '@/client/components/create/premium/PlayerCountSelector.vue';
 import PlayerSlots from '@/client/components/create/premium/PlayerSlots.vue';
-import ExpansionModuleGrid from '@/client/components/create/premium/ExpansionModuleGrid.vue';
-import MapSelection from '@/client/components/create/premium/MapSelection.vue';
 import GameRules from '@/client/components/create/premium/GameRules.vue';
+import ExpansionModuleGrid from '@/client/components/create/premium/ExpansionModuleGrid.vue';
+import MapCompactCard from '@/client/components/create/premium/MapCompactCard.vue';
+import MapPickerOverlay from '@/client/components/create/premium/MapPickerOverlay.vue';
 import PartyBriefing from '@/client/components/create/premium/PartyBriefing.vue';
 import CreateInfoPanel from '@/client/components/create/premium/CreateInfoPanel.vue';
+import BriefingActions from '@/client/components/create/premium/BriefingActions.vue';
 import {createGameState, resetCreateGameState, setPlayerCount, applyCreatorIdentity, canCreateGame} from './createGameState';
 import {buildCreateGamePayloadFromPremiumState} from './buildCreateGamePayload';
 
@@ -92,11 +104,13 @@ export default defineComponent({
     PremiumIdentityModal,
     PlayerCountSelector,
     PlayerSlots,
-    ExpansionModuleGrid,
-    MapSelection,
     GameRules,
+    ExpansionModuleGrid,
+    MapCompactCard,
+    MapPickerOverlay,
     PartyBriefing,
     CreateInfoPanel,
+    BriefingActions,
   },
   data() {
     return {modalOpen: false};
@@ -109,6 +123,9 @@ export default defineComponent({
       set(v: number) {
         setPlayerCount(v);
       },
+    },
+    mapPickerOpen(): boolean {
+      return createGameState.mapPickerOpen;
     },
     initialName(): string {
       return identityState.identity?.displayName ?? createGameState.config.players[0]?.name ?? '';
@@ -125,7 +142,7 @@ export default defineComponent({
     if (id !== undefined) {
       applyCreatorIdentity(id.displayName, id.cubeColor);
     } else {
-      this.modalOpen = true; // need the creator's name before the game can be created
+      this.modalOpen = true;
     }
   },
   methods: {
@@ -176,8 +193,6 @@ export default defineComponent({
         if (!res.ok || json === undefined || !Array.isArray(json.players) || json.players.length === 0) {
           throw new Error('create-failed');
         }
-        // Enter the new game directly as the creator (matched by their unique
-        // colour, since the response is in turn order, not creation order).
         const creator = json.players.find((p) => p.color === creatorColor) ?? json.players[0];
         window.location.assign(paths.PLAYER + '?id=' + encodeURIComponent(creator.id));
       } catch {

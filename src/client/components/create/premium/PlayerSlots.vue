@@ -2,7 +2,7 @@
   <div class="party-slots" @mouseenter="focusInfo" @focusin="focusInfo">
     <p class="party-slots__hint" v-i18n>Enter a name and pick a cube colour for each player.</p>
 
-    <div class="party-slots__list">
+    <transition-group tag="div" class="party-slots__list" name="party-slot">
       <div
         v-for="(slot, i) in players"
         :key="i"
@@ -10,6 +10,11 @@
         :class="{'party-slot--creator': slot.isCreator, 'party-slot--error': nameIssue(i) !== undefined}"
       >
         <span class="party-slot__num">{{ i + 1 }}</span>
+
+        <slot-color-picker
+          :model-value="slot.color"
+          :taken="takenColors(i)"
+          @update:model-value="onColor(i, $event)" />
 
         <div class="party-slot__name">
           <input
@@ -30,17 +35,12 @@
           </transition>
         </div>
 
-        <slot-color-strip
-          :model-value="slot.color"
-          :taken="takenColors(i)"
-          @update:model-value="onColor(i, $event)" />
-
         <div v-if="trEnabled" class="party-slot__tr">
           <span class="party-slot__tr-label">TR</span>
           <tr-boost-gauge :model-value="slot.trBoost" @update:model-value="onTr(i, $event)" />
         </div>
       </div>
-    </div>
+    </transition-group>
   </div>
 </template>
 
@@ -49,7 +49,7 @@ import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {PLAYER_NAME_MAX_LENGTH, validatePlayerName} from '@/common/utils/playerName';
 import {setIdentity} from '@/client/components/mainMenu/identity/identityState';
-import SlotColorStrip from '@/client/components/create/premium/SlotColorStrip.vue';
+import SlotColorPicker from '@/client/components/create/premium/SlotColorPicker.vue';
 import TrBoostGauge from '@/client/components/create/premium/TrBoostGauge.vue';
 import {
   createGameState,
@@ -63,7 +63,7 @@ import {
 
 export default defineComponent({
   name: 'PlayerSlots',
-  components: {SlotColorStrip, TrBoostGauge},
+  components: {SlotColorPicker, TrBoostGauge},
   data() {
     return {maxLength: PLAYER_NAME_MAX_LENGTH};
   },
@@ -101,7 +101,6 @@ export default defineComponent({
     onName(i: number, e: Event): void {
       const value = (e.target as HTMLInputElement).value;
       setSlotName(i, value);
-      // Keep the launcher identity in sync with the creator (slot 0).
       if (i === 0) {
         const v = validatePlayerName(value);
         if (v.ok) {
