@@ -50,7 +50,7 @@
 
       <!-- Ambiguous: two seats share the name, can't safely pick one. -->
       <div v-if="game.ambiguous" class="join-card__warn">
-        <span class="join-card__warn-text" v-i18n>Several players have this name</span>
+        <span class="join-card__warn-text" v-i18n>Cannot determine your seat here</span>
         <button type="button" class="join-card__ghost-btn" @click="$emit('edit-identity')">
           <span v-i18n>Change name</span>
         </button>
@@ -85,7 +85,7 @@
         @click="open"
       >
         <span v-if="status === 'updating'" class="join-card__spinner" aria-hidden="true"></span>
-        <span v-i18n>{{ status === 'updating' ? 'Opening' : 'Continue' }}</span>
+        <span v-i18n>{{ status === 'updating' ? 'Opening' : 'Join game' }}</span>
       </button>
     </footer>
   </div>

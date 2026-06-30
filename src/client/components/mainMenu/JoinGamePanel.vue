@@ -12,7 +12,7 @@
           <div class="join-panel__titles">
             <h2 class="join-panel__title" v-i18n>Your games</h2>
             <div class="join-panel__subtitle">
-              <span v-i18n>Unfinished games for</span>
+              <span v-i18n>Player</span>
               <span class="join-panel__player">
                 <span class="join-panel__player-cube" aria-hidden="true">
                   <player-cube :color="color" :size="20" :glow="true" :shadow="true" :overlay-symbol="false" />
@@ -88,7 +88,6 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {JoinableGameSummary} from '@/common/models/JoinableGameModel';
-import {translateTextWithParams} from '@/client/directives/i18n';
 import {identityState} from '@/client/components/mainMenu/identity/identityState';
 import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
 import {
@@ -125,7 +124,7 @@ export default defineComponent({
       return joinGamesState.loadedOnce && !joinGamesState.error && this.games.length === 0;
     },
     emptyMessage(): string {
-      return translateTextWithParams('No unfinished games for ${0}', [this.name]);
+      return this.$t('You have no unfinished games yet.');
     },
   },
   watch: {

@@ -1,6 +1,6 @@
 <template>
   <div class="party-slots" @mouseenter="focusInfo" @focusin="focusInfo">
-    <p class="party-slots__hint" v-i18n>Players will find this game by the names you enter, in the «Join» menu.</p>
+    <p class="party-slots__hint" v-i18n>Enter a name and pick a cube colour for each player.</p>
 
     <div class="party-slots__list">
       <div

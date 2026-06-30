@@ -146,12 +146,13 @@
     <span class="planet-overall__label" v-i18n>Sidebar planet label</span>
   </div>
 
-  <button class="planet-debug-btn"
-          :class="{ 'planet-debug-btn--active': legacyUiActive }"
-          :title="$t('Show legacy UI')"
-          :aria-label="$t('Show legacy UI')"
-          @click="$emit('toggle-legacy-ui')">
-    <i class="planet-debug-btn__glyph"></i>
+  <button class="planet-home-btn"
+          :title="$t('To main menu')"
+          :aria-label="$t('To main menu')"
+          @click="goHome">
+    <span class="planet-home-btn__glyph" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 11 L12 4 L20 11 M6 9.5 V19 H18 V9.5 M10 19 V14 H14 V19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
   </button>
 </div>
 </template>
@@ -260,6 +261,11 @@ export default defineComponent({
     AnimatedMetricValue,
   },
   methods: {
+    goHome(): void {
+      // Leave the game to the premium main menu. The game is saved server-side
+      // and can be re-entered from there, so no destructive confirm is needed.
+      window.location.assign('/');
+    },
     rulingPartyToCss(): string {
       if (this.turmoil?.ruling === undefined) {
         return '';

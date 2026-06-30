@@ -76,8 +76,11 @@
         <a v-else class="eg-results__ctl eg-results__ctl--cta" :href="newGameHref">
           <span class="eg-results__ctl-label" v-i18n>New game</span>
         </a>
-        <a class="eg-results__ctl" href=".">
-          <span class="eg-results__ctl-label" v-i18n>Go to main page</span>
+        <a class="eg-results__ctl eg-results__ctl--home" href=".">
+          <span class="eg-results__ctl-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 11 L12 4 L20 11 M6 9.5 V19 H18 V9.5 M10 19 V14 H14 V19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span class="eg-results__ctl-label" v-i18n>To main menu</span>
         </a>
       </div>
     </header>

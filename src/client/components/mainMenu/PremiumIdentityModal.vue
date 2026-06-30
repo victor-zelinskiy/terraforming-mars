@@ -11,7 +11,7 @@
         <header class="pmm-identity-modal__head">
           <h2 class="pmm-identity-modal__title" v-i18n>Player profile</h2>
           <p class="pmm-identity-modal__hint" v-i18n>
-            Temporary local profile used to find your unfinished games and prefill new games. This is not a login.
+            Your player profile — a name and cube colour used across your games.
           </p>
         </header>
 
