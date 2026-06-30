@@ -27,7 +27,13 @@ export function expansionIconUrl(e: Expansion): string {
   return `assets/expansion_icons/expansion_icon_${ICON_STEM[e]}.png`;
 }
 
+// Premium display-name overrides: Delta Project is surfaced under its in-game
+// name everywhere in the fork's UI («Гидросети»), never "Delta Project".
+const LABEL_OVERRIDE: Partial<Record<Expansion, string>> = {
+  deltaProject: 'Hydronetworks',
+};
+
 /** English display name (an i18n source key — translate with $t at the call site). */
 export function expansionLabel(e: Expansion): string {
-  return MODULE_NAMES[e];
+  return LABEL_OVERRIDE[e] ?? MODULE_NAMES[e];
 }
