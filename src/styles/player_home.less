@@ -723,6 +723,20 @@ each(@players, {
     margin: 0 0 0 5px;
 }
 
+// Premium <player-cube> owner markers in the milestones/awards UI (migrated
+// from the legacy sprite `.board-cube`). The inline list chip flows in-line
+// with a small left gap; the block claimer mirrors the legacy absolute spot
+// (minus the sprite + the `.premium-board-token()` filter, which would flatten
+// the cube's 3D).
+.ma-player-cube .player-cube {
+    margin: 0 0 0 5px;
+}
+
+.ma-player .player-cube {
+    position: absolute;
+    margin: 25px 0 0 15px;
+}
+
 .milestone-award-inline {
     white-space: nowrap;
     color: #000;

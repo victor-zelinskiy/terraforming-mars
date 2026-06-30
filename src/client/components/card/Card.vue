@@ -7,7 +7,7 @@
       <div class="card-content-wrapper" v-i18n @mouseover="hovering = true" @mouseleave="hovering = false">
           <div v-if="!isStandardProject" class="card-cost-and-tags">
               <CardCost :amount="cost" :newCost="reducedCost" />
-              <div v-if="showPlayerCube" :class="playerCubeClass"></div>
+              <player-cube v-if="showPlayerCube" :color="cubeColor" :size="30"></player-cube>
               <CardTags :tags="tags" />
           </div>
           <CardTitle :title="card.name" :type="cardType"/>
@@ -61,6 +61,7 @@ import CardExtraContent from './CardExtraContent.vue';
 import CardExpansion from './CardExpansion.vue';
 import CardTags from './CardTags.vue';
 import CardVictoryPoints from './CardVictoryPoints.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 import CardContent from './CardContent.vue';
 import CardRequirementsComponent from './CardRequirementsComponent.vue';
 import CardHelp from './CardHelp.vue';
@@ -79,6 +80,7 @@ import {GameModule} from '@/common/cards/GameModule';
 export default defineComponent({
   name: 'Card',
   components: {
+    'player-cube': PlayerCube,
     CardTitle,
     CardHelp,
     CardResourceCounter,
@@ -253,9 +255,6 @@ export default defineComponent({
     },
     showPlayerCube(): boolean {
       return getPreferences().experimental_ui && this.actionUsed;
-    },
-    playerCubeClass(): string {
-      return `board-cube board-cube--${this.cubeColor}`;
     },
   },
   methods: {

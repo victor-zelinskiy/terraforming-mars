@@ -63,7 +63,7 @@
           </div>
           <div v-if="a.playerName" class="award-row-fundedby">
             <span v-i18n>funded by</span>
-            <i class="board-cube" :class="`board-cube--${a.color}`"></i>
+            <player-cube :color="a.color" :size="14"></player-cube>
             <span>{{ a.playerName }}</span>
           </div>
         </div>
@@ -112,11 +112,15 @@ import {AwardName} from '@/common/ma/AwardName';
 import {AWARD_COSTS, MAX_AWARDS} from '@/common/constants';
 import {getAward} from '@/client/MilestoneAwardManifest';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 
 type TooltipPos = {top: number; left: number};
 
 export default defineComponent({
   name: 'AwardsOverlay',
+  components: {
+    'player-cube': PlayerCube,
+  },
   props: {
     awards: {
       type: Array as () => ReadonlyArray<FundedAwardModel>,

@@ -21,7 +21,7 @@
           <div class="milestone-floating-tooltip-desc" v-i18n>{{ description }}</div>
           <div class="milestone-floating-tooltip-claimedby">
             <span v-i18n>funded by</span>
-            <i class="board-cube" :class="`board-cube--${award.color}`"></i>
+            <player-cube :color="award.color" :size="14"></player-cube>
             <span>{{ award.playerName }}</span>
           </div>
           <!--
@@ -60,11 +60,15 @@ import {MAX_AWARDS} from '@/common/constants';
 import {getAward} from '@/client/MilestoneAwardManifest';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 
 type TooltipPos = {top: number; left: number};
 
 export default defineComponent({
   name: 'AwardFundedBadge',
+  components: {
+    'player-cube': PlayerCube,
+  },
   props: {
     // Undefined = empty slot (no award funded yet at this position).
     award: {

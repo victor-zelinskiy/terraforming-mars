@@ -90,7 +90,7 @@ describe('Milestone', () => {
     const milestone = createMilestone({claimed: true});
     const wrapper = mount(Milestone, {...globalConfig, props: {milestone}});
 
-    expect(wrapper.find(`.board-cube--${milestone.color}`).exists()).to.be.true;
+    expect(wrapper.find(`.player-cube--${milestone.color}`).exists()).to.be.true;
   });
 
   it('creates correct css class from milestone name', () => {

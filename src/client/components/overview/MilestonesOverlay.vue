@@ -47,7 +47,7 @@
           </div>
           <div v-if="m.playerName" class="milestone-row-claimedby">
             <span v-i18n>claimed by</span>
-            <i class="board-cube" :class="`board-cube--${m.color}`"></i>
+            <player-cube :color="m.color" :size="14"></player-cube>
             <span>{{ m.playerName }}</span>
           </div>
         </div>
@@ -96,11 +96,15 @@ import {MilestoneName} from '@/common/ma/MilestoneName';
 import {MILESTONE_COST, MAX_MILESTONES} from '@/common/constants';
 import {getMilestone} from '@/client/MilestoneAwardManifest';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 
 type TooltipPos = {top: number; left: number};
 
 export default defineComponent({
   name: 'MilestonesOverlay',
+  components: {
+    'player-cube': PlayerCube,
+  },
   props: {
     milestones: {
       type: Array as () => ReadonlyArray<ClaimedMilestoneModel>,

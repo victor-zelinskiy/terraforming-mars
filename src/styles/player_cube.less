@@ -57,15 +57,17 @@
 	// blur: it's a flat sibling, not a 3D ancestor.
 	&__glow {
 		position: absolute;
-		// A SUBTLE lit-token bloom — tight and faint so the cube reads as a
-		// neat tile marker, not a glowing orb that dominates the hex. Biased
-		// slightly upward so it doesn't wash over the contact shadow below.
-		inset: -12%;
-		transform: translateY(-8%);
+		// A WHISPER of warm colour-lift on the cube's UPPER body only — biased
+		// well up and kept faint so it never haloes the base (a halo around the
+		// foot reads as floating). Grounding comes from the contact shadow, not
+		// from a bloom; this is just a hair of premium colour presence at the
+		// top where the light is.
+		inset: -7%;
+		transform: translateY(-20%);
 		border-radius: 50%;
 		background: radial-gradient(closest-side, var(--pc-glow), transparent 72%);
-		opacity: 0.5;
-		filter: blur(calc(var(--pc-size) * 0.1));
+		opacity: 0.28;
+		filter: blur(calc(var(--pc-size) * 0.09));
 		z-index: 0;
 		pointer-events: none;
 	}
@@ -77,19 +79,21 @@
 	&__shadow {
 		position: absolute;
 		left: 50%;
-		// Compact, ANCHORED two-tier contact shadow — a DENSE dark core right
-		// under the bottom edge (top gradient layer, near the cube base) over a
-		// soft, narrow ambient halo. The core is what makes the cube read as
-		// PLACED on the tile, not pasted onto it; the gradients carry their own
-		// soft falloff so almost no blur is needed (no big drop-shadow blob).
-		bottom: calc(var(--pc-size) * 0.04);
-		width: calc(var(--pc-size) * 0.74);
-		height: calc(var(--pc-size) * 0.24);
+		// Two-tier CONTACT shadow that hugs the foot — the single biggest
+		// grounding cue. A PRESSED CORE: very dark, tight, sitting right under
+		// the cube's base (near the TOP of this ground ellipse, closest to the
+		// foot) — the "object has mass and presses on the surface" micro-contact.
+		// Over it, a NARROW contact halo with a quick falloff so the tile reads
+		// as receiving the object — NOT a big blurry drop-shadow blob. The
+		// gradients carry their own softness, so almost no blur is used.
+		bottom: calc(var(--pc-size) * 0.035);
+		width: calc(var(--pc-size) * 0.66);
+		height: calc(var(--pc-size) * 0.2);
 		transform: translateX(-50%);
 		background:
-			radial-gradient(ellipse 46% 60% at 50% 30%, rgba(0, 0, 0, 0.92), rgba(0, 0, 0, 0.5) 42%, transparent 66%),
-			radial-gradient(ellipse at 50% 46%, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.18) 50%, transparent 78%);
-		filter: blur(0.4px);
+			radial-gradient(ellipse 36% 50% at 50% 24%, rgba(0, 0, 0, 0.97), rgba(0, 0, 0, 0.62) 44%, transparent 62%),
+			radial-gradient(ellipse 82% 86% at 50% 40%, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.13) 52%, transparent 78%);
+		filter: blur(0.35px);
 		opacity: 1;
 		z-index: 0;
 		pointer-events: none;
