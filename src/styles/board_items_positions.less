@@ -1,9 +1,27 @@
+/*
+ * ── Off-Mars colony cells — ROUND, SYMMETRIC ARC around the scales ────────
+ * The 7 off-planet cells (Ganymede 01, Phobos 02, Stanford 69, Luna 70,
+ * Dawn 71, Stratopolis 72, Maxwell 73) sit on a circle of radius 358 around
+ * the planet centre (~313, 306 in this frame). The bigger radius clears the
+ * scales' BONUS MARKERS (the blue ocean chip / warning icons stick out to
+ * ~r318) by ~17px, and the two flanks are MIRROR-SYMMETRIC about the vertical
+ * — the LEFT flank (134°/147°/160°) is the exact MIRROR of the RIGHT flank's
+ * first three (46°/33°/20°), with the SAME 13° angular step; the right has a
+ * 4th cell (Dawn at 7°) with no left counterpart, so the left row simply ENDS
+ * ONE CELL EARLIER. Mirror pairs: Phobos↔Luna, Stanford↔Maxwell, Ganymede↔
+ * Stratopolis (same cy, symmetric about the vertical). Radius 358 clears the
+ * scales' bonus markers (~r318) by ~17px; ~80px between centres → 46×51 tiles
+ * never overlap; the top cells stay AT the Venus-arc level (top-centre stays
+ * free). Cells may overflow board-cont's box a little (visible — there's room
+ * in the side margins). top-left margin = arc-point − (23, 25.5).
+ */
 .board-space-01 {
-  margin: 165px 0 0 -5px;
+  margin: 159px 0 0 -46px;
 }
 
+/* Phobos Space Haven — LEFT flank, arc angle 134° (radius 358; mirror of Luna, topmost on the left). */
 .board-space-02 {
-  margin: 78px 0 0 36px;
+  margin: 23px 0 0 41px;
 }
 
 .board-space-03 {
@@ -259,42 +277,30 @@
   margin: 362px 0 0 350px;
 }
 
-/*
- * Stanford Torus — moved to the LEFT of Phobos Space Haven (space 02 @ top 78,
- * left 36; 49px = tile 46 + 3px gap). Was at (16, 112) — a TOP cell that capped
- * how high the board could scale; relocating it down to the Phobos row clears
- * the top so the Venus scale can rise to the top bar.
- */
+/* Stanford Torus — LEFT flank, arc angle 147° (radius 358; mirror of Maxwell). See the arc note above. */
 .board-space-69 {
-  margin: 78px 0 0 -13px;
+  margin: 86px 0 0 -10px;
 }
 
+/* Luna Metropolis — RIGHT flank, arc angle 46° (radius 358, topmost on the right). */
 .board-space-70 {
-  margin: 59px 0 0 534px;
+  margin: 23px 0 0 539px;
 }
 
 
-/*
- * Dawn City — moved to the RIGHT of Stratopolis (space 72 @ top 133, left 570;
- * 49px = tile 46 + 3px gap). Was at (17, 464) — a TOP cell; relocating it next
- * to Stratopolis clears the top so the board can scale higher.
- */
+/* Dawn City — RIGHT flank, arc angle 7° (radius 358, lowest on the right; clears the temperature bonus markers). */
 .board-space-71 {
-  margin: 133px 0 0 619px;
+  margin: 237px 0 0 645px;
 }
 
+/* Stratopolis — RIGHT flank, arc angle 20° (radius 358). */
 .board-space-72 {
-  margin: 133px 0 0 570px;
+  margin: 159px 0 0 626px;
 }
 
-/*
- * Maxwell Base — moved to the RIGHT of Luna Metropolis (space 70 @ top 59, left
- * 534; 49px = tile 46 + 3px gap). Was at (-13, 388) — the TOPMOST element on the
- * whole board, the hard cap on upward scaling; relocating it to the Luna row
- * clears the top so the Venus scale can sit flush against the top bar.
- */
+/* Maxwell Base — RIGHT flank, arc angle 33° (radius 358). */
 .board-space-73 {
-  margin: 59px 0 0 583px;
+  margin: 86px 0 0 590px;
 }
 
 .board-space-74 {

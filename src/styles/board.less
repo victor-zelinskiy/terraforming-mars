@@ -22,8 +22,20 @@
 	display: inline-block;
 	vertical-align: top;
 	width: 670px;
+	/*
+	 * Explicit height = the Mars disc (background-size 620×600, painted from
+	 * the box top). Without it the box auto-sized to the IN-FLOW `.board`
+	 * (≈573px: 85px top margin + 488px grid), which is SHORTER than the planet
+	 * and TOP-aligned with it — so the flex container centred a box whose
+	 * centre (≈286) sat above the planet's centre (300), pushing the planet
+	 * LOW (big gap above the Venus arc, ocean arc near/under the bottom bar).
+	 * Pinning the box to 600 makes its centre the planet's centre, so the flex
+	 * centres the DISC itself and any leftover vertical margin splits evenly
+	 * top/bottom. Absolute children are positioned from the box's TOP-LEFT
+	 * (unchanged), so the hexes / arcs / outer cells don't move.
+	 */
+	height: 600px;
 	margin: 0 auto;
-	margin-top: 20px;
 	/*
 	 * Make the board container the positioning context for every absolute
 	 * descendant (outer-spaces, .board-space tiles, the SVG .board-legend with
@@ -41,12 +53,11 @@
 	 * scales the whole assembly proportionally — captions stay anchored to
 	 * their tiles by construction.
 	 *
-	 * `transform-origin: center center` — board scales around its CENTER
-	 * so the visual stays anchored to wherever the parent flex container
-	 * positions it. Combined with `.player_home_block--board` being
-	 * `position: fixed` + `display: flex; align-items: center`, this
-	 * means the planet is always perfectly centered in the available
-	 * central viewport area regardless of scale.
+	 * `transform-origin: center center` — now that the box height is pinned to
+	 * the planet (600px above), the box centre IS the planet centre, so a plain
+	 * centre origin scales the disc symmetrically top/bottom (no more bias that
+	 * dropped the ocean arc under the bar while opening a gap above the Venus
+	 * arc).
 	 */
 	transform: scale(var(--board-scale, 1));
 	transform-origin: center center;
