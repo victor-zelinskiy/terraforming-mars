@@ -28,6 +28,8 @@
 .card-tile-commercial-district-ares {
   .board-space-tile--commercial-district-ares();
   .card-tile-ares();
+  background-size: 100% 100% !important;
+  background-position: center !important;
 }
 
 .card-tile-great-dam-ares {
@@ -36,7 +38,7 @@
 }
 
 .card-tile-deimos-down-ares {
-	.board-space-tile--deimos-down-ares();
+  .board-space-tile--deimos-down-ares();
   .card-tile-ares();
 }
 
@@ -51,194 +53,195 @@
 }
 
 .card-tile-mohole-area-ares {
-	.board-space-tile--mohole-area-ares();
+  .board-space-tile--mohole-area-ares();
   .card-tile-ares();
 }
 
 .card-tile-magnetic-field-generators-ares {
-	.board-space-tile--magnetic-field-generators-ares();
+  .board-space-tile--magnetic-field-generators-ares();
   .card-tile-ares();
 }
 
 .card-tile-metallic-asteroid {
-	.board-space-tile--metallic-asteroid();
+  .board-space-tile--metallic-asteroid();
   .card-tile-ares();
 }
 
 .card-tile-mining-steel {
-	.board-space-tile--mining-steel();
+  .board-space-tile--mining-steel();
   .card-tile-ares();
 }
 
 .card-tile-mining-titanium {
-	.board-space-tile--mining-titanium();
+  .board-space-tile--mining-titanium();
   .card-tile-ares();
 }
 
 .card-tile-natural-preserve-ares {
-	.board-space-tile--natural-preserve-ares();
+  .board-space-tile--natural-preserve-ares();
   .card-tile-ares();
 }
 
 .card-tile-nuclear-zone-ares {
-	.board-space-tile--nuclear-zone-ares();
+  .board-space-tile--nuclear-zone-ares();
   .card-tile-ares();
 }
 
 .card-tile-restricted-area-ares {
-	.board-space-tile--restricted-area-ares();
+  .board-space-tile--restricted-area-ares();
   .card-tile-ares();
 }
 
 .card-tile-ocean-city {
-	.board-space-tile--ocean-city();
+  .board-space-tile--ocean-city();
   .card-tile-ares();
 }
 
 .card-tile-ocean-farm {
-	.board-space-tile--ocean-farm();
+  .board-space-tile--ocean-farm();
   .card-tile-ares();
 }
 
 .card-tile-ocean-sanctuary {
-	.board-space-tile--ocean-sanctuary();
+  .board-space-tile--ocean-sanctuary();
   .card-tile-ares();
 }
 
 .card-tile-solar-farm {
-	.board-space-tile--solar-farm();
+  .board-space-tile--solar-farm();
   .card-tile-ares();
 }
 
 // See `.card-tile-ares` above for why `background-size` is needed: the
 // PNG is 4× upscaled; coordinates here stay on the original 630×240 grid.
 .board-icons-ares-sprite(@x, @y) {
-	background: url(./assets/board_icons_ares.png) @x @y no-repeat;
-	background-size: 630px 240px;
+  background: url(./assets/board_icons_ares.png) @x @y no-repeat;
+  background-size: 630px 240px;
 }
 
 .board-space-tile--ocean-farm {
-	.board-icons-ares-sprite(-29px, -27px);
+  .board-icons-ares-sprite(-29px, -27px);
 }
 
 .board-space-tile--ocean-sanctuary {
-	.board-icons-ares-sprite(-79px, -27px);
+  .board-icons-ares-sprite(-79px, -27px);
 }
 
 .board-space-tile--ocean-city {
-	.board-icons-ares-sprite(-129px, -27px);
+  .board-icons-ares-sprite(-129px, -27px);
 }
 
 .board-space-tile--nuclear-zone-ares {
-	.board-icons-ares-sprite(-198px, -27px);
+  .board-icons-ares-sprite(-198px, -27px);
 }
 
 .board-space-tile--lava-flows-ares {
-	.board-icons-ares-sprite(-246px, -27px);
+  .board-icons-ares-sprite(-246px, -27px);
 }
 
 .board-space-tile--mining-steel {
-	.board-icons-ares-sprite(-294px, -27px);
+  .board-icons-ares-sprite(-294px, -27px);
 }
 
 .board-space-tile--restricted-area-ares {
-	.board-icons-ares-sprite(-342px, -27px);
+  .board-icons-ares-sprite(-342px, -27px);
 }
 
 .board-space-tile--natural-preserve-ares {
-	.board-icons-ares-sprite(-390px, -27px);
+  .board-icons-ares-sprite(-390px, -27px);
 }
 
 .board-space-tile--mohole-area-ares {
-	.board-icons-ares-sprite(-438px, -27px);
+  .board-icons-ares-sprite(-438px, -27px);
 }
 
 .board-space-tile--commercial-district-ares {
-	background: url(./assets/custom_tiles/ares_commercial_district.png) center top / 100% calc(100% - 2px) no-repeat;
+  background: url(./assets/custom_tiles/ares_commercial_district.png) center top / 100% calc(100% - 2px) no-repeat;
 }
 
 .board-space-tile--great-dam-ares {
-	.board-icons-ares-sprite(-581px, -139px);
+  .board-icons-ares-sprite(-581px, -139px);
 }
 
 .board-space-tile--deimos-down-ares {
-	.board-icons-ares-sprite(-581px, -189px);
+  .board-icons-ares-sprite(-581px, -189px);
 }
 
 .board-space-tile--industrial-center-ares {
-	.board-icons-ares-sprite(-534px, -27px);
+  .board-icons-ares-sprite(-534px, -27px);
 }
 
 .board-space-tile--ecological-zone-ares {
-	.board-icons-ares-sprite(-581px, -27px);
+  .board-icons-ares-sprite(-581px, -27px);
 }
 
 // Ares Capital uses a dedicated hi-res PNG (assets/custom_tiles/tile_capital_ares.png
 // — 368×408 = 8× the 46×51 hex). Reused on the board AND in card render
 // (via the .card-tile-capital-ares mixin above), same as the base tiles.
 .board-space-tile--capital-ares {
-	background: url(./assets/custom_tiles/tile_capital_ares.png) center / calc(100% - 0px) calc(100% - 0px) no-repeat;
+  background: url(./assets/custom_tiles/tile_capital_ares.png) center / calc(100% - 0px) calc(100% - 0px) no-repeat;
 }
 
 .board-space-tile--solar-farm {
-	.board-icons-ares-sprite(-246px, -83px);
+  .board-icons-ares-sprite(-246px, -83px);
 }
 
 .board-space-tile--magnetic-field-generators-ares {
-	.board-icons-ares-sprite(-534px, -139px);
+  .board-icons-ares-sprite(-534px, -139px);
 }
 
 .board-space-tile--metallic-asteroid {
-	.board-icons-ares-sprite(-294px, -83px);
+  .board-icons-ares-sprite(-294px, -83px);
 }
 
 .board-space-tile--biofertilizer-facility {
-	.board-icons-ares-sprite(-342px, -83px);
+  .board-icons-ares-sprite(-342px, -83px);
 }
+
 .board-space-tile--mining-titanium {
-	.board-icons-ares-sprite(-390px, -83px);
+  .board-icons-ares-sprite(-390px, -83px);
 }
 
 .board-space-tile--dust-storm-mild {
-	background: url(./assets/custom_tiles/ares_dust_storn.png) center top / 100% calc(100% - 2px) no-repeat;
+  background: url(./assets/custom_tiles/ares_dust_storn.png) center top / 100% calc(100% - 2px) no-repeat;
 }
 
 
 .board-space-tile--dust-storm-severe {
-	background: url(./assets/custom_tiles/ares_severe_dust_storn.png) center top / 100% calc(100% - 2px) no-repeat;
+  background: url(./assets/custom_tiles/ares_severe_dust_storn.png) center top / 100% calc(100% - 2px) no-repeat;
 }
 
 .board-space-tile--erosion-mild {
-	background: url(./assets/custom_tiles/ares_erosion.png) center top / 100% calc(100% - 2px) no-repeat;
+  background: url(./assets/custom_tiles/ares_erosion.png) center top / 100% calc(100% - 2px) no-repeat;
 }
 
 .board-space-tile--erosion-severe {
-	background: url(./assets/custom_tiles/ares_severe_erosion.png) center top / 100% calc(100% - 2px) no-repeat;
+  background: url(./assets/custom_tiles/ares_severe_erosion.png) center top / 100% calc(100% - 2px) no-repeat;
 }
 
 .board-space-tile--empty-tile--M {
-	.board-icons-ares-sprite(-29px, -83px);
-	position: relative;
+  .board-icons-ares-sprite(-29px, -83px);
+  position: relative;
 }
 
 .board-space-tile--empty-tile--S {
-	background-image: url(./assets/tiles/empty.png);
-	width: 32px !important;
-	height: 34px !important;
-	background-size: 32px 34px !important;
-	position: relative;
+  background-image: url(./assets/tiles/empty.png);
+  width: 32px !important;
+  height: 34px !important;
+  background-size: 32px 34px !important;
+  position: relative;
 }
 
 .board-space-tile--adjacency-tile {
-	.board-icons-ares-sprite(-79px, -83px);
+  .board-icons-ares-sprite(-79px, -83px);
 }
 
 .ares-container {
-	font-size: 14px;
+  font-size: 14px;
 }
 
 .ares-global-parameter-option {
-	padding-right: 16px;
+  padding-right: 16px;
 }
 
 /* ── Hazard intensified (mild → severe) — a one-shot premium pulse ─────────── */
@@ -247,32 +250,32 @@
    exactly once. The keyframe starts AND ends at the resting state, so a lingering
    class (until the next remount clears it) shows nothing. */
 .board-space-tile--intensifying {
-	animation: hazard-intensify 1.4s ease-out var(--hazard-intensify-delay, 0ms) 1;
-	transform-origin: center center;
-	z-index: 3;
+  animation: hazard-intensify 1.4s ease-out var(--hazard-intensify-delay, 0ms) 1;
+  transform-origin: center center;
+  z-index: 3;
 }
 
 @keyframes hazard-intensify {
-	0% {
-		filter: brightness(1);
-		transform: scale(1);
-	}
-	16% {
-		filter: brightness(1.55) drop-shadow(0 0 11px rgba(255, 110, 60, 0.92));
-		transform: scale(1.16);
-	}
-	50% {
-		filter: brightness(1.18) drop-shadow(0 0 7px rgba(255, 110, 60, 0.55));
-		transform: scale(1.05);
-	}
-	100% {
-		filter: brightness(1);
-		transform: scale(1);
-	}
+  0% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+  16% {
+    filter: brightness(1.55) drop-shadow(0 0 11px rgba(255, 110, 60, 0.92));
+    transform: scale(1.16);
+  }
+  50% {
+    filter: brightness(1.18) drop-shadow(0 0 7px rgba(255, 110, 60, 0.55));
+    transform: scale(1.05);
+  }
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.board-space-tile--intensifying {
-		animation: none;
-	}
+  .board-space-tile--intensifying {
+    animation: none;
+  }
 }
