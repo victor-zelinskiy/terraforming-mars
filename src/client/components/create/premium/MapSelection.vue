@@ -1,17 +1,16 @@
 <template>
   <div class="map-select">
     <div class="map-select__hero">
-      <div
-        class="map-preview map-preview--hero"
-        :class="{'map-preview--random': heroMeta.random}"
-        :style="{'--map-accent': heroMeta.accent}"
-      >
-        <span class="map-preview__planet" aria-hidden="true"></span>
-        <span class="map-preview__grid" aria-hidden="true"></span>
-        <span v-if="heroMeta.random" class="map-preview__random" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 7 H9 L17 17 H20 M16 14 L20 17 L16 20 M4 17 H9 L11 14.5 M14 9.5 L17 7 H20 M16 4 L20 7 L16 10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-        <span class="map-preview__name capitalized" v-i18n>{{ heroName }}</span>
+      <div class="map-hero" :style="{'--map-accent': heroMeta.accent}">
+        <premium-map-fingerprint
+          :map-id="heroBoardId"
+          :random="heroMeta.random"
+          :accent="heroMeta.accent"
+          variant="hero" />
+        <div class="map-hero__caption">
+          <span class="map-hero__name" v-i18n>{{ heroMeta.labelKey }}</span>
+          <span class="map-hero__desc" v-i18n>{{ heroMeta.descKey }}</span>
+        </div>
       </div>
     </div>
 
@@ -32,14 +31,10 @@
         @mouseenter="focusInfo(m)"
         @focus="focusInfo(m)"
       >
-        <span class="map-card__thumb map-preview" :class="{'map-preview--random': m.random}" aria-hidden="true">
-          <span class="map-preview__planet"></span>
-          <span class="map-preview__grid"></span>
-          <span v-if="m.random" class="map-preview__random">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 7 H9 L17 17 H20 M16 14 L20 17 L16 20 M4 17 H9 L11 14.5 M14 9.5 L17 7 H20 M16 4 L20 7 L16 10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </span>
+        <span class="map-card__thumb">
+          <premium-map-fingerprint :map-id="boardId(m)" :random="m.random" :accent="m.accent" variant="thumb" />
         </span>
-        <span class="map-card__name capitalized" v-i18n>{{ nameSource(m.id) }}</span>
+        <span class="map-card__name" v-i18n>{{ m.labelKey }}</span>
         <span class="map-card__check" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12.5 L10 17.5 L19 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </span>
@@ -51,13 +46,15 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {BoardName} from '@/common/boards/BoardName';
-import {PREMIUM_MAPS, PremiumMapMeta, mapMeta, mapNameSource} from './createGameMeta';
+import {PREMIUM_MAPS, PremiumMapMeta, mapMeta} from './createGameMeta';
 import {createGameState, setInfoFocus} from './createGameState';
+import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 
 const COLS = 5;
 
 export default defineComponent({
   name: 'MapSelection',
+  components: {PremiumMapFingerprint},
   data() {
     return {els: [] as Array<HTMLButtonElement>};
   },
@@ -70,13 +67,13 @@ export default defineComponent({
         mapMeta('random-all') :
         mapMeta(createGameState.config.mapId);
     },
-    heroName(): string {
-      return mapNameSource(this.heroMeta.id);
+    heroBoardId(): BoardName | undefined {
+      return this.heroMeta.random ? undefined : (this.heroMeta.id as BoardName);
     },
   },
   methods: {
-    nameSource(id: BoardName | 'random-all'): string {
-      return mapNameSource(id);
+    boardId(m: PremiumMapMeta): BoardName | undefined {
+      return m.random ? undefined : (m.id as BoardName);
     },
     isSelected(m: PremiumMapMeta): boolean {
       const c = createGameState.config;

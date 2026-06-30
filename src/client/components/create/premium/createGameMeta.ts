@@ -1,73 +1,103 @@
 import {Expansion} from '@/common/cards/GameModule';
 import {BoardName} from '@/common/boards/BoardName';
-import {expansionIconUrl, expansionLabel} from '@/client/components/mainMenu/expansionMeta';
+import {expansionIconUrl} from '@/client/components/mainMenu/expansionMeta';
 
 /**
  * Display metadata for the premium "Mission Control" create-game screen.
  *
- * SCOPE: deliberately exposes only the expansions + maps the fork actually plays
- * (its default game config + the random-all map pool). Hidden modules keep their
- * existing defaults via `buildCreateGamePayloadFromPremiumState`. Descriptions
- * are short English i18n source strings (translated at the call site).
+ * Data-driven: components read these tables instead of hardcoding labels.
+ * SCOPE: only the expansions + maps the fork actually plays. Hidden modules keep
+ * their existing defaults via `buildCreateGamePayloadFromPremiumState`. Labels /
+ * descriptions are English i18n source strings (translated at the call site).
  */
 
+// ── Expansions ──────────────────────────────────────────────────────────────
 export type PremiumExpansionMeta = {
   id: Expansion;
-  /** English source key for the short info-panel description. */
+  /** Display name (English i18n source). */
+  labelKey: string;
+  /** Short info-panel description (English i18n source). */
   descKey: string;
 };
 
-// Official first, then the fork's in-scope fan modules. No visible grouping in
-// the UI — this order is just the render order. Matches the fork's default game.
+// Official first, then the fork's in-scope modules. NO visible official/fan
+// grouping — this is only the render order. Matches the fork's default game.
 export const PREMIUM_EXPANSIONS: ReadonlyArray<PremiumExpansionMeta> = [
-  {id: 'corpera', descKey: 'More economy-focused project cards and a stronger early engine.'},
-  {id: 'prelude', descKey: 'Each player starts with prelude cards for a faster, punchier opening.'},
-  {id: 'venus', descKey: 'Adds the Venus track, floaters and a third terraforming parameter.'},
-  {id: 'colonies', descKey: 'Off-world colonies to build and trade with for extra resources.'},
-  {id: 'promo', descKey: 'A set of promotional project and corporation cards.'},
-  {id: 'ares', descKey: 'Hazard tiles and adjacency bonuses that reshape the board.'},
-  {id: 'deltaProject', descKey: 'Fork scenario expansion with the Hydronetwork delta objective.'},
+  {id: 'corpera', labelKey: 'Corporate Era', descKey: 'Adds broader economy and project cards — the standard full-game setting.'},
+  {id: 'prelude', labelKey: 'Prelude', descKey: 'Each player starts with prelude cards that shape their early strategy.'},
+  {id: 'venus', labelKey: 'Venus Next', descKey: 'Adds the Venus global parameter and Venus-focused cards.'},
+  {id: 'colonies', labelKey: 'Colonies', descKey: 'Adds colony tiles, trading and resource engines.'},
+  {id: 'promo', labelKey: 'Promo', descKey: 'Adds promotional cards to the project and corporation decks.'},
+  {id: 'ares', labelKey: 'Ares', descKey: 'Adds hazard tiles and adjacency effects that reshape the board.'},
+  // Delta Project is surfaced under its in-game name, "Hydronetworks" → «Гидросети».
+  {id: 'deltaProject', labelKey: 'Hydronetworks', descKey: 'A competitive module with a shared progress track: spend energy and meet tag requirements to advance, earn bonuses and race for victory points.'},
 ];
 
 export function expansionIcon(id: Expansion): string {
   return expansionIconUrl(id);
 }
-export function expansionName(id: Expansion): string {
-  return expansionLabel(id);
+export function expansionMeta(id: Expansion): PremiumExpansionMeta | undefined {
+  return PREMIUM_EXPANSIONS.find((e) => e.id === id);
+}
+export function expansionLabelKey(id: Expansion): string {
+  return expansionMeta(id)?.labelKey ?? id;
 }
 
-/** A selectable map (or the Random-All pseudo-map). */
+// ── Maps ────────────────────────────────────────────────────────────────────
 export type PremiumMapMeta = {
-  /** Either a concrete board or the random-all sentinel. */
   id: BoardName | 'random-all';
   random: boolean;
+  /** Display name (English i18n source) — never the raw board id. */
+  labelKey: string;
+  descKey: string;
   /** "r,g,b" accent for the preview / chips. */
   accent: string;
-  /** English source key for the short description. */
-  descKey: string;
 };
 
-// Random-All first (the default), then official boards, then the rest of the
-// random-all pool (the two exclusions VASTITAS_BOREALIS_NOVA / ARABIA_TERRA are
-// intentionally NOT offered here — they're outside the fork's current scope).
+// Random-All first (default), then official boards, then the rest of the
+// random-all pool. The two random-all exclusions (Vastitas Borealis Nova /
+// Arabia Terra) are intentionally not offered — outside the fork's scope.
 export const PREMIUM_MAPS: ReadonlyArray<PremiumMapMeta> = [
-  {id: 'random-all', random: true, accent: '240,168,80', descKey: 'A random map from every map currently in rotation.'},
-  {id: BoardName.THARSIS, random: false, accent: '224,153,109', descKey: 'The classic Mars map — balanced volcanoes, cities and oceans.'},
-  {id: BoardName.HELLAS, random: false, accent: '70,140,200', descKey: 'Southern basin with a polar ocean and a bonus crater region.'},
-  {id: BoardName.ELYSIUM, random: false, accent: '60,170,80', descKey: 'Volcano-heavy map with scattered oceans and tight city spots.'},
-  {id: BoardName.UTOPIA_PLANITIA, random: false, accent: '96,150,196', descKey: 'Northern lowlands rich in ocean placements.'},
-  {id: BoardName.TERRA_CIMMERIA_NOVA, random: false, accent: '210,80,160', descKey: 'Reworked highlands with a fresh bonus distribution.'},
-  {id: BoardName.VASTITAS_BOREALIS, random: false, accent: '200,184,70', descKey: 'Vast northern plains that favour expansive greenery.'},
-  {id: BoardName.AMAZONIS, random: false, accent: '130,190,50', descKey: 'Western volcanic plateau with aggressive bonuses.'},
-  {id: BoardName.TERRA_CIMMERIA, random: false, accent: '200,60,150', descKey: 'Rugged southern highlands with contested placements.'},
-  {id: BoardName.HOLLANDIA, random: false, accent: '224,212,96', descKey: 'Compact map with dense, high-value cell clusters.'},
+  {id: 'random-all', random: true, accent: '240,168,80', labelKey: 'Random All', descKey: 'One of the maps in the current rotation will be chosen at game start.'},
+  {id: BoardName.THARSIS, random: false, accent: '224,153,109', labelKey: 'Tharsis', descKey: 'The classic Mars map — balanced cities, oceans and plant-rich lowlands.'},
+  {id: BoardName.HELLAS, random: false, accent: '70,140,200', labelKey: 'Hellas', descKey: 'Southern basin with a polar ocean region and generous heat bonuses.'},
+  {id: BoardName.ELYSIUM, random: false, accent: '60,170,80', labelKey: 'Elysium', descKey: 'Volcano-heavy map with scattered oceans and contested city spots.'},
+  {id: BoardName.UTOPIA_PLANITIA, random: false, accent: '96,150,196', labelKey: 'Utopia Planitia', descKey: 'Northern lowlands rich in oceans, with energy placement bonuses.'},
+  {id: BoardName.TERRA_CIMMERIA_NOVA, random: false, accent: '210,80,160', labelKey: 'Terra Cimmeria Nova', descKey: 'Metal-rich highlands with colony placement bonuses.'},
+  {id: BoardName.VASTITAS_BOREALIS, random: false, accent: '200,184,70', labelKey: 'Vastitas Borealis', descKey: 'Vast northern plains with heat and temperature bonuses.'},
+  {id: BoardName.AMAZONIS, random: false, accent: '130,190,50', labelKey: 'Amazonis Planitia', descKey: 'Western plateau with plant, heat and life (microbe/animal) bonuses.'},
+  {id: BoardName.TERRA_CIMMERIA, random: false, accent: '200,60,150', labelKey: 'Terra Cimmeria', descKey: 'Rugged southern highlands with steel and energy bonuses.'},
+  {id: BoardName.HOLLANDIA, random: false, accent: '224,212,96', labelKey: 'Hollandia', descKey: 'Compact map with dense, high-value bonus clusters.'},
 ];
 
 export function mapMeta(id: BoardName | 'random-all'): PremiumMapMeta {
   return PREMIUM_MAPS.find((m) => m.id === id) ?? PREMIUM_MAPS[0];
 }
-
-/** Display source for a map name: the board enum value (already i18n-keyed) or the Random label. */
-export function mapNameSource(id: BoardName | 'random-all'): string {
-  return id === 'random-all' ? 'Random All' : id;
+export function mapLabelKey(id: BoardName | 'random-all'): string {
+  return mapMeta(id).labelKey;
 }
+
+// ── Rules ───────────────────────────────────────────────────────────────────
+export type PremiumRuleId =
+  | 'draftVariant'
+  | 'randomMilestonesAwards'
+  | 'randomBoardTiles'
+  | 'trBoostEnabled'
+  | 'alternativeVenusBoard';
+
+export type PremiumRuleMeta = {
+  id: PremiumRuleId;
+  labelKey: string;
+  descKey: string;
+  icon: 'draft' | 'dice' | 'shuffle' | 'tr' | 'venus';
+  /** When set, the toggle only shows while the given expansion is enabled. */
+  requiresExpansion?: Expansion;
+};
+
+export const PREMIUM_RULES: ReadonlyArray<PremiumRuleMeta> = [
+  {id: 'draftVariant', labelKey: 'Card draft', descKey: 'Players pick cards through a draft each generation.', icon: 'draft'},
+  {id: 'randomMilestonesAwards', labelKey: 'Random milestones and awards', descKey: 'Milestones and awards are chosen at random instead of the board defaults.', icon: 'dice'},
+  {id: 'randomBoardTiles', labelKey: 'Random tile placement', descKey: 'Bonus placements on the board are shuffled for extra variety.', icon: 'shuffle'},
+  {id: 'trBoostEnabled', labelKey: 'Starting TR bonus', descKey: 'Give each player an extra starting Terraform Rating (a per-player handicap).', icon: 'tr'},
+  {id: 'alternativeVenusBoard', labelKey: 'Alternative Venus board', descKey: 'Use the alternative Venus board layout.', icon: 'venus', requiresExpansion: 'venus'},
+];

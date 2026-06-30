@@ -25,7 +25,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {Expansion} from '@/common/cards/GameModule';
-import {PREMIUM_EXPANSIONS, PremiumExpansionMeta, expansionIcon, expansionName} from './createGameMeta';
+import {PREMIUM_EXPANSIONS, PremiumExpansionMeta, expansionIcon, expansionLabelKey} from './createGameMeta';
 import {createGameState, setInfoFocus} from './createGameState';
 
 export default defineComponent({
@@ -50,7 +50,7 @@ export default defineComponent({
       return expansionIcon(id);
     },
     name(id: Expansion): string {
-      return expansionName(id);
+      return expansionLabelKey(id);
     },
   },
 });

@@ -63,7 +63,7 @@ export default defineComponent({
   },
   methods: {
     focusInfo(): void {
-      setInfoFocus({kind: 'trBoost'});
+      setInfoFocus({kind: 'rule', id: 'trBoostEnabled'});
     },
     set(n: number): void {
       const clamped = Math.max(this.min, Math.min(this.max, n));
