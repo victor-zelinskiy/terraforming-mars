@@ -37,6 +37,9 @@ export const paths = {
   LEGACY: 'legacy',
   LOAD: 'load',
   LOAD_GAME: 'load_game',
+  // Premium "Mission Control" create-game screen (the new default from the
+  // premium main menu). Legacy NEW_GAME ('new-game') stays for the legacy menu.
+  NEW_GAME_PREMIUM: 'create-game',
   LOGIN: 'login',
   NEW_GAME: 'new-game',
   PLAYER: 'player',

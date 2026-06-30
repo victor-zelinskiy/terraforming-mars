@@ -154,9 +154,9 @@ export default defineComponent({
       this.pendingAction = undefined;
     },
     goCreate(): void {
-      // The create-game form reads the same stored identity to prefill the
-      // first player's name + cube colour (see CreateGameForm.mounted).
-      window.location.assign(paths.NEW_GAME);
+      // Opens the premium "Mission Control" create-game screen, which reads the
+      // same stored identity for the first player's name + cube colour.
+      window.location.assign(paths.NEW_GAME_PREMIUM);
     },
   },
 });
