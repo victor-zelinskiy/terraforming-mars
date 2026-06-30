@@ -571,6 +571,7 @@ import {defaultCreateGameModel} from './defaultCreateGameModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {RULEBOOK_URLS, WIKI, WIKI_URLS} from '@/client/utils/WikiLinks';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
+import {loadIdentity} from '@/client/components/mainMenu/identity/playerIdentity';
 
 const REVISED_COUNT_ALGORITHM = false;
 
@@ -667,6 +668,7 @@ export default defineComponent({
   },
   mounted() {
     setDocumentTitle('Create New Game');
+    this.prefillFromIdentity();
   },
   computed: {
     wikiUrls(): typeof RULEBOOK_URLS & typeof WIKI_URLS {
@@ -788,6 +790,30 @@ export default defineComponent({
     },
     getPlayers(): Array<NewPlayerModel> {
       return this.players.slice(0, this.playersCount);
+    },
+    // Inherit the Premium-Main-Menu identity (name + cube colour) into the first
+    // player, so a game created from the launcher reflects who you are. Keeps the
+    // 8 seats' colours unique by swapping the displaced seat onto the freed
+    // colour. No-op when no identity is stored (e.g. direct /new-game visit).
+    prefillFromIdentity(): void {
+      const identity = loadIdentity();
+      if (identity === undefined) {
+        return;
+      }
+      const players = this.players;
+      players[0].name = identity.displayName;
+      const desired = identity.cubeColor;
+      if (players[0].color === desired) {
+        return;
+      }
+      const previous = players[0].color;
+      const displaced = players.find((p, i) => i !== 0 && p.color === desired);
+      players[0].color = desired;
+      if (displaced !== undefined) {
+        // The first player vacated `previous`, so hand it to the displaced seat.
+        const used = new Set<Color>(players.map((p) => p.color));
+        displaced.color = PLAYER_COLORS.find((c) => !used.has(c)) ?? previous;
+      }
     },
     isRandomMAEnabled(): boolean {
       return this.randomMA !== RandomMAOptionType.NONE;
