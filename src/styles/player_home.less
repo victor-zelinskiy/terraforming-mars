@@ -1099,9 +1099,11 @@ each(@players, {
      * without the arc slipping under a corner rail. Dropped from the full bar
      * height (+16 ≈ 52px) to a flat 16px safety gap to reclaim vertical space so
      * the board scales up (bigger, more readable hex tiles). Kept in lockstep
-     * with `readVerticalReserved()` in useBoardAutoScale.ts.
+     * with `readVerticalReserved()` in useBoardAutoScale.ts. Symmetric with
+     * `top` (buttonH + 2) so the centring box is balanced and the full-width
+     * bottom bar buttons don't get the ocean arc slipping under them.
      */
-    bottom: 10px;
+    bottom: calc(var(--bottom-bar-button-height) + 2px);
     display: flex;
     align-items: center;
     justify-content: center;

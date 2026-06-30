@@ -129,11 +129,15 @@ export const TEMPERATURE_ARC = buildConfig('temperature', TEMPERATURE_VALS, {ban
 export const VENUS_ARC = buildConfig('venus', VENUS_VALS, {bandWidth: BAND_WIDTH});
 // Oceans — evenly spaced 1–9 across the free bottom window (matches the values
 // OceanArcScale has used since the pilot). Same band as the others.
-// radius 242 (was 264): the ocean arc is pulled IN toward the planet so it sits
-// closer below the lower rim — this frees vertical space below the planet so the
-// board can scale up (bigger hex tiles). MUST match OceanArcScale.vue `RADIUS`.
+// radius 264: aligned with the BOTTOM ends of the side arcs — oxygen's value-0
+// and temperature's -30 both sit at radius ~267 from the (300,301) centre — so
+// the ocean arc reads as a concentric continuation of the same ring rather than
+// a smaller inner arc. (It was temporarily pulled in to 242 to free vertical
+// room while the board scale was being raised; with the board now centred on the
+// planet disc and using the full height, the bottom has room for it again.)
+// MUST match OceanArcScale.vue `RADIUS`.
 export const OCEAN_ARC = buildLinearArcConfig('oceans', {
-  startValue: 1, endValue: 9, startAngle: 116, endAngle: 64, radius: 242, bandWidth: BAND_WIDTH,
+  startValue: 1, endValue: 9, startAngle: 116, endAngle: 64, radius: 264, bandWidth: BAND_WIDTH,
 });
 
 /** Angle (deg) of a value, or the nearest tick's angle when between ticks. */

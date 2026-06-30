@@ -70,8 +70,13 @@ const BOARD_NATURAL_WIDTH = 670;
 // are as large as the chrome allows. The geometry that bounds it: at this value
 // the Venus arc (native y≈20) lands ~15px below the top bar and the ocean arc's
 // deepest chip (native y≈588) lands ~14px above the viewport bottom — going
-// lower than ~576 would start clipping the ocean value off-screen.
-const BOARD_NATURAL_HEIGHT = 576;
+// HEIGHT = 582: with the scale now symmetric around the planet centre
+// (transform-origin fix in board.less) and the arcs pulled in 4% (globs.less),
+// the planet disc fills the inter-bar space with its dark edges tucking a few
+// px behind the bars (no content there) while the hex grid + arcs clear them.
+// Was 576; nudged up slightly so the bottom hex row keeps a safe margin above
+// the (full-width) bottom bar.
+const BOARD_NATURAL_HEIGHT = 582;
 
 // Hard limits so the auto-scale never goes absurd on edge viewports.
 // MIN_SCALE: at narrower-than-default laptops, the board may visually
@@ -101,14 +106,14 @@ function readVerticalReserved(cs: CSSStyleDeclaration): number {
   // the planet) can rise flush against the top button bar. Keep in lockstep with
   // `#player-home { padding-top }` + `.player_home_block--board { top }`.
   const topPadding = buttonH + 2;
-  // The bottom CENTRE is free (the bottom bar is two CORNER rails), and the
-  // ocean arc's DEEPEST point is at the bottom-centre (its lateral ends curve
-  // UP toward the sides, away from the corner rails) — so the planet can drop
-  // into the vacated centre without the arc slipping under a rail. Trimmed to a
-  // flat 10px safety gap (from the full bar height ≈ 52) to reclaim the last bit
-  // of vertical space so the board scales up. Kept in lockstep with
+  // SYMMETRIC with the top (buttonH + 2): the bottom bar buttons span the FULL
+  // width (КАРТЫ / ДЕЙСТВИЯ / … left group + КОЛОНИИ / ЖУРНАЛ right group), NOT
+  // just the corners — so the ocean arc at the bottom-centre DOES collide with
+  // them. A 10px gap let it slip under the bar. Reserving the bar height + 2 so
+  // the ocean arc clears it, and matching the top reservation so the centring
+  // box is symmetric (the board no longer sits low). Kept in lockstep with
   // `.player_home_block--board { bottom }` (player_home.less).
-  const bottomPadding = 10;
+  const bottomPadding = buttonH + 2;
   // Minimal 4px safety so the bottom edge of the board doesn't touch
   // the bottom button bar at maximum scale.
   return topPadding + bottomPadding + 4;
