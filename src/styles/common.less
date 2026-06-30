@@ -257,6 +257,8 @@ each(@players, {
 @import "./player_home.less";
 @import "./players_overview.less";
 @import "./card_action_buttons.less";
+// After card_action_buttons.less so the `.premium-tooltip()` mixin resolves.
+@import "./main_menu_identity.less";
 @import "./preferences.less";
 @import "./turn_handoff.less";
 @import "./right_sidebar.less";

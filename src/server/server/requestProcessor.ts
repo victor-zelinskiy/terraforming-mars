@@ -19,6 +19,8 @@ import {ApiGameDeltaPreview} from '../routes/ApiGameDeltaPreview';
 import {ApiGameBoardCellPreview} from '../routes/ApiGameBoardCellPreview';
 import {ApiGameRematch} from '../routes/ApiGameRematch';
 import {ApiGames} from '../routes/ApiGames';
+import {ApiGamesJoinable} from '../routes/ApiGamesJoinable';
+import {ApiGamePlayerColor} from '../routes/ApiGamePlayerColor';
 import {ApiIPs} from '../routes/ApiIPs';
 import {ApiLogout} from '../routes/ApiLogout';
 import {ApiMetrics} from '../routes/ApiMetrics';
@@ -92,6 +94,8 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_GAME_BOARD_CELL_PREVIEW, ApiGameBoardCellPreview.INSTANCE],
     [paths.API_GAME_REMATCH, ApiGameRematch.INSTANCE],
     [paths.API_GAMES, ApiGames.INSTANCE],
+    [paths.API_GAMES_JOINABLE, ApiGamesJoinable.INSTANCE],
+    [paths.API_GAME_PLAYER_COLOR, ApiGamePlayerColor.INSTANCE],
     [paths.API_IPS, ApiIPs.INSTANCE],
     [paths.API_METRICS, ApiMetrics.INSTANCE],
     [paths.API_PLAYER, ApiPlayer.INSTANCE],

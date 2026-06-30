@@ -14,6 +14,10 @@ export const paths = {
   API_GAME_BOARD_CELL_PREVIEW: 'api/game/board-cell-preview',
   API_GAME_REMATCH: 'api/game/rematch',
   API_GAMES: 'api/games',
+  // Premium main-menu join flow: list a player's unfinished games by name, and
+  // reconcile a seat's cube colour with the player's chosen identity colour.
+  API_GAMES_JOINABLE: 'api/games/joinable',
+  API_GAME_PLAYER_COLOR: 'api/game/player-color',
   API_IPS: 'api/ips',
   API_METRICS: 'api/metrics',
   API_LOGOUT: 'api/logout',

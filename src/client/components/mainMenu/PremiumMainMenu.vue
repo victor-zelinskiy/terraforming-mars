@@ -33,12 +33,12 @@
           label="Create game"
           icon="globe-plus"
           variant="primary"
-          href="new-game" />
+          @activate="onCreate" />
         <premium-main-menu-button
           label="Join game"
           icon="users"
           variant="secondary"
-          @activate="openStub" />
+          @activate="onJoin" />
         <premium-main-menu-button
           label="Cards list"
           icon="cards"
@@ -51,41 +51,112 @@
           href="help" />
       </nav>
 
-      <premium-menu-footer />
+      <premium-menu-footer @edit-identity="openIdentityModal" />
     </div>
 
-    <premium-stub-modal
-      v-if="stubOpen"
-      title="Join game"
-      body="Online and local Join modes are coming in a future update."
-      @close="closeStub" />
+    <premium-identity-modal
+      v-if="identityModalOpen"
+      :initial-name="initialName"
+      :initial-color="initialColor"
+      @save="onIdentitySave"
+      @close="onIdentityClose" />
+
+    <join-game-panel
+      v-if="joinPanelOpen"
+      @close="joinPanelOpen = false"
+      @edit-identity="openIdentityModal"
+      @create-game="goCreate" />
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {Color} from '@/common/Color';
+import {paths} from '@/common/app/paths';
 import PremiumMainMenuButton from '@/client/components/mainMenu/PremiumMainMenuButton.vue';
 import PremiumMenuFooter from '@/client/components/mainMenu/PremiumMenuFooter.vue';
-import PremiumStubModal from '@/client/components/mainMenu/PremiumStubModal.vue';
+import PremiumIdentityModal from '@/client/components/mainMenu/PremiumIdentityModal.vue';
+import JoinGamePanel from '@/client/components/mainMenu/JoinGamePanel.vue';
+import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/components/mainMenu/identity/identityState';
+import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
+
+type PendingAction = 'create' | 'join' | undefined;
 
 export default defineComponent({
   name: 'PremiumMainMenu',
   components: {
     PremiumMainMenuButton,
     PremiumMenuFooter,
-    PremiumStubModal,
+    PremiumIdentityModal,
+    JoinGamePanel,
   },
   data() {
     return {
-      stubOpen: false,
+      identityModalOpen: false,
+      joinPanelOpen: false,
+      // What to resume after the player saves an identity they didn't have yet.
+      pendingAction: undefined as PendingAction,
     };
   },
-  methods: {
-    openStub(): void {
-      this.stubOpen = true;
+  computed: {
+    initialName(): string {
+      return identityState.identity?.displayName ?? '';
     },
-    closeStub(): void {
-      this.stubOpen = false;
+    initialColor(): Color {
+      return identityState.identity?.cubeColor ?? DEFAULT_IDENTITY_COLOR;
+    },
+  },
+  mounted() {
+    ensureIdentityLoaded();
+  },
+  methods: {
+    onCreate(): void {
+      if (identityState.identity !== undefined) {
+        this.goCreate();
+      } else {
+        this.requireIdentity('create');
+      }
+    },
+    onJoin(): void {
+      if (identityState.identity !== undefined) {
+        this.joinPanelOpen = true;
+      } else {
+        this.requireIdentity('join');
+      }
+    },
+    // Open the identity modal because an action needs an identity first; the
+    // action resumes once the player saves.
+    requireIdentity(action: PendingAction): void {
+      this.pendingAction = action;
+      this.identityModalOpen = true;
+    },
+    // Open the identity modal to simply edit (no pending action). Used by the
+    // identity chip + the join panel's "change name and color".
+    openIdentityModal(): void {
+      this.pendingAction = undefined;
+      this.identityModalOpen = true;
+    },
+    onIdentitySave(payload: {displayName: string, color: Color}): void {
+      setIdentity(payload.displayName, payload.color);
+      this.identityModalOpen = false;
+      const action = this.pendingAction;
+      this.pendingAction = undefined;
+      if (action === 'create') {
+        this.goCreate();
+      } else if (action === 'join') {
+        this.joinPanelOpen = true;
+      }
+      // No pending action → it was a plain edit; if the join panel is open it
+      // reloads itself via its name watcher.
+    },
+    onIdentityClose(): void {
+      this.identityModalOpen = false;
+      this.pendingAction = undefined;
+    },
+    goCreate(): void {
+      // The create-game form reads the same stored identity to prefill the
+      // first player's name + cube colour (see CreateGameForm.mounted).
+      window.location.assign(paths.NEW_GAME);
     },
   },
 });
