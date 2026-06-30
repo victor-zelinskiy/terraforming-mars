@@ -1,0 +1,677 @@
+/*
+ * Premium main menu — the sci-fi launcher screen (the new default landing
+ * page; the legacy StartScreen lives on at /legacy). PC / desktop-first:
+ * a layered cinematic Mars background, a metallic title wordmark, four large
+ * chamfered HUD action buttons, and a quiet footer (language + legacy + build).
+ *
+ * Design language follows the rest of the premium fork: dark graphite glass,
+ * controlled orange-gold (primary) + icy-blue (secondary) accents, L-corner
+ * ticks, the Prototype/Orbitron sci-fi face, restrained glow (Ark-Nova-calm —
+ * nothing flashes at rest). Built as real DOM/CSS layers, never a pasted image.
+ */
+
+// ─── Tokens ───────────────────────────────────────────────────────────────
+@pmm-gold:         rgb(240, 168, 80);
+@pmm-gold-bright:  rgb(255, 199, 126);
+@pmm-gold-deep:    rgb(184, 112, 42);
+@pmm-ice:          rgb(127, 200, 240);
+@pmm-ice-bright:   rgb(174, 224, 255);
+@pmm-text:         rgb(238, 244, 251);
+@pmm-text-dim:     rgb(159, 178, 198);
+@pmm-glass-top:    rgba(30, 42, 58, 0.82);
+@pmm-glass-bot:    rgba(9, 14, 21, 0.94);
+
+// Chamfered button silhouette — cut the top-left + bottom-right corners so the
+// plate reads as an angular HUD control, not a web pill.
+@pmm-btn-cut: 16px;
+@pmm-btn-shape: polygon(
+    @pmm-btn-cut 0,
+    100% 0,
+    100% calc(100% - @pmm-btn-cut),
+    calc(100% - @pmm-btn-cut) 100%,
+    0 100%,
+    0 @pmm-btn-cut);
+
+// ─── Screen container ───────────────────────────────────────────────────────
+.topmost-main-menu {
+    min-height: 100%;
+    background: #050812;
+}
+
+.premium-main-menu {
+    position: relative;
+    width: 100%;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: Prototype, Orbitron, sans-serif;
+}
+
+// ─── Background layers ──────────────────────────────────────────────────────
+.pmm__bg {
+    position: absolute;
+    inset: 0;
+    background: url(./assets/premium-main-menu-bg.png) no-repeat center center;
+    background-size: cover;
+    // Start a hair zoomed-in so the slow ambient drift never reveals an edge.
+    transform: scale(1.03);
+    will-change: transform;
+}
+
+// Warm bloom over the planet's sunrise flare (upper-right of the composition).
+.pmm__glow {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(closest-side at 75% 38%, rgba(255, 150, 66, 0.26), rgba(255, 150, 66, 0) 70%),
+        radial-gradient(closest-side at 50% 30%, rgba(255, 122, 50, 0.10), rgba(255, 122, 50, 0) 75%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+}
+
+// Vignette + top/bottom readability gradients (focus the eye on the centre).
+.pmm__vignette {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(125% 95% at 50% 42%, rgba(2, 5, 10, 0) 40%, rgba(2, 5, 10, 0.58) 100%),
+        linear-gradient(180deg, rgba(3, 6, 12, 0.62) 0%, rgba(3, 6, 12, 0) 24%),
+        linear-gradient(0deg, rgba(2, 4, 9, 0.86) 0%, rgba(2, 4, 9, 0) 32%);
+}
+
+// Subtle film grain — texture so the image reads as app chrome, not wallpaper.
+.pmm__grain {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: url(./assets/background-noise.png) repeat;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+}
+
+// Faint HUD frame: four cyan L-brackets at the viewport corners.
+.pmm__hud {
+    position: absolute;
+    inset: clamp(14px, 2vw, 26px);
+    pointer-events: none;
+    opacity: 0.5;
+    &::before,
+    &::after {
+        content: '';
+        position: absolute;
+        width: clamp(26px, 3vw, 44px);
+        height: clamp(26px, 3vw, 44px);
+        border-color: rgba(127, 200, 240, 0.4);
+        filter: drop-shadow(0 0 5px rgba(127, 200, 240, 0.3));
+    }
+    &::before { top: 0; left: 0; border-top: 1.5px solid; border-left: 1.5px solid; }
+    &::after { bottom: 0; right: 0; border-bottom: 1.5px solid; border-right: 1.5px solid; }
+}
+
+// ─── Content column ─────────────────────────────────────────────────────────
+.pmm__content {
+    position: relative;
+    z-index: 3;
+    min-height: 100vh;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    gap: clamp(16px, 3vh, 40px);
+    padding: clamp(22px, 4vh, 56px) 24px clamp(18px, 3vh, 40px);
+}
+
+// ─── Title block ────────────────────────────────────────────────────────────
+.pmm__title-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.pmm__emblem {
+    width: clamp(38px, 4vh, 56px);
+    color: @pmm-gold;
+    margin-bottom: clamp(6px, 1.2vh, 14px);
+    filter: drop-shadow(0 0 10px rgba(240, 168, 80, 0.4));
+    svg { display: block; width: 100%; height: auto; }
+    .pmm__emblem-ring { opacity: 0.92; }
+    .pmm__emblem-core { opacity: 0.95; }
+}
+
+// `.pmm__wordmark` is an <h1> — neutralise the global h1 chrome
+// (drop-shadow / text-shadow / padding / border-radius) so our own metallic
+// treatment isn't muddied by an inherited ghost shadow.
+.pmm__wordmark {
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    filter: none;
+    text-shadow: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+}
+
+.pmm__title-terraforming {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-weight: 400;
+    font-size: clamp(15px, 2.3vw, 33px);
+    letter-spacing: 0.46em;
+    text-indent: 0.46em; // compensate the trailing tracking → stays centred
+    text-transform: uppercase;
+    background: linear-gradient(180deg, #ffffff 0%, #d4deea 44%, #93a5b8 62%, #eaf0f6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.6));
+}
+
+.pmm__title-mars {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-weight: 700;
+    font-size: clamp(52px, min(11vw, 15vh), 140px);
+    letter-spacing: 0.05em;
+    text-indent: 0.05em;
+    line-height: 0.92;
+    margin-top: clamp(2px, 0.6vh, 8px);
+    background: linear-gradient(180deg,
+        #f6faff 0%,
+        #d9e3ed 28%,
+        #9fb0c2 50%,
+        #6f8093 64%,
+        #c4d0dd 84%,
+        #eef3f8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter:
+        drop-shadow(0 1px 0 rgba(255, 255, 255, 0.22))
+        drop-shadow(0 3px 1px rgba(0, 0, 0, 0.55))
+        drop-shadow(0 12px 30px rgba(240, 150, 70, 0.16))
+        drop-shadow(0 0 26px rgba(127, 200, 240, 0.14));
+}
+
+.pmm__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: clamp(8px, 1vw, 14px);
+    margin-top: clamp(8px, 1.4vh, 18px);
+    padding: 6px clamp(14px, 1.4vw, 20px);
+    border-radius: 4px;
+    background: linear-gradient(180deg, rgba(20, 28, 40, 0.82), rgba(10, 15, 23, 0.88));
+    box-shadow:
+        inset 0 0 0 1px rgba(240, 168, 80, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 0 20px rgba(240, 168, 80, 0.10);
+}
+.pmm__badge-text {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: clamp(10px, 1vw, 14px);
+    letter-spacing: clamp(3px, 0.5vw, 6px);
+    text-transform: uppercase;
+    color: @pmm-gold-bright;
+    text-shadow: 0 0 10px rgba(240, 168, 80, 0.35);
+}
+.pmm__badge-tick {
+    width: 5px;
+    height: 5px;
+    transform: rotate(45deg);
+    background: @pmm-gold;
+    box-shadow: 0 0 6px rgba(240, 168, 80, 0.6);
+}
+
+// ─── Action button stack ────────────────────────────────────────────────────
+.pmm__actions {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(11px, 1.7vh, 18px);
+    width: min(760px, 92vw);
+}
+
+// ─── One action button ──────────────────────────────────────────────────────
+.pmm-btn {
+    // accent custom-props — overridden per variant
+    --pmm-acc: @pmm-ice;
+    --pmm-acc-bright: @pmm-ice-bright;
+    --pmm-rim-rest: rgba(127, 200, 240, 0.32);
+
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: clamp(14px, 1.5vw, 22px);
+    width: 100%;
+    height: clamp(58px, min(8.5vh, 8.5vw), 88px);
+    padding: 0 clamp(16px, 1.6vw, 26px);
+    box-sizing: border-box;
+    clip-path: @pmm-btn-shape;
+    background: transparent;
+    border: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    text-align: left;
+    text-decoration: none;
+    color: @pmm-text;
+    font-family: inherit;
+    filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
+    transition:
+        transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        filter 0.25s ease;
+
+    &:hover, &:visited, &:active, &:focus {
+        text-decoration: none;
+        color: @pmm-text;
+    }
+}
+
+// plate (dark glass), beneath everything
+.pmm-btn__plate {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    clip-path: @pmm-btn-shape;
+    background: linear-gradient(180deg, @pmm-glass-top 0%, rgba(14, 20, 30, 0.9) 55%, @pmm-glass-bot 100%);
+    &::before { // top sheen
+        content: '';
+        position: absolute;
+        inset: 1px 1px auto 1px;
+        height: 42%;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0));
+    }
+}
+
+// rim / frame
+.pmm-btn__frame {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    clip-path: @pmm-btn-shape;
+    box-shadow:
+        inset 0 0 0 1px var(--pmm-rim-rest),
+        inset 0 0 0 2.5px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: box-shadow 0.25s ease;
+    pointer-events: none;
+}
+
+// diagonal shine sweep (one-shot on hover)
+.pmm-btn__sweep {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -45%;
+    width: 38%;
+    z-index: 1;
+    background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+    transform: skewX(-18deg);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pmm-btn__icon-cell {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    width: clamp(44px, 4.4vw, 58px);
+    height: clamp(44px, 4.4vw, 58px);
+    display: grid;
+    place-items: center;
+    clip-path: polygon(9px 0, 100% 0, 100% 100%, 0 100%, 0 9px);
+    background: linear-gradient(160deg, rgba(127, 200, 240, 0.14), rgba(8, 12, 18, 0.55));
+    box-shadow: inset 0 0 0 1px var(--pmm-rim-rest);
+    transition: box-shadow 0.25s ease, background 0.25s ease;
+    .pmm-btn--primary & {
+        background: linear-gradient(160deg, rgba(240, 168, 80, 0.16), rgba(18, 12, 8, 0.55));
+    }
+}
+.pmm-btn__icon {
+    width: 66%;
+    height: 66%;
+    color: var(--pmm-acc-bright);
+    filter: drop-shadow(0 0 6px rgba(127, 200, 240, 0.4));
+    .pmm-btn--primary & { filter: drop-shadow(0 0 7px rgba(240, 168, 80, 0.45)); }
+    svg { display: block; width: 100%; height: 100%; }
+}
+
+.pmm-btn__body {
+    position: relative;
+    z-index: 2;
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.pmm-btn__label {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: clamp(19px, 1.9vw, 29px);
+    letter-spacing: clamp(1px, 0.25vw, 3px);
+    text-transform: uppercase;
+    color: @pmm-text;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pmm-btn__sublabel {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: clamp(11px, 0.9vw, 13px);
+    letter-spacing: 1px;
+    color: @pmm-text-dim;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pmm-btn__chevron {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    width: clamp(18px, 1.7vw, 24px);
+    color: var(--pmm-acc-bright);
+    opacity: 0.55;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    svg { display: block; width: 100%; height: 100%; }
+}
+
+// ── Variants ──
+.pmm-btn--secondary {
+    --pmm-acc: @pmm-ice;
+    --pmm-acc-bright: @pmm-ice-bright;
+    --pmm-rim-rest: rgba(127, 200, 240, 0.30);
+}
+.pmm-btn--primary {
+    --pmm-acc: @pmm-gold;
+    --pmm-acc-bright: @pmm-gold-bright;
+    --pmm-rim-rest: rgba(240, 168, 80, 0.46);
+    // resting warm glow marks it as the primary action
+    filter:
+        drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))
+        drop-shadow(0 0 14px rgba(240, 168, 80, 0.12));
+
+    .pmm-btn__plate {
+        background: linear-gradient(180deg, rgba(46, 36, 26, 0.85) 0%, rgba(22, 16, 11, 0.92) 58%, rgba(14, 10, 8, 0.95) 100%);
+    }
+    .pmm-btn__label {
+        color: #fbf1e4;
+    }
+}
+
+// ── States ──
+.pmm-btn:hover {
+    transform: translateY(-2px);
+    filter:
+        drop-shadow(0 13px 26px rgba(0, 0, 0, 0.5))
+        drop-shadow(0 0 18px rgba(127, 200, 240, 0.20));
+    .pmm-btn__frame {
+        box-shadow:
+            inset 0 0 0 1.5px var(--pmm-acc-bright),
+            inset 0 0 0 3px rgba(0, 0, 0, 0.45),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+    .pmm-btn__icon-cell {
+        box-shadow: inset 0 0 0 1px var(--pmm-acc), 0 0 16px rgba(127, 200, 240, 0.3);
+    }
+    .pmm-btn__chevron { transform: translateX(5px); opacity: 1; }
+    .pmm-btn__sweep { animation: pmm-sweep 0.85s ease; }
+}
+.pmm-btn--primary:hover {
+    filter:
+        drop-shadow(0 13px 26px rgba(0, 0, 0, 0.5))
+        drop-shadow(0 0 20px rgba(240, 168, 80, 0.28));
+    .pmm-btn__icon-cell {
+        box-shadow: inset 0 0 0 1px var(--pmm-acc), 0 0 18px rgba(240, 168, 80, 0.34);
+    }
+}
+
+.pmm-btn:active {
+    transform: translateY(0);
+    filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.5)) brightness(0.95);
+}
+
+.pmm-btn:focus-visible {
+    outline: none;
+    .pmm-btn__frame {
+        box-shadow:
+            inset 0 0 0 1.5px var(--pmm-acc-bright),
+            inset 0 0 0 3px rgba(0, 0, 0, 0.45),
+            0 0 0 2px rgba(127, 200, 240, 0.5);
+    }
+}
+.pmm-btn--primary:focus-visible .pmm-btn__frame {
+    box-shadow:
+        inset 0 0 0 1.5px var(--pmm-acc-bright),
+        inset 0 0 0 3px rgba(0, 0, 0, 0.45),
+        0 0 0 2px rgba(240, 168, 80, 0.55);
+}
+
+@keyframes pmm-sweep {
+    from { left: -45%; opacity: 0; }
+    35%  { opacity: 0.9; }
+    to   { left: 130%; opacity: 0; }
+}
+
+// ─── Footer ─────────────────────────────────────────────────────────────────
+.pmm-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(9px, 1.3vh, 15px);
+}
+.pmm-footer__divider {
+    width: min(340px, 64vw);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(127, 200, 240, 0.30), transparent);
+}
+.pmm-footer__meta {
+    display: flex;
+    align-items: center;
+    gap: clamp(14px, 2vw, 30px);
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.pmm-footer__legacy {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: @pmm-text-dim;
+    text-decoration: none;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: clamp(11px, 1vw, 14px);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: color 0.18s ease, gap 0.18s ease;
+    &:hover, &:visited, &:active, &:focus { text-decoration: none; }
+    &:hover { color: @pmm-text; gap: 9px; }
+}
+.pmm-footer__legacy-chevron {
+    width: 13px;
+    height: 13px;
+    display: inline-flex;
+    opacity: 0.65;
+    svg { display: block; width: 100%; height: 100%; }
+}
+.pmm-footer__version {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: Prototype, Orbitron, monospace;
+    font-size: clamp(10px, 0.9vw, 12px);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(159, 178, 198, 0.58);
+}
+.pmm-footer__version-value { color: rgba(159, 178, 198, 0.85); }
+
+// ─── Premium language switcher ──────────────────────────────────────────────
+.pmm-lang {
+    display: inline-flex;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 7px;
+    background: rgba(10, 15, 23, 0.6);
+    box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.18);
+    backdrop-filter: blur(5px);
+}
+.pmm-lang__chip {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: clamp(12px, 1vw, 15px);
+    letter-spacing: 2px;
+    color: @pmm-text-dim;
+    padding: 6px clamp(12px, 1.2vw, 18px);
+    border-radius: 4px;
+    transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    &:hover { color: @pmm-text; background: rgba(127, 200, 240, 0.08); }
+    &:focus-visible { outline: none; box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.7); }
+}
+.pmm-lang__chip--active {
+    color: @pmm-gold-bright;
+    background: linear-gradient(180deg, rgba(240, 168, 80, 0.18), rgba(240, 168, 80, 0.05));
+    box-shadow: inset 0 0 0 1px rgba(240, 168, 80, 0.5);
+    &:hover { color: @pmm-gold-bright; background: linear-gradient(180deg, rgba(240, 168, 80, 0.22), rgba(240, 168, 80, 0.07)); }
+}
+
+// ─── Coming-soon stub modal ─────────────────────────────────────────────────
+.pmm-stub {
+    position: fixed;
+    inset: 0;
+    z-index: 13000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Prototype, Orbitron, sans-serif;
+}
+.pmm-stub__backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(6, 10, 16, 0.58), rgba(2, 4, 8, 0.84));
+    backdrop-filter: blur(3px);
+    animation: pmm-fade 0.2s ease;
+}
+.pmm-stub__card {
+    position: relative;
+    z-index: 1;
+    width: min(440px, 92vw);
+    box-sizing: border-box;
+    padding: clamp(26px, 4vh, 34px) clamp(26px, 3vw, 36px) clamp(22px, 3vh, 28px);
+    border-radius: 6px;
+    text-align: center;
+    color: @pmm-text;
+    background:
+        radial-gradient(125% 90% at 50% -8%, rgba(127, 200, 240, 0.10), rgba(127, 200, 240, 0) 55%),
+        linear-gradient(180deg, rgba(18, 28, 42, 0.97) 0%, rgba(9, 16, 26, 0.985) 100%);
+    box-shadow:
+        0 0 0 1px rgba(127, 200, 240, 0.24),
+        inset 0 0 100px rgba(0, 0, 0, 0.3),
+        0 30px 64px rgba(0, 0, 0, 0.62),
+        0 0 56px rgba(127, 200, 240, 0.1);
+    animation: pmm-pop 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pmm-stub__corner {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+    border-color: @pmm-ice;
+    opacity: 0.7;
+    filter: drop-shadow(0 0 6px rgba(127, 200, 240, 0.4));
+    &--tl { top: -7px; left: -7px;     border-top: 2px solid; border-left: 2px solid; }
+    &--tr { top: -7px; right: -7px;    border-top: 2px solid; border-right: 2px solid; }
+    &--bl { bottom: -7px; left: -7px;  border-bottom: 2px solid; border-left: 2px solid; }
+    &--br { bottom: -7px; right: -7px; border-bottom: 2px solid; border-right: 2px solid; }
+}
+.pmm-stub__badge {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: @pmm-ice-bright;
+    padding: 4px 13px;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.4);
+    margin-bottom: 16px;
+}
+.pmm-stub__title {
+    // neutralise the global h2 chrome (font-size / drop-shadow / text-shadow)
+    font-size: clamp(21px, 2.4vw, 29px);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin: 0 0 12px;
+    filter: none;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    color: @pmm-text;
+}
+.pmm-stub__body {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    color: @pmm-text-dim;
+    margin: 0 0 22px;
+}
+.pmm-stub__actions {
+    display: flex;
+    justify-content: center;
+}
+.pmm-stub__close {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    cursor: pointer;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: @pmm-ice-bright;
+    padding: 11px 30px;
+    border-radius: 4px;
+    background: linear-gradient(180deg, rgba(26, 38, 54, 0.9), rgba(12, 18, 28, 0.94));
+    box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    transition: box-shadow 0.2s ease, transform 0.15s ease, color 0.2s ease;
+    &:hover { color: #fff; box-shadow: inset 0 0 0 1px rgba(174, 224, 255, 0.8), 0 0 16px rgba(127, 200, 240, 0.25); }
+    &:active { transform: translateY(1px); }
+    &:focus-visible { outline: none; box-shadow: inset 0 0 0 1px rgba(174, 224, 255, 0.9), 0 0 0 2px rgba(127, 200, 240, 0.5); }
+}
+
+@keyframes pmm-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pmm-pop {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+// ─── Ambient background drift (very slow, restrained) ───────────────────────
+@media (prefers-reduced-motion: no-preference) {
+    .pmm__bg {
+        animation: pmm-drift 52s ease-in-out infinite alternate;
+    }
+}
+@keyframes pmm-drift {
+    from { transform: scale(1.03); }
+    to   { transform: scale(1.08) translate(-1%, -1.4%); }
+}
+
+// ─── Reduced motion — calm everything ───────────────────────────────────────
+@media (prefers-reduced-motion: reduce) {
+    .pmm__bg { animation: none; }
+    .pmm-btn, .pmm-btn__frame, .pmm-btn__icon-cell, .pmm-btn__chevron,
+    .pmm-footer__legacy, .pmm-lang__chip {
+        transition: none;
+    }
+    .pmm-btn:hover { transform: none; }
+    .pmm-btn:hover .pmm-btn__sweep { animation: none; }
+    .pmm-btn:hover .pmm-btn__chevron { transform: none; }
+    .pmm-stub__backdrop, .pmm-stub__card { animation: none; }
+}
+
+// ─── Compact-height desktop safety (e.g. 1366×768 / fullscreen TV) ──────────
+@media (max-height: 720px) {
+    .pmm__content { gap: clamp(10px, 2vh, 22px); }
+    .pmm__title-mars { font-size: clamp(46px, min(9.5vw, 14vh), 110px); }
+}

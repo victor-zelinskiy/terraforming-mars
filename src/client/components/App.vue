@@ -29,7 +29,8 @@
       </dialog>
     </section>
     <div class="main-container">
-      <start-screen v-if="screen === 'start-screen'"></start-screen>
+      <premium-main-menu v-if="screen === 'main-menu'"></premium-main-menu>
+      <start-screen v-else-if="screen === 'start-screen'"></start-screen>
       <create-game-form
         v-else-if="screen === 'create-game-form'"
       ></create-game-form>
@@ -236,6 +237,10 @@ const LoadGameForm = defineAsyncComponent(() => import(/* webpackChunkName: "loa
 const PlayerHome = defineAsyncComponent(() => import(/* webpackChunkName: "player-home" */ '@/client/components/PlayerHome.vue'));
 const SpectatorHome = defineAsyncComponent(() => import(/* webpackChunkName: "spectator-home" */ '@/client/components/SpectatorHome.vue'));
 const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
+// Premium sci-fi launcher — the new default landing screen ('/'). The legacy
+// StartScreen lives on at '/legacy'. Async so its background/assets only load
+// when the menu is actually shown.
+const PremiumMainMenu = defineAsyncComponent(() => import(/* webpackChunkName: "main-menu" */ '@/client/components/mainMenu/PremiumMainMenu.vue'));
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
@@ -302,6 +307,7 @@ type Screen = 'admin' |
             'help' |
             'load' |
             'login-home' |
+            'main-menu' |
             'player-home' |
             'spectator-home' |
             'start-screen' |
@@ -372,6 +378,7 @@ export default defineComponent({
     };
   },
   components: {
+    'premium-main-menu': PremiumMainMenu,
     'start-screen': StartScreen,
     'create-game-form': CreateGameForm,
     'load-game-form': LoadGameForm,
@@ -722,6 +729,10 @@ export default defineComponent({
       app.screen = 'cards';
     } else if (currentPathname === paths.HELP) {
       app.screen = 'help';
+    } else if (currentPathname === paths.LEGACY) {
+      // The old landing page is preserved here as a fallback while the premium
+      // main menu is the new default entry point.
+      app.screen = 'start-screen';
     } else if (currentPathname === paths.SPECTATOR) {
       app.updateSpectator();
     } else if (currentPathname === paths.ADMIN) {
@@ -729,7 +740,8 @@ export default defineComponent({
     } else if (currentPathname === paths.LOGIN) {
       app.screen = 'login-home';
     } else {
-      app.screen = 'start-screen';
+      // Default landing ('/') → the new premium launcher.
+      app.screen = 'main-menu';
     }
   },
 });
