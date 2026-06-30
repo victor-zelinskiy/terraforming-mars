@@ -5,7 +5,7 @@
                 <a class="ma-clickable" href="#" v-on:click.prevent="toggleList()" v-i18n>Milestones</a>
                 <span v-for="milestone in milestones.filter((m) => m.playerName)" :key="milestone.name" class="milestone-award-inline paid" :title="milestone.playerName">
                     <span v-i18n>{{ milestone.name }}</span>
-                    <span class="ma-player-cube"><i :class="'board-cube board-cube--'+milestone.color" /></span>
+                    <span class="ma-player-cube"><player-cube :color="milestone.color" :size="14" /></span>
                 </span>
                 <span v-if="isLearnerModeOn()">
                     <span v-for="(spotPrice, index) in getAvailableMilestoneSpots()" :key="index" class="milestone-award-inline unpaid">
@@ -33,6 +33,7 @@
 import {defineComponent} from 'vue';
 import {MAX_MILESTONES, MILESTONE_COST} from '@/common/constants';
 import Milestone from '@/client/components/Milestone.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 import {ClaimedMilestoneModel} from '@/common/models/ClaimedMilestoneModel';
 import {Preferences, PreferencesManager} from '@/client/utils/PreferencesManager';
 
@@ -60,6 +61,7 @@ export default defineComponent({
   },
   components: {
     Milestone,
+    'player-cube': PlayerCube,
   },
   methods: {
     toggleDescription() {

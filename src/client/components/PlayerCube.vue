@@ -4,16 +4,24 @@
          can't collide). Lifted out of the 3D scene; never lays out. -->
     <svg class="player-cube__defs" width="0" height="0" aria-hidden="true" focusable="false">
       <defs>
-        <!-- Per-face acrylic DEPTH: lighter at the lit (top) edge → richer and
-             darker toward the base. This vertical body gradient is the core of
-             the "solid satin acrylic" read — it turns each flat fill into a
-             material with internal light falloff. Colour-agnostic (white/black
-             alpha) so it layers over any player colour. -->
+        <!-- TOP-face depth: a gentle light-top → soft-base falloff. The top is
+             the LIT face, so it stays mostly light (the sheen sits on it). -->
         <linearGradient :id="depthId" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.17" />
-          <stop offset="34%" stop-color="#ffffff" stop-opacity="0.03" />
-          <stop offset="60%" stop-color="#000000" stop-opacity="0.05" />
-          <stop offset="100%" stop-color="#000000" stop-opacity="0.30" />
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16" />
+          <stop offset="40%" stop-color="#ffffff" stop-opacity="0.02" />
+          <stop offset="100%" stop-color="#000000" stop-opacity="0.20" />
+        </linearGradient>
+        <!-- SIDE-face depth: the WEIGHT / SEATING gradient. A light upper edge
+             (where it meets the lit top) falling to a HEAVY, concentrated dark
+             BASE — the cube's mass collects at the support point and the lower
+             body reads as the contact zone (this is the on-cube half of the
+             grounding: top light, base heavy + pressed). -->
+        <linearGradient :id="depthSideId" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10" />
+          <stop offset="30%" stop-color="#ffffff" stop-opacity="0" />
+          <stop offset="55%" stop-color="#000000" stop-opacity="0.06" />
+          <stop offset="84%" stop-color="#000000" stop-opacity="0.26" />
+          <stop offset="100%" stop-color="#000000" stop-opacity="0.46" />
         </linearGradient>
         <!-- Top-face SATIN sheen: a soft, broad, off-centre catch of light — a
              controlled semi-gloss, NOT a wet glossy hotspot. -->
@@ -22,11 +30,14 @@
           <stop offset="46%" stop-color="#ffffff" stop-opacity="0.08" />
           <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
         </radialGradient>
-        <!-- Side-face ambient occlusion: deepen the lower-outer corner so the
-             form reads as mass, not a flat panel. -->
-        <radialGradient :id="aoId" cx="62%" cy="100%" r="96%">
-          <stop offset="42%" stop-color="#000000" stop-opacity="0" />
-          <stop offset="100%" stop-color="#000000" stop-opacity="0.24" />
+        <!-- Side-face ambient occlusion: deepen the lower-OUTER corner (the
+             point furthest from the light + nearest the surface) so the corner
+             reads as the deepest contact. Eased back since `depthSideId` now
+             carries the base mass — together they keep the base rich, not
+             muddy. -->
+        <radialGradient :id="aoId" cx="64%" cy="104%" r="92%">
+          <stop offset="44%" stop-color="#000000" stop-opacity="0" />
+          <stop offset="100%" stop-color="#000000" stop-opacity="0.16" />
         </radialGradient>
       </defs>
     </svg>
@@ -35,11 +46,11 @@
 
     <span class="player-cube__scene">
       <span class="player-cube__cube">
-        <!-- right (deep shadow side): colour → depth → AO → lit-edge bevel -->
+        <!-- right (deep shadow side): colour → weighted depth → AO → bevels -->
         <span class="player-cube__face player-cube__face--right">
           <svg class="player-cube__svg" viewBox="0 0 64 64" preserveAspectRatio="none">
             <rect class="player-cube__base" width="64" height="64" />
-            <rect width="64" height="64" :fill="fillUrl(depthId)" />
+            <rect width="64" height="64" :fill="fillUrl(depthSideId)" />
             <rect width="64" height="64" :fill="fillUrl(aoId)" />
             <path class="player-cube__bevel" d="M0.9 0 V64 M0 0.9 H64" />
             <path class="player-cube__bevel-lo" d="M0 63.1 H64 M63.1 0 V64" />
@@ -49,7 +60,7 @@
         <span class="player-cube__face player-cube__face--left">
           <svg class="player-cube__svg" viewBox="0 0 64 64" preserveAspectRatio="none">
             <rect class="player-cube__base" width="64" height="64" />
-            <rect width="64" height="64" :fill="fillUrl(depthId)" />
+            <rect width="64" height="64" :fill="fillUrl(depthSideId)" />
             <rect width="64" height="64" :fill="fillUrl(aoId)" />
             <path class="player-cube__bevel" d="M0.9 0 V64 M0 0.9 H64" />
             <path class="player-cube__bevel-lo" d="M0 63.1 H64 M63.1 0 V64" />
@@ -143,8 +154,13 @@ function luma(c: RGB): number {
 export default defineComponent({
   name: 'player-cube',
   props: {
+    // Accepts `Color | undefined` so call sites can bind a model field that is
+    // optional in its type (a milestone/award/space colour that is only present
+    // once a player owns it). The cube only renders when the owner exists, so
+    // `color` is a real Color at runtime; an undefined slips through as the
+    // neutral fallback rather than a type error at every guarded call site.
     color: {
-      type: String as () => Color,
+      type: String as unknown as PropType<Color | undefined>,
       required: true,
     },
     // Footprint in px (the projected cube fits inside a size×size box).
@@ -181,8 +197,11 @@ export default defineComponent({
     return {uid: ++pcUid};
   },
   computed: {
+    resolvedColor(): Color {
+      return this.color ?? 'neutral';
+    },
     base(): RGB {
-      return BASE_RGB[this.color] ?? BASE_RGB.neutral;
+      return BASE_RGB[this.resolvedColor] ?? BASE_RGB.neutral;
     },
     styleVars(): Record<string, string> {
       const base = this.base;
@@ -211,12 +230,15 @@ export default defineComponent({
     },
     rootClass(): Record<string, boolean> {
       return {
-        ['player-cube--' + this.color]: true,
+        ['player-cube--' + this.resolvedColor]: true,
         'player-cube--animate-in': this.animateIn === true,
       };
     },
     depthId(): string {
       return 'pc-depth-' + this.uid;
+    },
+    depthSideId(): string {
+      return 'pc-depth-side-' + this.uid;
     },
     sheenId(): string {
       return 'pc-sheen-' + this.uid;
@@ -231,7 +253,7 @@ export default defineComponent({
       return this.overlaySymbol === true;
     },
     symbolGlyph(): string {
-      return SYMBOL[this.color] ?? SYMBOL.neutral;
+      return SYMBOL[this.resolvedColor] ?? SYMBOL.neutral;
     },
   },
   methods: {

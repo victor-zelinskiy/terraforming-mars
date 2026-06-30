@@ -99,7 +99,7 @@ describe('Award', () => {
       props: {award},
     });
 
-    expect(wrapper.find(`.board-cube--${award.color}`).exists()).to.be.true;
+    expect(wrapper.find(`.player-cube--${award.color}`).exists()).to.be.true;
   });
 
   it('creates correct css class from award name', () => {

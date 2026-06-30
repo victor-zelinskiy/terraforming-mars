@@ -21,7 +21,7 @@
           <div class="milestone-floating-tooltip-desc" v-i18n>{{ description }}</div>
           <div class="milestone-floating-tooltip-claimedby">
             <span v-i18n>claimed by</span>
-            <i class="board-cube" :class="`board-cube--${milestone.color}`"></i>
+            <player-cube :color="milestone.color" :size="14"></player-cube>
             <span>{{ milestone.playerName }}</span>
           </div>
         </template>
@@ -37,11 +37,15 @@ import {ClaimedMilestoneModel} from '@/common/models/ClaimedMilestoneModel';
 import {MAX_MILESTONES} from '@/common/constants';
 import {getMilestone} from '@/client/MilestoneAwardManifest';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 
 type TooltipPos = {top: number; left: number};
 
 export default defineComponent({
   name: 'MilestoneClaimedBadge',
+  components: {
+    'player-cube': PlayerCube,
+  },
   props: {
     // Undefined means the slot is empty (the milestone hasn't been claimed
     // yet). The badge is still rendered — just as an empty outlined slot
