@@ -168,7 +168,9 @@ export default defineComponent({
       return TAB_COMPONENT[this.activeTab];
     },
     newGameHref(): string {
-      return paths.NEW_GAME;
+      // The premium "Mission Control" create-game screen — the self-contained
+      // replacement for the legacy create form (no legacy-UI dependency).
+      return paths.NEW_GAME_PREMIUM;
     },
     rematch(): RematchModel | undefined {
       return rematchState.model;

@@ -897,57 +897,86 @@
 }
 
 /* ============================================================ */
-/*   Icon-only Legacy UI debug toggle                            */
+/*   Game exit button (App-level corner affordance)              */
 /* ============================================================ */
 
-/* Icon-only "exit to main menu" button — same 22×22 corner footprint as the
-   former legacy-UI toggle, so the sidebar width is unchanged. */
-.planet-sidebar .planet-home-btn {
-    position: absolute;
-    bottom: 5px;
-    right: 5px;
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    background: rgba(14, 22, 34, 0.55);
-    border: 1px solid rgba(60, 90, 130, 0.5);
-    border-radius: 3px;
+/*
+ * Persistent "exit to main menu" button. Rendered at App level (NOT inside the
+ * sidebar) so it is reachable in EVERY in-game state, including the initial
+ * draft where the right sidebar is covered / absent. Fixed in the bottom-right
+ * corner, floating OVER the right bar; capped at the bar's own width so it is
+ * never wider than it. z-index sits above the initial-draft overlay (12500) so
+ * a draft in progress can't bury it; it yields to transient reveals /
+ * notifications (12600+) and is hidden outright once the game ends.
+ */
+.game-exit-btn {
+    position: fixed;
+    right: 7px;
+    bottom: 8px;
+    z-index: 12520;
+    width: 50px;
+    max-width: var(--right-sidebar-width, 62px);
+    padding: 6px 0 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: linear-gradient(180deg, rgba(18, 26, 38, 0.92), rgba(10, 15, 23, 0.95));
+    border: 1px solid rgba(70, 100, 140, 0.5);
+    border-radius: 7px;
+    color: rgba(206, 220, 240, 0.9);
     cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(6px);
     transition:
         border-color 180ms ease,
         background 180ms ease,
-        opacity 180ms ease,
-        color 180ms ease;
-    opacity: 0.55;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(200, 215, 235, 0.85);
+        color 180ms ease,
+        transform 160ms ease,
+        box-shadow 180ms ease;
 }
 
-.planet-sidebar .planet-home-btn:hover {
-    opacity: 1;
-    border-color: rgba(240, 168, 80, 0.7);
-    background: rgba(30, 24, 16, 0.82);
+.game-exit-btn:hover {
+    border-color: rgba(240, 168, 80, 0.75);
+    background: linear-gradient(180deg, rgba(36, 28, 16, 0.95), rgba(20, 15, 9, 0.96));
     color: rgb(255, 199, 126);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(240, 168, 80, 0.25);
 }
 
-.planet-sidebar .planet-home-btn:focus-visible {
+.game-exit-btn:focus-visible {
     outline: none;
-    opacity: 1;
-    border-color: rgba(240, 168, 80, 0.8);
-    box-shadow: 0 0 0 2px rgba(240, 168, 80, 0.45);
+    border-color: rgba(240, 168, 80, 0.85);
+    color: rgb(255, 199, 126);
+    box-shadow: 0 0 0 2px rgba(240, 168, 80, 0.5);
 }
 
-.planet-sidebar .planet-home-btn__glyph {
+.game-exit-btn__glyph {
     display: inline-flex;
-    width: 14px;
-    height: 14px;
+    width: 22px;
+    height: 22px;
 }
-.planet-sidebar .planet-home-btn__glyph svg {
+.game-exit-btn__glyph svg {
     width: 100%;
     height: 100%;
     display: block;
+}
+
+.game-exit-btn__label {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 8.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1;
+    opacity: 0.92;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .game-exit-btn,
+    .game-exit-btn:hover {
+        transition: none;
+        transform: none;
+    }
 }
 
 /* ============================================================ */
