@@ -6,6 +6,8 @@
     <EffectsPlayground v-if="showEffectsPlayground" />
     <!-- Dev-only actions-overlay visual playground (URL: ?actionsPlayground). -->
     <ActionsPlayground v-if="showActionsPlayground" />
+    <!-- Dev-only player-cube visual playground (URL: ?cubePlayground). -->
+    <PlayerCubePlayground v-if="showCubePlayground" />
     <!--
       Game-screen atmosphere backdrop. Mounted ONLY on in-game screens
       (player-home / spectator-home) — start / create / load / the-end
@@ -259,6 +261,7 @@ const EndgameExperience = defineAsyncComponent(() => import(/* webpackChunkName:
 const ModalInputPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "modal-input-playground" */ '@/client/components/modalInputs/ModalInputPlayground.vue'));
 const EffectsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "effects-playground" */ '@/client/components/effects/EffectsPlayground.vue'));
 const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "actions-playground" */ '@/client/components/actions/ActionsPlayground.vue'));
+const PlayerCubePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "player-cube-playground" */ '@/client/components/PlayerCubePlayground.vue'));
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
@@ -391,6 +394,7 @@ export default defineComponent({
     ModalInputPlayground,
     EffectsPlayground,
     ActionsPlayground,
+    PlayerCubePlayground,
     JournalPanel,
     NotificationLayer,
     TurnHandoffLayer,
@@ -444,6 +448,11 @@ export default defineComponent({
     // `?actionsPlayground`. Never shown in normal play.
     showActionsPlayground(): boolean {
       return window.location.search.includes('actionsPlayground');
+    },
+    // Dev-only: render the player-cube playground when the URL carries
+    // `?cubePlayground`. Never shown in normal play.
+    showCubePlayground(): boolean {
+      return window.location.search.includes('cubePlayground');
     },
     // The active view (player or spectator) ONLY when its game has ended —
     // drives the App-level EndgameExperience mount. Undefined mid-game.

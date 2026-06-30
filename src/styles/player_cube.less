@@ -1,0 +1,444 @@
+// ─────────────────────────────────────────────────────────────────────────
+// Premium isometric 3D player cube — `PlayerCube.vue`
+//
+// A genuine CSS 3D cube (`transform-style: preserve-3d`) with SVG-art faces.
+// Replaces the flat `board_icons.png` sprite cubes (`.board-cube--<color>`)
+// with a vector-crisp, art-directed token that:
+//   • reads as a real lit cube (3 visible faces — top / left / right — each
+//     with its own shade + diagonal sheen + ambient occlusion + bevel edge,
+//     the top face also carrying a glossy specular highlight),
+//   • sits in a `preserve-3d` scene so it can TUMBLE in true 3D on placement
+//     (the `--animate-in` keyframe below is the working pilot of that),
+//   • is fully prop-driven: every shade / glow / symbol colour rides CSS vars
+//     set inline by the component from the game's player palette, and the
+//     whole thing scales from a single `--pc-size`.
+//
+// IMPORTANT — do NOT put a CSS `filter` on `.player-cube`, `.player-cube__scene`
+// or `.player-cube__cube`: `filter` creates a flattening context and would
+// collapse the 3D. The old `.premium-board-token()` lift (which used `filter`)
+// is therefore replaced here by a sibling `__glow` bloom + `__shadow` contact
+// shadow (both flat elements that may safely blur), plus the per-face SVG
+// lighting. Consumers must NOT re-apply `.premium-board-token()` to the cube.
+// ─────────────────────────────────────────────────────────────────────────
+
+.player-cube {
+	// ── public knobs ────────────────────────────────────────────────────
+	--pc-size: 21px;
+	// Viewing angle. The Mars board camera looks NEARLY STRAIGHT DOWN, so the
+	// default is a steep top-down tilt: the TOP face dominates and the side
+	// faces are thin slivers (just enough to read as a 3D block, not a cube
+	// lying on its side). Override per context if a shallower iso is wanted.
+	--pc-rx: -68deg;   // tilt toward camera (more negative → more top-down)
+	--pc-ry: -16deg;   // turn (small → near-frontal block, thin single side)
+	--pc-ty: 0%;       // vertical centring nudge of the projection
+	// ── derived geometry ────────────────────────────────────────────────
+	--pc-edge: calc(var(--pc-size) * 0.66);   // cube edge; projection ≈ footprint
+	--pc-half: calc(var(--pc-edge) / 2);
+
+	position: relative;
+	display: inline-block;
+	width: var(--pc-size);
+	height: var(--pc-size);
+	vertical-align: middle;
+	// colour vars (--pc-top / --pc-left / --pc-right / --pc-edge-hi / --pc-glow
+	// / --pc-symbol) are injected inline by PlayerCube.vue.
+
+	// defs-only SVG (gradients) — zero-size, never lays out, lifted out of the
+	// 3D scene so it doesn't get a phantom 3D position.
+	&__defs {
+		position: absolute;
+		width: 0;
+		height: 0;
+		pointer-events: none;
+	}
+
+	// Soft coloured bloom behind the cube — the "lit token" premium glow that
+	// used to come from `.premium-board-token()`'s warm drop-shadows. Safe to
+	// blur: it's a flat sibling, not a 3D ancestor.
+	&__glow {
+		position: absolute;
+		// A SUBTLE lit-token bloom — tight and faint so the cube reads as a
+		// neat tile marker, not a glowing orb that dominates the hex. Biased
+		// slightly upward so it doesn't wash over the contact shadow below.
+		inset: -12%;
+		transform: translateY(-8%);
+		border-radius: 50%;
+		background: radial-gradient(closest-side, var(--pc-glow), transparent 72%);
+		opacity: 0.5;
+		filter: blur(calc(var(--pc-size) * 0.1));
+		z-index: 0;
+		pointer-events: none;
+	}
+
+	// Grounding contact shadow on the "floor" beneath the cube. NOTE: a shadow
+	// is dark-on-dark and therefore (correctly) invisible on a near-black
+	// surface — it reads on the actual board tiles / light panels. Painted in
+	// its own z-layer ABOVE the glow so it is never washed out by the bloom.
+	&__shadow {
+		position: absolute;
+		left: 50%;
+		bottom: calc(var(--pc-size) * -0.02);
+		width: calc(var(--pc-size) * 0.86);
+		height: calc(var(--pc-size) * 0.3);
+		transform: translateX(-50%);
+		background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.34) 42%, transparent 72%);
+		filter: blur(1.2px);
+		opacity: 1;
+		z-index: 0;
+		pointer-events: none;
+	}
+
+	// The scene is the FLAT layer that carries the placement animation. It is
+	// deliberately NOT `preserve-3d` and has NO perspective: we render the cube
+	// as a pure orthographic isometric (parallel projection — clean, premium
+	// boardgame look) and the drop/squash animation runs HERE, on a flat
+	// element, NOT on the 3D cube. Animating `transform` directly on the
+	// `preserve-3d` cube makes Chromium/WebKit composite + FLATTEN it to a
+	// single face (the "one grain on replay" bug); animating its flat parent
+	// instead moves the already-3D-rendered cube without touching its 3D.
+	&__scene {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+	}
+
+	&__cube {
+		position: absolute;
+		width: var(--pc-edge);
+		height: var(--pc-edge);
+		left: calc((var(--pc-size) - var(--pc-edge)) / 2);
+		top: calc((var(--pc-size) - var(--pc-edge)) / 2);
+		// `-webkit-` duplicates are REQUIRED — `lessc` does not autoprefix, and
+		// some Chromium builds flatten the cube without `-webkit-transform-style`.
+		-webkit-transform-style: preserve-3d;
+		transform-style: preserve-3d;
+		// Rest pose — STATIC, never animated (the drop animation runs on the
+		// flat `__scene`; see its comment). Angle is driven by the `--pc-rx` /
+		// `--pc-ry` knobs (top-down by default) so the viewing angle is tunable
+		// per context without touching geometry; `--pc-ty` re-centres the
+		// projection in the footprint box.
+		-webkit-transform:
+			translateY(var(--pc-ty))
+			rotateX(var(--pc-rx))
+			rotateY(var(--pc-ry));
+		transform:
+			translateY(var(--pc-ty))
+			rotateX(var(--pc-rx))
+			rotateY(var(--pc-ry));
+		transform-origin: 50% 50%;
+	}
+
+	&__face {
+		position: absolute;
+		// Faces are expanded ~0.8px and pulled back by half of that so adjacent
+		// faces OVERLAP slightly at the shared edge — kills the 1px hairline
+		// seam CSS 3D cubes show at the joins.
+		width: calc(var(--pc-edge) + 0.8px);
+		height: calc(var(--pc-edge) + 0.8px);
+		left: -0.4px;
+		top: -0.4px;
+		-webkit-backface-visibility: hidden;
+		backface-visibility: hidden;
+	}
+
+	&__face--top {
+		--pc-face: var(--pc-top);
+		-webkit-transform: rotateX(90deg) translateZ(var(--pc-half));
+		transform: rotateX(90deg) translateZ(var(--pc-half));
+	}
+
+	&__face--left {
+		--pc-face: var(--pc-left);
+		-webkit-transform: translateZ(var(--pc-half));
+		transform: translateZ(var(--pc-half));
+	}
+
+	&__face--right {
+		--pc-face: var(--pc-right);
+		-webkit-transform: rotateY(90deg) translateZ(var(--pc-half));
+		transform: rotateY(90deg) translateZ(var(--pc-half));
+	}
+
+	&__svg {
+		display: block;
+		width: 100%;
+		height: 100%;
+	}
+
+	// The flat face colour (lit/shaded per face role). url(#…) sheen / AO /
+	// gloss layers are set on the rects directly in the template.
+	&__base {
+		fill: var(--pc-face);
+	}
+
+	// Crisp machined-edge highlight along the lit edges of each face — gives
+	// the cube a clean chamfered "moulded resin" edge instead of a flat join.
+	&__bevel {
+		fill: none;
+		stroke: var(--pc-edge-hi);
+		stroke-width: 2;
+		opacity: 0.72;
+		stroke-linecap: round;
+	}
+
+	// Colour-blind / symbol-overlay glyph. Screen-facing (NOT in the 3D scene)
+	// so it always stays readable; centred on the cube's visual top.
+	&__symbol {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding-bottom: calc(var(--pc-size) * 0.06);
+		font-size: calc(var(--pc-size) * 0.5);
+		font-weight: 700;
+		line-height: 1;
+		color: var(--pc-symbol, #fff);
+		text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.55);
+		z-index: 3;
+		pointer-events: none;
+	}
+}
+
+// ── Placement animation — the working pilot of the "выкладывание" feel ──────
+//
+// A drop from above + squash-on-land + a small settle bounce, with a short
+// rotational overshoot that resolves back to the rest pose. The rotation
+// deltas are kept small so the 3 visible faces never expose a (currently
+// unmodelled) back face. For a FULL tumble later: add the 3 back faces
+// (bottom / back-left / back-right) and widen the rotateX/rotateY range here.
+// Soft, weighty placement: drop (gravity ease-IN, accelerating) → a slight
+// motion-stretch just before contact → a gentle squash on landing → a small,
+// slow settle to rest. The smoothness comes from PER-KEYFRAME easing
+// (`animation-timing-function` declared inside each step controls the segment
+// that STARTS at it), so the phases blend instead of snapping at the stops —
+// that snapping was the old "рваная" feel. No rotateZ (a wobble read as
+// jerky, not premium) and no vertical rebound (a soft landing settles by
+// scale, it doesn't bounce back up).
+//
+// Authored as a FLAT transform (translate / scale only, % units) so it runs on
+// `.player-cube__scene` and never touches the cube's 3D. (For a true 360°
+// tumble later: model the 3 back faces, give `.player-cube__cube` its OWN
+// keyframe varying rotateX/rotateY, and keep `will-change` off it.)
+@keyframes pc-place {
+	0% {
+		transform: translateY(-210%) scale(0.94, 0.99);
+		opacity: 0;
+		animation-timing-function: cubic-bezier(0.4, 0.04, 0.62, 0.4); // gravity — accelerate down
+	}
+	44% {
+		transform: translateY(-2%) scale(0.97, 1.04); // motion-stretch, decelerating into contact
+		opacity: 1;
+		animation-timing-function: cubic-bezier(0.28, 0.5, 0.45, 1);
+	}
+	62% {
+		transform: translateY(0) scale(1.05, 0.92); // contact — gentle squash
+		animation-timing-function: cubic-bezier(0.3, 0, 0.35, 1);
+	}
+	82% {
+		transform: translateY(0) scale(0.99, 1.012); // soft recover (scale only — no bounce-up)
+		animation-timing-function: ease-in-out;
+	}
+	100% {
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes pc-place-shadow {
+	0% {
+		opacity: 0;
+		transform: translateX(-50%) scale(0.4, 0.6);
+		animation-timing-function: cubic-bezier(0.4, 0.04, 0.62, 0.4);
+	}
+	44% {
+		opacity: 0.5;
+		transform: translateX(-50%) scale(0.82, 0.86);
+		animation-timing-function: cubic-bezier(0.28, 0.5, 0.45, 1);
+	}
+	62% {
+		opacity: 1;
+		transform: translateX(-50%) scale(1.12, 1.08); // spreads on impact = weight
+	}
+	100% {
+		opacity: 0.9;
+		transform: translateX(-50%) scale(1);
+	}
+}
+
+@keyframes pc-place-glow {
+	0%   { opacity: 0;    transform: translateY(-12%) scale(0.6); }
+	62%  { opacity: 0.95; transform: translateY(-12%) scale(1.1); }
+	100% { opacity: 0.85; transform: translateY(-12%) scale(1); }
+}
+
+.player-cube--animate-in {
+	// `linear` at the animation level → the per-keyframe easings above fully
+	// govern the motion.
+	.player-cube__scene {
+		animation: pc-place 0.9s linear both;
+	}
+	.player-cube__shadow {
+		animation: pc-place-shadow 0.9s linear both;
+	}
+	.player-cube__glow {
+		animation: pc-place-glow 0.9s ease both;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.player-cube--animate-in {
+		.player-cube__scene,
+		.player-cube__shadow,
+		.player-cube__glow {
+			animation: none;
+		}
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Dev-only QA page — ?cubePlayground (PlayerCubePlayground.vue)
+// ─────────────────────────────────────────────────────────────────────────
+.cube-playground {
+	position: fixed;
+	inset: 0;
+	z-index: 20000;
+	overflow: auto;
+	padding: 24px 32px 64px;
+	font-family: 'Prototype', 'Orbitron', sans-serif;
+	color: #d9e7f0;
+	background:
+		radial-gradient(1200px 600px at 50% -10%, rgba(40, 70, 96, 0.45), transparent 70%),
+		#0c1116;
+
+	&__bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 12px;
+		margin-bottom: 22px;
+	}
+
+	&__title {
+		font-size: 18px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #66e2ff;
+		margin-right: 12px;
+	}
+
+	&__btn {
+		appearance: none;
+		border: 1px solid rgba(102, 226, 255, 0.4);
+		background: rgba(20, 40, 54, 0.7);
+		color: #cfe9f4;
+		padding: 6px 14px;
+		border-radius: 6px;
+		cursor: pointer;
+		font-size: 12.5px;
+		letter-spacing: 0.04em;
+		transition: background 0.15s, border-color 0.15s;
+
+		&:hover { background: rgba(34, 64, 84, 0.9); border-color: rgba(102, 226, 255, 0.75); }
+		&--active { background: rgba(102, 226, 255, 0.22); border-color: #66e2ff; color: #eaffff; }
+	}
+
+	&__surfaces {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 18px;
+		margin-bottom: 28px;
+	}
+
+	&__surface {
+		flex: 1 1 320px;
+		border-radius: 10px;
+		padding: 18px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+
+		&-label {
+			font-size: 11px;
+			letter-spacing: 0.16em;
+			text-transform: uppercase;
+			opacity: 0.7;
+			margin-bottom: 14px;
+		}
+
+		// representative backgrounds the cube must sit on
+		&--dark  { background: #141a20; }
+		&--light { background: #d7ccb6; color: #2a2a2a; }
+		&--mars  { background: radial-gradient(circle at 40% 35%, #b5683f, #7a3a1e 60%, #5a2a14); }
+		&--panel { background: linear-gradient(160deg, #1b2733, #0e151c); }
+	}
+
+	&__row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		gap: 22px;
+	}
+
+	&__swatch {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		min-width: 64px;
+
+		&-name {
+			font-size: 10.5px;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			opacity: 0.65;
+		}
+	}
+
+	&__sizes {
+		display: flex;
+		align-items: flex-end;
+		gap: 26px;
+		padding: 12px 4px;
+	}
+
+	&__size {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		font-size: 10px;
+		opacity: 0.7;
+	}
+
+	&__compare {
+		display: flex;
+		align-items: center;
+		gap: 34px;
+		margin-top: 8px;
+
+		&-col {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 10px;
+			font-size: 10.5px;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			opacity: 0.8;
+		}
+
+		// the legacy sprite cube for side-by-side reference
+		.board-cube {
+			position: static;
+			margin: 0;
+		}
+	}
+
+	&__section-head {
+		font-size: 13px;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: #8fb6cc;
+		margin: 30px 0 12px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		padding-bottom: 6px;
+	}
+}
