@@ -20,10 +20,16 @@ export class EcologicalZoneAres extends EcologicalZone {
         cardNumber: 'A08',
         renderData: CardRenderer.builder((b) => {
           b.effect('When you play an animal or plant tag INCLUDING THESE, add an animal to this card.', (eb) => {
-            eb.tag(Tag.ANIMAL).slash().tag(Tag.PLANT).startEffect;
-            eb.resource(CardResource.ANIMAL).tile(TileType.ECOLOGICAL_ZONE, false, true);
+            eb.tag(Tag.ANIMAL).slash().tag(Tag.PLANT).startEffect.resource(CardResource.ANIMAL);
           }).br;
-          b.vpText('The tile grants an ADJACENCY BONUS of 1 animal. 1 VP per 2 animals on this card.');
+          // Render the Ares ecological-zone tile as the card's TILE GRAPHIC.
+          // `isAres = true` selects `card-tile-ecological-zone-ares` (the custom
+          // ares_ecological_zone.png) instead of the generic symbol tile. It
+          // gets its OWN row (`.br` ends the vpText row first) so it renders
+          // as a clean centred graphic — chaining it onto the long vpText made
+          // it float to the right of the wrapped text.
+          b.vpText('The tile grants an ADJACENCY BONUS of 1 animal. 1 VP per 2 animals on this card.').br;
+          b.tile(TileType.ECOLOGICAL_ZONE, false, true);
         }),
       },
     );
