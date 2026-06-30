@@ -13,7 +13,7 @@
       </button>
       <div class="pc-header__titles">
         <h1 class="pc-header__title" v-i18n>Create new game</h1>
-        <p class="pc-header__subtitle" v-i18n>Assemble your mission configuration</p>
+        <p class="pc-header__subtitle" v-i18n>Set up the players, map and rules of the party</p>
       </div>
       <div class="pc-header__identity">
         <premium-identity-chip @open="editIdentity" />
@@ -22,11 +22,14 @@
 
     <div class="pc-deck">
       <div class="pc-deck__config">
-        <player-command-card @edit-identity="editIdentity" />
-
         <section class="pc-section">
           <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Number of players</h2></div>
           <player-count-selector v-model="playerCount" />
+        </section>
+
+        <section class="pc-section">
+          <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Party players</h2></div>
+          <player-slots />
         </section>
 
         <section class="pc-section">
@@ -41,18 +44,14 @@
 
         <section class="pc-section">
           <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Game rules</h2></div>
-          <mission-rule-toggles />
+          <game-rules />
         </section>
 
         <create-info-panel />
       </div>
 
       <div class="pc-deck__summary">
-        <mission-summary
-          @create="onCreate"
-          @back="onBack"
-          @reset="onReset"
-          @edit-identity="editIdentity" />
+        <party-briefing @create="onCreate" @back="onBack" @reset="onReset" />
       </div>
     </div>
 
@@ -74,127 +73,113 @@ import PremiumIdentityChip from '@/client/components/mainMenu/PremiumIdentityChi
 import PremiumIdentityModal from '@/client/components/mainMenu/PremiumIdentityModal.vue';
 import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/components/mainMenu/identity/identityState';
 import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
-import PlayerCommandCard from '@/client/components/create/premium/PlayerCommandCard.vue';
 import PlayerCountSelector from '@/client/components/create/premium/PlayerCountSelector.vue';
+import PlayerSlots from '@/client/components/create/premium/PlayerSlots.vue';
 import ExpansionModuleGrid from '@/client/components/create/premium/ExpansionModuleGrid.vue';
 import MapSelection from '@/client/components/create/premium/MapSelection.vue';
-import MissionRuleToggles from '@/client/components/create/premium/MissionRuleToggles.vue';
-import MissionSummary from '@/client/components/create/premium/MissionSummary.vue';
+import GameRules from '@/client/components/create/premium/GameRules.vue';
+import PartyBriefing from '@/client/components/create/premium/PartyBriefing.vue';
 import CreateInfoPanel from '@/client/components/create/premium/CreateInfoPanel.vue';
-import {createGameState, resetCreateGameState} from './createGameState';
+import {createGameState, resetCreateGameState, setPlayerCount, applyCreatorIdentity, canCreateGame} from './createGameState';
 import {buildCreateGamePayloadFromPremiumState} from './buildCreateGamePayload';
+
+type SimplePlayer = {id: string, color: Color};
 
 export default defineComponent({
   name: 'PremiumCreateGame',
   components: {
     PremiumIdentityChip,
     PremiumIdentityModal,
-    PlayerCommandCard,
     PlayerCountSelector,
+    PlayerSlots,
     ExpansionModuleGrid,
     MapSelection,
-    MissionRuleToggles,
-    MissionSummary,
+    GameRules,
+    PartyBriefing,
     CreateInfoPanel,
   },
   data() {
-    return {
-      modalOpen: false,
-      // When true, a successful identity save proceeds straight to creation.
-      pendingCreate: false,
-    };
+    return {modalOpen: false};
   },
   computed: {
     playerCount: {
       get(): number {
-        return createGameState.config.playerCount;
+        return createGameState.config.players.length;
       },
       set(v: number) {
-        createGameState.config.playerCount = v;
+        setPlayerCount(v);
       },
     },
     initialName(): string {
-      return identityState.identity?.displayName ?? '';
+      return identityState.identity?.displayName ?? createGameState.config.players[0]?.name ?? '';
     },
     initialColor(): Color {
-      return identityState.identity?.cubeColor ?? DEFAULT_IDENTITY_COLOR;
+      return identityState.identity?.cubeColor ?? createGameState.config.players[0]?.color ?? DEFAULT_IDENTITY_COLOR;
     },
   },
   mounted() {
     setDocumentTitle('Create new game');
     ensureIdentityLoaded();
     resetCreateGameState();
-    if (identityState.identity === undefined) {
-      this.openModal(false);
+    const id = identityState.identity;
+    if (id !== undefined) {
+      applyCreatorIdentity(id.displayName, id.cubeColor);
+    } else {
+      this.modalOpen = true; // need the creator's name before the game can be created
     }
   },
   methods: {
-    openModal(pendingCreate: boolean): void {
-      this.pendingCreate = pendingCreate;
-      this.modalOpen = true;
-    },
     editIdentity(): void {
-      this.openModal(false);
+      this.modalOpen = true;
     },
     onModalSave(payload: {displayName: string, color: Color}): void {
       setIdentity(payload.displayName, payload.color);
+      applyCreatorIdentity(payload.displayName, payload.color);
       this.modalOpen = false;
-      const proceed = this.pendingCreate;
-      this.pendingCreate = false;
-      if (proceed) {
-        void this.doCreate();
-      }
     },
     onModalClose(): void {
       this.modalOpen = false;
-      this.pendingCreate = false;
-    },
-    onCreate(): void {
-      if (identityState.identity === undefined) {
-        this.openModal(true);
-        return;
-      }
-      void this.doCreate();
     },
     onReset(): void {
       resetCreateGameState();
+      const id = identityState.identity;
+      if (id !== undefined) {
+        applyCreatorIdentity(id.displayName, id.cubeColor);
+      }
     },
     onBack(): void {
       window.location.assign('/');
     },
-    colorName(c: Color): string {
-      return this.$t(c.charAt(0).toUpperCase() + c.slice(1));
+    onCreate(): void {
+      if (canCreateGame()) {
+        void this.doCreate();
+      }
     },
     async doCreate(): Promise<void> {
-      const identity = identityState.identity;
-      if (identity === undefined) {
-        return;
-      }
       createGameState.error = '';
       createGameState.creating = true;
+      const creatorColor = createGameState.config.players[0].color;
       try {
-        const payload = buildCreateGamePayloadFromPremiumState(
-          createGameState.config,
-          identity,
-          {colorName: (c) => this.colorName(c)},
-        );
+        const payload = buildCreateGamePayloadFromPremiumState(createGameState.config);
         const res = await fetch(paths.API_CREATEGAME, {
           method: 'POST',
           body: JSON.stringify(payload),
           headers: {'Content-Type': 'application/json'},
         });
         const text = await res.text();
-        let json: {id?: string} | undefined;
+        let json: {players?: Array<SimplePlayer>} | undefined;
         try {
           json = JSON.parse(text);
         } catch {
           json = undefined;
         }
-        if (!res.ok || json === undefined || json.id === undefined) {
+        if (!res.ok || json === undefined || !Array.isArray(json.players) || json.players.length === 0) {
           throw new Error('create-failed');
         }
-        // Multiplayer game created — open the game home (existing navigation).
-        window.location.assign('game?id=' + encodeURIComponent(json.id));
+        // Enter the new game directly as the creator (matched by their unique
+        // colour, since the response is in turn order, not creation order).
+        const creator = json.players.find((p) => p.color === creatorColor) ?? json.players[0];
+        window.location.assign(paths.PLAYER + '?id=' + encodeURIComponent(creator.id));
       } catch {
         createGameState.creating = false;
         createGameState.error = 'Could not create the game. Please try again.';

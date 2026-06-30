@@ -2,23 +2,20 @@
   <aside class="info-panel" :style="accentStyle">
     <div class="info-panel__head">
       <span class="info-panel__icon" aria-hidden="true">
-        <img v-if="info.kind === 'expansion'" class="info-panel__icon-img" :src="expansionIconSrc" :alt="title" />
-        <span v-else-if="info.kind === 'map'" class="info-panel__map map-preview" :class="{'map-preview--random': mapIsRandom}">
-          <span class="map-preview__planet"></span>
-          <span class="map-preview__grid"></span>
+        <img v-if="info.kind === 'expansion'" class="info-panel__icon-img" :src="expansionIconSrc" :alt="$t(title)" />
+        <span v-else-if="info.kind === 'map'" class="info-panel__map">
+          <premium-map-fingerprint :map-id="mapBoardId" :random="mapIsRandom" :accent="mapAccent" variant="thumb" />
         </span>
-        <svg v-else viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3 L20 7.5 V16.5 L12 21 L4 16.5 V7.5 Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/></svg>
+        <span v-else v-html="glyph"></span>
       </span>
-      <span class="info-panel__kicker" v-i18n>Briefing</span>
+      <span class="info-panel__kicker" v-i18n>{{ category }}</span>
+      <span v-if="statusChip !== ''" class="info-panel__status" :class="statusClass" v-i18n>{{ statusChip }}</span>
     </div>
 
     <transition name="info-fade" mode="out-in">
       <div :key="transitionKey" class="info-panel__content">
-        <h3 class="info-panel__title" :class="{capitalized: titleCapitalized}" v-i18n>{{ title }}</h3>
+        <h3 class="info-panel__title" v-i18n>{{ title }}</h3>
         <p class="info-panel__desc" v-i18n>{{ desc }}</p>
-        <div v-if="chips.length > 0" class="info-panel__chips">
-          <span v-for="c in chips" :key="c" class="info-panel__chip" v-i18n>{{ c }}</span>
-        </div>
       </div>
     </transition>
   </aside>
@@ -26,11 +23,26 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {BoardName} from '@/common/boards/BoardName';
 import {createGameState, InfoFocus} from './createGameState';
-import {PREMIUM_EXPANSIONS, expansionIcon, expansionName, mapMeta, mapNameSource} from './createGameMeta';
+import {
+  PREMIUM_EXPANSIONS, PREMIUM_RULES, expansionIcon, expansionLabelKey, mapMeta,
+} from './createGameMeta';
+import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
+
+const GLYPH_PLAYERS = '<svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="9" r="3.4" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 19 C3.5 15 6 13 9 13 C12 13 14.5 15 14.5 19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="10" r="2.6" stroke="currentColor" stroke-width="1.4"/><path d="M15.5 15 C19 14.6 21 17 21 19" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+const GLYPH_DEFAULT = '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3 L20 7.5 V16.5 L12 21 L4 16.5 V7.5 Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/></svg>';
+const RULE_GLYPH: Record<string, string> = {
+  draft: '<svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="6" width="9" height="13" rx="1.6" stroke="currentColor" stroke-width="1.6"/><path d="M12.5 8 H19 M12.5 11 H19 M12.5 14 H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  dice: '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="9" r="1.4" fill="currentColor"/><circle cx="15" cy="15" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg>',
+  shuffle: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 7 H8 L16 17 H20 M16 14 L20 17 L16 20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  tr: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M9 9 H15 M12 9 V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  venus: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M12 14 V21 M9 18 H15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+};
 
 export default defineComponent({
   name: 'CreateInfoPanel',
+  components: {PremiumMapFingerprint},
   computed: {
     info(): InfoFocus {
       return createGameState.info;
@@ -39,52 +51,84 @@ export default defineComponent({
       const i = this.info;
       return i.kind + ('id' in i ? ':' + String(i.id) : '');
     },
+    category(): string {
+      switch (this.info.kind) {
+      case 'expansion': return 'Expansion';
+      case 'map': return 'Map';
+      case 'rule': return 'Rule';
+      case 'players': return 'Players';
+      default: return 'Briefing';
+      }
+    },
     title(): string {
       const i = this.info;
       switch (i.kind) {
-      case 'expansion': return expansionName(i.id);
-      case 'map': return mapNameSource(i.id);
-      case 'rule': return i.id === 'draft' ? 'Draft Variant' : 'Random Milestones/Awards';
-      case 'trBoost': return 'TR Boost';
-      case 'players': return 'Number of players';
+      case 'expansion': return expansionLabelKey(i.id);
+      case 'map': return mapMeta(i.id).labelKey;
+      case 'rule': return PREMIUM_RULES.find((r) => r.id === i.id)?.labelKey ?? '';
+      case 'players': return 'Party players';
       default: return 'Mission setup';
       }
-    },
-    titleCapitalized(): boolean {
-      return this.info.kind === 'map' && this.info.id !== 'random-all';
     },
     desc(): string {
       const i = this.info;
       switch (i.kind) {
       case 'expansion': return PREMIUM_EXPANSIONS.find((e) => e.id === i.id)?.descKey ?? '';
       case 'map': return mapMeta(i.id).descKey;
-      case 'rule': return i.id === 'draft' ? 'Players pick cards through a draft.' : 'Milestones and awards are chosen at random.';
-      case 'trBoost': return 'Extra starting Terraform Rating for you, from 0 to 10.';
-      case 'players': return 'Choose how many players join the mission, from 2 to 6.';
-      default: return 'Hover or focus any option to see what it does, then launch your mission.';
+      case 'rule': return PREMIUM_RULES.find((r) => r.id === i.id)?.descKey ?? '';
+      case 'players': return 'Enter each player\'s name and cube colour. The first player is you, the creator.';
+      default: return 'Hover or focus any option to see what it does, then create the game.';
       }
     },
-    chips(): ReadonlyArray<string> {
+    statusChip(): string {
       const i = this.info;
       if (i.kind === 'expansion') {
-        return [createGameState.config.selectedExpansions[i.id] === true ? 'Enabled' : 'Disabled'];
+        return createGameState.config.selectedExpansions[i.id] === true ? 'Enabled' : 'Disabled';
+      }
+      if (i.kind === 'rule') {
+        return createGameState.config.rules[i.id] ? 'Enabled' : 'Disabled';
       }
       if (i.kind === 'map') {
-        return [i.id === 'random-all' ? 'Random All' : 'Map'];
+        const c = createGameState.config;
+        const selected = i.id === 'random-all' ? c.mapMode === 'random-all' : (c.mapMode === 'specific' && c.mapId === i.id);
+        return selected ? 'Selected' : '';
       }
-      return [];
+      return '';
+    },
+    statusClass(): string {
+      if (this.statusChip === 'Enabled' || this.statusChip === 'Selected') {
+        return 'info-panel__status--on';
+      }
+      if (this.statusChip === 'Disabled') {
+        return 'info-panel__status--off';
+      }
+      return '';
+    },
+    glyph(): string {
+      const i = this.info;
+      if (i.kind === 'rule') {
+        const icon = PREMIUM_RULES.find((r) => r.id === i.id)?.icon ?? 'draft';
+        return RULE_GLYPH[icon] ?? GLYPH_DEFAULT;
+      }
+      if (i.kind === 'players') {
+        return GLYPH_PLAYERS;
+      }
+      return GLYPH_DEFAULT;
     },
     expansionIconSrc(): string {
       return this.info.kind === 'expansion' ? expansionIcon(this.info.id) : '';
     },
+    mapBoardId(): BoardName | undefined {
+      return this.info.kind === 'map' && this.info.id !== 'random-all' ? (this.info.id as BoardName) : undefined;
+    },
     mapIsRandom(): boolean {
       return this.info.kind === 'map' && this.info.id === 'random-all';
     },
+    mapAccent(): string {
+      return this.info.kind === 'map' ? mapMeta(this.info.id).accent : '240,168,80';
+    },
     accentStyle(): Record<string, string> {
-      if (this.info.kind === 'map') {
-        return {'--info-accent': mapMeta(this.info.id).accent};
-      }
-      return {'--info-accent': '240, 168, 80'};
+      return {'--info-accent': this.info.kind === 'map' ? mapMeta(this.info.id).accent : '240, 168, 80'};
     },
   },
 });
