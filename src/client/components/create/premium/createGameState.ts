@@ -95,11 +95,14 @@ export const createGameState = reactive<{
   creating: boolean,
   /** English i18n source for a global inline error (API failure), or ''. */
   error: string,
+  /** True while the premium map-picker overlay is open. */
+  mapPickerOpen: boolean,
 }>({
   config: defaultPremiumState(),
   info: {kind: 'default'},
   creating: false,
   error: '',
+  mapPickerOpen: false,
 });
 
 export function resetCreateGameState(): void {
@@ -107,10 +110,30 @@ export function resetCreateGameState(): void {
   createGameState.info = {kind: 'default'};
   createGameState.creating = false;
   createGameState.error = '';
+  createGameState.mapPickerOpen = false;
 }
 
 export function setInfoFocus(focus: InfoFocus): void {
   createGameState.info = focus;
+}
+
+// ── Map picker ──────────────────────────────────────────────────────────────
+// The picker applies the map LIVE to the config (so the briefing updates while
+// the player browses); a snapshot lets "Отмена"/Esc restore the prior choice.
+let mapSnapshot: {mapMode: MapMode, mapId: BoardName} | undefined;
+
+export function openMapPicker(): void {
+  mapSnapshot = {mapMode: createGameState.config.mapMode, mapId: createGameState.config.mapId};
+  createGameState.mapPickerOpen = true;
+}
+
+export function closeMapPicker(apply: boolean): void {
+  if (!apply && mapSnapshot !== undefined) {
+    createGameState.config.mapMode = mapSnapshot.mapMode;
+    createGameState.config.mapId = mapSnapshot.mapId;
+  }
+  mapSnapshot = undefined;
+  createGameState.mapPickerOpen = false;
 }
 
 // ── Player-slot mutations (keep colours unique) ─────────────────────────────
