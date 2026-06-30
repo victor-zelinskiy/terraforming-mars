@@ -183,6 +183,16 @@ export function armPlacementAnimations(): void {
   }, disarmAfter);
 }
 
+/*
+ * Read-only view of the arming gate. The cube-drop coordinator
+ * (`cubeDropState.ts`) reads this to tell a REAL in-play owned placement
+ * (animate: hold the cube, then drop it after the tile lands) from the
+ * initial page render / share-link join (show the cube immediately, no drop).
+ */
+export function arePlacementAnimationsArmed(): boolean {
+  return placementAnimationsArmed;
+}
+
 function now(): number {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
     return performance.now();

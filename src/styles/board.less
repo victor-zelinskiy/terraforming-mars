@@ -989,6 +989,25 @@
 		drop-shadow(0 0.4px 0.4px rgba(0, 0, 0, 0.50));
 }
 
+// Positioning host for the premium <player-cube> owner marker on a Mars tile.
+// The compound `.player-cube.board-owner-cube` selector (specificity 0,2,0)
+// overrides PlayerCube's own `position: relative` regardless of stylesheet
+// import order. Mirrors the legacy `.board-cube` placement (margin/z) but
+// carries NO sprite background and NO `.premium-board-token()` filter — a
+// `filter` would flatten the cube's CSS 3D; its lift comes from PlayerCube's
+// own glow + contact shadow instead.
+.player-cube.board-owner-cube {
+	position: absolute;
+	// Lower-RIGHT of the tile (the owner-marker convention), inset from the
+	// edge so the cube sits ON the hex body, not on the angled lower-right edge
+	// / inter-hex gap. `bottom` is lifted enough to clear that sloped border. No
+	// `transform` needed — `right`/`bottom` place it directly. Tune these two
+	// values to nudge the marker.
+	right: 7px;
+	bottom: 14px;
+	z-index: 3;
+}
+
 .board-cube {
 	position: absolute;
 	width: 21px;
