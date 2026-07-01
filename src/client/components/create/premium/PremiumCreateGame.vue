@@ -78,6 +78,7 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import PremiumIdentityChip from '@/client/components/mainMenu/PremiumIdentityChip.vue';
@@ -180,7 +181,7 @@ export default defineComponent({
       const creatorColor = createGameState.config.players[0].color;
       try {
         const payload = buildCreateGamePayloadFromPremiumState(createGameState.config);
-        const res = await fetch(paths.API_CREATEGAME, {
+        const res = await fetch(apiUrl(paths.API_CREATEGAME), {
           method: 'POST',
           body: JSON.stringify(payload),
           headers: {'Content-Type': 'application/json'},

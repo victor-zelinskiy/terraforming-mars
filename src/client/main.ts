@@ -51,7 +51,12 @@ async function bootstrap() {
     updated: trimEmptyTextNodes,
   });
 
-  if (window.isSecureContext && 'serviceWorker' in navigator) {
+  // Service workers are only supported on http/https origins. Under the Electron
+  // desktop shell's custom `app://` scheme (and file://) registration is
+  // unsupported and the SW is an empty no-op anyway, so skip it there — keeps the
+  // browser behavior identical while avoiding a rejected registration in Electron.
+  const swScheme = window.location.protocol;
+  if (window.isSecureContext && (swScheme === 'http:' || swScheme === 'https:') && 'serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('sw.js').then(function(registration) {
         console.log('registered the service worker', registration);

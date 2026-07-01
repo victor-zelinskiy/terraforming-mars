@@ -13,6 +13,12 @@ const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 
 const zlib = require('zlib');
 
+// Desktop (Electron) renderer build. Emits to a SEPARATE dir with an app://
+// publicPath so it never clobbers the browser build/ (publicPath '/'). The
+// browser production build is byte-identical when DESKTOP_BUILD is unset.
+// See ELECTRON_MIGRATION_PLAN.md §9 / Phase 2A.
+const DESKTOP_BUILD = process.env.DESKTOP_BUILD === '1';
+
 const plugins = [
   new ForkTsCheckerWebpackPlugin({
     typescript: {
@@ -102,9 +108,9 @@ module.exports = {
   },
   plugins,
   output: {
-    path: __dirname + '/build',
+    path: DESKTOP_BUILD ? path.resolve(__dirname, 'build-desktop') : path.resolve(__dirname, 'build'),
     hashFunction: 'xxhash64',
-    publicPath: '/',
+    publicPath: DESKTOP_BUILD ? 'app://bundle/' : '/',
     chunkFilename: 'chunks/[name].js',
   },
   optimization: {

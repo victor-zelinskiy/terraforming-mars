@@ -25,6 +25,7 @@ import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {vueRoot} from '@/client/components/vueRoot';
 import {GameId} from '@/common/Types';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 
 type LoadGameFormDataModel = {
   gameId: GameId | undefined;
@@ -55,7 +56,7 @@ export default defineComponent({
         rollbackCount,
       };
 
-      fetch(paths.LOAD_GAME, {
+      fetch(apiUrl(paths.LOAD_GAME), {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(loadGameForm),

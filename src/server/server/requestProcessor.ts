@@ -7,6 +7,7 @@ import {SessionId} from '../auth/Session';
 import {GameLoader} from '../database/GameLoader';
 import {ApiCloneableGame} from '../routes/ApiCloneableGame';
 import {ApiCreateGame} from '../routes/ApiCreateGame';
+import {ApiDesktopVersion} from '../routes/ApiDesktopVersion';
 import {ApiGame} from '../routes/ApiGame';
 import {ApiGameDelete} from '../routes/ApiGameDelete';
 import {ApiGameHistory} from '../routes/ApiGameHistory';
@@ -52,6 +53,7 @@ import {SessionManager} from './auth/SessionManager';
 import * as authcookies from './auth/authcookies';
 import {DiscordUser} from './auth/discord';
 import {getHerokuIpAddress} from './heroku';
+import {handleDesktopCors} from './cors';
 import * as responses from './responses';
 
 const metrics = {
@@ -104,6 +106,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_WAITING_FOR, ApiWaitingFor.INSTANCE],
     [paths.API_ACTION_PREVIEW, ActionPreview.INSTANCE],
     [paths.API_CARD_PLAY_PREVIEW, CardPlayPreview.INSTANCE],
+    [paths.API_DESKTOP_VERSION, ApiDesktopVersion.INSTANCE],
     [paths.AUTOPASS, Autopass.INSTANCE],
     [paths.CARDS, ServeApp.INSTANCE],
     ['favicon.ico', ServeAsset.INSTANCE],
@@ -217,6 +220,14 @@ export function processRequest(req: Request, res: Response): void {
 
     const pathname = url.pathname.substring(1); // Remove leading '/'
     pathnameForLatency = pathname;
+
+    // Desktop (Electron app://) cross-origin support. Additive + allowlist-only;
+    // no-op for same-origin browser requests. Handles the OPTIONS preflight and
+    // sets CORS headers on eligible game-runtime responses before dispatch.
+    if (handleDesktopCors(req, res, pathname)) {
+      return;
+    }
+
     const handler = getHandler(pathname);
     if (handler !== undefined) {
       metrics.count.inc({path: pathname, method: req.method});

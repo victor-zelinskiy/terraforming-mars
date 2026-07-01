@@ -28,6 +28,8 @@ export const paths = {
   API_WAITING_FOR: 'api/waitingfor',
   API_ACTION_PREVIEW: 'api/action-preview',
   API_CARD_PLAY_PREVIEW: 'api/card-play-preview',
+  // Public desktop (Electron) compatibility + update-metadata endpoint (Phase 7).
+  API_DESKTOP_VERSION: 'api/desktop/version',
   AUTH_DISCORD_CALLBACK: 'auth/discord/callback',
   AUTOPASS: 'autopass',
   CARDS: 'cards',

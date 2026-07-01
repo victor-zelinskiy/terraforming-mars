@@ -1,0 +1,16 @@
+{
+  "Checking for updates…": "Проверка обновлений…",
+  "Update required": "Требуется обновление",
+  "A newer version is required to keep playing.": "Для продолжения игры нужна новая версия.",
+  "Installed": "Установлена",
+  "Latest": "Доступна",
+  "Downloading update…": "Загрузка обновления…",
+  "Update downloaded.": "Обновление загружено.",
+  "Restart and install": "Перезапустить и установить",
+  "Installing…": "Установка…",
+  "Automatic update is unavailable. Please download the update manually.": "Автоматическое обновление недоступно. Скачайте обновление вручную.",
+  "Download manually": "Скачать вручную",
+  "Try again": "Повторить",
+  "Update failed.": "Не удалось обновить.",
+  "Preparing the update…": "Подготовка обновления…"
+}

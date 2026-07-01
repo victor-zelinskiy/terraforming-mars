@@ -95,6 +95,7 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {JoinableGameSummary} from '@/common/models/JoinableGameModel';
 import {PlayerColorOverrideResult} from '@/common/models/JoinableGameModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -169,7 +170,7 @@ export default defineComponent({
       }
       this.status = 'updating';
       try {
-        const url = `${paths.API_GAME_PLAYER_COLOR}?id=${encodeURIComponent(you.id)}&color=${encodeURIComponent(this.desiredColor)}`;
+        const url = apiUrl(`${paths.API_GAME_PLAYER_COLOR}?id=${encodeURIComponent(you.id)}&color=${encodeURIComponent(this.desiredColor)}`);
         const res = await fetch(url, {method: 'POST'});
         const result = await res.json() as PlayerColorOverrideResult;
         if (result.status === 'updated' || result.status === 'noop') {

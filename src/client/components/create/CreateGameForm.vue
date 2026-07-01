@@ -566,6 +566,7 @@ import {BoardNameType, NewGameConfig, NewPlayerModel} from '@/common/game/NewGam
 import {vueRoot} from '@/client/components/vueRoot';
 import {CreateGameModel} from './CreateGameModel';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {JSONProcessor} from './JSONProcessor';
 import {defaultCreateGameModel} from './defaultCreateGameModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
@@ -1144,7 +1145,7 @@ export default defineComponent({
 
       // Clone game checks
       if (this.clonedGameId !== undefined && this.seededGame) {
-        const gameData = await fetch(paths.API_CLONEABLEGAME + '?id=' + this.clonedGameId)
+        const gameData = await fetch(apiUrl(paths.API_CLONEABLEGAME + '?id=' + this.clonedGameId))
           .then((response) => {
             if (response.ok) {
               return response.json();
@@ -1240,7 +1241,7 @@ export default defineComponent({
         }
       };
 
-      fetch(paths.API_CREATEGAME, {'method': 'POST', 'body': dataToSend, 'headers': {'Content-Type': 'application/json'}})
+      fetch(apiUrl(paths.API_CREATEGAME), {'method': 'POST', 'body': dataToSend, 'headers': {'Content-Type': 'application/json'}})
         .then((response) => response.text())
         .then((text) => {
           try {

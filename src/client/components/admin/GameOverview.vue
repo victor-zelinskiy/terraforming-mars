@@ -34,6 +34,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {Phase} from '@/common/Phase';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -115,7 +116,7 @@ export default defineComponent({
       }
       this.deleting = true;
       try {
-        const response = await fetch(`api/game/delete?serverId=${encodeURIComponent(this.serverId)}&id=${encodeURIComponent(this.id)}`, {method: 'POST'});
+        const response = await fetch(apiUrl(`api/game/delete?serverId=${encodeURIComponent(this.serverId)}&id=${encodeURIComponent(this.id)}`), {method: 'POST'});
         if (!response.ok) {
           alert(translateText('Failed to delete the game'));
           this.deleting = false;

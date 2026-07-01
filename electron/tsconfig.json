@@ -1,0 +1,24 @@
+{
+  // Electron main/preload compile lane. Extends the repo base config but emits
+  // CommonJS to build/electron/. Deliberately isolated from the server build
+  // (src/tsconfig.json), the renderer typecheck (tsconfig.vue-tsc.json), and
+  // webpack — none of them see electron/**.
+  //
+  // Self-contained: electron/*.ts import only from 'electron' + Node built-ins,
+  // so NO @/ path-alias rewriting (tsc-alias) is needed — plain `tsc -p` emits.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2021",
+    "rootDir": ".",
+    "outDir": "../build/electron",
+    "sourceMap": true,
+    "incremental": false,
+    "composite": false,
+    "declaration": false,
+    "noEmit": false,
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

@@ -154,6 +154,30 @@ The design should feel like a high-quality digital board game UI, not a generic 
 
 ---
 
+## Raster asset / icon processing
+
+When updating PNG game assets from generated references, treat the work as precision asset processing, not a loose redesign.
+
+Effective workflow proven on `assets/global-parameters/venus.png`:
+
+* Start from the cleanest reference in `assets/generated/refs/` and write candidates to `assets/generated/...`; do not overwrite the target asset until a candidate is visually checked.
+* First identify the background type. Some references are composited over a transparency checkerboard, not a plain white background. Simple white/gray thresholding on those files leaves checkerboard fringes and can cut holes into light metallic art.
+* For difficult cutouts, use the AlphaBanana/Gemini pipeline as a candidate generator with an explicit "preserve exact source artwork, remove only background/fringe" prompt. If the MCP server does not see a newly set environment variable, do not persist API keys in config unless explicitly approved; run the same package pipeline directly from the shell with the key inherited from the user/process environment.
+* Compare model tiers. For preservation cutouts, a faster model can be better than a higher-fidelity model if the latter redraws or simplifies the source. Reject candidates that change the crop, geometry, bevels, texture, colors, or icon proportions even if their alpha is clean.
+* Always inspect previews on both dark and light backgrounds, plus 2x focus crops around inner holes, metallic borders, bottom edges, and any area the user flagged. Use nearest-neighbor enlargement for edge inspection so stair-steps and leftover fringe are obvious.
+* After chroma-key/model transparency, clean only semi-transparent edge RGB when needed: replace edge-pixel RGB from the nearest fully opaque source color to remove magenta/white/gray fringe, without changing alpha or fully opaque art pixels.
+* Finish with lossless PNG optimization only. Do not apply lossy compression or destructive smoothing that can blur small icons.
+
+Acceptance bar:
+
+* no white/gray checkerboard lines or chroma-key fringe on dark backgrounds;
+* smooth antialiased contours without visible pixel stairs;
+* no missing chunks, holes, or damaged texture inside the art;
+* original frame/border art preserved rather than cropped away;
+* final dimensions and placement match the consuming asset.
+
+---
+
 ## Important current UI areas
 
 Pay special attention to these areas when reviewing or changing code.

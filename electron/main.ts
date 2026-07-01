@@ -1,0 +1,225 @@
+// Electron 43 — safe desktop shell (main process). Phases 1 + 2A.
+//
+// Two load modes (env TM_ELECTRON_LOAD), both same safe window + preload:
+//   - 'server' (DEFAULT, Phase 1): loadURL the running dev server over http —
+//     same-origin, zero adapters. Proves the runtime.
+//   - 'app'    (Phase 2A):         loadURL app://bundle/ — the PACKAGED static
+//     renderer served by the custom protocol (electron/protocol.ts). REST/WS
+//     still target the dev server via injected config; cross-origin CORS is 2B.
+//
+// Explicitly NOT here (later phases): remote-server CORS + fetch-wrapping (2B),
+// electron-builder / electron-updater, premium update UI, game-boundary reset,
+// command transport, signing, performance tuning.
+//
+// Self-contained: imports only from 'electron', Node built-ins, and the sibling
+// protocol module — no @/ path-alias rewriting, a plain `tsc -p` compiles it.
+
+import {app, BrowserWindow, shell, ipcMain, type IpcMainInvokeEvent} from 'electron';
+import * as path from 'path';
+import {registerAppScheme, registerAppProtocolHandler, appUrl, APP_ORIGIN} from './protocol';
+import {registerUpdateIpc, resolveStartupUpdate} from './update';
+
+// A PACKAGED build defaults to the hosted production server; a dev run defaults to the
+// local dev server. `TM_SERVER_BASE` overrides either.
+const DEFAULT_SERVER_BASE = app.isPackaged
+  ? 'https://terraforming-mars-vize-edition-63e52431d8db.herokuapp.com'
+  : 'http://localhost:8080';
+
+/**
+ * Load the packaged renderer over app:// (Phase 2A/6) vs the dev server (Phase 1).
+ * A PACKAGED build (`app.isPackaged`) has no dev server serving the renderer, so it
+ * ALWAYS uses app://. In dev, `TM_ELECTRON_LOAD=app` opts in; default is server.
+ */
+const APP_LOAD = app.isPackaged || (process.env.TM_ELECTRON_LOAD ?? 'server').trim().toLowerCase() === 'app';
+
+/** The server origin the renderer's REST + WebSocket talk to (dev server by default). */
+function serverBase(): string {
+  const raw = (process.env.TM_SERVER_BASE ?? '').trim();
+  return (raw !== '' ? raw : DEFAULT_SERVER_BASE).replace(/\/+$/, '');
+}
+
+/** ws:// from http://, wss:// from https://. */
+function wsBaseFrom(httpBase: string): string {
+  return httpBase.replace(/^http(s?):/i, 'ws$1:');
+}
+
+/**
+ * The minimal runtime config injected into the renderer via the preload.
+ * Shape mirrors src/client/utils/runtimeConfig.ts `TMRuntimeConfig`. apiBase /
+ * wsBase point at the dev server in BOTH modes (so app:// mode is set up for the
+ * 2B cross-origin work); participantId only when explicitly testing a seat.
+ */
+interface RuntimeConfig {
+  apiBase: string;
+  wsBase: string;
+  participantId?: string;
+}
+
+function runtimeConfig(): RuntimeConfig {
+  const base = serverBase();
+  const cfg: RuntimeConfig = {apiBase: base, wsBase: wsBaseFrom(base)};
+  const pid = (process.env.TM_PARTICIPANT_ID ?? '').trim();
+  if (pid !== '') {
+    cfg.participantId = pid;
+  }
+  return cfg;
+}
+
+/** The origin the renderer is loaded from — app://bundle in app mode, else the server. */
+function rendererOrigin(): string {
+  if (APP_LOAD) {
+    return APP_ORIGIN;
+  }
+  try {
+    return new URL(serverBase()).origin;
+  } catch {
+    return '';
+  }
+}
+
+/** The URL to open on launch (direct seat if TM_PARTICIPANT_ID, else the menu). */
+function initialUrl(): string {
+  const pid = (process.env.TM_PARTICIPANT_ID ?? '').trim();
+  const route = pid !== '' ? `player?id=${encodeURIComponent(pid)}` : '';
+  if (APP_LOAD) {
+    return appUrl(route);
+  }
+  const base = serverBase();
+  return route !== '' ? `${base}/${route}` : `${base}/`;
+}
+
+function isExternalHttp(target: string): boolean {
+  try {
+    const protocol = new URL(target).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/** True when `target` shares the renderer's own origin (in-window SPA navigation). */
+function isSameOrigin(target: string): boolean {
+  try {
+    return new URL(target).origin === rendererOrigin();
+  } catch {
+    return false;
+  }
+}
+
+let mainWindow: BrowserWindow | undefined;
+
+function createWindow(): void {
+  const cfg = runtimeConfig();
+
+  mainWindow = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    minWidth: 1024,
+    minHeight: 700,
+    backgroundColor: '#0d1117',
+    autoHideMenuBar: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      // Passed to the sandboxed preload via process.argv (no Node/IPC needed
+      // just to read config). apiBase/wsBase are not secrets; participantId is
+      // a local dev token only.
+      additionalArguments: ['--tm-runtime-config=' + JSON.stringify(cfg)],
+    },
+  });
+
+  mainWindow.once('ready-to-show', () => mainWindow?.show());
+
+  // External links open in the system browser — never as in-window content.
+  mainWindow.webContents.setWindowOpenHandler(({url}) => {
+    if (isExternalHttp(url)) {
+      void shell.openExternal(url);
+    }
+    return {action: 'deny'};
+  });
+
+  // Allow same-origin (SPA) navigation — the game-boundary full reloads to
+  // `player?id=…`, `/`, etc. stay within the renderer origin (server origin in
+  // server mode, app://bundle in app mode). Anything else → system browser.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isSameOrigin(url)) {
+      event.preventDefault();
+      if (isExternalHttp(url)) {
+        void shell.openExternal(url);
+      }
+    }
+  });
+
+  void mainWindow.loadURL(initialUrl());
+
+  if (process.env.TM_ELECTRON_DEVTOOLS === '1') {
+    mainWindow.webContents.openDevTools({mode: 'detach'});
+  }
+
+  mainWindow.on('closed', () => {
+    mainWindow = undefined;
+  });
+}
+
+// Narrow IPC surface backing the preload's desktopBridge. Nothing else is exposed.
+ipcMain.handle('desktop:getVersion', () => app.getVersion());
+ipcMain.handle('desktop:openExternal', (_event: IpcMainInvokeEvent, url: unknown): Promise<void> => {
+  if (typeof url === 'string' && isExternalHttp(url)) {
+    return shell.openExternal(url);
+  }
+  return Promise.resolve();
+});
+
+// The app:// scheme must be registered as privileged BEFORE 'ready'.
+if (APP_LOAD) {
+  registerAppScheme();
+}
+
+// Single-instance: focus the existing window instead of opening a second one.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow !== undefined) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+    }
+  });
+
+  app.setAppUserModelId('com.vize1215.terraforming-mars');
+
+  void app.whenReady().then(() => {
+    if (APP_LOAD) {
+      registerAppProtocolHandler();
+    }
+    // eslint-disable-next-line no-console
+    console.log(`[electron] ${APP_LOAD ? 'Phase 2A (app://)' : 'Phase 1 (server)'} — loading ${initialUrl()}`);
+    registerUpdateIpc();
+    createWindow();
+    // Phase 7: packaged builds check the compatibility gate on startup and, if a
+    // mandatory update is required, block game flow behind the premium update overlay.
+    // No-op in dev (app.isPackaged === false). The renderer pulls the current state on
+    // mount + subscribes to live pushes, so a slightly-late window is fine.
+    if (mainWindow !== undefined) {
+      void resolveStartupUpdate(serverBase(), mainWindow);
+    }
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
+}

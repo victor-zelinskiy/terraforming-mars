@@ -50,6 +50,7 @@ import {translateTextWithParams} from '@/client/directives/i18n';
 import GameOverview from '@/client/components/admin/GameOverview.vue';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {GameId, ParticipantId} from '@/common/Types';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 
 type FetchStatus = {
   id: GameId;
@@ -85,7 +86,7 @@ export default defineComponent({
   methods: {
     async getGames() {
       try {
-        const response = await fetch('api/games?serverId=' + this.serverId);
+        const response = await fetch(apiUrl('api/games?serverId=' + this.serverId));
         if (!response.ok) {
           alert('Unexpected response fetching games from API');
           return;
@@ -112,7 +113,7 @@ export default defineComponent({
       const entry = this.entries[idx];
       const gameId = entry.id;
       try {
-        const response = await fetch('api/game?id=' + gameId);
+        const response = await fetch(apiUrl('api/game?id=' + gameId));
         if (response.ok) {
           const game = await response.json() as SimpleGameModel;
           entry.status = 'done';
@@ -163,7 +164,7 @@ export default defineComponent({
 
       for (const id of ids) {
         try {
-          const response = await fetch(`api/game/delete?serverId=${encodeURIComponent(this.serverId)}&id=${encodeURIComponent(id)}`, {method: 'POST'});
+          const response = await fetch(apiUrl(`api/game/delete?serverId=${encodeURIComponent(this.serverId)}&id=${encodeURIComponent(id)}`), {method: 'POST'});
           if (response.ok) {
             this.onGameDeleted(id);
           } else {

@@ -239,6 +239,8 @@
       <RealtimeLayer
         v-if="(screen === 'player-home' || screen === 'spectator-home') && realtimeParticipantId !== ''"
         :participant-id="realtimeParticipantId" />
+      <!-- Desktop-only (Electron) mandatory-update overlay. Inert on the web. -->
+      <desktop-update-overlay />
     </div>
   </div>
 </template>
@@ -300,6 +302,8 @@ import RevealedCardsModal from '@/client/components/notifications/RevealedCardsM
 import EffectDetailOverlay from '@/client/components/notifications/EffectDetailOverlay.vue';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
 import RealtimeLayer from '@/client/components/realtime/RealtimeLayer.vue';
+import DesktopUpdateOverlay from '@/client/components/desktop/DesktopUpdateOverlay.vue';
+import {initDesktopUpdates} from '@/client/components/desktop/desktopUpdateState';
 import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
 import {setLiveCardResources} from '@/client/components/card/liveCardResources';
@@ -438,6 +442,7 @@ export default defineComponent({
     RevealedCardsModal,
     EffectDetailOverlay,
     RealtimeLayer,
+    DesktopUpdateOverlay,
     DrawCardRevealFlow,
     AdditionalResourceDetailOverlay,
     GameAtmosphere,
@@ -802,6 +807,8 @@ export default defineComponent({
     // navigations that use navigateInApp. App is the root and never unmounts,
     // so no removal is needed.
     window.addEventListener('popstate', this.onPopState);
+    // Desktop (Electron) update subscription — inert on the web (no desktopBridge).
+    initDesktopUpdates();
   },
 });
 </script>
