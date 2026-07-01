@@ -60,6 +60,22 @@ export function realtimeEnabled(): boolean {
   return v !== '0' && v !== 'false' && v !== 'off';
 }
 
+/**
+ * Verbose per-connection realtime logging (connect / hello / subscribe /
+ * unsubscribe / disconnect / resume / heartbeat) is OFF by default to keep the
+ * server log quiet. Enable with `REALTIME_LOG=verbose` (or `debug` / `1` /
+ * `true`). Warnings and errors always log regardless.
+ */
+function realtimeVerbose(): boolean {
+  const v = (process.env.REALTIME_LOG ?? '').trim().toLowerCase();
+  return v === 'verbose' || v === 'debug' || v === '1' || v === 'true';
+}
+function vlog(message: string): void {
+  if (realtimeVerbose()) {
+    console.log(message);
+  }
+}
+
 class RealtimeConnection {
   public participantId: string | undefined = undefined;
   /** Set once the connection has joined a game room (Phase 2). */
@@ -174,7 +190,7 @@ export class RealtimeServer {
     this.connections.add(conn);
     metrics.activeConnections.set(this.connections.size);
     metrics.connectionsTotal.inc();
-    console.log(`[realtime] connect #${conn.id} (active=${this.connections.size})`);
+    vlog(`[realtime] connect #${conn.id} (active=${this.connections.size})`);
 
     ws.on('message', (data) => this.onMessage(conn, data));
     ws.on('pong', () => {
@@ -184,10 +200,12 @@ export class RealtimeServer {
       this.hub.handleDisconnect(conn);
       this.connections.delete(conn);
       metrics.activeConnections.set(this.connections.size);
-      console.log(`[realtime] disconnect #${conn.id} code=${code} (active=${this.connections.size})`);
+      vlog(`[realtime] disconnect #${conn.id} code=${code} (active=${this.connections.size})`);
     });
     ws.on('error', (err) => {
-      console.warn(`[realtime] socket error #${conn.id}:`, err?.message ?? err);
+      // Abrupt closes (tab reload / navigate-away → ECONNRESET / code 1006) fire
+      // here routinely and are not actionable, so keep it verbose-only.
+      vlog(`[realtime] socket error #${conn.id}: ${String((err as {message?: string})?.message ?? err)}`);
     });
   }
 
@@ -205,7 +223,7 @@ export class RealtimeServer {
     case ClientMessageType.HELLO:
       conn.participantId = message.participantId;
       conn.helloReceived = true;
-      console.log(`[realtime] hello #${conn.id} client=${message.clientVersion} participant=${message.participantId ?? '(none)'}`);
+      vlog(`[realtime] hello #${conn.id} client=${message.clientVersion} participant=${message.participantId ?? '(none)'}`);
       this.send(conn, serverHello(runId, message.correlationId));
       break;
     case ClientMessageType.PING:
@@ -220,7 +238,7 @@ export class RealtimeServer {
       break;
     case ClientMessageType.UNSUBSCRIBE:
       this.hub.unsubscribe(conn);
-      console.log(`[realtime] unsubscribe #${conn.id}`);
+      vlog(`[realtime] unsubscribe #${conn.id}`);
       break;
     }
   }
@@ -237,11 +255,11 @@ export class RealtimeServer {
       return;
     }
     if (!result.ok) {
-      console.log(`[realtime] subscribe rejected #${conn.id} participant=${message.participantId}`);
+      console.warn(`[realtime] subscribe rejected #${conn.id} participant=${message.participantId}`);
       this.send(conn, serverError('subscribe-rejected', 'Not authorized for any game.', message.correlationId));
       return;
     }
-    console.log(`[realtime] subscribe #${conn.id} game=${result.gameId} roomSize=${result.roomSize}`);
+    vlog(`[realtime] subscribe #${conn.id} game=${result.gameId} roomSize=${result.roomSize}`);
     this.send(conn, subscribed(result.gameAge ?? 0, result.undoCount ?? 0, message.correlationId));
   }
 
@@ -264,14 +282,14 @@ export class RealtimeServer {
       return;
     }
     if (!result.ok || result.gameId === undefined) {
-      console.log(`[realtime] resume rejected #${conn.id} participant=${message.participantId}`);
+      console.warn(`[realtime] resume rejected #${conn.id} participant=${message.participantId}`);
       this.send(conn, serverError('subscribe-rejected', 'Not authorized for any game.', message.correlationId));
       return;
     }
     const currentGameAge = result.gameAge ?? 0;
     const currentUndoCount = result.undoCount ?? 0;
     const changed = currentGameAge !== message.lastGameAge || currentUndoCount !== message.lastUndoCount;
-    console.log(`[realtime] resume #${conn.id} game=${result.gameId} last=(${message.lastGameAge},${message.lastUndoCount}) current=(${currentGameAge},${currentUndoCount}) changed=${changed}`);
+    vlog(`[realtime] resume #${conn.id} game=${result.gameId} last=(${message.lastGameAge},${message.lastUndoCount}) current=(${currentGameAge},${currentUndoCount}) changed=${changed}`);
     this.send(conn, subscribed(currentGameAge, currentUndoCount, message.correlationId));
     if (changed) {
       this.send(conn, gameStateInvalidated(result.gameId, currentGameAge, currentUndoCount));
@@ -286,7 +304,7 @@ export class RealtimeServer {
     this.heartbeatTimer = setInterval(() => {
       for (const conn of this.connections) {
         if (!conn.isAlive) {
-          console.log(`[realtime] heartbeat timeout #${conn.id} — terminating`);
+          vlog(`[realtime] heartbeat timeout #${conn.id} — terminating`);
           conn.ws.terminate();
           continue;
         }
