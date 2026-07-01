@@ -49,4 +49,8 @@ export const paths = {
   RESET: 'reset',
   SPECTATOR: 'spectator',
   THE_END: 'the-end',
+  // Realtime WebSocket upgrade path. Not an HTTP handler in requestProcessor —
+  // it is matched on the server's `upgrade` event (see RealtimeServer) and used
+  // by the client to build the ws(s):// URL. A normal GET /ws still 404s.
+  WEBSOCKET: 'ws',
 } as const;

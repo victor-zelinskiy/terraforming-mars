@@ -79,6 +79,8 @@
 .card-tile-magnetic-field-generators-ares {
   .board-space-tile--magnetic-field-generators-ares();
   .card-tile-ares();
+  background-size: 100% 100% !important;
+  background-position: center !important;
 }
 
 .card-tile-metallic-asteroid {
@@ -147,6 +149,8 @@
 .card-tile-solar-farm {
   .board-space-tile--solar-farm();
   .card-tile-ares();
+  background-size: 100% 100% !important;
+  background-position: center !important;
 }
 
 // See `.card-tile-ares` above for why `background-size` is needed: the
@@ -220,11 +224,11 @@
 }
 
 .board-space-tile--solar-farm {
-  .board-icons-ares-sprite(-246px, -83px);
+  background: url(./assets/custom_tiles/ares_solar_farm.png) center / 100% 100% no-repeat;
 }
 
 .board-space-tile--magnetic-field-generators-ares {
-  .board-icons-ares-sprite(-534px, -139px);
+  background: url(./assets/custom_tiles/ares_magnetic_field_generators.png) center / 100% 100% no-repeat;
 }
 
 .board-space-tile--metallic-asteroid {

@@ -228,6 +228,17 @@
         v-if="screen === 'player-home' && playerView !== undefined"
         :viewer-id="playerView.id"
         :players="playerView.players" />
+
+      <!--
+        Phase 1 realtime transport layer (WebSocket diagnostics only — NO
+        gameplay behaviour change). App-level so the singleton service survives
+        the playerkey remount. Owns the realtime service lifecycle (start/stop
+        tied to being on a game screen) + a dev-only connection-status chip.
+        Gated by the client realtime flag (default OFF): inert when disabled.
+      -->
+      <RealtimeLayer
+        v-if="(screen === 'player-home' || screen === 'spectator-home') && realtimeParticipantId !== ''"
+        :participant-id="realtimeParticipantId" />
     </div>
   </div>
 </template>
@@ -288,6 +299,7 @@ import TurnHandoffLayer from '@/client/components/overview/TurnHandoffLayer.vue'
 import RevealedCardsModal from '@/client/components/notifications/RevealedCardsModal.vue';
 import EffectDetailOverlay from '@/client/components/notifications/EffectDetailOverlay.vue';
 import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlow.vue';
+import RealtimeLayer from '@/client/components/realtime/RealtimeLayer.vue';
 import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
 import {setLiveCardResources} from '@/client/components/card/liveCardResources';
@@ -424,6 +436,7 @@ export default defineComponent({
     TurnHandoffLayer,
     RevealedCardsModal,
     EffectDetailOverlay,
+    RealtimeLayer,
     DrawCardRevealFlow,
     AdditionalResourceDetailOverlay,
     GameAtmosphere,
@@ -457,6 +470,11 @@ export default defineComponent({
     // live-follow state. See journalState.ts + journal.less.
     journalState() {
       return journalState;
+    },
+    // Participant id (playerId or spectatorId) for the realtime transport layer.
+    // Empty string when not on a game screen, which keeps the layer inert.
+    realtimeParticipantId(): string {
+      return this.playerView?.id ?? this.spectator?.id ?? '';
     },
     // Dev-only: render the modal-input visual playground when the URL carries
     // `?modalPlayground` (or `&modalPlayground`). Never shown in normal play.

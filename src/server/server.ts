@@ -19,6 +19,9 @@ import {timeAsync} from '@/server/utils/timer';
 import {GameLoader} from '@/server/database/GameLoader';
 import {globalInitialize} from '@/server/globalInitialize';
 import {SessionManager} from '@/server/server/auth/SessionManager';
+import {RealtimeServer} from '@/server/server/realtime/RealtimeServer';
+import {RealtimeHub} from '@/server/server/realtime/RealtimeHub';
+import {gameLoaderSubscriptionResolver} from '@/server/server/realtime/subscriptionResolver';
 
 process.on('uncaughtException', (err: any) => {
   console.error('UNCAUGHT EXCEPTION', err);
@@ -80,6 +83,12 @@ async function start() {
   globalInitialize();
 
   const server = createServer();
+
+  // Realtime: wire the game-subscription lookup (Phase 2) then attach the
+  // WebSocket gateway to the existing HTTP(S) server. No-op unless
+  // REALTIME_ENABLED is set — gameplay is untouched.
+  RealtimeHub.getInstance().configureResolver(gameLoaderSubscriptionResolver);
+  RealtimeServer.getInstance().attach(server);
 
   await timeAsync(Database.getInstance().initialize())
     .then((v) => {
