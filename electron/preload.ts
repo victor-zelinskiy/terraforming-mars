@@ -48,7 +48,7 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   onUpdateState: (cb: (state: unknown) => void): void => {
     ipcRenderer.on('desktop:update-state', (_event, state) => cb(state));
   },
-  retryUpdate: (): Promise<unknown> => ipcRenderer.invoke('desktop:retryUpdate'),
+  recheck: (): Promise<unknown> => ipcRenderer.invoke('desktop:recheck'),
   quitAndInstall: (): Promise<void> => ipcRenderer.invoke('desktop:quitAndInstall'),
   openDownload: (): Promise<void> => ipcRenderer.invoke('desktop:openDownload'),
 });

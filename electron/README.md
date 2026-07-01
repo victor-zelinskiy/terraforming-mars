@@ -76,6 +76,9 @@ You can force `app://` mode on an already-built desktop bundle with
 | `TM_SERVER_BASE` | dev `http://localhost:8080`; **packaged `https://terraforming-mars-vize-edition-63e52431d8db.herokuapp.com`** | Server origin the renderer's REST + WS talk to. Injected into `window.tmRuntimeConfig` (`apiBase`, and `wsBase` derived as `ws(s)://…`). A packaged build defaults to the hosted server; a dev run to localhost. In `server` mode it is also the URL the window loads. |
 | `TM_PARTICIPANT_ID` | — | Optional. If set, the window opens directly at the `player?id=<id>` route (direct-game testing) and injects it as `tmRuntimeConfig.participantId`. |
 | `TM_ELECTRON_DEVTOOLS` | — | `=1` opens detached DevTools (renderer profiling / debugging). |
+| `TM_ELECTRON_WINDOWED` | — | `=1` runs in a normal resizable window instead of the default **fullscreen** (handy for development). The app is fullscreen-only by default and re-enters fullscreen if it's ever exited. |
+| `TM_UPDATE_CHANNEL` | `latest` | Update channel (dev/staging/prod/latest) — selects the feed `<channel>.yml` and is sent to the compatibility gate as `?channel=`. |
+| `TM_DESKTOP_STRICT_OFFLINE` | — | `=1` blocks the app when compatibility was **never** verified and the server is unreachable (default fails open so a first-run offline launch isn't bricked). A known-outdated client (last check said "update required") is always blocked offline regardless. |
 
 ### Server-side CORS (Phase 2B — set on the SERVER process, not Electron)
 
@@ -123,6 +126,12 @@ the flag.
 npm run electron:pack:dir   # build:desktop + electron-builder --dir → dist-desktop/win-unpacked/ (no installer; fast sanity check)
 npm run dist:win            # build:desktop + electron-builder --win → the NSIS installer + latest.yml + .blockmap
 ```
+
+Both scripts `rimraf dist-desktop/` first, and the config sets
+`electronDist: node_modules/electron/dist` — it packages the already-unpacked Electron
+runtime instead of re-extracting the zip, which sidesteps the flaky Windows
+`EPERM: … rename 'win-unpacked.tmp' -> 'win-unpacked'` (a scanner/indexer briefly locking
+the freshly-extracted binaries). Same pinned version → identical artifact, built reliably.
 
 Config: `electron-builder.yml`. Output: `dist-desktop/`:
 `TerraformingMars-Setup-<version>-x64.exe` + `.exe.blockmap` (differential updates) +
@@ -193,7 +202,7 @@ surface (admin/auth stay same-origin only), OPTIONS preflight handled, same-orig
 browser requests untouched. WebSocket already worked (no preflight; the server does no
 Origin check on the `/ws` upgrade).
 
-## Phase 7 — DONE (premium mandatory updater)
+## Phase 7 + 8 — DONE (premium mandatory updater + hardening)
 
 On startup a PACKAGED build calls `GET <server>/api/desktop/version` (from the main
 process — no CORS) to decide whether the installed version may still play. If a
@@ -201,9 +210,18 @@ mandatory update is required, the premium full-screen overlay
 (`src/client/components/desktop/DesktopUpdateOverlay.vue`, App-level, gated on
 `desktopBridge.desktopMode`) covers the game and `electron-updater` downloads the new
 NSIS installer, streaming progress over IPC → restart-and-install. States: checking /
-required / downloading (progress bar) / downloaded / installing / error+retry /
-manualDownloadRequired. Fail-open on a network error (a transient server outage never
-bricks the app). Inert on the web (no `desktopBridge`).
+required / downloading (progress bar) / downloaded / installing / offlineBlocked+retry /
+error+retry / manualDownloadRequired. Inert on the web (no `desktopBridge`).
+
+**Phase 8 hardening:**
+- **Last-known-good offline policy** (`electron/updatePolicy.ts`, unit-tested; persisted
+  by `electron/session.ts` in userData). A server outage no longer silently unlocks a
+  known-outdated client → `offlineBlocked`; a first-run offline launch still fails open
+  (unless `TM_DESKTOP_STRICT_OFFLINE=1`).
+- **Channels** — `TM_UPDATE_CHANNEL` selects the feed yml + the gate `?channel=`.
+- **Retry** — any blocked state re-runs the whole compatibility check (`recheck`), so a
+  reconnection can unblock, a still-required client re-arms the download, and a feed
+  error re-attempts.
 
 **To finish wiring auto-download (deployment, your part):**
 1. Deploy the server (with `src/server/server/cors.ts` + `ApiDesktopVersion`) — the

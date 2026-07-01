@@ -24,6 +24,15 @@ copyright: © vize1215
 npmRebuild: false
 nodeGypRebuild: false
 
+# Use the ALREADY-UNPACKED Electron 43 runtime from node_modules/electron/dist instead
+# of re-downloading + extracting the zip. This skips electron-builder's
+# extract-to-.tmp → rename step, which on Windows fails with
+#   EPERM: operation not permitted, rename 'win-unpacked.tmp' -> 'win-unpacked'
+# when a scanner/indexer (Defender, Controlled Folder Access, an editor file-watcher,
+# OneDrive, …) briefly holds a handle on the freshly-extracted binaries. Same version
+# (pinned electron@43.0.0), so the artifact is identical — just built reliably.
+electronDist: node_modules/electron/dist
+
 directories:
   output: dist-desktop
   buildResources: electron/build-resources

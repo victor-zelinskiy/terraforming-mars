@@ -18,6 +18,7 @@ import {app, BrowserWindow, shell, ipcMain, type IpcMainInvokeEvent} from 'elect
 import * as path from 'path';
 import {registerAppScheme, registerAppProtocolHandler, appUrl, APP_ORIGIN} from './protocol';
 import {registerUpdateIpc, resolveStartupUpdate} from './update';
+import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
 
 // A PACKAGED build defaults to the hosted production server; a dev run defaults to the
 // local dev server. `TM_SERVER_BASE` overrides either.
@@ -67,14 +68,7 @@ function runtimeConfig(): RuntimeConfig {
 
 /** The origin the renderer is loaded from — app://bundle in app mode, else the server. */
 function rendererOrigin(): string {
-  if (APP_LOAD) {
-    return APP_ORIGIN;
-  }
-  try {
-    return new URL(serverBase()).origin;
-  } catch {
-    return '';
-  }
+  return APP_LOAD ? APP_ORIGIN : (originOf(serverBase()) ?? '');
 }
 
 /** The URL to open on launch (direct seat if TM_PARTICIPANT_ID, else the menu). */
@@ -88,23 +82,12 @@ function initialUrl(): string {
   return route !== '' ? `${base}/${route}` : `${base}/`;
 }
 
-function isExternalHttp(target: string): boolean {
-  try {
-    const protocol = new URL(target).protocol;
-    return protocol === 'http:' || protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-/** True when `target` shares the renderer's own origin (in-window SPA navigation). */
-function isSameOrigin(target: string): boolean {
-  try {
-    return new URL(target).origin === rendererOrigin();
-  } catch {
-    return false;
-  }
-}
+/**
+ * The desktop app runs FULLSCREEN by default (immersive play). Set
+ * TM_ELECTRON_WINDOWED=1 to run in a normal resizable window (handy for
+ * development / debugging).
+ */
+const FULLSCREEN = process.env.TM_ELECTRON_WINDOWED !== '1';
 
 let mainWindow: BrowserWindow | undefined;
 
@@ -118,6 +101,7 @@ function createWindow(): void {
     minHeight: 700,
     backgroundColor: '#0d1117',
     autoHideMenuBar: true,
+    fullscreen: FULLSCREEN,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -147,13 +131,26 @@ function createWindow(): void {
   // `player?id=…`, `/`, etc. stay within the renderer origin (server origin in
   // server mode, app://bundle in app mode). Anything else → system browser.
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!isSameOrigin(url)) {
+    if (!sameOrigin(url, rendererOrigin())) {
       event.preventDefault();
       if (isExternalHttp(url)) {
         void shell.openExternal(url);
       }
     }
   });
+
+  // Keep the desktop app ALWAYS in fullscreen — if it's ever exited (F11 / an OS
+  // gesture), immediately re-enter. `setFullScreen(true)` fires enter-full-screen
+  // (not leave-full-screen), so there is no loop; the isDestroyed guard avoids
+  // fighting window teardown. Alt+Tab / minimize are unaffected (they don't leave
+  // fullscreen). Quitting still works normally.
+  if (FULLSCREEN) {
+    mainWindow.on('leave-full-screen', () => {
+      if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
+        mainWindow.setFullScreen(true);
+      }
+    });
+  }
 
   void mainWindow.loadURL(initialUrl());
 

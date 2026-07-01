@@ -18,6 +18,7 @@ export type DesktopUpdateMode =
   | 'downloaded'
   | 'installing'
   | 'error'
+  | 'offlineBlocked'
   | 'manualDownloadRequired';
 
 export interface DesktopUpdateState {
@@ -37,7 +38,7 @@ interface DesktopBridge {
   openExternal(url: string): Promise<void>;
   getUpdateState(): Promise<DesktopUpdateState | undefined>;
   onUpdateState(cb: (state: DesktopUpdateState) => void): void;
-  retryUpdate(): Promise<DesktopUpdateState>;
+  recheck(): Promise<DesktopUpdateState>;
   quitAndInstall(): Promise<void>;
   openDownload(): Promise<void>;
 }
@@ -96,6 +97,7 @@ export function updateOverlayBlocking(mode: DesktopUpdateMode): boolean {
     mode === 'downloading' ||
     mode === 'downloaded' ||
     mode === 'installing' ||
+    mode === 'offlineBlocked' ||
     mode === 'manualDownloadRequired' ||
     mode === 'error'
   );
