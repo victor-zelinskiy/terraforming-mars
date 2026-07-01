@@ -16,6 +16,7 @@
 import {defineComponent} from 'vue';
 import raw_settings from '@/genfiles/settings.json';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 
 type Data = {
   user: string | undefined;
@@ -31,7 +32,7 @@ export default defineComponent({
     };
   },
   mounted() {
-    const url = paths.API_PROFILE;
+    const url = apiUrl(paths.API_PROFILE);
     fetch(url)
       .then((resp) => {
         if (!resp.ok) {

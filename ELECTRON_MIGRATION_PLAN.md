@@ -12,7 +12,7 @@ This plan is grounded in a read-only audit of the actual codebase (branch `main`
 
 **Can we start Electron now without breaking the web app? — YES.** Electron is a purely **additive** build + runtime lane. It is installed as a devDependency, launched through its own CLI (`electron .`, `electron-builder`), and never passes through webpack, `tsc --build src`, `vue-tsc`, or the Mocha/mochapack test lanes. Nothing in the current dependency graph pins an Electron-incompatible version (`"electron"` appears **0×** in `package-lock.json`). The web build, `/player?id=…` links, Heroku/Docker deploy, WebSocket realtime, and polling fallback are untouched by adding a desktop shell.
 
-**Is Electron 43.0.0 a viable target here? — YES, with zero code-level blockers.** Electron 43 bundles **Node ~22 / Chromium ~136 / V8 ~13.6**, aligning exactly with `engines.node: "22.x"` (`package.json:5-7`) and installed Node 22.22.3. The renderer is the existing browser bundle unchanged — grep of `src/client` for Node built-ins (`fs/path/http/child_process/net/crypto`) returns **nothing**, so it drops into a locked-down renderer (`contextIsolation:true`, `nodeIntegration:false`) with no shims. The realtime client uses the browser-native `WebSocket` (`realtimeService.ts:227`), not the `ws` library, so the renderer needs no native module.
+**Is Electron 43.0.0 a viable target here? — YES, with zero code-level blockers.** Electron 43 ships **its own bundled modern runtime** (a recent Node + Chromium + V8) that is **separate from the server's Node runtime** — the two must not be conflated. The server/web project keeps targeting `engines.node: "22.x"` (`package.json:5-7`); the Electron main/preload run inside Electron's *bundled* Node, and the renderer runs inside Electron's *bundled* Chromium. This is **not** a blocker precisely *because the Electron lane is independent of the server runtime* and the renderer is browser-clean — **not** because any versions "line up." The renderer is the existing browser bundle unchanged — grep of `src/client` for Node built-ins (`fs/path/http/child_process/net/crypto`) returns **nothing**, so it drops into a locked-down renderer (`contextIsolation:true`, `nodeIntegration:false`) with no shims. The realtime client uses the browser-native `WebSocket` (`realtimeService.ts:227`), not the `ws` library, so the renderer needs no native module.
 
 **Can we go Windows-first and defer macOS signing? — YES.** The Windows desktop stack (NSIS installer + `electron-updater` + premium update UX) has no dependency on Apple Developer ID, notarization, or `.p12` export. macOS is a documented future phase (§16), not a blocker.
 
@@ -31,7 +31,7 @@ This plan is grounded in a read-only audit of the actual codebase (branch `main`
 - **Cross-origin API/WS.** The server sends **zero CORS headers** and has no `OPTIONS` handler (`Handler.ts:97-107`). A packaged renderer talking to a remote server is cross-origin → needs a small server-side CORS addition (§10, §11).
 
 ### What should NOT be attempted yet
-Command-transport rewrite, WebSocket command submission, removal of the reload-based game boundary (the `resetGameSessionState()` refactor stays deferred exactly as in the WS plan), macOS signing, OAuth-in-desktop, in-app spectator endgame. (§20.)
+Command-transport rewrite, WebSocket command submission, removal of the reload-based game boundary (the `resetGameSessionState()` refactor stays deferred exactly as in the WS plan), macOS signing, OAuth-in-desktop, in-app spectator endgame, blind performance refactors (§17: measure first). (§21.)
 
 **Direction:** proceed. Phase 1 is additive and proves the runtime by loading the renderer from a running server origin (zero renderer refactor). Packaged asset loading, cross-origin config injection, and the premium Windows updater follow as independently shippable phases.
 
@@ -48,7 +48,7 @@ npm install --save-dev electron@43.0.0
 - **Runtime dep split (verified against the audit):** `electron` → **devDependency**; `electron-builder` → **devDependency** (packaging CLI); `electron-updater` → **dependency** (the app's main process imports it at runtime).
 
 ### Compatibility with the current TypeScript / build setup
-- **TypeScript 6.0.3** (installed) compiles the existing server to CommonJS via `tsc --build src/tsconfig.json && tsc-alias` (`package.json:78`). Electron's **main + preload** are new `.ts` files that compile with the *same* TS 6 to CJS (`module: commonjs`, `target: es2021` — Electron 43's V8 ~13.6 supports es2021). This is an exact structural clone of the proven `build:server` lane.
+- **TypeScript 6.0.3** (installed) compiles the existing server to CommonJS via `tsc --build src/tsconfig.json && tsc-alias` (`package.json:78`). Electron's **main + preload** are new `.ts` files that compile with the *same* TS 6 to CJS (`module: commonjs`, `target: es2021` — comfortably supported by Electron's bundled V8). This is an exact structural clone of the proven `build:server` lane.
 - **Inert tsconfig plugin (do not trip on it):** `tsconfig.json:35-37` declares `plugins: [{"transform":"transformer-module"}]`. The package is **not installed**; plain `tsc`/`tsx` ignore `compilerOptions.plugins`, so it is a no-op today. The Electron lane must compile with plain `tsc`/`tsx` — **do not** switch it to `ts-patch`/`ttsc` (that would try to resolve the missing transform and fail).
 - **No webpack involvement for main/preload.** `webpack.config.js` has exactly two entries (`main`, `sw`, lines 65-68) — the renderer bundle. Electron main/preload stay out of webpack and out of `tsconfig.vue-tsc.json` (the renderer typecheck scope). New lane = a dedicated `electron/tsconfig.json` extending root.
 
@@ -66,8 +66,8 @@ electron/
 Electron 43 already defaults to `contextIsolation:true` and `nodeIntegration:false`; `sandbox:true` is the default for renderers. Our renderer is browser-clean, so these defaults are compatible out of the box. The security baseline is spelled out in §11.
 
 ### Renderer / Node / Chromium implications
-- Renderer: existing static bundle, no Node — REUSE. Chromium ~136 fully supports Vue 3.5.28 and the es2021 output.
-- Main process: Node ~22 built-ins available (matches the server's expectations if a local server is ever embedded).
+- Renderer: existing static bundle, no Node — REUSE. Electron's bundled Chromium comfortably supports Vue 3.5.28 and the es2021 output.
+- Main process: runs on **Electron's own bundled Node runtime** — a distinct runtime from the server process `npm start` launches (do not treat them as the same). Modern Node built-ins are available to main/preload; the server keeps its own `engines.node: "22.x"` independently.
 
 ### Dev / CI / build implications
 - **Dev workflow is additive** (§12): `dev:server` + `dev:client` keep working; a new `electron:dev` launches a window at the running server.
@@ -76,7 +76,7 @@ Electron 43 already defaults to `contextIsolation:true` and `nodeIntegration:fal
 ### Dependency conflict scan (verified)
 | Dep | Version | Electron 43 impact |
 |---|---|---|
-| node (engines) | 22.x (installed 22.22.3) | ✅ Electron 43 ≈ Node 22 — aligned |
+| node (engines) | server targets 22.x (installed 22.22.3) | ✅ **irrelevant to Electron** — main/preload use Electron's *own* bundled Node, not the server runtime; the two lanes are independent, so no alignment is required |
 | typescript | 6.0.3 | build-time only; not in Electron runtime — no conflict |
 | webpack / webpack-cli | 5.107.2 / 7.0.2 | separate lane; renderer output already browser-target — no conflict |
 | vue / vue-tsc | 3.5.28 / 3.2.9 | renderer-only, runs in Chromium — no conflict |
@@ -99,7 +99,7 @@ Electron 43 already defaults to `contextIsolation:true` and `nodeIntegration:fal
 **Why Windows first:** it is the developer's platform (repo runs on Windows 11 per environment), it needs no code-signing certificate authority enrollment to *test* (unsigned dev builds run locally), and `electron-updater`'s NSIS differential-update path is the most straightforward premium updater to build and validate. macOS notarization requires Apple Developer Program enrollment + Developer ID + `.p12` + a notarization round-trip — a hard external dependency we explicitly keep off the critical path (§16).
 
 - **First artifact type:** an **NSIS installer** (`.exe`) via electron-builder (`target: nsis`). NSIS is electron-updater's native Windows path (emits `latest.yml` + `<app>-<version>.exe.blockmap` for differential downloads) and gives us the mandatory-update + progress UX later. A portable `.exe` or `.zip` is a secondary convenience target; Squirrel.Windows is **not** recommended (weaker update UX, no differential blockmap).
-- **Unsigned Windows dev builds are acceptable initially.** They run; Windows SmartScreen shows a "Windows protected your PC" warning on first run of an unsigned installer, and `electron-updater` will *download+stage* updates but the OS may warn on the unsigned installer launch. This is fine for internal Windows testing.
+- **Unsigned Windows builds are acceptable for *internal testing of the update architecture* — not as production-quality UX.** They run, but an unsigned installer triggers a Windows SmartScreen "Windows protected your PC" warning on first run, and the auto-update flow may surface trust warnings. The exact installer/update UX may therefore include SmartScreen and trust prompts. This is fine to validate check → download → progress → install → relaunch internally. **Production-quality *seamless* UX (no SmartScreen, silent update) requires Windows code signing later** — a separate sub-phase after the updater is functionally proven.
 - **Testable BEFORE code signing:** launch, renderer load, REST, WS, polling fallback, identity injection, reload boundary, the update-check endpoint + mandatory-update gate + download-progress UI + `latest.yml` discovery + differential download + restart-to-install (electron-updater works with unsigned NSIS on Windows; only the SmartScreen prompt differs).
 - **Should wait for code signing:** silent SmartScreen-free installs, a fully seamless "no warning" auto-update, and any enterprise-trust scenarios. These are a Windows-signing sub-phase (EV/OV code-signing cert), *separate from and after* the Windows updater is functionally proven.
 - **Updater testing on Windows first:** host `latest.yml` + installer artifacts on a static URL (a `dev` channel dir — even a local static server or a GitHub release for internal builds), point `electron-updater` at it, bump the version, verify check → download → progress → install → relaunch. All doable unsigned.
@@ -163,7 +163,7 @@ npm run lint:client (vue-tsc) — renderer typecheck still green for touched fil
 ## 6. Target Electron architecture
 
 ```
-Electron main process (build/electron/main.js, Node 22)
+Electron main process (build/electron/main.js — Electron's bundled Node runtime, NOT the server's Node)
   ├─ app lifecycle, single-instance lock, setAppUserModelId('…terraforming-mars')
   ├─ registers custom app:// scheme (standard+secure+supportFetchAPI) BEFORE ready
   ├─ protocol.handle('app', …) → serves the packaged static tree
@@ -188,7 +188,7 @@ Electron main process (build/electron/main.js, Node 22)
 ```
 
 **Responsibilities:**
-- **Main:** window/lifecycle, the `app://` protocol handler, the desktop session store, `electron-updater` orchestration + progress relay, external-link handling, IPC. Owns all secrets/URLs (update feed URL, allowed server list).
+- **Main:** window/lifecycle, the `app://` protocol handler, the desktop session store, `electron-updater` orchestration + progress relay, external-link handling, IPC. Owns all secrets/URLs (update feed URL, allowed server list). Also decides the **startup mode** (§14): a mandatory-update gate loads the renderer in *update-only* mode and does **not** restore the last game or inject an active `participantId` into normal game flow until the client is compatible.
 - **Preload:** the *only* bridge. Injects `tmRuntimeConfig` (so the renderer's existing seam works) + a narrow `desktopBridge` for update UX + external links. No `require`, no `fs`, no `child_process` exposed.
 - **Renderer:** the premium web client verbatim. It never learns it is in Electron except via `window.desktopBridge?.desktopMode` (used only to (a) show the updater surface and (b) route external links). No game logic changes.
 
@@ -294,7 +294,7 @@ rematch        → EndgameResultsOverlay <a href="player?id=<newId>"> reloads in
 
 ### Recommendation
 - **Dev / Phase 1 (prove the runtime):** `loadURL(<serverOrigin>)` — same-origin, zero adapters, no packaging. Proves Electron 43 + BrowserWindow + preload + REST + WS + polling with no renderer refactor.
-- **Packaged (Phase 2+):** **Option B — `app://` custom protocol** for the static renderer + **injected `apiBase`/`wsBase`** to a configurable remote/local server. This is the target thin-client architecture.
+- **Packaged (Phase 2A/2B):** **Option B — `app://` custom protocol** for the static renderer (2A) + **injected `apiBase`/`wsBase`** to a configurable remote/local server (2B). This is the target thin-client architecture.
 - **Environment-specific `publicPath`** so the browser production build is unchanged:
   ```js
   // webpack.config.js:107
@@ -313,11 +313,13 @@ rematch        → EndgameResultsOverlay <a href="player?id=<newId>"> reloads in
 
 **`http`/`https` + `ws`/`wss`:** the server speaks **plain HTTP unless `KEY_PATH`+`CERT_PATH` are set** (`server.ts:52-76`); in typical hosting TLS is terminated by an upstream proxy. The WS attaches to whichever server object `createServer()` returns, so **`wss://` works only if TLS is terminated in front of / by the process.** The desktop client injects the scheme explicitly via `wsBase` (never derive from a non-`http(s)` `app://` origin).
 
-**CORS (the one required server change for the packaged thin client):** the server sends **no `Access-Control-*` headers** and has **no `OPTIONS` handler** (`Handler.ts:97-107` switches only GET/PUT/POST). A renderer at `app://bundle` hitting `https://<host>` is cross-origin. Add a small, isolated CORS layer:
-- Reflect an allow-listed `Origin` (`app://bundle`, and `http://localhost:8080` for dev) into `Access-Control-Allow-Origin` in `responses.ts` + `ServeAsset` responses.
+**CORS (the one required server change for the packaged thin client) — added in Phase 2B, with strict guardrails:** the server sends **no `Access-Control-*` headers** and has **no `OPTIONS` handler** (`Handler.ts:97-107` switches only GET/PUT/POST). A renderer at an `app://` origin hitting `https://<host>` is cross-origin. Add a small, isolated, **explicitly allow-listed** CORS layer — never a blanket one:
+- **Empirically verify the real `Origin` FIRST — do not assume it.** The exact `Origin` header Electron's `app://` fetches send must be **inspected in Phase 2B** (log the incoming `Origin`) and the allowlist configured to match it exactly. It may be `app://bundle`, `app://`, `null`, or another form depending on how the scheme is registered — **verify empirically, don't guess.**
+- **Explicit, environment-configured allowlist only. NO wildcard.** Reflect a *matched* allow-listed `Origin` into `Access-Control-Allow-Origin` in `responses.ts` + `ServeAsset` responses. **Never** send `Access-Control-Allow-Origin: *`. The allowlist (the verified `app://` origin + `http://localhost:8080` for dev) is env-configured per channel.
 - Add an `OPTIONS` preflight branch in `Handler.processRequest`.
-- Game APIs authenticate with the **URL `?id=` token**, not a cookie, so `Access-Control-Allow-Credentials` is likely **not** needed for gameplay (simpler CORS). (Cookies are `SameSite=Strict; Secure` and only relevant to optional Discord auth, which is out of desktop scope.)
-- This is additive: same-origin browser requests never send a cross-origin `Origin`, so browser behavior is unchanged.
+- **No credentials for gameplay.** Game APIs authenticate with the **URL `?id=` token**, not a cookie, so **do NOT enable `Access-Control-Allow-Credentials`** unless a specific flow genuinely requires cookies (gameplay does not). Cookies are `SameSite=Strict; Secure` and only relevant to optional Discord auth (out of desktop scope).
+- **Do NOT open admin/auth endpoints to arbitrary origins.** Scope CORS to the game-runtime API surface; admin/auth endpoints stay same-origin-only (out of desktop scope).
+- **Additive:** same-origin browser requests never send a cross-origin `Origin`, so browser behavior is unchanged.
 
 **WS handshake:** no preflight (WebSocket is exempt); `RealtimeServer.onUpgrade` (`:172-186`) does **no Origin check** — permissive, fine for a token-authed client. Add an Origin allowlist only as public-exposure hardening (low priority).
 
@@ -365,6 +367,10 @@ Do NOT let the renderer choose the update feed URL or run shell commands.
 Do NOT let the renderer write desktop config files directly (go through a narrow IPC).
 Do NOT disable webSecurity or set allowRunningInsecureContent.
 Do NOT ship secrets to the renderer.
+Do NOT use a wildcard CORS origin (Access-Control-Allow-Origin: *) — the allowlist is explicit + environment-configured.
+Do NOT enable Access-Control-Allow-Credentials unless a flow truly needs cookies (gameplay does not).
+Do NOT open admin/auth endpoints to arbitrary origins via CORS.
+Do NOT disable webSecurity, contextIsolation, sandbox, or the preload boundary for performance (see §17 — security is not a performance knob).
 ```
 
 ---
@@ -403,6 +409,8 @@ npm run electron:pack         # build:desktop, then electron-builder --win  (NSI
 **Tooling:** `electron@43.0.0` (devDep) · `electron-builder` (devDep, packaging) · `electron-updater` (dependency, runtime). All three run in a lane separate from webpack/tsc-server/tests → no conflict with the existing toolchain.
 
 **Package contents (thin-client — the recommended shape):** Electron `main.js` + `preload.js` + the static renderer tree (`build/main.js`, `build/vendors.js`, `build/chunks/**`, `build/styles.css`, `assets/**`, `src/genfiles/*` if any are runtime-fetched — locales are already merged into `assets/locales/`). **The server is NOT bundled** → no `better-sqlite3`/`pg`/`ws`/`sharp`, **no native rebuild**. electron-builder `files`/`asarUnpack` scoped to the renderer + `build/electron`; explicitly exclude `src/server`, `optionalDependencies`, and `scripts/`.
+
+> **THIN-CLIENT HARD RULE:** Do **NOT** bundle `src/server`, database drivers, `pg`, `better-sqlite3`, the `ws` server, or any local game server into the Electron MVP. Bundling the server would introduce native modules, database state, port management, update complexity, security complexity, and state-migration problems. The desktop app **connects to the existing server** through REST + WebSocket. (A fully-standalone embedded-server product is a separate, later, deliberately-out-of-MVP option — §9 Option C.)
 
 **Pre-package pipeline (reuse the existing `build`):**
 ```
@@ -452,17 +460,34 @@ GET /api/desktop/version?platform=win32&channel=dev&current=1.3.0
 - Implemented as a small `Handler` in `requestProcessor.ts` reading a config (env/JSON) for the channel's `latest`/`min`. Public (no token). Additive; browser unaffected.
 - `serverProtocolVersion` lets the server force a desktop upgrade when the realtime `Protocol.ts` version bumps (a stale client would otherwise `PROTOCOL_INCOMPATIBLE` on `/ws`).
 
-### Startup flow (main process)
+### Startup flow (main process) — an explicit UPDATE-ONLY BOOT MODE
+A mandatory update must block normal app/game flow **before the game runtime is restored**. The main process resolves a startup mode first and only enters normal game flow when compatible:
+
+```ts
+type DesktopStartupMode =
+  | 'normal'                  // compatible → load normal route / restore last game
+  | 'updateRequired'          // load renderer in UPDATE-ONLY mode; do NOT restore game / inject participantId
+  | 'offlineBlocked'          // compat check unreachable + no valid last-known-good → blocked with retry
+  | 'manualDownloadRequired'; // auto-install unavailable → manual-download fallback screen
 ```
-app.ready
+
+```
+Electron main starts (app.ready)
   → read desktop session (serverBase, channel, current version)
   → GET /api/desktop/version   (compatibility check)
-  → if current < minSupportedVersion  → state 'required'  → block normal app flow, show mandatory update screen
-  → else electron-updater.checkForUpdates() against the channel feed (latest.yml)
-       → 'available' → 'downloading' (progress events) → 'downloaded' → quitAndInstall
-  → if up to date → proceed to normal renderer load (menu / restore last game)
+  → if update required (current < minSupportedVersion, or updateRequired=true, or check unreachable while stale):
+       startupMode = 'updateRequired' | 'offlineBlocked' | 'manualDownloadRequired'
+       loadURL('app://bundle/?desktopBoot=update')   // UPDATE-ONLY renderer route
+       inject desktopBridge + update state ONLY
+       DO NOT restore last game
+       DO NOT inject an active participantId into normal game flow
+       (electron-updater.checkForUpdates → 'downloading' progress → 'downloaded' → quitAndInstall)
+  → else (compatible):
+       startupMode = 'normal'
+       load normal route / restore last game (inject apiBase/wsBase/participantId as usual)
 ```
-- **Two gates:** the *server* compatibility endpoint (authoritative "you're too old to play") + the *update feed* (electron-updater's own newer-artifact detection). The server gate is the mandatory one; the feed gate is the delivery.
+- **Update-only mode is a hard gate, not a suggestion.** In `updateRequired`/`offlineBlocked`/`manualDownloadRequired` the main process refuses to `loadURL` any game route and never injects an active `participantId`, so the renderer *cannot* enter game flow even if a stale bundle tried to. The renderer surfaces only the premium update UI (§15).
+- **Two gates:** the *server* compatibility endpoint (authoritative "you're too old to play") + the *update feed* (electron-updater's own newer-artifact detection). The server gate drives `startupMode`; the feed gate is the delivery.
 
 ### Windows-first updater expectations
 - **Support the NSIS/`electron-updater` path first** (differential `.blockmap` downloads).
@@ -471,7 +496,7 @@ app.ready
 - **Mandatory enforcement:** when `updateRequired` (server) or `current < minSupportedVersion`, the renderer shows the update screen with **no skip/later** and the game flow is blocked (the main process refuses to `loadURL` a game until updated, or the renderer's `desktopMode` guard hides all entry points).
 - **Progress → renderer:** `autoUpdater` `download-progress` events → main → `webContents.send('desktop:update-state', {state, percent, …})` → preload `onUpdateState(cb)` → the premium overlay.
 - **Errors/retry:** `error` events → state `'error'` with a Retry that re-invokes `checkForUpdate`.
-- **Testable without signing:** check → download → progress → install → relaunch all work with an **unsigned** NSIS build on Windows (only the SmartScreen prompt differs). **Improves later with signing:** no SmartScreen warning, seamless silent update.
+- **Testable without signing (internal only):** check → download → progress → install → relaunch all work with an **unsigned** NSIS build on Windows — enough to validate the update *architecture*. Expect SmartScreen / trust warnings; this is **not** production-quality UX. **Production-quality seamless UX (no warnings, silent update) requires Windows code signing** — a separate later sub-phase.
 
 **macOS updater:** documented only (§16); do not implement.
 
@@ -511,9 +536,100 @@ Placement: a new App-level component (sibling of the endgame/realtime layers) mo
 
 ---
 
-## 17. Phased migration plan
+## 17. Electron Performance Initiative (first-class pillar)
 
-Each phase is independently shippable and reversible (the web app + server stay green throughout; the Electron lane can be dropped by removing `electron/`, the `main` field, and the desktop scripts).
+**This is a core product requirement, not polish.** The reason for the desktop app is not only packaging — the Electron client must become a **measurably stronger premium client than the browser**: smoother animations, lower input latency, fewer frame drops, faster screen transitions, and a more stable premium experience. The web/browser app remains fully supported; Electron gets *additional* performance work that is safe and appropriate for a controlled, bundled Chromium runtime.
+
+### Product goal (stated directly)
+```
+Electron is not just a wrapper around the web app.
+Electron is the premium desktop runtime.
+The Electron version should eventually OUTPERFORM the browser version in
+smoothness, stability, animation consistency, and perceived responsiveness.
+```
+This never means breaking the browser version. It means:
+- shared improvements benefit **both** web and Electron wherever possible;
+- Electron-specific optimizations are **gated behind `desktopMode`**;
+- every optimization is **measured, not guessed**;
+- Chromium/Electron flags are applied **carefully and validated**, never cargo-culted.
+
+> **Hard rule:** *Security settings are not performance knobs.* Do **NOT** disable `webSecurity`, `contextIsolation`, `sandbox`, or the narrow preload boundary for performance.
+
+### Performance audit areas (future phases MUST inspect)
+**Renderer:** Vue re-render hot spots; expensive reactive-state updates; the **`playerkey++` remount cost**; board / card / overlay / hover-preview / journal / notification render cost; animation & transition timing; layout thrashing & forced synchronous layout reads; expensive watchers; large computed values; long tasks on the main thread; unnecessary DOM updates; large images / texture memory; costly CSS filters/shadows/backdrops; frequent timers/intervals; large un-virtualized lists; repeated formatting/calculation in templates; unnecessary network refetches; **snapshot-apply cost after a WS invalidation**.
+**Electron-specific:** BrowserWindow creation options; Chromium GPU-acceleration behavior; background-throttling policy; frame rate / animation smoothness; image decoding & cache behavior; memory pressure; process model; preload overhead; custom-protocol (`app://`) performance; `app://` asset caching; startup time; cold vs warm boot; the update-screen startup path; bundled Chromium flags **only after profiling**.
+**Assets:** size of `main.js` / `vendors.js` / chunks; lazy-chunk loading behavior; CSS size; image sizes; card/tile art compression; fonts & font loading; locale loading; cache headers / `app://` cache behavior; board/tile/card texture sizes; whether some assets should be **preloaded** in Electron.
+**Animation (premium flows — special attention):** tile placement; cube/resource movement; energy→heat conversion; overlay open/close transitions; hover previews; endgame reveal; victory animations; realtime waiting indicators; board zoom/scale; action-confirmation modal; card fullscreen preview. Each must be profiled and tuned to minimize frame drops in Electron.
+
+### Performance metrics & budgets (measure first, then set)
+No invented final numbers. **Perf Phase 0 measures the baseline; later phases set real budgets from the measurements.** Initial budget shape:
+```
+Startup:
+  Electron cold start → premium menu:  target budget to be measured, then improved.
+  Restore last game:                   target budget to be measured, then improved.
+Runtime:
+  Avoid long tasks > 50 ms during normal interaction where avoidable.
+  Critical animations target a stable 60 FPS.
+  Click/hover response feels immediate.
+  WS invalidation → visible update stays fast without creating UI jank.
+  Overlay open/close drops no frames on typical Windows hardware.
+  Game-boundary reload resets state cleanly and quickly.
+Memory:
+  Track renderer memory after entering a game.
+  Track memory after several game switches.
+  No obvious leaks across reload boundaries.
+```
+
+### Instrumentation plan (phased)
+Tools / approaches to evaluate: Chromium DevTools Performance panel (in Electron); Electron `contentTracing` for deep traces; `performance.mark` / `performance.measure`; a `PerformanceObserver` long-task observer (if supported in the renderer); memory snapshots over long sessions; a desktop-only build-size report for the renderer chunks; an optional dev-only FPS meter (Electron dev mode).
+Custom lightweight marks around: app bootstrap; route apply (`applyRoute`); initial model fetch; player-model apply; **WS invalidation wake** (`realtimeSync` → `waitForUpdate(true)`); overlay open; board-render completion; endgame-overlay mount.
+> **Rule:** *Do not optimize blindly.* Every major performance optimization must be motivated by a measured bottleneck or a clearly understood hot path.
+
+### Electron-specific Chromium tuning (controlled)
+```
+Electron gives us a bundled Chromium runtime we can tune, but flags must be applied carefully.
+Do not cargo-cult random Chromium flags.
+Do not disable security for performance.
+Do not use flags that create instability unless measured and justified.
+```
+Future investigation (each profiled before applying): GPU / hardware-acceleration status on Windows; whether to set or avoid `app.disableHardwareAcceleration()`; any app-specific command-line switches; background-throttling settings; frame scheduling; image-cache behavior; spellcheck/context-menu overhead if irrelevant; DevTools impact dev-vs-prod; power-usage vs smoothness trade-offs.
+
+### Refactor-for-performance track (separate from Electron plumbing)
+Likely deep-refactor candidates — confirm by profiling FIRST: board rendering; card-list rendering; overlay rendering; journal rendering; expensive computed/watch chains; repeated snapshot→view-model transformations; large reactive objects; image-heavy components; layout-forcing animations; over-expensive CSS effects; route/game reload cost; player-model apply/remount cost.
+```
+Electron Phase 1 should NOT refactor all performance hotspots. First build the shell, then measure, then optimize.
+BUT performance optimization is a CORE reason for the Electron project — it has its own phases and acceptance criteria (below).
+```
+
+### Performance phases (run ALONGSIDE the main Electron phases, not instead of them)
+- **Perf Phase 0 — baseline measurement.** Measure current browser vs the Phase-1 Electron dev shell. Establish startup / route-apply / animation / WS-update / overlay / board-render baselines.
+- **Perf Phase 1 — packaged Electron baseline.** Measure the `app://` packaged renderer (after Phase 2A); compare against browser; identify asset / chunk / protocol bottlenecks.
+- **Perf Phase 2 — low-risk shared optimizations.** Refactors that improve **both** browser and Electron with no architecture risk.
+- **Perf Phase 3 — Electron-specific tuning.** BrowserWindow / Chromium / `app://` cache / preload / asset-preload optimizations (gated by `desktopMode`).
+- **Perf Phase 4 — animation & premium-UX smoothness pass.** Focus on frame drops & perceived smoothness in the main premium flows.
+- **Perf Phase 5 — performance regression guard.** Repeatable manual/automated checks so jank cannot silently return.
+
+**Mapping to the main phases:** Perf-0 rides Phase 1; Perf-1 rides Phase 2A/2B; Perf-2 is continuous; Perf-3 rides Phase 5; Perf-4 rides Phase 5+; Perf-5 lands with/after Phase 8.
+
+### Performance acceptance criteria
+```
+Baseline metrics collected BEFORE any optimization.
+Electron does not perform worse than browser on the measured critical flows.
+Critical premium animations are profiled.
+Long tasks are identified and reduced.
+Game-boundary reload is measured.
+WS invalidation → visual-update path is measured.
+Packaged-app startup is measured.
+No performance improvement disables security.
+No Electron-specific optimization breaks browser mode.
+```
+**Later target — Electron OUTPERFORMS browser** on the most important perceived-performance flows: startup→menu; restoring a game; opening overlays; board interaction; animations; WS-driven opponent updates; endgame reveal.
+
+---
+
+## 18. Phased migration plan
+
+Each phase is independently shippable and reversible (the web app + server stay green throughout; the Electron lane can be dropped by removing `electron/`, the `main` field, and the desktop scripts). **The Performance phases (§17, Perf-0…5) run in PARALLEL with these — they do not replace them; Perf-0 begins as soon as the Phase-1 dev shell exists.**
 
 ### Phase 0 — Feasibility audit & plan (THIS DOCUMENT)
 No runtime change. Deliverable: this file. **Done when** committed + linked from the WS plan.
@@ -525,12 +641,31 @@ No runtime change. Deliverable: this file. **Done when** committed + linked from
 - No packaging, no `app://`, no updater, no CORS (same-origin).
 - **Done when:** the window opens the premium menu, creates/enters a game, plays a turn, receives WS pushes, falls back to polling, and the web build is untouched. Reversible by deleting `electron/` + scripts.
 
-### Phase 2 — Packaged asset loading (`app://` + publicPath + CORS)
+### Phase 2A — Packaged renderer / `app://` / asset loading
 - Register the `app://` standard-scheme protocol; port `ServeAsset.toFile` into the handler (serve `index.html` for any path; map `build/`+`assets/`).
-- Env-conditional `publicPath: app://bundle/` for `DESKTOP_BUILD=1`.
-- Wrap the 11 raw API fetches (§7) through `apiUrl()`; ensure locales resolve under `app://`.
-- Inject `apiBase`/`wsBase`/`participantId` via preload; add server-side CORS (§10) + `OPTIONS`.
-- **Done when:** a packaged `build:desktop` renderer loads over `app://bundle/`, every screen chunk loads, REST+WS reach a *remote* server cross-origin, and the browser build is byte-identical (publicPath `/`).
+- Env-conditional `publicPath: app://bundle/` for `DESKTOP_BUILD=1` (web build keeps `'/'`).
+- Fix the 2 absolute `url(/assets/…)` refs in `DeltaProjectBoard.vue`.
+- **Done when (packaged renderer loads from `app://`; connectivity NOT yet changed):**
+  - `app://` protocol works;
+  - the packaged renderer loads;
+  - `main.js`, `vendors.js`, `styles.css` load;
+  - every lazy chunk loads (all screens mount);
+  - fonts / images / card art / tile art load;
+  - locale loading works (`fetch` under `app://`);
+  - the **browser build still uses `publicPath: '/'`** (grep the web `main.js`: `__webpack_require__.p === "/"`).
+  - *(This phase may still point REST/WS at a same-origin dev server to isolate asset-loading from connectivity.)*
+
+### Phase 2B — Remote API + WS from `app://` / CORS / wrapped fetches
+- Wrap the 11 raw API fetches (§7) through `apiUrl()`.
+- Inject `apiBase`/`wsBase`/`participantId` via preload (point at a *remote* server).
+- Add the safe, allow-listed server-side CORS layer + `OPTIONS` (§10 guardrails).
+- **Done when (renderer talks to a cross-origin server from `app://`):**
+  - raw API fetches are wrapped through `apiUrl`;
+  - `apiBase` / `wsBase` injection works;
+  - CORS is configured safely (explicit allowlist, **no wildcard**, no credentials for gameplay);
+  - REST and WS work cross-origin from `app://`;
+  - **the actual `Origin` header sent by Electron `app://` fetches is inspected empirically and documented** (§10 — do not assume it);
+  - browser mode remains unchanged (same-origin, no CORS round-trip).
 
 ### Phase 3 — Identity & game restore
 - Desktop session store (`serverBase`, `lastParticipantId`, `channel`). Restore-last-game on launch. Enter/leave/switch via renderer reload of `app://bundle/<path>?id=…`.
@@ -539,7 +674,7 @@ No runtime change. Deliverable: this file. **Done when** committed + linked from
 
 ### Phase 4 — REST + WS full smoke (Windows manual)
 - Player + spectator modes; realtime connected; polling fallback; reconnect/resume; the flag ladder still reachable (localStorage/desktopBridge). Desktop debug affordance for WS health.
-- **Done when:** the Windows smoke matrix (§19) passes end-to-end against dev + a staging server.
+- **Done when:** the Windows smoke matrix (§20) passes end-to-end against dev + a staging server.
 
 ### Phase 5 — Windows desktop UX shell
 - Premium loading screen, optional server selector, connection-state indicator, native app menu, external-link handling (`shell.openExternal`), error states, window polish (`setAppUserModelId`, icon, single-instance lock).
@@ -560,18 +695,18 @@ Do not include in Phases 1-8.
 
 ---
 
-## 18. Risk register
+## 19. Risk register
 
 | # | Risk | Sev | Likelihood | Mitigation | Test coverage | Rollback |
 |---|---|---|---|---|---|---|
 | R1 | **Web regression** from touching shared client (fetch-wrap, publicPath) | High | Low | Env-conditional publicPath; `apiUrl('')` is identity when `apiBase=''`; wrapping is behavior-preserving | §5 browser smoke after every phase; `runtimeConfig.spec.ts` green | Revert the client commit; server/web unaffected |
-| R2 | **Code-split chunks 404 under packaging** (`publicPath:'/'`) | High | High if `file://` | Choose `app://` (Opt B) + `DESKTOP_BUILD` publicPath; dev uses `loadURL(server)` | Phase-2 done-criteria (every screen chunk loads) | Fall back to `loadURL(server)` (Phase-1 mode) |
-| R3 | **Cross-origin CORS block** (no server CORS today) | High | High (packaged) | Additive Origin-reflecting CORS + `OPTIONS` in `responses.ts`/`Handler.ts` | Phase-2/4 smoke; unit test the CORS branch | Feature-flag the CORS layer off; use dev same-origin mode |
+| R2 | **Code-split chunks 404 under packaging** (`publicPath:'/'`) | High | High if `file://` | Choose `app://` (Opt B) + `DESKTOP_BUILD` publicPath; dev uses `loadURL(server)` | Phase-2A done-criteria (every screen chunk loads) | Fall back to `loadURL(server)` (Phase-1 mode) |
+| R3 | **Cross-origin CORS block** (no server CORS today) | High | High (packaged) | Additive **allow-listed** (no-wildcard) Origin-reflecting CORS + `OPTIONS` in `responses.ts`/`Handler.ts`; verify the real `Origin` empirically | Phase-2B/4 smoke; unit test the CORS branch | Feature-flag the CORS layer off; use dev same-origin mode |
 | R4 | **Electron 43 incompatibility** | Low | Very low | Additive lane; deps verified (§2) | `electron:dev` launches | Uninstall electron; lane is isolated |
 | R5 | **Windows packaging issue** (electron-builder config) | Med | Med | Scope `files` to renderer+main; exclude server natives | Phase-6 artifact runs on a clean Windows box | Ship dev `loadURL` build; fix config |
 | R6 | **Windows updater issue** (feed/blockmap) | Med | Med | Validate against a static feed; unsigned-OK | Phase-7/8 update matrix | Disable auto-update; manual-download fallback |
 | R7 | **SmartScreen / unsigned warning** confuses testers | Low | High (unsigned) | Document the expected warning; sign later | Manual note in Windows smoke | N/A (cosmetic) |
-| R8 | **Asset path breakage** (2 abs `url(/assets/…)`, dir split) | Med | Med | `app://` handler flattens both dirs; fix the 2 Delta refs | Phase-2 (Delta board renders) | `loadURL(server)` mode |
+| R8 | **Asset path breakage** (2 abs `url(/assets/…)`, dir split) | Med | Med | `app://` handler flattens both dirs; fix the 2 Delta refs | Phase-2A (Delta board renders) | `loadURL(server)` mode |
 | R9 | **Stale per-game singleton state** across boundary | Med | Low (reload keeps it clean) | Keep reload-based boundary; do NOT go in-app | Phase-3 (state clean after switch) | N/A (reload is the safe default) |
 | R10 | **Identity mismatch** (wrong `?id=` injected) | Med | Low | Session store is the single source; `identitySearch` audited | Phase-3/4 | Re-inject; renderer reload |
 | R11 | **WebSocket URL mismatch** (wsBase derived from `app:`) | Med | High if not injected | Always inject explicit `wsBase` | Phase-4 (WS connects) | Polling fallback still works |
@@ -585,15 +720,32 @@ Do not include in Phases 1-8.
 | R19 | **Auto-update unavailable in unsigned/dev** | Med | Med | `manualDownloadRequired` fallback screen | Phase-8 | Manual download link |
 | R20 | **macOS signing blocks Windows progress** | High | Low | Explicit §16 boundary; Phases 1-8 touch no Apple tooling | N/A | N/A |
 | R21 | **Multi-dyno expectations** (per-process WS rooms + in-mem cache) | Med | Low | Single-instance topology documented (WS §G.6); client reaches the exact server | N/A | Single server |
-| R22 | **Legacy pages** (`/the-end`, admin, cards, help) under Electron | Low | Low | `app://` serves them like the browser; admin/auth out of desktop scope | Phase-2 route check | N/A |
+| R22 | **Legacy pages** (`/the-end`, admin, cards, help) under Electron | Low | Low | `app://` serves them like the browser; admin/auth out of desktop scope | Phase-2A route check | N/A |
 | R23 | **Spectator endgame** in-app gap (WS deferred item) | Low | Low | Spectator uses the same reload flow; endgame link intact | Phase-4 spectator smoke | N/A |
-| R24 | **`fetch(file://)` blocked** (locales) | Med | High if `file://` | `app://` registered `supportFetchAPI`; ship locales locally | Phase-2 (locale switch works) | Degrades to English |
+| R24 | **`fetch(file://)` blocked** (locales) | Med | High if `file://` | `app://` registered `supportFetchAPI`; ship locales locally | Phase-2A (locale switch works) | Degrades to English |
 | R25 | **HTTPS/`wss://` needs upstream TLS** | Med | Med | Terminate TLS at proxy / set cert paths; inject `wss` base | Phase-4 against staging | Use `ws://` to a local/dev server |
 | R26 | **`better-sqlite3` native ABI** (only if server embedded) | Med | Low (thin client) | Thin client ships no server/DB; if embedded use LocalFilesystem or `@electron/rebuild` | Phase-6 packaging | Don't embed the server |
 
+**Performance risks (the §17 pillar):**
+
+| # | Risk | Sev | Likelihood | Mitigation | Measurement / test | Rollback |
+|---|---|---|---|---|---|---|
+| RP1 | **Packaged Electron slower than browser** | High | Med | Perf-0/1 baselines; `app://` caching + asset preload; profile before shipping | Perf Phase 0/1 measurements | Ship `loadURL(server)` mode (no `app://` asset cost) |
+| RP2 | **`app://` asset loading adds latency** | Med | Med | Stream + cache headers in the protocol handler; measure vs http | Perf-1 asset trace | Fall back to localhost/embedded-server load |
+| RP3 | **Excessive bundle / chunk cost** | Med | Med | Desktop build-size report; desktop-only preload of hot chunks if measured worthwhile | Perf-1 build-size + chunk-load trace | Keep current lazy loading |
+| RP4 | **GPU acceleration inconsistent on Windows hardware** | Med | Med | Profile GPU status; decide `disableHardwareAcceleration` **per measurement**, not by guess | Perf-3 GPU trace on target HW | Toggle the HW-accel setting |
+| RP5 | **Expensive CSS effects (filters/shadows/backdrops) drop frames** | Med | Med | Profile the premium flows; gate the heaviest effects behind `desktopMode` tuning | Perf-4 animation profile | Reduce/disable the specific effect |
+| RP6 | **Vue reactive churn during model updates** | Med | Med | Profile snapshot-apply + `playerkey++`; targeted memoization / shallow reactivity | Perf-2 render trace | Revert the specific optimization |
+| RP7 | **`playerkey++` remount jank** | Med | Med | Measure remount cost; optimize only with a trace (shared web+Electron benefit) | Perf-0/2 remount measurement | Keep the current remount |
+| RP8 | **Updater screen slows startup** | Low | Med | Update check is async; render the gate fast; time-box the check | Perf-1 startup trace incl. update path | Shorten/skip the check timeout |
+| RP9 | **Excessive preload/main IPC** | Low | Low | Keep the bridge narrow; batch IPC; no per-frame IPC | Perf-3 IPC trace | Reduce the IPC surface |
+| RP10 | **Memory growth over long sessions / many game switches** | Med | Med | Memory snapshots; verify the reload boundary frees state; watch module singletons | Perf-0/5 memory tracking | Reload clears state (already the boundary) |
+| RP11 | **A performance optimization breaks browser mode** | High | Med | `desktopMode`-gate Electron-only tweaks; shared changes must pass the §5 browser smoke | §5 smoke + Perf-5 regression guard | Revert; re-gate behind `desktopMode` |
+| RP12 | **Unsafe Chromium flags / guess-based optimization** | Med | Med | No flag without a trace; never disable security; document each flag's measured effect | Perf-3 before/after trace | Remove the flag |
+
 ---
 
-## 19. Acceptance criteria
+## 20. Acceptance criteria
 
 ### Prerequisites to START implementation (Phase 0 → 1)
 - Plan committed + linked from `WEBSOCKET_MIGRATION_PLAN.md`.
@@ -644,9 +796,20 @@ Browser mode shows NO updater UI.
 macOS signing/notarization NOT required for this phase.
 ```
 
+### Electron performance (the §17 pillar — full criteria there)
+```
+Baseline metrics collected BEFORE any optimization (Perf Phase 0).
+Electron does not perform worse than browser on the measured critical flows.
+Critical premium animations profiled; long tasks identified + reduced.
+Game-boundary reload + WS-invalidation→visual-update path + packaged startup all measured.
+No performance improvement disables security; no Electron-only optimization breaks browser mode.
+Later target: Electron OUTPERFORMS browser on startup→menu, restore-game, overlays,
+board interaction, animations, WS opponent updates, and endgame reveal.
+```
+
 ---
 
-## 20. What should NOT be done yet
+## 21. What should NOT be done yet
 
 - No command-transport rewrite; commands still POST `player/input` (WS is invalidation-only, per the WS plan).
 - No WebSocket command submission.
@@ -660,10 +823,13 @@ macOS signing/notarization NOT required for this phase.
 - No change that makes the **web app depend on Electron** (`tmRuntimeConfig` stays optional).
 - No embedding of the server/DB into the desktop package in the thin-client phases (avoids native rebuild).
 - Do not switch the Electron main/preload compile to `ts-patch`/`ttsc` (the inert `transformer-module` plugin would fail to resolve).
+- **No blind / speculative performance optimization** — measure first (Perf Phase 0). Electron Phase 1 does **not** refactor performance hotspots; §17 phases own that.
+- **No Chromium flags or `app.disableHardwareAcceleration()` without a profiling trace**, and never disable `webSecurity`/`contextIsolation`/`sandbox`/the preload boundary for performance (§17).
+- No Electron-only performance change that isn't `desktopMode`-gated (or proven to also help — and not regress — browser mode).
 
 ---
 
-## 21. Files likely to change later (do NOT modify yet)
+## 22. Files likely to change later (do NOT modify yet)
 
 **Electron main/preload (new):**
 - `electron/main.ts`, `electron/preload.ts`, `electron/tsconfig.json`, `electron/protocol.ts` (the `app://` handler porting `ServeAsset.toFile`), `electron/session.ts` (desktop store), `electron/updater.ts`.
@@ -697,12 +863,18 @@ macOS signing/notarization NOT required for this phase.
 - `tests/realtime/runtimeConfig.spec.ts` (keep green when extending the seam).
 - New: `tests/electron/protocol.spec.ts` (the `app://` mapping), `tests/server/ApiDesktopVersion.spec.ts`, `tests/server/cors.spec.ts`.
 
+**Performance / instrumentation (§17 — measure-first, mostly NEW, shared web+Electron where safe):**
+- New: a small `src/client/utils/perfMarks.ts` (thin `performance.mark`/`measure` wrappers) + optional dev-only FPS meter; instrument points in `App.vue` (bootstrap / `applyRoute` / model-apply), `realtimeSync.ts` → `WaitingFor.waitForUpdate(true)` (WS-wake), overlay mounts, `Board.vue` render completion, `EndgameExperience` mount.
+- Electron-side: `electron/main.ts` (BrowserWindow perf options, optional Chromium switches **after profiling**, `contentTracing`), `electron/protocol.ts` (`app://` cache headers/streaming).
+- Likely profiling-driven refactor candidates (confirm with a trace first): `Board.vue`, played-cards/journal/effects/actions overlays, snapshot→view-model transforms, the `playerkey++` remount path. **Do not touch until §17 Perf-0/1 identifies the bottleneck.**
+- A desktop renderer build-size report (Perf-1).
+
 **Docs:**
 - This file; a one-line pointer added to `WEBSOCKET_MIGRATION_PLAN.md`.
 
 ---
 
-## 22. First implementation PR proposal
+## 23. First implementation PR proposal
 
 **Title:** `Electron 43 Phase 1 — minimal safe Windows desktop shell (dev loadURL, no packaging)`
 
@@ -722,14 +894,31 @@ macOS signing/notarization NOT required for this phase.
 
 ---
 
-## 23. Final recommendation
+## 24. Final recommendation
 
 - **Proceed.** The codebase is well-positioned: an Electron config seam already exists and is tested, the renderer is browser-clean, the realtime layer is transport-agnostic, and the game-boundary reload is exactly the reset strategy a desktop shell wants.
-- **Electron 43.0.0 is viable** with zero code-level blockers — it is an additive devDep lane on a Node-22 / Chromium-136 runtime that matches this repo's `engines`.
+- **Electron 43.0.0 is viable** with zero code-level blockers — it is an additive devDep lane running on Electron's *own* bundled runtime (independent of the server's Node 22), with a browser-clean renderer.
 - **Windows-first is viable** — NSIS + `electron-updater` + a premium mandatory-update UX need no Apple tooling.
-- **First PR:** *Electron 43 Phase 1 — minimal safe Windows desktop shell* (§22): a dev-mode `loadURL(serverOrigin)` window that proves the runtime with no packaging and no renderer refactor.
+- **First PR:** *Electron 43 Phase 1 — minimal safe Windows desktop shell* (§23): a dev-mode `loadURL(serverOrigin)` window that proves the runtime with no packaging and no renderer refactor.
 - **Must be tested manually on Windows** (each phase): launch, menu, create/enter/leave/switch a game, WS live update, polling fallback, reconnect/resume, spectator, endgame, and — from Phase 7 — the mandatory-update gate + download progress + restart-install (unsigned OK).
 - **Intentionally deferred:** the SPA game-boundary (`resetGameSessionState()`), idempotency (`commandId`), in-app spectator endgame, admin/auth-in-desktop, Redis multi-dyno, and command-over-WS — all inherited from the WS plan's deferred set.
 - **The future macOS effort is named but NOT implemented now:** *"Electron Phase 9 — macOS signing, notarization & auto-update"* (Apple Developer Program, Developer ID Application cert, `.p12`, notarization, `.dmg`/`.zip`, Gatekeeper, mac update channel).
+- **Performance is a PARALLEL first-class initiative (§17), not an afterthought.** Perf-0 baselines start beside Phase 1; the desktop runtime must become **measurably smoother than the browser** on the flows that matter (startup→menu, game restore, overlays, board interaction, premium animations, WS-driven opponent updates, endgame reveal). Every optimization is measured, none disables security, none breaks browser mode; Electron-only tweaks are `desktopMode`-gated.
 
 **Two shells, one premium runtime:** the browser and Electron are two thin shells over the same reused game client + the same server-authoritative REST + WebSocket protocol. The desktop shell adds packaging, identity injection, a reload-based game boundary, and a premium Windows updater — nothing about game authority or the realtime protocol changes.
+
+---
+
+**Bottom line.**
+```
+Proceed with Electron Phase 1, but treat performance as a parallel first-class initiative.
+
+The first implementation PR remains minimal:
+  Electron 43 dev shell only.
+
+But the overall Electron project goal is larger:
+  Windows-first premium desktop client,
+  safe web compatibility,
+  premium updater,
+  and a desktop runtime that is measurably smoother and more optimized than the browser version.
+```

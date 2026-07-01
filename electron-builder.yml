@@ -1,0 +1,89 @@
+# electron-builder — Phase 6 Windows build artifact (NSIS).
+#
+# Packages the THIN-CLIENT desktop shell only: the Electron main/preload/protocol
+# (build/electron/) + the packaged renderer (build-desktop/) + the shared stylesheet
+# (build/styles.css) + static assets (assets/**). The game SERVER and DATABASE are NOT
+# bundled — the desktop app connects to a server over REST + WebSocket. main.ts imports
+# only `electron` (runtime built-in) + Node built-ins, so NO node_modules ship at runtime.
+#
+# The app:// handler (electron/protocol.ts) resolves its roots from __dirname, which
+# points inside the asar at <app.asar>/build/electron → root <app.asar>; build-desktop/,
+# build/styles.css and assets/ sit at that root, so it works packaged with no change.
+#
+# Pre-req: `npm run build:desktop` (make:static + DESKTOP_BUILD=1 build:client +
+# electron:build:main). See the `dist:win` / `electron:pack:dir` scripts.
+# Signing is deliberately out of scope (Phase 6 = unsigned dev artifact).
+
+appId: com.vize1215.terraforming-mars
+productName: Terraforming Mars
+copyright: © vize1215
+
+# The thin client ships NO node_modules and imports no native modules, so skip the
+# native-dependency rebuild step entirely (it would otherwise try to rebuild the
+# server-only better-sqlite3 against Electron's ABI).
+npmRebuild: false
+nodeGypRebuild: false
+
+directories:
+  output: dist-desktop
+  buildResources: electron/build-resources
+
+# Explicit allowlist — nothing implicit. All node_modules are excluded, then ONLY
+# electron-updater's runtime dependency closure is re-included (the desktop main
+# require()s electron-updater at runtime; the rest of package.json `dependencies`
+# are server/web-only and must NOT ship). Closure computed from electron-updater@6.8.9.
+files:
+  - build/electron/**/*
+  - build-desktop/**/*
+  - build/styles.css
+  - assets/**/*
+  - package.json
+  - '!node_modules/**/*'
+  - node_modules/electron-updater/**/*
+  - node_modules/builder-util-runtime/**/*
+  - node_modules/fs-extra/**/*
+  - node_modules/graceful-fs/**/*
+  - node_modules/jsonfile/**/*
+  - node_modules/universalify/**/*
+  - node_modules/js-yaml/**/*
+  - node_modules/argparse/**/*
+  - node_modules/lazy-val/**/*
+  - node_modules/lodash.escaperegexp/**/*
+  - node_modules/lodash.isequal/**/*
+  - node_modules/semver/**/*
+  - node_modules/tiny-typed-emitter/**/*
+  - node_modules/debug/**/*
+  - node_modules/ms/**/*
+  - node_modules/sax/**/*
+
+asar: true
+
+win:
+  target:
+    - nsis
+  # No custom icon in Phase 6 → the default Electron icon is used (a polish item).
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: TerraformingMars-Setup-${version}-${arch}.${ext}
+
+artifactName: TerraformingMars-${version}-${os}-${arch}.${ext}
+
+# Update-delivery feed (Phase 7). electron-builder bakes this into the app's
+# app-update.yml (read by electron-updater at runtime) and emits latest.yml + .blockmap.
+#
+# ⚠️ REPLACE the placeholder `url` with a REAL feed that hosts latest.yml + the
+# installer .exe + .blockmap. Recommended: GitHub Releases
+#   publish: {provider: github, owner: <your-fork-owner>, repo: <your-fork-repo>}
+# (free, handles the ~400 MB installer). A generic static host (S3, etc.) also works.
+#
+# Until the feed is real, the COMPATIBILITY GATE still works (GET /api/desktop/version
+# on the server), and auto-download degrades to the manual-download fallback (the
+# server's TM_DESKTOP_DOWNLOAD_URL). Heroku is NOT a good installer host (slug/ephemeral
+# limits) — use it only for the small /api/desktop/version JSON, not the .exe.
+publish:
+  provider: generic
+  url: https://updates.invalid/terraforming-mars
+  channel: latest

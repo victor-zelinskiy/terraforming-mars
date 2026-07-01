@@ -373,7 +373,7 @@ export default defineComponent({
   border-bottom: 2px solid #898989;
   border-right: 2px solid #898989;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(0, 0, 0, 0.3);
-  background-image: url(/assets/misc/production.png);
+  background-image: url(assets/misc/production.png);
   background-size: cover;
 }
 
@@ -399,7 +399,7 @@ export default defineComponent({
 }
 
 .delta-project-board__card-icon {
-  background: url(/assets/resources/card.png) no-repeat;
+  background: url(assets/resources/card.png) no-repeat;
   background-size: 24px 32px;
   width: 24px;
   height: 32px;
