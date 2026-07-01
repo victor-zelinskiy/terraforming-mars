@@ -1,7 +1,7 @@
 # Single-App + WebSocket Realtime — Architecture Investigation & Migration Plan
 
 > Status: **implementation COMPLETE — the realtime transport, subscription, invalidation, refresh wiring, reconnect/resume, poll reduction, and secondary-poller migration are LIVE and ON BY DEFAULT (Phase 12).** WebSocket is now the primary realtime mechanism; polling is the automatic fallback. Every layer keeps an opt-out kill-switch (§L.6).
-> Scope: move from legacy polling + multi-page assumptions toward a formalized single-app client with a server-authoritative WebSocket realtime layer, without a big-bang rewrite, preserving direct game URLs and the premium UI. Electron is out of scope (but kept in mind).
+> Scope: move from legacy polling + multi-page assumptions toward a formalized single-app client with a server-authoritative WebSocket realtime layer, without a big-bang rewrite, preserving direct game URLs and the premium UI. Electron is out of scope here (but kept in mind) — the desktop-shell migration is planned separately in the companion doc **`ELECTRON_MIGRATION_PLAN.md`** (Electron 43, Windows-first), which builds directly on this realtime baseline (the `runtimeConfig.ts` seam, the reload-based game boundary, and the §L flag ladder).
 
 ### Implementation status & phase mapping
 
