@@ -1,23 +1,23 @@
-// Electron 43 — Phase 7 premium auto-update orchestration (main process).
+// Electron 43 — Phase 7/8 auto-update orchestration (main process).
 //
 // Two mechanisms:
-//   1. COMPATIBILITY GATE — GET <serverBase>/api/desktop/version tells us whether the
-//      installed version is still allowed to play (authoritative "you're too old, must
-//      update"). Runs from the MAIN process (no CORS). Drives the update-only boot.
+//   1. COMPATIBILITY GATE — GET <serverBase>/api/desktop/version (from the MAIN process,
+//      no CORS) decides whether the installed version may still play. Phase 8 hardens
+//      this with a last-known-good policy (electron/updatePolicy.ts) persisted to disk
+//      (electron/session.ts): a server outage no longer silently unlocks a known-
+//      outdated client (→ `offlineBlocked`), while a first-run offline launch still
+//      fails open (unless TM_DESKTOP_STRICT_OFFLINE=1).
 //   2. DELIVERY — electron-updater (NSIS) downloads the newer installer from the feed
-//      baked into app-update.yml (electron-builder `publish`). When the feed isn't
-//      reachable/configured, we degrade to a manual-download prompt (the server can
-//      supply a downloadUrl).
+//      baked into app-update.yml. Unreachable/unconfigured feed → manual-download.
 //
-// Only runs when the app is PACKAGED (`app.isPackaged`); electron-updater is a no-op /
-// throws in an unpacked dev run, so the whole flow is skipped in dev.
-//
-// State is pushed to the renderer over IPC; the premium overlay (renderer) renders it.
-// The type is DUPLICATED (structurally) in the renderer's desktopUpdateState.ts — keep
-// them in sync (main stays self-contained: no @/ imports).
+// Only runs when PACKAGED (`app.isPackaged`); a no-op in dev. State is pushed to the
+// renderer over IPC; the premium overlay renders it. The DesktopUpdateState shape is
+// DUPLICATED (structurally) in the renderer's desktopUpdateState.ts — keep in sync.
 
 import {app, BrowserWindow, ipcMain, shell} from 'electron';
 import {autoUpdater} from 'electron-updater';
+import {CompatSnapshot, resolveUpdateDecision} from './updatePolicy';
+import {getLastKnownGood, setLastKnownGood} from './session';
 
 export type DesktopUpdateMode =
   | 'idle'
@@ -28,6 +28,7 @@ export type DesktopUpdateMode =
   | 'downloaded'
   | 'installing'
   | 'error'
+  | 'offlineBlocked'
   | 'manualDownloadRequired';
 
 export interface DesktopUpdateState {
@@ -41,17 +42,9 @@ export interface DesktopUpdateState {
   downloadUrl?: string;
 }
 
-/** The subset of the /api/desktop/version response we read. */
-interface CompatResponse {
-  latestVersion: string;
-  minSupportedVersion: string;
-  updateRequired: boolean;
-  releaseNotes?: Array<string>;
-  downloadUrl?: string;
-}
-
 let state: DesktopUpdateState = {mode: 'idle', currentVersion: app.getVersion()};
 let win: BrowserWindow | undefined;
+let serverBaseUrl = '';
 
 function push(next: Partial<DesktopUpdateState>): void {
   state = {...state, ...next};
@@ -60,17 +53,27 @@ function push(next: Partial<DesktopUpdateState>): void {
   }
 }
 
-/** True while a mandatory update blocks normal game flow. */
+/** True while a mandatory update (or a hard offline block) blocks normal game flow. */
 export function updateBlocksGame(): boolean {
   return state.mode === 'required' || state.mode === 'downloading' ||
     state.mode === 'downloaded' || state.mode === 'installing' ||
-    state.mode === 'manualDownloadRequired' ||
+    state.mode === 'offlineBlocked' || state.mode === 'manualDownloadRequired' ||
     (state.mode === 'error' && state.error !== undefined);
 }
 
-async function fetchCompat(serverBase: string, timeoutMs = 8000): Promise<CompatResponse | undefined> {
-  const base = serverBase.replace(/\/+$/, '');
-  const url = `${base}/api/desktop/version?platform=${process.platform}&current=${encodeURIComponent(app.getVersion())}`;
+/** Update channel (dev/staging/prod/latest). Selects the feed yml + the gate's ?channel=. */
+function channel(): string {
+  return (process.env.TM_UPDATE_CHANNEL ?? '').trim() || 'latest';
+}
+
+function strictOffline(): boolean {
+  return process.env.TM_DESKTOP_STRICT_OFFLINE === '1';
+}
+
+async function fetchCompat(base: string, timeoutMs = 8000): Promise<CompatSnapshot | undefined> {
+  const b = base.replace(/\/+$/, '');
+  const url = `${b}/api/desktop/version?platform=${process.platform}` +
+    `&channel=${encodeURIComponent(channel())}&current=${encodeURIComponent(app.getVersion())}`;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -79,42 +82,65 @@ async function fetchCompat(serverBase: string, timeoutMs = 8000): Promise<Compat
     if (!res.ok) {
       return undefined;
     }
-    return await res.json() as CompatResponse;
+    const j = await res.json() as Partial<CompatSnapshot>;
+    if (typeof j.latestVersion !== 'string' || typeof j.minSupportedVersion !== 'string') {
+      return undefined;
+    }
+    return {
+      latestVersion: j.latestVersion,
+      minSupportedVersion: j.minSupportedVersion,
+      updateRequired: j.updateRequired === true,
+      releaseNotes: Array.isArray(j.releaseNotes) ? j.releaseNotes : undefined,
+      downloadUrl: typeof j.downloadUrl === 'string' ? j.downloadUrl : undefined,
+    };
   } catch {
     return undefined;
   }
 }
 
-/**
- * Startup compatibility check. Returns true when a MANDATORY update blocks the game.
- * Fail-open on a network error (a transient server outage must not brick the app — a
- * stricter offline-block policy is a Phase 8 option).
- */
-export async function resolveStartupUpdate(serverBase: string, window: BrowserWindow): Promise<boolean> {
-  win = window;
+/** Run (or re-run) the compatibility check + decision. Returns true when the game is blocked. */
+async function runCheck(): Promise<boolean> {
   if (!app.isPackaged) {
     push({mode: 'idle'});
     return false;
   }
   push({mode: 'checking'});
-  const compat = await fetchCompat(serverBase);
-  if (compat === undefined) {
-    push({mode: 'idle'}); // fail-open
-    return false;
+  const fresh = await fetchCompat(serverBaseUrl);
+  const cached = getLastKnownGood();
+  if (fresh !== undefined) {
+    setLastKnownGood(fresh, Date.now());
   }
-  push({
-    latestVersion: compat.latestVersion,
-    minSupportedVersion: compat.minSupportedVersion,
-    releaseNotes: compat.releaseNotes,
-    downloadUrl: compat.downloadUrl,
-  });
-  if (!compat.updateRequired) {
-    push({mode: 'upToDate'});
-    return false;
+  const decision = resolveUpdateDecision({fresh, cached, strictOffline: strictOffline()});
+  if (decision.info !== undefined) {
+    push({
+      latestVersion: decision.info.latestVersion,
+      minSupportedVersion: decision.info.minSupportedVersion,
+      releaseNotes: decision.info.releaseNotes,
+      downloadUrl: decision.info.downloadUrl,
+    });
   }
-  push({mode: 'required'});
-  beginDownload();
-  return true;
+  if (decision.mode === 'required') {
+    push({mode: 'required', error: undefined});
+    beginDownload();
+    return true;
+  }
+  if (decision.mode === 'offlineBlocked') {
+    push({mode: 'offlineBlocked', error: 'Cannot reach the update server.'});
+    return true;
+  }
+  push({mode: fresh !== undefined ? 'upToDate' : 'idle', error: undefined});
+  return false;
+}
+
+/**
+ * Startup compatibility check. Returns true when a mandatory update (or hard offline
+ * block) blocks the game. Stores the server base + window so a later recheck (retry)
+ * can re-run the whole flow.
+ */
+export async function resolveStartupUpdate(serverBase: string, window: BrowserWindow): Promise<boolean> {
+  win = window;
+  serverBaseUrl = serverBase;
+  return runCheck();
 }
 
 function updateOrManual(err: unknown): void {
@@ -125,6 +151,7 @@ function updateOrManual(err: unknown): void {
 function beginDownload(): void {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.channel = channel();
   autoUpdater.removeAllListeners();
   autoUpdater.on('update-available', () => push({mode: 'downloading'}));
   autoUpdater.on('update-not-available', () => updateOrManual('No update available on the feed'));
@@ -140,11 +167,9 @@ function beginDownload(): void {
 /** Wire the IPC the preload's desktopBridge calls. Call once, after app ready. */
 export function registerUpdateIpc(): void {
   ipcMain.handle('desktop:getUpdateState', () => state);
-  ipcMain.handle('desktop:retryUpdate', () => {
-    push({mode: 'required'});
-    beginDownload();
-    return state;
-  });
+  // Retry from ANY blocked state: re-runs the whole check (network back → maybe unblock;
+  // still required → re-arm the download; feed error → re-attempt).
+  ipcMain.handle('desktop:recheck', () => runCheck().then(() => state));
   ipcMain.handle('desktop:quitAndInstall', () => {
     push({mode: 'installing'});
     setImmediate(() => {

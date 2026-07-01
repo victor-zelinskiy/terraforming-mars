@@ -40,6 +40,14 @@
       <!-- installing -->
       <div v-else-if="state.mode === 'installing'" class="desktop-update__status" v-i18n>Installing…</div>
 
+      <!-- offline: cannot reach the update server (client is known-outdated) -->
+      <div v-else-if="state.mode === 'offlineBlocked'" class="desktop-update__cta-block">
+        <div class="desktop-update__status desktop-update__status--err" v-i18n>Cannot reach the update server.</div>
+        <div class="desktop-update__lead" v-i18n>Check your connection and try again.</div>
+        <button class="desktop-update__btn desktop-update__btn--primary" @click="retry" v-i18n>Try again</button>
+        <button v-if="state.downloadUrl" class="desktop-update__btn desktop-update__btn--ghost" @click="download" v-i18n>Download manually</button>
+      </div>
+
       <!-- manual download fallback -->
       <div v-else-if="state.mode === 'manualDownloadRequired'" class="desktop-update__cta-block">
         <div class="desktop-update__status" v-i18n>Automatic update is unavailable. Please download the update manually.</div>
@@ -108,7 +116,7 @@ export default defineComponent({
       void desktopBridge()?.quitAndInstall();
     },
     retry(): void {
-      void desktopBridge()?.retryUpdate();
+      void desktopBridge()?.recheck();
     },
     download(): void {
       void desktopBridge()?.openDownload();

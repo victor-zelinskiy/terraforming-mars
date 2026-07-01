@@ -12,5 +12,7 @@
   "Download manually": "Скачать вручную",
   "Try again": "Повторить",
   "Update failed.": "Не удалось обновить.",
-  "Preparing the update…": "Подготовка обновления…"
+  "Preparing the update…": "Подготовка обновления…",
+  "Cannot reach the update server.": "Не удаётся связаться с сервером обновлений.",
+  "Check your connection and try again.": "Проверьте подключение и повторите."
 }
