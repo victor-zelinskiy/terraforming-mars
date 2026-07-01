@@ -2875,7 +2875,10 @@ each(@players, {
             transparent 100%);
         transform: skewX(-22deg) translateX(-260%);
         animation: bar-btn-available-shimmer 3s ease-in-out infinite;
-        mix-blend-mode: screen;
+        // CSS-2 (PERFORMANCE_AUDIT.md): mix-blend-mode dropped — it forced a per-frame
+        // blended composite pass on this always-visible bottom-bar shimmer (runs the
+        // whole time a milestone is claimable). White-on-dark `screen` ≈ plain opacity
+        // here, so the sweep looks the same without the composite cost.
     }
 
     &--available-sweep {

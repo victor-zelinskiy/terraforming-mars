@@ -304,6 +304,7 @@ import DrawCardRevealFlow from '@/client/components/drawnCards/DrawCardRevealFlo
 import RealtimeLayer from '@/client/components/realtime/RealtimeLayer.vue';
 import DesktopUpdateOverlay from '@/client/components/desktop/DesktopUpdateOverlay.vue';
 import {initDesktopUpdates} from '@/client/components/desktop/desktopUpdateState';
+import {perfMark} from '@/client/utils/perfMarks';
 import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
 import {setLiveCardResources} from '@/client/components/card/liveCardResources';
@@ -628,6 +629,7 @@ export default defineComponent({
           const prevView = (path === paths.PLAYER ? app.playerView : app.spectator) as ViewModel | undefined;
 
           const commit = () => {
+            perfMark('playerView:commit');
             if (prevView !== undefined &&
                 shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces)) {
               armPlacementAnimations();

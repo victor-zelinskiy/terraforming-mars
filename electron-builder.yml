@@ -64,6 +64,14 @@ files:
   - node_modules/debug/**/*
   - node_modules/ms/**/*
   - node_modules/sax/**/*
+  # PKG-1 (PERFORMANCE_AUDIT.md): drop dead tooling/backup art + source maps from the
+  # installer (grep-verified 0 runtime references; maps only used by DevTools). Shrinks
+  # the artifact by ~120 MB. The REAL generated icons (generated/tags, generated/resources,
+  # generated/custom_tiles, …) are NOT under refs/ and stay bundled.
+  - '!assets/generated/refs/**/*'
+  - '!assets/original/**/*'
+  - '!assets/resources/original/**/*'
+  - '!**/*.map'
 
 asar: true
 

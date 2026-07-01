@@ -6,6 +6,7 @@ import {getPreferences} from '@/client/utils/PreferencesManager';
 
 import i18nPlugin from '@/client/plugins/i18n.plugin';
 import {startOauth} from '@/client/oauth';
+import {perfMark, perfMeasure, startLongTaskObserver} from '@/client/utils/perfMarks';
 const PlayerInputFactory = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/PlayerInputFactory.vue'));
 // Registered globally so ModernOptionPicker can host a nested input recursively
 // via `<modal-input-host>` WITHOUT a static import — breaks the
@@ -20,6 +21,8 @@ declare global {
 }
 
 async function bootstrap() {
+  startLongTaskObserver();
+  perfMark('app:bootstrap:start');
   const lang = getPreferences().lang;
 
   // Stamp the active language on <html> at bootstrap (guaranteed to run before
@@ -65,6 +68,7 @@ async function bootstrap() {
   }
 
   app.mount('#app');
+  perfMeasure('app:bootstrap', 'app:bootstrap:start');
 
   window.onload = startOauth;
 }

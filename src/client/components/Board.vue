@@ -329,7 +329,6 @@ export default defineComponent({
   data() {
     return {
       constants,
-      spaceMap: new Map<string, SpaceModel>(this.spaces.map((s) => [s.id, s])),
       // Dynamic global-parameter bands (default) — themed code bands for the
       // O₂ / temperature / Venus scales (mars.png is now planet-only). Constants.
       arcThemes: ARC_SCALE_THEMES,
@@ -463,6 +462,13 @@ export default defineComponent({
     },
   },
   computed: {
+    // BRD-1 (PERFORMANCE_AUDIT.md): spaceMap was built in data() and never updated when
+    // `spaces` changed — it only "refreshed" because the board full-remounts on every
+    // poll (a latent staleness bug). As a computed it tracks `this.spaces` correctly,
+    // with zero behavior change today, and unblocks moving the board off the remount.
+    spaceMap(): Map<string, SpaceModel> {
+      return new Map<string, SpaceModel>(this.spaces.map((s) => [s.id, s]));
+    },
     /**
      * Sorted, colony-filtered Mars surface cells for the main `<board-space>`
      * v-for. Cached as a computed (depends only on `this.spaces`) so an
