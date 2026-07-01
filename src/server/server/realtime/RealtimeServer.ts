@@ -62,6 +62,17 @@ class RealtimeConnection {
   public isAlive = true;
 
   constructor(public readonly id: number, public readonly ws: WebSocket) {}
+
+  public send(message: ServerMessage): void {
+    if (this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    try {
+      this.ws.send(serializeMessage(message));
+    } catch (err) {
+      console.warn(`[realtime] send failed #${this.id}:`, err);
+    }
+  }
 }
 
 export class RealtimeServer {
@@ -225,14 +236,7 @@ export class RealtimeServer {
   }
 
   private send(conn: RealtimeConnection, message: ServerMessage): void {
-    if (conn.ws.readyState !== WebSocket.OPEN) {
-      return;
-    }
-    try {
-      conn.ws.send(serializeMessage(message));
-    } catch (err) {
-      console.warn(`[realtime] send failed #${conn.id}:`, err);
-    }
+    conn.send(message);
   }
 
   private startHeartbeat(): void {

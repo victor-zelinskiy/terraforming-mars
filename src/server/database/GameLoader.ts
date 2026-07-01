@@ -11,6 +11,7 @@ import {timeAsync} from '../utils/timer';
 import {durationToMilliseconds} from '../utils/durations';
 import {CacheConfig} from './CacheConfig';
 import {Clock} from '../../common/Timer';
+import {RealtimeHub} from '../server/realtime/RealtimeHub';
 
 const metrics = {
   initialize: new prometheus.Gauge({
@@ -200,7 +201,31 @@ export class GameLoader implements IGameLoader {
     if (this.purgedGames.includes(game.id)) {
       throw new Error('This game no longer exists');
     }
-    return Database.getInstance().saveGame(game);
+    return Database.getInstance().saveGame(game).then(() => {
+      this.broadcastInvalidation(game);
+    });
+  }
+
+  /**
+   * Phase 3 realtime: after a game is persisted, tell the room "state changed".
+   * This is the single central broadcast boundary — nearly every mutation flows
+   * through saveGame (player input, draft, phase transitions). It is a generic
+   * INVALIDATION only (no state, observe-only on the client for now). A
+   * broadcast failure must never break the save, and an empty room is a no-op.
+   * NOTE: undo (restoreGameAt) and game-end (completeGame) bypass saveGame and
+   * are intentionally covered in a later phase.
+   */
+  private broadcastInvalidation(game: IGame): void {
+    try {
+      RealtimeHub.getInstance().invalidate({
+        gameId: game.id,
+        gameAge: game.gameAge,
+        undoCount: game.undoCount,
+        phase: game.phase,
+      });
+    } catch (err) {
+      console.error('realtime invalidate failed', err);
+    }
   }
 
   public async deleteGame(gameId: GameId): Promise<void> {

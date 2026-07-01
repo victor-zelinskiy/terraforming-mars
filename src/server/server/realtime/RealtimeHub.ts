@@ -1,5 +1,6 @@
 import prometheus from 'prom-client';
 import {GameId} from '@/common/Types';
+import {ServerMessage, gameStateInvalidated} from '@/common/realtime/Protocol';
 
 /**
  * Realtime game rooms.
@@ -28,6 +29,15 @@ export interface RealtimeSubscriber {
   readonly id: number;
   gameId: GameId | undefined;
   participantId: string | undefined;
+  send(message: ServerMessage): void;
+}
+
+/** A "the game changed" event, derived from the persisted game (Phase 3). */
+export interface GameInvalidation {
+  gameId: GameId;
+  gameAge: number;
+  undoCount: number;
+  phase?: string;
 }
 
 export interface SubscribeResult {
@@ -47,6 +57,11 @@ const metrics = {
   subscribers: new prometheus.Gauge({
     name: 'realtime_subscribers',
     help: 'Number of realtime connections currently subscribed to a game',
+    registers: [prometheus.register],
+  }),
+  invalidations: new prometheus.Counter({
+    name: 'realtime_invalidations_total',
+    help: 'Total game-state invalidations broadcast to at least one subscriber',
     registers: [prometheus.register],
   }),
 };
@@ -106,6 +121,24 @@ export class RealtimeHub {
   public handleDisconnect(subscriber: RealtimeSubscriber): void {
     this.removeFromRoom(subscriber);
     this.updateMetrics();
+  }
+
+  /**
+   * Broadcast a "game changed" invalidation to every subscriber of the game.
+   * No-op (returns 0) when nobody is listening, so we never serialize for an
+   * empty room. Returns the number of subscribers notified.
+   */
+  public invalidate(update: GameInvalidation): number {
+    const room = this.rooms.get(update.gameId);
+    if (room === undefined || room.size === 0) {
+      return 0;
+    }
+    const message = gameStateInvalidated(update.gameId, update.gameAge, update.undoCount, update.phase);
+    for (const subscriber of room) {
+      subscriber.send(message);
+    }
+    metrics.invalidations.inc();
+    return room.size;
   }
 
   public roomSize(gameId: GameId): number {
