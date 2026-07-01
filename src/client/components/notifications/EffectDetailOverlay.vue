@@ -48,6 +48,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
@@ -150,7 +151,7 @@ export default defineComponent({
       }
       this.loading = true;
       try {
-        const url = `${paths.API_GAME_EFFECT_STATS}?id=${encodeURIComponent(this.viewerId)}&color=${encodeURIComponent(color)}`;
+        const url = `${apiUrl(paths.API_GAME_EFFECT_STATS)}?id=${encodeURIComponent(this.viewerId)}&color=${encodeURIComponent(color)}`;
         const res = await fetch(url);
         if (res.ok) {
           this.stats = await res.json() as ReadonlyArray<EffectOverlayStat>;

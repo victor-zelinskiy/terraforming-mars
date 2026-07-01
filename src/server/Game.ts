@@ -489,6 +489,10 @@ export class Game implements IGame, Logger {
     GameLoader.getInstance().saveGame(this);
   }
 
+  public notifyStateChange(): void {
+    GameLoader.getInstance().notifyGameStateChanged(this);
+  }
+
   public serialize(): SerializedGame {
     const result: SerializedGame = {
       activePlayer: this.activePlayer.id,

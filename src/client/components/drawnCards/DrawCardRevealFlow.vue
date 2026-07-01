@@ -65,6 +65,7 @@ import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import DrawCardRevealContent from '@/client/components/drawnCards/DrawCardRevealContent.vue';
 import {
@@ -189,7 +190,7 @@ export default defineComponent({
       // (hidden) store entry is reconciled out by the next regular playerView
       // poll / the player's next input.
       fetch(
-        paths.ACKNOWLEDGE_DRAW + '?id=' + view.id + '&revealId=' + id,
+        apiUrl(paths.ACKNOWLEDGE_DRAW) + '?id=' + view.id + '&revealId=' + id,
         {method: 'POST'},
       )
         .then((resp) => {

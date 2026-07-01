@@ -137,6 +137,13 @@ export interface IGame extends Logger {
   gotoInitialResearchPhase(): void;
   gotoResearchPhase(): void;
   save(): void;
+  /**
+   * Emit a realtime "game state advanced" invalidation WITHOUT persisting.
+   * Used for a fully-resolved action that bumped `gameAge` but is not being
+   * saved (an intermediate action with undo disabled), so other players' WS
+   * clients still see it immediately instead of waiting on the fallback poll.
+   */
+  notifyStateChange(): void;
   serialize(): SerializedGame;
   isSoloMode() :boolean;
   // Retrieve a player by its id

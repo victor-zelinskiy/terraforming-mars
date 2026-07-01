@@ -173,6 +173,7 @@ export class GameLoader implements IGameLoader {
     const game = Game.deserialize(serializedGame);
     await this.add(game);
     game.undoCount++;
+    this.notifyGameStateChanged(game);
     return game;
   }
 
@@ -187,6 +188,11 @@ export class GameLoader implements IGameLoader {
   public async completeGame(game: IGame) {
     const database = Database.getInstance();
     await database.saveGame(game);
+    // Game-end belt-and-braces: this path persists directly via the database
+    // (bypassing saveGame), so broadcast the END state explicitly. The END is
+    // usually already observable via the phase-transition saves + the final
+    // action, so this is a redundant certainty hook (empty-room no-op).
+    this.notifyGameStateChanged(game);
     try {
       this.mark(game.id);
       await database.markFinished(game.id);
@@ -202,20 +208,25 @@ export class GameLoader implements IGameLoader {
       throw new Error('This game no longer exists');
     }
     return Database.getInstance().saveGame(game).then(() => {
-      this.broadcastInvalidation(game);
+      this.notifyGameStateChanged(game);
     });
   }
 
   /**
-   * Phase 3 realtime: after a game is persisted, tell the room "state changed".
-   * This is the single central broadcast boundary — nearly every mutation flows
-   * through saveGame (player input, draft, phase transitions). It is a generic
-   * INVALIDATION only (no state, observe-only on the client for now). A
-   * broadcast failure must never break the save, and an empty room is a no-op.
-   * NOTE: undo (restoreGameAt) and game-end (completeGame) bypass saveGame and
-   * are intentionally covered in a later phase.
+   * Realtime: broadcast a generic invalidation for the game's CURRENT observable
+   * version — `gameAge` / `undoCount`, the exact signal `/api/waitingFor`
+   * compares. Called from THREE places so every player-observable transition is
+   * seen over WS without waiting on the fallback poll:
+   *   1. after a save (saveGame) — player input, draft, phase transitions;
+   *   2. after an undo (restoreGameAt);
+   *   3. directly for a fully-resolved action that advanced `gameAge` but is
+   *      NOT persisted — an intermediate action with undo disabled
+   *      (Game.notifyStateChange, from Player.takeAction). Without (3) the first
+   *      of a two-action turn (e.g. a tile placement) was invisible to opponents
+   *      until the turn ended.
+   * A broadcast failure must never break the caller; an empty room is a no-op.
    */
-  private broadcastInvalidation(game: IGame): void {
+  public notifyGameStateChanged(game: IGame): void {
     try {
       RealtimeHub.getInstance().invalidate({
         gameId: game.id,

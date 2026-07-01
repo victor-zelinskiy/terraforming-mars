@@ -1,5 +1,6 @@
 import {reactive} from 'vue';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {JoinableGameSummary} from '@/common/models/JoinableGameModel';
 
 /**
@@ -38,7 +39,7 @@ export async function loadJoinableGames(displayName: string, opts: {silent?: boo
     joinGamesState.loading = true;
   }
   try {
-    const url = paths.API_GAMES_JOINABLE + '?name=' + encodeURIComponent(displayName);
+    const url = apiUrl(paths.API_GAMES_JOINABLE) + '?name=' + encodeURIComponent(displayName);
     const res = await fetch(url);
     if (!res.ok) {
       throw new Error('bad response');

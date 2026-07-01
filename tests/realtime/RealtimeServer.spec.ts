@@ -3,7 +3,7 @@ import * as http from 'http';
 import {once} from 'events';
 import {AddressInfo} from 'net';
 import {WebSocket} from 'ws';
-import {RealtimeServer} from '../../src/server/server/realtime/RealtimeServer';
+import {RealtimeServer, realtimeEnabled} from '../../src/server/server/realtime/RealtimeServer';
 import {RealtimeHub, SubscriptionResolver} from '../../src/server/server/realtime/RealtimeHub';
 import {GameId} from '../../src/common/Types';
 import {
@@ -14,6 +14,7 @@ import {
   clientHello,
   clientPing,
   parseServerMessage,
+  resumeGame,
   serializeMessage,
   subscribeGame,
 } from '../../src/common/realtime/Protocol';
@@ -24,6 +25,37 @@ const resolver: SubscriptionResolver = async (participantId) =>
 
 function nextMessage(ws: WebSocket): Promise<string> {
   return new Promise((resolve) => ws.once('message', (data) => resolve(data.toString())));
+}
+
+/**
+ * Buffers all incoming messages so a test can reliably await the Nth one, even
+ * when the server sends several back-to-back (e.g. resume: SUBSCRIBED then
+ * INVALIDATED) that would race a per-message `once` listener.
+ */
+function collectMessages(ws: WebSocket): {messages: Array<string>, waitFor(n: number): Promise<void>} {
+  const messages: Array<string> = [];
+  let need = 0;
+  let resolver: (() => void) | undefined;
+  ws.on('message', (data) => {
+    messages.push(data.toString());
+    if (resolver !== undefined && messages.length >= need) {
+      const resolve = resolver;
+      resolver = undefined;
+      resolve();
+    }
+  });
+  return {
+    messages,
+    waitFor(n: number): Promise<void> {
+      if (messages.length >= n) {
+        return Promise.resolve();
+      }
+      need = n;
+      return new Promise((resolve) => {
+        resolver = resolve;
+      });
+    },
+  };
 }
 
 describe('realtime/RealtimeServer', () => {
@@ -169,5 +201,77 @@ describe('realtime/RealtimeServer', () => {
     expect(inv?.gameAge).to.eq(8);
     expect(inv?.undoCount).to.eq(3);
     expect(inv?.phase).to.eq('action');
+  });
+
+  it('resume with a STALE cursor acks SUBSCRIBED then an invalidation (catch-up)', async () => {
+    const ws = connect();
+    const rec = collectMessages(ws);
+    await once(ws, 'open');
+    ws.send(serializeMessage(resumeGame('p-1', 3, 0))); // current is (5, 2)
+    await rec.waitFor(2);
+    const ack = parseServerMessage(rec.messages[0]) as SubscribedMessage | undefined;
+    expect(ack?.type).to.eq(ServerMessageType.SUBSCRIBED);
+    expect(ack?.gameAge).to.eq(5);
+    const inv = parseServerMessage(rec.messages[1]) as GameStateInvalidatedMessage | undefined;
+    expect(inv?.type).to.eq(ServerMessageType.INVALIDATED);
+    expect(inv?.gameAge).to.eq(5);
+    expect(inv?.undoCount).to.eq(2);
+    expect(hub.roomSize(G1)).to.eq(1);
+  });
+
+  it('resume with an UP-TO-DATE cursor acks SUBSCRIBED only (no refresh)', async () => {
+    const ws = connect();
+    await once(ws, 'open');
+    ws.send(serializeMessage(resumeGame('p-1', 5, 2))); // matches current
+    const ack = parseServerMessage(await nextMessage(ws)) as SubscribedMessage | undefined;
+    expect(ack?.type).to.eq(ServerMessageType.SUBSCRIBED);
+    const second = await Promise.race([
+      nextMessage(ws),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 120)),
+    ]);
+    expect(second).to.be.undefined;
+  });
+
+  it('rejects a resume with an invalid token', async () => {
+    const ws = connect();
+    await once(ws, 'open');
+    ws.send(serializeMessage(resumeGame('p-bad', 1, 0)));
+    const err = parseServerMessage(await nextMessage(ws)) as ServerErrorMessage | undefined;
+    expect(err?.type).to.eq(ServerMessageType.ERROR);
+    expect(err?.code).to.eq('subscribe-rejected');
+    expect(hub.getRoomCount()).to.eq(0);
+  });
+});
+
+describe('realtime/realtimeEnabled (Phase 12 default-ON)', () => {
+  let saved: string | undefined;
+  beforeEach(() => {
+    saved = process.env.REALTIME_ENABLED;
+  });
+  afterEach(() => {
+    if (saved === undefined) {
+      delete process.env.REALTIME_ENABLED;
+    } else {
+      process.env.REALTIME_ENABLED = saved;
+    }
+  });
+
+  it('defaults ON when the env var is unset', () => {
+    delete process.env.REALTIME_ENABLED;
+    expect(realtimeEnabled()).to.be.true;
+  });
+
+  it('stays ON for any truthy / unrecognized value', () => {
+    for (const v of ['1', 'true', 'on', '', 'yes']) {
+      process.env.REALTIME_ENABLED = v;
+      expect(realtimeEnabled(), v).to.be.true;
+    }
+  });
+
+  it('is the opt-out only for 0 / false / off', () => {
+    for (const v of ['0', 'false', 'off', 'OFF', 'False']) {
+      process.env.REALTIME_ENABLED = v;
+      expect(realtimeEnabled(), v).to.be.false;
+    }
   });
 });

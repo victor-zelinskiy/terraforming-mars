@@ -416,6 +416,7 @@ import {InputResponse, SelectProjectCardToPlayResponse} from '@/common/inputs/In
 import {SelectProjectCardToPlayModel, SelectCardModel, PlayerInputModel, AndOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import PremiumCardWarnings from '@/client/components/card/PremiumCardWarnings.vue';
@@ -937,7 +938,7 @@ export default defineComponent({
       this.loading = true;
       this.capturedPre = {}; // pre-branch responses belong to THIS preview — reset.
       try {
-        const url = paths.API_CARD_PLAY_PREVIEW +
+        const url = apiUrl(paths.API_CARD_PLAY_PREVIEW) +
           '?id=' + encodeURIComponent(this.playerView.id) +
           '&card=' + encodeURIComponent(this.cardName);
         const response = await fetch(url);

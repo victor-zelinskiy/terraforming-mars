@@ -98,6 +98,9 @@
 import {defineComponent, nextTick} from 'vue';
 import * as constants from '@/common/constants';
 import raw_settings from '@/genfiles/settings.json';
+import {onRealtimeWake} from '@/client/components/realtime/realtimeSync';
+import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
+import {apiUrl, identitySearch} from '@/client/utils/runtimeConfig';
 import {vueRoot} from '@/client/components/vueRoot';
 import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {playerColorClass} from '@/common/utils/utils';
@@ -311,6 +314,13 @@ type DataModel = {
    * detach the exact same listener and not leak one per remount.
    */
   onVisibilityChange: (() => void) | undefined;
+  /**
+   * Unsubscribe handle for the realtime wake listener (Phase 4). A WS
+   * GAME_STATE_INVALIDATED wakes the SAME guarded `waitForUpdate(true)` path as
+   * a visibility/focus wake. Stored so `unmounted` detaches it exactly (the
+   * component remounts on every server response via playerkey++).
+   */
+  realtimeWakeOff: (() => void) | undefined;
 }
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
@@ -347,6 +357,7 @@ export default defineComponent({
       holdingForConversion: false,
       holdingForHazardCleanup: false,
       onVisibilityChange: undefined,
+      realtimeWakeOff: undefined,
     };
   },
   /*
@@ -407,7 +418,7 @@ export default defineComponent({
        */
       const wgtSubmit = this.currentPromptIsWGT();
       this.fetchPlayerInput(
-        paths.PLAYER_INPUT + '?id=' + this.playerView.id,
+        apiUrl(paths.PLAYER_INPUT) + '?id=' + this.playerView.id,
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -425,7 +436,7 @@ export default defineComponent({
      */
     onsaveBatch(responses: ReadonlyArray<InputResponse>) {
       this.fetchPlayerInput(
-        paths.PLAYER_INPUT_BATCH + '?id=' + this.playerView.id,
+        apiUrl(paths.PLAYER_INPUT_BATCH) + '?id=' + this.playerView.id,
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -441,7 +452,7 @@ export default defineComponent({
     },
     reset() {
       this.fetchPlayerInput(
-        paths.RESET + '?id=' + this.playerView.id,
+        apiUrl(paths.RESET) + '?id=' + this.playerView.id,
         {method: 'GET'},
         false);
     },
@@ -701,7 +712,7 @@ export default defineComponent({
           return;
         }
         const xhr = new XMLHttpRequest();
-        xhr.open('GET', paths.API_WAITING_FOR + window.location.search + '&gameAge=' + this.playerView.game.gameAge + '&undoCount=' + this.playerView.game.undoCount);
+        xhr.open('GET', apiUrl(paths.API_WAITING_FOR) + identitySearch() + '&gameAge=' + this.playerView.game.gameAge + '&undoCount=' + this.playerView.game.undoCount);
         xhr.onerror = function() {
           root.showAlert('Error fetching state', CANNOT_CONTACT_SERVER, () => vueApp.waitForUpdate());
         };
@@ -778,7 +789,12 @@ export default defineComponent({
         // looks again. askForUpdate re-arms the normal chain when it returns.
         askForUpdate();
       } else {
-        ui_update_timeout_id = window.setTimeout(askForUpdate, raw_settings.waitingForTimeout);
+        // Phase 6: stretch the poll to a long safety-net interval while the WS
+        // is strictly healthy (and reduction is enabled); otherwise the safe
+        // `waitingForTimeout`. Re-evaluated every re-arm, and a WS drop wakes an
+        // immediate re-arm (onRealtimeWake -> waitForUpdate(true)) so we fall
+        // back to the safe interval fast.
+        ui_update_timeout_id = window.setTimeout(askForUpdate, realtimePollIntervalMs(raw_settings.waitingForTimeout));
       }
     },
     notify() {
@@ -852,6 +868,12 @@ export default defineComponent({
     };
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     window.addEventListener('focus', this.onVisibilityChange);
+    // Realtime (Phase 4): a WS invalidation, once coalesced by the sync
+    // coordinator, wakes the SAME guarded refresh as a visibility/focus wake.
+    // The poll handler still decides GO/REFRESH/WAIT and skips full refreshes
+    // while the viewer is mid-prompt, so this never disrupts partial input.
+    // Polling remains the fallback; when realtime is disabled no wake ever fires.
+    this.realtimeWakeOff = onRealtimeWake(() => this.waitForUpdate(true));
     if (this.playerView.players.length > 1 && this.waitingfor !== undefined && this.waitingfor.optional !== true) {
       documentTitleTimer = window.setInterval(() => this.animateTitle(), 1000);
     }
@@ -863,6 +885,10 @@ export default defineComponent({
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
       window.removeEventListener('focus', this.onVisibilityChange);
       this.onVisibilityChange = undefined;
+    }
+    if (this.realtimeWakeOff !== undefined) {
+      this.realtimeWakeOff();
+      this.realtimeWakeOff = undefined;
     }
   },
   computed: {

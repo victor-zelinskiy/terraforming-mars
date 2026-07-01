@@ -3,6 +3,7 @@ import {
   ClientMessageType,
   REALTIME_PROTOCOL_VERSION,
   GameStateInvalidatedMessage,
+  ResumeGameMessage,
   ServerErrorMessage,
   ServerMessageType,
   SubscribeGameMessage,
@@ -12,6 +13,7 @@ import {
   gameStateInvalidated,
   parseClientMessage,
   parseServerMessage,
+  resumeGame,
   serializeMessage,
   serverError,
   serverHello,
@@ -114,5 +116,16 @@ describe('realtime/Protocol', () => {
 
   it('rejects an invalidation missing gameId', () => {
     expect(parseServerMessage(JSON.stringify({type: ServerMessageType.INVALIDATED, protocolVersion: 1, ts: 1, gameAge: 1, undoCount: 0}))).to.be.undefined;
+  });
+
+  it('round-trips a resume and rejects missing cursor fields', () => {
+    const parsed = parseClientMessage(serializeMessage(resumeGame('p-1', 4, 2)));
+    expect(parsed?.type).to.eq(ClientMessageType.RESUME);
+    const m = parsed as ResumeGameMessage;
+    expect(m.participantId).to.eq('p-1');
+    expect(m.lastGameAge).to.eq(4);
+    expect(m.lastUndoCount).to.eq(2);
+
+    expect(parseClientMessage(JSON.stringify({type: ClientMessageType.RESUME, protocolVersion: 1, ts: 1, participantId: 'p-1'}))).to.be.undefined;
   });
 });

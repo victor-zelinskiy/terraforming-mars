@@ -119,6 +119,7 @@ import InitialDraftSkipConfirmContent from '@/client/components/initialDraft/Ini
 import InitialDraftFinalConfirmContent from '@/client/components/initialDraft/InitialDraftFinalConfirmContent.vue';
 import InitialDraftPillStack from '@/client/components/initialDraft/InitialDraftPillStack.vue';
 import {translateText} from '@/client/directives/i18n';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {Message} from '@/common/logs/Message';
 import {paths} from '@/common/app/paths';
 import {statusCode} from '@/common/http/statusCode';
@@ -717,7 +718,7 @@ export default defineComponent({
       };
 
       const response = this.buildResponse();
-      const url = paths.PLAYER_INPUT + '?id=' + view.id;
+      const url = apiUrl(paths.PLAYER_INPUT) + '?id=' + view.id;
 
       fetch(url, {
         method: 'POST',

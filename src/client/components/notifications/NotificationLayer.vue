@@ -37,6 +37,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
 import {LogMessage} from '@/common/logs/LogMessage';
@@ -59,6 +60,8 @@ import {
 import {scaleBonusRewardKey} from '@/client/components/board/scaleBonusZones';
 import {isPlayerPanelVisible} from '@/client/components/overview/turnHandoffState';
 import {openRevealViewer} from '@/client/components/notifications/revealViewerState';
+import {startRealtimePoller} from '@/client/components/realtime/realtimePoller';
+import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import {
   notificationState,
   pushMany,
@@ -75,7 +78,7 @@ const POLL_INTERVAL_MS = 2200;
 type DataModel = {
   logsAbort: AbortController | undefined;
   eventsAbort: AbortController | undefined;
-  pollTimer: number | undefined;
+  stopPoller: (() => void) | undefined;
   fetching: boolean;
 };
 
@@ -105,7 +108,7 @@ export default defineComponent({
     return {
       logsAbort: undefined,
       eventsAbort: undefined,
-      pollTimer: undefined,
+      stopPoller: undefined,
       fetching: false,
     };
   },
@@ -258,9 +261,9 @@ export default defineComponent({
       this.eventsAbort = eventsAbort;
       try {
         const [messages, events] = await Promise.all([
-          fetch(`${paths.API_GAME_LOGS}?id=${id}&generation=${generation}`, {signal: logsAbort.signal})
+          fetch(`${apiUrl(paths.API_GAME_LOGS)}?id=${id}&generation=${generation}`, {signal: logsAbort.signal})
             .then((r) => r.json() as Promise<ReadonlyArray<LogMessage> | null>),
-          fetch(`${paths.API_GAME_JOURNAL_EVENTS}?id=${id}&generation=${generation}`, {signal: eventsAbort.signal})
+          fetch(`${apiUrl(paths.API_GAME_JOURNAL_EVENTS)}?id=${id}&generation=${generation}`, {signal: eventsAbort.signal})
             .then((r) => r.json() as Promise<ReadonlyArray<GameEvent> | null>),
         ]);
         this.applyDiff(messages ?? [], events ?? [], generation);
@@ -392,14 +395,16 @@ export default defineComponent({
   },
   mounted(): void {
     this.update();
-    this.pollTimer = window.setInterval(() => {
+    // Refetch on every realtime wake (game change) + a lengthened fallback
+    // while WS is healthy; falls back to the safe poll rate when WS is down.
+    this.stopPoller = startRealtimePoller(() => {
       void this.fetchAndDiff();
-    }, POLL_INTERVAL_MS);
+    }, POLL_INTERVAL_MS, realtimePollIntervalMs);
   },
   beforeUnmount(): void {
-    if (this.pollTimer !== undefined) {
-      window.clearInterval(this.pollTimer);
-      this.pollTimer = undefined;
+    if (this.stopPoller !== undefined) {
+      this.stopPoller();
+      this.stopPoller = undefined;
     }
     this.logsAbort?.abort();
     this.eventsAbort?.abort();

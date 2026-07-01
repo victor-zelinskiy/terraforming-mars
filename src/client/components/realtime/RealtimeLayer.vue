@@ -5,7 +5,7 @@
     :class="'realtime-indicator--' + rt.status"
     aria-hidden="true">
     <span class="realtime-indicator__dot"></span>
-    <span class="realtime-indicator__label">RT: {{ rt.status }}{{ rt.helloAcked ? ' ✓' : '' }}{{ rt.subscribed ? ' · sub' : '' }}{{ rt.invalidationsReceived > 0 ? ' · inv:' + rt.invalidationsReceived : '' }}</span>
+    <span class="realtime-indicator__label">RT: {{ rt.status }}{{ rt.helloAcked ? ' ✓' : '' }}{{ rt.subscribed ? ' · sub' : '' }}{{ rt.invalidationsReceived > 0 ? ' · inv:' + rt.invalidationsReceived : '' }}{{ rt.resumeAttempts > 0 ? ' · res:' + rt.resumeAttempts : '' }}</span>
   </div>
 </template>
 

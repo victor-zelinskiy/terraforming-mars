@@ -1833,6 +1833,16 @@ export class Player implements IPlayer {
 
     if (this.actionsTakenThisRound === 0 || game.gameOptions.undoOption) {
       game.save();
+    } else {
+      // The action fully resolved and advanced `gameAge`, but we are NOT
+      // persisting it (an intermediate action with undo disabled). `saveGame`
+      // is what normally emits the realtime invalidation, so without this the
+      // change is invisible to OTHER players' WebSocket clients until the next
+      // save (turn end) — the first of a two-action turn (e.g. a tile
+      // placement) lagged behind while the second was masked by the immediate
+      // turn hand-off. Emit the invalidation for the in-memory state directly;
+      // it mirrors exactly what the `/api/waitingFor` poll reports via gameAge.
+      game.notifyStateChange();
     }
     // if (saveBeforeTakingAction) game.save();
 

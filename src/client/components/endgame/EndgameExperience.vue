@@ -36,6 +36,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {CardResource} from '@/common/CardResource';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildEndgameModel, EndgameModel, EndgamePlayerInput} from '@/client/components/endgame/endgameModel';
@@ -187,7 +188,7 @@ export default defineComponent({
       if (id === undefined || typeof fetch !== 'function') {
         return;
       }
-      fetch(paths.API_GAME_ENDGAME_FACTS + '?id=' + encodeURIComponent(id))
+      fetch(apiUrl(paths.API_GAME_ENDGAME_FACTS) + '?id=' + encodeURIComponent(id))
         .then((r) => (r.ok ? r.json() : undefined))
         .then((f) => {
           if (Array.isArray(f)) {

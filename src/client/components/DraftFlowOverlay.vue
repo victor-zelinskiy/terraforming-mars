@@ -53,6 +53,7 @@ import {statusCode} from '@/common/http/statusCode';
 import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {Message} from '@/common/logs/Message';
 import {translateText} from '@/client/directives/i18n';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {vueRoot} from '@/client/components/vueRoot';
 import {
   draftWaitState,
@@ -312,7 +313,7 @@ export default defineComponent({
       root.isServerSideRequestInProgress = true;
 
       fetch(
-        paths.PLAYER_INPUT + '?id=' + view.id,
+        apiUrl(paths.PLAYER_INPUT) + '?id=' + view.id,
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},

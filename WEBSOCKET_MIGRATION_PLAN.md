@@ -1,7 +1,32 @@
 # Single-App + WebSocket Realtime — Architecture Investigation & Migration Plan
 
-> Status: **investigation + plan only. No implementation started.**
+> Status: **implementation COMPLETE — the realtime transport, subscription, invalidation, refresh wiring, reconnect/resume, poll reduction, and secondary-poller migration are LIVE and ON BY DEFAULT (Phase 12).** WebSocket is now the primary realtime mechanism; polling is the automatic fallback. Every layer keeps an opt-out kill-switch (§L.6).
 > Scope: move from legacy polling + multi-page assumptions toward a formalized single-app client with a server-authoritative WebSocket realtime layer, without a big-bang rewrite, preserving direct game URLs and the premium UI. Electron is out of scope (but kept in mind).
+
+### Implementation status & phase mapping
+
+The work shipped in **implementation phases** (the conversational numbering). They don't map 1:1 to the design phases in §E below — the mapping + state:
+
+| Impl. phase (shipped) | What it did | Design §E phase | State |
+| --- | --- | --- | --- |
+| Impl. Phase 1 | WS transport + diagnostics (`/ws`, hello, heartbeat, dev chip) | E-Phase 3 | ✅ done |
+| Impl. Phase 2 | Game subscription (rooms via `RealtimeHub`, token auth, spectator read-only) | E-Phase 4 | ✅ done |
+| Impl. Phase 3 | Observe-only `GAME_STATE_INVALIDATED` broadcast (client logs only) | E-Phase 5 | ✅ done |
+| Impl. Phase 4 | **Wire invalidation → the existing guarded `waitForUpdate(true)`** (+ coalescing coordinator) | **E-Phase 6** | ✅ done |
+| Impl. Phase 5 | Reconnect (capped backoff) + `RESUME_GAME` resume + snappy visibility reconnect | E-Phase 8 | ✅ done |
+| Impl. Phase 6 | Reduce primary polling when WS strictly healthy (1 s → ~20 s), auto-fallback | E-Phase 9 | ✅ done |
+| Impl. Phase 7 | Migrate secondary pollers (journal / notifications / rematch) to WS-wake + lengthened fallback | (folded into E-Phase 9) | ✅ done |
+| Mutation-coverage fix | **Broadcast tied to `gameAge` (every action) not only `saveGame`** + undo hook + game-end `completeGame` hook | **E-Phase 7** | ✅ done (full coverage — see §L.3) |
+| Impl. Phase 8 | **Electron config seam** (`runtimeConfig.ts`: `apiBase` / `wsBase` / identity) — WS transport + core game-runtime HTTP routed through it, default-identical | E-Phase 13 | ✅ done |
+| Impl. Phase 9 | **Route ALL premium game-runtime / analytics / lobby fetches through the seam** (journal, notifications, logs, previews [action / card-play / delta / board-cell], effect+action stats, rematch, endgame-facts, App-level overlay input submits, reset, acknowledge-draw, joinable) | E-Phase 13 | ✅ done (only admin / auth / create-game navs + asset paths remain — §E-Phase 13) |
+| Impl. Phase 10 | **In-app SPA navigation infra** (`App.applyRoute` / `navigateInApp` / `popstate`) + convert **home↔create** to in-app (no page reload) | E-Phase 13 (§C.1 sub-step) | ✅ done — home↔create in-app; **game-boundary (enter/leave) stays a reload BY DESIGN** (clean-slate; the in-app boundary + ~25-singleton `resetGameSessionState()` was evaluated and **deliberately skipped** — see §E-Phase 13) |
+| Impl. Phase 11 | **Legacy-nav unlink (audit)** — the premium menu / create / player flow + the in-app endgame never link to legacy pages (menu/create only point at home/create/game). Sole exception: `SpectatorHome` → `/the-end` (the in-app `EndgameExperience` is player-only, `endgameView` gated on `player-home`), a FUNCTIONAL spectator-results link — left intact | E-Phase 12 | ✅ audited clean (in-app spectator endgame is a separate enhancement, not a stray link) |
+| — | Idempotency (`commandId`) | E-Phase 11 | ⏸ deferred (existing `runId` + in-flight guard suffice; see §G.8) |
+| **Impl. Phase 12** | **WebSocket is the DEFAULT** — `realtimeEnabled()` (server) + `realtimeClientEnabled()` (client) default ON; cascades to refresh + poll-reduction; dev chip stays dev-only; all kill-switches preserved | new (culmination) | ✅ **done** |
+
+**Flags (WebSocket ON by default — these are the OPT-OUT kill-switches):** `REALTIME_ENABLED=0` (server env — don't attach the gateway → legacy polling for everyone) · `?realtime=0` (client transport off) · `?realtimeRefresh=0` (observe-only, polling drives) · `?realtimePoll=0` (keep WS-refresh but safe 1 s polling). Unset / any other value = ON. See §L.6 for the graduated rollback ladder.
+
+**The completeness guarantee this plan now makes:** *every advance of a game's `(gameAge, undoCount)` — the exact pair `/api/waitingfor` compares — emits a `GAME_STATE_INVALIDATED` to the room, so with WS healthy no scenario depends on the polling timer.* The full per-scenario matrix, guard preservation, no-polling list, rollback ladder, and acceptance criteria are in **§L**.
 
 ---
 
@@ -117,6 +142,8 @@ Player.takeAction()                      // Player.ts — gameAge++ then game.sa
 
 So the complete "state changed" trigger set = **{ saveGame called, undoCount bumped, phase became END }** — which is exactly the three things `ApiWaitingFor` already compares. The broadcast must cover all three.
 
+> **⚠️ Implemented correction (post-Phase-3) — the broadcast is tied to `gameAge`, not only to `saveGame`.** Hooking `GameLoader.saveGame()` alone was insufficient: `Player.takeAction()` bumps `game.gameAge++` (the exact poll signal) on **every** fully-resolved action, but only calls `game.save()` when `actionsTakenThisRound === 0 || undoOption` (Player.ts:1834). So an **intermediate** action — the *first* of a two-action turn with undo disabled (e.g. a tile placement) — advanced `gameAge` **without** saving, emitted **no** WS invalidation, and was invisible to opponents until the turn-ending save (the second action masked it). Polling hid this before; Phase 6's stretched interval (~20 s) exposed it as a real lag. **Fix:** the broadcast now mirrors the poll signal exactly. `GameLoader.notifyGameStateChanged(game)` (public; reads `gameAge`/`undoCount`/`phase` → `RealtimeHub.invalidate`) is called from **three** places: (1) `saveGame` after persistence — draft / phase transitions / admin; (2) `restoreGameAt` after `undoCount++` — undo; (3) **directly per fully-resolved not-saved action** — `Player.takeAction`'s `else` branch calls `game.notifyStateChange()` (a new `IGame` method → `GameLoader.notifyGameStateChanged`). No double emit: the save branch broadcasts via `saveGame`, the no-save branch via `notifyStateChange`. Broadcasting the in-memory `gameAge` (before/without a durable save) is correct and consistent with polling, which reads the same in-memory `gameAge`; the DB save is a durability concern, not an observability gate. `completeGame` (game-end) still isn't hooked, but is not a gap for tile placement — the final greenery/city IS an action, so it broadcasts via (3)/(1) before the END transition. Guarded by `tests/realtime/GameLoaderBroadcast.spec.ts` ("an intermediate action broadcasts even though it is not saved").
+
 ### B.7 Game cache / room substrate (already present)
 
 `GameLoader` (singleton) + `Cache` (`src/server/database/Cache.ts`) already hold:
@@ -197,15 +224,17 @@ WS server attached to the existing `http.Server` in `server.ts` via `server.on('
 
 These are 3 lines in one file area, not scattered through action handlers. Dedup is natural: one command → one `takeAction` → one `gameAge++`/`save` → one invalidate. Failed/rolled-back actions never reach `saveGame`, so they never broadcast.
 
+> **⚠️ This original "hook `saveGame` only" design proved incomplete** — `Player.takeAction` bumps `gameAge` on every action but only `save()`s on the first-of-round / undo-on, so intermediate actions (e.g. a first-of-two tile placement with undo off) advanced `gameAge` without broadcasting. The implemented design ties the broadcast to the `(gameAge, undoCount)` pair instead. See **§B.6** (the correction) and **§L** (the full coverage matrix). Treat §L as authoritative for what triggers a broadcast.
+
 ### C.6 Polling fallback strategy
 
 Polling stays. Behind a feature flag, when the socket is healthy: lengthen `WaitingFor`'s timer (e.g. 1 s → 15–30 s) so polling becomes a slow safety-net while WS provides the fast path. When the socket drops: restore the 1 s interval automatically. The other 4 pollers (notifications/journal/rematch/joinable) can be migrated later or simply ride the same invalidation nonce; they are not on the critical path for Phase 1.
 
 ### C.7 Future Electron compatibility notes
 
-The single-runtime/single-transport choice already helps. Two things to keep clean now to avoid pain later (do **not** implement yet, just don't regress):
-- **Centralize the API base + identity.** Today the client builds URLs as `'api/' + path + window.location.search` (App.vue:535) and `paths.API_WAITING_FOR + window.location.search` (WaitingFor.vue:704), i.e. relative origin + reads identity from `window.location`. For Electron, factor an `apiBase` + an explicit `{gameId, playerId}` client-config instead of reading `window.location`. The WS URL should derive from the same `apiBase`.
-- **Keep transport in `realtimeService`.** Because the browser `WebSocket` and Node `ws` speak the same wire protocol, Electron's renderer reuses the exact same `realtimeService` unchanged.
+The single-runtime/single-transport choice already helps.
+- **Centralize the API base + identity — ✅ seam shipped (impl. Phase 8).** `src/client/utils/runtimeConfig.ts` exposes `apiBaseUrl()` / `apiUrl(path)` / `wsBaseUrl()` / `identitySearch()`, resolved from an optional injected `window.tmRuntimeConfig` (an Electron preload would set it) with defaults that reproduce today's browser behaviour byte-for-byte (relative origin + `window.location`). The **WS transport** (`realtimeConfig.realtimeWsUrl()`) plus **every premium game-runtime, analytics and lobby HTTP fetch** are routed through it (impl. Phase 8 = core; impl. Phase 9 = the rest: journal, notifications, logs, action/card-play/delta/board-cell previews, effect+action stats, rematch, endgame-facts, the App-level overlay input submits, reset, acknowledge-draw, joinable). An Electron host points the client at an explicit `apiBase`/`wsBase` and injects the `participantId` (no URL bar) without touching component code. **Remaining (non-premium surfaces):** admin (games-overview / delete), auth (login / oauth), the create-game **navigations** (which become in-app transitions in Phase 10), and asset paths (webpack `publicPath`).
+- **Keep transport in `realtimeService`.** Because the browser `WebSocket` and Node `ws` speak the same wire protocol, Electron's renderer reuses the exact same `realtimeService` unchanged — now that its URL derives from `wsBaseUrl()`, only the injected config differs.
 
 ---
 
@@ -328,17 +357,23 @@ Each phase is independently shippable and reversible. **Polling is not removed u
 - **Risk:** low (observe-only on client). **Acceptance:** opponent's normal action produces a broadcast the other clients log. **Rollback:** remove the one call / flag off.
 - **Don't change:** client refresh still polling-driven.
 
-### Phase 6 — Wire invalidation to the existing refresh
-- **Goal:** on `GAME_STATE_INVALIDATED`, client calls `WaitingFor.waitForUpdate(immediate=true)` (the existing GO/REFRESH path). Polling unchanged (still 1 s).
-- **Scope:** `realtimeService` ↔ `WaitingFor.vue` wiring (reactive nonce/bus).
-- **Risk:** medium (first behavioral change), but contained because it reuses every guard. **Acceptance:** Player B sees Player A's card play sub-second; mid-input/overlay/animation states are NOT disrupted (manual matrix in §H). **Rollback:** flag off → pure polling.
-- **Don't change:** the refresh/guard logic itself; the `playerkey` remount path.
+### Phase 6 — Wire invalidation to the existing refresh ✅ **(shipped as impl. Phase 4)**
+- **Goal:** on `GAME_STATE_INVALIDATED`, the client wakes the EXISTING guarded refresh — `WaitingFor.waitForUpdate(immediate=true)` — never a raw `playerkey++`, never a direct `updatePlayer`. Polling interval unchanged in this phase (still 1 s).
+- **How it shipped:** `realtimeService` (on the invalidation, if `?realtimeRefresh` is on) → `notifyGameInvalidated()` → the **coalescing coordinator** `realtimeSync.ts` (60 ms burst window + ≥400 ms min-interval so opponent multi-save turns can't storm the refresh) → a "wake" → `WaitingFor`'s registered wake listener (mirrors the proven `visibilitychange`/`focus` handler) → `waitForUpdate(true)`. The `/api/waitingfor` GO/REFRESH/WAIT logic + `viewerHasPrompt` + `updatePlayer`'s `preserveOpenOverlay`/`preserveCardPickModal`/animation-hold guards run **unchanged**. The wake mechanism is a plain listener registry — UI never touches the raw socket.
+- **Scope:** `src/client/components/realtime/{realtimeService,realtimeSync}.ts`, `WaitingFor.vue` (one wake subscription in `mounted`/`unmounted` + the existing interval call). No server change (broadcast already exists from impl. Phase 3).
+- **Guards preserved (mandatory):** the WS event behaves identically to a poll tick arriving at that instant — see §L.4 for every edge UI state. **The `playerkey` remount path is untouched; a WS event can only reach `playerkey++` through the same `App.update()` guards a poll tick would.**
+- **Acceptance:** Player B sees Player A's action sub-second (~≤200 ms); a burst of A's saves coalesces to one refresh (no storm); mid-input/overlay/animation states are NOT disrupted (§L.4, §H.2). With `?realtimeRefresh=0` → observe-only, polling drives.
+- **Rollback:** `?realtimeRefresh=0` (client, instant) → observe-only + polling; or `?realtime=0` / `REALTIME_ENABLED` off → full legacy. See §L.6.
+- **Full coverage of WHICH mutations reach this wiring:** §L.3.
 
-### Phase 7 — Cover all mutations (undo + game end)
-- **Goal:** add `invalidate(game)` to `restoreGameAt()` (after `undoCount++`) and `completeGame()` (after final save).
-- **Scope:** `GameLoader.ts`.
-- **Risk:** low-medium. **Acceptance:** undo and endgame propagate to all clients without polling; endgame overlay/rematch start for everyone. **Rollback:** remove the two calls.
-- **Don't change:** client wiring (already done).
+### Phase 7 — Cover ALL state mutations ✅ **(shipped — full coverage incl. the game-end hook)**
+- **Goal:** guarantee that **every** advance of `(gameAge, undoCount)` broadcasts — not just the ones that happen to call `saveGame`. This is the completeness guarantee; §L is the authoritative matrix.
+- **What shipped:** the broadcast was re-tied to the `(gameAge, undoCount)` signal via one public helper `GameLoader.notifyGameStateChanged(game)`, called from **four** places (see §B.6 / §L.1): (1) `saveGame` after persistence — start-of-turn snapshot, draft, phase/generation transitions, admin; (2) `restoreGameAt` after `undoCount++` — **undo**; (3) `Player.takeAction`'s `else` branch (`game.notifyStateChange()`) — a fully-resolved **intermediate action** that advanced `gameAge` without persisting (the first-of-two tile-placement bug); (4) `completeGame()` after the direct end-save — **game-end** belt-and-braces. No double emit for the action paths (save branch vs no-save branch are mutually exclusive); the game-end emit is a redundant certainty hook (empty-room no-op).
+- **Scope:** `Player.ts`, `Game.ts` + `IGame`, `GameLoader.ts` + `IGameLoader` (all shipped). Client wiring already done in Phase 6.
+- **Risk:** low — the added calls are state-neutral (a broadcast to an empty room is a no-op; verified across 1592 base/game tests unchanged).
+- **Acceptance:** an opponent's FIRST-of-two action (undo off) is visible immediately; undo propagates; every scenario in §L.3/§L.5 propagates without a polling wait. Guarded by `tests/realtime/GameLoaderBroadcast.spec.ts` ("an intermediate action broadcasts even though it is not saved").
+- **Rollback:** the broadcast calls are behind the same room (empty when WS off) — with `REALTIME_ENABLED` off they are no-ops; no separate rollback needed.
+- **Secondary feeds (journal / notifications / rematch)** were migrated to the same wake in impl. Phase 7: they refetch on the invalidation + a lengthened fallback. Rematch state lives outside the game mutation stream, so `ApiGameRematch` broadcasts a room invalidation after each rematch action. Lobby (`/api/games/joinable`) is deliberately NOT migrated (not a game room). See §L.5.
 
 ### Phase 8 — Reconnect / fallback hardening
 - **Goal:** auto-reconnect with backoff; resubscribe + `RESUME_GAME`; premium "reconnecting" status; on resume-changed → refresh. Verify Heroku dyno-restart / laptop-sleep recovery.
@@ -365,9 +400,15 @@ Each phase is independently shippable and reversible. **Polling is not removed u
 - **Risk:** low. **Acceptance:** premium journey never lands on a legacy screen. **Rollback:** restore links.
 - **Don't change:** don't delete legacy code.
 
-### Phase 13 — Electron-readiness prep (no Electron)
-- **Goal:** centralize `apiBase` + identity config; derive WS URL from it; audit browser-only assumptions in the game runtime.
-- **Risk:** low-medium. **Acceptance:** the client can run pointed at an explicit API base. **Rollback:** revert config.
+### Phase 13 — Electron-readiness prep (no Electron) 🟡 **(started — impl. Phase 8)**
+- **Goal:** centralize `apiBase` + `wsBase` + identity so the game runtime never hard-codes `window.location` for transport; a future Electron host injects config, not URL bar.
+- **What shipped:** `src/client/utils/runtimeConfig.ts` (the seam; defaults = today's browser behaviour). The WS transport + the **core** game-runtime HTTP (snapshot fetch, waitingfor poll, player input) now go through `apiUrl`/`wsBaseUrl`/`identitySearch`. See §C.7.
+- **Electron migration checklist:**
+  1. ✅ **Premium HTTP fetches routed** (impl. Phase 9) — journal / notifications / logs / previews / stats / rematch / endgame / overlay input / joinable all go through `apiUrl`/`identitySearch`. Remaining un-routed: **admin** (games-overview / delete), **auth** (login / oauth) — non-premium ops surfaces, wrap when/if Electron needs them.
+  2. **Full-page navigations → in-app `screen` transitions (impl. Phase 10, PARTIAL).** The in-app router infra shipped: `App.applyRoute()` (extracted from `mounted`, resolves screen + data-load from the URL), `App.navigateInApp(path)` (`history.pushState` + `applyRoute`, no reload), and a `popstate` listener for back/forward. **Done:** home↔create (`PremiumMainMenu` "Create game", `PremiumCreateGame` "Back") are now in-app — both non-game screens, zero stale-state risk. **Game-boundary = a page reload, BY DESIGN (evaluated + deliberately NOT made in-app).** The create/join → player and exit → home navigations stay `window.location.assign(...)`. Reasoning: the fork has **~25 module-level per-game state singletons** (feeds, flows, overlays, selections, board/animation transients, realtime, notifications, journal, draft, hand flows, placement, endgame, rematch — only ~14 have reset functions today) that all assume a fresh page per game; a full reload resets them for free. Making the boundary in-app would require a `resetGameSessionState()` that perfectly clears all ~25 (a miss = a silent stale-state bug on the *2nd game in a session*). **Crucially, this is NOT needed for Electron:** a packaged Electron app enters a game by RELOADING the packaged page with the new identity (`window.location.href`/renderer reload → re-inits everything cleanly, exactly like the browser reload), and the Phase-8 `runtimeConfig` seam already supplies `apiBase`/`wsBase` + the injected `participantId`. So the reload boundary works identically in browser and Electron, gives a guaranteed clean slate, and avoids the fragile reset audit. The only in-game benefit would have been "no reload flash entering a game" in the browser — not worth the risk. (The remaining Electron entry-flow item is small: route the create/join **home-surface** fetches through `apiUrl`, §L.8 admin/auth note, and confirm the Electron reload-with-identity strategy.)
+  3. **Asset paths** — confirm `vendors.js`/`main.js`/`styles.css`/`assets/*` (incl. the `main.ts` locale fetch) load under `file://` or a packaged base (webpack `publicPath`); today `publicPath: '/'` assumes a web root.
+  4. **Identity storage** — the browser keeps identity in the URL; an Electron app persists `{gameId, participantId}` and injects it via `tmRuntimeConfig` (the seam already reads `config.participantId`).
+- **Risk:** low (additive, default-identical). **Acceptance:** with `window.tmRuntimeConfig = {apiBase, wsBase, participantId}` set, the core runtime talks to an explicit host; guarded by `tests/realtime/runtimeConfig.spec.ts`. **Rollback:** the seam defaults to relative origin — unsetting the config restores browser behaviour.
 
 ---
 
@@ -438,6 +479,12 @@ Specific premium areas and why each is safe *if* the rule holds (each is already
 10. Client misses events (kill socket, mutate, restore) → exactly one clean full reload.
 11. WS fully down → polling fallback keeps the game playable end-to-end.
 12. Energy→heat conversion + tile-placement + hazard-cleanup animations not interrupted by an opponent's concurrent action over WS.
+13. **First-of-two action, undo OFF:** A places a tile on the FIRST of a two-action turn → B sees it **immediately** (not only after A's turn ends). This is the specific regression — cross-checked against §L.3 and `GameLoaderBroadcast.spec.ts`.
+14. **Undo:** A undoes an action → B reflects the rollback over WS.
+15. **Game end:** the final greenery/scoring → all clients refresh into END; endgame overlay + rematch appear without polling.
+16. **Coalescing:** A takes a rapid multi-step turn (several saves) → B refreshes a bounded number of times (no storm), landing on the final state.
+
+The full per-scenario coverage, the "polling no longer required" list, and the consolidated acceptance criteria are in **§L** (this matrix is the hands-on subset).
 
 **Environment**
 - Local two-browser, staging two-account, Heroku dyno-restart recovery, laptop-sleep/tab-sleep resume, long-running multi-generation game.
@@ -478,3 +525,139 @@ Socket.IO's only real edge is auto-reconnect + rooms boilerplate, which is small
 > *"The app may already be close to a single-app architecture; the missing pieces are formalizing the home/game flow, owning the game page as a single-page runtime, preserving URL restore, replacing polling with WebSocket, and unlinking legacy pages."*
 
 **Confirmed in full.** One webpack bundle, one HTML shell, client-side screen switching, an in-place game runtime (overlays survive remount; endgame renders in-page), stateless URL-token identity that already supports refresh/new-tab restore, and a built-in monotonic `gameAge`/`undoCount` change signal that maps directly onto WS sequence/resume. The migration is not an SPA rewrite; it is: add a `ws` gateway on the existing `http.Server`, broadcast generic invalidation from the `GameLoader` persistence boundary, route that into the existing `waitForUpdate` refresh, and keep polling as a flagged fallback. Risk is dominated by one rule — **never bypass the existing refresh guards / never raw-`playerkey++` on a WS event** — which the phased plan enforces.
+
+---
+
+## L. Guaranteed WS-only state synchronization (all mutation scenarios)
+
+This section is the **authoritative** statement of what the realtime layer guarantees: *with WS healthy, every change to authoritative game state reaches every subscribed client over `GAME_STATE_INVALIDATED` → the existing guarded refresh, with no dependency on the polling timer.* Polling remains only as an automatic fallback when WS is unhealthy. It supersedes the earlier "hook `saveGame`" framing (§C.5) with the implemented `(gameAge, undoCount)`-based design.
+
+### L.0 The invariant (why coverage is complete by construction)
+
+A client's observable version of a game is exactly the pair **`(gameAge, undoCount)`** — the pair `/api/waitingfor` compares to return `GO | REFRESH | WAIT` (`ApiWaitingFor.ts:35–52`). Therefore:
+
+> **A client is guaranteed in sync iff every advance of `(gameAge, undoCount)` produces a `GAME_STATE_INVALIDATED` to the room.**
+
+The server broadcast is wired to that pair (not to `saveGame`), and the client turns each invalidation into the SAME `/api/waitingfor` re-check the poll timer would have done. So the WS path and the poll path converge on identical, already-battle-tested behavior — the WS event is just a faster trigger.
+
+### L.1 Broadcast trigger set (server) — mirrors the poll signal exactly
+
+One helper — `GameLoader.notifyGameStateChanged(game)` (reads `gameAge`/`undoCount`/`phase` → `RealtimeHub.invalidate` → the room; no-op for an empty room; never throws) — fired from:
+
+1. **`saveGame()`** after the DB write resolves — start-of-turn snapshot, draft picks, phase/generation transitions, admin color change.
+2. **`restoreGameAt()`** after `undoCount++` — **undo**.
+3. **`Player.takeAction()` else-branch** via `game.notifyStateChange()` — a fully-resolved action that advanced `gameAge` but is **not** persisted (an intermediate action with undo disabled). Mutually exclusive with (1): the save branch broadcasts through `saveGame`, the no-save branch through `notifyStateChange` → exactly one broadcast per action.
+4. **`completeGame()`** after the direct end-save — game-end belt-and-braces (see L.3).
+
+### L.2 Client refresh wiring (the Phase-6 path, in detail)
+
+```
+GAME_STATE_INVALIDATED (server → room)
+  └─ realtimeService.onMessage  (records lastKnownGameAge/undoCount; if ?realtimeRefresh on:)
+       └─ realtimeSync.notifyGameInvalidated()      ← coalesces bursts (60ms window, ≥400ms min-interval)
+            └─ a single "wake"  →  every onRealtimeWake listener
+                 └─ WaitingFor's listener (mounted alongside the visibility/focus handler)
+                      └─ waitForUpdate(true)         ← the EXISTING poll routine, immediate
+                           └─ GET /api/waitingfor    ← existing GO/REFRESH/WAIT + viewerHasPrompt
+                                └─ updatePlayer()/updateSpectator()  ← existing full-snapshot fetch
+                                     └─ App.update() guards → playerkey++ ONLY if safe
+                                          └─ UI
+```
+
+**Non-negotiable:** the wake NEVER calls `updatePlayer` directly and NEVER does a raw `playerkey++`. It only ever calls `waitForUpdate(true)`, so `viewerHasPrompt`, `preserveOpenOverlay`, `preserveCardPickModal`, and the animation holds all apply unchanged.
+
+### L.3 State-mutation coverage matrix
+
+Every way authoritative game state changes, and how each is synced without polling. "Trigger" = which L.1 hook fires; "Polling needed?" assumes WS healthy.
+
+| Scenario | `(gameAge/undoCount)` change | Broadcast trigger | Client sync path | Polling needed? |
+| --- | --- | --- | --- | --- |
+| Single / last action of a turn | gameAge++ + save | L.1(1) | wake → refresh | **No** |
+| **Intermediate action (first of two, undo OFF)** — incl. a tile placement | gameAge++, **no save** | **L.1(3)** | wake → refresh | **No** (was the bug; now covered) |
+| Any action with `undoOption` ON | gameAge++ + save (every action) | L.1(1) | wake → refresh | **No** |
+| Tile placement (city/greenery/ocean; card or standard project) | it IS an action | L.1(1)/(3) | wake → refresh (incl. placement animation via `holdingForTilePlacement`) | **No** |
+| Opponent action (viewer's perspective) | opponent's gameAge++ | L.1(1)/(3) | viewer has no prompt → refresh | **No** |
+| Draft / research pick (simultaneous phase) | draft save | L.1(1) | all seats wake → refresh (the biggest win — polling was the only signal) | **No** |
+| **Undo** (any player) | undoCount++ | L.1(2) | wake → refresh | **No** |
+| Production / generation roll-over (income, energy→heat conversion) | phase-transition saves | L.1(1) | wake → refresh (conversion animation via `holdingForConversion`) | **No** |
+| World Government Terraforming / global-parameter change | action / save | L.1(1)/(3) | wake → refresh | **No** |
+| Colony trade / build | it IS an action | L.1(1)/(3) | wake → refresh | **No** |
+| **Game end** (Mars terraformed / last solo generation) | final action + END phase transitions save + `completeGame` | L.1(1)/(3)/(4) | wake → refresh into END → endgame overlay + rematch mount | **No** |
+| Rematch offer/accept/decline/cancel (post-END) | NOT game state | `ApiGameRematch` room invalidation | RematchLayer wakes → refetch | **No** |
+| **Reconnect / resume** (network loss, dyno restart, tab sleep) | possibly advanced while away | `RESUME_GAME` → server compares cursor → `GAME_STATE_INVALIDATED` if changed | wake → single full refresh; `/api/waitingfor` de-dups if already current | **No** (WS recovers; polling is the ultimate fallback) |
+| Journal / notification feed | derived from game logs | rides the same wake (impl. Phase 7) | refetch on wake + lengthened fallback | **No** |
+| Home lobby list | not a game room | — (deliberately not migrated) | own 6 s poll | **Yes** (out of scope) |
+
+**Game-end detail.** The END state is observable *before* `completeGame` anyway: the last scoring action broadcasts (L.1(1)/(3)) and the phase transitions into `SOLAR`/`END` each `save()` → broadcast, so every client refreshes into `phase === END` and the App-level `EndgameExperience` + `RematchLayer` mount. `completeGame()` now **also** emits `notifyGameStateChanged(game)` (L.1(4)) — a redundant certainty hook (empty-room no-op), guarded by `GameLoaderBroadcast.spec.ts` ("completeGame broadcasts the end state").
+
+### L.4 Guard preservation & the `playerkey` remount path (edge UI states)
+
+The single structural risk is a refresh destroying premium UI mid-interaction. The WS event is routed so it behaves **identically to a poll tick arriving at that exact moment** — a path that has always existed and is battle-tested. Per edge state:
+
+- **Viewer mid-prompt** (choosing a placement / payment / target / card): `viewerHasPrompt` (`waitingfor !== undefined && !optional`) → `/api/waitingfor` still updates the live `playersWaitingFor` cubes, but `updatePlayer` (the full refresh) is **skipped** → the partial input is preserved. So an opponent's action reaching a viewer who is mid-decision updates the "who's waiting" indicator without nuking their form.
+- **Open informational overlay** (Cards / Actions / Effects / Played / Colonies / Journal / VP): `preserveOpenOverlay` (`playerHomeHasOpenOverlay()`) → `playerView` updates reactively **without** a `playerkey++` remount → the overlay stays open on the same selection.
+- **Draft / buy-cards modal:** `preserveCardPickModal` → no remount.
+- **Animation in flight** (tile placement / energy→heat / hazard cleanup): `holdingForTilePlacement` / `holdingForConversion` / `holdingForHazardCleanup` + the `isEnergyConversionActive()` / `isHazardCleanupActive()` gates in `App.update()` **defer** the commit until the animation finishes.
+- **App-level overlays** (draft, start-of-game, drawn-card reveal, energy conversion, hazard cleanup, endgame, rematch, journal, notifications): mounted as siblings of `<player-home>`, so they **survive** the `playerkey++` remount by construction — a WS refresh can't tear them down.
+- **The acting player mid-turn** (has a next-action prompt after an intermediate action): receives the wake too, but `viewerHasPrompt` skips the full refresh → their own board/hand state is intact; they already have the authoritative result from their own `POST /player/input` response.
+- **Spectator:** `WaitingFor` is mounted (hidden) in `SpectatorHome` too, so spectators get the same wake → `updateSpectator()` path.
+
+**Rule restated:** a WS invalidation may only ever reach `playerkey++` through `App.update()`'s existing guards. No code path force-remounts on a raw WS message. This is enforced by the wiring (the wake calls `waitForUpdate(true)`, nothing else) and asserted in the client tests (a mid-prompt invalidation must not trigger a full refresh).
+
+### L.5 Cases where POLLING IS NO LONGER REQUIRED (WS healthy)
+
+With `REALTIME_ENABLED` on + `?realtime=1` + refresh wiring on, **none** of these depend on the polling timer — polling is only the fallback for when WS is unhealthy:
+
+- Opponent plays a project card; uses a blue-card / corporation / CEO action; runs a standard project.
+- Opponent places a tile on **any** action — including the **first of a two-action turn** (the fixed regression).
+- Opponent's **intermediate** action inside a multi-action turn.
+- Turn hand-off / whose-turn-it-is / pass.
+- Draft & research **simultaneous-phase** picks, across all seats.
+- **Undo** by any player.
+- **Production / generation** roll-over (income, energy→heat conversion).
+- WGT / global-parameter changes; oceans/temperature/oxygen/Venus movements.
+- Colony **trade / build**.
+- **Game end** → endgame overlay + rematch offers for everyone.
+- **Journal** feed and **notification** feed updates.
+- Reconnect catch-up (via `RESUME_GAME`).
+
+Effect on the pollers when WS healthy: the **primary** poller (`WaitingFor`) stretches 1 s → ~20 s (backstop only); the **secondary** pollers (journal / notifications / rematch) stretch to a ~20 s fallback and refetch on the wake. The **only** timer still on a real cadence is the home-page lobby list (`/api/games/joinable`, not a game room — deliberately out of scope).
+
+### L.6 Feature-flag ladder = rollback strategy (graduated, instant, non-destructive)
+
+**WebSocket is ON by default (Phase 12).** The flags below are the OPT-OUT kill-switches — every layer is independently reversible without deleting polling, via a client flag (URL / localStorage, instant, no deploy) or a single server env change. Ordered from "keep the most speedups" to "full legacy":
+
+| Lever (opt-out) | Where | Effect | Use when |
+| --- | --- | --- | --- |
+| `?realtimePoll=0` / `localStorage.realtime_poll=0` | client | Keep WS-driven refresh, but DON'T stretch the poll interval (safe 1 s always) | The long interval ever feels stale for a specific case |
+| `?realtimeRefresh=0` / `localStorage.realtime_refresh=0` | client | Keep the socket/observe, but DON'T wake the refresh → polling drives (observe-only) | A refresh-wiring regression |
+| `?realtime=0` / `localStorage.realtime_transport=0` | client | Don't open the socket at all | Client-side kill |
+| `REALTIME_ENABLED=0` (or `false`/`off`) | server env | No `/ws`, no broadcasts → **byte-identical legacy polling** for everyone | Server-side master kill |
+
+Anything else (env unset / any other value; no URL param) = **ON**. **Incident runbook:** step down the ladder until healthy — `realtimePoll=0` → `realtimeRefresh=0` → `realtime=0` → `REALTIME_ENABLED=0`. Each step is instant and non-destructive; **polling is never deleted**, so any level remains fully playable. Setting `REALTIME_ENABLED=0` server-side returns the whole deployment to "full legacy" immediately.
+
+### L.7 Acceptance criteria (consolidated)
+
+**Functional (WS healthy, two clients):**
+1. Every scenario in §L.5 propagates to the non-acting client in **< ~200 ms** (coalesced wake), with **no manual refresh** and **no polling wait**. Evidence: server `[realtime] invalidation …` log per action + the client dev chip `· inv:N` incrementing.
+2. **The regression:** an opponent's **first-of-two** action tile placement (undo off) is visible **immediately**, not only after the turn ends. Guarded by `tests/realtime/GameLoaderBroadcast.spec.ts`.
+3. A burst of one player's saves (a multi-step turn) **coalesces to a single refresh** on observers (no refresh storm).
+4. **Undo** by any player propagates to all clients over WS.
+5. **Game end** → all clients refresh into `END`; the endgame overlay and rematch offers appear for everyone without polling.
+
+**Guard / UI-integrity (must not regress):**
+6. Performing every §L.5 scenario **while the viewer is** mid-payment / mid-placement / mid-draft / has an overlay open / is watching an energy→heat or tile or hazard animation → that UI is **not** closed, reset, or remounted (§L.4). The mid-prompt viewer's `playersWaitingFor` cubes still update.
+7. No WS event ever causes a raw `playerkey++`; a mid-prompt invalidation performs **no** full refresh (client test).
+
+**Resilience / fallback:**
+8. `REALTIME_ENABLED` off **or** socket offline → behavior is **identical to legacy** — 1 s polling keeps every scenario working; no user-visible difference except latency.
+9. Reconnect after network loss / dyno restart / tab sleep → `RESUME_GAME` → **exactly one** full refresh if the game moved (else none); **no double actions** (resume is a READ; commands stay REST with `runId` + the in-flight guard); **no silent staleness**.
+10. Protocol-incompatible / stale socket → client falls back to safe-interval polling automatically; the dev chip shows the degraded state.
+
+### L.8 Remaining coverage items (to fully close the guarantee)
+
+All **game-state** mutation coverage is now complete (L.1(1)–(4), incl. the game-end `completeGame` hook). The remaining items are non-game-state / infra, deliberately deferred:
+
+1. **Home lobby list** (`/api/games/joinable`) — not a game room; would need a lobby-level signal. Deliberately deferred (§L.5).
+2. **Idempotency** (`commandId`) — deferred; existing `runId` validation + `isServerSideRequestInProgress` cover double-submit/reconnect today (E-Phase 11).
+3. **Multi-dyno fanout** — the in-memory `RealtimeHub` rooms are per-process, matching the already per-process game cache. Multi-dyno needs Redis pub/sub + a shared/affinity cache — a separate, larger initiative (§G.6); single-dyno is the supported topology now.
