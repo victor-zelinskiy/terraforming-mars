@@ -7,6 +7,7 @@ import {RealtimeServer} from '../../src/server/server/realtime/RealtimeServer';
 import {RealtimeHub, SubscriptionResolver} from '../../src/server/server/realtime/RealtimeHub';
 import {GameId} from '../../src/common/Types';
 import {
+  GameStateInvalidatedMessage,
   ServerErrorMessage,
   ServerMessageType,
   SubscribedMessage,
@@ -155,5 +156,18 @@ describe('realtime/RealtimeServer', () => {
     await once(ws, 'close');
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(hub.roomSize(G1)).to.eq(0);
+  });
+
+  it('delivers a hub invalidation to a subscribed client as GAME_STATE_INVALIDATED', async () => {
+    const ws = connect();
+    await once(ws, 'open');
+    ws.send(serializeMessage(subscribeGame('p-1')));
+    await nextMessage(ws); // SUBSCRIBED ack
+    hub.invalidate({gameId: G1, gameAge: 8, undoCount: 3, phase: 'action'});
+    const inv = parseServerMessage(await nextMessage(ws)) as GameStateInvalidatedMessage | undefined;
+    expect(inv?.type).to.eq(ServerMessageType.INVALIDATED);
+    expect(inv?.gameAge).to.eq(8);
+    expect(inv?.undoCount).to.eq(3);
+    expect(inv?.phase).to.eq('action');
   });
 });

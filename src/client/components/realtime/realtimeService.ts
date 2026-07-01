@@ -47,6 +47,14 @@ export interface RealtimeState {
    */
   lastKnownGameAge: number | undefined;
   lastKnownUndoCount: number | undefined;
+  /**
+   * Phase 3 observe-only diagnostics: how many invalidations we've received and
+   * the version cursor the latest one advertised. These do NOT drive any
+   * refresh yet (Phase 4 wires invalidation to the guarded refresh path).
+   */
+  invalidationsReceived: number;
+  lastInvalidationGameAge: number | undefined;
+  lastInvalidationUndoCount: number | undefined;
 }
 
 export const realtimeState: RealtimeState = reactive({
@@ -60,6 +68,9 @@ export const realtimeState: RealtimeState = reactive({
   participantId: undefined,
   lastKnownGameAge: undefined,
   lastKnownUndoCount: undefined,
+  invalidationsReceived: 0,
+  lastInvalidationGameAge: undefined,
+  lastInvalidationUndoCount: undefined,
 });
 
 const PING_INTERVAL_MS = 25_000;
@@ -198,6 +209,15 @@ class RealtimeService {
       realtimeState.lastKnownGameAge = message.gameAge;
       realtimeState.lastKnownUndoCount = message.undoCount;
       log('subscribed; gameAge=', message.gameAge, 'undoCount=', message.undoCount);
+      break;
+    case ServerMessageType.INVALIDATED:
+      // Phase 3: OBSERVE ONLY. Record + log the invalidation but deliberately
+      // trigger NO refresh — polling still drives updates. Phase 4 will wire
+      // this to the existing guarded waitForUpdate path.
+      realtimeState.invalidationsReceived += 1;
+      realtimeState.lastInvalidationGameAge = message.gameAge;
+      realtimeState.lastInvalidationUndoCount = message.undoCount;
+      log('invalidation gameAge=', message.gameAge, 'undoCount=', message.undoCount, 'phase=', message.phase);
       break;
     case ServerMessageType.ERROR:
       if (message.code === 'subscribe-rejected' || message.code === 'invalid-participant') {

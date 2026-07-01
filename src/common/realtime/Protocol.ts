@@ -29,6 +29,7 @@ export const ServerMessageType = {
   ERROR: 'ERROR',
   PROTOCOL_INCOMPATIBLE: 'PROTOCOL_INCOMPATIBLE',
   SUBSCRIBED: 'SUBSCRIBED',
+  INVALIDATED: 'GAME_STATE_INVALIDATED',
 } as const;
 export type ServerMessageType = typeof ServerMessageType[keyof typeof ServerMessageType];
 
@@ -108,12 +109,28 @@ export interface SubscribedMessage extends BaseMessage {
   undoCount: number;
 }
 
+/**
+ * "The game changed — re-check / refresh state." Broadcast to a game room after
+ * a successful, persisted mutation. It is an INVALIDATION signal, not the state
+ * itself: the authoritative snapshot is still fetched over REST. In Phase 3 the
+ * client only LOGS this; Phase 4 wires it to the existing guarded refresh.
+ */
+export interface GameStateInvalidatedMessage extends BaseMessage {
+  type: typeof ServerMessageType.INVALIDATED;
+  gameId: string;
+  /** Monotonic per-game version cursor (== gameAge / undoCount server-side). */
+  gameAge: number;
+  undoCount: number;
+  phase?: string;
+}
+
 export type ServerMessage =
   | ServerHelloMessage
   | ServerPongMessage
   | ServerErrorMessage
   | ProtocolIncompatibleMessage
-  | SubscribedMessage;
+  | SubscribedMessage
+  | GameStateInvalidatedMessage;
 
 // ---- Builders ---------------------------------------------------------------
 
@@ -159,6 +176,14 @@ export function protocolIncompatible(now: number = Date.now()): ProtocolIncompat
 
 export function subscribed(gameAge: number, undoCount: number, correlationId?: string, now: number = Date.now()): SubscribedMessage {
   return {...envelope(now, correlationId), type: ServerMessageType.SUBSCRIBED, gameAge, undoCount};
+}
+
+export function gameStateInvalidated(gameId: string, gameAge: number, undoCount: number, phase?: string, now: number = Date.now()): GameStateInvalidatedMessage {
+  const message: GameStateInvalidatedMessage = {...envelope(now), type: ServerMessageType.INVALIDATED, gameId, gameAge, undoCount};
+  if (phase !== undefined) {
+    message.phase = phase;
+  }
+  return message;
 }
 
 // ---- Serialization + validation --------------------------------------------
@@ -236,6 +261,8 @@ export function parseServerMessage(raw: string): ServerMessage | undefined {
     return parsed as unknown as ProtocolIncompatibleMessage;
   case ServerMessageType.SUBSCRIBED:
     return (typeof parsed.gameAge === 'number' && typeof parsed.undoCount === 'number') ? (parsed as unknown as SubscribedMessage) : undefined;
+  case ServerMessageType.INVALIDATED:
+    return (typeof parsed.gameId === 'string' && typeof parsed.gameAge === 'number' && typeof parsed.undoCount === 'number') ? (parsed as unknown as GameStateInvalidatedMessage) : undefined;
   default:
     return undefined;
   }
