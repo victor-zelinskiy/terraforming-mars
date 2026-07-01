@@ -512,7 +512,7 @@ Socket.IO's only real edge is auto-reconnect + rooms boilerplate, which is small
 
 ## J. Observability & debugging (Phase 3+)
 
-- **Server logs:** connect / disconnect / subscribe / unsubscribe with `{gameId, participantId, roomSize}`; each broadcast with `{gameId, gameAge, undoCount, phase, recipients}`. Reuse the existing `console-stamp` + `prom-client` setup (`server.ts`).
+- **Server logs (quiet by default).** The routine per-connection lines (connect / hello / subscribe / unsubscribe / disconnect / resume / heartbeat / socket-error) are **verbose-only** — gated behind `REALTIME_LOG=verbose` (or `debug`/`1`/`true`) via the `vlog()` helper in `RealtimeServer.ts` — so the server log isn't bloated by connect/reconnect churn (esp. tab reloads → code 1006). Always logged regardless: the one-time gateway-enabled/disabled boot line, **warnings** (`subscribe`/`resume rejected`, `send failed`), and **errors** (`realtime invalidate failed`). Metrics (below) carry the always-on counts. Reuse the existing `console-stamp` + `prom-client` setup (`server.ts`).
 - **Metrics (prom-client, like the existing `gameloader_*`/`game_created` gauges):** active sockets, rooms, reconnects, broadcasts, missed-event/full-snapshot-fallback counts.
 - **Client dev indicator:** a connection-status chip (connected / reconnecting / polling-fallback) gated on a debug preference (mirrors `debug_view` in `PreferencesManager`). Never a native tooltip — use the fork's `.premium-tooltip`.
 - **Clear disconnected state:** when WS is down and polling is the fallback, the UI must visibly say "live updates degraded — using fallback," never silently go stale.
