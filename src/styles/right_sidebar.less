@@ -116,10 +116,11 @@
     width: var(--right-sidebar-width);
     /* Tight horizontal padding: left:6 clears the absolute 3-px
      * spine with 1-px breath; right:3 breathes against the outer
-     * border. Big BOTTOM padding (64) reserves vertical space for
-     * the absolute-positioned overall-% readout + debug button so
-     * the metric stack above doesn't run behind them. */
-    padding: 6px 3px 64px 6px;
+     * border. Big BOTTOM padding (92) reserves vertical space for
+     * a stacked bottom dock: the absolute-positioned overall-%
+     * readout on top + the App-level exit button docked below it,
+     * so the metric stack above never runs behind either. */
+    padding: 6px 3px 92px 6px;
     gap: 0;
     overflow: visible;
     position: fixed;
@@ -152,11 +153,11 @@
      */
     top: var(--planet-cap-height);
     /*
-     * Bottom matches the sidebar's reserved bottom area (64-px
-     * padding for the overall % readout + debug btn). Aligns the
-     * spine's visible run with the metric-stack's visible run.
+     * Bottom matches the sidebar's reserved bottom area (92-px
+     * padding for the overall % readout stacked above the exit
+     * button). Aligns the spine's visible run with the metric-stack.
      */
-    bottom: 64px;
+    bottom: 92px;
     left: 2px;
     width: 3px;
     border-radius: 2px;
@@ -863,7 +864,9 @@
     position: absolute;
     left: 0;
     right: 0;
-    bottom: 32px;
+    /* Sits ABOVE the docked exit button (which occupies the bottom ~54px of
+       the rail column) with a clear gap, so the button never covers the %. */
+    bottom: 62px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -911,23 +914,27 @@
  */
 .game-exit-btn {
     position: fixed;
-    right: 7px;
+    right: 6px;
     bottom: 8px;
     z-index: 12520;
     width: 50px;
     max-width: var(--right-sidebar-width, 62px);
-    padding: 6px 0 5px;
+    padding: 7px 0 6px;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 3px;
-    background: linear-gradient(180deg, rgba(18, 26, 38, 0.92), rgba(10, 15, 23, 0.95));
-    border: 1px solid rgba(70, 100, 140, 0.5);
-    border-radius: 7px;
-    color: rgba(206, 220, 240, 0.9);
+    border-radius: 8px;
     cursor: pointer;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(6px);
+    color: rgba(202, 218, 240, 0.86);
+    /* Milled from the same dark HUD glass as the rail, with a lit top edge so
+       it reads as the rail's base, not a control pasted over the board. */
+    background: linear-gradient(180deg, rgba(26, 36, 52, 0.94), rgba(11, 17, 27, 0.96));
+    border: 1px solid rgba(96, 130, 172, 0.42);
+    box-shadow:
+        inset 0 1px 0 rgba(150, 190, 235, 0.14),
+        0 8px 20px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(7px);
     transition:
         border-color 180ms ease,
         background 180ms ease,
@@ -937,24 +944,35 @@
 }
 
 .game-exit-btn:hover {
-    border-color: rgba(240, 168, 80, 0.75);
-    background: linear-gradient(180deg, rgba(36, 28, 16, 0.95), rgba(20, 15, 9, 0.96));
-    color: rgb(255, 199, 126);
+    color: rgb(255, 201, 130);
+    border-color: rgba(240, 168, 80, 0.8);
+    background: linear-gradient(180deg, rgba(42, 32, 17, 0.96), rgba(22, 16, 9, 0.97));
     transform: translateY(-1px);
-    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(240, 168, 80, 0.25);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 210, 150, 0.2),
+        0 12px 24px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(240, 168, 80, 0.3),
+        0 0 18px rgba(240, 168, 80, 0.22);
+}
+
+.game-exit-btn:active {
+    transform: translateY(0);
 }
 
 .game-exit-btn:focus-visible {
     outline: none;
     border-color: rgba(240, 168, 80, 0.85);
-    color: rgb(255, 199, 126);
-    box-shadow: 0 0 0 2px rgba(240, 168, 80, 0.5);
+    color: rgb(255, 201, 130);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 210, 150, 0.2),
+        0 0 0 2px rgba(240, 168, 80, 0.5);
 }
 
 .game-exit-btn__glyph {
     display: inline-flex;
-    width: 22px;
-    height: 22px;
+    width: 21px;
+    height: 21px;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 .game-exit-btn__glyph svg {
     width: 100%;
@@ -965,10 +983,10 @@
 .game-exit-btn__label {
     font-family: Prototype, Orbitron, sans-serif;
     font-size: 8.5px;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     line-height: 1;
-    opacity: 0.92;
+    opacity: 0.9;
 }
 
 @media (prefers-reduced-motion: reduce) {
