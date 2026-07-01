@@ -29,16 +29,32 @@ export default defineComponent({
   data() {
     return {
       timerText: '',
+      // RT-1 (PERFORMANCE_AUDIT.md): hold the tick timer so it can be cleared. Without
+      // this, the self-re-arming 1 Hz chain kept firing on a DESTROYED instance after
+      // each playerkey remount (the fired timeout wrote timerText → the watcher re-armed
+      // → the chain resurrected), leaking a growing set of 1 Hz timers across a match.
+      timerHandle: undefined as ReturnType<typeof setTimeout> | undefined,
     };
   },
   mounted() {
     this.updateTimer();
   },
+  beforeUnmount() {
+    if (this.timerHandle !== undefined) {
+      clearTimeout(this.timerHandle);
+      this.timerHandle = undefined;
+    }
+  },
   watch: {
     timerText: {
       handler() {
+        if (this.timerHandle !== undefined) {
+          clearTimeout(this.timerHandle);
+          this.timerHandle = undefined;
+        }
         if (this.live) {
-          setTimeout(() => {
+          this.timerHandle = setTimeout(() => {
+            this.timerHandle = undefined;
             this.updateTimer();
           }, 1000);
         }
