@@ -306,6 +306,7 @@ import {setLiveCardResources} from '@/client/components/card/liveCardResources';
 import GameAtmosphere from '@/client/components/GameAtmosphere.vue';
 import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
+import {apiUrl, identitySearch} from '@/client/utils/runtimeConfig';
 import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {shouldPreserveInitialDraftOverlay} from '@/client/components/initialDraft/initialDraftSharedState';
 import {shouldPreserveSaleOverlay} from '@/client/components/handCards/sellPatentsState';
@@ -550,7 +551,7 @@ export default defineComponent({
       const currentPathname = getLastPathSegment();
       const app = this as unknown as MainAppData;
 
-      const url = 'api/' + path + window.location.search.replace('&noredirect', '');
+      const url = apiUrl('api/' + path) + identitySearch().replace('&noredirect', '');
 
       fetch(url)
         .then((resp) => {
@@ -712,74 +713,95 @@ export default defineComponent({
       return (playerHome.activeOverlay !== null && playerHome.activeOverlay !== undefined) ||
         playerHome.coloniesOverlayOpen === true;
     },
+    // In-app SPA routing: resolve the `screen` (and trigger the right data load)
+    // from the CURRENT url. Called on initial mount, on in-app navigation
+    // (`navigateInApp`), and on browser back/forward (`popstate`). Faithfully
+    // reproduces the historical mount-time resolution.
+    applyRoute(): void {
+      const currentPathname = getLastPathSegment();
+      const app = this as unknown as MainAppData & {updatePlayer(): void; updateSpectator(): void};
+      if (currentPathname === paths.PLAYER) {
+        app.updatePlayer();
+      } else if (currentPathname === paths.THE_END) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const id = urlParams.get('id') || '';
+        if (isPlayerId(id)) {
+          app.updatePlayer();
+        } else if (isSpectatorId(id)) {
+          app.updateSpectator();
+        } else {
+          alert('Bad id URL parameter.');
+        }
+      } else if (currentPathname === paths.GAME) {
+        const url = apiUrl(paths.API_GAME) + identitySearch();
+        fetch(url)
+          .then((resp) => {
+            if (!resp.ok) {
+              throw new Error(`Error getting game data: ${resp.statusText}`);
+            }
+            return resp.json();
+          })
+          .then((appGame: SimpleGameModel) => {
+            app.screen = 'game-home';
+            app.game = appGame;
+            window.history.replaceState(
+              appGame,
+              `${constants.APP_NAME} - Game`,
+              `${paths.GAME}?id=${appGame.id}`,
+            );
+          })
+          .catch((err) => {
+            alert('Error getting game data');
+            console.error(err);
+          });
+      } else if (currentPathname === paths.GAMES_OVERVIEW) {
+        app.screen = 'games-overview';
+      } else if (currentPathname === paths.NEW_GAME) {
+        app.screen = 'create-game-form';
+      } else if (currentPathname === paths.NEW_GAME_PREMIUM) {
+        app.screen = 'premium-create-game';
+      } else if (currentPathname === paths.LOAD) {
+        app.screen = 'load';
+      } else if (currentPathname === paths.CARDS) {
+        app.screen = 'cards';
+      } else if (currentPathname === paths.HELP) {
+        app.screen = 'help';
+      } else if (currentPathname === paths.LEGACY) {
+        app.screen = 'start-screen';
+      } else if (currentPathname === paths.SPECTATOR) {
+        app.updateSpectator();
+      } else if (currentPathname === paths.ADMIN) {
+        app.screen = 'admin';
+      } else if (currentPathname === paths.LOGIN) {
+        app.screen = 'login-home';
+      } else {
+        app.screen = 'main-menu';
+      }
+    },
+    // Navigate WITHOUT a full page reload: push a history entry, then re-resolve
+    // the screen from the new url. Used by the premium home↔create transitions
+    // (SPA-clean, Electron-ready). The GAME-BOUNDARY navigations (enter/leave a
+    // game) intentionally stay full reloads for now — a fresh page guarantees
+    // clean per-game module state; making them in-app needs a
+    // resetGameSessionState() audit (see WEBSOCKET_MIGRATION_PLAN §E-Phase 13).
+    navigateInApp(path: string): void {
+      window.history.pushState({}, '', path);
+      this.applyRoute();
+    },
+    onPopState(): void {
+      this.applyRoute();
+    },
   },
   mounted() {
     setDocumentTitle();
     if (!windowHasHTMLDialogElement()) {
       dialogPolyfill.registerDialog(document.getElementById('alert-dialog') as HTMLDialogElement);
     }
-    const currentPathname = getLastPathSegment();
-    const app = this as unknown as MainAppData & {updatePlayer(): void; updateSpectator(): void};
-    if (currentPathname === paths.PLAYER) {
-      app.updatePlayer();
-    } else if (currentPathname === paths.THE_END) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const id = urlParams.get('id') || '';
-      if (isPlayerId(id)) {
-        app.updatePlayer();
-      } else if (isSpectatorId(id)) {
-        app.updateSpectator();
-      } else {
-        alert('Bad id URL parameter.');
-      }
-    } else if (currentPathname === paths.GAME) {
-      const url = paths.API_GAME + window.location.search;
-      fetch(url)
-        .then((resp) => {
-          if (!resp.ok) {
-            throw new Error(`Error getting game data: ${resp.statusText}`);
-          }
-          return resp.json();
-        })
-        .then((appGame: SimpleGameModel) => {
-          app.screen = 'game-home';
-          app.game = appGame;
-          window.history.replaceState(
-            appGame,
-            `${constants.APP_NAME} - Game`,
-            `${paths.GAME}?id=${appGame.id}`,
-          );
-        })
-        .catch((err) => {
-          alert('Error getting game data');
-          console.error(err);
-        });
-    } else if (currentPathname === paths.GAMES_OVERVIEW) {
-      app.screen = 'games-overview';
-    } else if (currentPathname === paths.NEW_GAME) {
-      app.screen = 'create-game-form';
-    } else if (currentPathname === paths.NEW_GAME_PREMIUM) {
-      app.screen = 'premium-create-game';
-    } else if (currentPathname === paths.LOAD) {
-      app.screen = 'load';
-    } else if (currentPathname === paths.CARDS) {
-      app.screen = 'cards';
-    } else if (currentPathname === paths.HELP) {
-      app.screen = 'help';
-    } else if (currentPathname === paths.LEGACY) {
-      // The old landing page is preserved here as a fallback while the premium
-      // main menu is the new default entry point.
-      app.screen = 'start-screen';
-    } else if (currentPathname === paths.SPECTATOR) {
-      app.updateSpectator();
-    } else if (currentPathname === paths.ADMIN) {
-      app.screen = 'admin';
-    } else if (currentPathname === paths.LOGIN) {
-      app.screen = 'login-home';
-    } else {
-      // Default landing ('/') → the new premium launcher.
-      app.screen = 'main-menu';
-    }
+    this.applyRoute();
+    // Browser back/forward re-resolves the screen in-app (no reload) for the
+    // navigations that use navigateInApp. App is the root and never unmounts,
+    // so no removal is needed.
+    window.addEventListener('popstate', this.onPopState);
   },
 });
 </script>

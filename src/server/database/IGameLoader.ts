@@ -52,4 +52,12 @@ export interface IGameLoader {
   saveGame(game: IGame): Promise<void>;
   completeGame(game: IGame): Promise<void>;
   maintenance(): Promise<void>;
+
+  /**
+   * Broadcast a realtime "game state advanced" invalidation for the game's
+   * current observable version (gameAge/undoCount) without persisting. Used for
+   * a fully-resolved action that bumped gameAge but is not being saved, so WS
+   * clients see it immediately rather than on the fallback poll.
+   */
+  notifyGameStateChanged(game: IGame): void;
 }

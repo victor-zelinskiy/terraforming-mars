@@ -78,6 +78,7 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {paths} from '@/common/app/paths';
+import {vueRoot} from '@/client/components/vueRoot';
 import PremiumMainMenuButton from '@/client/components/mainMenu/PremiumMainMenuButton.vue';
 import PremiumMenuFooter from '@/client/components/mainMenu/PremiumMenuFooter.vue';
 import PremiumIdentityModal from '@/client/components/mainMenu/PremiumIdentityModal.vue';
@@ -172,8 +173,9 @@ export default defineComponent({
     },
     goCreate(): void {
       // Opens the premium "Mission Control" create-game screen, which reads the
-      // same stored identity for the first player's name + cube colour.
-      window.location.assign(paths.NEW_GAME_PREMIUM);
+      // same stored identity for the first player's name + cube colour. In-app
+      // SPA transition (no page reload) — both are non-game screens.
+      vueRoot(this).navigateInApp(paths.NEW_GAME_PREMIUM);
     },
   },
 });

@@ -5,11 +5,14 @@ import {
   clientHello,
   clientPing,
   parseServerMessage,
+  resumeGame,
   serializeMessage,
   subscribeGame,
   unsubscribeGame,
 } from '@/common/realtime/Protocol';
-import {isRealtimeDebug, realtimeClientEnabled, realtimeWsUrl} from './realtimeConfig';
+import {isRealtimeDebug, realtimeClientEnabled, realtimePollReductionEnabled, realtimeRefreshEnabled, realtimeWsUrl} from './realtimeConfig';
+import {notifyGameInvalidated, resetRealtimeSync, wakeNow} from './realtimeSync';
+import {isPongStale, isRealtimeHealthy, pollIntervalMs} from './pollPolicy';
 
 /**
  * Phase 1 realtime client service — a module SINGLETON (survives the App-level
@@ -55,6 +58,8 @@ export interface RealtimeState {
   invalidationsReceived: number;
   lastInvalidationGameAge: number | undefined;
   lastInvalidationUndoCount: number | undefined;
+  /** How many times we've re-subscribed via RESUME after a reconnect (Phase 5). */
+  resumeAttempts: number;
 }
 
 export const realtimeState: RealtimeState = reactive({
@@ -71,12 +76,32 @@ export const realtimeState: RealtimeState = reactive({
   invalidationsReceived: 0,
   lastInvalidationGameAge: undefined,
   lastInvalidationUndoCount: undefined,
+  resumeAttempts: 0,
 });
 
+/** Strict WS health for the Phase 6 poll-reduction decision. */
+export function realtimeHealthy(): boolean {
+  return isRealtimeHealthy(realtimeState, Date.now());
+}
+
+/**
+ * The interval WaitingFor should use for its next poll: the stretched long
+ * interval only when WS is strictly healthy AND reduction is enabled, else the
+ * caller's safe interval. Re-evaluated every poll cycle, so a health change
+ * takes effect on the next re-arm (and a drop wakes an immediate re-arm).
+ */
+export function realtimePollIntervalMs(safeMs: number): number {
+  return pollIntervalMs(realtimeHealthy(), realtimePollReductionEnabled(), safeMs);
+}
+
 const PING_INTERVAL_MS = 25_000;
-// Phase 1 reconnect is intentionally simple (fixed delay). Proper backoff +
-// resume/full-snapshot recovery is Phase 5 — do not build it here.
-const RECONNECT_DELAY_MS = 3_000;
+// Reconnect uses capped exponential backoff so an unreachable/mis-flagged
+// gateway (e.g. server without REALTIME_ENABLED) doesn't hammer /ws every few
+// seconds. The backoff resets to the base on each successful connection. Full
+// resume / missed-event recovery is Phase 5 — not built here.
+const RECONNECT_BASE_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
+const RECONNECT_MAX_EXPONENT = 5; // 1s, 2s, 4s, 8s, 16s, then capped at 30s
 
 const clientVersion: string = (raw_settings as {head?: string}).head ?? 'dev';
 
@@ -93,6 +118,42 @@ class RealtimeService {
   private pingTimer: ReturnType<typeof setInterval> | undefined;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /**
+   * On returning to the tab (after sleep / background), if the socket isn't
+   * healthy, reconnect NOW rather than waiting out the backoff — so resume is
+   * snappy. Stable reference so add/removeEventListener dedupe correctly.
+   */
+  private readonly onVisible = (): void => {
+    if (!this.started || !realtimeClientEnabled()) {
+      return;
+    }
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      return;
+    }
+    if (this.ws === undefined || this.ws.readyState !== WebSocket.OPEN) {
+      log('tab visible & socket not open — reconnecting now');
+      realtimeState.reconnectAttempts = 0;
+      this.clearReconnect();
+      this.connect();
+    }
+  };
+
+  private bindVisibility(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    document.addEventListener('visibilitychange', this.onVisible);
+    window.addEventListener('focus', this.onVisible);
+  }
+
+  private unbindVisibility(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    document.removeEventListener('visibilitychange', this.onVisible);
+    window.removeEventListener('focus', this.onVisible);
+  }
+
   /** Begin (or re-point) the connection for a game screen. Idempotent per id. */
   public start(options: {participantId: string}): void {
     if (this.started && this.participantId === options.participantId && this.ws !== undefined) {
@@ -107,13 +168,18 @@ class RealtimeService {
       return;
     }
     realtimeState.reconnectAttempts = 0;
+    this.bindVisibility();
     this.connect();
   }
 
   /** Stop and close. Called when leaving the game screen. */
   public stop(): void {
     this.started = false;
+    this.unbindVisibility();
     this.clearTimers();
+    // Drop any pending coalesced wake so a stray refresh can't fire after we've
+    // left the game.
+    resetRealtimeSync();
     if (this.ws !== undefined) {
       // Best-effort clean leave so the server drops us from the room promptly
       // (the close handler would clean up anyway).
@@ -133,12 +199,24 @@ class RealtimeService {
     log('stopped');
   }
 
-  /** Join our game room. Safe to call repeatedly (server is idempotent). */
+  /**
+   * Join our game room. On the FIRST connect we plain-subscribe; once we already
+   * hold a version cursor (i.e. after a reconnect) we RESUME with it, so the
+   * server can tell us to full-refresh if the game moved while we were away.
+   * Safe to call repeatedly (server is idempotent).
+   */
   private subscribe(): void {
     if (this.participantId === undefined || this.participantId === '') {
       return;
     }
-    this.sendRaw(serializeMessage(subscribeGame(this.participantId)));
+    const gameAge = realtimeState.lastKnownGameAge;
+    const undoCount = realtimeState.lastKnownUndoCount;
+    if (gameAge !== undefined && undoCount !== undefined) {
+      realtimeState.resumeAttempts += 1;
+      this.sendRaw(serializeMessage(resumeGame(this.participantId, gameAge, undoCount)));
+    } else {
+      this.sendRaw(serializeMessage(subscribeGame(this.participantId)));
+    }
   }
 
   private connect(): void {
@@ -157,6 +235,8 @@ class RealtimeService {
     socket.onopen = () => {
       realtimeState.status = 'connected';
       realtimeState.lastConnectedAt = Date.now();
+      // Successful connect — reset the backoff so a future drop retries fast.
+      realtimeState.reconnectAttempts = 0;
       log('open ->', realtimeWsUrl());
       this.sendRaw(serializeMessage(clientHello(clientVersion, this.participantId)));
       this.startPing();
@@ -183,6 +263,7 @@ class RealtimeService {
       }
       log('closed code=', ev.code, '- scheduling reconnect');
       this.scheduleReconnect();
+      this.pollFallbackWake();
     };
   }
 
@@ -211,13 +292,21 @@ class RealtimeService {
       log('subscribed; gameAge=', message.gameAge, 'undoCount=', message.undoCount);
       break;
     case ServerMessageType.INVALIDATED:
-      // Phase 3: OBSERVE ONLY. Record + log the invalidation but deliberately
-      // trigger NO refresh — polling still drives updates. Phase 4 will wire
-      // this to the existing guarded waitForUpdate path.
+      // Record + log (observe), then — Phase 4 — hand off to the sync
+      // coordinator, which coalesces bursts and WAKES the existing guarded
+      // refresh path (WaitingFor.waitForUpdate(true)). We never refresh directly
+      // here. Gated by realtimeRefreshEnabled() so the wiring can be disabled
+      // independently of the transport (falls back to observe-only + polling).
       realtimeState.invalidationsReceived += 1;
       realtimeState.lastInvalidationGameAge = message.gameAge;
       realtimeState.lastInvalidationUndoCount = message.undoCount;
+      // Track the latest server-advertised cursor so a later RESUME sends it.
+      realtimeState.lastKnownGameAge = message.gameAge;
+      realtimeState.lastKnownUndoCount = message.undoCount;
       log('invalidation gameAge=', message.gameAge, 'undoCount=', message.undoCount, 'phase=', message.phase);
+      if (realtimeRefreshEnabled()) {
+        notifyGameInvalidated();
+      }
       break;
     case ServerMessageType.ERROR:
       if (message.code === 'subscribe-rejected' || message.code === 'invalid-participant') {
@@ -230,6 +319,8 @@ class RealtimeService {
       realtimeState.status = 'error';
       this.started = false;
       this.clearTimers();
+      // Ensure the poller returns to the safe interval right away.
+      this.pollFallbackWake();
       break;
     }
   }
@@ -243,8 +334,45 @@ class RealtimeService {
   private startPing(): void {
     this.stopPing();
     this.pingTimer = setInterval(() => {
+      // Liveness: if the server has gone silent past the stale threshold the
+      // socket is a zombie — force a reconnect so health + resume recover and
+      // the poller falls back to the safe interval.
+      if (isPongStale(realtimeState.lastPongAt, realtimeState.lastConnectedAt, Date.now())) {
+        log('heartbeat stale — forcing reconnect');
+        this.forceReconnect();
+        return;
+      }
       this.sendRaw(serializeMessage(clientPing()));
     }, PING_INTERVAL_MS);
+  }
+
+  /** Tear down a (possibly zombie) socket and drive a reconnect ourselves. */
+  private forceReconnect(): void {
+    const dead = this.ws;
+    this.ws = undefined;
+    if (dead !== undefined) {
+      dead.onopen = null;
+      dead.onmessage = null;
+      dead.onerror = null;
+      dead.onclose = null;
+      try {
+        dead.close();
+      } catch {
+        // ignore
+      }
+    }
+    this.stopPing();
+    realtimeState.helloAcked = false;
+    realtimeState.subscribed = false;
+    this.scheduleReconnect();
+    this.pollFallbackWake();
+  }
+
+  /** WS became unhealthy — wake the poller so it re-arms at the safe interval now. */
+  private pollFallbackWake(): void {
+    if (realtimePollReductionEnabled()) {
+      wakeNow();
+    }
   }
 
   private stopPing(): void {
@@ -261,7 +389,10 @@ class RealtimeService {
     this.clearReconnect();
     realtimeState.status = 'reconnecting';
     realtimeState.reconnectAttempts += 1;
-    this.reconnectTimer = setTimeout(() => this.connect(), RECONNECT_DELAY_MS);
+    const exponent = Math.min(realtimeState.reconnectAttempts - 1, RECONNECT_MAX_EXPONENT);
+    const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * (2 ** exponent));
+    log('reconnect in', delay, 'ms (attempt', realtimeState.reconnectAttempts, ')');
+    this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 
   private clearReconnect(): void {

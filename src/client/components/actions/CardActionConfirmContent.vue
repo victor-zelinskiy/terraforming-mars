@@ -437,6 +437,7 @@ import {InputResponse} from '@/common/inputs/InputResponse';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionRevealDescriptor, ActionEffect} from '@/common/models/ActionPreviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ActionGroup, playerActionGroups, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
 import {assignBranchNodes} from '@/client/components/actions/actionBranchNodes';
@@ -1168,7 +1169,7 @@ export default defineComponent({
       this.loading = true;
       this.capturedPre = {}; // pre-branch responses belong to THIS preview — reset.
       try {
-        const url = paths.API_ACTION_PREVIEW +
+        const url = apiUrl(paths.API_ACTION_PREVIEW) +
           '?id=' + encodeURIComponent(this.playerView.id) +
           '&card=' + encodeURIComponent(this.cardName);
         const response = await fetch(url);

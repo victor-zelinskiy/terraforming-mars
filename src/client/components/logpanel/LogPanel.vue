@@ -28,6 +28,7 @@
 
 import {defineComponent} from 'vue';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
 import {playerColorClass} from '@/common/utils/utils';
@@ -116,7 +117,7 @@ export default defineComponent({
         logAbortController = undefined;
       }
 
-      const url = `${paths.API_GAME_LOGS}?id=${this.id}&generation=${generation}`;
+      const url = `${apiUrl(paths.API_GAME_LOGS)}?id=${this.id}&generation=${generation}`;
       const controller = new AbortController();
       logAbortController = controller;
 

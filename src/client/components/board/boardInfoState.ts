@@ -5,6 +5,7 @@ import {BoardName} from '@/common/boards/BoardName';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {BoardCellInfo, BoardPlacementKind, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 
 /**
  * Module-level reactive store for the premium BoardInformation hover inspector.
@@ -82,7 +83,7 @@ function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, 
   if (tileType !== undefined) {
     params.set('tile', String(tileType));
   }
-  return `${paths.API_GAME_BOARD_CELL_PREVIEW}?${params.toString()}`;
+  return `${apiUrl(paths.API_GAME_BOARD_CELL_PREVIEW)}?${params.toString()}`;
 }
 
 export function hoverBoardCell(spaceId: SpaceId): void {

@@ -225,6 +225,7 @@ import {gameDocumentTitle} from '@/client/utils/documentTitle';
 import {setFaviconStatus} from '@/client/utils/favicon';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel, PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
 import Board from '@/client/components/Board.vue';
@@ -314,7 +315,7 @@ export default defineComponent({
       if (id === undefined) {
         return undefined;
       }
-      return `${paths.API_GAME_LOGS}?id=${id}&full=true`;
+      return `${apiUrl(paths.API_GAME_LOGS)}?id=${id}&full=true`;
     },
     playersInPlace(): Array<PublicPlayerModel> {
       const copy = [...this.viewModel.players];

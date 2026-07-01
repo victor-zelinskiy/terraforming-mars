@@ -6,6 +6,7 @@ import {Response} from '../Response';
 import {isPlayerId, isSpectatorId} from '../../common/Types';
 import {RematchManager} from '../rematch/RematchManager';
 import {RematchAction} from '../../common/models/RematchModel';
+import {RealtimeHub} from '../server/realtime/RealtimeHub';
 
 const ACTIONS: ReadonlyArray<RematchAction> = ['offer', 'accept', 'decline', 'cancel'];
 
@@ -82,6 +83,16 @@ export class ApiGameRematch extends Handler {
     case 'cancel':
       manager.cancel(game, color);
       break;
+    }
+    // Rematch state is NOT part of the game mutation stream (it lives in
+    // RematchManager, not saveGame), so wake the game's realtime room so the
+    // other participants' RematchLayer refetches the shared offer state
+    // promptly instead of waiting on its fallback poll. No-op when nobody in
+    // the room is on realtime.
+    try {
+      RealtimeHub.getInstance().invalidate({gameId: game.id, gameAge: game.gameAge, undoCount: game.undoCount, phase: game.phase});
+    } catch (err) {
+      console.error('realtime rematch invalidate failed', err);
     }
     responses.writeJson(res, ctx, manager.getModel(game, id));
   }

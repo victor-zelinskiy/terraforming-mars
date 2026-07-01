@@ -19,6 +19,7 @@ export const ClientMessageType = {
   HELLO: 'CLIENT_HELLO',
   PING: 'PING',
   SUBSCRIBE: 'SUBSCRIBE_GAME',
+  RESUME: 'RESUME_GAME',
   UNSUBSCRIBE: 'UNSUBSCRIBE_GAME',
 } as const;
 export type ClientMessageType = typeof ClientMessageType[keyof typeof ClientMessageType];
@@ -65,6 +66,18 @@ export interface SubscribeGameMessage extends BaseMessage {
   participantId: string;
 }
 
+/**
+ * Re-subscribe after a reconnect, carrying the last version cursor the client
+ * knew (Phase 5 resume). The server joins the room and, if the game has advanced
+ * past this cursor, replies with an invalidation so the client full-refreshes.
+ */
+export interface ResumeGameMessage extends BaseMessage {
+  type: typeof ClientMessageType.RESUME;
+  participantId: string;
+  lastGameAge: number;
+  lastUndoCount: number;
+}
+
 export interface UnsubscribeGameMessage extends BaseMessage {
   type: typeof ClientMessageType.UNSUBSCRIBE;
 }
@@ -73,6 +86,7 @@ export type ClientMessage =
   | ClientHelloMessage
   | ClientPingMessage
   | SubscribeGameMessage
+  | ResumeGameMessage
   | UnsubscribeGameMessage;
 
 // ---- Server -> Client -------------------------------------------------------
@@ -154,6 +168,10 @@ export function subscribeGame(participantId: string, correlationId?: string, now
   return {...envelope(now, correlationId), type: ClientMessageType.SUBSCRIBE, participantId};
 }
 
+export function resumeGame(participantId: string, lastGameAge: number, lastUndoCount: number, correlationId?: string, now: number = Date.now()): ResumeGameMessage {
+  return {...envelope(now, correlationId), type: ClientMessageType.RESUME, participantId, lastGameAge, lastUndoCount};
+}
+
 export function unsubscribeGame(correlationId?: string, now: number = Date.now()): UnsubscribeGameMessage {
   return {...envelope(now, correlationId), type: ClientMessageType.UNSUBSCRIBE};
 }
@@ -229,6 +247,8 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
     return parsed as unknown as ClientPingMessage;
   case ClientMessageType.SUBSCRIBE:
     return typeof parsed.participantId === 'string' ? (parsed as unknown as SubscribeGameMessage) : undefined;
+  case ClientMessageType.RESUME:
+    return (typeof parsed.participantId === 'string' && typeof parsed.lastGameAge === 'number' && typeof parsed.lastUndoCount === 'number') ? (parsed as unknown as ResumeGameMessage) : undefined;
   case ClientMessageType.UNSUBSCRIBE:
     return parsed as unknown as UnsubscribeGameMessage;
   default:

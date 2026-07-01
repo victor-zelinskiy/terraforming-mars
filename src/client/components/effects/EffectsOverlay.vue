@@ -94,6 +94,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {playerEffects, playerEffectGroups, EffectEntry, EffectGroup} from '@/client/components/effects/effectExtraction';
 import {
   effectsOverlayState,
@@ -331,7 +332,7 @@ export default defineComponent({
       if (getEffectStats(color) === undefined) {
         this.loadingStats = true;
       }
-      const url = paths.API_GAME_EFFECT_STATS +
+      const url = apiUrl(paths.API_GAME_EFFECT_STATS) +
         '?id=' + encodeURIComponent(this.viewerId) +
         '&color=' + encodeURIComponent(color);
       const scope = effectsOverlayState.statsScope;

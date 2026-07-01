@@ -50,6 +50,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {Color} from '@/common/Color';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
@@ -191,7 +192,7 @@ export default defineComponent({
       }
       const color = this.viewerColor;
       const scope = this.cacheKey + ':' + color;
-      const url = paths.API_GAME_DELTA_PREVIEW +
+      const url = apiUrl(paths.API_GAME_DELTA_PREVIEW) +
         '?id=' + encodeURIComponent(this.viewerId) +
         '&color=' + encodeURIComponent(color);
       fetch(url)

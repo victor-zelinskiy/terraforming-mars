@@ -61,6 +61,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {Color} from '@/common/Color';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {GameEvent} from '@/common/events/GameEvent';
@@ -71,6 +72,8 @@ import JournalFilterSelector from '@/client/components/journal/JournalFilterSele
 import JournalFeed from '@/client/components/journal/JournalFeed.vue';
 import {JournalFilter} from '@/client/components/journal/journalFilter';
 import {journalState, JournalDetailMode} from '@/client/components/journal/journalState';
+import {startRealtimePoller} from '@/client/components/realtime/realtimePoller';
+import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 
 /**
  * Premium journal panel — the modern replacement for the legacy
@@ -108,7 +111,7 @@ type DataModel = {
   loading: boolean,
   abort: AbortController | undefined,
   eventsAbort: AbortController | undefined,
-  pollTimer: number | undefined,
+  stopPoller: (() => void) | undefined,
   // Active player filter. Persists across generation changes and survives
   // the playerkey remount (panel is App-level). Default: show everything.
   filter: JournalFilter,
@@ -143,7 +146,7 @@ export default defineComponent({
       loading: false,
       abort: undefined,
       eventsAbort: undefined,
-      pollTimer: undefined,
+      stopPoller: undefined,
       filter: {kind: 'all'},
     };
   },
@@ -230,7 +233,7 @@ export default defineComponent({
         this.loading = true;
       }
 
-      const url = `${paths.API_GAME_LOGS}?id=${this.id}&generation=${generation}`;
+      const url = `${apiUrl(paths.API_GAME_LOGS)}?id=${this.id}&generation=${generation}`;
       fetch(url, {signal: controller.signal})
         .then((resp) => {
           if (!resp.ok) {
@@ -275,7 +278,7 @@ export default defineComponent({
       }
       const controller = new AbortController();
       this.eventsAbort = controller;
-      const url = `${paths.API_GAME_JOURNAL_EVENTS}?id=${this.id}&generation=${generation}`;
+      const url = `${apiUrl(paths.API_GAME_JOURNAL_EVENTS)}?id=${this.id}&generation=${generation}`;
       fetch(url, {signal: controller.signal})
         .then((resp) => (resp.ok ? resp.json() : null))
         .then((data: Array<GameEvent> | null) => {
@@ -293,15 +296,17 @@ export default defineComponent({
         });
     },
     startPolling(): void {
-      if (this.pollTimer !== undefined) {
+      if (this.stopPoller !== undefined) {
         return;
       }
-      this.pollTimer = window.setInterval(() => this.pullLatest(), LIVE_POLL_INTERVAL_MS);
+      // Refetch on every realtime wake (game change) + a lengthened fallback
+      // while WS is healthy; falls back to the safe live rate when WS is down.
+      this.stopPoller = startRealtimePoller(() => this.pullLatest(), LIVE_POLL_INTERVAL_MS, realtimePollIntervalMs);
     },
     stopPolling(): void {
-      if (this.pollTimer !== undefined) {
-        window.clearInterval(this.pollTimer);
-        this.pollTimer = undefined;
+      if (this.stopPoller !== undefined) {
+        this.stopPoller();
+        this.stopPoller = undefined;
       }
     },
     onKeydown(e: KeyboardEvent): void {

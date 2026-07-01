@@ -54,6 +54,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
 import {stripNodeOr, branchPositionsForNode} from '@/client/components/actions/actionBranchView';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -131,7 +132,7 @@ export default defineComponent({
       if (typeof fetch !== 'function') {
         return;
       }
-      const url = paths.API_ACTION_PREVIEW +
+      const url = apiUrl(paths.API_ACTION_PREVIEW) +
         '?id=' + encodeURIComponent(this.playerView.id) +
         '&card=' + encodeURIComponent(name);
       fetch(url)

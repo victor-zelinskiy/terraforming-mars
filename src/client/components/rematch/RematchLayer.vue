@@ -64,6 +64,8 @@ import {RematchModel} from '@/common/models/RematchModel';
 import {Color} from '@/common/Color';
 import {ParticipantId} from '@/common/Types';
 import {rematchState, fetchRematch, submitRematch, rematchJoinHref} from '@/client/components/rematch/rematchState';
+import {startRealtimePoller} from '@/client/components/realtime/realtimePoller';
+import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import RematchPromptModal from '@/client/components/rematch/RematchPromptModal.vue';
 
 const POLL_INTERVAL_MS = 2000;
@@ -77,7 +79,7 @@ export default defineComponent({
   },
   data() {
     return {
-      pollTimer: undefined as number | undefined,
+      stopPoller: undefined as (() => void) | undefined,
       declinedTimer: undefined as number | undefined,
       promptMinimized: false,
       createdDismissedFor: undefined as string | undefined,
@@ -169,12 +171,16 @@ export default defineComponent({
   },
   mounted(): void {
     this.poll();
-    this.pollTimer = window.setInterval(() => this.poll(), POLL_INTERVAL_MS);
+    // Rematch state lives outside the game mutation stream, so the server
+    // broadcasts a room invalidation on each rematch action (ApiGameRematch) —
+    // that wakes this poller for a real-time refetch; a lengthened fallback
+    // covers WS-down. Safe rate when WS is unhealthy.
+    this.stopPoller = startRealtimePoller(() => this.poll(), POLL_INTERVAL_MS, realtimePollIntervalMs);
   },
   beforeUnmount(): void {
-    if (this.pollTimer !== undefined) {
-      window.clearInterval(this.pollTimer);
-      this.pollTimer = undefined;
+    if (this.stopPoller !== undefined) {
+      this.stopPoller();
+      this.stopPoller = undefined;
     }
     this.clearDeclinedTimer();
   },

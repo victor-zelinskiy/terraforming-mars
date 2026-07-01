@@ -124,6 +124,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {
   ActionEntry,
   ActionFilterState,
@@ -465,7 +466,7 @@ export default defineComponent({
         return;
       }
       const color = this.displayedPlayer.color;
-      const url = paths.API_GAME_ACTION_STATS +
+      const url = apiUrl(paths.API_GAME_ACTION_STATS) +
         '?id=' + encodeURIComponent(this.viewerId) +
         '&color=' + encodeURIComponent(color);
       const scope = actionsOverlayState.statsScope;
@@ -486,7 +487,7 @@ export default defineComponent({
       if (!silent) {
         this.previewLoading = true;
       }
-      const url = paths.API_ACTION_PREVIEW +
+      const url = apiUrl(paths.API_ACTION_PREVIEW) +
         '?id=' + encodeURIComponent(this.viewerId) +
         '&card=' + encodeURIComponent(cardName);
       const scope = actionsOverlayState.previewCacheScope;

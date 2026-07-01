@@ -12,6 +12,7 @@
  */
 import {reactive} from 'vue';
 import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {RematchAction, RematchModel} from '@/common/models/RematchModel';
 import {ParticipantId} from '@/common/Types';
 
@@ -29,7 +30,7 @@ export const rematchState: RematchStateShape = reactive({
 
 export async function fetchRematch(viewerId: ParticipantId): Promise<void> {
   try {
-    const response = await fetch(`${paths.API_GAME_REMATCH}?id=${viewerId}`);
+    const response = await fetch(`${apiUrl(paths.API_GAME_REMATCH)}?id=${viewerId}`);
     if (!response.ok) {
       return;
     }
@@ -42,7 +43,7 @@ export async function fetchRematch(viewerId: ParticipantId): Promise<void> {
 export async function submitRematch(viewerId: ParticipantId, action: RematchAction): Promise<void> {
   rematchState.submitting = true;
   try {
-    const response = await fetch(`${paths.API_GAME_REMATCH}?id=${viewerId}&action=${action}`, {method: 'POST'});
+    const response = await fetch(`${apiUrl(paths.API_GAME_REMATCH)}?id=${viewerId}&action=${action}`, {method: 'POST'});
     if (response.ok) {
       rematchState.model = await response.json() as RematchModel;
     }

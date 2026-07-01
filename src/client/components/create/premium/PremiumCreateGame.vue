@@ -78,6 +78,7 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {paths} from '@/common/app/paths';
+import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import PremiumIdentityChip from '@/client/components/mainMenu/PremiumIdentityChip.vue';
 import PremiumIdentityModal from '@/client/components/mainMenu/PremiumIdentityModal.vue';
@@ -165,7 +166,8 @@ export default defineComponent({
       }
     },
     onBack(): void {
-      window.location.assign('/');
+      // In-app SPA transition back to the premium main menu (no page reload).
+      vueRoot(this).navigateInApp('/');
     },
     onCreate(): void {
       if (canCreateGame()) {

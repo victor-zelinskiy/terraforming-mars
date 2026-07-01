@@ -378,6 +378,7 @@ import {paths} from '@/common/app/paths';
 import {statusCode} from '@/common/http/statusCode';
 import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {vueRoot} from '@/client/components/vueRoot';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {
@@ -855,7 +856,7 @@ export default defineComponent({
       root.isServerSideRequestInProgress = true;
 
       fetch(
-        paths.PLAYER_INPUT + '?id=' + view.id,
+        apiUrl(paths.PLAYER_INPUT) + '?id=' + view.id,
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},

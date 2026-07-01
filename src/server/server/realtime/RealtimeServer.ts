@@ -10,8 +10,10 @@ import {RealtimeHub} from './RealtimeHub';
 import {
   ClientMessageType,
   REALTIME_PROTOCOL_VERSION,
+  ResumeGameMessage,
   ServerMessage,
   SubscribeGameMessage,
+  gameStateInvalidated,
   parseClientMessage,
   protocolIncompatible,
   serializeMessage,
@@ -47,10 +49,15 @@ const metrics = {
   }),
 };
 
-/** Reads the server master switch. Default OFF so unconfigured prod is safe. */
+/**
+ * Reads the server master switch. **Default ON** — WebSocket is the primary
+ * realtime mechanism (Phase 12). Opt out with `REALTIME_ENABLED=0` / `false` /
+ * `off`, which restores byte-identical legacy polling (the WS gateway is never
+ * attached and every broadcast goes to an empty room).
+ */
 export function realtimeEnabled(): boolean {
   const v = (process.env.REALTIME_ENABLED ?? '').trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'on';
+  return v !== '0' && v !== 'false' && v !== 'off';
 }
 
 class RealtimeConnection {
@@ -108,7 +115,7 @@ export class RealtimeServer {
   public attach(server: HttpServer | HttpsServer, options: {enabled?: boolean} = {}): void {
     const enabled = options.enabled ?? realtimeEnabled();
     if (!enabled) {
-      console.log('[realtime] disabled (set REALTIME_ENABLED=1 to enable the WebSocket gateway)');
+      console.log('[realtime] WebSocket gateway disabled via REALTIME_ENABLED (default is enabled) — legacy polling only');
       return;
     }
     if (this.wss !== undefined) {
@@ -208,6 +215,9 @@ export class RealtimeServer {
     case ClientMessageType.SUBSCRIBE:
       void this.handleSubscribe(conn, message);
       break;
+    case ClientMessageType.RESUME:
+      void this.handleResume(conn, message);
+      break;
     case ClientMessageType.UNSUBSCRIBE:
       this.hub.unsubscribe(conn);
       console.log(`[realtime] unsubscribe #${conn.id}`);
@@ -233,6 +243,39 @@ export class RealtimeServer {
     }
     console.log(`[realtime] subscribe #${conn.id} game=${result.gameId} roomSize=${result.roomSize}`);
     this.send(conn, subscribed(result.gameAge ?? 0, result.undoCount ?? 0, message.correlationId));
+  }
+
+  /**
+   * Phase 5 resume. Re-join the room like a subscribe, ack SUBSCRIBED with the
+   * CURRENT cursor, and — if the game advanced past the client's last-known
+   * cursor while it was away — send it an invalidation so it full-refreshes. The
+   * invalidation is per-connection (only the reconnecting client needs to catch
+   * up), and the client's own /api/waitingfor comparison is the final authority,
+   * so a redundant refresh is harmless and a missed change is impossible.
+   */
+  private async handleResume(conn: RealtimeConnection, message: ResumeGameMessage): Promise<void> {
+    if (typeof message.participantId !== 'string' || message.participantId === '') {
+      this.send(conn, serverError('invalid-participant', 'Missing participant id.', message.correlationId));
+      return;
+    }
+    const result = await this.hub.subscribe(conn, message.participantId);
+    if (conn.ws.readyState !== WebSocket.OPEN) {
+      this.hub.unsubscribe(conn);
+      return;
+    }
+    if (!result.ok || result.gameId === undefined) {
+      console.log(`[realtime] resume rejected #${conn.id} participant=${message.participantId}`);
+      this.send(conn, serverError('subscribe-rejected', 'Not authorized for any game.', message.correlationId));
+      return;
+    }
+    const currentGameAge = result.gameAge ?? 0;
+    const currentUndoCount = result.undoCount ?? 0;
+    const changed = currentGameAge !== message.lastGameAge || currentUndoCount !== message.lastUndoCount;
+    console.log(`[realtime] resume #${conn.id} game=${result.gameId} last=(${message.lastGameAge},${message.lastUndoCount}) current=(${currentGameAge},${currentUndoCount}) changed=${changed}`);
+    this.send(conn, subscribed(currentGameAge, currentUndoCount, message.correlationId));
+    if (changed) {
+      this.send(conn, gameStateInvalidated(result.gameId, currentGameAge, currentUndoCount));
+    }
   }
 
   private send(conn: RealtimeConnection, message: ServerMessage): void {
