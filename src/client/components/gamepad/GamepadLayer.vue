@@ -1,7 +1,10 @@
 <template>
   <Teleport to="body">
     <GamepadFocusRing />
-    <GamepadHintBar />
+    <!-- The iteration-1 hint bar serves DESKTOP mode only — in console mode
+         the ConsoleCommandBar is the (richer) control surface. -->
+    <GamepadHintBar v-if="!consoleModeState.enabled" />
+    <ConsoleEntryPrompt v-if="consoleModeState.entryPromptVisible && !consoleModeState.enabled" />
 
     <!-- Controller mapping legend (Menu button). Its OWN mini-scope: while
          open the layer swallows every intent except close (Menu/B). -->
@@ -62,8 +65,13 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import GamepadFocusRing from '@/client/components/gamepad/GamepadFocusRing.vue';
 import GamepadHintBar from '@/client/components/gamepad/GamepadHintBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleEntryPrompt from '@/client/components/console/ConsoleEntryPrompt.vue';
+import {consoleModeState, dismissConsoleOffer, maybeOfferConsoleMode, setConsoleMode} from '@/client/console/consoleModeState';
+import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
 
 const FOCUS_TICK_MS = 400;
+/** Holding Menu this long toggles console ↔ desktop mode. */
+const MENU_HOLD_MS = 650;
 
 type LegendRow = {control: GlyphControl, label: string};
 
@@ -82,14 +90,29 @@ const LEGEND_ROWS: ReadonlyArray<LegendRow> = [
   {control: 'view', label: 'Log'},
 ];
 
+/** The console-mode mapping (CONSOLE_MODE_CONCEPT.md §11). */
+const CONSOLE_LEGEND_ROWS: ReadonlyArray<LegendRow> = [
+  {control: 'dpad', label: 'Navigate'},
+  {control: 'confirm', label: 'Select'},
+  {control: 'back', label: 'Back / Close'},
+  {control: 'inspect', label: 'Turn menu'},
+  {control: 'bumperL', label: 'Previous panel'},
+  {control: 'bumperR', label: 'Next panel'},
+  {control: 'triggerR', label: 'Next playable'},
+  {control: 'triggerL', label: 'Inspect all cells'},
+  {control: 'view', label: 'Log'},
+  {control: 'menu', label: 'Hold: switch interface mode'},
+];
+
 export default defineComponent({
   name: 'GamepadLayer',
-  components: {GamepadFocusRing, GamepadHintBar, GamepadGlyph},
+  components: {GamepadFocusRing, GamepadHintBar, GamepadGlyph, ConsoleEntryPrompt},
   data() {
     return {
       inputModeState,
       gamepadCoreState,
       focusState,
+      consoleModeState,
       legendOpen: false,
       toast: '',
       toastTimer: undefined as number | undefined,
@@ -98,6 +121,7 @@ export default defineComponent({
       offMode: undefined as (() => void) | undefined,
       tickTimer: undefined as number | undefined,
       lastPadsSeen: 0,
+      menuPressedAt: undefined as number | undefined,
     };
   },
   computed: {
@@ -108,7 +132,7 @@ export default defineComponent({
       return this.inputModeState.mode === 'gamepad';
     },
     legendRows(): ReadonlyArray<LegendRow> {
-      return LEGEND_ROWS;
+      return this.consoleModeState.enabled ? CONSOLE_LEGEND_ROWS : LEGEND_ROWS;
     },
   },
   watch: {
@@ -125,16 +149,51 @@ export default defineComponent({
           intent.kind === 'nav' ? `nav:${intent.dir}${intent.repeat ? ' (r)' : ''}` : 'scroll';
         this.intentLog = [line, ...this.intentLog].slice(0, 5);
       }
+      // Menu = short press → legend; HOLD (≥650ms) → toggle console ↔
+      // desktop shell (the consented, symmetric mode switch).
+      if (intent.kind === 'press' && intent.button === 'menu') {
+        this.menuPressedAt = Date.now();
+        return;
+      }
+      if (intent.kind === 'release' && intent.button === 'menu') {
+        const held = this.menuPressedAt !== undefined ? Date.now() - this.menuPressedAt : 0;
+        this.menuPressedAt = undefined;
+        if (held >= MENU_HOLD_MS) {
+          this.legendOpen = false;
+          clearGamepadFocus();
+          setConsoleMode(!this.consoleModeState.enabled);
+        } else {
+          this.legendOpen = !this.legendOpen;
+        }
+        return;
+      }
       // The legend is a layer-owned mini-scope: swallow everything but close.
       if (this.legendOpen) {
-        if (intent.kind === 'press' && (intent.button === 'menu' || intent.button === 'back' || intent.button === 'confirm')) {
+        if (intent.kind === 'press' && (intent.button === 'back' || intent.button === 'confirm')) {
           this.legendOpen = false;
         }
         return;
       }
-      if (intent.kind === 'press' && intent.button === 'menu') {
-        this.legendOpen = true;
+      // The console-mode entry prompt: A = switch shells, B = stay (desktop).
+      if (this.consoleModeState.entryPromptVisible && !this.consoleModeState.enabled) {
+        if (intent.kind === 'press' && intent.button === 'confirm') {
+          clearGamepadFocus();
+          setConsoleMode(true);
+        } else if (intent.kind === 'press' && intent.button === 'back') {
+          dismissConsoleOffer();
+        }
         return;
+      }
+      // Console shell first; unclaimed intents (a fallback surface is on
+      // top) fall through to the demoted DOM focus engine.
+      if (this.consoleModeState.enabled) {
+        if (dispatchConsoleIntent(intent)) {
+          // The console owns the screen — clear any stale fallback focus.
+          if (this.focusState.ring.visible) {
+            clearGamepadFocus();
+          }
+          return;
+        }
       }
       handleGamepadIntent(intent);
     },
@@ -142,6 +201,10 @@ export default defineComponent({
       if (mode === 'gamepad') {
         this.startTick();
         gamepadFocusTick();
+        // Desktop shell + a pad in hand → offer the console interface once.
+        if (!this.consoleModeState.enabled) {
+          maybeOfferConsoleMode();
+        }
       } else {
         this.stopTick();
         this.legendOpen = false;
