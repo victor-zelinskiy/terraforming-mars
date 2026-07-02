@@ -31,11 +31,24 @@ import {ViewModel} from '@/common/models/PlayerModel';
  */
 const store = ref(new Map<CardName, number>());
 
+// A2 (PERFORMANCE_AUDIT.md): the `players` branch reference the last rebuild
+// was derived from. Post-remount, structural sharing (viewSnapshotShare.ts)
+// keeps this reference IDENTICAL whenever no player object changed, so a
+// board-only / sub-prompt / same-state commit can skip rebuilding the map
+// entirely. An actual card-resource change reallocates that player object (and
+// thus the `players` array), so the ref differs and we rebuild — correct.
+let lastPlayersRef: ViewModel['players'] | undefined;
+
 /** Rebuild the map from every player's tableau. Call on each view update. */
 export function setLiveCardResources(view: ViewModel | undefined): void {
+  const players = view?.players;
+  if (players === lastPlayersRef) {
+    return;
+  }
+  lastPlayersRef = players;
   const map = new Map<CardName, number>();
-  if (view !== undefined) {
-    for (const player of view.players) {
+  if (players !== undefined) {
+    for (const player of players) {
       for (const card of player.tableau) {
         if (typeof card.resources === 'number') {
           map.set(card.name, card.resources);

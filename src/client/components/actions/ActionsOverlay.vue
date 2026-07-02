@@ -178,6 +178,10 @@ type DataModel = {
   previewLoading: boolean;
   // The current master column count (for keyboard up/down).
   cols: number;
+  // OV-2 (PERFORMANCE_AUDIT.md): last overlay width fit() wrote — an unchanged
+  // re-fit skips the CSS-var write so the RO (observing root, whose width IS
+  // --actions-overlay-width) isn't self-triggered by a no-op set.
+  lastFitWidth: number | undefined;
 };
 
 export default defineComponent({
@@ -232,6 +236,7 @@ export default defineComponent({
       measureScheduled: false,
       previewLoading: false,
       cols: MAX_COLS,
+      lastFitWidth: undefined,
     };
   },
   computed: {
@@ -637,8 +642,15 @@ export default defineComponent({
       const comfortable = cols * MASTER_COL_MAX + (cols - 1) * GAP;
       const masterW = Math.min(masterAvail, comfortable);
       const overlayW = clamp(masterW + DETAIL_W + SPLIT_GAP + BODY_PAD_X, MIN_W, FIT_MAX_W);
+      const roundedW = Math.round(overlayW);
+      // OV-2: nothing changed → skip the writes so the RO (root's width IS
+      // --actions-overlay-width) isn't re-triggered by a no-op set.
+      if (roundedW === this.lastFitWidth && cols === this.cols) {
+        return;
+      }
+      this.lastFitWidth = roundedW;
       this.cols = cols;
-      root?.style.setProperty('--actions-overlay-width', Math.round(overlayW) + 'px');
+      root?.style.setProperty('--actions-overlay-width', roundedW + 'px');
       grid?.style.setProperty('--actions-master-cols', String(cols));
       root?.style.setProperty('--detail-width', DETAIL_W + 'px');
       // The viewport may have changed → the detail-height cap with it.

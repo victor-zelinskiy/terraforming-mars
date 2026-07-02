@@ -43,7 +43,7 @@ import {PlacementIllegalSpace} from '@/common/inputs/PlacementIllegalReason';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import PlacementReasonPopover from '@/client/components/board/PlacementReasonPopover.vue';
 import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
-import {setPlacementHiddenTiles, clearPlacementHiddenTiles} from '@/client/components/board/placementRenderState';
+import {setPlacementHiddenTiles, clearPlacementHiddenTiles, setPlacementHighlightActive} from '@/client/components/board/placementRenderState';
 import BoardPlacementPreviewPopover from '@/client/components/board/BoardPlacementPreviewPopover.vue';
 import BoardPlacementPreviewContent from '@/client/components/board/BoardPlacementPreviewContent.vue';
 import {fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
@@ -150,12 +150,17 @@ export default defineComponent({
       }
     },
     animateSpaces(tiles: Array<Element>) {
+      let highlighted = 0;
       tiles.forEach((tile: Element) => {
         const spaceId = tile.getAttribute('data_space_id') as SpaceId;
         if (spaceId !== null && this.spaces.has(spaceId)) {
           this.animateSpace(tile, true);
+          highlighted++;
         }
       });
+      // BRD-3: mirror "`.board-space--available` now exists" into the reactive
+      // store so hover handlers don't DOM-query on every mouseover.
+      setPlacementHighlightActive(highlighted > 0);
     },
     /**
      * Mark every cell the server reported as off-limits for this placement
@@ -298,6 +303,9 @@ export default defineComponent({
         tile.classList.remove('board-space--available', 'board-space--selected');
       });
       this.removeIllegalTooltips();
+      // BRD-3: the `.board-space--available` set is gone (pre-mount clear, a tile
+      // was picked, or unmount) → clear the reactive placement-mode flag.
+      setPlacementHighlightActive(false);
     },
     getSelectableSpaces(): Array<HTMLElement> {
       const spaces: Array<HTMLElement> = [];

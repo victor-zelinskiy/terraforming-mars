@@ -251,6 +251,7 @@ import {Color} from '@/common/Color';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import BoardCellInfoPopover from '@/client/components/board/BoardCellInfoPopover.vue';
 import {hoverBoardCell, clearBoardCellHover, configureBoardInfo} from '@/client/components/board/boardInfoState';
+import {placementRenderState} from '@/client/components/board/placementRenderState';
 import ScaleTooltip from '@/client/components/board/ScaleTooltip.vue';
 import {AresData} from '@/common/ares/AresData';
 import {SpaceModel} from '@/common/models/SpaceModel';
@@ -385,13 +386,17 @@ export default defineComponent({
       // INTO that popover (BoardCellInfoPopover reads getSpecialCellInfo), so a
       // named cell shows its lore AND its tile bonuses / owner / scoring, and an
       // OCCUPIED named cell (where the lore marker isn't rendered) still informs.
-      hoverBoardCell(spaceId);
+      // Pass the cell rect we already hold (BRD-3) so the popover doesn't
+      // re-query the DOM + force layout in its position computed.
+      hoverBoardCell(spaceId, cell.getBoundingClientRect());
     },
-    // True while a tile-placement prompt is on the board — SelectSpace marks
-    // its legal cells with `.board-space--available`, which exists ONLY during
-    // placement, so its presence anywhere is a reliable "placement mode" flag.
+    // True while a tile-placement prompt is on the board. SelectSpace marks its
+    // legal cells with `.board-space--available` (added in `animateSpaces`,
+    // removed in `disableAnimation`) and mirrors that into `placementRenderState`
+    // — read the reactive flag instead of a full-DOM `querySelector` on every
+    // mouseover (BRD-3, PERFORMANCE_AUDIT.md).
     placementActive(): boolean {
-      return document.querySelector('.board-space--available') !== null;
+      return placementRenderState.highlightActive;
     },
     onHexHoverLeave(e: MouseEvent): void {
       const cell = (e.target as HTMLElement | null)?.closest('[data_space_id]') as HTMLElement | null;
