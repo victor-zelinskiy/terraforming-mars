@@ -251,6 +251,16 @@
       <RealtimeLayer
         v-if="(screen === 'player-home' || screen === 'spectator-home') && realtimeParticipantId !== ''"
         :participant-id="realtimeParticipantId" />
+
+      <!--
+        Premium GAMEPAD layer (GAMEPAD_SUPPORT_DESIGN.md). App-level (like
+        NotificationLayer) so the controller mode / focus survives the
+        legacy-flag remount and every server response. Fully inert until a
+        pad button is pressed; `?gp=0` / the gamepad_enabled preference kill
+        it entirely (mouse/keyboard players byte-identical).
+      -->
+      <GamepadLayer
+        v-if="screen === 'player-home' && playerView !== undefined" />
       <!-- Desktop-only (Electron) mandatory-update overlay. Inert on the web. -->
       <desktop-update-overlay />
     </div>
@@ -309,6 +319,7 @@ const PlayerCubePlayground = defineAsyncComponent(() => import(/* webpackChunkNa
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
+import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
 import TurnHandoffLayer from '@/client/components/overview/TurnHandoffLayer.vue';
 import RevealedCardsModal from '@/client/components/notifications/RevealedCardsModal.vue';
 import EffectDetailOverlay from '@/client/components/notifications/EffectDetailOverlay.vue';
@@ -459,6 +470,7 @@ export default defineComponent({
     PlayerCubePlayground,
     JournalPanel,
     NotificationLayer,
+    GamepadLayer,
     TurnHandoffLayer,
     RevealedCardsModal,
     EffectDetailOverlay,

@@ -9,6 +9,7 @@
       <div class="top-bar-btn-anchor">
         <div class="bottom-bar-btn bottom-bar-btn--counter"
              :class="{'bottom-bar-btn--active': activeOverlay === 'milestones', 'bottom-bar-btn--available-sweep': claimableMilestonesCount > 0}"
+             data-gp-overlay="milestones"
              v-on:click="toggleOverlay('milestones')">
           <span v-if="claimableMilestonesCount > 0" class="bar-btn__available-shimmer" aria-hidden="true"></span>
           <BarButtonIcon name="milestones" /><span class="bar-btn__label" v-i18n>Milestones</span>
@@ -49,7 +50,7 @@
           @close="activeOverlay = null" />
       </div>
       <div class="top-bar-btn-anchor top-bar-btn-anchor--center">
-        <div class="bottom-bar-btn bottom-bar-btn--dominant" :class="{'bottom-bar-btn--active': activeOverlay === 'standardProjects'}" v-on:click="toggleOverlay('standardProjects')"><BarButtonIcon name="standard-projects" /><span class="bar-btn__label" v-i18n>Standard Projects</span></div>
+        <div class="bottom-bar-btn bottom-bar-btn--dominant" :class="{'bottom-bar-btn--active': activeOverlay === 'standardProjects'}" data-gp-overlay="standardProjects" v-on:click="toggleOverlay('standardProjects')"><BarButtonIcon name="standard-projects" /><span class="bar-btn__label" v-i18n>Standard Projects</span></div>
         <StandardProjectsOverlay
           v-if="activeOverlay === 'standardProjects'"
           class="top-bar-dropdown top-bar-dropdown--standard-projects"
@@ -63,7 +64,7 @@
           @sell-patents="onEnterSellPatents" />
       </div>
       <div class="top-bar-btn-anchor">
-        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'awards'}" v-on:click="toggleOverlay('awards')"><BarButtonIcon name="awards" /><span class="bar-btn__label" v-i18n>Awards</span></div>
+        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': activeOverlay === 'awards'}" data-gp-overlay="awards" v-on:click="toggleOverlay('awards')"><BarButtonIcon name="awards" /><span class="bar-btn__label" v-i18n>Awards</span></div>
         <!--
           Funded-award badge strip. Same UX contract as the milestones strip:
           3 slots fill in as awards are funded, hidden while the overlay is
@@ -121,7 +122,7 @@
         <span class="bar-rail__viewing-text"><span v-i18n>Viewing</span>: {{ displayedPlayer.name }}</span>
       </div>
       <div class="bar-rail bar-rail--bottom-left">
-        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'cards'}" v-on:click="toggleOverlay('cards')">
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'cards'}" data-gp-overlay="cards" v-on:click="toggleOverlay('cards')">
           <BarButtonIcon name="cards" /><span class="bar-btn__label" v-i18n>Cards</span>
           <span class="bar-btn__value">{{ displayedCardsInHandCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedCardsInHandCount" metricKey="bar.cards" :scopeKey="displayedPlayer.color" variant="misc" /></span>
         </div>
@@ -134,7 +135,7 @@
           chip on it would be noisy. Ordered right next to ЭФФЕКТЫ: the two are a
           pair — passive (Effects) + activatable (Actions) abilities.
         -->
-        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'actions'}" v-on:click="toggleOverlay('actions')">
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'actions'}" data-gp-overlay="actions" v-on:click="toggleOverlay('actions')">
           <BarButtonIcon name="actions" /><span class="bar-btn__label" v-i18n>Actions</span>
           <span class="bar-btn__value bar-btn__value--dual">
             <span class="bar-btn__value-avail" :class="{'bar-btn__value-avail--zero': availableActionsCount === 0}">{{ availableActionsCount }}</span>
@@ -143,15 +144,15 @@
             <AnimatedMetricValue class="bar-btn__feedback" :value="displayedActionsTotalCount" metricKey="bar.actions" :scopeKey="displayedPlayer.color" variant="misc" />
           </span>
         </div>
-        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'effects'}" v-on:click="toggleOverlay('effects')">
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'effects'}" data-gp-overlay="effects" v-on:click="toggleOverlay('effects')">
           <BarButtonIcon name="effects" /><span class="bar-btn__label" v-i18n>Effects</span>
           <span class="bar-btn__value">{{ displayedEffectsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedEffectsCount" metricKey="bar.effects" :scopeKey="displayedPlayer.color" variant="misc" /></span>
         </div>
-        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" v-on:click="toggleOverlay('played')">
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'played'}" data-gp-overlay="played" v-on:click="toggleOverlay('played')">
           <BarButtonIcon name="played" /><span class="bar-btn__label" v-i18n>Played</span>
           <span class="bar-btn__value">{{ displayedPlayedCardsCount }}<AnimatedMetricValue class="bar-btn__feedback" :value="displayedPlayedCardsCount" metricKey="bar.played" :scopeKey="displayedPlayer.color" variant="misc" /></span>
         </div>
-        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'victoryPoints'}" v-on:click="toggleOverlay('victoryPoints')">
+        <div class="bottom-bar-btn bottom-bar-btn--counter" :class="{'bottom-bar-btn--active': activeOverlay === 'victoryPoints'}" data-gp-overlay="victoryPoints" v-on:click="toggleOverlay('victoryPoints')">
           <BarButtonIcon name="victory-points" /><span class="bar-btn__label" v-i18n>Victory Points</span>
           <span class="bar-btn__value"><PrivateScoreMask v-if="ownVpMasked" compact /><template v-else>{{ displayedVictoryPoints }}<AnimatedMetricValue v-if="typeof displayedVictoryPoints === 'number'" class="bar-btn__feedback" :value="displayedVictoryPoints" metricKey="bar.vp" :scopeKey="displayedPlayer.color" variant="score" /></template></span>
         </div>
@@ -164,6 +165,7 @@
         <div v-if="game.colonies.length > 0"
              class="bottom-bar-btn bottom-bar-btn--colonies"
              :class="{'bottom-bar-btn--active': coloniesOverlayOpen, 'bottom-bar-btn--hydro-ready': colonyTradeAvailable}"
+             data-gp-overlay="colonies"
              v-on:click="onOpenColoniesOverlay">
           <BarButtonIcon name="colonies" /><span class="bar-btn__label" v-i18n>Colonies</span>
           <span v-if="colonyTradeAvailable" class="bottom-bar-btn__hydro-dot" aria-hidden="true"></span>
@@ -171,11 +173,12 @@
         <div v-if="game.gameOptions.expansions.deltaProject"
              class="bottom-bar-btn bottom-bar-btn--hydronetwork"
              :class="{'bottom-bar-btn--active': activeOverlay === 'hydronetwork', 'bottom-bar-btn--hydro-ready': hydroActionAvailable}"
+             data-gp-overlay="hydronetwork"
              v-on:click="toggleOverlay('hydronetwork')">
           <BarButtonIcon name="hydronetwork" /><span class="bar-btn__label" v-i18n>Hydronetwork</span>
           <span v-if="hydroActionAvailable" class="bottom-bar-btn__hydro-dot" aria-hidden="true"></span>
         </div>
-        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': journalOpen}" v-on:click="toggleJournal()">
+        <div class="bottom-bar-btn" :class="{'bottom-bar-btn--active': journalOpen}" data-gp-overlay="log" v-on:click="toggleJournal()">
           <BarButtonIcon name="log" /><span class="bar-btn__label" v-i18n>Log</span>
         </div>
       </div>
