@@ -199,4 +199,15 @@ describe('ServeAsset', () => {
       expect(perRes.statusCode, `${src} should return 200`).eq(statusCode.ok);
     }
   });
+
+  // Regression: the assets whitelist in toFile() must include .webp, else the
+  // webp board/card textures 404 (the "hex textures vanished" bug after the
+  // png→webp conversion).
+  it('serves .webp assets (200, not 404)', async () => {
+    instance = new ServeAsset(undefined, false, fileApi);
+    scaffolding.url = '/assets/board/mars.webp';
+    scaffolding.req.headers['accept-encoding'] = '';
+    await scaffolding.get(instance, res);
+    expect(res.statusCode).eq(statusCode.ok);
+  });
 });
