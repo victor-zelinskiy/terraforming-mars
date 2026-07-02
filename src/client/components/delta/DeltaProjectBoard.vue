@@ -401,7 +401,7 @@ export default defineComponent({
 }
 
 .delta-project-board__card-icon {
-  background: url(assets/resources/card.png) no-repeat;
+  background: url(assets/resources/card.webp) no-repeat;
   background-size: 24px 32px;
   width: 24px;
   height: 32px;

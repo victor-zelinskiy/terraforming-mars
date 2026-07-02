@@ -70,6 +70,26 @@ export function contentType(file: string): string {
   return CONTENT_TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
 }
 
+// Stable, expensive-to-decode assets (art + fonts) — worth caching across the
+// frequent in-app game-boundary reloads so Chromium keeps them in its memory
+// cache (decoded textures included) instead of re-reading + re-decoding from
+// disk each time. HTML / CSS / JS / JSON change per build, so they are NEVER
+// cached here (a stale shell would be a correctness bug).
+const CACHEABLE_EXT = /\.(ttf|woff2?|png|jpe?g|gif|svg|webp|ico)$/i;
+
+/**
+ * `Cache-Control` for a served file, or undefined (no header) for non-cacheable
+ * types. `immutable` (packaged builds) promises the bytes never change for this
+ * app version → Chromium can skip revalidation entirely; dev uses a modest TTL
+ * so edited art still refreshes within the hour / on a hard reload.
+ */
+export function cacheControl(file: string, immutable: boolean): string | undefined {
+  if (!CACHEABLE_EXT.test(file)) {
+    return undefined;
+  }
+  return immutable ? 'public, max-age=31536000, immutable' : 'public, max-age=3600';
+}
+
 /** Join `sub` under `base`, refusing anything that escapes `base` (traversal guard). */
 function safeJoin(base: string, sub: string): string | undefined {
   const resolved = path.resolve(base, sub);
@@ -124,8 +144,13 @@ export function registerAppScheme(): void {
   }]);
 }
 
-/** Install the `app://` request handler. MUST run AFTER app 'ready'. */
-export function registerAppProtocolHandler(): void {
+/**
+ * Install the `app://` request handler. MUST run AFTER app 'ready'.
+ * `immutable` (packaged builds) makes stable art/fonts cache immutably; dev
+ * passes false for a modest TTL. Defaults true so the packaged behaviour is the
+ * safe default when the caller omits it.
+ */
+export function registerAppProtocolHandler(immutable = true): void {
   protocol.handle(APP_SCHEME, async (request) => {
     let pathname = '/';
     try {
@@ -139,10 +164,12 @@ export function registerAppProtocolHandler(): void {
     }
     try {
       const data = await fs.promises.readFile(file);
-      return new Response(new Uint8Array(data), {
-        status: 200,
-        headers: {'content-type': contentType(file)},
-      });
+      const headers: Record<string, string> = {'content-type': contentType(file)};
+      const cache = cacheControl(file, immutable);
+      if (cache !== undefined) {
+        headers['cache-control'] = cache;
+      }
+      return new Response(new Uint8Array(data), {status: 200, headers});
     } catch {
       return new Response('Not found', {status: 404, headers: {'content-type': 'text/plain; charset=utf-8'}});
     }
