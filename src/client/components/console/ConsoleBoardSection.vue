@@ -1,6 +1,6 @@
 <template>
   <div class="con-board" ref="root">
-    <div class="con-board__stage">
+    <div class="con-board__stage" ref="stage">
       <GameBoardView :game="game" :players="playerView.players" :tileView="tileView" @toggleTileView="cycleTileView" />
     </div>
 
@@ -65,6 +65,20 @@ import {translateMessage, translateText} from '@/client/directives/i18n';
 
 const SELECT_CLASS = 'con-cell-sel';
 
+/**
+ * The full visual footprint of the board incl. its arc scales — the same
+ * natural-size constants the desktop auto-scale engine uses
+ * (useBoardAutoScale.ts). The console computes its OWN scale from the
+ * actual stage box (the desktop engine reserves desktop chrome — left
+ * panel / sidebar / bars — none of which exist here; using it clipped the
+ * board top+bottom, the feedback-iteration bug #1).
+ */
+const BOARD_NATURAL_W = 670;
+const BOARD_NATURAL_H = 582;
+const STAGE_PAD = 16;
+const MIN_SCALE = 0.6;
+const MAX_SCALE = 4;
+
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
     return '';
@@ -84,6 +98,8 @@ export default defineComponent({
       boardInfoState,
       consoleState,
       tileView: 'show' as TileView,
+      stageObserver: undefined as ResizeObserver | undefined,
+      fitRaf: 0,
     };
   },
   computed: {
@@ -135,6 +151,32 @@ export default defineComponent({
   methods: {
     cycleTileView(): void {
       this.tileView = nextTileView(this.tileView);
+    },
+    /** Fit the board to the console stage: write --board-scale ourselves. */
+    fitBoard(): void {
+      const stage = this.$refs.stage as HTMLElement | undefined;
+      if (stage === undefined) {
+        return;
+      }
+      const r = stage.getBoundingClientRect();
+      if (r.width < 40 || r.height < 40) {
+        return; // hidden (hand section) / not laid out yet — keep the last scale
+      }
+      const scale = Math.min(
+        (r.width - STAGE_PAD * 2) / BOARD_NATURAL_W,
+        (r.height - STAGE_PAD * 2) / BOARD_NATURAL_H,
+      );
+      const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+      document.documentElement.style.setProperty('--board-scale', clamped.toFixed(4));
+    },
+    scheduleFit(): void {
+      if (this.fitRaf !== 0) {
+        return;
+      }
+      this.fitRaf = window.requestAnimationFrame(() => {
+        this.fitRaf = 0;
+        this.fitBoard();
+      });
     },
     cellEl(spaceId: string | undefined): HTMLElement | undefined {
       if (spaceId === undefined) {
@@ -235,6 +277,19 @@ export default defineComponent({
       // Re-apply the spotlight to the freshly-rendered board DOM.
       this.applySpotlight(undefined, this.selectedSpaceId);
     }
+    this.fitBoard();
+    const stage = this.$refs.stage as HTMLElement | undefined;
+    if (stage !== undefined && typeof ResizeObserver !== 'undefined') {
+      this.stageObserver = new ResizeObserver(() => this.scheduleFit());
+      this.stageObserver.observe(stage);
+    }
+  },
+  beforeUnmount() {
+    this.stageObserver?.disconnect();
+    if (this.fitRaf !== 0) {
+      window.cancelAnimationFrame(this.fitRaf);
+    }
+    document.documentElement.style.removeProperty('--board-scale');
   },
 });
 </script>

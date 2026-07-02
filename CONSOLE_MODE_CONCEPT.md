@@ -640,6 +640,27 @@ arbitration (`resolveScope() !== undefined` = a fallback surface owns
 input; command bar switches to «Ожидает решения»); minimize affordances
 hidden in console mode (a minimized fallback would be pad-unreachable).
 
+**Feedback iteration 1 — SHIPPED.** (1) Board clipping fixed: the desktop
+auto-scale engine (desktop-chrome reservations) replaced by a console-own
+fit in `ConsoleBoardSection` (ResizeObserver on the stage → `--board-scale`
+from the real stage box, natural 670×582). (2) `ConsoleResourcePanel` —
+left rail visible in every section: the six resources (stock BIG +
+brown production chips) + the premium tag cluster (shared `TagCount`
+holders). (3) Icon pass: status-strip global parameters got real icon
+boxes (the `wgt-icon--*` classes carry only background-images — size is
+desktop-scoped, standalone use rendered nothing); standard-projects sheet
+rows got `PROJECT_VISUAL` pictograms + descriptions; turn-menu resource
+icons sized explicitly. (4) Styled scrollbars (`.con-scrollbars()` mixin)
+on every console scroll surface — no native bars. (5) Duplicate-info
+validation: the cursor-anchored `BoardCellInfoPopover` /
+`SpecialCellInfoOverlay` are suppressed in console mode (the inspector is
+THE cell surface; mouse hover still feeds it via the shared
+boardInfoState). (6) Fullscreen on entry: `requestConsoleFullscreen()` on
+mode-enable + on gamepad-mode entry — HONEST CAVEAT: gamepad input grants
+no user activation in Chromium, so the direct call can fail on the web; a
+one-shot trusted-gesture (mouse/keyboard) retry arms itself, and Electron
+is fullscreen by default. Exit console mode → exitFullscreen.
+
 **Honest gaps (P2+):** colonies trade / hydro / sell patents = disabled
 Turn-Menu rows with «Пока доступно в режиме рабочего стола» (hold-Menu is
 one gesture away); >3-candidate / multi-card target picks inside the play

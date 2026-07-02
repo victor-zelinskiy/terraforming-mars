@@ -13,6 +13,7 @@
     <ConsoleSectionStrip :section="consoleState.section" />
 
     <div class="con-main">
+      <ConsoleResourcePanel :player="thisPlayer" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
            SelectSpace attaches placement handlers to its cells. -->
       <ConsoleBoardSection v-show="consoleState.section === 'board'"
@@ -118,6 +119,7 @@ import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Payment} from '@/common/inputs/Payment';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
+import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
 
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import SelectSpace from '@/client/components/SelectSpace.vue';
@@ -133,6 +135,7 @@ import ConsoleTurnMenu from '@/client/components/console/ConsoleTurnMenu.vue';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry} from '@/client/components/console/ConsoleHandSection.vue';
+import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
@@ -159,7 +162,6 @@ import {
 import {configureBoardInfo} from '@/client/components/board/boardInfoState';
 import {journalState} from '@/client/components/journal/journalState';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {useBoardAutoScale} from '@/client/utils/useBoardAutoScale';
 
 type PendingPlayCard = {
   cardName: CardName;
@@ -175,11 +177,6 @@ type PendingStdProjectPayment = {
 
 export default defineComponent({
   name: 'ConsoleShell',
-  setup() {
-    // The board auto-scale engine (writes --board-scale) — refcounted, the
-    // same instance PlayerHome uses; the reused Board fills the TV stage.
-    useBoardAutoScale();
-  },
   components: {
     ConsoleStatusStrip,
     ConsoleSectionStrip,
@@ -188,6 +185,7 @@ export default defineComponent({
     ConsoleSheet,
     ConsoleBoardSection,
     ConsoleHandSection,
+    ConsoleResourcePanel,
     GamepadGlyph,
     'waiting-for': WaitingFor,
     'select-space': SelectSpace,
@@ -298,13 +296,18 @@ export default defineComponent({
       switch (this.consoleState.sheet) {
       case 'projects': {
         const cards = findStandardProjectsAction(this.playerView.waitingFor)?.input.cards ?? [];
-        return cards.map((c) => ({
-          key: c.name,
-          title: c.name,
-          meta: `${c.calculatedCost ?? 0} M€`,
-          available: c.isDisabled !== true,
-          reason: c.isDisabled === true ? 'Unavailable right now' : '',
-        }));
+        return cards.map((c) => {
+          const visual = standardProjectVisual(c.name);
+          return {
+            key: c.name,
+            icon: visual.iconClass,
+            title: c.name,
+            sub: visual.description,
+            meta: `${c.calculatedCost ?? 0} M€`,
+            available: c.isDisabled !== true,
+            reason: c.isDisabled === true ? 'Unavailable right now' : '',
+          };
+        });
       }
       case 'milestones': {
         const claimable = this.claimableTitles(findMilestoneOptionPath(this.playerView.waitingFor)?.options);

@@ -63,9 +63,18 @@
         align-items: center;
         gap: 10px;
     }
+    /* The wgt-icon--* classes only carry background-images — their SIZE
+       lives on the desktop modal's compound selector, so a standalone use
+       renders NOTHING (feedback bug #3). Give the box explicitly. */
     &__icon {
-        transform: scale(1.45);
-        transform-origin: center;
+        display: inline-block;
+        width: 36px;
+        height: 36px;
+        flex-shrink: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
     }
     &__value {
         font-size: 26px;
@@ -217,6 +226,90 @@
     flex: 1;
     min-height: 0;
     display: flex;
+    gap: 16px;
+}
+
+/* ── Resource + tag panel (left rail — never hide the key numbers) ── */
+.con-res {
+    flex-shrink: 0;
+    width: 210px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 14px;
+    border-radius: 12px;
+    background: @con-glass-soft;
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 22%), 0 8px 26px rgba(0, 0, 0, 0.35);
+    overflow-y: auto;
+
+    &__rows {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: rgba(16, 26, 38, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
+    }
+    &__icon {
+        display: inline-block;
+        width: 32px;
+        height: 32px;
+        flex-shrink: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
+    }
+    &__value {
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        min-width: 44px;
+    }
+    /* Production chip — the classic brown TM production tile read. */
+    &__prod {
+        margin-left: auto;
+        min-width: 40px;
+        padding: 3px 8px;
+        border-radius: 5px;
+        background: linear-gradient(180deg, #8a5a2b, #6b4520);
+        box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.35), 0 2px 5px rgba(0, 0, 0, 0.45);
+        color: #ffe9cf;
+        font-size: 18px;
+        font-weight: 700;
+        text-align: center;
+
+        &--negative {
+            background: linear-gradient(180deg, #8a2b2b, #6b2020);
+            box-shadow: inset 0 0 0 1px rgba(255, 170, 170, 0.35), 0 2px 5px rgba(0, 0, 0, 0.45);
+            color: #ffd6d6;
+        }
+    }
+
+    &__tags {
+        border-top: 1px solid fade(@con-cyan, 20%);
+        padding-top: 12px;
+    }
+    &__tags-title {
+        font-size: 15px;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 85%);
+        margin-bottom: 10px;
+    }
+    &__tags-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 10px;
+        /* The shared TagCount holders read small on TV — scale the cluster. */
+        zoom: 1.35;
+    }
 }
 
 /* ── The inspector (ONE stable detail surface) ───────────────────── */
@@ -561,7 +654,12 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
         .bar-btn-icon { width: 30px; height: 30px; }
     }
     &__res-icon {
-        transform: scale(1.5);
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
     }
     &__glyph-fallback {
         font-size: 24px;
@@ -668,6 +766,17 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
         display: flex;
         align-items: center;
         gap: 16px;
+    }
+    /* Project pictogram (std-icon family) — premium rows are never bare text. */
+    &__row-icon {
+        display: inline-block;
+        width: 42px;
+        height: 42px;
+        flex-shrink: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
     }
     &__row-title {
         font-size: 23px;
@@ -909,6 +1018,47 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
         font-weight: 700;
 
         &--yes { color: @con-mint; }
+    }
+}
+
+/* ── Styled scrollbars (no legacy native bars in console surfaces) ── */
+.con-scrollbars(@width: 8px) {
+    scrollbar-width: thin;
+    scrollbar-color: fade(@con-cyan, 45%) rgba(10, 17, 26, 0.4);
+
+    &::-webkit-scrollbar {
+        width: @width;
+        height: @width;
+    }
+    &::-webkit-scrollbar-track {
+        background: rgba(10, 17, 26, 0.4);
+        border-radius: 999px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, fade(@con-cyan, 55%), fade(@con-cyan, 30%));
+        border-radius: 999px;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%);
+    }
+    &::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+}
+
+.con-inspector,
+.con-res,
+.con-sheet__rows,
+.con-turnmenu__rows {
+    .con-scrollbars();
+}
+
+/* ── ONE detail surface: no duplicate hover popovers in console mode ─ *
+ * The selected-cell dossier (inspector) is THE cell-info surface; the
+ * desktop cursor-anchored popovers reading the SAME boardInfoState would
+ * duplicate it (feedback bug #5). Mouse hover still feeds the inspector. */
+html.console-mode {
+    .board-cell-popover,
+    .special-cell-info-overlay {
+        display: none !important;
     }
 }
 
