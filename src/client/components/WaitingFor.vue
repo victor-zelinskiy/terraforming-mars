@@ -138,6 +138,8 @@ import {
   placementHoldDurationMs,
   shouldHoldForTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
+import {motionMs} from '@/client/components/motion/motionTokens';
+import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {
   detectEnergyConversion,
   endEnergyConversion,
@@ -385,11 +387,44 @@ export default defineComponent({
         }
       },
     },
+    /*
+     * Turn presentation (document title / favicon / the ◑◒◐◓ title spinner)
+     * used to be applied only in mounted() — correct while the playerkey
+     * remount recreated this component on every server response. With the
+     * no-remount update model the instance persists, so the presentation must
+     * follow the PROMPT reactively: re-sync whenever `waitingfor` changes
+     * (immediate covers the initial mount).
+     */
+    waitingfor: {
+      immediate: true,
+      handler() {
+        this.syncTurnPresentation();
+      },
+    },
   },
   methods: {
     getPlayerName(color: Color): string {
       const player = this.playerView.players.find((p) => p.color === color);
       return player ? player.name : color;
+    },
+    /*
+     * Apply the turn presentation for the CURRENT prompt state: static
+     * document title, favicon turn/idle status, and the multiplayer title
+     * spinner interval (armed only while the viewer owes a REQUIRED prompt).
+     * Called from the `waitingfor` watcher (immediate) — the reactive
+     * replacement for the old mounted()-only application.
+     */
+    syncTurnPresentation(): void {
+      document.title = gameDocumentTitle(this.playerView.game);
+      // An optional prompt (draft re-pick) is not the viewer's turn to act.
+      const hasRequiredPrompt = this.waitingfor !== undefined && this.waitingfor.optional !== true;
+      if (getPreferences().experimental_ui) {
+        setFaviconStatus(hasRequiredPrompt ? 'turn' : 'idle');
+      }
+      window.clearInterval(documentTitleTimer);
+      if (this.playerView.players.length > 1 && hasRequiredPrompt) {
+        documentTitleTimer = window.setInterval(() => this.animateTitle(), 1000);
+      }
     },
     animateTitle() {
       if (!getPreferences().animated_title) {
@@ -592,7 +627,7 @@ export default defineComponent({
                 this.holdingForTilePlacement = true;
               }
               const holdMs = Math.max(
-                markerHold ? WGT_MARKER_HOLD_MS : 0,
+                markerHold ? motionMs(WGT_MARKER_HOLD_MS) : 0,
                 tileHold ? placementHoldDurationMs() : 0,
               );
               try {
@@ -660,6 +695,12 @@ export default defineComponent({
     updatePlayerView(playerView: PlayerViewModel | undefined) {
       if (this.suspend === false) {
         const root = vueRoot(this);
+        // Structural sharing (viewSnapshotShare.ts): keep unchanged branches'
+        // references so child components skip re-rendering; the root identity
+        // still changes (watcher-identical to a wholesale swap).
+        if (playerView !== undefined) {
+          playerView = nextViewSnapshot(root.playerView, playerView);
+        }
         /*
          * SKIP the playerkey++ remount when we're continuing within
          * a card-pick flow (`draftWaitState.pending && new state is
@@ -681,10 +722,11 @@ export default defineComponent({
         if (shouldPreserveCardPickModal(playerView) || shouldPreserveInitialDraftOverlay(playerView) || shouldPreserveSaleOverlay()) {
           root.playerView = playerView;
         } else {
-          root.screen = 'empty';
           root.playerView = playerView;
+          // Bump the transient-UI reset epoch (the former remount trigger) —
+          // PlayerHome's resetEpoch watcher closes overlays / pending modals,
+          // preserving the "submit resets the transient UI" contract.
           root.playerkey++;
-          root.screen = 'player-home';
         }
         this.savedPlayerView = undefined;
       } else {
@@ -841,12 +883,8 @@ export default defineComponent({
     },
   },
   mounted() {
-    document.title = gameDocumentTitle(this.playerView.game);
-    if (getPreferences().experimental_ui) {
-      // An optional prompt (draft re-pick) is not the viewer's turn to act.
-      setFaviconStatus(this.waitingfor !== undefined && this.waitingfor.optional !== true ? 'turn' : 'idle');
-    }
-    window.clearInterval(documentTitleTimer);
+    // Turn presentation (title / favicon / spinner) is handled by the
+    // `waitingfor` watcher (immediate) — see syncTurnPresentation().
     // Always poll — even when the viewer is mid-prompt — so other players'
     // status (cube spin, status label) stays in sync across simultaneous-
     // action phases (drafting / research / production interrupts). The poll
@@ -874,13 +912,10 @@ export default defineComponent({
     // while the viewer is mid-prompt, so this never disrupts partial input.
     // Polling remains the fallback; when realtime is disabled no wake ever fires.
     this.realtimeWakeOff = onRealtimeWake(() => this.waitForUpdate(true));
-    if (this.playerView.players.length > 1 && this.waitingfor !== undefined && this.waitingfor.optional !== true) {
-      documentTitleTimer = window.setInterval(() => this.animateTitle(), 1000);
-    }
   },
   unmounted() {
-    // The component remounts on every server response (playerkey++); detach the
-    // exact listener added in mounted() so they don't accumulate per remount.
+    // Detach the exact listeners added in mounted() (a genuine unmount — game
+    // boundary or the legacy tm_remount flag's per-response remount).
     if (this.onVisibilityChange !== undefined) {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
       window.removeEventListener('focus', this.onVisibilityChange);
@@ -890,6 +925,9 @@ export default defineComponent({
       this.realtimeWakeOff();
       this.realtimeWakeOff = undefined;
     }
+    // Stop the title spinner on a genuine unmount. (Under the legacy remount
+    // flag the successor instance's immediate `waitingfor` watcher re-arms it.)
+    window.clearInterval(documentTitleTimer);
   },
   computed: {
     Phase(): typeof Phase {

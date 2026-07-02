@@ -54,6 +54,7 @@ import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {Message} from '@/common/logs/Message';
 import {translateText} from '@/client/directives/i18n';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {vueRoot} from '@/client/components/vueRoot';
 import {
   draftWaitState,
@@ -362,13 +363,15 @@ export default defineComponent({
      */
     applyPlayerViewUpdate(newPlayerView: PlayerViewModel): void {
       const root = vueRoot(this);
+      // Structural sharing (viewSnapshotShare.ts): unchanged branches keep
+      // their references (children skip re-render); root identity changes.
+      const applied = nextViewSnapshot(root.playerView, newPlayerView);
       if (shouldPreserveCardPickModal(newPlayerView)) {
-        root.playerView = newPlayerView;
+        root.playerView = applied;
       } else {
-        root.screen = 'empty';
-        root.playerView = newPlayerView;
+        root.playerView = applied;
+        // Bump the transient-UI reset epoch (the former remount trigger).
         root.playerkey++;
-        root.screen = 'player-home';
       }
     },
   },

@@ -72,6 +72,7 @@ import {Tag} from '@/common/cards/Tag';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {CardResource} from '@/common/CardResource';
 import {getCardOrThrow} from '@/client/cards/ClientCardManifest';
+import {ClientCard} from '@/common/cards/ClientCard';
 import {Color} from '@/common/Color';
 import {CardRequirementDescriptor} from '@/common/cards/CardRequirementDescriptor';
 import {GameModule} from '@/common/cards/GameModule';
@@ -135,16 +136,24 @@ export default defineComponent({
     },
   },
   data() {
-    const cardName = this.card.name;
-    const card = getCardOrThrow(cardName);
-
     return {
-      cardInstance: card,
       hovering: false,
       showZoom: false,
     };
   },
   computed: {
+    /*
+     * The static manifest entry for the CURRENTLY-bound card. A computed —
+     * NOT resolved once in data() — so a keyless <Card> that gets re-pointed
+     * to a different card name re-resolves its render data instead of showing
+     * the first card it ever rendered. Historically the data() resolution was
+     * safe because the playerkey remount recreated every card each server
+     * response; with the no-remount update model component instances persist
+     * and reuse is the norm. (`getCardOrThrow` is a Map lookup — cheap.)
+     */
+    cardInstance(): ClientCard {
+      return getCardOrThrow(this.card.name);
+    },
     cardExpansion(): GameModule {
       return this.cardInstance.module;
     },

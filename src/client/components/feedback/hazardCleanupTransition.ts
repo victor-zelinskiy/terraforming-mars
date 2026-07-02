@@ -23,6 +23,7 @@ import {reactive} from 'vue';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {prefersReducedMotion} from './changeFeedbackManager';
+import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
 import {
   HazardCleanupEvent,
   HazardCleanupPhase,
@@ -130,8 +131,11 @@ export function runHazardCleanup(
   hazardCleanupState.nonce++;
 
   const severe = events.some((e) => e.severity === 'severe');
-  const duration = cleanupDurationMs(severe ? 'severe' : 'mild', reduced);
+  // The pure model returns the `standard`-preset duration; the motion speed
+  // preset scales it here (the caller), keeping the model unit-testable.
+  const duration = motionMs(cleanupDurationMs(severe ? 'severe' : 'mild', reduced));
   const startedAt = now();
+  const frameGate = createFrameGate();
 
   const promise = new Promise<void>((resolve) => {
     resolveActive = resolve;
@@ -162,9 +166,14 @@ export function runHazardCleanup(
     safetyTimerId = window.setTimeout(finish, duration) as unknown as number;
   } else {
     const tick = () => {
-      const t = Math.min(1, (now() - startedAt) / duration);
-      hazardCleanupState.progress = t;
-      hazardCleanupState.phase = phaseAt(t);
+      const nowTs = now();
+      const t = Math.min(1, (nowTs - startedAt) / duration);
+      // Honour the configured FPS cap for the JS-driven progress: gate the
+      // reactive writes, never the SWAP itself or the final frame.
+      if (frameGate.shouldRender(nowTs) || t >= 1) {
+        hazardCleanupState.progress = t;
+        hazardCleanupState.phase = phaseAt(t);
+      }
       if (t >= TILE_SWAP_FRACTION) {
         doSwap();
       }

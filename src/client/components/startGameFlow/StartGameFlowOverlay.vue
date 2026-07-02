@@ -378,6 +378,7 @@ import {paths} from '@/common/app/paths';
 import {statusCode} from '@/common/http/statusCode';
 import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {vueRoot} from '@/client/components/vueRoot';
+import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -893,17 +894,18 @@ export default defineComponent({
         });
     },
     /*
-     * Always a full remount (start-flow submits land in PRELUDES / ACTION, not
-     * a card-pick phase). This overlay is an App-level sibling of <player-home>,
-     * so the playerkey++ remount refreshes the board beneath us without
-     * destroying this flow.
+     * Always a full transient-UI reset (start-flow submits land in PRELUDES /
+     * ACTION, not a card-pick phase). This overlay is an App-level sibling of
+     * <player-home>, so the reset-epoch bump refreshes the board beneath us
+     * without destroying this flow.
      */
     applyPlayerViewUpdate(newPlayerView: PlayerViewModel): void {
       const root = vueRoot(this);
-      root.screen = 'empty';
-      root.playerView = newPlayerView;
+      // Structural sharing (viewSnapshotShare.ts): unchanged branches keep
+      // their references; root identity changes.
+      root.playerView = nextViewSnapshot(root.playerView, newPlayerView);
+      // Bump the transient-UI reset epoch (the former remount trigger).
       root.playerkey++;
-      root.screen = 'player-home';
     },
   },
 });

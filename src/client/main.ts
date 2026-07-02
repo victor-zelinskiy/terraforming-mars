@@ -7,6 +7,7 @@ import {getPreferences} from '@/client/utils/PreferencesManager';
 import i18nPlugin from '@/client/plugins/i18n.plugin';
 import {startOauth} from '@/client/oauth';
 import {perfMark, perfMeasure, startLongTaskObserver} from '@/client/utils/perfMarks';
+import {applyMotionCssScale} from '@/client/components/motion/motionTokens';
 const PlayerInputFactory = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/PlayerInputFactory.vue'));
 // Registered globally so ModernOptionPicker can host a nested input recursively
 // via `<modal-input-host>` WITHOUT a static import — breaks the
@@ -23,6 +24,10 @@ declare global {
 async function bootstrap() {
   startLongTaskObserver();
   perfMark('app:bootstrap:start');
+  // Write the motion speed preset to the CSS bridge (`--motion-scale` on
+  // <html>) before anything renders, so CSS animation durations and the
+  // JS-side motionMs() timings scale in lockstep from the first frame.
+  applyMotionCssScale();
   const lang = getPreferences().lang;
 
   // Stamp the active language on <html> at bootstrap (guaranteed to run before

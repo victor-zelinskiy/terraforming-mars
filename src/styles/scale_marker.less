@@ -66,7 +66,7 @@
      * top-left of the scale container before mounted()'s placeAt().
      */
     transform: translate(-9999px, -9999px);
-    transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: opacity calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 
     &--pending {
         opacity: 0;
@@ -301,7 +301,7 @@
      * cleanly on rest state with zero snap.
      */
     &--settling .scale-marker__glass {
-        animation: scale-marker-rim-flash 1170ms cubic-bezier(0.22, 1, 0.36, 1);
+        animation: scale-marker-rim-flash calc(1170ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     /*
@@ -311,7 +311,7 @@
      * scale tint: two distinct channels of accent, no chatter.
      */
     &--settling .scale-marker__ping {
-        animation: scale-marker-ping 850ms cubic-bezier(0.22, 1, 0.36, 1);
+        animation: scale-marker-ping calc(850ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     }
 }
 
@@ -365,7 +365,7 @@
         animation: none;
     }
     .scale-marker--settling .scale-marker__glass {
-        animation: scale-marker-rim-flash-reduced 380ms cubic-bezier(0.22, 1, 0.36, 1);
+        animation: scale-marker-rim-flash-reduced calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     }
 }
 

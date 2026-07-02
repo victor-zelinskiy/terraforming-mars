@@ -1,4 +1,5 @@
 import {reactive} from 'vue';
+import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
 
 /**
  * Smooth GLIDE for the Ares scale event markers when their threshold shifts
@@ -36,19 +37,29 @@ export function aresGlideEase(t: number): number {
 }
 
 /** Pure interpolation of a glide at `now` — exported for tests. */
-export function aresGlideValue(from: number, target: number, start: number, now: number): number {
-  const t = (now - start) / ARES_MARKER_GLIDE_MS;
+export function aresGlideValue(from: number, target: number, start: number, now: number,
+  durationMs: number = ARES_MARKER_GLIDE_MS): number {
+  const t = (now - start) / durationMs;
   return t >= 1 ? target : from + (target - from) * aresGlideEase(t);
 }
 
+// FPS policy for this rAF loop (motionTokens): under a configured cap the
+// WORK is skipped on gated frames while the loop cadence continues.
+const frameGate = createFrameGate();
+
 function loop(now: number): void {
+  if (!frameGate.shouldRender(now)) {
+    rafId = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(loop) : 0;
+    return;
+  }
   let active = false;
+  const duration = motionMs(ARES_MARKER_GLIDE_MS);
   for (const id of Object.keys(glides)) {
     const g = glides[id];
     if (g.value === g.target) {
       continue;
     }
-    g.value = aresGlideValue(g.from, g.target, g.start, now);
+    g.value = aresGlideValue(g.from, g.target, g.start, now, duration);
     if (g.value !== g.target) {
       active = true;
     }

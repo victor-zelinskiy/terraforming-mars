@@ -36,6 +36,7 @@ import {SpaceId} from '@/common/Types';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {TileType, HAZARD_TILES} from '@/common/TileType';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
+import {motionMs} from '@/client/components/motion/motionTokens';
 
 export type PlacementKind = 'ocean' | 'greenery' | 'city' | 'special' | 'hazard';
 
@@ -176,7 +177,7 @@ export function armPlacementAnimations(): void {
   if (placementAnimationsDisarmTimer !== null) {
     clearTimeout(placementAnimationsDisarmTimer);
   }
-  const disarmAfter = (prefersReducedMotion() ? PLACEMENT_ANIMATION_REDUCED_MS : PLACEMENT_ANIMATION_MS) + 200;
+  const disarmAfter = motionMs(prefersReducedMotion() ? PLACEMENT_ANIMATION_REDUCED_MS : PLACEMENT_ANIMATION_MS) + 200;
   placementAnimationsDisarmTimer = window.setTimeout(() => {
     placementAnimationsArmed = false;
     placementAnimationsDisarmTimer = null;
@@ -271,9 +272,11 @@ export function observeTilePlacement(space: SpaceModel): ObservationResult | nul
   }
 
   const kind = kindFor(incoming);
-  const duration = prefersReducedMotion() ?
+  // Scaled by the motion speed preset (motionMs) so the JS-tracked lifetime
+  // stays in lockstep with the CSS keyframes (which scale via --motion-scale).
+  const duration = motionMs(prefersReducedMotion() ?
     PLACEMENT_ANIMATION_REDUCED_MS :
-    (kind === 'hazard' ? HAZARD_PLACEMENT_ANIMATION_MS : PLACEMENT_ANIMATION_MS);
+    (kind === 'hazard' ? HAZARD_PLACEMENT_ANIMATION_MS : PLACEMENT_ANIMATION_MS));
   activePlacements.set(space.id, {startedAt: now(), duration, kind});
   return {kind, durationMs: duration, delayMs: 0};
 }
@@ -358,5 +361,5 @@ export function applyTilePlacementPreview(
  * just on a much tighter window).
  */
 export function placementHoldDurationMs(): number {
-  return prefersReducedMotion() ? PLACEMENT_HOLD_REDUCED_MS : PLACEMENT_HOLD_MS;
+  return motionMs(prefersReducedMotion() ? PLACEMENT_HOLD_REDUCED_MS : PLACEMENT_HOLD_MS);
 }

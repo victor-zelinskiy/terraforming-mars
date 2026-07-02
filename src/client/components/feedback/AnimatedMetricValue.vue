@@ -38,11 +38,16 @@
 import {defineComponent, PropType} from 'vue';
 import DeltaChip, {DeltaChipVariant} from '@/client/components/feedback/DeltaChip.vue';
 import {changeFeedbackManager, prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
+import {perfMark} from '@/client/utils/perfMarks';
+import {motionMs} from '@/client/components/motion/motionTokens';
+import {legacyRemountEnabled} from '@/client/utils/legacyRemount';
 
 /*
- * Per-variant chip lifecycle timings (ms). Mirror the LESS animation
- * timings in resource_change_feedback.less so the chip JS-side
- * teardown matches the CSS fade-out end. Tweak both in lockstep.
+ * Per-variant chip lifecycle timings (ms) at the `standard` motion preset.
+ * Mirror the LESS animation timings in resource_change_feedback.less so the
+ * chip JS-side teardown matches the CSS fade-out end — BOTH sides scale by
+ * the same motion preset (JS via motionMs(), CSS via `--motion-scale`), so
+ * tweak the base numbers in lockstep and the presets follow automatically.
  */
 const CHIP_VISIBLE_MS: Record<DeltaChipVariant, number> = {
   // resource-stock / resource-production / misc bumped +40% so the cell-row /
@@ -163,28 +168,29 @@ export default defineComponent({
     },
   },
   mounted() {
+    // Perf instrumentation (A3, PERFORMANCE_AUDIT.md): counts metric-host
+    // mounts. With the no-remount update model this fires once per genuinely
+    // new host (overlay open, etc.), not once per server response.
+    perfMark('metricValue:mount');
     this.fullScopeKey = this.computeFullScopeKey();
     /*
-     * App.vue forces a full <player-home> tree remount on every
-     * poll via `:key="playerkey"`. That means `watch(value)` rarely
-     * fires for a real game change — the component is brand new on
-     * each poll. We therefore report the value on mount and ACT on
-     * the result, not just seed the baseline.
+     * HONEST old→new transitions (REMOUNT_ANIMATION_REWORK_DESIGN.md §3.3):
+     * with the no-remount update model this component persists across server
+     * responses, so every REAL value change arrives through the `value`
+     * watcher (`reconcile()`), which owns the chip firing + the seat-switch
+     * suppression. A genuine mount (overlay opening, F5) is therefore a
+     * SILENT baseline: record the scope + report the value so the manager
+     * knows the starting point, and never chip-fire — a mount is a fresh
+     * look at the state, not a change of it.
      *
-     * `recordScopeObservation()` tells us whether THIS mount is
-     * under the same scope this metric was last observed under. If
-     * not (e.g. we were viewing red, an action happened, the panel
-     * snapped back to blue on remount), we still re-baseline but
-     * SUPPRESS the chip — the perceived "change" is a PoV switch,
-     * not a real value change.
-     *
-     * On the very first observation of a metric, `report()` returns
-     * `null` anyway (it's the baseline), so no chip ever fires
-     * spuriously on the first mount of a new game session.
+     * Under the legacy `tm_remount` rollback flag the tree IS recreated per
+     * server response, so `watch(value)` rarely fires — the historical
+     * mount-diff behavior (act on the reported delta, suppressing PoV
+     * switches via recordScopeObservation) is preserved for that mode only.
      */
     const sameScope = changeFeedbackManager.recordScopeObservation(this.fullScopeKey, this.metricKey);
     const event = changeFeedbackManager.report(this.fullScopeKey, this.metricKey, this.value);
-    if (event !== null && sameScope) {
+    if (legacyRemountEnabled() && event !== null && sameScope) {
       this.applyEvent(event.netDelta);
     }
   },
@@ -268,7 +274,7 @@ export default defineComponent({
       // for the v1; revisit if "merging continuity" matters more.
       this.chipNonce++;
 
-      const lifetime = CHIP_VISIBLE_MS[this.variant];
+      const lifetime = motionMs(CHIP_VISIBLE_MS[this.variant]);
       this.hideTimerId = (window.setTimeout(() => {
         this.displayedDelta = 0;
         this.hideTimerId = 0;

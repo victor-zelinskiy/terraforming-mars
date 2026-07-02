@@ -25,6 +25,7 @@ import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {changeFeedbackManager, prefersReducedMotion} from './changeFeedbackManager';
+import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
 import {
   EnergyConversionEvent,
   conversionDurationMs,
@@ -151,8 +152,11 @@ export function runEnergyConversion(event: EnergyConversionEvent): Promise<void>
   energyConversionState.showChips = true;
   energyConversionState.nonce++;
 
-  const duration = conversionDurationMs(event.amount, reduced);
+  // The pure model returns the `standard`-preset duration; the motion speed
+  // preset scales it here (the caller), keeping the model unit-testable.
+  const duration = motionMs(conversionDurationMs(event.amount, reduced));
   const startedAt = now();
+  const frameGate = createFrameGate();
 
   const promise = new Promise<void>((resolve) => {
     resolveActive = resolve;
@@ -180,9 +184,15 @@ export function runEnergyConversion(event: EnergyConversionEvent): Promise<void>
     safetyTimerId = window.setTimeout(finish, duration) as unknown as number;
   } else {
     const tick = () => {
-      const t = Math.min(1, (now() - startedAt) / duration);
-      energyConversionState.displayEnergy = interpolate(event.source.before, event.source.after, t);
-      energyConversionState.displayHeat = interpolate(event.target.before, event.target.after, t);
+      const nowTs = now();
+      const t = Math.min(1, (nowTs - startedAt) / duration);
+      // Honour the configured FPS cap for JS-driven interpolation: skip the
+      // WORK on gated frames while keeping the rAF cadence (and always render
+      // the final t=1 frame so the counters land exactly).
+      if (frameGate.shouldRender(nowTs) || t >= 1) {
+        energyConversionState.displayEnergy = interpolate(event.source.before, event.source.after, t);
+        energyConversionState.displayHeat = interpolate(event.target.before, event.target.after, t);
+      }
       if (t >= 1) {
         finish();
         return;

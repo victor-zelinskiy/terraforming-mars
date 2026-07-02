@@ -41,6 +41,8 @@
  * could otherwise misread its baseline as a delta.
  */
 
+import {motionMs} from '@/client/components/motion/motionTokens';
+
 export interface FeedbackEvent {
   readonly delta: number;
   readonly netDelta: number;
@@ -62,7 +64,9 @@ class ChangeFeedbackManager {
    * The activeDelta window — how long after a delta is observed we
    * consider a follow-up change a "merge" rather than a fresh
    * change. Matches the chip's visible+fadeout window so that the
-   * merge behaviour stays in sync with what the player sees.
+   * merge behaviour stays in sync with what the player sees — and is
+   * therefore scaled by the motion speed preset at compare time
+   * (motionMs), like the chip lifetimes themselves.
    */
   private static readonly MERGE_WINDOW_MS = 2000;
 
@@ -135,7 +139,7 @@ class ChangeFeedbackManager {
     const delta = newValue - previousValue;
 
     const stillActive = existing.activeDelta !== 0 &&
-      (now - existing.activeStartedAt) <= ChangeFeedbackManager.MERGE_WINDOW_MS;
+      (now - existing.activeStartedAt) <= motionMs(ChangeFeedbackManager.MERGE_WINDOW_MS);
 
     const netDelta = stillActive ? existing.activeDelta + delta : delta;
 
