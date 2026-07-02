@@ -2155,8 +2155,9 @@ input[type="radio"]:checked + .filterDiv::after {
     top: 147px;
     width: 57px;
     height: 38px;
-    background: url(./assets/misc/production.png);
-    background-size: 72px;
+    /* production.png (the brown production texture) was deleted in the CSS
+       rework; keep the mark's warm-brown fill via the same gradient. */
+    background: linear-gradient(180deg, #cb9e6f 0%, #ae7f52 46%, #87603b 100%), #a87a4e;
     &.mined-steel {
         left: 105px;
     }

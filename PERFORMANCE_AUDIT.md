@@ -157,4 +157,37 @@ The **blind-applicable [HOT] wins are all shipped**: A1, A2, BND-1, BRD-3, OV-2,
 
 Next session with the GUI: run `?perf=1`, capture `playerView:commit` + long-task timings before/after opening the heavy overlays, then decide CSS-3 / OV-3 from the trace.
 
+### Trace findings — 2026-07-02 (234 MB DevTools trace, ~264 s active play, `scripts/analyze-trace.cjs`)
+
+**No-remount rework CONFIRMED in the wild.** During 264 s of active play: `playerHome:mount` = **0**, `metricValue:mount` = **0** (both fired once at load, before recording), only `playerView:commit` = 8 and `playerHome:resetTransientUi` = 11. Pre-rework these would have re-mounted on every one of the 8 commits. JS is no longer the bottleneck.
+
+**The remaining jank is RENDERING/COMPOSITING-bound, NOT JavaScript.** Global time by primitive over the trace:
+- `UpdateLayoutTree` (style recalc) **8140 ms** · `Layerize` **7991 ms** · `Commit` 3279 ms · `Paint`+`PrePaint` ~3100 ms · `EventDispatch` 1108 ms — vs `FunctionCall` only **867 ms** / `Layout` 604 ms.
+- 148 main-thread tasks ≥50 ms, summing ~13.8 s. The biggest are (a) **GPUTask** 200–273 ms (texture raster/upload → BND-3) and (b) **input→overlay-open** clicks: ~200 ms JS mount + ~110 ms forced style recalc (card-mount burst → CARD-1/2, OV).
+
+**Layer/paint sources (grep):** `backdrop-filter` ×**73**, `filter:` ×**549**, `clip-path` ×**122**, `will-change` ×**33** (11 in `mandatory_input_modal.less` alone), `mix-blend-mode` ×12. The premium glassmorphic chrome is the Layerize/Paint driver. `Layerize` = 7991 ms is a layer-EXPLOSION signature.
+
+**⇒ Priority REDIRECT.** The JS-side backlog (A4/A5/OV-3) is now LOW (JS is 867 ms of the whole trace). The real levers are rendering:
+1. **Cull `backdrop-filter`** over near-opaque surfaces (the CSS-1 pattern, ×73 to audit) — biggest Layerize/Paint win, low visual risk when the surface is already ~90 %+ opaque.
+2. **Static `will-change` audit** — it permanently promotes a layer; should be set only DURING an animation. 33 static uses (mandatory_input_modal ×11) to move to dynamic / drop.
+3. **`filter` on many-card overlays** (×549 — disabled-card grayscale/glow): bound with `contain: paint` on the leaf, or reduce; 50 dimmed cards = 50 filter layers.
+4. **CSS-4 `contain: layout style`** on card/overlay leaves → shrinks the 8140 ms style-recalc scope.
+5. **BND-3 textures → webp / smaller** (mars.png 4.9 MB, card.png 3.1 MB) → the 200–273 ms GPUTasks.
+
+All are CSS/asset changes needing on-screen verification — but the backdrop-filter cull + static-will-change removal are the CSS-1-class "near-identical over opaque" low-risk wins to do first. **Note:** the other-chat "pure-CSS rework" left a broken `production.png` (500) and may have shifted paint/layer cost — worth checking it didn't regress rendering.
+
+### Rendering cull — PILOT + GLOBAL SWEEP (2026-07-02)
+**PILOT (user-verified OK):** `hand_cards.less` — dropped 3 backdrop-filters over ≥92%-opaque surfaces (`.hand-board-overlay` full-screen blur(5px)/95-97%, sort dropdown blur(6px)/98%, `.opp-hand` blur(4px)/92-94%). Matches the existing `.hand-reason`/`.hand-soft-reason` pattern.
+
+**GLOBAL SWEEP (`scripts/audit-backdrop.cjs` classified all 73 by nearest-bg min-alpha):** applied the SAME cull to the other **≥0.90-opaque** glass surfaces (blur genuinely wasted): `endgame.less` ×2 (0.93/0.96), `final_scoring_reveal.less` (0.98), `played_cards.less` (full-screen overlay, 0.95), and the two ALWAYS-MOUNTED chrome panels `player_home.less` (0.95) + `right_sidebar.less` (0.94) — the last two pay every frame the board animates. Compiled backdrop-filter lines 55→45. `make:css` + `build:desktop` clean.
+
+**Honest boundary — the cull is BOUNDED, not a Layerize silver bullet.** The audit shows **44 of the backdrop-filters are LEGITIMATELY over translucent surfaces (0.35–0.82)** — the full-screen dim backdrops behind modals + panels where the board IS meant to show through frosted. Removing those would change the look, so they stay. The remaining `Layerize`/`Paint` cost is dominated by (a) those legit FULL-SCREEN backdrop blurs while an overlay is open, and (b) the `filter:` ×549 + many card layers. **will-change:** audited → already disciplined (only animating/transient/overlay or `will-change:auto`), no cull.
+
+**Also fixed (user-requested): the broken `production.png` (500).** The other-chat pure-CSS rework deleted `production.png` but left 3 refs. Replaced each with the `.production-surface()` brown fill (`linear-gradient(180deg,#cb9e6f,#ae7f52,#87603b)` + `#a87a4e`): `DeltaProjectBoard.vue` (prod box, plain-CSS scoped style → inline), `cards.less` `.mined-metal`, `resources.less` `.shield_production_protection`. Consistent with the surface used by every other production box; kills the 500.
+
+**Next lever (needs a fresh trace + a visual call):** the biggest remaining rendering costs are `UpdateLayoutTree` (8140 ms — inherent to mounting ~50 cards per overlay open; hard to cut safely) and the LEGIT full-screen backdrop blurs. Candidate safe-ish global step: **reduce the blur RADIUS** on the full-screen dim backdrops (blur cost ≈ area × radius; halving the radius ~halves the composite while staying frosted — a subtle, verifiable change). Then re-capture `?perf=1` and compare `Layerize`/`UpdateLayoutTree`.
+
+### Rendering cull — BATCH 3 (full-screen backdrops; 2026-07-02)
+Auditing the "reduce blur radius" candidates revealed that several full-screen panels the earlier pass had classified KEEP=`?` (their bg is a LESS VARIABLE the script couldn't resolve) are actually **≥0.92 opaque** — so the blur is wasted → **full removal** (better than a radius cut). Removed: `victory_points` `.vp-board-overlay` (0.95/0.97), **`journal` `.journal-panel`** (0.92/0.95 — the big one: a long-lived side panel while the board animates beside it), `hydronetwork` `.hydronetwork-overlay` (0.92/0.95), `final_scoring_reveal` root (0.97/0.99), and `endgame` `.eg-results__bg` (a translucent radial over a 0.96-0.985 `@eg-bg` base → composite near-opaque; the single biggest backdrop at blur(8px)). Only the ONE genuinely-translucent full-screen scrim got a **radius reduction**: `preferences` `::backdrop` `blur(7px)→blur(4px)` (~86%-opaque center, stays frosted, ~halves the cost). **The frequent mid-game dim scrims (`mandatory-input-modal` blur(2px), colonies blur(3px), actions blur(2px), drawn_cards blur(4px)) were ALREADY minimized by prior perf work — no radius headroom left there.** Compiled backdrop-filter blur lines across the whole cull: **55 → 35**. `make:css` clean; all-`.less` (no webpack rebuild needed). This is the last big backdrop-filter win — remaining `Layerize`/`Paint` is the `filter:`×549 + card layers, and `UpdateLayoutTree` is the card-mount cost. **Re-capture `?perf=1` to quantify the cumulative Layerize drop before deciding BND-3 (textures/GPUTask) vs stopping.**
+
 Verified clean (do NOT re-investigate): `realtimeService`/`realtimeSync`/`realtimePoller` teardown + coalescing (RT6/7/8), `useBoardAutoScale` (B7 applied), `will-change` discipline, `aresMarkerGlide` rAF self-termination, VP overlay + Journal (no fit thrash), no deep-watch storm on `playerView`, no `JSON`/`structuredClone` in hot paths, `core-js` not bundled.

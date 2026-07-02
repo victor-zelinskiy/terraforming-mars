@@ -561,8 +561,11 @@
                 rgba(8, 14, 22, 0.55) 0%,
                 rgba(4, 8, 14, 0.92) 80%),
             rgba(0, 0, 0, 0.7);
-        backdrop-filter: blur(7px) saturate(0.7);
-        -webkit-backdrop-filter: blur(7px) saturate(0.7);
+        /* Radius reduced 7px→4px: genuinely translucent dim scrim (~86% opaque
+           center, so the frost stays visible) but a full-screen blur cost ≈
+           area × radius — nearly halving it. */
+        backdrop-filter: blur(4px) saturate(0.7);
+        -webkit-backdrop-filter: blur(4px) saturate(0.7);
     }
 
     &:not([open]) {

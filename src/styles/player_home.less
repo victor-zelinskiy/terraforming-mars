@@ -3105,8 +3105,7 @@ each(@players, {
     color: #cfe0f4;
     white-space: nowrap;
     background: linear-gradient(180deg, rgba(12, 18, 28, 0.95), rgba(8, 12, 20, 0.95));
-    backdrop-filter: blur(6px) saturate(1.05);
-    -webkit-backdrop-filter: blur(6px) saturate(1.05);
+    /* No backdrop-filter: bg ~95% opaque → blur+saturate wasted (Layerize cull). */
     border: 1px solid #2c4a6a;
     border-bottom: none;
     border-radius: 8px 8px 0 0; /* tab sitting on top of the rail */

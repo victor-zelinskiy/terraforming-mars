@@ -50,8 +50,7 @@
     outline: none;
     color: @fsr-text;
     background: radial-gradient(120% 90% at 50% 8%, @fsr-bg-1 0%, @fsr-bg-2 70%);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    /* No backdrop-filter: @fsr-bg is 97-99% opaque → blur wasted (Layerize cull). */
 }
 
 .fsr__backdrop {
@@ -648,8 +647,7 @@
     border-top: 2px solid var(--fsr-acc);
     background: linear-gradient(180deg, rgba(17, 25, 38, 0.98), rgba(10, 15, 24, 0.99));
     box-shadow: 0 18px 46px rgba(0, 0, 0, 0.6), 0 0 26px fade(#6ab0e6, 18%);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
+    /* No backdrop-filter: bg ~98-99% opaque → blur wasted (Layerize cull). */
     color: @fsr-text;
     --fsr-acc: @fsr-cyan;
 }

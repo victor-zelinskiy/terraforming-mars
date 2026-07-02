@@ -160,8 +160,9 @@
     box-shadow:
         inset 0 0 0 1px rgba(106, 176, 230, 0.07),
         0 18px 48px rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    /* No backdrop-filter: @j-panel-bg is 92-95% opaque, and the journal is a
+       long-lived side panel while the board animates beside it → the blur was a
+       continuous wasted composite (Layerize cull). */
 }
 
 /* L-corner ticks (cyan), one per corner. */
