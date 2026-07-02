@@ -1393,5 +1393,22 @@
     "Temperature scale": "Шкала температуры",
     "Shows the planet temperature.": "Показывает температуру планеты.",
     "Venus scale": "Шкала Венеры",
-    "Shows the Venus terraforming level.": "Показывает уровень терраформирования Венеры."
+    "Shows the Venus terraforming level.": "Показывает уровень терраформирования Венеры.",
+
+    "Navigate": "Навигация",
+    "Panels": "Панели",
+    "Controls": "Управление",
+    "Zoom card": "Карта крупно",
+    "Scroll": "Прокрутка",
+    "Place here": "Разместить здесь",
+    "Controller mode": "Режим контроллера",
+    "Back / Close": "Назад / Закрыть",
+    "Quick action": "Быстрое действие",
+    "Previous panel": "Предыдущая панель",
+    "Next panel": "Следующая панель",
+    "Adjust −5": "Изменить на −5",
+    "Adjust +5": "Изменить на +5",
+    "Board / interface": "Поле / интерфейс",
+    "Controller connected": "Контроллер подключён",
+    "Controller disconnected": "Контроллер отключён"
 }

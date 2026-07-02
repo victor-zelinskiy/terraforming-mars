@@ -21,6 +21,7 @@ export type Preferences = {
   symbol_overlay: boolean,
   animated_title: boolean,
   experimental_ui: boolean,
+  gamepad_enabled: boolean,
   lang: string,
 }
 
@@ -65,6 +66,7 @@ const defaults: Preferences = {
 
   experimental_ui: false,
   debug_view: false,
+  gamepad_enabled: true,                 // vize1215: premium controller mode (GAMEPAD_SUPPORT_DESIGN.md) — inert until a pad button is pressed; `?gp=0` is the session kill switch.
 };
 
 export class PreferencesManager {

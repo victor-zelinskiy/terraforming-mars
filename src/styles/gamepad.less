@@ -1,0 +1,288 @@
+/*
+ * Premium gamepad mode (GAMEPAD_SUPPORT_DESIGN.md). Everything here is
+ * gated on `html.gp-mode` (set by inputModeState) or on the gp-* components
+ * that render only in gamepad mode — mouse/keyboard players never see any
+ * of it. Motion rides the unified system (calc(…*var(--motion-scale,1)));
+ * `prefers-reduced-motion` snaps transitions off.
+ *
+ * Z-order (above every blur backdrop, below nothing that matters):
+ *   ring 12780 · hint bar / toast 12790 · legend 12795 · debug 12799
+ */
+
+@gp-cyan: #6ab0e6;
+@gp-glass: rgba(8, 14, 22, 0.92);
+@gp-text: #d6e8fb;
+
+/* ── Mode: the cursor disappears ─────────────────────────────────── */
+html.gp-mode,
+html.gp-mode * {
+    cursor: none !important;
+}
+
+/* ── The focus ring ──────────────────────────────────────────────── */
+.gp-ring {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 12780;
+    pointer-events: none;
+    border-radius: 8px;
+    box-shadow:
+        0 0 0 1px fade(@gp-cyan, 85%),
+        0 0 14px fade(@gp-cyan, 45%),
+        inset 0 0 10px fade(@gp-cyan, 18%);
+    transition:
+        transform calc(140ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        width calc(140ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        height calc(140ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        box-shadow calc(180ms * var(--motion-scale, 1)) ease;
+
+    &__tick {
+        position: absolute;
+        width: 9px;
+        height: 9px;
+        border: 2px solid fade(@gp-cyan, 95%);
+        pointer-events: none;
+
+        &--tl { left: -3px; top: -3px; border-right: none; border-bottom: none; }
+        &--tr { right: -3px; top: -3px; border-left: none; border-bottom: none; }
+        &--bl { left: -3px; bottom: -3px; border-right: none; border-top: none; }
+        &--br { right: -3px; bottom: -3px; border-left: none; border-top: none; }
+    }
+
+    &__badge {
+        position: absolute;
+        top: -10px;
+        right: -10px;
+    }
+
+    /* Placement: an off-limits cell reads unmistakably red. */
+    &--illegal {
+        box-shadow:
+            0 0 0 1px fade(#e0564d, 80%),
+            0 0 12px fade(#e0564d, 40%),
+            inset 0 0 10px fade(#e0564d, 15%);
+        .gp-ring__tick { border-color: fade(#e0564d, 90%); }
+    }
+
+    /* A card host gets a softer, wider halo. */
+    &--card {
+        border-radius: 12px;
+    }
+
+    /* Refused action — short shake, one-shot. */
+    &--denied {
+        animation: gp-ring-denied calc(240ms * var(--motion-scale, 1)) ease;
+    }
+}
+
+@keyframes gp-ring-denied {
+    0%, 100% { margin-left: 0; }
+    25% { margin-left: -5px; }
+    55% { margin-left: 4px; }
+    80% { margin-left: -2px; }
+}
+
+/* ── Button glyph badges ─────────────────────────────────────────── */
+.gp-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border-radius: 50%;
+    background: @gp-glass;
+    box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.55), 0 2px 6px rgba(0, 0, 0, 0.45);
+    color: var(--gp-glyph-tone, @gp-text);
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.4px;
+    user-select: none;
+
+    &--toned {
+        box-shadow: inset 0 0 0 1px var(--gp-glyph-tone, @gp-cyan), 0 2px 6px rgba(0, 0, 0, 0.45), 0 0 8px fade(#ffffff, 6%);
+    }
+    &--pill {
+        border-radius: 6px;
+        min-width: 26px;
+    }
+    &--cross {
+        border-radius: 6px;
+        min-width: 24px;
+        font-size: 10px;
+    }
+    &--stick {
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.55), inset 0 0 0 4px rgba(70, 90, 115, 0.35), 0 2px 6px rgba(0, 0, 0, 0.45);
+        font-size: 9px;
+    }
+}
+
+/* ── Hint bar ────────────────────────────────────────────────────── */
+.gp-hintbar {
+    position: fixed;
+    left: 50%;
+    bottom: 6px;
+    transform: translateX(-50%);
+    z-index: 12790;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 16px;
+    border-radius: 8px;
+    background: @gp-glass;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5), inset 0 0 0 1px fade(@gp-cyan, 32%);
+    pointer-events: none;
+    /* Opacity-only entrance — a transform keyframe would fight the
+       translateX(-50%) centering. */
+    animation: gp-fade-in-centered calc(180ms * var(--motion-scale, 1)) ease;
+
+    &__item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    &__label {
+        color: @gp-text;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 11.5px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+}
+
+/* ── Legend (Menu) ───────────────────────────────────────────────── */
+.gp-legend {
+    position: fixed;
+    inset: 0;
+    z-index: 12795;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 8, 14, 0.72);
+    }
+    &__card {
+        position: relative;
+        min-width: 340px;
+        max-width: 480px;
+        padding: 22px 26px;
+        border-radius: 10px;
+        background: @gp-glass;
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6), inset 0 0 0 1px fade(@gp-cyan, 40%);
+        animation: gp-fade-in calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__title {
+        color: @gp-text;
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 15px;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+        text-align: center;
+    }
+    &__grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 9px 22px;
+    }
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    &__label {
+        color: fade(#d6e8fb, 85%);
+        font-family: Prototype, Ubuntu, sans-serif;
+        font-size: 12px;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+    &__foot {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid fade(@gp-cyan, 18%);
+    }
+}
+
+/* ── Connect / disconnect toast ──────────────────────────────────── */
+.gp-toast {
+    position: fixed;
+    left: 50%;
+    top: 52px;
+    transform: translateX(-50%);
+    z-index: 12790;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    background: @gp-glass;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5), inset 0 0 0 1px fade(@gp-cyan, 40%);
+    color: @gp-text;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.4px;
+    pointer-events: none;
+}
+
+.gp-toast-enter-active,
+.gp-toast-leave-active {
+    transition: opacity calc(200ms * var(--motion-scale, 1)) ease, transform calc(200ms * var(--motion-scale, 1)) ease;
+}
+.gp-toast-enter-from,
+.gp-toast-leave-to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+}
+
+/* ── ?gpDebug readout ────────────────────────────────────────────── */
+.gp-debug {
+    position: fixed;
+    right: 8px;
+    bottom: 46px;
+    z-index: 12799;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(4, 8, 14, 0.85);
+    box-shadow: inset 0 0 0 1px fade(@gp-cyan, 30%);
+    color: #9fc3e4;
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    pointer-events: none;
+
+    &__intent { color: #7ea8cc; }
+}
+
+@keyframes gp-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes gp-fade-in-centered {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Reduced motion: instant ring snaps, no entrance travel. */
+@media (prefers-reduced-motion: reduce) {
+    .gp-ring {
+        transition: none;
+        &--denied { animation: none; }
+    }
+    .gp-hintbar,
+    .gp-legend__card {
+        animation: none;
+    }
+}

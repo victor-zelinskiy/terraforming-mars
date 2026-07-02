@@ -54,7 +54,11 @@
  *  control inside it is disabled. An empty `data-hint` shows nothing. */
 .premium-tooltip(@max-width: 240px) {
     position: relative;
-    &[data-hint]:not([data-hint=""]):hover::after {
+    /* `.gp-focus` = the gamepad focus engine's hover-parity hook — a focused
+       element (or its data-hint host) shows the tooltip exactly like :hover
+       (GAMEPAD_SUPPORT_DESIGN.md §5.6). Inert for mouse players. */
+    &[data-hint]:not([data-hint=""]):hover::after,
+    &[data-hint]:not([data-hint=""]).gp-focus::after {
         content: attr(data-hint);
         position: absolute;
         bottom: calc(100% + 6px);
