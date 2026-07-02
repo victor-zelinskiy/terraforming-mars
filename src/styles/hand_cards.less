@@ -146,9 +146,11 @@
     box-shadow:
         inset 0 0 0 1px rgba(106, 176, 230, 0.07),
         0 20px 52px rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
-    animation: hand-board-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    /* No backdrop-filter: the background above is 95-97% opaque, so a blur of
+       the board behind is invisible — but a full-screen backdrop-filter forces a
+       re-snapshot + re-blur of the WHOLE viewport every frame the board animates.
+       Dropping it removes a large compositing layer + paint (Layerize win; the
+       glass still reads from the gradient + rim + shadow). Matches .hand-reason. */
 }
 
 @keyframes hand-board-in {
@@ -575,8 +577,7 @@
     border-radius: 8px;
     background: linear-gradient(180deg, rgba(18, 28, 42, 0.98), rgba(11, 18, 28, 0.98));
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    /* No backdrop-filter: background is ~98% opaque → the blur is wasted work. */
 }
 .hand-sort__option {
     padding: 7px 10px;
@@ -1804,8 +1805,7 @@
         0 14px 36px rgba(0, 0, 0, 0.62),
         0 0 22px rgba(106, 176, 230, 0.28),
         inset 0 0 0 1px rgba(106, 176, 230, 0.1);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    /* No backdrop-filter: background is 92-94% opaque → blur wasted. */
     animation: opp-badge-in 420ms 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes opp-badge-in {

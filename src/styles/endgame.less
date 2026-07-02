@@ -393,8 +393,7 @@
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 18px ~"color-mix(in srgb, var(--eg-pc, @eg-cyan) 25%, transparent)";
     color: @eg-text;
     cursor: pointer;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    /* No backdrop-filter: bg ~96% opaque → blur wasted (Layerize cull). */
     transition: transform 160ms ease, box-shadow 160ms ease;
     animation: eg-rise 320ms ease backwards;
 
@@ -448,8 +447,9 @@
     background:
         radial-gradient(110% 80% at 50% -10%, rgba(28, 44, 66, 0.4), transparent 60%),
         linear-gradient(180deg, @eg-bg-1 0%, @eg-bg-2 100%);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    /* No backdrop-filter: the translucent radial sits on a 96-98.5% opaque base
+       (@eg-bg), so the composite is near-opaque → the full-screen blur(8px) was
+       wasted (the single most expensive backdrop; Layerize cull). */
 }
 
 .eg-results__header,
@@ -1931,8 +1931,7 @@
     border-radius: 999px;
     background: linear-gradient(180deg, rgba(16, 25, 38, 0.93), rgba(9, 14, 22, 0.95));
     box-shadow: 0 8px 26px rgba(0, 0, 0, 0.46), 0 0 16px ~"color-mix(in srgb, @eg-cyan 22%, transparent)";
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    /* No backdrop-filter: bg ~93-95% opaque → blur wasted (Layerize cull). */
     pointer-events: none;
     /*
      * Dedicated rise keyframe that KEEPS the `translateX(-50%)` centering.

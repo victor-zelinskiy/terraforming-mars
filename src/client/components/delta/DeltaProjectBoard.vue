@@ -373,8 +373,10 @@ export default defineComponent({
   border-bottom: 2px solid #898989;
   border-right: 2px solid #898989;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(0, 0, 0, 0.3);
-  background-image: url(assets/misc/production.png);
-  background-size: cover;
+  /* Premium CSS production surface (production.png was deleted in the CSS rework;
+     this matches the .production-surface() brown fill used by every other prod box). */
+  background-color: #a87a4e;
+  background-image: linear-gradient(180deg, #cb9e6f 0%, #ae7f52 46%, #87603b 100%);
 }
 
 .delta-project-board__prod-box :deep(.resource) {
