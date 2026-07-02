@@ -742,6 +742,7 @@ import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverl
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import {actionsOverlayState} from '@/client/components/actions/actionsOverlayState';
+import {perfMark} from '@/client/utils/perfMarks';
 import HydroNetworkOverlay from '@/client/components/hydronetwork/HydroNetworkOverlay.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {playerViewState} from '@/client/components/playerViewState';
@@ -1074,6 +1075,24 @@ export default defineComponent({
     // the currently-DISPLAYED player's perspective (a seat switch re-points the
     // "who gets what" facts without a server remount).
     'displayedPlayer.color': 'syncBoardInfo',
+    // Re-sync (and thereby DROP the board-info fact caches) whenever the game
+    // actually advances. Historically the per-response playerkey remount re-ran
+    // syncBoardInfo from mounted(); with the no-remount update model the
+    // component persists, so the cache invalidation must key off the game's own
+    // version pair instead (value-based → also survives an identity-preserving
+    // snapshot patch).
+    'playerView.game.gameAge': 'syncBoardInfo',
+    'playerView.game.undoCount': 'syncBoardInfo',
+    /*
+     * The transient-UI RESET EPOCH (the former `:key="playerkey"` remount,
+     * see REMOUNT_ANIMATION_REWORK_DESIGN.md Phase 1). App / WaitingFor /
+     * the draft & start-flow overlays bump `playerkey` exactly where they
+     * used to force a remount — behind the very same preserve guards — and
+     * this watcher performs the reset the remount used to do implicitly.
+     */
+    resetEpoch() {
+      this.resetTransientUi();
+    },
     activeOverlay(newVal: OverlayId | null, oldVal: OverlayId | null) {
       if (newVal !== null && oldVal === null) {
         this.$nextTick(() => {
@@ -1355,6 +1374,11 @@ export default defineComponent({
     },
   },
   mounted() {
+    // Perf instrumentation (Perf-0): counts PlayerHome mounts. With the
+    // no-remount update model this fires ONCE per game session; under the
+    // legacy `tm_remount` flag it fires on every server response — the
+    // before/after comparison for the rework (PERFORMANCE_AUDIT.md A3/B1).
+    perfMark('playerHome:mount');
     this.syncStartGameActionLockBody();
     this.syncActionLockGuards();
     // A client-driven hand pick (SRR / Mars University) is purely client-side and
@@ -1422,6 +1446,16 @@ export default defineComponent({
     playerView: {
       type: Object as () => PlayerViewModel,
       required: true,
+    },
+    /*
+     * Bumped by the update paths (App.update / WaitingFor.updatePlayerView /
+     * the draft & start-flow overlays) exactly where the legacy playerkey
+     * remount used to fire. Triggers `resetTransientUi()` — the explicit
+     * replacement for the implicit data()-reset the remount performed.
+     */
+    resetEpoch: {
+      type: Number,
+      default: 0,
     },
   },
   computed: {
@@ -2263,6 +2297,88 @@ export default defineComponent({
     isPlayerActing(playerView: PlayerViewModel) : boolean {
       // An optional prompt (draft re-pick) is not an active turn.
       return playerView.players.length > 1 && playerView.waitingFor !== undefined && playerView.waitingFor.optional !== true;
+    },
+    /*
+     * Explicit replacement for the implicit reset the `:key="playerkey"`
+     * remount used to perform (REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 1).
+     * Reproduces "fresh mount" semantics:
+     *   1. data()-parity — the transient fields return to their defaults
+     *      (pending modals, confirms, colonies overlay, pickers).
+     *   2. mounted()-parity — stale client-driven picks are cancelled and
+     *      the module-state overlays (mandatory prompts / actions / hydro)
+     *      are re-armed.
+     * The overlay is applied as ONE transition to its post-reset target —
+     * never an open→null→open flap — so the activeOverlay watcher's
+     * genuine-close side effects (resetHydroPlan, actionsOverlayState.open
+     * sync) don't fire for an overlay that merely SURVIVES the reset, which
+     * is exactly how the remount behaved (the fresh instance never saw the
+     * close transition).
+     */
+    resetTransientUi(): void {
+      perfMark('playerHome:resetTransientUi');
+      this.convertPlantsPickerActive = false;
+      this.pendingStdProjectPayment = undefined;
+      this.pendingPlayCard = undefined;
+      this.pendingCardAction = undefined;
+      this.repeatOuter = undefined;
+      this.passConfirmOpen = false;
+      this.convertHeatConfirmOpen = false;
+      this.coloniesOverlayOpen = false;
+      this.coloniesOverlayManualOpen = false;
+      this.pendingTradeColony = undefined;
+
+      const target = this.epochResetTargetOverlay();
+      if (this.activeOverlay !== target) {
+        this.activeOverlay = target;
+      }
+      // mounted()-parity safety nets. A client-driven pick's initiating modal
+      // is component data (pendingPlayCard / pendingCardAction — just cleared
+      // above), so a still-active pick can never deliver — cancel it. The
+      // activeOverlay watcher may have already done this when a transition
+      // happened; these calls are idempotent.
+      if (isClientHandPickActive()) {
+        cancelClientHandSelect();
+      }
+      if (playedCardsPickState.active) {
+        cancelPlayedCardsPick();
+      }
+      if (actionsPickState.active) {
+        cancelActionsPick();
+      }
+      // buildColonyContext parity: the immediate watcher re-opened the
+      // colonies overlay on every fresh mount while the server-driven
+      // SelectColony prompt was still pending.
+      if (this.buildColonyContext !== undefined) {
+        this.coloniesOverlayOpen = true;
+      }
+    },
+    /*
+     * The overlay a FRESHLY-MOUNTED PlayerHome would end up showing, in the
+     * exact precedence the mount path produced it: the immediate mandatory-
+     * prompt watchers ran first (created phase — hand-select / hand-play /
+     * standard-project / award-funding), then mounted() re-armed the actions
+     * and Гидросеть overlays only when nothing claimed the slot.
+     */
+    epochResetTargetOverlay(): OverlayId | null {
+      if (this.handCardSelectionInput !== undefined && !handSelectState.minimized) {
+        return 'cards';
+      }
+      if (this.handPlayInput !== undefined && !handPlayState.minimized) {
+        return 'cards';
+      }
+      if (this.standardProjectPlayInput !== undefined && !standardProjectPlayState.minimized) {
+        return 'standardProjects';
+      }
+      if (this.awardFundingInput !== undefined && !awardFundingState.minimized) {
+        return 'awards';
+      }
+      if (actionsOverlayState.open && !actionsPickState.active) {
+        return 'actions';
+      }
+      if (hydroNetworkState.open) {
+        return 'hydronetwork';
+      }
+      return null;
     },
     // Point the BoardInformation hover/preview engine at the viewer's id + the
     // currently displayed player's perspective + the live player list (for

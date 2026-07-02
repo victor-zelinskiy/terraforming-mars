@@ -42,11 +42,23 @@
         v-else-if="screen === 'game-home' && game !== undefined"
         :game="game"
       ></game-home>
+      <!--
+        No-remount update model (REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 1):
+        the game subtree is NOT keyed on `playerkey` anymore — a fresh
+        playerView snapshot applies reactively and the tree lives across
+        server responses. `playerkey` is passed as `reset-epoch` instead:
+        PlayerHome watches it and performs the explicit transient-UI reset
+        (close overlays / pending modals) exactly where the old remount used
+        to fire — same bump sites, same preserve guards, same semantics.
+        `playerHomeKey` is a constant unless the `tm_remount` rollback flag
+        restores the legacy full-remount behavior.
+      -->
       <player-home
         v-else-if="screen === 'player-home' && playerView !== undefined"
         ref="playerHome"
         :player-view="playerView"
-        :key="playerkey"
+        :reset-epoch="playerkey"
+        :key="playerHomeKey"
       ></player-home>
       <!--
         Draft / buy-cards modal lives HERE at App level (not inside
@@ -149,7 +161,7 @@
       <spectator-home
         v-else-if="screen === 'spectator-home' && spectator !== undefined"
         :spectator="spectator"
-        :key="'spectator-' + playerkey"
+        :key="'spectator-' + playerHomeKey"
       ></spectator-home>
       <game-end
         v-else-if="screen === 'the-end'"
@@ -305,6 +317,8 @@ import RealtimeLayer from '@/client/components/realtime/RealtimeLayer.vue';
 import DesktopUpdateOverlay from '@/client/components/desktop/DesktopUpdateOverlay.vue';
 import {initDesktopUpdates} from '@/client/components/desktop/desktopUpdateState';
 import {perfMark} from '@/client/utils/perfMarks';
+import {legacyRemountEnabled} from '@/client/utils/legacyRemount';
+import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
 import {setLiveCardResources} from '@/client/components/card/liveCardResources';
@@ -359,9 +373,15 @@ export type MainAppData = {
      */
     spectator?: SpectatorModel;
     playerView?: PlayerViewModel;
-    // playerKey might seem to serve no function, but it's basically an arbitrary value used
-    // to force a rerender / refresh.
-    // See https://michaelnthiessen.com/force-re-render/
+    // The transient-UI RESET EPOCH. Historically this was the `:key` of
+    // <player-home> — bumping it forced a full remount per server response.
+    // Since the no-remount rework (REMOUNT_ANIMATION_REWORK_DESIGN.md) the
+    // subtree is no longer keyed on it: a bump now only triggers PlayerHome's
+    // explicit `resetTransientUi()` (close overlays / pending modals — the
+    // same reset the remount used to perform implicitly). The bump SITES and
+    // the preserve guards around them are unchanged, so "when the UI resets"
+    // is byte-identical to the legacy behavior. The `tm_remount` flag
+    // (legacyRemount.ts) restores the old keyed-remount path.
     playerkey: number;
     isServerSideRequestInProgress: boolean;
     componentsVisibility: {[x: string]: boolean};
@@ -482,6 +502,14 @@ export default defineComponent({
     // Empty string when not on a game screen, which keeps the layer inert.
     realtimeParticipantId(): string {
       return this.playerView?.id ?? this.spectator?.id ?? '';
+    },
+    // The `:key` of <player-home> / <spectator-home>. A CONSTANT by default —
+    // the game subtree persists across server responses and updates reactively
+    // (`playerkey` rides in as the `reset-epoch` prop instead). The legacy
+    // rollback flag (`?remount=1` / localStorage tm_remount=1) rebinds the key
+    // to `playerkey`, restoring the historical full-remount-per-update model.
+    playerHomeKey(): number | string {
+      return legacyRemountEnabled() ? this.playerkey : 'stable';
     },
     // Dev-only: render the modal-input visual playground when the URL carries
     // `?modalPlayground` (or `&modalPlayground`). Never shown in normal play.
@@ -634,11 +662,16 @@ export default defineComponent({
                 shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces)) {
               armPlacementAnimations();
             }
+            // Structural sharing (viewSnapshotShare.ts): the assigned tree is
+            // content-identical to the fresh snapshot, but unchanged branches
+            // keep their previous references so child components skip
+            // re-rendering. The ROOT identity still changes, so this watcher-
+            // visible commit behaves exactly like a wholesale swap.
             if (path === paths.PLAYER) {
-              app.playerView = model as PlayerViewModel;
+              app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
               setTranslationContext(app.playerView);
             } else if (path === paths.SPECTATOR) {
-              app.spectator = model as SpectatorModel;
+              app.spectator = nextViewSnapshot(app.spectator, model as SpectatorModel);
               setLiveCardResources(app.spectator);
             }
             if (!preserveCardPickModal && !preserveOpenOverlay) {

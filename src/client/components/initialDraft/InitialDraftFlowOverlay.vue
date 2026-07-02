@@ -126,6 +126,7 @@ import {statusCode} from '@/common/http/statusCode';
 import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {SelectInitialCardsResponse, InputResponse} from '@/common/inputs/InputResponse';
 import {vueRoot} from '@/client/components/vueRoot';
+import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {initialDraftSharedState, isInitialDraftAwaiting} from '@/client/components/initialDraft/initialDraftSharedState';
 
@@ -743,6 +744,9 @@ export default defineComponent({
              * подтвердивший игрок), идём по стандартному playerkey++ path —
              * overlay снимается мгновенно.
              */
+            // Structural sharing (viewSnapshotShare.ts): unchanged branches
+            // keep their references; root identity changes.
+            const applied = nextViewSnapshot(root.playerView, newPlayerView);
             if (isInitialDraftAwaiting(newPlayerView)) {
               // Сервер принял наш ответ, но партия ещё не стартовала
               // (другие игроки не подтвердили выбор). Reactive swap без
@@ -751,14 +755,13 @@ export default defineComponent({
               // покажет экран ожидания. shouldPreserveInitialDraftOverlay
               // будет держать overlay живым на всех последующих
               // poll-driven обновлениях, пока партия не стартует.
-              root.playerView = newPlayerView;
+              root.playerView = applied;
             } else if (shouldPreserveCardPickModal(newPlayerView)) {
-              root.playerView = newPlayerView;
+              root.playerView = applied;
             } else {
-              root.screen = 'empty';
-              root.playerView = newPlayerView;
+              root.playerView = applied;
+              // Bump the transient-UI reset epoch (the former remount trigger).
               root.playerkey++;
-              root.screen = 'player-home';
             }
             return;
           }

@@ -48,6 +48,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import {motionMs} from '@/client/components/motion/motionTokens';
 
 type AccentName = 'temperature' | 'oxygen' | 'venus' | 'oceans';
 
@@ -555,9 +556,12 @@ export default defineComponent({
         arcFrames;
 
       const stepsCount = Math.abs(targetIdx - startIdx);
-      const duration = Math.min(
+      // Scaled by the motion speed preset — the WGT marker HOLD in
+      // WaitingFor.vue scales through the same motionMs, so the hold window
+      // and the glide stay proportioned across presets.
+      const duration = motionMs(Math.min(
         MAX_DURATION_MS,
-        BASE_DURATION_MS + stepsCount * PER_STEP_DURATION_MS);
+        BASE_DURATION_MS + stepsCount * PER_STEP_DURATION_MS));
 
       const keyframes = frames.map((a) => ({transform: this.transformFor(a)}));
       const anim = marker.animate(keyframes, {
@@ -601,7 +605,7 @@ export default defineComponent({
       this.settleTimeout = setTimeout(() => {
         marker.classList.remove('scale-marker--settling');
         this.settleTimeout = null;
-      }, SETTLE_DURATION_MS);
+      }, motionMs(SETTLE_DURATION_MS));
     },
     prefersReducedMotion(): boolean {
       if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {

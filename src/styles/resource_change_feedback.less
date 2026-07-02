@@ -257,10 +257,18 @@
  * stretched by ~400ms so the whole effect breathes instead of
  * snapping.
  */
+/*
+ * NOTE (motion system): durations in this file are written as
+ * `calc(<base>ms * var(--motion-scale, 1))` — the CSS side of the unified
+ * motion speed preset (see motionTokens.ts). The JS chip lifetimes
+ * (CHIP_VISIBLE_MS in AnimatedMetricValue) scale through motionMs() with the
+ * SAME multiplier, so the teardown timing and these animations stay in
+ * lockstep across presets. The fallback `1` = the `standard` preset.
+ */
 .delta-chip-fade-enter-active {
     transition:
-        opacity 380ms cubic-bezier(0.22, 1, 0.36, 1),
-        transform 460ms cubic-bezier(0.22, 1, 0.36, 1);
+        opacity calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1),
+        transform calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .delta-chip-fade-enter-from {
@@ -280,8 +288,8 @@
  */
 .delta-chip-fade-leave-active {
     transition:
-        opacity 540ms cubic-bezier(0.5, 0, 0.75, 0.2),
-        transform 540ms cubic-bezier(0.5, 0, 0.75, 0.2);
+        opacity calc(540ms * var(--motion-scale, 1)) cubic-bezier(0.5, 0, 0.75, 0.2),
+        transform calc(540ms * var(--motion-scale, 1)) cubic-bezier(0.5, 0, 0.75, 0.2);
 }
 
 .delta-chip-fade-leave-from {
@@ -300,7 +308,7 @@
  */
 .delta-chip-fade-reduced-enter-active,
 .delta-chip-fade-reduced-leave-active {
-    transition: opacity 340ms linear;
+    transition: opacity calc(340ms * var(--motion-scale, 1)) linear;
 }
 
 .delta-chip-fade-reduced-enter-from,
@@ -373,12 +381,12 @@
 }
 
 .resource_item_stock:has(.metric-feedback-host--active-positive) .resource_item_stock_count {
-    animation: stock-num-transition-positive 760ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: stock-num-transition-positive calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: right center;
 }
 
 .resource_item_stock:has(.metric-feedback-host--active-negative) .resource_item_stock_count {
-    animation: stock-num-transition-negative 760ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: stock-num-transition-negative calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: right center;
 }
 
@@ -404,13 +412,13 @@
 }
 
 .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-positive) .resource_item_prod_count {
-    animation: prod-num-transition-positive 560ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: prod-num-transition-positive calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
     display: inline-block; /* needed for transform on the inline <span> */
 }
 
 .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-negative) .resource_item_prod_count {
-    animation: prod-num-transition-negative 560ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: prod-num-transition-negative calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
     display: inline-block;
 }
@@ -430,11 +438,11 @@
 }
 
 .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-positive) .resource_item_prod {
-    animation: prod-cell-pulse-positive 2002ms cubic-bezier(0.37, 0, 0.63, 1);
+    animation: prod-cell-pulse-positive calc(2002ms * var(--motion-scale, 1)) cubic-bezier(0.37, 0, 0.63, 1);
 }
 
 .resource_item:has(> .metric-feedback-host--resource-production.metric-feedback-host--active-negative) .resource_item_prod {
-    animation: prod-cell-pulse-negative 2002ms cubic-bezier(0.37, 0, 0.63, 1);
+    animation: prod-cell-pulse-negative calc(2002ms * var(--motion-scale, 1)) cubic-bezier(0.37, 0, 0.63, 1);
 }
 
 /* --- tag count transition (card tags) -------------------------- */
@@ -452,13 +460,13 @@
 }
 
 .tag-display:has(.metric-feedback-host--tag.metric-feedback-host--active-positive) .tag-count-display {
-    animation: tag-num-transition-positive 600ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: tag-num-transition-positive calc(600ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
     display: inline-block;
 }
 
 .tag-display:has(.metric-feedback-host--tag.metric-feedback-host--active-negative) .tag-count-display {
-    animation: tag-num-transition-negative 600ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: tag-num-transition-negative calc(600ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
     display: inline-block;
 }
@@ -478,13 +486,13 @@
 }
 
 .tag-display:has(.metric-feedback-host--misc.metric-feedback-host--active-positive) .tag-count-display {
-    animation: misc-num-transition-positive 680ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: misc-num-transition-positive calc(680ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
     display: inline-block;
 }
 
 .tag-display:has(.metric-feedback-host--misc.metric-feedback-host--active-negative) .tag-count-display {
-    animation: misc-num-transition-negative 680ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: misc-num-transition-negative calc(680ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
     display: inline-block;
 }
@@ -513,13 +521,13 @@
 }
 
 .tag-display:has(.metric-feedback-host--score.metric-feedback-host--active-positive) .tag-count-display {
-    animation: score-num-transition-positive 880ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: score-num-transition-positive calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
     display: inline-block;
 }
 
 .tag-display:has(.metric-feedback-host--score.metric-feedback-host--active-negative) .tag-count-display {
-    animation: score-num-transition-negative 880ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: score-num-transition-negative calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
     display: inline-block;
 }
@@ -530,12 +538,12 @@
  * element. Two render sites for VP/TR share one keyframe pair.
  */
 .left-panel-card-stat-value:has(.metric-feedback-host--score.metric-feedback-host--active-positive) .left-panel-card-stat-value__num {
-    animation: score-num-transition-positive 880ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: score-num-transition-positive calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
 }
 
 .left-panel-card-stat-value:has(.metric-feedback-host--score.metric-feedback-host--active-negative) .left-panel-card-stat-value__num {
-    animation: score-num-transition-negative 880ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: score-num-transition-negative calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
 }
 
@@ -559,12 +567,12 @@
 }
 
 .resource_item:has(> .resource_item_stock .metric-feedback-host--active-positive) {
-    animation: row-pulse-positive 2366ms cubic-bezier(0.37, 0, 0.63, 1);
+    animation: row-pulse-positive calc(2366ms * var(--motion-scale, 1)) cubic-bezier(0.37, 0, 0.63, 1);
     border-radius: 4px;
 }
 
 .resource_item:has(> .resource_item_stock .metric-feedback-host--active-negative) {
-    animation: row-pulse-negative 2366ms cubic-bezier(0.37, 0, 0.63, 1);
+    animation: row-pulse-negative calc(2366ms * var(--motion-scale, 1)) cubic-bezier(0.37, 0, 0.63, 1);
     border-radius: 4px;
 }
 
@@ -606,6 +614,6 @@
     }
 
     .delta-chip {
-        transition: opacity 340ms linear;
+        transition: opacity calc(340ms * var(--motion-scale, 1)) linear;
     }
 }
