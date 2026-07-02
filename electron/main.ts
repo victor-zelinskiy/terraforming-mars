@@ -19,6 +19,11 @@ import * as path from 'path';
 import {registerAppScheme, registerAppProtocolHandler, appUrl, APP_ORIGIN} from './protocol';
 import {registerUpdateIpc, resolveStartupUpdate} from './update';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
+import {applyPerformanceSwitches, logGpuStatus} from './perf';
+
+// GPU / no-throttle command-line switches MUST be appended before app 'ready';
+// module top-level runs well before then. Desktop-only; browser build untouched.
+applyPerformanceSwitches(app);
 
 // A PACKAGED build defaults to the hosted production server; a dev run defaults to the
 // local dev server. `TM_SERVER_BASE` overrides either.
@@ -110,6 +115,10 @@ function createWindow(): void {
       sandbox: true,
       webSecurity: true,
       allowRunningInsecureContent: false,
+      // Never throttle rAF / timers when the fullscreen game is briefly occluded
+      // or unfocused — keeps animations smooth on return (pairs with the
+      // disable-*-backgrounding switches in perf.ts).
+      backgroundThrottling: false,
       // Passed to the sandboxed preload via process.argv (no Node/IPC needed
       // just to read config). apiBase/wsBase are not secrets; participantId is
       // a local dev token only.
@@ -194,12 +203,16 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     if (APP_LOAD) {
-      registerAppProtocolHandler();
+      // Immutable art/font caching only in a packaged build; dev uses a short TTL
+      // so edited assets still refresh (see protocol.cacheControl).
+      registerAppProtocolHandler(app.isPackaged);
     }
     // eslint-disable-next-line no-console
     console.log(`[electron] ${APP_LOAD ? 'Phase 2A (app://)' : 'Phase 1 (server)'} — loading ${initialUrl()}`);
     registerUpdateIpc();
     createWindow();
+    // Confirm hardware acceleration is actually live (one line; see perf.ts).
+    logGpuStatus(app);
     // Phase 7: packaged builds check the compatibility gate on startup and, if a
     // mandatory update is required, block game flow behind the premium update overlay.
     // No-op in dev (app.isPackaged === false). The renderer pulls the current state on

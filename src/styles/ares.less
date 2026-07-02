@@ -1,7 +1,7 @@
 .card-tile-ares {
   width: 47px !important;
   height: 51px !important;
-  // `board_icons_ares.png` ships at 4× (2520×960); coordinates on
+  // `board_icons_ares.webp` ships at 4× (2520×960); coordinates on
   // `.board-space-tile--*` are authored against the original 630×240
   // grid. `!important` defeats any later inline overrides; without it
   // the upscaled bitmap would render at its native 2520×960 and the
@@ -156,7 +156,7 @@
 // See `.card-tile-ares` above for why `background-size` is needed: the
 // PNG is 4× upscaled; coordinates here stay on the original 630×240 grid.
 .board-icons-ares-sprite(@x, @y) {
-  background: url(./assets/board_icons_ares.png) @x @y no-repeat;
+  background: url(./assets/board_icons_ares.webp) @x @y no-repeat;
   background-size: 630px 240px;
 }
 
