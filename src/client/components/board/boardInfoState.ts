@@ -27,6 +27,13 @@ type State = {
   spaceId: SpaceId | undefined;
   info: BoardCellInfo | undefined;
   loading: boolean;
+  // BRD-3 (PERFORMANCE_AUDIT.md): the hovered cell's bounding rect captured at
+  // hover-ENTER (the delegate already holds the element), so the popover reads a
+  // stored rect instead of running a `querySelector` + layout-forcing
+  // `getBoundingClientRect` inside its position computed. undefined when the
+  // caller didn't supply one (e.g. the `i` badge) → the popover falls back to
+  // the query.
+  cellRect: DOMRect | undefined;
   cfg: Config;
 };
 
@@ -34,6 +41,7 @@ export const boardInfoState: State = reactive({
   spaceId: undefined,
   info: undefined,
   loading: false,
+  cellRect: undefined,
   cfg: {participantId: undefined, color: undefined, boardName: undefined, players: []},
 });
 
@@ -86,8 +94,9 @@ function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, 
   return `${apiUrl(paths.API_GAME_BOARD_CELL_PREVIEW)}?${params.toString()}`;
 }
 
-export function hoverBoardCell(spaceId: SpaceId): void {
+export function hoverBoardCell(spaceId: SpaceId, rect?: DOMRect): void {
   boardInfoState.spaceId = spaceId;
+  boardInfoState.cellRect = rect;
   const key = cacheKey(spaceId);
   const cached = infoCache.get(key);
   if (cached !== undefined) {
@@ -133,6 +142,7 @@ export function clearBoardCellHover(spaceId: SpaceId): void {
     boardInfoState.spaceId = undefined;
     boardInfoState.info = undefined;
     boardInfoState.loading = false;
+    boardInfoState.cellRect = undefined;
     hoverToken++;
   }
 }

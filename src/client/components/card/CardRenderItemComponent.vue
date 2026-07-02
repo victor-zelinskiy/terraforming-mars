@@ -1,7 +1,16 @@
 <template>
   <div class="card-item-container">
     <div class="card-res-amount" v-if="item.showDigit">{{ amountAbs }}</div>
-    <div :class="componentClasses" v-for="index in itemsToShow" v-html="itemHtmlContent" :key="index"/>
+    <!-- CARD-1 (PERFORMANCE_AUDIT.md): a pure CSS-icon item (the common multiplied
+         case — "gain 8 plants" → 8 copies, all with EMPTY content) renders as plain
+         class-divs, skipping a per-copy `v-html` innerHTML write. `v-html=""` and no
+         v-html produce the identical (childless) box, so this is visual-identical. -->
+    <template v-if="hasInnerHtml">
+      <div :class="componentClasses" v-for="index in itemsToShow" v-html="itemHtmlContent" :key="index"/>
+    </template>
+    <template v-else>
+      <div :class="componentClasses" v-for="index in itemsToShow" :key="index"/>
+    </template>
     <div class="card-over" v-if="item.over !== undefined">over {{item.over}}</div>
   </div>
 </template>
@@ -307,6 +316,12 @@ export default defineComponent({
     },
     itemsToShow(): number {
       return this.item.showDigit ? 1 : this.amountAbs;
+    },
+    // CARD-1: only apply the (per-copy) v-html when there's actual markup to
+    // inject. The common multiplied resource icon has empty content (drawn by
+    // CSS classes), so it renders as a plain class-div with no innerHTML write.
+    hasInnerHtml(): boolean {
+      return this.itemHtmlContent !== '';
     },
     // Oooh this is begging to be a template or something.
     itemHtmlContent(): string {

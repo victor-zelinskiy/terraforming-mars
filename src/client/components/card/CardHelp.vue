@@ -13,12 +13,24 @@
 <script lang="ts">
 
 import {defineComponent} from 'vue';
-import MarkdownIt from 'markdown-it';
+import type MarkdownItType from 'markdown-it';
 import {CardName} from '@/common/cards/CardName';
 import {CARD_HELP_TEXT} from '@/client/cards/CardHelpText';
 import PopupPanel from '@/client/components/common/PopupPanel.vue';
 
-const md = new MarkdownIt({html: true, linkify: false, breaks: false});
+// BND-1 (PERFORMANCE_AUDIT.md): markdown-it is used ONLY to render this
+// click-triggered card-help popup. Load it lazily (its own async chunk — see
+// the `markdownit` splitChunks cacheGroup) so it isn't parsed eagerly in
+// vendors.js by every session that never opens a card help. Instance cached
+// across all CardHelp components.
+let mdPromise: Promise<MarkdownItType> | undefined;
+function loadMarkdown(): Promise<MarkdownItType> {
+  if (mdPromise === undefined) {
+    mdPromise = import(/* webpackChunkName: "markdownit" */ 'markdown-it').then(({default: MarkdownIt}) =>
+      new MarkdownIt({html: true, linkify: false, breaks: false}));
+  }
+  return mdPromise;
+}
 
 export default defineComponent({
   name: 'CardHelp',
@@ -39,16 +51,17 @@ export default defineComponent({
   data() {
     return {
       showPopup: false,
+      renderedHelpText: '',
     };
   },
-  computed: {
-    renderedHelpText(): string {
-      return md.render(CARD_HELP_TEXT[this.name] ?? '');
-    },
-  },
   methods: {
-    open() {
+    async open() {
+      // Show the panel immediately, then fill it once markdown-it's chunk lands
+      // (near-instant after the first open — the instance is cached).
+      this.renderedHelpText = '';
       this.showPopup = true;
+      const md = await loadMarkdown();
+      this.renderedHelpText = md.render(CARD_HELP_TEXT[this.name] ?? '');
     },
     close() {
       this.showPopup = false;

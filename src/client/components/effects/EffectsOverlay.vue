@@ -129,6 +129,10 @@ type DataModel = {
   fitScheduled: boolean;
   measureScheduled: boolean;
   cols: number;
+  // OV-2 (PERFORMANCE_AUDIT.md): last overlay width fit() wrote, so an unchanged
+  // re-fit skips the CSS-var write — the ResizeObserver observes `root` and the
+  // write resizes `root`, so writing the same value would self-trigger the RO.
+  lastFitWidth: number | undefined;
 };
 
 export default defineComponent({
@@ -166,6 +170,7 @@ export default defineComponent({
       fitScheduled: false,
       measureScheduled: false,
       cols: MAX_COLS,
+      lastFitWidth: undefined,
     };
   },
   computed: {
@@ -366,8 +371,15 @@ export default defineComponent({
       const comfortable = cols * MASTER_COL_MAX + (cols - 1) * GAP;
       const masterW = Math.min(masterAvail, comfortable);
       const overlayW = clamp(masterW + DETAIL_W + SPLIT_GAP + BODY_PAD_X, MIN_W, FIT_MAX_W);
+      const roundedW = Math.round(overlayW);
+      // OV-2: nothing changed → skip the writes so the RO (observing root, whose
+      // width IS --effects-overlay-width) isn't re-triggered by a no-op set.
+      if (roundedW === this.lastFitWidth && cols === this.cols) {
+        return;
+      }
+      this.lastFitWidth = roundedW;
       this.cols = cols;
-      root?.style.setProperty('--effects-overlay-width', Math.round(overlayW) + 'px');
+      root?.style.setProperty('--effects-overlay-width', roundedW + 'px');
       grid.style.setProperty('--effects-master-cols', String(cols));
       root?.style.setProperty('--detail-width', DETAIL_W + 'px');
       this.scheduleMeasure();

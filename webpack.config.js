@@ -117,8 +117,32 @@ module.exports = {
     splitChunks: {
       chunks: 'all',
       cacheGroups: {
+        // BND-1 (PERFORMANCE_AUDIT.md): carve the two heavy lazy-only libs into
+        // their OWN async chunks so the single fixed-name `vendors` group below
+        // can't merge them into the eager bundle. chart.js (endgame VP chart) and
+        // markdown-it (card-help popup) are now dynamic-import()ed by their sole
+        // consumers, so `chunks: 'async'` + a higher priority keeps them out of
+        // the login/menu/board startup parse. Their small deps stay in vendors.
+        chartjs: {
+          test: /[\\/]node_modules[\\/]chart\.js[\\/]/,
+          name: 'chartjs',
+          chunks: 'async',
+          priority: 20,
+          enforce: true,
+        },
+        markdownit: {
+          test: /[\\/]node_modules[\\/]markdown-it[\\/]/,
+          name: 'markdownit',
+          chunks: 'async',
+          priority: 20,
+          enforce: true,
+        },
         vendors: {
-          test: /[\\/]node_modules[\\/]/,
+          // Exclude the two lazy-only libs so this `chunks: 'all'` catch-all
+          // can't hoist them (async-only though they are) into the INITIAL
+          // vendors bundle — that hoist is exactly the BND-1 bug. With them
+          // excluded, only the chartjs/markdownit async groups above match them.
+          test: /[\\/]node_modules[\\/](?!chart\.js[\\/]|markdown-it[\\/])/,
           name: 'vendors',
           chunks: 'all',
         },

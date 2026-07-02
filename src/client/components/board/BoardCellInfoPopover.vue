@@ -99,6 +99,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {boardInfoState} from '@/client/components/board/boardInfoState';
+import {placementRenderState} from '@/client/components/board/placementRenderState';
 import {BoardCellInfo, BoardCellStatus, BoardFact} from '@/common/boards/BoardInformationFacts';
 import {Color} from '@/common/Color';
 import {getSpecialCellInfo, SpecialCellInfo} from '@/client/components/board/specialCellInfo';
@@ -169,8 +170,10 @@ export default defineComponent({
         return false;
       }
       // A tile-placement prompt owns whole-cell hover (SelectSpace's reason /
-      // preview popovers) — don't double up.
-      if (typeof document !== 'undefined' && document.querySelector('.board-space--available') !== null) {
+      // preview popovers) — don't double up. Read the reactive placement flag
+      // (BRD-3) — also makes this computed re-evaluate on placement toggle,
+      // which the old `document.querySelector` (non-reactive) never did.
+      if (placementRenderState.highlightActive) {
         return false;
       }
       // Every cell now carries a header → the inspector is always meaningful.
@@ -242,6 +245,12 @@ export default defineComponent({
       const spaceId = boardInfoState.spaceId;
       if (spaceId === undefined || typeof document === 'undefined') {
         return undefined;
+      }
+      // BRD-3: prefer the rect captured at hover-enter (no query, no layout
+      // read). Fall back to a query for callers that didn't supply one (the
+      // `i` badge in SpecialCellMarker).
+      if (boardInfoState.cellRect !== undefined) {
+        return boardInfoState.cellRect;
       }
       const el = document.querySelector(`[data_space_id="${spaceId}"]`);
       return el === null ? undefined : el.getBoundingClientRect();

@@ -5,14 +5,27 @@
 </template>
 <script lang="ts">
 import {defineComponent} from 'vue';
-import {Chart, registerables} from 'chart.js';
 import {Color} from '@/common/Color';
 import {translateText} from '@/client/directives/i18n';
 
-Chart.register(...registerables);
-Chart.defaults.font.size = 20;
-Chart.defaults.font.family = 'Ubuntu, Sans';
-Chart.defaults.color = 'rgb(240, 240, 240)';
+// BND-1 (PERFORMANCE_AUDIT.md): chart.js is used ONLY by this endgame chart, so
+// load it lazily (its own async chunk — see the `chartjs` splitChunks cacheGroup)
+// instead of parsing it eagerly in vendors.js on the login / menu / board. The
+// one-time register + defaults run inside the cached loader.
+type ChartCtor = (typeof import('chart.js'))['Chart'];
+let chartCtorPromise: Promise<ChartCtor> | undefined;
+function loadChart(): Promise<ChartCtor> {
+  if (chartCtorPromise === undefined) {
+    chartCtorPromise = import(/* webpackChunkName: "chartjs" */ 'chart.js').then(({Chart, registerables}) => {
+      Chart.register(...registerables);
+      Chart.defaults.font.size = 20;
+      Chart.defaults.font.family = 'Ubuntu, Sans';
+      Chart.defaults.color = 'rgb(240, 240, 240)';
+      return Chart;
+    });
+  }
+  return chartCtorPromise;
+}
 
 const COLOR_CODES: Record<Color, string> = {
   ['red']: 'rgb(153, 17, 0)',
@@ -86,9 +99,10 @@ export default defineComponent({
         };
       });
     },
-    renderChart: function(): void {
+    renderChart: async function(): Promise<void> {
       const ctx = document.getElementById(this.id) as HTMLCanvasElement;
       if (ctx !== null) {
+        const Chart = await loadChart();
         new Chart(ctx, {
           type: 'line',
           data: {
@@ -134,7 +148,7 @@ export default defineComponent({
     },
   },
   mounted() {
-    this.renderChart();
+    void this.renderChart();
   },
 });
 </script>

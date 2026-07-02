@@ -80,6 +80,12 @@ type DataModel = {
   eventsAbort: AbortController | undefined;
   stopPoller: (() => void) | undefined;
   fetching: boolean;
+  // A1 (PERFORMANCE_AUDIT.md): the last (gameAge:undoCount) version the
+  // update()-path fetched for. The log/event streams can only grow when the
+  // game advanced, so a playerView re-commit that did NOT advance the game
+  // (structural-sharing re-swap, same-state repoll, a PoV read) must not
+  // re-run the 2 network fetches + full diff.
+  lastFetchVersion: string | undefined;
 };
 
 /**
@@ -110,6 +116,7 @@ export default defineComponent({
       eventsAbort: undefined,
       stopPoller: undefined,
       fetching: false,
+      lastFetchVersion: undefined,
     };
   },
   computed: {
@@ -182,8 +189,17 @@ export default defineComponent({
       this.handleGenerationAndPass(now);
       // 2b) Scale-bonus claims (a player took a premium reward zone).
       this.handleScaleBonusClaims(now);
-      // 3) Root-event feed (async).
-      void this.fetchAndDiff();
+      // 3) Root-event feed (async). A1: gate the network fetch on a
+      // (gameAge, undoCount) change — the streams can't have grown otherwise, so
+      // a re-commit at the same version is a no-op fetch. The 2.2s poller
+      // (mounted) stays the UNCONDITIONAL fallback for simultaneous phases
+      // (research / draft) where opponents advance a gameAge the viewer's own
+      // stale playerView hasn't caught up to yet.
+      const version = `${this.playerView.game.gameAge}:${this.playerView.game.undoCount}`;
+      if (version !== this.lastFetchVersion) {
+        this.lastFetchVersion = version;
+        void this.fetchAndDiff();
+      }
     },
 
     // Surface a dedicated card when a player claims a global-parameter SCALE
@@ -223,6 +239,7 @@ export default defineComponent({
       // suppress the new game (and re-seed silently — no spam).
       if (notificationState.lastGeneration !== undefined && gen < notificationState.lastGeneration) {
         resetNotifications();
+        this.lastFetchVersion = undefined; // A1: force a re-seed fetch for the new game
       }
       const canToast = notificationState.seeded && !this.journalOpen && notificationState.settings.showImportant;
       if (notificationState.lastGeneration === undefined) {
