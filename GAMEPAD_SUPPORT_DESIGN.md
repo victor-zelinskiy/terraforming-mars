@@ -5,7 +5,15 @@
 > phased, opinionated, invariants + risks up front.
 >
 > **Status: see the STATUS LOG at the bottom. This document is the
-> authoritative map of the gamepad subsystem.**
+> authoritative map of the SHIPPED gamepad subsystem (iteration 1).**
+>
+> ⚠️ **Direction shift (iteration 2):** the product target moved from
+> "drive the existing desktop UI with a pad" to a **dedicated console-first
+> TV mode** — see `CONSOLE_MODE_CONCEPT.md`. Iteration 1's input core /
+> glyphs / settings survive as infrastructure; its DOM-driving focus engine
+> is DEMOTED to a fallback (the §14 matrix in the concept doc is the
+> authoritative reuse verdict). Do not extend the focus engine as a UX
+> surface — new controller UX work belongs to the console shell.
 
 ---
 

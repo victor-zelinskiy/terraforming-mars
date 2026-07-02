@@ -53,6 +53,16 @@
         `playerHomeKey` is a constant unless the `tm_remount` rollback flag
         restores the legacy full-remount behavior.
       -->
+      <!--
+        Console Mode (CONSOLE_MODE_CONCEPT.md): a runtime SHELL SPLIT — the
+        console-first TV shell mounts INSTEAD of PlayerHome, same game brain
+        (playerView + its own headless WaitingFor transport). Toggled by the
+        consented entry prompt / hold-Menu / `?console=1|0`.
+      -->
+      <ConsoleShell
+        v-else-if="screen === 'player-home' && playerView !== undefined && consoleModeState.enabled"
+        :player-view="playerView"
+      ></ConsoleShell>
       <player-home
         v-else-if="screen === 'player-home' && playerView !== undefined"
         ref="playerHome"
@@ -320,6 +330,8 @@ import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
 import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
+import {consoleModeState} from '@/client/console/consoleModeState';
+const ConsoleShell = defineAsyncComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleShell.vue'));
 import TurnHandoffLayer from '@/client/components/overview/TurnHandoffLayer.vue';
 import RevealedCardsModal from '@/client/components/notifications/RevealedCardsModal.vue';
 import EffectDetailOverlay from '@/client/components/notifications/EffectDetailOverlay.vue';
@@ -471,6 +483,7 @@ export default defineComponent({
     JournalPanel,
     NotificationLayer,
     GamepadLayer,
+    ConsoleShell,
     TurnHandoffLayer,
     RevealedCardsModal,
     EffectDetailOverlay,
@@ -496,6 +509,11 @@ export default defineComponent({
     },
   },
   computed: {
+    // Console Mode flag (module reactive) exposed to the template — drives
+    // the ConsoleShell vs PlayerHome shell split (CONSOLE_MODE_CONCEPT.md).
+    consoleModeState() {
+      return consoleModeState;
+    },
     // True while a non-dismissed reveal batch exists — drives the App-level
     // reveal modal mount. Goes false the instant the last batch is taken
     // (dismissed client-side), so the modal closes without flashing empty.

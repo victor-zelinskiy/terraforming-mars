@@ -1,0 +1,943 @@
+/*
+ * Console Mode — the TV-first shell (CONSOLE_MODE_CONCEPT.md §12).
+ *
+ * 10-foot rules applied throughout: body text ≥22px @1080p (most ≥24px),
+ * hero values 40px+, 2.5% overscan-safe padding on the root, ONE detail
+ * surface (the inspector) instead of hover popovers, spotlight selection
+ * instead of a thin ring. Same premium language as the desktop shell
+ * (dark glass, cyan #6ab0e6 accents, L-corner ticks, Prototype type);
+ * motion rides calc(…*var(--motion-scale,1)) + prefers-reduced-motion.
+ *
+ * Z-order: console overlays (turn menu / sheets / confirm) sit at 11500 —
+ * ABOVE the game chrome, BELOW the fallback surfaces (mandatory modal
+ * 12000, draw-reveal 12600, gamepad chrome 1278x), so an un-migrated
+ * prompt naturally covers the console layers while the fallback engine
+ * drives it.
+ */
+
+@con-cyan: #6ab0e6;
+@con-mint: #58d6a6;
+@con-amber: #f2c14e;
+@con-red: #e0564d;
+@con-glass: rgba(8, 14, 22, 0.92);
+@con-glass-soft: rgba(10, 17, 26, 0.78);
+@con-text: #e8f1fb;
+@con-text-dim: rgba(196, 216, 236, 0.72);
+@con-font: Prototype, Ubuntu, sans-serif;
+
+/* ── Root frame (overscan-safe) ──────────────────────────────────── */
+.con-root {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 2.2vh 2.4vw 1.4vh;
+    font-family: @con-font;
+    color: @con-text;
+    z-index: 40;
+}
+
+.con-wf-host {
+    display: none;
+}
+
+/* ── Status strip ────────────────────────────────────────────────── */
+.con-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 10px 22px;
+    border-radius: 10px;
+    background: @con-glass-soft;
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 22%), 0 8px 26px rgba(0, 0, 0, 0.35);
+
+    &__params {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+    }
+    &__param {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+    &__icon {
+        transform: scale(1.45);
+        transform-origin: center;
+    }
+    &__value {
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+    }
+    &__gen {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 10px;
+        padding-left: 22px;
+        border-left: 1px solid fade(@con-cyan, 25%);
+    }
+    &__gen-label {
+        font-size: 17px;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+
+    &__players {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+    &__player {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        padding: 6px 14px;
+        border-radius: 8px;
+        background: rgba(16, 26, 38, 0.66);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22);
+        font-size: 20px;
+
+        &--me {
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 65%), 0 0 12px fade(@con-cyan, 18%);
+        }
+        &--passed {
+            opacity: 0.45;
+            filter: saturate(0.6);
+        }
+    }
+    &__dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+    }
+    &__pname {
+        font-weight: 700;
+        letter-spacing: 0.4px;
+    }
+    &__ptr,
+    &__pmc {
+        color: @con-text-dim;
+        font-size: 18px;
+        white-space: nowrap;
+    }
+}
+
+/* ── Turn / task banner ──────────────────────────────────────────── */
+.con-banner {
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 24px;
+    border-radius: 999px;
+    background: @con-glass;
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%), 0 8px 24px rgba(0, 0, 0, 0.4);
+    font-size: 22px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+
+    &__pulse {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: @con-cyan;
+        box-shadow: 0 0 10px fade(@con-cyan, 80%);
+        animation: con-pulse calc(1800ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+    &--action {
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 55%), 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 18px fade(@con-mint, 14%);
+        .con-banner__pulse {
+            background: @con-mint;
+            box-shadow: 0 0 10px fade(@con-mint, 85%);
+        }
+    }
+    &__hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: 8px;
+        padding-left: 14px;
+        border-left: 1px solid fade(@con-cyan, 25%);
+        font-size: 18px;
+        color: @con-text-dim;
+        text-transform: none;
+        letter-spacing: 0.4px;
+    }
+}
+
+@keyframes con-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+/* ── Section strip ───────────────────────────────────────────────── */
+.con-sections {
+    align-self: center;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    &__tabs {
+        display: flex;
+        gap: 8px;
+    }
+    &__tab {
+        padding: 6px 22px;
+        border-radius: 8px;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
+        color: @con-text-dim;
+        font-size: 20px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        transition: all calc(160ms * var(--motion-scale, 1)) ease;
+
+        &--active {
+            background: fade(@con-cyan, 16%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 70%), 0 0 16px fade(@con-cyan, 20%);
+            color: @con-text;
+        }
+    }
+    &__bumper .gp-glyph {
+        min-width: 34px;
+        height: 26px;
+        font-size: 13px;
+    }
+}
+
+/* ── Main viewport ───────────────────────────────────────────────── */
+.con-main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+/* ── The inspector (ONE stable detail surface) ───────────────────── */
+.con-inspector {
+    width: 30%;
+    min-width: 360px;
+    max-width: 520px;
+    padding: 20px 22px;
+    border-radius: 12px;
+    background: @con-glass;
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%), 0 12px 36px rgba(0, 0, 0, 0.45);
+    overflow-y: auto;
+    scrollbar-width: thin;
+
+    &__kicker {
+        font-size: 17px;
+        letter-spacing: 2.2px;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 85%);
+        margin-bottom: 6px;
+    }
+    &__name {
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+    &__desc {
+        font-size: 20px;
+        line-height: 1.45;
+        color: @con-text-dim;
+        margin-bottom: 14px;
+    }
+    &__placement {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 16px;
+        margin-bottom: 14px;
+        border-radius: 8px;
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+
+        &--legal {
+            background: fade(@con-mint, 12%);
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 60%);
+            color: @con-mint;
+        }
+        &--illegal {
+            background: fade(@con-red, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-red, 55%);
+            color: @con-red;
+        }
+    }
+    &__illegal-mark {
+        font-size: 20px;
+    }
+    &__facts {
+        /* TV-scale the reused BoardFactGroups rows. */
+        font-size: 19px;
+        zoom: 1.25;
+    }
+    &__loading,
+    &__empty {
+        color: @con-text-dim;
+        font-size: 20px;
+        line-height: 1.5;
+    }
+}
+
+/* ── Board section ───────────────────────────────────────────────── */
+.con-board {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: 18px;
+
+    &__stage {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+}
+
+/* Selected-cell SPOTLIGHT (object-level, TV-readable — not a 1px ring). */
+.board-space.con-cell-sel::after {
+    content: '';
+    position: absolute;
+    inset: -7px;
+    border-radius: 50%;
+    border: 3px solid fade(@con-cyan, 92%);
+    box-shadow: 0 0 18px fade(@con-cyan, 55%), inset 0 0 14px fade(@con-cyan, 25%);
+    pointer-events: none;
+    z-index: 30;
+    animation: con-cell-pulse calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
+}
+/* During placement the spotlight reads legal (mint) vs off-limits (red). */
+body.placement-pending .board-space.con-cell-sel:not(.board-space--available)::after,
+html.console-mode .board-space.con-cell-sel--illegal::after {
+    border-color: fade(@con-red, 85%);
+    box-shadow: 0 0 16px fade(@con-red, 45%), inset 0 0 12px fade(@con-red, 22%);
+}
+body.placement-pending .board-space.con-cell-sel.board-space--available::after {
+    border-color: fade(@con-mint, 92%);
+    box-shadow: 0 0 18px fade(@con-mint, 55%), inset 0 0 14px fade(@con-mint, 25%);
+}
+
+@keyframes con-cell-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+
+/* ── Hand section ────────────────────────────────────────────────── */
+.con-hand {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+
+    &__inspector {
+        flex: 1;
+        min-height: 0;
+        width: auto;
+        max-width: none;
+        display: flex;
+        align-items: flex-start;
+        gap: 28px;
+    }
+    &__bigcard {
+        zoom: 1.32;
+        flex-shrink: 0;
+        /* Kill the legacy asymmetric card margin (CLAUDE.md "Centering UI"). */
+        > .card-container { margin: 0; }
+    }
+    &__verdict {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+
+        &--ok {
+            background: fade(@con-mint, 12%);
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 60%);
+            color: @con-mint;
+        }
+        &--blocked {
+            background: fade(@con-red, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-red, 50%);
+            color: @con-red;
+        }
+    }
+    &__verdict-mark {
+        font-size: 22px;
+    }
+    &__reasons {
+        list-style: none;
+        margin: 16px 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    &__reason {
+        padding: 8px 14px;
+        border-radius: 8px;
+        background: rgba(16, 26, 38, 0.7);
+        box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.2);
+        border-left: 3px solid fade(@con-cyan, 55%);
+        font-size: 20px;
+        line-height: 1.4;
+
+        &--megacredits { border-left-color: @con-amber; }
+        &--placement,
+        &--target { border-left-color: #e08a4d; }
+        &--turn,
+        &--phase,
+        &--rule,
+        &--generic { border-left-color: rgba(150, 175, 205, 0.6); }
+    }
+    &__reason-now {
+        color: @con-text-dim;
+    }
+
+    &__strip-wrap {
+        flex-shrink: 0;
+    }
+    &__strip {
+        display: flex;
+        align-items: flex-end;
+        gap: 14px;
+        padding: 18px 12px 10px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        &::-webkit-scrollbar { display: none; }
+    }
+    &__slot {
+        position: relative;
+        flex-shrink: 0;
+        zoom: 0.62;
+        transition: transform calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1), filter calc(170ms * var(--motion-scale, 1)) ease;
+        > .card-container { margin: 0; }
+
+        &--unplayable {
+            filter: grayscale(0.55) brightness(0.72);
+        }
+        &--selected {
+            transform: translateY(-14px) scale(1.1);
+            filter: none;
+            z-index: 2;
+        }
+    }
+    /* The inline Ⓐ chip on the SELECTED playable card — the explicit
+       button-to-element mapping at the point of attention. */
+    &__slot-a {
+        position: absolute;
+        left: 50%;
+        bottom: -12px;
+        transform: translateX(-50%);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 14px;
+        border-radius: 999px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 65%), 0 4px 14px rgba(0, 0, 0, 0.5);
+        color: @con-mint;
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        white-space: nowrap;
+        zoom: 1.6; /* counter the slot zoom so the chip stays TV-readable */
+    }
+    &__robot {
+        position: absolute;
+        top: -8px;
+        right: -6px;
+        padding: 3px 10px;
+        border-radius: 6px;
+        background: fade(#2ec4b6, 18%);
+        box-shadow: inset 0 0 0 1px fade(#2ec4b6, 60%);
+        color: #7fe3d8;
+        font-size: 15px;
+        letter-spacing: 0.6px;
+        zoom: 1.5;
+    }
+    &__strip-hints {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+        padding: 4px 14px 0;
+        color: @con-text-dim;
+        font-size: 18px;
+    }
+    &__strip-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    &__counter {
+        margin-left: auto;
+        font-size: 19px;
+        letter-spacing: 1px;
+    }
+}
+
+/* ── Turn menu ───────────────────────────────────────────────────── */
+.con-turnmenu {
+    position: fixed;
+    inset: 0;
+    z-index: 11500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 8, 14, 0.66);
+    }
+    &__card {
+        position: relative;
+        width: min(720px, 86vw);
+        max-height: 82vh;
+        display: flex;
+        flex-direction: column;
+        padding: 26px 30px 18px;
+        border-radius: 14px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 24px 70px rgba(0, 0, 0, 0.65), 0 0 40px fade(@con-cyan, 8%);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__title {
+        font-size: 24px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        text-align: center;
+        margin-bottom: 18px;
+        color: fade(@con-cyan, 95%);
+    }
+    &__rows {
+        overflow-y: auto;
+        scrollbar-width: thin;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        min-height: 58px;
+        padding: 8px 18px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+
+        &--selected {
+            background: fade(@con-cyan, 13%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 75%), 0 0 18px fade(@con-cyan, 18%);
+            transform: translateX(4px);
+        }
+        &--disabled {
+            opacity: 0.55;
+            filter: saturate(0.6);
+        }
+    }
+    &__icon {
+        width: 34px;
+        display: inline-flex;
+        justify-content: center;
+        color: @con-text;
+        .bar-btn-icon { width: 30px; height: 30px; }
+    }
+    &__res-icon {
+        transform: scale(1.5);
+    }
+    &__glyph-fallback {
+        font-size: 24px;
+    }
+    &__label {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+    }
+    &__count {
+        padding: 2px 12px;
+        border-radius: 999px;
+        background: fade(@con-cyan, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%);
+        font-size: 19px;
+        font-weight: 700;
+    }
+    &__reason {
+        margin-left: auto;
+        font-size: 18px;
+        color: @con-amber;
+        text-align: right;
+        max-width: 42%;
+    }
+    &__a {
+        margin-left: auto;
+    }
+    &__row--disabled &__reason { color: @con-text-dim; }
+    &__foot {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid fade(@con-cyan, 18%);
+    }
+    &__foot-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: @con-text-dim;
+        font-size: 18px;
+    }
+}
+
+/* ── Sheets (standard projects / milestones / awards) ────────────── */
+.con-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 11500;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 8, 14, 0.6);
+    }
+    &__panel {
+        position: relative;
+        width: min(980px, 92vw);
+        max-height: 70vh;
+        display: flex;
+        flex-direction: column;
+        padding: 24px 28px 16px;
+        border-radius: 16px 16px 0 0;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%), 0 -18px 60px rgba(0, 0, 0, 0.6);
+        animation: con-sheet-up calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__title {
+        font-size: 24px;
+        letter-spacing: 2.2px;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 95%);
+        margin-bottom: 16px;
+        text-align: center;
+    }
+    &__rows {
+        overflow-y: auto;
+        scrollbar-width: thin;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    &__row {
+        padding: 12px 18px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+
+        &--selected {
+            background: fade(@con-cyan, 13%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 75%), 0 0 18px fade(@con-cyan, 16%);
+        }
+        &--disabled {
+            opacity: 0.55;
+            filter: saturate(0.6);
+        }
+    }
+    &__row-main {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    &__row-title {
+        font-size: 23px;
+        font-weight: 700;
+    }
+    &__row-meta {
+        padding: 2px 12px;
+        border-radius: 999px;
+        background: fade(@con-amber, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
+        color: @con-amber;
+        font-size: 18px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    &__row-taken {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 19px;
+        color: @con-text-dim;
+    }
+    &__a {
+        margin-left: auto;
+    }
+    &__row-sub {
+        margin-top: 6px;
+        font-size: 19px;
+        line-height: 1.4;
+        color: @con-text-dim;
+    }
+    &__row-reason {
+        margin-top: 6px;
+        font-size: 18px;
+        color: @con-amber;
+    }
+    &__foot {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid fade(@con-cyan, 18%);
+    }
+    &__foot-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: @con-text-dim;
+        font-size: 18px;
+    }
+}
+
+@keyframes con-sheet-up {
+    from { opacity: 0; transform: translateY(36px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes con-rise {
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Confirm panel ───────────────────────────────────────────────── */
+.con-confirm {
+    position: fixed;
+    inset: 0;
+    z-index: 11520;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 8, 14, 0.7);
+    }
+    &__card {
+        position: relative;
+        min-width: 420px;
+        max-width: 620px;
+        padding: 28px 34px 22px;
+        border-radius: 14px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 50%), 0 24px 70px rgba(0, 0, 0, 0.65);
+        animation: con-rise calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        text-align: center;
+    }
+    &__title {
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        margin-bottom: 10px;
+    }
+    &__body {
+        font-size: 21px;
+        line-height: 1.45;
+        color: @con-text-dim;
+        margin-bottom: 22px;
+    }
+    &__actions {
+        display: flex;
+        justify-content: center;
+        gap: 34px;
+    }
+    &__action {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 21px;
+        font-weight: 700;
+
+        &--yes { color: @con-mint; }
+    }
+}
+
+/* ── Transient notice ────────────────────────────────────────────── */
+.con-notice {
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    transform: translateX(-50%);
+    z-index: 11540;
+    padding: 12px 26px;
+    border-radius: 10px;
+    background: @con-glass;
+    box-shadow: inset 0 0 0 1px fade(@con-amber, 55%), 0 10px 30px rgba(0, 0, 0, 0.55);
+    color: @con-amber;
+    font-family: @con-font;
+    font-size: 21px;
+    letter-spacing: 0.4px;
+    pointer-events: none;
+}
+.con-notice-enter-active,
+.con-notice-leave-active {
+    transition: opacity calc(200ms * var(--motion-scale, 1)) ease, transform calc(200ms * var(--motion-scale, 1)) ease;
+}
+.con-notice-enter-from,
+.con-notice-leave-to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+}
+
+/* ── Command bar (THE control surface) ───────────────────────────── */
+.con-cmdbar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 10px 24px;
+    border-radius: 10px;
+    background: @con-glass;
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%), 0 -6px 24px rgba(0, 0, 0, 0.35);
+
+    &__context {
+        font-size: 20px;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 90%);
+        white-space: nowrap;
+    }
+    &__cmds {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    &__cmd {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+
+        &--disabled {
+            opacity: 0.42;
+            filter: saturate(0.5);
+        }
+    }
+    &__label {
+        font-size: 21px;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    /* TV-size the shared glyph badges inside the bar. */
+    .gp-glyph {
+        min-width: 28px;
+        height: 28px;
+        font-size: 14px;
+        &--pill { min-width: 38px; }
+    }
+}
+
+/* ── Console-mode entry prompt (desktop side) ────────────────────── */
+.con-entry {
+    position: fixed;
+    inset: 0;
+    z-index: 12770; /* above game chrome, below gamepad ring/hints */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+
+    &__card {
+        min-width: 420px;
+        max-width: 560px;
+        padding: 26px 32px 22px;
+        border-radius: 14px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%), 0 24px 70px rgba(0, 0, 0, 0.65), 0 0 42px fade(@con-cyan, 10%);
+        font-family: @con-font;
+        color: @con-text;
+        text-align: center;
+        animation: con-rise calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__title {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+    &__body {
+        font-size: 19px;
+        line-height: 1.45;
+        color: @con-text-dim;
+        margin-bottom: 20px;
+    }
+    &__actions {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+    }
+    &__action {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 20px;
+        font-weight: 700;
+
+        &--yes { color: @con-mint; }
+    }
+}
+
+/* ── Desktop-chrome suppression in console mode ──────────────────── *
+ * A MINIMIZED fallback surface would be unreachable from the pad (its
+ * pill lives outside every console context), so minimize affordances are
+ * hidden — a fallback prompt stays front-and-center until resolved. The
+ * desktop placement pill duplicates the console banner + inspector. */
+html.console-mode {
+    .mandatory-input-modal__minimize-btn,
+    .start-game-flow__minimize-btn,
+    .placement-banner {
+        display: none !important;
+    }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .con-banner__pulse,
+    .board-space.con-cell-sel::after {
+        animation: none;
+    }
+    .con-turnmenu__card,
+    .con-sheet__panel,
+    .con-confirm__card,
+    .con-entry__card {
+        animation: none;
+    }
+    .con-hand__slot {
+        transition: none;
+    }
+}
