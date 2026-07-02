@@ -66,7 +66,7 @@ import GamepadFocusRing from '@/client/components/gamepad/GamepadFocusRing.vue';
 import GamepadHintBar from '@/client/components/gamepad/GamepadHintBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleEntryPrompt from '@/client/components/console/ConsoleEntryPrompt.vue';
-import {consoleModeState, dismissConsoleOffer, maybeOfferConsoleMode, setConsoleMode} from '@/client/console/consoleModeState';
+import {consoleModeState, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
 import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
 
 const FOCUS_TICK_MS = 400;
@@ -204,6 +204,10 @@ export default defineComponent({
         // Desktop shell + a pad in hand → offer the console interface once.
         if (!this.consoleModeState.enabled) {
           maybeOfferConsoleMode();
+        } else {
+          // Console + pad = the TV posture — (re-)enter fullscreen
+          // (best-effort; a trusted-gesture retry arms itself on failure).
+          requestConsoleFullscreen();
         }
       } else {
         this.stopTick();

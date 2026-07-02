@@ -9,6 +9,7 @@
              class="con-sheet__row"
              :class="{'con-sheet__row--selected': i === index, 'con-sheet__row--disabled': !row.available}">
           <div class="con-sheet__row-main">
+            <i v-if="row.icon" class="con-sheet__row-icon" :class="row.icon" aria-hidden="true"></i>
             <span class="con-sheet__row-title">{{ $t(row.title) }}</span>
             <span v-if="row.meta" class="con-sheet__row-meta">{{ row.meta }}</span>
             <span v-if="row.takenBy !== undefined" class="con-sheet__row-taken">
@@ -42,6 +43,8 @@ import {Color} from '@/common/Color';
 
 export type ConsoleSheetRow = {
   key: string,
+  /** Icon CSS class (e.g. a std-icon pictogram) — premium rows are never bare text. */
+  icon?: string,
   /** English i18n key (or literal already-translated text). */
   title: string,
   /** Rule / effect description (translated via v-i18n). */
