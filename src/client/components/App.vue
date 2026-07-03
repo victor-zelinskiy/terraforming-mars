@@ -115,8 +115,10 @@
         drawnCardsState (reconciled from playerView.cardDrawReveals by the
         watcher above); mounts only while cards await a take.
       -->
+      <!-- CONSOLE MODE (CTS T6): the reveal flows are served by the
+           console-native ConsoleRevealOverlay — desktop untouched. -->
       <DrawCardRevealFlow
-        v-if="screen === 'player-home' && playerView !== undefined && hasDrawReveal"
+        v-if="screen === 'player-home' && playerView !== undefined && hasDrawReveal && !consoleModeState.enabled"
         :player-view="playerView" />
       <!--
         Premium REVEAL-RESULT overlay for deck-check actions (SearchForLife /
@@ -125,7 +127,7 @@
         can't live inside <player-home>. Self-gates via revealResultState.active.
       -->
       <RevealResultOverlay
-        v-if="screen === 'player-home' && playerView !== undefined"
+        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
         :player-view="playerView" />
       <!--
         End-of-generation Energy → Heat conversion transition. App-level (like
@@ -251,7 +253,7 @@
         revealViewerState.
       -->
       <RevealedCardsModal
-        v-if="screen === 'player-home' && playerView !== undefined"
+        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
         :players="playerView.players" />
 
       <!--

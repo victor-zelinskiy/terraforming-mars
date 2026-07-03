@@ -1,9 +1,15 @@
 <template>
   <aside class="con-res" :aria-label="$t('Resources')">
     <div class="con-res__rows">
-      <div v-for="row in rows" :key="row.key" class="con-res__row" :class="'con-res__row--' + row.key">
-        <i class="con-res__icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"></i>
-        <span class="con-res__value">{{ row.value }}</span>
+      <!-- data-conversion-* anchors (CTS T6): the App-level energy→heat
+           transition overlay measures these rects, so the premium
+           end-of-generation animation plays in console mode too. -->
+      <div v-for="row in rows" :key="row.key" class="con-res__row"
+           :class="['con-res__row--' + row.key, conversionRole(row.key) !== '' ? 'con-res__row--conv-' + conversionRole(row.key) : '']"
+           :data-conversion-cell="conversionAnchor(row.key)">
+        <i class="con-res__icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"
+           :data-conversion-icon="conversionAnchor(row.key)"></i>
+        <span class="con-res__value">{{ displayValue(row) }}</span>
         <span class="con-res__prod" :class="{'con-res__prod--negative': row.production < 0}">
           {{ row.production >= 0 ? '+' + row.production : row.production }}
         </span>
@@ -36,6 +42,7 @@ import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Tag} from '@/common/cards/Tag';
 import TagCount from '@/client/components/TagCount.vue';
+import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 
 type ResourceRow = {key: string, value: number, production: number};
 
@@ -69,6 +76,39 @@ export default defineComponent({
       return TAG_ORDER
         .map((tag) => ({tag, count: counts[tag] ?? 0}))
         .filter((e) => e.count > 0);
+    },
+    /** The end-of-generation energy→heat transition targets THIS player. */
+    conversionActive(): boolean {
+      const s = energyConversionState;
+      return s.active && s.color !== '' && s.color === this.player.color;
+    },
+  },
+  methods: {
+    /** 'source' (energy) / 'target' (heat) while the transition plays. */
+    conversionRole(key: string): '' | 'source' | 'target' {
+      if (!this.conversionActive) {
+        return '';
+      }
+      return key === 'energy' ? 'source' : key === 'heat' ? 'target' : '';
+    },
+    /** The overlay's anchor value — set ONLY on the live conversion rows. */
+    conversionAnchor(key: string): string | undefined {
+      return this.conversionRole(key) !== '' ? key : undefined;
+    },
+    /**
+     * The interpolated stock during the transition (energy counts DOWN,
+     * heat counts UP in lock-step with the arrow — desktop PlayerResource
+     * parity); the canonical value otherwise.
+     */
+    displayValue(row: ResourceRow): number {
+      const role = this.conversionRole(row.key);
+      if (role === 'source') {
+        return Math.round(energyConversionState.displayEnergy);
+      }
+      if (role === 'target') {
+        return Math.round(energyConversionState.displayHeat);
+      }
+      return row.value;
     },
   },
 });

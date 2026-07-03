@@ -141,6 +141,17 @@
                          @defer="consoleState.task.deferred = true" />
     </transition>
 
+    <!-- CTS T6: the reveal overlay (drawn cards ВЗЯТЬ / deck-check result /
+         another player's public reveal) — the console-native replacement
+         for the three desktop reveal modals (gated off in console). -->
+    <transition name="con-layer">
+      <ConsoleRevealOverlay v-if="consoleRevealMode !== undefined"
+                            ref="revealOverlay"
+                            :playerView="playerView"
+                            :mode="consoleRevealMode"
+                            @dismiss-result="onDismissRevealResult" />
+    </transition>
+
     <!-- CTS T0: the honest guard for a prompt NO surface serves (the
          leak detector's stranded check) — never a silent pill again. -->
     <transition name="con-layer">
@@ -247,6 +258,9 @@ import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
 import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
+import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
+import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
+import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
 import {cancelResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
@@ -319,6 +333,7 @@ export default defineComponent({
     ConsoleStrandedPrompt,
     ConsoleTaskHost,
     ConsoleStartScene,
+    ConsoleRevealOverlay,
     HydroNetworkOverlay,
     ColonyTradePaymentModal,
     GamepadGlyph,
@@ -343,6 +358,8 @@ export default defineComponent({
       taskSpacePending: undefined as {index: number, spacePrompt: PlayerInputModel} | undefined,
       /** Prompt identity — a change resets the task defer state. */
       lastTaskKey: '',
+      /** The reveal-result the player already acknowledged (until the server clears). */
+      dismissedRevealKey: '',
       /** The player has actively focused a cell → the panel shows it (B drops back to the summary). */
       cellFocused: false,
       notice: '',
@@ -408,6 +425,20 @@ export default defineComponent({
     startTask(): ConsoleTask | undefined {
       const task = taskFor(this.playerView);
       return task !== undefined && SCENE_KINDS.has(task.kind) ? task : undefined;
+    },
+    /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
+    consoleRevealMode(): ConsoleRevealMode | undefined {
+      if (currentRevealEvent() !== undefined) {
+        return 'drawn';
+      }
+      const lr = this.playerView.lastReveal;
+      if (lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey) {
+        return 'result';
+      }
+      if (revealViewerState.open) {
+        return 'viewer';
+      }
+      return undefined;
     },
     shellTaskActive(): boolean {
       return this.shellTask !== undefined && !this.consoleState.task.deferred;
@@ -712,6 +743,9 @@ export default defineComponent({
         default: return 'Awaiting decision';
         }
       }
+      if (this.consoleRevealMode !== undefined) {
+        return 'Cards';
+      }
       if (this.startTask !== undefined && !this.consoleState.task.deferred) {
         return 'Start of the game';
       }
@@ -746,6 +780,14 @@ export default defineComponent({
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
           {control: 'back', label: 'Back'},
+        ];
+      }
+      if (this.consoleRevealMode !== undefined) {
+        // The overlay footer carries the detailed contract; the bar mirrors it.
+        return [
+          {control: 'dpadH', label: 'Navigate'},
+          {control: 'confirm', label: this.consoleRevealMode === 'drawn' ? 'Take card' : 'OK'},
+          {control: 'back', label: this.consoleRevealMode === 'drawn' ? 'Take all cards' : 'Close'},
         ];
       }
       if (this.startTask !== undefined && !this.consoleState.task.deferred) {
@@ -897,6 +939,10 @@ export default defineComponent({
         if (this.consoleState.sale.active && findSellPatentsAction(this.playerView.waitingFor) === undefined) {
           this.consoleState.sale.active = false;
           this.consoleState.sale.selected = [];
+        }
+        // T6: the server cleared the reveal result → the ack marker is stale.
+        if (this.playerView.lastReveal === undefined && this.dismissedRevealKey !== '') {
+          this.dismissedRevealKey = '';
         }
         // CTS: a NEW prompt identity resets the defer + stale nested picks.
         const wf = this.playerView.waitingFor;
@@ -1066,6 +1112,13 @@ export default defineComponent({
       // Information Mode owns everything while open (read-only).
       if (this.infoModeState.open) {
         this.handleInfoIntent(intent);
+        return true;
+      }
+      // CTS T6: a reveal overlay owns input while visible (drawn cards
+      // must be taken; the result / viewer close on any confirm).
+      if (this.consoleRevealMode !== undefined) {
+        const overlay = this.$refs.revealOverlay as InstanceType<typeof ConsoleRevealOverlay> | undefined;
+        overlay?.handleIntent(intent);
         return true;
       }
       // CTS T5: the start scene owns input while it serves (View still
@@ -1813,6 +1866,36 @@ export default defineComponent({
       this.consoleState.task.deferred = false;
       this.submit(orWrappedResponse(pending.index, spaceResponse));
     },
+    // ── T6: reveal-result ack + notification CTAs ────────────────────────
+    /** «ОК» on the deck-check result: mark seen until the server clears it. */
+    onDismissRevealResult(): void {
+      const lr = this.playerView.lastReveal;
+      if (lr !== undefined) {
+        this.dismissedRevealKey = `${lr.action}|${lr.revealed.name}`;
+      }
+    },
+    /**
+     * The notification card's «Перейти к действию» CTA (window event —
+     * PlayerHome's listener doesn't exist in console): bring the pending
+     * decision back — un-defer the task, re-open its serving surface,
+     * snap to the board for a pending placement.
+     */
+    onNotificationGoToAction(): void {
+      if (this.consoleState.task.deferred) {
+        this.consoleState.task.deferred = false;
+        if (this.hostTask === undefined && this.startTask === undefined && this.shellTask !== undefined) {
+          this.openShellTaskSurface(this.shellTask);
+        }
+      }
+      if (this.placementActive) {
+        this.consoleState.section = 'board';
+        closeConsoleLayers();
+      }
+    },
+    /** The notification's «Отменить размещение» CTA (server-cancellable). */
+    onNotificationCancel(): void {
+      this.cancelPlacement();
+    },
     // ── transport ────────────────────────────────────────────────────────
     submit(response: unknown): void {
       const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
@@ -1838,6 +1921,10 @@ export default defineComponent({
     // lifecycle screen); the shell only reports its own presence.
     this.consoleState.shellMounted = true;
     startConsoleLeakDetector(() => this.playerView);
+    // T6: the notification CTAs dispatch window events; PlayerHome's
+    // listeners don't exist in console — the shell answers them instead.
+    window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
+    window.addEventListener('tm-notification-cancel', this.onNotificationCancel);
   },
   beforeUnmount() {
     this.offIntent?.();
@@ -1846,6 +1933,8 @@ export default defineComponent({
     }
     this.consoleState.shellMounted = false;
     stopConsoleLeakDetector();
+    window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
+    window.removeEventListener('tm-notification-cancel', this.onNotificationCancel);
   },
 });
 </script>
