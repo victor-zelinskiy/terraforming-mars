@@ -12,8 +12,10 @@ import {
   optionResponseForPath,
   wrapPath,
 } from '@/client/console/turnIntents';
-import {findPerformActionCard} from '@/client/console/turnIntents';
+import {findPerformActionCard, findTradeColonyContext, findHydroActionPath} from '@/client/console/turnIntents';
 import {cycleSection, stepIndex, stepSelectable} from '@/client/console/consoleRouter';
+import {cyclePlayer} from '@/client/console/infoModeState';
+import type {Color} from '@/common/Color';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 
 // Synthetic waitingFor trees — only the fields the walkers read.
@@ -96,6 +98,29 @@ describe('turnIntents', () => {
     expect(findMilestoneOptionPath(undefined)).to.eq(undefined);
   });
 
+  it('finds the colony-trade AndOptions context (payments + tradeable set)', () => {
+    const trade: any = {
+      type: 'and', title: 'Trade with a colony tile',
+      options: [
+        {type: 'or', title: 'Pay trade fee', options: [option('Pay 9 M€'), option('Pay 3 energy')], disabledOptions: [{label: 'x'}]},
+        {type: 'colony', title: 'Select colony', coloniesModel: [{name: 'Luna'}, {name: 'Triton'}]},
+      ],
+    };
+    const menu = or('Take your first action', [option('Pass for this generation'), trade]) as PlayerInputModel;
+    const ctx = findTradeColonyContext(menu);
+    expect(ctx?.path).to.deep.eq([1]);
+    expect(ctx?.paymentOptions).to.have.length(2);
+    expect(ctx?.disabledPayments).to.have.length(1);
+    expect(ctx?.colonies).to.deep.eq(['Luna', 'Triton']);
+    expect(findTradeColonyContext(undefined)).to.eq(undefined);
+  });
+
+  it('finds the hydro advance path', () => {
+    const menu = or('Take your next action', [option('Advance on the Delta Project track')]) as PlayerInputModel;
+    expect(findHydroActionPath(menu)).to.deep.eq([0]);
+    expect(findHydroActionPath(undefined)).to.eq(undefined);
+  });
+
   it('finds the perform-action SelectCard (card actions category)', () => {
     const menu = or('Take your first action', [
       option('Something'),
@@ -139,5 +164,14 @@ describe('consoleRouter pure helpers', () => {
     expect(stepSelectable(2, 0, sel)).to.eq(2);
     expect(stepSelectable(0, 0, [false, false])).to.eq(0);
     expect(stepSelectable(5, 0, [])).to.eq(0);
+  });
+
+  it('cyclePlayer wraps in both directions and tolerates unknowns', () => {
+    const colors = ['red', 'green', 'blue'] as Array<Color>;
+    expect(cyclePlayer(colors, 'red' as Color, 1)).to.eq('green');
+    expect(cyclePlayer(colors, 'blue' as Color, 1)).to.eq('red');
+    expect(cyclePlayer(colors, 'red' as Color, -1)).to.eq('blue');
+    expect(cyclePlayer(colors, undefined, 1)).to.eq('red');
+    expect(cyclePlayer([], 'red' as Color, 1)).to.eq(undefined);
   });
 });

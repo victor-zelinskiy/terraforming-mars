@@ -263,6 +263,57 @@ export function findSellPatentsAction(
   return undefined;
 }
 
+/**
+ * The colony-trade AndOptions ('Trade with a colony tile') — shape:
+ * [OrOptions('Pay trade fee'), SelectColony]. `colonies` = the tradeable
+ * set (server-filtered); payment options + server-disabled payments ride
+ * along for the reused trade-payment modal.
+ */
+export type TradeColonyContext = {
+  path: ReadonlyArray<number>,
+  paymentOptions: ReadonlyArray<SelectOptionModel>,
+  disabledPayments: NonNullable<OrOptionsModel['disabledOptions']>,
+  colonies: ReadonlyArray<string>,
+};
+
+export function findTradeColonyContext(
+  wf: PlayerInputModel | undefined,
+  pathSoFar: ReadonlyArray<number> = [],
+): TradeColonyContext | undefined {
+  if (!wf) {
+    return undefined;
+  }
+  if (wf.type === 'and' && inputTitleText(wf.title) === 'Trade with a colony tile') {
+    const children = childOptions(wf) ?? [];
+    const payOr = children.find((c) => c.type === 'or') as OrOptionsModel | undefined;
+    const selectColony = children.find((c) => c.type === 'colony');
+    if (payOr === undefined || selectColony === undefined) {
+      return undefined;
+    }
+    return {
+      path: pathSoFar,
+      paymentOptions: payOr.options.filter((o): o is SelectOptionModel => o.type === 'option'),
+      disabledPayments: payOr.disabledOptions ?? [],
+      colonies: (selectColony as PlayerInputModel & {type: 'colony'}).coloniesModel.map((c) => c.name),
+    };
+  }
+  const options = childOptions(wf);
+  if (options !== undefined) {
+    for (let i = 0; i < options.length; i++) {
+      const deeper = findTradeColonyContext(options[i], [...pathSoFar, i]);
+      if (deeper) {
+        return deeper;
+      }
+    }
+  }
+  return undefined;
+}
+
+/** The Hydronetwork (Delta Project) advance action in the action menu. */
+export function findHydroActionPath(wf: PlayerInputModel | undefined): ReadonlyArray<number> | undefined {
+  return findOptionPathByTitle(wf, 'Advance on the Delta Project track');
+}
+
 /** Wrap an inner response in one OR layer per path index (innermost first). */
 export function wrapPath(path: ReadonlyArray<number>, inner: unknown): unknown {
   let response = inner;

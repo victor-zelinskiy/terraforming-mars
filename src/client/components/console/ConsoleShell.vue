@@ -47,7 +47,41 @@
                           :index="consoleState.handIndex"
                           :saleActive="consoleState.sale.active"
                           :saleSelected="consoleState.sale.selected" />
+      <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
+                              :colonies="game.colonies"
+                              :index="consoleState.colonyIndex"
+                              :tradeable="tradeableColonyNames"
+                              :tradeBlockReason="colonyTradeBlockReason" />
+      <!-- The premium Hydronetwork surface, mounted as a console screen.
+           Its internals are driven by the demoted DOM focus engine (its
+           scope def exists) — the console carves out ONLY LT (Info Mode). -->
+      <HydroNetworkOverlay v-if="consoleState.section === 'hydro'"
+                           :playerView="playerView"
+                           :viewerId="playerView.id"
+                           :actionAvailable="hydroActionAvailable"
+                           :cacheKey="String(game.generation)"
+                           @pick-action="onUnsupportedPick"
+                           @pick-played-card="onUnsupportedPick"
+                           @confirm="submitHydroAdvance($event)"
+                           @close="consoleState.section = 'board'" />
     </div>
+
+    <!-- LT INFORMATION MODE — read-only player dashboard over everything
+         console (fallback surfaces still render above at z12000+). -->
+    <ConsoleInfoMode v-if="infoModeState.open" :playerView="playerView" :myTurn="myTurn" />
+
+    <!-- Colony trade payment/confirm — the reused desktop premium modal
+         (a fallback surface: the demoted engine drives its option cards). -->
+    <MandatoryInputModal v-if="pendingTradeColony !== undefined" :minimizable="false">
+      <ColonyTradePaymentModal :colony="pendingTradeColonyModel"
+                               :colonyName="pendingTradeColony.colonyName"
+                               :options="pendingTradeColony.paymentOptions"
+                               :disabledOptions="pendingTradeColony.disabledPayments"
+                               :players="playerView.players"
+                               :tradeOffset="thisPlayer.colonyTradeOffset"
+                               @select="onColonyTradePaymentSelected($event)"
+                               @cancel="pendingTradeColony = undefined" />
+    </MandatoryInputModal>
 
     <ConsoleActionWheel v-if="consoleState.wheelOpen" :entries="wheelEntries" :index="consoleState.wheelIndex" />
     <ConsoleSheet v-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
@@ -163,6 +197,13 @@ import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry} from '@/client/components/console/ConsoleHandSection.vue';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
+import ConsoleColoniesSection from '@/client/components/console/ConsoleColoniesSection.vue';
+import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
+import HydroNetworkOverlay from '@/client/components/hydronetwork/HydroNetworkOverlay.vue';
+import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePaymentModal.vue';
+import {resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
+import {ColonyName} from '@/common/colonies/ColonyName';
+import {ColonyModel} from '@/common/models/ColonyModel';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
@@ -174,17 +215,21 @@ import {
   findConvertHeatOption,
   findConvertPlantsOption,
   findEndTurnPath,
+  findHydroActionPath,
   findMilestoneOptionPath,
   findPassPath,
   findPerformActionCard,
   findPlayProjectCardAction,
   findSellPatentsAction,
   findStandardProjectsAction,
+  findTradeColonyContext,
+  TradeColonyContext,
   hasTurn,
   inputTitleText,
   optionResponseForPath,
   wrapPath,
 } from '@/client/console/turnIntents';
+import {infoModeState, openInfoMode, closeInfoMode, restoreConsoleSnapshot, cyclePlayer, InfoDetail} from '@/client/console/infoModeState';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {boardInfoState, configureBoardInfo} from '@/client/components/board/boardInfoState';
@@ -214,6 +259,10 @@ export default defineComponent({
     ConsoleBoardSection,
     ConsoleHandSection,
     ConsoleResourcePanel,
+    ConsoleColoniesSection,
+    ConsoleInfoMode,
+    HydroNetworkOverlay,
+    ColonyTradePaymentModal,
     GamepadGlyph,
     'waiting-for': WaitingFor,
     'select-space': SelectSpace,
@@ -227,8 +276,10 @@ export default defineComponent({
   data() {
     return {
       consoleState,
+      infoModeState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       pendingStdProjectPayment: undefined as PendingStdProjectPayment | undefined,
+      pendingTradeColony: undefined as {colonyName: ColonyName, paymentOptions: TradeColonyContext['paymentOptions'], disabledPayments: TradeColonyContext['disabledPayments']} | undefined,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
       /** The player has actively focused a cell → the panel shows it (B drops back to the summary). */
       cellFocused: false,
@@ -384,19 +435,51 @@ export default defineComponent({
         'You will take no more actions this generation.' :
         'The temperature is already at its maximum.';
     },
-    // ── the LT category wheel (journal deliberately NOT here) ───────────
+    // ── colonies / hydro ───────────────────────────────────────────────
+    tradeColonyContext() {
+      return findTradeColonyContext(this.playerView.waitingFor);
+    },
+    tradeableColonyNames(): ReadonlyArray<string> {
+      return this.tradeColonyContext?.colonies ?? [];
+    },
+    colonyTradeBlockReason(): string {
+      if (this.tradeColonyContext === undefined) {
+        return 'Not your turn to take any actions';
+      }
+      const selected = this.game.colonies[this.consoleState.colonyIndex];
+      if (selected !== undefined && selected.visitor !== undefined) {
+        return 'Already visited this generation';
+      }
+      return 'Unavailable right now';
+    },
+    pendingTradeColonyModel(): ColonyModel | undefined {
+      const pending = this.pendingTradeColony;
+      if (pending === undefined) {
+        return undefined;
+      }
+      return this.game.colonies.find((c) => c.name === pending.colonyName);
+    },
+    hydroActionAvailable(): boolean {
+      return findHydroActionPath(this.playerView.waitingFor) !== undefined;
+    },
+    /** VP visibility for the player viewed in Information Mode. */
+    infoVpVisible(): boolean {
+      const color = infoModeState.playerColor;
+      return color === this.thisPlayer.color || this.game.gameOptions.showOtherPlayersVP === true;
+    },
+    // ── the RT category wheel (journal deliberately NOT here; every
+    //    sector carries a DIRECT hotkey; A = highlighted / default Cards) ─
     wheelEntries(): Array<WheelEntry> {
-      const desktopOnly = 'Available in desktop mode for now';
       const entries: Array<WheelEntry> = [
-        {id: 'cards', label: 'Cards', barIcon: 'cards', available: true, reason: '', badge: this.cardsPlayableCount},
-        {id: 'cardActions', label: 'Card actions', barIcon: 'actions', available: true, reason: '', badge: this.actionsAvailableCount},
-        {id: 'effects', label: 'Effects', barIcon: 'effects', available: false, reason: desktopOnly},
+        {id: 'cards', label: 'Cards', barIcon: 'cards', shortcut: 'confirm', available: true, reason: '', badge: this.cardsPlayableCount},
+        {id: 'cardActions', label: 'Card actions', barIcon: 'actions', shortcut: 'secondary', available: true, reason: '', badge: this.actionsAvailableCount},
+        {id: 'effects', label: 'Effects', barIcon: 'effects', shortcut: 'bumperL', available: true, reason: ''},
       ];
       if (this.game.colonies.length > 0) {
-        entries.push({id: 'colonies', label: 'Colonies', barIcon: 'colonies', available: false, reason: desktopOnly});
+        entries.push({id: 'colonies', label: 'Colonies', barIcon: 'colonies', shortcut: 'bumperR', available: true, reason: ''});
       }
       if (this.game.gameOptions.expansions.deltaProject) {
-        entries.push({id: 'hydro', label: 'Hydronetwork', barIcon: 'hydronetwork', available: false, reason: desktopOnly});
+        entries.push({id: 'hydro', label: 'Hydronetwork', barIcon: 'hydronetwork', shortcut: 'inspect', available: true, reason: ''});
       }
       return entries;
     },
@@ -485,7 +568,12 @@ export default defineComponent({
       if (this.consoleState.sale.active) {
         return 'Sell patents';
       }
-      return this.consoleState.section === 'board' ? 'Board' : 'Hand';
+      switch (this.consoleState.section) {
+      case 'hand': return 'Hand';
+      case 'colonies': return 'Colonies';
+      case 'hydro': return 'Mars Hydronetwork';
+      default: return 'Board';
+      }
     },
     commands(): Array<ConsoleCommand> {
       if (this.consoleState.fallbackActive) {
@@ -505,6 +593,9 @@ export default defineComponent({
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Open'},
+          {control: 'secondary', label: 'Card actions'},
+          {control: 'bumperR', label: 'Colonies', enabled: this.game.colonies.length > 0},
+          {control: 'bumperL', label: 'Effects'},
           {control: 'back', label: 'Close'},
         ];
       }
@@ -539,14 +630,33 @@ export default defineComponent({
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Play now', enabled: playable},
           {control: 'triggerR', label: 'Next playable'},
-          {control: 'inspect', label: 'Basic actions', enabled: this.myTurn},
+          {control: 'triggerL', label: 'Information'},
+          {control: 'back', label: 'To the board'},
+        ];
+      }
+      if (this.consoleState.section === 'colonies') {
+        const selected = this.game.colonies[this.consoleState.colonyIndex];
+        const tradeable = selected !== undefined && this.tradeableColonyNames.includes(selected.name);
+        return [
+          {control: 'dpadH', label: 'Navigate'},
+          {control: 'confirm', label: 'Trade', enabled: tradeable},
+          {control: 'triggerL', label: 'Information'},
+          {control: 'back', label: 'To the board'},
+        ];
+      }
+      if (this.consoleState.section === 'hydro') {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'triggerL', label: 'Information'},
           {control: 'back', label: 'To the board'},
         ];
       }
       // Board — the console home screen: the full stable command map.
       return [
         {control: 'inspect', label: 'Basic actions', enabled: this.myTurn},
-        {control: 'triggerL', label: 'Categories'},
+        {control: 'triggerR', label: 'Actions'},
+        {control: 'triggerL', label: 'Information'},
         {control: 'bumperL', label: 'Milestones', badge: this.milestonesClaimableCount, highlight: this.milestonesClaimableCount > 0},
         {control: 'bumperR', label: 'Awards', badge: this.awardsFundableCount, highlight: this.awardsFundableCount > 0},
         {control: 'view', label: 'Log'},
@@ -576,6 +686,11 @@ export default defineComponent({
         this.consoleState.handIndex = stepIndex(this.consoleState.handIndex, 0, this.handEntries.length);
         this.consoleState.wheelIndex = stepIndex(this.consoleState.wheelIndex, 0, this.wheelEntries.length);
         this.consoleState.sheetIndex = stepSelectable(this.consoleState.sheetIndex, 0, this.sheetRows.map((r) => r.kind !== 'header'));
+        this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.game.colonies.length);
+        // The trade window closed externally → drop the stale payment modal.
+        if (this.pendingTradeColony !== undefined && this.tradeColonyContext === undefined) {
+          this.pendingTradeColony = undefined;
+        }
         // A resolved convert-plants prompt (server moved on) drops the local picker.
         if (this.convertPlantsPending !== undefined &&
             findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true) === undefined) {
@@ -698,19 +813,27 @@ export default defineComponent({
     // ── input ────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): boolean {
       // A fallback surface (mandatory modal / dialog / draft / endgame…) on
-      // top → the demoted DOM focus engine drives it.
-      const fallback = resolveScope() !== undefined;
+      // top → the demoted DOM focus engine drives it. ONE carve-out: the
+      // console-mounted Hydronetwork surface is a fallback-driven scope, but
+      // LT must still open Information Mode from it (§8.3).
+      const scope = resolveScope();
+      const fallback = scope !== undefined;
       this.consoleState.fallbackActive = fallback;
       if (fallback) {
+        if (scope?.def.id === 'overlay-hydro' && this.consoleState.section === 'hydro' &&
+            intent.kind === 'press' && intent.button === 'triggerL' && !this.infoModeState.open) {
+          this.toggleInfoMode();
+          return true;
+        }
         return false;
       }
-      // LT: hold = free-roam during placement; otherwise the category wheel.
+      // LT INFORMATION MODE: toggle from every safe console context
+      // (placement keeps LT as the free-roam hold — a mandatory flow).
       if (intent.kind === 'press' && intent.button === 'triggerL') {
-        if (this.placementActive) {
+        if (this.placementActive && !this.infoModeState.open) {
           this.consoleState.freeRoam = true;
         } else if (this.consoleState.confirm === undefined) {
-          this.consoleState.wheelOpen = !this.consoleState.wheelOpen;
-          this.consoleState.sheet = undefined;
+          this.toggleInfoMode();
         }
         return true;
       }
@@ -722,6 +845,11 @@ export default defineComponent({
       }
       if (intent.kind === 'scroll') {
         return true; // reserved (journal/list scrolling — next iteration)
+      }
+      // Information Mode owns everything while open (read-only).
+      if (this.infoModeState.open) {
+        this.handleInfoIntent(intent);
+        return true;
       }
       if (this.consoleState.confirm !== undefined) {
         if (intent.kind === 'press' && intent.button === 'confirm') {
@@ -741,6 +869,75 @@ export default defineComponent({
       }
       return this.handleSectionIntent(intent);
     },
+    // ── Information Mode (read-only; never submits) ─────────────────────
+    toggleInfoMode(): void {
+      if (this.infoModeState.open) {
+        const snap = closeInfoMode();
+        if (snap !== undefined) {
+          this.cellFocused = restoreConsoleSnapshot(snap);
+        }
+        // A placement prompt that arrived WHILE Info Mode was open must not
+        // be restored away from — the board is the mandatory surface.
+        if (this.placementActive) {
+          this.consoleState.section = 'board';
+        }
+        return;
+      }
+      this.consoleState.wheelOpen = false;
+      openInfoMode(this.thisPlayer.color, this.cellFocused);
+    },
+    handleInfoIntent(intent: GamepadIntent): void {
+      if (intent.kind === 'nav') {
+        // d-pad up/down scrolls the visible info surface.
+        const scroller = document.querySelector<HTMLElement>('.con-info__scroll');
+        if (scroller !== null && (intent.dir === 'up' || intent.dir === 'down')) {
+          scroller.scrollBy({top: intent.dir === 'down' ? 140 : -140, behavior: 'smooth'});
+        }
+        return;
+      }
+      if (intent.kind !== 'press') {
+        return;
+      }
+      const colors = this.playerView.players.map((p) => p.color);
+      switch (intent.button) {
+      case 'bumperL':
+        this.infoModeState.playerColor = cyclePlayer(colors, this.infoModeState.playerColor, -1);
+        break;
+      case 'bumperR':
+        this.infoModeState.playerColor = cyclePlayer(colors, this.infoModeState.playerColor, 1);
+        break;
+      case 'secondary':
+        this.openInfoDetail('extras');
+        break;
+      case 'inspect':
+        this.openInfoDetail('actions');
+        break;
+      case 'triggerR':
+        this.openInfoDetail('effects');
+        break;
+      case 'confirm':
+        if (this.infoModeState.detail === undefined) {
+          if (this.infoVpVisible) {
+            this.openInfoDetail('vp');
+          } else {
+            this.showNotice('Score is hidden until the end of the game');
+          }
+        }
+        break;
+      case 'back':
+        if (this.infoModeState.detail !== undefined) {
+          this.infoModeState.detail = undefined;
+        } else {
+          this.toggleInfoMode(); // dashboard root: B = close + restore
+        }
+        break;
+      default:
+        break;
+      }
+    },
+    openInfoDetail(detail: InfoDetail): void {
+      this.infoModeState.detail = this.infoModeState.detail === detail ? undefined : detail;
+    },
     handleWheelIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
         const step = (intent.dir === 'right' || intent.dir === 'down') ? 1 : -1;
@@ -748,12 +945,34 @@ export default defineComponent({
         this.consoleState.wheelIndex = (this.consoleState.wheelIndex + step + n) % n;
         return;
       }
-      if (intent.kind === 'press') {
-        if (intent.button === 'confirm') {
-          this.executeWheel(this.wheelEntries[this.consoleState.wheelIndex]);
-        } else if (intent.button === 'back') {
-          this.consoleState.wheelOpen = false;
-        }
+      if (intent.kind !== 'press') {
+        return;
+      }
+      // DIRECT hotkeys — no aiming needed (§6.3). RT is NOT a shortcut
+      // (it opens the wheel). A = highlighted sector (index 0 = Cards by
+      // default, so "nothing aimed" A opens Cards).
+      const byShortcut = (id: string) => this.wheelEntries.find((e) => e.id === id);
+      switch (intent.button) {
+      case 'confirm':
+        this.executeWheel(this.wheelEntries[this.consoleState.wheelIndex] ?? byShortcut('cards'));
+        break;
+      case 'secondary':
+        this.executeWheel(byShortcut('cardActions'));
+        break;
+      case 'inspect':
+        this.executeWheel(byShortcut('hydro'));
+        break;
+      case 'bumperR':
+        this.executeWheel(byShortcut('colonies'));
+        break;
+      case 'bumperL':
+        this.executeWheel(byShortcut('effects'));
+        break;
+      case 'back':
+        this.consoleState.wheelOpen = false;
+        break;
+      default:
+        break;
       }
     },
     handleSheetIntent(intent: GamepadIntent): void {
@@ -808,6 +1027,14 @@ export default defineComponent({
         journalState.open = !journalState.open;
         return true;
       case 'triggerR':
+        // RT: the action wheel — ONLY from the board home (§6.1); elsewhere
+        // it keeps its local jump semantics.
+        if (onBoard && !this.placementActive) {
+          this.consoleState.wheelOpen = true;
+          this.consoleState.wheelIndex = 0; // Cards = the A default
+          this.consoleState.sheet = undefined;
+          return true;
+        }
         this.handleNextJump();
         return true;
       case 'confirm':
@@ -830,6 +1057,14 @@ export default defineComponent({
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
         board?.move(dir);
         this.cellFocused = true;
+        return;
+      }
+      if (this.consoleState.section === 'colonies') {
+        if (dir === 'left' || dir === 'up') {
+          this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, -1, this.game.colonies.length);
+        } else {
+          this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 1, this.game.colonies.length);
+        }
         return;
       }
       // Hand carousel: left/right steps.
@@ -865,6 +1100,10 @@ export default defineComponent({
         }
         return;
       }
+      if (this.consoleState.section === 'colonies') {
+        this.tryOpenColonyTrade();
+        return;
+      }
       const entry = this.handEntries[this.consoleState.handIndex];
       if (entry === undefined) {
         return;
@@ -894,7 +1133,7 @@ export default defineComponent({
         this.consoleState.section = 'board';
         return;
       }
-      if (this.consoleState.section === 'hand') {
+      if (this.consoleState.section === 'hand' || this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro') {
         this.consoleState.section = 'board';
         return;
       }
@@ -925,6 +1164,20 @@ export default defineComponent({
         break;
       case 'cardActions':
         this.openSheet('cardActions');
+        break;
+      case 'effects':
+        // Effects category = Information Mode's effects detail (the one
+        // read-only effects surface; RT-in-wheel is deliberately NOT used).
+        openInfoMode(this.thisPlayer.color, this.cellFocused);
+        this.infoModeState.detail = 'effects';
+        break;
+      case 'colonies':
+        this.consoleState.section = 'colonies';
+        this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.game.colonies.length);
+        break;
+      case 'hydro':
+        resetHydroPlan();
+        this.consoleState.section = 'hydro';
         break;
       }
     },
@@ -1110,6 +1363,62 @@ export default defineComponent({
       }
       closeConsoleLayers();
       this.submit(wrapPath([...found.path, innerIdx], {type: 'option' as const}));
+    },
+    // ── colonies trade (mirrors the desktop contract byte-for-byte) ─────
+    tryOpenColonyTrade(): void {
+      const ctx = this.tradeColonyContext;
+      const selected = this.game.colonies[this.consoleState.colonyIndex];
+      if (selected === undefined) {
+        return;
+      }
+      if (ctx === undefined || !ctx.colonies.includes(selected.name)) {
+        this.showNotice(this.colonyTradeBlockReason);
+        return;
+      }
+      // ALWAYS confirm through the premium payment modal — never instant.
+      this.pendingTradeColony = {
+        colonyName: selected.name,
+        paymentOptions: ctx.paymentOptions,
+        disabledPayments: ctx.disabledPayments,
+      };
+    },
+    onColonyTradePaymentSelected(paymentIdx: number): void {
+      const pending = this.pendingTradeColony;
+      const ctx = this.tradeColonyContext;
+      this.pendingTradeColony = undefined;
+      if (pending === undefined || ctx === undefined) {
+        return;
+      }
+      // Shape (desktop-identical): wrap(tradePath, {type:'and', responses:
+      // [{type:'or', index: paymentIdx, response:{type:'option'}}, {type:'colony', colonyName}]}).
+      const andResponse = {
+        type: 'and' as const,
+        responses: [
+          {type: 'or' as const, index: paymentIdx, response: {type: 'option' as const}},
+          {type: 'colony' as const, colonyName: pending.colonyName},
+        ],
+      };
+      this.submit(wrapPath(ctx.path, andResponse));
+    },
+    // ── hydro advance (mirrors PlayerHome.submitHydroAdvance) ───────────
+    submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName}): void {
+      const path = findHydroActionPath(this.playerView.waitingFor);
+      if (path === undefined) {
+        return;
+      }
+      const responses: Array<unknown> = [
+        optionResponseForPath(path),
+        {type: 'deltaProject' as const, amount: payload.spend},
+      ];
+      if (payload.rewardChoice !== undefined) {
+        responses.push({type: 'or' as const, index: payload.rewardChoice, response: {type: 'option' as const}});
+      }
+      if (payload.selectedCard !== undefined) {
+        responses.push({type: 'card' as const, cards: [payload.selectedCard]});
+      }
+      this.submitBatch(responses);
+      resetHydroPlan();
+      this.consoleState.section = 'board';
     },
     confirmSale(): void {
       const picked = this.consoleState.sale.selected;
