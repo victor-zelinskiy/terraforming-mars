@@ -127,9 +127,16 @@
               <span>{{ $t(g.label) }}</span>
               <b class="con-info__mint">{{ g.total }}</b>
             </h4>
-            <div v-for="c in g.cards" :key="c.name" class="con-info__exrow">
-              <span class="con-info__exrow-name">{{ $t(c.name) }}</span>
-              <span class="con-info__exrow-count">{{ c.amount }}</span>
+            <!-- INFO PARITY (CTS-3.8): the holders are REAL premium card
+                 renders (the live model already draws the resource cubes);
+                 the count chip doubles the read at TV distance. -->
+            <div class="con-info__excards">
+              <div v-for="c in g.cards" :key="c.card.name" class="con-info__excard">
+                <Card :card="c.card" :key="c.card.name" lightweight />
+                <span class="con-info__excard-count">
+                  <i :class="g.iconClass" aria-hidden="true"></i> ×{{ c.amount }}
+                </span>
+              </div>
             </div>
           </section>
         </div>
@@ -231,6 +238,7 @@ import {translateTextWithParams} from '@/client/directives/i18n';
 import TagCount from '@/client/components/TagCount.vue';
 import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import Card from '@/client/components/card/Card.vue';
 
 const TAG_ORDER: ReadonlyArray<Tag> = [
   Tag.BUILDING, Tag.SPACE, Tag.SCIENCE, Tag.POWER, Tag.EARTH, Tag.JOVIAN,
@@ -247,7 +255,7 @@ const DETAIL_TITLES: Record<string, string> = {
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
-  components: {'tag-count': TagCount, EffectBlock, GamepadGlyph},
+  components: {'tag-count': TagCount, EffectBlock, GamepadGlyph, Card},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -294,8 +302,8 @@ export default defineComponent({
       return TAG_ORDER.map((tag) => ({tag, count: counts[tag] ?? 0})).filter((e) => e.count > 0);
     },
     /** Extra card resources aggregated by type (public — tableaus only). */
-    extraGroups(): Array<{key: string, label: string, iconClass: string, total: number, cards: Array<{name: CardName, amount: number}>}> {
-      const byType = new Map<string, {label: string, total: number, cards: Array<{name: CardName, amount: number}>}>();
+    extraGroups(): Array<{key: string, label: string, iconClass: string, total: number, cards: Array<{card: CardModel, amount: number}>}> {
+      const byType = new Map<string, {label: string, total: number, cards: Array<{card: CardModel, amount: number}>}>();
       for (const card of this.viewed.tableau) {
         const amount = card.resources ?? 0;
         if (amount <= 0) {
@@ -312,7 +320,9 @@ export default defineComponent({
         }
         const entry = byType.get(type) ?? {label: type, total: 0, cards: []};
         entry.total += amount;
-        entry.cards.push({name: card.name, amount});
+        // The LIVE CardModel (info parity, CTS-3.8): the real premium card
+        // render carries the resource cubes itself — never a name-only row.
+        entry.cards.push({card, amount});
         byType.set(type, entry);
       }
       return Array.from(byType.entries()).map(([key, e]) => ({

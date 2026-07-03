@@ -95,6 +95,7 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {paths} from '@/common/app/paths';
+import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {JoinableGameSummary} from '@/common/models/JoinableGameModel';
 import {PlayerColorOverrideResult} from '@/common/models/JoinableGameModel';
@@ -190,7 +191,9 @@ export default defineComponent({
       }
     },
     go(playerId: string): void {
-      window.location.assign(`${paths.PLAYER}?id=${encodeURIComponent(playerId)}`);
+      // The game boundary is a DELIBERATE full reload (clean per-game module
+      // state); the premium curtain (P10) covers it seamlessly.
+      navigateWithCurtain(`${paths.PLAYER}?id=${encodeURIComponent(playerId)}`, 'expedition');
     },
   },
 });

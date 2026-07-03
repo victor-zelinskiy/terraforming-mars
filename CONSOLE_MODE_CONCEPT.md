@@ -1211,6 +1211,66 @@ the desktop-gamepad mode are untouched throughout.
   its legacy AndOptions.vue) and DEEPER `or` nesting. Gates: 80 pure
   specs (served/deferred matrix updated: nested payment/card SERVED,
   `and`/deep-`or` deferred), eslint, vue-tsc, build:client — green.
+- **P10 — SHIPPED (the premium console-native PRE-GAME shell: menu /
+  join / create / loading / Electron).** Scope discipline: the EXISTING
+  flow was re-skinned for gamepad-first — no new game scenarios; the only
+  new actions are the sanctioned ВЫЙТИ (Electron) + the loading screen.
+  **(a) Runtime modes** — `runtimeMode.ts` (isElectronApp /
+  supportsNativeQuit / supportsNativeFullscreen / quitApp /
+  setNativeFullscreen / initialGamepadDetected) over the sandboxed
+  `desktopBridge`; the bridge gained `quitApp` + `setFullscreen`
+  (preload → `desktop:quitApp` / `desktop:setFullscreen` ipcMain
+  handlers; feature-detected per method so an OLDER installed shell just
+  hides the affordances; browser builds see no bridge → everything false).
+  **(b) Electron auto console mode** — GamepadLayer bootstrap: launched
+  with a pad connected → `setConsoleMode(true)` immediately (no prompt,
+  no mouse); a pad connecting LATER (padsConnected watcher) does the same
+  in the Electron shell; the browser keeps the consent prompt. The
+  existing connect/disconnect toast covers the lifecycle messages.
+  **(c) ВЫЙТИ** — a first-class main-menu item (power icon, normal focus
+  order, Electron-only via supportsNativeQuit) → `ConsoleConfirmDialog`
+  (reusable: a NATIVE `<dialog>` + showModal → the PLATFORM's focus trap
+  + the generic `dialog[open]` pad scope; Cancel is FIRST in DOM so the
+  initial focus lands on the safe action — a rapid double-press can never
+  quit); confirm → the IPC quit, never a browser workaround.
+  **(d) Premium loading screen** — `ConsoleLoadingScreen` +
+  `loadingScreenState`: mars-glow scene + terraforming grid + a calm
+  orbital scanner + staged messages (Подготовка экспедиции… →
+  Синхронизация… → Загрузка карты… → Инициализация…; indeterminate,
+  holds on the last stage) + the premium error/retry state (the player
+  fetch failure under the curtain becomes Retry instead of a bare
+  alert) + the fullscreen-restore prompt. **The game boundary stays the
+  DELIBERATE full reload** (clean per-game module state — the documented
+  architecture); `navigateWithCurtain(url)` makes it seamless: curtain
+  painted FIRST (double-rAF), flags handed via sessionStorage
+  (`tm_boot_curtain` + `tm_fs_restore`), the NEXT page raises the curtain
+  in App.mounted BEFORE the first route resolution — no raw texture /
+  white DOM ever. Wired at all three boundary sites (JoinGameCard.go,
+  PremiumCreateGame create, the system-menu exit) + direct/reconnect
+  loads of player/spectator/the-end URLs; the curtain drops on the
+  `screen` watcher the moment real content resolved.
+  **(e) Fullscreen stability** — Electron: window fullscreen is a WINDOW
+  property (survives reloads) + the native `setFullscreen` restore;
+  browser: fullscreen dies on navigation BY SPEC → the curtain offers the
+  restore button (Xbox pads send real key events → A works), and a fast
+  load hands the restore to the existing one-shot trusted-gesture retry
+  (silent, non-blocking).
+  **(f) Focus manager, pre-game** — a `screen` watcher in GamepadLayer
+  drops the stale focus descriptor on every screen transition (the tick
+  re-acquires the FIRST actionable of the new scope — never a hidden
+  element, never an unfocusable state); a new top-priority
+  `loadingScreen` scope drives the curtain's Retry/Restore buttons;
+  `html.gp-mode .gp-focus` element-level glow/lift joins the floating
+  ring on the menu / join / create surfaces (unmistakable at TV
+  distance). **Native `<select>` audit:** the premium create/join/menu
+  screens already use custom controls ONLY (segmented player count,
+  expansion tiles, map overlay list, toggles — the earlier premium
+  redesign); the two `<input type=text>` (player names / identity) keep
+  keyboard fallback (a console text-input solution stays a documented
+  follow-up); the legacy web form (`create-game-form`) is NOT part of the
+  console path. Desktop/web untouched (everything runtime-gated). Gates:
+  110 pure specs (console+gamepad) + 33 electron specs, electron tsc,
+  eslint, vue-tsc, make:json/css, build:client — green.
 
 ---
 

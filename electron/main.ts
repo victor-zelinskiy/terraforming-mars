@@ -174,6 +174,20 @@ function createWindow(): void {
 
 // Narrow IPC surface backing the preload's desktopBridge. Nothing else is exposed.
 ipcMain.handle('desktop:getVersion', () => app.getVersion());
+// Console-native pre-game shell (P10): the renderer's ВЫЙТИ confirm quits
+// through this — never a browser workaround. Safe: quit() runs the normal
+// Electron shutdown (will-quit hooks, updater cleanup) and is idempotent.
+ipcMain.handle('desktop:quitApp', () => {
+  app.quit();
+});
+// Native window fullscreen — more reliable than the browser Fullscreen API
+// inside Electron (no user-activation requirement; survives reloads as a
+// WINDOW property). The renderer only ever passes a boolean.
+ipcMain.handle('desktop:setFullscreen', (_event: IpcMainInvokeEvent, value: unknown) => {
+  if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
+    mainWindow.setFullScreen(value === true);
+  }
+});
 ipcMain.handle('desktop:openExternal', (_event: IpcMainInvokeEvent, url: unknown): Promise<void> => {
   if (typeof url === 'string' && isExternalHttp(url)) {
     return shell.openExternal(url);

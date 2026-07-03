@@ -57,7 +57,11 @@ const COEXIST: ReadonlyArray<string> = [
 
 /** Highest priority first. */
 export const SCOPE_DEFS: ReadonlyArray<ScopeDef> = [
-  // 1. Native top layer (CardZoomModal, ConfirmDialog).
+  // 0. The premium loading curtain (P10) — covers EVERYTHING while up; its
+  //    only actionables are the Retry / Restore-fullscreen buttons.
+  {id: 'loadingScreen', root: '.con-load', back: {kind: 'none'}},
+
+  // 1. Native top layer (CardZoomModal, ConfirmDialog, the quit confirm).
   {id: 'dialog', root: 'dialog[open]', back: {kind: 'dialog-close'}},
 
   // 2. The mandatory-input modal (payment, option pickers, card selection,

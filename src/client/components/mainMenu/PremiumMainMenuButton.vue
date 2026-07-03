@@ -51,6 +51,12 @@
           <path d="M8.4 12.4 C10 11.9 12 11.9 13.4 12.4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity="0.55"/>
           <path d="M18.6 12.4 C20 11.9 22 11.9 23.6 12.4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity="0.55"/>
         </svg>
+
+        <!-- power (Electron ВЫЙТИ — P10) -->
+        <svg v-else-if="icon === 'power'" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10.2 10.2 A9 9 0 1 0 21.8 10.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="16" y1="6" x2="16" y2="15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
       </span>
     </span>
 
@@ -70,7 +76,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 
-export type MenuButtonIcon = 'globe-plus' | 'users' | 'cards' | 'book';
+export type MenuButtonIcon = 'globe-plus' | 'users' | 'cards' | 'book' | 'power';
 export type MenuButtonVariant = 'primary' | 'secondary';
 
 export default defineComponent({

@@ -79,6 +79,8 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleEntryPrompt from '@/client/components/console/ConsoleEntryPrompt.vue';
 import ConsoleSystemMenu, {SYSTEM_MENU_ITEMS} from '@/client/components/console/ConsoleSystemMenu.vue';
 import {consoleModeState, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
+import {initialGamepadDetected, isElectronApp} from '@/client/console/runtimeMode';
+import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
 import {leakDetectorState} from '@/client/console/consoleLeakDetector';
 
@@ -161,6 +163,20 @@ export default defineComponent({
     'inputModeState.padsConnected'(now: number, before: number) {
       // Connect/disconnect toast — the W3C lifecycle made visible.
       this.showToast(this.$t(now > before ? 'Controller connected' : 'Controller disconnected'));
+      // ELECTRON (P10): a pad connecting anywhere in the shell (menu /
+      // create / lobby / game) enables the console posture immediately.
+      if (now > before && isElectronApp() && !this.consoleModeState.enabled) {
+        setConsoleMode(true);
+      }
+    },
+    // P10: a screen transition invalidates the focus descriptor — drop it
+    // so the next tick re-acquires the first actionable of the NEW screen
+    // (never a stale/hidden element, never an unfocusable state).
+    screen() {
+      if (this.gamepadActive) {
+        clearGamepadFocus();
+        void this.$nextTick(() => gamepadFocusTick());
+      }
     },
     // Console-mode presentation class — owned HERE (the layer lives on every
     // lifecycle screen), so menu/create/lobby get the console styling too.
@@ -262,8 +278,9 @@ export default defineComponent({
       if (this.systemMenuConfirmExit) {
         if (intent.button === 'confirm') {
           // The SAME safe navigation the desktop corner button used — the
-          // game is server-saved and re-enterable from the main menu.
-          window.location.assign('/');
+          // game is server-saved and re-enterable from the main menu. The
+          // curtain (P10) covers the deliberate reload seamlessly.
+          navigateWithCurtain('/', 'interface');
         } else if (intent.button === 'back') {
           this.systemMenuConfirmExit = false;
         }
@@ -294,8 +311,14 @@ export default defineComponent({
         this.startTick();
         gamepadFocusTick();
         // Desktop shell + a pad in hand → offer the console interface once.
+        // ELECTRON (P10): the shell IS the couch build — a pad in hand
+        // switches straight into console mode, no prompt.
         if (!this.consoleModeState.enabled) {
-          maybeOfferConsoleMode();
+          if (isElectronApp()) {
+            setConsoleMode(true);
+          } else {
+            maybeOfferConsoleMode();
+          }
         } else {
           // Console + pad = the TV posture — (re-)enter fullscreen
           // (best-effort; a trusted-gesture retry arms itself on failure).
@@ -335,6 +358,13 @@ export default defineComponent({
     this.offMode = onInputModeChange((mode) => this.onModeChange(mode));
     if (this.gamepadActive) {
       this.startTick();
+    }
+    // ELECTRON BOOTSTRAP (P10): launched with a controller already in hand →
+    // start straight in the console posture (no prompt, no mouse needed).
+    // Chromium may not report an idle pad until its first input — the
+    // padsConnected watcher above catches that wake-up the same way.
+    if (isElectronApp() && initialGamepadDetected() && !this.consoleModeState.enabled) {
+      setConsoleMode(true);
     }
   },
   beforeUnmount() {

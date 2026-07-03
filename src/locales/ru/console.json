@@ -70,5 +70,16 @@
     "Not enough resources to cover the cost": "Недостаточно ресурсов для оплаты",
     "You are not buying any project cards": "Вы не покупаете ни одной проектной карты",
     "Reveal result": "Результат вскрытия",
-    "The choice of option follows after confirmation": "Выбор варианта — после подтверждения"
+    "The choice of option follows after confirmation": "Выбор варианта — после подтверждения",
+    "Exit": "Выйти",
+    "Exit the game?": "Выйти из игры?",
+    "The application will close.": "Приложение будет закрыто.",
+    "Restore fullscreen": "Восстановить полноэкранный режим",
+    "Error getting game data": "Не удалось загрузить данные партии",
+    "Preparing the expedition…": "Подготовка экспедиции…",
+    "Synchronizing the game state…": "Синхронизация состояния партии…",
+    "Loading the Martian map…": "Загрузка марсианской карты…",
+    "Preparing the draft…": "Подготовка драфта…",
+    "Initializing the game interface…": "Инициализация игрового интерфейса…",
+    "Detecting the control mode…": "Определение режима управления…"
 }

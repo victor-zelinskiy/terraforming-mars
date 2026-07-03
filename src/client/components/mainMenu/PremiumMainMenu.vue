@@ -49,6 +49,15 @@
           icon="book"
           variant="secondary"
           @activate="openStub('How to play')" />
+        <!-- Electron shell ONLY (P10): a full first-class menu item, part
+             of the normal focus order. Hidden in browser / Xbox-browser
+             builds AND when an older shell lacks the quit bridge. -->
+        <premium-main-menu-button
+          v-if="canQuit"
+          label="Exit"
+          icon="power"
+          variant="secondary"
+          @activate="quitConfirmOpen = true" />
       </nav>
 
       <premium-menu-footer @edit-identity="openIdentityModal" />
@@ -71,6 +80,17 @@
       v-if="stubFeature !== undefined"
       :feature="stubFeature"
       @close="stubFeature = undefined" />
+
+    <!-- The Electron quit confirmation (focus-trapped; Cancel is the safe
+         default focus, so a double-press can never quit accidentally). -->
+    <console-confirm-dialog
+      v-if="quitConfirmOpen"
+      title="Exit the game?"
+      body="The application will close."
+      confirm-label="Exit"
+      cancel-label="Cancel"
+      @confirm="onQuitConfirm"
+      @cancel="quitConfirmOpen = false" />
   </div>
 </template>
 
@@ -84,8 +104,10 @@ import PremiumMenuFooter from '@/client/components/mainMenu/PremiumMenuFooter.vu
 import PremiumIdentityModal from '@/client/components/mainMenu/PremiumIdentityModal.vue';
 import PremiumStubModal from '@/client/components/mainMenu/PremiumStubModal.vue';
 import JoinGamePanel from '@/client/components/mainMenu/JoinGamePanel.vue';
+import ConsoleConfirmDialog from '@/client/components/console/ConsoleConfirmDialog.vue';
 import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/components/mainMenu/identity/identityState';
 import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
+import {quitApp, supportsNativeQuit} from '@/client/console/runtimeMode';
 
 type PendingAction = 'create' | 'join' | undefined;
 
@@ -97,11 +119,13 @@ export default defineComponent({
     PremiumIdentityModal,
     PremiumStubModal,
     JoinGamePanel,
+    ConsoleConfirmDialog,
   },
   data() {
     return {
       identityModalOpen: false,
       joinPanelOpen: false,
+      quitConfirmOpen: false,
       // The feature name shown by the "not implemented yet" stub modal, or
       // undefined when it's closed. Cards list / How to play open it because
       // those screens are not part of the self-contained premium client yet.
@@ -111,6 +135,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The ВЫЙТИ item exists ONLY in the Electron shell with the quit bridge. */
+    canQuit(): boolean {
+      return supportsNativeQuit();
+    },
     initialName(): string {
       return identityState.identity?.displayName ?? '';
     },
@@ -170,6 +198,10 @@ export default defineComponent({
     onIdentityClose(): void {
       this.identityModalOpen = false;
       this.pendingAction = undefined;
+    },
+    onQuitConfirm(): void {
+      this.quitConfirmOpen = false;
+      quitApp();
     },
     goCreate(): void {
       // Opens the premium "Mission Control" create-game screen, which reads the

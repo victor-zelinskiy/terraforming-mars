@@ -1508,6 +1508,43 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
         font-size: 20px;
     }
     &__exrow-count { font-weight: 700; }
+    /* P11 (CTS-3.8 parity): the resource HOLDERS render as REAL cards. */
+    &__excards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        padding: 4px 2px 10px;
+    }
+    &__excard {
+        position: relative;
+        zoom: 0.78;
+        > .card-container { margin: 0; }
+    }
+    &__excard-count {
+        position: absolute;
+        top: -10px;
+        right: -8px;
+        z-index: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 70%), 0 4px 12px rgba(0, 0, 0, 0.5);
+        color: @con-mint;
+        font-size: 17px;
+        font-weight: 700;
+
+        i {
+            display: inline-block;
+            width: 22px;
+            height: 22px;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain !important;
+        }
+    }
     &__acrow {
         display: flex;
         align-items: center;
@@ -3251,6 +3288,263 @@ html.console-mode .journal-panel {
         gap: 8px;
         color: @con-text-dim;
         font-size: 17px;
+    }
+}
+
+/* ── P10: PREMIUM LOADING SCREEN (the game-boundary curtain) ───────────
+   Covers the deliberate reload between the pre-game shell and the board:
+   deep space → mars glow → terraforming grid → a calm orbital scanner +
+   staged messages. Hosts the fullscreen-restore prompt + error/retry. */
+.con-load {
+    position: fixed;
+    inset: 0;
+    z-index: 12800; /* above every game surface incl. gp chrome */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: @con-font;
+    color: @con-text;
+
+    &__bg {
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(ellipse at 22% 18%, rgba(30, 44, 66, 0.55), transparent 55%),
+            #05070c;
+    }
+    &__glow {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at 50% 118%, rgba(196, 92, 48, 0.28), transparent 58%);
+    }
+    &__grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+            repeating-linear-gradient(60deg, fade(@con-cyan, 3%) 0 1px, transparent 1px 64px),
+            repeating-linear-gradient(-60deg, fade(@con-cyan, 3%) 0 1px, transparent 1px 64px);
+        mask-image: radial-gradient(ellipse at 50% 60%, black, transparent 75%);
+    }
+    &__vignette {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at center, transparent 55%, rgba(2, 4, 8, 0.8));
+    }
+
+    &__panel {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+        min-width: 420px;
+        padding: 38px 54px;
+        border-radius: 16px;
+        background: rgba(8, 14, 22, 0.66);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%), 0 30px 90px rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(6px);
+    }
+    &__scanner {
+        width: 120px;
+        height: 120px;
+
+        svg { width: 100%; height: 100%; }
+    }
+    &__orbit {
+        stroke: fade(@con-cyan, 30%);
+        stroke-width: 1;
+        fill: none;
+
+        &--mid { stroke-dasharray: 4 7; }
+    }
+    &__planet {
+        fill: rgba(196, 92, 48, 0.85);
+        filter: drop-shadow(0 0 14px rgba(196, 92, 48, 0.45));
+    }
+    &__sweep-group {
+        transform-origin: 60px 60px;
+        animation: con-load-orbit calc(4200ms * var(--motion-scale, 1)) linear infinite;
+    }
+    &__satellite {
+        fill: @con-cyan;
+        filter: drop-shadow(0 0 8px fade(@con-cyan, 70%));
+    }
+    &__title {
+        font-size: 20px;
+        letter-spacing: 5px;
+        color: fade(@con-text, 88%);
+    }
+    &__stage {
+        min-height: 26px;
+        font-size: 19px;
+        color: @con-text-dim;
+        text-align: center;
+    }
+    &__pulse {
+        width: 280px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(120, 150, 180, 0.16);
+        overflow: hidden;
+    }
+    &__pulse-bar {
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, transparent, fade(@con-cyan, 85%), transparent);
+        animation: con-load-pulse calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+    &__error {
+        font-size: 19px;
+        color: #ffc9c4;
+        padding: 8px 16px;
+        border-radius: 10px;
+        background: fade(@con-red, 10%);
+        box-shadow: inset 0 0 0 1px fade(@con-red, 55%);
+        max-width: 460px;
+        text-align: center;
+    }
+    &__btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 30px;
+        border: none;
+        border-radius: 10px;
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 60%);
+        color: @con-text;
+        font-family: @con-font;
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        cursor: pointer;
+        transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+
+        &:hover,
+        &.gp-focus {
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 95%), 0 0 22px fade(@con-cyan, 25%);
+            transform: translateY(-2px);
+        }
+        &--fs {
+            background: fade(@con-amber, 12%);
+            box-shadow: inset 0 0 0 1px fade(@con-amber, 60%);
+
+            &:hover,
+            &.gp-focus {
+                box-shadow: inset 0 0 0 1px fade(@con-amber, 95%), 0 0 22px fade(@con-amber, 25%);
+            }
+        }
+    }
+}
+@keyframes con-load-orbit {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+@keyframes con-load-pulse {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-load__sweep-group { animation: none; }
+    .con-load__pulse-bar { animation-duration: 3200ms; }
+}
+
+/* ── P10: the premium quit confirm (a native <dialog> — top layer) ──── */
+dialog.con-quit {
+    border: none;
+    padding: 0;
+    background: transparent;
+    color: @con-text;
+
+    &::backdrop {
+        background: rgba(4, 8, 14, 0.72);
+        backdrop-filter: blur(3px);
+    }
+}
+.con-quit__card {
+    min-width: 460px;
+    padding: 26px 30px 18px;
+    border-radius: 14px;
+    background: @con-glass;
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 24px 80px rgba(0, 0, 0, 0.65);
+    font-family: @con-font;
+    animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.con-quit__body {
+    margin: 12px 0 20px;
+    font-size: 20px;
+    color: @con-text-dim;
+}
+.con-quit__actions {
+    display: flex;
+    gap: 14px;
+}
+.con-quit__btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 13px 22px;
+    border: none;
+    border-radius: 10px;
+    background: rgba(14, 22, 33, 0.7);
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%);
+    color: @con-text;
+    font-family: @con-font;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+
+    &:hover,
+    &.gp-focus {
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 95%), 0 0 20px fade(@con-cyan, 22%);
+        transform: translateY(-2px);
+    }
+    &--danger {
+        box-shadow: inset 0 0 0 1px fade(@con-red, 55%);
+        color: #ffc9c4;
+
+        &:hover,
+        &.gp-focus {
+            box-shadow: inset 0 0 0 1px fade(@con-red, 90%), 0 0 20px fade(@con-red, 22%);
+        }
+    }
+}
+.con-quit__hint {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid fade(@con-cyan, 16%);
+}
+.con-quit__hint-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: @con-text-dim;
+    font-size: 15px;
+}
+
+/* ── P10: premium pad-focus states on the pre-game shell ──────────────
+   The floating ring stays the primary cursor; the element itself ALSO
+   answers (glow + lift) so the active item is unmistakable at TV distance. */
+html.gp-mode {
+    .pmm-btn.gp-focus {
+        transform: translateY(-3px) scale(1.02);
+        filter: brightness(1.12);
+    }
+    .join-card.gp-focus,
+    .join-panel__card .gp-focus {
+        filter: brightness(1.1);
+    }
+    .premium-create .gp-focus {
+        filter: brightness(1.12);
     }
 }
 
