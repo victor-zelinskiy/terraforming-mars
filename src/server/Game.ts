@@ -1626,8 +1626,11 @@ export class Game implements IGame, Logger {
     case SpaceBonus.OCEAN:
       // Hellas special requirements ocean tile
       if (this.canAddOcean()) {
-        this.defer(new PlaceOceanTile(player, {title: 'Select space for ocean from placement bonus'}));
-        this.defer(new SelectPaymentDeferred(player, constants.HELLAS_BONUS_OCEAN_COST, {title: 'Select how to pay for placement bonus ocean'}));
+        this.defer(new SelectPaymentDeferred(player, constants.HELLAS_BONUS_OCEAN_COST, {title: 'Select how to pay for placement bonus ocean'}))
+          .andThen(() => {
+            this.defer(new PlaceOceanTile(player, {title: 'Select space for ocean from placement bonus'}));
+            return undefined;
+          });
       }
       break;
     case SpaceBonus.MICROBE:
