@@ -64,18 +64,15 @@
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
-import {paths} from '@/common/app/paths';
-import {apiUrl} from '@/client/utils/runtimeConfig';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import DrawCardRevealContent from '@/client/components/drawnCards/DrawCardRevealContent.vue';
 import {
   drawnCardsState,
   DrawnCardEntry,
+  closeAndReleaseEvent,
   currentRevealEvent,
   markCardTaken,
   markAllTaken,
-  setAcking,
-  dismissEvent,
 } from '@/client/components/drawnCards/drawnCardsState';
 
 export default defineComponent({
@@ -160,49 +157,13 @@ export default defineComponent({
       this.closeAndRelease(e.id, () => markAllTaken(e.id));
     },
     /*
-     * Close the modal NOW (dismiss → the whole flow unmounts via the App-level
-     * v-if → the blurred backdrop is removed from the DOM), then release the
-     * hand-staging (`releaseFn` marks the cards taken, which raises the КАРТЫ
-     * count and fires its delta-chip) only AFTER the blur has actually been
-     * painted out. Two nested rAFs guarantee at least one painted frame without
-     * the backdrop before the chip animates, so it reads on a clear screen.
-     * Both callbacks call module functions / a captured `view`, never `this`
-     * reactive state, so they're safe to run after this component unmounts.
+     * Close + release + ack — the shared module implementation (also used
+     * by the console reveal overlay). Captures the view id up front; the
+     * module function touches only module state, so it's safe to complete
+     * after this component unmounts.
      */
     closeAndRelease(id: number, releaseFn: () => void): void {
-      const ev = drawnCardsState.events.find((e) => e.id === id);
-      if (ev === undefined || ev.acking) {
-        return;
-      }
-      setAcking(id, true);
-      const view = this.playerView;
-      dismissEvent(id);
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        releaseFn();
-        this.ackEvent(view, id);
-      }));
-    },
-    ackEvent(view: PlayerViewModel, id: number): void {
-      // Pure fire-and-forget. The batch is already dismissed (modal closed), so
-      // this independent endpoint only clears the server's transient queue. We
-      // deliberately do NOT apply the response / bump playerkey: that PlayerHome
-      // remount could cut the КАРТЫ delta-chip that just fired. The lingering
-      // (hidden) store entry is reconciled out by the next regular playerView
-      // poll / the player's next input.
-      fetch(
-        apiUrl(paths.ACKNOWLEDGE_DRAW) + '?id=' + view.id + '&revealId=' + id,
-        {method: 'POST'},
-      )
-        .then((resp) => {
-          if (!resp.ok) {
-            setAcking(id, false);
-            console.warn('acknowledge-draw failed', resp.status);
-          }
-        })
-        .catch((err) => {
-          setAcking(id, false);
-          console.error(err);
-        });
+      closeAndReleaseEvent(this.playerView.id, id, releaseFn);
     },
     // The untaken cards of a batch, paired with their full-array index, in
     // tray order. Both the nav list and the take mapping derive from this so

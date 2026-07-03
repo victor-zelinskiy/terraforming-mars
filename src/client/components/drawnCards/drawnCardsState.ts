@@ -2,6 +2,8 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {CardDrawRevealModel, CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 
 /**
  * Module-level reactive state for the "you drew cards" reveal flow
@@ -156,4 +158,49 @@ export function setAcking(eventId: number, value: boolean): void {
   if (e !== undefined) {
     e.acking = value;
   }
+}
+
+/**
+ * Fire-and-forget server ack (shared by the desktop flow AND the console
+ * reveal overlay — CTS-3.1). The batch is already dismissed client-side;
+ * this only clears the server's transient queue. Deliberately does NOT
+ * apply the response (a remount could cut the КАРТЫ delta-chip); the
+ * lingering hidden entry is reconciled out by the next poll / input.
+ */
+export function acknowledgeDraw(viewId: string, id: number): void {
+  fetch(
+    apiUrl(paths.ACKNOWLEDGE_DRAW) + '?id=' + viewId + '&revealId=' + id,
+    {method: 'POST'},
+  )
+    .then((resp) => {
+      if (!resp.ok) {
+        setAcking(id, false);
+        console.warn('acknowledge-draw failed', resp.status);
+      }
+    })
+    .catch((err) => {
+      setAcking(id, false);
+      console.error(err);
+    });
+}
+
+/**
+ * Close the reveal NOW (dismiss → the hosting surface unmounts via its
+ * v-if → the blurred backdrop leaves the DOM), then release the
+ * hand-staging (`releaseFn` marks the cards taken → the КАРТЫ count +
+ * delta-chip fire) only AFTER the backdrop has painted out (two nested
+ * rAFs = at least one clean frame), then ack. Module-state only — safe
+ * to run after the calling component unmounts.
+ */
+export function closeAndReleaseEvent(viewId: string, id: number, releaseFn: () => void): void {
+  const ev = drawnCardsState.events.find((e) => e.id === id);
+  if (ev === undefined || ev.acking) {
+    return;
+  }
+  setAcking(id, true);
+  dismissEvent(id);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    releaseFn();
+    acknowledgeDraw(viewId, id);
+  }));
 }

@@ -2708,6 +2708,148 @@ html.console-mode {
     }
 }
 
+/* ── REVEAL OVERLAY (CTS T6): drawn cards / deck-check result / viewer ── */
+.con-reveal {
+    position: fixed;
+    inset: 0;
+    z-index: 11520; /* above the task host (11480), below Info Mode (11560) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: @con-font;
+    color: @con-text;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 8, 14, 0.78);
+        backdrop-filter: blur(4px);
+    }
+    &__card {
+        position: relative;
+        width: min(1400px, 94vw);
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        padding: 22px 28px 14px;
+        border-radius: 14px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 40px fade(@con-cyan, 8%);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__head { margin-bottom: 12px; }
+    &__title {
+        font-size: 26px;
+        font-weight: 700;
+        line-height: 1.3;
+        margin-top: 4px;
+    }
+    &__meta {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+    }
+    &__chip {
+        padding: 3px 12px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%);
+        font-size: 16px;
+        color: @con-text-dim;
+    }
+    &__body {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        gap: 26px;
+        align-items: flex-start;
+        overflow-y: auto;
+        padding-right: 6px;
+        .con-scrollbars();
+    }
+    /* INFO PARITY: the source renders as the REAL premium element. */
+    &__source {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        zoom: 0.92;
+        > .card-container { margin: 0; }
+    }
+    &__source-colony {
+        zoom: 0.78;
+        .colony-tile__select-btn,
+        .colony-tile__reason { display: none; }
+    }
+    &__source-text {
+        padding: 8px 14px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 40%);
+        font-size: 18px;
+        color: #ffe3b0;
+    }
+    &__main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    /* The revealed card frame reads the verdict at a glance. */
+    &__revealed {
+        align-self: center;
+        border-radius: 12px;
+        padding: 8px;
+        zoom: 1.08;
+        > .card-container { margin: 0; }
+
+        &--met { box-shadow: 0 0 0 2px fade(@con-mint, 75%), 0 0 26px fade(@con-mint, 20%); }
+        &--miss { box-shadow: 0 0 0 2px fade(@con-red, 65%), 0 0 22px fade(@con-red, 16%); }
+    }
+    &__outcome {
+        align-self: center;
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 18px;
+        border-radius: 999px;
+        font-size: 20px;
+        font-weight: 700;
+
+        &--met {
+            background: fade(@con-mint, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 65%);
+            color: @con-mint;
+        }
+        &--miss {
+            background: fade(@con-red, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-red, 55%);
+            color: #ffc9c4;
+        }
+    }
+    &__outcome-badge { font-size: 22px; }
+    &__vp {
+        padding: 2px 12px;
+        border-radius: 999px;
+        background: fade(@con-mint, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 60%);
+        font-size: 18px;
+    }
+}
+
+/* Energy→heat transition highlight on the console resource rail (T6). */
+.con-res__row--conv-source {
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 65%), 0 0 14px fade(@con-cyan, 18%);
+    border-radius: 8px;
+}
+.con-res__row--conv-target {
+    box-shadow: inset 0 0 0 1px fade(@con-amber, 65%), 0 0 14px fade(@con-amber, 18%);
+    border-radius: 8px;
+}
+
 @keyframes con-start-deal {
     from { opacity: 0; transform: translateY(14px); }
     to { opacity: 1; transform: translateY(0); }
@@ -2950,7 +3092,12 @@ html.console-mode {
     .mandatory-input-modal__minimize-btn,
     .start-game-flow__minimize-btn,
     .eg-results__ctl--min,
-    .placement-banner {
+    .placement-banner,
+    /* T6 (CTS row 27): desktop awaiting-pills are unreachable from the pad —
+       the console defer CHIP is the one restore affordance. */
+    .mandatory-input-modal-pill,
+    .hand-select-pill,
+    .initial-draft-pills {
         display: none !important;
     }
 }

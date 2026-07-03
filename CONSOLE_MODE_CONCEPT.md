@@ -1029,7 +1029,44 @@ the desktop-gamepad mode are untouched throughout.
   T2 browser (already native). RED LIST: 5 → **3** (`composite`,
   `aresGlobal`, `unknown`). Gates: 76 console pure specs, eslint,
   vue-tsc, make:json/css, build:client — green.
-- **T6..T8 — PENDING** (next: T6 prompt-UX polish / T7 composite+ares /
+- **T6 — SHIPPED (the Prompt UX layer, rows 25–28).**
+  **(25) `ConsoleRevealOverlay`** — ONE console-native reveal frame
+  replacing the three desktop reveal modals (all gated off in console,
+  desktop untouched): *drawn* («you received N cards» — the REAL source
+  render: `<Card>` / `<ColonyTile>` via `simpleColonyModel` / tile-bonus
+  label, a focusable untaken strip, A = take the focused card, X/B = take
+  all; the take/ack semantics are the SHARED `drawnCardsState`
+  `closeAndReleaseEvent`/`acknowledgeDraw` — extracted from the desktop
+  flow per CTS-3.1 in the same pass, the flow now delegates —
+  byte-identical dismiss-first/release-after-paint/ack sequencing);
+  *result* (the SearchForLife / ADS deck-check outcome: source card + the
+  revealed card in a green/red verdict frame + ✓/✗ + the reward chip +
+  VP delta) — driven by the SERVER's `playerView.lastReveal` DIRECTLY,
+  because the console submits card actions without the desktop confirm
+  modal, so the desktop's client-side `beginReveal` trigger never fires
+  here; «ОК» records a dismissed key in the shell until the server clears
+  `lastReveal` (reset in the playerView watcher); *viewer* (another
+  player's public reveal, opened by the notification CTA — read-only
+  browse + close, actor/origin/result chips). Priority drawn > result >
+  viewer; the overlay owns input ABOVE the task host (z 11520).
+  **(26) Notification CTAs work in console**: the shell now answers
+  `tm-notification-go-to-action` (un-defer + re-open the serving surface,
+  snap to the board for a placement) and `tm-notification-cancel`
+  (→ `cancelPlacement`) — PlayerHome's listeners don't exist in console;
+  the dead-button class is closed.
+  **(27) Desktop pills retired in console**: `.mandatory-input-modal-pill`
+  / `.hand-select-pill` / `.initial-draft-pills` hidden (unreachable from
+  the pad; the console defer CHIP is the one restore affordance) — the
+  leak detector keeps reporting them as rollout telemetry.
+  **(28) The premium end-of-generation energy→heat transition now PLAYS
+  in console**: `ConsoleResourcePanel` carries the `data-conversion-cell`
+  / `data-conversion-icon` anchors (set ONLY on the live conversion rows,
+  mirroring PlayerResource) + the interpolated stock override (energy
+  counts down / heat up in lock-step with the App-level overlay's arrow)
+  + source/target row glow. WGT / hazard / placement holds already anchor
+  to the real board. Gates: 76 pure specs, eslint, vue-tsc, make:json/css,
+  build:client — green.
+- **T7..T8 — PENDING** (next: T7 composite/ares/endgame formalization /
   T8 fallback retirement).
 
 ---
