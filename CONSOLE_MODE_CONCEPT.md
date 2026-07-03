@@ -1271,6 +1271,21 @@ the desktop-gamepad mode are untouched throughout.
   console path. Desktop/web untouched (everything runtime-gated). Gates:
   110 pure specs (console+gamepad) + 33 electron specs, electron tsc,
   eslint, vue-tsc, make:json/css, build:client — green.
+- **P11 — SHIPPED (the two standing debts).** **(a) Info Mode extras
+  parity** — the CTS-3.8 anti-example is closed: the «Доп. ресурсы»
+  detail now renders the resource HOLDERS as REAL premium `<Card>`s (the
+  LIVE tableau CardModel — the resource cubes draw on the card itself) in
+  a wrapping grid, each with a mint `[icon] ×N` count chip for TV-distance
+  readability; name-only rows are gone. **(b) Endgame console-nav
+  formalization (row 29)** — LB/RB now cycle the endgame results TABS via
+  a GENERIC `role="tablist"` fallback in the focus engine's
+  `cycleOverlay` (aria-selected aware, scope-rooted; purely additive —
+  the in-game `data-gp-overlay` ring always takes precedence, and any
+  future fallback surface exposing a tablist gets bumper tabs for free).
+  B on the endgame root stays a safe no-op in console (the minimize is
+  hidden by design; leaving the results goes through the system menu's
+  exit-to-menu, now curtained). Gates: 110 pure specs, eslint, vue-tsc,
+  make:css, build:client — green.
 
 ---
 
