@@ -661,7 +661,40 @@ no user activation in Chromium, so the direct call can fail on the web; a
 one-shot trusted-gesture (mouse/keyboard) retry arms itself, and Electron
 is fullscreen by default. Exit console mode → exitFullscreen.
 
-**Honest gaps (P2+):** colonies trade / hydro / sell patents = disabled
+**Feedback iteration 2 — SHIPPED (console command model).** The main board
+became the real console HOME SCREEN. (a) **LB/RB are semantic on the
+board**: LB = Milestones, RB = Awards — TV-size sheets, viewable ANY time
+(rows from `game.milestones/awards`); claim/fund availability = the server
+option tree; the command bar shows mint badges + glow when something is
+claimable. Inside menus LB/RB are not reserved. (b) **Y = «Базовые
+действия»**: standard projects (PROJECT_VISUAL pictograms + costs) + SELL
+PATENTS (a console sale mode of the hand carousel: A toggles picks with
+amber frames/ticks, X sells N, submission = the wrapped SelectCard payload)
++ conversions (costs from `plantsNeededForGreenery`/`heatNeededForTemperature`)
++ End Turn + Pass, in grouped sheet sections (header rows skipped by nav —
+`stepSelectable`). (c) **LT = the category ACTION WHEEL** (polar ring +
+hub): Cards → hand, Card actions → a sheet of every action source
+(available NOW per the server's perform-action SelectCard; activation
+submits the wrapped card response, follow-ups ride the fallback modals;
+blocked rows show the server `actionReasons`), colonies/hydro/effects
+honestly disabled; the Journal is NOT in the wheel (View owns it).
+(d) **B grammar**: sheet/wheel → board; hand/sale → board; placement →
+cancel when `placementContext.cancellable`, else «Требуется выбор»; board →
+drops cell focus back to the turn summary; never destructive. (e) **Top
+HUD action intelligence**: Карты playable/total + Действия
+available/total (`availableBlueCardActionCount` / `playerActionSourceCount`
+— the desktop buttons' own sources). (f) **Right panel = Context+Command
+Panel** (`ConsoleContextPanel`): placement task state (title + legal/illegal
++ the SERVER's per-cell illegal reason from `SelectSpaceModel.illegalSpaces`
+via `placementReasonToUnplayable` + facts + full command list), focused-cell
+identity (header/name/OWNER chip/facts), or the idle HOME summary (counters
++ the LB/RB/Y/LT command map with badges). (g) **Board bigger**: the LB/RB
+section strip is REMOVED, banner/status/left-rail/inspector slimmed — the
+freed band goes to the board (its own fit engine picks it up). (h) RT is
+now real: next legal cell (placement) / next playable card (hand).
+Deleted: `ConsoleSectionStrip.vue`, `ConsoleTurnMenu.vue`.
+
+**Honest gaps (P2+):** colonies trade / hydro = disabled
 Turn-Menu rows with «Пока доступно в режиме рабочего стола» (hold-Menu is
 one gesture away); >3-candidate / multi-card target picks inside the play
 modal abort with the same notice (desktop overlay bridges don't exist

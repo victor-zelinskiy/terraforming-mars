@@ -3,32 +3,8 @@
     <div class="con-board__stage" ref="stage">
       <GameBoardView :game="game" :players="playerView.players" :tileView="tileView" @toggleTileView="cycleTileView" />
     </div>
-
-    <!-- The cell dossier — ONE stable detail surface replacing hover popovers
-         (CONSOLE_MODE_CONCEPT.md §7). Updates as the selection moves. -->
-    <aside class="con-inspector" :aria-label="$t('Cell details')">
-      <template v-if="selectedSpaceId !== undefined">
-        <div class="con-inspector__kicker">{{ headerText }}</div>
-        <div v-if="tileLabelText !== ''" class="con-inspector__name">{{ tileLabelText }}</div>
-        <div v-if="descriptionText !== ''" class="con-inspector__desc">{{ descriptionText }}</div>
-        <div v-if="placementActive" class="con-inspector__placement"
-             :class="selectedAvailable ? 'con-inspector__placement--legal' : 'con-inspector__placement--illegal'">
-          <template v-if="selectedAvailable">
-            <GamepadGlyph control="confirm" />
-            <span>{{ $t('Place here') }}</span>
-          </template>
-          <template v-else>
-            <span class="con-inspector__illegal-mark" aria-hidden="true">✕</span>
-            <span>{{ $t('Cannot place here') }}</span>
-          </template>
-        </div>
-        <div v-if="info !== undefined && info.facts.length > 0" class="con-inspector__facts">
-          <BoardFactGroups :facts="info.facts" :viewerColor="playerView.thisPlayer.color" :players="playerView.players" />
-        </div>
-        <div v-else-if="loading" class="con-inspector__loading">{{ $t('Loading') }}…</div>
-      </template>
-      <div v-else class="con-inspector__empty">{{ $t('Move across the board to inspect cells') }}</div>
-    </aside>
+    <!-- Cell details live in the shell-level ConsoleContextPanel (feedback
+         iteration 2) — this component owns the STAGE + selection only. -->
   </div>
 </template>
 
@@ -50,18 +26,14 @@
  */
 import {defineComponent, PropType} from 'vue';
 import GameBoardView from '@/client/components/GameBoardView.vue';
-import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
-import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {GameModel} from '@/common/models/GameModel';
 import {SpaceId} from '@/common/Types';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {NavRect, pickDirectional, pickNearest, rectCenter} from '@/client/gamepad/spatialNav';
-import {boardInfoState, hoverBoardCell} from '@/client/components/board/boardInfoState';
+import {hoverBoardCell} from '@/client/components/board/boardInfoState';
 import {consoleState} from '@/client/console/consoleRouter';
 import {TileView, nextTileView} from '@/client/components/board/TileView';
-import {Message} from '@/common/logs/Message';
-import {translateMessage, translateText} from '@/client/directives/i18n';
 
 const SELECT_CLASS = 'con-cell-sel';
 
@@ -79,23 +51,15 @@ const STAGE_PAD = 16;
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 4;
 
-function textOf(v: string | Message | undefined): string {
-  if (v === undefined) {
-    return '';
-  }
-  return typeof v === 'string' ? translateText(v) : translateMessage(v);
-}
-
 export default defineComponent({
   name: 'ConsoleBoardSection',
-  components: {GameBoardView, BoardFactGroups, GamepadGlyph},
+  components: {GameBoardView},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     placementActive: {type: Boolean, required: true},
   },
   data() {
     return {
-      boardInfoState,
       consoleState,
       tileView: 'show' as TileView,
       stageObserver: undefined as ResizeObserver | undefined,
@@ -108,22 +72,6 @@ export default defineComponent({
     },
     selectedSpaceId(): string | undefined {
       return this.consoleState.boardSpaceId;
-    },
-    info() {
-      const info = this.boardInfoState.info;
-      return info !== undefined && info.space === this.selectedSpaceId ? info : undefined;
-    },
-    loading(): boolean {
-      return this.boardInfoState.loading && this.boardInfoState.spaceId === this.selectedSpaceId;
-    },
-    headerText(): string {
-      return textOf(this.info?.status.header) || translateText('Board cell');
-    },
-    tileLabelText(): string {
-      return textOf(this.info?.status.tileLabel);
-    },
-    descriptionText(): string {
-      return textOf(this.info?.description);
     },
     selectedAvailable(): boolean {
       const el = this.cellEl(this.selectedSpaceId);
@@ -252,6 +200,21 @@ export default defineComponent({
       if (idx !== undefined) {
         this.select(others[idx].id);
       }
+    },
+    /** RT: jump the selection to the NEXT legal cell (cyclic, DOM order). */
+    nextAvailable(): boolean {
+      const root = this.$refs.root as HTMLElement | undefined;
+      if (root === undefined) {
+        return false;
+      }
+      const cells = Array.from(root.querySelectorAll<HTMLElement>('.board-space--available[data_space_id]'));
+      if (cells.length === 0) {
+        return false;
+      }
+      const ids = cells.map((el) => el.getAttribute('data_space_id') ?? '');
+      const at = ids.indexOf(this.selectedSpaceId ?? '');
+      this.select(ids[(at + 1) % ids.length]);
+      return true;
     },
     /**
      * A on the selected cell during placement: the existing per-cell onclick

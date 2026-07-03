@@ -1,16 +1,20 @@
 <template>
   <div class="con-root">
-    <ConsoleStatusStrip :game="game" :players="playerView.players" :thisPlayerColor="thisPlayer.color" />
+    <ConsoleStatusStrip :game="game"
+                        :players="playerView.players"
+                        :thisPlayerColor="thisPlayer.color"
+                        :cardsPlayable="cardsPlayableCount"
+                        :cardsTotal="cardsTotalCount"
+                        :actionsAvailable="actionsAvailableCount"
+                        :actionsTotal="actionsTotalCount" />
 
     <div v-if="bannerText !== ''" class="con-banner" :class="{'con-banner--action': bannerAction}">
       <span class="con-banner__pulse" aria-hidden="true"></span>
       <span>{{ bannerText }}</span>
-      <span v-if="bannerAction && !consoleState.turnMenuOpen" class="con-banner__hint">
-        <GamepadGlyph control="inspect" /><span>{{ $t('Turn menu') }}</span>
+      <span v-if="bannerAction && consoleState.sheet === undefined" class="con-banner__hint">
+        <GamepadGlyph control="inspect" /><span>{{ $t('Basic actions') }}</span>
       </span>
     </div>
-
-    <ConsoleSectionStrip :section="consoleState.section" />
 
     <div class="con-main">
       <ConsoleResourcePanel :player="thisPlayer" />
@@ -20,12 +24,32 @@
                            ref="boardSection"
                            :playerView="playerView"
                            :placementActive="placementActive" />
+      <!-- The right CONTEXT + COMMAND panel (board home / cell / task). -->
+      <ConsoleContextPanel v-show="consoleState.section === 'board'"
+                           :mode="contextMode"
+                           :info="selectedCellInfo"
+                           :loading="cellInfoLoading"
+                           :viewerColor="thisPlayer.color"
+                           :players="playerView.players"
+                           :placementTitle="placementTitle"
+                           :selectedLegal="selectedCellLegal"
+                           :illegalReason="selectedCellIllegalReason"
+                           :cancellable="placementCancellable"
+                           :myTurn="myTurn"
+                           :cardsPlayable="cardsPlayableCount"
+                           :cardsTotal="cardsTotalCount"
+                           :actionsAvailable="actionsAvailableCount"
+                           :actionsTotal="actionsTotalCount"
+                           :milestonesClaimable="milestonesClaimableCount"
+                           :awardsFundable="awardsFundableCount" />
       <ConsoleHandSection v-if="consoleState.section === 'hand'"
                           :entries="handEntries"
-                          :index="consoleState.handIndex" />
+                          :index="consoleState.handIndex"
+                          :saleActive="consoleState.sale.active"
+                          :saleSelected="consoleState.sale.selected" />
     </div>
 
-    <ConsoleTurnMenu v-if="consoleState.turnMenuOpen" :verbs="verbs" :index="consoleState.turnMenuIndex" />
+    <ConsoleActionWheel v-if="consoleState.wheelOpen" :entries="wheelEntries" :index="consoleState.wheelIndex" />
     <ConsoleSheet v-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
 
     <!-- Console confirm panel (pass / risky conversions). -->
@@ -93,21 +117,22 @@
 
 <script lang="ts">
 /**
- * ConsoleShell — the console-first TV shell (CONSOLE_MODE_CONCEPT.md).
- * Mounted by App.vue INSTEAD of PlayerHome when consoleMode is on: same
- * game brain (playerView + a headless WaitingFor transport + the audited
- * turn-intent contracts), a Zones→Objects→Commands interface.
+ * ConsoleShell — the console-first TV shell (CONSOLE_MODE_CONCEPT.md;
+ * feedback iteration 2 = the console COMMAND MODEL):
  *
- * Input: GamepadLayer dispatches semantic intents here
- * (registerConsoleIntentHandler). The shell CLAIMS them only while no
- * iteration-1 fallback surface (dialog / mandatory modal / draft / …) is on
- * top — `resolveScope() !== undefined` is exactly that test in console mode
- * (the desktop scope roots don't exist here). Unclaimed intents fall through
- * to the demoted DOM focus engine, which drives the fallback modals.
+ *  MAIN BOARD = the console home screen. Stable semantics from it:
+ *   LB → Milestones panel (badge = claimable count; viewable any time)
+ *   RB → Awards panel (badge = fundable count; viewable any time)
+ *   Y  → Basic actions (standard projects + sell patents + conversions + pass)
+ *   LT → the category ACTION WHEEL (cards / card actions / …; journal NOT here)
+ *   View → journal; B → calm (drops cell focus → home summary; never destructive)
+ *  Inside menus LB/RB are NOT globally reserved. B always returns toward the
+ *  board; a mandatory placement B = cancel when the server marker allows,
+ *  else an honest «Требуется выбор».
  *
- * Submission: byte-identical to the desktop dedicated buttons — every path
- * ends in WaitingFor.onsave()/onsaveBatch() with the same wrapped payloads
- * (turnIntents walkers mirror PlayerHome's audited contracts).
+ * Input claiming/fallback and the submission contracts are unchanged from
+ * P0: everything ends in WaitingFor.onsave()/onsaveBatch() with payloads
+ * byte-identical to the desktop dedicated buttons (turnIntents walkers).
  */
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -120,6 +145,8 @@ import {Payment} from '@/common/inputs/Payment';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
+import {playerActionSourceCount} from '@/client/components/actions/actionExtraction';
+import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
 
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import SelectSpace from '@/client/components/SelectSpace.vue';
@@ -129,10 +156,10 @@ import StandardProjectPaymentContent from '@/client/components/payment/StandardP
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
 
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
-import ConsoleSectionStrip from '@/client/components/console/ConsoleSectionStrip.vue';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
-import ConsoleTurnMenu from '@/client/components/console/ConsoleTurnMenu.vue';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
+import ConsoleActionWheel, {WheelEntry} from '@/client/components/console/ConsoleActionWheel.vue';
+import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry} from '@/client/components/console/ConsoleHandSection.vue';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
@@ -140,9 +167,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {resolveScope} from '@/client/gamepad/focusScopes';
-import {consoleState, closeConsoleLayers, cycleSection, stepIndex, registerConsoleIntentHandler} from '@/client/console/consoleRouter';
-import {PlayerInputModel} from '@/common/models/PlayerInputModel';
-import {translateText} from '@/client/directives/i18n';
+import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSheetId} from '@/client/console/consoleRouter';
 import {
   ConvertPlantsMatch,
   findAwardOptionPath,
@@ -151,15 +176,18 @@ import {
   findEndTurnPath,
   findMilestoneOptionPath,
   findPassPath,
+  findPerformActionCard,
   findPlayProjectCardAction,
+  findSellPatentsAction,
   findStandardProjectsAction,
+  hasTurn,
   inputTitleText,
   optionResponseForPath,
-  turnVerbs,
-  TurnVerb,
   wrapPath,
 } from '@/client/console/turnIntents';
-import {configureBoardInfo} from '@/client/components/board/boardInfoState';
+import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {boardInfoState, configureBoardInfo} from '@/client/components/board/boardInfoState';
 import {journalState} from '@/client/components/journal/journalState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 
@@ -179,10 +207,10 @@ export default defineComponent({
   name: 'ConsoleShell',
   components: {
     ConsoleStatusStrip,
-    ConsoleSectionStrip,
     ConsoleCommandBar,
-    ConsoleTurnMenu,
     ConsoleSheet,
+    ConsoleActionWheel,
+    ConsoleContextPanel,
     ConsoleBoardSection,
     ConsoleHandSection,
     ConsoleResourcePanel,
@@ -202,6 +230,8 @@ export default defineComponent({
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       pendingStdProjectPayment: undefined as PendingStdProjectPayment | undefined,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
+      /** The player has actively focused a cell → the panel shows it (B drops back to the summary). */
+      cellFocused: false,
       notice: '',
       noticeTimer: undefined as number | undefined,
       offIntent: undefined as (() => void) | undefined,
@@ -214,23 +244,40 @@ export default defineComponent({
     thisPlayer() {
       return this.playerView.thisPlayer;
     },
-    verbs(): Array<TurnVerb> {
-      return turnVerbs(this.playerView);
-    },
     myTurn(): boolean {
-      return this.verbs.some((v) => v.available);
+      return hasTurn(this.playerView);
     },
     playAction() {
       return findPlayProjectCardAction(this.playerView.waitingFor);
     },
-    /** Server-driven placement (SelectSpace) or the client-side convert-plants picker. */
-    placementActive(): boolean {
-      return this.playerView.waitingFor?.type === 'space' || this.convertPlantsPending !== undefined;
+    // ── action intelligence (same sources as the desktop bar buttons) ──
+    cardsPlayableCount(): number {
+      return (this.playAction?.input.cards ?? []).filter((c) => c.isDisabled !== true).length;
     },
+    cardsTotalCount(): number {
+      return this.playerView.cardsInHand.length + (this.thisPlayer.selfReplicatingRobotsCards ?? []).length;
+    },
+    actionsAvailableCount(): number {
+      return this.thisPlayer.availableBlueCardActionCount;
+    },
+    actionsTotalCount(): number {
+      return playerActionSourceCount(this.thisPlayer.tableau);
+    },
+    milestonesClaimableCount(): number {
+      return this.claimableTitles(findMilestoneOptionPath(this.playerView.waitingFor)?.options).size;
+    },
+    awardsFundableCount(): number {
+      return this.claimableTitles(findAwardOptionPath(this.playerView.waitingFor)?.options).size;
+    },
+    // ── placement ───────────────────────────────────────────────────────
     /** The convert-plants inner SelectSpace, narrowed for the headless picker. */
     convertPlantsPrompt() {
       const p = this.convertPlantsPending?.spacePrompt;
       return p !== undefined && p.type === 'space' ? p : undefined;
+    },
+    /** Server-driven placement (SelectSpace) or the client-side convert-plants picker. */
+    placementActive(): boolean {
+      return this.playerView.waitingFor?.type === 'space' || this.convertPlantsPending !== undefined;
     },
     placementCancellable(): boolean {
       if (this.convertPlantsPending !== undefined) {
@@ -238,6 +285,58 @@ export default defineComponent({
       }
       return this.playerView.waitingFor?.placementContext?.cancellable === true;
     },
+    /** The active space prompt (server top-level OR the convert-plants inner). */
+    activeSpacePrompt(): PlayerInputModel | undefined {
+      const wf = this.playerView.waitingFor;
+      if (wf?.type === 'space') {
+        return wf;
+      }
+      return this.convertPlantsPrompt;
+    },
+    placementTitle(): string {
+      const t = this.activeSpacePrompt?.title;
+      if (t === undefined) {
+        return '';
+      }
+      return typeof t === 'string' ? translateText(t) : translateMessage(t);
+    },
+    selectedCellLegal(): boolean {
+      const id = this.consoleState.boardSpaceId;
+      if (id === undefined) {
+        return false;
+      }
+      const el = document.querySelector(`[data_space_id="${id}"]`);
+      return el !== null && el.classList.contains('board-space--available');
+    },
+    /** The SERVER's per-cell illegal reason (+M€ deficit), translated. */
+    selectedCellIllegalReason(): string {
+      const prompt = this.activeSpacePrompt;
+      const id = this.consoleState.boardSpaceId;
+      if (prompt === undefined || prompt.type !== 'space' || id === undefined || this.selectedCellLegal) {
+        return '';
+      }
+      const entry = prompt.illegalSpaces?.find((s) => s.spaceId === id);
+      if (entry === undefined) {
+        return '';
+      }
+      const reason = placementReasonToUnplayable(entry.reason, entry.deficit);
+      return translateTextWithParams(reason.message, (reason.params ?? []).map(String));
+    },
+    // ── context panel ──────────────────────────────────────────────────
+    contextMode(): 'placement' | 'cell' | 'idle' {
+      if (this.placementActive) {
+        return 'placement';
+      }
+      return this.cellFocused ? 'cell' : 'idle';
+    },
+    selectedCellInfo() {
+      const info = boardInfoState.info;
+      return info !== undefined && info.space === this.consoleState.boardSpaceId ? info : undefined;
+    },
+    cellInfoLoading(): boolean {
+      return boardInfoState.loading && boardInfoState.spaceId === this.consoleState.boardSpaceId;
+    },
+    // ── hand ────────────────────────────────────────────────────────────
     handEntries(): Array<ConsoleHandEntry> {
       const playable = new Set((this.playAction?.input.cards ?? [])
         .filter((c) => c.isDisabled !== true)
@@ -258,6 +357,7 @@ export default defineComponent({
         ...entries.filter((e) => !e.playable),
       ];
     },
+    // ── banner ──────────────────────────────────────────────────────────
     bannerText(): string {
       if (this.placementActive) {
         return translateText('Choose a location on the board');
@@ -284,9 +384,27 @@ export default defineComponent({
         'You will take no more actions this generation.' :
         'The temperature is already at its maximum.';
     },
+    // ── the LT category wheel (journal deliberately NOT here) ───────────
+    wheelEntries(): Array<WheelEntry> {
+      const desktopOnly = 'Available in desktop mode for now';
+      const entries: Array<WheelEntry> = [
+        {id: 'cards', label: 'Cards', barIcon: 'cards', available: true, reason: '', badge: this.cardsPlayableCount},
+        {id: 'cardActions', label: 'Card actions', barIcon: 'actions', available: true, reason: '', badge: this.actionsAvailableCount},
+        {id: 'effects', label: 'Effects', barIcon: 'effects', available: false, reason: desktopOnly},
+      ];
+      if (this.game.colonies.length > 0) {
+        entries.push({id: 'colonies', label: 'Colonies', barIcon: 'colonies', available: false, reason: desktopOnly});
+      }
+      if (this.game.gameOptions.expansions.deltaProject) {
+        entries.push({id: 'hydro', label: 'Hydronetwork', barIcon: 'hydronetwork', available: false, reason: desktopOnly});
+      }
+      return entries;
+    },
+    // ── sheets ──────────────────────────────────────────────────────────
     sheetTitle(): string {
       switch (this.consoleState.sheet) {
-      case 'projects': return 'Standard Projects';
+      case 'basics': return 'Basic actions';
+      case 'cardActions': return 'Card actions';
       case 'milestones': return 'Milestones';
       case 'awards': return 'Awards';
       default: return '';
@@ -294,21 +412,10 @@ export default defineComponent({
     },
     sheetRows(): Array<ConsoleSheetRow> {
       switch (this.consoleState.sheet) {
-      case 'projects': {
-        const cards = findStandardProjectsAction(this.playerView.waitingFor)?.input.cards ?? [];
-        return cards.map((c) => {
-          const visual = standardProjectVisual(c.name);
-          return {
-            key: c.name,
-            icon: visual.iconClass,
-            title: c.name,
-            sub: visual.description,
-            meta: `${c.calculatedCost ?? 0} M€`,
-            available: c.isDisabled !== true,
-            reason: c.isDisabled === true ? 'Unavailable right now' : '',
-          };
-        });
-      }
+      case 'basics':
+        return this.basicsRows();
+      case 'cardActions':
+        return this.cardActionsRows();
       case 'milestones': {
         const claimable = this.claimableTitles(findMilestoneOptionPath(this.playerView.waitingFor)?.options);
         return this.game.milestones.map((m) => {
@@ -325,7 +432,7 @@ export default defineComponent({
             key: m.name,
             title: m.name,
             sub: description,
-            meta: '8 M€',
+            meta: claimed ? undefined : '8 M€',
             available: claimable.has(m.name),
             reason: claimed ? 'Claimed' : (claimable.has(m.name) ? '' : 'Unavailable right now'),
             takenBy: claimed && m.color !== undefined ? {color: m.color, name: m.playerName ?? ''} : undefined,
@@ -358,6 +465,7 @@ export default defineComponent({
         return [];
       }
     },
+    // ── the command bar (the truth of the current context) ─────────────
     commandContext(): string {
       if (this.consoleState.fallbackActive) {
         return 'Awaiting decision';
@@ -365,14 +473,17 @@ export default defineComponent({
       if (this.consoleState.confirm !== undefined) {
         return 'Confirmation';
       }
-      if (this.consoleState.turnMenuOpen) {
-        return 'Turn menu';
+      if (this.consoleState.wheelOpen) {
+        return 'Categories';
       }
       if (this.consoleState.sheet !== undefined) {
         return this.sheetTitle;
       }
       if (this.placementActive) {
         return 'Tile placement';
+      }
+      if (this.consoleState.sale.active) {
+        return 'Sell patents';
       }
       return this.consoleState.section === 'board' ? 'Board' : 'Hand';
     },
@@ -390,23 +501,37 @@ export default defineComponent({
           {control: 'back', label: 'Cancel'},
         ];
       }
-      if (this.consoleState.turnMenuOpen || this.consoleState.sheet !== undefined) {
+      if (this.consoleState.wheelOpen) {
         return [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select'},
+          {control: 'confirm', label: 'Open'},
           {control: 'back', label: 'Close'},
         ];
       }
-      if (this.placementActive) {
-        const cmds: Array<ConsoleCommand> = [
+      if (this.consoleState.sheet !== undefined) {
+        return [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Place here'},
-          {control: 'triggerL', label: 'Inspect all cells'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'back', label: 'To the board'},
         ];
-        if (this.placementCancellable) {
-          cmds.push({control: 'secondary', label: 'Cancel placement'});
-        }
-        return cmds;
+      }
+      if (this.placementActive) {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Place here', enabled: this.selectedCellLegal},
+          {control: 'triggerR', label: 'Next available'},
+          {control: 'triggerL', label: 'Inspect all cells'},
+          {control: 'back', label: this.placementCancellable ? 'Cancel placement' : 'Selection is required', enabled: this.placementCancellable},
+        ];
+      }
+      if (this.consoleState.sale.active) {
+        const n = this.consoleState.sale.selected.length;
+        return [
+          {control: 'dpadH', label: 'Navigate'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'secondary', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0},
+          {control: 'back', label: 'Cancel'},
+        ];
       }
       if (this.consoleState.section === 'hand') {
         const playable = this.handEntries[this.consoleState.handIndex]?.playable === true;
@@ -414,15 +539,16 @@ export default defineComponent({
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Play now', enabled: playable},
           {control: 'triggerR', label: 'Next playable'},
-          {control: 'inspect', label: 'Turn menu', enabled: this.myTurn},
-          {control: 'bumperR', label: 'Panels'},
+          {control: 'inspect', label: 'Basic actions', enabled: this.myTurn},
+          {control: 'back', label: 'To the board'},
         ];
       }
-      // Board (idle).
+      // Board — the console home screen: the full stable command map.
       return [
-        {control: 'dpad', label: 'Navigate'},
-        {control: 'inspect', label: 'Turn menu', enabled: this.myTurn},
-        {control: 'bumperR', label: 'Panels'},
+        {control: 'inspect', label: 'Basic actions', enabled: this.myTurn},
+        {control: 'triggerL', label: 'Categories'},
+        {control: 'bumperL', label: 'Milestones', badge: this.milestonesClaimableCount, highlight: this.milestonesClaimableCount > 0},
+        {control: 'bumperR', label: 'Awards', badge: this.awardsFundableCount, highlight: this.awardsFundableCount > 0},
         {control: 'view', label: 'Log'},
       ];
     },
@@ -448,12 +574,17 @@ export default defineComponent({
           players: this.playerView.players,
         });
         this.consoleState.handIndex = stepIndex(this.consoleState.handIndex, 0, this.handEntries.length);
-        this.consoleState.turnMenuIndex = stepIndex(this.consoleState.turnMenuIndex, 0, this.verbs.length);
-        this.consoleState.sheetIndex = stepIndex(this.consoleState.sheetIndex, 0, Math.max(1, this.sheetRows.length));
+        this.consoleState.wheelIndex = stepIndex(this.consoleState.wheelIndex, 0, this.wheelEntries.length);
+        this.consoleState.sheetIndex = stepSelectable(this.consoleState.sheetIndex, 0, this.sheetRows.map((r) => r.kind !== 'header'));
         // A resolved convert-plants prompt (server moved on) drops the local picker.
         if (this.convertPlantsPending !== undefined &&
             findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true) === undefined) {
           this.convertPlantsPending = undefined;
+        }
+        // The sell-patents window closed externally → drop the stale sale mode.
+        if (this.consoleState.sale.active && findSellPatentsAction(this.playerView.waitingFor) === undefined) {
+          this.consoleState.sale.active = false;
+          this.consoleState.sale.selected = [];
         }
       },
     },
@@ -478,6 +609,92 @@ export default defineComponent({
       const cost = [8, 14, 20][funded] ?? 20;
       return `${cost} M€`;
     },
+    // ── sheet row builders ───────────────────────────────────────────────
+    /** Y — «Базовые действия»: standard projects + sell patents + conversions + turn. */
+    basicsRows(): Array<ConsoleSheetRow> {
+      const rows: Array<ConsoleSheetRow> = [];
+      const wf = this.playerView.waitingFor;
+
+      const std = findStandardProjectsAction(wf)?.input.cards ?? [];
+      if (std.length > 0) {
+        rows.push({key: 'h-std', kind: 'header', title: 'Standard Projects', available: false});
+        for (const c of std) {
+          const visual = standardProjectVisual(c.name);
+          rows.push({
+            key: c.name,
+            icon: visual.iconClass,
+            title: c.name,
+            sub: visual.description,
+            meta: `${c.calculatedCost ?? 0} M€`,
+            available: c.isDisabled !== true,
+            reason: c.isDisabled === true ? 'Unavailable right now' : '',
+          });
+        }
+      }
+
+      rows.push({key: 'h-turn', kind: 'header', title: 'Turn actions', available: false});
+      const sell = findSellPatentsAction(wf);
+      const sellVisual = standardProjectVisual(CardName.SELL_PATENTS_STANDARD_PROJECT);
+      rows.push({
+        key: 'sell',
+        icon: sellVisual.iconClass,
+        title: 'Sell patents',
+        sub: sellVisual.description,
+        available: sell !== undefined && this.cardsTotalCount > 0,
+        reason: sell === undefined ? 'Not your turn to take any actions' : 'No cards in hand',
+      });
+      const heat = findConvertHeatOption(wf);
+      rows.push({
+        key: 'convertHeat',
+        icon: 'resource_icon resource_icon--heat con-sheet__res-icon',
+        title: 'Convert heat',
+        meta: `${this.thisPlayer.heatNeededForTemperature} ♨`,
+        available: heat !== undefined,
+        reason: 'Not enough heat',
+      });
+      const plants = findConvertPlantsOption(wf, this.thisPlayer.canConvertPlants === true);
+      rows.push({
+        key: 'convertPlants',
+        icon: 'resource_icon resource_icon--plants con-sheet__res-icon',
+        title: 'Convert plants',
+        meta: `${this.thisPlayer.plantsNeededForGreenery} ☘`,
+        available: plants !== undefined,
+        reason: 'Not enough plants',
+      });
+      if (findEndTurnPath(wf) !== undefined) {
+        rows.push({key: 'endTurn', title: 'End Turn', available: true, reason: ''});
+      }
+      const pass = findPassPath(wf);
+      rows.push({
+        key: 'pass',
+        title: 'Pass for this generation',
+        available: pass !== undefined,
+        reason: 'Not your turn to take any actions',
+      });
+      return rows;
+    },
+    /** LT wheel → «Действия карт»: every action source; available NOW per the server. */
+    cardActionsRows(): Array<ConsoleSheetRow> {
+      const perform = findPerformActionCard(this.playerView.waitingFor);
+      const availableNames = new Set((perform?.model.cards ?? []).map((c) => c.name));
+      const sources = this.thisPlayer.tableau.filter((c) => availableNames.has(c.name) ||
+        (c.actionReasons !== undefined && c.actionReasons.length > 0) || this.hasActionSource(c.name));
+      return sources.map((c) => {
+        const available = availableNames.has(c.name);
+        const reason = c.actionReasons?.[0];
+        return {
+          key: c.name,
+          title: c.name,
+          sub: undefined,
+          available,
+          reason: available ? '' :
+            (reason !== undefined ? translateTextWithParams(reason.message, (reason.params ?? []).map(String)) : 'Unavailable right now'),
+        };
+      });
+    },
+    hasActionSource(name: CardName): boolean {
+      return playerActionSourceCount([{name} as CardModel]) > 0;
+    },
     // ── input ────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): boolean {
       // A fallback surface (mandatory modal / dialog / draft / endgame…) on
@@ -487,10 +704,13 @@ export default defineComponent({
       if (fallback) {
         return false;
       }
-      // LT hold = free-roam over illegal cells during placement.
+      // LT: hold = free-roam during placement; otherwise the category wheel.
       if (intent.kind === 'press' && intent.button === 'triggerL') {
         if (this.placementActive) {
           this.consoleState.freeRoam = true;
+        } else if (this.consoleState.confirm === undefined) {
+          this.consoleState.wheelOpen = !this.consoleState.wheelOpen;
+          this.consoleState.sheet = undefined;
         }
         return true;
       }
@@ -511,8 +731,8 @@ export default defineComponent({
         }
         return true;
       }
-      if (this.consoleState.turnMenuOpen) {
-        this.handleTurnMenuIntent(intent);
+      if (this.consoleState.wheelOpen) {
+        this.handleWheelIntent(intent);
         return true;
       }
       if (this.consoleState.sheet !== undefined) {
@@ -521,31 +741,37 @@ export default defineComponent({
       }
       return this.handleSectionIntent(intent);
     },
-    handleTurnMenuIntent(intent: GamepadIntent): void {
+    handleWheelIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
-        const step = intent.dir === 'down' ? 1 : intent.dir === 'up' ? -1 : 0;
-        this.consoleState.turnMenuIndex = stepIndex(this.consoleState.turnMenuIndex, step, this.verbs.length);
+        const step = (intent.dir === 'right' || intent.dir === 'down') ? 1 : -1;
+        const n = this.wheelEntries.length;
+        this.consoleState.wheelIndex = (this.consoleState.wheelIndex + step + n) % n;
         return;
       }
       if (intent.kind === 'press') {
         if (intent.button === 'confirm') {
-          this.executeVerb(this.verbs[this.consoleState.turnMenuIndex]);
-        } else if (intent.button === 'back' || intent.button === 'inspect') {
-          this.consoleState.turnMenuOpen = false;
+          this.executeWheel(this.wheelEntries[this.consoleState.wheelIndex]);
+        } else if (intent.button === 'back') {
+          this.consoleState.wheelOpen = false;
         }
       }
     },
     handleSheetIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
         const step = intent.dir === 'down' ? 1 : intent.dir === 'up' ? -1 : 0;
-        this.consoleState.sheetIndex = stepIndex(this.consoleState.sheetIndex, step, this.sheetRows.length);
+        if (step !== 0) {
+          this.consoleState.sheetIndex = stepSelectable(
+            this.consoleState.sheetIndex, step, this.sheetRows.map((r) => r.kind !== 'header'));
+        }
         return;
       }
       if (intent.kind === 'press') {
         if (intent.button === 'confirm') {
           this.activateSheetRow(this.sheetRows[this.consoleState.sheetIndex]);
         } else if (intent.button === 'back') {
+          // B: back to the board — the console home screen.
           this.consoleState.sheet = undefined;
+          this.consoleState.section = 'board';
         }
       }
     },
@@ -557,30 +783,43 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return true;
       }
+      const onBoard = this.consoleState.section === 'board';
       switch (intent.button) {
       case 'bumperL':
-        this.consoleState.section = cycleSection(this.consoleState.section, -1);
+        // Stable board semantics: LB = Milestones (viewable any time).
+        if (onBoard) {
+          this.openSheet('milestones');
+        }
         return true;
       case 'bumperR':
-        this.consoleState.section = cycleSection(this.consoleState.section, 1);
+        if (onBoard) {
+          this.openSheet('awards');
+        }
         return true;
       case 'inspect':
-        this.consoleState.turnMenuOpen = true;
-        this.consoleState.turnMenuIndex = Math.max(0, this.verbs.findIndex((v) => v.available));
+        // Y = Basic actions (standard projects / sell / conversions / pass).
+        if (this.myTurn) {
+          this.openSheet('basics');
+        } else {
+          this.showNotice('Not your turn to take any actions');
+        }
         return true;
       case 'view':
         journalState.open = !journalState.open;
+        return true;
+      case 'triggerR':
+        this.handleNextJump();
         return true;
       case 'confirm':
         this.handleSectionConfirm();
         return true;
       case 'secondary':
-        if (this.placementActive && this.placementCancellable) {
-          this.cancelPlacement();
+        if (this.consoleState.sale.active) {
+          this.confirmSale();
         }
         return true;
       case 'back':
-        // Base level: nothing to retreat from (never destructive).
+        this.handleSectionBack();
         return true;
       default:
         return true;
@@ -590,11 +829,32 @@ export default defineComponent({
       if (this.consoleState.section === 'board') {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
         board?.move(dir);
+        this.cellFocused = true;
         return;
       }
-      // Hand carousel: left/right steps, triggers jump (handled as press).
+      // Hand carousel: left/right steps.
       if (dir === 'left' || dir === 'right') {
         this.consoleState.handIndex = stepIndex(this.consoleState.handIndex, dir === 'right' ? 1 : -1, this.handEntries.length);
+      }
+    },
+    /** RT: next available cell (placement) / next playable card (hand). */
+    handleNextJump(): void {
+      if (this.consoleState.section === 'board' && this.placementActive) {
+        const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+        if (board?.nextAvailable() === true) {
+          this.cellFocused = true;
+        }
+        return;
+      }
+      if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
+        const n = this.handEntries.length;
+        for (let step = 1; step <= n; step++) {
+          const i = (this.consoleState.handIndex + step) % n;
+          if (this.handEntries[i]?.playable) {
+            this.consoleState.handIndex = i;
+            return;
+          }
+        }
       }
     },
     handleSectionConfirm(): void {
@@ -605,9 +865,19 @@ export default defineComponent({
         }
         return;
       }
-      // Hand: play the selected card.
       const entry = this.handEntries[this.consoleState.handIndex];
       if (entry === undefined) {
+        return;
+      }
+      // Sale mode: A toggles the pick.
+      if (this.consoleState.sale.active) {
+        const name = entry.card.name;
+        const at = this.consoleState.sale.selected.indexOf(name);
+        if (at === -1) {
+          this.consoleState.sale.selected.push(name);
+        } else {
+          this.consoleState.sale.selected.splice(at, 1);
+        }
         return;
       }
       if (!entry.playable) {
@@ -616,35 +886,100 @@ export default defineComponent({
       }
       this.openPlayCard(entry.card.name);
     },
-    // ── verbs ────────────────────────────────────────────────────────────
-    executeVerb(verb: TurnVerb | undefined): void {
-      if (verb === undefined) {
+    /** B: one calm step toward the console home (never destructive). */
+    handleSectionBack(): void {
+      if (this.consoleState.sale.active) {
+        this.consoleState.sale.active = false;
+        this.consoleState.sale.selected = [];
+        this.consoleState.section = 'board';
         return;
       }
-      if (!verb.available) {
-        this.showNotice(verb.reason);
+      if (this.consoleState.section === 'hand') {
+        this.consoleState.section = 'board';
         return;
       }
-      switch (verb.id) {
-      case 'playCard':
+      if (this.placementActive) {
+        if (this.placementCancellable) {
+          this.cancelPlacement();
+        } else {
+          this.showNotice('Selection is required');
+        }
+        return;
+      }
+      // Board home: drop the cell focus back to the turn summary.
+      this.cellFocused = false;
+    },
+    // ── wheel / sheets ───────────────────────────────────────────────────
+    executeWheel(entry: WheelEntry | undefined): void {
+      if (entry === undefined) {
+        return;
+      }
+      if (!entry.available) {
+        this.showNotice(entry.reason);
+        return;
+      }
+      this.consoleState.wheelOpen = false;
+      switch (entry.id) {
+      case 'cards':
         this.consoleState.section = 'hand';
-        this.consoleState.turnMenuOpen = false;
         break;
-      case 'standardProjects':
-        this.openSheet('projects');
+      case 'cardActions':
+        this.openSheet('cardActions');
         break;
+      }
+    },
+    openSheet(sheet: ConsoleSheetId): void {
+      this.consoleState.wheelOpen = false;
+      this.consoleState.sheet = sheet;
+      void this.$nextTick(() => {
+        const rows = this.sheetRows;
+        const firstAvailable = rows.findIndex((r) => r.kind !== 'header' && r.available);
+        const firstSelectable = rows.findIndex((r) => r.kind !== 'header');
+        this.consoleState.sheetIndex = firstAvailable !== -1 ? firstAvailable : Math.max(0, firstSelectable);
+      });
+    },
+    activateSheetRow(row: ConsoleSheetRow | undefined): void {
+      if (row === undefined || row.kind === 'header') {
+        return;
+      }
+      if (!row.available) {
+        this.showNotice(row.reason !== undefined && row.reason !== '' ? row.reason : 'Unavailable right now');
+        return;
+      }
+      switch (this.consoleState.sheet) {
+      case 'basics':
+        this.activateBasicsRow(row.key);
+        break;
+      case 'cardActions': {
+        const perform = findPerformActionCard(this.playerView.waitingFor);
+        if (perform !== undefined) {
+          closeConsoleLayers();
+          this.submit(wrapPath(perform.path, {type: 'card' as const, cards: [row.key]}));
+        }
+        break;
+      }
       case 'milestones':
-        this.openSheet('milestones');
+        this.submitInnerOption(findMilestoneOptionPath(this.playerView.waitingFor), row.key);
         break;
       case 'awards':
-        this.openSheet('awards');
+        this.submitInnerOption(findAwardOptionPath(this.playerView.waitingFor), row.key);
+        break;
+      }
+    },
+    activateBasicsRow(key: string): void {
+      switch (key) {
+      case 'sell':
+        this.consoleState.sheet = undefined;
+        this.consoleState.sale.active = true;
+        this.consoleState.sale.selected = [];
+        this.consoleState.section = 'hand';
         break;
       case 'convertHeat': {
         const found = findConvertHeatOption(this.playerView.waitingFor);
         if (found === undefined) {
           return;
         }
-        this.consoleState.turnMenuOpen = false;
+        this.consoleState.sheet = undefined;
         if ((found.option.warnings ?? []).includes('maxtemp')) {
           this.consoleState.confirm = 'convertHeat';
         } else {
@@ -657,8 +992,6 @@ export default defineComponent({
         if (found === undefined) {
           return;
         }
-        // Client-side picker (nothing committed until a space is picked) —
-        // mirrors the desktop convert-plants flow.
         this.convertPlantsPending = found;
         closeConsoleLayers();
         this.consoleState.section = 'board';
@@ -673,38 +1006,11 @@ export default defineComponent({
         break;
       }
       case 'pass':
-        this.consoleState.turnMenuOpen = false;
+        this.consoleState.sheet = undefined;
         this.consoleState.confirm = 'pass';
         break;
       default:
-        this.showNotice(verb.reason !== '' ? verb.reason : 'Available in desktop mode for now');
-      }
-    },
-    openSheet(sheet: 'projects' | 'milestones' | 'awards'): void {
-      this.consoleState.turnMenuOpen = false;
-      this.consoleState.sheet = sheet;
-      void this.$nextTick(() => {
-        this.consoleState.sheetIndex = Math.max(0, this.sheetRows.findIndex((r) => r.available));
-      });
-    },
-    activateSheetRow(row: ConsoleSheetRow | undefined): void {
-      if (row === undefined) {
-        return;
-      }
-      if (!row.available) {
-        this.showNotice(row.reason !== undefined && row.reason !== '' ? row.reason : 'Unavailable right now');
-        return;
-      }
-      switch (this.consoleState.sheet) {
-      case 'projects':
-        this.useStandardProject(row.key as CardName);
-        break;
-      case 'milestones':
-        this.submitInnerOption(findMilestoneOptionPath(this.playerView.waitingFor), row.key);
-        break;
-      case 'awards':
-        this.submitInnerOption(findAwardOptionPath(this.playerView.waitingFor), row.key);
-        break;
+        this.useStandardProject(key as CardName);
       }
     },
     acceptConfirm(): void {
@@ -804,6 +1110,21 @@ export default defineComponent({
       }
       closeConsoleLayers();
       this.submit(wrapPath([...found.path, innerIdx], {type: 'option' as const}));
+    },
+    confirmSale(): void {
+      const picked = this.consoleState.sale.selected;
+      if (picked.length === 0) {
+        return;
+      }
+      const action = findSellPatentsAction(this.playerView.waitingFor);
+      if (action === undefined) {
+        this.showNotice('Not your turn to take any actions');
+        return;
+      }
+      const cards = [...picked];
+      closeConsoleLayers();
+      this.consoleState.section = 'board';
+      this.submit(wrapPath(action.path, {type: 'card' as const, cards}));
     },
     onConvertPlantsSpacePicked(spaceResponse: {type: 'space', spaceId: string}): void {
       const found = this.convertPlantsPending;

@@ -5,9 +5,10 @@
       <span v-for="(cmd, i) in commands"
             :key="i"
             class="con-cmdbar__cmd"
-            :class="{'con-cmdbar__cmd--disabled': cmd.enabled === false}">
+            :class="{'con-cmdbar__cmd--disabled': cmd.enabled === false, 'con-cmdbar__cmd--hot': cmd.highlight === true}">
         <GamepadGlyph :control="cmd.control" />
         <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
+        <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
       </span>
     </div>
   </div>
@@ -32,6 +33,10 @@ export type ConsoleCommand = {
   /** English i18n key. */
   label: string,
   enabled?: boolean,
+  /** Availability count (LB Достижения ②) — rendered as a badge chip. */
+  badge?: number,
+  /** Something is claimable behind this command — the glyph+label glow. */
+  highlight?: boolean,
 };
 
 export default defineComponent({

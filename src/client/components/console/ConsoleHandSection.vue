@@ -7,7 +7,18 @@
         <div class="con-hand__bigcard">
           <Card :card="selected" :key="selected.name" />
         </div>
-        <div v-if="selectedPlayable" class="con-hand__verdict con-hand__verdict--ok">
+        <!-- Sale mode: A toggles the selected card, X confirms the sale. -->
+        <template v-if="saleActive">
+          <div class="con-hand__verdict" :class="isSaleSelected(selected.name) ? 'con-hand__verdict--sale' : 'con-hand__verdict--ok'">
+            <GamepadGlyph control="confirm" />
+            <span>{{ isSaleSelected(selected.name) ? $t('Deselect') : $t('Select') }}</span>
+          </div>
+          <div class="con-hand__sale-summary" :class="{'con-hand__sale-summary--ready': saleSelected.length > 0}">
+            <GamepadGlyph control="secondary" />
+            <span>{{ $t('Sell') }}: <b>{{ saleSelected.length }}</b> → +{{ saleSelected.length }} M€</span>
+          </div>
+        </template>
+        <div v-else-if="selectedPlayable" class="con-hand__verdict con-hand__verdict--ok">
           <GamepadGlyph control="confirm" />
           <span>{{ $t('Play now') }}</span>
         </div>
@@ -15,7 +26,7 @@
           <span class="con-hand__verdict-mark" aria-hidden="true">✕</span>
           <span>{{ $t('Unplayable now') }}</span>
         </div>
-        <ul v-if="!selectedPlayable && reasons.length > 0" class="con-hand__reasons">
+        <ul v-if="!saleActive && !selectedPlayable && reasons.length > 0" class="con-hand__reasons">
           <li v-for="(r, i) in reasons" :key="i" class="con-hand__reason" :class="'con-hand__reason--' + r.type">
             {{ reasonText(r) }}<span v-if="r.current !== undefined" class="con-hand__reason-now"> · {{ $t('Now') }}: {{ r.current }}</span>
           </li>
@@ -30,11 +41,19 @@
         <div v-for="(entry, i) in entries"
              :key="entry.card.name + '#' + i"
              class="con-hand__slot"
-             :class="{'con-hand__slot--selected': i === index, 'con-hand__slot--unplayable': !entry.playable}"
+             :class="{
+               'con-hand__slot--selected': i === index,
+               'con-hand__slot--unplayable': !saleActive && !entry.playable,
+               'con-hand__slot--sale-picked': saleActive && isSaleSelected(entry.card.name),
+             }"
              :ref="i === index ? 'selectedSlot' : undefined">
           <Card :card="entry.card" :key="entry.card.name" lightweight />
           <span v-if="entry.robot" class="con-hand__robot" v-i18n>Robots</span>
-          <div v-if="i === index && entry.playable" class="con-hand__slot-a">
+          <span v-if="saleActive && isSaleSelected(entry.card.name)" class="con-hand__sale-tick" aria-hidden="true">✓</span>
+          <div v-if="i === index && saleActive" class="con-hand__slot-a con-hand__slot-a--sale">
+            <GamepadGlyph control="confirm" /><span>{{ $t(isSaleSelected(entry.card.name) ? 'Deselect' : 'Select') }}</span>
+          </div>
+          <div v-else-if="i === index && entry.playable" class="con-hand__slot-a">
             <GamepadGlyph control="confirm" /><span v-i18n>Play now</span>
           </div>
         </div>
@@ -77,6 +96,9 @@ export default defineComponent({
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
     index: {type: Number, required: true},
+    /** Sell-patents mode: A toggles picks, X confirms (shell owns the flow). */
+    saleActive: {type: Boolean, default: false},
+    saleSelected: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
   computed: {
     selected(): CardModel | undefined {
@@ -95,6 +117,9 @@ export default defineComponent({
     },
   },
   methods: {
+    isSaleSelected(name: string): boolean {
+      return this.saleSelected.includes(name);
+    },
     reasonText(r: UnplayableReason): string {
       return translateTextWithParams(r.message, (r.params ?? []).map(String));
     },

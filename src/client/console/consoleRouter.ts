@@ -19,7 +19,7 @@ import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 
 export type ConsoleSection = 'board' | 'hand';
-export type ConsoleSheetId = 'projects' | 'milestones' | 'awards';
+export type ConsoleSheetId = 'basics' | 'milestones' | 'awards' | 'cardActions';
 export type ConsoleConfirmKind = 'pass' | 'convertHeat';
 
 export const CONSOLE_SECTIONS: ReadonlyArray<ConsoleSection> = ['board', 'hand'];
@@ -32,21 +32,27 @@ export const consoleState = reactive({
   boardSpaceId: undefined as string | undefined,
   /** LT held during placement — inspect ANY cell, not just legal ones. */
   freeRoam: false,
-  turnMenuOpen: false,
-  turnMenuIndex: 0,
+  /** LT category wheel (the fast entry point — categories only, §wheel). */
+  wheelOpen: false,
+  wheelIndex: 0,
   sheet: undefined as ConsoleSheetId | undefined,
   sheetIndex: 0,
   confirm: undefined as ConsoleConfirmKind | undefined,
+  /** Sell-patents mode of the hand carousel (A toggles, X confirms). */
+  sale: {active: false, selected: [] as Array<string>},
   /** True while a fallback (iteration-1) surface owns input — command bar switches its hints. */
   fallbackActive: false,
 });
 
-/** Reset transient layers (turn menu / sheets / confirm) — e.g. on submit. */
+/** Reset transient layers (wheel / sheets / confirm / sale) — e.g. on submit. */
 export function closeConsoleLayers(): void {
-  consoleState.turnMenuOpen = false;
+  consoleState.wheelOpen = false;
+  consoleState.wheelIndex = 0;
   consoleState.sheet = undefined;
   consoleState.sheetIndex = 0;
   consoleState.confirm = undefined;
+  consoleState.sale.active = false;
+  consoleState.sale.selected = [];
 }
 
 /** PURE: next/prev section in the ring. */
@@ -62,6 +68,43 @@ export function stepIndex(current: number, step: number, length: number): number
     return 0;
   }
   return Math.min(length - 1, Math.max(0, current + step));
+}
+
+/**
+ * PURE: step across a list that contains non-selectable rows (sheet group
+ * headers): move `step` from `current`, landing only on selectable indices;
+ * stays put when nothing selectable lies in that direction. `current` may
+ * itself be non-selectable (fresh open) — the first move normalizes it.
+ */
+export function stepSelectable(
+  current: number,
+  step: -1 | 1 | 0,
+  selectable: ReadonlyArray<boolean>,
+): number {
+  const n = selectable.length;
+  if (n === 0) {
+    return 0;
+  }
+  if (step === 0) {
+    // Normalize: current if selectable, else the first selectable at/after it, else before it.
+    for (let i = Math.min(current, n - 1); i < n; i++) {
+      if (selectable[i]) {
+        return i;
+      }
+    }
+    for (let i = Math.min(current, n - 1); i >= 0; i--) {
+      if (selectable[i]) {
+        return i;
+      }
+    }
+    return 0;
+  }
+  for (let i = current + step; i >= 0 && i < n; i += step) {
+    if (selectable[i]) {
+      return i;
+    }
+  }
+  return current;
 }
 
 // --- intent bridge (GamepadLayer → ConsoleShell) ---------------------------
