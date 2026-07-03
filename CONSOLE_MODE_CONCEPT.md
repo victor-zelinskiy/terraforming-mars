@@ -694,7 +694,42 @@ freed band goes to the board (its own fit engine picks it up). (h) RT is
 now real: next legal cell (placement) / next playable card (hand).
 Deleted: `ConsoleSectionStrip.vue`, `ConsoleTurnMenu.vue`.
 
-**Honest gaps (P2+):** colonies trade / hydro = disabled
+**Feedback iteration 3 — SHIPPED (LT Information Mode · RT wheel ·
+console Colonies/Hydro).** New philosophy: **RT = «что я могу сделать», LT
+= «что мне нужно знать»**. (a) **LT Information Mode** (`infoModeState` +
+`ConsoleInfoMode`): a read-only, full-screen TV dashboard per player —
+resources+production (headline grid), tags (TagCount), extra card-resource
+summary (X → per-card detail from PUBLIC tableaus), cards N/M (opponents:
+`cardsInHandNbr` ONLY — contents never leak), actions N/M (Y → detail with
+server availability + `actionReasons` for self, read-only for opponents),
+effects count/discounts (RT → detail reusing the REAL desktop EffectBlock
+graphics), VP summary+detail (A) through the SAME pure
+`buildVictoryPointsModel` and the SAME visibility rule (self ‖
+`showOtherPlayersVP`; hidden → «Очки скрыты до конца игры», A disabled).
+LB/RB switch the viewed player (you/turn/passed chips). Opening captures a
+CONTEXT SNAPSHOT (section/sheet/indices/cell/sale picks); closing restores
+it exactly, degrading via the existing clamps; a placement arriving mid-Info
+restores to the board. LT works from board/hand/sheets/colonies/sale and
+(via a scope carve-out) from the fallback-driven Hydro surface; in
+placement LT stays the free-roam hold (mandatory flow). (b) **RT wheel**:
+RT opens the wheel from the board home ONLY (RT elsewhere keeps local
+jumps); sectors carry DIRECT hotkey glyphs — A=highlighted/default Cards,
+X=Card actions, Y=Hydronetwork, RB=Colonies, LB=Effects (→ Info Mode's
+effects detail), B=close; RT is NOT an internal shortcut; Journal stays on
+View. (c) **Console Colonies** (`ConsoleColoniesSection`): the real premium
+ColonyTile renders in a selected rail + a dossier panel (track, markers,
+fleet, trade legality from `findTradeColonyContext` — server truth — with
+honest reasons incl. «уже посещена»); A opens the reused
+`ColonyTradePaymentModal`; the and-response submission mirrors the desktop
+byte-for-byte. (d) **Console Hydro**: the premium `HydroNetworkOverlay`
+mounts as a console screen (wheel → Y), driven by the demoted focus engine
+(its scope def), confirm → the mirrored `submitHydroAdvance` batch;
+close/B → board. Hints updated everywhere (board: Y базовые · RT действия ·
+LT инфо · LB/RB вехи/награды+badges · View журнал).
+
+**Honest gaps (P2+):** hydro internals are fallback-engine-driven (not yet
+fully console-native); colony BUILD prompts ride the fallback modal;
+Info-Mode extra-resource rows have no per-card zoom yet; sell patents = disabled
 Turn-Menu rows with «Пока доступно в режиме рабочего стола» (hold-Menu is
 one gesture away); >3-candidate / multi-card target picks inside the play
 modal abort with the same notice (desktop overlay bridges don't exist

@@ -18,7 +18,7 @@
 import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 
-export type ConsoleSection = 'board' | 'hand';
+export type ConsoleSection = 'board' | 'hand' | 'colonies' | 'hydro';
 export type ConsoleSheetId = 'basics' | 'milestones' | 'awards' | 'cardActions';
 export type ConsoleConfirmKind = 'pass' | 'convertHeat';
 
@@ -30,6 +30,8 @@ export const consoleState = reactive({
   handIndex: 0,
   /** Board selection (space id — stable across re-renders). */
   boardSpaceId: undefined as string | undefined,
+  /** Colonies screen selection. */
+  colonyIndex: 0,
   /** LT held during placement — inspect ANY cell, not just legal ones. */
   freeRoam: false,
   /** LT category wheel (the fast entry point — categories only, §wheel). */

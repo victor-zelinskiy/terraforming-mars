@@ -12,6 +12,8 @@
           <span v-else class="con-wheel__sector-glyph">{{ entry.glyph }}</span>
         </span>
         <span class="con-wheel__sector-label">{{ $t(entry.label) }}</span>
+        <!-- The DIRECT hotkey — every sector is one press away, no aiming. -->
+        <GamepadGlyph v-if="entry.shortcut !== undefined" :control="entry.shortcut" class="con-wheel__sector-key" />
         <span v-if="entry.badge !== undefined && entry.badge > 0" class="con-wheel__sector-badge">{{ entry.badge }}</span>
       </div>
 
@@ -24,6 +26,7 @@
     </div>
     <div class="con-wheel__foot" aria-hidden="true">
       <span class="con-wheel__foot-item"><GamepadGlyph control="dpad" /><span>{{ $t('Navigate') }}</span></span>
+      <span class="con-wheel__foot-item"><GamepadGlyph control="confirm" /><span>{{ $t('Open') }} / {{ $t('Cards') }}</span></span>
       <span class="con-wheel__foot-item"><GamepadGlyph control="back" /><span>{{ $t('Close') }}</span></span>
     </div>
   </div>
@@ -41,6 +44,7 @@
 import {defineComponent, PropType} from 'vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import {GlyphControl} from '@/client/gamepad/glyphSets';
 
 export type WheelEntry = {
   id: string,
@@ -50,6 +54,8 @@ export type WheelEntry = {
   barIcon?: string,
   /** … or a text glyph fallback. */
   glyph?: string,
+  /** The direct hotkey opening this category (shown on the sector). */
+  shortcut?: GlyphControl,
   available: boolean,
   /** English i18n key ('' when available). */
   reason: string,
