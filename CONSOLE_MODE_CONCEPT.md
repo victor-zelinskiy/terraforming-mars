@@ -920,8 +920,117 @@ the desktop-gamepad mode are untouched throughout.
   (CTS-3.9). RED LIST: 14 → **9**. Gates: 86 pure specs, eslint (one
   PRE-EXISTING baseline quote-props in WaitingFor untouched), vue-tsc,
   make:json/css, build:client — green.
-- **T2..T8 — PENDING** (next: T2 CardBrowserTask — kills the reported
-  draft bugs).
+- **T2 — SHIPPED (the card browser).** `cardSelect` (ALL four modes —
+  draft `Keep` / research `buy` / hand `select` / nested-deferred
+  `target`) is a native body inside `ConsoleTaskHost`: a TV
+  inspector (the focused card LARGE — the real `<Card>` render) + a
+  filmstrip of every candidate **including the DISABLED ones with their
+  server reasons** (info parity; readable, never pickable), a live pick
+  counter `Выбрано N / max`, and in buy mode the per-card cost badge
+  (`cards[0].calculatedCost` — the desktop contract) + the running
+  `−X M€ (У вас: Y)` economics line that BLOCKS an unaffordable confirm.
+  Grammar: ←/→ = filmstrip, A = toggle pick (single-pick: A on the picked
+  card confirms — the draft rhythm), X = one-press confirm with the
+  server `buttonLabel` verb (gated on `min ≤ picks ≤ max` + affordability),
+  B = defer (draft/buy/select are mandatory — the amber chip returns).
+  Submission: the bare top-level `{type:'card', cards}` in pick order —
+  byte-parity (`cardsResponse`). **`DraftFlowOverlay` is gated OFF in
+  console mode** (App.vue `!consoleModeState.enabled`) — the double-render
+  is impossible and the between-picks wait state is the console banner.
+  This kills the REPORTED draft bug class: the between-generation draft,
+  the research buy, and the initial-draft ROUND picks (type `card`) are
+  all native now (only the final `initialCards` composite remains T5).
+- **T3 — SHIPPED (payment + projectCard).** (a) `payment` prompts are a
+  native LANES body in the host, backed by the PURE `paymentPlan.ts`
+  which reuses the EXACT desktop ledger math (`GENERIC_PAYMENT_ORDER` +
+  `paymentOptionsAllowResource` + `getSpendablePaymentAmounts` incl.
+  Stormcraft heat, `steelValue`/`titaniumValue` incl. the Luna Trade
+  Federation −1 rule, `reserveUnits` flags, and `computeDefaultPayment`
+  for the opening mix — alternates first, M€ tops up). **M€ is an AUTO
+  lane** (always exactly the uncovered remainder, like the desktop form's
+  own auto-M€), so under/over-payment by M€ is impossible; `laneCap`
+  stops pointless overpay dialing; the header shows `Стоимость` + a live
+  `Итого X / N` readout; LB/RB = ±1, Y = MAX-lane, X = confirm (gated on
+  coverage, honest ⚠ line when the player simply can't cover). (b) The
+  SAME body hosts the CLIENT-built standard-project alt-resource payment
+  via the new `promptOverride`/`deferLabel` host props — **B = Cancel**
+  there (nothing committed; returns to the sheet), replacing the desktop
+  `StandardProjectPaymentContent` re-host (one fallback surface RETIRED).
+  (c) `projectCard` prompts are SHELL-SECTION tasks (`SHELL_SECTION_KINDS`):
+  `playFromHand` auto-opens the HAND section (the walker already yields
+  `{path: [], input}` for the top-level prompt, so РАЗЫГРАТЬ → play modal
+  → batch flows unchanged); `standardProject` auto-opens a dedicated
+  `standardProjects` SHEET (only the server's cards; A → pay-or-payment
+  flow). Navigating away (wheel / other sheets / B) DEFERS the task to
+  the amber chip; B on the chip re-opens the serving surface.
+- **T4 — SHIPPED (colony pick + award funding).** `colony` prompts drive
+  the colonies section in PICK MODE: the rail lists the in-game colonies
+  (or ONLY the offered tiles for `purpose: 'addNewColonyToGame'` —
+  Aridor), unpickable tiles stay VISIBLE with the SERVER's reason chip
+  (`disabledColonies` — full/already-own/TR-affordability; info parity),
+  A on a pickable tile submits the byte-identical `{type:'colony',
+  colonyName}`, and **B honors the server `placementContext.cancellable`
+  marker** (pay-on-commit Build Colony → `{type:'cancel'}`; else defer).
+  The dossier panel shows the pick verdict + reason for the selected
+  tile. Free award funding was verified ALREADY native via the T1 choice
+  host (leaf options) and upgraded with each award's RULE description
+  docked from the manifest (the desktop AwardsOverlay shows it → parity).
+  Leak detector: kind-aware serving surfaces (`projectCard` →
+  `.con-hand`/`.con-sheet`, `colony` → `.con-colonies`) + the
+  **deferred amber chip now COUNTS as a serving surface** (also fixes the
+  T1 gap where deferring a task tripped the stranded guard after 1 s).
+  RED LIST: 9 → **5** (`composite`, `initialDraft`, `startSequence`,
+  `aresGlobal`, `unknown`). Remaining known fallback surfaces (documented,
+  work, driven by the demoted DOM engine): the play-card modal
+  (`HandCardPaymentContent` re-host) and the colony-trade payment modal.
+  Gates: 71 console pure specs (+`paymentPlan.spec` pinning the ledger
+  rules), eslint, vue-tsc, make:json/css, build:client — green.
+- **T5 — SHIPPED (the START SCENE — the game-opening experience).**
+  `ConsoleStartScene.vue` — ONE full-screen premium scene (cinematic but
+  calm: radial hero glow + iso-tech grid backdrop, a staggered deal-in on
+  entry [`backwards` fill — a `both` fill would pin the keyframe transform
+  and kill the focus lift], keyed cross-fades between steps/prompts,
+  `prefers-reduced-motion` honored) replacing BOTH desktop start surfaces
+  in console mode. **(a) The `initialCards` WIZARD**: corporation →
+  preludes → (CEO) → project buy → summary. Steps are derived from the
+  SERVER's options via the stable title constants
+  (`common/inputs/SelectInitialCards` — the same identification the
+  desktop overlay uses); the step rail shows numbered chips
+  (done ✓ / active glow / pending); a LIVE budget capsule reuses the
+  shared `initialDraftMoney` math (start M€ − buys × corp cardCost +
+  corp×prelude extras — Manutech/Tharsis/Polaris/… never fork) and turns
+  red on an unaffordable buy (X gated); each card step is the shared
+  `.con-cards` inspector+filmstrip (extracted from the T2 host into a
+  standalone family — one visual language); the summary shows the chosen
+  corp hero + prelude/CEO/project minis + the money breakdown; a
+  zero-projects submit ARMS an inline warning first (the desktop
+  skip-confirm, console grammar). Picks + step live in MODULE STATE
+  (`consoleStartState.ts`, keyed by player id + a deal signature) so a
+  defer / re-render never loses them; the submit is the byte-identical
+  `{type:'initialCards', responses}` (one `{type:'card'}` per PRESENT
+  option, server order — pinned by `consoleStartState.spec.ts`).
+  Grammar: ←/→ filmstrip · A toggle (single-pick: A on the picked card =
+  continue — the draft rhythm) · X/RB continue · LB/B back a step
+  (B on step 1 = defer). **(b) The `startSequence` CEREMONY**: the corp
+  column (real `<Card>` renders + status badges — ✓ applied / «Применить
+  эффект» / awaiting) beside the prelude progress rail (played ✓ /
+  playable glow / awaiting dim / fizzle-blocked with the honest «Сначала
+  разыграйте другой пролог» chip) and a dedicated candidate strip for the
+  pick prompts (drew-N-choose-1 [records `recordDrawChoice` BEFORE submit
+  — the only capture window], Double Down copy, Merger's corp choice with
+  disabled-corp reasons). ALL predicates are REUSED from
+  `startGameFlowState` (marker-driven, one brain). Sub-actions (payments /
+  placements / targets) arrive as normal prompts → the scene yields to
+  the T1–T4 native surfaces and returns (con-layer transitions).
+  `StartGameFlowOverlay` is gated OFF in console (App.vue) — the
+  WaitingFor corp-modal suppression still holds via the ELIGIBLE half of
+  `startGameFlowActive`, plus the shell's `modal-suppressed` now also
+  covers the scene. Initial-draft ROUND picks (type `card`) stay on the
+  T2 browser (already native). RED LIST: 5 → **3** (`composite`,
+  `aresGlobal`, `unknown`). Gates: 76 console pure specs, eslint,
+  vue-tsc, make:json/css, build:client — green.
+- **T6..T8 — PENDING** (next: T6 prompt-UX polish / T7 composite+ares /
+  T8 fallback retirement).
 
 ---
 

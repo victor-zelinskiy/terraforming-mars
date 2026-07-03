@@ -4,7 +4,7 @@
 
     <!-- Keyed frame: prompt→prompt switches cross-fade (CTS-3.9). -->
     <transition name="con-task-swap" mode="out-in">
-      <div class="con-task" :key="taskKey">
+      <div class="con-task" :class="{'con-task--wide': task.kind === 'cardSelect'}" :key="taskKey">
         <!-- ── Frame header ────────────────────────────────────────── -->
         <header class="con-task__head">
           <div class="con-task__kicker">
@@ -13,6 +13,25 @@
           </div>
           <div class="con-task__title">{{ titleText }}</div>
           <div v-if="triggerText !== ''" class="con-task__trigger">{{ triggerText }}</div>
+          <!-- Card browser: the live pick counter (+ buy economics). -->
+          <div v-if="task.kind === 'cardSelect'" class="con-task__pickline">
+            <span class="con-task__pickcount" :class="{'con-task__pickcount--ready': cardPicksValid}">
+              {{ $t('Selected') }}: <b>{{ picks.length }}</b><template v-if="cardMax > 0"> / {{ cardMax }}</template>
+            </span>
+            <span v-if="isBuyMode" class="con-task__pickbuy" :class="{'con-task__pickbuy--over': !cardBuyAffordable}">
+              −{{ buyTotal }} <i class="resource_icon resource_icon--megacredits con-task__opt-res" aria-hidden="true"></i>
+              <span class="con-task__pickbuy-left">({{ $t('You have') }}: {{ megacreditsOnHand }})</span>
+            </span>
+          </div>
+          <!-- Payment: the cost chip + live coverage readout. -->
+          <div v-if="task.kind === 'payment'" class="con-task__pickline">
+            <span class="con-task__paycost">
+              {{ $t('Cost') }}: <b>{{ paymentCost }}</b> <i class="resource_icon resource_icon--megacredits con-task__opt-res" aria-hidden="true"></i>
+            </span>
+            <span class="con-task__pickcount" :class="{'con-task__pickcount--ready': paymentReady}">
+              {{ $t('Total') }}: <b>{{ payTotal }}</b> / {{ paymentCost }}
+            </span>
+          </div>
         </header>
 
         <div class="con-task__main">
@@ -133,6 +152,72 @@
               </div>
             </template>
 
+            <!-- ── CARD BROWSER (T2: draft / buy / select / target) ── -->
+            <template v-else-if="task.kind === 'cardSelect'">
+              <div class="con-cards">
+                <!-- The focused card LARGE (the TV inspector) + verdict. -->
+                <div class="con-cards__big" v-if="focusedCardEntry !== undefined">
+                  <Card :card="focusedCardEntry.card" :key="focusedCardEntry.card.name" />
+                  <div v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
+                    <span aria-hidden="true">✕</span>
+                    <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
+                  </div>
+                  <div v-else class="con-cards__verdict" :class="isPicked(focusedCardEntry.card.name) ? 'con-cards__verdict--picked' : 'con-cards__verdict--ok'">
+                    <GamepadGlyph control="confirm" />
+                    <span>{{ $t(isPicked(focusedCardEntry.card.name) ? (singlePick ? confirmLabel : 'Deselect') : 'Select') }}</span>
+                  </div>
+                </div>
+                <!-- The filmstrip: every candidate incl. DISABLED (info parity). -->
+                <div class="con-cards__strip" ref="cardStrip">
+                  <div v-for="(entry, i) in cardEntries" :key="entry.card.name + '#' + i"
+                       class="con-cards__slot"
+                       :class="{
+                         'con-cards__slot--focused': focusIdx === i,
+                         'con-cards__slot--picked': isPicked(entry.card.name),
+                         'con-cards__slot--disabled': entry.disabled,
+                       }"
+                       :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
+                    <Card :card="entry.card" :key="entry.card.name" lightweight />
+                    <span v-if="isBuyMode && !entry.disabled" class="con-cards__cost">
+                      {{ buyCostPerCard }} <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+                    </span>
+                    <span v-if="isPicked(entry.card.name)" class="con-cards__tick" aria-hidden="true">✓</span>
+                    <span v-if="entry.disabled" class="con-cards__reason">{{ entry.reason !== '' ? entry.reason : $t('Unavailable right now') }}</span>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- ── PAYMENT (T3: native lanes; M€ auto-balances) ────── -->
+            <template v-else-if="task.kind === 'payment'">
+              <div v-for="(lane, i) in payLanes" :key="lane.unit"
+                   class="con-task__lane"
+                   :class="{'con-task__lane--focused': focusIdx === i, 'con-task__lane--active': payCount(lane.unit) > 0}">
+                <span class="con-task__lane-id">
+                  <i class="con-task__opt-icon" :class="'resource_icon resource_icon--' + lane.unit" aria-hidden="true"></i>
+                </span>
+                <span class="con-task__lane-rate" aria-hidden="true">×{{ lane.rate }}</span>
+                <span class="con-task__lane-value">{{ payCount(lane.unit) }}</span>
+                <span class="con-task__lane-max">/ {{ lane.available }}</span>
+                <span v-if="lane.reserved" class="con-task__lane-reserved">{{ $t('reserved') }}</span>
+                <span v-if="focusIdx === i" class="con-task__lane-keys" aria-hidden="true">
+                  <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
+                </span>
+              </div>
+              <!-- The AUTO M€ lane — always the exact remainder (derived). -->
+              <div class="con-task__lane con-task__lane--auto" :class="{'con-task__lane--active': payAutoMc > 0}">
+                <span class="con-task__lane-id">
+                  <i class="con-task__opt-icon resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+                </span>
+                <span class="con-task__lane-value">{{ payAutoMc }}</span>
+                <span class="con-task__lane-max">/ {{ megacreditsOnHand }}</span>
+                <span class="con-task__lane-auto-tag">{{ $t('auto') }}</span>
+              </div>
+              <div v-if="!paymentReady" class="con-task__pay-short">
+                ⚠ {{ $t('Not enough resources to cover the cost') }}
+              </div>
+            </template>
+
             <!-- ── DISTRIBUTE ─────────────────────────────────────── -->
             <template v-else-if="task.kind === 'distribute'">
               <div class="con-task__dist-target" :class="{'con-task__dist-target--ready': distributeReady}">
@@ -168,10 +253,17 @@
 
 <script lang="ts">
 /**
- * CONSOLE TASK HOST — CTS T1 (CONSOLE_MODE_CONCEPT.md §CTS-1). The single
- * console-native surface for the primitive prompt kinds (choice / player /
- * amount / resource / distribute). The desktop MandatoryInputModal is
- * SUPPRESSED whenever this host serves (taskServedByHost) — no fallback.
+ * CONSOLE TASK HOST — CTS T1–T3 (CONSOLE_MODE_CONCEPT.md §CTS-1). The
+ * single console-native surface for the prompt kinds: T1 primitives
+ * (choice / player / amount / resource / distribute) + the T2 CARD
+ * BROWSER (draft / buy / select / target — inspector + filmstrip, pick
+ * counter, buy economics, disabled candidates with reasons) + the T3
+ * PAYMENT lanes (desktop ledger math via paymentPlan.ts; M€ is an AUTO
+ * lane so under/over-payment is impossible). The desktop
+ * MandatoryInputModal is SUPPRESSED whenever this host serves
+ * (taskServedByHost) — no fallback. `promptOverride` additionally hosts
+ * CLIENT-BUILT prompts (the standard-project alt-resource payment) where
+ * B = Cancel instead of Minimize (`deferLabel`).
  *
  * Control grammar (user-mandated):
  *   A  = select / toggle the focused element; A on the selected = confirm
@@ -190,7 +282,7 @@ import Card from '@/client/components/card/Card.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {PlayerInputModel, OrOptionsModel, SelectOptionModel, OptionMetadata} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, OrOptionsModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Color} from '@/common/Color';
@@ -204,16 +296,32 @@ import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {
-  amountResponse, deltaProjectResponse, optionConfirmResponse, orOptionResponse,
-  playerResponse, productionToLoseResponse, resourceResponse, resourcesResponse,
+  amountResponse, cardsResponse, deltaProjectResponse, optionConfirmResponse, orOptionResponse,
+  paymentResponse, playerResponse, productionToLoseResponse, resourceResponse, resourcesResponse,
   STANDARD_UNITS,
 } from '@/client/console/taskResponses';
+import {CardModel} from '@/common/models/CardModel';
+import {SpendableResource} from '@/common/inputs/Spendable';
+import {
+  autoMegacredits, initialCounts, laneCap, megacreditsAvailable, paymentCovers,
+  paymentFromCounts, PaymentLane, paymentLanes, paymentTotal,
+} from '@/client/console/paymentPlan';
+import {getAward} from '@/client/MilestoneAwardManifest';
+import {AwardName} from '@/common/ma/AwardName';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
     return '';
   }
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
+}
+
+/** The UNTRANSLATED text (manifest lookups key off the English name). */
+function rawTextOf(v: string | Message | undefined): string {
+  if (v === undefined) {
+    return '';
+  }
+  return typeof v === 'string' ? v : v.message;
 }
 
 type ChoiceEntry = {
@@ -247,6 +355,14 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
+    /**
+     * CLIENT-SIDE prompt override (T3): hosts a client-built input (the
+     * standard-project alt-resource payment) instead of `waitingFor` —
+     * nothing is committed server-side, so B = CANCEL (`deferLabel`).
+     */
+    promptOverride: {type: Object as PropType<PlayerInputModel | undefined>, default: undefined},
+    /** The B affordance label: 'Minimize' (server prompt) / 'Cancel' (client). */
+    deferLabel: {type: String, default: 'Minimize'},
   },
   emits: ['submit', 'defer', 'space-pick'],
   data() {
@@ -255,14 +371,19 @@ export default defineComponent({
       armed: false,
       value: 0,
       units: {} as Partial<Record<keyof Units, number>>,
+      /** T2 card browser: picked card names, in pick order. */
+      picks: [] as Array<CardName>,
+      /** T3 payment: the dialed-in non-M€ lane counts (M€ auto-derives). */
+      payCounts: {} as Partial<Record<SpendableResource, number>>,
     };
   },
   computed: {
     wf(): PlayerInputModel | undefined {
-      return this.playerView.waitingFor;
+      return this.promptOverride ?? this.playerView.waitingFor;
     },
     taskKey(): string {
-      return `${this.wf?.type ?? ''}|${textOf(this.wf?.title)}`;
+      const override = this.promptOverride !== undefined ? 'client|' : '';
+      return `${override}${this.wf?.type ?? ''}|${textOf(this.wf?.title)}`;
     },
     titleText(): string {
       return textOf(this.wf?.title);
@@ -307,15 +428,26 @@ export default defineComponent({
               `${meta.global.current}${meta.global.unit ?? ''} → ${meta.global.resulting}${meta.global.unit ?? ''}` :
               meta?.resource !== undefined ? `${meta.resource.current} → ${meta.resource.resulting}` : '';
         const tradeoff = textOf(meta?.tradeoff);
+        const title = textOf(option.title);
+        // Free award funding (T4): dock each award's RULE next to its name —
+        // the desktop AwardsOverlay shows it, so the console must too (CTS-3.8).
+        let description = textOf(meta?.description);
+        if (description === '' && this.task.kind === 'choice' && this.task.flavor === 'awardFunding') {
+          try {
+            description = translateText(getAward(rawTextOf(option.title) as AwardName).description);
+          } catch (err) {
+            description = '';
+          }
+        }
         return {
           index,
-          title: textOf(option.title),
+          title,
           iconClass: meta?.icon !== undefined ? iconClassFor(meta.icon) + ' con-task__opt-res' : '',
           playerColor: player?.color,
           playerName: playerModel?.name ?? '',
           preview,
           effects: meta?.effects ?? [],
-          description: textOf(meta?.description),
+          description,
           tradeoff,
           isSkip: meta?.kind === 'skip',
           isSpace: option.type === 'space',
@@ -449,6 +581,77 @@ export default defineComponent({
     distributeReady(): boolean {
       return this.distributedSum === this.distributeTarget;
     },
+    // ── card browser (T2) ────────────────────────────────────────────
+    cardModel(): SelectCardModel | undefined {
+      return this.wf?.type === 'card' ? (this.wf as SelectCardModel) : undefined;
+    },
+    /** Selectable candidates first, then the DISABLED ones (with reasons). */
+    cardEntries(): Array<{card: CardModel, disabled: boolean, reason: string}> {
+      const model = this.cardModel;
+      if (model === undefined) {
+        return [];
+      }
+      return [
+        ...model.cards.map((card) => ({card, disabled: false, reason: ''})),
+        ...(model.disabledCards ?? []).map((card) => ({card, disabled: true, reason: textOf(card.disabledReason)})),
+      ];
+    },
+    focusedCardEntry(): {card: CardModel, disabled: boolean, reason: string} | undefined {
+      return this.cardEntries[this.focusIdx];
+    },
+    cardMin(): number {
+      return this.cardModel?.min ?? 0;
+    },
+    cardMax(): number {
+      return this.cardModel?.max ?? 0;
+    },
+    /** min === max === 1 → A on the picked card confirms (draft rhythm). */
+    singlePick(): boolean {
+      return this.cardMin === 1 && this.cardMax === 1;
+    },
+    isBuyMode(): boolean {
+      return this.task.kind === 'cardSelect' && this.task.mode === 'buy';
+    },
+    /** Desktop contract: the per-card research cost rides cards[0].calculatedCost. */
+    buyCostPerCard(): number {
+      return this.cardModel?.cards[0]?.calculatedCost ?? 0;
+    },
+    buyTotal(): number {
+      return this.picks.length * this.buyCostPerCard;
+    },
+    megacreditsOnHand(): number {
+      return megacreditsAvailable(this.playerView.thisPlayer);
+    },
+    cardBuyAffordable(): boolean {
+      return !this.isBuyMode || this.buyTotal <= this.megacreditsOnHand;
+    },
+    cardPicksValid(): boolean {
+      return this.picks.length >= this.cardMin && this.picks.length <= this.cardMax && this.cardBuyAffordable;
+    },
+    // ── payment (T3) ─────────────────────────────────────────────────
+    paymentModel(): SelectPaymentModel | undefined {
+      return this.wf?.type === 'payment' ? (this.wf as SelectPaymentModel) : undefined;
+    },
+    paymentCost(): number {
+      return this.paymentModel?.amount ?? 0;
+    },
+    payLanes(): Array<PaymentLane> {
+      const model = this.paymentModel;
+      if (model === undefined) {
+        return [];
+      }
+      return paymentLanes(model, this.playerView.thisPlayer);
+    },
+    payAutoMc(): number {
+      return autoMegacredits(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand);
+    },
+    payTotal(): number {
+      return paymentTotal(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand);
+    },
+    paymentReady(): boolean {
+      return this.task.kind !== 'payment' ||
+        paymentCovers(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand);
+    },
     /** Can X submit right now? */
     confirmReady(): boolean {
       switch (this.task.kind) {
@@ -460,13 +663,17 @@ export default defineComponent({
         return this.playerEntries.length > 0;
       case 'resource':
         return this.resourceUnits.length > 0;
+      case 'cardSelect':
+        return this.cardPicksValid;
+      case 'payment':
+        return this.paymentReady;
       default:
         return true;
       }
     },
     footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
       const confirm = {control: 'secondary' as GlyphControl, label: this.confirmLabel, enabled: this.confirmReady};
-      const defer = {control: 'back' as GlyphControl, label: 'Minimize'};
+      const defer = {control: 'back' as GlyphControl, label: this.deferLabel};
       switch (this.task.kind) {
       case 'amount':
         return [
@@ -478,6 +685,18 @@ export default defineComponent({
           {control: 'dpad', label: 'Navigate'},
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
           {control: 'inspect', label: 'MAX'}, confirm, defer,
+        ];
+      case 'payment':
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
+          {control: 'inspect', label: 'MAX'}, confirm, defer,
+        ];
+      case 'cardSelect':
+        return [
+          {control: 'dpadH', label: 'Navigate'},
+          {control: 'confirm', label: this.singlePick ? 'Select' : 'Select / Deselect'},
+          confirm, defer,
         ];
       default:
         return [
@@ -493,6 +712,8 @@ export default defineComponent({
       case 'player': return this.playerEntries.length;
       case 'resource': return this.resourceUnits.length;
       case 'distribute': return this.lanes.length;
+      case 'cardSelect': return this.cardEntries.length;
+      case 'payment': return this.payLanes.length;
       default: return 0;
       }
     },
@@ -510,6 +731,10 @@ export default defineComponent({
       this.focusIdx = 0;
       this.armed = false;
       this.units = {};
+      this.picks = [];
+      // Payment opens on the SAME optimal default mix the desktop form uses.
+      this.payCounts = this.task.kind === 'payment' ?
+        initialCounts(this.paymentCost, this.payLanes, this.megacreditsOnHand) : {};
       const init = this.wf?.type === 'amount' ?
         ((this.wf as PlayerInputModel & {type: 'amount'}).maxByDefault ? this.amountMax : this.amountMin) :
         this.amountMax;
@@ -537,7 +762,7 @@ export default defineComponent({
         }
         return;
       }
-      if (this.task.kind === 'distribute') {
+      if (this.task.kind === 'distribute' || this.task.kind === 'payment') {
         if (vertical) {
           this.moveFocus(dir === 'down' ? 1 : -1);
         } else {
@@ -545,8 +770,8 @@ export default defineComponent({
         }
         return;
       }
-      if (this.task.kind === 'resource') {
-        // Horizontal tile row.
+      if (this.task.kind === 'resource' || this.task.kind === 'cardSelect') {
+        // Horizontal tile row / filmstrip.
         if (!vertical) {
           this.moveFocus(dir === 'right' ? 1 : -1);
         }
@@ -571,11 +796,49 @@ export default defineComponent({
     },
     scrollFocusedIntoView(): void {
       const body = this.$refs.body as HTMLElement | undefined;
+      const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
+      const cardEl = Array.isArray(slot) ? slot[0] : slot;
+      if (cardEl !== undefined && cardEl !== null) {
+        cardEl.scrollIntoView({inline: 'center', block: 'nearest', behavior: 'smooth'});
+        return;
+      }
       const focused = body?.querySelector('.con-task__option--focused, .con-task__tile--focused, .con-task__lane--focused');
       focused?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     },
+    // ── card browser helpers (T2) ────────────────────────────────────
+    isPicked(name: CardName): boolean {
+      return this.picks.includes(name);
+    },
+    togglePick(): void {
+      const entry = this.focusedCardEntry;
+      if (entry === undefined || entry.disabled) {
+        return; // a disabled candidate is readable, never pickable
+      }
+      const name = entry.card.name;
+      const at = this.picks.indexOf(name);
+      if (at !== -1) {
+        // Single-pick rhythm: A on the picked card = confirm (draft flow).
+        if (this.singlePick) {
+          this.onConfirm();
+          return;
+        }
+        this.picks.splice(at, 1);
+        return;
+      }
+      if (this.cardMax === 1) {
+        this.picks = [name]; // single-slot: the new pick replaces
+        return;
+      }
+      if (this.picks.length >= this.cardMax) {
+        return; // slots full — deselect something first (counter shows it)
+      }
+      this.picks.push(name);
+    },
     laneValue(unit: keyof Units): number {
       return this.units[unit] ?? 0;
+    },
+    payCount(unit: SpendableResource): number {
+      return this.payCounts[unit] ?? 0;
     },
     adjust(step: number): void {
       if (this.task.kind === 'amount') {
@@ -592,6 +855,16 @@ export default defineComponent({
         const headroom = this.distributeTarget - this.distributedSum;
         const next = Math.min(lane.max, Math.max(0, current + Math.min(step, headroom)));
         this.units = {...this.units, [lane.unit]: next};
+        return;
+      }
+      if (this.task.kind === 'payment') {
+        const lane = this.payLanes[this.focusIdx];
+        if (lane === undefined) {
+          return;
+        }
+        const current = this.payCounts[lane.unit] ?? 0;
+        const next = Math.min(laneCap(this.paymentCost, lane), Math.max(0, current + step));
+        this.payCounts = {...this.payCounts, [lane.unit]: next};
       }
     },
     maxOut(): void {
@@ -607,6 +880,14 @@ export default defineComponent({
         const current = this.units[lane.unit] ?? 0;
         const headroom = this.distributeTarget - this.distributedSum + current;
         this.units = {...this.units, [lane.unit]: Math.min(lane.max, headroom)};
+        return;
+      }
+      if (this.task.kind === 'payment') {
+        const lane = this.payLanes[this.focusIdx];
+        if (lane === undefined) {
+          return;
+        }
+        this.payCounts = {...this.payCounts, [lane.unit]: laneCap(this.paymentCost, lane)};
       }
     },
     onPress(button: SemanticButton): void {
@@ -635,8 +916,12 @@ export default defineComponent({
     },
     /** A: select/arm the focused element; A on the armed one = confirm. */
     onPrimary(): void {
-      if (this.task.kind === 'amount' || this.task.kind === 'distribute') {
+      if (this.task.kind === 'amount' || this.task.kind === 'distribute' || this.task.kind === 'payment') {
         this.onConfirm();
+        return;
+      }
+      if (this.task.kind === 'cardSelect') {
+        this.togglePick(); // A = toggle; X (or A-on-picked in single mode) commits
         return;
       }
       if (this.wf?.type === 'option') {
@@ -697,6 +982,15 @@ export default defineComponent({
       case 'distribute':
         this.$emit('submit', this.task.mode === 'production' ?
           productionToLoseResponse(this.units) : resourcesResponse(this.units));
+        return;
+      case 'cardSelect':
+        // Byte-parity: the bare top-level {type:'card', cards} the desktop
+        // CardSelectionContent / hand-select flow POSTs.
+        this.$emit('submit', cardsResponse(this.picks));
+        return;
+      case 'payment':
+        this.$emit('submit', paymentResponse(
+          paymentFromCounts(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand)));
         return;
       default:
         return;

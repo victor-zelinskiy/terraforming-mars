@@ -33,8 +33,22 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   '.draw-reveal',
   '.colonies-overlay',
   '.initial-draft-pills', // the initial-draft pipeline's own chrome
-  '.con-task-host', // future CTS task surfaces (T1+)
+  '.con-task-host', // CTS task host (T1 primitives / T2 cards / T3 payment)
+  '.con-banner--deferred', // a DEFERRED task's amber chip IS the surface (B returns)
 ];
+
+/**
+ * Kind-SPECIFIC serving surfaces (CTS T3/T4): a shell-section task is
+ * served by its section — but ONLY for its own kind (a hand section open
+ * over an unrelated stranded prompt must not mask the guard panel).
+ */
+const KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
+  projectCard: ['.con-hand', '.con-sheet'],
+  colony: ['.con-colonies'],
+  // T5: the full-screen start scene serves both opening kinds.
+  initialDraft: ['.con-start'],
+  startSequence: ['.con-start'],
+};
 
 /** Desktop-era surfaces tracked while the CTS rollout retires them. */
 const DESKTOP_SURFACES: ReadonlyArray<{id: string, selector: string}> = [
@@ -101,7 +115,8 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
     leakDetectorState.stranded = undefined;
     return;
   }
-  const served = SERVING_SURFACES.some((sel) => {
+  const selectors = [...SERVING_SURFACES, ...(task !== undefined ? KIND_SURFACES[task.kind] ?? [] : [])];
+  const served = selectors.some((sel) => {
     const el = document.querySelector(sel);
     return el !== null && (el as HTMLElement).getClientRects().length > 0;
   });

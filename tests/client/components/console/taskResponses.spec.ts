@@ -1,10 +1,13 @@
 import {expect} from 'chai';
 import {
-  amountResponse, deltaProjectResponse, emptyUnits, optionConfirmResponse,
-  orOptionResponse, orWrappedResponse, playerResponse, productionToLoseResponse,
-  resourceResponse, resourcesResponse, unitsFrom,
+  amountResponse, cancelResponse, cardsResponse, colonyResponse, deltaProjectResponse,
+  emptyUnits, optionConfirmResponse, orOptionResponse, orWrappedResponse, paymentResponse,
+  playerResponse, productionToLoseResponse, resourceResponse, resourcesResponse, unitsFrom,
 } from '@/client/console/taskResponses';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
+import {ColonyName} from '@/common/colonies/ColonyName';
+import {Payment} from '@/common/inputs/Payment';
 
 /**
  * CTS-3.3 BYTE-PARITY: every builder must equal what the desktop premium
@@ -32,5 +35,21 @@ describe('taskResponses (submission byte-parity)', () => {
       {type: 'resources', units: {megacredits: 0, steel: 0, titanium: 0, plants: 1, energy: 0, heat: 3}});
     expect(productionToLoseResponse({energy: 2})).to.deep.eq(
       {type: 'productionToLose', units: {megacredits: 0, steel: 0, titanium: 0, plants: 0, energy: 2, heat: 0}});
+  });
+
+  it('cards (T2): the bare top-level SelectCard answer, pick order preserved', () => {
+    expect(cardsResponse([CardName.BIRDS, CardName.ANTS])).to.deep.eq(
+      {type: 'card', cards: [CardName.BIRDS, CardName.ANTS]});
+    expect(cardsResponse([])).to.deep.eq({type: 'card', cards: []}); // buy-none is legal
+  });
+
+  it('payment (T3): the SelectPayment answer wraps the full Payment', () => {
+    const payment: Payment = {...Payment.EMPTY, megacredits: 5, steel: 2};
+    expect(paymentResponse(payment)).to.deep.eq({type: 'payment', payment});
+  });
+
+  it('colony / cancel (T4): SelectColony pick + the pay-on-commit cancel', () => {
+    expect(colonyResponse(ColonyName.LUNA)).to.deep.eq({type: 'colony', colonyName: ColonyName.LUNA});
+    expect(cancelResponse()).to.deep.eq({type: 'cancel'});
   });
 });

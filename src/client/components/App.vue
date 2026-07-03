@@ -81,8 +81,15 @@
         root cause of the "modal closes when I press ВЫБРАТЬ" bug —
         every submit destroyed the modal, no flag could survive it.
       -->
+      <!--
+        CONSOLE MODE (CTS T2): every non-hand SelectCard prompt this overlay
+        serves (draft / research buy / nested target picks) is handled by the
+        console-native card browser inside ConsoleTaskHost — mounting both
+        would double-render; the wait-between-picks state is the console
+        banner. Desktop (consoleModeState.enabled === false) is untouched.
+      -->
       <DraftFlowOverlay
-        v-if="screen === 'player-home' && playerView !== undefined"
+        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
         :player-view="playerView"
         :waiting-on-players="playersWaitingFor" />
       <!--
@@ -91,8 +98,14 @@
         mid-sequence. Self-gates via startGameFlowActive(playerView): only
         mounts in generation 1 while preludes / the corp first action are owed.
       -->
+      <!--
+        CONSOLE MODE (CTS T5): the start sequence (preludes / corp first
+        action / Merger pick) is served by the console-native ConsoleStartScene
+        — mounting this desktop orchestration modal too would double-render.
+        Desktop (consoleModeState.enabled === false) is untouched.
+      -->
       <StartGameFlowOverlay
-        v-if="screen === 'player-home' && playerView !== undefined"
+        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
         :player-view="playerView"
         :waiting-on-players="playersWaitingFor" />
       <!--
