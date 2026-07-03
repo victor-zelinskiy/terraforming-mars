@@ -6,7 +6,8 @@
                         :cardsPlayable="cardsPlayableCount"
                         :cardsTotal="cardsTotalCount"
                         :actionsAvailable="actionsAvailableCount"
-                        :actionsTotal="actionsTotalCount" />
+                        :actionsTotal="actionsTotalCount"
+                        :epoch="playerView.runId" />
 
     <div v-if="bannerText !== ''" class="con-banner" :class="{'con-banner--action': bannerAction}">
       <span class="con-banner__pulse" aria-hidden="true"></span>
@@ -24,7 +25,7 @@
     </div>
 
     <div class="con-main">
-      <ConsoleResourcePanel :player="thisPlayer" />
+      <ConsoleResourcePanel :player="thisPlayer" :epoch="playerView.runId" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
            SelectSpace attaches placement handlers to its cells. -->
       <ConsoleBoardSection v-show="consoleState.section === 'board'"
@@ -100,6 +101,51 @@
       <div class="con-confirm__card">
         <div class="con-confirm__title">{{ $t(confirmTitle) }}</div>
         <div class="con-confirm__body">{{ $t(confirmBody) }}</div>
+        <!-- T7 info parity: the desktop PassConfirmContent warnings (unused
+             actions / free trade fleet / conversions / hydro) carry over. -->
+        <div v-if="confirmWarnings.length > 0" class="con-confirm__warns">
+          <div v-for="(w, i) in confirmWarnings" :key="i" class="con-confirm__warn">
+            <span aria-hidden="true">!</span>
+            <span>{{ w }}</span>
+          </div>
+        </div>
+        <div class="con-confirm__actions">
+          <span class="con-confirm__action con-confirm__action--yes"><GamepadGlyph control="confirm" /><span>{{ $t('Confirm') }}</span></span>
+          <span class="con-confirm__action"><GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- T7: the card-action CONFIRM (desktop parity: an action is NEVER
+         executed on a bare click — the player first sees what it does).
+         Effects come from the same /api/action-preview the desktop modal
+         uses; follow-up choices arrive as native tasks after confirm. -->
+    <div v-if="pendingCardAction !== undefined" class="con-confirm con-actconfirm" role="dialog">
+      <div class="con-confirm__backdrop" aria-hidden="true"></div>
+      <div class="con-confirm__card con-actconfirm__card">
+        <div class="con-task__kicker">
+          <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
+          <span>{{ $t('Confirmation') }}</span>
+        </div>
+        <div class="con-confirm__title">{{ $t(pendingCardAction.cardName) }}</div>
+        <div v-if="pendingCardAction.loading" class="con-actconfirm__loading">{{ $t('Loading') }}…</div>
+        <template v-else-if="cardActionBranches.length > 0">
+          <div v-for="(branch, i) in cardActionBranches" :key="i"
+               class="con-actconfirm__branch"
+               :class="{'con-actconfirm__branch--off': !branch.available}">
+            <div v-if="cardActionBranches.length > 1" class="con-actconfirm__branch-title">{{ branchTitleText(branch) }}</div>
+            <div class="con-actconfirm__effects">
+              <ActionEffectChip v-for="(eff, k) in branch.effects" :key="k" :effect="eff" />
+            </div>
+            <div v-if="!branch.available && branch.unavailableReason !== undefined" class="con-actconfirm__reason">
+              ✕ {{ branchReasonText(branch) }}
+            </div>
+          </div>
+          <div v-if="cardActionBranches.length > 1" class="con-actconfirm__note">
+            {{ $t('The choice of option follows after confirmation') }}
+          </div>
+        </template>
+        <div v-else class="con-confirm__body">{{ $t('Confirm to perform this action.') }}</div>
         <div class="con-confirm__actions">
           <span class="con-confirm__action con-confirm__action--yes"><GamepadGlyph control="confirm" /><span>{{ $t('Confirm') }}</span></span>
           <span class="con-confirm__action"><GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span></span>
@@ -234,6 +280,10 @@ import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Payment} from '@/common/inputs/Payment';
 import {SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
+import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
+import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
 import {playerActionSourceCount} from '@/client/components/actions/actionExtraction';
@@ -334,6 +384,7 @@ export default defineComponent({
     ConsoleTaskHost,
     ConsoleStartScene,
     ConsoleRevealOverlay,
+    ActionEffectChip,
     HydroNetworkOverlay,
     ColonyTradePaymentModal,
     GamepadGlyph,
@@ -360,6 +411,8 @@ export default defineComponent({
       lastTaskKey: '',
       /** The reveal-result the player already acknowledged (until the server clears). */
       dismissedRevealKey: '',
+      /** T7: the card-action confirm (preview-backed; nothing submitted yet). */
+      pendingCardAction: undefined as {cardName: CardName, preview: ActionPreview | undefined, loading: boolean} | undefined,
       /** The player has actively focused a cell → the panel shows it (B drops back to the summary). */
       cellFocused: false,
       notice: '',
@@ -612,6 +665,34 @@ export default defineComponent({
         'You will take no more actions this generation.' :
         'The temperature is already at its maximum.';
     },
+    /** T7 info parity: the desktop PassConfirmContent warning set. */
+    confirmWarnings(): Array<string> {
+      if (this.consoleState.confirm !== 'pass') {
+        return [];
+      }
+      const warnings: Array<string> = [];
+      const unused = this.actionsAvailableCount;
+      if (unused > 0) {
+        warnings.push(`${translateText('You still have unused available actions')}: ${unused}`);
+      }
+      if (this.tradeColonyContext !== undefined) {
+        warnings.push(translateText('You still have a free trade fleet and can afford a colony trade'));
+      }
+      if (findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true) !== undefined) {
+        warnings.push(translateText('You can still convert plants into greenery'));
+      }
+      if (findConvertHeatOption(this.playerView.waitingFor) !== undefined) {
+        warnings.push(translateText('You can still convert heat into temperature'));
+      }
+      if (this.hydroActionAvailable) {
+        warnings.push(translateText('You can still advance the Hydronetwork this generation'));
+      }
+      return warnings;
+    },
+    /** The pending card action's preview branches (empty while loading/failed). */
+    cardActionBranches(): ReadonlyArray<ActionPreviewBranch> {
+      return this.pendingCardAction?.preview?.branches ?? [];
+    },
     // ── colonies / hydro ───────────────────────────────────────────────
     tradeColonyContext() {
       return findTradeColonyContext(this.playerView.waitingFor);
@@ -752,7 +833,7 @@ export default defineComponent({
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         return 'Awaiting decision';
       }
-      if (this.consoleState.confirm !== undefined) {
+      if (this.pendingCardAction !== undefined || this.consoleState.confirm !== undefined) {
         return 'Confirmation';
       }
       if (this.consoleState.wheelOpen) {
@@ -808,7 +889,7 @@ export default defineComponent({
           {control: 'back', label: this.pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'},
         ];
       }
-      if (this.consoleState.confirm !== undefined) {
+      if (this.pendingCardAction !== undefined || this.consoleState.confirm !== undefined) {
         return [
           {control: 'confirm', label: 'Confirm'},
           {control: 'back', label: 'Cancel'},
@@ -953,6 +1034,8 @@ export default defineComponent({
           this.taskSpacePending = undefined;
           // A client payment built for a prompt that moved on is stale.
           this.pendingClientPayment = undefined;
+          // A card-action confirm built against the old prompt is stale too.
+          this.pendingCardAction = undefined;
           // A shell-section task (T3/T4) auto-opens its serving surface.
           const shellTask = this.shellTask;
           if (shellTask !== undefined) {
@@ -1141,6 +1224,15 @@ export default defineComponent({
         }
         const host = this.$refs.taskHost as InstanceType<typeof ConsoleTaskHost> | undefined;
         host?.handleIntent(intent);
+        return true;
+      }
+      // T7: the card-action preview confirm (A/X = execute, B = back to the sheet).
+      if (this.pendingCardAction !== undefined) {
+        if (intent.kind === 'press' && (intent.button === 'confirm' || intent.button === 'secondary')) {
+          this.confirmCardAction();
+        } else if (intent.kind === 'press' && intent.button === 'back') {
+          this.pendingCardAction = undefined;
+        }
         return true;
       }
       if (this.consoleState.confirm !== undefined) {
@@ -1547,14 +1639,11 @@ export default defineComponent({
       case 'standardProjects':
         this.useStandardProject(row.key as CardName);
         break;
-      case 'cardActions': {
-        const perform = findPerformActionCard(this.playerView.waitingFor);
-        if (perform !== undefined) {
-          closeConsoleLayers();
-          this.submit(wrapPath(perform.path, {type: 'card' as const, cards: [row.key]}));
-        }
+      case 'cardActions':
+        // T7: NEVER execute on a bare click — the preview-backed confirm
+        // shows the costs/gains first (desktop confirm-first parity).
+        this.openCardActionConfirm(row.key as CardName);
         break;
-      }
       case 'milestones':
         this.submitInnerOption(findMilestoneOptionPath(this.playerView.waitingFor), row.key);
         break;
@@ -1609,6 +1698,54 @@ export default defineComponent({
       default:
         this.useStandardProject(key as CardName);
       }
+    },
+    // ── T7: the card-action preview confirm ──────────────────────────────
+    openCardActionConfirm(cardName: CardName): void {
+      this.pendingCardAction = {cardName, preview: undefined, loading: true};
+      const url = apiUrl(paths.API_ACTION_PREVIEW) +
+        '?id=' + encodeURIComponent(this.playerView.id) +
+        '&card=' + encodeURIComponent(cardName);
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : undefined))
+        .then((p) => {
+          if (this.pendingCardAction?.cardName === cardName) {
+            this.pendingCardAction = {cardName, preview: p as ActionPreview | undefined, loading: false};
+          }
+        })
+        .catch(() => {
+          // Best-effort: the confirm still shows (generic body), never blocks.
+          if (this.pendingCardAction?.cardName === cardName) {
+            this.pendingCardAction = {cardName, preview: undefined, loading: false};
+          }
+        });
+    },
+    confirmCardAction(): void {
+      const pending = this.pendingCardAction;
+      if (pending === undefined || pending.loading) {
+        return;
+      }
+      const perform = findPerformActionCard(this.playerView.waitingFor);
+      this.pendingCardAction = undefined;
+      if (perform === undefined) {
+        this.showNotice('Not your turn to take any actions');
+        return;
+      }
+      closeConsoleLayers();
+      this.submit(wrapPath(perform.path, {type: 'card' as const, cards: [pending.cardName]}));
+    },
+    branchTitleText(branch: ActionPreviewBranch): string {
+      const t = branch.title;
+      return typeof t === 'string' ? translateText(t) : translateMessage(t);
+    },
+    branchReasonText(branch: ActionPreviewBranch): string {
+      const reason = branch.unavailableReason;
+      if (reason === undefined) {
+        return '';
+      }
+      if (typeof reason === 'string') {
+        return translateTextWithParams(reason, (branch.unavailableReasonParams ?? []).map(String));
+      }
+      return translateMessage(reason);
     },
     acceptConfirm(): void {
       const kind = this.consoleState.confirm;

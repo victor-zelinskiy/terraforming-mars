@@ -2850,6 +2850,137 @@ html.console-mode {
     border-radius: 8px;
 }
 
+/* ── T7: the ACTING player's chip carries the turn accent — the console-
+   native equivalent of the desktop handoff beam / status chips (that layer
+   anchors to desktop panel geometry and no-ops gracefully in console). ── */
+.con-status__player--active {
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 70%), 0 0 16px fade(@con-cyan, 18%);
+
+    .con-status__dot {
+        animation: con-active-dot calc(2000ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+}
+@keyframes con-active-dot {
+    0%, 100% { box-shadow: 0 0 0 0 fade(@con-cyan, 45%); }
+    50% { box-shadow: 0 0 0 5px fade(@con-cyan, 0%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-status__player--active .con-status__dot { animation: none; }
+}
+
+/* ── T7: delta-chip anchors (the AnimatedMetricValue hosts are absolute —
+   each needs a positioned parent, mirroring the desktop cells). ───────── */
+.con-res__row { position: relative; }
+.con-res__stockwrap {
+    position: relative;
+    display: inline-flex;
+    align-items: baseline;
+}
+.con-status__ptr,
+.con-status__pmc,
+.con-status__intel-value {
+    position: relative;
+}
+
+/* ── T7: the card-action preview confirm (never execute on a bare click) ── */
+.con-actconfirm {
+    &__card {
+        min-width: 460px;
+        max-width: 720px;
+    }
+    &__loading {
+        font-size: 19px;
+        color: @con-text-dim;
+        padding: 10px 0;
+    }
+    &__branch {
+        margin-top: 12px;
+        padding: 12px 16px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
+
+        &--off {
+            opacity: 0.55;
+            filter: saturate(0.6);
+        }
+    }
+    &__branch-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+    &__effects {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        zoom: 1.15;
+    }
+    &__reason {
+        margin-top: 8px;
+        font-size: 17px;
+        color: #ffc9c4;
+    }
+    &__note {
+        margin-top: 10px;
+        font-size: 17px;
+        color: @con-mint;
+    }
+}
+
+/* Pass-confirm parity warnings (desktop PassConfirmContent carry-over). */
+.con-confirm__warns {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+}
+.con-confirm__warn {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: fade(@con-amber, 10%);
+    box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
+    color: #ffe3b0;
+    font-size: 18px;
+
+    > span:first-child {
+        font-weight: 700;
+        color: @con-amber;
+    }
+}
+
+/* ── T7: notification layer fits the console chrome ──────────────────
+   The toasts drop below the status strip; the TURN card (action-required /
+   your-turn) hides while a console task surface IS the prompt — the same
+   "the modal IS the prompt → no redundant turn card" rule the desktop
+   applies to its own modals. Console-only selectors — desktop untouched. */
+html.console-mode .notifications-layer {
+    top: 108px;
+    right: 20px;
+}
+body:has(.con-task-host),
+body:has(.con-start),
+body:has(.con-reveal),
+body:has(.con-confirm) {
+    .notifications-layer .notification-card--action-required,
+    .notifications-layer .notification-card--your-turn {
+        visibility: hidden;
+    }
+}
+
+/* ── T7: the journal reads as a console panel ────────────────────────
+   Same premium feed, console geometry: flush to the right edge, above
+   the sections (11460) but below every task surface (11480+). */
+html.console-mode .journal-panel {
+    top: 108px;
+    bottom: 70px;
+    right: 20px;
+    z-index: 11460;
+}
+
 @keyframes con-start-deal {
     from { opacity: 0; transform: translateY(14px); }
     to { opacity: 1; transform: translateY(0); }

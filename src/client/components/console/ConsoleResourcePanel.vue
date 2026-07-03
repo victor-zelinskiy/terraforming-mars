@@ -9,10 +9,32 @@
            :data-conversion-cell="conversionAnchor(row.key)">
         <i class="con-res__icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"
            :data-conversion-icon="conversionAnchor(row.key)"></i>
-        <span class="con-res__value">{{ displayValue(row) }}</span>
+        <!-- Delta chips (CTS T7): the SAME AnimatedMetricValue + metric keys
+             as the desktop PlayerResource, so every stock/production change
+             fires the premium ±N chip in console too (and the energy→heat
+             baseline seeding keeps working — same scope + key). The value
+             binding stays CANONICAL (row.value), never the conversion
+             override — the chip logic must track real game state. -->
+        <span class="con-res__stockwrap">
+          <span class="con-res__value">{{ displayValue(row) }}</span>
+          <AnimatedMetricValue
+            v-if="epoch !== ''"
+            :value="row.value"
+            :metricKey="row.key + '.stock'"
+            :scopeKey="player.color"
+            :epoch="epoch"
+            variant="resource-stock" />
+        </span>
         <span class="con-res__prod" :class="{'con-res__prod--negative': row.production < 0}">
           {{ row.production >= 0 ? '+' + row.production : row.production }}
         </span>
+        <AnimatedMetricValue
+          v-if="epoch !== ''"
+          :value="row.production"
+          :metricKey="row.key + '.production'"
+          :scopeKey="player.color"
+          :epoch="epoch"
+          variant="resource-production" />
       </div>
     </div>
 
@@ -42,6 +64,7 @@ import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Tag} from '@/common/cards/Tag';
 import TagCount from '@/client/components/TagCount.vue';
+import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 
 type ResourceRow = {key: string, value: number, production: number};
@@ -55,9 +78,11 @@ const TAG_ORDER: ReadonlyArray<Tag> = [
 
 export default defineComponent({
   name: 'ConsoleResourcePanel',
-  components: {'tag-count': TagCount},
+  components: {'tag-count': TagCount, AnimatedMetricValue},
   props: {
     player: {type: Object as PropType<PublicPlayerModel>, required: true},
+    /** playerView.runId — the AnimatedMetricValue epoch ('' disables chips). */
+    epoch: {type: String, default: ''},
   },
   computed: {
     rows(): Array<ResourceRow> {
