@@ -61,7 +61,7 @@
     "sharp": "^0.35.3",
     "spectre.css": "^0.5.8",
     "style-loader": "^4.0.0",
-    "ts-loader": "^9.6.0",
+    "ts-loader": "^9.6.2",
     "tsc-alias": "^1.8.17",
     "tsconfig-paths-webpack-plugin": "^4.2.0",
     "tsx": "^4.22.4",
