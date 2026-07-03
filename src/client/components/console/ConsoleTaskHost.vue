@@ -4,7 +4,7 @@
 
     <!-- Keyed frame: prompt→prompt switches cross-fade (CTS-3.9). -->
     <transition name="con-task-swap" mode="out-in">
-      <div class="con-task" :class="{'con-task--wide': task.kind === 'cardSelect'}" :key="taskKey">
+      <div class="con-task" :class="{'con-task--wide': activeTask.kind === 'cardSelect'}" :key="taskKey">
         <!-- ── Frame header ────────────────────────────────────────── -->
         <header class="con-task__head">
           <div class="con-task__kicker">
@@ -14,7 +14,7 @@
           <div class="con-task__title">{{ titleText }}</div>
           <div v-if="triggerText !== ''" class="con-task__trigger">{{ triggerText }}</div>
           <!-- Card browser: the live pick counter (+ buy economics). -->
-          <div v-if="task.kind === 'cardSelect'" class="con-task__pickline">
+          <div v-if="activeTask.kind === 'cardSelect'" class="con-task__pickline">
             <span class="con-task__pickcount" :class="{'con-task__pickcount--ready': cardPicksValid}">
               {{ $t('Selected') }}: <b>{{ picks.length }}</b><template v-if="cardMax > 0"> / {{ cardMax }}</template>
             </span>
@@ -24,7 +24,7 @@
             </span>
           </div>
           <!-- Payment: the cost chip + live coverage readout. -->
-          <div v-if="task.kind === 'payment'" class="con-task__pickline">
+          <div v-if="activeTask.kind === 'payment'" class="con-task__pickline">
             <span class="con-task__paycost">
               {{ $t('Cost') }}: <b>{{ paymentCost }}</b> <i class="resource_icon resource_icon--megacredits con-task__opt-res" aria-hidden="true"></i>
             </span>
@@ -49,7 +49,7 @@
             </div>
 
             <!-- ── CHOICE ─────────────────────────────────────────── -->
-            <template v-if="task.kind === 'choice'">
+            <template v-if="activeTask.kind === 'choice'">
               <div v-for="(entry, i) in choiceEntries" :key="'o' + entry.index"
                    class="con-task__option"
                    :class="{
@@ -66,6 +66,7 @@
                   <span class="con-task__opt-title">{{ entry.title }}</span>
                   <span v-if="entry.preview !== ''" class="con-task__opt-preview">{{ entry.preview }}</span>
                   <span v-if="entry.isSpace" class="con-task__opt-board">{{ $t('Choose a location on the board') }} →</span>
+                  <span v-else-if="entry.isNested" class="con-task__opt-board" aria-hidden="true">›</span>
                   <GamepadGlyph v-if="focusIdx === i" :control="armed ? 'secondary' : 'confirm'" class="con-task__opt-a" />
                 </div>
                 <div v-if="entry.effects.length > 0" class="con-task__opt-effects">
@@ -92,7 +93,7 @@
             </template>
 
             <!-- ── PLAYER ─────────────────────────────────────────── -->
-            <template v-else-if="task.kind === 'player'">
+            <template v-else-if="activeTask.kind === 'player'">
               <div v-for="(p, i) in playerEntries" :key="p.color"
                    class="con-task__option"
                    :class="{'con-task__option--focused': focusIdx === i, 'con-task__option--armed': focusIdx === i && armed}">
@@ -124,7 +125,7 @@
             </template>
 
             <!-- ── AMOUNT ─────────────────────────────────────────── -->
-            <template v-else-if="task.kind === 'amount'">
+            <template v-else-if="activeTask.kind === 'amount'">
               <div class="con-task__stepper">
                 <i v-if="amountIconClass !== ''" :class="amountIconClass" class="con-task__stepper-icon" aria-hidden="true"></i>
                 <div class="con-task__stepper-readout">
@@ -141,7 +142,7 @@
             </template>
 
             <!-- ── RESOURCE ───────────────────────────────────────── -->
-            <template v-else-if="task.kind === 'resource'">
+            <template v-else-if="activeTask.kind === 'resource'">
               <div class="con-task__tiles">
                 <div v-for="(unit, i) in resourceUnits" :key="unit"
                      class="con-task__tile"
@@ -153,7 +154,7 @@
             </template>
 
             <!-- ── CARD BROWSER (T2: draft / buy / select / target) ── -->
-            <template v-else-if="task.kind === 'cardSelect'">
+            <template v-else-if="activeTask.kind === 'cardSelect'">
               <div class="con-cards">
                 <!-- The focused card LARGE (the TV inspector) + verdict. -->
                 <div class="con-cards__big" v-if="focusedCardEntry !== undefined">
@@ -189,7 +190,7 @@
             </template>
 
             <!-- ── PAYMENT (T3: native lanes; M€ auto-balances) ────── -->
-            <template v-else-if="task.kind === 'payment'">
+            <template v-else-if="activeTask.kind === 'payment'">
               <div v-for="(lane, i) in payLanes" :key="lane.unit"
                    class="con-task__lane"
                    :class="{'con-task__lane--focused': focusIdx === i, 'con-task__lane--active': payCount(lane.unit) > 0}">
@@ -219,14 +220,14 @@
             </template>
 
             <!-- ── DISTRIBUTE ─────────────────────────────────────── -->
-            <template v-else-if="task.kind === 'distribute'">
+            <template v-else-if="activeTask.kind === 'distribute'">
               <div class="con-task__dist-target" :class="{'con-task__dist-target--ready': distributeReady}">
                 {{ $t('Total') }}: <b>{{ distributedSum }}</b> / {{ distributeTarget }}
               </div>
               <div v-for="(lane, i) in lanes" :key="lane.unit"
                    class="con-task__lane"
                    :class="{'con-task__lane--focused': focusIdx === i, 'con-task__lane--active': laneValue(lane.unit) > 0}">
-                <span class="con-task__lane-id" :class="{'con-task__lane-id--prod': task.mode === 'production'}">
+                <span class="con-task__lane-id" :class="{'con-task__lane-id--prod': activeTask.mode === 'production'}">
                   <i class="con-task__opt-icon" :class="'resource_icon resource_icon--' + lane.unit" aria-hidden="true"></i>
                 </span>
                 <span class="con-task__lane-value">{{ laneValue(lane.unit) }}</span>
@@ -297,8 +298,8 @@ import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/game
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {
   amountResponse, cardsResponse, deltaProjectResponse, optionConfirmResponse, orOptionResponse,
-  paymentResponse, playerResponse, productionToLoseResponse, resourceResponse, resourcesResponse,
-  STANDARD_UNITS,
+  orWrappedResponse, paymentResponse, playerResponse, productionToLoseResponse, resourceResponse,
+  resourcesResponse, STANDARD_UNITS,
 } from '@/client/console/taskResponses';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
@@ -336,9 +337,37 @@ type ChoiceEntry = {
   tradeoff: string,
   isSkip: boolean,
   isSpace: boolean,
+  /** T9: the option nests a hostable input — confirming OPENS it (one-level wizard). */
+  isNested: boolean,
   risky: boolean,
   option: PlayerInputModel,
 };
+
+/**
+ * T9: the task kind a NESTED option's input maps to (the one-level
+ * wizard). Composites (`and`) and deeper `or` nesting are NOT here — they
+ * stay on the desktop modal (the router's serve predicate mirrors this).
+ */
+function nestedTaskFor(input: PlayerInputModel): ConsoleTask | undefined {
+  switch (input.type) {
+  case 'card':
+    return {kind: 'cardSelect', mode: 'target'};
+  case 'payment':
+    return {kind: 'payment'};
+  case 'amount':
+    return {kind: 'amount', flavor: 'generic'};
+  case 'player':
+    return {kind: 'player'};
+  case 'resource':
+    return {kind: 'resource'};
+  case 'resources':
+    return {kind: 'distribute', mode: 'resources'};
+  case 'productionToLose':
+    return {kind: 'distribute', mode: 'production'};
+  default:
+    return undefined;
+  }
+}
 
 const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
   megacredits: {stock: 'megacredits', production: 'megacreditProduction'},
@@ -375,15 +404,33 @@ export default defineComponent({
       picks: [] as Array<CardName>,
       /** T3 payment: the dialed-in non-M€ lane counts (M€ auto-derives). */
       payCounts: {} as Partial<Record<SpendableResource, number>>,
+      /** T9: the OPEN nested option (one-level wizard) — B returns to the list. */
+      nested: undefined as {index: number, input: PlayerInputModel} | undefined,
     };
   },
   computed: {
-    wf(): PlayerInputModel | undefined {
+    /** The TOP-LEVEL prompt (never the nested input). */
+    parentWf(): PlayerInputModel | undefined {
       return this.promptOverride ?? this.playerView.waitingFor;
     },
-    taskKey(): string {
+    /** What the bodies render: the nested input while the wizard is open. */
+    wf(): PlayerInputModel | undefined {
+      return this.nested?.input ?? this.parentWf;
+    },
+    /** The kind actually rendered (the nested input's kind while open). */
+    activeTask(): ConsoleTask {
+      if (this.nested !== undefined) {
+        return nestedTaskFor(this.nested.input) ?? this.task;
+      }
+      return this.task;
+    },
+    /** The PROMPT identity — a change means a genuinely new server ask. */
+    baseKey(): string {
       const override = this.promptOverride !== undefined ? 'client|' : '';
-      return `${override}${this.wf?.type ?? ''}|${textOf(this.wf?.title)}`;
+      return `${override}${this.parentWf?.type ?? ''}|${textOf(this.parentWf?.title)}`;
+    },
+    taskKey(): string {
+      return this.nested !== undefined ? `${this.baseKey}|n${this.nested.index}` : this.baseKey;
     },
     titleText(): string {
       return textOf(this.wf?.title);
@@ -391,14 +438,19 @@ export default defineComponent({
     kickerText(): string {
       return 'Awaiting decision';
     },
-    /** choiceContext trigger sentence (parity with ContextualChoiceContent). */
+    /** choiceContext trigger sentence (parity with ContextualChoiceContent);
+     *  inside a nested step — the PARENT ask as a breadcrumb. */
     triggerText(): string {
+      if (this.nested !== undefined) {
+        return `← ${textOf(this.parentWf?.title)}`;
+      }
       const trigger = this.wf?.choiceContext?.trigger;
       return textOf(trigger as string | Message | undefined);
     },
-    /** The docked source card — REAL render (info-parity contract). */
+    /** The docked source card — REAL render (info-parity contract; the
+     *  context lives on the PARENT prompt, kept visible in nested steps). */
     sourceCardName(): CardName | undefined {
-      const source = this.wf?.choiceContext?.source;
+      const source = this.parentWf?.choiceContext?.source;
       return source !== undefined && 'card' in source ? (source.card as CardName | undefined) : undefined;
     },
     warningTexts(): Array<string> {
@@ -432,7 +484,7 @@ export default defineComponent({
         // Free award funding (T4): dock each award's RULE next to its name —
         // the desktop AwardsOverlay shows it, so the console must too (CTS-3.8).
         let description = textOf(meta?.description);
-        if (description === '' && this.task.kind === 'choice' && this.task.flavor === 'awardFunding') {
+        if (description === '' && this.activeTask.kind === 'choice' && this.activeTask.flavor === 'awardFunding') {
           try {
             description = translateText(getAward(rawTextOf(option.title) as AwardName).description);
           } catch (err) {
@@ -451,6 +503,7 @@ export default defineComponent({
           tradeoff,
           isSkip: meta?.kind === 'skip',
           isSpace: option.type === 'space',
+          isNested: option.type !== 'option' && option.type !== 'space',
           risky: tradeoff !== '' || ((option as {warnings?: ReadonlyArray<string>}).warnings ?? []).length > 0,
           option,
         };
@@ -553,10 +606,10 @@ export default defineComponent({
     },
     // ── distribute ───────────────────────────────────────────────────
     lanes(): Array<{unit: keyof Units, max: number}> {
-      if (this.task.kind !== 'distribute') {
+      if (this.activeTask.kind !== 'distribute') {
         return [];
       }
-      if (this.task.mode === 'production') {
+      if (this.activeTask.mode === 'production') {
         const model = this.wf as PlayerInputModel & {type: 'productionToLose'};
         return STANDARD_UNITS
           .filter((u) => model.payProduction.units[u] > 0)
@@ -567,10 +620,10 @@ export default defineComponent({
       return STANDARD_UNITS.map((u) => ({unit: u, max: me[RESOURCE_FIELD[u].stock] ?? 0}));
     },
     distributeTarget(): number {
-      if (this.task.kind !== 'distribute') {
+      if (this.activeTask.kind !== 'distribute') {
         return 0;
       }
-      if (this.task.mode === 'production') {
+      if (this.activeTask.mode === 'production') {
         return (this.wf as PlayerInputModel & {type: 'productionToLose'}).payProduction.cost;
       }
       return (this.wf as PlayerInputModel & {type: 'resources'}).count;
@@ -610,7 +663,7 @@ export default defineComponent({
       return this.cardMin === 1 && this.cardMax === 1;
     },
     isBuyMode(): boolean {
-      return this.task.kind === 'cardSelect' && this.task.mode === 'buy';
+      return this.activeTask.kind === 'cardSelect' && this.activeTask.mode === 'buy';
     },
     /** Desktop contract: the per-card research cost rides cards[0].calculatedCost. */
     buyCostPerCard(): number {
@@ -649,12 +702,12 @@ export default defineComponent({
       return paymentTotal(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand);
     },
     paymentReady(): boolean {
-      return this.task.kind !== 'payment' ||
+      return this.activeTask.kind !== 'payment' ||
         paymentCovers(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand);
     },
     /** Can X submit right now? */
     confirmReady(): boolean {
-      switch (this.task.kind) {
+      switch (this.activeTask.kind) {
       case 'distribute':
         return this.distributeReady;
       case 'choice':
@@ -673,8 +726,8 @@ export default defineComponent({
     },
     footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
       const confirm = {control: 'secondary' as GlyphControl, label: this.confirmLabel, enabled: this.confirmReady};
-      const defer = {control: 'back' as GlyphControl, label: this.deferLabel};
-      switch (this.task.kind) {
+      const defer = {control: 'back' as GlyphControl, label: this.nested !== undefined ? 'Back' : this.deferLabel};
+      switch (this.activeTask.kind) {
       case 'amount':
         return [
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
@@ -707,7 +760,7 @@ export default defineComponent({
       }
     },
     focusCount(): number {
-      switch (this.task.kind) {
+      switch (this.activeTask.kind) {
       case 'choice': return this.choiceEntries.length;
       case 'player': return this.playerEntries.length;
       case 'resource': return this.resourceUnits.length;
@@ -725,6 +778,10 @@ export default defineComponent({
         this.resetState();
       },
     },
+    /** A genuinely NEW server prompt discards an open nested step. */
+    baseKey() {
+      this.nested = undefined;
+    },
   },
   methods: {
     resetState(): void {
@@ -733,7 +790,7 @@ export default defineComponent({
       this.units = {};
       this.picks = [];
       // Payment opens on the SAME optimal default mix the desktop form uses.
-      this.payCounts = this.task.kind === 'payment' ?
+      this.payCounts = this.activeTask.kind === 'payment' ?
         initialCounts(this.paymentCost, this.payLanes, this.megacreditsOnHand) : {};
       const init = this.wf?.type === 'amount' ?
         ((this.wf as PlayerInputModel & {type: 'amount'}).maxByDefault ? this.amountMax : this.amountMin) :
@@ -753,7 +810,7 @@ export default defineComponent({
     },
     onNav(dir: NavDirection): void {
       const vertical = dir === 'up' || dir === 'down';
-      if (this.task.kind === 'amount') {
+      if (this.activeTask.kind === 'amount') {
         if (dir === 'left') {
           this.adjust(-1);
         }
@@ -762,7 +819,7 @@ export default defineComponent({
         }
         return;
       }
-      if (this.task.kind === 'distribute' || this.task.kind === 'payment') {
+      if (this.activeTask.kind === 'distribute' || this.activeTask.kind === 'payment') {
         if (vertical) {
           this.moveFocus(dir === 'down' ? 1 : -1);
         } else {
@@ -770,7 +827,7 @@ export default defineComponent({
         }
         return;
       }
-      if (this.task.kind === 'resource' || this.task.kind === 'cardSelect') {
+      if (this.activeTask.kind === 'resource' || this.activeTask.kind === 'cardSelect') {
         // Horizontal tile row / filmstrip.
         if (!vertical) {
           this.moveFocus(dir === 'right' ? 1 : -1);
@@ -841,11 +898,11 @@ export default defineComponent({
       return this.payCounts[unit] ?? 0;
     },
     adjust(step: number): void {
-      if (this.task.kind === 'amount') {
+      if (this.activeTask.kind === 'amount') {
         this.value = Math.min(this.amountMax, Math.max(this.amountMin, this.value + step));
         return;
       }
-      if (this.task.kind === 'distribute') {
+      if (this.activeTask.kind === 'distribute') {
         const lane = this.lanes[this.focusIdx];
         if (lane === undefined) {
           return;
@@ -857,7 +914,7 @@ export default defineComponent({
         this.units = {...this.units, [lane.unit]: next};
         return;
       }
-      if (this.task.kind === 'payment') {
+      if (this.activeTask.kind === 'payment') {
         const lane = this.payLanes[this.focusIdx];
         if (lane === undefined) {
           return;
@@ -868,11 +925,11 @@ export default defineComponent({
       }
     },
     maxOut(): void {
-      if (this.task.kind === 'amount') {
+      if (this.activeTask.kind === 'amount') {
         this.value = this.amountMax;
         return;
       }
-      if (this.task.kind === 'distribute') {
+      if (this.activeTask.kind === 'distribute') {
         const lane = this.lanes[this.focusIdx];
         if (lane === undefined) {
           return;
@@ -882,7 +939,7 @@ export default defineComponent({
         this.units = {...this.units, [lane.unit]: Math.min(lane.max, headroom)};
         return;
       }
-      if (this.task.kind === 'payment') {
+      if (this.activeTask.kind === 'payment') {
         const lane = this.payLanes[this.focusIdx];
         if (lane === undefined) {
           return;
@@ -908,6 +965,11 @@ export default defineComponent({
         this.onConfirm();
         return;
       case 'back':
+        // T9: inside a nested step B returns to the branch list, never defers.
+        if (this.nested !== undefined) {
+          this.exitNested();
+          return;
+        }
         this.$emit('defer');
         return;
       default:
@@ -916,11 +978,11 @@ export default defineComponent({
     },
     /** A: select/arm the focused element; A on the armed one = confirm. */
     onPrimary(): void {
-      if (this.task.kind === 'amount' || this.task.kind === 'distribute' || this.task.kind === 'payment') {
+      if (this.activeTask.kind === 'amount' || this.activeTask.kind === 'distribute' || this.activeTask.kind === 'payment') {
         this.onConfirm();
         return;
       }
-      if (this.task.kind === 'cardSelect') {
+      if (this.activeTask.kind === 'cardSelect') {
         this.togglePick(); // A = toggle; X (or A-on-picked in single mode) commits
         return;
       }
@@ -939,10 +1001,10 @@ export default defineComponent({
       if (!this.confirmReady) {
         return;
       }
-      switch (this.task.kind) {
+      switch (this.activeTask.kind) {
       case 'choice': {
         if (this.wf?.type === 'option') {
-          this.$emit('submit', optionConfirmResponse());
+          this.submitResponse( optionConfirmResponse());
           return;
         }
         const entry = this.choiceEntries[this.focusIdx];
@@ -959,42 +1021,65 @@ export default defineComponent({
           this.$emit('space-pick', {index: entry.index, spacePrompt: entry.option});
           return;
         }
-        this.$emit('submit', orOptionResponse(entry.index));
+        if (entry.isNested) {
+          // T9: OPEN the nested input as a one-level wizard step — its
+          // submit is wrapped into this option's OR index; B returns here.
+          this.nested = {index: entry.index, input: entry.option};
+          return;
+        }
+        this.submitResponse(orOptionResponse(entry.index));
         return;
       }
       case 'player': {
         const p = this.playerEntries[this.focusIdx];
         if (p !== undefined) {
-          this.$emit('submit', playerResponse(p.color));
+          this.submitResponse( playerResponse(p.color));
         }
         return;
       }
       case 'amount':
-        this.$emit('submit', this.task.flavor === 'delta' ? deltaProjectResponse(this.value) : amountResponse(this.value));
+        this.submitResponse( this.activeTask.flavor === 'delta' ? deltaProjectResponse(this.value) : amountResponse(this.value));
         return;
       case 'resource': {
         const unit = this.resourceUnits[this.focusIdx];
         if (unit !== undefined) {
-          this.$emit('submit', resourceResponse(unit));
+          this.submitResponse( resourceResponse(unit));
         }
         return;
       }
       case 'distribute':
-        this.$emit('submit', this.task.mode === 'production' ?
+        this.submitResponse( this.activeTask.mode === 'production' ?
           productionToLoseResponse(this.units) : resourcesResponse(this.units));
         return;
       case 'cardSelect':
         // Byte-parity: the bare top-level {type:'card', cards} the desktop
         // CardSelectionContent / hand-select flow POSTs.
-        this.$emit('submit', cardsResponse(this.picks));
+        this.submitResponse( cardsResponse(this.picks));
         return;
       case 'payment':
-        this.$emit('submit', paymentResponse(
+        this.submitResponse( paymentResponse(
           paymentFromCounts(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand)));
         return;
       default:
         return;
       }
+    },
+    /** T9: back from a nested step to the branch list (nothing submitted). */
+    exitNested(): void {
+      this.nested = undefined;
+    },
+    /**
+     * ALL submits route here: a nested step's response is WRAPPED into its
+     * OR index (`{type:'or', index, response}` — byte-identical to the
+     * desktop ModernOptionPicker's nestedSave); a top-level response
+     * passes through unchanged.
+     */
+    submitResponse(response: unknown): void {
+      if (this.nested !== undefined) {
+        this.$emit('submit', orWrappedResponse(this.nested.index, response));
+        return;
+      }
+      this.$emit('submit', response);
     },
   },
 });

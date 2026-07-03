@@ -97,18 +97,33 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     }
   });
 
-  it('taskServedByHost: primitives served; nested non-leaf choice honestly deferred to the modal', () => {
+  it('taskServedByHost: primitives served; only COMPOSITES defer to the modal', () => {
     // Leaf options + space options → served natively.
     const leafOr = view({type: 'or', title: 'Pick', options: [
       {type: 'option', title: 'a'}, {type: 'space', title: 'ocean', spaces: []},
     ]});
     expect(taskServedByHost(leafOr)?.kind).to.eq('choice');
-    // An option nesting a PAYMENT inside an OrOptions is still NOT
-    // pre-collectable by the host → desktop modal stays (the honest carve-out).
-    const nested = view({type: 'or', title: 'Pick', options: [
+    // T9: a nested PAYMENT / CARD option is now served (the one-level
+    // wizard opens it; the response is or-wrapped).
+    const nestedPay = view({type: 'or', title: 'Pick', options: [
       {type: 'option', title: 'a'}, {type: 'payment', title: 'pay'},
     ]});
-    expect(taskServedByHost(nested)).to.eq(undefined);
+    expect(taskServedByHost(nestedPay)?.kind).to.eq('choice');
+    const nestedCard = view({type: 'or', title: 'Pick', options: [
+      {type: 'card', title: 'add to a card', cards: []}, {type: 'option', title: 'skip'},
+    ]});
+    expect(taskServedByHost(nestedCard)?.kind).to.eq('choice');
+    // The remaining honest carve-out: composites (`and`) and DEEPER `or`
+    // nesting — the desktop modal keeps them (same gap the desktop premium
+    // system defers to its legacy AndOptions.vue).
+    const nestedAnd = view({type: 'or', title: 'Pick', options: [
+      {type: 'option', title: 'a'}, {type: 'and', title: 'both', options: []},
+    ]});
+    expect(taskServedByHost(nestedAnd)).to.eq(undefined);
+    const deepOr = view({type: 'or', title: 'Pick', options: [
+      {type: 'or', title: 'inner', options: []},
+    ]});
+    expect(taskServedByHost(deepOr)).to.eq(undefined);
     // Bare confirm + the stepper/distribute family → served.
     expect(taskServedByHost(view({type: 'option', title: 'ok'}))?.kind).to.eq('choice');
     expect(taskServedByHost(view({type: 'player', title: 'p', players: []}))?.kind).to.eq('player');

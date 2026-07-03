@@ -81,6 +81,17 @@ export const SCENE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['initialDra
 const ACTION_MENU_TITLES: ReadonlyArray<string> = ['Take your first action', 'Take your next action'];
 const WGT_TITLE = 'Select action for World Government Terraforming';
 
+/**
+ * Option types the task host can serve inside a `choice` (T9 one-level
+ * wizard): leaves, board picks, and every nested input it has a native
+ * body for. NOT here (→ the desktop modal): `and` composites (combined
+ * multi-child submit) and deeper `or` nesting.
+ */
+const NESTABLE_OPTION_TYPES: ReadonlySet<string> = new Set([
+  'option', 'space',
+  'card', 'payment', 'amount', 'player', 'resource', 'resources', 'productionToLose',
+]);
+
 function isHandSubset(view: PlayerViewModel, cards: ReadonlyArray<{name: string}> | undefined): boolean {
   if (cards === undefined || cards.length === 0) {
     return false;
@@ -201,14 +212,18 @@ export function isNativelyHandled(task: ConsoleTask | undefined): boolean {
 
 /**
  * Does the ConsoleTaskHost FULLY serve this prompt? True for the T1
- * primitives + the T2 card browser + the T3 payment lanes — with ONE
- * honest carve-out: a `choice` whose options nest inputs the host can't
- * pre-collect (a nested payment / card / and inside an OrOptions) stays
- * on the desktop modal. Leaf options (`option`) and board picks (`space`
- * — routed through the shell's headless SelectSpace) ARE served. The
- * shell suppresses the desktop modal EXACTLY when this returns a task
- * (no dead ends, ever). SHELL_SECTION_KINDS (projectCard / colony) are
- * native too but served by shell SECTIONS, not this host.
+ * primitives + the T2 card browser + the T3 payment lanes + (T9) a
+ * `choice` whose options nest HOSTABLE inputs — the host opens them as a
+ * ONE-LEVEL wizard step (pick the branch → complete the nested input →
+ * the response is or-wrapped; B returns to the list). The remaining
+ * honest carve-out is COMPOSITES: an `and` option (combined multi-child
+ * submit — the same gap the desktop premium system defers to its legacy
+ * AndOptions.vue) and DEEPER `or` nesting stay on the desktop modal.
+ * Leaf options (`option`) and board picks (`space` — routed through the
+ * shell's headless SelectSpace) are served as before. The shell
+ * suppresses the desktop modal EXACTLY when this returns a task (no dead
+ * ends, ever). SHELL_SECTION_KINDS (projectCard / colony) are native too
+ * but served by shell SECTIONS, not this host.
  */
 export function taskServedByHost(view: PlayerViewModel): ConsoleTask | undefined {
   const task = taskFor(view);
@@ -229,7 +244,7 @@ export function taskServedByHost(view: PlayerViewModel): ConsoleTask | undefined
       return task; // bare confirm — always a leaf
     }
     if (wf?.type === 'or') {
-      const served = wf.options.every((o) => o.type === 'option' || o.type === 'space');
+      const served = wf.options.every((o) => NESTABLE_OPTION_TYPES.has(o.type));
       return served ? task : undefined;
     }
     return undefined;
