@@ -1,10 +1,13 @@
 import {expect} from 'chai';
 import {
   autoMegacredits, initialCounts, laneCap, paymentCovers, paymentFromCounts,
-  paymentLanes, paymentTotal, PaymentPromptLike,
+  paymentLanes, paymentTotal, PaymentPromptLike, projectCardPaymentOptions,
+  projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Units} from '@/common/Units';
+import {Tag} from '@/common/cards/Tag';
+import {CardName} from '@/common/cards/CardName';
 
 /**
  * CTS T3: the console payment lanes reuse the EXACT desktop ledger math —
@@ -116,5 +119,50 @@ describe('paymentPlan (T3 native payment math)', () => {
     expect(lanes).to.deep.eq([]);
     expect(paymentCovers(0, lanes, {}, 0)).to.eq(true);
     expect(paymentFromCounts(0, lanes, {}, 0).megacredits).to.eq(0);
+  });
+
+  // ── T8: the project-card payment rules (desktop SelectProjectCardToPlay) ──
+  it('project card: tag-gated alternates (steel=building, titanium=space, …)', () => {
+    const building = projectCardPaymentOptions([Tag.BUILDING], {}, undefined);
+    expect(building.steel).to.eq(true);
+    expect(building.titanium).to.eq(false);
+    const space = projectCardPaymentOptions([Tag.SPACE], {}, undefined);
+    expect(space.steel).to.eq(false);
+    expect(space.titanium).to.eq(true);
+    expect(space.graphene).to.eq(true);
+    const plant = projectCardPaymentOptions([Tag.PLANT], {}, undefined);
+    expect(plant.microbes).to.eq(true);
+    expect(plant.seeds).to.eq(true);
+    const venus = projectCardPaymentOptions([Tag.VENUS], {}, undefined);
+    expect(venus.floaters).to.eq(true);
+    // Helion heat rides the SERVER flag, never a tag.
+    expect(projectCardPaymentOptions([], {heat: true}, undefined).heat).to.eq(true);
+    expect(projectCardPaymentOptions([], {}, undefined).heat).to.eq(false);
+  });
+
+  it('project card: Last Resort Ingenuity unlocks steel AND full-rate titanium', () => {
+    const options = projectCardPaymentOptions([], {}, CardName.LAST_RESORT_INGENUITY);
+    expect(options.steel).to.eq(true);
+    expect(options.titanium).to.eq(true);
+  });
+
+  it('project card: LTF-only titanium pays 1 less; space-tag pays full', () => {
+    const ltfOnly = projectCardPaymentPrompt(10, [], {lunaTradeFederationTitanium: true}, undefined, undefined);
+    const lanes = paymentLanes(ltfOnly, player());
+    expect(lanes.find((l) => l.unit === 'titanium')?.rate).to.eq(2); // 3 − 1
+    const space = projectCardPaymentPrompt(10, [Tag.SPACE], {lunaTradeFederationTitanium: true}, undefined, undefined);
+    expect(paymentLanes(space, player()).find((l) => l.unit === 'titanium')?.rate).to.eq(3);
+  });
+
+  it('project card: reserveUnits are SUBTRACTED from the spendable pool', () => {
+    const reserve: Units = {megacredits: 0, steel: 3, titanium: 0, plants: 0, energy: 0, heat: 0};
+    const p = projectCardPaymentPrompt(10, [Tag.BUILDING], {}, undefined, reserve);
+    const lanes = paymentLanes(p, player({steel: 4}));
+    const steel = lanes.find((l) => l.unit === 'steel');
+    expect(steel?.available).to.eq(1); // 4 − 3 reserved
+    expect(steel?.reserved).to.eq(true);
+    // Fully-reserved → the lane disappears (nothing spendable).
+    const p2 = projectCardPaymentPrompt(10, [Tag.BUILDING], {}, undefined, {...reserve, steel: 4});
+    expect(paymentLanes(p2, player({steel: 4})).find((l) => l.unit === 'steel')).to.eq(undefined);
   });
 });

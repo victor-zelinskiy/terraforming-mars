@@ -1137,8 +1137,50 @@ the desktop-gamepad mode are untouched throughout.
   | Card zoom / fullscreen browse | replaced by TV inspectors (deliberate) |
   Gates: 76 pure specs, eslint, vue-tsc, make:json/css, build:client —
   green.
-- **T8 — PENDING** (fallback retirement: the play-card modal, the
-  colony-trade modal, endgame/rematch formalization, hydro internals).
+- **T8 — SHIPPED (fallback retirement — the IN-GAME loop is fully
+  console-native).** The two remaining in-game fallback modals are
+  RETIRED from the shell (`MandatoryInputModal` / `HandCardPaymentContent`
+  / `ColonyTradePaymentModal` imports are GONE):
+  **(a) `ConsolePlayCardConfirm`** — the native play-card flow: the full
+  premium card render + the on-play RESULT from the SAME
+  `/api/card-play-preview` (branch chips, per-branch availability
+  reasons, the multi-branch «после подтверждения» note) + the VERBATIM
+  silent-loss warnings + an honest «После подтверждения» list of the
+  follow-up decisions + native payment lanes with the DESKTOP
+  project-card rules extracted PURE into `paymentPlan.ts`
+  (`projectCardPaymentOptions`/`projectCardPaymentPrompt`: tag-gated
+  alternates [steel=building, titanium/graphene=space, microbes/seeds=
+  plant, floaters=venus, lunaArchives=moon, plants=building+server flag],
+  the Last Resort Ingenuity exception, LTF-only titanium at −1 rate, and
+  the project-card `subtractReserve` semantic — reserveUnits are
+  SUBTRACTED from the spendable pool, mirroring the desktop; all pinned
+  by paymentPlan.spec). Grammar: ↑/↓ lanes · ←/→ & LB/RB ±1 · Y MAX ·
+  A/X play (coverage-gated) · B cancel. **The submit is the bare
+  `{type:'projectCard', card, payment}`** (wrapped into the action-menu
+  path; empty path for the mandatory play-from-hand prompt) — the
+  legacy-supported SEQUENTIAL server contract: the choices the desktop
+  modal pre-collects arrive as NATIVE follow-up tasks (T1–T5 serve them
+  all, each with its premium metadata). One-decision-per-screen IS the
+  console idiom — and the pick-bridge aborts («This card needs desktop
+  mode») are gone from the play flow entirely.
+  **(b) `ConsoleColonyTradeConfirm`** — the native trade confirm: the
+  REAL `ColonyTile` render (track + reward — the tile is the source of
+  truth), the fixed trade-bonus beneficiaries line (owners ×N), and the
+  payment paths as T1-style option rows (resource icon + cost + the
+  `current → resulting` stock preview from the SAME server
+  `OptionMetadata`; unaffordable paths VISIBLE with their reason).
+  A = select/arm → confirm, X = one-press trade, B = cancel. The
+  and-response submit path in the shell is unchanged (byte-parity).
+  Both layers reuse the FLAT con-task frame/lane/option/foot vocabulary
+  (LESS BEM compiles flat — zero style duplication).
+  **Honest remaining fallback (documented, deliberate):** the nested
+  non-leaf choice carve-out (a payment/card nested inside an OrOptions →
+  the desktop modal, by design — see taskServedByHost); the Hydronetwork
+  overlay INTERNALS (its confirm submits natively; its pick bridges show
+  the honest notice); the END-GAME surfaces (endgame experience / final
+  reveal / rematch — App-level premium, driven by the demoted engine's
+  scope defs; post-game, no game-state risk). Gates: 80 pure specs,
+  eslint, vue-tsc, make:json/css, build:client — green.
 
 ---
 

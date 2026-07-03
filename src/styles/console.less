@@ -2840,6 +2840,66 @@ html.console-mode {
     }
 }
 
+/* ── T8: the native play-card + colony-trade confirms (fallback retired).
+   Both reuse the flat con-task frame/lane/option/foot vocabulary. ────── */
+.con-play {
+    z-index: 11500;
+
+    &__frame { width: min(1280px, 94vw); }
+    &__cardside {
+        flex-shrink: 0;
+        zoom: 1.02;
+        > .card-container { margin: 0; }
+    }
+    &__body { gap: 10px; }
+    &__vp {
+        align-self: flex-start;
+        padding: 3px 14px;
+        border-radius: 999px;
+        background: fade(@con-mint, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 60%);
+        font-size: 18px;
+        font-weight: 700;
+        color: @con-mint;
+    }
+    &__next { margin: 4px 0; }
+    &__next-line {
+        font-size: 18px;
+        color: @con-text-dim;
+        padding: 3px 0;
+    }
+}
+
+.con-trade {
+    z-index: 11500;
+
+    &__frame { width: min(1180px, 92vw); }
+    &__tile {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        zoom: 1.05;
+
+        .colony-tile__select-btn,
+        .colony-tile__reason { display: none; }
+    }
+    &__bonus {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        max-width: 420px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%);
+        font-size: 16px;
+    }
+    &__bonus-label { color: @con-text-dim; }
+    &__body { gap: 10px; }
+}
+
 /* Energy→heat transition highlight on the console resource rail (T6). */
 .con-res__row--conv-source {
     box-shadow: inset 0 0 0 1px fade(@con-cyan, 65%), 0 0 14px fade(@con-cyan, 18%);

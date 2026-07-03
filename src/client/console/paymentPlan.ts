@@ -22,6 +22,8 @@
 import {DEFAULT_PAYMENT_VALUES, Payment, PaymentOptions} from '@/common/inputs/Payment';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {Units} from '@/common/Units';
+import {Tag} from '@/common/cards/Tag';
+import {CardName} from '@/common/cards/CardName';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {newDefaultLedger} from '@/client/components/PaymentLedger';
 import {computeDefaultPayment} from '@/client/components/PaymentDefaults';
@@ -36,6 +38,12 @@ export type PaymentPromptLike = {
   amount: number,
   paymentOptions: Partial<PaymentOptions>,
   reserveUnits?: Readonly<Units>,
+  /**
+   * The PROJECT-CARD payment semantic (desktop SelectProjectCardToPlay):
+   * the reserved units are SUBTRACTED from what's spendable (the card
+   * itself needs them). The SelectPayment flow only FLAGS them (default).
+   */
+  subtractReserve?: boolean,
 };
 
 export type PaymentLane = {
@@ -80,7 +88,12 @@ export function paymentLanes(prompt: PaymentPromptLike, player: PublicPlayerMode
     if (unit === 'megacredits' || !paymentOptionsAllowResource(prompt.paymentOptions, unit)) {
       continue;
     }
-    const amount = available[unit] ?? 0;
+    let amount = available[unit] ?? 0;
+    const reservedHere = reserve !== undefined && isStandardUnit(unit) && reserve[unit] > 0;
+    if (prompt.subtractReserve === true && reservedHere && reserve !== undefined && isStandardUnit(unit)) {
+      // Project-card semantic: the card's own reserve is NOT spendable.
+      amount = Math.max(amount - reserve[unit], 0);
+    }
     if (amount <= 0) {
       continue;
     }
@@ -88,7 +101,7 @@ export function paymentLanes(prompt: PaymentPromptLike, player: PublicPlayerMode
       unit,
       rate: rateFor(unit, player, prompt.paymentOptions),
       available: amount,
-      reserved: reserve !== undefined && isStandardUnit(unit) && reserve[unit] > 0,
+      reserved: reservedHere,
     });
   }
   return lanes;
@@ -97,6 +110,52 @@ export function paymentLanes(prompt: PaymentPromptLike, player: PublicPlayerMode
 /** Player M€ on hand (the auto lane's ceiling). */
 export function megacreditsAvailable(player: PublicPlayerModel): number {
   return player.megacredits ?? 0;
+}
+
+/**
+ * The PROJECT-CARD payment rules — a PURE mirror of the desktop
+ * `SelectProjectCardToPlay.canUse` (regular-card branch): tag-gated
+ * alternates + the Last Resort Ingenuity steel/titanium exception + the
+ * Luna Trade Federation reduced-rate titanium. `tags` are the card's
+ * manifest tags (resolved by the caller — this module stays manifest-free
+ * so the spec runs under the server runner).
+ */
+export function projectCardPaymentOptions(
+  tags: ReadonlyArray<Tag>,
+  inputOptions: Partial<PaymentOptions>,
+  lastCardPlayed: CardName | undefined,
+): Partial<PaymentOptions> {
+  const lastResort = lastCardPlayed === CardName.LAST_RESORT_INGENUITY;
+  return {
+    heat: inputOptions.heat === true,
+    steel: tags.includes(Tag.BUILDING) || lastResort,
+    // `titanium: true` = the FULL rate (space tag / Last Resort); LTF-only
+    // titanium pays 1 less (rateFor mirrors getTitaniumResourceRate).
+    titanium: tags.includes(Tag.SPACE) || lastResort,
+    lunaTradeFederationTitanium: inputOptions.lunaTradeFederationTitanium === true,
+    plants: tags.includes(Tag.BUILDING) && inputOptions.plants === true,
+    microbes: tags.includes(Tag.PLANT),
+    floaters: tags.includes(Tag.VENUS),
+    lunaArchivesScience: tags.includes(Tag.MOON),
+    seeds: tags.includes(Tag.PLANT),
+    graphene: tags.includes(Tag.SPACE) || tags.includes(Tag.CITY),
+  };
+}
+
+/** The full project-card payment prompt (native play flow — CTS T8). */
+export function projectCardPaymentPrompt(
+  cost: number,
+  tags: ReadonlyArray<Tag>,
+  inputOptions: Partial<PaymentOptions>,
+  lastCardPlayed: CardName | undefined,
+  reserveUnits: Readonly<Units> | undefined,
+): PaymentPromptLike {
+  return {
+    amount: cost,
+    paymentOptions: projectCardPaymentOptions(tags, inputOptions, lastCardPlayed),
+    reserveUnits,
+    subtractReserve: true,
+  };
 }
 
 /** Never dial more of one unit than covers the WHOLE cost (anti-overpay cap). */
