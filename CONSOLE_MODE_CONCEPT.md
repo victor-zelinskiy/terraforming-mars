@@ -1175,12 +1175,42 @@ the desktop-gamepad mode are untouched throughout.
   (LESS BEM compiles flat — zero style duplication).
   **Honest remaining fallback (documented, deliberate):** the nested
   non-leaf choice carve-out (a payment/card nested inside an OrOptions →
-  the desktop modal, by design — see taskServedByHost); the Hydronetwork
-  overlay INTERNALS (its confirm submits natively; its pick bridges show
-  the honest notice); the END-GAME surfaces (endgame experience / final
-  reveal / rematch — App-level premium, driven by the demoted engine's
-  scope defs; post-game, no game-state risk). Gates: 80 pure specs,
-  eslint, vue-tsc, make:json/css, build:client — green.
+  the desktop modal, by design — see taskServedByHost; **NARROWED by T9
+  below to composites only**); the Hydronetwork overlay INTERNALS (its
+  confirm submits natively; its pick bridges show the honest notice); the
+  END-GAME surfaces (endgame experience / final reveal / rematch —
+  App-level premium, driven by the demoted engine's scope defs;
+  post-game, no game-state risk). Gates: 80 pure specs, eslint, vue-tsc,
+  make:json/css, build:client — green.
+- **T9 — SHIPPED (the nested ONE-LEVEL wizard — the carve-out shrinks to
+  composites).** The T1 carve-out («an option nesting a non-leaf input →
+  the desktop modal») existed because the native bodies didn't exist yet;
+  after T2/T3 they all do, so the host now OPENS a nested option as a
+  wizard step instead of deferring the whole prompt:
+  `NESTABLE_OPTION_TYPES` (router) = leaves + `space` + every input the
+  host has a body for (`card` / `payment` / `amount` / `player` /
+  `resource` / `resources` / `productionToLose`). Confirming such an
+  option sets `nested = {index, input}` — the host re-derives `wf` /
+  `activeTask` from the nested input (the SAME bodies render it: the
+  card browser for a nested SelectCard, the payment lanes for a nested
+  SelectPayment, …), the keyed `con-task-swap` cross-fades list ↔ step,
+  the header shows the nested ask with a `← <parent>` breadcrumb and the
+  parent's choiceContext source card stays docked (info parity).
+  **B returns to the branch list** (nothing submitted; B again = defer);
+  every submit routes through `submitResponse`, which OR-WRAPS a nested
+  step's answer (`{type:'or', index, response}` — byte-identical to the
+  desktop ModernOptionPicker.nestedSave). A `baseKey` watcher discards an
+  open step when a genuinely new server prompt arrives. Nested rows carry
+  a `›` affordance in the list. This natively serves the console-frequent
+  `gainOrAddResource` family (ImportedHydrogen / LargeConvoy /
+  LocalHeatTrapping follow-ups — MORE common in console than desktop
+  because T8 plays sequentially, without desktop pre-collection), Mars
+  University-style discard-to-draw triggers, etc. **The remaining honest
+  carve-out is exactly the composites:** an `and` option (combined
+  multi-child submit — the same gap the desktop premium system defers to
+  its legacy AndOptions.vue) and DEEPER `or` nesting. Gates: 80 pure
+  specs (served/deferred matrix updated: nested payment/card SERVED,
+  `and`/deep-`or` deferred), eslint, vue-tsc, build:client — green.
 
 ---
 
