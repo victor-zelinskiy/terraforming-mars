@@ -48,6 +48,8 @@ export const consoleState = reactive({
   fallbackScopeId: '' as string,
   /** ConsoleShell presence (the layer shows the generic hint bar elsewhere). */
   shellMounted: false,
+  /** CTS task-host UI state: B defers the task to inspect the board. */
+  task: {deferred: false},
 });
 
 /** Reset transient layers (wheel / sheets / confirm / sale) — e.g. on submit. */

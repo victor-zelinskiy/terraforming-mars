@@ -25,6 +25,8 @@
     "Board cell": "Клетка поля",
     "Loading": "Загрузка",
     "Information": "Информация",
+    "Press again to confirm": "Нажмите ещё раз для подтверждения",
+    "This prompt is not available in console mode yet.": "Этот запрос пока недоступен в консольном режиме.",
     "System": "Система",
     "Return to game": "Вернуться в игру",
     "Leave the game and return to the main menu?": "Выйти из партии в главное меню?",

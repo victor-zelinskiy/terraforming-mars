@@ -35,7 +35,7 @@
       `is-modal-host` class so the inline factory below doesn't fight the
       modal for the same input. See CLAUDE.md "Mandatory-input modal pattern".
     -->
-    <MandatoryInputModal v-if="useModalForCurrentInput"
+    <MandatoryInputModal v-if="useModalForCurrentInput && !modalSuppressed"
                          :title="modalPillTitle"
                          :suppressed="clientHandPickActive || playedPickActive">
       <!--
@@ -336,6 +336,14 @@ export default defineComponent({
     PlacementBanner,
   },
   props: {
+    // Console Task System (CTS): when the console shell serves the current
+    // prompt with its own native task surface it suppresses the desktop
+    // modal RENDERING here (the transport / routing / holds are untouched).
+    // Desktop never passes this — byte-identical behavior there.
+    modalSuppressed: {
+      type: Boolean,
+      default: false,
+    },
     playerView: {
       // ViewModel covers both PlayerViewModel (actual players) and the
       // narrower SpectatorModel — SpectatorHome.vue mounts WaitingFor
