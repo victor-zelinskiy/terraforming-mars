@@ -16,6 +16,13 @@
       </span>
     </div>
 
+    <!-- CTS: a DEFERRED task (B = inspect the board) docks as an amber chip. -->
+    <div v-if="activeConsoleTask !== undefined && consoleState.task.deferred" class="con-banner con-banner--deferred">
+      <span class="con-banner__pulse" aria-hidden="true"></span>
+      <span>{{ $t('Awaiting decision') }}</span>
+      <span class="con-banner__hint"><GamepadGlyph control="back" /><span>{{ $t('Return to game') }}</span></span>
+    </div>
+
     <div class="con-main">
       <ConsoleResourcePanel :player="thisPlayer" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
@@ -104,6 +111,26 @@
       <div v-if="notice !== ''" class="con-notice">{{ $t(notice) }}</div>
     </transition>
 
+    <!-- CTS T1: the console-native task host (choice / player / amount /
+         resource / distribute). The desktop modal is SUPPRESSED while it
+         serves; B defers it so the player can inspect the board. -->
+    <transition name="con-layer">
+      <ConsoleTaskHost v-if="activeConsoleTask !== undefined && !consoleState.task.deferred && taskSpacePending === undefined"
+                       ref="taskHost"
+                       :playerView="playerView"
+                       :task="activeConsoleTask"
+                       @submit="onTaskSubmit"
+                       @defer="consoleState.task.deferred = true"
+                       @space-pick="onTaskSpacePick" />
+    </transition>
+
+    <!-- CTS T0: the honest guard for a prompt NO surface serves (the
+         leak detector's stranded check) — never a silent pill again. -->
+    <transition name="con-layer">
+      <ConsoleStrandedPrompt v-if="leakDetectorState.stranded !== undefined && !infoModeState.open"
+                             :stranded="leakDetectorState.stranded" />
+    </transition>
+
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -111,11 +138,22 @@
          rendering is hidden. Its teleported surfaces (MandatoryInputModal,
          PlacementBanner) render at body level = the iteration-1 FALLBACK. -->
     <div class="con-wf-host" aria-hidden="true">
-      <waiting-for v-if="game.phase !== 'end'" ref="waitingFor" :playerView="playerView" :waitingfor="playerView.waitingFor"></waiting-for>
+      <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
+                   :playerView="playerView"
+                   :waitingfor="playerView.waitingFor"
+                   :modal-suppressed="activeConsoleTask !== undefined"></waiting-for>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
                     :onsave="onConvertPlantsSpacePicked"
+                    :showsave="false"
+                    :showtitle="false" />
+      <!-- Nested board pick from a task's space-type option (WGT ocean):
+           the same headless SelectSpace machinery as convert-plants. -->
+      <select-space v-if="taskSpacePrompt !== undefined"
+                    :playerView="playerView"
+                    :playerinput="taskSpacePrompt"
+                    :onsave="onTaskSpacePicked"
                     :showsave="false"
                     :showtitle="false" />
     </div>
@@ -199,6 +237,11 @@ import ConsoleHandSection, {ConsoleHandEntry} from '@/client/components/console/
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
 import ConsoleColoniesSection from '@/client/components/console/ConsoleColoniesSection.vue';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
+import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
+import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
+import {ConsoleTask, taskServedByHost} from '@/client/console/consoleTaskRouter';
+import {orWrappedResponse} from '@/client/console/taskResponses';
+import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
 import HydroNetworkOverlay from '@/client/components/hydronetwork/HydroNetworkOverlay.vue';
 import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePaymentModal.vue';
 import {resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -261,6 +304,8 @@ export default defineComponent({
     ConsoleResourcePanel,
     ConsoleColoniesSection,
     ConsoleInfoMode,
+    ConsoleStrandedPrompt,
+    ConsoleTaskHost,
     HydroNetworkOverlay,
     ColonyTradePaymentModal,
     GamepadGlyph,
@@ -277,10 +322,15 @@ export default defineComponent({
     return {
       consoleState,
       infoModeState,
+      leakDetectorState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       pendingStdProjectPayment: undefined as PendingStdProjectPayment | undefined,
       pendingTradeColony: undefined as {colonyName: ColonyName, paymentOptions: TradeColonyContext['paymentOptions'], disabledPayments: TradeColonyContext['disabledPayments']} | undefined,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
+      /** A task's nested space-type option being picked on the board. */
+      taskSpacePending: undefined as {index: number, spacePrompt: PlayerInputModel} | undefined,
+      /** Prompt identity — a change resets the task defer state. */
+      lastTaskKey: '',
       /** The player has actively focused a cell → the panel shows it (B drops back to the summary). */
       cellFocused: false,
       notice: '',
@@ -326,12 +376,23 @@ export default defineComponent({
       const p = this.convertPlantsPending?.spacePrompt;
       return p !== undefined && p.type === 'space' ? p : undefined;
     },
-    /** Server-driven placement (SelectSpace) or the client-side convert-plants picker. */
+    /** The T1 task-host task (undefined = not served natively → fallback/other surfaces). */
+    activeConsoleTask(): ConsoleTask | undefined {
+      return taskServedByHost(this.playerView);
+    },
+    /** A task's nested SelectSpace, narrowed for the headless picker. */
+    taskSpacePrompt() {
+      const p = this.taskSpacePending?.spacePrompt;
+      return p !== undefined && p.type === 'space' ? p : undefined;
+    },
+    /** Server-driven placement (SelectSpace) or a client-side board picker. */
     placementActive(): boolean {
-      return this.playerView.waitingFor?.type === 'space' || this.convertPlantsPending !== undefined;
+      return this.playerView.waitingFor?.type === 'space' ||
+        this.convertPlantsPending !== undefined ||
+        this.taskSpacePending !== undefined;
     },
     placementCancellable(): boolean {
-      if (this.convertPlantsPending !== undefined) {
+      if (this.convertPlantsPending !== undefined || this.taskSpacePending !== undefined) {
         return true; // client-side — nothing committed yet
       }
       return this.playerView.waitingFor?.placementContext?.cancellable === true;
@@ -562,6 +623,9 @@ export default defineComponent({
         default: return 'Awaiting decision';
         }
       }
+      if (this.activeConsoleTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+        return 'Awaiting decision';
+      }
       if (this.consoleState.confirm !== undefined) {
         return 'Confirmation';
       }
@@ -590,6 +654,15 @@ export default defineComponent({
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
           {control: 'back', label: 'Back'},
+        ];
+      }
+      if (this.activeConsoleTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+        // The task frame carries the detailed contract; the bar mirrors it.
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'secondary', label: 'Confirm'},
+          {control: 'back', label: 'Minimize'},
         ];
       }
       if (this.consoleState.confirm !== undefined) {
@@ -711,6 +784,14 @@ export default defineComponent({
         if (this.consoleState.sale.active && findSellPatentsAction(this.playerView.waitingFor) === undefined) {
           this.consoleState.sale.active = false;
           this.consoleState.sale.selected = [];
+        }
+        // CTS: a NEW prompt identity resets the defer + stale nested picks.
+        const wf = this.playerView.waitingFor;
+        const key = wf === undefined ? '' : `${wf.type}|${inputTitleText(wf.title) ?? ''}`;
+        if (key !== this.lastTaskKey) {
+          this.lastTaskKey = key;
+          this.consoleState.task.deferred = false;
+          this.taskSpacePending = undefined;
         }
       },
     },
@@ -861,6 +942,17 @@ export default defineComponent({
       // Information Mode owns everything while open (read-only).
       if (this.infoModeState.open) {
         this.handleInfoIntent(intent);
+        return true;
+      }
+      // CTS T1: the task host owns input while it serves (View still peeks
+      // the journal; B inside the host = defer-to-board, handled there).
+      if (this.activeConsoleTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+        if (intent.kind === 'press' && intent.button === 'view') {
+          journalState.open = !journalState.open;
+          return true;
+        }
+        const host = this.$refs.taskHost as InstanceType<typeof ConsoleTaskHost> | undefined;
+        host?.handleIntent(intent);
         return true;
       }
       if (this.consoleState.confirm !== undefined) {
@@ -1139,6 +1231,11 @@ export default defineComponent({
     },
     /** B: one calm step toward the console home (never destructive). */
     handleSectionBack(): void {
+      // A DEFERRED task comes back first — B toggles task ↔ board-inspect.
+      if (this.activeConsoleTask !== undefined && this.consoleState.task.deferred) {
+        this.consoleState.task.deferred = false;
+        return;
+      }
       if (this.consoleState.sale.active) {
         this.consoleState.sale.active = false;
         this.consoleState.sale.selected = [];
@@ -1456,6 +1553,11 @@ export default defineComponent({
       this.submit(wrapPath(found.path, spaceResponse));
     },
     cancelPlacement(): void {
+      if (this.taskSpacePending !== undefined) {
+        // A task's nested board pick: nothing committed — return to the task.
+        this.taskSpacePending = undefined;
+        return;
+      }
       if (this.convertPlantsPending !== undefined) {
         // Client-side picker: nothing committed — just drop it.
         this.convertPlantsPending = undefined;
@@ -1463,6 +1565,25 @@ export default defineComponent({
       }
       const wfRef = this.$refs.waitingFor as {onPlacementCancel?: () => void} | undefined;
       wfRef?.onPlacementCancel?.();
+    },
+    // ── CTS task host (T1) ───────────────────────────────────────────────
+    onTaskSubmit(response: unknown): void {
+      closeConsoleLayers();
+      this.consoleState.task.deferred = false;
+      this.submit(response);
+    },
+    onTaskSpacePick(payload: {index: number, spacePrompt: PlayerInputModel}): void {
+      this.taskSpacePending = payload;
+      this.consoleState.section = 'board';
+    },
+    onTaskSpacePicked(spaceResponse: {type: 'space', spaceId: string}): void {
+      const pending = this.taskSpacePending;
+      this.taskSpacePending = undefined;
+      if (pending === undefined) {
+        return;
+      }
+      this.consoleState.task.deferred = false;
+      this.submit(orWrappedResponse(pending.index, spaceResponse));
     },
     // ── transport ────────────────────────────────────────────────────────
     submit(response: unknown): void {
@@ -1488,6 +1609,7 @@ export default defineComponent({
     // The console-mode <html> class is owned by GamepadLayer (it spans every
     // lifecycle screen); the shell only reports its own presence.
     this.consoleState.shellMounted = true;
+    startConsoleLeakDetector(() => this.playerView);
   },
   beforeUnmount() {
     this.offIntent?.();
@@ -1495,6 +1617,7 @@ export default defineComponent({
       window.clearTimeout(this.noticeTimer);
     }
     this.consoleState.shellMounted = false;
+    stopConsoleLeakDetector();
   },
 });
 </script>

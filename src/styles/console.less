@@ -1709,6 +1709,463 @@ html.console-mode {
     }
 }
 
+/* ── CTS T1: the console task host ───────────────────────────────── */
+.con-task-host {
+    position: fixed;
+    inset: 0;
+    z-index: 11480; /* under Info Mode (11560) / stranded (11900) / fallback (12000) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 8, 14, 0.72);
+        backdrop-filter: blur(3px);
+    }
+}
+
+.con-task {
+    position: relative;
+    width: min(880px, 90vw);
+    max-height: 86vh;
+    display: flex;
+    flex-direction: column;
+    padding: 22px 28px 16px;
+    border-radius: 14px;
+    background: @con-glass;
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 40px fade(@con-cyan, 8%);
+    font-family: @con-font;
+    color: @con-text;
+    animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+
+    &__head { margin-bottom: 14px; }
+    &__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 16px;
+        letter-spacing: 2.2px;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 90%);
+    }
+    &__kicker-mark { color: @con-cyan; }
+    &__title {
+        font-size: 26px;
+        font-weight: 700;
+        line-height: 1.3;
+        margin-top: 4px;
+    }
+    &__trigger {
+        margin-top: 6px;
+        font-size: 18px;
+        color: @con-text-dim;
+    }
+
+    &__main {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        gap: 22px;
+    }
+    /* INFO PARITY: the docked source card (a REAL premium card render). */
+    &__source {
+        flex-shrink: 0;
+        zoom: 0.9;
+        > .card-container { margin: 0; }
+    }
+    &__source-label {
+        font-size: 15px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        margin-bottom: 8px;
+        zoom: 1.1;
+    }
+    &__body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        overflow-y: auto;
+        padding-right: 6px;
+        .con-scrollbars();
+    }
+    &__warnings { display: flex; flex-direction: column; gap: 6px; }
+    &__warning {
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: fade(@con-amber, 10%);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
+        color: #ffe3b0;
+        font-size: 19px;
+    }
+
+    /* Option / target rows */
+    &__option {
+        padding: 12px 16px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+
+        &--focused {
+            background: fade(@con-cyan, 12%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 75%), 0 0 18px fade(@con-cyan, 16%);
+            transform: translateX(4px);
+        }
+        &--armed {
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 85%), 0 0 20px fade(@con-mint, 22%);
+        }
+        &--skip {
+            background: rgba(14, 22, 33, 0.35);
+            border-left: 3px dashed rgba(150, 175, 205, 0.35);
+        }
+        &--disabled {
+            opacity: 0.55;
+            filter: saturate(0.6);
+        }
+    }
+    &__option-main {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    &__opt-icon,
+    &__opt-res {
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        flex-shrink: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__opt-player {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 20px;
+        font-weight: 700;
+        .con-status__dot { width: 15px; height: 15px; }
+    }
+    &__opt-title {
+        font-size: 21px;
+        font-weight: 700;
+    }
+    &__opt-corp { font-size: 18px; color: @con-text-dim; }
+    &__opt-preview {
+        padding: 3px 12px;
+        border-radius: 999px;
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%);
+        font-size: 19px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+
+        &--prod {
+            background: linear-gradient(180deg, rgba(138, 90, 43, 0.5), rgba(107, 69, 32, 0.5));
+            box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.4);
+        }
+    }
+    &__opt-board {
+        font-size: 18px;
+        color: @con-mint;
+    }
+    &__opt-a { margin-left: auto; }
+    &__opt-effects {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+        zoom: 1.15;
+    }
+    &__opt-desc {
+        margin-top: 6px;
+        font-size: 18px;
+        color: @con-text-dim;
+    }
+    &__opt-tradeoff {
+        margin-top: 6px;
+        font-size: 18px;
+        color: @con-amber;
+    }
+    &__opt-confirmbar {
+        margin-top: 8px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: fade(@con-amber, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 60%);
+        color: #ffe3b0;
+        font-size: 18px;
+        font-weight: 700;
+        text-align: center;
+    }
+    &__opt-reason {
+        margin-left: auto;
+        font-size: 17px;
+        color: @con-amber;
+    }
+    &__disabled { margin-top: 10px; }
+    &__disabled-title {
+        font-size: 15px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        margin-bottom: 6px;
+    }
+
+    /* Amount stepper */
+    &__stepper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 22px 0;
+    }
+    &__stepper-icon {
+        display: inline-block;
+        width: 44px;
+        height: 44px;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__stepper-readout {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 10px 34px;
+        border-radius: 12px;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%), 0 0 22px fade(@con-cyan, 12%);
+    }
+    &__stepper-value {
+        font-size: 46px;
+        font-weight: 700;
+    }
+    &__stepper-unit { font-size: 22px; color: @con-text-dim; }
+    &__stepper-range { font-size: 18px; color: @con-text-dim; }
+    &__stepper-keys { display: flex; gap: 22px; }
+    &__key {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 18px;
+        color: @con-text-dim;
+    }
+
+    /* Resource tiles */
+    &__tiles {
+        display: flex;
+        justify-content: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 14px 0;
+    }
+    &__tile {
+        position: relative;
+        width: 96px;
+        height: 96px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
+        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+
+        &--focused {
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 80%), 0 0 20px fade(@con-cyan, 20%);
+            transform: translateY(-3px);
+        }
+        &--armed {
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 85%), 0 0 22px fade(@con-mint, 25%);
+        }
+    }
+    &__tile-icon {
+        display: inline-block;
+        width: 52px;
+        height: 52px;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__tile .con-task__opt-a {
+        position: absolute;
+        top: -10px;
+        right: -8px;
+        margin: 0;
+    }
+
+    /* Distribute lanes */
+    &__dist-target {
+        align-self: center;
+        padding: 6px 18px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 50%);
+        font-size: 21px;
+        color: @con-text-dim;
+        margin-bottom: 6px;
+        b { color: @con-amber; font-size: 24px; }
+
+        &--ready {
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 65%), 0 0 14px fade(@con-mint, 14%);
+            b { color: @con-mint; }
+        }
+    }
+    &__lane {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 16px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+
+        &--focused {
+            background: fade(@con-cyan, 12%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 75%), 0 0 18px fade(@con-cyan, 16%);
+        }
+        &--active .con-task__lane-value { color: @con-mint; }
+    }
+    &__lane-id {
+        display: inline-flex;
+        padding: 4px;
+        border-radius: 6px;
+
+        &--prod {
+            background: linear-gradient(180deg, rgba(138, 90, 43, 0.55), rgba(107, 69, 32, 0.55));
+            box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.4);
+        }
+    }
+    &__lane-value {
+        font-size: 28px;
+        font-weight: 700;
+        min-width: 40px;
+        text-align: right;
+    }
+    &__lane-max { font-size: 18px; color: @con-text-dim; }
+    &__lane-keys { margin-left: auto; display: inline-flex; gap: 6px; }
+
+    &__foot {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 24px;
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid fade(@con-cyan, 18%);
+    }
+    &__foot-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: @con-text-dim;
+        font-size: 18px;
+
+        &--off { opacity: 0.42; }
+    }
+}
+
+/* Prompt→prompt cross-fade (CTS-3.9). */
+.con-task-swap-enter-active { transition: opacity calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1), transform calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
+.con-task-swap-leave-active { transition: opacity calc(120ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2); }
+.con-task-swap-enter-from { opacity: 0; transform: translateY(10px); }
+.con-task-swap-leave-to { opacity: 0; }
+
+/* Deferred-task chip flavor of the banner. */
+.con-banner--deferred {
+    box-shadow: inset 0 0 0 1px fade(@con-amber, 60%), 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 18px fade(@con-amber, 14%);
+    .con-banner__pulse {
+        background: @con-amber;
+        box-shadow: 0 0 10px fade(@con-amber, 85%);
+    }
+}
+
+/* ── Stranded-prompt guard panel (CTS T0 — never a silent pill) ──── */
+.con-stranded {
+    position: fixed;
+    inset: 0;
+    z-index: 11900; /* above console layers, below fallback modals (12000) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 8, 14, 0.7);
+        backdrop-filter: blur(3px);
+    }
+    &__card {
+        position: relative;
+        min-width: 460px;
+        max-width: 620px;
+        padding: 26px 32px 22px;
+        border-radius: 14px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 55%), 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 42px fade(@con-amber, 8%);
+        font-family: @con-font;
+        color: @con-text;
+        text-align: center;
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 19px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: @con-amber;
+        margin-bottom: 12px;
+    }
+    &__mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: fade(@con-amber, 16%);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 65%);
+        font-weight: 700;
+    }
+    &__title {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        line-height: 1.35;
+    }
+    &__body {
+        font-size: 20px;
+        line-height: 1.45;
+        color: @con-text-dim;
+        margin-bottom: 18px;
+    }
+    &__hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 19px;
+        color: @con-text;
+    }
+    &__debug {
+        margin-top: 14px;
+        font-family: monospace;
+        font-size: 13px;
+        color: fade(@con-amber, 75%);
+    }
+}
+
 /* ── System overlay menu (Menu button — any lifecycle context) ───── */
 .con-sysmenu {
     position: fixed;
@@ -1853,6 +2310,21 @@ html.console-mode {
     .placement-banner {
         display: none !important;
     }
+}
+
+/* ── Shared console layer transition (CTS-3.9: organic switching) ── *
+ * ONE enter/leave pair for full-screen console layers (system menu,
+ * stranded guard, future task host): calm fade + micro-rise, never a
+ * hard pop-in/teardown. The inner __card keeps its own con-rise appear. */
+.con-layer-enter-active {
+    transition: opacity calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.con-layer-leave-active {
+    transition: opacity calc(140ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
+}
+.con-layer-enter-from,
+.con-layer-leave-to {
+    opacity: 0;
 }
 
 /* ── Reduced motion ──────────────────────────────────────────────── */

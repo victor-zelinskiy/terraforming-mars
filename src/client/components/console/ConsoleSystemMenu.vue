@@ -45,7 +45,7 @@
  * navigation must never be one accidental press), Return. Input is routed
  * by GamepadLayer; this component is presentation over its props.
  */
-import {defineComponent, PropType} from 'vue';
+import {defineComponent} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 export type SystemMenuItem = {

@@ -612,6 +612,319 @@ before any breadth work.
 
 ---
 
+# CONSOLE TASK SYSTEM (CTS) — the fallback-retirement plan
+
+> **The authoritative plan for making EVERY user input console-native.**
+> Status: PLANNED (this section). The fallback engine is hereby demoted
+> from "the safety net the console leans on" to "a dev-only debugging
+> instrument": no production input path may depend on it once CTS ships.
+
+## CTS-0. Diagnosis — why the fallback foundation failed
+
+The reported field bugs (initial-draft cards invisible — only the
+«ТРЕБУЕТСЯ ДЕЙСТВИЕ» pill; colony build unreachable; inter-generation
+draft breaking) share ONE root cause taxonomy, confirmed by audit:
+
+| Class | Root cause | Concrete confirmed instances |
+| --- | --- | --- |
+| **C1 — Missing host** | Prompts whose dedicated premium surface is HOSTED BY PlayerHome — which is NOT mounted in console mode. The prompt becomes invisible; only the notification survives. | `InitialDraftFlowOverlay` (PlayerHome:651 → initial draft = pill-only, the reported bug), `ColoniesOverlay` (PlayerHome:661 → build-colony SelectColony dead end), hand overlay modes (mandatory select/sale/play-from-hand), `AwardsOverlay` free funding, Standard-Projects play prompt |
+| **C2 — Suppression hand-off into the void** | App-level flows SELF-SUPPRESS in favor of C1 surfaces (`DraftFlowOverlay` yields to `handCardSelectionPrompt` / corp-selection — surfaces that don't exist in console) → both render nothing. | inter-generation draft / research-buy edge states |
+| **C3 — Dead desktop event bridges** | Window-event contracts target PlayerHome listeners: `tm-notification-go-to-action` (the pill CTA on the screenshot does NOTHING in console), pick-bridges (`pick-card`/`pick-played-card`/`pick-action`), notification cancel. | action-required CTA, >3-candidate target picks |
+| **C4 — Fallback fragility & alienness** | Even where the DOM focus engine drives a desktop modal successfully, the result is desktop-dense, hover-shaped, animation-gated (deal/entered flags) UI at TV distance — functional at best, never native, and brittle (scope resolution + suppression flags + teleport timing interplay). | every `MandatoryInputModal`-hosted premium input in console |
+| **C5 — No completeness guard** | Nothing enumerates "every input shape × console surface", so every new prompt silently lands on C1–C4. | the whole class keeps regenerating |
+
+**Conclusion:** the console must own a COMPLETE, first-class task layer for
+all user input. Reuse stays at the DATA/CONTRACT level (walkers, models,
+preview endpoints, submission payloads — byte-identical); reuse at the
+SURFACE level (mounting desktop overlays/modals and driving them
+synthetically) is what dies.
+
+## CTS-1. Target architecture
+
+```
+playerView.waitingFor ──► consoleTaskRouter.taskFor(view)  ──► ConsoleTask
+                                     │                            (typed)
+        client-initiated flows ──────┘
+        (play card, trade, sale, …)
+
+ConsoleTask ──► ConsoleTaskHost (ONE mount point in ConsoleShell)
+                   ├─ TaskFrame (title · source chip · step dots · banner)
+                   ├─ task body = ONE console component per TaskKind
+                   └─ TaskCommandBar contract (commands derived FROM the task)
+```
+
+1. **`consoleTaskRouter.ts`** — a PURE, exhaustively-tested mapper:
+   `taskFor(playerView) → ConsoleTask | undefined`. It re-implements the
+   ROUTING knowledge that today lives across `WaitingFor.
+   useModalForCurrentInput` + PlayerHome's dedicated-surface predicates +
+   the App-level flow gates — as one visible table. `ConsoleTask` is a
+   discriminated union: `{kind: TaskKind, …typed payload…}`.
+2. **`TaskKind` (the closed union — the completeness anchor):**
+   `choice` (or/option) · `player` · `amount` · `resource` ·
+   `distribute` (resources/productionToLose) · `payment` ·
+   `cardSelect` (draft/buy/discard/keep/target — ONE browser, many modes) ·
+   `projectCard` (play-from-hand / std-project prompt) · `space`
+   (existing placement ✓) · `colony` (build/select) · `composite`
+   (and-options) · `initialDraft` · `startSequence` · `reveal` (info) ·
+   `aresGlobal` · `unknown` (guarded — see CTS-7).
+3. **`ConsoleTaskHost.vue`** — the single surface: full-screen/sheet task
+   frame in the console language; hosts the task body; owns focus (the
+   console router feeds it intents directly — the DOM engine is NOT in the
+   loop); submits via the SAME `WaitingFor.onsave/onsaveBatch` refs.
+4. **WaitingFor stays the headless transport**, but in console mode its
+   MODAL RENDERING is disabled entirely (a `headless` prop): no
+   `MandatoryInputModal`, no `DraftFlowOverlay` hand-offs — the task router
+   is the one consumer of `waitingFor` shape. (`SelectSpace` keeps its
+   headless board-wiring role.)
+5. **App-level flows in console:** `DraftFlowOverlay`,
+   `InitialDraftFlowOverlay` (must ALSO move/duplicate its mount to App or
+   be re-hosted — it currently dies with PlayerHome), `StartGameFlowOverlay`
+   are gated OFF in console mode; their STATE modules (predicates, draw
+   choices, `startGamePrompt` markers, pipelines) are consumed by the
+   equivalent console tasks. Zero desktop surface mounts in console.
+6. **Event-bridge re-targeting:** every `window` event contract
+   (`tm-notification-go-to-action`, notification cancel, pick-bridges)
+   gains a console listener in ConsoleShell/TaskHost; the pick-bridges
+   RESOLVE INSIDE tasks (the card browser hosts the candidate pick — no
+   cross-overlay round-trip at all).
+7. **The fallback engine** remains ONLY for: `?gpDebug` diagnostics, the
+   desktop-gamepad mode (non-console), and a temporary per-phase escape
+   hatch behind `?ctsOff=<kind>` during rollout. It is never the shipping
+   path for a console input.
+
+## CTS-2. Complete input inventory (the routing table)
+
+Every row = a user-input case; every row gets a console surface + a phase.
+This table IS the coverage contract (mirrored by the guard test, CTS-7).
+
+| # | Input case | Today in console | Console target (CTS) | Phase |
+| --- | --- | --- | --- | --- |
+| 1 | Action menu (`or` 'Take first/next action') | native (Turn verbs) ✓ | keep | — |
+| 2 | Card-driven `or` / triggered choice (`choiceContext`) | fallback modal | **ChoiceTask**: option rows w/ metadata chips, source card docked, risky = two-step A | T1 |
+| 3 | `option` confirm / warnings | fallback modal | ChoiceTask (single-row degenerate) | T1 |
+| 4 | `player` target | fallback modal | **PlayerTask**: target cards w/ `current→resulting`, disabled+reasons | T1 |
+| 5 | `amount` | fallback modal | **AmountTask**: lane stepper (d-pad ±, LT/RT ±5, X=MAX) | T1 |
+| 6 | `resource` / `resources` / `productionToLose` | fallback modal | **DistributeTask**: resource lanes, live counter | T1 |
+| 7 | `payment` (SelectPayment) | fallback modal (PaymentFormV2) | **PaymentTask**: payment lanes + readiness bar (reuses payment math/model utils) | T3 |
+| 8 | Play-card flow (client, targets+payment+preview) | re-hosted desktop modal | **PlayCardWizard**: steps = targets → payment → consequence-confirm; reuses `/api/card-play-preview`, step order, batch assembly | T3 |
+| 9 | Blue-card action confirm | direct submit (no preview) | **ActionWizard**: branch → targets → confirm w/ `/api/action-preview` chips | T3 |
+| 10 | `card` — draft pick (inter-gen) | DraftFlow modal (fragile) | **CardBrowserTask** mode `draft` | T2 |
+| 11 | `card` — research/buy | DraftFlow modal | CardBrowserTask mode `buy` (cost badges, M€ check) | T2 |
+| 12 | `card` — mandatory hand select (discard/keep) | **DEAD END** (hand overlay missing) | CardBrowserTask mode `select` over `cardsInHand` | T2 |
+| 13 | `card` — nested target pick (add-resource, Mars U…) | fallback modal grid | CardBrowserTask mode `target` (impact lines) | T2 |
+| 14 | >3-candidate / multi-card pick bridges | **notice + abort** | resolved INSIDE CardBrowserTask (`dedupeFromSteps`, counts) — bridges retired | T2/T3 |
+| 15 | Sell patents | console sale mode ✓ | fold into CardBrowserTask mode `sale` (one browser) | T2 |
+| 16 | `projectCard` — play-from-hand prompt (EccentricSponsor…) | **DEAD END** | CardBrowserTask mode `play` → PlayCardWizard | T3 |
+| 17 | `projectCard` — std-project prompt (EstablishedMethods) | **DEAD END** | Basics sheet auto-opened as task | T3 |
+| 18 | `colony` — build/select | **DEAD END** (reported) | **ColonyTask**: the console colonies rail in pick mode (reuses `findBuildColonyContext` data: purpose, disabled reasons, cancellable) | T4 |
+| 19 | Colony trade payment | re-hosted desktop modal | PaymentTask variant `tradeFee` (options = the trade OrOptions) | T4 |
+| 20 | Awards FREE funding (Vitor) | **DEAD END** | Awards sheet in task mode (`awardFundingPrompt` marker) | T4 |
+| 21 | `initialCards` — initial draft | **DEAD END (reported)** | **InitialDraftTask**: console wizard reusing the pipeline state (corp → preludes → CEO → projects → confirm), CardBrowserTask per step | T5 |
+| 22 | Start sequence (preludes play, corp first action, begin) | fallback StartGameFlow modal | **StartSequenceTask** reusing `startGamePrompt` predicates/draw-choice state | T5 |
+| 23 | `and` composite (FocusedOrganization/AeronGenomics; trade already covered) | double-fallback (legacy AndOptions) | **CompositeTask**: sequential sub-tasks, single combined submit | T7 |
+| 24 | `aresGlobalParameters` | fallback modal | AresTask (lane stepper family) | T7 |
+| 25 | Drawn-cards reveal / public reveals / reveal-result | fallback surfaces (work, desktop look) | **RevealTask** (info-only card browser + OK) | T6 |
+| 26 | Notifications: action-required CTA | **dead button** (reported) | CTA → task focus (console listener); in console the TASK BANNER is primary, toasts informational | T6 |
+| 27 | Minimize/pills | suppressed via CSS | tasks support console-native **defer** where server-cancellable/optional; banner chip restores (no desktop pills) | T6 |
+| 28 | Energy-conversion / WGT / hazard holds | graceful no-op anchors | console anchors (`data-conversion-cell` on the resource rail) so the premium gates play | T6 |
+| 29 | Endgame / rematch / final reveal | fallback-driven premium | console nav pass (tabs via bumpers, A/B, no minimize) — already close; formalize | T7 |
+| 30 | Turmoil / Moon / Pathfinders / Underworld prompts | out of module scope | `unknown` task guard renders an honest "desktop required" panel + system-menu exit (NEVER silence) | T0 |
+
+## CTS-3. Replacement rules (how every fallback dies)
+
+1. **Data in, surface out.** A console task may import models, walkers,
+   preview fetchers, pure fit/summary helpers and SUBMIT builders from the
+   desktop flow — never mount its Vue surface. If logic is trapped inside a
+   desktop component, extract it to a pure module first (the
+   `paymentModelUtils` precedent), in the same PR.
+2. **One browser, many modes.** ALL card-list inputs (10–16, 21 steps) go
+   through ONE `CardBrowserTask` (carousel + inspector + pick counter +
+   cost/impact badges + filters). No second card-selection system, ever.
+3. **Submission byte-parity.** Every task's submit payload must equal what
+   the desktop path sends (wrapped OR paths, batch order). Guarded per
+   task by unit tests on the payload builders.
+4. **Mandatory ≠ trapped.** B inside a wizard = step back; at the root:
+   server-cancellable → labeled cancel; else defer-to-banner if the prompt
+   tolerates it (minimize semantics), else honest «Требуется выбор». Never
+   dismiss, never strand.
+5. **No hover, no tooltips.** Disabled reasons, impacts, costs render
+   inline or in the inspector column — always visible.
+6. **Every task self-describes**: TaskFrame shows WHAT is asked, WHO asked
+   (source card/corp via `choiceContext`/markers), WHAT happens on confirm
+   (preview chips), and the exact button meanings (command bar contract).
+7. **A new server prompt shape** must add: a `TaskKind` mapping OR an
+   explicit `unknown`-guard entry — enforced by the coverage test (CTS-7).
+   This rule goes into CLAUDE.md's expansion checklist when CTS lands.
+8. **THE INFORMATION-PARITY CONTRACT (hard rule, user-mandated).** A
+   console task must show EVERY piece of information its desktop
+   counterpart shows — losing info the player used to have is a contract
+   violation, not a simplification. Concretely: a SOURCE CARD is rendered
+   as the actual `<Card>` (not just its name) wherever the desktop docks
+   it (choiceContext source, effect source, play/action confirm, reveal
+   source chips); card-target picks render the CANDIDATE CARDS themselves
+   with their `current → resulting` impact lines; resource-holder lists
+   render the holder CARD (the known Info-Mode extras gap — name-only —
+   is the counter-example to never repeat; it gets fixed when that surface
+   is next touched); costs/discounts/reasons/owners/warnings/VP-deltas all
+   carry over. **Definition of done for every new task body includes a
+   side-by-side parity pass against the desktop surface it replaces.**
+9. **Organic integration & smooth switching (hard rule).** New console
+   elements are part of ONE shell, not stacked pop-ins: task enter/leave
+   and switches between console surfaces animate through `motionTokens`
+   (short slide/fade ≤200ms base, `MOTION_EASE.enter/exit`), the shell
+   behind stays composed (no layout jumps, no flash-of-empty), shared
+   chrome (status strip / command bar) never remounts between tasks, and
+   sequential tasks (wizard steps, prompt → follow-up prompt) transition
+   with a keyed cross-fade instead of teardown+рop-in. Reduced-motion
+   collapses travel to fades. A new element that visually "lands on top"
+   of the console instead of "belonging to it" fails review.
+
+## CTS-4. Gamepad navigation requirements (all tasks)
+
+- Intents flow console-router → TaskHost directly; `resolveScope()` is not
+  consulted for task input (the engine may still exist for `?gpDebug`).
+- d-pad/stick = object navigation (rows / lanes / carousel); LB/RB = task
+  pages or intra-task tabs ONLY; LT = Information Mode (allowed inside
+  every non-placement task, snapshot includes the task's local selection);
+  RT = task-local jump (next playable/affordable); A = select/confirm per
+  frame contract; X = the labeled secondary (toggle/MAX/details); B = per
+  rule CTS-3.4; Menu = system overlay (always).
+- Focus is model-state (indices in the task payload), never DOM-derived;
+  it survives server refreshes by key (card name / option index clamp).
+- Every list is bounded-scroll with styled scrollbars; selection always
+  visible (auto scroll-into-view).
+
+## CTS-5. Visual language (task frame spec)
+
+- **TaskFrame**: dark-glass full-bleed or bottom-sheet (by weight — the
+  §10 weight rule stands), L-corner ticks, kicker (`ЗАДАЧА / ИСТОЧНИК`),
+  title ≥26px, step dots for wizards, consequence strip (ActionEffect
+  chips at TV scale), command footer with glyphs. Cyan = selection,
+  mint = confirm/legal, amber = cost/defer, red = illegal/destructive.
+- Cards render ≥1.1 zoom in browsers, selected ≥1.25 with inline Ⓐ chip;
+  option rows ≥58px; body text ≥20px; overscan-safe.
+- Motion via motionTokens only; reduced-motion honored; no deal-animation
+  gates that can strand content (the C4 lesson): content visibility may
+  never depend on an animation event.
+
+## CTS-6. Phases (each shippable, each behind `tm_console_mode`)
+
+| Phase | Scope | Done criteria |
+| --- | --- | --- |
+| **T0 — Router + guards** | `consoleTaskRouter` + `TaskKind` union + `unknown` guard panel + **leak detector** (console mode + a desktop scope resolves outside the allowed set → loud dev warning + telemetry log) + **coverage spec** (every `MODAL_INPUT_TYPES`/routing branch ↔ a TaskKind — fails listing gaps) | Router unit-tested over synthetic waitingFor fixtures for ALL rows of CTS-2; red list printed = the work queue |
+| **T1 — Core primitives** | TaskHost + TaskFrame + Choice/Player/Amount/Distribute tasks (rows 2–6) | those types never mount MandatoryInputModal in console; payload-parity specs green |
+| **T2 — Card browser** | CardBrowserTask modes draft/buy/select/target/sale (rows 10–15) + DraftFlow gated off in console | **the reported draft bugs are dead**: inter-gen draft, research buy, discard prompts fully console-native; sale folded in |
+| **T3 — Payment & wizards** | PaymentTask, PlayCardWizard, ActionWizard, projectCard prompts (7–9, 14, 16–17) | play/action/std flows with previews + byte-parity specs; pick-bridges deleted |
+| **T4 — Colonies & awards** | ColonyTask (build/select), trade PaymentTask variant, free award funding (18–20) | **colony build reported bug dead**; trade modal re-host removed |
+| **T5 — Lifecycle wizards** | InitialDraftTask + StartSequenceTask (21–22); the PlayerHome-hosted overlays gated off in console | **initial-draft reported bug dead**; full new-game start on pad, zero desktop surfaces |
+| **T6 — Prompt UX layer** | task banner/defer chips, notification CTA console listener, reveal tasks, console gate anchors (25–28) | pill CTA works; no desktop pills/toast CTAs in console |
+| **T7 — Long tail** | CompositeTask (and), AresTask, endgame nav formalization, out-of-scope guard polish (23–24, 29–30) | coverage spec fully green (no `unknown` in in-scope modules) |
+| **T8 — Fallback retirement** | remove in-game fallback claiming in console (`resolveScope` check deleted from shell input path; engine = dev-only), delete temporary CSS suppressions (minimize hides), QA matrix run | leak detector silent across the full QA matrix; the fallback engine unreachable in console gameplay |
+
+Dependencies: T1 → T2/T3; T2 → T5; the rest parallelizable. Every phase
+ends with: coverage spec re-run (shrinking red list is the progress
+metric), builds, and the manual slice of the QA matrix it unlocks.
+
+## CTS-7. No-tails mechanisms (how nothing resurfaces in production)
+
+1. **Coverage guard spec** (`consoleTaskCoverage.spec.ts`): enumerates the
+   full CTS-2 table as fixtures; FAILS with the exact missing list if a
+   waitingFor shape maps to no task (mirrors the expansion-checklist guard
+   philosophy). New input types cannot ship unmapped.
+2. **Leak detector** (runtime, dev + `?gpDebug`): in console mode, any
+   mounted desktop-surface selector from a deny-list (mandatory modal,
+   bar overlays, DraftFlow, pills…) logs + overlays a visible dev badge.
+   CI-adjacent: a mochapack smoke mounting ConsoleShell against fixture
+   prompts asserts the deny-list is absent from the DOM.
+3. **`unknown` task guard**: an unmapped prompt renders an honest,
+   premium "этот запрос пока требует режима рабочего стола" panel with
+   system-menu exit — the player is NEVER silently stranded with a pill.
+4. **CLAUDE.md rule**: the expansion-adaptation checklist gains a
+   "console task mapping" row when CTS lands.
+
+## CTS-8. Risks
+
+| Risk | Mitigation |
+| --- | --- |
+| Volume: ~15 task bodies | primitives first (T1) — most bodies are compositions; the card browser collapses 7 cases into one |
+| Payload drift vs desktop | byte-parity specs on builders; walkers already shared |
+| Desktop logic trapped in components (payment, initial-draft pipeline) | extract-to-pure-module rule (CTS-3.1), same-PR |
+| Hidden-info regressions in shared browsers | browser modes declare their data source explicitly (hand vs dealt vs tableau); the Info-Mode hidden rules reused |
+| Long rollout window with mixed surfaces | per-kind `?ctsOff=` escape hatch + the T0 leak detector making mixed states visible, not silent |
+| Animation/hold gates (WGT, conversion) mis-firing in console | T6 anchors + the "content never gated on animation events" rule |
+
+## CTS-9. Test strategy
+
+- **Pure**: router mapping (full fixture set), payload builders parity,
+  browser mode reducers (selection/counters/cost), lane steppers.
+- **Component (mochapack)**: TaskFrame render, each task body against
+  fixture prompts, deny-list smoke (leak detector assertion).
+- **Manual QA matrix** (per phase + full at T8): the CTS-2 table as a
+  checklist × pad-only × 1080p/4K × Electron; the standing full-game run:
+  create → initial draft → corps/preludes → generations with every action
+  family → colonies → endgame → rematch.
+
+## CTS-10. Flags & rollback
+
+`tm_console_mode` stays the master gate; `?console=0` the kill switch;
+`?ctsOff=<kind>` the temporary per-task escape hatch (removed at T8);
+`?gpDebug` shows router state + leak badges. Desktop modern-premium-ui and
+the desktop-gamepad mode are untouched throughout.
+
+---
+
+## CTS STATUS LOG
+
+- **T0 — SHIPPED (router + guards).** `consoleTaskRouter.ts` (the closed
+  `TaskKind` union + `taskFor(view)` pure mapper; start-game/award/WGT
+  MARKERS outrank raw types; every one of the 20 `PlayerInputModel`
+  discriminators maps — out-of-scope families land on `unknown`).
+  `consoleTaskRouter.spec.ts` = the CTS-2 table as 36 fixtures + the
+  EXHAUSTIVE check + the **printed RED LIST** (currently all 14 non-native
+  kinds — the work queue; `NATIVE_KINDS`/`EXPECTED_RED` must be updated in
+  lock-step as phases land). `consoleLeakDetector.ts` (1 s tick while the
+  shell lives): **stranded-prompt check** (waitingFor + not native + NO
+  serving surface → state + warn-once) + desktop-surface rollout telemetry
+  (`?gpDebug` shows both). `ConsoleStrandedPrompt.vue` — the honest amber
+  guard panel (prompt title + «пока недоступен в консоли» + hold-Menu
+  hint) replacing the silent-pill failure mode for the C1 dead ends
+  (initial draft / colony build now IMPOSSIBLE to strand silently).
+  New elements follow CTS-3.8/3.9 (info parity + `con-layer` shared
+  enter/leave transition). Gates: 82 pure specs, eslint, vue-tsc,
+  make:json/css, build:client — green.
+- **T1 — SHIPPED (core task primitives).** `ConsoleTaskHost.vue` — the
+  single console-native surface for `choice` / `player` / `amount`
+  (incl. the `deltaProject` flavor) / `resource` / `distribute`
+  (resources + productionToLose). The desktop `MandatoryInputModal` is
+  SUPPRESSED exactly when `taskServedByHost(view)` serves (a new
+  `modalSuppressed` prop on WaitingFor — rendering only; transport/holds
+  untouched; desktop byte-identical). **Control grammar (user-mandated):**
+  A = select/arm (A on armed = confirm; bare `option` confirms on one A),
+  **X = confirm in ONE press from anywhere** (risky options — tradeoff/
+  warnings — arm first with an amber «Нажмите ещё раз» bar), **B = defer**
+  (the task docks as an amber banner chip, the board becomes inspectable,
+  B returns; new prompt identity resets the defer), **LB/RB = −1/+1** on
+  value lanes (←/→ mirror), **Y = MAX**. INFO PARITY (CTS-3.8): the
+  choiceContext source renders as the REAL `<Card>` + trigger sentence;
+  option metadata carries over completely (icons, player chips,
+  `current → resulting` previews incl. the production frame, effect chips
+  via the shared `ActionEffectChip`, tradeoffs, descriptions, skip-option
+  separation, disabled targets with reasons, prompt warnings, the server
+  `buttonLabel` as the confirm verb). Nested SPACE options (WGT ocean)
+  route through the shell's headless SelectSpace (`taskSpacePending` →
+  board placement → or-wrapped response; B returns to the task); choices
+  nesting NON-leaf inputs (payment/card) honestly stay on the desktop
+  modal until their phase (`taskServedByHost` carve-out). Submission
+  byte-parity via pure `taskResponses.ts` (+spec). Transitions:
+  `con-layer` enter/leave + keyed `con-task-swap` prompt→prompt cross-fade
+  (CTS-3.9). RED LIST: 14 → **9**. Gates: 86 pure specs, eslint (one
+  PRE-EXISTING baseline quote-props in WaitingFor untouched), vue-tsc,
+  make:json/css, build:client — green.
+- **T2..T8 — PENDING** (next: T2 CardBrowserTask — kills the reported
+  draft bugs).
+
+---
+
 ## STATUS LOG (implementation)
 
 **P0 + P1 core — SHIPPED (2026-07-03).** Files: `src/client/console/`

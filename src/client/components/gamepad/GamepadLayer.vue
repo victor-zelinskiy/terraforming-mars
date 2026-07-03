@@ -8,10 +8,12 @@
     <ConsoleEntryPrompt v-if="consoleModeState.entryPromptVisible && !consoleModeState.enabled" />
 
     <!-- The console SYSTEM overlay (Menu button): Controls / Exit to menu. -->
-    <ConsoleSystemMenu v-if="systemMenuOpen && consoleModeState.enabled"
-                       :index="systemMenuIndex"
-                       :confirmExit="systemMenuConfirmExit"
-                       :inGame="screen === 'player-home'" />
+    <transition name="con-layer">
+      <ConsoleSystemMenu v-if="systemMenuOpen && consoleModeState.enabled"
+                         :index="systemMenuIndex"
+                         :confirmExit="systemMenuConfirmExit"
+                         :inGame="screen === 'player-home'" />
+    </transition>
 
     <!-- Controller mapping legend (Menu button). Its OWN mini-scope: while
          open the layer swallows every intent except close (Menu/B). -->
@@ -43,6 +45,8 @@
     <div v-if="debug" class="gp-debug">
       <div>mode: {{ inputModeState.mode }} · pads: {{ inputModeState.padsConnected }} · pad: {{ gamepadCoreState.activeId || '—' }}</div>
       <div>scope: {{ focusState.scopeId || '—' }} · focus: {{ focusState.focusKind }}</div>
+      <div v-if="leakDetectorState.stranded !== undefined" class="gp-debug__leak">⚠ STRANDED: {{ leakDetectorState.stranded.inputType }} → {{ leakDetectorState.stranded.taskKind }}</div>
+      <div v-if="leakDetectorState.desktopSurfaces.length > 0" class="gp-debug__leak">desktop surfaces: {{ leakDetectorState.desktopSurfaces.join(', ') }}</div>
       <div>ring: {{ Math.round(focusState.ring.left) }},{{ Math.round(focusState.ring.top) }} {{ Math.round(focusState.ring.width) }}×{{ Math.round(focusState.ring.height) }} {{ focusState.ring.variant }}</div>
       <div v-for="(line, i) in intentLog" :key="i" class="gp-debug__intent">{{ line }}</div>
     </div>
@@ -76,6 +80,7 @@ import ConsoleEntryPrompt from '@/client/components/console/ConsoleEntryPrompt.v
 import ConsoleSystemMenu, {SYSTEM_MENU_ITEMS} from '@/client/components/console/ConsoleSystemMenu.vue';
 import {consoleModeState, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
 import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
+import {leakDetectorState} from '@/client/console/consoleLeakDetector';
 
 const FOCUS_TICK_MS = 400;
 /** Holding Menu this long toggles console ↔ desktop mode. */
@@ -126,6 +131,7 @@ export default defineComponent({
       focusState,
       consoleModeState,
       consoleState,
+      leakDetectorState,
       systemMenuOpen: false,
       systemMenuIndex: 0,
       systemMenuConfirmExit: false,
