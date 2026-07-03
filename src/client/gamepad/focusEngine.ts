@@ -528,6 +528,12 @@ function overlayButtons(): Array<{id: string, el: HTMLElement}> {
 function cycleOverlay(step: 1 | -1): void {
   const ring = overlayButtons();
   if (ring.length === 0) {
+    // Generic TABLIST fallback (P11 — endgame formalization): a
+    // fallback-scope surface exposing a `role="tablist"` (the endgame
+    // results tabs) cycles its tabs on LB/RB — the standard pad
+    // convention for tabbed screens. Purely additive: the in-game
+    // overlay ring above always takes precedence.
+    cycleScopeTablist(step);
     return;
   }
   const activeIdx = ring.findIndex((e) => e.el.classList.contains('bottom-bar-btn--active'));
@@ -535,6 +541,26 @@ function cycleOverlay(step: 1 | -1): void {
     (step === 1 ? ring[0] : ring[ring.length - 1]) :
     ring[(activeIdx + step + ring.length) % ring.length];
   next.el.click();
+  scheduleSync();
+}
+
+/** LB/RB cycles the current scope's `role="tab"` buttons (aria-selected aware). */
+function cycleScopeTablist(step: 1 | -1): void {
+  const scope = resolveScope();
+  const root: HTMLElement | Document = scope?.rootEl ?? document;
+  const list = root.querySelector('[role="tablist"]');
+  if (!(list instanceof HTMLElement) || !isElementVisible(list)) {
+    return;
+  }
+  const tabs = Array.from(list.querySelectorAll<HTMLElement>('[role="tab"]')).filter(isElementVisible);
+  if (tabs.length === 0) {
+    return;
+  }
+  const activeIdx = tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true');
+  const next = activeIdx === -1 ?
+    (step === 1 ? tabs[0] : tabs[tabs.length - 1]) :
+    tabs[(activeIdx + step + tabs.length) % tabs.length];
+  next.click();
   scheduleSync();
 }
 
