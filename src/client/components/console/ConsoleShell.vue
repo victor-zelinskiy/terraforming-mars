@@ -551,7 +551,16 @@ export default defineComponent({
     // ── the command bar (the truth of the current context) ─────────────
     commandContext(): string {
       if (this.consoleState.fallbackActive) {
-        return 'Awaiting decision';
+        // Lifecycle-aware naming: the wrapped premium flows read as PART of
+        // the console experience, not a generic "waiting" veil.
+        switch (this.consoleState.fallbackScopeId) {
+        case 'startGameFlow': return 'Start of the game';
+        case 'endgame': return 'Game results';
+        case 'drawReveal': return 'Cards';
+        case 'dialog': return 'Card details';
+        case 'colonies': return 'Colonies';
+        default: return 'Awaiting decision';
+        }
       }
       if (this.consoleState.confirm !== undefined) {
         return 'Confirmation';
@@ -652,7 +661,8 @@ export default defineComponent({
           {control: 'back', label: 'To the board'},
         ];
       }
-      // Board — the console home screen: the full stable command map.
+      // Board — the console home screen: the full stable command map
+      // (system-level actions live behind Menu, never on the bar itself).
       return [
         {control: 'inspect', label: 'Basic actions', enabled: this.myTurn},
         {control: 'triggerR', label: 'Actions'},
@@ -660,6 +670,7 @@ export default defineComponent({
         {control: 'bumperL', label: 'Milestones', badge: this.milestonesClaimableCount, highlight: this.milestonesClaimableCount > 0},
         {control: 'bumperR', label: 'Awards', badge: this.awardsFundableCount, highlight: this.awardsFundableCount > 0},
         {control: 'view', label: 'Log'},
+        {control: 'menu', label: 'System'},
       ];
     },
   },
@@ -819,6 +830,7 @@ export default defineComponent({
       const scope = resolveScope();
       const fallback = scope !== undefined;
       this.consoleState.fallbackActive = fallback;
+      this.consoleState.fallbackScopeId = scope?.def.id ?? '';
       if (fallback) {
         if (scope?.def.id === 'overlay-hydro' && this.consoleState.section === 'hydro' &&
             intent.kind === 'press' && intent.button === 'triggerL' && !this.infoModeState.open) {
@@ -1473,14 +1485,16 @@ export default defineComponent({
   },
   mounted() {
     this.offIntent = registerConsoleIntentHandler((intent) => this.handleIntent(intent));
-    document.documentElement.classList.add('console-mode');
+    // The console-mode <html> class is owned by GamepadLayer (it spans every
+    // lifecycle screen); the shell only reports its own presence.
+    this.consoleState.shellMounted = true;
   },
   beforeUnmount() {
     this.offIntent?.();
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }
-    document.documentElement.classList.remove('console-mode');
+    this.consoleState.shellMounted = false;
   },
 });
 </script>

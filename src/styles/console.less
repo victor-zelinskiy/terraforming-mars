@@ -1709,6 +1709,138 @@ html.console-mode {
     }
 }
 
+/* ── System overlay menu (Menu button — any lifecycle context) ───── */
+.con-sysmenu {
+    position: fixed;
+    inset: 0;
+    z-index: 12760; /* above every game surface, below the gamepad ring/entry */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 8, 14, 0.78);
+        backdrop-filter: blur(3px);
+    }
+    &__card {
+        position: relative;
+        min-width: 440px;
+        max-width: 560px;
+        padding: 26px 32px 20px;
+        border-radius: 14px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 50%), 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 42px fade(@con-cyan, 8%);
+        font-family: @con-font;
+        color: @con-text;
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__title {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        text-align: center;
+        color: fade(@con-cyan, 95%);
+        margin-bottom: 18px;
+    }
+    &__items {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    &__item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 58px;
+        padding: 8px 18px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+
+        &--selected {
+            background: fade(@con-cyan, 13%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 75%), 0 0 18px fade(@con-cyan, 18%);
+            transform: translateX(4px);
+        }
+    }
+    &__item-glyph {
+        width: 32px;
+        text-align: center;
+        font-size: 24px;
+    }
+    &__item-label {
+        font-size: 23px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+    }
+    &__item-a { margin-left: auto; }
+    &__body {
+        font-size: 21px;
+        line-height: 1.45;
+        text-align: center;
+        margin-bottom: 8px;
+    }
+    &__note {
+        font-size: 17px;
+        color: @con-text-dim;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    &__confirm-actions {
+        display: flex;
+        justify-content: center;
+        gap: 32px;
+    }
+    &__confirm-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 21px;
+        font-weight: 700;
+
+        &--yes { color: @con-mint; }
+    }
+    &__foot {
+        display: flex;
+        justify-content: center;
+        gap: 28px;
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid fade(@con-cyan, 18%);
+    }
+    &__foot-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: @con-text-dim;
+        font-size: 17px;
+    }
+}
+
+/* ── Lifecycle screens: console TV boost ─────────────────────────── *
+ * The premium menu / join / lobby surfaces are already sci-fi premium —
+ * console mode enlarges their interactive zones to TV scale and lets the
+ * demoted focus engine drive them (scope defs in focusScopes.ts). */
+html.console-mode {
+    /* The desktop corner «МЕНЮ» FAB is replaced by the system overlay. */
+    .game-exit-btn {
+        display: none !important;
+    }
+    .premium-main-menu .pmm__actions {
+        zoom: 1.18;
+    }
+    .join-panel__card {
+        zoom: 1.12;
+    }
+    #game-home {
+        zoom: 1.3;
+    }
+}
+
 /* ── Desktop-chrome suppression in console mode ──────────────────── *
  * A MINIMIZED fallback surface would be unreachable from the pad (its
  * pill lives outside every console context), so minimize affordances are
@@ -1717,6 +1849,7 @@ html.console-mode {
 html.console-mode {
     .mandatory-input-modal__minimize-btn,
     .start-game-flow__minimize-btn,
+    .eg-results__ctl--min,
     .placement-banner {
         display: none !important;
     }

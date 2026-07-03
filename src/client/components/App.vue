@@ -265,12 +265,13 @@
       <!--
         Premium GAMEPAD layer (GAMEPAD_SUPPORT_DESIGN.md). App-level (like
         NotificationLayer) so the controller mode / focus survives the
-        legacy-flag remount and every server response. Fully inert until a
-        pad button is pressed; `?gp=0` / the gamepad_enabled preference kill
-        it entirely (mouse/keyboard players byte-identical).
+        legacy-flag remount and every server response. Mounted on EVERY
+        screen (full console lifecycle: menu → create → lobby → game →
+        endgame — CONSOLE_MODE_CONCEPT.md). Fully inert until a pad button
+        is pressed; `?gp=0` / the gamepad_enabled preference kill it
+        entirely (mouse/keyboard players byte-identical).
       -->
-      <GamepadLayer
-        v-if="screen === 'player-home' && playerView !== undefined" />
+      <GamepadLayer v-if="screen !== 'empty'" :screen="screen" />
       <!-- Desktop-only (Electron) mandatory-update overlay. Inert on the web. -->
       <desktop-update-overlay />
     </div>

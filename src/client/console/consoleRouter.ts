@@ -44,6 +44,10 @@ export const consoleState = reactive({
   sale: {active: false, selected: [] as Array<string>},
   /** True while a fallback (iteration-1) surface owns input — command bar switches its hints. */
   fallbackActive: false,
+  /** WHICH fallback scope owns input (lifecycle-aware command-bar naming). */
+  fallbackScopeId: '' as string,
+  /** ConsoleShell presence (the layer shows the generic hint bar elsewhere). */
+  shellMounted: false,
 });
 
 /** Reset transient layers (wheel / sheets / confirm / sale) — e.g. on submit. */
