@@ -104,8 +104,8 @@ publish:
   provider: github
   owner: victor-zelinskiy
   repo: terraforming-mars
-  # DRAFT (electron-builder default, made explicit): the CI tag build uploads the
-  # installer + latest.yml to a *draft* GitHub Release. electron-updater only sees it
-  # after you click "Publish release" on GitHub — a manual review gate before users get
-  # the update. Change to `release` to publish automatically on every tag push.
-  releaseType: draft
+  # RELEASE (published, not draft): the CI tag build uploads the installer + latest.yml
+  # to a *published* GitHub Release, so it appears immediately on the Releases page and
+  # electron-updater picks it up with no manual publish step. Switch back to `draft` if
+  # you later want a manual review gate before each release goes live.
+  releaseType: release
