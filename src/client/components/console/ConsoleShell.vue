@@ -79,18 +79,19 @@
          console (fallback surfaces still render above at z12000+). -->
     <ConsoleInfoMode v-if="infoModeState.open" :playerView="playerView" :myTurn="myTurn" />
 
-    <!-- Colony trade payment/confirm — the reused desktop premium modal
-         (a fallback surface: the demoted engine drives its option cards). -->
-    <MandatoryInputModal v-if="pendingTradeColony !== undefined" :minimizable="false">
-      <ColonyTradePaymentModal :colony="pendingTradeColonyModel"
-                               :colonyName="pendingTradeColony.colonyName"
-                               :options="pendingTradeColony.paymentOptions"
-                               :disabledOptions="pendingTradeColony.disabledPayments"
-                               :players="playerView.players"
-                               :tradeOffset="thisPlayer.colonyTradeOffset"
-                               @select="onColonyTradePaymentSelected($event)"
-                               @cancel="pendingTradeColony = undefined" />
-    </MandatoryInputModal>
+    <!-- Colony trade — the console-native confirm (CTS T8: the desktop
+         modal re-host is retired; same and-response submit path). -->
+    <transition name="con-layer">
+      <ConsoleColonyTradeConfirm v-if="pendingTradeColony !== undefined"
+                                 ref="tradeConfirm"
+                                 :colony="pendingTradeColonyModel"
+                                 :colonyName="pendingTradeColony.colonyName"
+                                 :options="pendingTradeColony.paymentOptions"
+                                 :disabledOptions="pendingTradeColony.disabledPayments"
+                                 :players="playerView.players"
+                                 @confirm="onColonyTradePaymentSelected($event)"
+                                 @cancel="pendingTradeColony = undefined" />
+    </transition>
 
     <ConsoleActionWheel v-if="consoleState.wheelOpen" :entries="wheelEntries" :index="consoleState.wheelIndex" />
     <ConsoleSheet v-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
@@ -232,22 +233,19 @@
                     :showtitle="false" />
     </div>
 
-    <!-- Play-a-card flow: the existing premium payment/targets modal,
-         re-hosted (a FALLBACK surface driven by the demoted focus engine
-         until the console task wizard lands — CONSOLE_MODE_CONCEPT §17 P0). -->
-    <MandatoryInputModal v-if="pendingPlayCard !== undefined"
-                         :title="pendingPlayCard.title">
-      <HandCardPaymentContent
-        :playerView="playerView"
-        :input="pendingPlayCard.input"
-        :cardName="pendingPlayCard.cardName"
-        @confirm="onPlayCardConfirm($event)"
-        @cancel="pendingPlayCard = undefined"
-        @pick-card="onUnsupportedPick"
-        @pick-played-card="onUnsupportedPick"
-        @pick-action="onUnsupportedPick"
-        @repeat-action="onUnsupportedPick" />
-    </MandatoryInputModal>
+    <!-- Play-a-card flow — the console-native confirm (CTS T8: the
+         re-hosted HandCardPaymentContent modal is retired). Preview +
+         payment here; the on-play choices arrive as NATIVE follow-up
+         tasks after confirm (the legacy-supported sequential contract). -->
+    <transition name="con-layer">
+      <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined"
+                              ref="playConfirm"
+                              :playerView="playerView"
+                              :cardName="pendingPlayCard.cardName"
+                              :input="pendingPlayCard.input"
+                              @confirm="onPlayCardConfirmNative($event)"
+                              @cancel="pendingPlayCard = undefined" />
+    </transition>
 
   </div>
 </template>
@@ -277,7 +275,6 @@ import {GameModel} from '@/common/models/GameModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
-import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Payment} from '@/common/inputs/Payment';
 import {SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
@@ -291,8 +288,6 @@ import {placementReasonToUnplayable} from '@/client/components/board/placementRe
 
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import SelectSpace from '@/client/components/SelectSpace.vue';
-import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
-import HandCardPaymentContent, {PlayCardPayload} from '@/client/components/handCards/HandCardPaymentContent.vue';
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
 
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
@@ -309,13 +304,14 @@ import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPr
 import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
+import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
+import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
 import {cancelResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
 import HydroNetworkOverlay from '@/client/components/hydronetwork/HydroNetworkOverlay.vue';
-import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePaymentModal.vue';
 import {resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
@@ -353,7 +349,6 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 
 type PendingPlayCard = {
   cardName: CardName;
-  title: string | Message;
   input: SelectProjectCardToPlayModel;
 };
 
@@ -384,14 +379,13 @@ export default defineComponent({
     ConsoleTaskHost,
     ConsoleStartScene,
     ConsoleRevealOverlay,
+    ConsolePlayCardConfirm,
+    ConsoleColonyTradeConfirm,
     ActionEffectChip,
     HydroNetworkOverlay,
-    ColonyTradePaymentModal,
     GamepadGlyph,
     'waiting-for': WaitingFor,
     'select-space': SelectSpace,
-    MandatoryInputModal,
-    HandCardPaymentContent,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -833,6 +827,12 @@ export default defineComponent({
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         return 'Awaiting decision';
       }
+      if (this.pendingPlayCard !== undefined) {
+        return 'Play project card';
+      }
+      if (this.pendingTradeColony !== undefined) {
+        return 'Trade';
+      }
       if (this.pendingCardAction !== undefined || this.consoleState.confirm !== undefined) {
         return 'Confirmation';
       }
@@ -887,6 +887,22 @@ export default defineComponent({
           {control: 'confirm', label: 'Select'},
           {control: 'secondary', label: 'Confirm'},
           {control: 'back', label: this.pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'},
+        ];
+      }
+      if (this.pendingPlayCard !== undefined) {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
+          {control: 'secondary', label: 'Play now'},
+          {control: 'back', label: 'Cancel'},
+        ];
+      }
+      if (this.pendingTradeColony !== undefined) {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'secondary', label: 'Trade'},
+          {control: 'back', label: 'Cancel'},
         ];
       }
       if (this.pendingCardAction !== undefined || this.consoleState.confirm !== undefined) {
@@ -1036,6 +1052,8 @@ export default defineComponent({
           this.pendingClientPayment = undefined;
           // A card-action confirm built against the old prompt is stale too.
           this.pendingCardAction = undefined;
+          // Same for the native play confirm (its playAction path moved on).
+          this.pendingPlayCard = undefined;
           // A shell-section task (T3/T4) auto-opens its serving surface.
           const shellTask = this.shellTask;
           if (shellTask !== undefined) {
@@ -1224,6 +1242,18 @@ export default defineComponent({
         }
         const host = this.$refs.taskHost as InstanceType<typeof ConsoleTaskHost> | undefined;
         host?.handleIntent(intent);
+        return true;
+      }
+      // T8: the native play-card confirm owns input while open.
+      if (this.pendingPlayCard !== undefined) {
+        const confirm = this.$refs.playConfirm as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
+        confirm?.handleIntent(intent);
+        return true;
+      }
+      // T8: the native colony-trade confirm owns input while open.
+      if (this.pendingTradeColony !== undefined) {
+        const confirm = this.$refs.tradeConfirm as InstanceType<typeof ConsoleColonyTradeConfirm> | undefined;
+        confirm?.handleIntent(intent);
         return true;
       }
       // T7: the card-action preview confirm (A/X = execute, B = back to the sheet).
@@ -1769,32 +1799,30 @@ export default defineComponent({
       if (action === undefined || card === undefined || card.isDisabled === true) {
         return;
       }
-      const title: Message = {
-        message: 'Play ${0}',
-        data: [{type: LogMessageDataType.CARD as const, value: cardName}],
-      };
-      this.pendingPlayCard = {cardName, title, input: {...action.input, cards: [card]}};
+      this.pendingPlayCard = {cardName, input: {...action.input, cards: [card]}};
     },
-    onPlayCardConfirm(payload: PlayCardPayload): void {
+    /**
+     * T8: the native play confirm resolved — submit the bare
+     * `{type:'projectCard', card, payment}` (wrapped into the action-menu
+     * path; empty path for the mandatory play-from-hand prompt). The
+     * on-play choices arrive as NATIVE follow-up tasks — the sequential
+     * server contract the legacy radio UI has always used.
+     */
+    onPlayCardConfirmNative(payment: Payment): void {
       const action = this.playAction;
-      if (this.pendingPlayCard === undefined || action === undefined) {
+      const pending = this.pendingPlayCard;
+      this.pendingPlayCard = undefined;
+      if (pending === undefined || action === undefined) {
         return;
       }
-      const play = wrapPath(action.path, payload.playResponse);
-      const responses: Array<unknown> = [play, ...payload.preStepResponses];
-      if (payload.branchIndex >= 0) {
-        responses.push({type: 'or' as const, index: payload.branchIndex, response: payload.optionResponse ?? {type: 'option' as const}});
-      } else if (payload.optionResponse !== undefined) {
-        responses.push(payload.optionResponse);
-      }
-      responses.push(...payload.stepResponses);
-      this.pendingPlayCard = undefined;
-      this.submitBatch(responses);
+      closeConsoleLayers();
+      this.consoleState.section = 'board';
+      this.submit(wrapPath(action.path, {type: 'projectCard' as const, card: pending.cardName, payment}));
     },
     onUnsupportedPick(): void {
-      // A multi-candidate card-target pick routes to a desktop overlay that
-      // doesn't exist in console mode — abort honestly instead of stranding.
-      this.pendingPlayCard = undefined;
+      // The Hydronetwork overlay's internal pick bridges route to desktop
+      // overlays that don't exist in console — abort honestly (documented
+      // fallback; the hydro confirm itself submits natively).
       this.showNotice('This card needs desktop mode for now');
     },
     useStandardProject(cardName: CardName): void {
