@@ -23,6 +23,21 @@
       </span>
     </div>
 
+    <!-- Action intelligence (feedback iteration 2): playable NOW / total —
+         the same sources the desktop bar buttons read. -->
+    <div class="con-status__intel">
+      <span class="con-status__intel-item" :class="{'con-status__intel-item--hot': cardsPlayable > 0}">
+        <BarButtonIcon name="cards" />
+        <span class="con-status__intel-label">{{ $t('Cards') }}</span>
+        <span class="con-status__intel-value"><b>{{ cardsPlayable }}</b>/{{ cardsTotal }}</span>
+      </span>
+      <span class="con-status__intel-item" :class="{'con-status__intel-item--hot': actionsAvailable > 0}">
+        <BarButtonIcon name="actions" />
+        <span class="con-status__intel-label">{{ $t('Actions') }}</span>
+        <span class="con-status__intel-value"><b>{{ actionsAvailable }}</b>/{{ actionsTotal }}</span>
+      </span>
+    </div>
+
     <div class="con-status__players">
       <span v-for="p in players"
             :key="p.color"
@@ -47,13 +62,19 @@ import {defineComponent, PropType} from 'vue';
 import {GameModel} from '@/common/models/GameModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
+import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 
 export default defineComponent({
   name: 'ConsoleStatusStrip',
+  components: {BarButtonIcon},
   props: {
     game: {type: Object as PropType<GameModel>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
     thisPlayerColor: {type: String as PropType<Color>, required: true},
+    cardsPlayable: {type: Number, default: 0},
+    cardsTotal: {type: Number, default: 0},
+    actionsAvailable: {type: Number, default: 0},
+    actionsTotal: {type: Number, default: 0},
   },
   methods: {
     passed(color: Color): boolean {

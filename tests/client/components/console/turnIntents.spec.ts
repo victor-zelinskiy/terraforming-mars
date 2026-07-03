@@ -12,7 +12,8 @@ import {
   optionResponseForPath,
   wrapPath,
 } from '@/client/console/turnIntents';
-import {cycleSection, stepIndex} from '@/client/console/consoleRouter';
+import {findPerformActionCard} from '@/client/console/turnIntents';
+import {cycleSection, stepIndex, stepSelectable} from '@/client/console/consoleRouter';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 
 // Synthetic waitingFor trees — only the fields the walkers read.
@@ -94,6 +95,17 @@ describe('turnIntents', () => {
     expect(findPassPath(undefined)).to.eq(undefined);
     expect(findMilestoneOptionPath(undefined)).to.eq(undefined);
   });
+
+  it('finds the perform-action SelectCard (card actions category)', () => {
+    const menu = or('Take your first action', [
+      option('Something'),
+      {type: 'card', title: 'Perform an action from a played card', cards: [{name: 'Birds'}]},
+    ]) as PlayerInputModel;
+    const found = findPerformActionCard(menu);
+    expect(found?.path).to.deep.eq([1]);
+    expect(found?.model.cards).to.have.length(1);
+    expect(findPerformActionCard(undefined)).to.eq(undefined);
+  });
 });
 
 describe('consoleRouter pure helpers', () => {
@@ -109,5 +121,23 @@ describe('consoleRouter pure helpers', () => {
     expect(stepIndex(2, 1, 5)).to.eq(3);
     expect(stepIndex(3, -2, 5)).to.eq(1);
     expect(stepIndex(7, 0, 0)).to.eq(0);
+  });
+
+  it('stepSelectable skips group headers in both directions', () => {
+    //            [H,  row, row, H,  row]
+    const sel = [false, true, true, false, true];
+    expect(stepSelectable(1, 1, sel)).to.eq(2);
+    expect(stepSelectable(2, 1, sel)).to.eq(4); // hops over the header
+    expect(stepSelectable(4, -1, sel)).to.eq(2);
+    expect(stepSelectable(1, -1, sel)).to.eq(1); // edge: stays put
+    expect(stepSelectable(4, 1, sel)).to.eq(4);
+  });
+
+  it('stepSelectable normalizes a header-landed index (step 0)', () => {
+    const sel = [false, true, true];
+    expect(stepSelectable(0, 0, sel)).to.eq(1);
+    expect(stepSelectable(2, 0, sel)).to.eq(2);
+    expect(stepSelectable(0, 0, [false, false])).to.eq(0);
+    expect(stepSelectable(5, 0, [])).to.eq(0);
   });
 });

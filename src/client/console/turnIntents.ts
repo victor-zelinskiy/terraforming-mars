@@ -213,6 +213,33 @@ export function findPlayProjectCardAction(wf: PlayerInputModel | undefined): Pro
   return findProjectCardByTitle(wf, 'Play project card');
 }
 
+/**
+ * The 'Perform an action from a played card' SelectCard — its `cards` list
+ * is the server-filtered set of blue-card/corp actions activatable RIGHT
+ * NOW (the same authoritative gate the desktop Actions overlay uses).
+ */
+export function findPerformActionCard(
+  wf: PlayerInputModel | undefined,
+  pathSoFar: ReadonlyArray<number> = [],
+): {path: ReadonlyArray<number>, model: PlayerInputModel & {type: 'card'}} | undefined {
+  if (!wf) {
+    return undefined;
+  }
+  if (wf.type === 'card' && inputTitleText(wf.title) === 'Perform an action from a played card') {
+    return {path: pathSoFar, model: wf};
+  }
+  const options = childOptions(wf);
+  if (options !== undefined) {
+    for (let i = 0; i < options.length; i++) {
+      const found = findPerformActionCard(options[i], [...pathSoFar, i]);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function findSellPatentsAction(
   wf: PlayerInputModel | undefined,
   pathSoFar: ReadonlyArray<number> = [],
