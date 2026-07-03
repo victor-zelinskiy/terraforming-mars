@@ -1,0 +1,55 @@
+# Electron desktop release — publishes to GitHub Releases under victor-zelinskiy.
+#
+# Trigger: pushing a version tag (e.g. `v1.0.1`). Regular pushes to a branch do NOT
+# publish (that stays with the CI workflow in main.yml). electron-builder validates that
+# the tag (vX.Y.Z) matches package.json "version", so bump the version before tagging.
+#
+# WINDOWS-ONLY on purpose: electron-builder.yml currently declares only the `win` (NSIS)
+# target (macOS is deferred per the desktop plan's Phase 9). Building on macOS/Linux would
+# produce no configured artifact. When mac/linux targets are added to electron-builder.yml,
+# turn `runs-on` into a matrix (windows-latest / macos-latest / ubuntu-latest) — each
+# runner then builds + uploads its own installer to the SAME GitHub Release for the tag.
+#
+# Auth: electron-builder reads GH_TOKEN. GitHub Actions injects secrets.GITHUB_TOKEN
+# automatically for the repository it runs in, so releases land in
+# victor-zelinskiy/terraforming-mars — no personal-access-token secret to manage.
+
+name: Release Electron App
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Required so electron-builder --publish can create the Release + upload assets.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # build:desktop (make:static + DESKTOP_BUILD=1 build:client + electron:build:main)
+      # is invoked inside dist:win:publish, so no separate build step is needed. The final
+      # electron-builder step packages the thin client and uploads it to the Release.
+      - name: Build and publish desktop installer
+        run: npm run dist:win:publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

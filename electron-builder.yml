@@ -14,9 +14,9 @@
 # electron:build:main). See the `dist:win` / `electron:pack:dir` scripts.
 # Signing is deliberately out of scope (Phase 6 = unsigned dev artifact).
 
-appId: com.vize1215.terraforming-mars
+appId: io.github.victor-zelinskiy.terraforming-mars
 productName: Terraforming Mars
-copyright: © vize1215
+copyright: © Victor Zelinskiy
 
 # The thin client ships NO node_modules and imports no native modules, so skip the
 # native-dependency rebuild step entirely (it would otherwise try to rebuild the
@@ -91,16 +91,21 @@ artifactName: TerraformingMars-${version}-${os}-${arch}.${ext}
 # Update-delivery feed (Phase 7). electron-builder bakes this into the app's
 # app-update.yml (read by electron-updater at runtime) and emits latest.yml + .blockmap.
 #
-# ⚠️ REPLACE the placeholder `url` with a REAL feed that hosts latest.yml + the
-# installer .exe + .blockmap. Recommended: GitHub Releases
-#   publish: {provider: github, owner: <your-fork-owner>, repo: <your-fork-repo>}
-# (free, handles the ~400 MB installer). A generic static host (S3, etc.) also works.
+# Feed = GitHub Releases under the personal account victor-zelinskiy. electron-builder's
+# `--publish always` (the CI release job / `dist:win:publish`) uploads the installer .exe,
+# latest.yml and .blockmap to the release for the pushed tag; electron-updater then reads
+# https://github.com/victor-zelinskiy/terraforming-mars/releases for updates. Requires a
+# GH_TOKEN in CI (GitHub Actions injects secrets.GITHUB_TOKEN automatically).
 #
-# Until the feed is real, the COMPATIBILITY GATE still works (GET /api/desktop/version
-# on the server), and auto-download degrades to the manual-download fallback (the
-# server's TM_DESKTOP_DOWNLOAD_URL). Heroku is NOT a good installer host (slug/ephemeral
-# limits) — use it only for the small /api/desktop/version JSON, not the .exe.
+# The COMPATIBILITY GATE (GET /api/desktop/version on the server) is independent of this
+# feed; if the feed is ever unreachable, auto-download degrades to the manual-download
+# fallback (the server's TM_DESKTOP_DOWNLOAD_URL).
 publish:
-  provider: generic
-  url: https://updates.invalid/terraforming-mars
-  channel: latest
+  provider: github
+  owner: victor-zelinskiy
+  repo: terraforming-mars
+  # DRAFT (electron-builder default, made explicit): the CI tag build uploads the
+  # installer + latest.yml to a *draft* GitHub Release. electron-updater only sees it
+  # after you click "Publish release" on GitHub — a manual review gate before users get
+  # the update. Change to `release` to publish automatically on every tag push.
+  releaseType: draft
