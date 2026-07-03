@@ -1066,8 +1066,79 @@ the desktop-gamepad mode are untouched throughout.
   + source/target row glow. WGT / hazard / placement holds already anchor
   to the real board. Gates: 76 pure specs, eslint, vue-tsc, make:json/css,
   build:client — green.
-- **T7..T8 — PENDING** (next: T7 composite/ares/endgame formalization /
-  T8 fallback retirement).
+- **T7 — SHIPPED (the FEEDBACK-PARITY audit + gap closure).** T7 was
+  re-scoped (user directive) to a systematic audit that EVERY desktop
+  modern-premium feedback mechanism — delta chips, statuses, hints,
+  notifications, resource changes, visual accents — reaches the console
+  natively and organically (couch-port, not a desktop transplant). The
+  audit table below IS the deliverable; the gaps it found were closed in
+  the same pass:
+  **(a) DELTA CHIPS in console** — the flagship gap: every resource
+  stock/production row in `ConsoleResourcePanel` now hosts the SHARED
+  `AnimatedMetricValue` with the SAME metric keys as the desktop
+  `PlayerResource` (`<res>.stock` / `<res>.production`, scope = player
+  color, epoch = `playerView.runId`) — so ±N chips fire on every change
+  AND the T6 energy→heat baseline seeding keeps working (identical
+  `${runId}|${color}` scope). `ConsoleStatusStrip` chips: every player's
+  TR (`strip.tr`, variant score) + M€ (`strip.megacredits`) and the
+  viewer's hand/actions totals (`bar.cards`/`bar.actions` — the desktop
+  bar keys, safe: those hosts never co-mount). Anchors via positioned
+  wrappers mirroring the desktop cells.
+  **(b) Card actions are CONFIRM-FIRST again** — the console cardActions
+  sheet used to submit on a bare A (a desktop-parity violation: the
+  desktop NEVER executes without the confirm modal). A now opens a
+  preview-backed console confirm (`.con-actconfirm`): the SAME
+  `/api/action-preview` the desktop modal fetches → per-branch
+  cost/gain `ActionEffectChip`s, unavailable branches dimmed with the
+  server reason, a multi-branch note («Выбор варианта — после
+  подтверждения» — the follow-up OR arrives as a native T1 task);
+  A/X = execute, B = back to the sheet; stale-cleared on prompt change;
+  fetch failure degrades to an honest generic confirm, never blocks.
+  **(c) Pass-confirm parity** — the console pass confirmation now carries
+  ALL five desktop PassConfirmContent warnings (unused actions count /
+  free trade fleet / convert plants / convert heat / hydro advance),
+  derived from the same walkers.
+  **(d) Turn-notification dedup over console surfaces** — the desktop
+  hides the action-required/your-turn card while its modal IS the prompt;
+  console now applies the same rule via `body:has(.con-task-host /
+  .con-start / .con-reveal / .con-confirm)` (console-only selectors).
+  The notification layer drops below the status strip
+  (`html.console-mode .notifications-layer{top:108px}`) — transient
+  toasts (reveals / losses / milestones) stay, as informational.
+  **(e) Journal as a console panel** — geometry override (flush right,
+  z 11460: above sections, below task surfaces).
+  **(f) Turn accent, console-native** — the ACTING player's strip chip
+  glows + its dot pulses (`--active`, from `PublicPlayerModel.isActive`)
+  — the couch equivalent of the desktop handoff beam / status chips
+  (`TurnHandoffLayer` anchors to desktop panel geometry and no-ops
+  gracefully in console; deliberately NOT retro-fitted onto the
+  horizontal strip).
+
+  **The T7 FEEDBACK-PARITY AUDIT TABLE** (desktop mechanism → console):
+  | Feedback surface | Console status |
+  | --- | --- |
+  | Delta chips: resources/production | NATIVE (a — shared AMV, same keys) |
+  | Delta chips: TR / M€ per player | NATIVE (a — strip chips) |
+  | Delta chips: hand / action counts | NATIVE (a — strip intel chips) |
+  | Energy→heat conversion animation | NATIVE (T6 anchors + interpolation) |
+  | Tile placement / WGT / hazard / ares board animations | INHERITED (the real board) |
+  | Notifications (turn / hostile / reveals / milestones) | INHERITED App-layer + (d) dedup + T6 CTAs |
+  | Turn announce | NATIVE banner + notification + (f) strip accent |
+  | Turn handoff beam / idle hint | graceful no-op; covered by (f) + banner |
+  | Unplayable/unavailable reasons | NATIVE (inline, every surface T1–T5) |
+  | Action confirm previews | NATIVE (b) + play modal (fallback, full preview) |
+  | Pass safeguards | NATIVE (c — all five warnings) |
+  | Reveal flows (drawn / result / public) | NATIVE (T6) |
+  | Journal | INHERITED + (e) console geometry; rows are read-only from the pad (scroll peek) — chips/CTA inside are mouse-only, board-pulse works |
+  | Board cell info / placement reasons | NATIVE (context panel dossier) |
+  | Effects / actions / VP analytics | NATIVE (Info Mode details; per-game stats = Info Mode scope) |
+  | Player timers | NOT SHOWN in console (minor; timers option — candidate for the strip) |
+  | Endgame / final reveal / rematch | fallback-driven premium (App-level; scope defs drive it) — T8 candidate |
+  | Card zoom / fullscreen browse | replaced by TV inspectors (deliberate) |
+  Gates: 76 pure specs, eslint, vue-tsc, make:json/css, build:client —
+  green.
+- **T8 — PENDING** (fallback retirement: the play-card modal, the
+  colony-trade modal, endgame/rematch formalization, hydro internals).
 
 ---
 

@@ -25,16 +25,25 @@
 
     <!-- Action intelligence (feedback iteration 2): playable NOW / total —
          the same sources the desktop bar buttons read. -->
+    <!-- Delta chips (CTS T7): the shared AnimatedMetricValue fires ±N on
+         hand size / action sources / every player's TR and M€ — the same
+         live feedback the desktop bar buttons + player panels give. -->
     <div class="con-status__intel">
       <span class="con-status__intel-item" :class="{'con-status__intel-item--hot': cardsPlayable > 0}">
         <BarButtonIcon name="cards" />
         <span class="con-status__intel-label">{{ $t('Cards') }}</span>
-        <span class="con-status__intel-value"><b>{{ cardsPlayable }}</b>/{{ cardsTotal }}</span>
+        <span class="con-status__intel-value"><b>{{ cardsPlayable }}</b>/{{ cardsTotal }}
+          <AnimatedMetricValue v-if="epoch !== ''" :value="cardsTotal" metricKey="bar.cards"
+                               :scopeKey="thisPlayerColor" :epoch="epoch" variant="misc" />
+        </span>
       </span>
       <span class="con-status__intel-item" :class="{'con-status__intel-item--hot': actionsAvailable > 0}">
         <BarButtonIcon name="actions" />
         <span class="con-status__intel-label">{{ $t('Actions') }}</span>
-        <span class="con-status__intel-value"><b>{{ actionsAvailable }}</b>/{{ actionsTotal }}</span>
+        <span class="con-status__intel-value"><b>{{ actionsAvailable }}</b>/{{ actionsTotal }}
+          <AnimatedMetricValue v-if="epoch !== ''" :value="actionsTotal" metricKey="bar.actions"
+                               :scopeKey="thisPlayerColor" :epoch="epoch" variant="misc" />
+        </span>
       </span>
     </div>
 
@@ -42,11 +51,21 @@
       <span v-for="p in players"
             :key="p.color"
             class="con-status__player"
-            :class="{'con-status__player--me': p.color === thisPlayerColor, 'con-status__player--passed': passed(p.color)}">
+            :class="{
+              'con-status__player--me': p.color === thisPlayerColor,
+              'con-status__player--passed': passed(p.color),
+              'con-status__player--active': p.isActive && !passed(p.color),
+            }">
         <span :class="'con-status__dot player_bg_color_' + p.color"></span>
         <span class="con-status__pname">{{ p.name }}</span>
-        <span class="con-status__ptr">{{ p.terraformRating }} {{ $t('TR') }}</span>
-        <span class="con-status__pmc">{{ p.megacredits }} M€</span>
+        <span class="con-status__ptr">{{ p.terraformRating }} {{ $t('TR') }}
+          <AnimatedMetricValue v-if="epoch !== ''" :value="p.terraformRating" metricKey="strip.tr"
+                               :scopeKey="p.color" :epoch="epoch" variant="score" />
+        </span>
+        <span class="con-status__pmc">{{ p.megacredits }} M€
+          <AnimatedMetricValue v-if="epoch !== ''" :value="p.megacredits" metricKey="strip.megacredits"
+                               :scopeKey="p.color" :epoch="epoch" variant="misc" />
+        </span>
       </span>
     </div>
   </div>
@@ -63,10 +82,11 @@ import {GameModel} from '@/common/models/GameModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
+import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 
 export default defineComponent({
   name: 'ConsoleStatusStrip',
-  components: {BarButtonIcon},
+  components: {BarButtonIcon, AnimatedMetricValue},
   props: {
     game: {type: Object as PropType<GameModel>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
@@ -75,6 +95,8 @@ export default defineComponent({
     cardsTotal: {type: Number, default: 0},
     actionsAvailable: {type: Number, default: 0},
     actionsTotal: {type: Number, default: 0},
+    /** playerView.runId — the AnimatedMetricValue epoch ('' disables chips). */
+    epoch: {type: String, default: ''},
   },
   methods: {
     passed(color: Color): boolean {
