@@ -46,15 +46,37 @@ export type TaskKind = ConsoleTask['kind'];
 
 /**
  * Kinds served natively today: the shell's own surfaces (actionMenu/space)
- * + the T1 ConsoleTaskHost primitives. The red-list spec mirrors this set.
+ * + the T1 ConsoleTaskHost primitives + T2 cardSelect + T3 payment/
+ * projectCard + T4 colony + T5 initialDraft/startSequence (the start
+ * scene). The red-list spec mirrors this set.
  */
 export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'actionMenu', 'space',
   'choice', 'player', 'amount', 'resource', 'distribute',
+  'cardSelect', 'payment',
+  'projectCard', 'colony',
+  'initialDraft', 'startSequence',
 ]);
 
 /** Kinds handled by shell surfaces that need NO task host (detector base). */
 export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['actionMenu', 'space']);
+
+/**
+ * Kinds served by SHELL SECTIONS (not the task host): the play-from-hand /
+ * standard-project prompts ride the hand carousel & the standard-projects
+ * sheet; a colony pick rides the colonies rail in pick mode. The shell
+ * auto-opens the surface; navigating away DEFERS the task (amber chip).
+ */
+export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'colony']);
+
+/**
+ * Kinds served by the full-screen START SCENE (T5): the `initialCards`
+ * wizard (corporation / preludes / CEO / project buy / summary) and the
+ * marked start-sequence prompts (play preludes one by one, apply the corp
+ * first action, Merger's corp pick). The shell mounts ConsoleStartScene
+ * and routes input to it; B defers to the amber chip like every task.
+ */
+export const SCENE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['initialDraft', 'startSequence']);
 
 const ACTION_MENU_TITLES: ReadonlyArray<string> = ['Take your first action', 'Take your next action'];
 const WGT_TITLE = 'Select action for World Government Terraforming';
@@ -178,13 +200,15 @@ export function isNativelyHandled(task: ConsoleTask | undefined): boolean {
 }
 
 /**
- * Does the T1 ConsoleTaskHost FULLY serve this prompt? True for the
- * primitive kinds — with ONE honest carve-out: a `choice` whose options
- * nest inputs the host can't pre-collect yet (payment / card / and / …)
- * stays on the desktop modal until its CTS phase lands. Leaf options
- * (`option`) and board picks (`space` — routed through the shell's
- * headless SelectSpace) ARE served. The shell suppresses the desktop
- * modal EXACTLY when this returns a task (no dead ends, ever).
+ * Does the ConsoleTaskHost FULLY serve this prompt? True for the T1
+ * primitives + the T2 card browser + the T3 payment lanes — with ONE
+ * honest carve-out: a `choice` whose options nest inputs the host can't
+ * pre-collect (a nested payment / card / and inside an OrOptions) stays
+ * on the desktop modal. Leaf options (`option`) and board picks (`space`
+ * — routed through the shell's headless SelectSpace) ARE served. The
+ * shell suppresses the desktop modal EXACTLY when this returns a task
+ * (no dead ends, ever). SHELL_SECTION_KINDS (projectCard / colony) are
+ * native too but served by shell SECTIONS, not this host.
  */
 export function taskServedByHost(view: PlayerViewModel): ConsoleTask | undefined {
   const task = taskFor(view);
@@ -196,6 +220,8 @@ export function taskServedByHost(view: PlayerViewModel): ConsoleTask | undefined
   case 'amount':
   case 'resource':
   case 'distribute':
+  case 'cardSelect': // T2: the card browser (draft / buy / select / target)
+  case 'payment': // T3: the native payment lanes (SelectPayment prompts)
     return task;
   case 'choice': {
     const wf = view.waitingFor;

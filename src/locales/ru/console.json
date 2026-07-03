@@ -63,5 +63,10 @@
     "Switch to the console interface? Optimized for TV and gamepad.": "Переключиться на консольный интерфейс? Оптимизирован для ТВ и геймпада.",
     "Switch": "Переключиться",
     "Stay here": "Остаться здесь",
-    "Hold: switch interface mode": "Удерживать: сменить режим интерфейса"
+    "Hold: switch interface mode": "Удерживать: сменить режим интерфейса",
+    "You have": "У вас",
+    "auto": "авто",
+    "Select / Deselect": "Выбрать / снять",
+    "Not enough resources to cover the cost": "Недостаточно ресурсов для оплаты",
+    "You are not buying any project cards": "Вы не покупаете ни одной проектной карты"
 }

@@ -17,7 +17,7 @@
     </div>
 
     <!-- CTS: a DEFERRED task (B = inspect the board) docks as an amber chip. -->
-    <div v-if="activeConsoleTask !== undefined && consoleState.task.deferred" class="con-banner con-banner--deferred">
+    <div v-if="(hostTask !== undefined || shellTask !== undefined || startTask !== undefined) && consoleState.task.deferred" class="con-banner con-banner--deferred">
       <span class="con-banner__pulse" aria-hidden="true"></span>
       <span>{{ $t('Awaiting decision') }}</span>
       <span class="con-banner__hint"><GamepadGlyph control="back" /><span>{{ $t('Return to game') }}</span></span>
@@ -55,10 +55,11 @@
                           :saleActive="consoleState.sale.active"
                           :saleSelected="consoleState.sale.selected" />
       <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
-                              :colonies="game.colonies"
+                              :colonies="coloniesForRail"
                               :index="consoleState.colonyIndex"
                               :tradeable="tradeableColonyNames"
-                              :tradeBlockReason="colonyTradeBlockReason" />
+                              :tradeBlockReason="colonyTradeBlockReason"
+                              :pick="colonyPick" />
       <!-- The premium Hydronetwork surface, mounted as a console screen.
            Its internals are driven by the demoted DOM focus engine (its
            scope def exists) — the console carves out ONLY LT (Info Mode). -->
@@ -111,17 +112,33 @@
       <div v-if="notice !== ''" class="con-notice">{{ $t(notice) }}</div>
     </transition>
 
-    <!-- CTS T1: the console-native task host (choice / player / amount /
-         resource / distribute). The desktop modal is SUPPRESSED while it
-         serves; B defers it so the player can inspect the board. -->
+    <!-- CTS T1–T3: the console-native task host (choice / player / amount /
+         resource / distribute / card browser / payment lanes — plus the
+         CLIENT-side standard-project payment via promptOverride). The
+         desktop modal is SUPPRESSED while it serves; B defers a server
+         task (inspect the board) and CANCELS a client payment. -->
     <transition name="con-layer">
-      <ConsoleTaskHost v-if="activeConsoleTask !== undefined && !consoleState.task.deferred && taskSpacePending === undefined"
+      <ConsoleTaskHost v-if="hostTask !== undefined && !consoleState.task.deferred && taskSpacePending === undefined"
                        ref="taskHost"
                        :playerView="playerView"
-                       :task="activeConsoleTask"
+                       :task="hostTask"
+                       :prompt-override="pendingClientPayment !== undefined ? pendingClientPayment.input : undefined"
+                       :defer-label="pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'"
                        @submit="onTaskSubmit"
-                       @defer="consoleState.task.deferred = true"
+                       @defer="onTaskDefer"
                        @space-pick="onTaskSpacePick" />
+    </transition>
+
+    <!-- CTS T5: the game-opening START SCENE (initialCards wizard /
+         start-sequence ceremony) — the console-native replacement for
+         both desktop start surfaces. B defers to the amber chip. -->
+    <transition name="con-layer">
+      <ConsoleStartScene v-if="startTask !== undefined && !consoleState.task.deferred"
+                         ref="startScene"
+                         :playerView="playerView"
+                         :task="startTask"
+                         @submit="onTaskSubmit"
+                         @defer="consoleState.task.deferred = true" />
     </transition>
 
     <!-- CTS T0: the honest guard for a prompt NO surface serves (the
@@ -141,7 +158,7 @@
       <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
                    :playerView="playerView"
                    :waitingfor="playerView.waitingFor"
-                   :modal-suppressed="activeConsoleTask !== undefined"></waiting-for>
+                   :modal-suppressed="activeConsoleTask !== undefined || startTask !== undefined"></waiting-for>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
@@ -175,15 +192,6 @@
         @repeat-action="onUnsupportedPick" />
     </MandatoryInputModal>
 
-    <!-- Standard-project alt-resource payment (same fallback pattern). -->
-    <MandatoryInputModal v-if="pendingStdProjectPayment !== undefined"
-                         :title="pendingStdProjectPayment.title">
-      <StandardProjectPaymentContent
-        :playerView="playerView"
-        :playerinput="pendingStdProjectPayment.input"
-        @confirm="onStdProjectPaymentConfirm($event)"
-        @cancel="pendingStdProjectPayment = undefined" />
-    </MandatoryInputModal>
   </div>
 </template>
 
@@ -214,7 +222,7 @@ import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Payment} from '@/common/inputs/Payment';
-import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
 import {playerActionSourceCount} from '@/client/components/actions/actionExtraction';
@@ -224,7 +232,6 @@ import WaitingFor from '@/client/components/WaitingFor.vue';
 import SelectSpace from '@/client/components/SelectSpace.vue';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import HandCardPaymentContent, {PlayCardPayload} from '@/client/components/handCards/HandCardPaymentContent.vue';
-import StandardProjectPaymentContent from '@/client/components/payment/StandardProjectPaymentContent.vue';
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
 
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
@@ -235,12 +242,13 @@ import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry} from '@/client/components/console/ConsoleHandSection.vue';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
-import ConsoleColoniesSection from '@/client/components/console/ConsoleColoniesSection.vue';
+import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/console/ConsoleColoniesSection.vue';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
 import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
-import {ConsoleTask, taskServedByHost} from '@/client/console/consoleTaskRouter';
-import {orWrappedResponse} from '@/client/console/taskResponses';
+import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
+import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
+import {cancelResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
 import HydroNetworkOverlay from '@/client/components/hydronetwork/HydroNetworkOverlay.vue';
 import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePaymentModal.vue';
@@ -285,11 +293,15 @@ type PendingPlayCard = {
   input: SelectProjectCardToPlayModel;
 };
 
-type PendingStdProjectPayment = {
+/** The CLIENT-built standard-project payment, hosted NATIVELY by the task
+ * host via `promptOverride` (T3) — nothing committed until confirm; B = Cancel. */
+type PendingClientPayment = {
   cardName: CardName;
-  title: string | Message;
-  input: ReturnType<typeof buildStandardProjectPaymentModel>;
+  input: SelectPaymentModel;
 };
+
+/** The synthetic host task for a client-built payment prompt. */
+const CLIENT_PAYMENT_TASK: ConsoleTask = {kind: 'payment'};
 
 export default defineComponent({
   name: 'ConsoleShell',
@@ -306,6 +318,7 @@ export default defineComponent({
     ConsoleInfoMode,
     ConsoleStrandedPrompt,
     ConsoleTaskHost,
+    ConsoleStartScene,
     HydroNetworkOverlay,
     ColonyTradePaymentModal,
     GamepadGlyph,
@@ -313,7 +326,6 @@ export default defineComponent({
     'select-space': SelectSpace,
     MandatoryInputModal,
     HandCardPaymentContent,
-    StandardProjectPaymentContent,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -324,7 +336,7 @@ export default defineComponent({
       infoModeState,
       leakDetectorState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
-      pendingStdProjectPayment: undefined as PendingStdProjectPayment | undefined,
+      pendingClientPayment: undefined as PendingClientPayment | undefined,
       pendingTradeColony: undefined as {colonyName: ColonyName, paymentOptions: TradeColonyContext['paymentOptions'], disabledPayments: TradeColonyContext['disabledPayments']} | undefined,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
       /** A task's nested space-type option being picked on the board. */
@@ -376,9 +388,74 @@ export default defineComponent({
       const p = this.convertPlantsPending?.spacePrompt;
       return p !== undefined && p.type === 'space' ? p : undefined;
     },
-    /** The T1 task-host task (undefined = not served natively → fallback/other surfaces). */
+    /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
       return taskServedByHost(this.playerView);
+    },
+    /** What the ConsoleTaskHost renders: a server task OR the client payment. */
+    hostTask(): ConsoleTask | undefined {
+      if (this.pendingClientPayment !== undefined) {
+        return CLIENT_PAYMENT_TASK;
+      }
+      return this.activeConsoleTask;
+    },
+    /** A SHELL-SECTION task (T3/T4): projectCard → hand / std sheet; colony → rail. */
+    shellTask(): ConsoleTask | undefined {
+      const task = taskFor(this.playerView);
+      return task !== undefined && SHELL_SECTION_KINDS.has(task.kind) ? task : undefined;
+    },
+    /** The T5 START SCENE task (initialCards wizard / start-sequence ceremony). */
+    startTask(): ConsoleTask | undefined {
+      const task = taskFor(this.playerView);
+      return task !== undefined && SCENE_KINDS.has(task.kind) ? task : undefined;
+    },
+    shellTaskActive(): boolean {
+      return this.shellTask !== undefined && !this.consoleState.task.deferred;
+    },
+    /** The std-projects source: the TOP-LEVEL prompt (EstablishedMethods) or the action menu. */
+    standardProjectsAction(): {path: ReadonlyArray<number>, input: SelectProjectCardToPlayModel} | undefined {
+      const task = this.shellTask;
+      if (task?.kind === 'projectCard' && task.mode === 'standardProject' && this.playerView.waitingFor?.type === 'projectCard') {
+        return {path: [], input: this.playerView.waitingFor as SelectProjectCardToPlayModel};
+      }
+      return findStandardProjectsAction(this.playerView.waitingFor);
+    },
+    // ── colony pick (T4 — a server SelectColony) ────────────────────────
+    colonyModel(): SelectColonyModel | undefined {
+      const wf = this.playerView.waitingFor;
+      return wf?.type === 'colony' ? (wf as SelectColonyModel) : undefined;
+    },
+    colonyPick(): ConsoleColonyPick | undefined {
+      const model = this.colonyModel;
+      if (model === undefined || this.shellTask?.kind !== 'colony') {
+        return undefined;
+      }
+      const reasons: Record<string, string> = {};
+      for (const d of model.disabledColonies ?? []) {
+        reasons[d.name] = typeof d.reason === 'string' ? translateText(d.reason) : translateMessage(d.reason);
+      }
+      const label = model.buttonLabel;
+      return {
+        selectable: model.coloniesModel.map((c) => c.name),
+        reasons,
+        buttonLabel: label !== undefined && label !== '' && !['Save', 'Confirm', 'Ok'].includes(label) ? label : 'Select',
+      };
+    },
+    /**
+     * The rail source: pick-a-NEW-tile prompts (Aridor) list ONLY the offered
+     * tiles; everything else shows the in-game colonies (unpickable ones stay
+     * visible with the server reason — information parity).
+     */
+    coloniesForRail(): ReadonlyArray<ColonyModel> {
+      const model = this.colonyModel;
+      if (model !== undefined && this.shellTask?.kind === 'colony' && model.purpose === 'addNewColonyToGame') {
+        return model.coloniesModel;
+      }
+      return this.game.colonies;
+    },
+    /** SelectColony pay-on-commit cancel (Build Colony std project). */
+    colonyCancellable(): boolean {
+      return this.colonyModel?.placementContext?.cancellable === true;
     },
     /** A task's nested SelectSpace, narrowed for the headless picker. */
     taskSpacePrompt() {
@@ -477,6 +554,14 @@ export default defineComponent({
       if (this.consoleState.fallbackActive) {
         return translateText('Awaiting decision');
       }
+      // A shell-section task (play-from-hand / std project / colony pick):
+      // the banner names the server's ask over the serving section.
+      if (this.shellTaskActive) {
+        const t = this.playerView.waitingFor?.title;
+        if (t !== undefined) {
+          return typeof t === 'string' ? translateText(t) : translateMessage(t);
+        }
+      }
       if (this.myTurn) {
         return translateText('Your turn');
       }
@@ -551,6 +636,7 @@ export default defineComponent({
       case 'cardActions': return 'Card actions';
       case 'milestones': return 'Milestones';
       case 'awards': return 'Awards';
+      case 'standardProjects': return 'Standard Projects';
       default: return '';
       }
     },
@@ -558,6 +644,9 @@ export default defineComponent({
       switch (this.consoleState.sheet) {
       case 'basics':
         return this.basicsRows();
+      case 'standardProjects':
+        // The MANDATORY std-project prompt (T3): only the server's cards.
+        return this.standardProjectRows(this.standardProjectsAction?.input.cards ?? []);
       case 'cardActions':
         return this.cardActionsRows();
       case 'milestones': {
@@ -623,7 +712,10 @@ export default defineComponent({
         default: return 'Awaiting decision';
         }
       }
-      if (this.activeConsoleTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+      if (this.startTask !== undefined && !this.consoleState.task.deferred) {
+        return 'Start of the game';
+      }
+      if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         return 'Awaiting decision';
       }
       if (this.consoleState.confirm !== undefined) {
@@ -656,13 +748,22 @@ export default defineComponent({
           {control: 'back', label: 'Back'},
         ];
       }
-      if (this.activeConsoleTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+      if (this.startTask !== undefined && !this.consoleState.task.deferred) {
+        // The scene footer carries the detailed contract; the bar mirrors it.
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'secondary', label: 'Continue'},
+          {control: 'back', label: 'Back'},
+        ];
+      }
+      if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         // The task frame carries the detailed contract; the bar mirrors it.
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
           {control: 'secondary', label: 'Confirm'},
-          {control: 'back', label: 'Minimize'},
+          {control: 'back', label: this.pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'},
         ];
       }
       if (this.consoleState.confirm !== undefined) {
@@ -685,7 +786,7 @@ export default defineComponent({
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
-          {control: 'back', label: 'To the board'},
+          {control: 'back', label: this.consoleState.sheet === 'standardProjects' ? 'Minimize' : 'To the board'},
         ];
       }
       if (this.placementActive) {
@@ -713,10 +814,22 @@ export default defineComponent({
           {control: 'confirm', label: 'Play now', enabled: playable},
           {control: 'triggerR', label: 'Next playable'},
           {control: 'triggerL', label: 'Information'},
-          {control: 'back', label: 'To the board'},
+          {control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'},
         ];
       }
       if (this.consoleState.section === 'colonies') {
+        // T4 pick mode: A = the server verb; B = cancel (marker) / minimize.
+        const pick = this.colonyPick;
+        if (pick !== undefined) {
+          const selected = this.coloniesForRail[this.consoleState.colonyIndex];
+          const pickable = selected !== undefined && pick.selectable.includes(selected.name);
+          return [
+            {control: 'dpadH', label: 'Navigate'},
+            {control: 'confirm', label: pick.buttonLabel, enabled: pickable},
+            {control: 'triggerL', label: 'Information'},
+            {control: 'back', label: this.colonyCancellable ? 'Cancel' : 'Minimize'},
+          ];
+        }
         const selected = this.game.colonies[this.consoleState.colonyIndex];
         const tradeable = selected !== undefined && this.tradeableColonyNames.includes(selected.name);
         return [
@@ -770,7 +883,7 @@ export default defineComponent({
         this.consoleState.handIndex = stepIndex(this.consoleState.handIndex, 0, this.handEntries.length);
         this.consoleState.wheelIndex = stepIndex(this.consoleState.wheelIndex, 0, this.wheelEntries.length);
         this.consoleState.sheetIndex = stepSelectable(this.consoleState.sheetIndex, 0, this.sheetRows.map((r) => r.kind !== 'header'));
-        this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.game.colonies.length);
+        this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
         // The trade window closed externally → drop the stale payment modal.
         if (this.pendingTradeColony !== undefined && this.tradeColonyContext === undefined) {
           this.pendingTradeColony = undefined;
@@ -792,6 +905,13 @@ export default defineComponent({
           this.lastTaskKey = key;
           this.consoleState.task.deferred = false;
           this.taskSpacePending = undefined;
+          // A client payment built for a prompt that moved on is stale.
+          this.pendingClientPayment = undefined;
+          // A shell-section task (T3/T4) auto-opens its serving surface.
+          const shellTask = this.shellTask;
+          if (shellTask !== undefined) {
+            this.openShellTaskSurface(shellTask);
+          }
         }
       },
     },
@@ -817,26 +937,30 @@ export default defineComponent({
       return `${cost} M€`;
     },
     // ── sheet row builders ───────────────────────────────────────────────
+    /** One std-project row per server card (shared: basics + the T3 sheet). */
+    standardProjectRows(cards: ReadonlyArray<CardModel>): Array<ConsoleSheetRow> {
+      return cards.map((c) => {
+        const visual = standardProjectVisual(c.name);
+        return {
+          key: c.name,
+          icon: visual.iconClass,
+          title: c.name,
+          sub: visual.description,
+          meta: `${c.calculatedCost ?? 0} M€`,
+          available: c.isDisabled !== true,
+          reason: c.isDisabled === true ? 'Unavailable right now' : '',
+        };
+      });
+    },
     /** Y — «Базовые действия»: standard projects + sell patents + conversions + turn. */
     basicsRows(): Array<ConsoleSheetRow> {
       const rows: Array<ConsoleSheetRow> = [];
       const wf = this.playerView.waitingFor;
 
-      const std = findStandardProjectsAction(wf)?.input.cards ?? [];
+      const std = this.standardProjectsAction?.input.cards ?? [];
       if (std.length > 0) {
         rows.push({key: 'h-std', kind: 'header', title: 'Standard Projects', available: false});
-        for (const c of std) {
-          const visual = standardProjectVisual(c.name);
-          rows.push({
-            key: c.name,
-            icon: visual.iconClass,
-            title: c.name,
-            sub: visual.description,
-            meta: `${c.calculatedCost ?? 0} M€`,
-            available: c.isDisabled !== true,
-            reason: c.isDisabled === true ? 'Unavailable right now' : '',
-          });
-        }
+        rows.push(...this.standardProjectRows(std));
       }
 
       rows.push({key: 'h-turn', kind: 'header', title: 'Turn actions', available: false});
@@ -944,9 +1068,20 @@ export default defineComponent({
         this.handleInfoIntent(intent);
         return true;
       }
-      // CTS T1: the task host owns input while it serves (View still peeks
-      // the journal; B inside the host = defer-to-board, handled there).
-      if (this.activeConsoleTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+      // CTS T5: the start scene owns input while it serves (View still
+      // peeks the journal; B inside = wizard back-step, else defer).
+      if (this.startTask !== undefined && !this.consoleState.task.deferred) {
+        if (intent.kind === 'press' && intent.button === 'view') {
+          journalState.open = !journalState.open;
+          return true;
+        }
+        const scene = this.$refs.startScene as InstanceType<typeof ConsoleStartScene> | undefined;
+        scene?.handleIntent(intent);
+        return true;
+      }
+      // CTS T1–T3: the task host owns input while it serves (View still peeks
+      // the journal; B inside the host = defer-to-board / cancel, handled there).
+      if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         if (intent.kind === 'press' && intent.button === 'view') {
           journalState.open = !journalState.open;
           return true;
@@ -1092,7 +1227,11 @@ export default defineComponent({
         if (intent.button === 'confirm') {
           this.activateSheetRow(this.sheetRows[this.consoleState.sheetIndex]);
         } else if (intent.button === 'back') {
-          // B: back to the board — the console home screen.
+          // B: back to the board. Closing a MANDATORY task's own sheet
+          // (the std-project prompt) defers it — the amber chip returns it.
+          if (this.consoleState.sheet === 'standardProjects') {
+            this.deferShellTask();
+          }
           this.consoleState.sheet = undefined;
           this.consoleState.section = 'board';
         }
@@ -1134,6 +1273,7 @@ export default defineComponent({
         // RT: the action wheel — ONLY from the board home (§6.1); elsewhere
         // it keeps its local jump semantics.
         if (onBoard && !this.placementActive) {
+          this.deferShellTask(); // the wheel is navigation-away
           this.consoleState.wheelOpen = true;
           this.consoleState.wheelIndex = 0; // Cards = the A default
           this.consoleState.sheet = undefined;
@@ -1165,9 +1305,9 @@ export default defineComponent({
       }
       if (this.consoleState.section === 'colonies') {
         if (dir === 'left' || dir === 'up') {
-          this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, -1, this.game.colonies.length);
+          this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, -1, this.coloniesForRail.length);
         } else {
-          this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 1, this.game.colonies.length);
+          this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 1, this.coloniesForRail.length);
         }
         return;
       }
@@ -1205,6 +1345,23 @@ export default defineComponent({
         return;
       }
       if (this.consoleState.section === 'colonies') {
+        // T4: a server SelectColony pick outranks the trade flow.
+        const pick = this.colonyPick;
+        if (pick !== undefined) {
+          const selected = this.coloniesForRail[this.consoleState.colonyIndex];
+          if (selected === undefined) {
+            return;
+          }
+          if (!pick.selectable.includes(selected.name)) {
+            const reason = pick.reasons[selected.name];
+            this.showNotice(reason !== undefined && reason !== '' ? reason : 'Unavailable right now');
+            return;
+          }
+          closeConsoleLayers();
+          this.consoleState.task.deferred = false;
+          this.submit(colonyResponse(selected.name));
+          return;
+        }
         this.tryOpenColonyTrade();
         return;
       }
@@ -1232,13 +1389,29 @@ export default defineComponent({
     /** B: one calm step toward the console home (never destructive). */
     handleSectionBack(): void {
       // A DEFERRED task comes back first — B toggles task ↔ board-inspect.
-      if (this.activeConsoleTask !== undefined && this.consoleState.task.deferred) {
+      if ((this.hostTask !== undefined || this.shellTask !== undefined || this.startTask !== undefined) && this.consoleState.task.deferred) {
         this.consoleState.task.deferred = false;
+        // A shell-section task re-opens its serving surface (the start
+        // scene and the host re-render via their own v-if).
+        if (this.hostTask === undefined && this.startTask === undefined && this.shellTask !== undefined) {
+          this.openShellTaskSurface(this.shellTask);
+        }
         return;
       }
       if (this.consoleState.sale.active) {
         this.consoleState.sale.active = false;
         this.consoleState.sale.selected = [];
+        this.consoleState.section = 'board';
+        return;
+      }
+      // B on a shell-task surface: CANCEL when the server marker allows
+      // (pay-on-commit Build Colony), else DEFER to inspect the board.
+      if (this.shellTaskActive) {
+        if (this.shellTask?.kind === 'colony' && this.colonyCancellable) {
+          this.submit(cancelResponse());
+          return;
+        }
+        this.deferShellTask();
         this.consoleState.section = 'board';
         return;
       }
@@ -1282,7 +1455,7 @@ export default defineComponent({
         break;
       case 'colonies':
         this.consoleState.section = 'colonies';
-        this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.game.colonies.length);
+        this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
         break;
       case 'hydro':
         resetHydroPlan();
@@ -1291,6 +1464,12 @@ export default defineComponent({
       }
     },
     openSheet(sheet: ConsoleSheetId): void {
+      // Opening anything that is NOT the task's own surface defers the task.
+      const isTaskSurface = sheet === 'standardProjects' &&
+        this.shellTask?.kind === 'projectCard' && this.shellTask.mode === 'standardProject';
+      if (!isTaskSurface) {
+        this.deferShellTask();
+      }
       this.consoleState.wheelOpen = false;
       this.consoleState.sheet = sheet;
       void this.$nextTick(() => {
@@ -1311,6 +1490,9 @@ export default defineComponent({
       switch (this.consoleState.sheet) {
       case 'basics':
         this.activateBasicsRow(row.key);
+        break;
+      case 'standardProjects':
+        this.useStandardProject(row.key as CardName);
         break;
       case 'cardActions': {
         const perform = findPerformActionCard(this.playerView.waitingFor);
@@ -1426,17 +1608,18 @@ export default defineComponent({
       this.showNotice('This card needs desktop mode for now');
     },
     useStandardProject(cardName: CardName): void {
-      const action = findStandardProjectsAction(this.playerView.waitingFor);
+      const action = this.standardProjectsAction;
       const card = action?.input.cards.find((c) => c.name === cardName);
       if (action === undefined || card === undefined || card.isDisabled === true) {
         return;
       }
       const cost = card.calculatedCost ?? 0;
       if (hasUsableStandardProjectAlternativeResources(this.thisPlayer, card, action.input.paymentOptions ?? {})) {
+        // T3: the alt-resource payment is hosted NATIVELY by the task host
+        // (promptOverride) — B cancels back to the sheet, nothing committed.
         const title = standardProjectPaymentTitle(cardName);
-        this.pendingStdProjectPayment = {
+        this.pendingClientPayment = {
           cardName,
-          title,
           input: buildStandardProjectPaymentModel(this.playerView, action.input, card, title, cost),
         };
         closeConsoleLayers();
@@ -1445,16 +1628,8 @@ export default defineComponent({
       closeConsoleLayers();
       this.submitStandardProjectPayment(cardName, Payment.of({megacredits: cost}));
     },
-    onStdProjectPaymentConfirm(payment: Payment): void {
-      if (this.pendingStdProjectPayment === undefined) {
-        return;
-      }
-      const cardName = this.pendingStdProjectPayment.cardName;
-      this.pendingStdProjectPayment = undefined;
-      this.submitStandardProjectPayment(cardName, payment);
-    },
     submitStandardProjectPayment(cardName: CardName, payment: Payment): void {
-      const action = findStandardProjectsAction(this.playerView.waitingFor);
+      const action = this.standardProjectsAction;
       if (action === undefined) {
         return;
       }
@@ -1566,11 +1741,64 @@ export default defineComponent({
       const wfRef = this.$refs.waitingFor as {onPlacementCancel?: () => void} | undefined;
       wfRef?.onPlacementCancel?.();
     },
-    // ── CTS task host (T1) ───────────────────────────────────────────────
+    // ── CTS task host (T1–T3) ────────────────────────────────────────────
     onTaskSubmit(response: unknown): void {
+      // The CLIENT payment resolves into the std-project response (T3).
+      if (this.pendingClientPayment !== undefined) {
+        const cardName = this.pendingClientPayment.cardName;
+        this.pendingClientPayment = undefined;
+        const payment = (response as {payment?: Payment}).payment;
+        if (payment !== undefined) {
+          this.submitStandardProjectPayment(cardName, payment);
+        }
+        return;
+      }
       closeConsoleLayers();
       this.consoleState.task.deferred = false;
       this.submit(response);
+    },
+    /** B in the host: defer a SERVER task; CANCEL a client payment. */
+    onTaskDefer(): void {
+      if (this.pendingClientPayment !== undefined) {
+        // Nothing committed — back to the sheet the payment came from.
+        this.pendingClientPayment = undefined;
+        const task = this.shellTask;
+        if (task?.kind === 'projectCard' && task.mode === 'standardProject') {
+          this.openShellTaskSurface(task);
+        }
+        return;
+      }
+      this.consoleState.task.deferred = true;
+    },
+    // ── shell-section tasks (T3 projectCard / T4 colony) ─────────────────
+    /** Open (or re-open after un-defer) the section that serves the task. */
+    openShellTaskSurface(task: ConsoleTask): void {
+      closeConsoleLayers();
+      if (task.kind === 'colony') {
+        this.consoleState.section = 'colonies';
+        // Land on the first PICKABLE tile so A is meaningful immediately.
+        const pick = this.colonyPick;
+        const rail = this.coloniesForRail;
+        const first = pick !== undefined ? rail.findIndex((c) => pick.selectable.includes(c.name)) : -1;
+        this.consoleState.colonyIndex = first !== -1 ? first : 0;
+        return;
+      }
+      if (task.kind === 'projectCard') {
+        if (task.mode === 'playFromHand') {
+          this.consoleState.section = 'hand';
+          const firstPlayable = this.handEntries.findIndex((e) => e.playable);
+          this.consoleState.handIndex = firstPlayable !== -1 ? firstPlayable : 0;
+        } else {
+          this.consoleState.section = 'board';
+          this.openSheet('standardProjects');
+        }
+      }
+    },
+    /** Navigating away from a shell task's surface DEFERS it (amber chip). */
+    deferShellTask(): void {
+      if (this.shellTask !== undefined && !this.consoleState.task.deferred) {
+        this.consoleState.task.deferred = true;
+      }
     },
     onTaskSpacePick(payload: {index: number, spacePrompt: PlayerInputModel}): void {
       this.taskSpacePending = payload;

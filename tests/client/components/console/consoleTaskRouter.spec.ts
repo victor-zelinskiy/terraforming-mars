@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {taskFor, taskServedByHost, isNativelyHandled, NATIVE_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
+import {taskFor, taskServedByHost, isNativelyHandled, NATIVE_KINDS, SHELL_SECTION_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /* Synthetic playerViews — only the fields the router reads. */
@@ -67,9 +67,12 @@ const ALL_INPUT_TYPES = [
 
 /** The CURRENT red list — shrink it phase by phase (CTS-6). */
 const EXPECTED_RED: ReadonlyArray<TaskKind> = [
-  // T1 landed: choice / player / amount / resource / distribute are native.
-  'payment', 'cardSelect', 'projectCard', 'colony', 'composite',
-  'initialDraft', 'startSequence', 'aresGlobal', 'unknown',
+  // T1: choice / player / amount / resource / distribute are native.
+  // T2: cardSelect (draft / buy / select / target) is native.
+  // T3: payment (native lanes) + projectCard (hand / std-project sections).
+  // T4: colony (colonies rail pick mode).
+  // T5: initialDraft (the start-scene wizard) + startSequence (the ceremony).
+  'composite', 'aresGlobal', 'unknown',
 ];
 
 describe('consoleTaskRouter (CTS-2 coverage)', () => {
@@ -100,7 +103,8 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
       {type: 'option', title: 'a'}, {type: 'space', title: 'ocean', spaces: []},
     ]});
     expect(taskServedByHost(leafOr)?.kind).to.eq('choice');
-    // An option nesting a PAYMENT is NOT served until T3 → desktop modal stays.
+    // An option nesting a PAYMENT inside an OrOptions is still NOT
+    // pre-collectable by the host → desktop modal stays (the honest carve-out).
     const nested = view({type: 'or', title: 'Pick', options: [
       {type: 'option', title: 'a'}, {type: 'payment', title: 'pay'},
     ]});
@@ -111,9 +115,22 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     expect(taskServedByHost(view({type: 'amount', title: 'n', min: 0, max: 5}))?.kind).to.eq('amount');
     expect(taskServedByHost(view({type: 'resource', title: 'r', include: []}))?.kind).to.eq('resource');
     expect(taskServedByHost(view({type: 'resources', title: 'd', count: 2}))?.kind).to.eq('distribute');
-    // Kinds outside T1 are not host-served.
-    expect(taskServedByHost(view({type: 'payment', title: 'pay'}))).to.eq(undefined);
-    expect(taskServedByHost(view({type: 'card', title: 'keep', buttonLabel: 'Keep', cards: []}))).to.eq(undefined);
+    // T3: a TOP-LEVEL payment is host-served (native lanes).
+    expect(taskServedByHost(view({type: 'payment', title: 'pay'}))?.kind).to.eq('payment');
+    // T2: every card-select mode is host-served (the card browser).
+    expect(taskServedByHost(view({type: 'card', title: 'keep', buttonLabel: 'Keep', cards: []}))?.kind).to.eq('cardSelect');
+    expect(taskServedByHost(view({type: 'card', title: 'Select cards to buy', buttonLabel: 'Buy', cards: []}))?.kind).to.eq('cardSelect');
+    // T3/T4: projectCard + colony are SHELL-SECTION tasks, NOT host tasks.
+    expect(taskServedByHost(view({type: 'projectCard', title: 'p', cards: []}))).to.eq(undefined);
+    expect(taskServedByHost(view({type: 'colony', title: 'c', coloniesModel: []}))).to.eq(undefined);
+  });
+
+  it('SHELL_SECTION_KINDS are native (served by sections, not the host)', () => {
+    for (const kind of SHELL_SECTION_KINDS) {
+      expect(NATIVE_KINDS.has(kind), `section kind "${kind}" must be native`).to.eq(true);
+      // …but never claimed by the task host (the shell owns the surface).
+      expect(kind === 'projectCard' || kind === 'colony').to.eq(true);
+    }
   });
 
   it('a start-game MARKER outranks the raw input type (structural rule)', () => {

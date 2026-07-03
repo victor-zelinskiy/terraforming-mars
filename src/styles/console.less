@@ -1634,6 +1634,29 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
         &--inactive {
             filter: saturate(0.55) brightness(0.8);
         }
+        /* T4 pick mode: an unpickable colony stays VISIBLE with its reason. */
+        &--pick-disabled {
+            opacity: 0.6;
+            filter: grayscale(0.45) brightness(0.85);
+        }
+    }
+    &__slot-reason {
+        position: absolute;
+        left: 50%;
+        bottom: -14px;
+        transform: translateX(-50%);
+        padding: 4px 12px;
+        border-radius: 999px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-red, 55%), 0 4px 14px rgba(0, 0, 0, 0.5);
+        color: #ffc9c4;
+        font-size: 14px;
+        font-weight: 700;
+        white-space: nowrap;
+        max-width: 240px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        z-index: 3;
     }
     &__slot-a {
         position: absolute;
@@ -2055,6 +2078,98 @@ html.console-mode {
     &__lane-max { font-size: 18px; color: @con-text-dim; }
     &__lane-keys { margin-left: auto; display: inline-flex; gap: 6px; }
 
+    /* ── Payment lanes (T3) ─────────────────────────────────────────── */
+    &__lane-rate {
+        font-size: 17px;
+        font-weight: 700;
+        color: fade(@con-cyan, 85%);
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 35%);
+    }
+    &__lane-reserved {
+        font-size: 15px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: @con-amber;
+        padding: 2px 8px;
+        border-radius: 999px;
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 55%);
+    }
+    &__lane--auto {
+        background: rgba(14, 22, 33, 0.35);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.1);
+    }
+    &__lane-auto-tag {
+        margin-left: auto;
+        font-size: 15px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__pay-short {
+        margin-top: 6px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: fade(@con-amber, 10%);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
+        color: #ffe3b0;
+        font-size: 18px;
+        text-align: center;
+    }
+
+    /* ── Header pick/pay readouts (T2/T3) ──────────────────────────── */
+    &__pickline {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+    }
+    &__pickcount,
+    &__paycost {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 16px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 50%);
+        font-size: 19px;
+        color: @con-text-dim;
+        b { color: @con-amber; font-size: 22px; }
+    }
+    &__pickcount--ready {
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 65%), 0 0 14px fade(@con-mint, 14%);
+        b { color: @con-mint; }
+    }
+    &__paycost {
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%);
+        b { color: @con-text; }
+    }
+    &__pickbuy {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 19px;
+        font-weight: 700;
+        color: @con-text;
+
+        &--over { color: @con-red; }
+    }
+    &__pickbuy-left {
+        font-weight: 400;
+        font-size: 17px;
+        color: @con-text-dim;
+    }
+
+    /* ── Card browser (T2): wide frame modifier ─────────────────────── */
+    &--wide {
+        width: min(1560px, 94vw);
+        max-height: 92vh;
+    }
+
     &__foot {
         display: flex;
         justify-content: center;
@@ -2073,6 +2188,534 @@ html.console-mode {
 
         &--off { opacity: 0.42; }
     }
+}
+
+/* ── Shared card inspector + filmstrip (T2 browser · T5 start scene) ──
+   Standalone family so BOTH the task host and the start scene render
+   cards identically (one visual language, zero divergence). */
+.con-cards {
+    display: flex;
+    gap: 22px;
+    min-height: 0;
+    align-items: stretch;
+
+    &__big {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        zoom: 1.16;
+        > .card-container { margin: 0; }
+    }
+    &__verdict {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 14px;
+        border-radius: 999px;
+        font-size: 16px;
+        font-weight: 700;
+
+        &--ok {
+            background: fade(@con-cyan, 12%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 60%);
+            color: @con-text;
+        }
+        &--picked {
+            background: fade(@con-mint, 12%);
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 70%);
+            color: @con-mint;
+        }
+        &--blocked {
+            background: fade(@con-red, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-red, 55%);
+            color: #ffc9c4;
+            max-width: 320px;
+            text-align: center;
+        }
+    }
+    &__strip {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: flex-start;
+        gap: 18px;
+        overflow-x: auto;
+        padding: 14px 6px 18px;
+        .con-scrollbars();
+    }
+    &__slot {
+        position: relative;
+        flex-shrink: 0;
+        border-radius: 12px;
+        transition: transform calc(160ms * var(--motion-scale, 1)) ease, box-shadow calc(160ms * var(--motion-scale, 1)) ease;
+        > .card-container { margin: 0; }
+
+        &--focused {
+            transform: translateY(-6px);
+            box-shadow: 0 0 0 2px fade(@con-cyan, 85%), 0 0 26px fade(@con-cyan, 25%);
+        }
+        &--picked {
+            box-shadow: 0 0 0 2px fade(@con-mint, 85%), 0 0 22px fade(@con-mint, 22%);
+        }
+        &--focused&--picked {
+            box-shadow: 0 0 0 2px fade(@con-mint, 90%), 0 0 0 4px fade(@con-cyan, 55%), 0 0 26px fade(@con-mint, 25%);
+        }
+        &--disabled {
+            opacity: 0.55;
+            filter: grayscale(0.5) brightness(0.85);
+        }
+    }
+    &__cost {
+        position: absolute;
+        top: -10px;
+        left: -8px;
+        z-index: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 10px;
+        border-radius: 999px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 60%), 0 4px 12px rgba(0, 0, 0, 0.5);
+        font-size: 17px;
+        font-weight: 700;
+        color: #ffe3b0;
+
+        .resource_icon {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain !important;
+        }
+    }
+    &__tick {
+        position: absolute;
+        top: -10px;
+        right: -8px;
+        z-index: 2;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: fade(@con-mint, 25%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 85%), 0 4px 12px rgba(0, 0, 0, 0.5);
+        color: @con-mint;
+        font-size: 18px;
+        font-weight: 700;
+    }
+    &__reason {
+        position: absolute;
+        left: 6px;
+        right: 6px;
+        bottom: 6px;
+        z-index: 2;
+        padding: 4px 8px;
+        border-radius: 8px;
+        background: rgba(4, 8, 14, 0.88);
+        box-shadow: inset 0 0 0 1px fade(@con-red, 50%);
+        color: #ffc9c4;
+        font-size: 15px;
+        line-height: 1.3;
+        text-align: center;
+    }
+}
+
+/* ── START SCENE (CTS T5): the game-opening ceremony ──────────────────
+   Full-screen premium scene: hero header + step rail + budget capsule,
+   the shared .con-cards inspector/filmstrip, the corp column and prelude
+   progress rail. Deliberately CINEMATIC but calm: one dealt-in stagger on
+   entry, cross-fades between steps, no looping motion. */
+.con-start {
+    position: fixed;
+    inset: 0;
+    z-index: 11480; /* same layer slot as the task host (never coexist) */
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    font-family: @con-font;
+    color: @con-text;
+
+    &__bg {
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(ellipse at 50% -10%, fade(@con-cyan, 9%), transparent 55%),
+            radial-gradient(ellipse at 50% 115%, rgba(160, 80, 40, 0.10), transparent 60%),
+            rgba(4, 8, 14, 0.90);
+        backdrop-filter: blur(4px);
+
+        /* A faint iso-tech grid (the start-game-flow visual signature). */
+        &::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                repeating-linear-gradient(60deg, fade(@con-cyan, 3%) 0 1px, transparent 1px 56px),
+                repeating-linear-gradient(-60deg, fade(@con-cyan, 3%) 0 1px, transparent 1px 56px);
+            pointer-events: none;
+        }
+    }
+
+    &__frame {
+        position: relative;
+        width: min(1680px, 96vw);
+        display: flex;
+        flex-direction: column;
+        padding: 26px 34px 14px;
+        min-height: 0;
+    }
+
+    /* ── Header ────────────────────────────────────────────────────── */
+    &__head { margin-bottom: 12px; }
+    &__kicker {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 16px;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 90%);
+    }
+    &__kicker-mark { color: @con-cyan; }
+    &__kicker-gen {
+        margin-left: auto;
+        padding: 2px 12px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%);
+        font-size: 14px;
+        letter-spacing: 2px;
+        color: @con-text-dim;
+    }
+    &__title {
+        font-size: 30px;
+        font-weight: 700;
+        line-height: 1.25;
+        margin-top: 6px;
+        text-shadow: 0 0 24px fade(@con-cyan, 18%);
+    }
+
+    /* Step rail + budget capsule. */
+    &__railrow {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+    }
+    &__steps {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    &__step {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 14px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
+        font-size: 15px;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        transition: all calc(180ms * var(--motion-scale, 1)) ease;
+
+        &--active {
+            background: fade(@con-cyan, 12%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 75%), 0 0 16px fade(@con-cyan, 16%);
+            color: @con-text;
+        }
+        &--done {
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 45%);
+            color: fade(@con-mint, 85%);
+        }
+    }
+    &__step-num {
+        font-size: 13px;
+        font-weight: 700;
+        color: fade(@con-cyan, 80%);
+
+        .con-start__step--done & { color: @con-mint; }
+    }
+    &__budget {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        padding: 6px 16px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
+        font-size: 17px;
+        color: @con-text-dim;
+        b { color: @con-text; font-size: 19px; }
+
+        &--broke {
+            box-shadow: inset 0 0 0 1px fade(@con-red, 65%), 0 0 14px fade(@con-red, 14%);
+            .con-start__budget-item--strong b { color: @con-red; }
+        }
+    }
+    &__budget-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+
+        &--strong b { color: @con-mint; }
+    }
+    &__mc {
+        display: inline-block;
+        width: 22px;
+        height: 22px;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__pickline { margin-top: 10px; }
+    &__count {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 16px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 50%);
+        font-size: 19px;
+        color: @con-text-dim;
+        b { color: @con-amber; font-size: 22px; }
+
+        &--ready {
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 65%), 0 0 14px fade(@con-mint, 14%);
+            b { color: @con-mint; }
+        }
+    }
+
+    /* ── Body ──────────────────────────────────────────────────────── */
+    &__body {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding-right: 6px;
+        .con-scrollbars();
+    }
+    &__section-title {
+        font-size: 15px;
+        letter-spacing: 2.2px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        margin: 4px 0 10px;
+
+        &--act { color: fade(@con-cyan, 90%); }
+    }
+
+    /* Summary. */
+    &__summary {
+        display: flex;
+        gap: 30px;
+        align-items: flex-start;
+    }
+    &__summary-corp {
+        flex-shrink: 0;
+        zoom: 1.1;
+        > .card-container { margin: 0; }
+    }
+    &__summary-rest {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    &__summary-block { min-width: 0; }
+    &__minirow {
+        display: flex;
+        gap: 14px;
+        overflow-x: auto;
+        padding: 4px 2px 8px;
+        .con-scrollbars();
+
+        &--wrap { flex-wrap: wrap; overflow: visible; }
+    }
+    &__mini {
+        flex-shrink: 0;
+        zoom: 0.72;
+        > .card-container { margin: 0; }
+    }
+    &__none {
+        font-size: 18px;
+        color: @con-text-dim;
+    }
+    &__money {
+        max-width: 460px;
+        padding: 12px 18px;
+        border-radius: 12px;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 35%);
+    }
+    &__money-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        font-size: 18px;
+        color: @con-text-dim;
+        padding: 3px 0;
+        b { color: @con-text; }
+
+        &--total {
+            margin-top: 6px;
+            padding-top: 8px;
+            border-top: 1px solid fade(@con-cyan, 20%);
+            font-size: 20px;
+            b { color: @con-mint; font-size: 24px; }
+        }
+    }
+    &__skipwarn {
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: fade(@con-amber, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 60%);
+        color: #ffe3b0;
+        font-size: 19px;
+        font-weight: 700;
+    }
+
+    /* Ceremony. */
+    &__ceremony {
+        display: flex;
+        gap: 30px;
+        align-items: flex-start;
+    }
+    &__corps {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    &__corp {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border-radius: 14px;
+        zoom: 0.92;
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
+        > .card-container { margin: 0; }
+
+        &--ready {
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 35%);
+        }
+        &--focused {
+            box-shadow: 0 0 0 2px fade(@con-cyan, 85%), 0 0 26px fade(@con-cyan, 25%);
+        }
+    }
+    &__verdict-dim {
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.2);
+        color: @con-text-dim;
+    }
+    &__right {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+    }
+    &__prelude-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+    }
+    &__prelude {
+        position: relative;
+        border-radius: 12px;
+        zoom: 0.86;
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, transform calc(160ms * var(--motion-scale, 1)) ease;
+        > .card-container { margin: 0; }
+
+        &--played {
+            box-shadow: 0 0 0 2px fade(@con-mint, 55%);
+            filter: saturate(0.85);
+        }
+        &--playable {
+            box-shadow: 0 0 0 2px fade(@con-cyan, 45%), 0 0 18px fade(@con-cyan, 12%);
+        }
+        &--awaiting {
+            opacity: 0.6;
+            filter: saturate(0.6) brightness(0.85);
+        }
+        &--focused {
+            transform: translateY(-4px);
+            box-shadow: 0 0 0 2px fade(@con-cyan, 90%), 0 0 26px fade(@con-cyan, 28%);
+        }
+    }
+    &__slot-a {
+        position: absolute;
+        left: 50%;
+        bottom: -14px;
+        transform: translateX(-50%);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 14px;
+        border-radius: 999px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 65%), 0 4px 14px rgba(0, 0, 0, 0.5);
+        color: @con-mint;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        white-space: nowrap;
+        z-index: 3;
+    }
+    &__cands { min-width: 0; }
+
+    /* The dealt-in stagger (entry only; delay via inline style).
+       `backwards` (NOT `both`): a forwards fill would pin the final
+       keyframe's transform forever and kill the --focused lift. */
+    &__deal {
+        animation: con-start-deal calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    }
+
+    /* ── Footer ────────────────────────────────────────────────────── */
+    &__foot {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 24px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid fade(@con-cyan, 18%);
+    }
+    &__foot-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: @con-text-dim;
+        font-size: 18px;
+
+        &--off { opacity: 0.42; }
+    }
+}
+
+@keyframes con-start-deal {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-start__deal { animation: none; }
+    .con-start__step { transition: none; }
 }
 
 /* Prompt→prompt cross-fade (CTS-3.9). */

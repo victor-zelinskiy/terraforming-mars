@@ -7,6 +7,9 @@
 
 import {Units} from '@/common/Units';
 import {Color} from '@/common/Color';
+import {Payment} from '@/common/inputs/Payment';
+import {CardName} from '@/common/cards/CardName';
+import {ColonyName} from '@/common/colonies/ColonyName';
 
 export function emptyUnits(): Units {
   return {megacredits: 0, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0};
@@ -62,4 +65,28 @@ export function resourcesResponse(partial: Partial<Record<keyof Units, number>>)
 
 export function productionToLoseResponse(partial: Partial<Record<keyof Units, number>>): {type: 'productionToLose', units: Units} {
   return {type: 'productionToLose', units: unitsFrom(partial)};
+}
+
+/** A SelectCard answer — the picked names, in pick order (T2). */
+export function cardsResponse(cards: ReadonlyArray<CardName>): {type: 'card', cards: ReadonlyArray<CardName>} {
+  return {type: 'card', cards: [...cards]};
+}
+
+/** A SelectPayment answer (T3) — the dialed-in resource mix. */
+export function paymentResponse(payment: Payment): {type: 'payment', payment: Payment} {
+  return {type: 'payment', payment};
+}
+
+/** A SelectColony answer (T4). */
+export function colonyResponse(colonyName: ColonyName): {type: 'colony', colonyName: ColonyName} {
+  return {type: 'colony', colonyName};
+}
+
+/**
+ * The pay-on-commit CANCEL (SelectSpace / SelectColony with a server
+ * `placementContext.cancellable` marker) — byte-identical to the desktop
+ * PlacementBanner / ColoniesOverlay cancel path.
+ */
+export function cancelResponse(): {type: 'cancel'} {
+  return {type: 'cancel'};
 }
