@@ -213,7 +213,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
-  app.setAppUserModelId('com.vize1215.terraforming-mars');
+  app.setAppUserModelId('io.github.victor-zelinskiy.terraforming-mars');
 
   void app.whenReady().then(() => {
     if (APP_LOAD) {

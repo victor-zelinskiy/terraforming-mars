@@ -109,6 +109,7 @@
     "electron:desktop": "npm run build:desktop && cross-env TM_ELECTRON_LOAD=app electron build/electron/main.js",
     "electron:pack:dir": "npm run build:desktop && rimraf ./dist-desktop/ && electron-builder --dir --config electron-builder.yml",
     "dist:win": "npm run build:desktop && rimraf ./dist-desktop/ && electron-builder --win --config electron-builder.yml",
+    "dist:win:publish": "npm run build:desktop && rimraf ./dist-desktop/ && electron-builder --win --config electron-builder.yml --publish always",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
@@ -117,12 +118,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/terraforming-mars/terraforming-mars.git"
+    "url": "git+https://github.com/victor-zelinskiy/terraforming-mars.git"
   },
-  "author": "",
+  "author": "Victor Zelinskiy",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/terraforming-mars/terraforming-mars/issues"
+    "url": "https://github.com/victor-zelinskiy/terraforming-mars/issues"
   },
-  "homepage": "https://github.com/terraforming-mars/terraforming-mars#readme"
+  "homepage": "https://github.com/victor-zelinskiy/terraforming-mars#readme"
 }
