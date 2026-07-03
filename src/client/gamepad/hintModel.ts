@@ -31,9 +31,23 @@ const SCROLL: HintAction = {control: 'stickScroll', label: 'Scroll'};
 export function hintsFor(scopeId: string, focusKind: FocusKind): ReadonlyArray<HintAction> {
   const cardExtra = focusKind === 'card' ? [ZOOM_CARD] : [];
 
+  const SYSTEM: HintAction = {control: 'menu', label: 'System'};
+
   switch (scopeId) {
   case 'dialog':
     return [{control: 'dpadH', label: 'Navigate'}, SELECT, CLOSE];
+  // Lifecycle screens (console full-lifecycle iteration): the shell command
+  // bar isn't mounted here — this bar IS the control surface.
+  case 'mainMenu':
+    return [NAVIGATE, SELECT, SYSTEM];
+  case 'createGame':
+    return [NAVIGATE, SELECT, {control: 'back', label: 'Back'}, SYSTEM];
+  case 'lobby':
+    return [NAVIGATE, {control: 'confirm', label: 'Open'}, SYSTEM];
+  case 'joinPanel':
+    return [NAVIGATE, SELECT, CLOSE];
+  case 'finalReveal':
+    return [SELECT, CLOSE];
   case 'mandatoryModal':
     return [NAVIGATE, SELECT, ...cardExtra, MINIMIZE];
   case 'drawReveal':

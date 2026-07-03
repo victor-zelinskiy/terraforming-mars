@@ -1,10 +1,17 @@
 <template>
   <Teleport to="body">
     <GamepadFocusRing />
-    <!-- The iteration-1 hint bar serves DESKTOP mode only — in console mode
-         the ConsoleCommandBar is the (richer) control surface. -->
-    <GamepadHintBar v-if="!consoleModeState.enabled" />
+    <!-- The iteration-1 hint bar serves desktop gamepad mode AND the console
+         lifecycle screens where the ConsoleShell command bar isn't mounted
+         (main menu / create / join / lobby — fallback-engine-driven). -->
+    <GamepadHintBar v-if="!consoleModeState.enabled || !consoleState.shellMounted" />
     <ConsoleEntryPrompt v-if="consoleModeState.entryPromptVisible && !consoleModeState.enabled" />
+
+    <!-- The console SYSTEM overlay (Menu button): Controls / Exit to menu. -->
+    <ConsoleSystemMenu v-if="systemMenuOpen && consoleModeState.enabled"
+                       :index="systemMenuIndex"
+                       :confirmExit="systemMenuConfirmExit"
+                       :inGame="screen === 'player-home'" />
 
     <!-- Controller mapping legend (Menu button). Its OWN mini-scope: while
          open the layer swallows every intent except close (Menu/B). -->
@@ -66,8 +73,9 @@ import GamepadFocusRing from '@/client/components/gamepad/GamepadFocusRing.vue';
 import GamepadHintBar from '@/client/components/gamepad/GamepadHintBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleEntryPrompt from '@/client/components/console/ConsoleEntryPrompt.vue';
+import ConsoleSystemMenu, {SYSTEM_MENU_ITEMS} from '@/client/components/console/ConsoleSystemMenu.vue';
 import {consoleModeState, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
-import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
+import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
 
 const FOCUS_TICK_MS = 400;
 /** Holding Menu this long toggles console ↔ desktop mode. */
@@ -106,13 +114,21 @@ const CONSOLE_LEGEND_ROWS: ReadonlyArray<LegendRow> = [
 
 export default defineComponent({
   name: 'GamepadLayer',
-  components: {GamepadFocusRing, GamepadHintBar, GamepadGlyph, ConsoleEntryPrompt},
+  components: {GamepadFocusRing, GamepadHintBar, GamepadGlyph, ConsoleEntryPrompt, ConsoleSystemMenu},
+  props: {
+    /** The App screen — drives lifecycle context (system menu labels, hints). */
+    screen: {type: String, default: ''},
+  },
   data() {
     return {
       inputModeState,
       gamepadCoreState,
       focusState,
       consoleModeState,
+      consoleState,
+      systemMenuOpen: false,
+      systemMenuIndex: 0,
+      systemMenuConfirmExit: false,
       legendOpen: false,
       toast: '',
       toastTimer: undefined as number | undefined,
@@ -140,6 +156,16 @@ export default defineComponent({
       // Connect/disconnect toast — the W3C lifecycle made visible.
       this.showToast(this.$t(now > before ? 'Controller connected' : 'Controller disconnected'));
     },
+    // Console-mode presentation class — owned HERE (the layer lives on every
+    // lifecycle screen), so menu/create/lobby get the console styling too.
+    'consoleModeState.enabled': {
+      immediate: true,
+      handler(on: boolean) {
+        if (typeof document !== 'undefined') {
+          document.documentElement.classList.toggle('console-mode', on);
+        }
+      },
+    },
   },
   methods: {
     onIntent(intent: GamepadIntent): void {
@@ -149,8 +175,8 @@ export default defineComponent({
           intent.kind === 'nav' ? `nav:${intent.dir}${intent.repeat ? ' (r)' : ''}` : 'scroll';
         this.intentLog = [line, ...this.intentLog].slice(0, 5);
       }
-      // Menu = short press → legend; HOLD (≥650ms) → toggle console ↔
-      // desktop shell (the consented, symmetric mode switch).
+      // Menu = short press → the SYSTEM overlay (console) / legend (desktop);
+      // HOLD (≥650ms) → toggle console ↔ desktop shell.
       if (intent.kind === 'press' && intent.button === 'menu') {
         this.menuPressedAt = Date.now();
         return;
@@ -160,10 +186,15 @@ export default defineComponent({
         this.menuPressedAt = undefined;
         if (held >= MENU_HOLD_MS) {
           this.legendOpen = false;
+          this.closeSystemMenu();
           clearGamepadFocus();
           setConsoleMode(!this.consoleModeState.enabled);
+        } else if (this.legendOpen) {
+          this.legendOpen = false;
+        } else if (this.consoleModeState.enabled) {
+          this.systemMenuOpen ? this.closeSystemMenu() : this.openSystemMenu();
         } else {
-          this.legendOpen = !this.legendOpen;
+          this.legendOpen = true;
         }
         return;
       }
@@ -172,6 +203,11 @@ export default defineComponent({
         if (intent.kind === 'press' && (intent.button === 'back' || intent.button === 'confirm')) {
           this.legendOpen = false;
         }
+        return;
+      }
+      // The SYSTEM overlay owns input while open (any lifecycle context).
+      if (this.systemMenuOpen && this.consoleModeState.enabled) {
+        this.handleSystemMenuIntent(intent);
         return;
       }
       // The console-mode entry prompt: A = switch shells, B = stay (desktop).
@@ -196,6 +232,56 @@ export default defineComponent({
         }
       }
       handleGamepadIntent(intent);
+    },
+    // ── System overlay (console lifecycle §4) ─────────────────────────
+    openSystemMenu(): void {
+      this.systemMenuOpen = true;
+      this.systemMenuIndex = 0;
+      this.systemMenuConfirmExit = false;
+    },
+    closeSystemMenu(): void {
+      this.systemMenuOpen = false;
+      this.systemMenuConfirmExit = false;
+    },
+    handleSystemMenuIntent(intent: GamepadIntent): void {
+      if (intent.kind === 'nav') {
+        if (!this.systemMenuConfirmExit && (intent.dir === 'up' || intent.dir === 'down')) {
+          this.systemMenuIndex = stepIndex(this.systemMenuIndex, intent.dir === 'down' ? 1 : -1, SYSTEM_MENU_ITEMS.length);
+        }
+        return;
+      }
+      if (intent.kind !== 'press') {
+        return;
+      }
+      if (this.systemMenuConfirmExit) {
+        if (intent.button === 'confirm') {
+          // The SAME safe navigation the desktop corner button used — the
+          // game is server-saved and re-enterable from the main menu.
+          window.location.assign('/');
+        } else if (intent.button === 'back') {
+          this.systemMenuConfirmExit = false;
+        }
+        return;
+      }
+      if (intent.button === 'back') {
+        this.closeSystemMenu();
+        return;
+      }
+      if (intent.button === 'confirm') {
+        const item = SYSTEM_MENU_ITEMS[this.systemMenuIndex];
+        switch (item?.id) {
+        case 'controls':
+          this.closeSystemMenu();
+          this.legendOpen = true;
+          break;
+        case 'exit':
+          this.systemMenuConfirmExit = true;
+          break;
+        case 'return':
+          this.closeSystemMenu();
+          break;
+        }
+      }
     },
     onModeChange(mode: InputMode): void {
       if (mode === 'gamepad') {

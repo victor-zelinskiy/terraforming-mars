@@ -51,8 +51,16 @@ describe('hintModel', () => {
   });
 
   it('every scope resolves to a non-empty hint set (the bar is never blank)', () => {
-    for (const scope of ['base', 'placement', 'mandatoryModal', 'dialog', 'drawReveal', 'colonies', 'endgame', 'startGameFlow', 'overlay-effects', 'revealViewer', 'unknown-future-scope']) {
+    for (const scope of ['base', 'placement', 'mandatoryModal', 'dialog', 'drawReveal', 'colonies', 'endgame', 'startGameFlow', 'overlay-effects', 'revealViewer', 'unknown-future-scope', 'mainMenu', 'createGame', 'lobby', 'joinPanel', 'finalReveal']) {
       expect(hintsFor(scope, 'action').length, scope).to.be.greaterThan(0);
     }
+  });
+
+  it('lifecycle screens hint the System menu; create hints Back', () => {
+    expect(controls('mainMenu')).to.include('menu:System');
+    expect(controls('lobby')).to.include('menu:System');
+    const create = controls('createGame');
+    expect(create).to.include('menu:System');
+    expect(create).to.include('back:Back');
   });
 });

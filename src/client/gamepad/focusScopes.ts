@@ -78,6 +78,9 @@ export const SCOPE_DEFS: ReadonlyArray<ScopeDef> = [
   {id: 'resourceDetail', root: '.additional-resource-detail', back: {kind: 'escape'}},
   {id: 'rematchCreated', root: '.rematch-modal--created', back: {kind: 'click', selectors: ['.rematch-modal__min']}},
   {id: 'rematchPrompt', root: '.rematch-modal', back: {kind: 'click', selectors: ['.rematch-modal__min']}},
+  // Lifecycle modals/screens (console full-lifecycle iteration).
+  {id: 'finalReveal', root: '.fsr', back: {kind: 'escape'}},
+  {id: 'joinPanel', root: '.join-panel__card', back: {kind: 'escape'}},
   {id: 'placementDetails', root: '.placement-details', back: {kind: 'click', selectors: ['.placement-details__btn--close']}},
   {id: 'startGameFlow', root: '.start-game-flow', back: {kind: 'click', selectors: ['.start-game-flow__minimize-btn']}},
   {id: 'colonies', root: '.colonies-overlay', back: {kind: 'click', selectors: ['.colonies-overlay__close', '.colonies-overlay__cancel', '.colonies-overlay__minimize']}},
@@ -118,6 +121,13 @@ export const SCOPE_DEFS: ReadonlyArray<ScopeDef> = [
     extraFocusables: ['.board-space'],
     coexistingRoots: [...COEXIST, '.journal-panel'],
   },
+
+  // 7. Lifecycle SCREENS (outside the game shell) — the console full-lifecycle
+  //    iteration: main menu / create game / lobby become pad-drivable via the
+  //    same engine; hints come from hintModel per scope id.
+  {id: 'createGame', root: '.premium-create', back: {kind: 'click', selectors: ['.pc-header__back']}},
+  {id: 'lobby', root: '#game-home', back: {kind: 'none'}},
+  {id: 'mainMenu', root: '.premium-main-menu', back: {kind: 'none'}},
 ];
 
 /** Is this element actually rendered (cheap check, no layout thrash beyond rects)? */

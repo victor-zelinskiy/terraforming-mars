@@ -727,6 +727,38 @@ mounts as a console screen (wheel → Y), driven by the demoted focus engine
 close/B → board. Hints updated everywhere (board: Y базовые · RT действия ·
 LT инфо · LB/RB вехи/награды+badges · View журнал).
 
+**Feedback iteration 4 — SHIPPED (full console lifecycle, first pass).**
+(a) **GamepadLayer mounts on EVERY screen** (`:screen` prop) — the
+controller works from the main menu through endgame; the consented console
+entry prompt is available at the menu. The `console-mode` <html> class is
+now OWNED by GamepadLayer (a `consoleModeState.enabled` watcher), so
+lifecycle screens get console styling too. (b) **System overlay
+(`ConsoleSystemMenu`)** — the Menu button in console mode opens a premium
+system menu from ANY lifecycle context: Управление (the mapping legend),
+Выйти в главное меню (calm confirm → the same safe `location.assign('/')`
+the desktop corner button used; «партия сохранена»), Вернуться. Menu-hold
+still toggles the shell. The desktop «МЕНЮ» corner FAB (`GameExitButton`)
+is hidden in console mode — system actions never sit on the gameplay bar
+(the board bar gained `Menu Система` as the labeled entry). (c) **Lifecycle
+scope defs** (`mainMenu`/`createGame`/`lobby`/`joinPanel`/`finalReveal`) —
+the premium main menu, create-game screen, GameHome lobby, join panel and
+the final-scoring reveal are pad-drivable via the demoted engine with
+per-scope hints (the iteration-1 hint bar now ALSO shows in console mode
+whenever the ConsoleShell command bar isn't mounted —
+`consoleState.shellMounted`). Console TV boost: menu actions ×1.18, join
+panel ×1.12, lobby ×1.3. (d) **Lifecycle-aware fallback naming** — the
+console command bar names the wrapped premium flows («Начало партии» /
+«Итоги партии» / «Карты» / «Колонии») instead of a generic «Ожидает
+решения» (`consoleState.fallbackScopeId`). Endgame minimize is hidden in
+console (its pill would be pad-unreachable; the system menu owns exit).
+
+**Scope calls (honest):** the initial draft / start-game / inter-generation
+draft flows REMAIN the existing premium App-level wizards (already
+step-shaped), driven by the fallback engine with lifecycle-named context —
+a bespoke console re-skin of those wizards + a console-native create-game
+form (the desktop form has text inputs → needs the input-overlay decision)
+are the next iterations. Text entry on pad is out of scope (§14).
+
 **Honest gaps (P2+):** hydro internals are fallback-engine-driven (not yet
 fully console-native); colony BUILD prompts ride the fallback modal;
 Info-Mode extra-resource rows have no per-card zoom yet; sell patents = disabled
