@@ -41,6 +41,11 @@ interface DesktopBridge {
   recheck(): Promise<DesktopUpdateState>;
   quitAndInstall(): Promise<void>;
   openDownload(): Promise<void>;
+  // Console-native pre-game shell (P10) — OPTIONAL: an older installed
+  // shell may predate them; the renderer feature-detects (runtimeMode.ts)
+  // and hides the affordances when absent.
+  quitApp?(): Promise<void>;
+  setFullscreen?(value: boolean): Promise<void>;
 }
 
 declare global {

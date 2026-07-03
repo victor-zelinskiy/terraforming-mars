@@ -17,6 +17,12 @@
       so it sits behind all UI without affecting layout / hitbox.
     -->
     <GameAtmosphere v-if="screen === 'player-home' || screen === 'spectator-home'" />
+    <!-- PREMIUM LOADING SCREEN (P10): covers the deliberate game-boundary
+         reload + the player-view boot fetch, hosts the fullscreen-restore
+         prompt and the error/retry state. Above everything (its own z). -->
+    <transition name="con-layer">
+      <ConsoleLoadingScreen v-if="loadingScreenState.active" />
+    </transition>
     <section>
       <dialog id="alert-dialog" class="alert-dialog">
         <form method="dialog">
@@ -346,7 +352,9 @@ import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
 import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
-import {consoleModeState} from '@/client/console/consoleModeState';
+import {consoleModeState, requestConsoleFullscreen} from '@/client/console/consoleModeState';
+import ConsoleLoadingScreen from '@/client/components/console/ConsoleLoadingScreen.vue';
+import {beginLoading, consumeBootFlags, endLoading, failLoading, loadingScreenState} from '@/client/console/loadingScreenState';
 const ConsoleShell = defineAsyncComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleShell.vue'));
 import TurnHandoffLayer from '@/client/components/overview/TurnHandoffLayer.vue';
 import RevealedCardsModal from '@/client/components/notifications/RevealedCardsModal.vue';
@@ -500,6 +508,7 @@ export default defineComponent({
     NotificationLayer,
     GamepadLayer,
     ConsoleShell,
+    ConsoleLoadingScreen,
     TurnHandoffLayer,
     RevealedCardsModal,
     EffectDetailOverlay,
@@ -510,6 +519,23 @@ export default defineComponent({
     GameAtmosphere,
   },
   watch: {
+    // P10: the loading curtain drops the moment a REAL screen is resolved
+    // (menu screens resolve synchronously; game screens only after the
+    // player view arrived — exactly the gap the curtain must cover). A
+    // failed load keeps the curtain in its error/retry state instead.
+    screen(now: Screen) {
+      if (now !== 'empty' && loadingScreenState.active && loadingScreenState.error === '') {
+        // A fast load can drop the curtain before the player used its
+        // fullscreen-restore prompt — hand the restore to the shared
+        // trusted-gesture retry instead (the next real click/key brings
+        // fullscreen back; on the Xbox browser the pad sends real keys).
+        if (loadingScreenState.fullscreenLost && consoleModeState.enabled) {
+          requestConsoleFullscreen();
+          loadingScreenState.fullscreenLost = false;
+        }
+        endLoading();
+      }
+    },
     // Single point that reconciles the server's reveal list into the
     // module-level drawnCardsState, regardless of WHICH update path replaced
     // playerView (poll App.update, POST-input WaitingFor.updatePlayerView,
@@ -529,6 +555,9 @@ export default defineComponent({
     // the ConsoleShell vs PlayerHome shell split (CONSOLE_MODE_CONCEPT.md).
     consoleModeState() {
       return consoleModeState;
+    },
+    loadingScreenState() {
+      return loadingScreenState;
     },
     // True while a non-dismissed reveal batch exists — drives the App-level
     // reveal modal mount. Goes false the instant the last batch is taken
@@ -781,7 +810,13 @@ export default defineComponent({
           commit();
         })
         .catch((err) => {
-          alert('Error getting game data');
+          // Under the loading curtain the failure becomes the premium
+          // error/retry state (P10) — never a bare browser alert there.
+          if (loadingScreenState.active) {
+            failLoading('Error getting game data');
+          } else {
+            alert('Error getting game data');
+          }
           console.error(err);
         });
     },
@@ -882,6 +917,17 @@ export default defineComponent({
     setDocumentTitle();
     if (!windowHasHTMLDialogElement()) {
       dialogPolyfill.registerDialog(document.getElementById('alert-dialog') as HTMLDialogElement);
+    }
+    // P10: raise the loading curtain BEFORE the first route resolution —
+    // either continuing the previous page's handoff (join / create / exit
+    // navigations set the sessionStorage flags) or covering a direct /
+    // reconnect load of a game page. The player never sees a raw texture.
+    const bootStage = consumeBootFlags();
+    const pathNow = getLastPathSegment();
+    if (bootStage !== undefined) {
+      beginLoading(bootStage);
+    } else if (pathNow === paths.PLAYER || pathNow === paths.SPECTATOR || pathNow === paths.THE_END) {
+      beginLoading('sync');
     }
     this.applyRoute();
     // Browser back/forward re-resolves the screen in-app (no reload) for the

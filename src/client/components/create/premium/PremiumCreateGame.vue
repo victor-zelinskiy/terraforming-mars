@@ -78,6 +78,7 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {paths} from '@/common/app/paths';
+import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
@@ -197,7 +198,8 @@ export default defineComponent({
           throw new Error('create-failed');
         }
         const creator = json.players.find((p) => p.color === creatorColor) ?? json.players[0];
-        window.location.assign(paths.PLAYER + '?id=' + encodeURIComponent(creator.id));
+        // Deliberate reload at the game boundary — covered by the curtain (P10).
+        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(creator.id), 'expedition');
       } catch {
         createGameState.creating = false;
         createGameState.error = 'Could not create the game. Please try again.';

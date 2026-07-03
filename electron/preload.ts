@@ -51,4 +51,8 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   recheck: (): Promise<unknown> => ipcRenderer.invoke('desktop:recheck'),
   quitAndInstall: (): Promise<void> => ipcRenderer.invoke('desktop:quitAndInstall'),
   openDownload: (): Promise<void> => ipcRenderer.invoke('desktop:openDownload'),
+  // Console-native pre-game shell (P10): the ВЫЙТИ confirm + native
+  // fullscreen restore. Thin invoke wrappers — no raw ipcRenderer leaks.
+  quitApp: (): Promise<void> => ipcRenderer.invoke('desktop:quitApp'),
+  setFullscreen: (value: boolean): Promise<void> => ipcRenderer.invoke('desktop:setFullscreen', value === true),
 });
