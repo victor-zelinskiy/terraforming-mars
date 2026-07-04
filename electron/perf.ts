@@ -31,31 +31,42 @@ export function applyPerformanceSwitches(app: App): void {
   };
 
   // ── GPU acceleration ──────────────────────────────────────────────────────
-  // Use the GPU even if the driver is on Chromium's conservative blocklist
-  // (frequent false-positives on Windows OEM / laptop drivers).
-  sw('ignore-gpu-blocklist');
-  // Rasterize paint on the GPU + upload textures zero-copy — directly targets the
-  // Paint / Commit / GPUTask costs the trace flagged.
-  sw('enable-gpu-rasterization');
-  sw('enable-zero-copy');
-  // GPU-accelerate 2D canvas (chart.js endgame chart, any canvas art).
-  sw('enable-accelerated-2d-canvas');
-  // On dual-GPU laptops, request the discrete GPU rather than the integrated one.
-  sw('force_high_performance_gpu');
-
-  // Linux GPU backend (Steam Deck / gamescope). On the Deck, Chromium can't create a NATIVE
-  // GL context and renders in SOFTWARE. It DOES allow GL via ANGLE (gl=egl-angle), so the flag
-  // to try is TM_ELECTRON_GL=angle, plus an ANGLE backend via TM_ELECTRON_ANGLE (vulkan is the
-  // best fit — gamescope is Vulkan-native; else gl / default). Opt-in and DECOUPLED so combos
-  // can be tested from the wrapper without reinstalls. ⚠ TM_ELECTRON_GL=egl (native EGL) is
-  // NOT allowed here — it crash-loops the GPU process; use `angle`.
-  const gl = (process.env.TM_ELECTRON_GL ?? '').trim().toLowerCase();
-  if (gl !== '') {
-    sw('use-gl', gl);
+  // Applied on WINDOWS (the GPU works there), and on Linux ONLY when a GPU-test opt-in is set
+  // (below). The Steam Deck DEFAULT is clean software rendering: measured on-device, under
+  // XWayland Chromium can't create a usable GL/EGL context ("No suitable EGL configs found"),
+  // so forcing the GPU just spawns a process that fails and falls back to software with extra
+  // churn — it made the Deck WORSE, not better. Native Wayland is the only thing that might
+  // actually enable it (opt-in below).
+  const linuxGpuTest = process.platform === 'linux' &&
+    ((process.env.TM_ELECTRON_OZONE ?? '').trim() !== '' ||
+     (process.env.TM_ELECTRON_GL ?? '').trim() !== '');
+  if (process.platform === 'win32' || linuxGpuTest) {
+    sw('ignore-gpu-blocklist');         // use the GPU even if the driver is blocklisted
+    sw('enable-gpu-rasterization');     // rasterize paint on the GPU (Paint/Commit/GPUTask)
+    sw('enable-zero-copy');             // zero-copy texture upload
+    sw('enable-accelerated-2d-canvas'); // GPU-accelerate 2D canvas (endgame chart)
+    sw('force_high_performance_gpu');   // discrete GPU on dual-GPU laptops
   }
-  const angleBackend = (process.env.TM_ELECTRON_ANGLE ?? '').trim().toLowerCase();
-  if (angleBackend !== '') {
-    sw('use-angle', angleBackend);
+
+  // ── Steam Deck GPU experiments (Linux; opt-in, OFF by default) ────────────
+  // The Deck runs under XWayland where EGL config selection fails. Running NATIVELY on Wayland
+  // (gamescope IS Wayland) is the most likely fix — try TM_ELECTRON_OZONE=wayland first.
+  // Optionally add a GL backend: TM_ELECTRON_GL=angle + TM_ELECTRON_ANGLE=vulkan|gl. A wrong
+  // combo just falls back to software (check "gpu_compositing" in the GPU-status log line).
+  if (process.platform === 'linux') {
+    const ozone = (process.env.TM_ELECTRON_OZONE ?? '').trim().toLowerCase();
+    if (ozone !== '') {
+      sw('ozone-platform', ozone);
+      sw('enable-features', 'UseOzonePlatform');
+    }
+    const gl = (process.env.TM_ELECTRON_GL ?? '').trim().toLowerCase();
+    if (gl !== '') {
+      sw('use-gl', gl);
+    }
+    const angleBackend = (process.env.TM_ELECTRON_ANGLE ?? '').trim().toLowerCase();
+    if (angleBackend !== '') {
+      sw('use-angle', angleBackend);
+    }
   }
 
   // ── No renderer throttling (fullscreen game) ─────────────────────────────

@@ -48,12 +48,13 @@ LOG="$HOME/Applications/terraforming-mars-steam.log"
 export TM_RESTART_SUPPORTED=1
 export TM_RESTART_MARKER="$HOME/.cache/terraforming-mars-restart"
 mkdir -p "$(dirname "$TM_RESTART_MARKER")"
-# GPU: the Deck falls back to SOFTWARE rendering. To try hardware acceleration via ANGLE
-# (native EGL is NOT allowed here), uncomment BOTH and relaunch, then check
-# terraforming-mars-steam.log for "gpu_compositing":"enabled" (or "Exiting GPU process" =
-# didn't work → comment back out; software is the safe baseline).
-# export TM_ELECTRON_GL=angle
-# export TM_ELECTRON_ANGLE=vulkan    # gamescope is Vulkan-native; try this first (or: gl)
+# GPU (optional, advanced): the Deck uses SOFTWARE rendering by default — the stable choice
+# for this game (hardware accel under XWayland does NOT init here). If you still want to try
+# it, NATIVE Wayland is the only real shot — uncomment and relaunch, then check
+# terraforming-mars-steam.log for "gpu_compositing":"enabled" (else comment back out).
+# export TM_ELECTRON_OZONE=wayland
+# export TM_ELECTRON_GL=angle          # optional: add if Wayland alone isn't enough
+# export TM_ELECTRON_ANGLE=vulkan      # optional ANGLE backend (or: gl)
 cd "$HOME/Applications" || exit 1
 echo "=== launch: $(date) ===" >> "$LOG"
 while true; do
