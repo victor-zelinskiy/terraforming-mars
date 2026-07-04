@@ -98,7 +98,7 @@
     </transition>
 
     <ConsoleActionWheel v-if="consoleState.wheelOpen" :entries="wheelEntries" :index="consoleState.wheelIndex" />
-    <ConsoleSheet v-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
+    <ConsoleSheet v-if="consoleState.sheet !== undefined" :title="sheetTitle" :subtitle="sheetSubtitle" :wide="sheetWide" :rows="sheetRows" :index="consoleState.sheetIndex" />
 
     <!-- Console confirm panel (pass / risky conversions). -->
     <div v-if="consoleState.confirm !== undefined" class="con-confirm" role="dialog">
@@ -807,6 +807,21 @@ export default defineComponent({
       default: return '';
       }
     },
+    /** P22: milestones/awards go near-fullscreen with a summary line. */
+    sheetWide(): boolean {
+      return this.consoleState.sheet === 'milestones' || this.consoleState.sheet === 'awards';
+    },
+    sheetSubtitle(): string {
+      if (this.consoleState.sheet === 'milestones') {
+        const claimed = this.game.milestones.filter((m) => m.playerName !== undefined && m.playerName !== '').length;
+        return `${translateText('Claimed')}: ${claimed}/3 · 8 M€`;
+      }
+      if (this.consoleState.sheet === 'awards') {
+        const funded = this.game.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
+        return `${translateText('Funded')}: ${funded}/3 · ${this.awardCostText()}`;
+      }
+      return '';
+    },
     sheetRows(): Array<ConsoleSheetRow> {
       switch (this.consoleState.sheet) {
       case 'basics':
@@ -817,6 +832,8 @@ export default defineComponent({
       case 'cardActions':
         return this.cardActionsRows();
       case 'milestones': {
+        // P22: RICH rows — desktop information parity (art plate / rule /
+        // MY progress vs the per-game threshold / rival badges / cost).
         const claimable = this.claimableTitles(findMilestoneOptionPath(this.playerView.waitingFor)?.options);
         return this.game.milestones.map((m) => {
           const claimed = m.playerName !== undefined && m.playerName !== '';
@@ -834,8 +851,15 @@ export default defineComponent({
             sub: description,
             meta: claimed ? undefined : '8 M€',
             available: claimable.has(m.name),
-            reason: claimed ? 'Claimed' : (claimable.has(m.name) ? '' : 'Unavailable right now'),
+            reason: claimed ? '' : (claimable.has(m.name) ? '' : 'Unavailable right now'),
             takenBy: claimed && m.color !== undefined ? {color: m.color, name: m.playerName ?? ''} : undefined,
+            ma: {
+              kind: 'milestone' as const,
+              name: m.name,
+              scores: m.scores,
+              threshold: m.threshold,
+              myColor: this.thisPlayer.color,
+            },
           };
         });
       }
@@ -856,8 +880,14 @@ export default defineComponent({
             sub: description,
             meta: funded ? undefined : costText,
             available: fundable.has(a.name),
-            reason: funded ? 'Funded' : (fundable.has(a.name) ? '' : 'Unavailable right now'),
+            reason: funded ? '' : (fundable.has(a.name) ? '' : 'Unavailable right now'),
             takenBy: funded && a.color !== undefined ? {color: a.color, name: a.playerName ?? ''} : undefined,
+            ma: {
+              kind: 'award' as const,
+              name: a.name,
+              scores: a.scores,
+              myColor: this.thisPlayer.color,
+            },
           };
         });
       }

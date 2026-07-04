@@ -1642,6 +1642,31 @@ the desktop-gamepad mode are untouched throughout.
   RS Scroll — the footer stays compact and contextual.
   Gates: 129 console+gamepad specs, vue-tsc, eslint, make:json
   (+2 ru keys), make:css, build:client — green.
+- **P22 — SHIPPED (premium console-native Milestones / Awards).**
+  The MA sheets stop being cropped text lists and reach DESKTOP
+  INFORMATION PARITY in a console-native composition. **Rich rows**
+  (`ConsoleSheetRow.ma` payload → a dedicated grid branch in
+  `ConsoleSheet`): the ART tile (the SAME `assets/ma/<slug>.png` the
+  desktop overlays bind — recognition 1:1; the legacy `.ma-name--*`
+  sprites are SCOPED to the legacy block and unusable standalone), the
+  NAME, the rule text, **MY progress chip** («4 / 8» vs the per-game
+  `threshold` the server populates; GREEN = claimable now — the
+  server's `claimable` flag / the live option, never a client
+  re-derivation; RED = not yet; awards: amber LEAD chip when I hold the
+  top score), the **rivals' player-coloured score badges** (awards
+  highlight the current leader with a gold rim), the cost chip, the
+  taken state (owner chip + «Получено»/«Спонсировано» label) and the
+  inline Ⓐ on an available row. **Near-fullscreen**: `--wide` panel
+  (min(1520px, 96vw) × 90vh; handheld 96vw × 88vh) — the list owns the
+  vertical; the head is one compact line with a **summary subtitle**
+  («Получено: N/3 · 8 M€» / «Спонсировано: N/3 · <price>»).
+  **Scroll done right**: the rows area is the RS scroll target
+  (`con-info__scroll` — the P17 global right-stick scroll picks it up,
+  chrome-less), d-pad navigation AUTO-SCROLLS the selected row into
+  view, and a sheet/tab switch resets to the top; the foot advertises
+  RS Scroll. Standard-project / basics / card-action sheets keep their
+  existing rows untouched. Gates: 95 console specs, vue-tsc, eslint,
+  make:css, build:client — green.
 
 ---
 
