@@ -24,6 +24,9 @@ export type DesktopUpdateMode =
 export interface DesktopUpdateState {
   mode: DesktopUpdateMode;
   currentVersion: string;
+  /** Runtime platform (from the main process) — drives platform-specific overlay guidance
+   *  such as the Linux/Steam Deck "reopen from Steam" instruction. Mirrors electron/update.ts. */
+  platform?: string;
   latestVersion?: string;
   minSupportedVersion?: string;
   releaseNotes?: Array<string>;

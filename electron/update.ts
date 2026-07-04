@@ -34,6 +34,9 @@ export type DesktopUpdateMode =
 export interface DesktopUpdateState {
   mode: DesktopUpdateMode;
   currentVersion: string;
+  /** Runtime platform (main-process `process.platform`) so the overlay can show
+   *  platform-specific guidance (e.g. the Linux/Steam Deck "reopen from Steam" step). */
+  platform?: string;
   latestVersion?: string;
   minSupportedVersion?: string;
   releaseNotes?: Array<string>;
@@ -42,7 +45,7 @@ export interface DesktopUpdateState {
   downloadUrl?: string;
 }
 
-let state: DesktopUpdateState = {mode: 'idle', currentVersion: app.getVersion()};
+let state: DesktopUpdateState = {mode: 'idle', currentVersion: app.getVersion(), platform: process.platform};
 let win: BrowserWindow | undefined;
 let serverBaseUrl = '';
 
@@ -221,13 +224,38 @@ export function registerUpdateIpc(): void {
   ipcMain.handle('desktop:recheck', () => runCheck().then(() => state));
   ipcMain.handle('desktop:quitAndInstall', () => {
     push({mode: 'installing'});
-    setImmediate(() => {
+    if (process.platform === 'win32') {
+      logUpdate('installing (Windows NSIS) — install + auto-relaunch');
+      setImmediate(() => {
+        try {
+          autoUpdater.quitAndInstall(false, true);
+        } catch (err) {
+          updateOrManual(err);
+        }
+      });
+      return;
+    }
+    // Linux/AppImage (esp. Steam Deck Game Mode): electron-updater's auto-relaunch spawns
+    // the new AppImage DETACHED with EMPTY args — no `--no-sandbox` (SteamOS needs it) and
+    // OUTSIDE gamescope's session, so Steam keeps waiting on a process it can't show
+    // ("infinite loading"). Instead install WITHOUT relaunch — quitAndInstall(true, false)
+    // takes electron-updater's APPIMAGE_EXIT_AFTER_INSTALL path (integrate + exit, no
+    // lingering child) — then quit cleanly. Steam's game session ends → the library
+    // reappears, and the player reopens the game through their launcher (a fresh gamescope
+    // session that DOES pass --no-sandbox). electron-updater preserves the custom AppImage
+    // filename (no version in it), so the wrapper / Steam shortcut still point at it.
+    logUpdate('installing (Linux AppImage) — install WITHOUT relaunch; reopen from Steam');
+    setTimeout(() => {
       try {
-        autoUpdater.quitAndInstall(false, true);
+        autoUpdater.quitAndInstall(true, false);
       } catch (err) {
         updateOrManual(err);
+        return;
       }
-    });
+      // Hang-proof: if app.quit() is ever blocked by a handler, force-exit so the process
+      // can never sit spinning — Steam then cleanly returns to the library.
+      setTimeout(() => app.exit(0), 3000);
+    }, 900);
   });
   ipcMain.handle('desktop:openDownload', () => {
     if (state.downloadUrl !== undefined) {

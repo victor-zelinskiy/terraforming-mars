@@ -25,6 +25,15 @@ import {applyPerformanceSwitches, logGpuStatus} from './perf';
 // module top-level runs well before then. Desktop-only; browser build untouched.
 applyPerformanceSwitches(app);
 
+// Steam Deck / SteamOS: the Chromium sandbox can't initialize under gamescope, so the game
+// is launched with --no-sandbox by the user's wrapper. Apply it IN-PROCESS on Linux too, so
+// the app still starts if it's ever launched WITHOUT those flags — e.g. an updater relaunch
+// or a direct double-click. No effect on Windows/macOS.
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('no-sandbox');
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+}
+
 // A PACKAGED build defaults to the hosted production server; a dev run defaults to the
 // local dev server. `TM_SERVER_BASE` overrides either.
 const DEFAULT_SERVER_BASE = app.isPackaged
