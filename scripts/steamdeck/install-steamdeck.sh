@@ -8,7 +8,7 @@
 # What it does (idempotent — safe to re-run):
 #   1. downloads the latest AppImage from the fixed "latest" release URL,
 #   2. writes the launcher wrapper (the --no-sandbox flags SteamOS/gamescope need),
-#   3. downloads the Steam artwork (hero / header / portrait capsule),
+#   3. downloads the Steam artwork (hero / header / portrait capsule / logo),
 #   4. adds a Non-Steam shortcut named "Terraforming Mars" with that artwork.
 #
 # The shortcut is written directly to Steam's shortcuts.vdf with a deterministic appid
@@ -95,6 +95,7 @@ echo "==> [3/4] Downloading Steam artwork…"
 curl -fL# -o "$ART/hero.png"    "$RAW/steam-deck-hero-2172-724.png"
 curl -fL# -o "$ART/header.jpg"  "$RAW/steam-deck-header-920-430.jpg"
 curl -fL# -o "$ART/capsule.png" "$RAW/steam-deck-capsule-1024-1536.png"
+curl -fL# -o "$ART/logo.png"    "$RAW/steam-deck-logo-2048-682.png"
 
 echo "==> [4/4] Registering the Non-Steam shortcut + artwork…"
 # Steam rewrites shortcuts.vdf on exit, so close it first for the edit to stick.
@@ -229,6 +230,7 @@ for udir in users:
         put(os.path.join(art, 'capsule.png'), '%dp.png' % aid, '%dp.png' % aid64)   # portrait/grid
         put(os.path.join(art, 'hero.png'),    '%d_hero.png' % aid, '%d_hero.png' % aid64)
         put(os.path.join(art, 'header.jpg'),  '%d.jpg' % aid, '%d.jpg' % aid64)      # header/capsule
+        put(os.path.join(art, 'logo.png'),    '%d_logo.png' % aid, '%d_logo.png' % aid64)  # transparent title logo (game page + in-game overlay)
     sys.stderr.write('    OK  %s  (appid=%d)\n' % (udir, id32))
 
 sys.stderr.write('    Shortcut + artwork written for %d profile(s).\n' % len(users))
