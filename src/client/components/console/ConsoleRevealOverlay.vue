@@ -143,6 +143,7 @@ import {
 } from '@/client/components/drawnCards/drawnCardsState';
 import {RevealMeta} from '@/client/components/notifications/notificationTypes';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
+import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
@@ -267,13 +268,18 @@ export default defineComponent({
         return [
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Take card'},
-          {control: 'secondary', label: 'Take all cards'},
+          {control: 'secondary', label: 'Card'},
+          {control: 'inspect', label: 'Take all cards'},
         ];
       case 'result':
-        return [{control: 'confirm', label: 'OK'}];
+        return [
+          {control: 'confirm', label: 'OK'},
+          {control: 'secondary', label: 'Card'},
+        ];
       default:
         return [
           {control: 'dpadH', label: 'Navigate'},
+          {control: 'secondary', label: 'Card'},
           {control: 'back', label: 'Close'},
         ];
       }
@@ -330,20 +336,45 @@ export default defineComponent({
       case 'drawn':
         if (button === 'confirm') {
           this.takeFocused();
-        } else if (button === 'secondary' || button === 'back') {
+        } else if (button === 'secondary') {
+          // P13 global rule: X reads the focused card fullscreen.
+          this.zoomFocused();
+        } else if (button === 'inspect' || button === 'back') {
           this.takeAll();
         }
         return;
       case 'result':
-        if (button === 'confirm' || button === 'secondary' || button === 'back') {
+        if (button === 'secondary') {
+          this.zoomRevealed();
+        } else if (button === 'confirm' || button === 'inspect' || button === 'back') {
           this.$emit('dismiss-result');
         }
         return;
       default:
-        if (button === 'confirm' || button === 'secondary' || button === 'back') {
+        if (button === 'secondary') {
+          this.zoomViewerCard();
+        } else if (button === 'confirm' || button === 'inspect' || button === 'back') {
           closeRevealViewer();
         }
         return;
+      }
+    },
+    /** P13: X fullscreen for the focused / revealed / shown card. */
+    zoomFocused(): void {
+      const list = this.drawnUntaken.map((e) => e.card);
+      if (list.length > 0) {
+        openConsoleCardZoom(list, this.focusIdx);
+      }
+    },
+    zoomRevealed(): void {
+      if (this.lastReveal !== undefined) {
+        openConsoleCardZoom([this.lastReveal.revealed], 0);
+      }
+    },
+    zoomViewerCard(): void {
+      const names = this.viewerReveal?.cards ?? [];
+      if (names.length > 0) {
+        openConsoleCardZoom(names.map((name) => ({name}) as CardModel), this.focusIdx);
       }
     },
     /** A: take the focused card (last one closes + releases + acks). */

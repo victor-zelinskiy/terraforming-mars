@@ -153,23 +153,15 @@
               </div>
             </template>
 
-            <!-- ── CARD BROWSER (T2: draft / buy / select / target) ── -->
+            <!-- ── CARD BROWSER (T2 · P13 rework): ONE clean composition —
+                 the focused card is emphasized IN PLACE (scaled up,
+                 neighbours calmed), X opens the fullscreen viewer; >6
+                 candidates wrap into a GRID (no kilometre scrolling). -->
             <template v-else-if="activeTask.kind === 'cardSelect'">
               <div class="con-cards">
-                <!-- The focused card LARGE (the TV inspector) + verdict. -->
-                <div class="con-cards__big" v-if="focusedCardEntry !== undefined">
-                  <Card :card="focusedCardEntry.card" :key="focusedCardEntry.card.name" />
-                  <div v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
-                    <span aria-hidden="true">✕</span>
-                    <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
-                  </div>
-                  <div v-else class="con-cards__verdict" :class="isPicked(focusedCardEntry.card.name) ? 'con-cards__verdict--picked' : 'con-cards__verdict--ok'">
-                    <GamepadGlyph control="confirm" />
-                    <span>{{ $t(isPicked(focusedCardEntry.card.name) ? (singlePick ? confirmLabel : 'Deselect') : 'Select') }}</span>
-                  </div>
-                </div>
-                <!-- The filmstrip: every candidate incl. DISABLED (info parity). -->
-                <div class="con-cards__strip" ref="cardStrip">
+                <div class="con-cards__strip"
+                     :class="{'con-cards__strip--grid': gridMode, 'con-cards__strip--has-focus': cardEntries.length > 0}"
+                     ref="cardStrip">
                   <div v-for="(entry, i) in cardEntries" :key="entry.card.name + '#' + i"
                        class="con-cards__slot"
                        :class="{
@@ -185,6 +177,22 @@
                     <span v-if="isPicked(entry.card.name)" class="con-cards__tick" aria-hidden="true">✓</span>
                     <span v-if="entry.disabled" class="con-cards__reason">{{ entry.reason !== '' ? entry.reason : $t('Unavailable right now') }}</span>
                   </div>
+                </div>
+                <!-- The focused card's verdict line — compact context, never
+                     a duplicate card (X = the universal fullscreen read). -->
+                <div v-if="focusedCardEntry !== undefined" class="con-cards__verdictbar">
+                  <span class="con-cards__verdict-name">{{ $t(focusedCardEntry.card.name) }}</span>
+                  <span v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
+                    <span aria-hidden="true">✕</span>
+                    <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
+                  </span>
+                  <span v-else class="con-cards__verdict" :class="isPicked(focusedCardEntry.card.name) ? 'con-cards__verdict--picked' : 'con-cards__verdict--ok'">
+                    <GamepadGlyph control="confirm" />
+                    <span>{{ $t(isPicked(focusedCardEntry.card.name) ? (singlePick ? confirmLabel : 'Deselect') : 'Select') }}</span>
+                  </span>
+                  <span class="con-cards__verdict con-cards__verdict--zoom">
+                    <GamepadGlyph control="secondary" /><span>{{ $t('Card') }}</span>
+                  </span>
                 </div>
               </div>
             </template>
@@ -308,6 +316,7 @@ import {
   paymentFromCounts, PaymentLane, paymentLanes, paymentTotal,
 } from '@/client/console/paymentPlan';
 import {getAward} from '@/client/MilestoneAwardManifest';
+import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {AwardName} from '@/common/ma/AwardName';
 
 function textOf(v: string | Message | undefined): string {
@@ -662,6 +671,10 @@ export default defineComponent({
     singlePick(): boolean {
       return this.cardMin === 1 && this.cardMax === 1;
     },
+    /** P13: >6 candidates wrap into a grid (no kilometre scrolling). */
+    gridMode(): boolean {
+      return this.activeTask.kind === 'cardSelect' && this.cardEntries.length > 6;
+    },
     isBuyMode(): boolean {
       return this.activeTask.kind === 'cardSelect' && this.activeTask.mode === 'buy';
     },
@@ -746,10 +759,13 @@ export default defineComponent({
           {control: 'inspect', label: 'MAX'}, confirm, defer,
         ];
       case 'cardSelect':
+        // P13 card grammar: A = select · X = fullscreen card · Y = confirm.
         return [
-          {control: 'dpadH', label: 'Navigate'},
+          {control: this.gridMode ? 'dpad' : 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: this.singlePick ? 'Select' : 'Select / Deselect'},
-          confirm, defer,
+          {control: 'secondary', label: 'Card'},
+          {control: 'inspect', label: this.confirmLabel, enabled: this.confirmReady},
+          defer,
         ];
       default:
         return [
@@ -808,6 +824,51 @@ export default defineComponent({
       }
       this.onPress(intent.button);
     },
+    /** P13 global rule: X opens the focused card fullscreen (reused viewer). */
+    zoomFocusedCard(): void {
+      if (this.cardEntries.length === 0) {
+        return;
+      }
+      openConsoleCardZoom(this.cardEntries.map((e) => e.card), this.focusIdx);
+    },
+    /**
+     * Row jump in GRID mode — measured from the real DOM (offsetTop groups),
+     * so it is robust to flex-wrap at any profile/width: pick the slot in
+     * the adjacent row whose centre is nearest horizontally.
+     */
+    moveFocusRow(step: 1 | -1): void {
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      if (strip === undefined) {
+        return;
+      }
+      const slots = Array.from(strip.children) as Array<HTMLElement>;
+      const cur = slots[this.focusIdx];
+      if (cur === undefined) {
+        return;
+      }
+      const curTop = cur.offsetTop;
+      const curCx = cur.offsetLeft + cur.offsetWidth / 2;
+      let best = -1;
+      let bestScore = Infinity;
+      slots.forEach((el, i) => {
+        const dTop = el.offsetTop - curTop;
+        if ((step === 1 && dTop <= 4) || (step === -1 && dTop >= -4)) {
+          return; // not in the requested direction
+        }
+        const rowDist = Math.abs(dTop);
+        const cx = el.offsetLeft + el.offsetWidth / 2;
+        const score = rowDist * 10000 + Math.abs(cx - curCx);
+        if (score < bestScore) {
+          bestScore = score;
+          best = i;
+        }
+      });
+      if (best !== -1 && best !== this.focusIdx) {
+        this.focusIdx = best;
+        this.armed = false;
+        void this.$nextTick(() => this.scrollFocusedIntoView());
+      }
+    },
     onNav(dir: NavDirection): void {
       const vertical = dir === 'up' || dir === 'down';
       if (this.activeTask.kind === 'amount') {
@@ -828,9 +889,11 @@ export default defineComponent({
         return;
       }
       if (this.activeTask.kind === 'resource' || this.activeTask.kind === 'cardSelect') {
-        // Horizontal tile row / filmstrip.
+        // Horizontal tile row / filmstrip; the P13 GRID adds row jumps.
         if (!vertical) {
           this.moveFocus(dir === 'right' ? 1 : -1);
+        } else if (this.activeTask.kind === 'cardSelect' && this.gridMode) {
+          this.moveFocusRow(dir === 'down' ? 1 : -1);
         }
         return;
       }
@@ -956,12 +1019,23 @@ export default defineComponent({
         this.adjust(1);
         return;
       case 'inspect':
+        // P13: in the CARD context Y is the confirm (X became fullscreen).
+        if (this.activeTask.kind === 'cardSelect') {
+          this.onConfirm();
+          return;
+        }
         this.maxOut();
         return;
       case 'confirm':
         this.onPrimary();
         return;
       case 'secondary':
+        // P13 global rule: X opens the focused card FULLSCREEN in every
+        // card context; elsewhere it stays the one-press confirm.
+        if (this.activeTask.kind === 'cardSelect') {
+          this.zoomFocusedCard();
+          return;
+        }
         this.onConfirm();
         return;
       case 'back':

@@ -1,43 +1,10 @@
 <template>
-  <div class="con-hand">
-    <!-- The persistent inspector: the selected card LARGE (this IS the zoom
-         at TV distance) + its playability verdict (CONSOLE_MODE_CONCEPT §8). -->
-    <aside class="con-inspector con-hand__inspector" :aria-label="$t('Card details')">
-      <template v-if="selected !== undefined">
-        <div class="con-hand__bigcard">
-          <Card :card="selected" :key="selected.name" />
-        </div>
-        <!-- Sale mode: A toggles the selected card, X confirms the sale. -->
-        <template v-if="saleActive">
-          <div class="con-hand__verdict" :class="isSaleSelected(selected.name) ? 'con-hand__verdict--sale' : 'con-hand__verdict--ok'">
-            <GamepadGlyph control="confirm" />
-            <span>{{ isSaleSelected(selected.name) ? $t('Deselect') : $t('Select') }}</span>
-          </div>
-          <div class="con-hand__sale-summary" :class="{'con-hand__sale-summary--ready': saleSelected.length > 0}">
-            <GamepadGlyph control="secondary" />
-            <span>{{ $t('Sell') }}: <b>{{ saleSelected.length }}</b> → +{{ saleSelected.length }} M€</span>
-          </div>
-        </template>
-        <div v-else-if="selectedPlayable" class="con-hand__verdict con-hand__verdict--ok">
-          <GamepadGlyph control="confirm" />
-          <span>{{ $t('Play now') }}</span>
-        </div>
-        <div v-else class="con-hand__verdict con-hand__verdict--blocked">
-          <span class="con-hand__verdict-mark" aria-hidden="true">✕</span>
-          <span>{{ $t('Unplayable now') }}</span>
-        </div>
-        <ul v-if="!saleActive && !selectedPlayable && reasons.length > 0" class="con-hand__reasons">
-          <li v-for="(r, i) in reasons" :key="i" class="con-hand__reason" :class="'con-hand__reason--' + r.type">
-            {{ reasonText(r) }}<span v-if="r.current !== undefined" class="con-hand__reason-now"> · {{ $t('Now') }}: {{ r.current }}</span>
-          </li>
-        </ul>
-      </template>
-      <div v-else class="con-inspector__empty">{{ $t('No cards in hand') }}</div>
-    </aside>
-
-    <!-- The filmstrip carousel: playable-first, snap-centered selection. -->
+  <div class="con-hand con-hand--v2">
+    <!-- P13: ONE clean carousel composition - the focused card is
+         emphasized IN PLACE (scaled, neighbours calmed); X reads it
+         fullscreen. The old duplicate big-preview inspector is gone. -->
     <div class="con-hand__strip-wrap">
-      <div class="con-hand__strip" ref="strip">
+      <div class="con-hand__strip con-cards__strip--has-focus" ref="strip">
         <div v-for="(entry, i) in entries"
              :key="entry.card.name + '#' + i"
              class="con-hand__slot"
@@ -50,31 +17,59 @@
           <Card :card="entry.card" :key="entry.card.name" lightweight />
           <span v-if="entry.robot" class="con-hand__robot" v-i18n>Robots</span>
           <span v-if="saleActive && isSaleSelected(entry.card.name)" class="con-hand__sale-tick" aria-hidden="true">✓</span>
-          <div v-if="i === index && saleActive" class="con-hand__slot-a con-hand__slot-a--sale">
-            <GamepadGlyph control="confirm" /><span>{{ $t(isSaleSelected(entry.card.name) ? 'Deselect' : 'Select') }}</span>
-          </div>
-          <div v-else-if="i === index && entry.playable" class="con-hand__slot-a">
-            <GamepadGlyph control="confirm" /><span v-i18n>Play now</span>
-          </div>
         </div>
       </div>
+
+      <!-- The focused card's verdict line - compact context, never a
+           duplicate card (X = the universal fullscreen read). -->
+      <div v-if="selected !== undefined" class="con-cards__verdictbar con-hand__verdictbar">
+        <span class="con-cards__verdict-name">{{ $t(selected.name) }}</span>
+        <template v-if="saleActive">
+          <span class="con-cards__verdict" :class="isSaleSelected(selected.name) ? 'con-cards__verdict--picked' : 'con-cards__verdict--ok'">
+            <GamepadGlyph control="confirm" />
+            <span>{{ $t(isSaleSelected(selected.name) ? 'Deselect' : 'Select') }}</span>
+          </span>
+          <span class="con-cards__verdict con-cards__verdict--go" :class="{'con-cards__verdict--off': saleSelected.length === 0}">
+            <GamepadGlyph control="inspect" />
+            <span>{{ $t('Sell') }}: <b>{{ saleSelected.length }}</b> (+{{ saleSelected.length }} M€)</span>
+          </span>
+        </template>
+        <template v-else-if="selectedPlayable">
+          <span class="con-cards__verdict con-cards__verdict--ok">
+            <GamepadGlyph control="confirm" /><span>{{ $t('Play now') }}</span>
+          </span>
+        </template>
+        <template v-else>
+          <span class="con-cards__verdict con-cards__verdict--blocked">
+            <span aria-hidden="true">✕</span><span>{{ $t('Unplayable now') }}</span>
+          </span>
+          <span v-for="(r, i) in reasons.slice(0, 2)" :key="i" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">
+            {{ reasonText(r) }}<span v-if="r.current !== undefined" class="con-hand__reason-now"> · {{ $t('Now') }}: {{ r.current }}</span>
+          </span>
+        </template>
+        <span class="con-cards__verdict con-cards__verdict--zoom">
+          <GamepadGlyph control="secondary" /><span>{{ $t('Card') }}</span>
+        </span>
+      </div>
+
       <div class="con-hand__strip-hints" aria-hidden="true">
         <span class="con-hand__strip-hint"><GamepadGlyph control="dpadH" /><span>{{ $t('Navigate') }}</span></span>
         <span class="con-hand__strip-hint"><GamepadGlyph control="triggerR" /><span>{{ $t('Next playable') }}</span></span>
         <span class="con-hand__counter">{{ entries.length === 0 ? 0 : index + 1 }} / {{ entries.length }}</span>
       </div>
+      <div v-if="entries.length === 0" class="con-inspector__empty">{{ $t('No cards in hand') }}</div>
     </div>
   </div>
 </template>
 
 <script lang="ts">
 /**
- * Console Hand section (CONSOLE_MODE_CONCEPT.md §8): filmstrip carousel +
- * persistent inspector. PLAYABLE-FIRST sort; the selected playable card
- * carries an inline Ⓐ «Разыграть» chip (button-to-element mapping is
- * explicit, per the premium brief). Unplayable cards show the SERVER's
- * structured reasons inline — no hover needed. Selection index is owned by
- * the router (consoleState.handIndex); the shell drives movement.
+ * Console Hand section (CONSOLE_MODE_CONCEPT.md §8, P13 rework): ONE
+ * centred carousel - the focused card is emphasized IN PLACE and X opens
+ * the fullscreen viewer (the duplicate big-preview inspector is gone).
+ * PLAYABLE-FIRST sort; the verdict bar under the strip carries the play
+ * state + the SERVER's structured unplayable reasons (no hover needed).
+ * Selection index is owned by the router; the shell drives movement.
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/Card.vue';

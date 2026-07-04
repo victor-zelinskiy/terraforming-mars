@@ -138,6 +138,7 @@ import {SpendableResource} from '@/common/inputs/Spendable';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {getCard} from '@/client/cards/ClientCardManifest';
+import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/gamepadPollModel';
@@ -269,7 +270,8 @@ export default defineComponent({
         {control: 'dpad', label: 'Navigate'},
         {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
         {control: 'inspect', label: 'MAX'},
-        {control: 'secondary', label: 'Play now', enabled: this.paymentReady},
+        {control: 'confirm', label: 'Play now', enabled: this.paymentReady},
+        {control: 'secondary', label: 'Card'},
         {control: 'back', label: 'Cancel'},
       ];
     },
@@ -357,9 +359,14 @@ export default defineComponent({
         return;
       }
       case 'confirm':
-      case 'secondary':
         if (this.paymentReady) {
           this.$emit('confirm', paymentFromCounts(this.cost, this.payLanes, this.payCounts, this.megacreditsOnHand));
+        }
+        return;
+      case 'secondary':
+        // P13 global rule: X reads THE card fullscreen.
+        if (this.card !== undefined) {
+          openConsoleCardZoom([this.card], 0);
         }
         return;
       case 'back':
