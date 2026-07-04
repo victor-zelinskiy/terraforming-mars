@@ -106,6 +106,26 @@ export function applyPerformanceSwitches(app: App): void {
   // are explicit app requests, not Chromium "background networking".
   if (process.platform === 'linux') {
     sw('disable-background-networking');
+
+    // Turn off Chromium subsystems this game NEVER uses — each otherwise keeps a
+    // timer / discovery scan / helper process alive that steals cycles (and memory)
+    // from the software rasterizer on the Deck's 4 cores. All safe to drop for a
+    // local, single-window board game; NONE affect gameplay:
+    //   MediaRouter / DialMediaRouteProvider — Cast/DIAL device discovery (periodic mDNS)
+    //   OptimizationHints                    — Chrome's ML optimization-guide fetch/eval
+    //   Translate                            — page-translation machinery
+    //   HardwareMediaKeyHandling             — OS media-key integration
+    //   SpareRendererForSitePerProcess       — a pre-warmed SPARE renderer PROCESS: pure
+    //                                          waste for a single-window app (a whole
+    //                                          process + its memory competing for cores)
+    sw('disable-features', [
+      'MediaRouter',
+      'DialMediaRouteProvider',
+      'OptimizationHints',
+      'Translate',
+      'HardwareMediaKeyHandling',
+      'SpareRendererForSitePerProcess',
+    ].join(','));
   }
 
   // ── Aggressive opt-ins (env-gated; off by default) ───────────────────────
