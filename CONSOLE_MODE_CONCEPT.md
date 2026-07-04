@@ -1477,6 +1477,42 @@ the desktop-gamepad mode are untouched throughout.
   chips carry the card names; a console-native reveal-browser hotkey is
   a future iteration. Gates: 94 console + 45 notification specs,
   vue-tsc, eslint, make:css, build:client — green.
+- **P17 — SHIPPED (start-flow HARDENING & premium polish).**
+  **Clip-safe, globally:** the strip headroom is now COMPUTED (scale
+  overhead + lift + the pick-band overhang) — base strips 40px top
+  (handheld 32), `--few` 42, grid row-gap 38 (handheld 32); the hand
+  carousel emphasis softened to 1.06/−10 inside a 26px headroom — no
+  console surface clips a focused/selected card, band, glow or badge.
+  **NO-SCROLLBAR PRINCIPLE:** the `.con-scrollbars()` mixin now HIDES
+  the chrome everywhere in console (scrolling stays; a visible bar is a
+  desktop smell) — and the RIGHT STICK scrolls the active console
+  container globally (`scrollActiveConsole`: journal feed while open,
+  else the topmost visible scrollable `.con-info__scroll`; 24px/frame —
+  the DOM engine's own feel; fallback-owned surfaces keep the engine's
+  stick). **Summary fits by design:** identity minirows WRAP (never a
+  scroll strip — the tiny horizontal bars are gone); >5 bought projects
+  flip `--dense` (mini ×0.5/id ×0.6; handheld ×0.36/×0.44) so the
+  1280×800 confirmation never scrolls in the normal case; body scroll
+  (chrome-less + right stick) remains the rare fallback. **Merger /
+  second corporation is console-native:** ceremony candidates scale
+  (×0.78; a CORPORATION pick ×0.64, handheld ×0.6/×0.5) — five corp
+  cards read as a calm comparison row, never giant overflow; the
+  duplicated section title (headTitle twice) is gone; owned corps keep
+  «✓ Эффект применён», disabled candidates keep their reasons.
+  **One megacredit language:** every money VALUE in the start flow
+  carries the ICON (economy capsule columns, summary money block, the
+  host buy pickline) — the «М€»-text label is gone («Starting funds» →
+  «Начальные»). **GEN 1 removed** from the start scene (the in-game
+  strip owns the generation display, localized «Поколение N»).
+  **Fullscreen desktop parity:** `consoleCardZoom` gained an ACTION
+  context (`labelFor / reasonsFor / execute`) — a PLAYABLE hand card
+  shows [A Сыграть] in the viewer (closes first, hands off to the
+  existing play-confirm flow — the viewer never submits); an UNPLAYABLE
+  card shows the structured server «why not» lines (incl. «Сейчас: N»)
+  in a red reasons panel — the fullscreen is never mute; selection
+  contexts keep the A-toggle, read-only contexts stay read-only.
+  Gates: 95 console specs (+1 action-context), vue-tsc, eslint,
+  make:json (+1 ru key), make:css, build:client — green.
 
 ---
 

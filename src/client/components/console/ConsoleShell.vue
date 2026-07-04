@@ -226,11 +226,23 @@
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">
       <template #actions>
+        <!-- P17: an UNPLAYABLE card is never mute — the same structured
+             server reasons the hand verdict shows (desktop parity). -->
+        <div v-if="zoomReasons.length > 0" class="con-zoom__reasons">
+          <span class="con-zoom__reasons-head"><span aria-hidden="true">✕</span> {{ $t('Unplayable now') }}</span>
+          <span v-for="(r, i) in zoomReasons" :key="i" class="con-zoom__reason">{{ r }}</span>
+        </div>
         <div class="con-zoom__bar">
           <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
           <button v-if="zoomSelectable" class="con-zoom__btn con-zoom__btn--select" @click="zoomToggleSelect">
             <GamepadGlyph control="confirm" />
             <span>{{ $t(zoomSelected ? zoomDeselectLabel : zoomSelectLabel) }}</span>
+          </button>
+          <!-- P17: the context ACTION (play-from-hand parity) — A hands the
+               card to the existing play flow; hidden when not actionable. -->
+          <button v-else-if="zoomActionLabel !== undefined" class="con-zoom__btn con-zoom__btn--play" @click="zoomExecuteAction">
+            <GamepadGlyph control="confirm" />
+            <span>{{ $t(zoomActionLabel) }}</span>
           </button>
           <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd">
             <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
@@ -401,6 +413,10 @@ type PendingClientPayment = {
 
 /** The synthetic host task for a client-built payment prompt. */
 const CLIENT_PAYMENT_TASK: ConsoleTask = {kind: 'payment'};
+
+/** P17: px per full-deflection frame for the right-stick console scroll
+ *  (mirrors the DOM engine's SCROLL_STEP_PX so the feel is identical). */
+const CONSOLE_SCROLL_STEP_PX = 24;
 
 export default defineComponent({
   name: 'ConsoleShell',
@@ -1056,6 +1072,22 @@ export default defineComponent({
     zoomDeselectLabel(): string {
       return this.consoleCardZoom.select?.deselectLabel ?? 'Deselect';
     },
+    /** P17: the context action verb for the CURRENT card (play parity). */
+    zoomActionLabel(): string | undefined {
+      const z = this.consoleCardZoom;
+      if (z.action === undefined || z.card === undefined) {
+        return undefined;
+      }
+      return z.action.labelFor(z.card.name);
+    },
+    /** P17: «why not» lines when the current card is NOT actionable. */
+    zoomReasons(): ReadonlyArray<string> {
+      const z = this.consoleCardZoom;
+      if (z.action === undefined || z.card === undefined || this.zoomActionLabel !== undefined) {
+        return [];
+      }
+      return z.action.reasonsFor(z.card.name);
+    },
     /** P15: the deferred-chip return verb, by what is actually pending. */
     deferReturnLabel(): string {
       if (this.startTask !== undefined) {
@@ -1293,7 +1325,12 @@ export default defineComponent({
         return true;
       }
       if (intent.kind === 'scroll') {
-        return true; // reserved (journal/list scrolling — next iteration)
+        // P17: the RIGHT STICK scrolls the active console scroll container
+        // (the fallback for rare overflow — console layouts fit by design
+        // and never show scrollbar chrome). Fallback-owned surfaces keep
+        // the DOM engine's own right-stick scroll (they return earlier).
+        this.scrollActiveConsole(intent.dy);
+        return true;
       }
       // Information Mode owns everything while open (read-only).
       if (this.infoModeState.open) {
@@ -2175,9 +2212,13 @@ export default defineComponent({
         zoom?.next();
         return true;
       case 'confirm':
-        // A = toggle the pick — ONLY when the opener passed a select
-        // context (read-only contexts stay read-only; never a submit).
-        this.zoomToggleSelect();
+        // A = toggle the pick (selection contexts) OR fire the context
+        // ACTION (play-from-hand parity, P17) — read-only contexts no-op.
+        if (this.consoleCardZoom.select !== undefined) {
+          this.zoomToggleSelect();
+        } else {
+          this.zoomExecuteAction();
+        }
         return true;
       case 'secondary': // X closes too — the same key that opened it
       case 'back':
@@ -2193,21 +2234,82 @@ export default defineComponent({
         z.select.toggle(z.card.name);
       }
     },
+    /** P17: the viewer's A hands the card to the context action (e.g. the
+     *  play-confirm flow) — the viewer closes FIRST, so the exact source
+     *  context restores underneath the follow-up surface. */
+    zoomExecuteAction(): void {
+      const z = this.consoleCardZoom;
+      const card = z.card;
+      const action = z.action;
+      if (card === undefined || action === undefined || action.labelFor(card.name) === undefined) {
+        return;
+      }
+      this.closeZoomViewer();
+      action.execute(card.name);
+    },
     closeZoomViewer(): void {
       (this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined)?.close();
     },
+    /** P17: right-stick scroll for the ACTIVE console scroll container —
+     *  the journal peek while open, else the topmost visible scrollable
+     *  `.con-info__scroll` (console layers stack in DOM order). */
+    scrollActiveConsole(dy: number): void {
+      if (Math.abs(dy) < 0.05) {
+        return;
+      }
+      const candidates: Array<HTMLElement> = [];
+      if (journalState.open) {
+        const feed = document.querySelector<HTMLElement>('.journal-feed__scroll');
+        if (feed !== null) {
+          candidates.push(feed);
+        }
+      }
+      if (candidates.length === 0) {
+        document.querySelectorAll<HTMLElement>('.con-info__scroll').forEach((el) => candidates.push(el));
+      }
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        const el = candidates[i];
+        if (el.offsetParent !== null && el.scrollHeight > el.clientHeight + 1) {
+          el.scrollBy({top: dy * CONSOLE_SCROLL_STEP_PX, behavior: 'auto'});
+          return;
+        }
+      }
+    },
     /** X in the hand section: read the focused card fullscreen. In SALE
      *  mode the viewer's A toggles the pick (a pure selection flip — the
-     *  sale submit stays on the section's Y). */
+     *  sale submit stays on the section's Y). In PLAY mode (P17 desktop
+     *  parity) the viewer's A plays a PLAYABLE card through the existing
+     *  play-confirm flow, and an unplayable card shows its structured
+     *  «why not» reasons instead — never a mute fullscreen. */
     zoomHandCard(): void {
       if (this.handEntries.length === 0) {
         return;
       }
-      const select = this.consoleState.sale.active ? {
-        isSelected: (name: CardName) => this.consoleState.sale.selected.includes(name),
-        toggle: (name: CardName) => this.toggleSalePick(name),
-      } : undefined;
-      openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, select);
+      if (this.consoleState.sale.active) {
+        openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, {
+          isSelected: (name: CardName) => this.consoleState.sale.selected.includes(name),
+          toggle: (name: CardName) => this.toggleSalePick(name),
+        });
+        return;
+      }
+      openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, undefined, {
+        labelFor: (name: CardName) => {
+          const entry = this.handEntries.find((e) => e.card.name === name);
+          return entry?.playable === true ? 'Play now' : undefined;
+        },
+        reasonsFor: (name: CardName) => this.handUnplayableReasons(name),
+        execute: (name: CardName) => this.openPlayCard(name),
+      });
+    },
+    /** Translated «why not» lines for a hand card (mirrors the hand
+     *  section's verdict bar — same server-structured reasons). */
+    handUnplayableReasons(name: CardName): ReadonlyArray<string> {
+      const entry = this.handEntries.find((e) => e.card.name === name);
+      const reasons = entry?.card.unplayableReasons ?? [];
+      return reasons.slice(0, 3).map((r) => {
+        const text = translateTextWithParams(r.message, (r.params ?? []).map(String));
+        return r.current !== undefined ? `${text} · ${translateText('Now')}: ${r.current}` : text;
+      });
     },
     /** P15: the sale pick flip, shared by the section's A and the viewer. */
     toggleSalePick(name: string): void {

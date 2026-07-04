@@ -510,7 +510,8 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
         display: flex;
         align-items: flex-end;
         gap: 14px;
-        padding: 18px 12px 10px;
+        /* P17 clip-safe: headroom covers the selected lift + scale. */
+        padding: 26px 12px 12px;
         overflow-x: auto;
         scrollbar-width: none;
         &::-webkit-scrollbar { display: none; }
@@ -526,7 +527,8 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
             filter: grayscale(0.55) brightness(0.72);
         }
         &--selected {
-            transform: translateY(-14px) scale(1.1);
+            /* P17: softer emphasis - stays inside the strip headroom. */
+            transform: translateY(-10px) scale(1.06);
             filter: none;
             z-index: 2;
         }
@@ -1729,25 +1731,17 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
 }
 
 /* ── Styled scrollbars (no legacy native bars in console surfaces) ── */
+/* P17 NO-SCROLLBAR PRINCIPLE: console surfaces SCROLL (right stick /
+   wheel / focus scrollIntoView) but never show scrollbar chrome — a
+   visible bar is a desktop smell on a couch screen. Layouts are expected
+   to FIT by design; scrolling is the rare fallback. The mixin keeps its
+   signature so every caller stays untouched. */
 .con-scrollbars(@width: 8px) {
-    scrollbar-width: thin;
-    scrollbar-color: fade(@con-cyan, 45%) rgba(10, 17, 26, 0.4);
-
+    scrollbar-width: none;
     &::-webkit-scrollbar {
-        width: @width;
-        height: @width;
-    }
-    &::-webkit-scrollbar-track {
-        background: rgba(10, 17, 26, 0.4);
-        border-radius: 999px;
-    }
-    &::-webkit-scrollbar-thumb {
-        background: linear-gradient(180deg, fade(@con-cyan, 55%), fade(@con-cyan, 30%));
-        border-radius: 999px;
-        box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%);
-    }
-    &::-webkit-scrollbar-corner {
-        background: transparent;
+        width: 0;
+        height: 0;
+        display: none;
     }
 }
 
@@ -2276,8 +2270,11 @@ html.console-mode {
         /* CLIP-SAFE (P13): the paddings CONTAIN the negative-offset badges
            (cost/tick at -10px) and the focused lift/scale - nothing is
            ever cropped by the scroll container again. */
-        padding: 26px 22px 26px;
-        scroll-padding: 0 22px;
+        /* P17 clip-safe maths: top headroom = scale overhead (~19px on a
+           natural card at 1.08) + lift (6) + the pick band overhang (12,
+           scaled) — 40px covers every slot size with margin. */
+        padding: 40px 24px 28px;
+        scroll-padding: 0 24px;
         .con-scrollbars();
 
         /* GRID mode (>6 candidates): wrap into comparison rows - no
@@ -2289,7 +2286,7 @@ html.console-mode {
             justify-content: center;
             overflow-x: hidden;
             overflow-y: auto;
-            row-gap: 30px;
+            row-gap: 38px; /* P17: second-row pick bands never touch row 1 */
             column-gap: 22px;
 
             > .con-cards__slot { zoom: 0.8; }
@@ -2299,7 +2296,7 @@ html.console-mode {
            SOFTER (a large card at scale 1.12 would burst the frame). */
         &--few {
             gap: 48px;
-            padding: 34px 34px 30px;
+            padding: 42px 36px 32px;
 
             > .con-cards__slot--focused {
                 transform: translateY(-6px) scale(1.05);
@@ -2525,6 +2522,49 @@ dialog.con-zoom {
     color: @con-text-dim;
     font-size: 15px;
 }
+/* P17: the context PLAY action (desktop parity) + the «why not» panel for
+   an unplayable card - the fullscreen viewer is never mute. */
+.con-zoom__btn--play {
+    background: fade(@con-mint, 12%);
+    box-shadow: inset 0 0 0 1px fade(@con-mint, 70%), 0 0 14px fade(@con-mint, 12%);
+    color: #d7ffe9;
+
+    &:hover { box-shadow: inset 0 0 0 1px fade(@con-mint, 90%), 0 0 18px fade(@con-mint, 22%); }
+}
+.con-zoom__reasons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 8px;
+    font-family: @con-font;
+}
+.con-zoom__reasons-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 14px;
+    border-radius: 999px;
+    background: fade(@con-red, 10%);
+    box-shadow: inset 0 0 0 1px fade(@con-red, 55%);
+    color: #ffc9c4;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+.con-zoom__reason {
+    padding: 3px 12px;
+    border-radius: 8px;
+    background: rgba(10, 17, 26, 0.8);
+    box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.22);
+    border-left: 3px solid fade(@con-red, 55%);
+    color: @con-text;
+    font-size: 14.5px;
+    line-height: 1.35;
+    max-width: 560px;
+    text-align: center;
+}
 
 /* ── START SCENE (CTS T5): the game-opening ceremony ──────────────────
    Full-screen premium scene: hero header + step rail + budget capsule,
@@ -2583,16 +2623,6 @@ dialog.con-zoom {
         color: fade(@con-cyan, 90%);
     }
     &__kicker-mark { color: @con-cyan; }
-    &__kicker-gen {
-        margin-left: auto;
-        padding: 2px 12px;
-        border-radius: 999px;
-        background: rgba(14, 22, 33, 0.7);
-        box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%);
-        font-size: 14px;
-        letter-spacing: 2px;
-        color: @con-text-dim;
-    }
     &__title {
         font-size: 30px;
         font-weight: 700;
@@ -2768,12 +2798,10 @@ dialog.con-zoom {
     &__summary-block { min-width: 0; }
     &__minirow {
         display: flex;
+        flex-wrap: wrap; /* P17: identity rows WRAP - never a scroll strip */
         gap: 14px;
-        overflow-x: auto;
+        overflow: visible;
         padding: 4px 2px 8px;
-        .con-scrollbars();
-
-        &--wrap { flex-wrap: wrap; overflow: visible; }
     }
     &__mini {
         flex-shrink: 0;
@@ -2783,6 +2811,15 @@ dialog.con-zoom {
         /* Identity cards (corp / preludes / CEO) read one notch larger. */
         &--id { zoom: 0.7; }
     }
+    /* P17: >5 bought projects drop the summary one density notch so the
+       confirmation screen FITS without scrolling (X = the detailed read). */
+    &__summary--dense {
+        .con-start__mini { zoom: 0.5; }
+        .con-start__mini--id { zoom: 0.6; }
+        .con-start__summary-cards { gap: 10px; }
+        .con-start__minirow { gap: 10px; }
+    }
+
     /* The final CTA line in the side rail - the ONE begin affordance. */
     &__beginline {
         display: inline-flex;
@@ -2935,6 +2972,11 @@ dialog.con-zoom {
         z-index: 3;
     }
     &__cands { min-width: 0; }
+    /* P17: ceremony candidates scale DOWN (X fullscreen is the detailed
+       read); a Merger CORPORATION pick goes further - five corp cards
+       read as a calm comparison row, never giant overflow. */
+    &__cands .con-cards__strip > .con-cards__slot { zoom: 0.78; }
+    &__cands--corps .con-cards__strip > .con-cards__slot { zoom: 0.64; }
 
     /* The dealt-in stagger (entry only; delay via inline style).
        `backwards` (NOT `both`): a forwards fill would pin the final
@@ -4225,17 +4267,15 @@ html.con-profile-handheld {
         &__verdictbar { min-height: 34px; padding: 6px 10px; gap: 8px; }
         &__verdict-name { font-size: 15px; max-width: 240px; }
         &__verdict { font-size: 13px; padding: 4px 11px; }
-        /* Clip-safe padding stays generous enough for the focus lift +
-           the −12px pick band; the gap tightens for the 800px budget. */
-        &__strip { gap: 12px; padding: 18px 14px 14px; }
-        &__strip--few { gap: 26px; padding: 24px 22px 18px; }
+        /* P17 clip-safe at handheld densities: top headroom covers the
+           focus lift + scale + the pick band at every slot zoom. */
+        &__strip { gap: 12px; padding: 32px 14px 16px; }
+        &__strip--few { gap: 26px; padding: 34px 24px 20px; }
         /* Handheld density: non-grid strips shrink a notch (4 preludes
            fit 1280 without scrolling); the >6 grid goes compact - X
-           fullscreen is the detailed read. Extra top padding keeps the
-           focus lift clip-safe at the tighter density. */
-        &__strip { padding-top: 24px; }
+           fullscreen is the detailed read. */
         &__strip:not(.con-cards__strip--grid) > .con-cards__slot { zoom: 0.88; }
-        &__strip--grid { row-gap: 24px; column-gap: 14px; }
+        &__strip--grid { row-gap: 32px; column-gap: 14px; }
         &__strip--grid > .con-cards__slot { zoom: 0.62; }
         &__pickband { font-size: 11.5px; padding: 2px 10px; top: -10px; }
         &__tick { width: 24px; height: 24px; font-size: 15px; }
@@ -4281,7 +4321,6 @@ html.con-profile-handheld {
     .con-start {
         &__frame { width: 97vw; padding: 12px 20px 8px; }
         &__kicker { font-size: 12px; letter-spacing: 1.6px; }
-        &__kicker-gen { font-size: 11px; padding: 1px 8px; }
         &__title { font-size: 21px; margin-top: 2px; }
         &__railrow { gap: 10px; margin-top: 6px; }
         &__steps { gap: 6px; }
@@ -4300,6 +4339,13 @@ html.con-profile-handheld {
         &__summary-side { flex-basis: 260px; }
         &__mini { zoom: 0.5; }
         &__mini--id { zoom: 0.56; }
+        /* P17: the dense summary (>5 projects) fits 800px by design. */
+        &__summary--dense {
+            .con-start__mini { zoom: 0.36; }
+            .con-start__mini--id { zoom: 0.44; }
+        }
+        &__cands .con-cards__strip > .con-cards__slot { zoom: 0.6; }
+        &__cands--corps .con-cards__strip > .con-cards__slot { zoom: 0.5; }
         &__beginline { font-size: 15px; padding: 8px 12px; }
         &__money { padding: 8px 12px; }
         &__money-line { font-size: 14px; &--total { font-size: 16px; b { font-size: 19px; } } }

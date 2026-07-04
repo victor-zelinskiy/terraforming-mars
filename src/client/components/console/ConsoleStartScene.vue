@@ -7,10 +7,11 @@
       <div class="con-start__frame" :key="frameKey">
         <!-- ── Header: the opening-ceremony chrome ─────────────────── -->
         <header class="con-start__head">
+          <!-- P17: no «GEN 1» badge — the start setup IS the pre-game; a
+               generation label here is noise (the in-game strip owns it). -->
           <div class="con-start__kicker">
             <span class="con-start__kicker-mark" aria-hidden="true">◈</span>
             <span>{{ $t('Start of the game') }}</span>
-            <span class="con-start__kicker-gen" aria-hidden="true">GEN 1</span>
           </div>
           <div class="con-start__title">{{ headTitle }}</div>
 
@@ -24,21 +25,26 @@
                 <span>{{ $t(chip.label) }}</span>
               </span>
             </div>
-            <!-- P15: the economy capsule reads as labelled columns — never
-                 a bare «40 −7 × 3» math string. Hidden on the summary (the
-                 money block there is the detailed version). -->
+            <!-- P15/P17: the economy capsule reads as labelled columns —
+                 never a bare «40 −7 × 3» math string. ONE megacredit
+                 language: the ICON marks every money value (no М€ text
+                 mixed in). Hidden on the summary (the money block there
+                 is the detailed version). -->
             <div v-if="budget !== undefined && currentStep !== undefined" class="con-start__budget" :class="{'con-start__budget--broke': budget.remaining < 0}">
               <span class="con-start__budget-col">
-                <span class="con-start__budget-label">{{ $t('Starting M€') }}</span>
-                <b>{{ budget.start }}</b>
+                <span class="con-start__budget-label">{{ $t('Starting funds') }}</span>
+                <b>{{ budget.start }}
+                  <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
               </span>
               <span v-if="budget.buys > 0" class="con-start__budget-col">
                 <span class="con-start__budget-label">{{ $t('Purchase') }}</span>
-                <b>{{ budget.buys }} × {{ budget.cardCost }} = −{{ budget.buys * budget.cardCost }}</b>
+                <b>{{ budget.buys }} × {{ budget.cardCost }} = −{{ budget.buys * budget.cardCost }}
+                  <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
               </span>
               <span v-if="budget.preludes !== 0" class="con-start__budget-col">
                 <span class="con-start__budget-label">{{ $t('Prelude effects') }}</span>
-                <b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }}</b>
+                <b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }}
+                  <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
               </span>
               <span class="con-start__budget-col con-start__budget-col--strong">
                 <span class="con-start__budget-label">{{ $t('Remaining') }}</span>
@@ -114,7 +120,8 @@
              scale (cards column left, the money report + the begin CTA in
              a fixed side rail right), never a loose scrollable leftovers
              page. X browses the whole setup fullscreen. -->
-        <div v-else-if="mode === 'wizard'" class="con-start__body con-start__summary con-info__scroll" ref="body">
+        <div v-else-if="mode === 'wizard'" class="con-start__body con-start__summary con-info__scroll"
+             :class="{'con-start__summary--dense': summaryDense}" ref="body">
           <div class="con-start__summary-cards">
             <div class="con-start__summary-row">
               <div v-if="state.corp !== undefined" class="con-start__summary-block">
@@ -151,11 +158,16 @@
             </div>
           </div>
           <aside class="con-start__summary-side">
+            <!-- P17: one megacredit language — the icon marks every value. -->
             <div v-if="budget !== undefined" class="con-start__money">
-              <div class="con-start__money-line"><span>{{ $t('Starting M€') }}</span><b>{{ budget.start }}</b></div>
-              <div v-if="budget.buys > 0" class="con-start__money-line"><span>{{ $t('Purchase') }}: {{ budget.buys }} × {{ budget.cardCost }}</span><b>−{{ budget.buys * budget.cardCost }}</b></div>
-              <div v-if="budget.preludes !== 0" class="con-start__money-line"><span>{{ $t('Prelude effects') }}</span><b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }}</b></div>
-              <div class="con-start__money-line con-start__money-line--total"><span>{{ $t('Remaining') }}</span><b>{{ budget.remaining + budget.preludes }}</b></div>
+              <div class="con-start__money-line"><span>{{ $t('Starting funds') }}</span>
+                <b>{{ budget.start }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
+              <div v-if="budget.buys > 0" class="con-start__money-line"><span>{{ $t('Purchase') }}: {{ budget.buys }} × {{ budget.cardCost }}</span>
+                <b>−{{ budget.buys * budget.cardCost }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
+              <div v-if="budget.preludes !== 0" class="con-start__money-line"><span>{{ $t('Prelude effects') }}</span>
+                <b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
+              <div class="con-start__money-line con-start__money-line--total"><span>{{ $t('Remaining') }}</span>
+                <b>{{ budget.remaining + budget.preludes }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
             </div>
             <div v-if="armedSkip" class="con-start__skipwarn">
               ⚠ {{ $t('You are not buying any project cards') }} — {{ $t('Press again to confirm') }}
@@ -187,9 +199,13 @@
           </div>
 
           <div class="con-start__right">
-            <!-- The live ask (draw-1-of-N / copy / Merger corp pick). -->
-            <div v-if="candidateCards.length > 0" class="con-start__cands">
-              <div class="con-start__section-title con-start__section-title--act">{{ headTitle }}</div>
+            <!-- The live ask (draw-1-of-N / copy / Merger corp pick).
+                 P17: the header already states the task — no duplicated
+                 title line; a CORPORATION pick (Merger) scales its
+                 candidates down so five corp cards read as a calm
+                 comparison row instead of giant overflowing cards. -->
+            <div v-if="candidateCards.length > 0" class="con-start__cands"
+                 :class="{'con-start__cands--corps': corpCandidatePick}">
               <div class="con-cards__strip">
                 <div v-for="(card, i) in candidateCards" :key="card.name + '#' + i"
                      class="con-cards__slot con-start__deal"
@@ -491,6 +507,15 @@ export default defineComponent({
         return 'Select';
       }
       return 'Play now';
+    },
+    /** P17: the live ask is a CORPORATION pick (Merger) → compact strip. */
+    corpCandidatePick(): boolean {
+      return startFlowCorpSelectPrompt(this.playerView) !== undefined;
+    },
+    /** P17: >5 bought projects → the summary goes one density notch down
+     *  (fit by design — the summary never scrolls in the normal case). */
+    summaryDense(): boolean {
+      return this.state.projects.length > 5;
     },
     /** The flat actionable list the focus cycles over. */
     focusables(): Array<Focusable> {

@@ -61,4 +61,23 @@ describe('consoleCardZoom (P15)', () => {
     expect(consoleCardZoom.cards.length).to.eq(0);
     expect(consoleCardZoom.select).to.eq(undefined);
   });
+
+  it('P17: the ACTION context (play-from-hand parity) rides along and clears on close', () => {
+    const played: Array<CardName> = [];
+    openConsoleCardZoom([card(CardName.ANTS), card(CardName.BIRDS)], 0, undefined, {
+      labelFor: (name) => (name === CardName.ANTS ? 'Play now' : undefined),
+      reasonsFor: (name) => (name === CardName.BIRDS ? ['Not enough M€'] : []),
+      execute: (name) => played.push(name),
+    });
+    const action = consoleCardZoom.action;
+    expect(action).to.not.eq(undefined);
+    // Playable card → verb; unplayable → no verb, reasons instead.
+    expect(action?.labelFor(CardName.ANTS)).to.eq('Play now');
+    expect(action?.labelFor(CardName.BIRDS)).to.eq(undefined);
+    expect(action?.reasonsFor(CardName.BIRDS)).to.deep.eq(['Not enough M€']);
+    action?.execute(CardName.ANTS);
+    expect(played).to.deep.eq([CardName.ANTS]);
+    closeConsoleCardZoom();
+    expect(consoleCardZoom.action).to.eq(undefined);
+  });
 });

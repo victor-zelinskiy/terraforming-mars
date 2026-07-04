@@ -32,6 +32,23 @@ export type ConsoleZoomSelect = {
   deselectLabel?: string,
 };
 
+/**
+ * A context ACTION bridge (P17 — desktop parity): the opener may attach a
+ * per-card primary action (e.g. «Play now» for a playable hand card). A
+ * card with NO action label instead surfaces its structured «why not»
+ * reasons — the viewer is never mute about playability. `execute` hands
+ * off to the EXISTING flow (the play confirm) — the viewer itself never
+ * submits anything.
+ */
+export type ConsoleZoomAction = {
+  /** The A-verb (i18n key) for the given card, or undefined → not actionable. */
+  labelFor: (name: CardName) => string | undefined,
+  /** Translated "why not" lines for a non-actionable card (empty → silent). */
+  reasonsFor: (name: CardName) => ReadonlyArray<string>,
+  /** Hand off to the existing flow (called AFTER the viewer closes). */
+  execute: (name: CardName) => void,
+};
+
 export const consoleCardZoom = reactive({
   card: undefined as CardModel | undefined,
   /** The visible list, in on-screen order — enables ←/→ browsing. */
@@ -39,10 +56,12 @@ export const consoleCardZoom = reactive({
   index: 0,
   /** Present ⇔ A may select/unselect from fullscreen (selection contexts only). */
   select: undefined as ConsoleZoomSelect | undefined,
+  /** Present ⇔ A may fire the context action (play-from-hand parity). */
+  action: undefined as ConsoleZoomAction | undefined,
 });
 
 /** Open the fullscreen viewer on `cards[index]` (list = what's on screen). */
-export function openConsoleCardZoom(cards: ReadonlyArray<CardModel>, index: number, select?: ConsoleZoomSelect): void {
+export function openConsoleCardZoom(cards: ReadonlyArray<CardModel>, index: number, select?: ConsoleZoomSelect, action?: ConsoleZoomAction): void {
   if (cards.length === 0) {
     return;
   }
@@ -51,6 +70,7 @@ export function openConsoleCardZoom(cards: ReadonlyArray<CardModel>, index: numb
   consoleCardZoom.index = at;
   consoleCardZoom.card = cards[at];
   consoleCardZoom.select = select;
+  consoleCardZoom.action = action;
 }
 
 /** The viewer navigated — keep the module mirror in sync. */
@@ -64,4 +84,5 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.cards = [];
   consoleCardZoom.index = 0;
   consoleCardZoom.select = undefined;
+  consoleCardZoom.action = undefined;
 }
