@@ -32,6 +32,24 @@ function initialEnabled(): boolean {
   return storage()?.getItem(STORAGE_KEY) === '1';
 }
 
+/**
+ * The player explicitly turned console mode OFF — the Electron auto-enable
+ * heuristics must never force it back. Two explicit signals: the session
+ * kill switch `?console=0` (wins for this page load) and a stored '0'
+ * (hold-Menu → off / a declined entry prompt persisted the choice).
+ */
+export function consoleModeExplicitlyDisabled(): boolean {
+  const search = typeof window !== 'undefined' ? window.location.search : '';
+  if (/[?&]console=0(?:&|$)/.test(search)) {
+    return true;
+  }
+  try {
+    return storage()?.getItem(STORAGE_KEY) === '0';
+  } catch {
+    return false;
+  }
+}
+
 export const consoleModeState = reactive({
   enabled: initialEnabled(),
   /** The consented-entry prompt («Перейти в режим контроллера?»). */

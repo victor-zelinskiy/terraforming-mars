@@ -3635,6 +3635,30 @@ html.console-mode {
     }
 }
 
+/* ── P14: the WINDOW scrollbar never shows in console mode ────────── *
+ * A console posture reads as an APP, not a web page — the root scroller's
+ * chrome is hidden on both potential scrollers (html + body). Scrolling
+ * itself stays FUNCTIONAL for the genuinely long pre-game pages (create
+ * game), where the pad focus engine moves content via scrollIntoView;
+ * surfaces that must fit (the main menu on handheld) are compacted in
+ * their profile blocks below so nothing overflows in the first place. */
+html.console-mode {
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
+    }
+    body {
+        scrollbar-width: none;
+        &::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+            display: none;
+        }
+    }
+}
+
 /* ── Desktop-chrome suppression in console mode ──────────────────── *
  * A MINIMIZED fallback surface would be unreachable from the pad (its
  * pill lives outside every console context), so minimize affordances are
@@ -3921,6 +3945,24 @@ html.con-profile-handheld {
 
     /* ── 24 · pre-game shell (menu / join / create / lobby) ──────── */
     &.console-mode .premium-main-menu .pmm__actions { zoom: 1; }
+    /* P14: the 5-item hero column (incl. ВЫЙТИ) sat at the very edge of
+       the 800px budget — compact the menu so it FITS with margin (the
+       console window never scrolls; the fit must be guaranteed, not
+       borderline). MARS at 76px still reads heroic on a 7" panel. */
+    &.console-mode .premium-main-menu {
+        .pmm__content { gap: 12px; padding: 18px 24px 14px; }
+        .pmm__emblem { width: 32px; margin-bottom: 6px; }
+        .pmm__title-terraforming { font-size: 20px; }
+        .pmm__title-mars { font-size: 76px; }
+        .pmm__badge { margin-top: 8px; padding: 4px 12px; }
+        .pmm__badge-text { font-size: 10px; letter-spacing: 3px; }
+        .pmm__actions { width: min(680px, 90vw); gap: 10px; }
+        .pmm-btn { height: 54px; gap: 14px; }
+        .pmm-btn__icon-cell { width: 40px; height: 40px; }
+        .pmm-btn__label { font-size: 19px; }
+        .pmm-btn__sublabel { font-size: 11px; }
+        .pmm-footer { gap: 8px; }
+    }
     &.console-mode .join-panel__card { zoom: 1; }
     &.console-mode #game-home { zoom: 1.05; }
     .con-load__panel { min-width: 360px; padding: 26px 36px; }

@@ -37,6 +37,21 @@ export function setNativeFullscreen(value: boolean): void {
 }
 
 /**
+ * Linux platform — the Steam Deck AppImage ships on it. Used to anchor the
+ * HANDHELD-viewport console-first heuristic: a small-screen WINDOWS laptop
+ * running the desktop shell must NOT be mistaken for a Deck, while the Deck
+ * (SteamOS = Linux, 1280×800 fullscreen) must boot console-first even when
+ * Chromium hides the pad pre-input / Steam Input emulates a mouse.
+ */
+export function isLinuxPlatform(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+  const ua = navigator.userAgent;
+  return /\bLinux\b/.test(ua) && !/\bAndroid\b/.test(ua);
+}
+
+/**
  * Is a REAL gamepad already connected right now? Used by the Electron
  * bootstrap (launching with a pad in hand → console mode immediately, no
  * prompt) and by the pre-game shell's initial-focus pass. `getGamepads()`

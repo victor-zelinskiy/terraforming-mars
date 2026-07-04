@@ -1366,6 +1366,37 @@ the desktop-gamepad mode are untouched throughout.
   keep their existing semantics (X is the extras hotkey there); the old
   hand-inspector styles are inert CSS. Gates: 85 specs, eslint, vue-tsc,
   make:css, build:client — green.
+- **P14 — SHIPPED (the Steam Deck critical: console-first Electron boot +
+  no window scrollbar).** Field report from the Deck (Electron Linux
+  AppImage): the app booted in DESKTOP mode (no auto console) and the
+  main menu showed the browser scrollbar.
+  **Root causes (both real):** (1) the P10 bootstrap keyed ONLY on
+  `initialGamepadDetected()` — but Chromium HIDES a connected pad until
+  its first button press (privacy), and Steam Input may present the Deck
+  controls as an emulated mouse/keyboard, so `getGamepads()` is empty at
+  launch; (2) in the resulting desktop posture the 5-item menu column
+  (incl. the P10 ВЫЙТИ) sat at the very edge of the 800px budget → the
+  window scrolled.
+  **Fix (renderer-only, ships with the next desktop release):** the
+  Electron shell now boots console-first on EITHER robust signal —
+  a visible pad OR the Deck POSTURE (`isLinuxPlatform()` [new, in
+  `runtimeMode.ts` — UA `Linux` and not `Android`] AND the `handheld`
+  layout profile). The platform anchor keeps a small-screen WINDOWS
+  laptop running the desktop shell out of the heuristic. An explicit
+  player opt-out always wins: the new
+  `consoleModeExplicitlyDisabled()` (`consoleModeState.ts`) vetoes the
+  auto-enable on the `?console=0` session kill switch OR a stored `'0'`
+  (hold-Menu → off persists across launches); the pad-connect watcher
+  and the input-mode auto-enable respect the same veto. Scrollbar:
+  `html.console-mode` hides the ROOT scroller chrome on both potential
+  scrollers (html + body, `scrollbar-width: none` +
+  `::-webkit-scrollbar`) — scrolling stays FUNCTIONAL for the genuinely
+  long pre-game pages (create game; the pad focus engine scrolls via
+  scrollIntoView) — and the handheld profile block COMPACTS the premium
+  menu (MARS 76px, buttons 54px, tightened gaps ≈ 580px total) so the
+  hero column FITS 800px with margin instead of borderline. Gates:
+  90 console specs (+5 `consoleModeBoot.spec.ts` — kill switch / stored
+  veto / UA anchor), eslint, vue-tsc, make:css, build:client — green.
 
 ---
 
