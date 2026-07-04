@@ -2,6 +2,8 @@ import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
+import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 
 /**
  * Module-level reactive state for the premium "Гидросеть" overlay. Lives outside
@@ -43,4 +45,27 @@ export function resetHydroPlan(): void {
   hydroNetworkState.rewardChoice = undefined;
   hydroNetworkState.selectedCard = undefined;
   hydroNetworkState.awaitingPick = undefined;
+}
+
+/**
+ * The SHARED preview fetch (desktop overlay + console screen — one brain).
+ * Best-effort: on failure the track still renders from the public positions.
+ */
+export function fetchHydroPreview(viewerId: string, color: Color, scope: string): void {
+  if (typeof fetch !== 'function' || viewerId === '') {
+    return;
+  }
+  const url = apiUrl(paths.API_GAME_DELTA_PREVIEW) +
+    '?id=' + encodeURIComponent(viewerId) +
+    '&color=' + encodeURIComponent(color);
+  fetch(url)
+    .then((r) => (r.ok ? r.json() : undefined))
+    .then((p) => {
+      if (p !== undefined) {
+        hydroNetworkState.preview = p as DeltaTrackPreviewModel;
+        hydroNetworkState.previewColor = color;
+        hydroNetworkState.previewScope = scope;
+      }
+    })
+    .catch(() => { /* best-effort: the track still renders from public positions */ });
 }

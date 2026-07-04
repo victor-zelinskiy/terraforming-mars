@@ -49,8 +49,6 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
-import {paths} from '@/common/app/paths';
-import {apiUrl} from '@/client/utils/runtimeConfig';
 import {Color} from '@/common/Color';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
@@ -59,7 +57,7 @@ import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {$t} from '@/client/directives/i18n';
 import {buildHydroModel, HydroModel} from './hydroNetworkModel';
 import {HydroPlayerSnapshot} from './hydroReward';
-import {hydroNetworkState, resetHydroPlan} from './hydroNetworkState';
+import {fetchHydroPreview, hydroNetworkState, resetHydroPlan} from './hydroNetworkState';
 import HydroTrack from './HydroTrack.vue';
 import HydroActionZone from './HydroActionZone.vue';
 
@@ -187,24 +185,8 @@ export default defineComponent({
       });
     },
     fetchPreview(): void {
-      if (typeof fetch !== 'function' || this.viewerId === '') {
-        return;
-      }
-      const color = this.viewerColor;
-      const scope = this.cacheKey + ':' + color;
-      const url = apiUrl(paths.API_GAME_DELTA_PREVIEW) +
-        '?id=' + encodeURIComponent(this.viewerId) +
-        '&color=' + encodeURIComponent(color);
-      fetch(url)
-        .then((r) => (r.ok ? r.json() : undefined))
-        .then((p) => {
-          if (p !== undefined) {
-            hydroNetworkState.preview = p as DeltaTrackPreviewModel;
-            hydroNetworkState.previewColor = color;
-            hydroNetworkState.previewScope = scope;
-          }
-        })
-        .catch(() => { /* best-effort: the track still renders from public positions */ });
+      // The SHARED brain: same fetch the console-native screen uses.
+      fetchHydroPreview(this.viewerId, this.viewerColor, this.cacheKey + ':' + this.viewerColor);
     },
   },
 });

@@ -440,47 +440,916 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     50% { transform: scale(1.05); }
 }
 
-/* ── P24: the console-native Hydronetwork host ─────────────────────── */
-html.console-mode .con-hydro-host {
+/* ── The console-NATIVE Hydronetwork screen (full rework) ───────────
+   Its own composition — header band with live status chips, a single-row
+   progress RAIL (the selected stop magnified), and a full-width decision
+   panel (identity · requirements · reward + CTA). No desktop overlay,
+   no zoom hacks, no scrollbars by design. */
+@con-hydro-aqua: #4fc9d8;
+@con-hydro-mint: #5fe3b4;
+@con-hydro-gold: #e6c34a;
+
+.con-hydro {
     flex: 1;
     min-width: 0;
     min-height: 0;
-    overflow-y: auto; /* the RARE fallback — chrome-less (P17 mixin ethos) */
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 2px 4px 0;
+    font-family: @con-font;
+    color: @con-text;
 
-    .hydronetwork-overlay {
-        width: 100%;
-        height: auto;
-        max-height: none;
-        min-height: 100%;
-        box-sizing: border-box;
+    /* ── Header band ─────────────────────────────────────────────── */
+    &__head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 18px;
+        flex-shrink: 0;
     }
-    /* The desktop close ✕ is a mouse affordance — B owns closing. */
-    .hydro-board__close { display: none; }
-    /* Compact hero: one-line lore, tighter header. */
-    .hydro-board__header { padding: 10px 18px 6px; }
-    .hydro-board__title { font-size: 20px; }
-    .hydro-board__lore {
-        font-size: 12.5px;
+    &__id {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
+    }
+    &__glyph {
+        font-size: 34px;
+        line-height: 1;
+        color: @con-hydro-aqua;
+        text-shadow: 0 0 14px fade(@con-hydro-aqua, 55%);
+    }
+    &__title {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }
+    &__sub {
+        margin: 3px 0 0;
+        font-size: 14.5px;
+        line-height: 1.3;
+        color: @con-text-dim;
+        max-width: 760px;
+    }
+    &__chips {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+        padding-top: 4px;
+    }
+    &__chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 14px;
+        border-radius: 999px;
+        background: rgba(12, 20, 30, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22);
+        font-size: 16px;
+        white-space: nowrap;
+
+        b { font-size: 19px; }
+        &--energy b { color: #fff; }
+        &--ready {
+            background: fade(@con-hydro-mint, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 55%);
+            .con-hydro__chip-dot { background: @con-hydro-mint; box-shadow: 0 0 8px fade(@con-hydro-mint, 80%); }
+        }
+        &--waiting {
+            box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
+            .con-hydro__chip-dot { background: @con-amber; }
+        }
+        &--used,
+        &--end {
+            opacity: 0.8;
+            .con-hydro__chip-dot { background: rgba(150, 175, 205, 0.6); }
+        }
+    }
+    &__chip-ico {
+        display: inline-block;
+        width: 22px;
+        height: 22px;
+        background-size: contain !important;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    &__chip-dim { color: @con-text-dim; font-size: 14px; }
+    &__chip-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: rgba(150, 175, 205, 0.6);
+        flex-shrink: 0;
+    }
+
+    /* ── Progress rail ───────────────────────────────────────────── */
+    &__rail {
+        display: flex;
+        align-items: stretch;
+        padding: 8px 2px 6px;
+        flex-shrink: 0;
+    }
+    &__link {
+        flex: 1 1 10px;
+        min-width: 6px;
+        max-width: 30px;
+        height: 3px;
+        align-self: center;
+        border-radius: 2px;
+        background: rgba(120, 150, 180, 0.2);
+
+        &--done { background: fade(@con-hydro-aqua, 75%); box-shadow: 0 0 8px fade(@con-hydro-aqua, 35%); }
+        &--route { background: fade(@con-hydro-mint, 80%); box-shadow: 0 0 8px fade(@con-hydro-mint, 40%); }
+    }
+    &__stop {
+        position: relative;
+        flex: 0 0 auto;
+        width: 96px;
+        min-height: 186px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 6px 8px;
+        border-radius: 12px;
+        background: rgba(12, 20, 30, 0.62);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
+        cursor: pointer;
+        transition: width calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+            box-shadow calc(150ms * var(--motion-scale, 1)) ease,
+            background calc(150ms * var(--motion-scale, 1)) ease;
+
+        &--completed {
+            background: fade(@con-hydro-aqua, 7%);
+            box-shadow: inset 0 0 0 1px fade(@con-hydro-aqua, 30%);
+            filter: saturate(0.85);
+        }
+        &--current {
+            background: fade(@con-hydro-aqua, 13%);
+            box-shadow: inset 0 0 0 2px fade(@con-hydro-aqua, 80%), 0 0 16px fade(@con-hydro-aqua, 25%);
+        }
+        &--route,
+        &--target {
+            box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 55%);
+        }
+        &--future { opacity: 0.82; }
+        &--vp {
+            box-shadow: inset 0 0 0 1px fade(@con-hydro-gold, 45%);
+            background: fade(@con-hydro-gold, 5%);
+        }
+        &--grade-blocked .con-hydro__stop-badge--grade { color: @con-red; }
+        &--grade-occupied .con-hydro__stop-badge--grade { color: @con-red; }
+        &--grade-needs-energy .con-hydro__stop-badge--grade { color: @con-amber; }
+        &--dimmed { filter: saturate(0.55); opacity: 0.7; }
+
+        /* The SELECTED stop is the magnified hero of the rail. */
+        &--focused {
+            width: 190px;
+            opacity: 1;
+            filter: none;
+            background: fade(@con-cyan, 11%);
+            box-shadow: inset 0 0 0 2px fade(@con-cyan, 85%), 0 0 22px fade(@con-cyan, 25%);
+        }
+    }
+    &__stop-req {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    &__stop-tag {
+        width: 34px;
+        height: 34px;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        border-radius: 50%;
+        filter: none;
+    }
+    &__stop-vp {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 3px;
+        font-size: 21px;
+        font-weight: 800;
+        color: @con-hydro-gold;
+        small { font-size: 12px; font-weight: 700; }
+    }
+    &__stop-flag { font-size: 22px; color: @con-hydro-aqua; }
+    &__stop-num {
+        font-size: 14px;
+        font-weight: 700;
+        color: @con-text-dim;
+    }
+    &__stop-badge {
+        font-size: 16px;
+        font-weight: 800;
+        &--done { color: @con-hydro-mint; }
+        &--skip { color: rgba(196, 216, 236, 0.65); }
+    }
+    &__stop-name {
+        font-size: 14.5px;
+        font-weight: 700;
+        line-height: 1.2;
+        text-align: center;
+        min-height: 34px;
+    }
+    &__stop-reward {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        zoom: 1.05;
+    }
+    &__stop-or {
+        font-size: 12px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__stop-noreward { color: @con-text-dim; }
+    &__stop-markers {
+        margin-top: auto;
+        display: flex;
+        gap: 5px;
+        min-height: 14px;
+    }
+    &__stop-marker {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.9);
+        &--viewer { box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.9), 0 0 8px fade(@con-hydro-aqua, 80%); }
+    }
+
+    /* ── Decision panel ──────────────────────────────────────────── */
+    &__panel {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.15fr);
+        gap: 16px;
+        padding: 16px 18px;
+        border-radius: 14px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-hydro-aqua, 25%), 0 12px 40px rgba(0, 0, 0, 0.4);
+        overflow-y: auto; /* the RARE fallback — chrome-less */
+        scrollbar-width: none;
+        &::-webkit-scrollbar { display: none; }
+    }
+    &__col {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    &__col--req,
+    &__col--act {
+        border-left: 1px solid rgba(120, 150, 180, 0.14);
+        padding-left: 16px;
+    }
+    &__section-label {
+        font-size: 14px;
+        letter-spacing: 1.8px;
+        text-transform: uppercase;
+        color: fade(@con-hydro-aqua, 90%);
+    }
+    &__stage-id {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    &__stage-tag {
+        width: 46px;
+        height: 46px;
+        flex-shrink: 0;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        border-radius: 50%;
+        filter: none;
+    }
+    &__stage-vp {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 10px;
+        background: fade(@con-hydro-gold, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-hydro-gold, 55%);
+        color: @con-hydro-gold;
+        font-size: 19px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    &__stage-flag { font-size: 30px; color: @con-hydro-aqua; }
+    &__stage-name {
+        font-size: 21px;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+    &__stage-pos {
+        font-size: 14px;
+        color: @con-text-dim;
+        margin-top: 2px;
+    }
+    &__stage-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        align-self: flex-start;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 15px;
+        font-weight: 700;
+        background: rgba(12, 20, 30, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.25);
+
+        &--ready {
+            background: fade(@con-hydro-mint, 12%);
+            box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 60%);
+            .con-hydro__chip-dot { background: @con-hydro-mint; box-shadow: 0 0 8px fade(@con-hydro-mint, 80%); }
+        }
+        &--todo {
+            background: fade(@con-cyan, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%);
+            .con-hydro__chip-dot { background: @con-cyan; }
+        }
+        &--blocked {
+            background: fade(@con-red, 8%);
+            box-shadow: inset 0 0 0 1px fade(@con-red, 50%);
+            .con-hydro__chip-dot { background: @con-red; }
+        }
+        &--current {
+            background: fade(@con-hydro-aqua, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-hydro-aqua, 55%);
+            .con-hydro__chip-dot { background: @con-hydro-aqua; }
+        }
+        &--built {
+            background: fade(@con-hydro-mint, 8%);
+            box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 45%);
+            .con-hydro__chip-dot { background: @con-hydro-mint; }
+        }
+    }
+    &__route {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 19px;
+        b { font-size: 22px; color: @con-hydro-mint; }
+    }
+    &__route-cost {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-left: 8px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: rgba(12, 20, 30, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.25);
+        font-size: 16px;
+        font-weight: 700;
+    }
+    &__history { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+    &__history-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 15.5px;
+    }
+    &__history-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    &__history-name { font-weight: 700; }
+    &__history-status { color: @con-text-dim; }
+    &__start-note { font-size: 15.5px; color: @con-text-dim; line-height: 1.35; }
+
+    /* Requirements column */
+    &__req-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    &__req-tag {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 9px 5px 6px;
+        border-radius: 999px;
+        background: rgba(12, 20, 30, 0.6);
+        box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 40%);
+
+        .resource-tag {
+            width: 27px;
+            height: 27px;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            border-radius: 50%;
+        }
+        .con-hydro__req-mark { color: @con-hydro-mint; }
+
+        &--wild { box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%); }
+        &--missing {
+            box-shadow: inset 0 0 0 1px fade(@con-red, 60%);
+            background: fade(@con-red, 7%);
+            .con-hydro__req-mark { color: @con-red; }
+        }
+    }
+    &__req-mark { font-size: 15px; font-weight: 800; }
+    &__req-wild { color: @con-cyan; font-size: 14px; font-weight: 800; }
+    &__req-legend { font-size: 13.5px; color: @con-text-dim; }
+    &__req-energy {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        align-self: flex-start;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: rgba(12, 20, 30, 0.6);
+        box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 40%);
+        font-size: 17px;
+        b { font-size: 20px; }
+        .con-hydro__req-mark { color: @con-hydro-mint; }
+
+        &--short {
+            box-shadow: inset 0 0 0 1px fade(@con-red, 60%);
+            background: fade(@con-red, 7%);
+            .con-hydro__req-mark { color: @con-red; }
+        }
+    }
+    &__req-have { font-size: 14.5px; color: @con-text-dim; }
+    &__req-note {
+        font-size: 14.5px;
         line-height: 1.35;
-        max-width: none;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        color: @con-text-dim;
+        &--warn { color: #ffe3b0; }
+        &--muted { opacity: 0.85; }
     }
-    /* The track fits WITHOUT its own scrollbar: scale to the section. */
-    .hydro-board__body { zoom: 0.92; }
-    .hydro-board__track-wrap {
-        overflow: visible;
-        max-height: none;
+    &__def-reward { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; zoom: 1.15; }
+    &__vpline {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 15.5px;
+        color: @con-text-dim;
+    }
+
+    /* Action column */
+    &__bonus-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+    &__bonus-keys {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 13.5px;
+        color: @con-text-dim;
+        text-transform: none;
+        letter-spacing: 0.4px;
+    }
+    &__bonuses {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        &--attention { animation: con-hydro-attention calc(450ms * var(--motion-scale, 1)) ease 2; }
+    }
+    &__bonus {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
+        cursor: pointer;
+        zoom: 1.1;
+        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+
+        &--selected {
+            background: fade(@con-cyan, 12%);
+            box-shadow: inset 0 0 0 2px fade(@con-cyan, 80%), 0 0 14px fade(@con-cyan, 18%);
+        }
+    }
+    &__bonus-tick { color: @con-hydro-mint; font-size: 18px; font-weight: 800; }
+    &__gains { display: flex; flex-direction: column; gap: 8px; }
+    &__gains--chosen { margin-top: 2px; }
+    &__delta {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 17px;
+    }
+    &__delta-ico {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+
+        &--prod {
+            padding: 4px;
+            border-radius: 5px;
+            background: linear-gradient(180deg, rgba(138, 90, 43, 0.75), rgba(107, 69, 32, 0.75));
+            box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.4);
+        }
+    }
+    &__delta-img {
+        display: inline-block;
+        width: 26px;
+        height: 26px;
+        background-size: contain !important;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    &__beforeafter {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        b { font-size: 18px; }
+    }
+    &__after { color: @con-hydro-mint; }
+    &__plus {
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: fade(@con-hydro-mint, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 50%);
+        color: @con-hydro-mint;
+        font-size: 15px;
+        font-weight: 800;
+    }
+    &__delta-note { font-size: 13.5px; color: @con-text-dim; }
+    &__pick {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    &__pick-chosen {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: fade(@con-cyan, 9%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 50%);
+        font-size: 16px;
+    }
+    &__pick-cur {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        color: @con-text-dim;
+        .card-resource {
+            width: 20px;
+            height: 20px;
+            background-size: contain;
+        }
+    }
+    &__pick-pending {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: fade(@con-amber, 9%);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 50%);
+        color: #ffe3b0;
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    /* CTA zone — the strongest control OR the specific reason list. */
+    &__cta-zone {
+        margin-top: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding-top: 8px;
+    }
+    &__cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 13px 18px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(180deg, fade(@con-hydro-mint, 26%), fade(@con-hydro-mint, 14%));
+        box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 75%), 0 0 22px fade(@con-hydro-mint, 18%);
+        color: #eafff5;
+        font-family: @con-font;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        cursor: pointer;
+        animation: con-hydro-cta calc(2400ms * var(--motion-scale, 1)) ease-in-out infinite;
+
+        &--disabled {
+            background: rgba(14, 22, 33, 0.6);
+            box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.25);
+            color: rgba(196, 216, 236, 0.5);
+            cursor: default;
+            animation: none;
+            .gp-glyph { opacity: 0.4; }
+        }
+    }
+    &__reasons {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    &__reason {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 11px;
+        border-radius: 8px;
+        background: fade(@con-red, 7%);
+        box-shadow: inset 0 0 0 1px fade(@con-red, 40%);
+        font-size: 15.5px;
+        line-height: 1.3;
+
+        &--todo {
+            background: fade(@con-cyan, 7%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%);
+            .con-hydro__reason-glyph { color: @con-cyan; }
+        }
+    }
+    &__reason-glyph { color: @con-red; font-weight: 800; flex-shrink: 0; }
+    &__reason-tag {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        border-radius: 50%;
+    }
+    &__detail-status { font-size: 17px; font-weight: 700; }
+
+    /* ── Help / lore panel (X = Подробнее) ───────────────────────── */
+    &__help-frame { width: min(760px, 92vw); }
+    &__help-body { gap: 14px; }
+    &__help-lore {
+        margin: 0;
+        font-size: 17px;
+        line-height: 1.45;
+        color: @con-text;
+    }
+    &__help-rules {
+        margin: 0;
+        padding-left: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        font-size: 16px;
+        line-height: 1.35;
+        color: @con-text-dim;
+        li::marker { color: @con-hydro-aqua; }
     }
 }
-html.con-profile-handheld.console-mode .con-hydro-host {
-    .hydro-board__body { zoom: 0.72; }
-    .hydro-board__title { font-size: 17px; }
-    .hydro-board__lore { font-size: 11.5px; }
+
+/* The confirm modal («Укрепить гидросеть») — con-task chrome + hydro rows. */
+.con-hydroconfirm {
+    &__frame { width: min(720px, 92vw); }
+    &__body { gap: 10px; }
+    &__route {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px fade(@con-hydro-aqua, 35%);
+    }
+    &__stage-id { display: inline-flex; align-items: center; gap: 10px; }
+    &__tag {
+        width: 34px;
+        height: 34px;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    &__stage-name { font-size: 20px; }
+    &__vp-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: fade(@con-hydro-gold, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-hydro-gold, 55%);
+        color: @con-hydro-gold;
+        font-size: 16px;
+        font-weight: 800;
+        white-space: nowrap;
+        &--big { font-size: 19px; }
+    }
+    &__route-path { font-size: 18px; b { font-size: 21px; color: @con-hydro-mint; } }
+    &__route-of { color: @con-text-dim; font-size: 15px; margin-left: 6px; }
+    &__spend {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        align-self: flex-start;
+        padding: 8px 13px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22);
+        font-size: 17px;
+    }
+    &__spend-num { font-size: 21px; color: #ffd9a0; }
+    &__beforeafter {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: @con-text-dim;
+        b { color: @con-text; font-size: 18px; }
+    }
+    &__after { color: @con-hydro-mint; }
+    &__bonus-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    &__bonus-keys {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 13.5px;
+        color: @con-text-dim;
+        text-transform: none;
+        letter-spacing: 0.4px;
+    }
+    &__bonus { cursor: pointer; zoom: 1.1; }
+    &__tick { color: @con-hydro-mint; font-size: 18px; font-weight: 800; margin-left: auto; }
+    &__gains { display: flex; flex-direction: column; gap: 8px; }
+    &__delta { display: flex; align-items: center; gap: 9px; font-size: 17px; }
+    &__delta-ico {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        &--prod {
+            padding: 4px;
+            border-radius: 5px;
+            background: linear-gradient(180deg, rgba(138, 90, 43, 0.75), rgba(107, 69, 32, 0.75));
+            box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.4);
+        }
+    }
+    &__delta-img {
+        display: inline-block;
+        width: 26px;
+        height: 26px;
+        background-size: contain !important;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    &__delta-label { color: @con-text-dim; }
+    &__delta-card { font-weight: 700; }
+    &__delta-note { font-size: 13.5px; color: @con-text-dim; }
+    &__plus {
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: fade(@con-hydro-mint, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 50%);
+        color: @con-hydro-mint;
+        font-size: 15px;
+        font-weight: 800;
+    }
+    &__rawchips { zoom: 1.15; }
+    &__vpline { display: flex; align-items: center; gap: 10px; font-size: 16px; color: @con-text-dim; }
+    &__card {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: fade(@con-cyan, 9%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 50%);
+        font-size: 16px;
+    }
+    &__card-label { color: @con-text-dim; }
+    &__note { font-size: 14.5px; color: @con-text-dim; }
+    &__skips { font-size: 15.5px; }
+    &__skips-head { font-weight: 700; margin-bottom: 6px; }
+    &__skip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 3px 0;
+    }
+    &__skip-name { color: @con-text; }
+    &__skip-or { font-size: 12px; text-transform: uppercase; color: @con-text-dim; }
+}
+
+/* Hydro reward chips (shared HydroReward renderer) read on dark console
+   glass exactly as on the desktop overlay — only sizing is normalized. */
+.con-hydro,
+.con-hydroconfirm {
+    .hydro-reward__label { color: @con-text; }
+}
+
+@keyframes con-hydro-cta {
+    0%, 100% { box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 75%), 0 0 16px fade(@con-hydro-mint, 14%); }
+    50% { box-shadow: inset 0 0 0 1px fade(@con-hydro-mint, 90%), 0 0 26px fade(@con-hydro-mint, 26%); }
+}
+@keyframes con-hydro-attention {
+    0%, 100% { transform: translateX(0); }
+    30% { transform: translateX(-5px); }
+    70% { transform: translateX(5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-hydro__cta { animation: none; }
+    .con-hydro__bonuses--attention { animation: none; }
+}
+
+/* ── Hydronetwork · handheld profile (Steam Deck 1280×800 — the primary
+   target): the SAME composition, recomposed tighter, never scaled down. */
+html.con-profile-handheld .con-hydro {
+    gap: 7px;
+
+    .con-hydro__glyph { font-size: 27px; }
+    .con-hydro__title { font-size: 19px; letter-spacing: 1.6px; }
+    .con-hydro__sub { font-size: 12.5px; max-width: 520px; }
+    .con-hydro__chip { padding: 5px 11px; font-size: 14px; b { font-size: 16px; } }
+    .con-hydro__chip-ico { width: 18px; height: 18px; }
+
+    .con-hydro__rail { padding: 5px 0 4px; }
+    .con-hydro__stop {
+        width: 68px;
+        min-height: 148px;
+        padding: 7px 4px 6px;
+        border-radius: 10px;
+        &--focused { width: 158px; }
+    }
+    .con-hydro__stop-tag { width: 27px; height: 27px; }
+    .con-hydro__stop-vp { font-size: 17px; small { font-size: 10px; } }
+    .con-hydro__stop-flag { font-size: 18px; }
+    .con-hydro__stop-num { font-size: 12px; }
+    .con-hydro__stop-badge { font-size: 13px; }
+    .con-hydro__stop-name { font-size: 12.5px; min-height: 30px; }
+    .con-hydro__stop-reward { zoom: 0.9; }
+    .con-hydro__stop-marker { width: 11px; height: 11px; }
+    .con-hydro__link { min-width: 4px; max-width: 14px; }
+
+    .con-hydro__panel { gap: 12px; padding: 11px 13px; }
+    .con-hydro__col--req,
+    .con-hydro__col--act { padding-left: 12px; }
+    .con-hydro__col { gap: 7px; }
+    .con-hydro__section-label { font-size: 12px; letter-spacing: 1.4px; }
+    .con-hydro__stage-tag { width: 36px; height: 36px; }
+    .con-hydro__stage-name { font-size: 17px; }
+    .con-hydro__stage-pos { font-size: 12.5px; }
+    .con-hydro__stage-badge { font-size: 13px; padding: 4px 10px; }
+    .con-hydro__route { font-size: 16px; b { font-size: 18px; } }
+    .con-hydro__route-cost { font-size: 14px; }
+    .con-hydro__history-row { font-size: 13.5px; }
+    .con-hydro__start-note { font-size: 13.5px; }
+    .con-hydro__req-tag .resource-tag { width: 22px; height: 22px; }
+    .con-hydro__req-energy { font-size: 15px; padding: 6px 10px; b { font-size: 17px; } }
+    .con-hydro__req-have { font-size: 12.5px; }
+    .con-hydro__req-note { font-size: 13px; }
+    .con-hydro__req-legend { font-size: 12px; }
+    .con-hydro__bonus { padding: 8px 11px; zoom: 1; }
+    .con-hydro__bonus-keys { font-size: 12px; }
+    .con-hydro__delta { font-size: 15px; }
+    .con-hydro__delta-img { width: 22px; height: 22px; }
+    .con-hydro__beforeafter b { font-size: 16px; }
+    .con-hydro__plus { font-size: 13px; }
+    .con-hydro__pick-chosen,
+    .con-hydro__pick-pending { font-size: 14px; padding: 6px 10px; }
+    .con-hydro__cta { padding: 10px 14px; font-size: 15.5px; }
+    .con-hydro__reason { font-size: 13.5px; padding: 6px 9px; }
+    .con-hydro__detail-status { font-size: 15px; }
+    .con-hydro__help-lore { font-size: 15px; }
+    .con-hydro__help-rules { font-size: 14px; }
+}
+html.con-profile-handheld .con-hydroconfirm {
+    &__frame { width: min(640px, 94vw); }
+    &__stage-name { font-size: 17px; }
+    &__route-path { font-size: 16px; b { font-size: 18px; } }
+    &__spend { font-size: 15px; }
+    &__spend-num { font-size: 18px; }
+    &__delta { font-size: 15px; }
+    &__delta-img { width: 22px; height: 22px; }
+    &__skips { font-size: 13.5px; }
+}
+
+/* Hydronetwork · large profile (4K TV): everything one notch up. */
+html.con-profile-large .con-hydro {
+    .con-hydro__title { font-size: 30px; }
+    .con-hydro__sub { font-size: 17px; max-width: 900px; }
+    .con-hydro__chip { font-size: 19px; b { font-size: 23px; } }
+    .con-hydro__stop { width: 122px; min-height: 224px; &--focused { width: 236px; } }
+    .con-hydro__stop-tag { width: 42px; height: 42px; }
+    .con-hydro__stop-name { font-size: 17px; }
+    .con-hydro__stage-name { font-size: 25px; }
+    .con-hydro__delta { font-size: 20px; }
+    .con-hydro__cta { font-size: 21px; padding: 16px 22px; }
+    .con-hydro__reason { font-size: 18px; }
 }
 
 /* ── P20: off-Mars special zones, console-compacted ────────────────

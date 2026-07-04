@@ -7,6 +7,7 @@
             class="con-cmdbar__cmd"
             :class="{'con-cmdbar__cmd--disabled': cmd.enabled === false, 'con-cmdbar__cmd--hot': cmd.highlight === true}">
         <GamepadGlyph :control="cmd.control" />
+        <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
         <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
         <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
       </span>
@@ -30,6 +31,8 @@ import {GlyphControl} from '@/client/gamepad/glyphSets';
 
 export type ConsoleCommand = {
   control: GlyphControl,
+  /** A paired second glyph (LB+RB acting as ONE command, e.g. «Бонус»). */
+  control2?: GlyphControl,
   /** English i18n key. */
   label: string,
   enabled?: boolean,
