@@ -140,7 +140,14 @@ export function resolveFile(pathname: string): string | undefined {
 export function registerAppScheme(): void {
   protocol.registerSchemesAsPrivileged([{
     scheme: APP_SCHEME,
-    privileges: {standard: true, secure: true, supportFetchAPI: true, stream: true},
+    // `codeCache` persists V8 BYTECODE for the JS served over app:// (requires `standard`,
+    // which we already set). Without it, Chromium re-parses + re-JITs the WHOLE renderer
+    // bundle from source on EVERY launch — exactly the "lags at startup, then smooths out"
+    // warmup: interpreted-then-JITted code is slow for the first seconds. The cache lives in
+    // userData/Code Cache and is auto-invalidated whenever a build changes the bytes, so the
+    // FIRST launch after an update recompiles once and every launch after is warm. Pure win
+    // for the packaged (immutable-bundle) desktop build; no effect on correctness.
+    privileges: {standard: true, secure: true, supportFetchAPI: true, stream: true, codeCache: true},
   }]);
 }
 

@@ -55,6 +55,17 @@ export function applyPerformanceSwitches(app: App): void {
   // opt-in is set (then we WANT the GPU process); force it back on with TM_ELECTRON_KEEP_GPU=1.
   if (process.platform === 'linux' && !linuxGpuTest && process.env.TM_ELECTRON_KEEP_GPU !== '1') {
     sw('disable-gpu');
+    // Software rendering leans on the CPU to rasterize every tile, and --disable-gpu drops the
+    // multi-threaded GPU raster path (the on-device GPU-status log shows
+    // "multiple_raster_threads":"disabled_off"). Give the SOFTWARE rasterizer explicit worker
+    // threads so tile raster runs in parallel across the Deck's cores — the single biggest
+    // smoothness lever once the GPU is off (scrolling, marker glides, board redraws). Default
+    // 4 = the Deck's physical cores; tune via TM_ELECTRON_RASTER_THREADS (0/empty leaves
+    // Chromium's conservative default).
+    const rasterThreads = (process.env.TM_ELECTRON_RASTER_THREADS ?? '4').trim();
+    if (/^[1-9]\d*$/.test(rasterThreads)) {
+      sw('num-raster-threads', rasterThreads);
+    }
   }
 
   // ── Steam Deck GPU experiments (Linux; opt-in, OFF by default) ────────────
@@ -96,6 +107,15 @@ export function applyPerformanceSwitches(app: App): void {
   // opt-in, never the default.
   if (process.env.TM_ELECTRON_FORCE_GPU === '1') {
     sw('disable-software-rasterizer');
+  }
+  // Pass arbitrary V8 flags through for on-device tuning WITHOUT a rebuild — e.g. GC / heap
+  // experiments to chase mid-session jank:
+  //   TM_ELECTRON_JS_FLAGS="--max-old-space-size=512"   (fewer, bigger GCs)
+  //   TM_ELECTRON_JS_FLAGS="--max-semi-space-size=64"   (larger young-gen → fewer minor GCs)
+  // Off by default; whatever is set is handed to V8 verbatim.
+  const jsFlags = (process.env.TM_ELECTRON_JS_FLAGS ?? '').trim();
+  if (jsFlags !== '') {
+    sw('js-flags', jsFlags);
   }
 }
 
