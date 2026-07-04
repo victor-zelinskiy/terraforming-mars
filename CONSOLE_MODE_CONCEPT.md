@@ -1579,6 +1579,40 @@ the desktop-gamepad mode are untouched throughout.
   keyboard may still need Steam+X (the focus/caret is real either way).
   Gates: 34 gamepad specs (+4 hint grammar), vue-tsc, eslint,
   make:json (+2 ru keys), make:css, build:client — green.
+- **P20 — SHIPPED (premium console-native tile placement).**
+  **Active cell v2:** the selected-cell marker is now a HEX-shaped SVG
+  overlay (matches the grid — never a floating circle): inner glow fill
+  + a thick rim + a drop-shadow halo, pulsing SCALE/GLOW (the old
+  0.55-opacity pulse read weak — opacity now stays constant). Placement
+  states: legal = dominant MINT, inspect-illegal = RED, neutral = cyan;
+  while placing, the amber AVAILABLE outlines calm to 0.72 so the
+  active marker dominates at a glance. One animated element — Deck-cheap.
+  **LT/RT are GLOBAL again:** LT = Information Mode even mid-placement
+  (the free-roam HOLD is gone); RT = the action wheel from the board
+  INCLUDING during placement — inspection is free, but STARTING another
+  action (sheet rows: std projects / card actions / milestones / awards
+  / basics, play-from-hand, colony trade) is gated with the honest
+  «Сначала завершите текущее действие» notice. Placement shortcuts
+  moved to the STICKS: **L3 = next available cell, R3 = TOGGLE
+  inspect-all** (announced via notice; the top banner flips to
+  «Осмотр всех клеток»; the toggle resets when the placement resolves).
+  **B semantics:** cancellable → «Отменить размещение» (real cancel);
+  mandatory → the command bar shows a MUTED «Размещение обязательно»
+  (never an active-looking stub) and pressing B toasts «Это размещение
+  обязательно — выберите клетку на карте»; the context panel adds the
+  explanation line («Это действие требует выбора клетки. Отмена
+  недоступна.»).
+  **Context panel:** the P20 command map (A/L3/R3/LT/RT/B), an
+  «Осмотр всех клеток» mode chip, and the illegal cell brief reads as
+  a REASON («Клетка поля: Место под океан — этот тайл сюда разместить
+  нельзя») — never a contradictory bare label.
+  **Off-Mars zones (console-scoped):** the 7-cell arc pulls in to
+  radius 338 (same angles/mirror symmetry; the scale bonus markers
+  reach ~r318) and Dawn City lifts 7°→10° — clear of the 0°C/−4°C
+  temperature bonus zone and the right panel at the console board
+  scale; desktop positions untouched.
+  Gates: 95 console specs, vue-tsc, eslint, make:json (+6 ru keys),
+  make:css, build:client — green.
 
 ---
 

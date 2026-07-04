@@ -45,6 +45,7 @@
                            :placementTitle="placementTitle"
                            :selectedLegal="selectedCellLegal"
                            :illegalReason="selectedCellIllegalReason"
+                           :inspectAll="consoleState.freeRoam"
                            :cancellable="placementCancellable"
                            :myTurn="myTurn"
                            :cardsPlayable="cardsPlayableCount"
@@ -685,7 +686,8 @@ export default defineComponent({
     // ── banner ──────────────────────────────────────────────────────────
     bannerText(): string {
       if (this.placementActive) {
-        return translateText('Choose a location on the board');
+        // P20: the inspect-all toggle owns the prompt while active.
+        return translateText(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Choose a location on the board');
       }
       if (this.consoleState.fallbackActive) {
         return translateText('Awaiting decision');
@@ -990,9 +992,11 @@ export default defineComponent({
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Place here', enabled: this.selectedCellLegal},
-          {control: 'triggerR', label: 'Next available'},
-          {control: 'triggerL', label: 'Inspect all cells'},
-          {control: 'back', label: this.placementCancellable ? 'Cancel placement' : 'Selection is required', enabled: this.placementCancellable},
+          {control: 'stickL', label: 'Next available'},
+          {control: 'stickR', label: this.consoleState.freeRoam ? 'Available cells only' : 'Inspect all cells'},
+          {control: 'triggerL', label: 'Information'},
+          {control: 'triggerR', label: 'Actions'},
+          {control: 'back', label: this.placementCancellable ? 'Cancel placement' : 'Placement is mandatory', enabled: this.placementCancellable},
         ];
       }
       if (this.consoleState.sale.active) {
@@ -1115,6 +1119,8 @@ export default defineComponent({
         this.consoleState.section = 'board';
         closeConsoleLayers();
       }
+      // P20: the R3 inspect-all toggle never outlives its placement.
+      this.consoleState.freeRoam = false;
     },
     // A fresh playerView: reconfigure the board-info fetcher (facts may have
     // changed), clamp transient indices to the fresh lists.
@@ -1308,20 +1314,16 @@ export default defineComponent({
         }
         return false;
       }
-      // LT INFORMATION MODE: toggle from every safe console context
-      // (placement keeps LT as the free-roam hold — a mandatory flow).
+      // LT INFORMATION MODE: toggle from every safe console context —
+      // P20: INCLUDING active placement (LT/RT keep their global meaning;
+      // inspect-all moved to R3 as a toggle, so no hold state remains).
       if (intent.kind === 'press' && intent.button === 'triggerL') {
-        if (this.placementActive && !this.infoModeState.open) {
-          this.consoleState.freeRoam = true;
-        } else if (this.consoleState.confirm === undefined) {
+        if (this.consoleState.confirm === undefined) {
           this.toggleInfoMode();
         }
         return true;
       }
       if (intent.kind === 'release') {
-        if (intent.button === 'triggerL') {
-          this.consoleState.freeRoam = false;
-        }
         return true;
       }
       if (intent.kind === 'scroll') {
@@ -1572,9 +1574,11 @@ export default defineComponent({
         journalState.open = !journalState.open;
         return true;
       case 'triggerR':
-        // RT: the action wheel — ONLY from the board home (§6.1); elsewhere
-        // it keeps its local jump semantics.
-        if (onBoard && !this.placementActive) {
+        // RT: the action wheel — from the board home, P20: including an
+        // active placement (the player may INSPECT cards/actions; starting
+        // a conflicting action is gated with an honest warning). Elsewhere
+        // RT keeps its local jump semantics (hand: next playable).
+        if (onBoard) {
           this.deferShellTask(); // the wheel is navigation-away
           this.consoleState.wheelOpen = true;
           this.consoleState.wheelIndex = 0; // Cards = the A default
@@ -1582,6 +1586,20 @@ export default defineComponent({
           return true;
         }
         this.handleNextJump();
+        return true;
+      case 'stickL':
+        // P20: L3 = next AVAILABLE placement target (was RT).
+        if (this.placementActive && this.consoleState.section === 'board') {
+          this.handleNextJump();
+        }
+        return true;
+      case 'stickR':
+        // P20: R3 toggles INSPECT-ALL cells during placement (was the LT
+        // hold) — persistent, announced, and reflected in every hint row.
+        if (this.placementActive && this.consoleState.section === 'board') {
+          this.consoleState.freeRoam = !this.consoleState.freeRoam;
+          this.showNotice(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Available cells only');
+        }
         return true;
       case 'confirm':
         this.handleSectionConfirm();
@@ -1665,6 +1683,10 @@ export default defineComponent({
           this.submit(colonyResponse(selected.name));
           return;
         }
+        if (this.placementActive) {
+          this.showNotice('Finish your current action first');
+          return;
+        }
         this.tryOpenColonyTrade();
         return;
       }
@@ -1679,6 +1701,11 @@ export default defineComponent({
       }
       if (!entry.playable) {
         this.showNotice('Unplayable now');
+        return;
+      }
+      // P20: inspection is free; STARTING a play mid-placement is not.
+      if (this.placementActive) {
+        this.showNotice('Finish your current action first');
         return;
       }
       this.openPlayCard(entry.card.name);
@@ -1720,7 +1747,7 @@ export default defineComponent({
         if (this.placementCancellable) {
           this.cancelPlacement();
         } else {
-          this.showNotice('Selection is required');
+          this.showNotice('This placement is mandatory — pick a cell on the map');
         }
         return;
       }
@@ -1778,6 +1805,12 @@ export default defineComponent({
     },
     activateSheetRow(row: ConsoleSheetRow | undefined): void {
       if (row === undefined || row.kind === 'header') {
+        return;
+      }
+      // P20: the overlays stay OPEN for inspection during a placement, but
+      // STARTING another action would desync the pending SelectSpace.
+      if (this.placementActive) {
+        this.showNotice('Finish your current action first');
         return;
       }
       if (!row.available) {

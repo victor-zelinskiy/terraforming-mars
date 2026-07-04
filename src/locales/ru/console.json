@@ -95,5 +95,11 @@
     "Starting funds": "Начальные",
     "Already played": "Разыграна",
     "Enter text": "Ввести текст",
-    "Done editing": "Готово"
+    "Done editing": "Готово",
+    "Inspecting all cells": "Осмотр всех клеток",
+    "Available cells only": "Только доступные клетки",
+    "Placement is mandatory": "Размещение обязательно",
+    "This placement is mandatory — pick a cell on the map": "Это размещение обязательно — выберите клетку на карте",
+    "this tile cannot go here": "этот тайл сюда разместить нельзя",
+    "This action requires picking a cell. Cancelling is not available.": "Это действие требует выбора клетки. Отмена недоступна."
 }

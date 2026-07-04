@@ -4,6 +4,8 @@
     <template v-if="mode === 'placement'">
       <div class="con-context__task-kicker">{{ $t('Tile placement') }}</div>
       <div class="con-context__task-title">{{ placementTitle }}</div>
+      <!-- P20: the inspect-all toggle announces itself as a distinct mode. -->
+      <div v-if="inspectAll" class="con-context__mode-chip">{{ $t('Inspecting all cells') }}</div>
 
       <div v-if="selectedLegal" class="con-inspector__placement con-inspector__placement--legal">
         <GamepadGlyph control="confirm" />
@@ -19,6 +21,7 @@
 
       <div class="con-context__cell-brief" v-if="cellHeader !== ''">
         <span class="con-context__cell-brief-label">{{ $t('Board cell') }}:</span> {{ cellHeader }}
+        <span v-if="!selectedLegal" class="con-context__cell-brief-note">— {{ $t('this tile cannot go here') }}</span>
       </div>
       <div v-if="info !== undefined && info.facts.length > 0" class="con-inspector__facts">
         <BoardFactGroups :facts="info.facts" :viewerColor="viewerColor" :players="players" />
@@ -28,13 +31,17 @@
         <div class="con-context__cmd" :class="{'con-context__cmd--off': !selectedLegal}">
           <GamepadGlyph control="confirm" /><span>{{ $t('Place here') }}</span>
         </div>
-        <div class="con-context__cmd"><GamepadGlyph control="triggerR" /><span>{{ $t('Next available') }}</span></div>
-        <div class="con-context__cmd"><GamepadGlyph control="triggerL" /><span>{{ $t('Inspect all cells') }}</span></div>
-        <div class="con-context__cmd">
+        <div class="con-context__cmd"><GamepadGlyph control="stickL" /><span>{{ $t('Next available') }}</span></div>
+        <div class="con-context__cmd"><GamepadGlyph control="stickR" /><span>{{ $t(inspectAll ? 'Available cells only' : 'Inspect all cells') }}</span></div>
+        <div class="con-context__cmd"><GamepadGlyph control="triggerL" /><span>{{ $t('Information') }}</span></div>
+        <div class="con-context__cmd"><GamepadGlyph control="triggerR" /><span>{{ $t('Actions') }}</span></div>
+        <div class="con-context__cmd" :class="{'con-context__cmd--off': !cancellable}">
           <GamepadGlyph control="back" />
-          <span>{{ cancellable ? $t('Cancel placement') : $t('Selection is required') }}</span>
+          <span>{{ cancellable ? $t('Cancel placement') : $t('Placement is mandatory') }}</span>
         </div>
       </div>
+      <!-- P20: the mandatory/cancel state is explained, not implied. -->
+      <div v-if="!cancellable" class="con-context__mandatory-note">{{ $t('This action requires picking a cell. Cancelling is not available.') }}</div>
     </template>
 
     <!-- ── CELL MODE: a selected cell, no task ─────────────────────── -->
@@ -143,6 +150,8 @@ export default defineComponent({
     selectedLegal: {type: Boolean, default: false},
     illegalReason: {type: String, default: ''},
     cancellable: {type: Boolean, default: false},
+    /** P20: the R3 inspect-all toggle is on (labels + the mode chip). */
+    inspectAll: {type: Boolean, default: false},
     // idle mode
     myTurn: {type: Boolean, default: false},
     cardsPlayable: {type: Number, default: 0},

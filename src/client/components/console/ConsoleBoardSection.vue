@@ -17,8 +17,9 @@
  * existing BoardInformation pipeline (boardInfoState → BoardCellInfo facts).
  *
  * Placement (SelectSpace active, hosted headless in the shell's WaitingFor):
- * navigation is CONSTRAINED to `.board-space--available` (free-roam over
- * everything while LT is held), A clicks the selected cell — the existing
+ * navigation is CONSTRAINED to `.board-space--available` (P20: the R3
+ * TOGGLE switches free-roam over everything — LT/RT keep their global
+ * Info/Actions meaning), A clicks the selected cell — the existing
  * per-cell onclick contract, byte-identical submission.
  *
  * The shell drives this component through refs (move/seed/activate) — the

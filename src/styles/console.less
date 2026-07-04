@@ -403,28 +403,50 @@
 .board-space.con-cell-sel::after {
     content: '';
     position: absolute;
-    inset: -7px;
-    border-radius: 50%;
-    border: 3px solid fade(@con-cyan, 92%);
-    box-shadow: 0 0 18px fade(@con-cyan, 55%), inset 0 0 14px fade(@con-cyan, 25%);
+    inset: -6px;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(127,216,240,0.12)' stroke='%237FD8F0' stroke-width='2.6' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23CDEFFB' stroke-opacity='0.5' stroke-width='0.8' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
+    filter: drop-shadow(0 0 9px fade(@con-cyan, 80%)) drop-shadow(0 0 2px fade(@con-cyan, 90%));
     pointer-events: none;
     z-index: 30;
-    animation: con-cell-pulse calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    animation: con-cell-active calc(1500ms * var(--motion-scale, 1)) ease-in-out infinite;
 }
-/* During placement the spotlight reads legal (mint) vs off-limits (red). */
+/* During placement the ACTIVE marker reads legal (mint, dominant over the
+   calm amber availables) vs off-limits (red, the inspect state). */
 body.placement-pending .board-space.con-cell-sel:not(.board-space--available)::after,
 html.console-mode .board-space.con-cell-sel--illegal::after {
-    border-color: fade(@con-red, 85%);
-    box-shadow: 0 0 16px fade(@con-red, 45%), inset 0 0 12px fade(@con-red, 22%);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(255,106,94,0.10)' stroke='%23FF6A5E' stroke-width='2.6' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23FFC9C4' stroke-opacity='0.5' stroke-width='0.8' stroke-linejoin='round'/></svg>");
+    filter: drop-shadow(0 0 8px fade(@con-red, 65%)) drop-shadow(0 0 2px fade(@con-red, 80%));
 }
 body.placement-pending .board-space.con-cell-sel.board-space--available::after {
-    border-color: fade(@con-mint, 92%);
-    box-shadow: 0 0 18px fade(@con-mint, 55%), inset 0 0 14px fade(@con-mint, 25%);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(108,240,172,0.14)' stroke='%236CF0AC' stroke-width='2.8' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23D7FFE9' stroke-opacity='0.55' stroke-width='0.8' stroke-linejoin='round'/></svg>");
+    filter: drop-shadow(0 0 11px fade(@con-mint, 85%)) drop-shadow(0 0 3px fade(@con-mint, 95%));
+}
+/* P20: while placing, the AVAILABLE outlines calm down a notch so the
+   active mint marker dominates at a glance (never a wall of equal amber). */
+html.console-mode body.placement-pending .board > .board-space.board-space--available:not(.con-cell-sel)::before,
+html.console-mode body.placement-pending .board-outer-spaces > .board-space.board-space--available:not(.con-cell-sel)::before {
+    opacity: 0.72;
 }
 
-@keyframes con-cell-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.55; }
+@keyframes con-cell-active {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* ── P20: off-Mars special zones, console-compacted ────────────────
+   The desktop arc (radius 358, board_items_positions.less) leaves the
+   right-flank cities close to the temperature-scale bonus markers at the
+   console board scale. Console pulls the WHOLE 7-cell arc in to radius
+   338 (same angles, same mirror symmetry — the markers reach ~r318) and
+   lifts Dawn City 7° → 10°, clear of the 0°C / −4°C bonus zone. */
+html.console-mode {
+    .board-space-01 { margin: 165px 0 0 -28px; }  /* Ganymede 160° */
+    .board-space-02 { margin: 37px 0 0 55px; }    /* Phobos 134° */
+    .board-space-69 { margin: 96px 0 0 7px; }     /* Stanford 147° */
+    .board-space-70 { margin: 37px 0 0 525px; }   /* Luna 46° */
+    .board-space-73 { margin: 96px 0 0 574px; }   /* Maxwell 33° */
+    .board-space-72 { margin: 165px 0 0 608px; }  /* Stratopolis 20° */
+    .board-space-71 { margin: 222px 0 0 623px; }  /* Dawn City 10° */
 }
 
 /* ── Hand section ────────────────────────────────────────────────── */
@@ -781,6 +803,36 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
     }
     &__cell-brief-label {
         color: @con-text-dim;
+    }
+    /* P20: the inspect-all mode chip + honest state notes. */
+    &__mode-chip {
+        align-self: flex-start;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 3px 12px;
+        border-radius: 999px;
+        background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%);
+        color: #dff3ff;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+    }
+    &__cell-brief-note {
+        color: #ffc9c4;
+        font-size: 15.5px;
+    }
+    &__mandatory-note {
+        padding: 7px 11px;
+        border-radius: 8px;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 35%);
+        border-left: 3px solid fade(@con-amber, 60%);
+        color: #ffe9c4;
+        font-size: 15.5px;
+        line-height: 1.4;
     }
     &__owner {
         display: inline-flex;
