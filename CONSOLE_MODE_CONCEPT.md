@@ -1667,6 +1667,32 @@ the desktop-gamepad mode are untouched throughout.
   RS Scroll. Standard-project / basics / card-action sheets keep their
   existing rows untouched. Gates: 95 console specs, vue-tsc, eslint,
   make:css, build:client — green.
+- **P23 — SHIPPED (the MA premium VISUAL rework + the 512×512 art
+  format + desktop alignment).** The console MA sheet stopped being a
+  grey list. **Header:** the category SYMBOL (`BarButtonIcon`
+  milestones/awards) + the live status; all claimed/funded → a GOLD
+  «Все получены / Все спонсированы» chip. **Overlay:** the backdrop
+  dims far less for the MA sheet (a quick-glance STRATEGIC panel — the
+  board stays readable), the panel lifts to the HUD line
+  (`calc(100vh − 116px)`, handheld −92px) and got a lighter glass body.
+  **Row v2** (grid: stage / hierarchy / progress / CTA): the ART STAGE
+  is built for the incoming TRANSPARENT 512×512 icons — `contain`
+  (never a crop) on a soft glass pedestal with an under-glow; the
+  legacy 140×83 art letterboxes gracefully until replaced. Strong
+  name/rule hierarchy (22px uppercase name). The MAJOR «Вы» chip
+  (label + 21px number, green = eligible / red = not yet / amber LEAD
+  on awards); the labelled «Соперники» strip shows OTHER players ONLY;
+  the CTA zone renders [A Взять / Спонсировать + the M€ ICON cost]
+  when available, a muted icon-cost when not, «✓ Получено/Спонсировано»
+  when taken. **«Сейчас недоступно» spam is GONE** — availability
+  reads from colour + CTA; the reason line renders ONLY on the focused
+  row. **Desktop modern alignment:** both overlays' badge strips now
+  show RIVALS only (`rivalSortedScores` — the viewer's own number is
+  the big chip; leader ranking still counts everyone), and the art
+  tiles switched to square `contain` stages (64×64) ready for the new
+  transparent format. i18n: +3 ru keys (Rivals / All claimed / All
+  funded). Gates: 95 console specs, vue-tsc, eslint, make:json,
+  make:css, build:client — green.
 
 ---
 

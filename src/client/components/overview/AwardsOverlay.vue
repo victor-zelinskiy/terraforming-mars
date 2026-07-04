@@ -51,7 +51,7 @@
           <div class="award-row-name" v-i18n>{{ a.name }}</div>
           <div v-if="a.scores.length > 0" class="award-row-scores">
             <span
-              v-for="s in sortedScores(a)"
+              v-for="s in rivalSortedScores(a)"
               :key="s.color"
               class="ma-score"
               :class="[
@@ -195,6 +195,11 @@ export default defineComponent({
     },
   },
   methods: {
+    /** P23: the badge strip shows OTHER players only — the viewer's own
+     *  number is the big score chip; leaders still rank vs everyone. */
+    rivalSortedScores(a: FundedAwardModel): Array<AwardScore> {
+      return this.sortedScores(a).filter((s) => s.color !== this.thisPlayerColor);
+    },
     sortedScores(a: FundedAwardModel): Array<AwardScore> {
       return [...a.scores].sort((x, y) => y.score - x.score);
     },

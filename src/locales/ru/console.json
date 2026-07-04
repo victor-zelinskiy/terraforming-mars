@@ -103,5 +103,8 @@
     "this tile cannot go here": "этот тайл сюда разместить нельзя",
     "This action requires picking a cell. Cancelling is not available.": "Это действие требует выбора клетки. Отмена недоступна.",
     "All cells": "Все клетки",
-    "Available only": "Только доступные"
+    "Available only": "Только доступные",
+    "Rivals": "Соперники",
+    "All claimed": "Все получены",
+    "All funded": "Все спонсированы"
 }

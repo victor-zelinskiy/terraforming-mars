@@ -98,7 +98,7 @@
     </transition>
 
     <ConsoleActionWheel v-if="consoleState.wheelOpen" :entries="wheelEntries" :index="consoleState.wheelIndex" />
-    <ConsoleSheet v-if="consoleState.sheet !== undefined" :title="sheetTitle" :subtitle="sheetSubtitle" :wide="sheetWide" :rows="sheetRows" :index="consoleState.sheetIndex" />
+    <ConsoleSheet v-if="consoleState.sheet !== undefined" :title="sheetTitle" :subtitle="sheetSubtitle" :kind="sheetMaKind" :allTaken="sheetAllTaken" :wide="sheetWide" :rows="sheetRows" :index="consoleState.sheetIndex" />
 
     <!-- Console confirm panel (pass / risky conversions). -->
     <div v-if="consoleState.confirm !== undefined" class="con-confirm" role="dialog">
@@ -814,13 +814,31 @@ export default defineComponent({
     sheetSubtitle(): string {
       if (this.consoleState.sheet === 'milestones') {
         const claimed = this.game.milestones.filter((m) => m.playerName !== undefined && m.playerName !== '').length;
-        return `${translateText('Claimed')}: ${claimed}/3 · 8 M€`;
+        return `${translateText('Claimed')}: ${claimed}/3`;
       }
       if (this.consoleState.sheet === 'awards') {
         const funded = this.game.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
         return `${translateText('Funded')}: ${funded}/3 · ${this.awardCostText()}`;
       }
       return '';
+    },
+    /** P23: the header symbol + the gold all-taken state. */
+    sheetMaKind(): string {
+      return this.consoleState.sheet === 'milestones' || this.consoleState.sheet === 'awards' ? this.consoleState.sheet : '';
+    },
+    sheetAllTaken(): boolean {
+      if (this.consoleState.sheet === 'milestones') {
+        return this.game.milestones.length > 0 && this.game.milestones.every((m) => m.playerName !== undefined && m.playerName !== '');
+      }
+      if (this.consoleState.sheet === 'awards') {
+        return this.game.awards.length > 0 && this.game.awards.every((a) => a.playerName !== undefined && a.playerName !== '');
+      }
+      return false;
+    },
+    /** The NEXT award funding price as a number (8/14/20). */
+    awardCostValue(): number {
+      const funded = this.game.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
+      return [8, 14, 20][funded] ?? 20;
     },
     sheetRows(): Array<ConsoleSheetRow> {
       switch (this.consoleState.sheet) {
@@ -849,7 +867,6 @@ export default defineComponent({
             key: m.name,
             title: m.name,
             sub: description,
-            meta: claimed ? undefined : '8 M€',
             available: claimable.has(m.name),
             reason: claimed ? '' : (claimable.has(m.name) ? '' : 'Unavailable right now'),
             takenBy: claimed && m.color !== undefined ? {color: m.color, name: m.playerName ?? ''} : undefined,
@@ -858,6 +875,7 @@ export default defineComponent({
               name: m.name,
               scores: m.scores,
               threshold: m.threshold,
+              cost: claimed ? undefined : 8,
               myColor: this.thisPlayer.color,
             },
           };
@@ -865,7 +883,7 @@ export default defineComponent({
       }
       case 'awards': {
         const fundable = this.claimableTitles(findAwardOptionPath(this.playerView.waitingFor)?.options);
-        const costText = this.awardCostText();
+        const cost = this.awardCostValue;
         return this.game.awards.map((a) => {
           const funded = a.playerName !== undefined && a.playerName !== '';
           let description = '';
@@ -878,7 +896,6 @@ export default defineComponent({
             key: a.name,
             title: a.name,
             sub: description,
-            meta: funded ? undefined : costText,
             available: fundable.has(a.name),
             reason: funded ? '' : (fundable.has(a.name) ? '' : 'Unavailable right now'),
             takenBy: funded && a.color !== undefined ? {color: a.color, name: a.playerName ?? ''} : undefined,
@@ -886,6 +903,7 @@ export default defineComponent({
               kind: 'award' as const,
               name: a.name,
               scores: a.scores,
+              cost: funded ? undefined : cost,
               myColor: this.thisPlayer.color,
             },
           };

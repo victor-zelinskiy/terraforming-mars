@@ -34,7 +34,7 @@
           <div class="milestone-row-name" v-i18n>{{ milestoneShortName(m.name) }}</div>
           <div v-if="m.scores.length > 0" class="milestone-row-scores">
             <span
-              v-for="s in sortedScores(m)"
+              v-for="s in rivalSortedScores(m)"
               :key="s.color"
               class="ma-score"
               :class="[
@@ -218,6 +218,11 @@ export default defineComponent({
         // this right now" action, not just a score-threshold hint.
         'milestone-row--claimable-by-me': this.claimableNow.has(m.name),
       };
+    },
+    /** P23: the badge strip shows OTHER players only — the viewer's own
+     *  number is the big threshold chip; leaders still rank vs everyone. */
+    rivalSortedScores(m: ClaimedMilestoneModel): Array<MilestoneScore> {
+      return this.sortedScores(m).filter((s) => s.color !== this.thisPlayerColor);
     },
     sortedScores(m: ClaimedMilestoneModel): Array<MilestoneScore> {
       return [...m.scores].sort((a, b) => b.score - a.score);

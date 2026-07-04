@@ -3524,9 +3524,12 @@ each(@players, {
  */
 .milestone-row-icon {
     flex-shrink: 0;
-    width: 76px;
-    height: 56px;
-    background-size: cover;
+    /* P23: a SQUARE stage sized for the transparent 512x512 icon format -
+       contain never crops the art (the legacy 140x83 assets letterbox
+       gracefully until they are replaced). */
+    width: 64px;
+    height: 64px;
+    background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
     background-color: rgba(8, 14, 22, 0.6);
@@ -4113,9 +4116,10 @@ each(@players, {
 .award-row-icon {
     position: relative;
     flex-shrink: 0;
-    width: 76px;
-    height: 56px;
-    background-size: cover;
+    /* P23: a SQUARE stage for the transparent 512x512 icon format. */
+    width: 64px;
+    height: 64px;
+    background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
     background-color: rgba(8, 14, 22, 0.6);
