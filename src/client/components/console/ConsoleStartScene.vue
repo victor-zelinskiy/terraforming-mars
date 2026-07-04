@@ -24,13 +24,26 @@
                 <span>{{ $t(chip.label) }}</span>
               </span>
             </div>
-            <div v-if="budget !== undefined" class="con-start__budget" :class="{'con-start__budget--broke': budget.remaining < 0}">
-              <span class="con-start__budget-item">{{ $t('Starting M€') }}: <b>{{ budget.start }}</b></span>
-              <span v-if="budget.buys > 0" class="con-start__budget-item">−{{ budget.buys }} × {{ budget.cardCost }}</span>
-              <span v-if="budget.preludes !== 0" class="con-start__budget-item">{{ $t('After preludes') }}: <b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }}</b></span>
-              <span class="con-start__budget-item con-start__budget-item--strong">
-                {{ $t('Remaining') }}: <b>{{ budget.remaining + budget.preludes }}</b>
-                <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i>
+            <!-- P15: the economy capsule reads as labelled columns — never
+                 a bare «40 −7 × 3» math string. Hidden on the summary (the
+                 money block there is the detailed version). -->
+            <div v-if="budget !== undefined && currentStep !== undefined" class="con-start__budget" :class="{'con-start__budget--broke': budget.remaining < 0}">
+              <span class="con-start__budget-col">
+                <span class="con-start__budget-label">{{ $t('Starting M€') }}</span>
+                <b>{{ budget.start }}</b>
+              </span>
+              <span v-if="budget.buys > 0" class="con-start__budget-col">
+                <span class="con-start__budget-label">{{ $t('Purchase') }}</span>
+                <b>{{ budget.buys }} × {{ budget.cardCost }} = −{{ budget.buys * budget.cardCost }}</b>
+              </span>
+              <span v-if="budget.preludes !== 0" class="con-start__budget-col">
+                <span class="con-start__budget-label">{{ $t('Prelude effects') }}</span>
+                <b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }}</b>
+              </span>
+              <span class="con-start__budget-col con-start__budget-col--strong">
+                <span class="con-start__budget-label">{{ $t('Remaining') }}</span>
+                <b>{{ budget.remaining + budget.preludes }}
+                  <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
               </span>
             </div>
           </div>
@@ -50,8 +63,16 @@
             <!-- P13: ONE clean composition — the focused card is emphasized
                  IN PLACE, X reads it fullscreen; the 10-card projects step
                  wraps into a GRID (comparison, no kilometre scrolling). -->
+            <!-- P15: no per-card cost overlay (the printed card cost stays
+                 readable; the purchase math lives in the economy capsule),
+                 a strong «✓ SELECTED» band marks picks, and reaching the
+                 pick max DE-EMPHASIZES the unpicked cards (desktop parity). -->
             <div class="con-cards__strip"
-                 :class="{'con-cards__strip--grid': wizardGrid, 'con-cards__strip--has-focus': stepEntries.length > 0}"
+                 :class="{
+                   'con-cards__strip--grid': wizardGrid,
+                   'con-cards__strip--few': !wizardGrid && stepEntries.length <= 3,
+                   'con-cards__strip--has-focus': stepEntries.length > 0,
+                 }"
                  ref="cardStrip">
               <div v-for="(card, i) in stepEntries" :key="card.name + '#' + i"
                    class="con-cards__slot con-start__deal"
@@ -59,20 +80,24 @@
                    :class="{
                      'con-cards__slot--focused': focusIdx === i,
                      'con-cards__slot--picked': isPickedHere(card.name),
+                     'con-cards__slot--dim': dimUnpicked && !isPickedHere(card.name),
                    }"
                    :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
                 <Card :card="card" :key="card.name" lightweight />
-                <span v-if="currentStep.id === 'projects'" class="con-cards__cost">
-                  {{ cardCost }} <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-                </span>
-                <span v-if="isPickedHere(card.name)" class="con-cards__tick" aria-hidden="true">✓</span>
+                <span v-if="isPickedHere(card.name)" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
               </div>
             </div>
+            <!-- P15 grammar: A ONLY selects/deselects; Y is the ONE continue. -->
             <div v-if="focusedCard !== undefined" class="con-cards__verdictbar">
               <span class="con-cards__verdict-name">{{ $t(focusedCard.name) }}</span>
-              <span class="con-cards__verdict" :class="isPickedHere(focusedCard.name) ? 'con-cards__verdict--picked' : 'con-cards__verdict--ok'">
-                <GamepadGlyph control="confirm" />
-                <span>{{ $t(isPickedHere(focusedCard.name) ? (singlePickStep ? 'Continue' : 'Deselect') : 'Select') }}</span>
+              <span v-if="isPickedHere(focusedCard.name)" class="con-cards__verdict con-cards__verdict--picked">
+                <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
+              </span>
+              <span v-else-if="canPickFocused" class="con-cards__verdict con-cards__verdict--ok">
+                <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+              </span>
+              <span v-else class="con-cards__verdict con-cards__verdict--blocked">
+                <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
               </span>
               <span class="con-cards__verdict con-cards__verdict--zoom">
                 <GamepadGlyph control="secondary" /><span>{{ $t('Card') }}</span>
@@ -84,25 +109,35 @@
           </div>
         </div>
 
-        <!-- ── WIZARD: the final summary ───────────────────────────── -->
+        <!-- ── WIZARD: the final summary ────────────────────────────────
+             P15: a COMPACT confirmation screen — every card at ONE mini
+             scale (cards column left, the money report + the begin CTA in
+             a fixed side rail right), never a loose scrollable leftovers
+             page. X browses the whole setup fullscreen. -->
         <div v-else-if="mode === 'wizard'" class="con-start__body con-start__summary con-info__scroll" ref="body">
-          <div class="con-start__summary-corp" v-if="state.corp !== undefined">
-            <div class="con-start__section-title">{{ $t('Corporation') }}</div>
-            <Card :card="{name: state.corp}" :key="state.corp" />
-          </div>
-          <div class="con-start__summary-rest">
-            <div v-if="state.preludes.length > 0" class="con-start__summary-block">
-              <div class="con-start__section-title">{{ $t('Preludes') }}</div>
-              <div class="con-start__minirow">
-                <div v-for="name in state.preludes" :key="name" class="con-start__mini con-start__deal">
-                  <Card :card="{name}" :key="name" lightweight />
+          <div class="con-start__summary-cards">
+            <div class="con-start__summary-row">
+              <div v-if="state.corp !== undefined" class="con-start__summary-block">
+                <div class="con-start__section-title">{{ $t('Corporation') }}</div>
+                <div class="con-start__minirow">
+                  <div class="con-start__mini con-start__mini--id con-start__deal">
+                    <Card :card="{name: state.corp}" :key="state.corp" lightweight />
+                  </div>
                 </div>
               </div>
-            </div>
-            <div v-if="state.ceo !== undefined" class="con-start__summary-block">
-              <div class="con-start__section-title">{{ $t('CEO') }}</div>
-              <div class="con-start__minirow">
-                <div class="con-start__mini"><Card :card="{name: state.ceo}" :key="state.ceo" lightweight /></div>
+              <div v-if="state.preludes.length > 0" class="con-start__summary-block">
+                <div class="con-start__section-title">{{ $t('Preludes') }}</div>
+                <div class="con-start__minirow">
+                  <div v-for="name in state.preludes" :key="name" class="con-start__mini con-start__mini--id con-start__deal">
+                    <Card :card="{name}" :key="name" lightweight />
+                  </div>
+                </div>
+              </div>
+              <div v-if="state.ceo !== undefined" class="con-start__summary-block">
+                <div class="con-start__section-title">{{ $t('CEO') }}</div>
+                <div class="con-start__minirow">
+                  <div class="con-start__mini con-start__mini--id"><Card :card="{name: state.ceo}" :key="state.ceo" lightweight /></div>
+                </div>
               </div>
             </div>
             <div class="con-start__summary-block">
@@ -114,16 +149,21 @@
               </div>
               <div v-else class="con-start__none">{{ $t('You are not buying any project cards') }}</div>
             </div>
+          </div>
+          <aside class="con-start__summary-side">
             <div v-if="budget !== undefined" class="con-start__money">
               <div class="con-start__money-line"><span>{{ $t('Starting M€') }}</span><b>{{ budget.start }}</b></div>
-              <div v-if="budget.buys > 0" class="con-start__money-line"><span>{{ $t('Buy') }} {{ budget.buys }} × {{ budget.cardCost }}</span><b>−{{ budget.buys * budget.cardCost }}</b></div>
-              <div v-if="budget.preludes !== 0" class="con-start__money-line"><span>{{ $t('After preludes') }}</span><b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }}</b></div>
+              <div v-if="budget.buys > 0" class="con-start__money-line"><span>{{ $t('Purchase') }}: {{ budget.buys }} × {{ budget.cardCost }}</span><b>−{{ budget.buys * budget.cardCost }}</b></div>
+              <div v-if="budget.preludes !== 0" class="con-start__money-line"><span>{{ $t('Prelude effects') }}</span><b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }}</b></div>
               <div class="con-start__money-line con-start__money-line--total"><span>{{ $t('Remaining') }}</span><b>{{ budget.remaining + budget.preludes }}</b></div>
             </div>
             <div v-if="armedSkip" class="con-start__skipwarn">
               ⚠ {{ $t('You are not buying any project cards') }} — {{ $t('Press again to confirm') }}
             </div>
-          </div>
+            <div class="con-start__beginline" :class="{'con-start__beginline--off': !wizardReady}">
+              <GamepadGlyph control="inspect" /><span>{{ $t('Begin the game') }}</span>
+            </div>
+          </aside>
         </div>
 
         <!-- ── CEREMONY (startSequence): corps + preludes + candidates ─ -->
@@ -225,10 +265,13 @@
  *  a dedicated candidate strip. All predicates are REUSED from
  *  startGameFlowState (one brain, marker-driven — never title text).
  *
- * Grammar (project standard): ←/→/↑/↓ navigate · A = select / act
- * (single-pick: A on the picked card = continue) · X = continue/confirm
- * (zero-projects arms an inline warning first) · LB/RB = step back /
- * forward · B = back a step, else defer (amber chip; B returns).
+ * Grammar (P15): ←/→/↑/↓ navigate · A = select / deselect ONLY (single-
+ * pick replaces; picked → deselect — never a hidden continue) · X = the
+ * focused card fullscreen (the viewer's A toggles the pick via the select
+ * context) · Y = the ONE continue / begin (zero-projects arms an inline
+ * warning first) · LB/RB = STEP navigation (labelled as steps, hidden
+ * when unavailable) · B = minimize to inspect the board (intentional —
+ * the amber chip returns; ceremony B = defer as before).
  * Picks live in module state (consoleStartState) so defer / re-renders
  * never lose them. Sub-actions (payments, placements) arrive as normal
  * prompts → the scene yields to the T1–T4 native tasks and returns.
@@ -353,6 +396,33 @@ export default defineComponent({
       const step = this.currentStep;
       return step !== undefined && step.input.min === 1 && step.input.max === 1;
     },
+    /** P15: at the pick max, unpicked cards de-emphasize (desktop parity). */
+    dimUnpicked(): boolean {
+      const step = this.currentStep;
+      return step !== undefined && this.picksHere.length >= step.input.max;
+    },
+    /** Can A pick the focused (unpicked) card right now? (single-pick
+     *  REPLACES the selection; multi-pick blocks at the max.) */
+    canPickFocused(): boolean {
+      const step = this.currentStep;
+      if (step === undefined) {
+        return false;
+      }
+      return this.singlePickStep || this.picksHere.length < step.input.max;
+    },
+    /** The whole chosen setup, for the summary's fullscreen browse (X). */
+    summaryCards(): ReadonlyArray<CardModel> {
+      const names: Array<CardName> = [];
+      if (this.state.corp !== undefined) {
+        names.push(this.state.corp);
+      }
+      names.push(...this.state.preludes);
+      if (this.state.ceo !== undefined) {
+        names.push(this.state.ceo);
+      }
+      names.push(...this.state.projects);
+      return names.map((name) => ({name}) as CardModel);
+    },
     currentStepComplete(): boolean {
       const step = this.currentStep;
       if (step === undefined) {
@@ -470,21 +540,29 @@ export default defineComponent({
       if (this.mode === 'wizard') {
         const onSummary = this.currentStep === undefined;
         if (onSummary) {
-          return [
+          const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
+            {control: 'secondary', label: 'Card'},
             {control: 'inspect', label: 'Begin the game', enabled: this.wizardReady},
-            {control: 'bumperL', label: 'Back'},
-            {control: 'back', label: 'Back'},
+            {control: 'bumperL', label: 'Prev step'},
+            {control: 'back', label: 'Minimize'},
           ];
+          return hints;
         }
-        // P13 card grammar: A = select, X = fullscreen card, Y = continue.
-        return [
+        // P15 grammar: A = select/deselect ONLY, X = fullscreen card,
+        // Y = the ONE continue; LB is STEP navigation (hidden on step 1,
+        // never presented as a generic «back»); B = minimize to inspect
+        // the board (intentional — the amber chip returns).
+        const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
           {control: this.wizardGrid ? 'dpad' : 'dpadH', label: 'Navigate'},
-          {control: 'confirm', label: this.singlePickStep ? 'Select' : 'Select / Deselect'},
+          {control: 'confirm', label: 'Select / Deselect'},
           {control: 'secondary', label: 'Card'},
           {control: 'inspect', label: 'Continue', enabled: this.currentStepComplete},
-          {control: 'bumperL', label: 'Back', enabled: this.railPos > 0},
-          {control: 'back', label: this.railPos > 0 ? 'Back' : 'Minimize'},
         ];
+        if (this.railPos > 0) {
+          hints.push({control: 'bumperL', label: 'Prev step'});
+        }
+        hints.push({control: 'back', label: 'Minimize'});
+        return hints;
       }
       return [
         {control: 'dpad', label: 'Navigate'},
@@ -566,11 +644,22 @@ export default defineComponent({
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
-    /** P13: X fullscreen for the focused card (wizard AND ceremony). */
+    /** P13/P15: X fullscreen for the focused card (wizard AND ceremony).
+     *  Wizard steps pass the SELECT context (A toggles the pick without
+     *  leaving the viewer); the ceremony and the summary browse READ-ONLY
+     *  (their A is a game action / a submit — never safe from fullscreen). */
     zoomFocused(): void {
       if (this.mode === 'wizard') {
         if (this.currentStep !== undefined && this.stepEntries.length > 0) {
-          openConsoleCardZoom(this.stepEntries, this.focusIdx);
+          openConsoleCardZoom(this.stepEntries, this.focusIdx, {
+            isSelected: (name) => this.isPickedHere(name),
+            toggle: (name) => this.togglePickByName(name),
+          });
+          return;
+        }
+        // The summary: X reviews the WHOLE chosen setup fullscreen.
+        if (this.currentStep === undefined && this.summaryCards.length > 0) {
+          openConsoleCardZoom(this.summaryCards, 0);
         }
         return;
       }
@@ -644,32 +733,33 @@ export default defineComponent({
         this.onContinue();
         return;
       case 'bumperL':
+        // P15: LB is STEP navigation (back one wizard step) — B no longer
+        // doubles as a step-back, it always minimizes for board inspection.
         if (this.mode === 'wizard') {
           this.backStep();
         }
         return;
       case 'bumperR':
+        // RB = forward step navigation (LB's pair); gated on completion,
+        // same as Y — the FOOTER advertises only Y as the continue.
         if (this.mode === 'wizard') {
           this.onContinue();
         }
         return;
       case 'back':
-        if (this.mode === 'wizard' && this.railPos > 0) {
-          this.backStep();
-          return;
-        }
+        // B = minimize (intentional: inspect the board, the amber chip
+        // returns; picks + step progress live in module state).
         this.$emit('defer');
         return;
       default:
         return;
       }
     },
-    /** A: wizard = toggle pick (single: picked → continue); ceremony = act. */
+    /** A: wizard = toggle the pick ONLY (Y continues); ceremony = act. */
     onPrimary(): void {
       if (this.mode === 'wizard') {
         if (this.currentStep === undefined) {
-          this.onContinue(); // summary: A = confirm too
-          return;
+          return; // the summary: Y begins the game (A stays selection-only)
         }
         this.togglePick();
         return;
@@ -677,19 +767,22 @@ export default defineComponent({
       this.actOnFocused();
     },
     togglePick(): void {
-      const step = this.currentStep;
       const card = this.focusedCard;
-      if (step === undefined || card === undefined) {
+      if (card !== undefined) {
+        this.togglePickByName(card.name);
+      }
+    },
+    /** P15: pure selection flip — shared by the strip AND the fullscreen
+     *  viewer's A (single-pick REPLACES / picked → deselect; NEVER a
+     *  continue — the double A/Y continue confusion is gone). */
+    togglePickByName(name: CardName): void {
+      const step = this.currentStep;
+      if (step === undefined) {
         return;
       }
-      const name = card.name;
-      const picked = this.isPickedHere(name);
+      const picked = this.picksHere.includes(name);
       if (this.singlePickStep) {
-        if (picked) {
-          this.onContinue(); // A on the picked card = continue (draft rhythm)
-          return;
-        }
-        this.writePicks(step.id, [name]);
+        this.writePicks(step.id, picked ? [] : [name]);
         return;
       }
       if (picked) {
@@ -697,7 +790,7 @@ export default defineComponent({
         return;
       }
       if (this.picksHere.length >= step.input.max) {
-        return; // slots full — deselect first (the counter shows it)
+        return; // slots full — the verdict bar explains (deselect first)
       }
       this.writePicks(step.id, [...this.picksHere, name]);
     },

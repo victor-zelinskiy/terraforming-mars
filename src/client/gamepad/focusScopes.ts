@@ -57,6 +57,11 @@ const COEXIST: ReadonlyArray<string> = [
 
 /** Highest priority first. */
 export const SCOPE_DEFS: ReadonlyArray<ScopeDef> = [
+  // -1. The BLOCKING desktop-update cover (P15) — an update-required wall
+  //     above everything; its buttons (install / retry / download) are the
+  //     only actionables and there is nothing to go back to.
+  {id: 'desktopUpdate', root: '.desktop-update--cover', back: {kind: 'none'}},
+
   // 0. The premium loading curtain (P10) — covers EVERYTHING while up; its
   //    only actionables are the Retry / Restore-fullscreen buttons.
   {id: 'loadingScreen', root: '.con-load', back: {kind: 'none'}},

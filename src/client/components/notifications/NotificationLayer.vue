@@ -4,10 +4,12 @@
          :class="{'notifications-layer--journal-open': journalOpen}"
          aria-live="polite">
       <!-- Pinned singleton turn card (your turn / action required) — kept above
-           the transient feed so a mandatory prompt is never crowded out. -->
+           the transient feed so a mandatory prompt is never crowded out.
+           P16: NOT rendered in console mode at all — the console shell has
+           its own pending-decision surfaces (task frames + the amber chip). -->
       <Transition name="notification-pop">
         <NotificationCard
-          v-if="turn !== undefined"
+          v-if="turn !== undefined && !consoleEnabled"
           :key="turn.id"
           :notification="turn"
           :players="players"
@@ -18,9 +20,12 @@
           @cancel="onCancel" />
       </Transition>
 
-      <!-- Transient feed (normal / important / warning). -->
+      <!-- Transient feed (normal / important / warning). P16: ONE brain, two
+           shells — console mode swaps the PRESENTATION to the console-native
+           card (same model/props; it only ever emits dismiss). -->
       <TransitionGroup name="notification-pop" tag="div" class="notifications-layer__stack">
-        <NotificationCard
+        <component
+          :is="cardComponent"
           v-for="n in transient"
           :key="n.id"
           :notification="n"
@@ -72,6 +77,8 @@ import {
   resetNotifications,
 } from '@/client/components/notifications/notificationState';
 import NotificationCard from '@/client/components/notifications/NotificationCard.vue';
+import ConsoleNotificationCard from '@/client/components/console/ConsoleNotificationCard.vue';
+import {consoleModeState} from '@/client/console/consoleModeState';
 
 const POLL_INTERVAL_MS = 2200;
 
@@ -103,7 +110,7 @@ type DataModel = {
  */
 export default defineComponent({
   name: 'NotificationLayer',
-  components: {NotificationCard},
+  components: {NotificationCard, ConsoleNotificationCard},
   props: {
     playerView: {
       type: Object as PropType<PlayerViewModel>,
@@ -125,6 +132,13 @@ export default defineComponent({
     },
     transient() {
       return notificationState.transient;
+    },
+    /** P16: one brain, two shells — the console posture swaps the card. */
+    consoleEnabled(): boolean {
+      return consoleModeState.enabled;
+    },
+    cardComponent() {
+      return this.consoleEnabled ? ConsoleNotificationCard : NotificationCard;
     },
     players(): ReadonlyArray<PublicPlayerModel> {
       return this.playerView.players;

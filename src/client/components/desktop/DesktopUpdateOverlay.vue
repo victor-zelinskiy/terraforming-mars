@@ -72,6 +72,13 @@
 
       <!-- required (pre-download / checking transition) -->
       <div v-else class="desktop-update__status" v-i18n>Preparing the update…</div>
+
+      <!-- P15: console mode — the panel is pad-operable (its own focus
+           scope drives the buttons); the glyph row makes that explicit. -->
+      <div v-if="consoleEnabled" class="desktop-update__pad-hints" aria-hidden="true">
+        <span class="desktop-update__pad-hint"><GamepadGlyph control="dpad" /><span v-i18n>Navigate</span></span>
+        <span class="desktop-update__pad-hint"><GamepadGlyph control="confirm" /><span v-i18n>Select</span></span>
+      </div>
     </div>
   </div>
 </template>
@@ -84,12 +91,19 @@ import {
   isDesktop,
   updateOverlayBlocking,
 } from '@/client/components/desktop/desktopUpdateState';
+import {consoleModeState} from '@/client/console/consoleModeState';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 export default defineComponent({
   name: 'desktop-update-overlay',
+  components: {GamepadGlyph},
   computed: {
     state() {
       return desktopUpdateState;
+    },
+    /** P15: console posture — show the pad glyph row on the blocking panel. */
+    consoleEnabled(): boolean {
+      return consoleModeState.enabled && this.blocking;
     },
     isDesktop(): boolean {
       return isDesktop();

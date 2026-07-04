@@ -1397,6 +1397,86 @@ the desktop-gamepad mode are untouched throughout.
   hero column FITS 800px with margin instead of borderline. Gates:
   90 console specs (+5 `consoleModeBoot.spec.ts` — kill switch / stored
   veto / UA anchor), eslint, vue-tsc, make:css, build:client — green.
+- **P15 — SHIPPED (the start-flow / card-selection / fullscreen /
+  notification REWORK).**
+  **Controller-native fullscreen viewer:** `consoleCardZoom` carries an
+  optional SELECT CONTEXT (`{isSelected, toggle}` — a pure pick flip,
+  never a submit); the shell owns the pad while the viewer is open via a
+  carve-out BEFORE `resolveScope()` (the generic dialog scope used to
+  trap input in the DOM engine — the reason LB/RB never worked): LB/RB
+  and ←/→ browse, A toggles the pick (selection contexts only — the
+  ceremony / reveals / summary browse stay read-only), B **or X** closes.
+  The `con-zoom` class (OUR instance only — desktop untouched) swaps the
+  touch chevrons + desktop ЗАКРЫТЬ for a console command bar in the
+  `#actions` slot: [✓ Выбрана] [A Выбрать/Снять] [LB·RB Листать]
+  [B Закрыть]; the `:selected` halo shows the pick state. Contexts
+  passing the select bridge: start-wizard steps, host cardSelect, hand
+  SALE mode. Controller glyphs live ONLY in bars/hints — never on the
+  card face (an expansion icon like Ares' «A» can't be confused).
+  **Selection grammar (scene + host):** A = select/deselect ONLY
+  (single-pick replaces; picked → deselect) — the hidden
+  «A-on-picked = continue» is GONE, Y is the ONE continue/verb (the
+  corp-screen A/Y duplicate is fixed); LB = «Пред. шаг» (STEP
+  navigation, hidden on step 1 — never a generic «Назад»); B = Свернуть
+  on EVERY wizard step (intentional board inspection; the amber chip
+  returns; picks + step progress live in module state).
+  **Strips:** the focused emphasis is clip-safe (1.08 / lift −6 — 1.12
+  on a natural-size card overflowed the 26px padding = the reported
+  clipping); `--few` (corp pick ≤3) adds 48px gaps + extra headroom +
+  a 1.05 emphasis; the >6 GRID shrinks slots (×0.8, handheld ×0.62 —
+  X fullscreen is the detailed read); the per-card COST OVERLAY is gone
+  (it sat over the printed card cost) — buy math lives in the pickline
+  («Покупка: N × 3 = −9 (У вас: 40)»); picks wear a strong mint
+  «✓ ВЫБРАНА» top band (z6); at the pick max unpicked cards DE-EMPHASIZE
+  (desktop parity, focused one lifts back to readable).
+  **Economy:** the capsule is labelled columns (Начальные М€ / Покупка /
+  Эффекты прологов / Останется) — never «40 −7 × 3»; the summary money
+  block matches. **Summary:** compact two-column confirmation (one mini
+  scale, identity cards a notch larger; money + pulsing «Y Начать
+  партию» in a sticky side rail; X reviews the whole setup fullscreen).
+  **Notifications:** the desktop TURN channel (action-required /
+  your-turn) is hidden in console mode ENTIRELY (the old `body:has()`
+  gating leaked the duplicate back whenever the start task was DEFERRED
+  — the shell chip + task surfaces are the one pending-decision system);
+  the amber chip's verb is CONTEXT-AWARE (`deferReturnLabel`: Вернуться
+  к выбору / Продолжить стартовый выбор / Вернуться к драфту / Вернуться
+  к решению — never «Вернуться в игру» mid-game).
+  **Update prompt:** the blocking `desktop-update--cover` got its own
+  TOP-priority focus scope (pad-operable buttons) + a console glyph row
+  (A/dpad) + a console/handheld readability boost.
+  Gates: 94 console specs (+4 `consoleCardZoom.spec.ts`), eslint,
+  vue-tsc, make:json (10 new ru keys in console.json), make:css,
+  build:client — green.
+- **P16 — SHIPPED (console-native TRANSIENT notifications).** The last
+  big desktop visual tail inside the in-game loop: the transient toasts
+  (opponent plays, hostile losses, milestones/awards, generation, passes,
+  reveals, coalesced bursts) rendered the desktop `NotificationCard`.
+  **One brain, two shells** (the ConsoleShell-vs-PlayerHome pattern):
+  `NotificationLayer` keeps ALL the logic (fetch/diff/state/TTL/
+  suppression) and swaps only the PRESENTATION — in console mode the
+  transient feed renders `ConsoleNotificationCard.vue` (`con-notif`),
+  and the TURN channel is not rendered at all (the shell's task frames +
+  amber chip own pending decisions; the P15 CSS stays as belt).
+  The console card: con-font/glass chrome + a strong left rail; the
+  variant ACCENT is INHERITED from the standalone
+  `.notification-card--variant-*` rules (`var(--notif-accent)`) so the
+  two shells share one accent vocabulary and can never diverge;
+  actor-coloured rail for opponent-action variants (same rule set).
+  **Non-interactive by design** (`pointer-events: none`): no ✕ / expand
+  / CTA a pad can't reach — the journal (View) is the detail surface.
+  The HOSTILE essentials render DIRECTLY (attacker + source-card NAME +
+  the −X → +X flow + stock/production tag + before → after) — no expand
+  step; prestige milestone/award = gold rim + one-shot glow; headline
+  cards reuse `JournalTokenRenderer` (info parity) restyled to the
+  console type scale and rendered inert; REVEAL toasts advertise the
+  one pad-operable path to the card names: a `[View] Журнал` glyph
+  hint. Auto-dismiss rides the same global `notif-progress` keyframes.
+  Handheld profile: 320px density block. **Documented frontier:** the
+  desktop `RevealedCardsModal` viewer (`revealViewerState`) is
+  unreachable in console (its CTA was the only trigger) — the journal
+  chips carry the card names; a console-native reveal-browser hotkey is
+  a future iteration. Gates: 94 console + 45 notification specs,
+  vue-tsc, eslint, make:css, build:client — green.
 
 ---
 

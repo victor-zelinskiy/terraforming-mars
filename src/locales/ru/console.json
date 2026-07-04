@@ -81,5 +81,15 @@
     "Loading the Martian map…": "Загрузка марсианской карты…",
     "Preparing the draft…": "Подготовка драфта…",
     "Initializing the game interface…": "Инициализация игрового интерфейса…",
-    "Detecting the control mode…": "Определение режима управления…"
+    "Detecting the control mode…": "Определение режима управления…",
+    "Purchase": "Покупка",
+    "Prelude effects": "Эффекты прологов",
+    "Deselect another card first": "Сначала снимите выбор с другой карты",
+    "Prev step": "Пред. шаг",
+    "Browse": "Листать",
+    "Card selected": "Выбрана",
+    "Return to selection": "Вернуться к выбору",
+    "Resume start setup": "Продолжить стартовый выбор",
+    "Return to the draft": "Вернуться к драфту",
+    "Return to the decision": "Вернуться к решению"
 }

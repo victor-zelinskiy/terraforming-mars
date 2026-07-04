@@ -2281,13 +2281,29 @@ html.console-mode {
         .con-scrollbars();
 
         /* GRID mode (>6 candidates): wrap into comparison rows - no
-           kilometre horizontal scrolling on the buy/draft steps. */
+           kilometre horizontal scrolling on the buy/draft steps. P15: the
+           slots SHRINK (X fullscreen is the detailed read), so 10 starting
+           projects sit in two calm rows instead of oversized sprawl. */
         &--grid {
             flex-wrap: wrap;
             justify-content: center;
             overflow-x: hidden;
             overflow-y: auto;
-            row-gap: 26px;
+            row-gap: 30px;
+            column-gap: 22px;
+
+            > .con-cards__slot { zoom: 0.8; }
+        }
+        /* FEW cards (corporation pick: 2-3 full-size cards): generous
+           spacing + extra clip-safe headroom; the focused emphasis is
+           SOFTER (a large card at scale 1.12 would burst the frame). */
+        &--few {
+            gap: 48px;
+            padding: 34px 34px 30px;
+
+            > .con-cards__slot--focused {
+                transform: translateY(-6px) scale(1.05);
+            }
         }
         /* In-place EMPHASIS: neighbours calm down, the focused card leads. */
         &--has-focus > .con-cards__slot:not(.con-cards__slot--focused) {
@@ -2295,6 +2311,18 @@ html.console-mode {
             filter: saturate(0.88);
         }
         &--has-focus > .con-cards__slot--disabled { opacity: 0.5; }
+        /* P15: at the pick max, unpicked cards DE-EMPHASIZE (desktop
+           parity) - stronger than the neighbour calm, still readable, and
+           the focused one lifts back to near-full presence so the player
+           can inspect / re-pick without squinting. */
+        &--has-focus > .con-cards__slot--dim:not(.con-cards__slot--focused) {
+            opacity: 0.45;
+            filter: saturate(0.45) brightness(0.8);
+        }
+        &--has-focus > .con-cards__slot--dim.con-cards__slot--focused {
+            opacity: 0.9;
+            filter: saturate(0.8);
+        }
     }
     &__slot {
         position: relative;
@@ -2305,10 +2333,13 @@ html.console-mode {
             opacity calc(160ms * var(--motion-scale, 1)) ease;
         > .card-container { margin: 0; }
 
-        /* P13 in-place emphasis: the focused card grows and comes forward
-           (the paddings above give it clip-safe headroom). */
+        /* P13/P15 in-place emphasis: the focused card grows and comes
+           forward. P15 tuned the maths clip-safe: a natural-size card at
+           scale 1.12 + lift −8 needed ~36px of headroom against the 26px
+           strip padding — the top edge clipped (the reported overflow).
+           1.08 + lift −6 stays within the padding at EVERY slot size. */
         &--focused {
-            transform: translateY(-8px) scale(1.12);
+            transform: translateY(-6px) scale(1.08);
             box-shadow: 0 0 0 2px fade(@con-cyan, 85%), 0 0 30px fade(@con-cyan, 28%);
             z-index: 3;
         }
@@ -2323,30 +2354,29 @@ html.console-mode {
             filter: grayscale(0.5) brightness(0.85);
         }
     }
-    &__cost {
+    /* P15: the per-card cost overlay is GONE (it sat over the card's own
+       printed cost) - the purchase math lives in the pickline / economy
+       capsule. The SELECTED marker is a strong top BAND (never hidden
+       behind tags/icons; z6 wins the corner ladder). */
+    &__pickband {
         position: absolute;
-        top: -10px;
-        left: -8px;
-        z-index: 4; /* P13 ladder: badges 4 < focus chips 5 < selected 6 */
+        top: -12px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 6;
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        padding: 2px 10px;
+        gap: 6px;
+        padding: 3px 14px;
         border-radius: 999px;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 1px fade(@con-amber, 60%), 0 4px 12px rgba(0, 0, 0, 0.5);
-        font-size: 17px;
-        font-weight: 700;
-        color: #ffe3b0;
-
-        .resource_icon {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: contain !important;
-        }
+        background: linear-gradient(180deg, fade(@con-mint, 28%), fade(@con-mint, 16%)), @con-glass;
+        box-shadow: inset 0 0 0 1.5px fade(@con-mint, 90%), 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 18px fade(@con-mint, 25%);
+        color: @con-mint;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        white-space: nowrap;
     }
     &__tick {
         position: absolute;
@@ -2427,7 +2457,73 @@ html.console-mode {
     50% { box-shadow: inset 0 0 0 1px fade(@con-mint, 95%), 0 0 22px fade(@con-mint, 26%); }
 }
 @media (prefers-reduced-motion: reduce) {
-    .con-cards__verdict--go { animation: none; }
+    .con-cards__verdict--go,
+    .con-start__beginline { animation: none; }
+}
+
+/* ── P15: the CONSOLE fullscreen card viewer ──────────────────────────
+   Scoped to OUR CardZoomModal instance only (the `con-zoom` class the
+   shell passes) - every desktop use of the component, including fallback
+   surfaces inside console mode, keeps its own chrome. The touch chevrons
+   and the desktop ЗАКРЫТЬ button give way to a controller command bar in
+   the #actions slot: [✓ Selected] [A Select/Deselect] [LB·RB Browse]
+   [B Close]. The pad itself is owned by the shell's zoom carve-out. */
+dialog.con-zoom {
+    .card-zoom-nav-slot { display: none; }
+    .card-zoom-actions__btn--secondary { display: none; }
+}
+.con-zoom__bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-family: @con-font;
+    color: @con-text;
+}
+.con-zoom__state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 999px;
+    background: fade(@con-mint, 14%);
+    box-shadow: inset 0 0 0 1px fade(@con-mint, 75%);
+    color: @con-mint;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.con-zoom__btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(14, 22, 33, 0.78);
+    box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.35);
+    color: @con-text;
+    font-family: @con-font;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease;
+
+    &:hover { box-shadow: inset 0 0 0 1px fade(@con-cyan, 70%), 0 0 12px fade(@con-cyan, 14%); }
+    &--select {
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 60%);
+        color: #dff3ff;
+    }
+}
+.con-zoom__cmd {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: @con-text-dim;
+    font-size: 15px;
 }
 
 /* ── START SCENE (CTS T5): the game-opening ceremony ──────────────────
@@ -2550,30 +2646,50 @@ html.console-mode {
 
         .con-start__step--done & { color: @con-mint; }
     }
+    /* P15: the economy capsule is LABELLED COLUMNS (Starting / Purchase /
+       Preludes / Remaining) - a readable report, never a «40 −7 × 3». */
     &__budget {
         margin-left: auto;
         display: inline-flex;
-        align-items: center;
-        gap: 14px;
-        padding: 6px 16px;
-        border-radius: 999px;
+        align-items: stretch;
+        gap: 0;
+        padding: 5px 6px;
+        border-radius: 12px;
         background: rgba(14, 22, 33, 0.7);
         box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
-        font-size: 17px;
         color: @con-text-dim;
-        b { color: @con-text; font-size: 19px; }
 
         &--broke {
             box-shadow: inset 0 0 0 1px fade(@con-red, 65%), 0 0 14px fade(@con-red, 14%);
-            .con-start__budget-item--strong b { color: @con-red; }
+            .con-start__budget-col--strong b { color: @con-red; }
         }
     }
-    &__budget-item {
+    &__budget-col {
         display: inline-flex;
+        flex-direction: column;
         align-items: center;
-        gap: 6px;
+        justify-content: center;
+        gap: 1px;
+        padding: 2px 16px;
+        b {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: @con-text;
+            font-size: 18px;
+            line-height: 1.15;
+            white-space: nowrap;
+        }
 
-        &--strong b { color: @con-mint; }
+        & + & { border-left: 1px solid rgba(120, 150, 180, 0.18); }
+        &--strong b { color: @con-mint; font-size: 20px; }
+    }
+    &__budget-label {
+        font-size: 11px;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        white-space: nowrap;
     }
     &__mc {
         display: inline-block;
@@ -2620,23 +2736,34 @@ html.console-mode {
         &--act { color: fade(@con-cyan, 90%); }
     }
 
-    /* Summary. */
+    /* Summary (P15): a COMPACT confirmation screen - one mini scale for
+       every card (cards column left, money + begin CTA in a side rail),
+       never a loose scrollable leftovers page. */
     &__summary {
         display: flex;
-        gap: 30px;
+        gap: 28px;
         align-items: flex-start;
     }
-    &__summary-corp {
-        flex-shrink: 0;
-        zoom: 1.1;
-        > .card-container { margin: 0; }
-    }
-    &__summary-rest {
+    &__summary-cards {
         flex: 1;
         min-width: 0;
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 14px;
+    }
+    &__summary-row {
+        display: flex;
+        gap: 26px;
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+    &__summary-side {
+        flex: 0 0 320px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        position: sticky;
+        top: 0;
     }
     &__summary-block { min-width: 0; }
     &__minirow {
@@ -2650,8 +2777,33 @@ html.console-mode {
     }
     &__mini {
         flex-shrink: 0;
-        zoom: 0.72;
+        zoom: 0.62;
         > .card-container { margin: 0; }
+
+        /* Identity cards (corp / preludes / CEO) read one notch larger. */
+        &--id { zoom: 0.7; }
+    }
+    /* The final CTA line in the side rail - the ONE begin affordance. */
+    &__beginline {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 10px 16px;
+        border-radius: 12px;
+        background: fade(@con-mint, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 70%), 0 0 18px fade(@con-mint, 14%);
+        color: @con-mint;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        animation: con-verdict-go calc(2200ms * var(--motion-scale, 1)) ease-in-out infinite;
+
+        &--off {
+            opacity: 0.45;
+            animation: none;
+        }
     }
     &__none {
         font-size: 18px;
@@ -3116,23 +3268,246 @@ html.console-mode {
     }
 }
 
-/* ── T7: notification layer fits the console chrome ──────────────────
-   The toasts drop below the status strip; the TURN card (action-required /
-   your-turn) hides while a console task surface IS the prompt — the same
-   "the modal IS the prompt → no redundant turn card" rule the desktop
-   applies to its own modals. Console-only selectors — desktop untouched. */
+/* ── T7/P15/P16: notification layer fits the console chrome ──────────
+   The toasts drop below the status strip. P15: the TURN channel
+   (action-required / your-turn) never renders in console mode (the
+   layer skips it - the console shell has its OWN pending-decision
+   surfaces; the display:none is the belt-and-braces). P16: the
+   TRANSIENT feed renders through ConsoleNotificationCard - the
+   console-native presentation of the same model. Console-only. */
 html.console-mode .notifications-layer {
     top: 108px;
     right: 20px;
-}
-body:has(.con-task-host),
-body:has(.con-start),
-body:has(.con-reveal),
-body:has(.con-confirm) {
-    .notifications-layer .notification-card--action-required,
-    .notifications-layer .notification-card--your-turn {
-        visibility: hidden;
+
+    .notification-card--action-required,
+    .notification-card--your-turn {
+        display: none;
     }
+}
+
+/* ── P16: the console transient notification card ─────────────────────
+   The console-native shell of the desktop NotificationCard: same model,
+   same variant ACCENT vocabulary (inherited from the standalone
+   `.notification-card--variant-*` rules via var(--notif-accent) - the
+   two shells can never diverge on colour), console chrome (con-font,
+   glass, a strong left rail, TV type scale) and NON-INTERACTIVE by
+   design (no ✕ / expand / CTA a pad can't reach - the journal is the
+   detail surface; auto-dismiss via the lifetime shrink). */
+.con-notif {
+    --notif-accent: @con-cyan; /* fallback; variants override */
+    position: relative;
+    width: 380px;
+    max-width: 92vw;
+    padding: 10px 14px 12px 18px;
+    border-radius: 10px;
+    overflow: hidden;
+    background:
+        linear-gradient(160deg, fade(@con-cyan, 4%), transparent 45%),
+        rgba(9, 15, 23, 0.92);
+    box-shadow:
+        inset 0 0 0 1px rgba(120, 150, 180, 0.22),
+        0 10px 28px rgba(0, 0, 0, 0.5);
+    font-family: @con-font;
+    color: @con-text;
+    pointer-events: none; /* an information surface, never a click target */
+
+    &__rail {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: var(--notif-accent);
+        opacity: 0.9;
+    }
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+    }
+    &__glyph {
+        color: var(--notif-accent);
+        font-size: 16px;
+        line-height: 1;
+    }
+    &__type {
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: fade(#cfe2f2, 75%);
+    }
+    &__actor {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        font-size: 14.5px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__cause &__actor { margin-left: 0; }
+    &__dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+    }
+    &__body {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        font-size: 16px;
+        line-height: 1.35;
+    }
+    &__meta {
+        font-size: 13px;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__line {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    &__dim { color: @con-text-dim; font-size: 14.5px; }
+    &__strong { font-weight: 700; }
+    &__card {
+        color: var(--notif-accent);
+        font-weight: 800;
+    }
+    &__result {
+        padding: 1px 10px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.3);
+        font-size: 13px;
+        color: @con-text-dim;
+    }
+    &__hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 13.5px;
+        color: @con-text-dim;
+    }
+
+    /* Hostile flow: You −X → attacker +X, then scope + before → after. */
+    &__cause {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 7px;
+    }
+    &__flow {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    &__side {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+    }
+    &__who { font-weight: 700; font-size: 15px; }
+    &__arrow { color: var(--notif-accent); font-size: 18px; }
+    &__scope {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 10px;
+    }
+    &__ba {
+        font-size: 15px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: #ffd9d4;
+    }
+
+    /* Impact chips (pills + the hostile flow reuse one look). */
+    &__pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 7px;
+    }
+    &__chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.75);
+        box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.28);
+        font-size: 14.5px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+
+        &--pos { box-shadow: inset 0 0 0 1px fade(@con-mint, 55%); color: #d7ffe9; }
+        &--neg { box-shadow: inset 0 0 0 1px fade(@con-red, 55%); color: #ffd2cc; }
+        &--saved { box-shadow: inset 0 0 0 1px fade(@con-amber, 55%); color: #ffe9c4; }
+        &--prod { background: rgba(66, 48, 34, 0.8); }
+    }
+    &__chip-icon {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+
+    /* Journal tokens inside the console card: same renderer (info parity),
+       console scale, INERT (the root's pointer-events:none already kills
+       clicks/hovers; these calm the desktop pill chrome). */
+    &__tokens {
+        .journal-text, .journal-em { font-size: 16px; }
+        .journal-player { font-size: 15px; }
+        .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip {
+            font-size: 15px;
+        }
+    }
+
+    /* Prestige (milestone / award): a gold ceremony rim + one-shot glow. */
+    &--prestige {
+        box-shadow:
+            inset 0 0 0 1.5px fade(#e8c268, 65%),
+            0 10px 28px rgba(0, 0, 0, 0.5),
+            0 0 22px fade(#e8c268, 18%);
+        animation: con-notif-prestige calc(1600ms * var(--motion-scale, 1)) ease-out 1;
+
+        .con-notif__type { color: #ffe9b8; }
+    }
+
+    /* Lifetime shrink (reuses the global notif-progress keyframes). */
+    &__progress {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        height: 3px;
+        width: 100%;
+        transform-origin: left center;
+        background: var(--notif-accent);
+        opacity: 0.6;
+        will-change: transform;
+        animation-name: notif-progress;
+        animation-timing-function: linear;
+        animation-fill-mode: forwards;
+    }
+}
+
+@keyframes con-notif-prestige {
+    0% { filter: brightness(1.35) saturate(1.2); }
+    100% { filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-notif--prestige { animation: none; }
 }
 
 /* ── T7: the journal reads as a console panel ────────────────────────
@@ -3615,6 +3990,33 @@ html.gp-mode {
     }
 }
 
+/* ── P15: the blocking update prompt is console-operable ──────────── *
+ * Its own focus scope (`desktopUpdate`, focusScopes.ts) lets the pad
+ * drive the buttons; the glyph row renders only in console mode. The
+ * boost below keeps the panel readable at TV distance. */
+.desktop-update__pad-hints {
+    display: flex;
+    justify-content: center;
+    gap: 22px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid fade(@con-cyan, 18%);
+    font-family: @con-font;
+    color: @con-text-dim;
+    font-size: 15px;
+}
+.desktop-update__pad-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+html.console-mode .desktop-update--cover .desktop-update__panel {
+    zoom: 1.12;
+}
+html.con-profile-handheld.console-mode .desktop-update--cover .desktop-update__panel {
+    zoom: 1;
+}
+
 /* ── Lifecycle screens: console TV boost ─────────────────────────── *
  * The premium menu / join / lobby surfaces are already sci-fi premium —
  * console mode enlarges their interactive zones to TV scale and lets the
@@ -3820,15 +4222,29 @@ html.con-profile-handheld {
     .con-cards {
         gap: 8px;
 
-        &__strip { padding: 20px 16px; gap: 14px; }
         &__verdictbar { min-height: 34px; padding: 6px 10px; gap: 8px; }
         &__verdict-name { font-size: 15px; max-width: 240px; }
         &__verdict { font-size: 13px; padding: 4px 11px; }
-        &__strip { gap: 12px; padding: 10px 4px 12px; }
-        &__cost { font-size: 14px; .resource_icon { width: 16px; height: 16px; } }
+        /* Clip-safe padding stays generous enough for the focus lift +
+           the −12px pick band; the gap tightens for the 800px budget. */
+        &__strip { gap: 12px; padding: 18px 14px 14px; }
+        &__strip--few { gap: 26px; padding: 24px 22px 18px; }
+        /* Handheld density: non-grid strips shrink a notch (4 preludes
+           fit 1280 without scrolling); the >6 grid goes compact - X
+           fullscreen is the detailed read. Extra top padding keeps the
+           focus lift clip-safe at the tighter density. */
+        &__strip { padding-top: 24px; }
+        &__strip:not(.con-cards__strip--grid) > .con-cards__slot { zoom: 0.88; }
+        &__strip--grid { row-gap: 24px; column-gap: 14px; }
+        &__strip--grid > .con-cards__slot { zoom: 0.62; }
+        &__pickband { font-size: 11.5px; padding: 2px 10px; top: -10px; }
         &__tick { width: 24px; height: 24px; font-size: 15px; }
         &__reason { font-size: 12px; }
     }
+    .con-zoom__bar { gap: 10px; }
+    .con-zoom__btn { font-size: 14px; padding: 5px 12px; }
+    .con-zoom__state { font-size: 13px; padding: 3px 10px; }
+    .con-zoom__cmd { font-size: 13px; }
 
     /* ── 21 · the task host (all native prompts) ─────────────────── */
     .con-task {
@@ -3871,14 +4287,20 @@ html.con-profile-handheld {
         &__steps { gap: 6px; }
         &__step { padding: 3px 10px; font-size: 11.5px; letter-spacing: 0.8px; gap: 6px; }
         &__step-num { font-size: 10.5px; }
-        &__budget { gap: 8px; padding: 3px 10px; font-size: 13px; b { font-size: 15px; } }
+        &__budget { padding: 3px 4px; border-radius: 9px; }
+        &__budget-col { padding: 1px 10px; b { font-size: 14px; } }
+        &__budget-col--strong b { font-size: 16px; }
+        &__budget-label { font-size: 9.5px; letter-spacing: 1px; }
         &__mc { width: 16px; height: 16px; }
         &__pickline { margin-top: 6px; }
         &__count { font-size: 14px; padding: 2px 10px; b { font-size: 17px; } }
         &__section-title { font-size: 11.5px; letter-spacing: 1.6px; margin: 2px 0 6px; }
-        &__summary { gap: 18px; }
-        &__summary-corp { zoom: 0.85; }
-        &__mini { zoom: 0.55; }
+        &__summary { gap: 14px; }
+        &__summary-row { gap: 16px; }
+        &__summary-side { flex-basis: 260px; }
+        &__mini { zoom: 0.5; }
+        &__mini--id { zoom: 0.56; }
+        &__beginline { font-size: 15px; padding: 8px 12px; }
         &__money { padding: 8px 12px; }
         &__money-line { font-size: 14px; &--total { font-size: 16px; b { font-size: 19px; } } }
         &__skipwarn { font-size: 15px; }
@@ -3932,7 +4354,22 @@ html.con-profile-handheld {
     /* ── 20 · journal + notifications geometry ───────────────────── */
     &.console-mode .journal-panel { width: 340px; top: 84px; bottom: 54px; right: 12px; }
     &.console-mode .notifications-layer { top: 84px; right: 12px; }
-    &.console-mode .notification-card { zoom: 0.88; }
+    /* P16: the console card gets the handheld density (the desktop card
+       no longer renders in console mode). */
+    .con-notif {
+        width: 320px;
+        padding: 8px 12px 10px 15px;
+
+        &__body { font-size: 14.5px; }
+        &__type { font-size: 11px; letter-spacing: 1.2px; }
+        &__actor { font-size: 13px; }
+        &__chip { font-size: 13px; padding: 1px 8px; }
+        &__chip-icon { width: 16px; height: 16px; }
+        &__tokens {
+            .journal-text, .journal-em { font-size: 14.5px; }
+            .journal-player, .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 13.5px; }
+        }
+    }
 
     /* ── 22/23 · endgame / final reveal / rematch (fallback premium
        surfaces — per-surface density; their own layouts stay) ────── */

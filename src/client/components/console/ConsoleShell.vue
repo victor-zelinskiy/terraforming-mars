@@ -17,11 +17,14 @@
       </span>
     </div>
 
-    <!-- CTS: a DEFERRED task (B = inspect the board) docks as an amber chip. -->
+    <!-- CTS: a DEFERRED task (B = inspect the board) docks as an amber chip.
+         P15: the return verb is CONTEXT-AWARE (selection / draft / start
+         setup / decision) — never a generic «return to game» while the
+         player is already in the game. -->
     <div v-if="(hostTask !== undefined || shellTask !== undefined || startTask !== undefined) && consoleState.task.deferred" class="con-banner con-banner--deferred">
       <span class="con-banner__pulse" aria-hidden="true"></span>
       <span>{{ $t('Awaiting decision') }}</span>
-      <span class="con-banner__hint"><GamepadGlyph control="back" /><span>{{ $t('Return to game') }}</span></span>
+      <span class="con-banner__hint"><GamepadGlyph control="back" /><span>{{ $t(deferReturnLabel) }}</span></span>
     </div>
 
     <div class="con-main">
@@ -206,15 +209,40 @@
                              :stranded="leakDetectorState.stranded" />
     </transition>
 
-    <!-- P13: the global "X = fullscreen card" viewer - ONE reused
-         CardZoomModal for every console card context (module state). -->
+    <!-- P13/P15: the global "X = fullscreen card" viewer - ONE reused
+         CardZoomModal for every console card context (module state).
+         P15 makes it CONTROLLER-NATIVE: the shell owns the pad while it is
+         open (LB/RB browse, B/X close, A toggles the pick when the opener
+         passed a select context), the desktop close button + touch arrows
+         are replaced by the console command bar in the #actions slot, and
+         the `con-zoom` class scopes that restyle to THIS instance only. -->
     <CardZoomModal v-if="consoleCardZoom.card !== undefined"
                    ref="cardZoom"
+                   class="con-zoom"
                    :card="consoleCardZoom.card"
                    :cards="consoleCardZoom.cards.length > 1 ? consoleCardZoom.cards : undefined"
                    :index="consoleCardZoom.index"
+                   :selected="zoomSelected"
                    @navigate="onCardZoomNavigate"
-                   @close="onCardZoomClosed" />
+                   @close="onCardZoomClosed">
+      <template #actions>
+        <div class="con-zoom__bar">
+          <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
+          <button v-if="zoomSelectable" class="con-zoom__btn con-zoom__btn--select" @click="zoomToggleSelect">
+            <GamepadGlyph control="confirm" />
+            <span>{{ $t(zoomSelected ? zoomDeselectLabel : zoomSelectLabel) }}</span>
+          </button>
+          <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd">
+            <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
+            <span>{{ $t('Browse') }}</span>
+          </span>
+          <button class="con-zoom__btn" @click="closeZoomViewer">
+            <GamepadGlyph control="back" />
+            <span>{{ $t('Close') }}</span>
+          </button>
+        </div>
+      </template>
+    </CardZoomModal>
 
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
 
@@ -1014,6 +1042,31 @@ export default defineComponent({
         {control: 'menu', label: 'System'},
       ];
     },
+    // ── P15: the fullscreen viewer's select context ─────────────────────
+    zoomSelectable(): boolean {
+      return this.consoleCardZoom.select !== undefined && this.consoleCardZoom.card !== undefined;
+    },
+    zoomSelected(): boolean {
+      const z = this.consoleCardZoom;
+      return z.select !== undefined && z.card !== undefined && z.select.isSelected(z.card.name);
+    },
+    zoomSelectLabel(): string {
+      return this.consoleCardZoom.select?.selectLabel ?? 'Select';
+    },
+    zoomDeselectLabel(): string {
+      return this.consoleCardZoom.select?.deselectLabel ?? 'Deselect';
+    },
+    /** P15: the deferred-chip return verb, by what is actually pending. */
+    deferReturnLabel(): string {
+      if (this.startTask !== undefined) {
+        return this.startTask.kind === 'initialDraft' ? 'Return to selection' : 'Resume start setup';
+      }
+      const t = this.hostTask ?? this.shellTask;
+      if (t !== undefined && t.kind === 'cardSelect') {
+        return t.mode === 'draft' ? 'Return to the draft' : 'Return to selection';
+      }
+      return 'Return to the decision';
+    },
   },
   watch: {
     // P13: the fullscreen viewer is a native <dialog> - open it on the
@@ -1198,6 +1251,15 @@ export default defineComponent({
     },
     // ── input ────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): boolean {
+      // P15: OUR fullscreen card viewer owns the pad completely while open
+      // (it is a native <dialog>, so this must run BEFORE the resolveScope
+      // fallback branch — the generic dialog scope would otherwise trap the
+      // input in the DOM engine, where LB/RB browsing and the A select
+      // context don't exist). Other (fallback-owned) dialogs never set
+      // consoleCardZoom, so they still route to the DOM engine below.
+      if (this.consoleCardZoom.card !== undefined) {
+        return this.handleZoomIntent(intent);
+      }
       // A fallback surface (mandatory modal / dialog / draft / endgame…) on
       // top → the demoted DOM focus engine drives it. ONE carve-out: the
       // console-mounted Hydronetwork surface is a fallback-driven scope, but
@@ -1573,15 +1635,9 @@ export default defineComponent({
       if (entry === undefined) {
         return;
       }
-      // Sale mode: A toggles the pick.
+      // Sale mode: A toggles the pick (shared with the fullscreen viewer).
       if (this.consoleState.sale.active) {
-        const name = entry.card.name;
-        const at = this.consoleState.sale.selected.indexOf(name);
-        if (at === -1) {
-          this.consoleState.sale.selected.push(name);
-        } else {
-          this.consoleState.sale.selected.splice(at, 1);
-        }
+        this.toggleSalePick(entry.card.name);
         return;
       }
       if (!entry.playable) {
@@ -2090,19 +2146,77 @@ export default defineComponent({
     onNotificationCancel(): void {
       this.cancelPlacement();
     },
-    // ── P13: the fullscreen card viewer (module-state driven) ───────────
+    // ── P13/P15: the fullscreen card viewer (module-state driven) ───────
     onCardZoomNavigate(card: CardModel, pos: number): void {
       navigateConsoleCardZoom(card, pos);
     },
     onCardZoomClosed(): void {
       closeConsoleCardZoom();
     },
-    /** X in the hand section: read the focused card fullscreen. */
+    /** P15: the controller drives the viewer natively while it is open. */
+    handleZoomIntent(intent: GamepadIntent): boolean {
+      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      if (intent.kind === 'nav') {
+        if (intent.dir === 'left') {
+          zoom?.prev();
+        } else if (intent.dir === 'right') {
+          zoom?.next();
+        }
+        return true;
+      }
+      if (intent.kind !== 'press') {
+        return true;
+      }
+      switch (intent.button) {
+      case 'bumperL':
+        zoom?.prev();
+        return true;
+      case 'bumperR':
+        zoom?.next();
+        return true;
+      case 'confirm':
+        // A = toggle the pick — ONLY when the opener passed a select
+        // context (read-only contexts stay read-only; never a submit).
+        this.zoomToggleSelect();
+        return true;
+      case 'secondary': // X closes too — the same key that opened it
+      case 'back':
+        this.closeZoomViewer();
+        return true;
+      default:
+        return true; // the viewer owns ALL input while open
+      }
+    },
+    zoomToggleSelect(): void {
+      const z = this.consoleCardZoom;
+      if (z.select !== undefined && z.card !== undefined) {
+        z.select.toggle(z.card.name);
+      }
+    },
+    closeZoomViewer(): void {
+      (this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined)?.close();
+    },
+    /** X in the hand section: read the focused card fullscreen. In SALE
+     *  mode the viewer's A toggles the pick (a pure selection flip — the
+     *  sale submit stays on the section's Y). */
     zoomHandCard(): void {
       if (this.handEntries.length === 0) {
         return;
       }
-      openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex);
+      const select = this.consoleState.sale.active ? {
+        isSelected: (name: CardName) => this.consoleState.sale.selected.includes(name),
+        toggle: (name: CardName) => this.toggleSalePick(name),
+      } : undefined;
+      openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, select);
+    },
+    /** P15: the sale pick flip, shared by the section's A and the viewer. */
+    toggleSalePick(name: string): void {
+      const at = this.consoleState.sale.selected.indexOf(name);
+      if (at === -1) {
+        this.consoleState.sale.selected.push(name);
+      } else {
+        this.consoleState.sale.selected.splice(at, 1);
+      }
     },
     // ── transport ────────────────────────────────────────────────────────
     submit(response: unknown): void {

@@ -18,8 +18,10 @@
             <span class="con-task__pickcount" :class="{'con-task__pickcount--ready': cardPicksValid}">
               {{ $t('Selected') }}: <b>{{ picks.length }}</b><template v-if="cardMax > 0"> / {{ cardMax }}</template>
             </span>
+            <!-- P15: the purchase math reads as words, never a bare string. -->
             <span v-if="isBuyMode" class="con-task__pickbuy" :class="{'con-task__pickbuy--over': !cardBuyAffordable}">
-              −{{ buyTotal }} <i class="resource_icon resource_icon--megacredits con-task__opt-res" aria-hidden="true"></i>
+              {{ $t('Purchase') }}: {{ picks.length }} × {{ buyCostPerCard }} = −{{ buyTotal }}
+              <i class="resource_icon resource_icon--megacredits con-task__opt-res" aria-hidden="true"></i>
               <span class="con-task__pickbuy-left">({{ $t('You have') }}: {{ megacreditsOnHand }})</span>
             </span>
           </div>
@@ -162,36 +164,46 @@
                 <div class="con-cards__strip"
                      :class="{'con-cards__strip--grid': gridMode, 'con-cards__strip--has-focus': cardEntries.length > 0}"
                      ref="cardStrip">
+                  <!-- P15: no per-card cost overlay (the buy math lives in
+                       the pickline), strong «✓ SELECTED» band, unpicked
+                       cards de-emphasize at the pick max. -->
                   <div v-for="(entry, i) in cardEntries" :key="entry.card.name + '#' + i"
                        class="con-cards__slot"
                        :class="{
                          'con-cards__slot--focused': focusIdx === i,
                          'con-cards__slot--picked': isPicked(entry.card.name),
                          'con-cards__slot--disabled': entry.disabled,
+                         'con-cards__slot--dim': cardDimUnpicked && !entry.disabled && !isPicked(entry.card.name),
                        }"
                        :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
                     <Card :card="entry.card" :key="entry.card.name" lightweight />
-                    <span v-if="isBuyMode && !entry.disabled" class="con-cards__cost">
-                      {{ buyCostPerCard }} <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-                    </span>
-                    <span v-if="isPicked(entry.card.name)" class="con-cards__tick" aria-hidden="true">✓</span>
+                    <span v-if="isPicked(entry.card.name)" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
                     <span v-if="entry.disabled" class="con-cards__reason">{{ entry.reason !== '' ? entry.reason : $t('Unavailable right now') }}</span>
                   </div>
                 </div>
                 <!-- The focused card's verdict line — compact context, never
-                     a duplicate card (X = the universal fullscreen read). -->
+                     a duplicate card (X = the universal fullscreen read).
+                     P15 grammar: A ONLY selects/deselects; Y confirms. -->
                 <div v-if="focusedCardEntry !== undefined" class="con-cards__verdictbar">
                   <span class="con-cards__verdict-name">{{ $t(focusedCardEntry.card.name) }}</span>
                   <span v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
                     <span aria-hidden="true">✕</span>
                     <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
                   </span>
-                  <span v-else class="con-cards__verdict" :class="isPicked(focusedCardEntry.card.name) ? 'con-cards__verdict--picked' : 'con-cards__verdict--ok'">
-                    <GamepadGlyph control="confirm" />
-                    <span>{{ $t(isPicked(focusedCardEntry.card.name) ? (singlePick ? confirmLabel : 'Deselect') : 'Select') }}</span>
+                  <span v-else-if="isPicked(focusedCardEntry.card.name)" class="con-cards__verdict con-cards__verdict--picked">
+                    <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
+                  </span>
+                  <span v-else-if="canPickFocusedCard" class="con-cards__verdict con-cards__verdict--ok">
+                    <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+                  </span>
+                  <span v-else class="con-cards__verdict con-cards__verdict--blocked">
+                    <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
                   </span>
                   <span class="con-cards__verdict con-cards__verdict--zoom">
                     <GamepadGlyph control="secondary" /><span>{{ $t('Card') }}</span>
+                  </span>
+                  <span v-if="confirmReady" class="con-cards__verdict con-cards__verdict--go">
+                    <GamepadGlyph control="inspect" /><span>{{ $t(confirmLabel) }}</span>
                   </span>
                 </div>
               </div>
@@ -667,9 +679,17 @@ export default defineComponent({
     cardMax(): number {
       return this.cardModel?.max ?? 0;
     },
-    /** min === max === 1 → A on the picked card confirms (draft rhythm). */
+    /** min === max === 1 (P15: A toggles ONLY — Y is the one confirm). */
     singlePick(): boolean {
       return this.cardMin === 1 && this.cardMax === 1;
+    },
+    /** P15: at the pick max, unpicked cards de-emphasize (desktop parity). */
+    cardDimUnpicked(): boolean {
+      return this.cardMax > 0 && this.picks.length >= this.cardMax;
+    },
+    /** Can A pick the focused (unpicked, enabled) card right now? */
+    canPickFocusedCard(): boolean {
+      return this.cardMax === 1 || this.picks.length < this.cardMax;
     },
     /** P13: >6 candidates wrap into a grid (no kilometre scrolling). */
     gridMode(): boolean {
@@ -759,10 +779,11 @@ export default defineComponent({
           {control: 'inspect', label: 'MAX'}, confirm, defer,
         ];
       case 'cardSelect':
-        // P13 card grammar: A = select · X = fullscreen card · Y = confirm.
+        // P15 card grammar: A = select/deselect ONLY · X = fullscreen card
+        // · Y = the ONE confirm (never a hidden A-confirm).
         return [
           {control: this.gridMode ? 'dpad' : 'dpadH', label: 'Navigate'},
-          {control: 'confirm', label: this.singlePick ? 'Select' : 'Select / Deselect'},
+          {control: 'confirm', label: 'Select / Deselect'},
           {control: 'secondary', label: 'Card'},
           {control: 'inspect', label: this.confirmLabel, enabled: this.confirmReady},
           defer,
@@ -824,12 +845,17 @@ export default defineComponent({
       }
       this.onPress(intent.button);
     },
-    /** P13 global rule: X opens the focused card fullscreen (reused viewer). */
+    /** P13/P15: X opens the focused card fullscreen (reused viewer). The
+     *  select context lets A toggle the pick from fullscreen — disabled
+     *  candidates stay readable but never pickable (toggle no-ops). */
     zoomFocusedCard(): void {
       if (this.cardEntries.length === 0) {
         return;
       }
-      openConsoleCardZoom(this.cardEntries.map((e) => e.card), this.focusIdx);
+      openConsoleCardZoom(this.cardEntries.map((e) => e.card), this.focusIdx, {
+        isSelected: (name) => this.isPicked(name),
+        toggle: (name) => this.toggleCardPickByName(name),
+      });
     },
     /**
      * Row jump in GRID mode — measured from the real DOM (offsetTop groups),
@@ -934,14 +960,18 @@ export default defineComponent({
       if (entry === undefined || entry.disabled) {
         return; // a disabled candidate is readable, never pickable
       }
-      const name = entry.card.name;
+      this.toggleCardPickByName(entry.card.name);
+    },
+    /** P15: pure selection flip — shared by the strip AND the fullscreen
+     *  viewer's A (picked → deselect, even single-pick; the hidden
+     *  A-on-picked confirm is gone — Y is the one confirm). */
+    toggleCardPickByName(name: CardName): void {
+      const entry = this.cardEntries.find((e) => e.card.name === name);
+      if (entry === undefined || entry.disabled) {
+        return;
+      }
       const at = this.picks.indexOf(name);
       if (at !== -1) {
-        // Single-pick rhythm: A on the picked card = confirm (draft flow).
-        if (this.singlePick) {
-          this.onConfirm();
-          return;
-        }
         this.picks.splice(at, 1);
         return;
       }
@@ -950,7 +980,7 @@ export default defineComponent({
         return;
       }
       if (this.picks.length >= this.cardMax) {
-        return; // slots full — deselect something first (counter shows it)
+        return; // slots full — the verdict bar explains (deselect first)
       }
       this.picks.push(name);
     },
