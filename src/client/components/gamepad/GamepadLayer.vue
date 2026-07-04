@@ -81,6 +81,7 @@ import ConsoleSystemMenu, {SYSTEM_MENU_ITEMS} from '@/client/components/console/
 import {consoleModeState, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
 import {initialGamepadDetected, isElectronApp} from '@/client/console/runtimeMode';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
+import {consoleLayoutState, installConsoleLayoutProfile, ConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
 import {leakDetectorState} from '@/client/console/consoleLeakDetector';
 
@@ -132,6 +133,7 @@ export default defineComponent({
       gamepadCoreState,
       focusState,
       consoleModeState,
+      consoleLayoutState,
       consoleState,
       leakDetectorState,
       systemMenuOpen: false,
@@ -186,6 +188,26 @@ export default defineComponent({
         if (typeof document !== 'undefined') {
           document.documentElement.classList.toggle('console-mode', on);
         }
+      },
+    },
+    // P12: the console LAYOUT PROFILE class (handheld / standard / large —
+    // Steam Deck being the handheld flagship). Owned here for the same
+    // reason; every selector pairs it with console-scoped classes, so the
+    // desktop premium UI is structurally unreachable.
+    'consoleLayoutState.profile': {
+      immediate: true,
+      handler(now: ConsoleLayoutProfile, before: ConsoleLayoutProfile | undefined) {
+        if (typeof document === 'undefined') {
+          return;
+        }
+        const html = document.documentElement;
+        if (before !== undefined) {
+          html.classList.remove(`con-profile-${before}`);
+        }
+        for (const p of ['handheld', 'standard', 'large']) {
+          html.classList.remove(`con-profile-${p}`);
+        }
+        html.classList.add(`con-profile-${now}`);
       },
     },
   },
@@ -354,6 +376,7 @@ export default defineComponent({
   },
   mounted() {
     installGamepadCore();
+    installConsoleLayoutProfile();
     this.offIntent = onGamepadIntent((intent) => this.onIntent(intent));
     this.offMode = onInputModeChange((mode) => this.onModeChange(mode));
     if (this.gamepadActive) {
