@@ -183,12 +183,13 @@
           <template v-else>
             <div class="con-hydro__section-label">{{ $t('You will gain') }}</div>
             <div class="con-hydro__gains">
-              <div v-for="(l, i) in rewardView.lines" :key="i" class="con-hydro__delta">
+              <div v-for="(l, i) in rewardView.lines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
                 <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
                   <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
                 </span>
                 <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
-                <span class="con-hydro__plus">+{{ l.delta }}</span>
+                <span v-if="l.delta !== 0" class="con-hydro__plus">+{{ l.delta }}</span>
+                <span v-else class="con-hydro__zero">{{ $t('No change') }}</span>
                 <span v-if="l.noteKey" class="con-hydro__delta-note">{{ $t(l.noteKey) }}: {{ l.noteValue }}</span>
               </div>
               <HydroReward v-if="rewardView.lines.length === 0 && rewardView.rawChips.length > 0" :chips="rewardView.rawChips" />
@@ -201,12 +202,13 @@
 
           <!-- Choice-stage deltas once a bonus IS chosen. -->
           <div v-if="model.targetNeedsChoice && rewardView.lines.length > 0" class="con-hydro__gains con-hydro__gains--chosen">
-            <div v-for="(l, i) in rewardView.lines" :key="'c' + i" class="con-hydro__delta">
+            <div v-for="(l, i) in rewardView.lines" :key="'c' + i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
               <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
                 <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
               </span>
               <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
-              <span class="con-hydro__plus">+{{ l.delta }}</span>
+              <span v-if="l.delta !== 0" class="con-hydro__plus">+{{ l.delta }}</span>
+              <span v-else class="con-hydro__zero">{{ $t('No change') }}</span>
             </div>
           </div>
 
@@ -244,10 +246,17 @@
                 <GamepadGlyph control="confirm" />
                 <span>{{ $t('Reinforce the hydronetwork') }}</span>
               </div>
+              <!-- Requirement blockers (tags / energy) already stand in RED in
+                   the «Требования» column — never duplicated here; they fold
+                   into ONE pointer line. Only reasons the requirements column
+                   can't show (turn / used / occupied / to-dos) get own rows. -->
               <div class="con-hydro__reasons">
-                <div v-for="(r, i) in reasons" :key="i" class="con-hydro__reason" :class="{'con-hydro__reason--todo': !r.blocking}">
+                <div v-if="requirementsUnmet" class="con-hydro__reason">
+                  <span class="con-hydro__reason-glyph" aria-hidden="true">✕</span>
+                  <span>{{ $t('Stage requirements are not met') }}</span>
+                </div>
+                <div v-for="(r, i) in ctaReasons" :key="i" class="con-hydro__reason" :class="{'con-hydro__reason--todo': !r.blocking}">
                   <span class="con-hydro__reason-glyph" aria-hidden="true">{{ r.blocking ? '✕' : '→' }}</span>
-                  <span v-if="r.tag !== undefined" class="con-hydro__reason-tag resource-tag" :class="'tag-' + r.tag" aria-hidden="true"></span>
                   <span>{{ reasonText(r) }}</span>
                 </div>
               </div>
@@ -352,6 +361,10 @@ import {consoleHydroUi, resetConsoleHydroUi} from '@/client/console/consoleHydro
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {DeltaStop} from '@/common/models/DeltaProjectPlayerModel';
 
+/** Reason kinds the «Требования» column already shows as red marks — the
+ *  CTA zone folds them into one pointer line instead of duplicating. */
+const REQUIREMENT_REASON_KINDS: ReadonlySet<string> = new Set(['missing-tag', 'energy-deficit', 'no-energy']);
+
 type RailStop = {
   position: number;
   vm: HydroStageVM;
@@ -454,6 +467,14 @@ export default defineComponent({
         rewardChoice: this.rewardChoice,
         occupantName: this.occupantName,
       });
+    },
+    /** Reasons ALREADY visualized in the «Требования» column (red chips). */
+    requirementsUnmet(): boolean {
+      return this.reasons.some((r) => REQUIREMENT_REASON_KINDS.has(r.kind));
+    },
+    /** The CTA-zone rows: everything the requirements column CAN'T show. */
+    ctaReasons(): ReadonlyArray<HydroReason> {
+      return this.reasons.filter((r) => !REQUIREMENT_REASON_KINDS.has(r.kind));
     },
     occupantName(): string | undefined {
       const pos = this.model.selectedPosition;

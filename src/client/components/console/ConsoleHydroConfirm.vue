@@ -56,13 +56,14 @@
         <!-- ── Result: what the player actually gets ────────────────── -->
         <div class="con-start__section-title">{{ $t('You will gain') }}</div>
         <div class="con-hydroconfirm__gains">
-          <div v-for="(l, i) in rewardView.lines" :key="i" class="con-hydroconfirm__delta">
+          <div v-for="(l, i) in rewardView.lines" :key="i" class="con-hydroconfirm__delta" :class="{'con-hydroconfirm__delta--zero': l.delta === 0}">
             <span class="con-hydroconfirm__delta-ico" :class="{'con-hydroconfirm__delta-ico--prod': l.production}">
               <span class="con-hydroconfirm__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
             </span>
             <span v-if="l.labelKey" class="con-hydroconfirm__delta-label">{{ $t(l.labelKey) }}:</span>
             <span class="con-hydroconfirm__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydroconfirm__after">{{ l.after }}</b></span>
-            <span class="con-hydroconfirm__plus">+{{ l.delta }}</span>
+            <span v-if="l.delta !== 0" class="con-hydroconfirm__plus">+{{ l.delta }}</span>
+            <span v-else class="con-hydroconfirm__zero">{{ $t('No change') }}</span>
             <span v-if="l.cardName" class="con-hydroconfirm__delta-card">{{ $t(l.cardName) }}</span>
             <span v-if="l.noteKey" class="con-hydroconfirm__delta-note">{{ $t(l.noteKey) }}: {{ l.noteValue }}</span>
           </div>

@@ -979,6 +979,21 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         font-weight: 800;
     }
     &__delta-note { font-size: 13.5px; color: @con-text-dim; }
+    /* A ZERO delta is a neutral fact, never a green gain (e.g. pos 6 with
+       no plant tags: «6 → 6 · Без изменений»). */
+    &__delta--zero {
+        color: @con-text-dim;
+        .con-hydro__after { color: @con-text; }
+    }
+    &__zero {
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.28);
+        color: @con-text-dim;
+        font-size: 13.5px;
+        font-weight: 700;
+    }
     &__pick {
         display: flex;
         align-items: center;
@@ -1209,6 +1224,19 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     &__delta-label { color: @con-text-dim; }
     &__delta-card { font-weight: 700; }
     &__delta-note { font-size: 13.5px; color: @con-text-dim; }
+    &__delta--zero {
+        color: @con-text-dim;
+        .con-hydroconfirm__after { color: @con-text; }
+    }
+    &__zero {
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.28);
+        color: @con-text-dim;
+        font-size: 13.5px;
+        font-weight: 700;
+    }
     &__plus {
         padding: 2px 9px;
         border-radius: 999px;
