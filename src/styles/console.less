@@ -3618,3 +3618,267 @@ html.console-mode {
         transition: none;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   P12 — CONSOLE LAYOUT PROFILES (Steam Deck / handheld flagship).
+   handheld  = a RECOMPOSITION for small screens (≤860px tall / ≤1366px
+               wide; Steam Deck 1280×800 through Electron fullscreen):
+               tighter chrome, narrower side panels, smaller card
+               hero-zooms — the board / the focused object stays the
+               hero. Fonts drop only a step (handheld distance ≈ arm's
+               length); NOTHING here is a blanket page scale.
+   standard  = the shipped console design, byte-identical (do-no-harm).
+   large     = a gentle readability boost for 4K / big TV.
+   The class comes from consoleLayoutProfile.ts (auto by viewport,
+   forced via ?consoleProfile= / tm_console_profile); every selector is
+   console-scoped, so desktop premium + legacy UI are unreachable.
+   Ordered by the audit's surface list — keep it that way.
+   ═══════════════════════════════════════════════════════════════════ */
+
+html.con-profile-handheld {
+    /* ── 1/2 · root chrome + top HUD ─────────────────────────────── */
+    .con-root { padding: 0.8vh 1vw; gap: 6px; }
+    .con-status {
+        gap: 12px;
+        padding: 4px 12px;
+
+        &__params { gap: 14px; }
+        &__value { font-size: 16px; }
+        &__gen-label { display: none; } /* the number reads alone */
+        &__intel { gap: 12px; }
+        &__intel-label { display: none; } /* icon + numbers suffice */
+        &__intel-value { font-size: 16px; b { font-size: 18px; } }
+        &__players { gap: 8px; }
+        &__player { gap: 6px; padding: 3px 9px; font-size: 14px; }
+        &__pname { max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        &__ptr, &__pmc { font-size: 13px; }
+        &__dot { width: 11px; height: 11px; }
+    }
+    .con-banner { font-size: 15px; padding: 5px 12px; }
+
+    /* ── 3 · bottom command bar ──────────────────────────────────── */
+    .con-cmdbar {
+        gap: 14px;
+        padding: 6px 14px;
+
+        &__context { font-size: 14px; letter-spacing: 1.6px; }
+        &__cmds { gap: 14px; }
+        &__cmd { gap: 6px; span { font-size: 14px; } }
+        .gp-glyph { min-width: 17px; height: 17px; font-size: 9.5px; }
+    }
+
+    /* ── 4 · right context + command panel (placement dossier) ───── */
+    .con-inspector {
+        width: 24%;
+        min-width: 248px;
+        max-width: 282px;
+        padding: 10px 12px;
+
+        &__kicker { font-size: 12px; letter-spacing: 1.6px; }
+        &__name { font-size: 19px; }
+        &__desc { font-size: 14px; }
+        &__placement { font-size: 15px; }
+    }
+    .con-context {
+        &__task-kicker { font-size: 12px; letter-spacing: 1.6px; }
+        &__task-title { font-size: 18px; }
+        &__reason { font-size: 14px; padding: 6px 10px; }
+        &__cell-brief { font-size: 14px; }
+    }
+    .con-info__stat-line { font-size: 14px; }
+
+    /* ── 5 · left resource / tags rail ───────────────────────────── */
+    .con-res {
+        width: 146px;
+        padding: 8px;
+        gap: 8px;
+
+        &__rows { gap: 5px; }
+        &__row { gap: 7px; padding: 4px 7px; }
+        &__icon { width: 22px; height: 22px; }
+        &__value { font-size: 17px; }
+        &__prod { font-size: 12px; }
+        &__tags-title { font-size: 11px; }
+        &__tags-grid { zoom: 0.82; }
+    }
+
+    /* ── 6 · RT action wheel ─────────────────────────────────────── */
+    .con-wheel__ring { zoom: 0.84; } /* one ring, polar px coords — a
+        per-surface density change, not a page scale */
+
+    /* ── 7 · LT Information Mode ─────────────────────────────────── */
+    .con-info {
+        padding: 1vh 1.4vw;
+
+        &__grid { gap: 10px; }
+        &__block { padding: 10px 12px; }
+        &__block-title { font-size: 13px; margin-bottom: 8px; }
+        &__excards { gap: 12px; }
+        &__excard { zoom: 0.6; }
+        &__excard-count { font-size: 14px; i { width: 18px; height: 18px; } }
+    }
+
+    /* ── 8 · hand section ────────────────────────────────────────── */
+    .con-hand {
+        &__bigcard { zoom: 0.95; }
+        &__verdict { font-size: 14px; }
+        &__reason { font-size: 13px; }
+        &__slot { zoom: 0.55; }
+        &__strip-hint, &__counter { font-size: 13px; }
+    }
+
+    /* ── 8/12 · the shared card browser (task host + start scene) ── */
+    .con-cards {
+        gap: 14px;
+
+        &__big { zoom: 0.92; }
+        &__verdict { font-size: 13px; padding: 4px 11px; }
+        &__strip { gap: 12px; padding: 10px 4px 12px; }
+        &__cost { font-size: 14px; .resource_icon { width: 16px; height: 16px; } }
+        &__tick { width: 24px; height: 24px; font-size: 15px; }
+        &__reason { font-size: 12px; }
+    }
+
+    /* ── 21 · the task host (all native prompts) ─────────────────── */
+    .con-task {
+        width: min(760px, 94vw);
+        padding: 14px 18px 10px;
+
+        &--wide { width: min(1180px, 96vw); }
+        &__kicker { font-size: 12px; letter-spacing: 1.6px; }
+        &__title { font-size: 20px; }
+        &__trigger { font-size: 14px; }
+        &__source { zoom: 0.72; }
+        &__warning { font-size: 15px; }
+        &__option { padding: 8px 12px; }
+        &__opt-title { font-size: 16px; }
+        &__opt-player { font-size: 15px; }
+        &__opt-preview { font-size: 14px; }
+        &__opt-desc, &__opt-tradeoff { font-size: 14px; }
+        &__opt-reason { font-size: 13px; }
+        &__opt-icon, &__opt-res { width: 24px; height: 24px; }
+        &__stepper-value { font-size: 34px; }
+        &__lane { gap: 10px; padding: 7px 12px; }
+        &__lane-value { font-size: 22px; min-width: 32px; }
+        &__lane-max, &__lane-rate { font-size: 14px; }
+        &__pickcount, &__paycost { font-size: 15px; b { font-size: 17px; } }
+        &__pickbuy { font-size: 15px; }
+        &__foot { gap: 14px; margin-top: 8px; padding-top: 8px; }
+        &__foot-item { font-size: 14px; }
+    }
+    .con-actconfirm__effects { zoom: 1; }
+    .con-actconfirm__branch-title { font-size: 15px; }
+    .con-actconfirm__reason, .con-actconfirm__note { font-size: 14px; }
+
+    /* ── 9/10/11 · the start scene (initial draft / corps / preludes) */
+    .con-start {
+        &__frame { width: 97vw; padding: 12px 20px 8px; }
+        &__kicker { font-size: 12px; letter-spacing: 1.6px; }
+        &__kicker-gen { font-size: 11px; padding: 1px 8px; }
+        &__title { font-size: 21px; margin-top: 2px; }
+        &__railrow { gap: 10px; margin-top: 6px; }
+        &__steps { gap: 6px; }
+        &__step { padding: 3px 10px; font-size: 11.5px; letter-spacing: 0.8px; gap: 6px; }
+        &__step-num { font-size: 10.5px; }
+        &__budget { gap: 8px; padding: 3px 10px; font-size: 13px; b { font-size: 15px; } }
+        &__mc { width: 16px; height: 16px; }
+        &__pickline { margin-top: 6px; }
+        &__count { font-size: 14px; padding: 2px 10px; b { font-size: 17px; } }
+        &__section-title { font-size: 11.5px; letter-spacing: 1.6px; margin: 2px 0 6px; }
+        &__summary { gap: 18px; }
+        &__summary-corp { zoom: 0.85; }
+        &__mini { zoom: 0.55; }
+        &__money { padding: 8px 12px; }
+        &__money-line { font-size: 14px; &--total { font-size: 16px; b { font-size: 19px; } } }
+        &__skipwarn { font-size: 15px; }
+        &__ceremony { gap: 18px; }
+        &__corp { zoom: 0.74; }
+        &__prelude { zoom: 0.62; }
+        &__prelude-grid { gap: 12px; }
+        &__slot-a { font-size: 11.5px; padding: 3px 10px; bottom: -10px; }
+        &__cands .con-cards__strip { gap: 10px; }
+        &__foot { gap: 14px; margin-top: 8px; padding-top: 8px; }
+        &__foot-item { font-size: 14px; }
+    }
+
+    /* ── 12/21 · reveal / play / trade confirms ──────────────────── */
+    .con-reveal {
+        &__card { width: min(1160px, 96vw); padding: 14px 18px 10px; }
+        &__title { font-size: 20px; }
+        &__chip { font-size: 13px; }
+        &__source { zoom: 0.72; }
+        &__revealed { zoom: 0.9; }
+        &__outcome { font-size: 16px; }
+        &__vp { font-size: 14px; }
+    }
+    .con-play {
+        &__frame { width: min(1100px, 96vw); }
+        &__cardside { zoom: 0.8; }
+        &__next-line { font-size: 14px; }
+    }
+    .con-trade {
+        &__frame { width: min(980px, 95vw); }
+        &__tile { zoom: 0.85; }
+        &__bonus { font-size: 13px; }
+    }
+
+    /* ── 13/14/18/19 · sheets (basics / std / actions / MA) ──────── */
+    .con-sheet__panel {
+        width: min(880px, 94vw);
+        max-height: 80vh;
+        padding: 14px 16px 10px;
+        zoom: 0.92; /* a LIST surface — density, not composition */
+    }
+
+    /* ── 16 · colonies rail ──────────────────────────────────────── */
+    .con-colonies {
+        &__rail { gap: 14px; padding: 10px; }
+        &__slot { zoom: 0.9; }
+        &__slot-a { font-size: 12px; padding: 4px 10px; bottom: -11px; }
+        &__slot-reason { font-size: 12px; bottom: -11px; }
+    }
+
+    /* ── 20 · journal + notifications geometry ───────────────────── */
+    &.console-mode .journal-panel { width: 340px; top: 84px; bottom: 54px; right: 12px; }
+    &.console-mode .notifications-layer { top: 84px; right: 12px; }
+    &.console-mode .notification-card { zoom: 0.88; }
+
+    /* ── 22/23 · endgame / final reveal / rematch (fallback premium
+       surfaces — per-surface density; their own layouts stay) ────── */
+    &.console-mode .eg-results { zoom: 0.88; }
+    &.console-mode .fsr { zoom: 0.9; }
+    &.console-mode .rematch-modal { zoom: 0.92; }
+
+    /* ── 21 · the nested-carve-out desktop modal (deliberate) ────── */
+    &.console-mode .mandatory-input-modal { zoom: 0.92; }
+
+    /* ── 24 · pre-game shell (menu / join / create / lobby) ──────── */
+    &.console-mode .premium-main-menu .pmm__actions { zoom: 1; }
+    &.console-mode .join-panel__card { zoom: 1; }
+    &.console-mode #game-home { zoom: 1.05; }
+    .con-load__panel { min-width: 360px; padding: 26px 36px; }
+    .con-load__scanner { width: 96px; height: 96px; }
+    .con-load__title { font-size: 16px; letter-spacing: 3px; }
+    .con-load__stage { font-size: 15px; }
+    .con-load__pulse { width: 220px; }
+    .con-load__btn { font-size: 15px; padding: 10px 20px; }
+
+    /* ── 25 · system overlay / quit / stranded / confirm ─────────── */
+    .con-sysmenu { zoom: 0.92; }
+    .con-quit__card { min-width: 400px; padding: 20px 22px 14px; }
+    .con-quit__body { font-size: 16px; margin: 8px 0 14px; }
+    .con-quit__btn { font-size: 15px; padding: 10px 16px; }
+    .con-confirm__card { zoom: 0.92; }
+    .con-stranded { zoom: 0.92; }
+}
+
+/* ── LARGE (4K / big TV): a gentle readability boost only ─────────── */
+html.con-profile-large {
+    .con-status__value { font-size: 24px; }
+    .con-status__player { font-size: 23px; }
+    .con-cmdbar__context { font-size: 23px; }
+    .con-cmdbar__cmd span { font-size: 21px; }
+    .con-inspector { max-width: 520px; }
+    .con-task__title { font-size: 30px; }
+    .con-task__opt-title { font-size: 24px; }
+}

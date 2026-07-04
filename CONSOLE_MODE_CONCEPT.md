@@ -1286,6 +1286,49 @@ the desktop-gamepad mode are untouched throughout.
   hidden by design; leaving the results goes through the system menu's
   exit-to-menu, now curtained). Gates: 110 pure specs, eslint, vue-tsc,
   make:css, build:client — green.
+- **P12 — SHIPPED (Steam Deck / handheld layout profiles).**
+  **Profile model** — `consoleLayoutProfile.ts`: pure `resolveProfile(w,h)`
+  (`h≤860 || w≤1366` → **handheld** — the Steam Deck 1280×800 flagship +
+  similar small screens, deliberately NOT a device sniff; `w≥2400` →
+  **large**; else **standard** = the shipped design, byte-identical),
+  reactive + rAF-throttled resize; **debug override**
+  `?consoleProfile=handheld|standard|large` (persisted to
+  `tm_console_profile`, `=auto` clears) so the Deck layout is testable in
+  any desktop window. GamepadLayer owns the `html.con-profile-<p>` class
+  (next to `console-mode`); EVERY profile selector pairs with
+  console-scoped blocks (the few desktop-class targets — journal,
+  notifications, endgame, the carve-out modal, pre-game boosts — are
+  additionally guarded by `&.console-mode`), so desktop premium + legacy
+  are structurally unreachable.
+  **Handheld = RECOMPOSITION, not a page scale** (one organized block in
+  console.less, ordered by the audit's surface list): tighter root
+  chrome; compact HUD (generation label + intel labels dropped to
+  icon+numbers, player names ellipsized at 88px); denser command bar
+  (14px labels, 17px glyphs); the RIGHT context panel narrowed
+  340→248-282px and the LEFT resource rail 182→146px — the freed ~130px
+  goes straight to the board (its fit is already dynamic); card
+  HERO-zooms stepped down (hand inspector 1.32→0.95, browser big
+  1.16→0.92, start-scene corp/preludes 0.92/0.86→0.74/0.62, play
+  cardside 1.02→0.8, reveal 1.08→0.9, trade tile 1.05→0.85, colonies
+  0.9) — cards stay larger-than-natural for arm's-length reading; the
+  task host width 880→760 (wide 1560→1180); the start scene's rail +
+  budget compress to one dense header row; wheel ring ×0.84; Info Mode
+  paddings/blocks tightened (3 columns keep); sheets = list-density
+  0.92 + 80vh; journal 340px / notifications repositioned under the
+  compact HUD; endgame/final-reveal/rematch/the carve-out modal get a
+  deliberate per-surface density (0.88–0.92 — fallback surfaces keep
+  their own layouts); the pre-game console zoom boosts (1.18/1.12/1.3)
+  return to ~1 on handheld; loading/quit/system/stranded compacted.
+  **Large** — a gentle readability boost only (HUD/cmdbar/task fonts one
+  step up, inspector max-width 520).
+  **Known limitations (recorded):** the Hydronetwork overlay keeps its
+  desktop-premium composition (fallback surface — untouched this pass);
+  the endgame family is density-adjusted, not recomposed; `standard`
+  IS the shipped design (no change by construction). Validation:
+  `?consoleProfile=handheld` in a 1280×800 window walks the QA list;
+  `?consoleProfile=standard` at 1920×1080 confirms zero drift. Gates:
+  85 console specs (+5 profile), eslint, vue-tsc, make:css,
+  build:client — green.
 
 ---
 
