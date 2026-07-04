@@ -60,10 +60,18 @@ export function configureBoardInfo(cfg: Partial<Config>): void {
   // facts are cheap + the fetch is debounced, so re-fetching on hover is fine.
   infoCache.clear();
   previewCache.clear();
-  if (cfg.participantId !== undefined) c.participantId = cfg.participantId;
-  if (cfg.color !== undefined) c.color = cfg.color;
-  if (cfg.boardName !== undefined) c.boardName = cfg.boardName;
-  if (cfg.players !== undefined) c.players = cfg.players;
+  if (cfg.participantId !== undefined) {
+    c.participantId = cfg.participantId;
+  }
+  if (cfg.color !== undefined) {
+    c.color = cfg.color;
+  }
+  if (cfg.boardName !== undefined) {
+    c.boardName = cfg.boardName;
+  }
+  if (cfg.players !== undefined) {
+    c.players = cfg.players;
+  }
 }
 
 function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number): string {

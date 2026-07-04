@@ -19,8 +19,16 @@ describe('electron/perf', () => {
   const savedUncap = process.env.TM_ELECTRON_UNCAP_FPS;
   const savedForce = process.env.TM_ELECTRON_FORCE_GPU;
   afterEach(() => {
-    if (savedUncap === undefined) delete process.env.TM_ELECTRON_UNCAP_FPS; else process.env.TM_ELECTRON_UNCAP_FPS = savedUncap;
-    if (savedForce === undefined) delete process.env.TM_ELECTRON_FORCE_GPU; else process.env.TM_ELECTRON_FORCE_GPU = savedForce;
+    if (savedUncap === undefined) {
+      delete process.env.TM_ELECTRON_UNCAP_FPS;
+    } else {
+      process.env.TM_ELECTRON_UNCAP_FPS = savedUncap;
+    }
+    if (savedForce === undefined) {
+      delete process.env.TM_ELECTRON_FORCE_GPU;
+    } else {
+      process.env.TM_ELECTRON_FORCE_GPU = savedForce;
+    }
   });
 
   it('appends the default GPU + no-throttle switches', () => {

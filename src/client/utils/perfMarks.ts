@@ -47,7 +47,6 @@ export function perfMeasure(name: string, startMark: string): void {
     const entries = performance.getEntriesByName(name, 'measure');
     const last = entries[entries.length - 1];
     if (last !== undefined) {
-      // eslint-disable-next-line no-console
       console.log(`[perf] ${name}: ${last.duration.toFixed(1)}ms`);
     }
   } catch {
@@ -82,7 +81,6 @@ export function startLongTaskObserver(): void {
     longTaskObserver = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         if (entry.duration >= 50) {
-          // eslint-disable-next-line no-console
           console.warn(`[perf] long task ${entry.duration.toFixed(0)}ms @ ${entry.startTime.toFixed(0)}ms`);
         }
       }

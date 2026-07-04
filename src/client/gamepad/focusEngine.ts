@@ -24,7 +24,13 @@ import {BackSpec, ResolvedScope, isElementVisible, resolveScope} from '@/client/
 import {NavRect, pickDirectional, pickNearest, rectCenter} from '@/client/gamepad/spatialNav';
 
 export type RingVariant = 'default' | 'illegal' | 'card';
-export type FocusKind = 'none' | 'action' | 'board-cell' | 'board-cell-available' | 'card';
+export type FocusKind = 'none' | 'action' | 'board-cell' | 'board-cell-available' | 'card' |
+  /** A text field the pad can ENTER (A → real focus + caret + OSK attempt). */
+  'text-input' |
+  /** A text field currently being edited (B = done/blur; nav is inert). */
+  'text-editing' |
+  /** A disabled control — focusable for context, but A is not offered. */
+  'disabled';
 
 /** Reactive surface for the ring + hint bar (tiny components; everything else is module-local). */
 export const focusState = reactive({
@@ -32,6 +38,9 @@ export const focusState = reactive({
   focusKind: 'none' as FocusKind,
   /** Focused element carries a data-hint tooltip (hint bar can say so). */
   focusHasHint: false,
+  /** The focused element's exact A-verb (data-gp-verb, an i18n key) — the
+   *  hint bar shows it instead of a generic «Select» (P19). */
+  focusVerb: '',
   ring: {
     visible: false,
     left: 0,
@@ -213,6 +222,13 @@ function resolveDescriptor(desc: string, all: ReadonlyArray<HTMLElement>): HTMLE
 // --- classification -------------------------------------------------------------
 
 function classify(el: HTMLElement): {kind: FocusKind, variant: RingVariant} {
+  // P19: text fields get the EDITING grammar (A = enter text, B = done).
+  if (isTextInput(el)) {
+    return {kind: document.activeElement === el ? 'text-editing' : 'text-input', variant: 'default'};
+  }
+  if (isDisabledLike(el)) {
+    return {kind: 'disabled', variant: 'default'};
+  }
   if (el.classList.contains('board-space')) {
     if (el.classList.contains('board-space--available')) {
       return {kind: 'board-cell-available', variant: 'default'};
@@ -257,6 +273,7 @@ function syncRing(): void {
   const {kind, variant} = classify(focusedEl);
   focusState.focusKind = kind;
   focusState.focusHasHint = focusedEl.closest('[data-hint]:not([data-hint=""])') !== null;
+  focusState.focusVerb = focusedEl.getAttribute('data-gp-verb') ?? '';
   focusState.ring.visible = true;
   focusState.ring.left = r.left;
   focusState.ring.top = r.top;
@@ -403,8 +420,56 @@ function activate(): void {
     deny();
     return;
   }
+  // P19: A on a text field ENTERS it for real — DOM focus + caret at the
+  // end + a virtual-keyboard attempt (never a fake visual-only focus).
+  if (isTextInput(focusedEl)) {
+    enterEditing(focusedEl as HTMLInputElement | HTMLTextAreaElement);
+    return;
+  }
   focusedEl.click();
   scheduleSync();
+}
+
+// --- P19: text-input editing mode -------------------------------------------------
+const TEXT_INPUT_TYPES: ReadonlySet<string> = new Set(['text', 'search', 'number', 'email', 'password', 'url', 'tel']);
+
+function isTextInput(el: HTMLElement): boolean {
+  if (el instanceof HTMLTextAreaElement) {
+    return true;
+  }
+  return el instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(el.type);
+}
+
+/** Is a REAL text edit in progress (DOM focus sits in a text field)? */
+function isEditingActive(): boolean {
+  const ae = document.activeElement;
+  return ae instanceof HTMLElement && isTextInput(ae);
+}
+
+function enterEditing(el: HTMLInputElement | HTMLTextAreaElement): void {
+  el.focus();
+  try {
+    const len = el.value.length;
+    el.setSelectionRange(len, len);
+  } catch {
+    // number inputs throw on setSelectionRange — the focus itself is enough.
+  }
+  // Chromium's VirtualKeyboard API (Steam Deck / touch / TV shells that
+  // support it) — a best-effort show; platforms without it no-op.
+  try {
+    (navigator as {virtualKeyboard?: {show?: () => void}}).virtualKeyboard?.show?.();
+  } catch {
+    // Not available — the platform OSK (Steam+X etc.) still works.
+  }
+  syncRing(); // the kind flips to text-editing → the hint bar says B = Done
+}
+
+function exitEditing(): void {
+  const ae = document.activeElement;
+  if (ae instanceof HTMLElement) {
+    ae.blur();
+  }
+  syncRing(); // the ring stays on the field; the kind flips back
 }
 
 function dispatchSecondary(): void {
@@ -662,6 +727,15 @@ export function gamepadFocusTick(): void {
 
 /** The single entry point — GamepadLayer subscribes gamepadCore intents to this. */
 export function handleGamepadIntent(intent: GamepadIntent): void {
+  // P19: while a REAL text edit is in progress the OSK/keyboard owns the
+  // keys — pad navigation is inert, B closes the edit (blur) and stays on
+  // the field, A never re-clicks mid-typing. Everything else no-ops.
+  if (isEditingActive()) {
+    if (intent.kind === 'press' && intent.button === 'back') {
+      exitEditing();
+    }
+    return;
+  }
   const scope = resolveScope();
   if (scope === undefined) {
     return;

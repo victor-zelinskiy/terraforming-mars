@@ -403,7 +403,7 @@ export default defineComponent({
      * follow the PROMPT reactively: re-sync whenever `waitingfor` changes
      * (immediate covers the initial mount).
      */
-    waitingfor: {
+    'waitingfor': {
       immediate: true,
       handler() {
         this.syncTurnPresentation();

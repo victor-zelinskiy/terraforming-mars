@@ -214,7 +214,6 @@ export type BoardFactGroup = {
 export function groupFactsByRecipient(
   facts: ReadonlyArray<BoardFact>,
   viewerColor?: Color): ReadonlyArray<BoardFactGroup> {
-  const order: Array<string> = [];
   const groups = new Map<string, BoardFactGroup>();
   for (const fact of facts) {
     const recipient = normalizeRecipient(fact.recipient, viewerColor);
@@ -223,12 +222,11 @@ export function groupFactsByRecipient(
     if (group === undefined) {
       group = {key, recipient, facts: []};
       groups.set(key, group);
-      order.push(key);
     }
     (group.facts as Array<BoardFact>).push(fact);
   }
-  return order
-    .map((key) => groups.get(key)!)
+  // A Map preserves insertion (first-seen) order, so values() is already ordered.
+  return [...groups.values()]
     .sort((a, b) => recipientRank(a.recipient) - recipientRank(b.recipient));
 }
 

@@ -182,9 +182,15 @@ function headerFor(space: Space, status: BoardCellStatus): string {
   }
   case 'empty':
   default:
-    if (space.spaceType === SpaceType.OCEAN) return 'Ocean area';
-    if (space.spaceType === SpaceType.DEFLECTION_ZONE) return 'Deflection Zone';
-    if (space.spaceType === SpaceType.COVE) return 'Cove';
+    if (space.spaceType === SpaceType.OCEAN) {
+      return 'Ocean area';
+    }
+    if (space.spaceType === SpaceType.DEFLECTION_ZONE) {
+      return 'Deflection Zone';
+    }
+    if (space.spaceType === SpaceType.COVE) {
+      return 'Cove';
+    }
     return hasPrintedBonus(space) ? 'Land with a bonus' : 'Empty land';
   }
 }
@@ -196,9 +202,15 @@ function hasPrintedBonus(space: Space): boolean {
 /** What a tile counts AS for rules/scoring (a composite tile is several). */
 function countsAsFor(tileType: TileType): Array<'city' | 'ocean' | 'greenery'> {
   const out: Array<'city' | 'ocean' | 'greenery'> = [];
-  if (CITY_TILES.has(tileType)) out.push('city');
-  if (OCEAN_TILES.has(tileType)) out.push('ocean');
-  if (GREENERY_TILES.has(tileType)) out.push('greenery');
+  if (CITY_TILES.has(tileType)) {
+    out.push('city');
+  }
+  if (OCEAN_TILES.has(tileType)) {
+    out.push('ocean');
+  }
+  if (GREENERY_TILES.has(tileType)) {
+    out.push('greenery');
+  }
   return out;
 }
 
@@ -292,7 +304,7 @@ function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
     // as both) — they read as city-like, not plain ocean.
     const content = Board.isCitySpace(space) ? 'city' :
       Board.isOceanSpace(space) ? 'ocean' :
-      Board.isGreenerySpace(space) ? 'greenery' : 'special-tile';
+        Board.isGreenerySpace(space) ? 'greenery' : 'special-tile';
     return {content, ownerColor, tileLabel, special, countsAs, external};
   }
   return {content: 'empty', spaceTypeLabel: spaceTypeLabel(space.spaceType)};
@@ -405,18 +417,15 @@ function describeSpaceBonus(bonus: SpaceBonus, count: number): BonusDescription 
 }
 
 function countBonuses(bonuses: ReadonlyArray<SpaceBonus>): ReadonlyArray<[SpaceBonus, number]> {
-  const order: Array<SpaceBonus> = [];
   const counts = new Map<SpaceBonus, number>();
   for (const bonus of bonuses) {
     if (bonus === SpaceBonus._RESTRICTED) {
       continue;
     }
-    if (!counts.has(bonus)) {
-      order.push(bonus);
-    }
     counts.set(bonus, (counts.get(bonus) ?? 0) + 1);
   }
-  return order.map((bonus) => [bonus, counts.get(bonus)!] as [SpaceBonus, number]);
+  // A Map preserves insertion (first-seen) order, so entries() is already ordered.
+  return [...counts.entries()];
 }
 
 // ---------------------------------------------------------------------------

@@ -25,7 +25,9 @@ describe('BoardInformationEngine — Ares', () => {
 
   function emptyLand(): Space {
     const s = game.board.spaces.find((x) => x.spaceType === SpaceType.LAND && x.tile === undefined);
-    if (s === undefined) throw new Error('no empty land');
+    if (s === undefined) {
+      throw new Error('no empty land');
+    }
     return s;
   }
 

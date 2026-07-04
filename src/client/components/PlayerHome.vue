@@ -1054,16 +1054,16 @@ export default defineComponent({
     };
   },
   watch: {
-    showHand: function hide_hand() {
+    'showHand': function hide_hand() {
       PreferencesManager.INSTANCE.set('hide_hand', !this.showHand);
     },
-    showActiveCards: function toggle_active_cards() {
+    'showActiveCards': function toggle_active_cards() {
       PreferencesManager.INSTANCE.set('hide_active_cards', !this.showActiveCards);
     },
-    showAutomatedCards: function toggle_automated_cards() {
+    'showAutomatedCards': function toggle_automated_cards() {
       PreferencesManager.INSTANCE.set('hide_automated_cards', !this.showAutomatedCards);
     },
-    showEventCards: function toggle_event_cards() {
+    'showEventCards': function toggle_event_cards() {
       PreferencesManager.INSTANCE.set('hide_event_cards', !this.showEventCards);
     },
     /*
@@ -1209,7 +1209,7 @@ export default defineComponent({
         this.activeOverlay = 'cards';
       }
     },
-    handCardSelectionInput: {
+    'handCardSelectionInput': {
       immediate: true,
       handler(input: SelectCardModel | undefined): void {
         if (input === undefined) {
@@ -1239,7 +1239,7 @@ export default defineComponent({
      * РУКЕ overlay in its normal PLAY mode (РАЗЫГРАТЬ → payment → submit). Same
      * enter / auto-open / minimize lifecycle as the hand-select prompt.
      */
-    handPlayInput: {
+    'handPlayInput': {
       immediate: true,
       handler(input: SelectProjectCardToPlayModel | undefined): void {
         if (input === undefined) {
@@ -1264,7 +1264,7 @@ export default defineComponent({
      * Projects overlay (pick a project → existing payment path → submit). Same
      * enter / auto-open / minimize lifecycle as the hand-play prompt.
      */
-    standardProjectPlayInput: {
+    'standardProjectPlayInput': {
       immediate: true,
       handler(input: SelectProjectCardToPlayModel | undefined): void {
         if (input === undefined) {
@@ -1291,7 +1291,7 @@ export default defineComponent({
      * pill, and drop the mode when the prompt resolves. The fundable set + submit
      * ride the existing fundableAwards / fundAward machinery.
      */
-    awardFundingInput: {
+    'awardFundingInput': {
       immediate: true,
       handler(input: OrOptionsModel | undefined): void {
         if (input === undefined) {
@@ -1320,7 +1320,7 @@ export default defineComponent({
      * opened by the bar button, close it automatically — the user came
      * here to pick a colony, that's done, get out of their way.
      */
-    buildColonyContext: {
+    'buildColonyContext': {
       immediate: true,
       handler(newVal: {path: ReadonlyArray<number>} | undefined, oldVal: {path: ReadonlyArray<number>} | undefined) {
         if (newVal !== undefined && oldVal === undefined) {
@@ -1350,7 +1350,7 @@ export default defineComponent({
      * is a valid response). The picker would then become silently
      * stale. Locking the UI forces the explicit cancel decision.
      */
-    placementPending: {
+    'placementPending': {
       immediate: true,
       handler(active: boolean) {
         if (active) {
@@ -1361,14 +1361,14 @@ export default defineComponent({
         this.syncActionLockGuards();
       },
     },
-    startGameFlowActionLocked: {
+    'startGameFlowActionLocked': {
       immediate: true,
       handler() {
         this.syncStartGameActionLockBody();
         this.syncActionLockGuards();
       },
     },
-    actionUiLocked: {
+    'actionUiLocked': {
       immediate: true,
       handler() {
         this.syncStartGameActionLockBody();

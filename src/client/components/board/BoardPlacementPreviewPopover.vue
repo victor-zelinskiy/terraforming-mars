@@ -22,9 +22,9 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import BoardPlacementPreviewContent from '@/client/components/board/BoardPlacementPreviewContent.vue';
 
 const KIND_TITLE: Record<string, string> = {
-  city: 'Place a city',
-  greenery: 'Place a greenery',
-  ocean: 'Place an ocean',
+  'city': 'Place a city',
+  'greenery': 'Place a greenery',
+  'ocean': 'Place an ocean',
   'upgradeable-ocean': 'Place an ocean tile',
   'upgradeable-ocean-new-holland': 'Place an ocean tile',
 };

@@ -99,6 +99,9 @@ const sharedLanguageOptions = {
   globals: {
     ...globals.browser,
     ...globals.node,
+    // ES2020 global (used for cross-env module singletons / perf marks). The base
+    // ecmaVersion (2018) predates it, so declare it explicitly to avoid no-undef.
+    globalThis: 'readonly',
   },
 };
 
