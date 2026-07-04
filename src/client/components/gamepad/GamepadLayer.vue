@@ -78,8 +78,8 @@ import GamepadHintBar from '@/client/components/gamepad/GamepadHintBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleEntryPrompt from '@/client/components/console/ConsoleEntryPrompt.vue';
 import ConsoleSystemMenu, {SYSTEM_MENU_ITEMS} from '@/client/components/console/ConsoleSystemMenu.vue';
-import {consoleModeState, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
-import {initialGamepadDetected, isElectronApp} from '@/client/console/runtimeMode';
+import {consoleModeState, consoleModeExplicitlyDisabled, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
+import {initialGamepadDetected, isElectronApp, isLinuxPlatform} from '@/client/console/runtimeMode';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {consoleLayoutState, installConsoleLayoutProfile, ConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
@@ -166,8 +166,9 @@ export default defineComponent({
       // Connect/disconnect toast — the W3C lifecycle made visible.
       this.showToast(this.$t(now > before ? 'Controller connected' : 'Controller disconnected'));
       // ELECTRON (P10): a pad connecting anywhere in the shell (menu /
-      // create / lobby / game) enables the console posture immediately.
-      if (now > before && isElectronApp() && !this.consoleModeState.enabled) {
+      // create / lobby / game) enables the console posture immediately —
+      // unless the player explicitly opted out (their choice persists).
+      if (now > before && isElectronApp() && !this.consoleModeState.enabled && !consoleModeExplicitlyDisabled()) {
         setConsoleMode(true);
       }
     },
@@ -336,7 +337,7 @@ export default defineComponent({
         // ELECTRON (P10): the shell IS the couch build — a pad in hand
         // switches straight into console mode, no prompt.
         if (!this.consoleModeState.enabled) {
-          if (isElectronApp()) {
+          if (isElectronApp() && !consoleModeExplicitlyDisabled()) {
             setConsoleMode(true);
           } else {
             maybeOfferConsoleMode();
@@ -382,11 +383,17 @@ export default defineComponent({
     if (this.gamepadActive) {
       this.startTick();
     }
-    // ELECTRON BOOTSTRAP (P10): launched with a controller already in hand →
-    // start straight in the console posture (no prompt, no mouse needed).
-    // Chromium may not report an idle pad until its first input — the
-    // padsConnected watcher above catches that wake-up the same way.
-    if (isElectronApp() && initialGamepadDetected() && !this.consoleModeState.enabled) {
+    // ELECTRON BOOTSTRAP (P10 + the Steam Deck fix): Chromium HIDES a
+    // connected pad until its first button press (privacy), and Steam
+    // Input may emulate mouse/keyboard — so pad detection alone is NOT a
+    // reliable launch signal on the Deck. The Electron shell therefore
+    // boots console-first on EITHER robust signal: a pad already visible
+    // OR the Deck posture (LINUX shell + the HANDHELD layout profile —
+    // the platform anchor keeps a small-screen Windows laptop out of it).
+    // An explicit player opt-out (?console=0 / hold-Menu → off, stored)
+    // always wins and is never overridden.
+    if (isElectronApp() && !this.consoleModeState.enabled && !consoleModeExplicitlyDisabled() &&
+        (initialGamepadDetected() || (isLinuxPlatform() && consoleLayoutState.profile === 'handheld'))) {
       setConsoleMode(true);
     }
   },
