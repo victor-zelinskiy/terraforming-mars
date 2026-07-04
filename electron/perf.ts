@@ -43,17 +43,19 @@ export function applyPerformanceSwitches(app: App): void {
   // On dual-GPU laptops, request the discrete GPU rather than the integrated one.
   sw('force_high_performance_gpu');
 
-  // Linux GPU backend (Steam Deck / gamescope). On the Deck, Chromium often can't create a
-  // GL context and falls back to SOFTWARE rendering (GPU feature status all "disabled"). An
-  // explicit GL backend usually fixes it. Opt-in via TM_ELECTRON_GL so it can be tested
-  // on-device without risking the default — a wrong backend just falls back to software,
-  // never a black screen. Values: egl | desktop | angle (angle also sets --use-angle=gl).
+  // Linux GPU backend (Steam Deck / gamescope). On the Deck, Chromium can't create a NATIVE
+  // GL context and renders in SOFTWARE. It DOES allow GL via ANGLE (gl=egl-angle), so the flag
+  // to try is TM_ELECTRON_GL=angle, plus an ANGLE backend via TM_ELECTRON_ANGLE (vulkan is the
+  // best fit — gamescope is Vulkan-native; else gl / default). Opt-in and DECOUPLED so combos
+  // can be tested from the wrapper without reinstalls. ⚠ TM_ELECTRON_GL=egl (native EGL) is
+  // NOT allowed here — it crash-loops the GPU process; use `angle`.
   const gl = (process.env.TM_ELECTRON_GL ?? '').trim().toLowerCase();
-  if (gl === 'angle') {
-    sw('use-gl', 'angle');
-    sw('use-angle', 'gl');
-  } else if (gl !== '') {
+  if (gl !== '') {
     sw('use-gl', gl);
+  }
+  const angleBackend = (process.env.TM_ELECTRON_ANGLE ?? '').trim().toLowerCase();
+  if (angleBackend !== '') {
+    sw('use-angle', angleBackend);
   }
 
   // ── No renderer throttling (fullscreen game) ─────────────────────────────
