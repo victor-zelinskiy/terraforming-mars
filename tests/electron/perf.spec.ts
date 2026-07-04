@@ -31,20 +31,57 @@ describe('electron/perf', () => {
     }
   });
 
-  it('appends the default GPU + no-throttle switches', () => {
+  // Override process.platform so BOTH the Windows (GPU) and Linux/Steam Deck
+  // (software) branches are covered deterministically on ANY CI runner — the
+  // switch set is platform-specific, so a bare assertion would pass on one OS
+  // and fail on the other (which is exactly what broke Linux CI).
+  function withPlatform(platform: string, fn: () => void): void {
+    const orig = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', {value: platform, configurable: true});
+    try {
+      fn();
+    } finally {
+      if (orig !== undefined) {
+        Object.defineProperty(process, 'platform', orig);
+      }
+    }
+  }
+
+  it('Windows: GPU acceleration + no-throttle switches', () => {
     delete process.env.TM_ELECTRON_UNCAP_FPS;
     delete process.env.TM_ELECTRON_FORCE_GPU;
-    const app = fakeApp();
-    applyPerformanceSwitches(app as never);
-    const keys = app.switches.map((s) => s.key);
-    for (const expected of [
-      'ignore-gpu-blocklist', 'enable-gpu-rasterization', 'enable-zero-copy',
-      'enable-accelerated-2d-canvas', 'force_high_performance_gpu',
-      'disable-background-timer-throttling', 'disable-renderer-backgrounding',
-      'disable-backgrounding-occluded-windows',
-    ]) {
-      expect(keys, expected).to.include(expected);
-    }
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      const keys = app.switches.map((s) => s.key);
+      for (const expected of [
+        'ignore-gpu-blocklist', 'enable-gpu-rasterization', 'enable-zero-copy',
+        'enable-accelerated-2d-canvas', 'force_high_performance_gpu',
+        'disable-background-timer-throttling', 'disable-renderer-backgrounding',
+        'disable-backgrounding-occluded-windows',
+      ]) {
+        expect(keys, expected).to.include(expected);
+      }
+      expect(keys).to.not.include('disable-gpu');
+    });
+  });
+
+  it('Linux/Steam Deck: software rendering + background trims + no-throttle switches', () => {
+    delete process.env.TM_ELECTRON_UNCAP_FPS;
+    delete process.env.TM_ELECTRON_FORCE_GPU;
+    withPlatform('linux', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      const keys = app.switches.map((s) => s.key);
+      for (const expected of [
+        'disable-gpu', 'num-raster-threads', 'disable-background-networking', 'disable-features',
+        'disable-background-timer-throttling', 'disable-renderer-backgrounding',
+        'disable-backgrounding-occluded-windows',
+      ]) {
+        expect(keys, expected).to.include(expected);
+      }
+      expect(keys).to.not.include('ignore-gpu-blocklist');
+    });
   });
 
   it('leaves the aggressive switches OFF by default', () => {
