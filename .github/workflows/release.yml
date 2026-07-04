@@ -60,3 +60,11 @@ jobs:
         run: npm run dist:win:publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # electron-builder created the release as a DRAFT (electron-builder.yml releaseType:
+      # draft) with all assets attached. Flip it to published so it's visible on the
+      # Releases page and electron-updater can consume it. gh is preinstalled on the runner.
+      - name: Publish the release
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
