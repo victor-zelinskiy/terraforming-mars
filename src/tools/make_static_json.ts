@@ -115,8 +115,18 @@ function writeBuildMetadata() {
   }
 
   const buildmetadata = getBuildMetadata();
+  // The human-facing app version (package.json). The release workflow sets this to the
+  // release version (e.g. 1.1.9) before building, so the shipped build shows a real version
+  // instead of a git hash. Blank on failure → the footer falls back to the short hash.
+  let version = '';
+  try {
+    version = (JSON.parse(fs.readFileSync('package.json', 'utf8')) as {version?: string}).version ?? '';
+  } catch {
+    // leave version blank
+  }
   const settings = {
     head: buildmetadata.head,
+    version,
     builtAt: buildmetadata.date,
     waitingForTimeout: getEnv('WAITING_FOR_TIMEOUT', constants.DEFAULT_WAITING_FOR_TIMEOUT),
     logLength: getEnv('LOG_LENGTH', constants.DEFAULT_LOG_LENGTH),

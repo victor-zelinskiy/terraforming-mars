@@ -22,6 +22,7 @@ import {defineComponent} from 'vue';
 import PremiumLanguageSwitcher from '@/client/components/mainMenu/PremiumLanguageSwitcher.vue';
 import PremiumIdentityChip from '@/client/components/mainMenu/PremiumIdentityChip.vue';
 import raw_settings from '@/genfiles/settings.json';
+import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
 
 export default defineComponent({
   name: 'PremiumMenuFooter',
@@ -30,9 +31,31 @@ export default defineComponent({
     PremiumIdentityChip,
   },
   emits: ['edit-identity'],
+  data() {
+    return {desktopVersion: ''};
+  },
+  mounted() {
+    // On the desktop shell, prefer the authoritative baked app version (the release version,
+    // e.g. 1.1.9). getVersion() is async; the web app has no bridge and uses settings.json.
+    const bridge = desktopBridge();
+    if (bridge !== undefined) {
+      void bridge
+        .getVersion()
+        .then((v) => {
+          this.desktopVersion = typeof v === 'string' ? v : '';
+        })
+        .catch(() => undefined);
+    }
+  },
   computed: {
     version(): string {
-      return raw_settings.head ?? '';
+      if (this.desktopVersion !== '') {
+        return this.desktopVersion;
+      }
+      // Real app version baked at build time; fall back to the short git hash only if a
+      // build predates the `version` field.
+      const settingsVersion = (raw_settings as {version?: string}).version;
+      return settingsVersion !== undefined && settingsVersion !== '' ? settingsVersion : (raw_settings.head ?? '');
     },
   },
 });
