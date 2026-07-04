@@ -80,11 +80,13 @@
         v-else
         type="button"
         class="join-card__open-btn"
+        data-gp-verb="Join game"
         :class="{'join-card__open-btn--busy': status === 'updating'}"
         :disabled="status === 'updating'"
         @click="open"
       >
         <span v-if="status === 'updating'" class="join-card__spinner" aria-hidden="true"></span>
+        <span v-if="status !== 'updating'" class="gp-btn-glyph" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
         <span v-i18n>{{ status === 'updating' ? 'Opening' : 'Join game' }}</span>
       </button>
     </footer>
@@ -97,6 +99,7 @@ import {Color} from '@/common/Color';
 import {paths} from '@/common/app/paths';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {JoinableGameSummary} from '@/common/models/JoinableGameModel';
 import {PlayerColorOverrideResult} from '@/common/models/JoinableGameModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -108,7 +111,7 @@ type OpenStatus = 'idle' | 'updating' | 'conflict' | 'error';
 
 export default defineComponent({
   name: 'JoinGameCard',
-  components: {PlayerCube},
+  components: {PlayerCube, GamepadGlyph},
   props: {
     game: {type: Object as PropType<JoinableGameSummary>, required: true},
     isNew: {type: Boolean, default: false},

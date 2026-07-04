@@ -1540,6 +1540,45 @@ the desktop-gamepad mode are untouched throughout.
   `Card played` = «Карта сыграна» belongs to another context — never
   repurposed). Gates: 95 specs, vue-tsc, eslint, make:json, make:css,
   build:client — green.
+- **P19 — SHIPPED (controller-first update modal / create game / join
+  game).** **Text-input EDITING MODE (systemic, in the focus engine):**
+  A on a text field is a REAL activation — `el.focus()` + caret to the
+  end + a best-effort `navigator.virtualKeyboard.show()` (never a
+  fake visual focus); while a real edit is in progress the engine's
+  entry point goes inert (nav/scroll/A do nothing — the OSK/keyboard
+  owns the keys) and B = blur (Done), staying on the field. New
+  `FocusKind`s: `text-input` / `text-editing` / `disabled`. Covers
+  EVERY text field generically (create-game player names, the identity
+  modal, any future field) — no per-field hacks.
+  **Exact-action hint grammar:** `focusState.focusVerb` reads the
+  focused element's `data-gp-verb`; `hintsFor(scope, kind, verb)` shows
+  the EXACT verb instead of a generic «Select» («Create game» / «Join
+  game» / «Restart and install»), a text field says «Enter text»,
+  editing mode collapses to the ONE honest hint (B = Done editing), a
+  DISABLED control offers no A at all.
+  **Inline [A] glyphs on primaries:** the global `.gp-btn-glyph`
+  wrapper (gamepad.less) renders the pad glyph INSIDE the button —
+  visible only under `html.gp-mode` / `html.console-mode`, so
+  mouse/desktop users never see controller chrome. Wired: «Создать
+  игру» (BriefingActions), «Подключиться» (JoinGameCard), the update
+  prompt's «Перезапустить и установить» / «Install and close» (its
+  static P15 hint row now shows only when MORE than one action exists —
+  never a redundant generic A; the `desktopUpdate` scope got its own
+  hint branch). A with no prior focus already ensures-and-activates the
+  FIRST actionable, so on the one-button update panel A restarts
+  immediately.
+  **No native selects (verified):** create/join have NO `<select>` —
+  the colour picker is a custom teleported button-grid popup; it was
+  UNREACHABLE from the pad (teleported outside the `createGame` scope
+  root) → a new `slotColorPop` scope (above createGame) makes the pad
+  walk the cubes, A picks, B closes via the open trigger and the
+  descriptor memory re-seats focus. Player count / rules / expansions
+  were already console option-cards (P10) — untouched.
+  **Honest limitation:** the OSK is a platform affordance — the
+  VirtualKeyboard API fires where supported; on the Deck the Steam
+  keyboard may still need Steam+X (the focus/caret is real either way).
+  Gates: 34 gamepad specs (+4 hint grammar), vue-tsc, eslint,
+  make:json (+2 ru keys), make:css, build:client — green.
 
 ---
 

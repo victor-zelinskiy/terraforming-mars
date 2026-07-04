@@ -31,7 +31,9 @@ export default defineComponent({
       return this.inputModeState.mode === 'gamepad';
     },
     hints(): ReadonlyArray<HintAction> {
-      return hintsFor(this.focusState.scopeId, this.focusState.focusKind);
+      // P19: the focused element's exact A-verb (data-gp-verb) replaces the
+      // generic «Select»; disabled/editing kinds reshape the whole row.
+      return hintsFor(this.focusState.scopeId, this.focusState.focusKind, this.focusState.focusVerb);
     },
   },
 });

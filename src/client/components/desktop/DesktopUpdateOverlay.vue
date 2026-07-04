@@ -38,8 +38,14 @@
              restarts itself. Otherwise (old wrapper / direct launch) it closes and the player
              reopens it (a detached relaunch can't rejoin the gamescope session). -->
         <p v-if="!canRestart" class="desktop-update__lead" v-i18n>The game will close to finish updating. Open it again from Steam.</p>
-        <button v-if="canRestart" class="desktop-update__btn desktop-update__btn--primary" @click="install" v-i18n>Restart and install</button>
-        <button v-else class="desktop-update__btn desktop-update__btn--primary" @click="install" v-i18n>Install and close</button>
+        <button v-if="canRestart" class="desktop-update__btn desktop-update__btn--primary" data-gp-verb="Restart and install" @click="install">
+          <span class="gp-btn-glyph" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
+          <span v-i18n>Restart and install</span>
+        </button>
+        <button v-else class="desktop-update__btn desktop-update__btn--primary" data-gp-verb="Install and close" @click="install">
+          <span class="gp-btn-glyph" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
+          <span v-i18n>Install and close</span>
+        </button>
       </div>
 
       <!-- installing -->
@@ -53,33 +59,34 @@
       <div v-else-if="state.mode === 'offlineBlocked'" class="desktop-update__cta-block">
         <div class="desktop-update__status desktop-update__status--err" v-i18n>Cannot reach the update server.</div>
         <div class="desktop-update__lead" v-i18n>Check your connection and try again.</div>
-        <button class="desktop-update__btn desktop-update__btn--primary" @click="retry" v-i18n>Try again</button>
-        <button v-if="state.downloadUrl" class="desktop-update__btn desktop-update__btn--ghost" @click="download" v-i18n>Download manually</button>
+        <button class="desktop-update__btn desktop-update__btn--primary" data-gp-verb="Try again" @click="retry" v-i18n>Try again</button>
+        <button v-if="state.downloadUrl" class="desktop-update__btn desktop-update__btn--ghost" data-gp-verb="Download manually" @click="download" v-i18n>Download manually</button>
       </div>
 
       <!-- manual download fallback -->
       <div v-else-if="state.mode === 'manualDownloadRequired'" class="desktop-update__cta-block">
         <div class="desktop-update__status" v-i18n>Automatic update is unavailable. Please download the update manually.</div>
-        <button class="desktop-update__btn desktop-update__btn--primary" @click="download" v-i18n>Download manually</button>
-        <button class="desktop-update__btn desktop-update__btn--ghost" @click="retry" v-i18n>Try again</button>
+        <button class="desktop-update__btn desktop-update__btn--primary" data-gp-verb="Download manually" @click="download" v-i18n>Download manually</button>
+        <button class="desktop-update__btn desktop-update__btn--ghost" data-gp-verb="Try again" @click="retry" v-i18n>Try again</button>
       </div>
 
       <!-- error -->
       <div v-else-if="state.mode === 'error'" class="desktop-update__cta-block">
         <div class="desktop-update__status desktop-update__status--err" v-i18n>Update failed.</div>
         <div v-if="state.error" class="desktop-update__err-detail">{{ state.error }}</div>
-        <button class="desktop-update__btn desktop-update__btn--primary" @click="retry" v-i18n>Try again</button>
-        <button v-if="state.downloadUrl" class="desktop-update__btn desktop-update__btn--ghost" @click="download" v-i18n>Download manually</button>
+        <button class="desktop-update__btn desktop-update__btn--primary" data-gp-verb="Try again" @click="retry" v-i18n>Try again</button>
+        <button v-if="state.downloadUrl" class="desktop-update__btn desktop-update__btn--ghost" data-gp-verb="Download manually" @click="download" v-i18n>Download manually</button>
       </div>
 
       <!-- required (pre-download / checking transition) -->
       <div v-else class="desktop-update__status" v-i18n>Preparing the update…</div>
 
-      <!-- P15: console mode — the panel is pad-operable (its own focus
-           scope drives the buttons); the glyph row makes that explicit. -->
-      <div v-if="consoleEnabled" class="desktop-update__pad-hints" aria-hidden="true">
+      <!-- P15/P19: console mode — the panel is pad-operable (its own focus
+           scope drives the buttons). The PRIMARY button carries its own
+           inline [A] glyph; this row appears only when there is more than
+           one action to navigate between (never a redundant generic A). -->
+      <div v-if="consoleEnabled && multiAction" class="desktop-update__pad-hints" aria-hidden="true">
         <span class="desktop-update__pad-hint"><GamepadGlyph control="dpad" /><span v-i18n>Navigate</span></span>
-        <span class="desktop-update__pad-hint"><GamepadGlyph control="confirm" /><span v-i18n>Select</span></span>
       </div>
     </div>
   </div>
@@ -106,6 +113,11 @@ export default defineComponent({
     /** P15: console posture — show the pad glyph row on the blocking panel. */
     consoleEnabled(): boolean {
       return consoleModeState.enabled && this.blocking;
+    },
+    /** P19: more than one button on screen → navigation is meaningful. */
+    multiAction(): boolean {
+      const m = this.state.mode;
+      return m === 'offlineBlocked' || m === 'manualDownloadRequired' || m === 'error';
     },
     isDesktop(): boolean {
       return isDesktop();
@@ -276,6 +288,10 @@ export default defineComponent({
   align-items: center;
 }
 .desktop-update__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-width: 220px;
   padding: 11px 20px;
   border-radius: 9px;

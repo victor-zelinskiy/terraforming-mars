@@ -287,3 +287,18 @@ html.gp-mode * {
         animation: none;
     }
 }
+
+/* ── P19: inline pad glyph inside PRIMARY buttons ─────────────────────
+   The button itself says what A does ([A] Create game / [A] Join game /
+   [A] Restart and install). Rendered always, VISIBLE only while a pad
+   drives the UI (gp-mode) or in the console posture — mouse/desktop
+   users never see controller chrome. */
+.gp-btn-glyph {
+    display: none;
+    align-items: center;
+    line-height: 1;
+}
+html.gp-mode .gp-btn-glyph,
+html.console-mode .gp-btn-glyph {
+    display: inline-flex;
+}

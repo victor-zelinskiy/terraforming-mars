@@ -63,4 +63,31 @@ describe('hintModel', () => {
     expect(create).to.include('menu:System');
     expect(create).to.include('back:Back');
   });
+
+  // P19: the EXACT-action grammar — text fields, editing mode, disabled
+  // controls and data-gp-verb carriers reshape the A-hint honestly.
+  it('a focused text field hints A = Enter text', () => {
+    const row = hintsFor('createGame', 'text-input').map((h) => h.control + ':' + h.label);
+    expect(row).to.include('confirm:Enter text');
+    expect(row).to.not.include('confirm:Select');
+  });
+
+  it('editing mode collapses to the ONE honest action: B = Done', () => {
+    const row = hintsFor('createGame', 'text-editing');
+    expect(row.length).to.eq(1);
+    expect(row[0].control).to.eq('back');
+    expect(row[0].label).to.eq('Done editing');
+  });
+
+  it('a disabled control offers NO A-action', () => {
+    const row = hintsFor('createGame', 'disabled').map((h) => h.control);
+    expect(row).to.not.include('confirm');
+  });
+
+  it('a data-gp-verb carrier replaces the generic Select with the exact verb', () => {
+    const row = hintsFor('createGame', 'action', 'Create game').map((h) => h.control + ':' + h.label);
+    expect(row).to.include('confirm:Create game');
+    const update = hintsFor('desktopUpdate', 'action', 'Restart and install').map((h) => h.control + ':' + h.label);
+    expect(update).to.include('confirm:Restart and install');
+  });
 });

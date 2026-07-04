@@ -89,6 +89,11 @@ export const SCOPE_DEFS: ReadonlyArray<ScopeDef> = [
   {id: 'rematchPrompt', root: '.rematch-modal', back: {kind: 'click', selectors: ['.rematch-modal__min']}},
   // Lifecycle modals/screens (console full-lifecycle iteration).
   {id: 'finalReveal', root: '.fsr', back: {kind: 'escape'}},
+  // P19: the teleported cube-colour picker popup — a body-level layer the
+  // createGame root can't see; B (click the open trigger) closes it and the
+  // descriptor memory re-seats focus on that trigger.
+  {id: 'slotColorPop', root: '.slot-cp__pop', back: {kind: 'click', selectors: ['.slot-cp__trigger--open']}},
+
   {id: 'joinPanel', root: '.join-panel__card', back: {kind: 'escape'}},
   {id: 'placementDetails', root: '.placement-details', back: {kind: 'click', selectors: ['.placement-details__btn--close']}},
   {id: 'startGameFlow', root: '.start-game-flow', back: {kind: 'click', selectors: ['.start-game-flow__minimize-btn']}},

@@ -28,30 +28,47 @@ const LEGEND: HintAction = {control: 'menu', label: 'Controls'};
 const ZOOM_CARD: HintAction = {control: 'inspect', label: 'Zoom card'};
 const SCROLL: HintAction = {control: 'stickScroll', label: 'Scroll'};
 
-export function hintsFor(scopeId: string, focusKind: FocusKind): ReadonlyArray<HintAction> {
+export function hintsFor(scopeId: string, focusKind: FocusKind, focusVerb?: string): ReadonlyArray<HintAction> {
   const cardExtra = focusKind === 'card' ? [ZOOM_CARD] : [];
 
   const SYSTEM: HintAction = {control: 'menu', label: 'System'};
 
+  // P19: a REAL text edit in progress — the keyboard owns the keys; the
+  // ONE pad action is B = done (blur). Never a misleading generic set.
+  if (focusKind === 'text-editing') {
+    return [{control: 'back', label: 'Done editing'}];
+  }
+  // P19: the A-hint is EXACT — a text field says «Enter text», an element
+  // with a data-gp-verb says its verb («Create game», «Join game»,
+  // «Restart and install»), a disabled control offers NO A at all.
+  const select: HintAction = focusKind === 'text-input' ?
+    {control: 'confirm', label: 'Enter text'} :
+    (focusVerb !== undefined && focusVerb !== '' ? {control: 'confirm', label: focusVerb} : SELECT);
+  const selects: ReadonlyArray<HintAction> = focusKind === 'disabled' ? [] : [select];
+
   switch (scopeId) {
   case 'dialog':
-    return [{control: 'dpadH', label: 'Navigate'}, SELECT, CLOSE];
+    return [{control: 'dpadH', label: 'Navigate'}, ...selects, CLOSE];
   // Lifecycle screens (console full-lifecycle iteration): the shell command
   // bar isn't mounted here — this bar IS the control surface.
   case 'mainMenu':
-    return [NAVIGATE, SELECT, SYSTEM];
+    return [NAVIGATE, ...selects, SYSTEM];
   case 'createGame':
-    return [NAVIGATE, SELECT, {control: 'back', label: 'Back'}, SYSTEM];
+    return [NAVIGATE, ...selects, {control: 'back', label: 'Back'}, SYSTEM];
   case 'lobby':
-    return [NAVIGATE, {control: 'confirm', label: 'Open'}, SYSTEM];
+    return focusKind === 'disabled' ? [NAVIGATE, SYSTEM] :
+      [NAVIGATE, {control: 'confirm', label: focusVerb !== undefined && focusVerb !== '' ? focusVerb : 'Open'}, SYSTEM];
   case 'joinPanel':
-    return [NAVIGATE, SELECT, CLOSE];
+    return [NAVIGATE, ...selects, CLOSE];
+  // P19: the blocking update prompt — the A-verb IS the primary button.
+  case 'desktopUpdate':
+    return [NAVIGATE, ...selects];
   case 'finalReveal':
     return [SELECT, CLOSE];
   case 'mandatoryModal':
-    return [NAVIGATE, SELECT, ...cardExtra, MINIMIZE];
+    return [NAVIGATE, ...selects, ...cardExtra, MINIMIZE];
   case 'drawReveal':
-    return [NAVIGATE, SELECT, ...cardExtra];
+    return [NAVIGATE, ...selects, ...cardExtra];
   case 'placement': {
     const confirm: HintAction = focusKind === 'board-cell-available' ?
       {control: 'confirm', label: 'Place here'} :
@@ -62,14 +79,14 @@ export function hintsFor(scopeId: string, focusKind: FocusKind): ReadonlyArray<H
   case 'startGameFlow':
   case 'endgame':
   case 'colonies':
-    return [NAVIGATE, SELECT, ...cardExtra, MINIMIZE];
+    return [NAVIGATE, ...selects, ...cardExtra, MINIMIZE];
   case 'base':
-    return [NAVIGATE, SELECT, ...cardExtra, PANELS, JOURNAL, LEGEND];
+    return [NAVIGATE, ...selects, ...cardExtra, PANELS, JOURNAL, LEGEND];
   default:
     // Overlays / dropdowns / viewers: the common surface grammar.
     if (scopeId.startsWith('overlay-')) {
-      return [NAVIGATE, SELECT, ...cardExtra, CLOSE, PANELS, SCROLL];
+      return [NAVIGATE, ...selects, ...cardExtra, CLOSE, PANELS, SCROLL];
     }
-    return [NAVIGATE, SELECT, ...cardExtra, CLOSE];
+    return [NAVIGATE, ...selects, ...cardExtra, CLOSE];
   }
 }
