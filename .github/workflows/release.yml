@@ -1,18 +1,23 @@
-# Electron desktop release — publishes to GitHub Releases under victor-zelinskiy.
+# Electron desktop release — builds Windows + Linux and publishes to GitHub Releases
+# under victor-zelinskiy/terraforming-mars. The source repo is PUBLIC, so the built-in
+# GITHUB_TOKEN can create the release AND electron-updater can read it with no embedded
+# token. No separate releases repo / cross-repo PAT is used.
 #
-# Trigger: pushing a version tag (e.g. `v1.0.1`). Regular pushes to a branch do NOT
-# publish (that stays with the CI workflow in main.yml). electron-builder validates that
-# the tag (vX.Y.Z) matches package.json "version", so bump the version before tagging.
+# Trigger: pushing a version tag (e.g. `v1.0.3`). Regular branch pushes do NOT publish
+# (that's the CI workflow in main.yml). electron-builder validates that the tag (vX.Y.Z)
+# matches package.json "version", so bump the version before tagging.
 #
-# WINDOWS-ONLY on purpose: electron-builder.yml currently declares only the `win` (NSIS)
-# target (macOS is deferred per the desktop plan's Phase 9). Building on macOS/Linux would
-# produce no configured artifact. When mac/linux targets are added to electron-builder.yml,
-# turn `runs-on` into a matrix (windows-latest / macos-latest / ubuntu-latest) — each
-# runner then builds + uploads its own installer to the SAME GitHub Release for the tag.
+# Per platform (targets in electron-builder.yml):
+#   - Windows (windows-latest) → NSIS installer + latest.yml        (electron-updater WIN feed)
+#   - Linux   (ubuntu-latest)  → x64 AppImage    + latest-linux.yml  (electron-updater LINUX feed)
+# Steam Deck / SteamOS users download the x64 AppImage, `chmod +x`, run it, and add it to
+# Steam as a Non-Steam Game.
 #
-# Auth: electron-builder reads GH_TOKEN. GitHub Actions injects secrets.GITHUB_TOKEN
-# automatically for the repository it runs in, so releases land in
-# victor-zelinskiy/terraforming-mars — no personal-access-token secret to manage.
+# Flow: releaseType is `draft` (electron-builder.yml), so each build job uploads its
+# platform's assets to the SAME draft release; a final `publish` job flips the draft to a
+# published release once BOTH platforms have uploaded. The build matrix runs one platform
+# at a time (max-parallel: 1) so the two jobs never race to CREATE the draft (that races to
+# a 422 "already_exists").
 
 name: Release Electron App
 
@@ -21,7 +26,7 @@ on:
     tags:
       - 'v*'
 
-# Required so electron-builder --publish can create the Release + upload assets.
+# Required so electron-builder --publish / gh release edit can create + publish the Release.
 permissions:
   contents: write
 
@@ -30,8 +35,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: false
+      # Serialize the platforms: the first job creates the draft release, the second reuses
+      # it. Parallel jobs would both try to CREATE it → 422 already_exists.
+      max-parallel: 1
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            script: dist:win:publish
+          - os: ubuntu-latest
+            platform: linux
+            script: dist:linux:publish
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
@@ -48,22 +67,24 @@ jobs:
 
       # electron@43.0.0 in this tree ships without a postinstall hook, so `npm ci` does NOT
       # populate node_modules/electron/dist — which electron-builder.yml points at via
-      # `electronDist`. Run Electron's own installer to unpack the runtime before packaging,
-      # otherwise electron-builder fails with "The specified electronDist does not exist".
+      # `electronDist`. Run Electron's own installer to unpack the (platform-appropriate)
+      # runtime before packaging, else electron-builder fails with "electronDist does not exist".
       - name: Unpack Electron runtime
         run: node node_modules/electron/install.js
 
-      # build:desktop (make:static + DESKTOP_BUILD=1 build:client + electron:build:main)
-      # is invoked inside dist:win:publish, so no separate build step is needed. The final
-      # electron-builder step packages the thin client and uploads it to the Release.
-      - name: Build and publish desktop installer
-        run: npm run dist:win:publish
+      # dist:*:publish runs build:desktop (make:static + DESKTOP_BUILD=1 build:client +
+      # electron:build:main) then electron-builder for this platform with --publish always,
+      # uploading the installer/AppImage + latest*.yml to the draft release.
+      - name: Build and publish (${{ matrix.platform }})
+        run: npm run ${{ matrix.script }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # electron-builder created the release as a DRAFT (electron-builder.yml releaseType:
-      # draft) with all assets attached. Flip it to published so it's visible on the
-      # Releases page and electron-updater can consume it. gh is preinstalled on the runner.
+  # Both platform builds have uploaded to the draft; publish it once, as the latest release.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
       - name: Publish the release
         run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false --latest
         env:

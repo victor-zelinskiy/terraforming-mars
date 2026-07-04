@@ -70,6 +70,34 @@ function strictOffline(): boolean {
   return process.env.TM_DESKTOP_STRICT_OFFLINE === '1';
 }
 
+/** The public GitHub Releases page — the manual-download fallback when the app can't
+ *  self-update (a Linux run NOT as an AppImage, or a late auto-update error). This is the
+ *  CURRENT public repo, not an old/implicit target. */
+const RELEASES_PAGE_URL = 'https://github.com/victor-zelinskiy/terraforming-mars/releases/latest';
+
+/** electron-updater self-updates on Windows (NSIS) and on Linux ONLY when the app is
+ *  actually running as an AppImage (AppImageUpdater needs the $APPIMAGE env the AppImage
+ *  runtime sets). A Linux build run unpacked / not-as-AppImage can't self-install, so we
+ *  surface the premium manual-download fallback instead. macOS is out of scope for now. */
+function runningAsAppImage(): boolean {
+  return process.platform === 'linux' &&
+    typeof process.env.APPIMAGE === 'string' && process.env.APPIMAGE.length > 0;
+}
+
+function canAutoUpdate(): boolean {
+  return process.platform === 'win32' || runningAsAppImage();
+}
+
+/** One-line status log — provider is GitHub Releases (baked into app-update.yml), plus the
+ *  platform / AppImage / version / channel so a support log makes the update path obvious. */
+function logUpdate(msg: string): void {
+  // eslint-disable-next-line no-console
+  console.log(
+    `[updater] provider=github platform=${process.platform} appImage=${runningAsAppImage()} ` +
+    `current=${app.getVersion()} channel=${channel()} — ${msg}`,
+  );
+}
+
 async function fetchCompat(base: string, timeoutMs = 8000): Promise<CompatSnapshot | undefined> {
   const b = base.replace(/\/+$/, '');
   const url = `${b}/api/desktop/version?platform=${process.platform}` +
@@ -120,8 +148,24 @@ async function runCheck(): Promise<boolean> {
     });
   }
   if (decision.mode === 'required') {
-    push({mode: 'required', error: undefined});
-    beginDownload();
+    if (canAutoUpdate()) {
+      // Windows (NSIS) or Linux-as-AppImage: run the in-app download → the premium overlay
+      // shows the progress bar and the Restart-and-install CTA (electron-updater emits
+      // download-progress on BOTH platforms, so the Linux experience matches Windows).
+      logUpdate('update required — starting in-app download');
+      push({mode: 'required', error: undefined});
+      beginDownload();
+    } else {
+      // Linux NOT running as an AppImage (or any run electron-updater can't self-install):
+      // never silently fail — show the premium manual-download fallback with a working link
+      // (server-provided URL, else the public Releases page).
+      logUpdate('update required — self-update unavailable in this run; manual download');
+      push({
+        mode: 'manualDownloadRequired',
+        error: undefined,
+        downloadUrl: state.downloadUrl ?? decision.info?.downloadUrl ?? RELEASES_PAGE_URL,
+      });
+    }
     return true;
   }
   if (decision.mode === 'offlineBlocked') {
@@ -145,10 +189,15 @@ export async function resolveStartupUpdate(serverBase: string, window: BrowserWi
 
 function updateOrManual(err: unknown): void {
   const message = String((err as {message?: string})?.message ?? err);
-  push({mode: state.downloadUrl !== undefined ? 'manualDownloadRequired' : 'error', error: message});
+  logUpdate(`error — ${message}`);
+  // A genuine auto-update failure: show the error + Try-again, and ALWAYS offer a working
+  // manual-download link (server URL, else the public Releases page) so the player is never
+  // stuck — especially on Linux where a self-update can fail late in the flow.
+  push({mode: 'error', error: message, downloadUrl: state.downloadUrl ?? RELEASES_PAGE_URL});
 }
 
 function beginDownload(): void {
+  logUpdate('beginDownload — reading the GitHub Releases feed (latest.yml / latest-linux.yml)');
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.channel = channel();

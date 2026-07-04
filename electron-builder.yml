@@ -86,6 +86,22 @@ nsis:
   allowToChangeInstallationDirectory: true
   artifactName: TerraformingMars-Setup-${version}-${arch}.${ext}
 
+# Linux / Steam Deck (SteamOS) — x64 AppImage. electron-builder emits the AppImage +
+# latest-linux.yml (+ .blockmap) so electron-updater's Linux feed works exactly like the
+# Windows one. Steam Deck: download the AppImage, `chmod +x`, run, add as a Non-Steam Game.
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  category: Game
+  executableName: terraforming-mars
+  # Committed icon (web favicon upscaled to 512²) so the AppImage + generated .desktop
+  # entry are branded. Windows is unaffected: buildResources has no icon.png, so this
+  # linux-only file only applies to the AppImage.
+  icon: electron/build-resources/linuxIcon.png
+  artifactName: TerraformingMars-${version}-${arch}.${ext}
+
 artifactName: TerraformingMars-${version}-${os}-${arch}.${ext}
 
 # Update-delivery feed (Phase 7). electron-builder bakes this into the app's

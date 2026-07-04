@@ -233,6 +233,66 @@ error+retry / manualDownloadRequired. Inert on the web (no `desktopBridge`).
 Until the feed is real, the compatibility gate + premium UI + the manual-download
 fallback all work; only the in-app auto-download needs the hosted feed.
 
+## Linux / Steam Deck builds & updates
+
+The desktop app ships for **Windows (NSIS installer)** and **Linux (x64 AppImage)** from
+the same thin-client renderer. Both are built + published by `.github/workflows/release.yml`
+on a `v*` tag.
+
+**Release target.** GitHub Releases under **`victor-zelinskiy/terraforming-mars`** (the
+source repo is public). electron-builder publishes with the workflow's built-in
+`GITHUB_TOKEN` — **no separate releases repo and no `GH_RELEASE_TOKEN` secret are needed**,
+and because the repo is public electron-updater reads the feed with no embedded token.
+
+**Build locally**
+
+```bash
+# Windows (on Windows):
+npm run dist:win                 # dist-desktop/TerraformingMars-Setup-<ver>-x64.exe (+ latest.yml)
+
+# Linux AppImage (on Linux / Steam Deck / WSL — NOT buildable on Windows):
+npm run dist:linux               # dist-desktop/TerraformingMars-<ver>-x64.AppImage (+ latest-linux.yml)
+```
+
+Add `:publish` (`dist:win:publish` / `dist:linux:publish`) to upload to GitHub Releases —
+this needs a `GH_TOKEN` env var locally; in CI the workflow supplies it. On Windows the
+Linux AppImage can only be built via CI (or WSL/Docker), so it's not verified in a local
+Windows run.
+
+**Release both platforms**
+
+```bash
+npm version patch --no-git-tag-version   # e.g. 1.0.2 -> 1.0.3 (package.json + lock)
+git commit -am "chore: release v1.0.3"
+git tag v1.0.3
+git push origin main
+git push origin v1.0.3                    # → builds win + linux, publishes ONE release
+```
+
+The workflow builds the platforms one at a time (`max-parallel: 1`) into a single **draft**
+release, then a final `publish` job flips it to a published release carrying:
+`…-x64.exe`, `latest.yml`, `…-x64.AppImage`, `latest-linux.yml`, and their `.blockmap`s.
+
+**Steam Deck / SteamOS**
+
+1. Download `TerraformingMars-<ver>-x64.AppImage` from the release.
+2. `chmod +x TerraformingMars-<ver>-x64.AppImage` (or Properties → Permissions → Executable).
+3. Run it. Add it to Steam as a **Non-Steam Game** for Game Mode / controller support.
+   (If FUSE is unavailable, run with `./TerraformingMars-<ver>-x64.AppImage --appimage-extract-and-run`.)
+
+**How updates work (both platforms)** — same premium overlay + progress bar.
+
+- The main process checks the compatibility gate (`GET <server>/api/desktop/version?platform=…`,
+  platform-aware) on launch; a *required* update drives the premium `DesktopUpdateOverlay`.
+- **Windows** and **Linux-as-AppImage** self-update via electron-updater: it reads
+  `latest.yml` / `latest-linux.yml` from the release, downloads (the overlay shows the live
+  **progress bar**), and installs on *Restart and install* (`quitAndInstall`).
+- **Linux NOT run as an AppImage** (unpacked/dev) can't self-install — electron-updater's
+  AppImage flow needs `$APPIMAGE`. Instead of failing silently the overlay shows the premium
+  **manual-download** fallback linking to the Releases page. Real Steam Deck users run the
+  AppImage, so they get the full auto-update path.
+- The main process logs `[updater] provider=github platform=… appImage=… current=… channel=… — <status>`.
+
 ## Not in this phase (later)
 
 Game-boundary reset, command transport rewrite, signing/notarization (any OS),
