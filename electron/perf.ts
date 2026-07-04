@@ -43,6 +43,19 @@ export function applyPerformanceSwitches(app: App): void {
   // On dual-GPU laptops, request the discrete GPU rather than the integrated one.
   sw('force_high_performance_gpu');
 
+  // Linux GPU backend (Steam Deck / gamescope). On the Deck, Chromium often can't create a
+  // GL context and falls back to SOFTWARE rendering (GPU feature status all "disabled"). An
+  // explicit GL backend usually fixes it. Opt-in via TM_ELECTRON_GL so it can be tested
+  // on-device without risking the default — a wrong backend just falls back to software,
+  // never a black screen. Values: egl | desktop | angle (angle also sets --use-angle=gl).
+  const gl = (process.env.TM_ELECTRON_GL ?? '').trim().toLowerCase();
+  if (gl === 'angle') {
+    sw('use-gl', 'angle');
+    sw('use-angle', 'gl');
+  } else if (gl !== '') {
+    sw('use-gl', gl);
+  }
+
   // ── No renderer throttling (fullscreen game) ─────────────────────────────
   // A fullscreen game must stay at full rate when briefly occluded / unfocused
   // (Alt-Tab, an OS notification, a second monitor) — otherwise rAF-driven

@@ -48,6 +48,11 @@ LOG="$HOME/Applications/terraforming-mars-steam.log"
 export TM_RESTART_SUPPORTED=1
 export TM_RESTART_MARKER="$HOME/.cache/terraforming-mars-restart"
 mkdir -p "$(dirname "$TM_RESTART_MARKER")"
+# GPU: the Deck often falls back to SOFTWARE rendering. To try hardware acceleration,
+# uncomment ONE of these and relaunch, then check terraforming-mars-steam.log for
+# "gpu_compositing":"enabled". If the screen is black, comment it back out (safe fallback).
+# export TM_ELECTRON_GL=egl
+# export TM_ELECTRON_GL=angle
 cd "$HOME/Applications" || exit 1
 echo "=== launch: $(date) ===" >> "$LOG"
 while true; do
