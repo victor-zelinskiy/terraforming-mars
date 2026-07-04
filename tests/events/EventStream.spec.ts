@@ -334,7 +334,7 @@ describe('Phase 2: attribution wraps + journal grouping', () => {
     // is distinguishable from the card's OWN effects, not at the same level with
     // the same source) yet stay GROUPED under the card — card vs action preserved.
     game.events.beginAction(player, {kind: 'card', card: CardName.RESEARCH_OUTPOST}, {category: 'card-play'});
-    game.log('${0} played ${1}', (b) => b.player(player).card(CardName.RESEARCH_OUTPOST));
+    game.log('${0} played ${1}', (b) => b.player(player).cardName(CardName.RESEARCH_OUTPOST));
     game.defer(new BuildColony(player));
     game.events.endScope();
 

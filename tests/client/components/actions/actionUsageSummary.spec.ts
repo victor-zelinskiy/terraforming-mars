@@ -99,7 +99,7 @@ describe('action usage summary view-model', () => {
       {direction: 'cost', icon: 'floater', amount: 1, note: 'on this card'},
       {direction: 'gain', icon: 'cards', amount: 1, note: 'draw'},
     ];
-    const mixedStat = stat({triggerCount: 3, cardResources: {floater: 2}, cardsDrawn: 4});
+    const mixedStat = stat({triggerCount: 3, cardResources: {Floater: 2}, cardsDrawn: 4});
 
     it('maps branch effects to metric tokens (a card-resource COST does not claim "Added")', () => {
       expect(branchMetricTokens(addEffects)).to.deep.eq(['cardres:floater']);
@@ -139,7 +139,7 @@ describe('action usage summary view-model', () => {
       {direction: 'cost', icon: 'energy', amount: 2},
       {direction: 'gain', icon: 'animal', amount: 1, note: 'to a card'},
     ];
-    const mixedStat = stat({triggerCount: 5, stock: Units.of({plants: 6, energy: -10}), cardResources: {animal: 3}});
+    const mixedStat = stat({triggerCount: 5, stock: Units.of({plants: 6, energy: -10}), cardResources: {Animal: 3}});
 
     it('an "add to a card" gain claims the cardres token (so the sibling filter works)', () => {
       // The fix: `to a card` (add to ANOTHER card) maps to `cardres:animal`, matching

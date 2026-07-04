@@ -71,7 +71,7 @@ describe('realtime/GameLoader broadcast', () => {
   // invalidation and opponents saw it only on the (now stretched) fallback poll.
   it('an intermediate action broadcasts even though it is not saved', async () => {
     const [game, player] = testGame(2);
-    game.gameOptions.undoOption = false;
+    (game.gameOptions as {undoOption: boolean}).undoOption = false;
     await new Promise((resolve) => setTimeout(resolve, 0));
     runAllActions(game); // drain any pending deferred actions from setup
 

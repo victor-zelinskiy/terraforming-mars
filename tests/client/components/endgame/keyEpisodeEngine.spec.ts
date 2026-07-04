@@ -102,7 +102,7 @@ describe('keyEpisodeEngine (rework Iteration 15)', () => {
       sampled: 8, leadChanges: 2, winnerLedGens: 3, topOtherLeader: {color: 'blue', gens: 5},
       maxDeficit: 10, maxDeficitGen: 6, finalSurge: undefined, winnerTookLeadGen: 8, wireToWire: false, earlyGap: -8,
     };
-    const c = ctx([pl('red', 'Nastya', 90, {primary: det('cards', 20)}), pl('blue', 'Victor', 80)], {margin: 10, timeline, generation: 9});
+    const c = ctx([pl('red', 'Nastya', 90, {primary: det('cardResources', 20)}), pl('blue', 'Victor', 80)], {margin: 10, timeline, generation: 9});
     const tp = buildKeyEpisodes(c).find((e) => e.role === 'turning_point');
     expect(tp, 'turning point').to.not.be.undefined;
     expect(tp!.generation).to.eq(8);

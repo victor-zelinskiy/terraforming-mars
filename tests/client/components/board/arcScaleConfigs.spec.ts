@@ -58,6 +58,7 @@ describe('arcScaleConfigs', () => {
   it('arcAngleForValue snaps to the nearest tick', () => {
     // Temperature ticks step by 2; an odd query picks the nearest even tick.
     const a = arcAngleForValue(TEMPERATURE_ARC, -9);
+    expect(a).to.be.a('number');
     const near = TEMPERATURE_ARC.digits.find((d) => d.value === -10 || d.value === -8);
     expect(near).to.not.eq(undefined);
   });

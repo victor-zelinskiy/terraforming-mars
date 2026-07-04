@@ -27,9 +27,6 @@ function fact(type: FactType, partial: Partial<EndgameFact>): EndgameFact {
   return {id: partial.id ?? `${type}:x`, type, player: partial.player ?? 'red', severity: 0.5,
     confidence: 'exact', metrics: partial.metrics ?? {}, relatedEventIds: [], tags: [], ...partial} as EndgameFact;
 }
-function cat(key: EndgameCategoryKey, values: Partial<Record<Color, number>>): EndgameCategory {
-  return {key, label: key, accent: key, values: values as Record<string, number>, max: 0, leaders: []};
-}
 function ctx(opts: {players: Array<EndgamePlayerScore>; facts?: Array<EndgameFact>; categories?: Array<EndgameCategory>;
   margin?: number; mode?: 'duel' | 'standings' | 'solo'; timeline?: any} = {players: []}): InsightContext {
   const players = opts.players;

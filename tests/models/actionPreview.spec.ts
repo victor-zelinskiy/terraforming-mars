@@ -328,7 +328,7 @@ describe('actionPreview', () => {
       expect(add.optionInput?.type).eq('card'); // target still pre-collected
 
       const selectCard = cast(card.action(player), SelectCard);
-      selectCard.process({type: 'card', cards: [CardName.COMET_AIMING]}, player);
+      selectCard.process({type: 'card', cards: [CardName.COMET_AIMING]});
       runAllActions(game);
       expect(second.resourceCount).eq(1);
     });
@@ -384,7 +384,7 @@ describe('actionPreview', () => {
       expect(link.available).is.true;
       expect(link.index).eq(1);
       expect(link.optionInput?.type).eq('card');
-      const input = link.optionInput as {cards: Array<unknown>, disabledCards?: Array<{name: string}>};
+      const input = link.optionInput as unknown as {cards: Array<unknown>, disabledCards?: Array<{name: string}>};
       expect(input.cards).has.length(1); // only the eligible (building) card is selectable
       expect(input.disabledCards, 'the non-eligible card is shown greyed').has.length(1);
       expect(input.disabledCards?.[0].name).eq(CardName.WEATHER_BALLOONS);

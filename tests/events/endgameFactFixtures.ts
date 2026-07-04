@@ -27,7 +27,7 @@ export class FactStream {
 
   /** A root action (card play / blue action / colony trade / standard project). */
   root(opts: {gen: number; player: Color; source: EventSource; category: JournalActionCategory}): number {
-    const e = this.push({generation: opts.gen, player: opts.player, type: 'action', source: opts.source, category: opts.category, impact: {}, correlationId: undefined});
+    const e = this.push({generation: opts.gen, player: opts.player, type: 'action', source: opts.source, category: opts.category, impact: {}, correlationId: 0});
     e.correlationId = e.id;
     return e.id;
   }

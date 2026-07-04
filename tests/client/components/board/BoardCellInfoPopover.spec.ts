@@ -10,7 +10,7 @@ import {BoardCellInfo, BoardCellStatus} from '@/common/boards/BoardInformationFa
 const APOLLINARIS = {spaceId: '27', boardName: BoardName.TERRA_CIMMERIA_NOVA};
 
 function setupCell(status: BoardCellStatus, opts: {spaceId?: string, boardName?: BoardName} = {}): void {
-  boardInfoState.spaceId = opts.spaceId ?? APOLLINARIS.spaceId;
+  boardInfoState.spaceId = (opts.spaceId ?? APOLLINARIS.spaceId) as (typeof boardInfoState)['spaceId'];
   configureBoardInfo({participantId: 'p', color: 'red', boardName: opts.boardName ?? APOLLINARIS.boardName, players: []});
   boardInfoState.info = {space: boardInfoState.spaceId, status, facts: []} as BoardCellInfo;
 }

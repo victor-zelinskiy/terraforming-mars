@@ -87,7 +87,7 @@ describe('JournalGroup', () => {
     const header = msg('played card', 'root-action');
     header.correlationId = 1;
     const events: Array<GameEvent> = [
-      {id: 1, generation: 1, phase: Phase.ACTION, type: 'action', source: {kind: 'standardProject', card: CardName.CITY}, player: 'red', impact: {}, correlationId: 1, visibility: 'journal'},
+      {id: 1, generation: 1, phase: Phase.ACTION, type: 'action', source: {kind: 'standardProject', card: CardName.CITY_STANDARD_PROJECT}, player: 'red', impact: {}, correlationId: 1, visibility: 'journal'},
       {id: 2, generation: 1, phase: Phase.ACTION, type: 'resource-changed', source: {kind: 'spaceBonus'}, player: 'red', impact: {stock: {plants: 2}}, correlationId: 1, parentId: 1, visibility: 'analytics'},
     ];
     const wrapper = shallowMount(JournalGroup, {

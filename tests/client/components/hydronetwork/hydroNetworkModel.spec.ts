@@ -243,6 +243,7 @@ describe('buildHydroModel (iteration 2)', () => {
       preview: undefined,
       players: [viewer({position: 4})],
       viewerColor: 'red',
+      selectedCard: undefined,
       selectedPosition: -1,
       rewardChoice: undefined,
       actionAvailable: false,

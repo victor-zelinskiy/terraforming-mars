@@ -12,7 +12,7 @@ import {MiningExpedition} from '../../src/server/cards/base/MiningExpedition';
 import {Comet} from '../../src/server/cards/base/Comet';
 import {JovianLanterns} from '../../src/server/cards/colonies/JovianLanterns';
 import {TitanFloatingLaunchPad} from '../../src/server/cards/colonies/TitanFloatingLaunchPad';
-import {SelectCardModel, OrOptionsModel} from '../../src/common/models/PlayerInputModel';
+import {SelectCardModel, OrOptionsModel, SelectOptionModel} from '../../src/common/models/PlayerInputModel';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {cast} from '../../src/common/utils/utils';
 import {runAllActions} from '../TestingUtils';
@@ -67,7 +67,6 @@ import {Titan} from '../../src/server/colonies/Titan';
 import {ImportedNitrogen} from '../../src/server/cards/base/ImportedNitrogen';
 import {ImportedHydrogen} from '../../src/server/cards/base/ImportedHydrogen';
 import {LargeConvoy} from '../../src/server/cards/base/LargeConvoy';
-import {LocalHeatTrapping} from '../../src/server/cards/base/LocalHeatTrapping';
 import {Pets} from '../../src/server/cards/base/Pets';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 
@@ -258,7 +257,7 @@ describe('cardPlayPreview', () => {
       runAllActions(game);
       const live = cast(player.popWaitingFor(), SelectCard);
       expect(live.cards.map((c) => c.name)).to.include(card.name);
-      live.process({type: 'card', cards: [card.name]}, player);
+      live.process({type: 'card', cards: [card.name]});
       runAllActions(game);
       expect(card.resourceCount).eq(2);
     });
@@ -307,7 +306,7 @@ describe('cardPlayPreview', () => {
       runAllActions(game);
       const live = cast(player.popWaitingFor(), SelectCard);
       expect(live.cards.map((c) => c.name)).to.have.members(previewNames);
-      live.process({type: 'card', cards: [dirigibles.name]}, player);
+      live.process({type: 'card', cards: [dirigibles.name]});
       expect(dirigibles.resourceCount).to.eq(1); // 2 − 1, no post-confirm modal needed
     });
 
@@ -350,7 +349,7 @@ describe('cardPlayPreview', () => {
       expect(previewNames).to.have.members(select.cards.map((c) => c.name));
 
       // Apply the pre-collected response → the 2 microbes land on the chosen card.
-      select.process({type: 'card', cards: [t1.name]}, player);
+      select.process({type: 'card', cards: [t1.name]});
       runAllActions(game);
       expect(t1.resourceCount).eq(2);
     });
@@ -776,7 +775,7 @@ describe('cardPlayPreview', () => {
       expect(select.cards.map((c) => c.name)).to.have.members([e1.name, e2.name]);
 
       // The player filled only ONE slot → the merged response returns just e1.
-      select.process({type: 'card', cards: [e1.name]}, player);
+      select.process({type: 'card', cards: [e1.name]});
       runAllActions(game);
       expect(player.cardsInHand.map((c) => c.name)).to.include(e1.name);
       expect(player.playedCards.get(e1.name)).is.undefined; // returned to hand
@@ -817,7 +816,7 @@ describe('cardPlayPreview', () => {
       const mcBefore = player.megaCredits;
 
       const select = cast(new PublicPlans().bespokePlay(player), SelectCard);
-      select.process({type: 'card', cards: [a.name, b.name]}, player);
+      select.process({type: 'card', cards: [a.name, b.name]});
       runAllActions(game);
       expect(player.megaCredits).eq(mcBefore + 2);
     });
@@ -856,14 +855,14 @@ describe('cardPlayPreview', () => {
       expect(step, 'a plant-removal OrOptions step').to.exist;
       const model = step!.kind === 'input' ? (step!.input as OrOptionsModel) : undefined;
       // The opponent target carries a current→resulting plant preview via metadata.
-      const targetOption = model!.options.find((o) => o.metadata?.player?.color === opponent.color);
+      const targetOption = (model!.options as ReadonlyArray<SelectOptionModel>).find((o) => o.metadata?.player?.color === opponent.color);
       expect(targetOption?.metadata?.player?.current).eq(6);
       expect(targetOption?.metadata?.player?.resulting).eq(4); // remove up to 2
       // A self-removal option exists with the self-harm warning.
-      const selfOption = model!.options.find((o) => (o.warnings ?? []).includes('removeOwnPlants'));
+      const selfOption = (model!.options as ReadonlyArray<SelectOptionModel>).find((o) => (o.warnings ?? []).includes('removeOwnPlants'));
       expect(selfOption, 'a self-removal option with a warning').to.exist;
       // A "skip" option (do not remove) is part of the picker.
-      expect(model!.options.some((o) => o.metadata?.kind === 'skip'), 'a skip option').is.true;
+      expect((model!.options as ReadonlyArray<SelectOptionModel>).some((o) => o.metadata?.kind === 'skip'), 'a skip option').is.true;
       // The 0-plant opponent is a disabled target with a reason.
       expect((model!.disabledOptions ?? []).some((d) => d.reason === 'No plants to remove'), 'a disabled target').is.true;
     });
@@ -877,7 +876,7 @@ describe('cardPlayPreview', () => {
       const branch = cardPlayPreview(player, card).branches[0];
       const step = branch.steps.find((s) => s.kind === 'input' && s.input.type === 'or');
       const model = step!.kind === 'input' ? (step!.input as OrOptionsModel) : undefined;
-      const targetIdx = model!.options.findIndex((o) => o.metadata?.player?.color === opponent.color);
+      const targetIdx = (model!.options as ReadonlyArray<SelectOptionModel>).findIndex((o) => o.metadata?.player?.color === opponent.color);
       expect(targetIdx).is.greaterThan(-1);
 
       // Live play: steel + oxygen apply immediately, then the plant-removal OrOptions.
@@ -1128,10 +1127,10 @@ describe('cardPlayPreview', () => {
       player.playCard(new ImportedNitrogen());
       runAllActions(game); // applies plants + TR, defers the two AddResourcesToCard
       // Microbe first (array order), then animal — matching the preview step order.
-      cast(player.popWaitingFor(), SelectCard).process({type: 'card', cards: [microbeCard.name]}, player);
+      cast(player.popWaitingFor(), SelectCard).process({type: 'card', cards: [microbeCard.name]});
       runAllActions(game);
       expect(microbeCard.resourceCount).eq(3);
-      cast(player.popWaitingFor(), SelectCard).process({type: 'card', cards: [animalCard.name]}, player);
+      cast(player.popWaitingFor(), SelectCard).process({type: 'card', cards: [animalCard.name]});
       runAllActions(game);
       expect(animalCard.resourceCount).eq(2);
     });
@@ -1201,7 +1200,7 @@ describe('cardPlayPreview', () => {
       // The target picker comes NEXT — still before the ocean.
       const select = cast(player.popWaitingFor(), SelectCard);
       expect(select.cards.map((c) => c.name)).to.include(tardigrades.name);
-      select.process({type: 'card', cards: [tardigrades.name]}, player);
+      select.process({type: 'card', cards: [tardigrades.name]});
       runAllActions(game);
       expect(tardigrades.resourceCount).eq(3);
       // ONLY now does the ocean placement remain — it rides PlacementBanner.

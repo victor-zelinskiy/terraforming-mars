@@ -14,7 +14,7 @@ function ev(partial: Partial<GameEvent> & {id: number; type: GameEvent['type']; 
 describe('journal event-driven children', () => {
   it('labels a space-bonus gain as "Cell bonus" with the resource impact', () => {
     const events: Array<GameEvent> = [
-      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY}, player: 'red', correlationId: 1}),
+      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY_STANDARD_PROJECT}, player: 'red', correlationId: 1}),
       ev({id: 2, type: 'resource-changed', source: {kind: 'spaceBonus'}, player: 'red', impact: {stock: {plants: 2}}, correlationId: 1, parentId: 1}),
     ];
     const rows = buildEventChildren(events, 1, 'red');
@@ -26,7 +26,7 @@ describe('journal event-driven children', () => {
 
   it('labels ocean-adjacency M€ as "Ocean bonus"', () => {
     const events: Array<GameEvent> = [
-      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY}, player: 'red', correlationId: 1}),
+      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY_STANDARD_PROJECT}, player: 'red', correlationId: 1}),
       ev({id: 2, type: 'resource-changed', source: {kind: 'oceanBonus'}, player: 'red', impact: {stock: {megacredits: 2}}, correlationId: 1, parentId: 1}),
     ];
     const rows = buildEventChildren(events, 1, 'red');
@@ -36,7 +36,7 @@ describe('journal event-driven children', () => {
 
   it('folds an effect-trigger marker + its impact into one source → impact row (Pets)', () => {
     const events: Array<GameEvent> = [
-      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY}, player: 'red', correlationId: 1}),
+      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY_STANDARD_PROJECT}, player: 'red', correlationId: 1}),
       ev({id: 2, type: 'effect-triggered', source: {kind: 'card', card: CardName.PETS}, player: 'blue', correlationId: 1, parentId: 1}),
       ev({id: 3, type: 'card-resource-changed', source: {kind: 'card', card: CardName.PETS}, player: 'blue', impact: {cardResources: [{cardResource: CardResource.ANIMAL, target: CardName.PETS, amount: 1}]}, correlationId: 1, parentId: 2}),
     ];
@@ -49,7 +49,7 @@ describe('journal event-driven children', () => {
 
   it('renders a tile placement with its space + tile label', () => {
     const events: Array<GameEvent> = [
-      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY}, player: 'red', correlationId: 1}),
+      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY_STANDARD_PROJECT}, player: 'red', correlationId: 1}),
       ev({id: 2, type: 'tile-placed', player: 'red', impact: {tilesPlaced: 1}, space: '03', tile: TileType.CITY, correlationId: 1, parentId: 1}),
     ];
     const rows = buildEventChildren(events, 1, 'red');
@@ -70,7 +70,7 @@ describe('journal event-driven children', () => {
 
   it('labels a payment-sourced spend as "Payment"', () => {
     const events: Array<GameEvent> = [
-      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY}, player: 'red', correlationId: 1}),
+      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY_STANDARD_PROJECT}, player: 'red', correlationId: 1}),
       ev({id: 2, type: 'resource-changed', source: {kind: 'payment'}, player: 'red', impact: {stock: {megacredits: -25}}, correlationId: 1, parentId: 1}),
     ];
     const rows = buildEventChildren(events, 1, 'red');
@@ -148,7 +148,7 @@ describe('journal event-driven children', () => {
 
   it('does NOT merge different recipients, nor different buckets (City SP)', () => {
     const events: Array<GameEvent> = [
-      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY}, player: 'red', correlationId: 1}),
+      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY_STANDARD_PROJECT}, player: 'red', correlationId: 1}),
       ev({id: 2, type: 'tile-placed', player: 'red', impact: {tilesPlaced: 1}, space: '03', tile: TileType.CITY, correlationId: 1, parentId: 1}),
       ev({id: 3, type: 'resource-changed', source: {kind: 'spaceBonus'}, player: 'red', impact: {stock: {plants: 2}}, correlationId: 1, parentId: 1}),
       ev({id: 4, type: 'resource-changed', source: {kind: 'oceanBonus'}, player: 'red', impact: {stock: {megacredits: 2}}, correlationId: 1, parentId: 1}),

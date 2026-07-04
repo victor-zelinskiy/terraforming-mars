@@ -17,7 +17,7 @@ describe('Card-draw reveal source', () => {
     player.drawCard(1);
     game.events.endScope();
 
-    const reveal = player.cardDrawReveals.at(-1);
+    const reveal = player.cardDrawReveals[player.cardDrawReveals.length - 1];
     expect(reveal, 'a reveal was enqueued').to.not.be.undefined;
     expect(reveal!.source).to.deep.eq({type: 'card', cardName: CardName.MARS_UNIVERSITY});
   });
@@ -28,7 +28,7 @@ describe('Card-draw reveal source', () => {
     player.drawCard(1);
     game.events.endScope();
 
-    expect(player.cardDrawReveals.at(-1)!.source).to.deep.eq({type: 'card', cardName: CardName.FACTORUM});
+    expect(player.cardDrawReveals[player.cardDrawReveals.length - 1]!.source).to.deep.eq({type: 'card', cardName: CardName.FACTORUM});
   });
 
   it('maps a colony scope to a colony source', () => {
@@ -37,7 +37,7 @@ describe('Card-draw reveal source', () => {
     player.drawCard(1);
     game.events.endScope();
 
-    expect(player.cardDrawReveals.at(-1)!.source).to.deep.eq({type: 'colony', colonyName: ColonyName.MIRANDA});
+    expect(player.cardDrawReveals[player.cardDrawReveals.length - 1]!.source).to.deep.eq({type: 'colony', colonyName: ColonyName.MIRANDA});
   });
 
   it('an explicit source wins over the scope', () => {
@@ -46,12 +46,12 @@ describe('Card-draw reveal source', () => {
     player.drawCard(1, {source: {type: 'tile'}});
     game.events.endScope();
 
-    expect(player.cardDrawReveals.at(-1)!.source).to.deep.eq({type: 'tile'});
+    expect(player.cardDrawReveals[player.cardDrawReveals.length - 1]!.source).to.deep.eq({type: 'tile'});
   });
 
   it('no scope → no source (generic text)', () => {
     const [, player] = testGame(2);
     player.drawCard(1);
-    expect(player.cardDrawReveals.at(-1)!.source).to.be.undefined;
+    expect(player.cardDrawReveals[player.cardDrawReveals.length - 1]!.source).to.be.undefined;
   });
 });

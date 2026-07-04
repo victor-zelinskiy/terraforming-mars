@@ -28,6 +28,7 @@ function emptyStat(name: CardName, isCorporation: boolean): EffectOverlayStat {
     paymentValueBonus: {steel: 0, titanium: 0, bonusValue: 0, count: 0},
     colonyTrack: {steps: 0, extraReward: 0, count: 0, colonies: {}},
     tradeDiscount: {energy: 0, titanium: 0, megacredits: 0, count: 0, colonies: {}},
+    greeneryDiscount: {plants: 0, count: 0},
     tr: 0, globalParameterSteps: {}, vp: 0,
   };
 }

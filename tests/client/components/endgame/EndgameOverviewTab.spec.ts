@@ -115,7 +115,7 @@ describe('EndgameResultsOverlay', () => {
       id: 'p-test',
       game: {
         name: 'Test Game', generation: 3, moon: undefined, pathfinders: undefined,
-        gameOptions: {expansions: {}, escapeVelocity: undefined, colonies: false},
+        gameOptions: {expansions: {colonies: false}, escapeVelocity: undefined},
         globalsPerGeneration: [],
       },
       players: [],

@@ -47,4 +47,7 @@ export class FakeGameLoader implements IGameLoader {
   public maintenance(): Promise<void> {
     return Promise.resolve();
   }
+
+  public notifyGameStateChanged(_game: IGame): void {
+  }
 }

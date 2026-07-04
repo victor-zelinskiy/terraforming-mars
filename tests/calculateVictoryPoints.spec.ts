@@ -42,7 +42,7 @@ describe('calculateVictoryPoints', () => {
     expect(tr.base).eq(20); // back-compat = baseRating + handicap
     expect(tr.cards).eq(3);
     // Σ cardEntries === cards.
-    expect(tr.cardEntries.reduce((a, e) => a + e.amount, 0)).eq(3);
+    expect((tr.cardEntries ?? []).reduce((a, e) => a + e.amount, 0)).eq(3);
   });
 
   it('puts the Venus 8% threshold TR bonus in Cards & effects, never the base', () => {
@@ -58,7 +58,7 @@ describe('calculateVictoryPoints', () => {
     expect(tr.base).eq(20);
     expect(tr.venus).eq(9); // the 9 parameter steps
     expect(tr.cards).eq(1); // the +1 threshold bonus
-    const bonus = tr.cardEntries.find((e) => e.sourceType === 'venusTrackBonus');
+    const bonus = (tr.cardEntries ?? []).find((e) => e.sourceType === 'venusTrackBonus');
     expect(bonus?.amount).eq(1);
     // Everything still reconciles to the displayed rating.
     const sum = tr.base + tr.temperature + tr.oxygen + tr.oceans + tr.venus + tr.cards;
@@ -77,9 +77,9 @@ describe('calculateVictoryPoints', () => {
     expect(tr.base).eq(23); // baseRating + handicap (back-compat)
     expect(tr.cards).eq(2);
     // No "Other / untracked sources" leak.
-    expect(tr.cardEntries.some((e) => e.sourceType === 'legacyUnknown')).eq(false);
+    expect((tr.cardEntries ?? []).some((e) => e.sourceType === 'legacyUnknown')).eq(false);
     // Reconciles to the displayed rating (20 + 3 + 2 = 25).
-    const sum = tr.baseRating + tr.handicap + tr.temperature + tr.oxygen + tr.oceans + tr.venus + tr.cards;
+    const sum = (tr.baseRating ?? 0) + (tr.handicap ?? 0) + tr.temperature + tr.oxygen + tr.oceans + tr.venus + tr.cards;
     expect(sum).eq(player.terraformRating);
   });
 

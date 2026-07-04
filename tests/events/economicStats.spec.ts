@@ -225,7 +225,7 @@ describe('Economic stat special-handlers', () => {
 
       const ev = game.events.events.find((e) =>
         e.impact.stock?.megacredits === 3 &&
-        e.source?.card === CardName.TOPSOIL_CONTRACT);
+        e.source !== undefined && 'card' in e.source && e.source.card === CardName.TOPSOIL_CONTRACT);
       expect(ev, 'TopsoilContract gain recorded under its effect').to.not.be.undefined;
       expect(ev!.tags).to.contain('passive-effect');
 
@@ -267,7 +267,7 @@ describe('Economic stat special-handlers', () => {
       runAllActions(game);
 
       const ev = game.events.events.find((e) =>
-        e.source?.card === CardName.MONS_INSURANCE &&
+        e.source !== undefined && 'card' in e.source && e.source.card === CardName.MONS_INSURANCE &&
         e.impact.stock?.megacredits === -3);
       expect(ev, 'owner payout recorded under MonsInsurance effect').to.not.be.undefined;
       expect(ev!.tags).to.contain('passive-effect');
@@ -294,7 +294,7 @@ describe('Economic stat special-handlers', () => {
 
       const ev = game.events.events.find((e) =>
         e.impact.greeneryDiscountSaved !== undefined &&
-        e.source?.card === CardName.ECOLINE);
+        e.source !== undefined && 'card' in e.source && e.source.card === CardName.ECOLINE);
       expect(ev, 'a greenery-discount event was recorded').to.not.be.undefined;
       expect(ev!.impact.greeneryDiscountSaved).to.eq(1); // 8 − 7
       expect(ev!.tags).to.contain('passive-effect');

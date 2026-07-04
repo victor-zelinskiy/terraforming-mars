@@ -184,8 +184,8 @@ describe('Milestone/Award random-pool de-duplication (vize1215 fork)', () => {
       expect(milestoneManifest.all['Tycoon'].deprecated).to.equal(true);
       for (const mode of [RandomMAOptionType.LIMITED, RandomMAOptionType.ALL] as const) {
         const [milestones] = getCandidates(allExpansions({randomMA: mode}));
-        expect(milestones, `${RandomMAOptionType[mode]}`).to.not.include('Terraformer');
-        expect(milestones, `${RandomMAOptionType[mode]}`).to.not.include('Tycoon');
+        expect(milestones, `${mode}`).to.not.include('Terraformer');
+        expect(milestones, `${mode}`).to.not.include('Tycoon');
       }
     });
   });

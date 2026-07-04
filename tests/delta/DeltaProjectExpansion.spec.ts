@@ -529,13 +529,13 @@ describe('DeltaProjectExpansion', () => {
 
     it('the action returns a DeltaProjectInput with the valid step list', () => {
       setupPlayerForThreeStepsFromStart(player);
-      const input = cast(findDeltaAction(player)!.cb(), DeltaProjectInput);
+      const input = cast(findDeltaAction(player)!.cb(undefined), DeltaProjectInput);
       expect(input.validSteps).deep.eq([1, 2, 3]);
     });
 
     it('advancing via the action moves the player and marks it used this generation', () => {
       setupPlayerForThreeStepsFromStart(player);
-      const input = cast(findDeltaAction(player)!.cb(), DeltaProjectInput);
+      const input = cast(findDeltaAction(player)!.cb(undefined), DeltaProjectInput);
       input.cb(2);
 
       expect(player.deltaProjectData!.position).eq(2);

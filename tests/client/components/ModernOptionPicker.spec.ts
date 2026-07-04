@@ -178,7 +178,7 @@ describe('ModernOptionPicker', () => {
     expect(handSelectState.active).is.true;
     expect(handSelectState.clientPick).is.true;
     // Resolving the overlay pick wraps the card in the OR and calls onsave.
-    handSelectState.selected = ['Predators'];
+    handSelectState.selected = ['Predators'] as typeof handSelectState.selected;
     resolveClientHandSelect();
     expect(saved).to.deep.eq({type: 'or', index: 0, response: {type: 'card', cards: ['Predators']}});
     exitHandSelect();

@@ -15,7 +15,7 @@ import {handActionPickResult, deliverActionPick} from '@/client/components/handC
 describe('client-driven hand card pick (Self-Replicating Robots etc.)', () => {
   afterEach(() => exitHandSelect());
 
-  function enter(onResolve = () => {}, onCancel = () => {}) {
+  function enter(onResolve: (cards: ReadonlyArray<CardName>) => void = () => {}, onCancel = () => {}) {
     enterClientHandSelect({
       title: 'Select card to link with Self-replicating Robots',
       buttonLabel: 'Link card',
