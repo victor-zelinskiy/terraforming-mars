@@ -2131,31 +2131,71 @@ html.console-mode {
             font-variant-numeric: tabular-nums;
         }
     }
-    &__price {
+    /* The WALLET capsule: the viewer's M€ (the overlay covers the resource
+       panel) + the category-wide price as a before → after preview. Turns
+       amber-warned when the price exceeds the balance. */
+    &__wallet {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
-        padding: 5px 14px;
+        gap: 10px;
+        padding: 6px 16px;
         border-radius: 999px;
-        background: fade(@con-amber, 10%);
-        box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
-        color: #ffe2ad;
-        font-size: 15px;
+        background: rgba(9, 15, 23, 0.75);
+        box-shadow: inset 0 0 0 1.5px fade(@con-cyan, 40%);
         white-space: nowrap;
 
-        b {
-            font-size: 18px;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-        }
         .resource_icon {
             display: inline-block;
-            width: 21px;
-            height: 21px;
+            width: 22px;
+            height: 22px;
             background-repeat: no-repeat;
             background-position: center;
             background-size: contain !important;
         }
+
+        &--short {
+            box-shadow: inset 0 0 0 1.5px fade(@con-amber, 60%);
+        }
+    }
+    &__wallet-label {
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__wallet-now {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+
+        b {
+            font-size: 21px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+    }
+    &__wallet-price {
+        font-size: 15px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: #ffe2ad;
+    }
+    &__wallet-after {
+        font-size: 15px;
+        color: @con-text-dim;
+
+        b {
+            font-size: 19px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: #d7ffe9;
+        }
+    }
+    &__wallet-shortfall {
+        font-size: 14px;
+        font-weight: 700;
+        color: @con-amber;
     }
     &__complete {
         padding: 4px 16px;
@@ -2471,32 +2511,6 @@ html.console-mode {
             box-shadow: inset 0 0 0 1.5px fade(@con-mint, 95%), 0 0 18px fade(@con-mint, 25%);
         }
     }
-    &__mc {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-
-        b {
-            font-size: 17px;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-        }
-        .resource_icon {
-            display: inline-block;
-            width: 22px;
-            height: 22px;
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: contain !important;
-        }
-
-        /* the quiet price of a not-actionable-yet item (never a dead grey) */
-        &--idle {
-            opacity: 0.6;
-            filter: saturate(0.65);
-        }
-    }
-
     /* ── footer: focused context + honest hints ─────────────────── */
     &__foot {
         flex-shrink: 0;
@@ -5970,7 +5984,12 @@ html.con-profile-handheld {
         &__slots { gap: 7px; }
         &__slot { width: 11px; height: 11px; }
         &__count { font-size: 13.5px; b { font-size: 16px; } }
-        &__price { font-size: 13px; padding: 4px 11px; b { font-size: 15px; } .resource_icon { width: 18px; height: 18px; } }
+        &__wallet { gap: 7px; padding: 4px 12px; .resource_icon { width: 18px; height: 18px; } }
+        &__wallet-label { font-size: 9.5px; }
+        &__wallet-now b { font-size: 17px; }
+        &__wallet-price { font-size: 13px; }
+        &__wallet-after { font-size: 13px; b { font-size: 15.5px; } }
+        &__wallet-shortfall { font-size: 12px; }
         &__complete { font-size: 12px; padding: 3px 12px; }
         &__grid { gap: 10px; }
         &__card { gap: 14px; padding: 9px 12px 9px 16px; border-radius: 11px; }
@@ -5990,8 +6009,6 @@ html.con-profile-handheld {
         &__rival { min-width: 22px; height: 22px; font-size: 12.5px; border-radius: 7px; }
         &__cta { min-height: 32px; }
         &__btn { font-size: 13px; padding: 6px 11px; gap: 7px; }
-        &__mc b { font-size: 14px; }
-        &__mc .resource_icon { width: 18px; height: 18px; }
         &__foot { min-height: 32px; padding-top: 7px; gap: 12px; }
         &__context { font-size: 13.5px; }
         &__hints { gap: 14px; }

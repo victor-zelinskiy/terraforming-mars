@@ -16,8 +16,17 @@
           </div>
           <div v-if="allTaken" class="con-ma__complete">✓ {{ $t(kind === 'awards' ? 'All funded' : 'All claimed') }}</div>
           <div v-else class="con-ma__count">{{ $t(kind === 'awards' ? 'Funded' : 'Claimed') }} <b>{{ takenCount }}/{{ maxSlots }}</b></div>
-          <div v-if="kind === 'awards' && !allTaken && nextCost !== undefined" class="con-ma__price">
-            <span>{{ $t('Cost') }}</span><b>{{ nextCost }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+          <!-- The WALLET: the overlay covers the resource panel, so the
+               viewer's M€ live HERE — together with the (category-wide)
+               price as a premium before → after preview. -->
+          <div class="con-ma__wallet" :class="{'con-ma__wallet--short': walletShort > 0}">
+            <span class="con-ma__wallet-label">{{ $t('You have') }}</span>
+            <span class="con-ma__wallet-now"><b>{{ myMegacredits }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i></span>
+            <template v-if="nextCost !== undefined">
+              <span class="con-ma__wallet-price">−{{ nextCost }}</span>
+              <span v-if="walletShort === 0" class="con-ma__wallet-after">→ <b>{{ walletAfter }}</b></span>
+              <span v-else class="con-ma__wallet-shortfall">{{ shortfallText }}</span>
+            </template>
           </div>
         </div>
       </div>
@@ -77,14 +86,13 @@
                     class="con-ma__rival"
                     :class="rivalClasses(it, s)">{{ s.score }}</span>
             </div>
+            <!-- P26b: the price moved to the header wallet (it is category-
+                 wide) — the CTA carries the verb only, so an available card
+                 reads clean and an idle card carries no cost noise. -->
             <div class="con-ma__cta">
               <span v-if="it.available" class="con-ma__btn" :class="{'con-ma__btn--focus': i === index}">
                 <GamepadGlyph control="confirm" />
                 <span>{{ $t(it.kind === 'milestone' ? 'Claim' : 'Fund') }}</span>
-                <span v-if="it.cost !== undefined" class="con-ma__mc"><b>{{ it.cost }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i></span>
-              </span>
-              <span v-else-if="it.cost !== undefined" class="con-ma__mc con-ma__mc--idle">
-                <b>{{ it.cost }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
               </span>
             </div>
           </div>
@@ -137,6 +145,7 @@
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import {ConsoleMaItem, ConsoleMaKind, ConsoleMaScore, ConsoleMaFocusContext, consoleMaFocusContext} from '@/client/components/console/consoleMaModel';
 
 export default defineComponent({
@@ -146,6 +155,8 @@ export default defineComponent({
     kind: {type: String as PropType<ConsoleMaKind>, required: true},
     items: {type: Array as PropType<ReadonlyArray<ConsoleMaItem>>, required: true},
     index: {type: Number, required: true},
+    /** The viewer's M€ — the overlay covers the resource panel. */
+    myMegacredits: {type: Number, required: true},
     /** MAX claimable/fundable slots (3). */
     maxSlots: {type: Number, default: 3},
   },
@@ -172,6 +183,16 @@ export default defineComponent({
     },
     nextCost(): number | undefined {
       return this.items.find((it) => it.cost !== undefined)?.cost;
+    },
+    /** M€ left after the (category-wide) claim/fund price. */
+    walletAfter(): number {
+      return this.myMegacredits - (this.nextCost ?? 0);
+    },
+    walletShort(): number {
+      return Math.max(0, -this.walletAfter);
+    },
+    shortfallText(): string {
+      return translateTextWithParams('Need ${0} more M€', [String(this.walletShort)]);
     },
     focused(): ConsoleMaItem | undefined {
       return this.items[this.index];

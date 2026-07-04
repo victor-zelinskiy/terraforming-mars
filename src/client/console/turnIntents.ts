@@ -62,11 +62,66 @@ export function findInnerActionPath(
 }
 
 export function findMilestoneOptionPath(wf: PlayerInputModel | undefined): InnerOrMatch | undefined {
+  // The server titles this OrOptions with a plain STRING (never a Message),
+  // so the title match is i18n-mutation-proof — unlike the award one below.
   return findInnerActionPath(wf, (t) => t === 'Claim a milestone');
 }
 
-export function findAwardOptionPath(wf: PlayerInputModel | undefined): InnerOrMatch | undefined {
-  return findInnerActionPath(wf, (t) => t !== undefined && t.toLowerCase().startsWith('fund an award'));
+/**
+ * ⚠️ The fund-award OrOptions title is a MESSAGE (`'Fund an award (${0} M€)'`
+ * with the cost baked in) and i18n REWRITES `Message.message` in place on
+ * first render — after any surface renders the action menu, the English
+ * title-prefix match silently dies (the console-only "award reads blocked
+ * for no reason" bug). Mirror the desktop contract exactly
+ * (PlayerHome.findAwardOptionPath): title-prefix first, then the
+ * translation-proof STRUCTURE fallback — an OrOptions whose options are all
+ * SelectOptions titled with bare award names (leaf titles are plain strings,
+ * never mutated).
+ */
+export function findAwardOptionPath(
+  wf: PlayerInputModel | undefined,
+  awardNames: ReadonlyArray<string> = [],
+): InnerOrMatch | undefined {
+  const byTitle = findInnerActionPath(wf, (t) => t !== undefined && t.toLowerCase().startsWith('fund an award'));
+  if (byTitle !== undefined) {
+    return byTitle;
+  }
+  if (awardNames.length === 0) {
+    return undefined;
+  }
+  return findAwardOptionPathByStructure(wf, new Set(awardNames));
+}
+
+function findAwardOptionPathByStructure(
+  wf: PlayerInputModel | undefined,
+  awardNames: ReadonlySet<string>,
+  pathSoFar: ReadonlyArray<number> = [],
+): InnerOrMatch | undefined {
+  if (!wf) {
+    return undefined;
+  }
+  if (wf.type === 'or') {
+    const opts = (wf as OrOptionsModel).options;
+    if (opts.length > 0 && opts.every((o) => {
+      if (o.type !== 'option') {
+        return false;
+      }
+      const t = inputTitleText(o.title);
+      return typeof t === 'string' && awardNames.has(t);
+    })) {
+      return {options: opts, path: pathSoFar};
+    }
+  }
+  const options = childOptions(wf);
+  if (options !== undefined) {
+    for (let i = 0; i < options.length; i++) {
+      const found = findAwardOptionPathByStructure(options[i], awardNames, [...pathSoFar, i]);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return undefined;
 }
 
 /** Find a leaf SelectOption by exact title; returns its index path. */
@@ -374,7 +429,7 @@ export function turnVerbs(view: PlayerViewModel): Array<TurnVerb> {
     on('milestones', 'Claim a milestone', milestones.options.length) :
     off('milestones', 'Claim a milestone', 'No claimable milestones right now'));
 
-  const awards = findAwardOptionPath(wf);
+  const awards = findAwardOptionPath(wf, view.game.awards.map((a) => a.name));
   verbs.push(awards !== undefined ?
     on('awards', 'Fund an award', awards.options.length) :
     off('awards', 'Fund an award', 'No fundable awards right now'));

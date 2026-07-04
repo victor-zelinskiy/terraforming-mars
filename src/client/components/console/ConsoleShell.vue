@@ -101,7 +101,7 @@
     <ConsoleActionWheel v-if="consoleState.wheelOpen" :entries="wheelEntries" :index="consoleState.wheelIndex" />
     <!-- P26: milestones/awards render as the dedicated premium strategic
          panel; every other bounded list keeps the generic bottom sheet. -->
-    <ConsoleMaScreen v-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" />
+    <ConsoleMaScreen v-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" />
     <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
 
     <!-- Console confirm panel (pass / risky conversions). -->
@@ -516,8 +516,13 @@ export default defineComponent({
     milestonesClaimableCount(): number {
       return this.claimableTitles(findMilestoneOptionPath(this.playerView.waitingFor)?.options).size;
     },
+    /** Award names for the translation-proof structure fallback (the fund
+     *  OrOptions title is a Message that i18n mutates in place). */
+    awardNames(): Array<string> {
+      return this.game.awards.map((a) => a.name);
+    },
     awardsFundableCount(): number {
-      return this.claimableTitles(findAwardOptionPath(this.playerView.waitingFor)?.options).size;
+      return this.claimableTitles(findAwardOptionPath(this.playerView.waitingFor, this.awardNames)?.options).size;
     },
     // ── placement ───────────────────────────────────────────────────────
     /** The convert-plants inner SelectSpace, narrowed for the headless picker. */
@@ -838,7 +843,7 @@ export default defineComponent({
       }
       const found = kind === 'milestones' ?
         findMilestoneOptionPath(this.playerView.waitingFor) :
-        findAwardOptionPath(this.playerView.waitingFor);
+        findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
       const describe = (name: string): string => {
         try {
           return kind === 'milestones' ?
@@ -1920,7 +1925,7 @@ export default defineComponent({
       }
       const found = this.maScreenKind === 'milestones' ?
         findMilestoneOptionPath(this.playerView.waitingFor) :
-        findAwardOptionPath(this.playerView.waitingFor);
+        findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
       this.submitInnerOption(found, item.key);
     },
     activateSheetRow(row: ConsoleSheetRow | undefined): void {

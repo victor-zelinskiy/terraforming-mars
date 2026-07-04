@@ -66,6 +66,27 @@ describe('turnIntents', () => {
     expect(findAwardOptionPath(wf)?.path).to.deep.eq([3]);
   });
 
+  it('finds awards after i18n MUTATED the fund title (structure fallback)', () => {
+    // The fund-award OrOptions title is a Message; translateMessage rewrites
+    // `.message` in place on first render («Спонсировать награду (14 М€)»),
+    // killing the English prefix match — the console-only "award reads
+    // blocked for no reason" bug. The award-name STRUCTURE fallback must
+    // still find it (desktop parity).
+    const mutated = or('Take your first action', [
+      option('Pass for this generation'),
+      or('Спонсировать награду (14 М€)', [option('Landlord'), option('Banker')]),
+    ]) as PlayerInputModel;
+    expect(findAwardOptionPath(mutated)).to.eq(undefined); // title-only: dead
+    const found = findAwardOptionPath(mutated, ['Landlord', 'Banker', 'Scientist']);
+    expect(found?.path).to.deep.eq([1]);
+    expect(found?.options).to.have.length(2);
+    // The milestone OrOptions (all MILESTONE names) must NOT false-positive.
+    const withMilestones = or('menu', [
+      or('Claim a milestone', [option('Terraformer'), option('Mayor')]),
+    ]) as PlayerInputModel;
+    expect(findAwardOptionPath(withMilestones, ['Landlord', 'Banker'])).to.eq(undefined);
+  });
+
   it('finds convert heat / plants / sell patents / pass / end turn', () => {
     expect(findConvertHeatOption(wf)?.path).to.deep.eq([4]);
     expect(findConvertPlantsOption(wf, false)?.path).to.deep.eq([5]);
