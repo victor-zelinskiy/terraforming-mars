@@ -107,6 +107,15 @@
     "Rivals": "Соперники",
     "All claimed": "Все получены",
     "All funded": "Все спонсированы",
+    "All slots are taken": "Все слоты заняты",
+    "Threshold reached — claim now": "Порог достигнут — можно взять сейчас",
+    "To the threshold": "До порога",
+    "Ready to fund now": "Можно спонсировать сейчас",
+    "You lead": "Вы лидируете",
+    "Leader": "Лидер",
+    "Already claimed": "Уже получено",
+    "Already funded": "Уже спонсировано",
+    "Threshold not reached yet": "Порог ещё не достигнут",
     "Stages": "Этапы",
     "Select action": "Выберите действие"
 }

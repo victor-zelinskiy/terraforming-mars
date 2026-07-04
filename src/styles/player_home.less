@@ -3491,6 +3491,7 @@ each(@players, {
     justify-content: center;
     font-size: 16px;
     font-weight: bold;
+    font-variant-numeric: tabular-nums;
     background: linear-gradient(180deg, rgba(106, 176, 230, 0.20), rgba(20, 30, 45, 0.55));
     border: 1px solid rgba(106, 176, 230, 0.55);
     clip-path: polygon(10% 0%, 90% 0%, 100% 30%, 100% 70%, 90% 100%, 10% 100%, 0% 70%, 0% 30%);
@@ -3516,26 +3517,25 @@ each(@players, {
 }
 
 /*
- * Milestone art icon. Uses the same 140×83 assets the legacy `.ma-name--*`
- * tiles use, but cropped to a square with the same octagonal silhouette as
- * the count chip. A faint cyan rim + dark inner stop blend it into the HUD;
- * `background-size: cover` fills the box completely while preserving aspect
- * (some art is cropped slightly on the sides — visually fine at this size).
+ * Milestone art stage. P26: a soft rounded PEDESTAL built for the
+ * transparent 512×512 icon format — the former octagonal clip-path CROPPED
+ * the corners of the new art, so it is gone. `contain` never crops; the
+ * legacy 140×83 assets keep letterboxing gracefully until replaced.
  */
 .milestone-row-icon {
     flex-shrink: 0;
-    /* P23: a SQUARE stage sized for the transparent 512x512 icon format -
-       contain never crops the art (the legacy 140x83 assets letterbox
-       gracefully until they are replaced). */
     width: 64px;
     height: 64px;
     background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
     background-color: rgba(8, 14, 22, 0.6);
-    border: 1px solid rgba(106, 176, 230, 0.55);
-    clip-path: polygon(8% 0%, 92% 0%, 100% 25%, 100% 75%, 92% 100%, 8% 100%, 0% 75%, 0% 25%);
-    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.55), 0 0 4px rgba(106, 176, 230, 0.18);
+    border: 1px solid rgba(106, 176, 230, 0.45);
+    border-radius: 10px;
+    box-shadow:
+        inset 0 0 10px rgba(0, 0, 0, 0.55),
+        inset 0 -8px 12px rgba(0, 0, 0, 0.35),
+        0 0 4px rgba(106, 176, 230, 0.18);
     /* Slight saturation lift so the original card-style art doesn't muddy
      * against the dark HUD background. */
     filter: saturate(1.15) contrast(1.05);
@@ -4090,6 +4090,7 @@ each(@players, {
     justify-content: center;
     font-size: 16px;
     font-weight: bold;
+    font-variant-numeric: tabular-nums;
     background: linear-gradient(180deg, rgba(106, 176, 230, 0.20), rgba(20, 30, 45, 0.55));
     border: 1px solid rgba(106, 176, 230, 0.55);
     clip-path: polygon(10% 0%, 90% 0%, 100% 30%, 100% 70%, 90% 100%, 10% 100%, 0% 70%, 0% 30%);
@@ -4112,20 +4113,23 @@ each(@players, {
     }
 }
 
-/* Award art tile — same shape/treatment as the milestone variant. */
+/* Award art stage — same P26 pedestal treatment as the milestone variant
+ * (rounded, un-clipped — safe for the transparent 512×512 icons). */
 .award-row-icon {
     position: relative;
     flex-shrink: 0;
-    /* P23: a SQUARE stage for the transparent 512x512 icon format. */
     width: 64px;
     height: 64px;
     background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
     background-color: rgba(8, 14, 22, 0.6);
-    border: 1px solid rgba(106, 176, 230, 0.55);
-    clip-path: polygon(8% 0%, 92% 0%, 100% 25%, 100% 75%, 92% 100%, 8% 100%, 0% 75%, 0% 25%);
-    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.55), 0 0 4px rgba(106, 176, 230, 0.18);
+    border: 1px solid rgba(106, 176, 230, 0.45);
+    border-radius: 10px;
+    box-shadow:
+        inset 0 0 10px rgba(0, 0, 0, 0.55),
+        inset 0 -8px 12px rgba(0, 0, 0, 0.35),
+        0 0 4px rgba(106, 176, 230, 0.18);
     filter: saturate(1.15) contrast(1.05);
 }
 

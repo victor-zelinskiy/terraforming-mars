@@ -99,7 +99,10 @@
     </transition>
 
     <ConsoleActionWheel v-if="consoleState.wheelOpen" :entries="wheelEntries" :index="consoleState.wheelIndex" />
-    <ConsoleSheet v-if="consoleState.sheet !== undefined" :title="sheetTitle" :subtitle="sheetSubtitle" :kind="sheetMaKind" :allTaken="sheetAllTaken" :wide="sheetWide" :rows="sheetRows" :index="consoleState.sheetIndex" />
+    <!-- P26: milestones/awards render as the dedicated premium strategic
+         panel; every other bounded list keeps the generic bottom sheet. -->
+    <ConsoleMaScreen v-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" />
+    <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
 
     <!-- Console confirm panel (pass / risky conversions). -->
     <div v-if="consoleState.confirm !== undefined" class="con-confirm" role="dialog">
@@ -334,6 +337,8 @@ import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
+import {MilestoneName} from '@/common/ma/MilestoneName';
+import {AwardName} from '@/common/ma/AwardName';
 import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
 import {playerActionSourceCount} from '@/client/components/actions/actionExtraction';
 import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
@@ -345,6 +350,8 @@ import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeRes
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
+import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
+import {buildConsoleMaItems, ConsoleMaItem, ConsoleMaKind, consoleMaPressNotice, stepGrid} from '@/client/components/console/consoleMaModel';
 import ConsoleActionWheel, {WheelEntry} from '@/client/components/console/ConsoleActionWheel.vue';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
@@ -429,6 +436,7 @@ export default defineComponent({
     ConsoleStatusStrip,
     ConsoleCommandBar,
     ConsoleSheet,
+    ConsoleMaScreen,
     ConsoleActionWheel,
     ConsoleContextPanel,
     ConsoleBoardSection,
@@ -817,33 +825,38 @@ export default defineComponent({
       default: return '';
       }
     },
-    /** P22: milestones/awards go near-fullscreen with a summary line. */
-    sheetWide(): boolean {
-      return this.consoleState.sheet === 'milestones' || this.consoleState.sheet === 'awards';
+    /** P26: milestones/awards render on the dedicated premium screen. */
+    maScreenKind(): ConsoleMaKind | undefined {
+      return this.consoleState.sheet === 'milestones' || this.consoleState.sheet === 'awards' ?
+        this.consoleState.sheet : undefined;
     },
-    sheetSubtitle(): string {
-      if (this.consoleState.sheet === 'milestones') {
-        const claimed = this.game.milestones.filter((m) => m.playerName !== undefined && m.playerName !== '').length;
-        return `${translateText('Claimed')}: ${claimed}/3`;
+    /** The premium screen's items — PURE derivation (consoleMaModel). */
+    maScreenItems(): Array<ConsoleMaItem> {
+      const kind = this.maScreenKind;
+      if (kind === undefined) {
+        return [];
       }
-      if (this.consoleState.sheet === 'awards') {
-        const funded = this.game.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
-        return `${translateText('Funded')}: ${funded}/3 · ${this.awardCostText()}`;
-      }
-      return '';
-    },
-    /** P23: the header symbol + the gold all-taken state. */
-    sheetMaKind(): string {
-      return this.consoleState.sheet === 'milestones' || this.consoleState.sheet === 'awards' ? this.consoleState.sheet : '';
-    },
-    sheetAllTaken(): boolean {
-      if (this.consoleState.sheet === 'milestones') {
-        return this.game.milestones.length > 0 && this.game.milestones.every((m) => m.playerName !== undefined && m.playerName !== '');
-      }
-      if (this.consoleState.sheet === 'awards') {
-        return this.game.awards.length > 0 && this.game.awards.every((a) => a.playerName !== undefined && a.playerName !== '');
-      }
-      return false;
+      const found = kind === 'milestones' ?
+        findMilestoneOptionPath(this.playerView.waitingFor) :
+        findAwardOptionPath(this.playerView.waitingFor);
+      const describe = (name: string): string => {
+        try {
+          return kind === 'milestones' ?
+            getMilestone(name as MilestoneName).description :
+            getAward(name as AwardName).description;
+        } catch (err) {
+          return '';
+        }
+      };
+      return buildConsoleMaItems(kind, kind === 'milestones' ? this.game.milestones : this.game.awards, {
+        myColor: this.thisPlayer.color,
+        myTurn: this.myTurn,
+        myMegacredits: this.thisPlayer.megacredits,
+        availableNow: this.claimableTitles(found?.options),
+        describe,
+        maxSlots: 3,
+        nextCost: kind === 'milestones' ? 8 : this.awardCostValue,
+      });
     },
     /** The NEXT award funding price as a number (8/14/20). */
     awardCostValue(): number {
@@ -859,38 +872,6 @@ export default defineComponent({
         return this.standardProjectRows(this.standardProjectsAction?.input.cards ?? []);
       case 'cardActions':
         return this.cardActionsRows();
-      case 'milestones': {
-        // P22: RICH rows — desktop information parity (art plate / rule /
-        // MY progress vs the per-game threshold / rival badges / cost).
-        const claimable = this.claimableTitles(findMilestoneOptionPath(this.playerView.waitingFor)?.options);
-        return this.game.milestones.map((m) => {
-          const claimed = m.playerName !== undefined && m.playerName !== '';
-          let description = m.description ?? '';
-          if (description === '') {
-            try {
-              description = getMilestone(m.name).description;
-            } catch (err) {
-              description = '';
-            }
-          }
-          return {
-            key: m.name,
-            title: m.name,
-            sub: description,
-            available: claimable.has(m.name),
-            reason: claimed ? '' : (claimable.has(m.name) ? '' : 'Unavailable right now'),
-            takenBy: claimed && m.color !== undefined ? {color: m.color, name: m.playerName ?? ''} : undefined,
-            ma: {
-              kind: 'milestone' as const,
-              name: m.name,
-              scores: m.scores,
-              threshold: m.threshold,
-              cost: claimed ? undefined : 8,
-              myColor: this.thisPlayer.color,
-            },
-          };
-        });
-      }
       case 'hydroPick':
         // P24: hydro stage 7/9 card pick — name + the card's own rule text
         // (manifest description) + the live resource count where relevant.
@@ -901,34 +882,6 @@ export default defineComponent({
           meta: c.current !== undefined ? `${c.current}` : undefined,
           available: true,
         }));
-      case 'awards': {
-        const fundable = this.claimableTitles(findAwardOptionPath(this.playerView.waitingFor)?.options);
-        const cost = this.awardCostValue;
-        return this.game.awards.map((a) => {
-          const funded = a.playerName !== undefined && a.playerName !== '';
-          let description = '';
-          try {
-            description = getAward(a.name).description;
-          } catch (err) {
-            description = '';
-          }
-          return {
-            key: a.name,
-            title: a.name,
-            sub: description,
-            available: fundable.has(a.name),
-            reason: funded ? '' : (fundable.has(a.name) ? '' : 'Unavailable right now'),
-            takenBy: funded && a.color !== undefined ? {color: a.color, name: a.playerName ?? ''} : undefined,
-            ma: {
-              kind: 'award' as const,
-              name: a.name,
-              scores: a.scores,
-              cost: funded ? undefined : cost,
-              myColor: this.thisPlayer.color,
-            },
-          };
-        });
-      }
       default:
         return [];
       }
@@ -1047,6 +1000,18 @@ export default defineComponent({
           {control: 'secondary', label: 'Card actions'},
           {control: 'bumperR', label: 'Colonies', enabled: this.game.colonies.length > 0},
           {control: 'bumperL', label: 'Effects'},
+          {control: 'back', label: 'Close'},
+        ];
+      }
+      if (this.maScreenKind !== undefined) {
+        // P26: the hints mirror the REAL state — the verb is enabled only
+        // when the focused item is actionable; bumpers switch the category.
+        const focusedMa = this.maScreenItems[this.consoleState.sheetIndex];
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: this.maScreenKind === 'milestones' ? 'Claim' : 'Fund', enabled: focusedMa?.available === true},
+          {control: this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL',
+            label: this.maScreenKind === 'milestones' ? 'Awards' : 'Milestones'},
           {control: 'back', label: 'Close'},
         ];
       }
@@ -1282,12 +1247,6 @@ export default defineComponent({
         }
       }
       return set;
-    },
-    /** Award funding cost by the rules ladder (8 / 14 / 20 M€ by funded count). */
-    awardCostText(): string {
-      const funded = this.game.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
-      const cost = [8, 14, 20][funded] ?? 20;
-      return `${cost} M€`;
     },
     // ── sheet row builders ───────────────────────────────────────────────
     /** One std-project row per server card (shared: basics + the T3 sheet). */
@@ -1602,6 +1561,39 @@ export default defineComponent({
       }
     },
     handleSheetIntent(intent: GamepadIntent): void {
+      // P26: the milestones/awards premium screen — 2-column GRID nav
+      // (every card focusable), A = claim/fund, LB/RB = category switch.
+      if (this.maScreenKind !== undefined) {
+        if (intent.kind === 'nav') {
+          this.consoleState.sheetIndex = stepGrid(
+            this.consoleState.sheetIndex, intent.dir, this.maScreenItems.length, 2);
+          return;
+        }
+        if (intent.kind === 'press') {
+          switch (intent.button) {
+          case 'confirm':
+            this.activateMaItem(this.maScreenItems[this.consoleState.sheetIndex]);
+            break;
+          case 'bumperL':
+            if (this.maScreenKind !== 'milestones') {
+              this.openSheet('milestones');
+            }
+            break;
+          case 'bumperR':
+            if (this.maScreenKind !== 'awards') {
+              this.openSheet('awards');
+            }
+            break;
+          case 'back':
+            this.consoleState.sheet = undefined;
+            this.consoleState.section = 'board';
+            break;
+          default:
+            break;
+          }
+        }
+        return;
+      }
       if (intent.kind === 'nav') {
         const step = intent.dir === 'down' ? 1 : intent.dir === 'up' ? -1 : 0;
         if (step !== 0) {
@@ -1902,11 +1894,34 @@ export default defineComponent({
       this.consoleState.wheelOpen = false;
       this.consoleState.sheet = sheet;
       void this.$nextTick(() => {
-        const rows = this.sheetRows;
-        const firstAvailable = rows.findIndex((r) => r.kind !== 'header' && r.available);
-        const firstSelectable = rows.findIndex((r) => r.kind !== 'header');
+        // P26: the MA screen focuses the first ACTIONABLE card, else the top.
+        const selectables = this.maScreenKind !== undefined ?
+          this.maScreenItems.map((it) => ({header: false, available: it.available})) :
+          this.sheetRows.map((r) => ({header: r.kind === 'header', available: r.available}));
+        const firstAvailable = selectables.findIndex((s) => !s.header && s.available);
+        const firstSelectable = selectables.findIndex((s) => !s.header);
         this.consoleState.sheetIndex = firstAvailable !== -1 ? firstAvailable : Math.max(0, firstSelectable);
       });
+    },
+    /** P26: A on the premium MA screen — claim/fund the focused item.
+     *  A non-available press answers with the CONCRETE reason (owner /
+     *  turn / money / slots / threshold), never a mute no-op. */
+    activateMaItem(item: ConsoleMaItem | undefined): void {
+      if (item === undefined || this.maScreenKind === undefined) {
+        return;
+      }
+      if (this.placementActive) {
+        this.showNotice('Finish your current action first');
+        return;
+      }
+      if (!item.available) {
+        this.showNotice(consoleMaPressNotice(item));
+        return;
+      }
+      const found = this.maScreenKind === 'milestones' ?
+        findMilestoneOptionPath(this.playerView.waitingFor) :
+        findAwardOptionPath(this.playerView.waitingFor);
+      this.submitInnerOption(found, item.key);
     },
     activateSheetRow(row: ConsoleSheetRow | undefined): void {
       if (row === undefined || row.kind === 'header') {
@@ -1933,12 +1948,6 @@ export default defineComponent({
         // T7: NEVER execute on a bare click — the preview-backed confirm
         // shows the costs/gains first (desktop confirm-first parity).
         this.openCardActionConfirm(row.key as CardName);
-        break;
-      case 'milestones':
-        this.submitInnerOption(findMilestoneOptionPath(this.playerView.waitingFor), row.key);
-        break;
-      case 'awards':
-        this.submitInnerOption(findAwardOptionPath(this.playerView.waitingFor), row.key);
         break;
       case 'hydroPick':
         // A pure PLAN write (never a submit) — the hydro confirm reads it.

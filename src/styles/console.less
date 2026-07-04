@@ -1702,205 +1702,6 @@ html.console-mode {
         font-size: 18px;
         color: @con-text-dim;
     }
-    /* ── P22/P23: the premium milestone/award row ────────────────── */
-    &__row--ma {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto auto;
-        align-items: center;
-        gap: 20px;
-        padding: 12px 16px;
-    }
-    /* The ART STAGE: built for the transparent 512x512 icons — contain
-       (never a crop), a soft glass pedestal + under-glow. The legacy
-       140x83 art letterboxes gracefully until it is replaced. */
-    &__ma-stage {
-        flex-shrink: 0;
-        width: 88px;
-        height: 88px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 12px;
-        background:
-            radial-gradient(circle at 50% 62%, fade(@con-cyan, 10%), transparent 68%),
-            rgba(10, 17, 26, 0.55);
-        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22), inset 0 -10px 18px rgba(0, 0, 0, 0.35);
-    }
-    &__ma-art {
-        width: 76px;
-        height: 76px;
-        background-size: contain;
-        background-position: center;
-        background-repeat: no-repeat;
-        filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.5)) saturate(1.1);
-    }
-    &__ma-main {
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
-    }
-    &__ma-name {
-        font-size: 22px;
-        font-weight: 800;
-        letter-spacing: 1.2px;
-        text-transform: uppercase;
-        line-height: 1.15;
-        text-shadow: 0 0 18px fade(@con-cyan, 14%);
-    }
-    &__row-sub--ma { margin-top: 0; }
-    /* The focused-row-only "why not" line (never row spam). */
-    &__ma-why {
-        color: #ffc9c4;
-        font-size: 14.5px;
-    }
-    /* The progress column: the major YOU chip over the labelled rivals. */
-    &__ma-progress {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 7px;
-        flex-shrink: 0;
-    }
-    &__ma-my {
-        display: inline-flex;
-        align-items: center;
-        gap: 9px;
-        padding: 4px 14px;
-        border-radius: 10px;
-        background: rgba(14, 22, 33, 0.8);
-        box-shadow: inset 0 0 0 1.5px rgba(150, 175, 205, 0.4);
-        white-space: nowrap;
-
-        b {
-            font-size: 21px;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-        }
-
-        &--ok {
-            box-shadow: inset 0 0 0 1.5px fade(@con-mint, 85%), 0 0 14px fade(@con-mint, 20%);
-            b { color: #d7ffe9; }
-        }
-        &--short {
-            box-shadow: inset 0 0 0 1.5px fade(@con-red, 55%);
-            b { color: #ffd2cc; }
-        }
-        &--lead {
-            box-shadow: inset 0 0 0 1.5px fade(@con-amber, 85%), 0 0 14px fade(@con-amber, 22%);
-            b { color: #ffe9c4; }
-        }
-    }
-    &__ma-my-label {
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 1.4px;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__ma-sep {
-        margin: 0 4px;
-        color: @con-text-dim;
-        font-weight: 400;
-    }
-    &__ma-rivals {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
-    &__ma-rivals-label {
-        font-size: 11.5px;
-        font-weight: 700;
-        letter-spacing: 1.2px;
-        text-transform: uppercase;
-        color: @con-text-dim;
-        margin-right: 2px;
-    }
-    &__ma-rival {
-        min-width: 27px;
-        height: 27px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0 6px;
-        border-radius: 8px;
-        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.4);
-        color: #fff;
-        font-size: 15px;
-        font-weight: 800;
-        font-variant-numeric: tabular-nums;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-
-        &--leader {
-            box-shadow: inset 0 0 0 1.5px fade(@con-amber, 95%), 0 0 10px fade(@con-amber, 30%);
-        }
-    }
-    /* The CTA zone: [A verb + M€ icon] / muted cost / claimed state. */
-    &__ma-cta {
-        display: flex;
-        justify-content: flex-end;
-        min-width: 178px;
-        flex-shrink: 0;
-    }
-    &__ma-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 9px;
-        padding: 8px 16px;
-        border-radius: 10px;
-        background: fade(@con-mint, 10%);
-        box-shadow: inset 0 0 0 1px fade(@con-mint, 60%);
-        color: #d7ffe9;
-        font-size: 16px;
-        font-weight: 800;
-        letter-spacing: 0.6px;
-        text-transform: uppercase;
-        white-space: nowrap;
-
-        &--focus {
-            background: fade(@con-mint, 16%);
-            box-shadow: inset 0 0 0 1.5px fade(@con-mint, 95%), 0 0 18px fade(@con-mint, 25%);
-        }
-    }
-    &__ma-done {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        padding: 6px 14px;
-        border-radius: 999px;
-        background: fade(@con-mint, 10%);
-        box-shadow: inset 0 0 0 1px fade(@con-mint, 50%);
-        color: @con-mint;
-        font-size: 14px;
-        font-weight: 800;
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
-    &__mc {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-
-        b {
-            font-size: 17px;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-        }
-        .resource_icon {
-            display: inline-block;
-            width: 22px;
-            height: 22px;
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: contain !important;
-        }
-
-        &--muted {
-            opacity: 0.55;
-            filter: saturate(0.6);
-        }
-    }
 
     &__foot {
         position: relative;
@@ -2090,21 +1891,6 @@ html.console-mode {
         box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%), 0 -18px 60px rgba(0, 0, 0, 0.6);
         animation: con-sheet-up calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
     }
-    /* P22/P23: milestones/awards go NEAR-FULLSCREEN, lifted to the HUD
-       line — the list owns the vertical; the head/foot stay compact. The
-       category is a quick-glance STRATEGIC panel, so the backdrop dims
-       far less than a decision sheet (the board stays readable behind). */
-    &--wide .con-sheet__backdrop {
-        background: rgba(4, 8, 14, 0.32);
-    }
-    &__panel--wide {
-        width: min(1520px, 96vw);
-        max-height: calc(100vh - 116px);
-        padding: 16px 26px 12px;
-        background:
-            linear-gradient(160deg, fade(@con-cyan, 5%), transparent 40%),
-            rgba(11, 18, 27, 0.96);
-    }
     &__head {
         display: flex;
         align-items: center;
@@ -2112,35 +1898,12 @@ html.console-mode {
         gap: 16px;
         margin-bottom: 12px;
     }
-    &__head-icon {
-        width: 30px;
-        height: 30px;
-        color: fade(@con-cyan, 95%);
-        filter: drop-shadow(0 0 8px fade(@con-cyan, 35%));
-    }
-    &__complete {
-        padding: 3px 14px;
-        border-radius: 999px;
-        background: fade(#e8c268, 14%);
-        box-shadow: inset 0 0 0 1.5px fade(#e8c268, 80%), 0 0 14px fade(#e8c268, 20%);
-        color: #ffe9b8;
-        font-size: 15px;
-        font-weight: 800;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
     &__title {
         font-size: 24px;
         letter-spacing: 2.2px;
         text-transform: uppercase;
         color: fade(@con-cyan, 95%);
         text-align: center;
-    }
-    &__subtitle {
-        font-size: 16px;
-        color: @con-text-dim;
-        white-space: nowrap;
     }
     &__rows {
         overflow-y: auto;
@@ -2252,6 +2015,537 @@ html.console-mode {
 @keyframes con-rise {
     from { opacity: 0; transform: translateY(14px) scale(0.985); }
     to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── P26: Milestones / Awards — the premium strategic panel ──────────
+   A full-height DASHBOARD (not a bottom sheet): the standard 5–6 items
+   are ALWAYS on screen at once — a 2-column grid whose rows stretch to
+   fill the vertical (an odd list's last card spans both columns), so a
+   scrollbar never appears in a normal game (`overflow` is an extreme-mod
+   fallback only). The art stage is composed for the transparent 512×512
+   icon format (contain — NEVER cropped; legacy 140×83 letterboxes).
+   Availability reads from card state + the CTA — the only textual
+   explanation lives in the footer context strip for the FOCUSED card. */
+.con-ma {
+    position: fixed;
+    inset: 0;
+    z-index: 11500;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 72px 22px 16px;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        /* A quick-glance STRATEGIC panel — the board stays readable. */
+        background: rgba(4, 8, 14, 0.34);
+    }
+    &__panel {
+        position: relative;
+        width: min(1560px, 100%);
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 18px 24px 12px;
+        border-radius: 16px;
+        background:
+            linear-gradient(160deg, fade(@con-cyan, 6%), transparent 42%),
+            rgba(12, 19, 29, 0.94);
+        box-shadow:
+            inset 0 0 0 1px fade(@con-cyan, 38%),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            0 22px 70px rgba(0, 0, 0, 0.55);
+        animation: con-rise calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* ── identity band ──────────────────────────────────────────── */
+    &__head {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    &__emblem {
+        width: 52px;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background:
+            radial-gradient(circle at 50% 42%, fade(@con-cyan, 16%), transparent 70%),
+            rgba(10, 17, 26, 0.7);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 0 18px fade(@con-cyan, 12%);
+    }
+    &__emblem-icon {
+        width: 32px;
+        height: 32px;
+        color: fade(@con-cyan, 95%);
+        filter: drop-shadow(0 0 8px fade(@con-cyan, 40%));
+    }
+    &__title {
+        font-size: 27px;
+        font-weight: 700;
+        letter-spacing: 2.6px;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 95%);
+        text-shadow: 0 0 22px fade(@con-cyan, 20%);
+        white-space: nowrap;
+    }
+    &__tally {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    /* The slot tray: 3 diamond pips — filled with each TAKER's colour. */
+    &__slots {
+        display: inline-flex;
+        gap: 9px;
+        padding-right: 2px;
+    }
+    &__slot {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        transform: rotate(45deg);
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 8px rgba(0, 0, 0, 0.4);
+
+        &--empty {
+            background: rgba(15, 24, 36, 0.9);
+            box-shadow: inset 0 0 0 1.5px fade(@con-cyan, 35%);
+        }
+    }
+    &__count {
+        font-size: 16px;
+        letter-spacing: 0.4px;
+        color: @con-text-dim;
+        white-space: nowrap;
+
+        b {
+            margin-left: 4px;
+            font-size: 19px;
+            color: @con-text;
+            font-variant-numeric: tabular-nums;
+        }
+    }
+    &__price {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 5px 14px;
+        border-radius: 999px;
+        background: fade(@con-amber, 10%);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
+        color: #ffe2ad;
+        font-size: 15px;
+        white-space: nowrap;
+
+        b {
+            font-size: 18px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+        .resource_icon {
+            display: inline-block;
+            width: 21px;
+            height: 21px;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain !important;
+        }
+    }
+    &__complete {
+        padding: 4px 16px;
+        border-radius: 999px;
+        background: fade(#e8c268, 14%);
+        box-shadow: inset 0 0 0 1.5px fade(#e8c268, 80%), 0 0 14px fade(#e8c268, 20%);
+        color: #ffe9b8;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    /* ── the dashboard grid ─────────────────────────────────────── */
+    &__grid {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: minmax(0, 1fr);
+        gap: 14px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+    }
+    &__card {
+        position: relative;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 20px;
+        padding: 12px 18px 12px 22px;
+        border-radius: 14px;
+        overflow: hidden;
+        background: linear-gradient(165deg, rgba(21, 31, 45, 0.78), rgba(13, 20, 30, 0.78));
+        box-shadow:
+            inset 0 0 0 1px rgba(126, 156, 188, 0.18),
+            inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        transition:
+            box-shadow calc(140ms * var(--motion-scale, 1)) ease,
+            background calc(140ms * var(--motion-scale, 1)) ease;
+
+        /* An odd list's LAST card owns the full row — no orphan gap. */
+        &:last-child:nth-child(odd) {
+            grid-column: span 2;
+        }
+        /* Actionable NOW — a quiet mint lift (the rail + CTA carry it). */
+        &--go {
+            background: linear-gradient(165deg, rgba(22, 36, 44, 0.8), rgba(13, 22, 28, 0.8));
+            box-shadow:
+                inset 0 0 0 1px fade(@con-mint, 30%),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+        &--taken {
+            background: linear-gradient(165deg, rgba(17, 25, 36, 0.82), rgba(11, 16, 24, 0.82));
+        }
+        &--focused {
+            box-shadow:
+                inset 0 0 0 1.5px fade(@con-cyan, 85%),
+                0 0 22px fade(@con-cyan, 18%);
+            background: linear-gradient(165deg, rgba(25, 38, 55, 0.86), rgba(15, 24, 36, 0.86));
+        }
+        &--focused&--go {
+            box-shadow:
+                inset 0 0 0 1.5px fade(@con-mint, 85%),
+                0 0 22px fade(@con-mint, 20%);
+        }
+    }
+    /* State rail on the card's left edge (mint = act now / owner colour). */
+    &__rail {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 5px;
+
+        &--go {
+            background: linear-gradient(180deg, fade(@con-mint, 90%), fade(@con-mint, 45%));
+            box-shadow: 0 0 10px fade(@con-mint, 35%);
+        }
+        &--owner {
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+        }
+    }
+
+    /* ── art stage (512×512 transparent format) ─────────────────── */
+    &__stage {
+        position: relative;
+        align-self: center;
+        width: 148px;
+        height: 148px;
+        max-height: 100%;
+        flex-shrink: 0;
+        border-radius: 14px;
+        background:
+            radial-gradient(circle at 50% 58%, fade(@con-cyan, 12%), transparent 66%),
+            rgba(9, 15, 24, 0.6);
+        box-shadow:
+            inset 0 0 0 1px rgba(120, 150, 180, 0.22),
+            inset 0 -12px 22px rgba(0, 0, 0, 0.4);
+
+        /* the soft "floor" the icon rests on */
+        &::after {
+            content: '';
+            position: absolute;
+            left: 18%;
+            right: 18%;
+            bottom: 9%;
+            height: 10%;
+            border-radius: 50%;
+            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.5), transparent 70%);
+        }
+    }
+    &__art {
+        position: absolute;
+        inset: 7%;
+        z-index: 1;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55)) saturate(1.1);
+    }
+
+    /* ── body: name / rule / owner ──────────────────────────────── */
+    &__body {
+        min-width: 0;
+        align-self: center;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    &__name {
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        line-height: 1.12;
+        text-shadow: 0 0 18px fade(@con-cyan, 14%);
+    }
+    &__desc {
+        font-size: 15.5px;
+        line-height: 1.45;
+        color: @con-text-dim;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    &__owner {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 15px;
+        color: @con-text;
+    }
+    &__owner-dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 6px rgba(0, 0, 0, 0.4);
+    }
+    &__owner-verb {
+        color: @con-mint;
+        font-size: 12.5px;
+        font-weight: 800;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+    }
+
+    /* ── status column: YOU metric / rivals / CTA ───────────────── */
+    &__status {
+        align-self: center;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 10px;
+        min-width: 212px;
+        flex-shrink: 0;
+    }
+    &__metric {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 3px;
+        min-width: 150px;
+        padding: 8px 16px 10px;
+        border-radius: 12px;
+        background: rgba(9, 15, 23, 0.75);
+        box-shadow: inset 0 0 0 1.5px rgba(150, 175, 205, 0.32);
+
+        &--ready {
+            box-shadow: inset 0 0 0 1.5px fade(@con-mint, 85%), 0 0 16px fade(@con-mint, 18%);
+
+            .con-ma__metric-value { color: #d7ffe9; }
+            .con-ma__meter i { background: linear-gradient(90deg, fade(@con-mint, 75%), @con-mint); }
+        }
+        &--lead {
+            box-shadow: inset 0 0 0 1.5px fade(@con-amber, 85%), 0 0 16px fade(@con-amber, 20%);
+
+            .con-ma__metric-value { color: #ffe9c4; }
+        }
+    }
+    &__metric-label {
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 1.7px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__metric-value {
+        font-size: 30px;
+        font-weight: 800;
+        line-height: 1.05;
+        font-variant-numeric: tabular-nums;
+
+        b { font-weight: 800; }
+    }
+    &__metric-req {
+        margin-left: 2px;
+        font-size: 17px;
+        font-weight: 600;
+        color: @con-text-dim;
+    }
+    &__metric-sub {
+        font-size: 12.5px;
+        color: @con-text-dim;
+        white-space: nowrap;
+
+        &--lead {
+            color: #ffe9c4;
+            font-weight: 700;
+        }
+    }
+    &__meter {
+        width: 100%;
+        height: 4px;
+        margin-top: 4px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.09);
+        overflow: hidden;
+
+        i {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, fade(@con-cyan, 70%), @con-cyan);
+            transition: width calc(220ms * var(--motion-scale, 1)) ease;
+        }
+    }
+    &__rivals {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 6px;
+    }
+    &__rivals-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1.3px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        margin-right: 3px;
+    }
+    &__rival {
+        min-width: 26px;
+        height: 26px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 6px;
+        border-radius: 8px;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.4);
+        color: #fff;
+        font-size: 14.5px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+
+        /* award: the current race leader */
+        &--leader {
+            box-shadow: inset 0 0 0 1.5px fade(@con-amber, 95%), 0 0 10px fade(@con-amber, 30%);
+        }
+        /* milestone: a rival who has reached the threshold too */
+        &--ready {
+            box-shadow: inset 0 0 0 1.5px fade(#ffd87a, 80%), 0 1px 5px rgba(0, 0, 0, 0.4);
+        }
+    }
+    &__cta {
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+    }
+    &__btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        padding: 8px 16px;
+        border-radius: 10px;
+        background: fade(@con-mint, 10%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 60%);
+        color: #d7ffe9;
+        font-size: 15.5px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        white-space: nowrap;
+
+        &--focus {
+            background: fade(@con-mint, 17%);
+            box-shadow: inset 0 0 0 1.5px fade(@con-mint, 95%), 0 0 18px fade(@con-mint, 25%);
+        }
+    }
+    &__mc {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+
+        b {
+            font-size: 17px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+        .resource_icon {
+            display: inline-block;
+            width: 22px;
+            height: 22px;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain !important;
+        }
+
+        /* the quiet price of a not-actionable-yet item (never a dead grey) */
+        &--idle {
+            opacity: 0.6;
+            filter: saturate(0.65);
+        }
+    }
+
+    /* ── footer: focused context + honest hints ─────────────────── */
+    &__foot {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        min-height: 40px;
+        padding-top: 9px;
+        border-top: 1px solid fade(@con-cyan, 16%);
+    }
+    &__context {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+        font-size: 16px;
+        color: @con-text-dim;
+
+        b { color: @con-text; font-variant-numeric: tabular-nums; }
+
+        &--ready { color: #bdf3da; }
+        &--gap {
+            color: #ffe2ad;
+
+            b { color: #ffe9c4; }
+        }
+        &--blocked { color: @con-amber; }
+    }
+    &__hints {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 22px;
+        flex-shrink: 0;
+    }
+    &__hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: @con-text-dim;
+        font-size: 16px;
+        white-space: nowrap;
+
+        /* the A verb dims with the REAL availability of the focused card */
+        &--off {
+            opacity: 0.45;
+            filter: saturate(0.5);
+        }
+    }
 }
 
 /* ── Confirm panel ───────────────────────────────────────────────── */
@@ -5414,9 +5708,13 @@ html.console-mode {
     }
     .con-turnmenu__card,
     .con-sheet__panel,
+    .con-ma__panel,
     .con-confirm__card,
     .con-entry__card {
         animation: none;
+    }
+    .con-ma__meter i {
+        transition: none;
     }
     .con-hand__slot {
         transition: none;
@@ -5650,32 +5948,55 @@ html.con-profile-handheld {
         &__bonus { font-size: 13px; }
     }
 
-    /* ── 13/14/18/19 · sheets (basics / std / actions / MA) ──────── */
+    /* ── 13/14/18/19 · sheets (basics / std / actions) ───────────── */
     .con-sheet__panel {
         width: min(880px, 94vw);
         max-height: 80vh;
         padding: 14px 16px 10px;
         zoom: 0.92; /* a LIST surface — density, not composition */
     }
-    /* P22/P23: the rich MA sheet keeps the near-fullscreen composition. */
-    .con-sheet__panel--wide {
-        width: 96vw;
-        max-height: calc(100vh - 92px);
+    /* P26 · milestones/awards strategic panel — RECOMPOSED for 1280×800:
+       tighter chrome, a smaller (still hero) art stage, 2-line rules; the
+       grid keeps every standard item on screen with NO scrollbar. */
+    .con-ma {
+        padding: 52px 12px 10px;
+
+        &__panel { gap: 10px; padding: 12px 16px 8px; border-radius: 12px; }
+        &__head { gap: 12px; }
+        &__emblem { width: 40px; height: 40px; border-radius: 10px; }
+        &__emblem-icon { width: 24px; height: 24px; }
+        &__title { font-size: 20px; letter-spacing: 2px; }
+        &__tally { gap: 11px; }
+        &__slots { gap: 7px; }
+        &__slot { width: 11px; height: 11px; }
+        &__count { font-size: 13.5px; b { font-size: 16px; } }
+        &__price { font-size: 13px; padding: 4px 11px; b { font-size: 15px; } .resource_icon { width: 18px; height: 18px; } }
+        &__complete { font-size: 12px; padding: 3px 12px; }
+        &__grid { gap: 10px; }
+        &__card { gap: 14px; padding: 9px 12px 9px 16px; border-radius: 11px; }
+        &__rail { width: 4px; }
+        &__stage { width: 106px; height: 106px; border-radius: 11px; }
+        &__name { font-size: 17px; letter-spacing: 1.1px; }
+        &__desc { font-size: 13px; -webkit-line-clamp: 2; }
+        &__owner { font-size: 13px; gap: 7px; }
+        &__owner-dot { width: 11px; height: 11px; }
+        &__owner-verb { font-size: 11px; }
+        &__status { min-width: 172px; gap: 7px; }
+        &__metric { min-width: 122px; padding: 6px 12px 8px; }
+        &__metric-label { font-size: 10px; }
+        &__metric-value { font-size: 23px; }
+        &__metric-req { font-size: 14px; }
+        &__metric-sub { font-size: 11px; }
+        &__rival { min-width: 22px; height: 22px; font-size: 12.5px; border-radius: 7px; }
+        &__cta { min-height: 32px; }
+        &__btn { font-size: 13px; padding: 6px 11px; gap: 7px; }
+        &__mc b { font-size: 14px; }
+        &__mc .resource_icon { width: 18px; height: 18px; }
+        &__foot { min-height: 32px; padding-top: 7px; gap: 12px; }
+        &__context { font-size: 13.5px; }
+        &__hints { gap: 14px; }
+        &__hint { font-size: 13.5px; gap: 6px; }
     }
-    .con-sheet__ma-stage { width: 66px; height: 66px; }
-    .con-sheet__ma-art { width: 56px; height: 56px; }
-    .con-sheet__ma-name { font-size: 17px; }
-    .con-sheet__ma-my { padding: 3px 10px; b { font-size: 17px; } }
-    .con-sheet__ma-my-label { font-size: 10px; }
-    .con-sheet__ma-rival { min-width: 22px; height: 22px; font-size: 12.5px; }
-    .con-sheet__ma-btn { font-size: 13.5px; padding: 6px 12px; }
-    .con-sheet__ma-cta { min-width: 140px; }
-    .con-sheet__mc b { font-size: 14px; }
-    .con-sheet__mc .resource_icon { width: 18px; height: 18px; }
-    .con-sheet__subtitle { font-size: 13px; }
-    .con-sheet__complete { font-size: 12px; }
-    .con-sheet__head-icon { width: 22px; height: 22px; }
-    .con-sheet__row--ma { gap: 12px; padding: 8px 10px; }
 
     /* ── 16 · colonies rail ──────────────────────────────────────── */
     .con-colonies {
@@ -5761,4 +6082,12 @@ html.con-profile-large {
     .con-inspector { max-width: 520px; }
     .con-task__title { font-size: 30px; }
     .con-task__opt-title { font-size: 24px; }
+    /* P26 · MA strategic panel — a gentle 4K readability boost only. */
+    .con-ma {
+        &__panel { width: min(1780px, 100%); }
+        &__name { font-size: 24px; }
+        &__desc { font-size: 17px; }
+        &__metric-value { font-size: 34px; }
+        &__stage { width: 170px; height: 170px; }
+    }
 }
