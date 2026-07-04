@@ -39,12 +39,27 @@ chmod +x "$APP"
 echo "==> [2/4] Writing the launcher wrapper…"
 cat > "$WRAPPER" <<'EOF'
 #!/usr/bin/env bash
+# Restart-loop launcher. This wrapper (NOT the AppImage) is the process Steam/gamescope
+# tracks, so it stays in the session and can relaunch the updated AppImage IN-SESSION after
+# an update — the app writes $TM_RESTART_MARKER and exits, and the loop below relaunches it.
+# (A relaunch spawned by the app itself escapes the gamescope session → Steam would hang.)
 APP="$HOME/Applications/TerraformingMars.AppImage"
 LOG="$HOME/Applications/terraforming-mars-steam.log"
+export TM_RESTART_SUPPORTED=1
+export TM_RESTART_MARKER="$HOME/.cache/terraforming-mars-restart"
+mkdir -p "$(dirname "$TM_RESTART_MARKER")"
 cd "$HOME/Applications" || exit 1
-chmod +x "$APP"
 echo "=== launch: $(date) ===" >> "$LOG"
-exec "$APP" --no-sandbox --disable-gpu-sandbox "$@" >> "$LOG" 2>&1
+while true; do
+  rm -f "$TM_RESTART_MARKER"
+  chmod +x "$APP" 2>/dev/null || true
+  "$APP" --no-sandbox --disable-gpu-sandbox "$@" >> "$LOG" 2>&1
+  if [ -f "$TM_RESTART_MARKER" ]; then
+    echo "=== restart after update: $(date) ===" >> "$LOG"
+    continue
+  fi
+  break
+done
 EOF
 chmod +x "$WRAPPER"
 

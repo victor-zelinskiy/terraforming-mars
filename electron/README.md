@@ -284,13 +284,21 @@ release, then a final `publish` job flips it to a published release carrying:
 
 - The main process checks the compatibility gate (`GET <server>/api/desktop/version?platform=…`,
   platform-aware) on launch; a *required* update drives the premium `DesktopUpdateOverlay`.
-- **Windows** and **Linux-as-AppImage** self-update via electron-updater: it reads
-  `latest.yml` / `latest-linux.yml` from the release, downloads (the overlay shows the live
-  **progress bar**), and installs on *Restart and install* (`quitAndInstall`).
-- **Linux NOT run as an AppImage** (unpacked/dev) can't self-install — electron-updater's
-  AppImage flow needs `$APPIMAGE`. Instead of failing silently the overlay shows the premium
-  **manual-download** fallback linking to the Releases page. Real Steam Deck users run the
-  AppImage, so they get the full auto-update path.
+- **Windows (NSIS)** self-updates via electron-updater: reads `latest.yml`, downloads (the
+  overlay shows the live **progress bar**), and installs + auto-relaunches on *Restart and install*.
+- **Linux AppImage** downloads the same way (progress bar), but we NEVER use electron-updater's
+  own relaunch — it spawns a **detached** process (no `--no-sandbox`, outside the gamescope
+  session) which makes Steam Deck's Game Mode hang ("infinite loading"). Instead the install
+  replaces the AppImage in place (`quitAndInstall(true, false)` → `APPIMAGE_EXIT_AFTER_INSTALL`)
+  and the RESTART is owned by the launcher:
+  - launched by the **restart-loop wrapper** (the `scripts/steamdeck` installer sets
+    `TM_RESTART_SUPPORTED=1` + `TM_RESTART_MARKER`) → the app writes the marker and exits, and
+    the wrapper — the process Steam/gamescope tracks — **relaunches the updated AppImage in the
+    same session**. A real *Restart and install*, no hang.
+  - old wrapper / direct launch → falls back to *Install and close*: the app installs + quits
+    cleanly (Steam returns to the library) and the player reopens it. `restartSupported` drives
+    which button + hint the overlay shows.
+  - not an AppImage at all (dev/unpacked) → premium **manual-download** fallback (needs `$APPIMAGE`).
 - The main process logs `[updater] provider=github platform=… appImage=… current=… channel=… — <status>`.
 
 ## Not in this phase (later)

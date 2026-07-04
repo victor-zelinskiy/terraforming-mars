@@ -15,6 +15,7 @@
 // DUPLICATED (structurally) in the renderer's desktopUpdateState.ts — keep in sync.
 
 import {app, BrowserWindow, ipcMain, shell} from 'electron';
+import * as fs from 'fs';
 import {autoUpdater} from 'electron-updater';
 import {CompatSnapshot, resolveUpdateDecision} from './updatePolicy';
 import {getLastKnownGood, setLastKnownGood} from './session';
@@ -37,6 +38,10 @@ export interface DesktopUpdateState {
   /** Runtime platform (main-process `process.platform`) so the overlay can show
    *  platform-specific guidance (e.g. the Linux/Steam Deck "reopen from Steam" step). */
   platform?: string;
+  /** True when the app can INSTALL AND RESTART itself: Windows (NSIS), or Linux launched by
+   *  a restart-loop wrapper (Steam Deck). When false the overlay offers "install and close"
+   *  (the player reopens the app). Drives the button label + hint. */
+  restartSupported?: boolean;
   latestVersion?: string;
   minSupportedVersion?: string;
   releaseNotes?: Array<string>;
@@ -45,7 +50,12 @@ export interface DesktopUpdateState {
   downloadUrl?: string;
 }
 
-let state: DesktopUpdateState = {mode: 'idle', currentVersion: app.getVersion(), platform: process.platform};
+let state: DesktopUpdateState = {
+  mode: 'idle',
+  currentVersion: app.getVersion(),
+  platform: process.platform,
+  restartSupported: canRestartAfterUpdate(),
+};
 let win: BrowserWindow | undefined;
 let serverBaseUrl = '';
 
@@ -89,6 +99,25 @@ function runningAsAppImage(): boolean {
 
 function canAutoUpdate(): boolean {
   return process.platform === 'win32' || runningAsAppImage();
+}
+
+/** On Linux, a restart-loop launcher (the Steam Deck wrapper) exports TM_RESTART_SUPPORTED=1
+ *  and TM_RESTART_MARKER=<path>. When the app wants to restart after an update it writes the
+ *  marker and exits; the wrapper — which Steam/gamescope actually tracks — relaunches the
+ *  updated AppImage IN THE SAME session (an in-process/detached relaunch can't rejoin it).
+ *  Returns the marker path when that launcher is present, else undefined. */
+function linuxRestartMarker(): string | undefined {
+  if (process.platform !== 'linux' || process.env.TM_RESTART_SUPPORTED !== '1') {
+    return undefined;
+  }
+  const marker = (process.env.TM_RESTART_MARKER ?? '').trim();
+  return marker !== '' ? marker : undefined;
+}
+
+/** Whether the app can install AND restart itself: Windows (NSIS) or Linux via the
+ *  restart-loop wrapper. Otherwise the overlay offers install-and-close. */
+function canRestartAfterUpdate(): boolean {
+  return process.platform === 'win32' || linuxRestartMarker() !== undefined;
 }
 
 /** One-line status log — provider is GitHub Releases (baked into app-update.yml), plus the
@@ -235,16 +264,36 @@ export function registerUpdateIpc(): void {
       });
       return;
     }
-    // Linux/AppImage (esp. Steam Deck Game Mode): electron-updater's auto-relaunch spawns
-    // the new AppImage DETACHED with EMPTY args — no `--no-sandbox` (SteamOS needs it) and
-    // OUTSIDE gamescope's session, so Steam keeps waiting on a process it can't show
-    // ("infinite loading"). Instead install WITHOUT relaunch — quitAndInstall(true, false)
-    // takes electron-updater's APPIMAGE_EXIT_AFTER_INSTALL path (integrate + exit, no
-    // lingering child) — then quit cleanly. Steam's game session ends → the library
-    // reappears, and the player reopens the game through their launcher (a fresh gamescope
-    // session that DOES pass --no-sandbox). electron-updater preserves the custom AppImage
-    // filename (no version in it), so the wrapper / Steam shortcut still point at it.
-    logUpdate('installing (Linux AppImage) — install WITHOUT relaunch; reopen from Steam');
+    // Linux/AppImage. We NEVER use electron-updater's own auto-relaunch: it spawns the new
+    // AppImage DETACHED with empty args (no --no-sandbox) OUTSIDE gamescope's session, so
+    // Steam waits forever on a process it can't show ("infinite loading"). quitAndInstall
+    // (true, false) takes the APPIMAGE_EXIT_AFTER_INSTALL path (integrate + exit, no lingering
+    // child), replacing the AppImage in place (its custom filename is preserved). Two paths:
+    const marker = linuxRestartMarker();
+    if (marker !== undefined) {
+      // Steam Deck via the restart-loop wrapper: drop the marker, install, exit — the WRAPPER
+      // (the process Steam/gamescope tracks) relaunches the updated AppImage in the SAME
+      // session. A real install-and-restart with no hang.
+      logUpdate('installing (Linux AppImage) — install + restart via the wrapper loop');
+      setTimeout(() => {
+        try {
+          fs.writeFileSync(marker, String(Date.now()));
+        } catch (err) {
+          logUpdate('could not write restart marker — ' + String(err));
+        }
+        try {
+          autoUpdater.quitAndInstall(true, false);
+        } catch (err) {
+          updateOrManual(err);
+          return;
+        }
+        setTimeout(() => app.exit(0), 3000);
+      }, 500);
+      return;
+    }
+    // No restart-loop wrapper (old wrapper / direct launch): install + quit cleanly and let
+    // the player reopen the app (no relaunch child → Steam returns to the library, no hang).
+    logUpdate('installing (Linux AppImage) — install WITHOUT relaunch; reopen manually');
     setTimeout(() => {
       try {
         autoUpdater.quitAndInstall(true, false);

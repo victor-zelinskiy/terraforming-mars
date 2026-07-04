@@ -27,6 +27,9 @@ export interface DesktopUpdateState {
   /** Runtime platform (from the main process) — drives platform-specific overlay guidance
    *  such as the Linux/Steam Deck "reopen from Steam" instruction. Mirrors electron/update.ts. */
   platform?: string;
+  /** True when the app installs AND restarts itself (Windows, or Linux via the restart-loop
+   *  wrapper) → "Restart and install"; false → "Install and close". Mirrors electron/update.ts. */
+  restartSupported?: boolean;
   latestVersion?: string;
   minSupportedVersion?: string;
   releaseNotes?: Array<string>;

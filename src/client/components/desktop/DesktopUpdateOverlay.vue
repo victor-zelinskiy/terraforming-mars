@@ -34,17 +34,19 @@
       <!-- downloaded -->
       <div v-else-if="state.mode === 'downloaded'" class="desktop-update__cta-block">
         <div class="desktop-update__status desktop-update__status--ok" v-i18n>Update downloaded.</div>
-        <!-- Linux/Steam Deck: the update installs on quit; auto-relaunch can't rejoin the
-             gamescope session, so the game closes and the player reopens it from Steam. -->
-        <p v-if="isLinux" class="desktop-update__lead" v-i18n>The game will close to finish updating. Open it again from Steam.</p>
-        <button v-if="isLinux" class="desktop-update__btn desktop-update__btn--primary" @click="install" v-i18n>Install and close</button>
-        <button v-else class="desktop-update__btn desktop-update__btn--primary" @click="install" v-i18n>Restart and install</button>
+        <!-- canRestart = Windows (NSIS) or Linux via the restart-loop wrapper → the app
+             restarts itself. Otherwise (old wrapper / direct launch) it closes and the player
+             reopens it (a detached relaunch can't rejoin the gamescope session). -->
+        <p v-if="!canRestart" class="desktop-update__lead" v-i18n>The game will close to finish updating. Open it again from Steam.</p>
+        <button v-if="canRestart" class="desktop-update__btn desktop-update__btn--primary" @click="install" v-i18n>Restart and install</button>
+        <button v-else class="desktop-update__btn desktop-update__btn--primary" @click="install" v-i18n>Install and close</button>
       </div>
 
       <!-- installing -->
       <div v-else-if="state.mode === 'installing'" class="desktop-update__cta-block">
         <div class="desktop-update__status" v-i18n>Installing…</div>
-        <p v-if="isLinux" class="desktop-update__lead" v-i18n>Update installed — the game will close. Open it again from Steam.</p>
+        <p v-if="canRestart" class="desktop-update__lead" v-i18n>The game will restart automatically.</p>
+        <p v-else class="desktop-update__lead" v-i18n>Update installed — the game will close. Open it again from Steam.</p>
       </div>
 
       <!-- offline: cannot reach the update server (client is known-outdated) -->
@@ -108,8 +110,8 @@ export default defineComponent({
     isDesktop(): boolean {
       return isDesktop();
     },
-    isLinux(): boolean {
-      return this.state.platform === 'linux';
+    canRestart(): boolean {
+      return this.state.restartSupported === true;
     },
     visible(): boolean {
       if (!this.isDesktop) {
