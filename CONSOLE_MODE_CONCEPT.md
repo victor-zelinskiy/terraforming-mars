@@ -1329,6 +1329,43 @@ the desktop-gamepad mode are untouched throughout.
   `?consoleProfile=standard` at 1920×1080 confirms zero drift. Gates:
   85 console specs (+5 profile), eslint, vue-tsc, make:css,
   build:client — green.
+- **P13 — SHIPPED (the card-selection / start-flow REWORK).**
+  **The global «X = fullscreen card» rule** — `consoleCardZoom.ts`
+  (module state) + ONE reused desktop `CardZoomModal` mounted in the
+  shell (native dialog: the generic `dialog[open]` pad scope drives it —
+  d-pad to its arrows, A, B = close; closing restores the EXACT previous
+  context because all selection state is module/component state). Wired
+  in EVERY console card context: the card browser, the start wizard AND
+  ceremony (corps/preludes/candidates), the hand (incl. sale mode),
+  reveals (drawn/result/viewer), the play confirm. Every card-context
+  hint row shows «X Карта».
+  **The duplicate big-preview zones are GONE** (`.con-cards__big`, the
+  hand inspector) — replaced by IN-PLACE emphasis: the focused slot
+  scales ×1.12 and comes forward while neighbours calm down
+  (`--has-focus` dim), and a compact VERDICT BAR under the strip carries
+  the context that matters (card name, select state, unplayable reasons
+  ×2, «X Карта», and a pulsing «Y Продолжить» when the step is
+  complete) — never a duplicate card.
+  **GRID mode** (>6 candidates): the strip wraps into centred comparison
+  rows — the 10-card starting-projects purchase and the research buy
+  stop being kilometre scrolls; ↑/↓ row-jumps are MEASURED from the DOM
+  (offsetTop groups — robust to flex-wrap at any profile).
+  **Clip-safe strips**: the paddings now CONTAIN the negative-offset
+  badges and the focused lift/scale; scroll-padding + inline insets stop
+  edge cards from hugging the mask. **The z LADDER**: badges (cost/
+  reason) z4 < focus chips z5 < the SELECTED tick z6 — the selected
+  marker always wins the corner.
+  **The card grammar** (card contexts only; lanes/choices keep T1):
+  A = select/unselect (single-pick: A on the picked = continue),
+  X = fullscreen, Y = continue/buy/sell/take-all/begin, B = back.
+  Applied to: host cardSelect (Y = the server verb), the start wizard
+  (Y = Continue / Begin the game), sale (Y = Продать N), reveals
+  (Y = take all / OK), the play confirm (A = play, X = card, Y = MAX
+  stays lane-scoped). P12 handheld overrides retuned for the new
+  structure. Known limitations: the summary minis and Info-Mode extras
+  keep their existing semantics (X is the extras hotkey there); the old
+  hand-inspector styles are inert CSS. Gates: 85 specs, eslint, vue-tsc,
+  make:css, build:client — green.
 
 ---
 

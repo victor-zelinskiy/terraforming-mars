@@ -518,7 +518,7 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
     &__slot {
         position: relative;
         flex-shrink: 0;
-        zoom: 0.62;
+        zoom: 0.8; /* P13: the carousel IS the hero (no inspector) */
         transition: transform calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1), filter calc(170ms * var(--motion-scale, 1)) ease;
         > .card-container { margin: 0; }
 
@@ -2232,19 +2232,12 @@ html.console-mode {
    cards identically (one visual language, zero divergence). */
 .con-cards {
     display: flex;
-    gap: 22px;
+    flex-direction: column; /* P13: strip over the verdict bar */
+    gap: 10px;
     min-height: 0;
-    align-items: stretch;
 
-    &__big {
-        flex-shrink: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
-        zoom: 1.16;
-        > .card-container { margin: 0; }
-    }
+    /* P13: the duplicate big-preview zone is GONE - the focused card is
+       emphasized IN PLACE and X opens the fullscreen viewer. */
     &__verdict {
         display: inline-flex;
         align-items: center;
@@ -2277,27 +2270,53 @@ html.console-mode {
         min-width: 0;
         display: flex;
         align-items: flex-start;
+        justify-content: safe center; /* few cards read as a centred set */
         gap: 18px;
         overflow-x: auto;
-        padding: 14px 6px 18px;
+        /* CLIP-SAFE (P13): the paddings CONTAIN the negative-offset badges
+           (cost/tick at -10px) and the focused lift/scale - nothing is
+           ever cropped by the scroll container again. */
+        padding: 26px 22px 26px;
+        scroll-padding: 0 22px;
         .con-scrollbars();
+
+        /* GRID mode (>6 candidates): wrap into comparison rows - no
+           kilometre horizontal scrolling on the buy/draft steps. */
+        &--grid {
+            flex-wrap: wrap;
+            justify-content: center;
+            overflow-x: hidden;
+            overflow-y: auto;
+            row-gap: 26px;
+        }
+        /* In-place EMPHASIS: neighbours calm down, the focused card leads. */
+        &--has-focus > .con-cards__slot:not(.con-cards__slot--focused) {
+            opacity: 0.8;
+            filter: saturate(0.88);
+        }
+        &--has-focus > .con-cards__slot--disabled { opacity: 0.5; }
     }
     &__slot {
         position: relative;
         flex-shrink: 0;
         border-radius: 12px;
-        transition: transform calc(160ms * var(--motion-scale, 1)) ease, box-shadow calc(160ms * var(--motion-scale, 1)) ease;
+        transition: transform calc(160ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(160ms * var(--motion-scale, 1)) ease,
+            opacity calc(160ms * var(--motion-scale, 1)) ease;
         > .card-container { margin: 0; }
 
+        /* P13 in-place emphasis: the focused card grows and comes forward
+           (the paddings above give it clip-safe headroom). */
         &--focused {
-            transform: translateY(-6px);
-            box-shadow: 0 0 0 2px fade(@con-cyan, 85%), 0 0 26px fade(@con-cyan, 25%);
+            transform: translateY(-8px) scale(1.12);
+            box-shadow: 0 0 0 2px fade(@con-cyan, 85%), 0 0 30px fade(@con-cyan, 28%);
+            z-index: 3;
         }
         &--picked {
             box-shadow: 0 0 0 2px fade(@con-mint, 85%), 0 0 22px fade(@con-mint, 22%);
         }
         &--focused&--picked {
-            box-shadow: 0 0 0 2px fade(@con-mint, 90%), 0 0 0 4px fade(@con-cyan, 55%), 0 0 26px fade(@con-mint, 25%);
+            box-shadow: 0 0 0 2px fade(@con-mint, 90%), 0 0 0 4px fade(@con-cyan, 55%), 0 0 30px fade(@con-mint, 28%);
         }
         &--disabled {
             opacity: 0.55;
@@ -2308,7 +2327,7 @@ html.console-mode {
         position: absolute;
         top: -10px;
         left: -8px;
-        z-index: 2;
+        z-index: 4; /* P13 ladder: badges 4 < focus chips 5 < selected 6 */
         display: inline-flex;
         align-items: center;
         gap: 4px;
@@ -2333,7 +2352,7 @@ html.console-mode {
         position: absolute;
         top: -10px;
         right: -8px;
-        z-index: 2;
+        z-index: 6; /* the SELECTED marker always wins the corner */
         width: 30px;
         height: 30px;
         display: flex;
@@ -2351,7 +2370,7 @@ html.console-mode {
         left: 6px;
         right: 6px;
         bottom: 6px;
-        z-index: 2;
+        z-index: 4;
         padding: 4px 8px;
         border-radius: 8px;
         background: rgba(4, 8, 14, 0.88);
@@ -2361,6 +2380,54 @@ html.console-mode {
         line-height: 1.3;
         text-align: center;
     }
+
+    /* P13: the focused card's VERDICT BAR - compact context under the
+       strip (name + select state + X-card + ready-to-continue), never a
+       duplicate card. */
+    &__verdictbar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 2px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: rgba(10, 17, 26, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        min-height: 40px;
+    }
+    &__verdict-name {
+        font-size: 18px;
+        font-weight: 700;
+        max-width: 340px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__verdict--zoom {
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.35);
+        color: @con-text-dim;
+    }
+    &__verdict--go {
+        background: fade(@con-mint, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 75%), 0 0 16px fade(@con-mint, 16%);
+        color: @con-mint;
+        animation: con-verdict-go calc(2200ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+    &__verdict--off {
+        opacity: 0.45;
+        animation: none;
+    }
+}
+
+@keyframes con-verdict-go {
+    0%, 100% { box-shadow: inset 0 0 0 1px fade(@con-mint, 75%), 0 0 10px fade(@con-mint, 10%); }
+    50% { box-shadow: inset 0 0 0 1px fade(@con-mint, 95%), 0 0 22px fade(@con-mint, 26%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-cards__verdict--go { animation: none; }
 }
 
 /* ── START SCENE (CTS T5): the game-opening ceremony ──────────────────
@@ -3720,18 +3787,18 @@ html.con-profile-handheld {
 
     /* ── 8 · hand section ────────────────────────────────────────── */
     .con-hand {
-        &__bigcard { zoom: 0.95; }
-        &__verdict { font-size: 14px; }
-        &__reason { font-size: 13px; }
-        &__slot { zoom: 0.55; }
+        &__slot { zoom: 0.62; }
+        &__reason--bar { font-size: 12px; }
         &__strip-hint, &__counter { font-size: 13px; }
     }
 
     /* ── 8/12 · the shared card browser (task host + start scene) ── */
     .con-cards {
-        gap: 14px;
+        gap: 8px;
 
-        &__big { zoom: 0.92; }
+        &__strip { padding: 20px 16px; gap: 14px; }
+        &__verdictbar { min-height: 34px; padding: 6px 10px; gap: 8px; }
+        &__verdict-name { font-size: 15px; max-width: 240px; }
         &__verdict { font-size: 13px; padding: 4px 11px; }
         &__strip { gap: 12px; padding: 10px 4px 12px; }
         &__cost { font-size: 14px; .resource_icon { width: 16px; height: 16px; } }

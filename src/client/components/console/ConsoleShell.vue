@@ -206,6 +206,16 @@
                              :stranded="leakDetectorState.stranded" />
     </transition>
 
+    <!-- P13: the global "X = fullscreen card" viewer - ONE reused
+         CardZoomModal for every console card context (module state). -->
+    <CardZoomModal v-if="consoleCardZoom.card !== undefined"
+                   ref="cardZoom"
+                   :card="consoleCardZoom.card"
+                   :cards="consoleCardZoom.cards.length > 1 ? consoleCardZoom.cards : undefined"
+                   :index="consoleCardZoom.index"
+                   @navigate="onCardZoomNavigate"
+                   @close="onCardZoomClosed" />
+
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -306,6 +316,8 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
+import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
@@ -381,6 +393,7 @@ export default defineComponent({
     ConsoleRevealOverlay,
     ConsolePlayCardConfirm,
     ConsoleColonyTradeConfirm,
+    CardZoomModal,
     ActionEffectChip,
     HydroNetworkOverlay,
     GamepadGlyph,
@@ -393,6 +406,7 @@ export default defineComponent({
   data() {
     return {
       consoleState,
+      consoleCardZoom,
       infoModeState,
       leakDetectorState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
@@ -942,7 +956,8 @@ export default defineComponent({
         return [
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
-          {control: 'secondary', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0},
+          {control: 'secondary', label: 'Card'},
+          {control: 'inspect', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0},
           {control: 'back', label: 'Cancel'},
         ];
       }
@@ -951,6 +966,7 @@ export default defineComponent({
         return [
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Play now', enabled: playable},
+          {control: 'secondary', label: 'Card'},
           {control: 'triggerR', label: 'Next playable'},
           {control: 'triggerL', label: 'Information'},
           {control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'},
@@ -1000,6 +1016,13 @@ export default defineComponent({
     },
   },
   watch: {
+    // P13: the fullscreen viewer is a native <dialog> - open it on the
+    // undefined->defined transition only (navigation keeps it open).
+    'consoleCardZoom.card'(card: CardModel | undefined, prev: CardModel | undefined) {
+      if (card !== undefined && prev === undefined) {
+        void this.$nextTick(() => (this.$refs.cardZoom as {show?: () => void} | undefined)?.show?.());
+      }
+    },
     // Server-driven placement pulls the player to the board (§10: a
     // board-target step changes the active section, the frame persists).
     placementActive(now: boolean) {
@@ -1434,7 +1457,12 @@ export default defineComponent({
         }
         return true;
       case 'inspect':
-        // Y = Basic actions (standard projects / sell / conversions / pass).
+        // In SALE mode Y confirms the sale (the card-context confirm);
+        // elsewhere Y = Basic actions (std projects / sell / conversions).
+        if (this.consoleState.sale.active) {
+          this.confirmSale();
+          return true;
+        }
         if (this.myTurn) {
           this.openSheet('basics');
         } else {
@@ -1460,8 +1488,9 @@ export default defineComponent({
         this.handleSectionConfirm();
         return true;
       case 'secondary':
-        if (this.consoleState.sale.active) {
-          this.confirmSale();
+        // P13 global rule: X reads the focused card fullscreen.
+        if (this.consoleState.section === 'hand') {
+          this.zoomHandCard();
         }
         return true;
       case 'back':
@@ -2060,6 +2089,20 @@ export default defineComponent({
     /** The notification's «Отменить размещение» CTA (server-cancellable). */
     onNotificationCancel(): void {
       this.cancelPlacement();
+    },
+    // ── P13: the fullscreen card viewer (module-state driven) ───────────
+    onCardZoomNavigate(card: CardModel, pos: number): void {
+      navigateConsoleCardZoom(card, pos);
+    },
+    onCardZoomClosed(): void {
+      closeConsoleCardZoom();
+    },
+    /** X in the hand section: read the focused card fullscreen. */
+    zoomHandCard(): void {
+      if (this.handEntries.length === 0) {
+        return;
+      }
+      openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex);
     },
     // ── transport ────────────────────────────────────────────────────────
     submit(response: unknown): void {

@@ -47,14 +47,12 @@
         <!-- ── WIZARD: one card step ───────────────────────────────── -->
         <div v-if="mode === 'wizard' && currentStep !== undefined" class="con-start__body con-info__scroll" ref="body">
           <div class="con-cards">
-            <div class="con-cards__big" v-if="focusedCard !== undefined">
-              <Card :card="focusedCard" :key="focusedCard.name" />
-              <div class="con-cards__verdict" :class="isPickedHere(focusedCard.name) ? 'con-cards__verdict--picked' : 'con-cards__verdict--ok'">
-                <GamepadGlyph control="confirm" />
-                <span>{{ $t(isPickedHere(focusedCard.name) ? (singlePickStep ? 'Continue' : 'Deselect') : 'Select') }}</span>
-              </div>
-            </div>
-            <div class="con-cards__strip" ref="cardStrip">
+            <!-- P13: ONE clean composition — the focused card is emphasized
+                 IN PLACE, X reads it fullscreen; the 10-card projects step
+                 wraps into a GRID (comparison, no kilometre scrolling). -->
+            <div class="con-cards__strip"
+                 :class="{'con-cards__strip--grid': wizardGrid, 'con-cards__strip--has-focus': stepEntries.length > 0}"
+                 ref="cardStrip">
               <div v-for="(card, i) in stepEntries" :key="card.name + '#' + i"
                    class="con-cards__slot con-start__deal"
                    :style="dealDelay(i)"
@@ -69,6 +67,19 @@
                 </span>
                 <span v-if="isPickedHere(card.name)" class="con-cards__tick" aria-hidden="true">✓</span>
               </div>
+            </div>
+            <div v-if="focusedCard !== undefined" class="con-cards__verdictbar">
+              <span class="con-cards__verdict-name">{{ $t(focusedCard.name) }}</span>
+              <span class="con-cards__verdict" :class="isPickedHere(focusedCard.name) ? 'con-cards__verdict--picked' : 'con-cards__verdict--ok'">
+                <GamepadGlyph control="confirm" />
+                <span>{{ $t(isPickedHere(focusedCard.name) ? (singlePickStep ? 'Continue' : 'Deselect') : 'Select') }}</span>
+              </span>
+              <span class="con-cards__verdict con-cards__verdict--zoom">
+                <GamepadGlyph control="secondary" /><span>{{ $t('Card') }}</span>
+              </span>
+              <span v-if="currentStepComplete" class="con-cards__verdict con-cards__verdict--go">
+                <GamepadGlyph control="inspect" /><span>{{ $t('Continue') }}</span>
+              </span>
             </div>
           </div>
         </div>
@@ -246,6 +257,7 @@ import {
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {cardsResponse} from '@/client/console/taskResponses';
+import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
@@ -332,6 +344,10 @@ export default defineComponent({
     picksHere(): ReadonlyArray<CardName> {
       const step = this.currentStep;
       return step !== undefined ? picksForStep(this.picks, step.id) : [];
+    },
+    /** P13: the 10-card projects step wraps into a comparison GRID. */
+    wizardGrid(): boolean {
+      return this.stepEntries.length > 6;
     },
     singlePickStep(): boolean {
       const step = this.currentStep;
@@ -455,15 +471,17 @@ export default defineComponent({
         const onSummary = this.currentStep === undefined;
         if (onSummary) {
           return [
-            {control: 'secondary', label: 'Begin the game', enabled: this.wizardReady},
+            {control: 'inspect', label: 'Begin the game', enabled: this.wizardReady},
             {control: 'bumperL', label: 'Back'},
             {control: 'back', label: 'Back'},
           ];
         }
+        // P13 card grammar: A = select, X = fullscreen card, Y = continue.
         return [
-          {control: 'dpadH', label: 'Navigate'},
+          {control: this.wizardGrid ? 'dpad' : 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: this.singlePickStep ? 'Select' : 'Select / Deselect'},
-          {control: 'secondary', label: 'Continue', enabled: this.currentStepComplete},
+          {control: 'secondary', label: 'Card'},
+          {control: 'inspect', label: 'Continue', enabled: this.currentStepComplete},
           {control: 'bumperL', label: 'Back', enabled: this.railPos > 0},
           {control: 'back', label: this.railPos > 0 ? 'Back' : 'Minimize'},
         ];
@@ -471,6 +489,7 @@ export default defineComponent({
       return [
         {control: 'dpad', label: 'Navigate'},
         {control: 'confirm', label: this.candidatePrompt !== undefined ? this.candidateVerb : 'Select', enabled: this.focusables.length > 0},
+        {control: 'secondary', label: 'Card', enabled: this.focusables.length > 0},
         {control: 'back', label: 'Minimize'},
       ];
     },
@@ -530,6 +549,11 @@ export default defineComponent({
       this.onPress(intent.button);
     },
     onNav(dir: NavDirection): void {
+      // P13: the wizard GRID jumps rows on up/down (measured, wrap-robust).
+      if (this.mode === 'wizard' && this.wizardGrid && (dir === 'up' || dir === 'down')) {
+        this.moveFocusRow(dir === 'down' ? 1 : -1);
+        return;
+      }
       const step = dir === 'right' || dir === 'down' ? 1 : -1;
       const count = this.mode === 'wizard' ? this.stepEntries.length : this.focusables.length;
       if (count === 0) {
@@ -538,6 +562,59 @@ export default defineComponent({
       const next = Math.min(count - 1, Math.max(0, this.focusIdx + step));
       if (next !== this.focusIdx) {
         this.focusIdx = next;
+        this.armedSkip = false;
+        void this.$nextTick(() => this.scrollFocusedIntoView());
+      }
+    },
+    /** P13: X fullscreen for the focused card (wizard AND ceremony). */
+    zoomFocused(): void {
+      if (this.mode === 'wizard') {
+        if (this.currentStep !== undefined && this.stepEntries.length > 0) {
+          openConsoleCardZoom(this.stepEntries, this.focusIdx);
+        }
+        return;
+      }
+      const items = this.focusables;
+      const item = this.focusedItem;
+      if (item === undefined || items.length === 0) {
+        return;
+      }
+      if (item.kind === 'candidate') {
+        openConsoleCardZoom(this.candidateCards, this.candidateCards.findIndex((c) => c.name === item.name));
+        return;
+      }
+      // Corps / preludes: browse the whole actionable set by name.
+      const cards = items.map((f) => ({name: f.name}) as CardModel);
+      openConsoleCardZoom(cards, this.focusIdx);
+    },
+    /** Grid row jump - measured from the DOM, robust to flex-wrap. */
+    moveFocusRow(step: 1 | -1): void {
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      if (strip === undefined) {
+        return;
+      }
+      const slots = Array.from(strip.children) as Array<HTMLElement>;
+      const cur = slots[this.focusIdx];
+      if (cur === undefined) {
+        return;
+      }
+      const curTop = cur.offsetTop;
+      const curCx = cur.offsetLeft + cur.offsetWidth / 2;
+      let best = -1;
+      let bestScore = Infinity;
+      slots.forEach((el, i) => {
+        const dTop = el.offsetTop - curTop;
+        if ((step === 1 && dTop <= 4) || (step === -1 && dTop >= -4)) {
+          return;
+        }
+        const score = Math.abs(dTop) * 10000 + Math.abs(el.offsetLeft + el.offsetWidth / 2 - curCx);
+        if (score < bestScore) {
+          bestScore = score;
+          best = i;
+        }
+      });
+      if (best !== -1 && best !== this.focusIdx) {
+        this.focusIdx = best;
         this.armedSkip = false;
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
@@ -559,6 +636,11 @@ export default defineComponent({
         this.onPrimary();
         return;
       case 'secondary':
+        // P13 global rule: X reads the focused card fullscreen.
+        this.zoomFocused();
+        return;
+      case 'inspect':
+        // Y = continue / begin (the card-context confirm).
         this.onContinue();
         return;
       case 'bumperL':
