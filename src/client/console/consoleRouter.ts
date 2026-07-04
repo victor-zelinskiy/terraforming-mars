@@ -19,7 +19,7 @@ import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 
 export type ConsoleSection = 'board' | 'hand' | 'colonies' | 'hydro';
-export type ConsoleSheetId = 'basics' | 'milestones' | 'awards' | 'cardActions' | 'standardProjects';
+export type ConsoleSheetId = 'basics' | 'milestones' | 'awards' | 'cardActions' | 'standardProjects' | 'hydroPick';
 export type ConsoleConfirmKind = 'pass' | 'convertHeat';
 
 export const CONSOLE_SECTIONS: ReadonlyArray<ConsoleSection> = ['board', 'hand'];

@@ -1693,6 +1693,34 @@ the desktop-gamepad mode are untouched throughout.
   transparent format. i18n: +3 ru keys (Rivals / All claimed / All
   funded). Gates: 95 console specs, vue-tsc, eslint, make:json,
   make:css, build:client — green.
+- **P24 — SHIPPED (the console-native Hydronetwork).** The Delta
+  Project board stops being an as-is desktop re-host (clunky DOM-engine
+  focus + a browser scrollbar). **One brain kept:** the SAME overlay
+  components / hydroNetworkState / delta-preview / `submitHydroAdvance`
+  drive everything — payloads stay byte-identical. **Console fit:** the
+  `.con-hydro-host` wrapper scales the two-row snake body (×0.92,
+  handheld ×0.72 — the ANIMATED snake dashes untouched), compacts the
+  hero (2-line lore clamp), hides the desktop ✕ (B owns closing), kills
+  the inner scroll (`track-wrap: overflow visible`) — the host itself
+  is the chrome-less RS fallback. **The shell owns the pad** (the
+  fallback branch hands `overlay-hydro` to `handleHydroIntent` when
+  hydro is the TOP surface; a desktop modal on top keeps its own scope;
+  a CONSOLE layer on top — Info / sheet / wheel / confirm / reveal —
+  falls through to the normal console flow): ←/→ inspect/plan stages
+  (`onSelectPosition`), LB/RB spend −/+, Y = MAX, ↑/↓ cycle the reward
+  choice on stages that offer one, **A = the smart primary** (a
+  mandatory card pick first → then confirm; honest notice otherwise),
+  X = open the pick, LT = Info, View = journal, B = board. The command
+  bar mirrors it ([dpadH Этапы · LB/RB ±1 · Y MAX · A Confirm · B]).
+  **The stage-7/9 card pick went CONSOLE-NATIVE** (it used to abort
+  with «needs desktop mode»): a new `hydroPick` SHEET lists the
+  overlay's own `eligibleCards` (name + manifest rule text + the live
+  animal count), A writes `hydroNetworkState.selectedCard` (the same
+  field the desktop pick-modes write — a pure plan write, never a
+  submit) and the confirm flow proceeds natively; the overlay's mouse
+  pick button routes to the same sheet. i18n: +2 ru keys (Stages /
+  Select action). Gates: 95 console specs, vue-tsc, eslint, make:json,
+  make:css, build:client — green.
 
 ---
 

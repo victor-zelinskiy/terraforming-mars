@@ -68,15 +68,17 @@
       <!-- The premium Hydronetwork surface, mounted as a console screen.
            Its internals are driven by the demoted DOM focus engine (its
            scope def exists) — the console carves out ONLY LT (Info Mode). -->
-      <HydroNetworkOverlay v-if="consoleState.section === 'hydro'"
+      <div v-if="consoleState.section === 'hydro'" class="con-hydro-host con-info__scroll">
+      <HydroNetworkOverlay ref="hydroOverlay"
                            :playerView="playerView"
                            :viewerId="playerView.id"
                            :actionAvailable="hydroActionAvailable"
                            :cacheKey="String(game.generation)"
-                           @pick-action="onUnsupportedPick"
-                           @pick-played-card="onUnsupportedPick"
+                           @pick-action="openHydroPickSheet"
+                           @pick-played-card="openHydroPickSheet"
                            @confirm="submitHydroAdvance($event)"
                            @close="consoleState.section = 'board'" />
+      </div>
     </div>
 
     <!-- LT INFORMATION MODE — read-only player dashboard over everything
@@ -365,7 +367,8 @@ import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS
 import {cancelResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
 import HydroNetworkOverlay from '@/client/components/hydronetwork/HydroNetworkOverlay.vue';
-import {resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
+import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -457,6 +460,8 @@ export default defineComponent({
       leakDetectorState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       pendingClientPayment: undefined as PendingClientPayment | undefined,
+      /** P24: the hydro pick-sheet candidates (name + live animal count). */
+      hydroPickCards: [] as Array<{name: CardName, current?: number}>,
       pendingTradeColony: undefined as {colonyName: ColonyName, paymentOptions: TradeColonyContext['paymentOptions'], disabledPayments: TradeColonyContext['disabledPayments']} | undefined,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
       /** A task's nested space-type option being picked on the board. */
@@ -803,6 +808,7 @@ export default defineComponent({
       case 'cardActions': return 'Card actions';
       case 'milestones': return 'Milestones';
       case 'awards': return 'Awards';
+      case 'hydroPick': return 'Select action';
       case 'standardProjects': return 'Standard Projects';
       default: return '';
       }
@@ -881,6 +887,16 @@ export default defineComponent({
           };
         });
       }
+      case 'hydroPick':
+        // P24: hydro stage 7/9 card pick — name + the card's own rule text
+        // (manifest description) + the live resource count where relevant.
+        return this.hydroPickCards.map((c) => ({
+          key: c.name,
+          title: c.name,
+          sub: this.hydroPickDescription(c.name),
+          meta: c.current !== undefined ? `${c.current}` : undefined,
+          available: true,
+        }));
       case 'awards': {
         const fundable = this.claimableTitles(findAwardOptionPath(this.playerView.waitingFor)?.options);
         const cost = this.awardCostValue;
@@ -1097,10 +1113,13 @@ export default defineComponent({
         ];
       }
       if (this.consoleState.section === 'hydro') {
+        // P24: the console-native Hydronetwork grammar.
         return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select'},
-          {control: 'triggerL', label: 'Information'},
+          {control: 'dpadH', label: 'Stages'},
+          {control: 'bumperL', label: '−1'},
+          {control: 'bumperR', label: '+1'},
+          {control: 'inspect', label: 'MAX'},
+          {control: 'confirm', label: 'Confirm'},
           {control: 'back', label: 'To the board'},
         ];
       }
@@ -1361,12 +1380,23 @@ export default defineComponent({
       this.consoleState.fallbackActive = fallback;
       this.consoleState.fallbackScopeId = scope?.def.id ?? '';
       if (fallback) {
-        if (scope?.def.id === 'overlay-hydro' && this.consoleState.section === 'hydro' &&
-            intent.kind === 'press' && intent.button === 'triggerL' && !this.infoModeState.open) {
-          this.toggleInfoMode();
-          return true;
+        // P24: the Hydronetwork is CONSOLE-NATIVE — while it is the top
+        // surface the shell owns the pad completely (the old re-host rode
+        // the fallback DOM engine: clunky focus, browser scroll). A DESKTOP
+        // modal on top resolves to its own scope first and stays
+        // engine-driven; a CONSOLE layer on top (Info Mode / the pick
+        // sheet / wheel / confirm / reveal) falls through to the normal
+        // console flow, which owns those layers.
+        if (scope?.def.id === 'overlay-hydro' && this.consoleState.section === 'hydro') {
+          const consoleLayerOnTop = this.infoModeState.open || this.consoleState.sheet !== undefined ||
+            this.consoleState.wheelOpen || this.consoleState.confirm !== undefined || this.consoleRevealMode !== undefined;
+          if (!consoleLayerOnTop) {
+            return this.handleHydroIntent(intent);
+          }
+          // fall through — the console layer handlers below take over.
+        } else {
+          return false;
         }
-        return false;
       }
       // LT INFORMATION MODE: toggle from every safe console context —
       // P20: INCLUDING active placement (LT/RT keep their global meaning;
@@ -1889,6 +1919,11 @@ export default defineComponent({
       case 'awards':
         this.submitInnerOption(findAwardOptionPath(this.playerView.waitingFor), row.key);
         break;
+      case 'hydroPick':
+        // A pure PLAN write (never a submit) — the hydro confirm reads it.
+        hydroNetworkState.selectedCard = row.key as CardName;
+        this.consoleState.sheet = undefined;
+        break;
       }
     },
     activateBasicsRow(key: string): void {
@@ -2028,11 +2063,24 @@ export default defineComponent({
       this.consoleState.section = 'board';
       this.submit(wrapPath(action.path, {type: 'projectCard' as const, card: pending.cardName, payment}));
     },
-    onUnsupportedPick(): void {
-      // The Hydronetwork overlay's internal pick bridges route to desktop
-      // overlays that don't exist in console — abort honestly (documented
-      // fallback; the hydro confirm itself submits natively).
-      this.showNotice('This card needs desktop mode for now');
+    /**
+     * P24: the hydro card pick (reuse-a-blue-action / animal target) is a
+     * CONSOLE SHEET — candidates come from the overlay's own eligibleCards
+     * (the preview truth), the pick writes hydroNetworkState.selectedCard
+     * (the same field the desktop pick-mode bridges write), so the confirm
+     * payload stays byte-identical. Mouse clicks on the overlay's own pick
+     * button route here too.
+     */
+    openHydroPickSheet(): void {
+      const hydro = this.$refs.hydroOverlay as InstanceType<typeof HydroNetworkOverlay> | undefined;
+      const cards = hydro?.eligibleCards ?? [];
+      if (cards.length === 0) {
+        this.showNotice('Unavailable right now');
+        return;
+      }
+      this.hydroPickCards = cards.map((c) => ({name: c.name, current: c.current}));
+      this.consoleState.sheet = 'hydroPick';
+      this.consoleState.sheetIndex = 0;
     },
     useStandardProject(cardName: CardName): void {
       const action = this.standardProjectsAction;
@@ -2265,6 +2313,110 @@ export default defineComponent({
         this.consoleState.section = 'board';
         closeConsoleLayers();
       }
+    },
+    /**
+     * P24: console-native Hydronetwork control. Drives the SAME overlay
+     * API the mouse uses (onSelectPosition / onSpend / onChoice /
+     * onConfirm — hydroNetworkState is the one brain), so payloads and
+     * legality stay byte-identical:
+     *  ←/→ = inspect/plan stages · LB/RB = spend −/+ · Y = MAX ·
+     *  ↑/↓ = reward choice (when the target stage offers one) ·
+     *  A = the smart primary (pick the required card → confirm) ·
+     *  X = open the card pick · LT = Info · View = journal · B = board.
+     */
+    handleHydroIntent(intent: GamepadIntent): boolean {
+      const hydro = this.$refs.hydroOverlay as InstanceType<typeof HydroNetworkOverlay> | undefined;
+      const model = hydro?.model;
+      if (hydro === undefined || model === undefined) {
+        return false;
+      }
+      if (intent.kind === 'scroll') {
+        this.scrollActiveConsole(intent.dy);
+        return true;
+      }
+      if (intent.kind === 'nav') {
+        if (intent.dir === 'left' || intent.dir === 'right') {
+          const step = intent.dir === 'right' ? 1 : -1;
+          const last = model.stages.length - 1;
+          const next = Math.min(last, Math.max(0, model.selectedPosition + step));
+          hydro.onSelectPosition(next);
+          return true;
+        }
+        // Reward choice on stages that offer one (↑/↓ cycles the options).
+        const stage = model.stages[model.selectedPosition];
+        const options = stage?.stage.rewardOptions.length ?? 0;
+        if (options > 1) {
+          const cur = hydroNetworkState.rewardChoice ?? -1;
+          const step = intent.dir === 'down' ? 1 : -1;
+          hydro.onChoice(((cur + step) % options + options) % options);
+        }
+        return true;
+      }
+      if (intent.kind !== 'press') {
+        return true;
+      }
+      switch (intent.button) {
+      case 'triggerL':
+        this.toggleInfoMode();
+        return true;
+      case 'view':
+        journalState.open = !journalState.open;
+        return true;
+      case 'bumperL':
+      case 'bumperR': {
+        if (model.maxSpend <= 0) {
+          return true;
+        }
+        const cur = Math.max(1, model.selectedSpend);
+        const next = Math.min(model.maxSpend, Math.max(1, cur + (intent.button === 'bumperR' ? 1 : -1)));
+        hydro.onSpend(next);
+        return true;
+      }
+      case 'inspect':
+        if (model.maxSpend > 0) {
+          hydro.onSpend(model.maxSpend);
+        }
+        return true;
+      case 'secondary':
+        this.clickHydroPick();
+        return true;
+      case 'confirm':
+        // The smart primary: a mandatory card pick first, then confirm.
+        if (model.mustSelectCard && model.selectedCard === undefined) {
+          this.clickHydroPick();
+          return true;
+        }
+        if (model.canConfirm) {
+          hydro.onConfirm();
+        } else {
+          this.showNotice('Unavailable right now');
+        }
+        return true;
+      case 'back':
+        this.consoleState.section = 'board';
+        return true;
+      default:
+        return true;
+      }
+    },
+    hydroPickDescription(name: CardName): string {
+      try {
+        const meta = getCard(name)?.metadata;
+        const d = meta?.description;
+        if (typeof d === 'string') {
+          return d;
+        }
+        if (d !== undefined && typeof (d as {text?: string}).text === 'string') {
+          return (d as {text: string}).text;
+        }
+      } catch (err) {
+        // manifest miss — the name alone still identifies the card
+      }
+      return '';
+    },
+    /** The card-pick opener (X / the smart A) — the console pick sheet. */
+    clickHydroPick(): void {
+      this.openHydroPickSheet();
     },
     /** The notification's «Отменить размещение» CTA (server-cancellable). */
     onNotificationCancel(): void {
