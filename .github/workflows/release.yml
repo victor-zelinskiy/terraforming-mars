@@ -46,6 +46,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # electron@43.0.0 in this tree ships without a postinstall hook, so `npm ci` does NOT
+      # populate node_modules/electron/dist — which electron-builder.yml points at via
+      # `electronDist`. Run Electron's own installer to unpack the runtime before packaging,
+      # otherwise electron-builder fails with "The specified electronDist does not exist".
+      - name: Unpack Electron runtime
+        run: node node_modules/electron/install.js
+
       # build:desktop (make:static + DESKTOP_BUILD=1 build:client + electron:build:main)
       # is invoked inside dist:win:publish, so no separate build step is needed. The final
       # electron-builder step packages the thin client and uploads it to the Release.
