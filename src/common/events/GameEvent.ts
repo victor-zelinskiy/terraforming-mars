@@ -54,6 +54,7 @@ export type EventTrigger =
   | 'standard-project'
   | 'resource-added'
   | 'tag-added'
+  | 'cards-not-bought'
   | 'insurance-claim';
 
 /**

@@ -9,6 +9,7 @@ import {oneWayDifference} from '../../common/utils/utils';
 import {message} from '../logs/MessageBuilder';
 import {Message} from '../../common/logs/Message';
 import {Aerotech} from '../cards/community/Aerotech';
+import {CardName} from '../../common/cards/CardName';
 
 export const LogType = {
   DREW: 'drew',
@@ -114,5 +115,15 @@ export function keep(player: IPlayer, cards: ReadonlyArray<IProjectCard>, discar
     }
     break;
   }
-  Aerotech.onDrawCards(player, cards, discards);
+  // Aerotech gains titanium per unbought card. Run its hook inside a passive-effect
+  // scope (fork-only) so the Effects overlay attributes the titanium to Aerotech —
+  // a raw stock.add carries no effect scope and would be missed by effectOverlayStats.
+  // withEffect is lazy, so wrapping only when the corp is in play keeps behaviour identical.
+  const aerotech = player.tableau.get(CardName.AEROTECH);
+  const events = player.game?.events;
+  if (aerotech !== undefined && events !== undefined) {
+    events.withEffect(player, aerotech, 'cards-not-bought', () => Aerotech.onDrawCards(player, cards, discards));
+  } else {
+    Aerotech.onDrawCards(player, cards, discards);
+  }
 }
