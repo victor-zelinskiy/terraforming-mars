@@ -97,6 +97,17 @@ export function applyPerformanceSwitches(app: App): void {
   sw('disable-renderer-backgrounding');
   sw('disable-backgrounding-occluded-windows');
 
+  // ── Trim background work (Steam Deck) ─────────────────────────────────────
+  // A local, self-hosted game client needs NONE of Chromium's background network
+  // services — safe-browsing list updates, the component/Widevine updater, domain
+  // reliability beacons, field-trial fetches. On a handheld they wake the CPU (and
+  // radio) for nothing and steal cycles from the software rasterizer. Disable the
+  // whole umbrella. Our OWN API/WS traffic + electron-updater are UNAFFECTED — those
+  // are explicit app requests, not Chromium "background networking".
+  if (process.platform === 'linux') {
+    sw('disable-background-networking');
+  }
+
   // ── Aggressive opt-ins (env-gated; off by default) ───────────────────────
   // Uncap the frame rate — smoother pointer/scroll, but more GPU/CPU + heat.
   if (process.env.TM_ELECTRON_UNCAP_FPS === '1') {

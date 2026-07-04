@@ -48,13 +48,22 @@ LOG="$HOME/Applications/terraforming-mars-steam.log"
 export TM_RESTART_SUPPORTED=1
 export TM_RESTART_MARKER="$HOME/.cache/terraforming-mars-restart"
 mkdir -p "$(dirname "$TM_RESTART_MARKER")"
-# GPU (optional, advanced): the Deck uses SOFTWARE rendering by default — the stable choice
-# for this game (hardware accel under XWayland does NOT init here). If you still want to try
-# it, NATIVE Wayland is the only real shot — uncomment and relaunch, then check
-# terraforming-mars-steam.log for "gpu_compositing":"enabled" (else comment back out).
+# ── Performance tuning (ACTIVE — experimental) ───────────────────────────────
+# The Deck runs SOFTWARE rendering (hardware accel can't init under XWayland). These
+# knobs squeeze the software path; the app reads them at launch. Edit the numbers to
+# taste, or set a var to "" to fall back to the app's built-in default.
+#  • raster threads: parallelize tile rasterization across the Deck's 4 cores.
+export TM_ELECTRON_RASTER_THREADS=4
+#  • V8 young-generation size: a bigger scavenge space = fewer minor-GC hitches
+#    mid-game (Vue reactivity churns lots of short-lived objects). 64 MB is a calm bump.
+export TM_ELECTRON_JS_FLAGS="--max-semi-space-size=64"
+# GPU stays OFF on purpose — measured on-device, hardware accel under XWayland only makes
+# things WORSE (no usable GL/EGL context → a failing GPU process + churn). Do NOT enable
+# these unless you're deliberately experimenting with NATIVE Wayland; if you do, check
+# terraforming-mars-steam.log for "gpu_compositing":"enabled" and revert if it isn't there.
 # export TM_ELECTRON_OZONE=wayland
-# export TM_ELECTRON_GL=angle          # optional: add if Wayland alone isn't enough
-# export TM_ELECTRON_ANGLE=vulkan      # optional ANGLE backend (or: gl)
+# export TM_ELECTRON_GL=angle
+# export TM_ELECTRON_ANGLE=vulkan
 cd "$HOME/Applications" || exit 1
 echo "=== launch: $(date) ===" >> "$LOG"
 while true; do
