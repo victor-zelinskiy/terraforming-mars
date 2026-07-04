@@ -38,6 +38,14 @@ export interface DesktopUpdateState {
   downloadUrl?: string;
 }
 
+/** Steam Deck installer-freshness notice, pulled once from the main process. Mirrors
+ *  electron/installerCheck.ts `InstallerNotice`. */
+export interface InstallerNotice {
+  stale: boolean;
+  reason?: 'installer-changed' | 'legacy-wrapper';
+  installerUrl?: string;
+}
+
 interface DesktopBridge {
   desktopMode: boolean;
   getVersion(): Promise<string>;
@@ -47,6 +55,9 @@ interface DesktopBridge {
   recheck(): Promise<DesktopUpdateState>;
   quitAndInstall(): Promise<void>;
   openDownload(): Promise<void>;
+  // Steam Deck installer-freshness notice — OPTIONAL (older installed shells predate it;
+  // the renderer feature-detects and simply shows no warning when absent).
+  getInstallerNotice?(): Promise<InstallerNotice | undefined>;
   // Console-native pre-game shell (P10) — OPTIONAL: an older installed
   // shell may predate them; the renderer feature-detects (runtimeMode.ts)
   // and hides the affordances when absent.

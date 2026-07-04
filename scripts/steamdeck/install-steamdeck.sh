@@ -26,6 +26,7 @@ WRAPPER="$APPS/run-terraforming-mars.sh"
 ART="$APPS/terraforming-mars-art"
 RAW="https://raw.githubusercontent.com/$REPO/main/assets/steamdeck"
 LATEST="https://github.com/$REPO/releases/latest/download"
+INSTALLER_URL="https://raw.githubusercontent.com/$REPO/main/scripts/steamdeck/install-steamdeck.sh"
 
 command -v curl   >/dev/null || { echo "!! curl not found"; exit 1; }
 command -v python3 >/dev/null || { echo "!! python3 not found"; exit 1; }
@@ -37,6 +38,10 @@ curl -fL# -o "$APP" "$LATEST/TerraformingMars-x86_64.AppImage"
 chmod +x "$APP"
 
 echo "==> [2/4] Writing the launcher wrapper…"
+# Stamp the wrapper with the sha256 of the CURRENT installer on GitHub, so the app can warn
+# at startup if you later forget to re-run this installer after a wrapper change. Best-effort:
+# if the hash can't be computed the app falls back to a "legacy wrapper" nudge.
+INSTALLER_SHA="$(curl -fsSL "$INSTALLER_URL" | sha256sum | awk '{print $1}')" || INSTALLER_SHA=""
 cat > "$WRAPPER" <<'EOF'
 #!/usr/bin/env bash
 # Restart-loop launcher. This wrapper (NOT the AppImage) is the process Steam/gamescope
@@ -48,6 +53,11 @@ LOG="$HOME/Applications/terraforming-mars-steam.log"
 export TM_RESTART_SUPPORTED=1
 export TM_RESTART_MARKER="$HOME/.cache/terraforming-mars-restart"
 mkdir -p "$(dirname "$TM_RESTART_MARKER")"
+# Installer-freshness stamp: the URL of this installer + the sha256 of the version that
+# generated this wrapper. The app fetches the live installer at startup and shows a calm
+# footer warning if it changed (i.e. you forgot to re-run the install). Filled in by sed below.
+export TM_INSTALLER_URL="@@INSTALLER_URL@@"
+export TM_INSTALLER_SHA="@@INSTALLER_SHA@@"
 # ── Performance tuning (ACTIVE — experimental) ───────────────────────────────
 # The Deck runs SOFTWARE rendering (hardware accel can't init under XWayland). These
 # knobs squeeze the software path; the app reads them at launch. Edit the numbers to
@@ -78,6 +88,8 @@ while true; do
 done
 EOF
 chmod +x "$WRAPPER"
+# Fill in the freshness stamp (| delimiter — the URL contains /).
+sed -i "s|@@INSTALLER_URL@@|$INSTALLER_URL|g; s|@@INSTALLER_SHA@@|$INSTALLER_SHA|g" "$WRAPPER"
 
 echo "==> [3/4] Downloading Steam artwork…"
 curl -fL# -o "$ART/hero.png"    "$RAW/steam-deck-hero-2172-724.png"

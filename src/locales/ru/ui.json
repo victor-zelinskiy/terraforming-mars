@@ -1410,5 +1410,6 @@
     "Adjust +5": "Изменить на +5",
     "Board / interface": "Поле / интерфейс",
     "Controller connected": "Контроллер подключён",
-    "Controller disconnected": "Контроллер отключён"
+    "Controller disconnected": "Контроллер отключён",
+    "Installer updated — re-run the Steam Deck install": "Установщик обновлён — перезапустите установку на Steam Deck"
 }

@@ -18,6 +18,7 @@ import {app, BrowserWindow, shell, ipcMain, type IpcMainInvokeEvent} from 'elect
 import * as path from 'path';
 import {registerAppScheme, registerAppProtocolHandler, appUrl, APP_ORIGIN} from './protocol';
 import {registerUpdateIpc, resolveStartupUpdate} from './update';
+import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
 import {applyPerformanceSwitches, logGpuStatus} from './perf';
 
@@ -233,6 +234,7 @@ if (!app.requestSingleInstanceLock()) {
     // eslint-disable-next-line no-console
     console.log(`[electron] ${APP_LOAD ? 'Phase 2A (app://)' : 'Phase 1 (server)'} — loading ${initialUrl()}`);
     registerUpdateIpc();
+    registerInstallerCheckIpc();
     createWindow();
     // Confirm hardware acceleration is actually live (one line; see perf.ts).
     logGpuStatus(app);
@@ -243,6 +245,9 @@ if (!app.requestSingleInstanceLock()) {
     if (mainWindow !== undefined) {
       void resolveStartupUpdate(serverBase(), mainWindow);
     }
+    // Steam Deck: warn (non-blocking) if the installed launcher wrapper predates the current
+    // installer on GitHub — the updater can't rewrite the wrapper, so the user must re-run it.
+    void runInstallerCheck();
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         createWindow();

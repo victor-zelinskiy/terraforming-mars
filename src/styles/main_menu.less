@@ -485,6 +485,27 @@
 }
 .pmm-footer__version-value { color: rgba(159, 178, 198, 0.85); }
 
+// Steam Deck installer-stale warning — an unobtrusive amber chip beside the version.
+.pmm-footer__installer-warn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-family: Prototype, Orbitron, monospace;
+    font-size: clamp(10px, 0.9vw, 12px);
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: rgba(240, 196, 116, 0.95);
+    background: rgba(240, 176, 84, 0.08);
+    border: 1px solid rgba(240, 176, 84, 0.34);
+}
+.pmm-footer__installer-warn-glyph {
+    font-size: 1.1em;
+    line-height: 1;
+    filter: drop-shadow(0 0 4px rgba(240, 176, 84, 0.5));
+}
+
 // ─── Premium language switcher ──────────────────────────────────────────────
 .pmm-lang {
     display: inline-flex;
