@@ -101,5 +101,7 @@
     "Placement is mandatory": "Размещение обязательно",
     "This placement is mandatory — pick a cell on the map": "Это размещение обязательно — выберите клетку на карте",
     "this tile cannot go here": "этот тайл сюда разместить нельзя",
-    "This action requires picking a cell. Cancelling is not available.": "Это действие требует выбора клетки. Отмена недоступна."
+    "This action requires picking a cell. Cancelling is not available.": "Это действие требует выбора клетки. Отмена недоступна.",
+    "All cells": "Все клетки",
+    "Available only": "Только доступные"
 }

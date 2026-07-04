@@ -174,7 +174,14 @@
 
 /* ── Turn / task banner ──────────────────────────────────────────── */
 .con-banner {
-    align-self: center;
+    /* P21: an OVERLAY, not a flow row — toggling the banner (placement /
+       inspect / turn) must never move the planet. It floats centred just
+       under the status strip; the board keeps the freed height. */
+    position: absolute;
+    top: calc(1.2vh + 50px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
     display: inline-flex;
     align-items: center;
     gap: 10px;
@@ -824,6 +831,11 @@ html.console-mode {
         color: #ffc9c4;
         font-size: 15.5px;
     }
+    /* P21: secondary lore/rule facts go one notch down — the primary
+       placement status / reason / bonus keeps its full size. */
+    & .con-inspector__facts {
+        zoom: 0.86;
+    }
     &__mandatory-note {
         padding: 7px 11px;
         border-radius: 8px;
@@ -1147,6 +1159,9 @@ html.console-mode {
     justify-content: space-between;
     gap: 24px;
     padding: 10px 24px;
+    /* P21: a fixed one-line height — hint changes never reflow the board. */
+    height: 52px;
+    box-sizing: border-box;
     border-radius: 10px;
     background: @con-glass;
     box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%), 0 -6px 24px rgba(0, 0, 0, 0.35);
@@ -1162,9 +1177,15 @@ html.console-mode {
         display: flex;
         align-items: center;
         gap: 28px;
-        flex-wrap: wrap;
+        /* P21: ONE ROW by contract — a second row would resize the board
+           viewport and move the planet. Overflow hides (the shell keeps
+           the hint set compact + prioritized instead of wrapping). */
+        flex-wrap: nowrap;
+        overflow: hidden;
         justify-content: flex-end;
+        min-width: 0;
     }
+    &__cmd { white-space: nowrap; flex-shrink: 0; }
     &__cmd {
         display: inline-flex;
         align-items: center;
@@ -3644,6 +3665,7 @@ html.console-mode .journal-panel {
 
 /* Deferred-task chip flavor of the banner. */
 .con-banner--deferred {
+    top: calc(1.2vh + 96px); /* P21: below the prompt banner (both overlay) */
     box-shadow: inset 0 0 0 1px fade(@con-amber, 60%), 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 18px fade(@con-amber, 14%);
     .con-banner__pulse {
         background: @con-amber;
@@ -4259,6 +4281,7 @@ html.con-profile-handheld {
     .con-cmdbar {
         gap: 14px;
         padding: 6px 14px;
+        height: 38px;
 
         &__context { font-size: 14px; letter-spacing: 1.6px; }
         &__cmds { gap: 14px; }

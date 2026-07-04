@@ -114,8 +114,11 @@ const CONSOLE_LEGEND_ROWS: ReadonlyArray<LegendRow> = [
   {control: 'inspect', label: 'Turn menu'},
   {control: 'bumperL', label: 'Previous panel'},
   {control: 'bumperR', label: 'Next panel'},
-  {control: 'triggerR', label: 'Next playable'},
-  {control: 'triggerL', label: 'Inspect all cells'},
+  {control: 'triggerL', label: 'Information'},
+  {control: 'triggerR', label: 'Actions'},
+  {control: 'stickL', label: 'Next available'},
+  {control: 'stickR', label: 'Inspect all cells'},
+  {control: 'stickScroll', label: 'Scroll'},
   {control: 'view', label: 'Log'},
   {control: 'menu', label: 'Hold: switch interface mode'},
 ];

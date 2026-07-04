@@ -93,7 +93,7 @@ sed -i "s|@@INSTALLER_URL@@|$INSTALLER_URL|g; s|@@INSTALLER_SHA@@|$INSTALLER_SHA
 
 echo "==> [3/4] Downloading Steam artwork…"
 curl -fL# -o "$ART/hero.png"    "$RAW/steam-deck-hero-2172-724.png"
-curl -fL# -o "$ART/header.jpg"  "$RAW/steam-deck-header-920-430.jpg"
+curl -fL# -o "$ART/header.jpg"  "$RAW/steam-deck-header-920-430.png"
 curl -fL# -o "$ART/capsule.png" "$RAW/steam-deck-capsule-1024-1536.png"
 curl -fL# -o "$ART/logo.png"    "$RAW/steam-deck-logo-2048-682.png"
 

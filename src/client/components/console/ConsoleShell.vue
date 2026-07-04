@@ -371,6 +371,7 @@ import {ColonyModel} from '@/common/models/ColonyModel';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSheetId} from '@/client/console/consoleRouter';
 import {
@@ -989,15 +990,20 @@ export default defineComponent({
         ];
       }
       if (this.placementActive) {
-        return [
+        // P21: the placement footer is CONTEXT-ONLY and one-line by
+        // contract — LT/RT keep working globally (Info / Actions) but
+        // never occupy this bar; a NON-cancellable B is not an action, so
+        // it is not a hint (the panel + the B-toast explain mandatory).
+        const cmds: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Place here', enabled: this.selectedCellLegal},
           {control: 'stickL', label: 'Next available'},
-          {control: 'stickR', label: this.consoleState.freeRoam ? 'Available cells only' : 'Inspect all cells'},
-          {control: 'triggerL', label: 'Information'},
-          {control: 'triggerR', label: 'Actions'},
-          {control: 'back', label: this.placementCancellable ? 'Cancel placement' : 'Placement is mandatory', enabled: this.placementCancellable},
+          {control: 'stickR', label: this.consoleState.freeRoam ? 'Available only' : 'All cells'},
         ];
+        if (this.placementCancellable) {
+          cmds.push({control: 'back', label: 'Cancel placement'});
+        }
+        return cmds;
       }
       if (this.consoleState.sale.active) {
         const n = this.consoleState.sale.selected.length;

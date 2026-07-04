@@ -1613,6 +1613,35 @@ the desktop-gamepad mode are untouched throughout.
   scale; desktop positions untouched.
   Gates: 95 console specs, vue-tsc, eslint, make:json (+6 ru keys),
   make:css, build:client — green.
+- **P21 — SHIPPED (placement layout polish: one-line footer, clean
+  hints, taller panel + RS scroll).**
+  **The footer is ONE ROW by contract:** `.con-cmdbar` has a fixed
+  height (52px / handheld 38px) and `__cmds` is `flex-wrap: nowrap` +
+  `overflow: hidden` — hint-set changes can never resize the board
+  viewport. The placement hint set itself is CONTEXT-ONLY: LT/RT left
+  the bar (they keep working globally — Info / Actions), a
+  NON-cancellable B is no longer a hint at all (mandatory lives in the
+  panel note + the B-toast; B appears ONLY as a real «Отменить
+  размещение»), and the R3 label compacted («Все клетки» /
+  «Только доступные»).
+  **The banner left the layout flow:** `.con-banner` (and the deferred
+  amber chip, stacked below it) is now an absolute OVERLAY under the
+  status strip — toggling the prompt/inspect/turn banner used to push
+  the whole board down (the biggest layout shift); the board keeps the
+  freed height and the planet never moves.
+  **The right panel:** gains the freed banner row (taller), is the RS
+  scroll target (`con-info__scroll` on its root — the P17 global
+  right-stick scroll picks it up; chrome-less overflow), resets its
+  scroll to top whenever the inspected cell changes (the placement
+  STATUS is always visible first), its command list shrank to the
+  essentials (A + a real cancel — the footer owns the shortcut map),
+  and the secondary lore/rule facts read one notch compact (zoom 0.86;
+  the primary status/reason keeps its size).
+  **The legend (Menu → Управление) is the home of the globals:** LT
+  Information / RT Actions / L3 Next available / R3 Inspect all cells /
+  RS Scroll — the footer stays compact and contextual.
+  Gates: 129 console+gamepad specs, vue-tsc, eslint, make:json
+  (+2 ru keys), make:css, build:client — green.
 
 ---
 

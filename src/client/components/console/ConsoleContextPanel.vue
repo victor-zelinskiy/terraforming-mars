@@ -1,5 +1,5 @@
 <template>
-  <aside class="con-inspector con-context" :aria-label="$t('Cell details')">
+  <aside class="con-inspector con-context con-info__scroll" ref="root" :aria-label="$t('Cell details')">
     <!-- ── TASK MODE: active placement ─────────────────────────────── -->
     <template v-if="mode === 'placement'">
       <div class="con-context__task-kicker">{{ $t('Tile placement') }}</div>
@@ -27,17 +27,14 @@
         <BoardFactGroups :facts="info.facts" :viewerColor="viewerColor" :players="players" />
       </div>
 
+      <!-- P21: the panel commands stay MINIMAL (A + a real cancel only) —
+           the footer owns the shortcut map, the legend owns the globals. -->
       <div class="con-context__commands">
         <div class="con-context__cmd" :class="{'con-context__cmd--off': !selectedLegal}">
           <GamepadGlyph control="confirm" /><span>{{ $t('Place here') }}</span>
         </div>
-        <div class="con-context__cmd"><GamepadGlyph control="stickL" /><span>{{ $t('Next available') }}</span></div>
-        <div class="con-context__cmd"><GamepadGlyph control="stickR" /><span>{{ $t(inspectAll ? 'Available cells only' : 'Inspect all cells') }}</span></div>
-        <div class="con-context__cmd"><GamepadGlyph control="triggerL" /><span>{{ $t('Information') }}</span></div>
-        <div class="con-context__cmd"><GamepadGlyph control="triggerR" /><span>{{ $t('Actions') }}</span></div>
-        <div class="con-context__cmd" :class="{'con-context__cmd--off': !cancellable}">
-          <GamepadGlyph control="back" />
-          <span>{{ cancellable ? $t('Cancel placement') : $t('Placement is mandatory') }}</span>
+        <div v-if="cancellable" class="con-context__cmd">
+          <GamepadGlyph control="back" /><span>{{ $t('Cancel placement') }}</span>
         </div>
       </div>
       <!-- P20: the mandatory/cancel state is explained, not implied. -->
@@ -139,6 +136,16 @@ function textOf(v: string | Message | undefined): string {
 export default defineComponent({
   name: 'ConsoleContextPanel',
   components: {BoardFactGroups, BarButtonIcon, GamepadGlyph},
+  watch: {
+    /** P21: a new inspected cell resets the panel scroll — the placement
+     *  STATUS is always the first thing visible. */
+    cellHeader() {
+      (this.$refs.root as HTMLElement | undefined)?.scrollTo?.({top: 0});
+    },
+    selectedLegal() {
+      (this.$refs.root as HTMLElement | undefined)?.scrollTo?.({top: 0});
+    },
+  },
   props: {
     mode: {type: String as PropType<'placement' | 'cell' | 'idle'>, required: true},
     info: {type: Object as PropType<BoardCellInfo | undefined>, default: undefined},
