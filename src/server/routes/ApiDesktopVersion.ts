@@ -27,10 +27,18 @@ export class ApiDesktopVersion extends Handler {
     super();
   }
 
-  public override get(_req: Request, res: Response, ctx: Context): Promise<void> {
+  public override async get(_req: Request, res: Response, ctx: Context): Promise<void> {
     const q = ctx.url.searchParams;
+    // "Always require an update when a newer version exists": read the newest version LIVE
+    // from GitHub Releases (cached) so the gate is always current without touching env on
+    // every release. Falls back to TM_DESKTOP_LATEST_VERSION when GitHub is unreachable
+    // (fail-open — a GitHub blip never forces an update). Set TM_DESKTOP_REQUIRE_LATEST=0
+    // to disable and go back to the plain min-version gate.
+    const requireLatest = (process.env.TM_DESKTOP_REQUIRE_LATEST ?? '1') !== '0';
+    const githubLatest = requireLatest ? await githubLatestVersion() : undefined;
+    const latestVersion = githubLatest ?? process.env.TM_DESKTOP_LATEST_VERSION ?? '1.0.0';
     const model = computeDesktopVersion({
-      latestVersion: process.env.TM_DESKTOP_LATEST_VERSION ?? '1.0.0',
+      latestVersion,
       minSupportedVersion: process.env.TM_DESKTOP_MIN_VERSION ?? '0.0.0',
       serverProtocolVersion: REALTIME_PROTOCOL_VERSION,
       channel: process.env.TM_DESKTOP_CHANNEL ?? 'latest',
@@ -39,9 +47,45 @@ export class ApiDesktopVersion extends Handler {
       downloadUrl: emptyToUndefined(process.env.TM_DESKTOP_DOWNLOAD_URL),
       forceUpdate: (process.env.TM_DESKTOP_FORCE_UPDATE ?? '') === '1',
       currentVersion: emptyToUndefined(q.get('current') ?? undefined),
+      requireLatest,
     });
     responses.writeJson(res, ctx, model);
-    return Promise.resolve();
+  }
+}
+
+// The newest published desktop version, read from GitHub Releases (public repo, no auth) and
+// cached briefly so the gate stays well under GitHub's unauthenticated rate limit. Returns
+// undefined on failure → the route falls back to the env default (fail-open).
+const GITHUB_LATEST_URL =
+  'https://api.github.com/repos/victor-zelinskiy/terraforming-mars/releases/latest';
+const GITHUB_LATEST_TTL_MS = 120_000;
+let githubLatestCache: {version: string; at: number} | undefined;
+
+async function githubLatestVersion(): Promise<string | undefined> {
+  const now = Date.now();
+  if (githubLatestCache !== undefined && now - githubLatestCache.at < GITHUB_LATEST_TTL_MS) {
+    return githubLatestCache.version;
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(GITHUB_LATEST_URL, {
+      signal: controller.signal,
+      headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'tm-desktop-gate'},
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      return githubLatestCache?.version;
+    }
+    const body = await res.json() as {tag_name?: string};
+    const version = (body.tag_name ?? '').replace(/^v/, '').trim();
+    if (!/^\d+\.\d+\.\d+/.test(version)) {
+      return githubLatestCache?.version;
+    }
+    githubLatestCache = {version, at: now};
+    return version;
+  } catch {
+    return githubLatestCache?.version;
   }
 }
 

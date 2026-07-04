@@ -1,37 +1,33 @@
 # Electron desktop release — builds Windows + Linux and publishes ONE GitHub Release under
-# victor-zelinskiy/terraforming-mars. The source repo is PUBLIC, so the workflow's built-in
-# GITHUB_TOKEN creates the release AND electron-updater reads it with no embedded token.
-# No separate releases repo / cross-repo PAT is used.
+# victor-zelinskiy/terraforming-mars on EVERY push to main. The repo is public, so the
+# built-in GITHUB_TOKEN creates the release and electron-updater reads it with no token.
 #
-# Trigger: pushing a version tag (e.g. `v1.0.5`). Regular branch pushes do NOT publish
-# (that's the CI workflow in main.yml). Bump package.json "version" to match the tag first.
+# Versioning: each run gets 1.1.<github.run_number> — run_number is unique and monotonically
+# increasing per workflow, and 1.1.x is always above the older 1.0.x line, so electron-updater
+# always treats a fresh build as newer. The version is set ONLY for the build (not committed).
 #
-# WHY build-then-assemble (not `electron-builder --publish` per job): two electron-builder
-# jobs each create their OWN draft release for the same tag, so the installer and the
-# AppImage land in DIFFERENT drafts. Instead each platform BUILDS ONLY (`--publish never`),
-# uploads its dist-desktop output as a workflow artifact, and a single `release` job
-# assembles ONE published release from all artifacts — deterministic, no cross-job race.
+# Old releases are pruned to the newest 3 (older releases + their tags are deleted).
 #
-# Per platform (targets in electron-builder.yml):
-#   - Windows (windows-latest) → NSIS .exe + latest.yml        (electron-updater WIN feed)
-#   - Linux   (ubuntu-latest)  → x64 AppImage + latest-linux.yml (electron-updater LINUX feed)
-# Steam Deck / SteamOS users download the x64 AppImage, `chmod +x`, run it, and add it to
-# Steam as a Non-Steam Game.
+# Per platform (electron-builder.yml): Windows → NSIS .exe + latest.yml; Linux → x64 AppImage
+# + latest-linux.yml (+ blockmaps). Each platform builds ONLY (--publish never) and uploads a
+# workflow artifact; a single `release` job assembles ONE published release — no cross-job race.
+# Steam Deck: download the AppImage, chmod +x, run, add as a Non-Steam Game.
 
 name: Release Electron App
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+  workflow_dispatch: {}
 
-# Required so `gh release create` can create the Release + upload assets.
 permissions:
   contents: write
 
+# Coalesce bursts: a newer push cancels an in-flight build so only the LATEST commit is
+# released (you always want the newest on the Deck; saves CI when pushing several commits).
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+  group: release-main
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -61,15 +57,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # electron@43.0.0 in this tree ships without a postinstall hook, so `npm ci` does NOT
-      # populate node_modules/electron/dist — which electron-builder.yml points at via
-      # `electronDist`. Run Electron's own installer to unpack the (platform-appropriate)
-      # runtime before packaging, else electron-builder fails with "electronDist does not exist".
+      # electron@43.0.0 ships without a postinstall hook, so `npm ci` doesn't populate
+      # node_modules/electron/dist (electron-builder's electronDist). Unpack it explicitly.
       - name: Unpack Electron runtime
         run: node node_modules/electron/install.js
 
-      # Build ONLY (no publish): electron-builder emits the installer / AppImage + latest*.yml
-      # (+ blockmaps) into dist-desktop/. The `release` job uploads them all together.
+      # Unique, monotonic version per push so electron-updater always sees a newer build.
+      # Not committed — set only for this build's artifacts / latest*.yml.
+      - name: Set release version
+        run: npm version "1.1.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+
       - name: Build (${{ matrix.platform }})
         run: npm run ${{ matrix.script }} -- --publish never
 
@@ -85,7 +82,6 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
-  # Assemble ONE published release from both platforms' artifacts.
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -101,10 +97,24 @@ jobs:
 
       - name: Publish GitHub Release
         run: >
-          gh release create "${{ github.ref_name }}" dist/*
+          gh release create "v1.1.${{ github.run_number }}" dist/*
           --repo "${{ github.repository }}"
-          --title "Terraforming Mars ${{ github.ref_name }}"
-          --notes "Desktop release ${{ github.ref_name }} — Windows installer (.exe) + Linux x64 AppImage. Steam Deck: download the AppImage, chmod +x, run it, add it to Steam as a Non-Steam Game."
+          --target "${{ github.sha }}"
+          --title "Terraforming Mars v1.1.${{ github.run_number }}"
+          --notes "Automated desktop build from ${{ github.sha }} — Windows installer (.exe) + Linux x64 AppImage. Steam Deck: download the AppImage, chmod +x, run it, add it to Steam as a Non-Steam Game."
           --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Keep only the newest 3 releases; delete older releases AND their tags.
+      - name: Prune old releases (keep newest 3)
+        run: |
+          gh api "repos/${{ github.repository }}/releases?per_page=100" \
+            --jq 'sort_by(.created_at) | reverse | .[3:] | .[].tag_name' \
+          | while read -r tag; do
+              [ -n "$tag" ] || continue
+              echo "pruning old release $tag"
+              gh release delete "$tag" --repo "${{ github.repository }}" --yes --cleanup-tag || true
+            done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

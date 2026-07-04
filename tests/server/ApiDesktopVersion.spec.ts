@@ -49,6 +49,20 @@ describe('common/DesktopVersionModel', () => {
       expect(m.updateRequired).to.be.true;
     });
 
+    it('requireLatest requires an update when current < latest (even if >= min)', () => {
+      // 1.3.0 is >= min (1.2.0) but < latest (1.4.0) → required only with requireLatest.
+      expect(computeDesktopVersion({...BASE, currentVersion: '1.3.0', requireLatest: true}).updateRequired).to.be.true;
+    });
+
+    it('requireLatest does not require an update at/above latest', () => {
+      expect(computeDesktopVersion({...BASE, currentVersion: '1.4.0', requireLatest: true}).updateRequired).to.be.false;
+      expect(computeDesktopVersion({...BASE, currentVersion: '1.5.0', requireLatest: true}).updateRequired).to.be.false;
+    });
+
+    it('without requireLatest, current below latest but >= min is NOT required (historical)', () => {
+      expect(computeDesktopVersion({...BASE, currentVersion: '1.3.0'}).updateRequired).to.be.false;
+    });
+
     it('passes through channel/platform/protocol/downloadUrl', () => {
       const m = computeDesktopVersion({...BASE, platform: 'darwin', downloadUrl: 'https://x/y.exe'});
       expect(m.platform).to.eq('darwin');

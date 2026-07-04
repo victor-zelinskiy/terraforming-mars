@@ -49,6 +49,10 @@ export interface DesktopVersionOptions {
   forceUpdate?: boolean;
   /** The caller's installed version (`?current=`); when below min → updateRequired. */
   currentVersion?: string;
+  /** When true, ALSO require an update whenever the caller is below `latestVersion`
+   *  ("always update to the newest release"). Opt-in so the pure default stays min-based
+   *  (the route sets it; unit tests keep the historical min-only behaviour). */
+  requireLatest?: boolean;
 }
 
 /** Pure builder of the compatibility response (unit-tested). */
@@ -57,11 +61,17 @@ export function computeDesktopVersion(o: DesktopVersionOptions): DesktopVersionM
     o.currentVersion !== undefined &&
     o.currentVersion !== '' &&
     compareVersions(o.currentVersion, o.minSupportedVersion) < 0;
+  // "Always require an update when a newer version exists" — opt-in via requireLatest.
+  const belowLatest =
+    o.requireLatest === true &&
+    o.currentVersion !== undefined &&
+    o.currentVersion !== '' &&
+    compareVersions(o.currentVersion, o.latestVersion) < 0;
   return {
     latestVersion: o.latestVersion,
     minSupportedVersion: o.minSupportedVersion,
     serverProtocolVersion: o.serverProtocolVersion,
-    updateRequired: o.forceUpdate === true || belowMin,
+    updateRequired: o.forceUpdate === true || belowMin || belowLatest,
     channel: o.channel,
     platform: o.platform,
     releaseNotes: [...o.releaseNotes],
