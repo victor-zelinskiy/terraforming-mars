@@ -178,6 +178,9 @@
                        :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
                     <Card :card="entry.card" :key="entry.card.name" lightweight />
                     <span v-if="isPicked(entry.card.name)" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
+                    <!-- P18: disabled candidates wear the state badge + the
+                         concrete reason line (glance + detail). -->
+                    <span v-else-if="entry.disabled" class="con-cards__pickband con-cards__pickband--disabled" aria-hidden="true">{{ $t('Unavailable') }}</span>
                     <span v-if="entry.disabled" class="con-cards__reason">{{ entry.reason !== '' ? entry.reason : $t('Unavailable right now') }}</span>
                   </div>
                 </div>

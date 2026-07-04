@@ -1513,6 +1513,33 @@ the desktop-gamepad mode are untouched throughout.
   contexts keep the A-toggle, read-only contexts stay read-only.
   Gates: 95 console specs (+1 action-context), vue-tsc, eslint,
   make:json (+1 ru key), make:css, build:client — green.
+- **P18 — SHIPPED (the unified card-STATE badge system).** The last
+  barely-visible legacy state markers are gone: card states across the
+  console flows now ride ONE band system (the P15 pick band, extended):
+  `--pickband` selected (mint) · `--played` (steel «✓ Разыграна» /
+  «✓ Эффект применён») · `--awaiting` (neutral «Ожидает») ·
+  `--disabled` (red «Недоступна») · `--sale` (amber «✓ Выбрана»).
+  **The load-bearing rule: state dims apply to the CARD BODY
+  (`> .card-container`), never the slot** — so a badge (a slot sibling)
+  NEVER fades with the card it describes (the reported defect: the tiny
+  played tick vanished into the dimmed prelude). Re-anchored dims:
+  cardSelect disabled / pick-max `--dim` / prelude played+awaiting /
+  corp done+pending (new) / hand unplayable. Replaced markers: the
+  ceremony prelude's corner tick → the «✓ Разыграна» band over a
+  clearly dimmed body; the corp column's under-card «Ожидает» /
+  «✓ Эффект применён» chips → on-card badges (the under-card chip is
+  reserved for the ACTION affordance — «Применить эффект» stays);
+  disabled candidates (Merger, host browser) → the «Недоступна» badge
+  + the concrete reason line kept; the hand sale corner tick → the
+  amber «✓ Выбрана» band. Small-zoom contexts (hand ×0.8, prelude rail)
+  scale the band back up (zoom 1.15) so it stays TV-readable; the
+  prelude grid gained band headroom. Focus behaviour: played/pending
+  cards were already excluded from the pad focusables; a FOCUSED
+  unplayable hand card lightens for reading but never returns to the
+  fully-active look. i18n: `Already played` → «Разыграна» (the existing
+  `Card played` = «Карта сыграна» belongs to another context — never
+  repurposed). Gates: 95 specs, vue-tsc, eslint, make:json, make:css,
+  build:client — green.
 
 ---
 

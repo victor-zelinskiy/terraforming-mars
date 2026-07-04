@@ -180,6 +180,9 @@
 
         <!-- ── CEREMONY (startSequence): corps + preludes + candidates ─ -->
         <div v-else class="con-start__body con-start__ceremony con-info__scroll" ref="body">
+          <!-- P18: card STATES ride the unified badge system (a bright band
+               over a DIMMED card body — the badge itself never dims); the
+               under-card chip is reserved for the ACTION affordance only. -->
           <div class="con-start__corps" v-if="corps.length > 0">
             <div class="con-start__section-title">{{ $t('Corporation') }}</div>
             <div v-for="corp in corps" :key="corp.name"
@@ -187,14 +190,16 @@
                  :class="{
                    'con-start__corp--focused': isFocused('corp', corp.name),
                    'con-start__corp--ready': corp.status === 'ready',
+                   'con-start__corp--done': corp.status === 'done',
+                   'con-start__corp--pending': corp.status !== 'done' && corp.status !== 'ready',
                  }">
               <Card :card="{name: corp.name}" :key="corp.name" />
-              <div v-if="corp.status === 'done'" class="con-cards__verdict con-cards__verdict--picked">✓ {{ $t('Effect applied') }}</div>
-              <div v-else-if="corp.status === 'ready'" class="con-cards__verdict con-cards__verdict--ok">
+              <span v-if="corp.status === 'done'" class="con-cards__pickband con-cards__pickband--played">✓ {{ $t('Effect applied') }}</span>
+              <span v-else-if="corp.status !== 'ready'" class="con-cards__pickband con-cards__pickband--awaiting">{{ $t('Awaiting') }}</span>
+              <div v-if="corp.status === 'ready'" class="con-cards__verdict con-cards__verdict--ok">
                 <GamepadGlyph v-if="isFocused('corp', corp.name)" control="confirm" />
                 <span>{{ $t('Apply effect') }}</span>
               </div>
-              <div v-else class="con-cards__verdict con-start__verdict-dim">{{ $t('Awaiting') }}</div>
             </div>
           </div>
 
@@ -216,7 +221,12 @@
                      }"
                      :ref="isFocused('candidate', card.name) ? 'focusedCardSlot' : undefined">
                   <Card :card="card" :key="card.name" lightweight />
-                  <span v-if="card.isDisabled === true" class="con-cards__reason">{{ disabledCardReason(card) }}</span>
+                  <!-- P18: a disabled candidate wears the state BADGE (read
+                       at a glance) + keeps the concrete reason line. -->
+                  <template v-if="card.isDisabled === true">
+                    <span class="con-cards__pickband con-cards__pickband--disabled">{{ $t('Unavailable') }}</span>
+                    <span class="con-cards__reason">{{ disabledCardReason(card) }}</span>
+                  </template>
                   <div v-else-if="isFocused('candidate', card.name)" class="con-start__slot-a">
                     <GamepadGlyph control="confirm" /><span>{{ $t(candidateVerb) }}</span>
                   </div>
@@ -238,7 +248,9 @@
                        'con-start__prelude--awaiting': entry.status === 'awaiting' || entry.blocked,
                      }">
                   <Card :card="{name: entry.name}" :key="entry.name" lightweight />
-                  <span v-if="entry.status === 'played'" class="con-cards__tick" aria-hidden="true">✓</span>
+                  <!-- P18: the played prelude wears the unified «Разыграна»
+                       band over a dimmed body — the tiny legacy tick is gone. -->
+                  <span v-if="entry.status === 'played'" class="con-cards__pickband con-cards__pickband--played">✓ {{ $t('Already played') }}</span>
                   <div v-if="entry.blocked" class="con-cards__reason">{{ $t('Play another prelude first') }}</div>
                   <div v-else-if="isFocused('prelude', entry.name)" class="con-start__slot-a">
                     <GamepadGlyph control="confirm" /><span>{{ $t('Play now') }}</span>

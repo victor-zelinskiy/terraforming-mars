@@ -16,7 +16,9 @@
              :ref="i === index ? 'selectedSlot' : undefined">
           <Card :card="entry.card" :key="entry.card.name" lightweight />
           <span v-if="entry.robot" class="con-hand__robot" v-i18n>Robots</span>
-          <span v-if="saleActive && isSaleSelected(entry.card.name)" class="con-hand__sale-tick" aria-hidden="true">✓</span>
+          <!-- P18: the sale pick wears the unified state band (amber sale
+               language) - the tiny corner tick is gone. -->
+          <span v-if="saleActive && isSaleSelected(entry.card.name)" class="con-cards__pickband con-cards__pickband--sale" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
         </div>
       </div>
 

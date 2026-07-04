@@ -523,15 +523,21 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
         transition: transform calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1), filter calc(170ms * var(--motion-scale, 1)) ease;
         > .card-container { margin: 0; }
 
-        &--unplayable {
+        &--unplayable > .card-container {
             filter: grayscale(0.55) brightness(0.72);
         }
         &--selected {
             /* P17: softer emphasis - stays inside the strip headroom. */
             transform: translateY(-10px) scale(1.06);
-            filter: none;
             z-index: 2;
         }
+        /* P18: FOCUS on an unplayable card improves readability but never
+           restores the fully-active look. */
+        &--selected&--unplayable > .card-container {
+            filter: grayscale(0.3) brightness(0.88);
+        }
+        /* The state band scales back up against the 0.8 slot zoom. */
+        .con-cards__pickband { zoom: 1.15; }
     }
     /* The inline Ⓐ chip on the SELECTED playable card — the explicit
        button-to-element mapping at the point of attention. */
@@ -555,28 +561,11 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
         white-space: nowrap;
         zoom: 1.6; /* counter the slot zoom so the chip stays TV-readable */
     }
-    /* Sale mode: picked cards get the amber sale frame + tick. */
+    /* Sale mode: picked cards get the amber sale frame + state band. */
     &__slot--sale-picked {
         filter: none;
         box-shadow: 0 0 0 3px fade(@con-amber, 80%), 0 0 22px fade(@con-amber, 35%);
         border-radius: 10px;
-    }
-    &__sale-tick {
-        position: absolute;
-        top: -10px;
-        left: -8px;
-        width: 34px;
-        height: 34px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        background: fade(@con-amber, 25%);
-        box-shadow: inset 0 0 0 2px fade(@con-amber, 85%), 0 2px 8px rgba(0, 0, 0, 0.5);
-        color: #ffe9b8;
-        font-size: 20px;
-        font-weight: 700;
-        zoom: 1.4;
     }
     &__slot-a--sale {
         box-shadow: inset 0 0 0 1px fade(@con-amber, 65%), 0 4px 14px rgba(0, 0, 0, 0.5);
@@ -2307,16 +2296,16 @@ html.console-mode {
             opacity: 0.8;
             filter: saturate(0.88);
         }
-        &--has-focus > .con-cards__slot--disabled { opacity: 0.5; }
+
         /* P15: at the pick max, unpicked cards DE-EMPHASIZE (desktop
            parity) - stronger than the neighbour calm, still readable, and
            the focused one lifts back to near-full presence so the player
            can inspect / re-pick without squinting. */
-        &--has-focus > .con-cards__slot--dim:not(.con-cards__slot--focused) {
+        &--has-focus > .con-cards__slot--dim:not(.con-cards__slot--focused) > .card-container {
             opacity: 0.45;
             filter: saturate(0.45) brightness(0.8);
         }
-        &--has-focus > .con-cards__slot--dim.con-cards__slot--focused {
+        &--has-focus > .con-cards__slot--dim.con-cards__slot--focused > .card-container {
             opacity: 0.9;
             filter: saturate(0.8);
         }
@@ -2346,7 +2335,7 @@ html.console-mode {
         &--focused&--picked {
             box-shadow: 0 0 0 2px fade(@con-mint, 90%), 0 0 0 4px fade(@con-cyan, 55%), 0 0 30px fade(@con-mint, 28%);
         }
-        &--disabled {
+        &--disabled > .card-container {
             opacity: 0.55;
             filter: grayscale(0.5) brightness(0.85);
         }
@@ -2375,22 +2364,30 @@ html.console-mode {
         text-transform: uppercase;
         white-space: nowrap;
     }
-    &__tick {
-        position: absolute;
-        top: -10px;
-        right: -8px;
-        z-index: 6; /* the SELECTED marker always wins the corner */
-        width: 30px;
-        height: 30px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        background: fade(@con-mint, 25%);
-        box-shadow: inset 0 0 0 1px fade(@con-mint, 85%), 0 4px 12px rgba(0, 0, 0, 0.5);
-        color: @con-mint;
-        font-size: 18px;
-        font-weight: 700;
+    /* P18: the band is THE unified card-state system — selected (mint),
+       played (steel, completed), awaiting (neutral), disabled (red),
+       sale pick (amber). It sits OUTSIDE the dimmed card body (dims are
+       applied to `> .card-container`), so a state badge NEVER fades with
+       the card it describes. */
+    &__pickband--played {
+        background: linear-gradient(180deg, rgba(130, 160, 190, 0.30), rgba(130, 160, 190, 0.14)), @con-glass;
+        box-shadow: inset 0 0 0 1.5px rgba(168, 196, 222, 0.9), 0 4px 14px rgba(0, 0, 0, 0.55);
+        color: #dcebf8;
+    }
+    &__pickband--awaiting {
+        background: linear-gradient(180deg, rgba(110, 135, 160, 0.22), rgba(110, 135, 160, 0.10)), @con-glass;
+        box-shadow: inset 0 0 0 1.5px rgba(140, 165, 192, 0.7), 0 4px 14px rgba(0, 0, 0, 0.55);
+        color: #b9cbdc;
+    }
+    &__pickband--disabled {
+        background: linear-gradient(180deg, fade(@con-red, 26%), fade(@con-red, 12%)), @con-glass;
+        box-shadow: inset 0 0 0 1.5px fade(@con-red, 85%), 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 16px fade(@con-red, 18%);
+        color: #ffd2cc;
+    }
+    &__pickband--sale {
+        background: linear-gradient(180deg, fade(@con-amber, 28%), fade(@con-amber, 14%)), @con-glass;
+        box-shadow: inset 0 0 0 1.5px fade(@con-amber, 90%), 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 16px fade(@con-amber, 20%);
+        color: #ffe9c4;
     }
     &__reason {
         position: absolute;
@@ -2910,11 +2907,17 @@ dialog.con-zoom {
         &--focused {
             box-shadow: 0 0 0 2px fade(@con-cyan, 85%), 0 0 26px fade(@con-cyan, 25%);
         }
-    }
-    &__verdict-dim {
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.2);
-        color: @con-text-dim;
+        /* P18: state badges anchor to the card top; the body dims while
+           the badge stays bright. */
+        .con-cards__pickband { top: -2px; }
+        &--done > .card-container {
+            opacity: 0.75;
+            filter: saturate(0.8);
+        }
+        &--pending > .card-container {
+            opacity: 0.55;
+            filter: saturate(0.6) brightness(0.85);
+        }
     }
     &__right {
         flex: 1;
@@ -2927,7 +2930,10 @@ dialog.con-zoom {
         display: flex;
         flex-wrap: wrap;
         gap: 18px;
+        padding-top: 14px; /* P18: headroom for the state band overhang */
     }
+    /* Small-zoom contexts scale the band back up to TV-readable. */
+    &__prelude .con-cards__pickband { zoom: 1.15; }
     &__prelude {
         position: relative;
         border-radius: 12px;
@@ -2936,13 +2942,19 @@ dialog.con-zoom {
         > .card-container { margin: 0; }
 
         &--played {
-            box-shadow: 0 0 0 2px fade(@con-mint, 55%);
-            filter: saturate(0.85);
+            box-shadow: 0 0 0 2px rgba(150, 180, 208, 0.45);
+
+            /* P18: the BODY dims (clearly not an active option); the
+               «Разыграна» band above stays bright. */
+            > .card-container {
+                opacity: 0.6;
+                filter: saturate(0.55) brightness(0.82);
+            }
         }
         &--playable {
             box-shadow: 0 0 0 2px fade(@con-cyan, 45%), 0 0 18px fade(@con-cyan, 12%);
         }
-        &--awaiting {
+        &--awaiting > .card-container {
             opacity: 0.6;
             filter: saturate(0.6) brightness(0.85);
         }
@@ -4278,7 +4290,6 @@ html.con-profile-handheld {
         &__strip--grid { row-gap: 32px; column-gap: 14px; }
         &__strip--grid > .con-cards__slot { zoom: 0.62; }
         &__pickband { font-size: 11.5px; padding: 2px 10px; top: -10px; }
-        &__tick { width: 24px; height: 24px; font-size: 15px; }
         &__reason { font-size: 12px; }
     }
     .con-zoom__bar { gap: 10px; }
