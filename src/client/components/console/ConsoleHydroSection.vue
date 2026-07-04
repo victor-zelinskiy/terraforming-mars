@@ -9,11 +9,10 @@
           <p class="con-hydro__sub">{{ $t('A joint engineering megaproject: spend energy to advance; only the stage you stop on grants its reward.') }}</p>
         </div>
       </div>
+      <!-- No ⚡-stock chip here: the left resource panel stays visible in the
+           hydro section — the header never duplicates it. Energy shows only
+           CONTEXTUALLY (cost vs have in Требования, N → N−K in the confirm). -->
       <div class="con-hydro__chips">
-        <span class="con-hydro__chip con-hydro__chip--energy">
-          <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
-          <b>{{ model.availableEnergy }}</b>
-        </span>
         <span class="con-hydro__chip">
           <span class="con-hydro__chip-dim">{{ $t('Track position') }}</span>
           <b>{{ model.currentPosition }} / 11</b>
