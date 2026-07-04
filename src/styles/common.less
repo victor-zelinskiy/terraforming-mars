@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Jura:wght@600;700&family=Play:wght@400;700&display=swap');
+/* (css) marks this as a plain CSS import so lessc passes it through VERBATIM instead of
+   FETCHING it at build time (an extension-less URL is treated as a less import otherwise).
+   The build no longer depends on fonts.googleapis.com being reachable — this was flaking
+   the Linux CI build — and the browser still loads the fonts at runtime, unchanged. */
+@import (css) url('https://fonts.googleapis.com/css2?family=Jura:wght@600;700&family=Play:wght@400;700&display=swap');
 @import (inline) "../../node_modules/spectre.css/dist/spectre.min.css";
 @import (inline) "../../node_modules/spectre.css/dist/spectre-exp.min.css";
 @import (inline) "../../node_modules/spectre.css/dist/spectre-icons.min.css";
