@@ -48,6 +48,15 @@ export function applyPerformanceSwitches(app: App): void {
     sw('force_high_performance_gpu');   // discrete GPU on dual-GPU laptops
   }
 
+  // Linux / Steam Deck DEFAULT: skip the GPU entirely. Chromium can't init a GL/EGL context
+  // here (XWayland → "No suitable EGL configs"), so a GPU process would only spawn, fail, and
+  // fall back to software with churn (a failing GPU process + repeated vsync errors).
+  // --disable-gpu goes straight to a clean software compositor. Auto-skipped when a GPU-test
+  // opt-in is set (then we WANT the GPU process); force it back on with TM_ELECTRON_KEEP_GPU=1.
+  if (process.platform === 'linux' && !linuxGpuTest && process.env.TM_ELECTRON_KEEP_GPU !== '1') {
+    sw('disable-gpu');
+  }
+
   // ── Steam Deck GPU experiments (Linux; opt-in, OFF by default) ────────────
   // The Deck runs under XWayland where EGL config selection fails. Running NATIVELY on Wayland
   // (gamescope IS Wayland) is the most likely fix — try TM_ELECTRON_OZONE=wayland first.
