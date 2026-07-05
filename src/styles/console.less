@@ -484,7 +484,8 @@
     flex: 1;
     min-height: 0;
     display: flex;
-    gap: 16px;
+    /* P29c: tighter side chrome — every saved px goes to the board scale. */
+    gap: 12px;
     /* The console journal is an ABSOLUTE overlay anchored to this box —
        it may overlap the board, the board never reflows for it. */
     position: relative;
@@ -6933,7 +6934,8 @@ html.console-mode {
 
 html.con-profile-handheld {
     /* ── 1/2 · root chrome + top HUD ─────────────────────────────── */
-    .con-root { padding: 0.8vh 1vw; gap: 6px; }
+    .con-root { padding: 0.6vh 0.7vw; gap: 5px; }
+    .con-main { gap: 8px; }
     .con-status {
         gap: 12px;
         padding: 4px 12px;

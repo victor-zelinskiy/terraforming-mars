@@ -1928,14 +1928,17 @@ export default defineComponent({
       const onBoard = this.consoleState.section === 'board';
       switch (intent.button) {
       case 'bumperL':
-        // Stable board semantics: LB = Milestones (viewable any time).
+        // ⚠ P29c DEV (temporary): LB/RB tune the board scale live on the
+        // Deck (−/+0.05, persisted; notice shows the value). RESTORE
+        // `this.openSheet('milestones')` / `('awards')` once the ideal
+        // value is locked into the profile defaults.
         if (onBoard) {
-          this.openSheet('milestones');
+          this.tuneBoardScale(-0.05);
         }
         return true;
       case 'bumperR':
         if (onBoard) {
-          this.openSheet('awards');
+          this.tuneBoardScale(0.05);
         }
         return true;
       case 'view':
@@ -2151,6 +2154,14 @@ export default defineComponent({
       }
       if (this.consoleState.inspecting) {
         this.exitInspection();
+      }
+    },
+    /** P29c DEV (temporary): LB/RB board-scale tuning + the value notice. */
+    tuneBoardScale(delta: number): void {
+      const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+      const v = board?.adjustScaleBoost(delta);
+      if (v !== undefined) {
+        this.showNotice(`${translateText('Board scale')}: ×${v.toFixed(2)}`);
       }
     },
     // ── the console-native journal (View — board home only) ─────────────
