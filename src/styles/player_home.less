@@ -3855,6 +3855,22 @@ each(@players, {
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75);
     z-index: 1;
 }
+/* Award plaque: the current LEADER cube(s) (ties → a small stack). Overrides
+   the single-cube absolute positioning so several cubes line up in the corner. */
+.milestone-claimed-badge-leaders {
+    position: absolute;
+    bottom: 1px;
+    right: 1px;
+    display: flex;
+    gap: 1px;
+    z-index: 1;
+
+    .milestone-claimed-badge-cube {
+        position: static;
+        bottom: auto;
+        right: auto;
+    }
+}
 
 /* Empty-slot tooltip variant — single line with the claim status. */
 .milestone-floating-tooltip-status {

@@ -3866,40 +3866,122 @@ html.console-mode {
     &--ready { color: @con-mint; }
     &--none { color: @con-text-dim; font-weight: 400; }
 }
-/* Award race: LEADER label + colour dot(s) + the leading score, one read. */
-.con-home__ma-leaders {
+/* ── Awards block: a stable NAME | SPONSOR (⚑) | LEADER (👑) grid ──────
+   Awards read in one second: flag = who sponsored, crown = who's winning,
+   number = the current score. A funded award still RACES, so the leader is
+   always shown (funder ≠ scorer). The `con-award-*` rows are dedicated to
+   awards (milestones keep `con-home__ma`) so the two never fight. */
+.con-home__block--awards {
+    // name | sponsor | leader — fixed sponsor/leader widths so both columns
+    // line up at the same x across every row (and the header row).
+    --con-award-cols: minmax(0, 1fr) 44px 116px;
+}
+.con-award-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--con-award-cols);
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 5px 9px 5px 13px;
+    border-radius: 7px;
+    background: rgba(10, 18, 28, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.12);
+    font-size: 15.5px;
+    line-height: 1.25;
+
+    &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        border-radius: 7px 0 0 7px;
+        background: rgba(120, 150, 180, 0.28);
+    }
+    &--taken {
+        opacity: 0.92;
+        &::before { background: fade(@con-cyan, 45%); }
+    }
+    /* Header row: the column captions, no chrome. */
+    &--head {
+        margin-top: 8px;
+        padding-top: 0;
+        padding-bottom: 2px;
+        background: transparent;
+        box-shadow: none;
+        &::before { display: none; }
+    }
+}
+.con-award__colhead {
+    font-size: 9.5px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: @con-text-dim;
+    opacity: 0.72;
+}
+.con-award__name {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: @con-text;
+}
+.con-award__sponsor,
+.con-award__leader {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    color: @con-text-dim;
-    .con-status__dot { width: 13px; height: 13px; }
+    gap: 5px;
+    min-width: 0;
 }
-.con-home__ma-dot--me { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.75); }
-.con-home__ma-leaders-label {
-    font-size: 11px;
-    letter-spacing: 1.1px;
-    text-transform: uppercase;
-    opacity: 0.8;
+/* Sponsor flag — a small premium pennant (cyan), NOT a check. */
+.con-award__flag {
+    flex-shrink: 0;
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: @con-cyan;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    .con-award__flag-fill { fill: fade(@con-cyan, 82%); stroke: none; }
 }
-.con-home__ma-leaders-score {
+/* Leader crown — the single, gold marker for the current winner. */
+.con-award__crown {
+    flex-shrink: 0;
+    width: 18px;
+    height: 15px;
+    fill: @con-ma-gold;
+    filter: drop-shadow(0 0 3px fade(@con-ma-gold, 45%));
+}
+/* Player marker — a small rounded CUBE (overrides the round `con-status__dot`). */
+.con-award__cube {
+    flex-shrink: 0;
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+.con-award__cube--me { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.72); }
+.con-award__leader-unit {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+.con-award__leader-val {
     color: @con-text;
     font-weight: 700;
-    font-size: 17px;
+    font-size: 15.5px;
 }
-/* The compact leader chip shown ALONGSIDE the funder on a funded award — a
-   small gold crown replaces the «ЛИДЕР» word so both fit one row. */
-.con-home__ma-leaders-crown {
-    color: @con-ma-gold;
-    font-size: 14px;
-    line-height: 1;
+.con-award__leader-more {
+    color: @con-text-dim;
+    font-weight: 700;
+    font-size: 12px;
 }
-.con-home__ma-leaders--compact {
-    gap: 5px;
-    .con-status__dot { width: 12px; height: 12px; }
-    .con-home__ma-leaders-score { font-size: 15.5px; }
+.con-award__none {
+    color: @con-text-dim;
 }
-/* A funded award still races — don't dim its live leader as hard as a settled row. */
-.con-home__ma--taken { opacity: 0.9; }
 /* Block footer: slots left / the gold completed state (P23 language). */
 .con-home__foot {
     margin-top: 8px;
@@ -7670,12 +7752,17 @@ html.con-profile-handheld {
     .con-home__state { font-size: 12.5px; margin-top: 4px; gap: 6px; }
     .con-home__state-dot { width: 7px; height: 7px; }
     .con-home__ma { font-size: 12.5px; margin-top: 4px; gap: 6px; padding: 3px 7px 3px 10px; }
-    .con-home__ma-owner .con-status__dot,
-    .con-home__ma-leaders .con-status__dot { width: 10px; height: 10px; }
+    .con-home__ma-owner .con-status__dot { width: 10px; height: 10px; }
     .con-home__ma-bar { width: 38px; height: 4px; }
     .con-home__ma-progress { font-size: 13.5px; i { font-size: 11px; } }
-    .con-home__ma-leaders-label { font-size: 9px; }
-    .con-home__ma-leaders-score { font-size: 13.5px; }
+    /* Awards grid — tighter columns + smaller cubes/glyphs on the handheld profile. */
+    .con-home__block--awards { --con-award-cols: minmax(0, 1fr) 38px 100px; }
+    .con-award-row { font-size: 12.5px; margin-top: 4px; gap: 6px; padding: 3px 7px 3px 10px; }
+    .con-award__cube { width: 11px; height: 11px; }
+    .con-award__flag { width: 13px; height: 13px; }
+    .con-award__crown { width: 15px; height: 13px; }
+    .con-award__leader-val { font-size: 13.5px; }
+    .con-award__colhead { font-size: 8.5px; }
     .con-home__foot { margin-top: 6px; padding-top: 5px; font-size: 11.5px; }
     .con-banner { font-size: 15px; padding: 5px 12px; }
     .con-terra-event {
@@ -8044,6 +8131,10 @@ html.con-profile-large {
     .con-journal__filterpop-row { font-size: 17px; }
     .con-home__value b { font-size: 28px; }
     .con-home__ma { font-size: 17px; }
+    .con-award-row { font-size: 17px; }
+    .con-home__block--awards { --con-award-cols: minmax(0, 1fr) 50px 132px; }
+    .con-award__cube { width: 15px; height: 15px; }
+    .con-award__leader-val { font-size: 17px; }
     .con-task__title { font-size: 30px; }
     .con-task__opt-title { font-size: 24px; }
     /* P26 · MA strategic panel — a gentle 4K readability boost only. */

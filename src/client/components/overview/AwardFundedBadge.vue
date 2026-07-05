@@ -4,11 +4,16 @@
        :style="badgeStyle"
        v-on:mouseenter="onEnter"
        v-on:mouseleave="onLeave">
-    <!-- Tiny color marker showing which player FUNDED this award.
-         The award itself isn't owned — funder is just the one who paid. -->
-    <div v-if="award"
-         class="milestone-claimed-badge-cube"
-         :class="`player_bg_color_${award.color}`"></div>
+    <!-- Primary marker = the current LEADER(S) of the award race (who would
+         score its VP at game end), NOT the funder. Updates live as the race
+         shifts; the funder stays in the tooltip below. Ties → a small stack of
+         leader cubes. No leader yet (all zero) → no cube (neutral art). -->
+    <div v-if="leaders.length > 0" class="milestone-claimed-badge-leaders">
+      <div v-for="l in leaders.slice(0, 3)"
+           :key="l.color"
+           class="milestone-claimed-badge-cube"
+           :class="`player_bg_color_${l.color}`"></div>
+    </div>
 
     <!--
       Teleport tooltip to <body> so it isn't clipped by the badge's circle
@@ -69,6 +74,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {FundedAwardModel, AwardScore} from '@/common/models/FundedAwardModel';
+import {awardLeaders} from '@/common/models/awardDisplay';
 import {Color} from '@/common/Color';
 import {MAX_AWARDS} from '@/common/constants';
 import {getAward} from '@/client/MilestoneAwardManifest';
@@ -131,17 +137,11 @@ export default defineComponent({
       }
       return [...this.award.scores].sort((x, y) => y.score - x.score);
     },
-    // The current leader(s): every player tied at the (non-zero) top score.
-    // These are exactly who scores this award's VP at game end — including a
-    // multi-way tie for 1st (the server awards all of them, see
-    // calculateVictoryPoints.giveAwards).
+    // The current leader(s) via the SHARED derivation — every player tied at the
+    // (non-zero) top score; these are exactly who scores this award's VP at game
+    // end (a multi-way tie for 1st gives them all 5 VP).
     leaders(): Array<AwardScore> {
-      const sorted = this.sortedScores;
-      if (sorted.length === 0 || sorted[0].score <= 0) {
-        return [];
-      }
-      const top = sorted[0].score;
-      return sorted.filter((s) => s.score === top);
+      return this.award ? awardLeaders(this.award.scores) : [];
     },
     tooltipStyle(): Record<string, string> {
       return {
@@ -160,15 +160,10 @@ export default defineComponent({
     playerName(color: Color): string {
       return this.players.find((p) => p.color === color)?.name ?? color;
     },
-    // A player is "the leader" if their score equals the top score AND that
-    // top score is non-zero (so we don't paint everyone green at game start
-    // when nobody has any qualifying tags / tiles yet).
+    // A player is "the leader" iff they're in the shared leader set (top score,
+    // non-zero) — the same derivation the plaque cube + the leader line use.
     isLeader(s: AwardScore, _i: number): boolean {
-      if (this.sortedScores.length === 0) {
-        return false;
-      }
-      const top = this.sortedScores[0].score;
-      return s.score === top && top > 0;
+      return this.leaders.some((l) => l.color === s.color);
     },
     onEnter(e: MouseEvent): void {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();

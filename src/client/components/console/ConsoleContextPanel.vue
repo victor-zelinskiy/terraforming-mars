@@ -162,36 +162,51 @@
            availability is an ECONOMY action, not a met condition — no hot
            block / no mint row rails (that language is milestone-only);
            a quiet count chip communicates "can sponsor" instead. -->
-      <section class="con-home__block con-home__block--ma">
+      <section class="con-home__block con-home__block--ma con-home__block--awards">
         <header class="con-home__head">
           <BarButtonIcon name="awards" />
           <span class="con-home__title">{{ $t('Awards') }}</span>
           <span v-if="awardSummary.actionable > 0" class="con-home__badge con-home__badge--quiet">{{ awardSummary.actionable }}</span>
           <span class="con-home__hint"><GamepadGlyph control="bumperR" /></span>
         </header>
+        <!-- Stable three-zone columns: NAME | SPONSOR (⚑) | LEADER (👑). The
+             glyphs are the legend, so the micro-headers stay quiet. -->
+        <div class="con-award-row con-award-row--head" aria-hidden="true">
+          <span class="con-award__name"></span>
+          <span class="con-award__sponsor con-award__colhead" v-i18n>Sponsor</span>
+          <span class="con-award__leader con-award__colhead" v-i18n>Leader</span>
+        </div>
         <div v-for="row in awardSummary.rows" :key="row.name"
-             class="con-home__ma"
-             :class="{'con-home__ma--taken': row.takenBy !== undefined}">
-          <span class="con-home__ma-name" v-i18n>{{ shortName(row.name) }}</span>
-          <!-- Funder (who sponsored the award). A dot with no name when a leader
-               is also shown, to keep the row compact. -->
-          <span v-if="row.takenBy !== undefined" class="con-home__ma-owner">
-            <span class="con-home__ma-check" aria-hidden="true">✓</span>
-            <span :class="'con-status__dot player_bg_color_' + row.takenBy.color"></span>
-            <span v-if="!hasLeaders(row)" class="con-home__ma-owner-name">{{ row.takenBy.name }}</span>
+             class="con-award-row"
+             :class="{'con-award-row--taken': row.takenBy !== undefined}">
+          <span class="con-award__name" v-i18n>{{ shortName(row.name) }}</span>
+          <!-- SPONSOR zone: flag + funder cube, or flag + «—» when unsponsored. -->
+          <span class="con-award__sponsor">
+            <svg class="con-award__flag" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 1.6v12.8" />
+              <path d="M4 2.4h8.4l-2.1 2.8 2.1 2.8H4z" class="con-award__flag-fill" />
+            </svg>
+            <span v-if="row.takenBy !== undefined"
+                  class="con-status__dot con-award__cube"
+                  :class="['player_bg_color_' + row.takenBy.color, {'con-award__cube--me': row.takenBy.color === viewerColor}]"></span>
+            <span v-else class="con-award__none">—</span>
           </span>
-          <!-- Live race LEADER(S) — always shown for awards, funded or not (the
-               funder is not necessarily who scores the VP). Ties → every dot. -->
-          <span v-if="hasLeaders(row)" class="con-home__ma-leaders"
-                :class="{'con-home__ma-leaders--compact': row.takenBy !== undefined}">
-            <span v-if="row.takenBy === undefined" class="con-home__ma-leaders-label">{{ $t('Leader') }}</span>
-            <span v-else class="con-home__ma-leaders-crown" aria-hidden="true">♔</span>
-            <span v-for="l in (row.leaders ?? [])" :key="l.color"
-                  class="con-status__dot"
-                  :class="['player_bg_color_' + l.color, {'con-home__ma-dot--me': l.color === viewerColor}]"></span>
-            <span class="con-home__ma-leaders-score">{{ row.leaders?.[0]?.score }}</span>
+          <!-- LEADER zone: crown + (cube value) per co-leader, or a bare «—». -->
+          <span class="con-award__leader">
+            <template v-if="hasLeaders(row)">
+              <svg class="con-award__crown" viewBox="0 0 20 16" aria-hidden="true">
+                <path d="M2 12.4h16l1.1-8-4.4 3.1L10 3.2 5.3 7.5.9 4.4z" />
+                <rect x="2" y="13.2" width="16" height="1.8" rx="0.9" />
+              </svg>
+              <span v-for="l in displayLeaders(row)" :key="l.color" class="con-award__leader-unit">
+                <span class="con-status__dot con-award__cube"
+                      :class="['player_bg_color_' + l.color, {'con-award__cube--me': l.color === viewerColor}]"></span>
+                <span class="con-award__leader-val">{{ l.score }}</span>
+              </span>
+              <span v-if="extraLeaders(row) > 0" class="con-award__leader-more">+{{ extraLeaders(row) }}</span>
+            </template>
+            <span v-else class="con-award__none">—</span>
           </span>
-          <span v-if="row.takenBy === undefined && !hasLeaders(row)" class="con-home__ma-progress con-home__ma-progress--none">—</span>
         </div>
         <div class="con-home__foot">
           <span v-if="awardSummary.slotsLeft === 0" class="con-home__foot-done">✓ {{ $t('All funded') }}</span>
@@ -240,6 +255,10 @@ function textOf(v: string | Message | undefined): string {
 }
 
 const EMPTY_SUMMARY: HomeMaSummary = {rows: [], takenCount: 0, maxSlots: 3, actionable: 0, slotsLeft: 3};
+
+// How many co-leaders show a cube+score before the rest collapse to «+N»
+// (keeps the leader column a stable width — priority 4 in the spec).
+const MAX_LEADER_CUBES = 2;
 
 export default defineComponent({
   name: 'ConsoleContextPanel',
@@ -320,6 +339,13 @@ export default defineComponent({
     /** Awards only: the row has a live race leader (someone with a non-zero top score). */
     hasLeaders(row: HomeMaRow): boolean {
       return row.leaders !== undefined && row.leaders.length > 0;
+    },
+    /** Up to MAX_LEADER_CUBES co-leaders shown with a cube+score; the rest → «+N». */
+    displayLeaders(row: HomeMaRow): ReadonlyArray<{color: Color, score: number}> {
+      return (row.leaders ?? []).slice(0, MAX_LEADER_CUBES);
+    },
+    extraLeaders(row: HomeMaRow): number {
+      return Math.max(0, (row.leaders?.length ?? 0) - MAX_LEADER_CUBES);
     },
     /** Milestone progress → the mini rail width (bounded 0..100). */
     progressPct(score: number, threshold: number): number {
