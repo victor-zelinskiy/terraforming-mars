@@ -169,12 +169,20 @@
           <span v-if="awardSummary.actionable > 0" class="con-home__badge con-home__badge--quiet">{{ awardSummary.actionable }}</span>
           <span class="con-home__hint"><GamepadGlyph control="bumperR" /></span>
         </header>
-        <!-- Stable three-zone columns: NAME | SPONSOR (⚑) | LEADER (👑). The
-             glyphs are the legend, so the micro-headers stay quiet. -->
-        <div class="con-award-row con-award-row--head" aria-hidden="true">
-          <span class="con-award__name"></span>
-          <span class="con-award__sponsor con-award__colhead" v-i18n>Sponsor</span>
-          <span class="con-award__leader con-award__colhead" v-i18n>Leader</span>
+        <!-- One compact helper-text legend (NOT a table header) — the glyphs
+             carry the meaning, so the rows stay uncluttered. -->
+        <div class="con-award__legend" aria-hidden="true">
+          <svg class="con-award__flag con-award__legend-glyph" viewBox="0 0 16 16">
+            <path d="M4 1.6v12.8" />
+            <path d="M4 2.4h8.4l-2.1 2.8 2.1 2.8H4z" class="con-award__flag-fill" />
+          </svg>
+          <span class="con-award__legend-word" v-i18n>Sponsor</span>
+          <span class="con-award__legend-sep">·</span>
+          <svg class="con-award__crown con-award__legend-glyph" viewBox="0 0 20 16">
+            <path d="M2 12.4h16l1.1-8-4.4 3.1L10 3.2 5.3 7.5.9 4.4z" />
+            <rect x="2" y="13.2" width="16" height="1.8" rx="0.9" />
+          </svg>
+          <span class="con-award__legend-word" v-i18n>Leader</span>
         </div>
         <div v-for="row in awardSummary.rows" :key="row.name"
              class="con-award-row"

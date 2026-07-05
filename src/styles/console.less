@@ -3866,22 +3866,39 @@ html.console-mode {
     &--ready { color: @con-mint; }
     &--none { color: @con-text-dim; font-weight: 400; }
 }
-/* ── Awards block: a stable NAME | SPONSOR (⚑) | LEADER (👑) grid ──────
+/* ── Awards block: NAME | SPONSOR (⚑) | LEADER (👑) ────────────────────
    Awards read in one second: flag = who sponsored, crown = who's winning,
    number = the current score. A funded award still RACES, so the leader is
    always shown (funder ≠ scorer). The `con-award-*` rows are dedicated to
-   awards (milestones keep `con-home__ma`) so the two never fight. */
-.con-home__block--awards {
-    // name | sponsor | leader — fixed sponsor/leader widths so both columns
-    // line up at the same x across every row (and the header row).
-    --con-award-cols: minmax(0, 1fr) 44px 116px;
+   awards (milestones keep `con-home__ma`) so the two never fight.
+
+   Layout priority (spec): NAME first — the name column is `1fr` and the
+   sponsor/leader zones are `auto` (size to content), so a name only truncates
+   as much as a given row's leader zone actually needs. No fixed columns → the
+   meaning lives in the one-line legend below the header, not table captions. */
+.con-award__legend {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 5px;
+    font-size: 11px;
+    color: fade(@con-text-dim, 78%);
+    text-transform: lowercase; // helper text, never caps
 }
+.con-award__legend-glyph {
+    // A quieter, smaller twin of the row glyphs — a hint, not a marker.
+    opacity: 0.85;
+    &.con-award__flag { width: 12px; height: 12px; }
+    &.con-award__crown { width: 14px; height: 12px; }
+}
+.con-award__legend-word { letter-spacing: 0.3px; }
+.con-award__legend-sep { margin: 0 3px; opacity: 0.5; }
 .con-award-row {
     position: relative;
     display: grid;
-    grid-template-columns: var(--con-award-cols);
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     margin-top: 6px;
     padding: 5px 9px 5px 13px;
     border-radius: 7px;
@@ -3904,22 +3921,6 @@ html.console-mode {
         opacity: 0.92;
         &::before { background: fade(@con-cyan, 45%); }
     }
-    /* Header row: the column captions, no chrome. */
-    &--head {
-        margin-top: 8px;
-        padding-top: 0;
-        padding-bottom: 2px;
-        background: transparent;
-        box-shadow: none;
-        &::before { display: none; }
-    }
-}
-.con-award__colhead {
-    font-size: 9.5px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: @con-text-dim;
-    opacity: 0.72;
 }
 .con-award__name {
     min-width: 0;
@@ -7755,14 +7756,13 @@ html.con-profile-handheld {
     .con-home__ma-owner .con-status__dot { width: 10px; height: 10px; }
     .con-home__ma-bar { width: 38px; height: 4px; }
     .con-home__ma-progress { font-size: 13.5px; i { font-size: 11px; } }
-    /* Awards grid — tighter columns + smaller cubes/glyphs on the handheld profile. */
-    .con-home__block--awards { --con-award-cols: minmax(0, 1fr) 38px 100px; }
-    .con-award-row { font-size: 12.5px; margin-top: 4px; gap: 6px; padding: 3px 7px 3px 10px; }
+    /* Awards — smaller cubes/glyphs on the handheld profile (columns are auto). */
+    .con-award-row { font-size: 12.5px; margin-top: 4px; gap: 8px; padding: 3px 7px 3px 10px; }
     .con-award__cube { width: 11px; height: 11px; }
     .con-award__flag { width: 13px; height: 13px; }
     .con-award__crown { width: 15px; height: 13px; }
     .con-award__leader-val { font-size: 13.5px; }
-    .con-award__colhead { font-size: 8.5px; }
+    .con-award__legend { font-size: 10px; margin-top: 4px; }
     .con-home__foot { margin-top: 6px; padding-top: 5px; font-size: 11.5px; }
     .con-banner { font-size: 15px; padding: 5px 12px; }
     .con-terra-event {
@@ -8132,9 +8132,9 @@ html.con-profile-large {
     .con-home__value b { font-size: 28px; }
     .con-home__ma { font-size: 17px; }
     .con-award-row { font-size: 17px; }
-    .con-home__block--awards { --con-award-cols: minmax(0, 1fr) 50px 132px; }
     .con-award__cube { width: 15px; height: 15px; }
     .con-award__leader-val { font-size: 17px; }
+    .con-award__legend { font-size: 12.5px; }
     .con-task__title { font-size: 30px; }
     .con-task__opt-title { font-size: 24px; }
     /* P26 · MA strategic panel — a gentle 4K readability boost only. */
