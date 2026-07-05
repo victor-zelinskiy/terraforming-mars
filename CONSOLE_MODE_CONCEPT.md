@@ -1973,3 +1973,46 @@ handheld profile compacts the whole `.con-home__*` family + the new
 `__pstatus` chips so cards/actions/milestones/awards INCLUDING the
 «Свободных слотов» line fit the Deck height without scroll. Gates:
 vue-tsc, build:client, 161 specs — green.
+
+### P28 — Right home panel readability + console-NATIVE Journal
+
+(1) **Console-native journal** — the desktop `JournalPanel` no longer
+renders in console mode (gated in App.vue); `ConsoleJournalPanel.vue`
+(mounted by the shell inside `.con-main`) REPLACES the right info panel
+while open: an ABSOLUTE overlay pinned to the right edge, WIDER than the
+panel (`min(560px, 46%)`; handheld 480 / large 680), free to overlap the
+board — the board/planet is NEVER reflowed or rescaled for it. One brain,
+two shells: the fetch/live-follow/poller logic was extracted VERBATIM
+into `journal/journalDataSource.ts` (the desktop panel is a thin shell
+over it now) and the feed reuses the SAME `JournalGroup`/`JournalEntry`
+rows. Full controller grammar: d-pad = entry focus (dividers skipped,
+auto-scroll into view, tail-follow on live appends), A = expand/collapse
+the focused entry AGAINST the global mode (per-entry override), X =
+fullscreen the entry's card(s) via `consoleCardZoom` (read-only context;
+closing restores the exact journal state — the panel never unmounts),
+LB/RB = Подробно/Сводка, LT/RT = generation stepping (Live re-engages on
+the current one), Y = the console filter popover (ВСЕ / players /
+СОПЕРНИКИ — mirrors the desktop selector's option set), RS = free scroll
+(`scrollActiveConsole` targets `.con-journal__scroll`), B/View = close
+(B inside the filter popover closes only the popover). Pure helpers in
+`consoleJournalModel.ts` (card extraction / gen stepping / filter options
+/ node-mode override — 9 specs); the command bar reads the
+`consoleJournalUi` mirrors (the `consoleHydroUi` pattern). **Board home
+only** (safe context policy): the View-peeks inside the task host / start
+scene / hydro are GONE, other sections answer with an honest notice, and
+the `journalHardBlocked` watcher closes the journal the moment a
+placement / active task / start scene / reveal claims the screen (a
+DEFERRED task leaves it available). Critical toasts that still show over
+an open journal slide left of it (console `--journal-open` clearance).
+(2) **Right home panel readability** — hero numbers (the available count
+is the biggest number in the block), one-line state rows with status
+dots, MA mini-card rows with a status rail (steel = open, cyan = taken
+[dimmed ✓ + owner chip], mint = actionable NOW via the new per-row
+`HomeMaRow.availableNow`), a milestone mini progress BAR (score/threshold),
+award LEADER read as label + colour dot(s) [viewer's dot ringed] + the
+leading score, and a slot footer («Свободно: N» / gold «✓ Все получены»).
+(3) **Bottom bar** — the LB/RB hints are GONE from the board-home set
+(the keys sit ON the right-panel blocks they open, with the actionable
+badge), and `Menu Система` is BACK in the freed slot. Gates: vue-tsc,
+make:css, make:json, eslint, consoleJournalModel (9) +
+consoleQuickModel (15) — green.

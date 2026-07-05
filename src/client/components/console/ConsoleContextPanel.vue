@@ -92,7 +92,10 @@
     </template>
 
     <!-- ── IDLE MODE (P27): the console home — the strategic summary.
-         P27b: no «Ваш ход» kicker — the top player chips own that read. ── -->
+         P27b: no «Ваш ход» kicker — the top player chips own that read.
+         P28: the premium readability pass — hero numbers, status dots,
+         mini-card MA rows with progress rails / leader chips, slot
+         footers; the LB/RB keys live ON the blocks they open. ── -->
     <template v-else>
 
       <!-- Cards: how many can be PLAYED now / total in hand. -->
@@ -100,10 +103,11 @@
         <header class="con-home__head">
           <BarButtonIcon name="cards" />
           <span class="con-home__title">{{ $t('Cards') }}</span>
-          <span class="con-home__value"><b>{{ cardsPlayable }}</b> / {{ cardsTotal }}</span>
+          <span class="con-home__value"><b>{{ cardsPlayable }}</b><i>/{{ cardsTotal }}</i></span>
         </header>
-        <div class="con-home__line" :class="cardsPlayable > 0 ? 'con-home__line--go' : 'con-home__line--mute'">
-          {{ cardsPlayable > 0 ? $t('Playable now') : $t('No playable cards') }}<b v-if="cardsPlayable > 0">: {{ cardsPlayable }}</b>
+        <div class="con-home__state" :class="cardsPlayable > 0 ? 'con-home__state--go' : 'con-home__state--mute'">
+          <span class="con-home__state-dot" aria-hidden="true"></span>
+          <span>{{ $t(cardsPlayable > 0 ? 'Playable now' : 'No playable cards') }}</span>
         </div>
       </section>
 
@@ -112,60 +116,77 @@
         <header class="con-home__head">
           <BarButtonIcon name="actions" />
           <span class="con-home__title">{{ $t('Card actions') }}</span>
-          <span class="con-home__value"><b>{{ actionsAvailable }}</b> / {{ actionsTotal }}</span>
+          <span class="con-home__value"><b>{{ actionsAvailable }}</b><i>/{{ actionsTotal }}</i></span>
         </header>
-        <div class="con-home__line" :class="actionsAvailable > 0 ? 'con-home__line--go' : 'con-home__line--mute'">
-          {{ actionsAvailable > 0 ? $t('Available now') : $t('No actions available') }}<b v-if="actionsAvailable > 0">: {{ actionsAvailable }}</b>
+        <div class="con-home__state" :class="actionsAvailable > 0 ? 'con-home__state--go' : 'con-home__state--mute'">
+          <span class="con-home__state-dot" aria-hidden="true"></span>
+          <span>{{ $t(actionsAvailable > 0 ? 'Available now' : 'No actions available') }}</span>
         </div>
       </section>
 
-      <!-- Milestones: who claimed what, slots left, my readiness. -->
-      <section class="con-home__block" :class="{'con-home__block--hot': milestoneSummary.actionable > 0}">
+      <!-- Milestones: who claimed what, my progress, slots left. -->
+      <section class="con-home__block con-home__block--ma" :class="{'con-home__block--hot': milestoneSummary.actionable > 0}">
         <header class="con-home__head">
           <BarButtonIcon name="milestones" />
           <span class="con-home__title">{{ $t('Milestones') }}</span>
-          <span class="con-home__hint"><GamepadGlyph control="bumperL" /></span>
           <span v-if="milestoneSummary.actionable > 0" class="con-home__badge">{{ milestoneSummary.actionable }}</span>
+          <span class="con-home__hint"><GamepadGlyph control="bumperL" /></span>
         </header>
-        <div v-for="row in milestoneSummary.rows" :key="row.name" class="con-home__ma">
+        <div v-for="row in milestoneSummary.rows" :key="row.name"
+             class="con-home__ma"
+             :class="{'con-home__ma--taken': row.takenBy !== undefined, 'con-home__ma--now': row.availableNow}">
           <span class="con-home__ma-name" v-i18n>{{ shortName(row.name) }}</span>
           <span v-if="row.takenBy !== undefined" class="con-home__ma-owner">
+            <span class="con-home__ma-check" aria-hidden="true">✓</span>
             <span :class="'con-status__dot player_bg_color_' + row.takenBy.color"></span>
             <span class="con-home__ma-owner-name">{{ row.takenBy.name }}</span>
           </span>
-          <span v-else-if="row.my !== undefined" class="con-home__ma-progress" :class="{'con-home__ma-progress--ready': row.my.ready}">
-            {{ row.my.score }}<template v-if="row.my.threshold !== undefined">/{{ row.my.threshold }}</template>
-          </span>
+          <template v-else-if="row.my !== undefined">
+            <span v-if="row.my.threshold !== undefined" class="con-home__ma-bar" aria-hidden="true">
+              <span class="con-home__ma-bar-fill"
+                    :class="{'con-home__ma-bar-fill--ready': row.my.ready}"
+                    :style="{width: progressPct(row.my.score, row.my.threshold) + '%'}"></span>
+            </span>
+            <span class="con-home__ma-progress" :class="{'con-home__ma-progress--ready': row.my.ready}">
+              {{ row.my.score }}<i v-if="row.my.threshold !== undefined">/{{ row.my.threshold }}</i>
+            </span>
+          </template>
         </div>
-        <div class="con-home__line con-home__line--mute">
-          <template v-if="milestoneSummary.slotsLeft === 0">✓ {{ $t('All claimed') }}</template>
-          <template v-else>{{ $t('Slots left') }}: {{ milestoneSummary.slotsLeft }}</template>
+        <div class="con-home__foot">
+          <span v-if="milestoneSummary.slotsLeft === 0" class="con-home__foot-done">✓ {{ $t('All claimed') }}</span>
+          <span v-else class="con-home__foot-slots">{{ $t('Slots left') }}: <b>{{ milestoneSummary.slotsLeft }}</b></span>
         </div>
       </section>
 
       <!-- Awards: who funded what + the live race leaders. -->
-      <section class="con-home__block" :class="{'con-home__block--hot': awardSummary.actionable > 0}">
+      <section class="con-home__block con-home__block--ma" :class="{'con-home__block--hot': awardSummary.actionable > 0}">
         <header class="con-home__head">
           <BarButtonIcon name="awards" />
           <span class="con-home__title">{{ $t('Awards') }}</span>
-          <span class="con-home__hint"><GamepadGlyph control="bumperR" /></span>
           <span v-if="awardSummary.actionable > 0" class="con-home__badge">{{ awardSummary.actionable }}</span>
+          <span class="con-home__hint"><GamepadGlyph control="bumperR" /></span>
         </header>
-        <div v-for="row in awardSummary.rows" :key="row.name" class="con-home__ma">
+        <div v-for="row in awardSummary.rows" :key="row.name"
+             class="con-home__ma"
+             :class="{'con-home__ma--taken': row.takenBy !== undefined, 'con-home__ma--now': row.availableNow}">
           <span class="con-home__ma-name" v-i18n>{{ shortName(row.name) }}</span>
           <span v-if="row.takenBy !== undefined" class="con-home__ma-owner">
+            <span class="con-home__ma-check" aria-hidden="true">✓</span>
             <span :class="'con-status__dot player_bg_color_' + row.takenBy.color"></span>
             <span class="con-home__ma-owner-name">{{ row.takenBy.name }}</span>
           </span>
           <span v-else-if="row.leaders !== undefined && row.leaders.length > 0" class="con-home__ma-leaders">
-            <span class="con-home__ma-leaders-label">{{ $t('Leader') }}:</span>
-            <span v-for="l in row.leaders" :key="l.color" :class="'con-status__dot player_bg_color_' + l.color"></span>
+            <span class="con-home__ma-leaders-label">{{ $t('Leader') }}</span>
+            <span v-for="l in row.leaders" :key="l.color"
+                  class="con-status__dot"
+                  :class="['player_bg_color_' + l.color, {'con-home__ma-dot--me': l.color === viewerColor}]"></span>
             <span class="con-home__ma-leaders-score">{{ row.leaders[0].score }}</span>
           </span>
+          <span v-else class="con-home__ma-progress con-home__ma-progress--none">—</span>
         </div>
-        <div class="con-home__line con-home__line--mute">
-          <template v-if="awardSummary.slotsLeft === 0">✓ {{ $t('All funded') }}</template>
-          <template v-else>{{ $t('Slots left') }}: {{ awardSummary.slotsLeft }}</template>
+        <div class="con-home__foot">
+          <span v-if="awardSummary.slotsLeft === 0" class="con-home__foot-done">✓ {{ $t('All funded') }}</span>
+          <span v-else class="con-home__foot-slots">{{ $t('Slots left') }}: <b>{{ awardSummary.slotsLeft }}</b></span>
         </div>
       </section>
     </template>
@@ -286,6 +307,13 @@ export default defineComponent({
     /** Strip the numeric variant suffix (Terraformer26 → Terraformer). */
     shortName(name: string): string {
       return name.replace(/[0-9]+$/, '');
+    },
+    /** Milestone progress → the mini rail width (bounded 0..100). */
+    progressPct(score: number, threshold: number): number {
+      if (threshold <= 0) {
+        return 0;
+      }
+      return Math.min(100, Math.round((score / threshold) * 100));
     },
   },
 });

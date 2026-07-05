@@ -241,6 +241,8 @@ export type HomeMaRow = {
   leaders?: ReadonlyArray<{color: Color, score: number}>,
   /** Milestones only: the viewer's progress toward the threshold. */
   my?: {score: number, threshold?: number, ready: boolean},
+  /** Claimable / fundable RIGHT NOW (server-filtered) — the attention rail. */
+  availableNow: boolean,
 };
 
 export type HomeMaSummary = {
@@ -262,7 +264,7 @@ export function buildHomeMaSummary(
   const takenCount = models.filter(isTaken).length;
   const slotsLeft = Math.max(0, opts.maxSlots - takenCount);
   const rows: Array<HomeMaRow> = models.map((m) => {
-    const row: HomeMaRow = {name: m.name};
+    const row: HomeMaRow = {name: m.name, availableNow: !isTaken(m) && opts.availableNow.has(m.name)};
     if (isTaken(m) && m.color !== undefined) {
       row.takenBy = {color: m.color, name: m.playerName ?? ''};
       return row;

@@ -58,6 +58,18 @@
                            :trackInfo="trackInfo"
                            :trackScale="trackScaleOverview"
                            :lore="selectedCellLore" />
+      <!-- The console-NATIVE journal (View) — REPLACES the right info panel
+           while open: an absolute overlay anchored to the right edge, wider
+           than the panel and free to overlap the board. The board layout is
+           NEVER reflowed or rescaled for it (the context panel stays in the
+           flex flow underneath). Board home only; owns the pad while open. -->
+      <transition name="con-journal">
+        <ConsoleJournalPanel v-if="journalPanelVisible"
+                             ref="journalPanel"
+                             :playerView="playerView"
+                             @close="closeJournal"
+                             @notice="showNotice($event)" />
+      </transition>
       <ConsoleHandSection v-if="consoleState.section === 'hand'"
                           :entries="handEntries"
                           :index="consoleState.handIndex"
@@ -402,8 +414,10 @@ import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS
 import {cancelResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
+import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
+import {consoleJournalUi} from '@/client/console/consoleJournalState';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
@@ -484,6 +498,7 @@ export default defineComponent({
     CardZoomModal,
     ActionEffectChip,
     ConsoleHydroSection,
+    ConsoleJournalPanel,
     GamepadGlyph,
     'waiting-for': WaitingFor,
     'select-space': SelectSpace,
@@ -542,16 +557,10 @@ export default defineComponent({
     actionsTotalCount(): number {
       return playerActionSourceCount(this.thisPlayer.tableau);
     },
-    milestonesClaimableCount(): number {
-      return this.claimableTitles(findMilestoneOptionPath(this.playerView.waitingFor)?.options).size;
-    },
     /** Award names for the translation-proof structure fallback (the fund
      *  OrOptions title is a Message that i18n mutates in place). */
     awardNames(): Array<string> {
       return this.game.awards.map((a) => a.name);
-    },
-    awardsFundableCount(): number {
-      return this.claimableTitles(findAwardOptionPath(this.playerView.waitingFor, this.awardNames)?.options).size;
     },
     // ── placement ───────────────────────────────────────────────────────
     /** The convert-plants inner SelectSpace, narrowed for the headless picker. */
@@ -875,6 +884,23 @@ export default defineComponent({
     hydroActionAvailable(): boolean {
       return findHydroActionPath(this.playerView.waitingFor) !== undefined;
     },
+    // ── the console-native journal (View — board home only) ────────────
+    /** The journal surface renders (it replaces the right info panel). */
+    journalPanelVisible(): boolean {
+      return journalState.open && this.consoleState.section === 'board';
+    },
+    /**
+     * A surface that NEEDS the pad / the board arrived — the journal yields
+     * (placement, an active task / start scene / reveal). A DEFERRED task
+     * (amber chip) leaves the player free, so the journal stays available.
+     */
+    journalHardBlocked(): boolean {
+      return this.placementActive ||
+        this.consoleRevealMode !== undefined ||
+        (this.startTask !== undefined && !this.consoleState.task.deferred) ||
+        (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) ||
+        this.shellTaskActive;
+    },
     /** VP visibility for the player viewed in Information Mode. */
     infoVpVisible(): boolean {
       const color = infoModeState.playerColor;
@@ -1031,6 +1057,9 @@ export default defineComponent({
       if (this.pendingCardAction !== undefined || this.consoleState.confirm !== undefined) {
         return 'Confirmation';
       }
+      if (this.journalPanelVisible) {
+        return 'Journal';
+      }
       if (this.consoleState.quick !== undefined) {
         return this.quickTitle;
       }
@@ -1109,6 +1138,30 @@ export default defineComponent({
           {control: 'confirm', label: 'Confirm'},
           {control: 'back', label: 'Cancel'},
         ];
+      }
+      if (this.journalPanelVisible) {
+        // The journal's whole grammar, honest to the panel's live mirrors
+        // (consoleJournalUi — the panel syncs, the bar never guesses).
+        if (consoleJournalUi.filterOpen) {
+          return [
+            {control: 'dpad', label: 'Navigate'},
+            {control: 'confirm', label: 'Select'},
+            {control: 'back', label: 'Close'},
+          ];
+        }
+        const cmds: Array<ConsoleCommand> = [
+          {control: 'dpad', label: 'Entries'},
+          {control: 'confirm', label: consoleJournalUi.focusExpanded ? 'Collapse' : 'Details', enabled: consoleJournalUi.focusIsGroup},
+          {control: 'secondary', label: 'Card', enabled: consoleJournalUi.focusHasCard},
+          {control: 'bumperL', control2: 'bumperR', label: 'Mode'},
+          {control: 'triggerL', control2: 'triggerR', label: 'Generation',
+            enabled: consoleJournalUi.canPrevGen || consoleJournalUi.canNextGen},
+        ];
+        if (consoleJournalUi.filterAvailable) {
+          cmds.push({control: 'inspect', label: 'Filter'});
+        }
+        cmds.push({control: 'back', label: 'Close'});
+        return cmds;
       }
       if (this.consoleState.quick !== undefined) {
         // P27: the bar mirrors the selector's OWN slot map — one source.
@@ -1252,18 +1305,18 @@ export default defineComponent({
         ];
       }
       // Board — the console home screen: the full stable command map.
-      // P27b: the Menu/System hint is dropped — the button is universal
-      // console knowledge, and R3 (scale inspection) needs its slot.
+      // The LB/RB hints moved INTO the right panel's Milestones/Awards
+      // blocks (they sit right on the objects they open) — the freed slots
+      // bring the Menu/System indicator back to the bar.
       return [
         {control: 'inspect', label: 'Information'},
         {control: 'triggerR', label: 'Actions', badge: this.cardsPlayableCount + this.actionsAvailableCount,
           highlight: this.myTurn && (this.cardsPlayableCount + this.actionsAvailableCount) > 0},
         {control: 'triggerL', label: 'Basic actions'},
-        {control: 'bumperL', label: 'Milestones', badge: this.milestonesClaimableCount, highlight: this.milestonesClaimableCount > 0},
-        {control: 'bumperR', label: 'Awards', badge: this.awardsFundableCount, highlight: this.awardsFundableCount > 0},
         {control: 'stickL', label: 'Inspect board'},
         {control: 'stickR', label: 'Scale inspection'},
         {control: 'view', label: 'Log'},
+        {control: 'menu', label: 'System'},
       ];
     },
     // ── P15: the fullscreen viewer's select context ─────────────────────
@@ -1309,6 +1362,14 @@ export default defineComponent({
     },
   },
   watch: {
+    // A mandatory surface claimed the screen — the journal yields so the
+    // task / placement / reveal is never hidden behind it (and never has
+    // to share the pad with it).
+    journalHardBlocked(now: boolean) {
+      if (now && journalState.open) {
+        journalState.open = false;
+      }
+    },
     // P13: the fullscreen viewer is a native <dialog> - open it on the
     // undefined->defined transition only (navigation keeps it open).
     'consoleCardZoom.card'(card: CardModel | undefined, prev: CardModel | undefined) {
@@ -1463,6 +1524,21 @@ export default defineComponent({
         this.handleInfoIntent(intent);
         return true;
       }
+      // The console-native journal owns the pad while open (board home
+      // only; a mandatory surface closes it via the journalHardBlocked
+      // watcher). View/B close; B inside the filter popover only closes
+      // the popover; everything else is the panel's own grammar
+      // (A / X / LB·RB / LT·RT / Y / d-pad — see ConsoleJournalPanel).
+      if (this.journalPanelVisible) {
+        if (intent.kind === 'press' &&
+            (intent.button === 'view' || (intent.button === 'back' && !consoleJournalUi.filterOpen))) {
+          this.closeJournal();
+          return true;
+        }
+        const panel = this.$refs.journalPanel as InstanceType<typeof ConsoleJournalPanel> | undefined;
+        panel?.handleIntent(intent);
+        return true;
+      }
       // P27b: Y = INFORMATION MODE — ALWAYS (every surface's former local
       // Y verb moved to RT: task-host MAX/confirm, start-scene Continue,
       // reveal Take-all, sale-mode Sell, hydro Farthest). The two small
@@ -1479,24 +1555,17 @@ export default defineComponent({
         overlay?.handleIntent(intent);
         return true;
       }
-      // CTS T5: the start scene owns input while it serves (View still
-      // peeks the journal; B inside = wizard back-step, else defer).
+      // CTS T5: the start scene owns input while it serves (B inside =
+      // wizard back-step, else defer). The journal is a BOARD-HOME surface
+      // now — no View-peek here (safe context policy).
       if (this.startTask !== undefined && !this.consoleState.task.deferred) {
-        if (intent.kind === 'press' && intent.button === 'view') {
-          journalState.open = !journalState.open;
-          return true;
-        }
         const scene = this.$refs.startScene as InstanceType<typeof ConsoleStartScene> | undefined;
         scene?.handleIntent(intent);
         return true;
       }
-      // CTS T1–T3: the task host owns input while it serves (View still peeks
-      // the journal; B inside the host = defer-to-board / cancel, handled there).
+      // CTS T1–T3: the task host owns input while it serves (B inside the
+      // host = defer-to-board / cancel, handled there). No View-peek.
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
-        if (intent.kind === 'press' && intent.button === 'view') {
-          journalState.open = !journalState.open;
-          return true;
-        }
         const host = this.$refs.taskHost as InstanceType<typeof ConsoleTaskHost> | undefined;
         host?.handleIntent(intent);
         return true;
@@ -1827,13 +1896,9 @@ export default defineComponent({
     },
     handleSectionIntent(intent: GamepadIntent): boolean {
       // The console-native Hydronetwork screen owns its whole grammar
-      // (stages / bonus / CTA / confirm modal / help). View = journal and
-      // LT = Info Mode stay global (LT is handled before this point).
+      // (stages / bonus / CTA / confirm modal / help). Y = Info Mode stays
+      // global (handled before this point); the journal is board-home only.
       if (this.consoleState.section === 'hydro') {
-        if (intent.kind === 'press' && intent.button === 'view') {
-          journalState.open = !journalState.open;
-          return true;
-        }
         const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
         hydro?.handleIntent(intent);
         return true;
@@ -1859,7 +1924,7 @@ export default defineComponent({
         }
         return true;
       case 'view':
-        journalState.open = !journalState.open;
+        this.toggleJournal();
         return true;
       case 'triggerR':
         // P27: RT = the action-category QUICK SELECTOR — from the board
@@ -2072,6 +2137,27 @@ export default defineComponent({
       if (this.consoleState.inspecting) {
         this.exitInspection();
       }
+    },
+    // ── the console-native journal (View — board home only) ─────────────
+    toggleJournal(): void {
+      if (journalState.open) {
+        this.closeJournal();
+        return;
+      }
+      // Board home only (safe context policy): a placement / another
+      // section keeps the pad on its own task — honest notice, no toggle.
+      if (this.placementActive) {
+        this.showNotice('Finish your current action first');
+        return;
+      }
+      if (this.consoleState.section !== 'board') {
+        this.showNotice('The journal is available from the main board');
+        return;
+      }
+      journalState.open = true;
+    },
+    closeJournal(): void {
+      journalState.open = false;
     },
     // ── P27: BOARD INSPECTION MODE (L3) ──────────────────────────────────
     toggleInspection(): void {
@@ -2662,7 +2748,7 @@ export default defineComponent({
       }
       const candidates: Array<HTMLElement> = [];
       if (journalState.open) {
-        const feed = document.querySelector<HTMLElement>('.journal-feed__scroll');
+        const feed = document.querySelector<HTMLElement>('.con-journal__scroll');
         if (feed !== null) {
           candidates.push(feed);
         }

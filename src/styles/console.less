@@ -485,6 +485,9 @@
     min-height: 0;
     display: flex;
     gap: 16px;
+    /* The console journal is an ABSOLUTE overlay anchored to this box —
+       it may overlap the board, the board never reflows for it. */
+    position: relative;
 }
 
 /* ── Resource + tag panel (left rail — never hide the key numbers) ── */
@@ -3068,12 +3071,15 @@ html.console-mode {
     }
 }
 
-/* -- P27: the right HOME panel -- strategic turn summary ----------- */
+/* -- P27/P28: the right HOME panel -- strategic turn summary.
+   The P28 readability pass: hero numbers, status dots, mini-card MA rows
+   with a status rail + progress bar / leader chips, slot footers. The
+   LB/RB keys sit ON the blocks they open (moved off the bottom bar). -- */
 .con-home__block {
-    margin-top: 14px;
+    margin-top: 12px;
 
     &:first-child { margin-top: 0; }
-    padding: 10px 12px;
+    padding: 10px 12px 9px;
     border-radius: 10px;
     background: rgba(14, 23, 34, 0.6);
     box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
@@ -3099,16 +3105,21 @@ html.console-mode {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* Hero read: the AVAILABLE count is the biggest number in the block. */
 .con-home__value {
-    font-size: 18px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
     color: @con-text-dim;
     white-space: nowrap;
-    b { color: @con-mint; font-size: 21px; }
+    b { color: @con-mint; font-size: 25px; font-weight: 700; line-height: 1; }
+    i { font-style: normal; font-size: 15px; opacity: 0.85; }
 }
+/* The block's OWN controller key (LB/RB) — a real, readable key cap. */
 .con-home__hint {
     display: inline-flex;
-    zoom: 0.82;
-    opacity: 0.85;
+    opacity: 0.9;
+    .gp-glyph { min-width: 30px; height: 21px; font-size: 11.5px; }
 }
 .con-home__badge {
     min-width: 22px;
@@ -3124,21 +3135,64 @@ html.console-mode {
     font-size: 14px;
     font-weight: 700;
 }
-.con-home__line {
-    margin-top: 6px;
+/* One-line state under the hero numbers (dot + verdict, no repeats). */
+.con-home__state {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 7px;
     font-size: 15px;
-    b { color: @con-mint; }
-
-    &--go { color: fade(@con-mint, 85%); }
-    &--mute { color: @con-text-dim; }
 }
+.con-home__state-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+    flex-shrink: 0;
+}
+.con-home__state--go { color: @con-mint; }
+.con-home__state--mute {
+    color: @con-text-dim;
+    .con-home__state-dot { box-shadow: none; opacity: 0.5; }
+}
+/* MA mini-rows — one bounded card per milestone/award with a status rail:
+   steel = open race, cyan = taken (dimmed), mint = actionable NOW. */
 .con-home__ma {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
     margin-top: 6px;
+    padding: 5px 9px 5px 13px;
+    border-radius: 7px;
+    background: rgba(10, 18, 28, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.12);
     font-size: 15.5px;
     line-height: 1.25;
+
+    &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        border-radius: 7px 0 0 7px;
+        background: rgba(120, 150, 180, 0.28);
+    }
+    &--taken {
+        opacity: 0.75;
+        &::before { background: fade(@con-cyan, 45%); }
+    }
+    &--now {
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 42%);
+        &::before {
+            background: @con-mint;
+            box-shadow: 0 0 8px fade(@con-mint, 55%);
+        }
+        .con-home__ma-name { color: @con-mint; }
+    }
 }
 .con-home__ma-name {
     flex: 1;
@@ -3153,27 +3207,369 @@ html.console-mode {
     align-items: center;
     gap: 6px;
     color: @con-text-dim;
-    .con-status__dot { width: 11px; height: 11px; }
+    .con-status__dot { width: 12px; height: 12px; }
+}
+.con-home__ma-check {
+    color: @con-mint;
+    font-size: 13px;
+    line-height: 1;
 }
 .con-home__ma-owner-name {
-    max-width: 92px;
+    max-width: 96px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.con-home__ma-progress {
-    color: @con-text-dim;
-    &--ready { color: @con-mint; font-weight: 700; }
+/* Milestone progress: a mini rail + the score/threshold readout. */
+.con-home__ma-bar {
+    flex-shrink: 0;
+    width: 52px;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(120, 150, 180, 0.18);
+    overflow: hidden;
 }
+.con-home__ma-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: fade(@con-cyan, 75%);
+
+    &--ready {
+        background: @con-mint;
+        box-shadow: 0 0 6px fade(@con-mint, 60%);
+    }
+}
+.con-home__ma-progress {
+    color: @con-text;
+    font-weight: 700;
+    font-size: 16.5px;
+    i { font-style: normal; font-weight: 400; color: @con-text-dim; font-size: 13.5px; }
+
+    &--ready { color: @con-mint; }
+    &--none { color: @con-text-dim; font-weight: 400; }
+}
+/* Award race: LEADER label + colour dot(s) + the leading score, one read. */
 .con-home__ma-leaders {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     color: @con-text-dim;
-    .con-status__dot { width: 11px; height: 11px; }
+    .con-status__dot { width: 13px; height: 13px; }
 }
-.con-home__ma-leaders-label { font-size: 13.5px; letter-spacing: 0.6px; text-transform: uppercase; }
-.con-home__ma-leaders-score { color: @con-text; font-weight: 700; }
+.con-home__ma-dot--me { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.75); }
+.con-home__ma-leaders-label {
+    font-size: 11px;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+.con-home__ma-leaders-score {
+    color: @con-text;
+    font-weight: 700;
+    font-size: 17px;
+}
+/* Block footer: slots left / the gold completed state (P23 language). */
+.con-home__foot {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(120, 150, 180, 0.14);
+    font-size: 13.5px;
+    color: @con-text-dim;
+    b { color: @con-text; }
+}
+.con-home__foot-done {
+    color: fade(@con-amber, 92%);
+    font-weight: 700;
+    letter-spacing: 0.4px;
+}
+
+/* ── The console-native JOURNAL (View — the P28 flagship) ──────────
+   REPLACES the right info panel while open: an ABSOLUTE overlay pinned
+   to the right edge of .con-main, WIDER than the panel — it may overlap
+   the board freely. The board / planet layout is NEVER reflowed or
+   rescaled for it (the context panel keeps its flex slot underneath);
+   closing restores the exact previous frame. Above the sections, below
+   every task surface (11480+) and the fixed system overlays. */
+.con-journal {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    width: min(560px, 46%);
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    background: rgba(9, 16, 25, 0.95);
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 32%), -20px 0 48px rgba(0, 0, 0, 0.5);
+    font-family: @con-font;
+    overflow: hidden;
+
+    /* TV-size the reused desktop journal rows (info parity, console scale). */
+    .journal-text, .journal-em { font-size: 15px; }
+    .journal-player { font-size: 14px; }
+    .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 14px; }
+}
+.con-journal__header {
+    flex-shrink: 0;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid fade(@con-cyan, 18%);
+    background: linear-gradient(180deg, rgba(18, 30, 44, 0.85), rgba(12, 20, 30, 0.55));
+}
+.con-journal__titlebar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.con-journal__glyph {
+    width: 5px;
+    height: 20px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, @con-cyan, fade(@con-cyan, 35%));
+    box-shadow: 0 0 8px fade(@con-cyan, 45%);
+}
+.con-journal__title {
+    flex: 1;
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 2.6px;
+    text-transform: uppercase;
+    color: @con-text;
+}
+.con-journal__closehint {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 14px;
+    color: @con-text-dim;
+    .gp-glyph { min-width: 24px; height: 24px; font-size: 12px; }
+}
+.con-journal__controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    margin-top: 10px;
+
+    .gp-glyph { min-width: 26px; height: 20px; font-size: 10.5px; flex-shrink: 0; }
+}
+.con-journal__ctl--off { opacity: 0.38; }
+/* Detailed / Summary — a real segmented state flanked by its LB/RB keys. */
+.con-journal__mode {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    border-radius: 8px;
+    background: rgba(10, 18, 28, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
+}
+.con-journal__mode-seg {
+    padding: 2px 9px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: @con-text-dim;
+
+    &--active {
+        color: #08131e;
+        background: fade(@con-cyan, 85%);
+        font-weight: 700;
+        box-shadow: 0 0 10px fade(@con-cyan, 35%);
+    }
+}
+/* Generation stepper — LT ‹ ПОКОЛЕНИЕ N › RT + the honest live badge. */
+.con-journal__gen {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 7px;
+    border-radius: 8px;
+    background: rgba(10, 18, 28, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
+}
+.con-journal__gen-label {
+    font-size: 12.5px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: @con-text-dim;
+    white-space: nowrap;
+    b { color: @con-text; font-size: 17px; letter-spacing: 0; }
+}
+.con-journal__live {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: fade(@con-mint, 14%);
+    box-shadow: inset 0 0 0 1px fade(@con-mint, 55%);
+    color: @con-mint;
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+}
+.con-journal__live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: @con-mint;
+    box-shadow: 0 0 7px @con-mint;
+    animation: con-journal-live 1.8s ease-in-out infinite;
+}
+@keyframes con-journal-live {
+    50% { opacity: 0.35; }
+}
+/* Filter chip — Y opens the console popover; tinted while narrowed. */
+.con-journal__filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background: rgba(10, 18, 28, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
+    .con-status__dot { width: 12px; height: 12px; }
+
+    &--active {
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%);
+        .con-journal__filter-label { color: @con-cyan; }
+    }
+}
+.con-journal__filter-label {
+    font-size: 12.5px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: @con-text-dim;
+    max-width: 130px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* Feed — the premium thin scrollbar is the RS-scroll affordance. */
+.con-journal__scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px 12px 14px;
+    scroll-padding: 52px 0;
+    scrollbar-width: thin;
+    scrollbar-color: fade(@con-cyan, 35%) transparent;
+
+    &::-webkit-scrollbar { width: 7px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+        background: fade(@con-cyan, 28%);
+        border-radius: 999px;
+    }
+}
+.con-journal__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.con-journal__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 46px 12px;
+    color: @con-text-dim;
+    font-size: 16px;
+}
+.con-journal__placeholder-glyph {
+    font-size: 30px;
+    opacity: 0.5;
+}
+/* The focus ring lands ON the reused journal rows (class fallthrough). */
+.con-journal__node {
+    border-radius: 9px;
+    margin: 2px 0;
+
+    &--focused {
+        background: rgba(16, 28, 42, 0.85);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 65%), 0 0 14px fade(@con-cyan, 14%);
+    }
+}
+/* The console filter popover (Y) — anchored inside the panel. */
+.con-journal__filterpop {
+    position: absolute;
+    top: 92px;
+    right: 14px;
+    z-index: 5;
+    min-width: 250px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(10, 17, 26, 0.97);
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+.con-journal__filterpop-title {
+    font-size: 12.5px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: fade(@con-cyan, 85%);
+    margin-bottom: 8px;
+}
+.con-journal__filterpop-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 15.5px;
+    color: @con-text;
+    .con-status__dot { width: 12px; height: 12px; }
+
+    &--focused {
+        background: rgba(20, 34, 50, 0.9);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 60%);
+    }
+    &--selected .con-journal__filterpop-label { color: @con-cyan; }
+}
+.con-journal__filterpop-label { flex: 1; }
+.con-journal__filterpop-tick { color: @con-mint; }
+.con-journal__filterpop-hint {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(120, 150, 180, 0.15);
+    font-size: 13px;
+    color: @con-text-dim;
+
+    > span { display: inline-flex; align-items: center; gap: 6px; }
+    .gp-glyph { min-width: 22px; height: 22px; font-size: 11px; }
+}
+/* Open/close: a calm slide from the right edge (reduced-motion → fade). */
+.con-journal-enter-active,
+.con-journal-leave-active {
+    transition: opacity calc(170ms * var(--motion-scale, 1)) ease, transform calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.con-journal-enter-from,
+.con-journal-leave-to {
+    opacity: 0;
+    transform: translateX(26px);
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-journal__live-dot { animation: none; }
+    .con-journal-enter-from,
+    .con-journal-leave-to { transform: none; }
+}
+/* The critical toasts that still show over an open journal (hostile losses,
+   turn cards) slide LEFT of the console journal — same yield idea as the
+   desktop --journal-open clearance, console geometry (vw ≈ .con-main). */
+html.console-mode .notifications-layer.notifications-layer--journal-open {
+    right: calc(min(560px, 44vw) + 30px);
+}
+html.con-profile-handheld.console-mode .notifications-layer.notifications-layer--journal-open {
+    right: calc(min(480px, 45vw) + 22px);
+}
+html.con-profile-large.console-mode .notifications-layer.notifications-layer--journal-open {
+    right: calc(min(680px, 36vw) + 34px);
+}
 
 /* P27b: the curated special-cell LORE (inspection mode only). */
 .con-context__lore {
@@ -5798,15 +6194,10 @@ html.console-mode .notifications-layer {
     .con-notif--prestige { animation: none; }
 }
 
-/* ── T7: the journal reads as a console panel ────────────────────────
-   Same premium feed, console geometry: flush to the right edge, above
-   the sections (11460) but below every task surface (11480+). */
-html.console-mode .journal-panel {
-    top: 108px;
-    bottom: 70px;
-    right: 20px;
-    z-index: 11460;
-}
+/* ── P28: the journal is console-NATIVE now (.con-journal, mounted by
+   ConsoleShell in place of the right info panel). The desktop
+   .journal-panel no longer renders in console mode (gated in App.vue),
+   so the old re-position rule is gone. */
 
 @keyframes con-start-deal {
     from { opacity: 0; transform: translateY(14px); }
@@ -6456,13 +6847,19 @@ html.con-profile-handheld {
     .con-home__block { margin-top: 8px; padding: 7px 10px; }
     .con-home__head { gap: 6px; .bar-btn-icon { width: 18px; height: 18px; } }
     .con-home__title { font-size: 13px; letter-spacing: 1px; }
-    .con-home__value { font-size: 15px; b { font-size: 17px; } }
-    .con-home__hint { zoom: 0.7; }
+    .con-home__value { b { font-size: 20px; } i { font-size: 13px; } }
+    .con-home__hint .gp-glyph { min-width: 24px; height: 17px; font-size: 9.5px; }
     .con-home__badge { min-width: 18px; height: 18px; font-size: 12px; padding: 0 5px; }
-    .con-home__line { font-size: 12.5px; margin-top: 4px; }
-    .con-home__ma { font-size: 12.5px; margin-top: 3px; gap: 6px; }
+    .con-home__state { font-size: 12.5px; margin-top: 4px; gap: 6px; }
+    .con-home__state-dot { width: 7px; height: 7px; }
+    .con-home__ma { font-size: 12.5px; margin-top: 4px; gap: 6px; padding: 3px 7px 3px 10px; }
     .con-home__ma-owner .con-status__dot,
-    .con-home__ma-leaders .con-status__dot { width: 9px; height: 9px; }
+    .con-home__ma-leaders .con-status__dot { width: 10px; height: 10px; }
+    .con-home__ma-bar { width: 38px; height: 4px; }
+    .con-home__ma-progress { font-size: 13.5px; i { font-size: 11px; } }
+    .con-home__ma-leaders-label { font-size: 9px; }
+    .con-home__ma-leaders-score { font-size: 13.5px; }
+    .con-home__foot { margin-top: 6px; padding-top: 5px; font-size: 11.5px; }
     .con-banner { font-size: 15px; padding: 5px 12px; }
     .con-terra-event {
         top: calc(0.8vh + 78px);
@@ -6727,7 +7124,24 @@ html.con-profile-handheld {
     }
 
     /* ── 20 · journal + notifications geometry ───────────────────── */
-    &.console-mode .journal-panel { width: 340px; top: 84px; bottom: 54px; right: 12px; }
+    .con-journal {
+        width: min(480px, 47%);
+
+        .journal-text, .journal-em { font-size: 13.5px; }
+        .journal-player { font-size: 13px; }
+        .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 13px; }
+    }
+    .con-journal__header { padding: 9px 12px 8px; }
+    .con-journal__title { font-size: 16px; letter-spacing: 2px; }
+    .con-journal__closehint { font-size: 12.5px; }
+    .con-journal__controls { gap: 6px 8px; margin-top: 8px; .gp-glyph { min-width: 22px; height: 17px; font-size: 9.5px; } }
+    .con-journal__mode-seg { font-size: 11px; padding: 2px 7px; }
+    .con-journal__gen-label { font-size: 11px; b { font-size: 14.5px; } }
+    .con-journal__live { font-size: 9.5px; padding: 1px 6px; }
+    .con-journal__filter-label { font-size: 11px; max-width: 104px; }
+    .con-journal__scroll { padding: 8px 10px 12px; }
+    .con-journal__filterpop { top: 76px; }
+    .con-journal__filterpop-row { font-size: 13.5px; padding: 6px 9px; }
     &.console-mode .notifications-layer { top: 84px; right: 12px; }
     /* P16: the console card gets the handheld density (the desktop card
        no longer renders in console mode). */
@@ -6801,6 +7215,18 @@ html.con-profile-large {
     .con-cmdbar__context { font-size: 23px; }
     .con-cmdbar__cmd span { font-size: 21px; }
     .con-inspector { max-width: 520px; }
+    .con-journal {
+        width: min(680px, 38%);
+
+        .journal-text, .journal-em { font-size: 17px; }
+        .journal-player { font-size: 16px; }
+        .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 16px; }
+    }
+    .con-journal__title { font-size: 23px; }
+    .con-journal__gen-label b { font-size: 20px; }
+    .con-journal__filterpop-row { font-size: 17px; }
+    .con-home__value b { font-size: 28px; }
+    .con-home__ma { font-size: 17px; }
     .con-task__title { font-size: 30px; }
     .con-task__opt-title { font-size: 24px; }
     /* P26 · MA strategic panel — a gentle 4K readability boost only. */

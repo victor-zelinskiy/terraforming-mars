@@ -218,9 +218,12 @@
         flag. The board slide is driven separately by PlayerHome's
         `#player-home.journal-open` class (also reads journalState).
       -->
+      <!-- Console mode has its OWN journal shell (ConsoleJournalPanel,
+           mounted by ConsoleShell — same shared data source) — the desktop
+           panel must not double-render behind it. -->
       <Transition name="journal-panel">
         <JournalPanel
-          v-if="screen === 'player-home' && playerView !== undefined && journalState.open"
+          v-if="screen === 'player-home' && playerView !== undefined && journalState.open && !consoleModeState.enabled"
           :viewModel="playerView"
           :color="playerView.thisPlayer.color"
           :step="playerView.game.step"
