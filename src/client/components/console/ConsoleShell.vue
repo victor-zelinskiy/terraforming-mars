@@ -1,20 +1,15 @@
 <template>
   <div class="con-root">
-    <ConsoleStatusStrip :game="game"
-                        :players="playerView.players"
-                        :thisPlayerColor="thisPlayer.color"
-                        :cardsPlayable="cardsPlayableCount"
-                        :cardsTotal="cardsTotalCount"
-                        :actionsAvailable="actionsAvailableCount"
-                        :actionsTotal="actionsTotalCount"
-                        :epoch="playerView.runId" />
+    <!-- P27: the strip is player IDENTITY + live turn STATUS only — the
+         cards/actions counters live in the right home panel now, and the
+         viewer's "your turn" reads from their own chip (no central pill). -->
+    <ConsoleStatusStrip :playerView="playerView" :epoch="playerView.runId" />
 
-    <div v-if="bannerText !== ''" class="con-banner" :class="{'con-banner--action': bannerAction}">
+    <!-- P27: the central banner is reserved for MANDATORY / critical states
+         (placement, awaited decisions) — never a plain "your turn". -->
+    <div v-if="bannerText !== ''" class="con-banner">
       <span class="con-banner__pulse" aria-hidden="true"></span>
       <span>{{ bannerText }}</span>
-      <span v-if="bannerAction && consoleState.sheet === undefined" class="con-banner__hint">
-        <GamepadGlyph control="inspect" /><span>{{ $t('Basic actions') }}</span>
-      </span>
     </div>
 
     <!-- CTS: a DEFERRED task (B = inspect the board) docks as an amber chip.
@@ -34,8 +29,9 @@
       <ConsoleBoardSection v-show="consoleState.section === 'board'"
                            ref="boardSection"
                            :playerView="playerView"
-                           :placementActive="placementActive" />
-      <!-- The right CONTEXT + COMMAND panel (board home / cell / task). -->
+                           :placementActive="placementActive"
+                           :inspecting="consoleState.inspecting" />
+      <!-- The right CONTEXT + INFO panel (board home / inspection / task). -->
       <ConsoleContextPanel v-show="consoleState.section === 'board'"
                            :mode="contextMode"
                            :info="selectedCellInfo"
@@ -52,8 +48,9 @@
                            :cardsTotal="cardsTotalCount"
                            :actionsAvailable="actionsAvailableCount"
                            :actionsTotal="actionsTotalCount"
-                           :milestonesClaimable="milestonesClaimableCount"
-                           :awardsFundable="awardsFundableCount" />
+                           :milestoneSummary="homeMilestoneSummary"
+                           :awardSummary="homeAwardSummary"
+                           :trackInfo="trackInfo" />
       <ConsoleHandSection v-if="consoleState.section === 'hand'"
                           :entries="handEntries"
                           :index="consoleState.handIndex"
@@ -98,10 +95,21 @@
                                  @cancel="pendingTradeColony = undefined" />
     </transition>
 
-    <ConsoleActionWheel v-if="consoleState.wheelOpen" :entries="wheelEntries" :index="consoleState.wheelIndex" />
+    <!-- P27: the RT / LT QUICK SELECTORS — the direct-input command layers
+         (RT = action categories, LT = basic actions). -->
+    <ConsoleQuickSelector v-if="consoleState.quick !== undefined"
+                          :entries="quickEntries"
+                          :title="quickTitle"
+                          :trigger="quickTrigger" />
     <!-- P26: milestones/awards render as the dedicated premium strategic
-         panel; every other bounded list keeps the generic bottom sheet. -->
-    <ConsoleMaScreen v-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" />
+         panel; P27 adds the Standard-Projects premium screen (incl. Patent
+         sale); every other bounded list keeps the generic bottom sheet. -->
+    <ConsoleStdProjectsScreen v-if="consoleState.sheet === 'standardProjects'"
+                              :items="stdProjectItems"
+                              :index="consoleState.sheetIndex"
+                              :myMegacredits="thisPlayer.megacredits"
+                              :backLabel="stdBackLabel" />
+    <ConsoleMaScreen v-else-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" />
     <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
 
     <!-- Console confirm panel (pass / risky conversions). -->
@@ -310,12 +318,20 @@
  * ConsoleShell — the console-first TV shell (CONSOLE_MODE_CONCEPT.md;
  * feedback iteration 2 = the console COMMAND MODEL):
  *
- *  MAIN BOARD = the console home screen. Stable semantics from it:
+ *  MAIN BOARD = the console home screen. Stable semantics from it (P27 —
+ *  the COMMAND MODEL rework):
+ *   Y  → Information Mode (read-only dashboard; was LT)
+ *   RT → the ACTION-CATEGORY quick selector (A=Cards, ↑ Card actions,
+ *        → Trading, ↓ Voting [reserved for Turmoil], ← Hydronetwork)
+ *   LT → the BASIC-ACTIONS quick selector (A=Standard projects [incl.
+ *        Patent sale], ↑ Skip turn, ↓ Pass [always confirmed],
+ *        ← Plant conversion, → Heat conversion)
  *   LB → Milestones panel (badge = claimable count; viewable any time)
  *   RB → Awards panel (badge = fundable count; viewable any time)
- *   Y  → Basic actions (standard projects + sell patents + conversions + pass)
- *   LT → the category ACTION WHEEL (cards / card actions / …; journal NOT here)
- *   View → journal; B → calm (drops cell focus → home summary; never destructive)
+ *   L3 → BOARD INSPECTION MODE (cells + global-parameter track bonuses;
+ *        the cells are NOT part of the normal command loop — placement
+ *        mode keeps its own automatic cell navigation)
+ *   View → journal; B → calm (exits inspection → home; never destructive)
  *  Inside menus LB/RB are NOT globally reserved. B always returns toward the
  *  board; a mandatory placement B = cancel when the server marker allows,
  *  else an honest «Требуется выбор».
@@ -339,7 +355,6 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
-import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
 import {playerActionSourceCount} from '@/client/components/actions/actionExtraction';
 import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
 
@@ -352,8 +367,11 @@ import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/Con
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
 import {buildConsoleMaItems, ConsoleMaItem, ConsoleMaKind, consoleMaPressNotice, stepGrid} from '@/client/components/console/consoleMaModel';
-import ConsoleActionWheel, {WheelEntry} from '@/client/components/console/ConsoleActionWheel.vue';
+import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelector.vue';
+import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProjectsScreen.vue';
+import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, buildHomeMaSummary, HomeMaSummary, QuickEntry, QuickSlot, QUICK_SLOT_GLYPH, StdProjectItem} from '@/client/console/consoleQuickModel';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
+import {scaleTooltipState, ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry} from '@/client/components/console/ConsoleHandSection.vue';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
@@ -383,7 +401,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
-import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSheetId} from '@/client/console/consoleRouter';
+import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
 import {
   ConvertPlantsMatch,
   findAwardOptionPath,
@@ -437,7 +455,8 @@ export default defineComponent({
     ConsoleCommandBar,
     ConsoleSheet,
     ConsoleMaScreen,
-    ConsoleActionWheel,
+    ConsoleQuickSelector,
+    ConsoleStdProjectsScreen,
     ConsoleContextPanel,
     ConsoleBoardSection,
     ConsoleHandSection,
@@ -480,8 +499,6 @@ export default defineComponent({
       dismissedRevealKey: '',
       /** T7: the card-action confirm (preview-backed; nothing submitted yet). */
       pendingCardAction: undefined as {cardName: CardName, preview: ActionPreview | undefined, loading: boolean} | undefined,
-      /** The player has actively focused a cell → the panel shows it (B drops back to the summary). */
-      cellFocused: false,
       notice: '',
       noticeTimer: undefined as number | undefined,
       offIntent: undefined as (() => void) | undefined,
@@ -668,11 +685,34 @@ export default defineComponent({
       return translateTextWithParams(reason.message, (reason.params ?? []).map(String));
     },
     // ── context panel ──────────────────────────────────────────────────
-    contextMode(): 'placement' | 'cell' | 'idle' {
+    contextMode(): 'placement' | 'cell' | 'track' | 'idle' {
       if (this.placementActive) {
         return 'placement';
       }
-      return this.cellFocused ? 'cell' : 'idle';
+      if (this.consoleState.inspecting) {
+        return this.consoleState.trackMarker !== undefined ? 'track' : 'cell';
+      }
+      return 'idle';
+    },
+    /** The focused TRACK marker's explanation — the SAME already-translated
+     *  rows the premium ScaleTooltip shows (one source, no drift). */
+    trackInfo(): ScaleTooltipContent | null {
+      return this.consoleState.trackMarker !== undefined ? scaleTooltipState.content : null;
+    },
+    /** P27: the right home panel's strategic Milestones/Awards summaries. */
+    homeMilestoneSummary(): HomeMaSummary {
+      return buildHomeMaSummary('milestones', this.game.milestones, {
+        myColor: this.thisPlayer.color,
+        availableNow: this.claimableTitles(findMilestoneOptionPath(this.playerView.waitingFor)?.options),
+        maxSlots: 3,
+      });
+    },
+    homeAwardSummary(): HomeMaSummary {
+      return buildHomeMaSummary('awards', this.game.awards, {
+        myColor: this.thisPlayer.color,
+        availableNow: this.claimableTitles(findAwardOptionPath(this.playerView.waitingFor, this.awardNames)?.options),
+        maxSlots: 3,
+      });
     },
     selectedCellInfo() {
       const info = boardInfoState.info;
@@ -703,6 +743,8 @@ export default defineComponent({
       ];
     },
     // ── banner ──────────────────────────────────────────────────────────
+    // P27: MANDATORY / critical states ONLY. The plain "your turn" reads
+    // from the viewer's own top chip — the centre stays clear for the board.
     bannerText(): string {
       if (this.placementActive) {
         // P20: the inspect-all toggle owns the prompt while active.
@@ -719,16 +761,7 @@ export default defineComponent({
           return typeof t === 'string' ? translateText(t) : translateMessage(t);
         }
       }
-      if (this.myTurn) {
-        return translateText('Your turn');
-      }
-      if (this.playerView.waitingFor === undefined) {
-        return translateText('Waiting for other players');
-      }
       return '';
-    },
-    bannerAction(): boolean {
-      return this.myTurn && !this.placementActive;
     },
     confirmTitle(): string {
       return this.consoleState.confirm === 'pass' ? 'Pass for this generation' : 'Convert heat';
@@ -798,26 +831,57 @@ export default defineComponent({
       const color = infoModeState.playerColor;
       return color === this.thisPlayer.color || this.game.gameOptions.showOtherPlayersVP === true;
     },
-    // ── the RT category wheel (journal deliberately NOT here; every
-    //    sector carries a DIRECT hotkey; A = highlighted / default Cards) ─
-    wheelEntries(): Array<WheelEntry> {
-      const entries: Array<WheelEntry> = [
-        {id: 'cards', label: 'Cards', barIcon: 'cards', shortcut: 'confirm', available: true, reason: '', badge: this.cardsPlayableCount},
-        {id: 'cardActions', label: 'Card actions', barIcon: 'actions', shortcut: 'secondary', available: true, reason: '', badge: this.actionsAvailableCount},
-        {id: 'effects', label: 'Effects', barIcon: 'effects', shortcut: 'bumperL', available: true, reason: ''},
-      ];
-      if (this.game.colonies.length > 0) {
-        entries.push({id: 'colonies', label: 'Colonies', barIcon: 'colonies', shortcut: 'bumperR', available: true, reason: ''});
+    // ── the RT / LT quick selectors (P27 — direct-input command layers) ──
+    quickEntries(): Array<QuickEntry> {
+      if (this.consoleState.quick === 'actions') {
+        return buildRtQuickEntries({
+          cardsPlayable: this.cardsPlayableCount,
+          cardsTotal: this.cardsTotalCount,
+          actionsAvailable: this.actionsAvailableCount,
+          hasColonies: this.game.colonies.length > 0,
+          hasTurmoil: this.game.gameOptions.expansions.turmoil === true,
+          hasHydro: this.game.gameOptions.expansions.deltaProject === true,
+        });
       }
-      if (this.game.gameOptions.expansions.deltaProject) {
-        entries.push({id: 'hydro', label: 'Hydronetwork', barIcon: 'hydronetwork', shortcut: 'inspect', available: true, reason: ''});
+      if (this.consoleState.quick === 'basics') {
+        const wf = this.playerView.waitingFor;
+        return buildLtQuickEntries({
+          myTurn: this.myTurn,
+          stdAvailable: this.standardProjectsAction !== undefined,
+          endTurnAvailable: findEndTurnPath(wf) !== undefined,
+          passAvailable: findPassPath(wf) !== undefined,
+          convertPlantsAvailable: findConvertPlantsOption(wf, this.thisPlayer.canConvertPlants === true) !== undefined,
+          convertHeatAvailable: findConvertHeatOption(wf) !== undefined,
+          plantsNeeded: this.thisPlayer.plantsNeededForGreenery,
+          heatNeeded: this.thisPlayer.heatNeededForTemperature,
+        });
       }
-      return entries;
+      return [];
+    },
+    quickTitle(): string {
+      return this.consoleState.quick === 'actions' ? 'Actions' : 'Basic actions';
+    },
+    quickTrigger(): 'triggerR' | 'triggerL' {
+      return this.consoleState.quick === 'actions' ? 'triggerR' : 'triggerL';
+    },
+    /** The premium Standard-Projects screen rows (Patent sale included). */
+    stdProjectItems(): Array<StdProjectItem> {
+      return buildStdProjectItems({
+        cards: this.standardProjectsAction?.input.cards ?? [],
+        myTurn: this.myTurn,
+        myMegacredits: this.thisPlayer.megacredits,
+        sellAvailable: findSellPatentsAction(this.playerView.waitingFor) !== undefined,
+        cardsInHand: this.cardsTotalCount,
+      });
+    },
+    /** B on the MANDATORY std-project prompt minimizes (amber chip), else closes. */
+    stdBackLabel(): string {
+      return this.shellTask?.kind === 'projectCard' && this.shellTask.mode === 'standardProject' ?
+        'Minimize' : 'Close';
     },
     // ── sheets ──────────────────────────────────────────────────────────
     sheetTitle(): string {
       switch (this.consoleState.sheet) {
-      case 'basics': return 'Basic actions';
       case 'cardActions': return 'Card actions';
       case 'milestones': return 'Milestones';
       case 'awards': return 'Awards';
@@ -870,11 +934,6 @@ export default defineComponent({
     },
     sheetRows(): Array<ConsoleSheetRow> {
       switch (this.consoleState.sheet) {
-      case 'basics':
-        return this.basicsRows();
-      case 'standardProjects':
-        // The MANDATORY std-project prompt (T3): only the server's cards.
-        return this.standardProjectRows(this.standardProjectsAction?.input.cards ?? []);
       case 'cardActions':
         return this.cardActionsRows();
       case 'hydroPick':
@@ -901,7 +960,7 @@ export default defineComponent({
         case 'endgame': return 'Game results';
         case 'drawReveal': return 'Cards';
         case 'dialog': return 'Card details';
-        case 'colonies': return 'Colonies';
+        case 'colonies': return 'Trading';
         default: return 'Awaiting decision';
         }
       }
@@ -923,8 +982,8 @@ export default defineComponent({
       if (this.pendingCardAction !== undefined || this.consoleState.confirm !== undefined) {
         return 'Confirmation';
       }
-      if (this.consoleState.wheelOpen) {
-        return 'Categories';
+      if (this.consoleState.quick !== undefined) {
+        return this.quickTitle;
       }
       if (this.consoleState.sheet !== undefined) {
         return this.sheetTitle;
@@ -937,9 +996,9 @@ export default defineComponent({
       }
       switch (this.consoleState.section) {
       case 'hand': return 'Hand';
-      case 'colonies': return 'Colonies';
+      case 'colonies': return 'Trading';
       case 'hydro': return consoleHydroUi.confirmOpen ? 'Confirmation' : 'Mars Hydronetwork';
-      default: return 'Board';
+      default: return this.consoleState.inspecting ? 'Board inspection' : 'Board';
       }
     },
     commands(): Array<ConsoleCommand> {
@@ -998,14 +1057,24 @@ export default defineComponent({
           {control: 'back', label: 'Cancel'},
         ];
       }
-      if (this.consoleState.wheelOpen) {
+      if (this.consoleState.quick !== undefined) {
+        // P27: the bar mirrors the selector's OWN slot map — one source.
+        const cmds: Array<ConsoleCommand> = this.quickEntries.map((e) => ({
+          control: QUICK_SLOT_GLYPH[e.slot],
+          label: e.label,
+          enabled: e.available,
+          badge: e.badge,
+          highlight: e.available && (e.badge ?? 0) > 0,
+        }));
+        cmds.push({control: 'back', label: 'Close'});
+        return cmds;
+      }
+      if (this.consoleState.sheet === 'standardProjects') {
+        const focusedStd = this.stdProjectItems[this.consoleState.sheetIndex];
         return [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Open'},
-          {control: 'secondary', label: 'Card actions'},
-          {control: 'bumperR', label: 'Colonies', enabled: this.game.colonies.length > 0},
-          {control: 'bumperL', label: 'Effects'},
-          {control: 'back', label: 'Close'},
+          {control: 'confirm', label: 'Select', enabled: focusedStd?.available === true},
+          {control: 'back', label: this.stdBackLabel},
         ];
       }
       if (this.maScreenKind !== undefined) {
@@ -1024,8 +1093,7 @@ export default defineComponent({
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
-          {control: 'back', label: this.consoleState.sheet === 'standardProjects' ? 'Minimize' :
-            this.consoleState.sheet === 'hydroPick' ? 'Back' : 'To the board'},
+          {control: 'back', label: this.consoleState.sheet === 'hydroPick' ? 'Back' : 'To the board'},
         ];
       }
       if (this.placementActive) {
@@ -1061,7 +1129,7 @@ export default defineComponent({
           {control: 'confirm', label: 'Play now', enabled: playable},
           {control: 'secondary', label: 'Card'},
           {control: 'triggerR', label: 'Next playable'},
-          {control: 'triggerL', label: 'Information'},
+          {control: 'inspect', label: 'Information'},
           {control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'},
         ];
       }
@@ -1074,7 +1142,7 @@ export default defineComponent({
           return [
             {control: 'dpadH', label: 'Navigate'},
             {control: 'confirm', label: pick.buttonLabel, enabled: pickable},
-            {control: 'triggerL', label: 'Information'},
+            {control: 'inspect', label: 'Information'},
             {control: 'back', label: this.colonyCancellable ? 'Cancel' : 'Minimize'},
           ];
         }
@@ -1083,7 +1151,7 @@ export default defineComponent({
         return [
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Trade', enabled: tradeable},
-          {control: 'triggerL', label: 'Information'},
+          {control: 'inspect', label: 'Information'},
           {control: 'back', label: 'To the board'},
         ];
       }
@@ -1112,14 +1180,25 @@ export default defineComponent({
           {control: 'back', label: 'To the board'},
         ];
       }
+      // P27: BOARD INSPECTION MODE — cells + track bonuses, B/L3 exit.
+      if (this.consoleState.inspecting) {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'inspect', label: 'Information'},
+          {control: 'back', label: 'To the board'},
+          {control: 'stickL', label: 'Exit'},
+        ];
+      }
       // Board — the console home screen: the full stable command map
       // (system-level actions live behind Menu, never on the bar itself).
       return [
-        {control: 'inspect', label: 'Basic actions', enabled: this.myTurn},
-        {control: 'triggerR', label: 'Actions'},
-        {control: 'triggerL', label: 'Information'},
+        {control: 'inspect', label: 'Information'},
+        {control: 'triggerR', label: 'Actions', badge: this.cardsPlayableCount + this.actionsAvailableCount,
+          highlight: this.myTurn && (this.cardsPlayableCount + this.actionsAvailableCount) > 0},
+        {control: 'triggerL', label: 'Basic actions'},
         {control: 'bumperL', label: 'Milestones', badge: this.milestonesClaimableCount, highlight: this.milestonesClaimableCount > 0},
         {control: 'bumperR', label: 'Awards', badge: this.awardsFundableCount, highlight: this.awardsFundableCount > 0},
+        {control: 'stickL', label: 'Inspect board'},
         {control: 'view', label: 'Log'},
         {control: 'menu', label: 'System'},
       ];
@@ -1183,6 +1262,10 @@ export default defineComponent({
       }
       // P20: the R3 inspect-all toggle never outlives its placement.
       this.consoleState.freeRoam = false;
+      // P27: placement OWNS the board navigation — inspection mode yields
+      // (entering AND leaving placement both land on a clean board home).
+      this.consoleState.inspecting = false;
+      this.consoleState.trackMarker = undefined;
     },
     // A fresh playerView: reconfigure the board-info fetcher (facts may have
     // changed), clamp transient indices to the fresh lists.
@@ -1196,8 +1279,9 @@ export default defineComponent({
           players: this.playerView.players,
         });
         this.consoleState.handIndex = stepIndex(this.consoleState.handIndex, 0, this.handEntries.length);
-        this.consoleState.wheelIndex = stepIndex(this.consoleState.wheelIndex, 0, this.wheelEntries.length);
-        this.consoleState.sheetIndex = stepSelectable(this.consoleState.sheetIndex, 0, this.sheetRows.map((r) => r.kind !== 'header'));
+        this.consoleState.sheetIndex = this.consoleState.sheet === 'standardProjects' ?
+          stepIndex(this.consoleState.sheetIndex, 0, this.stdProjectItems.length) :
+          stepSelectable(this.consoleState.sheetIndex, 0, this.sheetRows.map((r) => r.kind !== 'header'));
         this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
         // The trade window closed externally → drop the stale payment modal.
         if (this.pendingTradeColony !== undefined && this.tradeColonyContext === undefined) {
@@ -1254,74 +1338,7 @@ export default defineComponent({
       return set;
     },
     // ── sheet row builders ───────────────────────────────────────────────
-    /** One std-project row per server card (shared: basics + the T3 sheet). */
-    standardProjectRows(cards: ReadonlyArray<CardModel>): Array<ConsoleSheetRow> {
-      return cards.map((c) => {
-        const visual = standardProjectVisual(c.name);
-        return {
-          key: c.name,
-          icon: visual.iconClass,
-          title: c.name,
-          sub: visual.description,
-          meta: `${c.calculatedCost ?? 0} M€`,
-          available: c.isDisabled !== true,
-          reason: c.isDisabled === true ? 'Unavailable right now' : '',
-        };
-      });
-    },
-    /** Y — «Базовые действия»: standard projects + sell patents + conversions + turn. */
-    basicsRows(): Array<ConsoleSheetRow> {
-      const rows: Array<ConsoleSheetRow> = [];
-      const wf = this.playerView.waitingFor;
-
-      const std = this.standardProjectsAction?.input.cards ?? [];
-      if (std.length > 0) {
-        rows.push({key: 'h-std', kind: 'header', title: 'Standard Projects', available: false});
-        rows.push(...this.standardProjectRows(std));
-      }
-
-      rows.push({key: 'h-turn', kind: 'header', title: 'Turn actions', available: false});
-      const sell = findSellPatentsAction(wf);
-      const sellVisual = standardProjectVisual(CardName.SELL_PATENTS_STANDARD_PROJECT);
-      rows.push({
-        key: 'sell',
-        icon: sellVisual.iconClass,
-        title: 'Sell patents',
-        sub: sellVisual.description,
-        available: sell !== undefined && this.cardsTotalCount > 0,
-        reason: sell === undefined ? 'Not your turn to take any actions' : 'No cards in hand',
-      });
-      const heat = findConvertHeatOption(wf);
-      rows.push({
-        key: 'convertHeat',
-        icon: 'resource_icon resource_icon--heat con-sheet__res-icon',
-        title: 'Convert heat',
-        meta: `${this.thisPlayer.heatNeededForTemperature} ♨`,
-        available: heat !== undefined,
-        reason: 'Not enough heat',
-      });
-      const plants = findConvertPlantsOption(wf, this.thisPlayer.canConvertPlants === true);
-      rows.push({
-        key: 'convertPlants',
-        icon: 'resource_icon resource_icon--plants con-sheet__res-icon',
-        title: 'Convert plants',
-        meta: `${this.thisPlayer.plantsNeededForGreenery} ☘`,
-        available: plants !== undefined,
-        reason: 'Not enough plants',
-      });
-      if (findEndTurnPath(wf) !== undefined) {
-        rows.push({key: 'endTurn', title: 'End Turn', available: true, reason: ''});
-      }
-      const pass = findPassPath(wf);
-      rows.push({
-        key: 'pass',
-        title: 'Pass for this generation',
-        available: pass !== undefined,
-        reason: 'Not your turn to take any actions',
-      });
-      return rows;
-    },
-    /** LT wheel → «Действия карт»: every action source; available NOW per the server. */
+    /** RT → «Действия карт»: every action source; available NOW per the server. */
     cardActionsRows(): Array<ConsoleSheetRow> {
       const perform = findPerformActionCard(this.playerView.waitingFor);
       const availableNames = new Set((perform?.model.cards ?? []).map((c) => c.name));
@@ -1366,15 +1383,6 @@ export default defineComponent({
       if (fallback) {
         return false;
       }
-      // LT INFORMATION MODE: toggle from every safe console context —
-      // P20: INCLUDING active placement (LT/RT keep their global meaning;
-      // inspect-all moved to R3 as a toggle, so no hold state remains).
-      if (intent.kind === 'press' && intent.button === 'triggerL') {
-        if (this.consoleState.confirm === undefined) {
-          this.toggleInfoMode();
-        }
-        return true;
-      }
       if (intent.kind === 'release') {
         return true;
       }
@@ -1390,6 +1398,33 @@ export default defineComponent({
       if (this.infoModeState.open) {
         this.handleInfoIntent(intent);
         return true;
+      }
+      // P27: Y = INFORMATION MODE (moved from LT). Available from every
+      // console context that a decision surface does NOT own — those keep
+      // their own (hinted) Y verbs: task host MAX/confirm, start scene
+      // Continue, reveal Take-all, sale-mode Sell, hydro Farthest.
+      if (intent.kind === 'press' && intent.button === 'inspect' &&
+          this.consoleState.confirm === undefined && this.pendingCardAction === undefined) {
+        const surfaceOwned = this.consoleRevealMode !== undefined ||
+          (this.startTask !== undefined && !this.consoleState.task.deferred) ||
+          (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) ||
+          this.pendingPlayCard !== undefined ||
+          this.pendingTradeColony !== undefined;
+        if (!surfaceOwned) {
+          if (this.consoleState.sale.active && this.consoleState.section === 'hand' &&
+              this.consoleState.sheet === undefined && this.consoleState.quick === undefined) {
+            this.confirmSale();
+            return true;
+          }
+          if (this.consoleState.section === 'hydro' &&
+              this.consoleState.sheet === undefined && this.consoleState.quick === undefined) {
+            const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
+            hydro?.handleIntent(intent);
+            return true;
+          }
+          this.toggleInfoMode();
+          return true;
+        }
       }
       // CTS T6: a reveal overlay owns input while visible (drawn cards
       // must be taken; the result / viewer close on any confirm).
@@ -1449,8 +1484,8 @@ export default defineComponent({
         }
         return true;
       }
-      if (this.consoleState.wheelOpen) {
-        this.handleWheelIntent(intent);
+      if (this.consoleState.quick !== undefined) {
+        this.handleQuickIntent(intent);
         return true;
       }
       if (this.consoleState.sheet !== undefined) {
@@ -1459,22 +1494,24 @@ export default defineComponent({
       }
       return this.handleSectionIntent(intent);
     },
-    // ── Information Mode (read-only; never submits) ─────────────────────
+    // ── Information Mode (read-only; never submits; Y toggles — P27) ────
     toggleInfoMode(): void {
       if (this.infoModeState.open) {
         const snap = closeInfoMode();
         if (snap !== undefined) {
-          this.cellFocused = restoreConsoleSnapshot(snap);
+          // The snapshot's cell-focus flag maps onto INSPECTION MODE (P27).
+          this.consoleState.inspecting = restoreConsoleSnapshot(snap);
         }
         // A placement prompt that arrived WHILE Info Mode was open must not
         // be restored away from — the board is the mandatory surface.
         if (this.placementActive) {
           this.consoleState.section = 'board';
+          this.consoleState.inspecting = false;
         }
         return;
       }
-      this.consoleState.wheelOpen = false;
-      openInfoMode(this.thisPlayer.color, this.cellFocused);
+      this.consoleState.quick = undefined;
+      openInfoMode(this.thisPlayer.color, this.consoleState.inspecting);
     },
     handleInfoIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
@@ -1499,8 +1536,12 @@ export default defineComponent({
       case 'secondary':
         this.openInfoDetail('extras');
         break;
-      case 'inspect':
+      case 'triggerL':
+        // P27: the actions detail moved from Y to LT (Y toggles Info Mode).
         this.openInfoDetail('actions');
+        break;
+      case 'inspect':
+        this.toggleInfoMode(); // Y closes — the same key that opened it
         break;
       case 'triggerR':
         this.openInfoDetail('effects');
@@ -1528,44 +1569,161 @@ export default defineComponent({
     openInfoDetail(detail: InfoDetail): void {
       this.infoModeState.detail = this.infoModeState.detail === detail ? undefined : detail;
     },
-    handleWheelIntent(intent: GamepadIntent): void {
+    // ── P27: the quick selectors — DIRECT input, no aiming ───────────────
+    handleQuickIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
-        const step = (intent.dir === 'right' || intent.dir === 'down') ? 1 : -1;
-        const n = this.wheelEntries.length;
-        this.consoleState.wheelIndex = (this.consoleState.wheelIndex + step + n) % n;
+        // A d-pad direction ACTIVATES its slot immediately.
+        this.activateQuickSlot(intent.dir);
         return;
       }
       if (intent.kind !== 'press') {
         return;
       }
-      // DIRECT hotkeys — no aiming needed (§6.3). RT is NOT a shortcut
-      // (it opens the wheel). A = highlighted sector (index 0 = Cards by
-      // default, so "nothing aimed" A opens Cards).
-      const byShortcut = (id: string) => this.wheelEntries.find((e) => e.id === id);
       switch (intent.button) {
       case 'confirm':
-        this.executeWheel(this.wheelEntries[this.consoleState.wheelIndex] ?? byShortcut('cards'));
-        break;
-      case 'secondary':
-        this.executeWheel(byShortcut('cardActions'));
-        break;
-      case 'inspect':
-        this.executeWheel(byShortcut('hydro'));
-        break;
-      case 'bumperR':
-        this.executeWheel(byShortcut('colonies'));
-        break;
-      case 'bumperL':
-        this.executeWheel(byShortcut('effects'));
+        this.activateQuickSlot('center');
         break;
       case 'back':
-        this.consoleState.wheelOpen = false;
+        this.consoleState.quick = undefined;
+        break;
+      case 'triggerR':
+        // The opening trigger toggles its own selector closed.
+        this.consoleState.quick = this.consoleState.quick === 'actions' ? undefined : 'actions';
+        break;
+      case 'triggerL':
+        this.consoleState.quick = this.consoleState.quick === 'basics' ? undefined : 'basics';
         break;
       default:
         break;
       }
     },
+    activateQuickSlot(slot: QuickSlot): void {
+      const entry = this.quickEntries.find((e) => e.slot === slot);
+      if (entry === undefined) {
+        return;
+      }
+      if (!entry.available) {
+        this.showNotice(entry.reason !== '' ? entry.reason : 'Unavailable right now');
+        return;
+      }
+      const quick = this.consoleState.quick;
+      this.consoleState.quick = undefined;
+      if (quick === 'actions') {
+        this.executeRtEntry(entry.id);
+      } else if (quick === 'basics') {
+        this.executeLtEntry(entry.id);
+      }
+    },
+    /** RT — action categories (navigation surfaces; inspection always allowed). */
+    executeRtEntry(id: string): void {
+      switch (id) {
+      case 'cards':
+        this.deferShellTask(); // navigation-away
+        this.consoleState.section = 'hand';
+        break;
+      case 'cardActions':
+        this.openSheet('cardActions');
+        break;
+      case 'trading':
+        this.deferShellTask();
+        this.consoleState.section = 'colonies';
+        this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
+        break;
+      case 'hydro':
+        this.deferShellTask();
+        resetHydroPlan();
+        this.consoleState.section = 'hydro';
+        break;
+      default:
+        break;
+      }
+    },
+    /** LT — basic actions (turn-ending SUBMITS are guarded during placement). */
+    executeLtEntry(id: string): void {
+      const wf = this.playerView.waitingFor;
+      const guardPlacement = (): boolean => {
+        if (this.placementActive) {
+          this.showNotice('Finish your current action first');
+          return true;
+        }
+        return false;
+      };
+      switch (id) {
+      case 'standardProjects':
+        // Opening is inspection-safe; item ACTIVATION is guarded in
+        // activateStdItem (mirrors the sheet-row placement guard).
+        this.openSheet('standardProjects');
+        break;
+      case 'skipTurn': {
+        if (guardPlacement()) {
+          return;
+        }
+        const path = findEndTurnPath(wf);
+        if (path !== undefined) {
+          closeConsoleLayers();
+          this.submit(optionResponseForPath(path));
+        }
+        break;
+      }
+      case 'pass':
+        if (guardPlacement()) {
+          return;
+        }
+        // Pass ALWAYS confirms (warnings carried over from the desktop).
+        this.consoleState.confirm = 'pass';
+        break;
+      case 'convertHeat': {
+        if (guardPlacement()) {
+          return;
+        }
+        const found = findConvertHeatOption(wf);
+        if (found === undefined) {
+          return;
+        }
+        if ((found.option.warnings ?? []).includes('maxtemp')) {
+          this.consoleState.confirm = 'convertHeat';
+        } else {
+          this.submit(optionResponseForPath(found.path));
+        }
+        break;
+      }
+      case 'convertPlants': {
+        if (guardPlacement()) {
+          return;
+        }
+        const found = findConvertPlantsOption(wf, this.thisPlayer.canConvertPlants === true);
+        if (found === undefined) {
+          return;
+        }
+        this.convertPlantsPending = found;
+        closeConsoleLayers();
+        this.consoleState.section = 'board';
+        break;
+      }
+      default:
+        break;
+      }
+    },
     handleSheetIntent(intent: GamepadIntent): void {
+      // P27: the Standard-Projects premium screen — 2-column GRID nav,
+      // A = use / sell, B = close (MANDATORY prompt → defer to the chip).
+      if (this.consoleState.sheet === 'standardProjects') {
+        if (intent.kind === 'nav') {
+          this.consoleState.sheetIndex = stepGrid(
+            this.consoleState.sheetIndex, intent.dir, this.stdProjectItems.length, 2);
+          return;
+        }
+        if (intent.kind === 'press') {
+          if (intent.button === 'confirm') {
+            this.activateStdItem(this.stdProjectItems[this.consoleState.sheetIndex]);
+          } else if (intent.button === 'back') {
+            this.deferShellTask();
+            this.consoleState.sheet = undefined;
+            this.consoleState.section = 'board';
+          }
+        }
+        return;
+      }
       // P26: the milestones/awards premium screen — 2-column GRID nav
       // (every card focusable), A = claim/fund, LB/RB = category switch.
       if (this.maScreenKind !== undefined) {
@@ -1611,13 +1769,8 @@ export default defineComponent({
         if (intent.button === 'confirm') {
           this.activateSheetRow(this.sheetRows[this.consoleState.sheetIndex]);
         } else if (intent.button === 'back') {
-          // B: back to the board. Closing a MANDATORY task's own sheet
-          // (the std-project prompt) defers it — the amber chip returns it.
-          // The hydro card pick returns to the HYDRO screen (its plan is
-          // still being composed there), never to the board.
-          if (this.consoleState.sheet === 'standardProjects') {
-            this.deferShellTask();
-          }
+          // B: back to the board. The hydro card pick returns to the HYDRO
+          // screen (its plan is still being composed there), never to the board.
           const stayInSection = this.consoleState.sheet === 'hydroPick';
           this.consoleState.sheet = undefined;
           if (!stayInSection) {
@@ -1659,40 +1812,35 @@ export default defineComponent({
           this.openSheet('awards');
         }
         return true;
-      case 'inspect':
-        // In SALE mode Y confirms the sale (the card-context confirm);
-        // elsewhere Y = Basic actions (std projects / sell / conversions).
-        if (this.consoleState.sale.active) {
-          this.confirmSale();
-          return true;
-        }
-        if (this.myTurn) {
-          this.openSheet('basics');
-        } else {
-          this.showNotice('Not your turn to take any actions');
-        }
-        return true;
       case 'view':
         journalState.open = !journalState.open;
         return true;
       case 'triggerR':
-        // RT: the action wheel — from the board home, P20: including an
-        // active placement (the player may INSPECT cards/actions; starting
-        // a conflicting action is gated with an honest warning). Elsewhere
-        // RT keeps its local jump semantics (hand: next playable).
+        // P27: RT = the action-category QUICK SELECTOR — from the board
+        // home, P20: including an active placement (the player may INSPECT
+        // cards/actions; a conflicting action is gated with an honest
+        // warning). Elsewhere RT keeps its local jump semantics (hand:
+        // next playable).
         if (onBoard) {
-          this.deferShellTask(); // the wheel is navigation-away
-          this.consoleState.wheelOpen = true;
-          this.consoleState.wheelIndex = 0; // Cards = the A default
-          this.consoleState.sheet = undefined;
+          this.openQuick('actions');
           return true;
         }
         this.handleNextJump();
         return true;
+      case 'triggerL':
+        // P27: LT = the basic-actions QUICK SELECTOR (board home only —
+        // std projects / patent sale / conversions / skip / pass).
+        if (onBoard) {
+          this.openQuick('basics');
+        }
+        return true;
       case 'stickL':
-        // P20: L3 = next AVAILABLE placement target (was RT).
+        // P20: L3 = next AVAILABLE placement target during placement;
+        // P27: on the board home L3 toggles BOARD INSPECTION MODE.
         if (this.placementActive && this.consoleState.section === 'board') {
           this.handleNextJump();
+        } else if (onBoard) {
+          this.toggleInspection();
         }
         return true;
       case 'stickR':
@@ -1721,9 +1869,14 @@ export default defineComponent({
     },
     handleSectionNav(dir: NavDirection): void {
       if (this.consoleState.section === 'board') {
+        // P27: the cells are NOT part of the normal command loop — the
+        // board navigates only in INSPECTION mode or during a placement.
+        if (!this.placementActive && !this.consoleState.inspecting) {
+          this.showNotice('Press L3 to inspect the board');
+          return;
+        }
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
         board?.move(dir);
-        this.cellFocused = true;
         return;
       }
       if (this.consoleState.section === 'colonies') {
@@ -1739,13 +1892,11 @@ export default defineComponent({
         this.consoleState.handIndex = stepIndex(this.consoleState.handIndex, dir === 'right' ? 1 : -1, this.handEntries.length);
       }
     },
-    /** RT: next available cell (placement) / next playable card (hand). */
+    /** L3: next available cell (placement) / RT: next playable card (hand). */
     handleNextJump(): void {
       if (this.consoleState.section === 'board' && this.placementActive) {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
-        if (board?.nextAvailable() === true) {
-          this.cellFocused = true;
-        }
+        board?.nextAvailable();
         return;
       }
       if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
@@ -1853,41 +2004,39 @@ export default defineComponent({
         }
         return;
       }
-      // Board home: drop the cell focus back to the turn summary.
-      this.cellFocused = false;
+      // P27: inspection mode — B is one calm step back to the board home.
+      if (this.consoleState.inspecting) {
+        this.exitInspection();
+      }
     },
-    // ── wheel / sheets ───────────────────────────────────────────────────
-    executeWheel(entry: WheelEntry | undefined): void {
-      if (entry === undefined) {
+    // ── P27: BOARD INSPECTION MODE (L3) ──────────────────────────────────
+    toggleInspection(): void {
+      if (this.consoleState.inspecting) {
+        this.exitInspection();
         return;
       }
-      if (!entry.available) {
-        this.showNotice(entry.reason);
+      this.consoleState.inspecting = true;
+      // Land on a predictable cell (the last inspected one, else re-seed).
+      void this.$nextTick(() => {
+        if (this.consoleState.boardSpaceId === undefined) {
+          const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+          board?.seed(false);
+        }
+      });
+    },
+    exitInspection(): void {
+      this.consoleState.inspecting = false;
+      this.consoleState.trackMarker = undefined;
+    },
+    // ── quick selectors / sheets ─────────────────────────────────────────
+    /** Open a quick selector from the board home (RT toggles 'actions', LT 'basics'). */
+    openQuick(id: ConsoleQuickId): void {
+      if (this.consoleState.quick === id) {
+        this.consoleState.quick = undefined;
         return;
       }
-      this.consoleState.wheelOpen = false;
-      switch (entry.id) {
-      case 'cards':
-        this.consoleState.section = 'hand';
-        break;
-      case 'cardActions':
-        this.openSheet('cardActions');
-        break;
-      case 'effects':
-        // Effects category = Information Mode's effects detail (the one
-        // read-only effects surface; RT-in-wheel is deliberately NOT used).
-        openInfoMode(this.thisPlayer.color, this.cellFocused);
-        this.infoModeState.detail = 'effects';
-        break;
-      case 'colonies':
-        this.consoleState.section = 'colonies';
-        this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
-        break;
-      case 'hydro':
-        resetHydroPlan();
-        this.consoleState.section = 'hydro';
-        break;
-      }
+      this.consoleState.quick = id;
+      this.consoleState.sheet = undefined;
     },
     openSheet(sheet: ConsoleSheetId): void {
       // Opening anything that is NOT the task's own surface defers the task.
@@ -1896,13 +2045,16 @@ export default defineComponent({
       if (!isTaskSurface) {
         this.deferShellTask();
       }
-      this.consoleState.wheelOpen = false;
+      this.consoleState.quick = undefined;
       this.consoleState.sheet = sheet;
       void this.$nextTick(() => {
-        // P26: the MA screen focuses the first ACTIONABLE card, else the top.
+        // P26/P27: the MA + Std-Projects screens focus the first ACTIONABLE
+        // card, else the top row.
         const selectables = this.maScreenKind !== undefined ?
           this.maScreenItems.map((it) => ({header: false, available: it.available})) :
-          this.sheetRows.map((r) => ({header: r.kind === 'header', available: r.available}));
+          this.consoleState.sheet === 'standardProjects' ?
+            this.stdProjectItems.map((it) => ({header: false, available: it.available})) :
+            this.sheetRows.map((r) => ({header: r.kind === 'header', available: r.available}));
         const firstAvailable = selectables.findIndex((s) => !s.header && s.available);
         const firstSelectable = selectables.findIndex((s) => !s.header);
         this.consoleState.sheetIndex = firstAvailable !== -1 ? firstAvailable : Math.max(0, firstSelectable);
@@ -1943,12 +2095,6 @@ export default defineComponent({
         return;
       }
       switch (this.consoleState.sheet) {
-      case 'basics':
-        this.activateBasicsRow(row.key);
-        break;
-      case 'standardProjects':
-        this.useStandardProject(row.key as CardName);
-        break;
       case 'cardActions':
         // T7: NEVER execute on a bare click — the preview-backed confirm
         // shows the costs/gains first (desktop confirm-first parity).
@@ -1968,51 +2114,33 @@ export default defineComponent({
         break;
       }
     },
-    activateBasicsRow(key: string): void {
-      switch (key) {
-      case 'sell':
+    /** A on the Standard-Projects premium screen (P27) — use / sell. */
+    activateStdItem(item: StdProjectItem | undefined): void {
+      if (item === undefined) {
+        return;
+      }
+      if (this.placementActive) {
+        this.showNotice('Finish your current action first');
+        return;
+      }
+      if (!item.available) {
+        // The deficit reason carries params — pre-translate for the notice.
+        const reason = item.reason !== '' ?
+          translateTextWithParams(item.reason, [...(item.reasonParams ?? [])]) :
+          'Unavailable right now';
+        this.showNotice(reason);
+        return;
+      }
+      if (item.key === 'sell-patents') {
+        // Patent sale — the hand carousel's SALE mode (A toggles, Y sells).
         this.consoleState.sheet = undefined;
         this.consoleState.sale.active = true;
         this.consoleState.sale.selected = [];
         this.consoleState.section = 'hand';
-        break;
-      case 'convertHeat': {
-        const found = findConvertHeatOption(this.playerView.waitingFor);
-        if (found === undefined) {
-          return;
-        }
-        this.consoleState.sheet = undefined;
-        if ((found.option.warnings ?? []).includes('maxtemp')) {
-          this.consoleState.confirm = 'convertHeat';
-        } else {
-          this.submit(optionResponseForPath(found.path));
-        }
-        break;
+        return;
       }
-      case 'convertPlants': {
-        const found = findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true);
-        if (found === undefined) {
-          return;
-        }
-        this.convertPlantsPending = found;
-        closeConsoleLayers();
-        this.consoleState.section = 'board';
-        break;
-      }
-      case 'endTurn': {
-        const path = findEndTurnPath(this.playerView.waitingFor);
-        if (path !== undefined) {
-          closeConsoleLayers();
-          this.submit(optionResponseForPath(path));
-        }
-        break;
-      }
-      case 'pass':
-        this.consoleState.sheet = undefined;
-        this.consoleState.confirm = 'pass';
-        break;
-      default:
-        this.useStandardProject(key as CardName);
+      if (item.cardName !== undefined) {
+        this.useStandardProject(item.cardName);
       }
     },
     // ── T7: the card-action preview confirm ──────────────────────────────

@@ -18,7 +18,7 @@
           <span v-if="corpName !== ''" class="con-info__corp">{{ $t(corpName) }}</span>
           <span class="con-info__tr">{{ viewed.terraformRating }} {{ $t('TR') }}</span>
           <span v-if="vpVisible" class="con-info__vp">{{ vpTotal }} {{ $t('VP') }}</span>
-          <span class="con-info__close-hint"><GamepadGlyph control="triggerL" /><span>{{ $t('Close') }}</span></span>
+          <span class="con-info__close-hint"><GamepadGlyph control="inspect" /><span>{{ $t('Close') }}</span></span>
         </div>
       </header>
 
@@ -75,7 +75,7 @@
         <!-- Actions availability + Y detail -->
         <section class="con-info__block">
           <h3 class="con-info__block-title">{{ $t('Actions') }}
-            <span class="con-info__hotkey"><GamepadGlyph control="inspect" /></span>
+            <span class="con-info__hotkey"><GamepadGlyph control="triggerL" /></span>
           </h3>
           <div class="con-info__stat-lines">
             <div class="con-info__stat-line"><span>{{ $t('Available now') }}</span><b class="con-info__mint">{{ actionsAvailable }}</b></div>
@@ -190,12 +190,12 @@
         <span class="con-info__foot-item"><GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" /><span>{{ $t('Players') }}</span></span>
         <template v-if="infoModeState.detail === undefined">
           <span class="con-info__foot-item"><GamepadGlyph control="secondary" /><span>{{ $t('Extra resources') }}</span></span>
-          <span class="con-info__foot-item"><GamepadGlyph control="inspect" /><span>{{ $t('Actions') }}</span></span>
+          <span class="con-info__foot-item"><GamepadGlyph control="triggerL" /><span>{{ $t('Actions') }}</span></span>
           <span class="con-info__foot-item"><GamepadGlyph control="triggerR" /><span>{{ $t('Effects') }}</span></span>
           <span class="con-info__foot-item" :class="{'con-info__foot-item--off': !vpVisible}"><GamepadGlyph control="confirm" /><span>{{ $t('VP overview') }}</span></span>
         </template>
         <span v-else class="con-info__foot-item"><GamepadGlyph control="back" /><span>{{ $t('To overview') }}</span></span>
-        <span class="con-info__foot-item"><GamepadGlyph control="triggerL" /><span>{{ $t('Close') }}</span></span>
+        <span class="con-info__foot-item"><GamepadGlyph control="inspect" /><span>{{ $t('Close') }}</span></span>
       </footer>
     </div>
   </div>

@@ -106,17 +106,17 @@ const LEGEND_ROWS: ReadonlyArray<LegendRow> = [
   {control: 'view', label: 'Log'},
 ];
 
-/** The console-mode mapping (CONSOLE_MODE_CONCEPT.md §11). */
+/** The console-mode mapping (CONSOLE_MODE_CONCEPT.md §11; P27 command model). */
 const CONSOLE_LEGEND_ROWS: ReadonlyArray<LegendRow> = [
   {control: 'dpad', label: 'Navigate'},
   {control: 'confirm', label: 'Select'},
   {control: 'back', label: 'Back / Close'},
-  {control: 'inspect', label: 'Turn menu'},
-  {control: 'bumperL', label: 'Previous panel'},
-  {control: 'bumperR', label: 'Next panel'},
-  {control: 'triggerL', label: 'Information'},
+  {control: 'inspect', label: 'Information'},
   {control: 'triggerR', label: 'Actions'},
-  {control: 'stickL', label: 'Next available'},
+  {control: 'triggerL', label: 'Basic actions'},
+  {control: 'bumperL', label: 'Milestones'},
+  {control: 'bumperR', label: 'Awards'},
+  {control: 'stickL', label: 'Inspect board'},
   {control: 'stickR', label: 'Inspect all cells'},
   {control: 'stickScroll', label: 'Scroll'},
   {control: 'view', label: 'Log'},

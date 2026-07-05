@@ -25,7 +25,7 @@
     </div>
 
     <!-- Detail panel: the selected colony's console dossier. -->
-    <aside class="con-inspector con-colonies__detail" :aria-label="$t('Colonies')">
+    <aside class="con-inspector con-colonies__detail" :aria-label="$t('Trading')">
       <template v-if="selected !== undefined">
         <div class="con-inspector__kicker">{{ $t('Colony') }}</div>
         <div class="con-inspector__name">{{ $t(selected.name) }}</div>

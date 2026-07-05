@@ -117,5 +117,18 @@
     "Already funded": "Уже спонсировано",
     "Threshold not reached yet": "Порог ещё не достигнут",
     "Stages": "Этапы",
-    "Select action": "Выберите действие"
+    "Select action": "Выберите действие",
+    "Voting": "Голосование",
+    "Voting arrives with a future update": "Голосование появится в будущем обновлении",
+    "Not in this game": "Недоступно в этой партии",
+    "Plant conversion": "Конвертация растений",
+    "Heat conversion": "Конвертация тепла",
+    "Available after your first action this round": "Доступно после первого действия в этом ходу",
+    "Inspect board": "Осмотр поля",
+    "Board inspection": "Осмотр поля",
+    "Press L3 to inspect the board": "Нажмите L3, чтобы осмотреть поле",
+    "Scale bonuses are granted when the parameter passes this step": "Бонус шкалы выдаётся, когда параметр проходит эту отметку",
+    "Ready to use now": "Можно использовать сейчас",
+    "Slots left": "Свободных слотов",
+    "No actions available": "Нет доступных действий"
 }

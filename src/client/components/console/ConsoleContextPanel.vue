@@ -41,7 +41,25 @@
       <div v-if="!cancellable" class="con-context__mandatory-note">{{ $t('This action requires picking a cell. Cancelling is not available.') }}</div>
     </template>
 
-    <!-- ── CELL MODE: a selected cell, no task ─────────────────────── -->
+    <!-- ── TRACK MODE (P27): a focused global-parameter track bonus ── -->
+    <template v-else-if="mode === 'track'">
+      <div class="con-context__task-kicker">{{ $t('Track bonus') }}</div>
+      <template v-if="trackInfo !== null">
+        <div class="con-inspector__name">{{ trackInfo.kicker }}</div>
+        <div class="con-context__track-rows">
+          <div v-for="(row, i) in trackInfo.rows" :key="i"
+               class="con-context__track-row"
+               :class="'con-context__track-row--' + row.tone">
+            <span v-if="row.dot !== undefined" class="con-status__dot" :style="{background: row.dot}"></span>
+            <span>{{ row.text }}</span>
+          </div>
+        </div>
+      </template>
+      <div v-else class="con-inspector__loading">{{ $t('Loading') }}…</div>
+      <div class="con-context__note">{{ $t('Scale bonuses are granted when the parameter passes this step') }}</div>
+    </template>
+
+    <!-- ── CELL MODE: inspection — a selected cell, no task ─────────── -->
     <template v-else-if="mode === 'cell'">
       <div class="con-inspector__kicker">{{ cellHeader !== '' ? cellHeader : $t('Board cell') }}</div>
       <div v-if="tileLabel !== ''" class="con-inspector__name">{{ tileLabel }}</div>
@@ -56,63 +74,102 @@
       <div v-else-if="loading" class="con-inspector__loading">{{ $t('Loading') }}…</div>
     </template>
 
-    <!-- ── IDLE MODE: the console home summary ─────────────────────── -->
+    <!-- ── IDLE MODE (P27): the console home — the strategic summary ── -->
     <template v-else>
       <div class="con-inspector__kicker">{{ myTurn ? $t('Your turn') : $t('Waiting for other players') }}</div>
-      <div class="con-context__summary">
-        <div class="con-context__stat">
-          <BarButtonIcon name="cards" />
-          <span class="con-context__stat-label">{{ $t('Cards') }}</span>
-          <span class="con-context__stat-value"><b>{{ cardsPlayable }}</b> / {{ cardsTotal }}</span>
-        </div>
-        <div class="con-context__stat">
-          <BarButtonIcon name="actions" />
-          <span class="con-context__stat-label">{{ $t('Actions') }}</span>
-          <span class="con-context__stat-value"><b>{{ actionsAvailable }}</b> / {{ actionsTotal }}</span>
-        </div>
-        <div class="con-context__stat" :class="{'con-context__stat--hot': milestonesClaimable > 0}">
-          <BarButtonIcon name="milestones" />
-          <span class="con-context__stat-label">{{ $t('Milestones') }}</span>
-          <span class="con-context__stat-value"><b>{{ milestonesClaimable }}</b></span>
-        </div>
-        <div class="con-context__stat" :class="{'con-context__stat--hot': awardsFundable > 0}">
-          <BarButtonIcon name="awards" />
-          <span class="con-context__stat-label">{{ $t('Awards') }}</span>
-          <span class="con-context__stat-value"><b>{{ awardsFundable }}</b></span>
-        </div>
-      </div>
 
-      <div class="con-context__commands">
-        <div class="con-context__cmd" :class="{'con-context__cmd--off': !myTurn}">
-          <GamepadGlyph control="inspect" /><span>{{ $t('Basic actions') }}</span>
+      <!-- Cards: how many can be PLAYED now / total in hand. -->
+      <section class="con-home__block" :class="{'con-home__block--hot': cardsPlayable > 0}">
+        <header class="con-home__head">
+          <BarButtonIcon name="cards" />
+          <span class="con-home__title">{{ $t('Cards') }}</span>
+          <span class="con-home__value"><b>{{ cardsPlayable }}</b> / {{ cardsTotal }}</span>
+        </header>
+        <div class="con-home__line" :class="cardsPlayable > 0 ? 'con-home__line--go' : 'con-home__line--mute'">
+          {{ cardsPlayable > 0 ? $t('Playable now') : $t('No playable cards') }}<b v-if="cardsPlayable > 0">: {{ cardsPlayable }}</b>
         </div>
-        <div class="con-context__cmd"><GamepadGlyph control="triggerL" /><span>{{ $t('Categories') }}</span></div>
-        <div class="con-context__cmd" :class="{'con-context__cmd--hot': milestonesClaimable > 0}">
-          <GamepadGlyph control="bumperL" /><span>{{ $t('Milestones') }}</span>
-          <span v-if="milestonesClaimable > 0" class="con-context__cmd-badge">{{ milestonesClaimable }}</span>
+      </section>
+
+      <!-- Card actions: available blue-card/corp activations. -->
+      <section class="con-home__block" :class="{'con-home__block--hot': actionsAvailable > 0}">
+        <header class="con-home__head">
+          <BarButtonIcon name="actions" />
+          <span class="con-home__title">{{ $t('Card actions') }}</span>
+          <span class="con-home__value"><b>{{ actionsAvailable }}</b> / {{ actionsTotal }}</span>
+        </header>
+        <div class="con-home__line" :class="actionsAvailable > 0 ? 'con-home__line--go' : 'con-home__line--mute'">
+          {{ actionsAvailable > 0 ? $t('Available now') : $t('No actions available') }}<b v-if="actionsAvailable > 0">: {{ actionsAvailable }}</b>
         </div>
-        <div class="con-context__cmd" :class="{'con-context__cmd--hot': awardsFundable > 0}">
-          <GamepadGlyph control="bumperR" /><span>{{ $t('Awards') }}</span>
-          <span v-if="awardsFundable > 0" class="con-context__cmd-badge">{{ awardsFundable }}</span>
+      </section>
+
+      <!-- Milestones: who claimed what, slots left, my readiness. -->
+      <section class="con-home__block" :class="{'con-home__block--hot': milestoneSummary.actionable > 0}">
+        <header class="con-home__head">
+          <BarButtonIcon name="milestones" />
+          <span class="con-home__title">{{ $t('Milestones') }}</span>
+          <span class="con-home__hint"><GamepadGlyph control="bumperL" /></span>
+          <span v-if="milestoneSummary.actionable > 0" class="con-home__badge">{{ milestoneSummary.actionable }}</span>
+        </header>
+        <div v-for="row in milestoneSummary.rows" :key="row.name" class="con-home__ma">
+          <span class="con-home__ma-name" v-i18n>{{ shortName(row.name) }}</span>
+          <span v-if="row.takenBy !== undefined" class="con-home__ma-owner">
+            <span :class="'con-status__dot player_bg_color_' + row.takenBy.color"></span>
+            <span class="con-home__ma-owner-name">{{ row.takenBy.name }}</span>
+          </span>
+          <span v-else-if="row.my !== undefined" class="con-home__ma-progress" :class="{'con-home__ma-progress--ready': row.my.ready}">
+            {{ row.my.score }}<template v-if="row.my.threshold !== undefined">/{{ row.my.threshold }}</template>
+          </span>
         </div>
-        <div class="con-context__cmd"><GamepadGlyph control="view" /><span>{{ $t('Log') }}</span></div>
-      </div>
+        <div class="con-home__line con-home__line--mute">
+          <template v-if="milestoneSummary.slotsLeft === 0">✓ {{ $t('All claimed') }}</template>
+          <template v-else>{{ $t('Slots left') }}: {{ milestoneSummary.slotsLeft }}</template>
+        </div>
+      </section>
+
+      <!-- Awards: who funded what + the live race leaders. -->
+      <section class="con-home__block" :class="{'con-home__block--hot': awardSummary.actionable > 0}">
+        <header class="con-home__head">
+          <BarButtonIcon name="awards" />
+          <span class="con-home__title">{{ $t('Awards') }}</span>
+          <span class="con-home__hint"><GamepadGlyph control="bumperR" /></span>
+          <span v-if="awardSummary.actionable > 0" class="con-home__badge">{{ awardSummary.actionable }}</span>
+        </header>
+        <div v-for="row in awardSummary.rows" :key="row.name" class="con-home__ma">
+          <span class="con-home__ma-name" v-i18n>{{ shortName(row.name) }}</span>
+          <span v-if="row.takenBy !== undefined" class="con-home__ma-owner">
+            <span :class="'con-status__dot player_bg_color_' + row.takenBy.color"></span>
+            <span class="con-home__ma-owner-name">{{ row.takenBy.name }}</span>
+          </span>
+          <span v-else-if="row.leaders !== undefined && row.leaders.length > 0" class="con-home__ma-leaders">
+            <span class="con-home__ma-leaders-label">{{ $t('Leader') }}:</span>
+            <span v-for="l in row.leaders" :key="l.color" :class="'con-status__dot player_bg_color_' + l.color"></span>
+            <span class="con-home__ma-leaders-score">{{ row.leaders[0].score }}</span>
+          </span>
+        </div>
+        <div class="con-home__line con-home__line--mute">
+          <template v-if="awardSummary.slotsLeft === 0">✓ {{ $t('All funded') }}</template>
+          <template v-else>{{ $t('Slots left') }}: {{ awardSummary.slotsLeft }}</template>
+        </div>
+      </section>
     </template>
   </aside>
 </template>
 
 <script lang="ts">
 /**
- * The right CONTEXT + COMMAND panel (feedback iteration 2) — the console
- * mode's explaining-and-commanding surface, replacing the passive cell
- * tooltip. Three modes, all answering "what is selected / what can I do /
- * what happens on A / why not":
+ * The right CONTEXT + INFO panel (feedback iteration 2; P27 rework) — the
+ * console home's explaining surface. Four modes:
  *  - placement: the TASK state (legal/illegal + the SERVER's illegal
- *    reason + cell facts + the full command set incl. honest B);
- *  - cell: identity (header/name/owner) + facts from the shared
- *    BoardInformation pipeline;
- *  - idle: the turn summary — action-intelligence counters + the LB/RB/Y/LT
- *    command map with availability badges (the console home screen read).
+ *    reason + cell facts + the minimal command set incl. honest B);
+ *  - track (P27): a focused global-parameter TRACK bonus — the SAME
+ *    already-translated rows the premium ScaleTooltip shows;
+ *  - cell: inspection identity (header/name/owner) + facts from the
+ *    shared BoardInformation pipeline;
+ *  - idle (P27): the STRATEGIC turn summary — playable cards / available
+ *    card actions (moved here from the top HUD) + the Milestones/Awards
+ *    race (who claimed/funded what, live award leaders, slots left).
+ * Deliberately NOT a duplicate of the bottom command bar — only the two
+ * single-button panels (LB/RB) carry a mini glyph for direct clarity.
  * Pure presentation: every value is a prop computed in ConsoleShell from
  * the same sources the desktop buttons use.
  */
@@ -125,6 +182,8 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {translateMessage, translateText} from '@/client/directives/i18n';
+import {ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
+import {HomeMaSummary} from '@/client/console/consoleQuickModel';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -132,6 +191,8 @@ function textOf(v: string | Message | undefined): string {
   }
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
+
+const EMPTY_SUMMARY: HomeMaSummary = {rows: [], takenCount: 0, maxSlots: 3, actionable: 0, slotsLeft: 3};
 
 export default defineComponent({
   name: 'ConsoleContextPanel',
@@ -147,7 +208,7 @@ export default defineComponent({
     },
   },
   props: {
-    mode: {type: String as PropType<'placement' | 'cell' | 'idle'>, required: true},
+    mode: {type: String as PropType<'placement' | 'cell' | 'track' | 'idle'>, required: true},
     info: {type: Object as PropType<BoardCellInfo | undefined>, default: undefined},
     loading: {type: Boolean, default: false},
     viewerColor: {type: String as PropType<Color>, required: true},
@@ -159,14 +220,16 @@ export default defineComponent({
     cancellable: {type: Boolean, default: false},
     /** P20: the R3 inspect-all toggle is on (labels + the mode chip). */
     inspectAll: {type: Boolean, default: false},
+    // track mode (P27)
+    trackInfo: {type: Object as PropType<ScaleTooltipContent | null>, default: null},
     // idle mode
     myTurn: {type: Boolean, default: false},
     cardsPlayable: {type: Number, default: 0},
     cardsTotal: {type: Number, default: 0},
     actionsAvailable: {type: Number, default: 0},
     actionsTotal: {type: Number, default: 0},
-    milestonesClaimable: {type: Number, default: 0},
-    awardsFundable: {type: Number, default: 0},
+    milestoneSummary: {type: Object as PropType<HomeMaSummary>, default: () => EMPTY_SUMMARY},
+    awardSummary: {type: Object as PropType<HomeMaSummary>, default: () => EMPTY_SUMMARY},
   },
   computed: {
     cellHeader(): string {
@@ -187,6 +250,12 @@ export default defineComponent({
         return '';
       }
       return this.players.find((p) => p.color === color)?.name ?? '';
+    },
+  },
+  methods: {
+    /** Strip the numeric variant suffix (Terraformer26 → Terraformer). */
+    shortName(name: string): string {
+      return name.replace(/[0-9]+$/, '');
     },
   },
 });

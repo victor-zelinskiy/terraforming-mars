@@ -23,48 +23,21 @@
       </span>
     </div>
 
-    <!-- Action intelligence (feedback iteration 2): playable NOW / total —
-         the same sources the desktop bar buttons read. -->
-    <!-- Delta chips (CTS T7): the shared AnimatedMetricValue fires ±N on
-         hand size / action sources / every player's TR and M€ — the same
-         live feedback the desktop bar buttons + player panels give. -->
-    <div class="con-status__intel">
-      <span class="con-status__intel-item" :class="{'con-status__intel-item--hot': cardsPlayable > 0}">
-        <BarButtonIcon name="cards" />
-        <span class="con-status__intel-label">{{ $t('Cards') }}</span>
-        <span class="con-status__intel-value"><b>{{ cardsPlayable }}</b>/{{ cardsTotal }}
-          <AnimatedMetricValue v-if="epoch !== ''" :value="cardsTotal" metricKey="bar.cards"
-                               :scopeKey="thisPlayerColor" :epoch="epoch" variant="misc" />
-        </span>
-      </span>
-      <span class="con-status__intel-item" :class="{'con-status__intel-item--hot': actionsAvailable > 0}">
-        <BarButtonIcon name="actions" />
-        <span class="con-status__intel-label">{{ $t('Actions') }}</span>
-        <span class="con-status__intel-value"><b>{{ actionsAvailable }}</b>/{{ actionsTotal }}
-          <AnimatedMetricValue v-if="epoch !== ''" :value="actionsTotal" metricKey="bar.actions"
-                               :scopeKey="thisPlayerColor" :epoch="epoch" variant="misc" />
-        </span>
-      </span>
-    </div>
-
+    <!-- P27: player chips = IDENTITY + live TURN STATUS. The cards/actions
+         counters moved to the right home panel; TR / M€ live in the resource
+         panel + Information Mode — the top chips answer ONE question:
+         whose move is it and what is everyone doing. -->
     <div class="con-status__players">
       <span v-for="p in players"
             :key="p.color"
             class="con-status__player"
-            :class="{
-              'con-status__player--me': p.color === thisPlayerColor,
-              'con-status__player--passed': passed(p.color),
-              'con-status__player--active': p.isActive && !passed(p.color),
-            }">
+            :class="chipClasses(p)">
         <span :class="'con-status__dot player_bg_color_' + p.color"></span>
         <span class="con-status__pname">{{ p.name }}</span>
-        <span class="con-status__ptr">{{ p.terraformRating }} {{ $t('TR') }}
-          <AnimatedMetricValue v-if="epoch !== ''" :value="p.terraformRating" metricKey="strip.tr"
-                               :scopeKey="p.color" :epoch="epoch" variant="score" />
-        </span>
-        <span class="con-status__pmc">{{ p.megacredits }} M€
-          <AnimatedMetricValue v-if="epoch !== ''" :value="p.megacredits" metricKey="strip.megacredits"
-                               :scopeKey="p.color" :epoch="epoch" variant="misc" />
+        <span class="con-status__pstatus" :class="'con-status__pstatus--' + presentation(p).category">
+          <span class="con-status__pstatus-glyph" aria-hidden="true">{{ statusGlyph(p) }}</span>
+          <span v-if="presentation(p).textKey !== ''" class="con-status__pstatus-text">{{ $t(presentation(p).textKey) }}</span>
+          <b v-if="presentation(p).showCounter" class="con-status__pstatus-counter">{{ actionCounter(p) }}</b>
         </span>
       </span>
     </div>
@@ -73,34 +46,107 @@
 
 <script lang="ts">
 /**
- * Console status strip (CONSOLE_MODE_CONCEPT.md §6) — the TV-scale
- * replacement for the desktop's scattered chrome: global parameters +
- * generation + compact player cards (passed players dim). Read-only.
+ * Console status strip (CONSOLE_MODE_CONCEPT.md §6; P27 rework) — the
+ * TV-scale top HUD: global parameters + generation on the left, compact
+ * premium PLAYER STATUS chips on the right. Read-only.
+ *
+ * The chips REUSE the desktop's status truth (playerLabels.actionLabelFor
+ * Player + playerStatusPresenter) so console and desktop can never disagree
+ * about who the server is waiting on: active (ДЕЙСТВИЕ 1/2 with the real
+ * `actionsTakenThisRound` counter), research/draft picks, forced reactions,
+ * ready, waiting, passed. The viewer's chip fires a one-shot TURN BURST
+ * animation the moment their status becomes active — the premium
+ * "your turn" transition that replaced the central «ВАШ ХОД» pill.
  */
 import {defineComponent, PropType} from 'vue';
 import {GameModel} from '@/common/models/GameModel';
-import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
-import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
-import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
+import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
+import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
+
+/** Mirrors LeftPlayerCard: 1-indexed position of the upcoming action. */
+const MAX_ACTIONS_PER_ROUND = 2;
+
+/** Category → the chip's compact text glyph (CSS animates the active dot). */
+const GLYPHS: Record<StatusPresentation['category'], string> = {
+  active: '●',
+  next: '›',
+  ready: '✓',
+  waiting: '◌',
+  passed: '∥',
+  none: '',
+};
 
 export default defineComponent({
   name: 'ConsoleStatusStrip',
-  components: {BarButtonIcon, AnimatedMetricValue},
   props: {
-    game: {type: Object as PropType<GameModel>, required: true},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
-    thisPlayerColor: {type: String as PropType<Color>, required: true},
-    cardsPlayable: {type: Number, default: 0},
-    cardsTotal: {type: Number, default: 0},
-    actionsAvailable: {type: Number, default: 0},
-    actionsTotal: {type: Number, default: 0},
-    /** playerView.runId — the AnimatedMetricValue epoch ('' disables chips). */
+    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+    /** playerView.runId — reserved for delta feedback ('' disables). */
     epoch: {type: String, default: ''},
   },
+  data() {
+    return {
+      /** One-shot "turn passed to YOU" attention burst on the viewer's chip. */
+      turnBurst: false,
+      burstTimer: undefined as number | undefined,
+    };
+  },
+  computed: {
+    game(): GameModel {
+      return this.playerView.game;
+    },
+    players(): ReadonlyArray<PublicPlayerModel> {
+      return this.playerView.players;
+    },
+    thisPlayerColor(): Color {
+      return this.playerView.thisPlayer.color;
+    },
+    /** The viewer's status category — drives the one-shot burst watcher. */
+    myCategory(): StatusPresentation['category'] {
+      const me = this.players.find((p) => p.color === this.thisPlayerColor);
+      return me !== undefined ? this.presentation(me).category : 'none';
+    },
+  },
+  watch: {
+    myCategory(now: StatusPresentation['category'], before: StatusPresentation['category']) {
+      if (now === 'active' && before !== 'active') {
+        this.turnBurst = true;
+        if (this.burstTimer !== undefined) {
+          window.clearTimeout(this.burstTimer);
+        }
+        this.burstTimer = window.setTimeout(() => {
+          this.turnBurst = false;
+        }, 2600);
+      }
+    },
+  },
+  beforeUnmount() {
+    if (this.burstTimer !== undefined) {
+      window.clearTimeout(this.burstTimer);
+    }
+  },
   methods: {
-    passed(color: Color): boolean {
-      return this.game.passedPlayers.includes(color);
+    presentation(p: PublicPlayerModel): StatusPresentation {
+      return presentPlayerStatus(actionLabelForPlayer(this.playerView, p));
+    },
+    statusGlyph(p: PublicPlayerModel): string {
+      return GLYPHS[this.presentation(p).category];
+    },
+    /** Mirrors LeftPlayerCard.actionIndex (incl. the solo-run modulo). */
+    actionCounter(p: PublicPlayerModel): string {
+      const idx = (p.actionsTakenThisRound % MAX_ACTIONS_PER_ROUND) + 1;
+      return `${idx}/${MAX_ACTIONS_PER_ROUND}`;
+    },
+    chipClasses(p: PublicPlayerModel): Record<string, boolean> {
+      const category = this.presentation(p).category;
+      const me = p.color === this.thisPlayerColor;
+      return {
+        'con-status__player--me': me,
+        'con-status__player--active': category === 'active',
+        'con-status__player--passed': category === 'passed',
+        'con-status__player--burst': me && this.turnBurst,
+      };
     },
   },
 });

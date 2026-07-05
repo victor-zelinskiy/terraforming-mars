@@ -21,6 +21,7 @@
       {'bonus-zone--reached': reached, 'bonus-zone--just-claimed': justClaimed},
     ]"
     :style="rootStyle"
+    :data-arc-marker="markerNavId"
     @mouseenter="onEnter"
     @mouseleave="onLeave">
     <div class="bonus-zone__pointer" :style="pointerStyle"></div>
@@ -110,6 +111,18 @@ export default defineComponent({
     },
     rootStyle(): Record<string, string> {
       return this.claimColor === '' ? {} : {'--bonus-claim-color': this.claimColor};
+    },
+    /**
+     * P27: a stable identity for controller navigation (console Board
+     * Inspection Mode enumerates `[data-arc-marker]` to walk the scale
+     * bonuses/events without a mouse). `claimKey` when present (reward
+     * chips), else a deterministic surface/icon/angle composite.
+     */
+    markerNavId(): string {
+      if (this.claimKey !== '') {
+        return this.claimKey;
+      }
+      return `${this.surface}:${this.icon}:${Math.round(this.point)}`;
     },
   },
   beforeUnmount() {

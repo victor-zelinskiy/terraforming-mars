@@ -19,8 +19,10 @@ import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 
 export type ConsoleSection = 'board' | 'hand' | 'colonies' | 'hydro';
-export type ConsoleSheetId = 'basics' | 'milestones' | 'awards' | 'cardActions' | 'standardProjects' | 'hydroPick';
+export type ConsoleSheetId = 'milestones' | 'awards' | 'cardActions' | 'standardProjects' | 'hydroPick';
 export type ConsoleConfirmKind = 'pass' | 'convertHeat';
+/** P27: which QUICK SELECTOR is open — RT (categories) / LT (basic actions). */
+export type ConsoleQuickId = 'actions' | 'basics';
 
 export const CONSOLE_SECTIONS: ReadonlyArray<ConsoleSection> = ['board', 'hand'];
 
@@ -32,11 +34,18 @@ export const consoleState = reactive({
   boardSpaceId: undefined as string | undefined,
   /** Colonies screen selection. */
   colonyIndex: 0,
-  /** LT held during placement — inspect ANY cell, not just legal ones. */
+  /** R3 toggle during placement — inspect ANY cell, not just legal ones. */
   freeRoam: false,
-  /** LT category wheel (the fast entry point — categories only, §wheel). */
-  wheelOpen: false,
-  wheelIndex: 0,
+  /**
+   * P27: BOARD INSPECTION MODE (L3). On the board home the cells are NOT
+   * part of the normal command loop — the player enters inspection
+   * explicitly; placement mode keeps its own automatic cell navigation.
+   */
+  inspecting: false,
+  /** P27: the focused global-parameter TRACK marker key (inspection only). */
+  trackMarker: undefined as string | undefined,
+  /** P27: the open quick selector (RT = categories / LT = basic actions). */
+  quick: undefined as ConsoleQuickId | undefined,
   sheet: undefined as ConsoleSheetId | undefined,
   sheetIndex: 0,
   confirm: undefined as ConsoleConfirmKind | undefined,
@@ -52,10 +61,9 @@ export const consoleState = reactive({
   task: {deferred: false},
 });
 
-/** Reset transient layers (wheel / sheets / confirm / sale) — e.g. on submit. */
+/** Reset transient layers (quick selectors / sheets / confirm / sale) — e.g. on submit. */
 export function closeConsoleLayers(): void {
-  consoleState.wheelOpen = false;
-  consoleState.wheelIndex = 0;
+  consoleState.quick = undefined;
   consoleState.sheet = undefined;
   consoleState.sheetIndex = 0;
   consoleState.confirm = undefined;

@@ -1,5 +1,8 @@
 <template>
-  <div class="con-board" ref="root">
+  <!-- P27: the selection spotlight paints ONLY while the board is LIVE
+       (inspection mode / placement) — on the calm board home no cell reads
+       as focused, so nothing competes with ocean/availability highlights. -->
+  <div class="con-board" :class="{'con-board--live': placementActive || inspecting, 'con-board--inspecting': inspecting && !placementActive}" ref="root">
     <div class="con-board__stage" ref="stage">
       <GameBoardView :game="game" :players="playerView.players" :tileView="tileView" @toggleTileView="cycleTileView" />
     </div>
@@ -37,6 +40,11 @@ import {consoleState} from '@/client/console/consoleRouter';
 import {TileView, nextTileView} from '@/client/components/board/TileView';
 
 const SELECT_CLASS = 'con-cell-sel';
+/** P27: the focused global-parameter TRACK marker (inspection mode). */
+const MARKER_CLASS = 'con-marker-sel';
+
+/** A navigable target: a board CELL or a track MARKER (inspection only). */
+type BoardCandidate = {kind: 'cell' | 'marker', id: string, el: HTMLElement, rect: NavRect};
 
 /**
  * The full visual footprint of the board incl. its arc scales — the same
@@ -58,6 +66,8 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     placementActive: {type: Boolean, required: true},
+    /** P27: BOARD INSPECTION MODE — cells + track markers become navigable. */
+    inspecting: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -95,6 +105,27 @@ export default defineComponent({
           hoverBoardCell(now as SpaceId);
         }
       },
+    },
+    /**
+     * P27: the focused TRACK marker — spotlight ring + the SAME premium
+     * ScaleTooltip the mouse hover shows (a synthetic mouseenter fires the
+     * chip's own Vue handler, so there is exactly one tooltip source).
+     * A focused marker suppresses the cell spotlight (one focus at a time).
+     */
+    'consoleState.trackMarker'(now: string | undefined, before: string | undefined) {
+      const prev = this.markerEl(before);
+      if (prev !== undefined) {
+        prev.classList.remove(MARKER_CLASS);
+        prev.dispatchEvent(new MouseEvent('mouseleave'));
+      }
+      const el = this.markerEl(now);
+      if (el !== undefined) {
+        el.classList.add(MARKER_CLASS);
+        el.dispatchEvent(new MouseEvent('mouseenter'));
+        this.cellEl(this.selectedSpaceId)?.classList.remove(SELECT_CLASS);
+      } else {
+        this.applySpotlight(undefined, this.selectedSpaceId);
+      }
     },
   },
   methods: {
@@ -139,26 +170,47 @@ export default defineComponent({
       const el = this.cellEl(now);
       el?.classList.add(SELECT_CLASS);
     },
-    /** Collect navigable cells: legal-only during placement unless free-roam. */
-    candidates(): Array<{id: string, el: HTMLElement, rect: NavRect}> {
+    /** P27: a track marker's DOM element by its stable key. */
+    markerEl(key: string | undefined): HTMLElement | undefined {
+      if (key === undefined) {
+        return undefined;
+      }
+      const root = this.$refs.root as HTMLElement | undefined;
+      return root?.querySelector<HTMLElement>(`[data-arc-marker="${CSS.escape(key)}"]`) ?? undefined;
+    },
+    /**
+     * Collect navigable targets: legal-only cells during placement (unless
+     * free-roam); in INSPECTION mode the global-parameter TRACK markers
+     * (scale bonuses + planetary-event chips) join the set, so the player
+     * can read them without a mouse (P27 §5.3).
+     */
+    candidates(): Array<BoardCandidate> {
       const root = this.$refs.root as HTMLElement | undefined;
       if (root === undefined) {
         return [];
       }
       const constrain = this.placementActive && !this.consoleState.freeRoam;
       const selector = constrain ? '.board-space--available[data_space_id]' : '.board-space[data_space_id]';
-      const out: Array<{id: string, el: HTMLElement, rect: NavRect}> = [];
+      const out: Array<BoardCandidate> = [];
       for (const el of root.querySelectorAll<HTMLElement>(selector)) {
         const r = el.getBoundingClientRect();
         if (r.width > 0 && r.height > 0) {
-          out.push({id: el.getAttribute('data_space_id') ?? '', el, rect: {left: r.left, top: r.top, width: r.width, height: r.height}});
+          out.push({kind: 'cell', id: el.getAttribute('data_space_id') ?? '', el, rect: {left: r.left, top: r.top, width: r.width, height: r.height}});
+        }
+      }
+      if (this.inspecting && !this.placementActive) {
+        for (const el of root.querySelectorAll<HTMLElement>('.arc-marker[data-arc-marker]')) {
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            out.push({kind: 'marker', id: el.getAttribute('data-arc-marker') ?? '', el, rect: {left: r.left, top: r.top, width: r.width, height: r.height}});
+          }
         }
       }
       return out;
     },
     /** Seed the selection: available cell (or any cell) nearest the board center. */
     seed(preferAvailable: boolean): void {
-      const cells = this.candidates();
+      const cells = this.candidates().filter((c) => c.kind === 'cell');
       if (cells.length === 0) {
         return;
       }
@@ -171,35 +223,55 @@ export default defineComponent({
         cells;
       const usable = pool.length > 0 ? pool : cells;
       const idx = pickNearest(center, usable.map((c) => c.rect));
-      this.select(usable[idx ?? 0].id);
+      this.select(usable[idx ?? 0]);
     },
-    select(spaceId: string): void {
-      this.consoleState.boardSpaceId = spaceId;
-    },
-    /** Move the selection one hex in `dir` (geometric — hexes are the nearest centers). */
-    move(dir: NavDirection): void {
-      const cells = this.candidates();
-      if (cells.length === 0) {
+    select(target: BoardCandidate | string): void {
+      if (typeof target === 'string') {
+        this.consoleState.trackMarker = undefined;
+        this.consoleState.boardSpaceId = target;
         return;
       }
-      const current = cells.find((c) => c.id === this.selectedSpaceId);
+      if (target.kind === 'marker') {
+        this.consoleState.trackMarker = target.id;
+      } else {
+        this.consoleState.trackMarker = undefined;
+        this.consoleState.boardSpaceId = target.id;
+      }
+    },
+    /** True when this candidate IS the current focus (cell or marker). */
+    isCurrent(c: BoardCandidate): boolean {
+      if (this.consoleState.trackMarker !== undefined) {
+        return c.kind === 'marker' && c.id === this.consoleState.trackMarker;
+      }
+      return c.kind === 'cell' && c.id === this.selectedSpaceId;
+    },
+    /** Move the selection one target in `dir` (geometric — nearest centers). */
+    move(dir: NavDirection): void {
+      const targets = this.candidates();
+      if (targets.length === 0) {
+        return;
+      }
+      const current = targets.find((c) => this.isCurrent(c));
       if (current === undefined) {
-        // Selection left the candidate set (e.g. constraint kicked in) —
-        // glide to the nearest candidate instead of jumping to a corner.
-        const prevEl = this.cellEl(this.selectedSpaceId);
+        // Selection left the candidate set (e.g. constraint kicked in, a
+        // marker vanished) — glide to the nearest candidate instead of
+        // jumping to a corner.
+        const prevEl = this.consoleState.trackMarker !== undefined ?
+          this.markerEl(this.consoleState.trackMarker) :
+          this.cellEl(this.selectedSpaceId);
         if (prevEl !== undefined) {
           const r = prevEl.getBoundingClientRect();
-          const idx = pickNearest(rectCenter({left: r.left, top: r.top, width: r.width, height: r.height}), cells.map((c) => c.rect));
-          this.select(cells[idx ?? 0].id);
+          const idx = pickNearest(rectCenter({left: r.left, top: r.top, width: r.width, height: r.height}), targets.map((c) => c.rect));
+          this.select(targets[idx ?? 0]);
           return;
         }
         this.seed(this.placementActive);
         return;
       }
-      const others = cells.filter((c) => c !== current);
+      const others = targets.filter((c) => c !== current);
       const idx = pickDirectional(current.rect, others.map((c) => c.rect), dir);
       if (idx !== undefined) {
-        this.select(others[idx].id);
+        this.select(others[idx]);
       }
     },
     /** RT: jump the selection to the NEXT legal cell (cyclic, DOM order). */

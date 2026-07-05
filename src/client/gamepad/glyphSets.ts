@@ -8,8 +8,10 @@
 
 import {SemanticButton} from '@/client/gamepad/gamepadPollModel';
 
-/** Everything a hint can reference: semantic buttons + composite controls. */
-export type GlyphControl = SemanticButton | 'dpad' | 'dpadH' | 'stickMove' | 'stickScroll';
+/** Everything a hint can reference: semantic buttons + composite controls.
+ * The four directional d-pad glyphs (P27) let the quick selectors hint a
+ * SINGLE direction («↑ Действия карт») instead of the generic cross. */
+export type GlyphControl = SemanticButton | 'dpad' | 'dpadH' | 'dpadU' | 'dpadD' | 'dpadL' | 'dpadR' | 'stickMove' | 'stickScroll';
 
 export type GlyphSpec = {
   /** Badge text (letter / abbreviation / symbol). */
@@ -38,6 +40,10 @@ const XBOX: Record<GlyphControl, GlyphSpec> = {
   stickR: {label: 'R3', tone: '', shape: 'stick'},
   dpad: {label: '✚', tone: '', shape: 'cross'},
   dpadH: {label: '◄►', tone: '', shape: 'cross'},
+  dpadU: {label: '▲', tone: '', shape: 'cross'},
+  dpadD: {label: '▼', tone: '', shape: 'cross'},
+  dpadL: {label: '◄', tone: '', shape: 'cross'},
+  dpadR: {label: '►', tone: '', shape: 'cross'},
   stickMove: {label: 'L', tone: '', shape: 'stick'},
   stickScroll: {label: 'R', tone: '', shape: 'stick'},
 };

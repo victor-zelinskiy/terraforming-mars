@@ -96,39 +96,6 @@
         color: @con-text-dim;
     }
 
-    /* Action intelligence: Карты 4/17 · Действия 2/6 (hot when > 0). */
-    &__intel {
-        display: flex;
-        align-items: center;
-        gap: 18px;
-    }
-    &__intel-item {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 5px 12px;
-        border-radius: 8px;
-        background: rgba(16, 26, 38, 0.66);
-        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22);
-        color: @con-text-dim;
-
-        .bar-btn-icon { width: 22px; height: 22px; }
-
-        &--hot {
-            box-shadow: inset 0 0 0 1px fade(@con-mint, 55%), 0 0 12px fade(@con-mint, 14%);
-            color: @con-text;
-        }
-    }
-    &__intel-label {
-        font-size: 16px;
-        letter-spacing: 1.4px;
-        text-transform: uppercase;
-    }
-    &__intel-value {
-        font-size: 20px;
-        b { color: @con-mint; font-size: 23px; }
-    }
-
     &__players {
         display: flex;
         align-items: center;
@@ -148,9 +115,22 @@
         &--me {
             box-shadow: inset 0 0 0 1px fade(@con-cyan, 65%), 0 0 12px fade(@con-cyan, 18%);
         }
+        /* P27: the ACTIVE player's chip is the dominant (but compact)
+           attention point — the central «ВАШ ХОД» pill is gone. */
+        &--active {
+            background: rgba(20, 34, 48, 0.9);
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 62%), 0 0 16px fade(@con-mint, 22%);
+        }
+        &--active&--me {
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 75%), 0 0 20px fade(@con-mint, 30%);
+        }
         &--passed {
             opacity: 0.45;
             filter: saturate(0.6);
+        }
+        /* One-shot "turn passed to YOU" burst (calm, Ark-Nova-like). */
+        &--burst {
+            animation: con-turn-burst calc(2600ms * var(--motion-scale, 1)) ease-out 1;
         }
     }
     &__dot {
@@ -164,12 +144,51 @@
         font-weight: 700;
         letter-spacing: 0.4px;
     }
-    &__ptr,
-    &__pmc {
+    /* P27: the live status chip (ДЕЙСТВИЕ 1/2 / ОЖИДАЕТ / СПАСОВАЛ / …). */
+    &__pstatus {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 9px;
+        border-radius: 6px;
+        font-size: 15px;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
         color: @con-text-dim;
-        font-size: 18px;
+        background: rgba(10, 18, 28, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
         white-space: nowrap;
+
+        &--active {
+            color: #d9f6e9;
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 55%);
+            .con-status__pstatus-glyph {
+                color: @con-mint;
+                animation: con-pulse calc(1800ms * var(--motion-scale, 1)) ease-in-out infinite;
+            }
+        }
+        &--next .con-status__pstatus-glyph { color: @con-cyan; }
+        &--ready { color: fade(@con-mint, 80%); }
+        &--ready .con-status__pstatus-glyph { color: @con-mint; }
+        &--passed { color: fade(@con-amber, 78%); }
+        &--passed .con-status__pstatus-glyph { color: @con-amber; }
+        &--waiting .con-status__pstatus-glyph { color: @con-text-dim; }
     }
+    &__pstatus-glyph {
+        font-size: 14px;
+        line-height: 1;
+    }
+    &__pstatus-counter {
+        color: @con-mint;
+        font-size: 16px;
+    }
+}
+
+@keyframes con-turn-burst {
+    0% { box-shadow: inset 0 0 0 1px fade(@con-mint, 75%), 0 0 0 rgba(88, 214, 166, 0); transform: scale(1); }
+    12% { box-shadow: inset 0 0 0 2px fade(@con-mint, 95%), 0 0 34px fade(@con-mint, 55%); transform: scale(1.06); }
+    36% { box-shadow: inset 0 0 0 1px fade(@con-mint, 80%), 0 0 18px fade(@con-mint, 30%); transform: scale(1); }
+    100% { box-shadow: inset 0 0 0 1px fade(@con-mint, 75%), 0 0 20px fade(@con-mint, 30%); transform: scale(1); }
 }
 
 /* ── Turn / task banner ──────────────────────────────────────────── */
@@ -200,13 +219,6 @@
         background: @con-cyan;
         box-shadow: 0 0 10px fade(@con-cyan, 80%);
         animation: con-pulse calc(1800ms * var(--motion-scale, 1)) ease-in-out infinite;
-    }
-    &--action {
-        box-shadow: inset 0 0 0 1px fade(@con-mint, 55%), 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 18px fade(@con-mint, 14%);
-        .con-banner__pulse {
-            background: @con-mint;
-            box-shadow: 0 0 10px fade(@con-mint, 85%);
-        }
     }
     &__hint {
         display: inline-flex;
@@ -406,8 +418,10 @@
     }
 }
 
-/* Selected-cell SPOTLIGHT (object-level, TV-readable — not a 1px ring). */
-.board-space.con-cell-sel::after {
+/* Selected-cell SPOTLIGHT (object-level, TV-readable — not a 1px ring).
+   P27: paints ONLY while the board is LIVE (inspection / placement) — on
+   the calm board home no cell reads as focused. */
+.con-board--live .board-space.con-cell-sel::after {
     content: '';
     position: absolute;
     inset: -6px;
@@ -419,12 +433,12 @@
 }
 /* During placement the ACTIVE marker reads legal (mint, dominant over the
    calm amber availables) vs off-limits (red, the inspect state). */
-body.placement-pending .board-space.con-cell-sel:not(.board-space--available)::after,
-html.console-mode .board-space.con-cell-sel--illegal::after {
+body.placement-pending .con-board--live .board-space.con-cell-sel:not(.board-space--available)::after,
+html.console-mode .con-board--live .board-space.con-cell-sel--illegal::after {
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(255,106,94,0.10)' stroke='%23FF6A5E' stroke-width='2.6' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23FFC9C4' stroke-opacity='0.5' stroke-width='0.8' stroke-linejoin='round'/></svg>");
     filter: drop-shadow(0 0 8px fade(@con-red, 65%)) drop-shadow(0 0 2px fade(@con-red, 80%));
 }
-body.placement-pending .board-space.con-cell-sel.board-space--available::after {
+body.placement-pending .con-board--live .board-space.con-cell-sel.board-space--available::after {
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(108,240,172,0.14)' stroke='%236CF0AC' stroke-width='2.8' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23D7FFE9' stroke-opacity='0.55' stroke-width='0.8' stroke-linejoin='round'/></svg>");
     filter: drop-shadow(0 0 11px fade(@con-mint, 85%)) drop-shadow(0 0 3px fade(@con-mint, 95%));
 }
@@ -433,6 +447,34 @@ body.placement-pending .board-space.con-cell-sel.board-space--available::after {
 html.console-mode body.placement-pending .board > .board-space.board-space--available:not(.con-cell-sel)::before,
 html.console-mode body.placement-pending .board-outer-spaces > .board-space.board-space--available:not(.con-cell-sel)::before {
     opacity: 0.72;
+}
+
+/* P27: BOARD INSPECTION MODE — a distinct AMBER "scanner" hex, never
+   confusable with the cyan browse / mint-legal / ocean-ready looks. */
+.con-board--inspecting .board-space.con-cell-sel::after {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(242,193,78,0.10)' stroke='%23F2C14E' stroke-width='2.6' stroke-linejoin='round' stroke-dasharray='7 3.4'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23FFE9BE' stroke-opacity='0.55' stroke-width='0.8' stroke-linejoin='round'/></svg>");
+    filter: drop-shadow(0 0 9px fade(@con-amber, 75%)) drop-shadow(0 0 2px fade(@con-amber, 85%));
+}
+
+/* P27: the focused global-parameter TRACK marker (inspection mode) — an
+   amber scanner RING around the chip; the chip itself stays untouched. */
+.arc-marker.con-marker-sel {
+    z-index: 60;
+
+    &::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 34px;
+        height: 34px;
+        margin: -17px 0 0 -17px;
+        border-radius: 50%;
+        border: 2.4px dashed fade(@con-amber, 90%);
+        box-shadow: 0 0 12px fade(@con-amber, 55%), inset 0 0 8px fade(@con-amber, 25%);
+        pointer-events: none;
+        animation: con-cell-active calc(1500ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
 }
 
 @keyframes con-cell-active {
@@ -1595,66 +1637,103 @@ html.console-mode {
     }
 }
 
-/* ── LT Action wheel (category entry point) ──────────────────────── */
-.con-wheel {
+/* ── P27: RT / LT QUICK SELECTORS (direct-input command cross) ───── */
+.con-quick {
     position: fixed;
     inset: 0;
     z-index: 11500;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 26px;
 
     &__backdrop {
         position: absolute;
         inset: 0;
-        background: rgba(4, 8, 14, 0.7);
+        background: rgba(4, 8, 14, 0.72);
     }
-    &__ring {
+    &__panel {
         position: relative;
-        width: 520px;
-        height: 460px;
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    &__sector {
-        position: absolute;
-        left: 50%;
-        top: 50%;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 6px;
-        min-width: 128px;
-        padding: 12px 18px;
+        gap: 18px;
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 95%);
+        text-shadow: 0 0 18px fade(@con-cyan, 35%);
+    }
+    /* The cross: up / left-center-right / down (grid keeps it rigid). */
+    &__cross {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(210px, auto));
+        grid-template-rows: repeat(3, auto);
+        gap: 14px 16px;
+        align-items: stretch;
+        justify-items: stretch;
+    }
+    &__slot {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 96px;
+        padding: 14px 20px 12px;
         border-radius: 12px;
         background: @con-glass;
-        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22), 0 10px 30px rgba(0, 0, 0, 0.5);
-        transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease, filter calc(140ms * var(--motion-scale, 1)) ease;
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.26), 0 10px 30px rgba(0, 0, 0, 0.5);
 
-        &--selected {
-            box-shadow: inset 0 0 0 1px fade(@con-cyan, 85%), 0 0 24px fade(@con-cyan, 30%), 0 10px 30px rgba(0, 0, 0, 0.5);
+        &--up { grid-area: 1 / 2; }
+        &--left { grid-area: 2 / 1; }
+        &--right { grid-area: 2 / 3; }
+        &--down { grid-area: 3 / 2; }
+        &--center {
+            grid-area: 2 / 2;
+            background: rgba(14, 24, 36, 0.96);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 75%), 0 0 26px fade(@con-cyan, 22%), 0 10px 30px rgba(0, 0, 0, 0.5);
         }
         &--disabled {
-            opacity: 0.5;
-            filter: saturate(0.55);
+            opacity: 0.55;
+            filter: saturate(0.5);
         }
     }
-    &__sector-icon {
+    &__slot-key {
+        position: absolute;
+        top: -12px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    &__slot-icon {
         color: @con-text;
         .bar-btn-icon { width: 34px; height: 34px; }
+        .resource_icon { display: inline-block; width: 30px; height: 30px; background-size: contain; background-repeat: no-repeat; background-position: center; }
+        .std-icon { display: inline-block; width: 34px; height: 34px; }
     }
-    &__sector-glyph {
+    &__slot-glyph {
         font-size: 28px;
+        line-height: 1;
     }
-    &__sector-label {
+    &__slot-label {
         font-size: 19px;
         font-weight: 700;
         letter-spacing: 0.6px;
         text-transform: uppercase;
         white-space: nowrap;
     }
-    &__sector-badge {
+    &__slot-meta {
+        font-size: 16px;
+        color: @con-text-dim;
+    }
+    &__slot-badge {
         position: absolute;
         top: -10px;
         right: -8px;
@@ -1671,40 +1750,14 @@ html.console-mode {
         font-size: 16px;
         font-weight: 700;
     }
-    &__hub {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        width: 220px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 6px;
+    &__slot-reason {
+        font-size: 14.5px;
+        line-height: 1.25;
         text-align: center;
-        pointer-events: none;
-    }
-    &__hub-label {
-        font-size: 24px;
-        font-weight: 700;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        color: fade(@con-cyan, 95%);
-    }
-    &__hub-reason {
-        font-size: 17px;
         color: @con-amber;
+        max-width: 240px;
     }
-    &__hub-hint {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 18px;
-        color: @con-text-dim;
-    }
-
     &__foot {
-        position: relative;
         display: flex;
         gap: 30px;
     }
@@ -2562,6 +2615,343 @@ html.console-mode {
     }
 }
 
+/* -- P27: Standard Projects -- the premium basic-actions screen ---- */
+.con-stdp {
+    position: fixed;
+    inset: 0;
+    z-index: 11500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 8, 14, 0.74);
+    }
+    &__panel {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        width: min(1060px, 90vw);
+        max-height: 88vh;
+        padding: 18px 22px 14px;
+        border-radius: 14px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%), 0 24px 70px rgba(0, 0, 0, 0.6);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    &__emblem {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 10px;
+        background: rgba(16, 26, 38, 0.8);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%);
+        .bar-btn-icon { width: 30px; height: 30px; }
+    }
+    &__title {
+        flex: 1;
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+    }
+    &__wallet {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 14px;
+        border-radius: 9px;
+        background: rgba(16, 26, 38, 0.72);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.25);
+        font-size: 19px;
+
+        &--short { box-shadow: inset 0 0 0 1px fade(@con-red, 55%); }
+    }
+    &__wallet-label {
+        font-size: 15px;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__wallet-now { display: inline-flex; align-items: center; gap: 5px; b { font-size: 22px; } }
+    &__wallet-price { color: @con-amber; }
+    &__wallet-after { color: @con-mint; }
+    &__wallet-shortfall { color: @con-red; font-size: 16px; }
+
+    &__grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        overflow-y: auto;
+        padding: 4px 2px;
+    }
+    &__card {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 16px;
+        border-radius: 11px;
+        background: rgba(14, 23, 34, 0.86);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.2);
+
+        &--off { opacity: 0.62; filter: saturate(0.55); }
+        &--focused {
+            box-shadow: inset 0 0 0 2px fade(@con-cyan, 90%), 0 0 22px fade(@con-cyan, 24%);
+            opacity: 1;
+        }
+        &--go&--focused {
+            box-shadow: inset 0 0 0 2px fade(@con-mint, 85%), 0 0 22px fade(@con-mint, 24%);
+        }
+        &:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    }
+    &__rail {
+        position: absolute;
+        left: 0;
+        top: 10px;
+        bottom: 10px;
+        width: 3px;
+        border-radius: 2px;
+        background: @con-mint;
+        box-shadow: 0 0 8px fade(@con-mint, 60%);
+    }
+    &__stage {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 58px;
+        height: 58px;
+        flex-shrink: 0;
+        border-radius: 10px;
+        background: radial-gradient(circle at 50% 40%, rgba(50, 78, 108, 0.55), rgba(14, 23, 34, 0.2) 72%);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
+    }
+    &__icon { display: inline-block; width: 40px; height: 40px; }
+    &__body { flex: 1; min-width: 0; }
+    &__name {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+    &__desc {
+        margin-top: 3px;
+        font-size: 16px;
+        line-height: 1.3;
+        color: @con-text-dim;
+    }
+    &__status {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    &__cost {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 21px;
+        b { font-size: 24px; }
+        .resource_icon { width: 26px; height: 26px; display: inline-block; background-size: contain; background-repeat: no-repeat; }
+        &--short b { color: @con-red; }
+    }
+    &__gain {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 21px;
+        color: @con-mint;
+        b { font-size: 24px; }
+        .resource_icon { width: 26px; height: 26px; display: inline-block; background-size: contain; background-repeat: no-repeat; }
+    }
+    &__gain-note { font-size: 15px; color: @con-text-dim; }
+    &__btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 12px;
+        border-radius: 8px;
+        font-size: 16px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        background: rgba(16, 26, 38, 0.7);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 45%);
+        color: fade(@con-mint, 88%);
+
+        &--focus {
+            background: fade(@con-mint, 18%);
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 85%), 0 0 14px fade(@con-mint, 30%);
+            color: #eafff5;
+        }
+    }
+    &__foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding-top: 4px;
+        border-top: 1px solid rgba(120, 150, 180, 0.18);
+    }
+    &__context {
+        font-size: 17px;
+        color: @con-text-dim;
+        &--ready { color: @con-mint; }
+        &--blocked { color: @con-amber; }
+    }
+    &__context-ready { color: @con-mint; }
+    &__hints { display: flex; gap: 22px; }
+    &__hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: @con-text-dim;
+        font-size: 17px;
+        &--off { opacity: 0.45; }
+    }
+}
+
+/* -- P27: the right HOME panel -- strategic turn summary ----------- */
+.con-home__block {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(14, 23, 34, 0.6);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
+
+    &--hot {
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 45%), 0 0 12px fade(@con-mint, 10%);
+    }
+}
+.con-home__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    .bar-btn-icon { width: 22px; height: 22px; flex-shrink: 0; }
+}
+.con-home__title {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+    color: @con-text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.con-home__value {
+    font-size: 18px;
+    color: @con-text-dim;
+    white-space: nowrap;
+    b { color: @con-mint; font-size: 21px; }
+}
+.con-home__hint {
+    display: inline-flex;
+    zoom: 0.82;
+    opacity: 0.85;
+}
+.con-home__badge {
+    min-width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: fade(@con-mint, 20%);
+    box-shadow: inset 0 0 0 1px fade(@con-mint, 70%);
+    color: @con-mint;
+    font-size: 14px;
+    font-weight: 700;
+}
+.con-home__line {
+    margin-top: 6px;
+    font-size: 15px;
+    b { color: @con-mint; }
+
+    &--go { color: fade(@con-mint, 85%); }
+    &--mute { color: @con-text-dim; }
+}
+.con-home__ma {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: 15.5px;
+    line-height: 1.25;
+}
+.con-home__ma-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: @con-text;
+}
+.con-home__ma-owner {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: @con-text-dim;
+    .con-status__dot { width: 11px; height: 11px; }
+}
+.con-home__ma-owner-name {
+    max-width: 92px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.con-home__ma-progress {
+    color: @con-text-dim;
+    &--ready { color: @con-mint; font-weight: 700; }
+}
+.con-home__ma-leaders {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: @con-text-dim;
+    .con-status__dot { width: 11px; height: 11px; }
+}
+.con-home__ma-leaders-label { font-size: 13.5px; letter-spacing: 0.6px; text-transform: uppercase; }
+.con-home__ma-leaders-score { color: @con-text; font-weight: 700; }
+
+/* P27: TRACK mode rows (the focused scale bonus, ScaleTooltip parity). */
+.con-context__track-rows { margin-top: 10px; }
+.con-context__track-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 7px;
+    font-size: 17px;
+    line-height: 1.3;
+
+    .con-status__dot { width: 12px; height: 12px; flex-shrink: 0; }
+
+    &--reward { color: @con-mint; }
+    &--claim { color: @con-text-dim; }
+    &--note { color: @con-text-dim; font-size: 15.5px; }
+    &--value { color: @con-text; font-weight: 700; }
+    &--desc { color: @con-text-dim; }
+}
+.con-context__note {
+    margin-top: 14px;
+    font-size: 14.5px;
+    line-height: 1.35;
+    color: @con-text-dim;
+    opacity: 0.85;
+}
+
 /* ── Confirm panel ───────────────────────────────────────────────── */
 .con-confirm {
     position: fixed;
@@ -2774,14 +3164,6 @@ html.console-mode {
 
         &--yes { color: @con-mint; }
     }
-}
-
-/* ── Wheel sector hotkey chip ────────────────────────────────────── */
-.con-wheel__sector-key {
-    position: absolute;
-    bottom: -12px;
-    left: 50%;
-    transform: translateX(-50%);
 }
 
 /* ── LT INFORMATION MODE ─────────────────────────────────────────── */
@@ -5820,8 +6202,9 @@ html.con-profile-handheld {
     }
 
     /* ── 6 · RT action wheel ─────────────────────────────────────── */
-    .con-wheel__ring { zoom: 0.84; } /* one ring, polar px coords — a
-        per-surface density change, not a page scale */
+    .con-quick__cross { gap: 10px 12px; }
+    .con-quick__slot { min-height: 82px; padding: 11px 14px 10px; }
+    .con-quick__slot-label { font-size: 17px; }
 
     /* ── 7 · LT Information Mode ─────────────────────────────────── */
     .con-info {

@@ -167,7 +167,7 @@
              :class="{'bottom-bar-btn--active': coloniesOverlayOpen, 'bottom-bar-btn--hydro-ready': colonyTradeAvailable}"
              data-gp-overlay="colonies"
              v-on:click="onOpenColoniesOverlay">
-          <BarButtonIcon name="colonies" /><span class="bar-btn__label" v-i18n>Colonies</span>
+          <BarButtonIcon name="colonies" /><span class="bar-btn__label" v-i18n>Trading</span>
           <span v-if="colonyTradeAvailable" class="bottom-bar-btn__hydro-dot" aria-hidden="true"></span>
         </div>
         <div v-if="game.gameOptions.expansions.deltaProject"
