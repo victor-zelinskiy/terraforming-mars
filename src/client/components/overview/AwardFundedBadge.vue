@@ -25,6 +25,20 @@
             <span>{{ award.playerName }}</span>
           </div>
           <!--
+            Current race LEADER(S) — the player(s) who would score this award's
+            VP at game end. This is who matters going forward, NOT the funder;
+            tied top scores mean MULTIPLE co-leaders (they all score), so every
+            one is listed.
+          -->
+          <div v-if="leaders.length > 0" class="milestone-floating-tooltip-leader">
+            <span class="milestone-floating-tooltip-leader-label" v-i18n>Leader</span>
+            <span v-for="l in leaders" :key="l.color" class="milestone-floating-tooltip-leader-name">
+              <player-cube :color="l.color" :size="13"></player-cube>
+              <span>{{ playerName(l.color) }}</span>
+            </span>
+            <span class="milestone-floating-tooltip-leader-score">{{ leaders[0].score }}</span>
+          </div>
+          <!--
             Live race standings inside the tooltip. Players are sorted by
             score descending; the leader gets a green tint so the user can
             tell who's winning at a glance even when the overlay is closed.
@@ -116,6 +130,18 @@ export default defineComponent({
         return [];
       }
       return [...this.award.scores].sort((x, y) => y.score - x.score);
+    },
+    // The current leader(s): every player tied at the (non-zero) top score.
+    // These are exactly who scores this award's VP at game end — including a
+    // multi-way tie for 1st (the server awards all of them, see
+    // calculateVictoryPoints.giveAwards).
+    leaders(): Array<AwardScore> {
+      const sorted = this.sortedScores;
+      if (sorted.length === 0 || sorted[0].score <= 0) {
+        return [];
+      }
+      const top = sorted[0].score;
+      return sorted.filter((s) => s.score === top);
     },
     tooltipStyle(): Record<string, string> {
       return {

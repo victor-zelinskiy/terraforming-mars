@@ -173,19 +173,25 @@
              class="con-home__ma"
              :class="{'con-home__ma--taken': row.takenBy !== undefined}">
           <span class="con-home__ma-name" v-i18n>{{ shortName(row.name) }}</span>
+          <!-- Funder (who sponsored the award). A dot with no name when a leader
+               is also shown, to keep the row compact. -->
           <span v-if="row.takenBy !== undefined" class="con-home__ma-owner">
             <span class="con-home__ma-check" aria-hidden="true">✓</span>
             <span :class="'con-status__dot player_bg_color_' + row.takenBy.color"></span>
-            <span class="con-home__ma-owner-name">{{ row.takenBy.name }}</span>
+            <span v-if="!hasLeaders(row)" class="con-home__ma-owner-name">{{ row.takenBy.name }}</span>
           </span>
-          <span v-else-if="row.leaders !== undefined && row.leaders.length > 0" class="con-home__ma-leaders">
-            <span class="con-home__ma-leaders-label">{{ $t('Leader') }}</span>
-            <span v-for="l in row.leaders" :key="l.color"
+          <!-- Live race LEADER(S) — always shown for awards, funded or not (the
+               funder is not necessarily who scores the VP). Ties → every dot. -->
+          <span v-if="hasLeaders(row)" class="con-home__ma-leaders"
+                :class="{'con-home__ma-leaders--compact': row.takenBy !== undefined}">
+            <span v-if="row.takenBy === undefined" class="con-home__ma-leaders-label">{{ $t('Leader') }}</span>
+            <span v-else class="con-home__ma-leaders-crown" aria-hidden="true">♔</span>
+            <span v-for="l in (row.leaders ?? [])" :key="l.color"
                   class="con-status__dot"
                   :class="['player_bg_color_' + l.color, {'con-home__ma-dot--me': l.color === viewerColor}]"></span>
-            <span class="con-home__ma-leaders-score">{{ row.leaders[0].score }}</span>
+            <span class="con-home__ma-leaders-score">{{ row.leaders?.[0]?.score }}</span>
           </span>
-          <span v-else class="con-home__ma-progress con-home__ma-progress--none">—</span>
+          <span v-if="row.takenBy === undefined && !hasLeaders(row)" class="con-home__ma-progress con-home__ma-progress--none">—</span>
         </div>
         <div class="con-home__foot">
           <span v-if="awardSummary.slotsLeft === 0" class="con-home__foot-done">✓ {{ $t('All funded') }}</span>
@@ -224,7 +230,7 @@ import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
-import {HomeMaSummary} from '@/client/console/consoleQuickModel';
+import {HomeMaSummary, HomeMaRow} from '@/client/console/consoleQuickModel';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -310,6 +316,10 @@ export default defineComponent({
     /** Strip the numeric variant suffix (Terraformer26 → Terraformer). */
     shortName(name: string): string {
       return name.replace(/[0-9]+$/, '');
+    },
+    /** Awards only: the row has a live race leader (someone with a non-zero top score). */
+    hasLeaders(row: HomeMaRow): boolean {
+      return row.leaders !== undefined && row.leaders.length > 0;
     },
     /** Milestone progress → the mini rail width (bounded 0..100). */
     progressPct(score: number, threshold: number): number {

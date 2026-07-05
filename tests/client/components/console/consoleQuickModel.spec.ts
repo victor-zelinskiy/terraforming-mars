@@ -189,6 +189,18 @@ describe('consoleQuickModel (P27)', () => {
       expect(summary.rows[0].leaders?.[0].score).to.eq(4);
     });
 
+    it('awards KEEP the live leader after funding (funder is not necessarily the scorer)', () => {
+      const summary = buildHomeMaSummary('awards', [
+        source({name: 'Banker', playerName: 'Vika', color: rival,
+          scores: [{color: me, score: 5}, {color: rival, score: 2}]}),
+      ], {myColor: me, availableNow: new Set(), maxSlots: 3});
+      const row = summary.rows[0];
+      // Funder is preserved …
+      expect(row.takenBy).to.deep.eq({color: rival, name: 'Vika'});
+      // … AND the live leader (a DIFFERENT player) still shows.
+      expect(row.leaders).to.deep.eq([{color: me, score: 5}]);
+    });
+
     it('actionable counts only OPEN entries offered right now', () => {
       const summary = buildHomeMaSummary('awards', [
         source({name: 'Banker'}),

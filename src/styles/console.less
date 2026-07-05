@@ -3886,6 +3886,20 @@ html.console-mode {
     font-weight: 700;
     font-size: 17px;
 }
+/* The compact leader chip shown ALONGSIDE the funder on a funded award — a
+   small gold crown replaces the «ЛИДЕР» word so both fit one row. */
+.con-home__ma-leaders-crown {
+    color: @con-ma-gold;
+    font-size: 14px;
+    line-height: 1;
+}
+.con-home__ma-leaders--compact {
+    gap: 5px;
+    .con-status__dot { width: 12px; height: 12px; }
+    .con-home__ma-leaders-score { font-size: 15.5px; }
+}
+/* A funded award still races — don't dim its live leader as hard as a settled row. */
+.con-home__ma--taken { opacity: 0.9; }
 /* Block footer: slots left / the gold completed state (P23 language). */
 .con-home__foot {
     margin-top: 8px;

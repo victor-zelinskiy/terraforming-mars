@@ -267,14 +267,19 @@ export function buildHomeMaSummary(
     const row: HomeMaRow = {name: m.name, availableNow: !isTaken(m) && opts.availableNow.has(m.name)};
     if (isTaken(m) && m.color !== undefined) {
       row.takenBy = {color: m.color, name: m.playerName ?? ''};
-      return row;
     }
     if (kind === 'awards') {
+      // Awards are a race to game END — the LEADER (who actually scores the VP)
+      // stays relevant even AFTER the award is funded, because the funder is not
+      // necessarily the scorer. So compute leaders regardless of `takenBy`.
+      // Tied top scores → MULTIPLE co-leaders (the server gives them all 5 VP;
+      // see calculateVictoryPoints.giveAwards) — return every one of them.
       const top = m.scores.reduce((max, s) => Math.max(max, s.score), 0);
       row.leaders = top > 0 ?
         m.scores.filter((s) => s.score === top).map((s) => ({color: s.color, score: s.score})) :
         [];
-    } else {
+    } else if (row.takenBy === undefined) {
+      // Milestones lock in on claim — progress only matters while unclaimed.
       const mine = m.scores.find((s) => s.color === opts.myColor);
       row.my = {
         score: mine?.score ?? 0,
