@@ -169,19 +169,19 @@
           <span v-if="awardSummary.actionable > 0" class="con-home__badge con-home__badge--quiet">{{ awardSummary.actionable }}</span>
           <span class="con-home__hint"><GamepadGlyph control="bumperR" /></span>
         </header>
-        <!-- Legend = a helper row on the SAME grid: empty title cell, then a
-             quiet glyph+word hint above the sponsor and leader columns, so it
-             lines up with every award row below. -->
+        <!-- Legend = a helper row on the SAME grid: empty title cell, then ONE
+             quiet hint that SPANS the sponsor + leader columns (so the flag sits
+             above the sponsor column start, and the words have room to flow
+             without «спонсор» colliding with the crown). -->
         <div class="con-award-row con-award-row--legend" aria-hidden="true">
           <span class="con-award__name"></span>
-          <span class="con-award__sponsor con-award__legend-cell">
+          <span class="con-award__legend-span">
             <svg class="con-award__flag con-award__legend-glyph" viewBox="0 0 16 16">
               <path d="M4 1.6v12.8" />
               <path d="M4 2.4h8.4l-2.1 2.8 2.1 2.8H4z" class="con-award__flag-fill" />
             </svg>
             <span class="con-award__legend-word" v-i18n>Sponsor</span>
-          </span>
-          <span class="con-award__leader con-award__legend-cell">
+            <span class="con-award__legend-sep">·</span>
             <svg class="con-award__crown con-award__legend-glyph" viewBox="0 0 20 16">
               <path d="M2 12.4h16l1.1-8-4.4 3.1L10 3.2 5.3 7.5.9 4.4z" />
               <rect x="2" y="13.2" width="16" height="1.8" rx="0.9" />

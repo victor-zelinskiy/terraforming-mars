@@ -3916,16 +3916,23 @@ html.console-mode {
         &::before { display: none; }
     }
 }
-/* Legend cells reuse the sponsor/leader columns; small, muted, lowercase. */
-.con-award__legend-cell {
+/* Legend spans the sponsor + leader columns as ONE hint — the flag aligns with
+   the sponsor column start (above the row flags), the words flow freely so
+   «спонсор» can never collide with the crown. Small, muted, lowercase. */
+.con-award__legend-span {
+    grid-column: 2 / 4;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: 9.5px;
     letter-spacing: 0.2px;
     text-transform: lowercase; // helper text, never caps
     color: fade(@con-text-dim, 78%);
     white-space: nowrap;
-    overflow: visible; // the short word may reach a hair into the column gap
 }
+.con-award__legend-sep { opacity: 0.5; margin: 0 3px; }
 .con-award__legend-glyph {
+    flex-shrink: 0;
     opacity: 0.8; // a quieter twin of the row glyph — a hint, not a marker
     &.con-award__flag { width: 11px; height: 11px; }
     &.con-award__crown { width: 13px; height: 11px; }
@@ -7771,7 +7778,7 @@ html.con-profile-handheld {
     .con-award__flag { width: 13px; height: 13px; }
     .con-award__crown { width: 15px; height: 13px; }
     .con-award__leader-val { font-size: 13.5px; }
-    .con-award__legend-cell { font-size: 9px; }
+    .con-award__legend-span { font-size: 9px; }
     .con-award__legend-glyph.con-award__flag { width: 10px; height: 10px; }
     .con-award__legend-glyph.con-award__crown { width: 12px; height: 10px; }
     .con-home__foot { margin-top: 6px; padding-top: 5px; font-size: 11.5px; }
@@ -8146,7 +8153,7 @@ html.con-profile-large {
     .con-award-row { font-size: 17px; }
     .con-award__cube { width: 15px; height: 15px; }
     .con-award__leader-val { font-size: 17px; }
-    .con-award__legend-cell { font-size: 11px; }
+    .con-award__legend-span { font-size: 11px; }
     .con-task__title { font-size: 30px; }
     .con-task__opt-title { font-size: 24px; }
     /* P26 · MA strategic panel — a gentle 4K readability boost only. */
