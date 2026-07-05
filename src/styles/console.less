@@ -2081,12 +2081,119 @@ html.con-profile-handheld .con-maconfirm {
         b { font-size: 23px; }
         animation: con-macere-pop calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) calc(420ms * var(--motion-scale, 1)) both;
     }
+    /* WHO did it — a colour chip, explicit on both presentations. */
+    &__actor {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 17px;
+        font-weight: 700;
+        color: @con-text;
+        animation: con-macere-line calc(600ms * var(--motion-scale, 1)) ease-out calc(340ms * var(--motion-scale, 1)) both;
+    }
+    &__actor-dot {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45), 0 0 8px rgba(0, 0, 0, 0.5);
+    }
+
+    /* REMOTE beat: another player claimed/funded — an unobtrusive top-centre
+       strip (NO veil, nothing dimmed, never covering the play area) that
+       still names WHO took WHAT in the same premium language. */
+    &--remote {
+        align-items: flex-start;
+        padding-top: 84px;
+    }
+    &__strip {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 22px 12px 12px;
+        border-radius: 14px;
+        background:
+            radial-gradient(circle at 12% 50%, fade(@con-ma-gold, 10%), transparent 62%),
+            rgba(9, 15, 24, 0.88);
+        box-shadow:
+            inset 0 0 0 1px fade(@con-ma-gold, 45%),
+            0 14px 44px rgba(0, 0, 0, 0.55),
+            0 0 30px fade(@con-ma-gold, 12%);
+        animation:
+            con-macere-strip-in calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both,
+            con-macere-strip-glow calc(1200ms * var(--motion-scale, 1)) ease-out both;
+    }
+    &__strip-stage {
+        position: relative;
+        width: 84px;
+        height: 84px;
+        flex-shrink: 0;
+        border-radius: 12px;
+        background:
+            radial-gradient(circle at 50% 58%, fade(@con-ma-gold, 10%), transparent 66%),
+            rgba(9, 15, 24, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22);
+    }
+    &__strip-hero { position: absolute; inset: 9%; }
+    &__strip-body {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    &__strip-kicker {
+        font-size: 14px;
+        letter-spacing: 3px;
+        animation: none;
+    }
+    &__strip-name {
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.15;
+        max-width: 46vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__strip .con-macere__actor {
+        font-size: 15.5px;
+        animation: none;
+    }
+    &__strip-vp {
+        margin-left: 8px;
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: fade(@con-ma-gold, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-ma-gold, 65%);
+        color: @con-ma-gold;
+        font-size: 14px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
 
     /* The award seal is medal-toned (the coronation gold stays milestone-only). */
     &--award {
         .con-macere__halo { background: radial-gradient(circle, fade(@con-ma-medal, 24%), transparent 68%); }
         .con-macere__ring { box-shadow: 0 0 0 2px fade(@con-ma-medal, 55%), 0 0 34px fade(@con-ma-medal, 28%); }
         .con-macere__kicker { color: fade(@con-ma-medal, 94%); text-shadow: 0 0 18px fade(@con-ma-medal, 45%); }
+        .con-macere__strip {
+            background:
+                radial-gradient(circle at 12% 50%, fade(@con-ma-medal, 10%), transparent 62%),
+                rgba(9, 15, 24, 0.88);
+            box-shadow:
+                inset 0 0 0 1px fade(@con-ma-medal, 42%),
+                0 14px 44px rgba(0, 0, 0, 0.55),
+                0 0 30px fade(@con-ma-medal, 11%);
+            animation:
+                con-macere-strip-in calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both,
+                con-macere-strip-glow-medal calc(1200ms * var(--motion-scale, 1)) ease-out both;
+        }
+        .con-macere__strip-stage {
+            background:
+                radial-gradient(circle at 50% 58%, fade(@con-ma-medal, 10%), transparent 66%),
+                rgba(9, 15, 24, 0.6);
+        }
     }
 }
 
@@ -2121,6 +2228,18 @@ html.con-profile-handheld .con-maconfirm {
     from { transform: scale(0.7); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
 }
+@keyframes con-macere-strip-in {
+    from { transform: translateY(-16px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes con-macere-strip-glow {
+    0% { box-shadow: inset 0 0 0 1px fade(@con-ma-gold, 65%), 0 14px 44px rgba(0, 0, 0, 0.55), 0 0 52px 2px fade(@con-ma-gold, 30%); }
+    100% { box-shadow: inset 0 0 0 1px fade(@con-ma-gold, 45%), 0 14px 44px rgba(0, 0, 0, 0.55), 0 0 30px fade(@con-ma-gold, 12%); }
+}
+@keyframes con-macere-strip-glow-medal {
+    0% { box-shadow: inset 0 0 0 1px fade(@con-ma-medal, 62%), 0 14px 44px rgba(0, 0, 0, 0.55), 0 0 52px 2px fade(@con-ma-medal, 28%); }
+    100% { box-shadow: inset 0 0 0 1px fade(@con-ma-medal, 42%), 0 14px 44px rgba(0, 0, 0, 0.55), 0 0 30px fade(@con-ma-medal, 11%); }
+}
 
 @media (prefers-reduced-motion: reduce) {
     .con-macere__scene,
@@ -2130,7 +2249,9 @@ html.con-profile-handheld .con-maconfirm {
     .con-macere__kicker,
     .con-macere__name,
     .con-macere__vp,
-    .con-macere__cost { animation: none; }
+    .con-macere__cost,
+    .con-macere__actor,
+    .con-macere__strip { animation: none; }
     .con-macere-enter-active,
     .con-macere-leave-active { transition: opacity 120ms ease; }
 }
@@ -2141,6 +2262,10 @@ html.con-profile-handheld .con-macere {
     &__name { font-size: 32px; }
     &__kicker { font-size: 16px; letter-spacing: 4.5px; }
     &__vp-num { font-size: 30px; }
+    &--remote { padding-top: 64px; }
+    &__strip-stage { width: 66px; height: 66px; }
+    &__strip-name { font-size: 19px; }
+    &__strip-kicker { font-size: 12px; }
 }
 
 /* ── P20/P29c: off-Mars special zones, console-compacted ───────────
@@ -7197,16 +7322,22 @@ dialog.con-quit {
     padding: 0;
     background: transparent;
     color: @con-text;
+    /* THE scrollbar-flash fix. The <dialog> is the scroll container for its
+       card; the shared `con-rise` entrance nudges the card DOWN 14px, which
+       overflowed the fit-content dialog box and flashed the dialog's OWN
+       scrollbar for the ~200ms animation (this is what the earlier document/
+       body/#app scroll-locks could never touch — the scrollbar was never on
+       the page root). `overflow: visible` = the dialog never clips or scrolls
+       (and the card's outer glow shadow is preserved — `hidden` would clip it).
+       Paired with the no-downward-translate entrance below there is no overflow
+       to bubble anywhere. */
+    overflow: visible;
 
     &::backdrop {
         background: rgba(4, 8, 14, 0.72);
         backdrop-filter: blur(3px);
     }
 }
-/* NOTE: the scrollbar-flash on open is prevented in JS (ConsoleConfirmDialog
-   locks document/body overflow before showModal), not here — the <dialog>
-   lives in the top layer, so a CSS clip on the page root can't reliably contain
-   its animated card across every viewport-scroller configuration. */
 .con-quit__card {
     min-width: 460px;
     padding: 26px 30px 18px;
@@ -7214,7 +7345,15 @@ dialog.con-quit {
     background: @con-glass;
     box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 24px 80px rgba(0, 0, 0, 0.65);
     font-family: @con-font;
-    animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    /* Dedicated entrance (NOT the shared `con-rise`): fade + subtle scale-UP
+       only, never a downward translate — a scaled-down start stays INSIDE the
+       card's layout box, so it can never overflow the dialog and spawn a
+       scrollbar. */
+    animation: con-quit-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes con-quit-rise {
+    from { opacity: 0; transform: scale(0.965); }
+    to { opacity: 1; transform: scale(1); }
 }
 .con-quit__body {
     margin: 12px 0 20px;

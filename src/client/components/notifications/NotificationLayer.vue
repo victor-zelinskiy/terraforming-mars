@@ -68,8 +68,7 @@ import {
   resetTerraformingCelebration,
   terraformingCelebrationState,
 } from '@/client/components/gameProgress/terraformingCelebration';
-import {observeMaCeremony, resetMaCeremony, wasRecentlyCelebrated} from '@/client/components/ma/maCeremonyState';
-import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
+import {observeMaCeremony, resetMaCeremony} from '@/client/components/ma/maCeremonyState';
 import {scaleBonusRewardKey} from '@/client/components/board/scaleBonusZones';
 import {isPlayerPanelVisible} from '@/client/components/overview/turnHandoffState';
 import {openRevealViewer} from '@/client/components/notifications/revealViewerState';
@@ -392,27 +391,16 @@ export default defineComponent({
       // suppressed while the journal is open. But a HOSTILE loss the viewer
       // suffered is critical — surface it regardless, like a turn card.
       if (!this.journalOpen) {
-        // The viewer's OWN milestone/award prestige card is redundant right
-        // after the local ceremony played (the ceremony IS that announcement
-        // for the actor); other players' cards are untouched.
-        pushMany(coalesceBurst(models.filter((m) => !this.isOwnCelebratedMa(m, now))));
+        // Milestone/award announcements are the MA CEREMONY's job now — the
+        // actor gets the centre-stage beat, everyone else the unobtrusive
+        // remote beat naming WHO took WHAT (maCeremonyState diffs the public
+        // game model, which flips exactly once per slot, so the announcement
+        // can never be silently lost). Pushing the prestige card too would
+        // double-announce; the journal record is untouched.
+        pushMany(coalesceBurst(models.filter((m) => m.variant !== 'milestone' && m.variant !== 'award')));
         pushMany(reveal.models);
       }
       pushMany(neg.models);
-    },
-
-    /** True for the viewer's own milestone/award card whose local ceremony
-     *  just played — suppressed to avoid the double announcement. */
-    isOwnCelebratedMa(m: NotificationModel, now: number): boolean {
-      if (m.variant !== 'milestone' && m.variant !== 'award') {
-        return false;
-      }
-      if (m.actor !== this.viewerColor) {
-        return false;
-      }
-      const token = m.header?.data?.find(
-        (d) => d.type === LogMessageDataType.MILESTONE || d.type === LogMessageDataType.AWARD);
-      return token !== undefined && wasRecentlyCelebrated(token.value, now);
     },
 
     refreshVisibleImpacts(events: ReadonlyArray<GameEvent>): void {

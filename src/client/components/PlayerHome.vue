@@ -3489,7 +3489,6 @@ export default defineComponent({
         armMaCeremony({
           kind: pending.kind,
           name: pending.name,
-          color: this.thisPlayer.color,
           cost: view?.cost ?? 0,
           free: view?.free ?? false,
         });
