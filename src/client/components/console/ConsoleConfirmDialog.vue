@@ -68,7 +68,7 @@ export default defineComponent({
   },
   emits: ['confirm', 'cancel'],
   data() {
-    return {prevHtmlOverflow: '', prevBodyOverflow: ''};
+    return {scrollLocks: [] as Array<{el: HTMLElement, prev: string}>};
   },
   computed: {
     padVisible(): boolean {
@@ -84,15 +84,22 @@ export default defineComponent({
   mounted() {
     // Lock document scroll BEFORE showModal() so the modal's entrance can never
     // flash a legacy scrollbar: the <dialog> lives in the browser top layer, so
-    // the page's own `overflow: hidden` can't contain its animated card — the
-    // overflow bubbles to the viewport scroller (which can be <body>, hence we
-    // lock BOTH). Setting it here (synchronously, pre-paint) means the first
-    // painted frame is already locked, so there is no scrollbar to flash.
-    const de = document.documentElement;
-    this.prevHtmlOverflow = de.style.overflow;
-    this.prevBodyOverflow = document.body.style.overflow;
-    de.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
+    // the page's own `overflow: hidden` can't contain it — any overflow bubbles
+    // to the viewport scroller. `html`, `body` and `#app` are all `height:100%`
+    // with no overflow set, so any of them can be the scroller — lock all three.
+    // Done synchronously (pre-paint), so the first painted frame is already
+    // locked and there is no scrollbar to flash.
+    const roots: Array<HTMLElement | null> = [
+      document.documentElement,
+      document.body,
+      document.getElementById('app'),
+    ];
+    for (const el of roots) {
+      if (el !== null) {
+        this.scrollLocks.push({el, prev: el.style.overflow});
+        el.style.overflow = 'hidden';
+      }
+    }
 
     const dlg = this.$refs.dlg as HTMLDialogElement | undefined;
     if (dlg !== undefined && typeof dlg.showModal === 'function' && !dlg.open) {
@@ -100,8 +107,10 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
-    document.documentElement.style.overflow = this.prevHtmlOverflow;
-    document.body.style.overflow = this.prevBodyOverflow;
+    for (const lock of this.scrollLocks) {
+      lock.el.style.overflow = lock.prev;
+    }
+    this.scrollLocks = [];
   },
 });
 </script>

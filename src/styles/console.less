@@ -1686,6 +1686,15 @@ html.con-profile-large .con-hydro {
 @con-ma-gold: #ffd87a;
 @con-ma-medal: #d6a6e0;
 
+/* The generic .con-task-host sits at 11480 — UNDER the premium sheets
+   (.con-ma / std-projects at 11500) it was designed to follow. THIS confirm
+   opens ON TOP of the MA dashboard, so it must clear it: above 11500, below
+   the transient notice (11540) / Info Mode (11560). The compound selector
+   (0,2,0) out-ranks the later-declared .con-task-host base (0,1,0). */
+.con-task-host.con-maconfirm {
+    z-index: 11510;
+}
+
 .con-maconfirm {
     &__frame { width: min(960px, 94vw); }
     &__frame--milestone {
@@ -2154,13 +2163,24 @@ html.con-profile-handheld .con-macere {
      closed by the corner, and the freed right edge lets the fit
      engine scale the whole board up a touch. */
 html.console-mode {
-    .board-space-02 { margin: 58px 0 0 75px; }    /* Phobos 134° */
-    .board-space-69 { margin: 107px 0 0 33px; }   /* Stanford 146° */
-    .board-space-01 { margin: 165px 0 0 3px; }    /* Ganymede 158° */
-    .board-space-70 { margin: 58px 0 0 505px; }   /* Luna 46° (mirror of Phobos) */
-    .board-space-73 { margin: 107px 0 0 547px; }  /* Maxwell 34° (mirror of Stanford) */
-    .board-space-72 { margin: 165px 0 0 577px; }  /* Stratopolis 22° (mirror of Ganymede) */
-    .board-space-71 { margin: 16px 0 0 600px; }   /* Dawn City — top-right keystone */
+    /* LEFT flank — lifted along the scale; the Venus identity mark
+       (~board 95..128 top) sits CENTRED in the deliberate Phobos↔Stanford
+       gap (Phobos ends at 88, Stanford starts at 136), the column reads
+       as one clean diagonal (left 55 → 25 → 6), Ganymede stays inside. */
+    .board-space-02 { margin: 20px 0 0 55px; }    /* Phobos — above the Venus mark */
+    .board-space-69 { margin: 136px 0 0 25px; }   /* Stanford — below the Venus mark */
+    .board-space-01 { margin: 214px 0 0 6px; }    /* Ganymede — diagonal tail */
+    /* RIGHT flank — the arc raised (Luna 50° · Maxwell 39° · Stratopolis
+       28°, r310): Stratopolis ends at 204, clear of the ocean bonus chip
+       (~215+); Luna stops right of the Venus end-bonus cube (~left 482). */
+    .board-space-70 { margin: 44px 0 0 489px; }   /* Luna 50° */
+    .board-space-73 { margin: 86px 0 0 531px; }   /* Maxwell 39° */
+    .board-space-72 { margin: 136px 0 0 564px; }  /* Stratopolis 28° */
+    /* Dawn City — the OUTER-RING keystone (θ44°, r386): sits diagonally
+       over Maxwell's shoulder, column-aligned with Stratopolis — the four
+       right zones read as ONE arrow-head composition, and the pulled-in
+       right edge gives the fit engine another touch of scale. */
+    .board-space-71 { margin: 13px 0 0 568px; }   /* Dawn City — keystone */
 }
 
 /* ── Hand section ────────────────────────────────────────────────── */
