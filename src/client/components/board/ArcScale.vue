@@ -239,13 +239,22 @@ export default defineComponent({
     },
     identityStyle(): Record<string, string> {
       const size = 22;
-      const p = pointAtAngle(this.center, this.outerR + 16, this.config.startAngle);
+      // Venus + oceans place their bonus chips on the INNER side of the
+      // band (toward the planet), so the identity badge follows them inside
+      // — it clears the outer off-Mars cells AND reads consistent with the
+      // scale's own bonus direction. The other scales keep the outer badge.
+      const radius = this.identityInside ? this.innerR - 16 : this.outerR + 16;
+      const p = pointAtAngle(this.center, radius, this.config.startAngle);
       return {
         left: `${Math.round(p.x - size / 2)}px`,
         top: `${Math.round(p.y - size / 2)}px`,
         width: `${size}px`,
         height: `${size}px`,
       };
+    },
+    /** Venus + oceans: bonuses (and thus the identity badge) sit inside. */
+    identityInside(): boolean {
+      return this.theme.accent === 'venus' || this.theme.accent === 'oceans';
     },
     ariaLabel(): string {
       return `${this.theme.noun}: ${this.value}${this.theme.unit}`;
