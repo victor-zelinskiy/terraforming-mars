@@ -40,6 +40,16 @@
       </div>
     </div>
 
+    <!-- Persistent FINAL GENERATION marker — appears once this generation is
+         authoritatively the game's last (multiplayer: the server's
+         isTerraformed; solo: the fixed last solo generation). Compact by
+         design: the full wording lives in the aria-label. -->
+    <div v-if="finalGenerationActive"
+         class="planet-final-gen"
+         :aria-label="$t('Final generation')">
+      <span v-i18n>Sidebar final generation label</span>
+    </div>
+
     <div v-if="gameOptions.expansions.turmoil"
          :title="$t('Ruling Party')"
          class="planet-ruling-party">
@@ -165,8 +175,10 @@ import {
   MAX_OXYGEN_LEVEL,
   MAX_TEMPERATURE,
   MAX_VENUS_SCALE,
-  MIN_TEMPERATURE,
 } from '@/common/constants';
+import {terraformingProgress, TerraformingProgress} from '@/client/components/gameProgress/terraformingProgress';
+import {terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 
 export default defineComponent({
@@ -251,6 +263,30 @@ export default defineComponent({
     MoonGlobalParameterValue,
     AnimatedMetricValue,
   },
+  data() {
+    return {
+      // One-shot celebration glow on the LIVE terraforming-complete transition
+      // (driven by the shared celebration nonce; never re-fires on reload).
+      celebrating: false,
+      celebrateTimer: undefined as number | undefined,
+    };
+  },
+  watch: {
+    celebrationNonce(): void {
+      this.celebrating = true;
+      if (this.celebrateTimer !== undefined) {
+        window.clearTimeout(this.celebrateTimer);
+      }
+      this.celebrateTimer = window.setTimeout(() => {
+        this.celebrating = false;
+      }, motionMs(3200));
+    },
+  },
+  beforeUnmount() {
+    if (this.celebrateTimer !== undefined) {
+      window.clearTimeout(this.celebrateTimer);
+    }
+  },
   methods: {
     rulingPartyToCss(): string {
       if (this.turmoil?.ruling === undefined) {
@@ -278,26 +314,43 @@ export default defineComponent({
     rootClass(): string {
       const acting = this.acting_player && getPreferences().hide_animated_sidebar === false;
       return 'sidebar_cont sidebar planet-sidebar' +
-        (acting ? ' preferences_acting_player' : ' preferences_nonacting_player');
+        (acting ? ' preferences_acting_player' : ' preferences_nonacting_player') +
+        (this.progress.complete ? ' planet-sidebar--terraformed' : '') +
+        (this.celebrating ? ' planet-sidebar--celebrating' : '');
+    },
+    // The SHARED terraforming-progress math (also used by the console top-HUD
+    // rail) — Temperature + Oxygen + Oceans ONLY; Venus never counts.
+    progress(): TerraformingProgress {
+      return terraformingProgress({temperature: this.temperature, oxygenLevel: this.oxygen, oceans: this.oceans});
     },
     temperatureProgress(): number {
-      const span = MAX_TEMPERATURE - MIN_TEMPERATURE;
-      return Math.max(0, Math.min(1, (this.temperature - MIN_TEMPERATURE) / span));
+      return this.progress.temperature;
     },
     oxygenProgress(): number {
-      return Math.max(0, Math.min(1, this.oxygen / MAX_OXYGEN_LEVEL));
+      return this.progress.oxygen;
     },
     oceansProgress(): number {
-      return Math.max(0, Math.min(1, this.oceans / MAX_OCEAN_TILES));
+      return this.progress.oceans;
     },
+    // Venus keeps its OWN per-axis underline — deliberately separate from the
+    // aggregate above.
     venusProgress(): number {
       return Math.max(0, Math.min(1, this.venus / MAX_VENUS_SCALE));
     },
-    terraformProgress(): number {
-      return (this.temperatureProgress + this.oxygenProgress + this.oceansProgress) / 3;
-    },
     terraformProgressPercent(): number {
-      return Math.round(this.terraformProgress * 100);
+      return this.progress.percent;
+    },
+    celebrationNonce(): number {
+      return terraformingCelebrationState.celebrationNonce;
+    },
+    // This generation is authoritatively the game's LAST one. Multiplayer:
+    // the server's game-end condition (isTerraformed, variant-aware); solo:
+    // solo games always run to the fixed last generation.
+    finalGenerationActive(): boolean {
+      if (this.players.length <= 1) {
+        return this.generation >= this.lastSoloGeneration;
+      }
+      return this.isTerraformed;
     },
     terraformProgressTitle(): string {
       return `${translateText('Terraforming progress')}: ${this.terraformProgressPercent}%`;

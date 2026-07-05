@@ -191,6 +191,97 @@
     100% { box-shadow: inset 0 0 0 1px fade(@con-mint, 75%), 0 0 20px fade(@con-mint, 30%); transform: scale(1); }
 }
 
+/* ── Terraforming progress rail (top HUD) ─────────────────────────── */
+/* The GAME-END trio (Temperature · Oxygen · Oceans) is one instrument
+   group: a compact total percent + a THIN premium rail underline. The
+   percent deliberately carries no word label — its attachment to the
+   trio IS the meaning. Venus sits OUTSIDE the group behind a divider
+   (it is never part of the total); the generation block follows.
+   All three flex items share the same padding-bottom so their content
+   rows stay optically aligned while the rail lives in the group's
+   reserved underline zone. */
+.con-status {
+    &__terra {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 26px;
+        padding-bottom: 9px;
+    }
+    &__terra-pct {
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        font-variant-numeric: tabular-nums;
+        color: fade(@con-mint, 88%);
+        text-shadow: 0 0 8px fade(@con-mint, 25%);
+    }
+    &__terra-rail {
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        bottom: 0;
+        height: 3px;
+        border-radius: 2px;
+        overflow: hidden;
+        background: rgba(10, 18, 28, 0.85);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22);
+    }
+    &__terra-fill {
+        display: block;
+        height: 100%;
+        width: 0;
+        border-radius: 2px;
+        background: linear-gradient(90deg, @con-cyan 0%, fade(@con-mint, 92%) 100%);
+        box-shadow: 0 0 6px fade(@con-cyan, 45%);
+        transition: width calc(700ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    /* Completed (Temperature + Oxygen + Oceans all maxed — Venus never
+       counts): the rail + percent flip to the completed gold. */
+    &__terra--complete .con-status__terra-fill {
+        background: linear-gradient(90deg, fade(@con-mint, 92%) 0%, @con-amber 100%);
+        box-shadow: 0 0 8px fade(@con-amber, 55%);
+    }
+    &__terra--complete .con-status__terra-pct {
+        color: fade(@con-amber, 95%);
+        text-shadow: 0 0 9px fade(@con-amber, 35%);
+    }
+    /* One-shot celebration pulse on the LIVE completion moment (class is
+       applied ~3.4s by the strip; drop-shadow hugs the rendered content). */
+    &__terra--celebrating {
+        animation: con-terra-celebrate calc(3400ms * var(--motion-scale, 1)) ease-out 1;
+    }
+    /* Venus is deliberately SEPARATED from the shared rail group. */
+    &__param--venus {
+        padding-left: 20px;
+        padding-bottom: 9px;
+        border-left: 1px solid fade(@con-cyan, 25%);
+    }
+    &__gen {
+        padding-bottom: 9px;
+    }
+    /* Persistent FINAL GENERATION marker — the generation block turns gold
+       («ФИНАЛЬНОЕ ПКЛ.»). Calm and compact: state, not an announcement. */
+    &__gen--final .con-status__gen-label {
+        color: fade(@con-amber, 92%);
+        text-shadow: 0 0 8px fade(@con-amber, 30%);
+    }
+    &__gen--final .con-status__value {
+        color: fade(@con-amber, 96%);
+        text-shadow: 0 0 10px fade(@con-amber, 35%);
+    }
+}
+@keyframes con-terra-celebrate {
+    0% { filter: drop-shadow(0 0 0 rgba(88, 214, 166, 0)); }
+    16% { filter: drop-shadow(0 0 14px fade(@con-mint, 85%)); }
+    52% { filter: drop-shadow(0 0 7px fade(@con-amber, 55%)); }
+    100% { filter: drop-shadow(0 0 0 rgba(242, 193, 78, 0)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-status__terra--celebrating { animation: none; }
+    .con-status__terra-fill { transition: none; }
+}
+
 /* ── Turn / task banner ──────────────────────────────────────────── */
 .con-banner {
     /* P21: an OVERLAY, not a flow row — toggling the banner (placement /
@@ -237,6 +328,122 @@
 @keyframes con-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.35; }
+}
+
+/* ── Terraforming complete — console cinematic event banner ───────── */
+/* Centred just BELOW the regular turn/task banner band so a live
+   placement / awaiting-decision pill is never covered. pointer-events:
+   none + a bounded lifetime — it announces and leaves; the persistent
+   state lives in the HUD rail + the gold generation marker. */
+.con-terra-event {
+    position: absolute;
+    top: calc(1.2vh + 104px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 70;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 34px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: linear-gradient(160deg, rgba(14, 32, 27, 0.94) 0%, rgba(9, 16, 24, 0.93) 58%, rgba(20, 26, 15, 0.94) 100%);
+    box-shadow:
+        inset 0 0 0 1px fade(@con-mint, 55%),
+        0 14px 44px rgba(0, 0, 0, 0.55),
+        0 0 34px -6px fade(@con-mint, 45%);
+
+    &__tick {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border: 2px solid fade(@con-mint, 80%);
+        pointer-events: none;
+
+        &--tl { top: 0; left: 0; border-right: none; border-bottom: none; }
+        &--br { bottom: 0; right: 0; border-left: none; border-top: none; }
+    }
+    &__glyph {
+        font-size: 34px;
+        line-height: 1;
+        color: @con-mint;
+        text-shadow: 0 0 16px fade(@con-mint, 75%);
+        animation: con-terra-event-glyph calc(2400ms * var(--motion-scale, 1)) ease-out 1;
+    }
+    &__text {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    &__title {
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: #eafff4;
+        text-shadow: 0 0 14px fade(@con-mint, 45%);
+        white-space: nowrap;
+    }
+    &__subtitle {
+        font-size: 17px;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        color: fade(@con-amber, 92%);
+        text-shadow: 0 0 10px fade(@con-amber, 30%);
+        white-space: nowrap;
+    }
+    /* One travelling light sweep across the plate — a single pass, no loop. */
+    &__sweep {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 60px;
+        left: -80px;
+        background: linear-gradient(100deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.14) 50%,
+            rgba(255, 255, 255, 0) 100%);
+        animation: con-terra-event-sweep calc(1800ms * var(--motion-scale, 1)) ease-out 1 300ms both;
+    }
+}
+.con-terra-event-enter-active {
+    transition: opacity calc(420ms * var(--motion-scale, 1)) ease-out, transform calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.con-terra-event-leave-active {
+    transition: opacity calc(600ms * var(--motion-scale, 1)) ease-in, transform calc(600ms * var(--motion-scale, 1)) ease-in;
+}
+.con-terra-event-enter-from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-14px) scale(0.96);
+}
+.con-terra-event-leave-to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px) scale(0.985);
+}
+@keyframes con-terra-event-glyph {
+    0% { transform: scale(0.4) rotate(-90deg); opacity: 0; }
+    35% { transform: scale(1.25) rotate(8deg); opacity: 1; }
+    60% { transform: scale(0.96) rotate(-2deg); }
+    100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes con-terra-event-sweep {
+    0% { left: -80px; }
+    100% { left: calc(100% + 20px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-terra-event__glyph,
+    .con-terra-event__sweep {
+        animation: none;
+    }
+    .con-terra-event-enter-active,
+    .con-terra-event-leave-active {
+        transition: opacity 0.2s ease;
+    }
+    .con-terra-event-enter-from,
+    .con-terra-event-leave-to {
+        transform: translateX(-50%);
+    }
 }
 
 /* (The old LB/RB section strip is gone — LB/RB are semantic buttons now,
@@ -6174,7 +6381,15 @@ html.con-profile-handheld {
 
         &__params { gap: 14px; }
         &__value { font-size: 16px; }
+        &__terra { gap: 14px; padding-bottom: 7px; }
+        &__terra-pct { font-size: 13px; }
+        &__terra-rail { height: 2px; }
+        &__param--venus { padding-left: 12px; padding-bottom: 7px; }
+        &__gen { padding-bottom: 7px; }
         &__gen-label { display: none; } /* the number reads alone */
+        /* …except the FINAL GENERATION marker — that state must stay
+           readable even on the handheld profile (smaller, still gold). */
+        &__gen--final .con-status__gen-label { display: inline; font-size: 10px; letter-spacing: 1.1px; }
         &__intel { gap: 12px; }
         &__intel-label { display: none; } /* icon + numbers suffice */
         &__intel-value { font-size: 16px; b { font-size: 18px; } }
@@ -6185,6 +6400,15 @@ html.con-profile-handheld {
         &__dot { width: 11px; height: 11px; }
     }
     .con-banner { font-size: 15px; padding: 5px 12px; }
+    .con-terra-event {
+        top: calc(0.8vh + 78px);
+        gap: 12px;
+        padding: 10px 22px;
+
+        &__glyph { font-size: 26px; }
+        &__title { font-size: 18px; letter-spacing: 2.2px; }
+        &__subtitle { font-size: 13px; letter-spacing: 1.1px; }
+    }
 
     /* ── 3 · bottom command bar ──────────────────────────────────── */
     .con-cmdbar {
@@ -6508,6 +6732,7 @@ html.con-profile-handheld {
 /* ── LARGE (4K / big TV): a gentle readability boost only ─────────── */
 html.con-profile-large {
     .con-status__value { font-size: 24px; }
+    .con-status__terra-pct { font-size: 20px; }
     .con-status__player { font-size: 23px; }
     .con-cmdbar__context { font-size: 23px; }
     .con-cmdbar__cmd span { font-size: 21px; }

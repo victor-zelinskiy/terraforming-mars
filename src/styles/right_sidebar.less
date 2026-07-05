@@ -900,6 +900,99 @@
 }
 
 /* ============================================================ */
+/*   Terraforming COMPLETE + final-generation marker             */
+/* ============================================================ */
+
+/*
+ * When Temperature + Oxygen + Oceans are all maxed (Venus deliberately
+ * never counts — it is not a game-end parameter) the whole gauge flips
+ * to a completed gold-into-mint treatment: the spine reads "done", the
+ * overall % readout turns gold at 100.
+ */
+@planet-terraformed-gold: #f0d488;
+
+.planet-sidebar--terraformed .planet-spine__fill {
+    background: linear-gradient(180deg,
+        fade(@planet-terraformed-gold, 96%) 0%,
+        fade(@planet-terraformed-gold, 88%) 38%,
+        @planet-spine-fill-top 100%);
+    box-shadow:
+        0 0 8px fade(@planet-terraformed-gold, 60%),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.planet-sidebar--terraformed .planet-overall__value {
+    color: fade(@planet-terraformed-gold, 98%);
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.8),
+        0 0 12px fade(@planet-terraformed-gold, 55%);
+}
+
+/*
+ * One-shot celebration on the LIVE completion moment (class applied for
+ * ~3.2s by the shared celebration nonce; a reload into an already-
+ * terraformed game only gets the calm --terraformed state above).
+ * Targets the spine CONTAINER, not __fill — the delta-chip "kick"
+ * animation already owns __fill's animation slot, so the two can play
+ * together at the completion moment instead of fighting for it.
+ */
+.planet-sidebar--celebrating .planet-spine {
+    animation: planet-terraformed-celebrate calc(3200ms * var(--motion-scale, 1)) ease-out 1;
+}
+.planet-sidebar--celebrating .planet-overall__value {
+    animation: planet-overall-celebrate calc(3200ms * var(--motion-scale, 1)) ease-out 1;
+}
+/* The container's inset rims are repeated in every frame — an animated
+   box-shadow REPLACES the whole list, so omitting them would blink the
+   spine's frame off for the duration of the celebration. */
+@keyframes planet-terraformed-celebrate {
+    0% { box-shadow: inset 0 0 0 1px @planet-navy-rim, inset 0 0 4px rgba(0, 0, 0, 0.7), 0 0 4px rgba(106, 176, 230, 0.08); }
+    22% { box-shadow: inset 0 0 0 1px @planet-navy-rim, inset 0 0 4px rgba(0, 0, 0, 0.7), 0 0 22px fade(@planet-terraformed-gold, 90%); }
+    58% { box-shadow: inset 0 0 0 1px @planet-navy-rim, inset 0 0 4px rgba(0, 0, 0, 0.7), 0 0 12px fade(@planet-terraformed-gold, 65%); }
+    100% { box-shadow: inset 0 0 0 1px @planet-navy-rim, inset 0 0 4px rgba(0, 0, 0, 0.7), 0 0 4px rgba(106, 176, 230, 0.08); }
+}
+@keyframes planet-overall-celebrate {
+    0% { transform: scale(1); }
+    18% { transform: scale(1.22); }
+    46% { transform: scale(1.04); }
+    100% { transform: scale(1); }
+}
+
+/*
+ * Persistent FINAL GENERATION marker — a slim gold chip directly under the
+ * generation cap. Compact by design («ФИНАЛ»); the full wording rides the
+ * aria-label. Appears when this generation is authoritatively the game's
+ * last and simply stays — never re-announces.
+ */
+.planet-sidebar .planet-final-gen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 4px;
+    padding: 3px 4px 2px;
+    border-radius: 4px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    line-height: 1;
+    text-transform: uppercase;
+    color: fade(@planet-terraformed-gold, 96%);
+    background: linear-gradient(180deg, rgba(56, 44, 20, 0.5) 0%, rgba(34, 26, 12, 0.68) 100%);
+    box-shadow:
+        inset 0 0 0 1px fade(@planet-terraformed-gold, 40%),
+        0 0 10px -3px fade(@planet-terraformed-gold, 45%);
+    text-shadow: 0 0 6px fade(@planet-terraformed-gold, 40%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .planet-sidebar--celebrating .planet-spine,
+    .planet-sidebar--celebrating .planet-overall__value {
+        animation: none;
+    }
+}
+
+/* ============================================================ */
 /*   Game exit button (App-level corner affordance)              */
 /* ============================================================ */
 

@@ -19,6 +19,7 @@ import {
   coalesceBurst,
   buildTurnNotification,
   buildGenerationNotification,
+  buildTerraformingCompleteNotification,
   buildPassNotification,
 } from '@/client/components/notifications/notificationModel';
 import {RevealLogMeta} from '@/common/logs/RevealLogMeta';
@@ -428,6 +429,22 @@ describe('notificationModel (pure)', () => {
     it('builds a pass card with the actor', () => {
       const n = buildPassNotification(RED, 6, 1);
       expect(n).to.include({id: 'pass:6:red', kind: 'important', actor: RED, typeLabelKey: 'Player passed'});
+    });
+    it('builds the terraforming-complete card with an honest subtitle', () => {
+      const last = buildTerraformingCompleteNotification(9, true, 1);
+      expect(last).to.include({
+        id: 'terraforming-complete',
+        kind: 'important',
+        variant: 'terraforming-complete',
+        typeLabelKey: 'Terraforming complete',
+        bodyKey: 'This is the final generation',
+        generation: 9,
+        persistent: false,
+      });
+      // NOT the last generation (solo mid-run / a Venus-required game-end
+      // variant) → the neutral completion line, never a false claim.
+      const notLast = buildTerraformingCompleteNotification(9, false, 1);
+      expect(notLast.bodyKey).to.eq('Temperature, oxygen and oceans are complete');
     });
   });
 });

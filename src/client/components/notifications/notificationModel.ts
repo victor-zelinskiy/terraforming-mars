@@ -517,6 +517,37 @@ export function buildGenerationNotification(generation: number, createdAt: numbe
   };
 }
 
+/**
+ * The one-shot "Terraforming complete" prestige highlight — Temperature +
+ * Oxygen + Oceans first reached completion (Venus NEVER gates this; see
+ * `terraformingCelebration.ts` for the trigger). `finalGeneration` controls
+ * the honest subtitle: true (default multiplayer — completing the three
+ * parameters IS the game-end condition, so this generation is the last) →
+ * "This is the final generation"; false (solo mid-run / a Venus-required
+ * game-end variant) → a neutral completion line instead of a false claim.
+ */
+export function buildTerraformingCompleteNotification(generation: number, finalGeneration: boolean, createdAt: number): NotificationModel {
+  return {
+    // Stable singleton id — `pushTransient` de-dups by id, so even a stray
+    // double-detect could never show two cards.
+    id: 'terraforming-complete',
+    kind: 'important',
+    variant: 'terraforming-complete',
+    priority: NOTIFICATION_PRIORITY['important'],
+    typeLabelKey: 'Terraforming complete',
+    bodyKey: finalGeneration ? 'This is the final generation' : 'Temperature, oxygen and oceans are complete',
+    pills: [],
+    detailCount: 0,
+    generation,
+    // The single biggest announcement of the game — lingers longer than an
+    // ordinary important card (mirrors the hostile-card reasoning).
+    ttl: 14_000,
+    persistent: false,
+    cta: {labelKey: 'To journal', action: 'open-journal'},
+    createdAt,
+  };
+}
+
 // ── Hostile / negative events (the VIEWER lost something to another player) ──
 
 /** The attacker behind a viewer-loss event — the recipient (steal/transfer) or

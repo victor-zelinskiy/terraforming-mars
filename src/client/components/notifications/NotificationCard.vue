@@ -413,6 +413,7 @@ export default defineComponent({
       switch (this.notification.variant) {
       case 'milestone': return '🏆';
       case 'award': return '🏅';
+      case 'terraforming-complete': return '❂';
       case 'action-required': return '!';
       case 'your-turn': return '▸';
       case 'warning': return '⚠';
@@ -441,7 +442,8 @@ export default defineComponent({
     // your-turn card and the new-generation highlight.
     metaLine(): string | undefined {
       if (this.notification.kind === 'your-turn' ||
-          (this.notification.kind === 'important' && this.notification.typeLabelKey === 'New generation')) {
+          (this.notification.kind === 'important' && this.notification.typeLabelKey === 'New generation') ||
+          this.notification.variant === 'terraforming-complete') {
         return `${this.$t('Generation')} ${this.notification.generation}`;
       }
       return undefined;

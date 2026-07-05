@@ -100,6 +100,7 @@ export type NotificationVariant =
   | 'planetary-event' // an Ares planetary event (hazards appear / intensify / recede)
   | 'milestone' // an achievement was claimed
   | 'award' // an award was funded
+  | 'terraforming-complete' // Temperature + Oxygen + Oceans first reached completion
   | 'generation' // a new generation began
   | 'pass' // a player passed
   | 'your-turn'

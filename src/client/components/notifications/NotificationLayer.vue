@@ -61,7 +61,13 @@ import {
   buildGenerationNotification,
   buildPassNotification,
   buildScaleBonusClaimNotification,
+  buildTerraformingCompleteNotification,
 } from '@/client/components/notifications/notificationModel';
+import {
+  observeTerraformingProgress,
+  resetTerraformingCelebration,
+  terraformingCelebrationState,
+} from '@/client/components/gameProgress/terraformingCelebration';
 import {scaleBonusRewardKey} from '@/client/components/board/scaleBonusZones';
 import {isPlayerPanelVisible} from '@/client/components/overview/turnHandoffState';
 import {openRevealViewer} from '@/client/components/notifications/revealViewerState';
@@ -203,6 +209,8 @@ export default defineComponent({
       this.handleGenerationAndPass(now);
       // 2b) Scale-bonus claims (a player took a premium reward zone).
       this.handleScaleBonusClaims(now);
+      // 2c) Terraforming completed (Temperature + Oxygen + Oceans first maxed).
+      this.handleTerraformingComplete(now);
       // 3) Root-event feed (async). A1: gate the network fetch on a
       // (gameAge, undoCount) change — the streams can't have grown otherwise, so
       // a re-commit at the same version is a no-op fetch. The 2.2s poller
@@ -235,6 +243,28 @@ export default defineComponent({
       }
     },
 
+    // The one-shot "Terraforming complete" event — detected from the
+    // AUTHORITATIVE public game state (server-computed parameters +
+    // isTerraformed), seeded silently on first load / reconnect (an
+    // already-terraformed game shows only the persistent markers, never the
+    // cinematic) and fired exactly once on the live transition. The shared
+    // celebration module also drives the desktop sidebar glow + the console
+    // HUD rail pulse; in CONSOLE mode the cinematic banner (ConsoleShell)
+    // owns the presentation, so the desktop card is not pushed there.
+    handleTerraformingComplete(now: number): void {
+      const fresh = observeTerraformingProgress(this.playerView);
+      if (!fresh) {
+        return;
+      }
+      if (!this.consoleEnabled) {
+        // Deliberately NOT gated on journalOpen — like a hostile loss, the
+        // single biggest announcement of the game must not be missed.
+        pushTransient(buildTerraformingCompleteNotification(
+          terraformingCelebrationState.celebrationGeneration,
+          terraformingCelebrationState.celebrationFinal,
+          now));
+      }
+    },
     titleText(waitingFor: PlayerInputModel): string | undefined {
       const t = waitingFor.title;
       return typeof t === 'string' ? t : t?.message;
@@ -253,6 +283,7 @@ export default defineComponent({
       // suppress the new game (and re-seed silently — no spam).
       if (notificationState.lastGeneration !== undefined && gen < notificationState.lastGeneration) {
         resetNotifications();
+        resetTerraformingCelebration(); // same boundary — a different game opened in-session
         this.lastFetchVersion = undefined; // A1: force a re-seed fetch for the new game
       }
       const canToast = notificationState.seeded && !this.journalOpen && notificationState.settings.showImportant;
@@ -386,6 +417,10 @@ export default defineComponent({
       case 'open-journal':
         if (notification.correlationId !== undefined) {
           openJournalToEvent(notification.correlationId, notification.generation);
+        } else {
+          // Cards without a root event (generation / terraforming-complete):
+          // the journal itself is the destination.
+          journalState.open = true;
         }
         dismiss(notification.id);
         break;

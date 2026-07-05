@@ -64,6 +64,7 @@
     "Drew and discarded ${0} to place a ${1}": "Взял и сбросил ${0} чтобы выложить ${1}",
     "The id of this game is ${0}": "ID игры ${0}",
     "Good luck ${0}!": "Удачи, ${0}!",
+    "Mars is terraformed!": "Марс терраформирован!",
     "Final greenery placement": "Завершающее размещение жетонов озеленения",
     "Final greenery phase is skipped since you did not complete the win condition.": "Фаза завершающего размещения жетонов озеленения была пропущена, т.к. вы не выполнили победного условия.",
     "This game id was ${0}": "ID игры: ${0}",

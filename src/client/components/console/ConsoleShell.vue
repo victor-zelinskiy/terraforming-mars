@@ -22,6 +22,11 @@
       <span class="con-banner__hint"><GamepadGlyph control="back" /><span>{{ $t(deferReturnLabel) }}</span></span>
     </div>
 
+    <!-- Terraforming complete — the one-shot console-native cinematic event
+         (pointer-events: none, bounded lifetime; the persistent state lives
+         in the top-HUD rail + generation marker). -->
+    <ConsoleTerraformingBanner />
+
     <div class="con-main">
       <ConsoleResourcePanel :player="thisPlayer" :epoch="playerView.runId" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
@@ -366,6 +371,7 @@ import SelectSpace from '@/client/components/SelectSpace.vue';
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
 
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
+import ConsoleTerraformingBanner from '@/client/components/console/ConsoleTerraformingBanner.vue';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
@@ -455,6 +461,7 @@ export default defineComponent({
   name: 'ConsoleShell',
   components: {
     ConsoleStatusStrip,
+    ConsoleTerraformingBanner,
     ConsoleCommandBar,
     ConsoleSheet,
     ConsoleMaScreen,

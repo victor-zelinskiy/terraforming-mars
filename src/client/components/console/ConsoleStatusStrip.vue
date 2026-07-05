@@ -22,24 +22,40 @@
     </div>
 
     <div class="con-status__params">
-      <span class="con-status__param">
-        <i class="wgt-icon wgt-icon--temperature con-status__icon" aria-hidden="true"></i>
-        <span class="con-status__value">{{ game.temperature }}°C</span>
-      </span>
-      <span class="con-status__param">
-        <i class="wgt-icon wgt-icon--oxygen con-status__icon" aria-hidden="true"></i>
-        <span class="con-status__value">{{ game.oxygenLevel }}%</span>
-      </span>
-      <span class="con-status__param">
-        <i class="wgt-icon wgt-icon--ocean con-status__icon" aria-hidden="true"></i>
-        <span class="con-status__value">{{ game.oceans }}/9</span>
-      </span>
-      <span v-if="game.gameOptions.expansions.venus" class="con-status__param">
+      <!-- The GAME-END trio (Temperature · Oxygen · Oceans) reads as ONE
+           instrument group: a compact total percent + a thin premium rail
+           underline. Venus (below) sits OUTSIDE this group on purpose — it
+           is a separate expansion parameter and never part of the total. -->
+      <div class="con-status__terra"
+           :class="{
+             'con-status__terra--complete': progress.complete,
+             'con-status__terra--celebrating': celebrating,
+           }"
+           role="group"
+           :aria-label="terraAriaLabel">
+        <span class="con-status__param">
+          <i class="wgt-icon wgt-icon--temperature con-status__icon" aria-hidden="true"></i>
+          <span class="con-status__value">{{ game.temperature }}°C</span>
+        </span>
+        <span class="con-status__param">
+          <i class="wgt-icon wgt-icon--oxygen con-status__icon" aria-hidden="true"></i>
+          <span class="con-status__value">{{ game.oxygenLevel }}%</span>
+        </span>
+        <span class="con-status__param">
+          <i class="wgt-icon wgt-icon--ocean con-status__icon" aria-hidden="true"></i>
+          <span class="con-status__value">{{ game.oceans }}/9</span>
+        </span>
+        <span class="con-status__terra-pct">{{ progress.percent }}%</span>
+        <span class="con-status__terra-rail" aria-hidden="true">
+          <span class="con-status__terra-fill" :style="{width: progress.percent + '%'}"></span>
+        </span>
+      </div>
+      <span v-if="game.gameOptions.expansions.venus" class="con-status__param con-status__param--venus">
         <i class="wgt-icon wgt-icon--venus con-status__icon" aria-hidden="true"></i>
         <span class="con-status__value">{{ game.venusScaleLevel }}%</span>
       </span>
-      <span class="con-status__gen">
-        <span class="con-status__gen-label">{{ $t('GEN.') }}</span>
+      <span class="con-status__gen" :class="{'con-status__gen--final': finalGeneration}">
+        <span class="con-status__gen-label">{{ $t(finalGeneration ? 'FINAL GEN.' : 'GEN.') }}</span>
         <span class="con-status__value">{{ game.generation }}</span>
       </span>
     </div>
@@ -66,6 +82,10 @@ import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
 import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
+import {terraformingProgress, TerraformingProgress} from '@/client/components/gameProgress/terraformingProgress';
+import {finalGenerationActive, terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
+import {motionMs} from '@/client/components/motion/motionTokens';
+import {translateText} from '@/client/directives/i18n';
 
 /** Mirrors LeftPlayerCard: 1-indexed position of the upcoming action. */
 const MAX_ACTIONS_PER_ROUND = 2;
@@ -92,6 +112,9 @@ export default defineComponent({
       /** One-shot "turn passed to YOU" attention burst on the viewer's chip. */
       turnBurst: false,
       burstTimer: undefined as number | undefined,
+      /** One-shot terraforming-complete pulse on the Temp/O₂/Oceans group. */
+      celebrating: false,
+      celebrateTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -109,6 +132,21 @@ export default defineComponent({
       const me = this.players.find((p) => p.color === this.thisPlayerColor);
       return me !== undefined ? this.presentation(me).category : 'none';
     },
+    /** The SHARED terraforming-progress math (same helper the desktop
+     *  sidebar gauge uses) — Temperature + Oxygen + Oceans ONLY. */
+    progress(): TerraformingProgress {
+      return terraformingProgress(this.game);
+    },
+    /** This generation is authoritatively the game's last one. */
+    finalGeneration(): boolean {
+      return finalGenerationActive(this.playerView);
+    },
+    celebrationNonce(): number {
+      return terraformingCelebrationState.celebrationNonce;
+    },
+    terraAriaLabel(): string {
+      return `${translateText('Terraforming progress')}: ${this.progress.percent}%`;
+    },
   },
   watch: {
     myCategory(now: StatusPresentation['category'], before: StatusPresentation['category']) {
@@ -122,10 +160,25 @@ export default defineComponent({
         }, 2600);
       }
     },
+    // One-shot pulse on the Temp/O₂/Oceans group when terraforming completes
+    // LIVE (the shared nonce never re-fires on reload — the calm --complete
+    // state carries the persistent look).
+    celebrationNonce() {
+      this.celebrating = true;
+      if (this.celebrateTimer !== undefined) {
+        window.clearTimeout(this.celebrateTimer);
+      }
+      this.celebrateTimer = window.setTimeout(() => {
+        this.celebrating = false;
+      }, motionMs(3400));
+    },
   },
   beforeUnmount() {
     if (this.burstTimer !== undefined) {
       window.clearTimeout(this.burstTimer);
+    }
+    if (this.celebrateTimer !== undefined) {
+      window.clearTimeout(this.celebrateTimer);
     }
   },
   methods: {
