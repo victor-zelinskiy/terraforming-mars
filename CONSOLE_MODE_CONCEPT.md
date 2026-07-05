@@ -2016,3 +2016,56 @@ leading score, and a slot footer («Свободно: N» / gold «✓ Все п
 badge), and `Menu Система` is BACK in the freed slot. Gates: vue-tsc,
 make:css, make:json, eslint, consoleJournalModel (9) +
 consoleQuickModel (15) — green.
+
+### P29 — Main-board polish: Awards semantics, board self-calibration, Journal header + INSPECT model
+
+(1) **Awards ≠ Milestones availability semantics** — a claimable
+milestone keeps the strong mint alert (a hard condition was met); a
+fundable award is a normal ECONOMY action and reads calm: the right
+panel's award rows lost the mint `--now` rail + the block lost `--hot`
+(a QUIET steel-cyan count chip `con-home__badge--quiet` communicates
+"can sponsor"), and `ConsoleMaScreen` applies `con-ma__card--go` /
+`__rail--go` to milestones ONLY (the award CTA + wallet carry the
+availability). Desktop overlays already follow the principle (fund =
+calm button) — untouched. (2) **Board fit v2 — SELF-CALIBRATION** — the
+hand-tuned `BOARD_NATURAL` constants are a first-frame seed only:
+`ConsoleBoardSection.calibrate()` measures the union bbox of the actual
+stage content (planet, arcs, off-Mars flanks, ocean scale — whatever the
+expansion set composed), derives the EFFECTIVE natural box (union /
+applied scale) and the TRUE visual centre, then re-fits + re-centres via
+`--con-board-dx/dy` (replacing the static nudge). Bounded convergence
+(2 passes / fit cycle), sanity clamps (560–800 × 460–660), full-stage
+wrappers + floating popovers excluded from the union. Dead margins from
+constant drift are gone; the journal still reserves NOTHING (absolute
+overlay). (3) **Journal surface polish** — the right context panel is
+`visibility: hidden` under the open journal (`.con-main--journal`;
+layout slot kept — the board never reflows) and the journal background
+is near-opaque: no ghost panel bleed-through. Header is a STABLE
+two-row structure: row 1 = title + the filter chip top-right
+(min-width fits «ТОЛЬКО СОПЕРНИКИ»; ellipsis fallback) + close hint;
+row 2 = mode segments and the generation stepper on ONE nowrap
+space-between line; «В ЭФИРЕ» compacted to a pulsing live DOT in a
+fixed-width slot (aria-labelled) — content can never reflow the header.
+(4) **X = «Осмотреть» (never «Карта»)** — the pure
+`journalInspectTargets` classifier (consoleJournalModel; manifest
+predicate injected) collects the focused entry's cards / standard
+projects+actions / Hydronetwork / SPACE cells. X opens the PRIMARY
+target: project card(s) → fullscreen viewer; standard project/action →
+the compact premium INSPECT card (reuses the SAME
+`standardProjectVisuals` table the desktop hover reads + the printed
+cost); Hydronetwork → the hydro inspect card (shared `HYDRO_PREVIEW`
+copy); a map-only entry → the cell highlight. **L3 = «Показать»**
+(hinted only when the entry has a SPACE ref): pulses the cell via the
+shared `boardCellHighlight` pipeline while the journal PEEKS (fades to
+0.1 so the highlight reads through); the peek ends on its own timer or
+on the next input, B during peek/inspect is a LOCAL back (the shell
+gates on the `inspectOpen`/`peekActive` mirrors — never an accidental
+journal close), focus/scroll/filter are untouched. The bar is honest:
+`X Осмотреть` enabled iff a target exists. (5) **Desktop alignment** —
+the Hydronetwork journal chip finally has a hover preview
+(`HydronetPreviewPopover`, a `.journal-sp-preview` twin fed by the same
+shared `hydroPreview.ts` copy as the console card); fullscreen stays
+suppressed (no user-facing card exists). Std project/action previews
+were already shared via `PROJECT_VISUAL`. Gates: vue-tsc, make:css,
+make:json, eslint, consoleJournalModel (10) + full console+gamepad
+(171), build:client — green.

@@ -66,19 +66,39 @@ type BoardCandidate = {kind: 'cell' | 'marker', id: string, el: HTMLElement, rec
  */
 const BOARD_NATURAL_W = 644;
 const BOARD_NATURAL_H = 556;
-const STAGE_PAD = 8;
-/** P27b: the vertical pad is tighter — the strip above the planet was dead
- *  air (console has no desktop MA badges there), so the board scales up a
- *  notch and sits higher. */
-const STAGE_PAD_Y = 4;
+/** «Впритык»: just enough breathing room that edge glows aren't clipped
+ *  by the stage's overflow:hidden. */
+const STAGE_PAD = 4;
+const STAGE_PAD_Y = 2;
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 4;
+/**
+ * P29b — the calibration measures ONLY the SEMANTIC visible content, never
+ * generic containers: every arc scale is a transparent 600×600 SVG CANVAS
+ * (`.arc-scale__svg`) whose DOM rect is the whole square, not the visible
+ * band — a generic `*` union over those quadrants OVERSTATED the natural
+ * box and the board actually shrank. SVG *children* (paths / text) report
+ * tight geometry bboxes, so the union below is the true visible footprint:
+ * hex cells (incl. off-Mars), the arc band contours, the scale digits,
+ * the identity glyphs and the bonus/event chips.
+ */
+const CONTENT_SELECTOR = [
+  '.board-space[data_space_id]',
+  '.arc-scale__rail',
+  '.arc-scale__edge',
+  '.arc-scale__digit',
+  '.arc-scale__identity',
+  '.arc-marker',
+  '[data-arc-marker]',
+  // Planetary-event chips (ocean/Ares thresholds) sit OUTSIDE the band.
+  '.scale-event',
+].join(', ');
 /** Sanity clamps for the MEASURED natural box — a mid-transition / stray
- *  overlay measurement can never explode or collapse the board. */
-const NATURAL_W_MIN = 560;
-const NATURAL_W_MAX = 800;
-const NATURAL_H_MIN = 460;
-const NATURAL_H_MAX = 660;
+ *  measurement can never explode or collapse the board. */
+const NATURAL_W_MIN = 480;
+const NATURAL_W_MAX = 760;
+const NATURAL_H_MIN = 400;
+const NATURAL_H_MAX = 620;
 /** Re-fit only on a meaningful drift (px of natural size / px of offset). */
 const CALIBRATE_SIZE_EPS = 3;
 const CALIBRATE_OFFSET_EPS = 2;
@@ -232,18 +252,10 @@ export default defineComponent({
       let top = Infinity;
       let right = -Infinity;
       let bottom = -Infinity;
-      for (const el of stage.querySelectorAll<HTMLElement>('*')) {
+      for (const el of stage.querySelectorAll<HTMLElement>(CONTENT_SELECTOR)) {
         const r = el.getBoundingClientRect();
         if (r.width <= 0 || r.height <= 0) {
           continue; // hidden / collapsed
-        }
-        // Skip full-stage wrapper boxes (they'd make the union == stage) and
-        // floating popovers that are not board content.
-        if (r.width >= sr.width - 2 && r.height >= sr.height - 2) {
-          continue;
-        }
-        if (el.closest('.scale-tooltip, .board-cell-popover') !== null) {
-          continue;
         }
         left = Math.min(left, r.left);
         top = Math.min(top, r.top);
