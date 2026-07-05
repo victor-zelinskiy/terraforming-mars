@@ -1195,10 +1195,30 @@
     &--award &__name {
         color: #efe0f3;
     }
+    &__body {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+    &__art {
+        flex-shrink: 0;
+        width: 54px;
+        height: 54px;
+        border-radius: 9px;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        box-shadow: inset 0 0 0 1px rgba(232, 198, 106, 0.34), 0 3px 10px -4px rgba(0, 0, 0, 0.7);
+    }
+    &--award &__art {
+        box-shadow: inset 0 0 0 1px rgba(214, 166, 224, 0.34), 0 3px 10px -4px rgba(0, 0, 0, 0.7);
+    }
     &__desc {
         font-size: 12px;
         line-height: 1.4;
         color: #c6d4dd;
+        min-width: 0;
     }
 }
 

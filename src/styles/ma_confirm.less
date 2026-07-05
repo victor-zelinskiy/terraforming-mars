@@ -597,7 +597,14 @@
     &--remote {
         align-items: flex-start;
         justify-content: flex-end;
-        padding: 108px 18px 0 0;
+        // The same top-right column the notifications layer uses — clear of
+        // the right sidebar (--right-sidebar-width, like notifications.less)
+        // and a notch below the top-bar buttons so the persistent turn card
+        // zone stays readable above.
+        padding:
+            calc(var(--bottom-bar-button-height, 44px) + 64px)
+            calc(var(--right-sidebar-width, 0px) + 16px)
+            0 0;
 
         .ma-cere__card {
             gap: 13px;

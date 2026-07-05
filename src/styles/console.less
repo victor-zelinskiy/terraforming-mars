@@ -2269,43 +2269,31 @@ html.con-profile-handheld .con-macere {
 }
 
 /* ── P20/P29c: off-Mars special zones, console-compacted ───────────
-   P29c-final: ONE exact arc formula for both flanks —
-       top(θ)  = 281 − r·sin(θ)
-       left(θ) = 290 + r·cos(θ)
-   (derived from the shipped desktop constants), radius 310, an even
-   12° step. The two 3-cell flanks are PERFECT MIRRORS (identical top
-   rows 58 / 107 / 165 on both sides) so the spacing is uniform by
-   construction — no hand-eye chaos:
-   - LEFT  (Phobos 134° · Stanford 146° · Ganymede 158°): hugs the
-     oxygen scale, fully inside the board box (no left-rail bleed),
-     Phobos clear of the Venus identity mark;
-   - RIGHT (Luna 46° · Maxwell 34° · Stratopolis 22°): hugs the
-     temperature scale; Stratopolis stays well above the ocean bonus
-     chip (~θ0°) and the Ares ⚠ zone;
-   - DAWN CITY = the composition's corner KEYSTONE in the free
-     top-right quadrant (right of the Venus arc's end, above the
-     temperature scale's start) — the four right zones read as an arc
-     closed by the corner, and the freed right edge lets the fit
-     engine scale the whole board up a touch. */
+   P29c-final: a true CONCAVE ARC, not a ladder. The RIGHT trio (kept —
+   the player likes it) lies on a circle centred ≈(302,273) r≈296 with an
+   EVEN ~11.5° angular step (Luna −50.7° · Maxwell −39.2° · Stratopolis
+   −27.6° — verified equal). The LEFT trio is its EXACT MIRROR about the
+   board's vertical axis (left 290): identical top rows 44 / 86 / 136 on
+   BOTH sides → perfect symmetry, both arcs hugging the planet. Dawn City
+   closes the right flank as the MIRROR OF LUNA about Maxwell's column
+   (equal ~59px arm) → Luna↖ + Dawn↗ cap the arc as one arrow-head.
+   Any future nudge: move a cell ALONG this circle (recompute both), never
+   by eye. */
 html.console-mode {
-    /* LEFT flank — ONE even ladder anchored on Phobos (which sits well —
-       it no longer touches the scale identity mark). Stanford + Ganymede
-       are re-tied to it with a UNIFORM step (top +62 each; a gentle left
-       lean 55 → 38 → 24 that stays off the oxygen arc), so the three read
-       as one clean diagonal instead of a stray top cell + a low pair. */
-    .board-space-02 { margin: 20px 0 0 55px; }    /* Phobos — anchor (unchanged) */
-    .board-space-69 { margin: 82px 0 0 38px; }    /* Stanford — even step down */
-    .board-space-01 { margin: 144px 0 0 24px; }   /* Ganymede — even step down */
-    /* RIGHT flank — kept as-is (the arc reads well): Stratopolis ends
-       clear of the ocean chip, Luna right of the Venus end-bonus cube. */
-    .board-space-70 { margin: 44px 0 0 489px; }   /* Luna 50° */
-    .board-space-73 { margin: 86px 0 0 531px; }   /* Maxwell 39° */
-    .board-space-72 { margin: 136px 0 0 564px; }  /* Stratopolis 28° */
-    /* Dawn City — lowered from the far corner and COLUMN-ALIGNED with
-       Maxwell (same left 531): it caps the flank directly above Maxwell
-       (top 20, its base meeting Maxwell's top ~86), so the four zones
-       read as ONE tight arrow-head instead of a detached corner cell. */
-    .board-space-71 { margin: 20px 0 0 531px; }   /* Dawn City — above Maxwell */
+    /* LEFT — the concave arc, exact mirror of the right trio (nudged +6px
+       right so Ganymede clears the oxygen rail; Phobos at left 95 is well
+       clear of the scale identity mark). */
+    .board-space-02 { margin: 44px 0 0 95px; }    /* Phobos — mirror of Luna */
+    .board-space-69 { margin: 86px 0 0 53px; }    /* Stanford — mirror of Maxwell */
+    .board-space-01 { margin: 136px 0 0 22px; }   /* Ganymede — mirror of Stratopolis */
+    /* RIGHT — the concave arc (unchanged; the reference the rest mirrors). */
+    .board-space-70 { margin: 44px 0 0 489px; }   /* Luna */
+    .board-space-73 { margin: 86px 0 0 531px; }   /* Maxwell */
+    .board-space-72 { margin: 136px 0 0 564px; }  /* Stratopolis */
+    /* Dawn City — mirror of Luna about Maxwell's column (left 531): same
+       top 44, left 573 = 531 + 42 (Luna is 531 − 42). Equal 59px arm to
+       Maxwell, so Luna↖ and Dawn↗ cap the arc symmetrically. */
+    .board-space-71 { margin: 44px 0 0 573px; }   /* Dawn City — mirror of Luna */
 }
 
 /* ── Hand section ────────────────────────────────────────────────── */
@@ -4223,10 +4211,28 @@ html.console-mode {
     letter-spacing: 0.6px;
     color: @con-text;
 }
+/* Rule text + the per-item milestone/award art side by side. */
+.con-journal__inspect-detail {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+.con-journal__inspect-art {
+    flex-shrink: 0;
+    width: 60px;
+    height: 60px;
+    border-radius: 10px;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.3), 0 3px 10px rgba(0, 0, 0, 0.5);
+}
 .con-journal__inspect-desc {
     font-size: 15px;
     line-height: 1.4;
     color: @con-text-dim;
+    min-width: 0;
 }
 .con-journal__inspect-cost {
     display: inline-flex;

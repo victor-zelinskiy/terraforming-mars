@@ -17,7 +17,10 @@
             <div class="journal-ma-preview__name" v-i18n>{{ name }}</div>
           </div>
         </div>
-        <div class="journal-ma-preview__desc" v-i18n>{{ description }}</div>
+        <div class="journal-ma-preview__body">
+          <div v-if="art !== ''" class="journal-ma-preview__art" :style="{backgroundImage: `url(${art})`}" aria-hidden="true"></div>
+          <div class="journal-ma-preview__desc" v-i18n>{{ description }}</div>
+        </div>
       </div>
     </Transition>
   </Teleport>
@@ -36,8 +39,8 @@ import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
  * floating tooltip shows), pulled from the static manifest. Teleported,
  * `pointer-events: none`, mirrors the card/colony preview positioning.
  */
-const PREVIEW_WIDTH = 248;
-const APPROX_HEIGHT = 110;
+const PREVIEW_WIDTH = 300;
+const APPROX_HEIGHT = 132;
 const GAP = 14;
 const VIEWPORT_MARGIN = 8;
 
@@ -74,6 +77,15 @@ export default defineComponent({
       } catch (e) {
         return '';
       }
+    },
+    // The per-ITEM art (assets/ma/<name>.png) — same set + name→file transform
+    // the Milestones / Awards overlays use.
+    art(): string {
+      if (this.name === '') {
+        return '';
+      }
+      const file = (this.name as string).toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
+      return `assets/ma/${file}.png`;
     },
     positionStyle(): Record<string, string> {
       const a = this.anchor;

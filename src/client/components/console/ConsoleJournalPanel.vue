@@ -99,7 +99,13 @@
         <div class="con-journal__inspect-body">
           <div v-if="inspectKicker !== ''" class="con-journal__inspect-kicker" v-i18n>{{ inspectKicker }}</div>
           <div class="con-journal__inspect-name" v-i18n>{{ inspectName }}</div>
-          <div v-if="inspectDescription !== ''" class="con-journal__inspect-desc" v-i18n>{{ inspectDescription }}</div>
+          <div v-if="inspectDescription !== '' || inspectArt !== undefined" class="con-journal__inspect-detail">
+            <div v-if="inspectArt !== undefined"
+                 class="con-journal__inspect-art"
+                 :style="{backgroundImage: `url(${inspectArt})`}"
+                 aria-hidden="true"></div>
+            <div v-if="inspectDescription !== ''" class="con-journal__inspect-desc" v-i18n>{{ inspectDescription }}</div>
+          </div>
           <div v-if="inspectCost !== undefined" class="con-journal__inspect-cost">
             <span v-i18n>Cost</span>: <b>{{ inspectCost }}</b>
             <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
@@ -351,6 +357,19 @@ export default defineComponent({
       case 'award': return 'awards';
       default: return 'hydronetwork';
       }
+    },
+    /**
+     * The per-ITEM art of the milestone / award (shown beside the rule), using
+     * the SAME `assets/ma/<name>.png` set + name→file transform the
+     * Milestones / Awards overlays use. Undefined for the other inspect kinds.
+     */
+    inspectArt(): string | undefined {
+      const i = this.inspect;
+      if (i === undefined || (i.kind !== 'milestone' && i.kind !== 'award')) {
+        return undefined;
+      }
+      const file = i.name.toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
+      return `assets/ma/${file}.png`;
     },
     inspectKicker(): string {
       switch (this.inspect?.kind) {
