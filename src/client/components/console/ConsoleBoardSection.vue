@@ -106,12 +106,13 @@ const CALIBRATE_OFFSET_EPS = 2;
 const CALIBRATE_MAX_PASSES = 2;
 
 /**
- * P29c — the tuned console board scale: the fitted scale is multiplied by
- * this factor. ×1.05 was dialled in LIVE on the Steam Deck (via the
- * temporary LB/RB tuner, now removed) — the arcs sit snug to the side
- * panels with the off-Mars cells re-laid to match (console.less P29c).
+ * P29c — the tuned console board scale multiplier. ×1.05 was dialled in
+ * LIVE on the Deck against the OLD off-Mars layout; after the P29c cell
+ * re-lay the self-calibration measures the TIGHTER union and the plain
+ * fit already lands where ×1.05 used to — the honest multiplier is 1
+ * (kept as the single knob should hardware tuning ever be needed again).
  */
-const SCALE_BOOST = 1.05;
+const SCALE_BOOST = 1.0;
 
 export default defineComponent({
   name: 'ConsoleBoardSection',
